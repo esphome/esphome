@@ -259,7 +259,7 @@ ota:
 logger:
   hardware_uart: UART1
   level: DEBUG
-  esp8266_store_log_strings_in_flash: false
+  esp8266_store_log_strings_in_flash: true
 
 web_server:
 

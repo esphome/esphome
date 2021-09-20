@@ -1,7 +1,8 @@
+#ifdef USE_ESP32
+
 #include "esp32_touch.h"
 #include "esphome/core/log.h"
-
-#ifdef ARDUINO_ARCH_ESP32
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace esp32_touch {

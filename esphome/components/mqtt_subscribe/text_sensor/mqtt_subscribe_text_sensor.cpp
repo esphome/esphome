@@ -1,5 +1,7 @@
 #include "mqtt_subscribe_text_sensor.h"
 
+#ifdef USE_MQTT
+
 #include "esphome/core/log.h"
 #include <utility>
 
@@ -22,3 +24,5 @@ void MQTTSubscribeTextSensor::dump_config() {
 
 }  // namespace mqtt_subscribe
 }  // namespace esphome
+
+#endif  // USE_MQTT

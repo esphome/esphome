@@ -86,7 +86,7 @@ struct iovec {
   size_t iov_len;
 };
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 // arduino-esp8266 declares a global vars called INADDR_NONE/ANY which are invalid with the define
 #ifdef INADDR_ANY
 #undef INADDR_ANY
@@ -97,7 +97,7 @@ struct iovec {
 
 #define ESPHOME_INADDR_ANY ((uint32_t) 0x00000000UL)
 #define ESPHOME_INADDR_NONE ((uint32_t) 0xFFFFFFFFUL)
-#else  // !ARDUINO_ARCH_ESP8266
+#else  // !USE_ESP8266
 #define ESPHOME_INADDR_ANY INADDR_ANY
 #define ESPHOME_INADDR_NONE INADDR_NONE
 #endif
@@ -114,7 +114,7 @@ struct iovec {
 #include <fcntl.h>
 #include <stdint.h>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ARDUINO
 // arduino-esp32 declares a global var called INADDR_NONE which is replaced
 // by the define
 #ifdef INADDR_NONE
@@ -125,7 +125,7 @@ typedef uint32_t socklen_t;
 
 #define ESPHOME_INADDR_ANY ((uint32_t) 0x00000000UL)
 #define ESPHOME_INADDR_NONE ((uint32_t) 0xFFFFFFFFUL)
-#else  // !ARDUINO_ARCH_ESP32
+#else  // !USE_ESP32
 #define ESPHOME_INADDR_ANY INADDR_ANY
 #define ESPHOME_INADDR_NONE INADDR_NONE
 #endif

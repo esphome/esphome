@@ -1,9 +1,6 @@
 import logging
 
 from esphome.const import (
-    CONF_INVERTED,
-    CONF_MODE,
-    CONF_NUMBER,
     CONF_SETUP_PRIORITY,
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
@@ -12,8 +9,8 @@ from esphome.const import (
 # pylint: disable=unused-import
 from esphome.core import coroutine, ID, CORE
 from esphome.types import ConfigType
-from esphome.cpp_generator import RawExpression, add, get_variable
-from esphome.cpp_types import App, GPIOPin
+from esphome.cpp_generator import add, get_variable
+from esphome.cpp_types import App
 from esphome.util import Registry, RegistryEntry
 
 
@@ -26,17 +23,13 @@ async def gpio_pin_expression(conf):
     This is a coroutine, you must await it with a 'await' expression!
     """
     if conf is None:
-        return
+        return None
     from esphome import pins
 
     for key, (func, _) in pins.PIN_SCHEMA_REGISTRY.items():
         if key in conf:
             return await coroutine(func)(conf)
-
-    number = conf[CONF_NUMBER]
-    mode = conf[CONF_MODE]
-    inverted = conf.get(CONF_INVERTED)
-    return GPIOPin.new(number, RawExpression(mode), inverted)
+    return await coroutine(pins.PIN_SCHEMA_REGISTRY[CORE.target_platform][0])(conf)
 
 
 async def register_component(var, config):

@@ -2,7 +2,7 @@
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include <algorithm>
 #include <sstream>
 #include <iostream>  // std::cout, std::fixed
@@ -34,12 +34,12 @@ void HistoryData::take_sample(float data) {
     this->count_ = (this->count_ + 1) % this->length_;
     ESP_LOGV(TAG, "Updating trace with value: %f", data);
   }
-  if (!isnan(data)) {
+  if (!std::isnan(data)) {
     // Recalc recent max/min
     this->recent_min_ = data;
     this->recent_max_ = data;
     for (int i = 0; i < this->length_; i++) {
-      if (!isnan(this->samples_[i])) {
+      if (!std::isnan(this->samples_[i])) {
         if (this->recent_max_ < this->samples_[i])
           this->recent_max_ = this->samples_[i];
         if (this->recent_min_ > this->samples_[i])
@@ -70,15 +70,15 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
   for (auto *trace : traces_) {
     float mx = trace->get_tracedata()->get_recent_max();
     float mn = trace->get_tracedata()->get_recent_min();
-    if (isnan(ymax) || (ymax < mx))
+    if (std::isnan(ymax) || (ymax < mx))
       ymax = mx;
-    if (isnan(ymin) || (ymin > mn))
+    if (std::isnan(ymin) || (ymin > mn))
       ymin = mn;
   }
   // Adjust if manually overridden
-  if (!isnan(this->min_value_))
+  if (!std::isnan(this->min_value_))
     ymin = this->min_value_;
-  if (!isnan(this->max_value_))
+  if (!std::isnan(this->max_value_))
     ymax = this->max_value_;
 
   float yrange = ymax - ymin;
@@ -89,20 +89,20 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
     for (int16_t i = 0; i < this->width_; i++) {
       for (auto *trace : traces_) {
         float v = trace->get_tracedata()->get_value(i);
-        if (!isnan(v)) {
+        if (!std::isnan(v)) {
           if ((v - mn) > this->max_range_)
             break;
           if ((mx - v) > this->max_range_)
             break;
-          if (isnan(mx) || (v > mx))
+          if (std::isnan(mx) || (v > mx))
             mx = v;
-          if (isnan(mn) || (v < mn))
+          if (std::isnan(mn) || (v < mn))
             mn = v;
         }
       }
     }
     yrange = this->max_range_;
-    if (!isnan(mn)) {
+    if (!std::isnan(mn)) {
       ymin = mn;
       ymax = ymin + this->max_range_;
     }
@@ -110,7 +110,7 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
   }
 
   float y_per_div = this->min_range_;
-  if (!isnan(this->gridspacing_y_)) {
+  if (!std::isnan(this->gridspacing_y_)) {
     y_per_div = this->gridspacing_y_;
   }
   // Restrict drawing too many gridlines
@@ -129,7 +129,7 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
   yrange = ymax - ymin;
 
   /// Draw grid
-  if (!isnan(this->gridspacing_y_)) {
+  if (!std::isnan(this->gridspacing_y_)) {
     for (int y = yn; y <= ym; y++) {
       int16_t py = (int16_t) roundf((this->height_ - 1) * (1.0 - (float) (y - yn) / (ym - yn)));
       for (int x = 0; x < this->width_; x += 2) {
@@ -137,7 +137,7 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
       }
     }
   }
-  if (!isnan(this->gridspacing_x_) && (this->gridspacing_x_ > 0)) {
+  if (!std::isnan(this->gridspacing_x_) && (this->gridspacing_x_ > 0)) {
     int n = this->duration_ / this->gridspacing_x_;
     // Restrict drawing too many gridlines
     if (n > 20) {
@@ -160,7 +160,7 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
     uint16_t thick = trace->get_line_thickness();
     for (int16_t i = 0; i < this->width_; i++) {
       float v = (trace->get_tracedata()->get_value(i) - ymin) / yrange;
-      if (!isnan(v) && (thick > 0)) {
+      if (!std::isnan(v) && (thick > 0)) {
         int16_t x = this->width_ - 1 - i;
         uint8_t b = (i % (thick * LineType::PATTERN_LENGTH)) / thick;
         if (((uint8_t) trace->get_line_type() & (1 << b)) == (1 << b)) {

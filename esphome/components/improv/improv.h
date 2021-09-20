@@ -1,6 +1,9 @@
 #pragma once
 
+#ifdef USE_ARDUINO
 #include "WString.h"
+#endif  // USE_ARDUINO
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -50,6 +53,8 @@ ImprovCommand parse_improv_data(const std::vector<uint8_t> &data);
 ImprovCommand parse_improv_data(const uint8_t *data, size_t length);
 
 std::vector<uint8_t> build_rpc_response(Command command, const std::vector<std::string> &datum);
+#ifdef USE_ARDUINO
 std::vector<uint8_t> build_rpc_response(Command command, const std::vector<String> &datum);
+#endif  // USE_ARDUINO
 
 }  // namespace improv

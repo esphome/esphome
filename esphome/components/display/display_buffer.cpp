@@ -4,6 +4,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace display {
@@ -372,7 +373,7 @@ bool Glyph::get_pixel(int x, int y) const {
     return false;
   const uint32_t width_8 = ((this->glyph_data_->width + 7u) / 8u) * 8u;
   const uint32_t pos = x_data + y_data * width_8;
-  return pgm_read_byte(this->glyph_data_->data + (pos / 8u)) & (0x80 >> (pos % 8u));
+  return progmem_read_byte(this->glyph_data_->data + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
 const char *Glyph::get_char() const { return this->glyph_data_->a_char; }
 bool Glyph::compare_to(const char *str) const {
@@ -464,22 +465,22 @@ bool Image::get_pixel(int x, int y) const {
     return false;
   const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
   const uint32_t pos = x + y * width_8;
-  return pgm_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
+  return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
 Color Image::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_) * 3;
-  const uint32_t color32 = (pgm_read_byte(this->data_start_ + pos + 2) << 0) |
-                           (pgm_read_byte(this->data_start_ + pos + 1) << 8) |
-                           (pgm_read_byte(this->data_start_ + pos + 0) << 16);
+  const uint32_t color32 = (progmem_read_byte(this->data_start_ + pos + 2) << 0) |
+                           (progmem_read_byte(this->data_start_ + pos + 1) << 8) |
+                           (progmem_read_byte(this->data_start_ + pos + 0) << 16);
   return Color(color32);
 }
 Color Image::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_);
-  const uint8_t gray = pgm_read_byte(this->data_start_ + pos);
+  const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
   return Color(gray | gray << 8 | gray << 16 | gray << 24);
 }
 int Image::get_width() const { return this->width_; }
@@ -496,7 +497,7 @@ bool Animation::get_pixel(int x, int y) const {
   if (frame_index >= this->width_ * this->height_ * this->animation_frame_count_)
     return false;
   const uint32_t pos = x + y * width_8 + frame_index;
-  return pgm_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
+  return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
 Color Animation::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
@@ -505,9 +506,9 @@ Color Animation::get_color_pixel(int x, int y) const {
   if (frame_index >= this->width_ * this->height_ * this->animation_frame_count_)
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 3;
-  const uint32_t color32 = (pgm_read_byte(this->data_start_ + pos + 2) << 0) |
-                           (pgm_read_byte(this->data_start_ + pos + 1) << 8) |
-                           (pgm_read_byte(this->data_start_ + pos + 0) << 16);
+  const uint32_t color32 = (progmem_read_byte(this->data_start_ + pos + 2) << 0) |
+                           (progmem_read_byte(this->data_start_ + pos + 1) << 8) |
+                           (progmem_read_byte(this->data_start_ + pos + 0) << 16);
   return Color(color32);
 }
 Color Animation::get_grayscale_pixel(int x, int y) const {
@@ -517,7 +518,7 @@ Color Animation::get_grayscale_pixel(int x, int y) const {
   if (frame_index >= this->width_ * this->height_ * this->animation_frame_count_)
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index);
-  const uint8_t gray = pgm_read_byte(this->data_start_ + pos);
+  const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
   return Color(gray | gray << 8 | gray << 16 | gray << 24);
 }
 Animation::Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type)

@@ -1,7 +1,7 @@
 #include "xiaomi_cgdk2.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace xiaomi_cgdk2 {

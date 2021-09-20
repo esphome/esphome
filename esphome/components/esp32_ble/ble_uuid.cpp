@@ -1,6 +1,10 @@
 #include "ble_uuid.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
+
+#include <cstring>
+#include <cstdio>
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace esp32_ble {

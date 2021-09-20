@@ -2,7 +2,7 @@
 
 #include <string>
 #include <functional>
-#include "Arduino.h"
+#include <cmath>
 
 #include "esphome/core/optional.h"
 

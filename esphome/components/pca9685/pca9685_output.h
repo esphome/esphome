@@ -20,9 +20,10 @@ extern const uint8_t PCA9685_MODE_OUTNE_LOW;
 
 class PCA9685Output;
 
-class PCA9685Channel : public output::FloatOutput, public Parented<PCA9685Output> {
+class PCA9685Channel : public output::FloatOutput {
  public:
   void set_channel(uint8_t channel) { channel_ = channel; }
+  void set_parent(PCA9685Output *parent) { parent_ = parent; }
 
  protected:
   friend class PCA9685Output;
@@ -30,6 +31,7 @@ class PCA9685Channel : public output::FloatOutput, public Parented<PCA9685Output
   void write_state(float state) override;
 
   uint8_t channel_;
+  PCA9685Output *parent_;
 };
 
 /// PCA9685 float output component.

@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_MQTT
+
 #include <memory>
 
 #include "esphome/core/component.h"
@@ -181,3 +185,5 @@ class MQTTComponent : public Component {
 
 }  // namespace mqtt
 }  // namespace esphome
+
+#endif  // USE_MQTt

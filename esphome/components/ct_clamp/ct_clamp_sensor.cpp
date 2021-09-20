@@ -52,7 +52,7 @@ void CTClampSensor::loop() {
 
   // Perform a single sample
   float value = this->source_->sample();
-  if (isnan(value))
+  if (std::isnan(value))
     return;
 
   this->sample_sum_ += value;

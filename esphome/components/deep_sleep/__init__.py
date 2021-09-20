@@ -62,7 +62,7 @@ CONFIG_SCHEMA = cv.Schema(
             cv.Schema(
                 {
                     cv.Required(CONF_PINS): cv.ensure_list(
-                        pins.shorthand_input_pin, validate_pin_number
+                        pins.internal_gpio_input_pin_schema, validate_pin_number
                     ),
                     cv.Required(CONF_MODE): cv.enum(EXT1_WAKEUP_MODES, upper=True),
                 }

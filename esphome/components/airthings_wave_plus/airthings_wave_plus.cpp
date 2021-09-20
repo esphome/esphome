@@ -1,6 +1,6 @@
 #include "airthings_wave_plus.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 namespace esphome {
 namespace airthings_wave_plus {
@@ -141,4 +141,4 @@ void AirthingsWavePlus::setup() {}
 }  // namespace airthings_wave_plus
 }  // namespace esphome
 
-#endif  // ARDUINO_ARCH_ESP32
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

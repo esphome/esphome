@@ -1,15 +1,19 @@
 #pragma once
+
+#ifdef USE_ESP32
+
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
 #include <queue>
 #include <mutex>
-
-#ifdef ARDUINO_ARCH_ESP32
+#include <cstring>
 
 #include <esp_gap_ble_api.h>
 #include <esp_gatts_api.h>
 #include <esp_gattc_api.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 /*
  * BLE events come in from a separate Task (thread) in the ESP32 stack. Rather

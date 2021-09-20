@@ -1,6 +1,7 @@
 #include "integration_sensor.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace integration {
@@ -9,7 +10,7 @@ static const char *const TAG = "integration";
 
 void IntegrationSensor::setup() {
   if (this->restore_) {
-    this->rtc_ = global_preferences.make_preference<float>(this->get_object_id_hash());
+    this->rtc_ = global_preferences->make_preference<float>(this->get_object_id_hash());
     float preference_value = 0;
     this->rtc_.load(&preference_value);
     this->result_ = preference_value;

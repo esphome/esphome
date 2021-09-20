@@ -168,14 +168,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_VARIANT, default="800KBPS"): validate_variant,
             cv.Optional(CONF_METHOD, default=None): validate_method,
             cv.Optional(CONF_INVERT, default="no"): cv.boolean,
-            cv.Optional(CONF_PIN): pins.output_pin,
-            cv.Optional(CONF_CLOCK_PIN): pins.output_pin,
-            cv.Optional(CONF_DATA_PIN): pins.output_pin,
+            cv.Optional(CONF_PIN): pins.internal_gpio_output_pin_number,
+            cv.Optional(CONF_CLOCK_PIN): pins.internal_gpio_output_pin_number,
+            cv.Optional(CONF_DATA_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate,
     validate_method_pin,
+    cv.only_with_arduino,
 )
 
 

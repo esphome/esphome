@@ -5,6 +5,7 @@
 
 #include "am2320.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace am2320 {
@@ -77,7 +78,7 @@ bool AM2320Component::read_bytes_(uint8_t a_register, uint8_t *data, uint8_t len
 
   if (conversion > 0)
     delay(conversion);
-  return this->parent_->raw_receive(this->address_, data, len);
+  return this->read(data, len) == i2c::ERROR_OK;
 }
 
 bool AM2320Component::read_data_(uint8_t *data) {

@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "esphome/core/log.h"
 #include "hm3301.h"
 
@@ -102,3 +104,5 @@ uint16_t HM3301Component::get_sensor_value_(const uint8_t *data, uint8_t i) {
 
 }  // namespace hm3301
 }  // namespace esphome
+
+#endif  // USE_ARDUINO
