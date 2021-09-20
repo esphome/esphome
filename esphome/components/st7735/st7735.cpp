@@ -220,12 +220,14 @@ static const uint8_t PROGMEM
 // clang-format on
 static const char *const TAG = "st7735";
 
-ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, bool eightbitcolor, bool usebgr)
+ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, bool eightbitcolor, bool usebgr,
+               bool invert_colors)
     : model_(model),
       colstart_(colstart),
       rowstart_(rowstart),
       eightbitcolor_(eightbitcolor),
       usebgr_(usebgr),
+      invert_colors_(invert_colors),
       width_(width),
       height_(height) {}
 
@@ -280,6 +282,9 @@ void ST7735::setup() {
     data = data | ST77XX_MADCTL_RGB;
   }
   sendcommand_(ST77XX_MADCTL, &data, 1);
+
+  if (this->invert_colors_)
+    sendcommand_(ST77XX_INVON, nullptr, 0);
 
   this->init_internal_(this->get_buffer_length());
   memset(this->buffer_, 0x00, this->get_buffer_length());
