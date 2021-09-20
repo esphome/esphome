@@ -426,6 +426,7 @@ IDF_CONVERSION_FORBIDDEN = {
     "ARDUINO_ARCH_ESP8266": "USE_ESP8266",
     "pgm_read_byte": "progmem_read_byte",
     "ICACHE_RAM_ATTR": "IRAM_ATTR",
+    "esphome/core/esphal.h": "esphome/core/hal.h",
 }
 IDF_CONVERSION_FORBIDDEN_RE = r"(" + r"|".join(IDF_CONVERSION_FORBIDDEN) + r").*"
 
