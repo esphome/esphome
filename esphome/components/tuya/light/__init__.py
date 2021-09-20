@@ -20,6 +20,8 @@ CONF_MIN_VALUE_DATAPOINT = "min_value_datapoint"
 CONF_COLOR_TEMPERATURE_DATAPOINT = "color_temperature_datapoint"
 CONF_COLOR_TEMPERATURE_INVERT = "color_temperature_invert"
 CONF_COLOR_TEMPERATURE_MAX_VALUE = "color_temperature_max_value"
+CONF_RGB_DATAPOINT = "rgb_datapoint"
+CONF_COLOR_INTERLOCK = "color_interlock"
 
 TuyaLight = tuya_ns.class_("TuyaLight", light.LightOutput, cg.Component)
 
@@ -31,6 +33,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DIMMER_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_MIN_VALUE_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_RGB_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
             cv.Inclusive(
                 CONF_COLOR_TEMPERATURE_DATAPOINT, "color_temperature"
             ): cv.uint8_t,
@@ -67,6 +71,8 @@ async def to_code(config):
         cg.add(var.set_min_value_datapoint_id(config[CONF_MIN_VALUE_DATAPOINT]))
     if CONF_SWITCH_DATAPOINT in config:
         cg.add(var.set_switch_id(config[CONF_SWITCH_DATAPOINT]))
+    if CONF_RGB_DATAPOINT in config:
+        cg.add(var.set_rgb_id(config[CONF_RGB_DATAPOINT]))
     if CONF_COLOR_TEMPERATURE_DATAPOINT in config:
         cg.add(var.set_color_temperature_id(config[CONF_COLOR_TEMPERATURE_DATAPOINT]))
         cg.add(var.set_color_temperature_invert(config[CONF_COLOR_TEMPERATURE_INVERT]))
@@ -87,5 +93,7 @@ async def to_code(config):
                 config[CONF_COLOR_TEMPERATURE_MAX_VALUE]
             )
         )
+
+    cg.add(var.set_color_interlock(config[CONF_COLOR_INTERLOCK]))
     paren = await cg.get_variable(config[CONF_TUYA_ID])
     cg.add(var.set_tuya_parent(paren))

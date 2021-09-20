@@ -16,6 +16,7 @@ class TuyaLight : public Component, public light::LightOutput {
     this->min_value_datapoint_id_ = min_value_datapoint_id;
   }
   void set_switch_id(uint8_t switch_id) { this->switch_id_ = switch_id; }
+  void set_rgb_id(uint8_t rgb_id) { this->rgb_id_ = rgb_id; }
   void set_color_temperature_id(uint8_t color_temperature_id) { this->color_temperature_id_ = color_temperature_id; }
   void set_color_temperature_invert(bool color_temperature_invert) {
     this->color_temperature_invert_ = color_temperature_invert;
@@ -32,6 +33,8 @@ class TuyaLight : public Component, public light::LightOutput {
   void set_warm_white_temperature(float warm_white_temperature) {
     this->warm_white_temperature_ = warm_white_temperature;
   }
+  void set_color_interlock(bool color_interlock) { color_interlock_ = color_interlock; }
+
   light::LightTraits get_traits() override;
   void setup_state(light::LightState *state) override;
   void write_state(light::LightState *state) override;
@@ -44,6 +47,7 @@ class TuyaLight : public Component, public light::LightOutput {
   optional<uint8_t> dimmer_id_{};
   optional<uint8_t> min_value_datapoint_id_{};
   optional<uint8_t> switch_id_{};
+  optional<uint8_t> rgb_id_{};
   optional<uint8_t> color_temperature_id_{};
   uint32_t min_value_ = 0;
   uint32_t max_value_ = 255;
@@ -51,6 +55,7 @@ class TuyaLight : public Component, public light::LightOutput {
   float cold_white_temperature_;
   float warm_white_temperature_;
   bool color_temperature_invert_{false};
+  bool color_interlock_{true};
   light::LightState *state_{nullptr};
 };
 
