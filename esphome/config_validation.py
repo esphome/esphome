@@ -1455,6 +1455,7 @@ class SplitDefault(Optional):
         esp32_arduino=vol.UNDEFINED,
         esp32_idf=vol.UNDEFINED,
         rp2040=vol.UNDEFINED,
+        host=vol.UNDEFINED,
     ):
         super().__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
@@ -1465,6 +1466,7 @@ class SplitDefault(Optional):
             esp32_idf if esp32 is vol.UNDEFINED else esp32
         )
         self._rp2040_default = vol.default_factory(rp2040)
+        self._host_default = vol.default_factory(host)
 
     @property
     def default(self):
@@ -1476,6 +1478,8 @@ class SplitDefault(Optional):
             return self._esp32_idf_default
         if CORE.is_rp2040:
             return self._rp2040_default
+        if CORE.is_host:
+            return self._host_default
         raise NotImplementedError
 
     @default.setter

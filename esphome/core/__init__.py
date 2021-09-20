@@ -602,6 +602,9 @@ class EsphomeCore:
     def is_rp2040(self):
         return self.target_platform == "rp2040"
 
+    def is_host(self):
+        return self.target_platform == "host"
+
     @property
     def target_framework(self):
         return self.data[KEY_CORE][KEY_TARGET_FRAMEWORK]
