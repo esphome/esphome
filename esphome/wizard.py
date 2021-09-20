@@ -131,7 +131,7 @@ def wizard_write(path, **kwargs):
     platform = kwargs["platform"]
 
     write_file(path, wizard_file(**kwargs))
-    storage = StorageJSON.from_wizard(name, name + ".local", platform)
+    storage = StorageJSON.from_wizard(name, f"{name}.local", platform)
     storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
     storage.save(storage_path)
 
@@ -271,12 +271,12 @@ def wizard(path):
     safe_print()
     # Don't sleep because user needs to copy link
     if platform == "ESP32":
-        safe_print('For example "{}".'.format(color(Fore.BOLD_WHITE, "nodemcu-32s")))
+        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'nodemcu-32s')}\".")
         boards = list(esp32_boards.ESP32_BOARD_PINS.keys())
     else:
-        safe_print('For example "{}".'.format(color(Fore.BOLD_WHITE, "nodemcuv2")))
+        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'nodemcuv2')}\".")
         boards = list(esp8266_boards.ESP8266_BOARD_PINS.keys())
-    safe_print("Options: {}".format(", ".join(sorted(boards))))
+    safe_print(f"Options: {', '.join(sorted(boards))}")
 
     while True:
         board = input(color(Fore.BOLD_WHITE, "(board): "))

@@ -72,8 +72,7 @@ def validate_gpio_pin(value):
         raise cv.Invalid(f"ESP8266: Invalid pin number: {value}")
     if value in _ESP_SDIO_PINS:
         raise cv.Invalid(
-            "This pin cannot be used on ESP8266s and is already used by "
-            "the flash interface (function: {})".format(_ESP_SDIO_PINS[value])
+            f"This pin cannot be used on ESP8266s and is already used by the flash interface (function: {_ESP_SDIO_PINS[value]})"
         )
     if 9 <= value <= 10:
         _LOGGER.warning(
