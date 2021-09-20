@@ -186,6 +186,12 @@ void MQTTComponent::call_loop() {
     this->schedule_resend_state();
   }
 }
+void MQTTComponent::call_dump_config() {
+  if (this->is_internal())
+    return;
+
+  this->dump_config();
+}
 void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
 std::string MQTTComponent::unique_id() { return ""; }
 bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
