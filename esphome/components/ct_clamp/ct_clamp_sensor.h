@@ -10,7 +10,6 @@ namespace ct_clamp {
 
 class CTClampSensor : public sensor::Sensor, public PollingComponent {
  public:
-  void setup() override;
   void update() override;
   void loop() override;
   void dump_config() override;

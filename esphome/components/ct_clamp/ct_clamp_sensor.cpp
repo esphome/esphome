@@ -8,8 +8,6 @@ namespace ct_clamp {
 
 static const char *const TAG = "ct_clamp";
 
-void CTClampSensor::setup() {}
-
 void CTClampSensor::dump_config() {
   LOG_SENSOR("", "CT Clamp Sensor", this);
   ESP_LOGCONFIG(TAG, "  Sample Duration: %.2fs", this->sample_duration_ / 1e3f);
@@ -36,6 +34,7 @@ void CTClampSensor::update() {
     float dc = this->sample_sum_ / this->num_samples_;
     float var = (this->sample_squared_sum_ / this->num_samples_) - dc * dc;
     float ac = std::sqrt(var);
+    ESP_LOGD(TAG, "'%s' - Got %d samples", this->name_.c_str(), this->num_samples_);
     ESP_LOGD(TAG, "'%s' - Raw AC Value: %.3fA", this->name_.c_str(), ac);
     this->publish_state(ac);
   });
