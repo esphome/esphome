@@ -18,7 +18,7 @@ struct NVSData {
   std::vector<uint8_t> data;
 };
 
-static std::vector<NVSData> g_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 class ESP32PreferenceBackend : public ESPPreferenceBackend {
  public:
@@ -26,7 +26,7 @@ class ESP32PreferenceBackend : public ESPPreferenceBackend {
   uint32_t nvs_handle;
   bool save(const uint8_t *data, size_t len) override {
     // try find in pending saves and update that
-    for (auto &obj : g_pending_save) {
+    for (auto &obj : s_pending_save) {
       if (obj.key == key) {
         obj.data.assign(data, data + len);
         return true;
@@ -35,12 +35,12 @@ class ESP32PreferenceBackend : public ESPPreferenceBackend {
     NVSData save{};
     save.key = key;
     save.data.assign(data, data + len);
-    g_pending_save.emplace_back(save);
+    s_pending_save.emplace_back(save);
     return true;
   }
   bool load(uint8_t *data, size_t len) override {
     // try find in pending saves and load from that
-    for (auto &obj : g_pending_save) {
+    for (auto &obj : s_pending_save) {
       if (obj.key == key) {
         if (obj.data.size() != len) {
           // size mismatch
@@ -107,12 +107,16 @@ class ESP32Preferences : public ESPPreferences {
   }
 
   bool sync() override {
+    if (s_pending_save.empty())
+      return true;
+
+    ESP_LOGD(TAG, "Saving preferences to flash...");
     // goal try write all pending saves even if one fails
     bool any_failed = false;
 
     // go through vector from back to front (makes erase easier/more efficient)
-    for (ssize_t i = g_pending_save.size() - 1; i >= 0; i--) {
-      const auto &save = g_pending_save[i];
+    for (ssize_t i = s_pending_save.size() - 1; i >= 0; i--) {
+      const auto &save = s_pending_save[i];
       esp_err_t err = nvs_set_blob(nvs_handle, save.key.c_str(), save.data.data(), save.data.size());
       if (err != 0) {
         ESP_LOGV(TAG, "nvs_set_blob('%s', len=%u) failed: %s", save.key.c_str(), save.data.size(),
@@ -120,7 +124,7 @@ class ESP32Preferences : public ESPPreferences {
         any_failed = true;
         continue;
       }
-      g_pending_save.erase(g_pending_save.begin() + i);
+      s_pending_save.erase(s_pending_save.begin() + i);
     }
 
     // note: commit on esp-idf currently is a no-op, nvs_set_blob always writes

@@ -2,8 +2,10 @@ from esphome.const import CONF_ID
 import esphome.codegen as cg
 import esphome.config_validation as cv
 
+CODEOWNERS = ["@esphome/core"]
+
 preferences_ns = cg.esphome_ns.namespace("preferences")
-IntervalSyncer = preferences_ns.class_("IntervallSyncer", cg.Component)
+IntervalSyncer = preferences_ns.class_("IntervalSyncer", cg.Component)
 
 CONF_FLASH_WRITE_INTERVAL = "flash_write_interval"
 CONFIG_SCHEMA = cv.Schema(
