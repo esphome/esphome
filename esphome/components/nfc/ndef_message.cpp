@@ -10,10 +10,10 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
   uint8_t index = 0;
   while (index <= data.size()) {
     uint8_t tnf_byte = data[index++];
-    bool me = tnf_byte & 0x40;
-    bool sr = tnf_byte & 0x10;
-    bool il = tnf_byte & 0x08;
-    uint8_t tnf = tnf_byte & 0x07;
+    bool me = tnf_byte & 0x40;      // Message End bit (is set if this is the last record of the message)
+    bool sr = tnf_byte & 0x10;      // Short record bit (is set if payload size is less or equal to 255 bytes)
+    bool il = tnf_byte & 0x08;      // ID length bit (is set if ID Length field exists)
+    uint8_t tnf = tnf_byte & 0x07;  // Type Name Format
 
     ESP_LOGVV(TAG, "me=%s, sr=%s, il=%s, tnf=%d", YESNO(me), YESNO(sr), YESNO(il), tnf);
 
@@ -48,6 +48,8 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
 
     auto record = make_unique<NdefRecord>();
 
+    // Based on tnf and type, create a more specific NdefRecord object
+    // constructed from the payload data
     if (tnf == TNF_WELL_KNOWN && type_str == "U") {
       record = make_unique<NdefRecordUri>(payload_data);
     } else if (tnf == TNF_WELL_KNOWN && type_str == "T") {

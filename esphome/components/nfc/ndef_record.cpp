@@ -17,7 +17,7 @@ std::vector<uint8_t> NdefRecord::encode(bool first, bool last) {
   std::vector<uint8_t> payload_data = getEncodedPayload();
 
   size_t payload_length = payload_data.size();
-  
+
   data.push_back(this->create_flag_byte(first, last, payload_length));
 
   data.push_back(this->type_.length());
@@ -48,16 +48,16 @@ std::vector<uint8_t> NdefRecord::encode(bool first, bool last) {
 uint8_t NdefRecord::create_flag_byte(bool first, bool last, size_t payload_size) {
   uint8_t value = this->tnf_ & 0b00000111;
   if (first) {
-    value = value | 0x80;
+    value = value | 0x80;  // Set MB bit
   }
   if (last) {
-    value = value | 0x40;
+    value = value | 0x40;  // Set ME bit
   }
   if (payload_size <= 255) {
-    value = value | 0x10;
+    value = value | 0x10;  // Set SR bit
   }
   if (this->id_.length()) {
-    value = value | 0x08;
+    value = value | 0x08;  // Set IL bit
   }
   return value;
 };
