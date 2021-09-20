@@ -233,6 +233,13 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
   }
 }
 
+#ifdef USE_GRAPH
+void DisplayBuffer::graph(int x, int y, graph::Graph *graph, Color color_on) { graph->draw(this, x, y, color_on); }
+void DisplayBuffer::legend(int x, int y, graph::Graph *graph, Color color_on) {
+  graph->draw_legend(this, x, y, color_on);
+}
+#endif  // USE_GRAPH
+
 void DisplayBuffer::get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1,
                                     int *width, int *height) {
   int x_offset, baseline;
