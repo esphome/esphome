@@ -44,6 +44,7 @@ EXT1_WAKEUP_MODES = {
 
 CONF_WAKEUP_PIN_MODE = "wakeup_pin_mode"
 CONF_ESP32_EXT1_WAKEUP = "esp32_ext1_wakeup"
+CONF_TOUCH_WAKEUP = "touch_wakeup"
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -67,6 +68,7 @@ CONFIG_SCHEMA = cv.Schema(
                 }
             ),
         ),
+        cv.Optional(CONF_TOUCH_WAKEUP): cv.All(cv.only_on_esp32, cv.boolean),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -94,6 +96,9 @@ async def to_code(config):
             Ext1Wakeup, ("mask", mask), ("wakeup_mode", conf[CONF_MODE])
         )
         cg.add(var.set_ext1_wakeup(struct))
+
+    if CONF_TOUCH_WAKEUP in config:
+        cg.add(var.set_touch_wakeup(config[CONF_TOUCH_WAKEUP]))
 
     cg.add_define("USE_DEEP_SLEEP")
 

@@ -57,6 +57,8 @@ class DeepSleepComponent : public Component {
   void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode);
 
   void set_ext1_wakeup(Ext1Wakeup ext1_wakeup);
+
+  void set_touch_wakeup(bool touch_wakeup);
 #endif
   /// Set a duration in ms for how long the code should run before entering deep sleep mode.
   void set_run_duration(uint32_t time_ms);
@@ -78,6 +80,7 @@ class DeepSleepComponent : public Component {
   InternalGPIOPin *wakeup_pin_;
   WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
   optional<Ext1Wakeup> ext1_wakeup_;
+  optional<bool> touch_wakeup_;
 #endif
   optional<uint32_t> run_duration_;
   bool next_enter_deep_sleep_{false};

@@ -13,6 +13,7 @@ from . import esp32_touch_ns, ESP32TouchComponent
 DEPENDENCIES = ["esp32_touch", "esp32"]
 
 CONF_ESP32_TOUCH_ID = "esp32_touch_id"
+CONF_WAKEUP_THRESHOLD = "wakeup_threshold"
 
 TOUCH_PADS = {
     4: cg.global_ns.TOUCH_PAD_NUM0,
@@ -45,6 +46,7 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
         cv.GenerateID(CONF_ESP32_TOUCH_ID): cv.use_id(ESP32TouchComponent),
         cv.Required(CONF_PIN): validate_touch_pad,
         cv.Required(CONF_THRESHOLD): cv.uint16_t,
+        cv.Optional(CONF_WAKEUP_THRESHOLD, default=0): cv.uint16_t,
     }
 )
 
@@ -56,6 +58,7 @@ async def to_code(config):
         config[CONF_NAME],
         TOUCH_PADS[config[CONF_PIN]],
         config[CONF_THRESHOLD],
+        config[CONF_WAKEUP_THRESHOLD],
     )
     await binary_sensor.register_binary_sensor(var, config)
     cg.add(hub.register_touch_pad(var))
