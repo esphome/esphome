@@ -68,6 +68,10 @@
 #define USE_HTTP_REQUEST_ESP8266_HTTPS
 #endif
 
+#ifdef USE_HOST
+#define USE_SOCKET_IMPL_BSD_SOCKETS
+#endif
+
 #define USE_API_PLAINTEXT
 #define USE_API_NOISE
 

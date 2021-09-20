@@ -577,6 +577,10 @@ class EsphomeCore:
         return self.target_platform == "esp32"
 
     @property
+    def is_host(self):
+        return self.target_platform == "host"
+
+    @property
     def target_framework(self):
         return self.data[KEY_CORE][KEY_TARGET_FRAMEWORK]
 

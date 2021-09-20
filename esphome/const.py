@@ -4,7 +4,7 @@ __version__ = "2021.10.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
-TARGET_PLATFORMS = ["esp32", "esp8266"]
+TARGET_PLATFORMS = ["esp32", "esp8266", "host"]
 TARGET_FRAMEWORKS = ["arduino", "esp-idf"]
 
 # See also https://github.com/platformio/platform-espressif8266/releases

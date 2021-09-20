@@ -13,6 +13,10 @@
 #include "esp_system.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
+#elif defined(USE_HOST)
+#include <cstdio>
+#include <random>
+#include <limits>
 #endif
 
 #include "esphome/core/log.h"
@@ -55,6 +59,11 @@ uint32_t random_uint32() {
   return esp_random();
 #elif defined(USE_ESP8266)
   return os_random();
+#else
+  std::random_device dev;
+  std::mt19937 rng(dev());
+  std::uniform_int_distribution<uint32_t> dist(0, std::numeric_limits<uint32_t>::max());
+  return dist(rng);
 #endif
 }
 
@@ -68,6 +77,18 @@ void fill_random(uint8_t *data, size_t len) {
 #elif defined(USE_ESP8266)
   int err = os_get_random(data, len);
   assert(err == 0);
+#elif defined(USE_HOST)
+  FILE *fp = fopen("/dev/urandom", "r");
+  if (fp == nullptr) {
+    ESP_LOGW(TAG, "Could not open /dev/urandom, errno=%d", errno);
+    exit(1);
+  }
+  size_t read = fread(data, 1, len, fp);
+  if (read != len) {
+    ESP_LOGW(TAG, "Not enough data from /dev/urandom");
+    exit(1);
+  }
+  fclose(fp);
 #else
 #error "No random source for this system config"
 #endif
