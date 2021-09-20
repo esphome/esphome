@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_SWITCH_DATAPOINT,
     CONF_COLD_WHITE_COLOR_TEMPERATURE,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
+    CONF_COLOR_INTERLOCK,
 )
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
@@ -21,7 +22,6 @@ CONF_COLOR_TEMPERATURE_DATAPOINT = "color_temperature_datapoint"
 CONF_COLOR_TEMPERATURE_INVERT = "color_temperature_invert"
 CONF_COLOR_TEMPERATURE_MAX_VALUE = "color_temperature_max_value"
 CONF_RGB_DATAPOINT = "rgb_datapoint"
-CONF_COLOR_INTERLOCK = "color_interlock"
 
 TuyaLight = tuya_ns.class_("TuyaLight", light.LightOutput, cg.Component)
 
