@@ -20,7 +20,8 @@ void Dsmr::loop() {
 }
 
 void Dsmr::receive_telegram_() {
-  while (available()) {
+  int count = 100;
+  while (available() && count-- > 0) {
     const char c = read();
 
     if (c == '/') {  // header: forward slash
