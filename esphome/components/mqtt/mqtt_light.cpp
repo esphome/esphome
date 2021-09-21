@@ -37,7 +37,7 @@ void MQTTJSONLightComponent::send_discovery(JsonObject &root, mqtt::SendDiscover
   auto traits = this->state_->get_traits();
 
   if (!this->state_->get_icon().empty())
-   root["icon"] = this->state_->get_icon();
+    root["icon"] = this->state_->get_icon();
 
   root["color_mode"] = true;
   JsonArray &color_modes = root.createNestedArray("supported_color_modes");
