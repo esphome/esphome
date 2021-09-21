@@ -34,7 +34,8 @@ void ArduinoI2CBus::dump_config() {
     ESP_LOGI(TAG, "Scanning i2c bus for active devices...");
     uint8_t found = 0;
     for (uint8_t address = 1; address < 120; address++) {
-      auto err = readv(address, nullptr, 0);
+      wire_->beginTransmission(address);
+      auto err = wire_->endTransmission(true);
 
       if (err == ERROR_OK) {
         ESP_LOGI(TAG, "Found i2c device at address 0x%02X", address);
