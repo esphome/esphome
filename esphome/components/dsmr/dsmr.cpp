@@ -20,7 +20,7 @@ void Dsmr::loop() {
 }
 
 void Dsmr::receive_telegram_() {
-  int count = 100;
+  int count = MAX_BYTES_PER_LOOP;
   while (available() && count-- > 0) {
     const char c = read();
 

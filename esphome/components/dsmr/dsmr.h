@@ -17,6 +17,7 @@ namespace esphome {
 namespace dsmr {
 
 static constexpr uint32_t MAX_TELEGRAM_LENGTH = 1500;
+static constexpr uint32_t MAX_BYTES_PER_LOOP = 100;
 static constexpr uint32_t POLL_TIMEOUT = 1000;
 
 using namespace ::dsmr::fields;
@@ -88,6 +89,8 @@ class Dsmr : public Component, public uart::UARTDevice {
   // Telegram buffer
   char telegram_[MAX_TELEGRAM_LENGTH];
   int telegram_len_{0};
+  char encypted_telegram_[MAX_TELEGRAM_LENGTH];
+  int encrypted_telegram_len_{0};
 
   // Serial parser
   bool header_found_{false};
