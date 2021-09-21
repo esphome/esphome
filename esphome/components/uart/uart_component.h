@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <cstring>
+#include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
