@@ -109,6 +109,10 @@ class LightState : public Nameable, public Component {
   void set_gamma_correct(float gamma_correct);
   float get_gamma_correct() const { return this->gamma_correct_; }
 
+  /// Set the icon
+  void set_icon(std::string icon) { this->icon_ = std::move(icon); }
+  const std::string &get_icon() const { return this->icon_; }
+
   /// Set the restore mode of this light
   void set_restore_mode(LightRestoreMode restore_mode);
 
@@ -197,6 +201,8 @@ class LightState : public Nameable, public Component {
   uint32_t flash_transition_length_{};
   /// Gamma correction factor for the light.
   float gamma_correct_{};
+  /// Icon for the light
+  std::string icon_;
   /// Restore mode of the light.
   LightRestoreMode restore_mode_;
   /// List of effects for this light.

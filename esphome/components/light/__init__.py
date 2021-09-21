@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_EFFECTS,
     CONF_FLASH_TRANSITION_LENGTH,
     CONF_GAMMA_CORRECT,
+    CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
     CONF_NAME,
@@ -20,6 +21,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_COLD_WHITE_COLOR_TEMPERATURE,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
+    ICON_EMPTY,
 )
 from esphome.core import coroutine_with_priority
 from .automation import light_control_to_code  # noqa
@@ -57,6 +59,7 @@ RESTORE_MODES = {
 LIGHT_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(LightState),
+        cv.Optional(CONF_ICON, default=ICON_EMPTY): cv.icon,
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTJSONLightComponent),
         cv.Optional(CONF_RESTORE_MODE, default="restore_default_off"): cv.enum(
             RESTORE_MODES, upper=True, space="_"
@@ -126,6 +129,7 @@ def validate_color_temperature_channels(value):
 
 
 async def setup_light_core_(light_var, output_var, config):
+    cg.add(light_var.set_icon(config[CONF_ICON]))
     cg.add(light_var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
     if CONF_INTERNAL in config:
