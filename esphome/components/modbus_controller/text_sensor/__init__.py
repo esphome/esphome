@@ -96,7 +96,7 @@ async def to_code(config):
         template_ = await cg.process_lambda(
             config[CONF_LAMBDA],
             [
-                (ModbusTextSensor.operator("const").operator("ptr"), "item"),
+                (ModbusTextSensor.operator("ptr"), "item"),
                 (cg.std_string.operator("const").operator("ref"), "x"),
                 (
                     cg.std_vector.template(cg.uint8).operator("const").operator("ref"),

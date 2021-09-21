@@ -76,7 +76,7 @@ async def to_code(config):
         publish_template_ = await cg.process_lambda(
             config[CONF_LAMBDA],
             [
-                (ModbusSwitch.operator("const").operator("ptr"), "item"),
+                (ModbusSwitch.operator("ptr"), "item"),
                 (bool, "x"),
                 (
                     cg.std_vector.template(cg.uint8).operator("const").operator("ref"),

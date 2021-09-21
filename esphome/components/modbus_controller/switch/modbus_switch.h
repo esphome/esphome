@@ -25,14 +25,14 @@ class ModbusSwitch : public Component, public switch_::Switch, public SensorItem
     }
     this->force_new_range = force_new_range;
   };
-
+  void setup() override;
   void write_state(bool state) override;
   void dump_config() override;
   void set_state(bool state) { this->state = state; }
   void parse_and_publish(const std::vector<uint8_t> &data) override;
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
 
-  using transform_func_t = std::function<optional<bool>(const ModbusSwitch *, bool, const std::vector<uint8_t> &)>;
+  using transform_func_t = std::function<optional<bool>(ModbusSwitch *, bool, const std::vector<uint8_t> &)>;
   void set_template(transform_func_t &&f) { this->publish_transform_func_ = f; }
 
  protected:

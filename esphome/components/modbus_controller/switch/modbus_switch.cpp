@@ -6,6 +6,11 @@ namespace modbus_controller {
 
 static const char *const TAG = "modbus_controller.switch";
 
+void ModbusSwitch::setup() {
+  // value isn't required 
+  // without it we crash on save
+  this->get_initial_state();
+}
 void ModbusSwitch::dump_config() { LOG_SWITCH(TAG, "Modbus Controller Switch", this); }
 
 void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {

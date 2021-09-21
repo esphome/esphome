@@ -24,7 +24,7 @@ class ModbusNumber : public number::Number, public PollingComponent {
   void set_sensor(ModbusSensor *sensor) { this->connected_sensor_ = sensor; }
   void set_multiply(float factor) { multiply_by_ = factor; }
 
-  using transform_func_t = std::function<optional<float>(const ModbusNumber *, float, std::vector<uint16_t> &)>;
+  using transform_func_t = std::function<optional<float>(ModbusNumber *, float, std::vector<uint16_t> &)>;
   void set_template(transform_func_t &&f) { this->transform_func_ = f; }
 
  protected:
