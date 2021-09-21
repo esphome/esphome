@@ -271,18 +271,18 @@ optional<int> parse_hex(const char chr) {
 }
 
 optional<int> parse_hex(const std::string &str, size_t start, size_t length) {
-  if(str.length() < start) {
+  if (str.length() < start) {
     return {};
   }
-  size_t len = start+length;
-  if(str.length() < len) {
+  size_t len = start + length;
+  if (str.length() < len) {
     return {};
   }
   int out = 0;
-  for(size_t i = start; i < len; i++) {
+  for (size_t i = start; i < len; i++) {
     char chr = str[i];
     auto digit = parse_hex(chr);
-    if(!digit.has_value()) {
+    if (!digit.has_value()) {
       ESP_LOGW(TAG, "Can't convert '%s' to number, invalid character %c!", str.substr(start, length).c_str(), chr);
       return {};
     }

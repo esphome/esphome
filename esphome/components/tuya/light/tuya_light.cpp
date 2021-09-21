@@ -40,7 +40,7 @@ void TuyaLight::setup() {
       auto red = parse_hex(datapoint.value_string, 0, 2);
       auto green = parse_hex(datapoint.value_string, 2, 2);
       auto blue = parse_hex(datapoint.value_string, 4, 2);
-      if(red.has_value() && green.has_value() && blue.has_value()) {
+      if (red.has_value() && green.has_value() && blue.has_value()) {
         auto call = this->state_->make_call();
         call.set_rgb(float(*red) / 255, float(*green) / 255, float(*blue) / 255);
         call.perform();
