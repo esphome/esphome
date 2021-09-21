@@ -325,7 +325,7 @@ void OTAComponent::handle_() {
     ESP_LOGV(TAG, "Auth: Result is %s", sbuf);
 
     // Receive result, 32 bytes hex MD5
-    if (!this->writeall_(buf + 64, 32)) {
+    if (!this->readall_(buf + 64, 32)) {
       ESP_LOGW(TAG, "Auth: Reading response failed!");
       goto error;
     }
