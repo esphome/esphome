@@ -388,6 +388,7 @@ message ListEntitiesLightResponse {
   float max_mireds = 10;
   repeated string effects = 11;
   bool disabled_by_default = 13;
+  string icon = 14;
 }
 message LightStateResponse {
   option (id) = 24;

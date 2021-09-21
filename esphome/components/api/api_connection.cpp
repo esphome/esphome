@@ -335,6 +335,7 @@ bool APIConnection::send_light_info(light::LightState *light) {
   msg.key = light->get_object_id_hash();
   msg.object_id = light->get_object_id();
   msg.name = light->get_name();
+  msg.icon = light->get_icon();
   msg.unique_id = get_default_unique_id("light", light);
 
   msg.disabled_by_default = light->is_disabled_by_default();

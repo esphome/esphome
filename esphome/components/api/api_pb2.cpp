@@ -1262,6 +1262,10 @@ bool ListEntitiesLightResponse::decode_length(uint32_t field_id, ProtoLengthDeli
       this->effects.push_back(value.as_string());
       return true;
     }
+    case 14: {
+      this->icon = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -1302,6 +1306,7 @@ void ListEntitiesLightResponse::encode(ProtoWriteBuffer buffer) const {
     buffer.encode_string(11, it, true);
   }
   buffer.encode_bool(13, this->disabled_by_default);
+  buffer.encode_string(14, this->icon);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesLightResponse::dump_to(std::string &out) const {
@@ -1364,6 +1369,10 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
 
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
   out.append("\n");
   out.append("}");
 }
