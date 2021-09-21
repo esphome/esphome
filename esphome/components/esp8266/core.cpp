@@ -32,6 +32,13 @@ uint32_t arch_get_cpu_cycle_count() {
 }
 uint32_t arch_get_cpu_freq_hz() { return F_CPU; }
 
+extern "C" void resetPins() {  // NOLINT
+  // Added in framework 2.7.0
+  // usually this sets up all pins to be in INPUT mode
+  // however, not strictly needed as we set up the pins properly
+  // ourselves and this causes pins to toggle during reboot.
+}
+
 }  // namespace esphome
 
 #endif  // USE_ESP8266
