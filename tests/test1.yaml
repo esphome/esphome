@@ -1390,6 +1390,7 @@ light:
   - platform: monochromatic
     name: 'Kitchen Lights'
     id: kitchen
+    icon: mdi:ceiling-light
     output: gpio_19
     gamma_correct: 2.8
     default_transition_length: 2s
