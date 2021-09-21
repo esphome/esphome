@@ -94,8 +94,22 @@ light::LightTraits TuyaLight::get_traits() {
 void TuyaLight::setup_state(light::LightState *state) { state_ = state; }
 
 void TuyaLight::write_state(light::LightState *state) {
-  float red, green, blue, color_temperature, brightness;
-  state->current_values_as_rgbct(&red, &green, &blue, &color_temperature, &brightness);
+  float red = 0.0f, green = 0.0f, blue = 0.0f;
+  float color_temperature = 0.0f, brightness = 0.0f;
+
+  if (this->rgb_id_.has_value()) {
+    if (this->color_temperature_id_.has_value()) {
+      state->current_values_as_rgbct(&red, &green, &blue, &color_temperature, &brightness);
+    } else if (this->dimmer_id_.has_value()) {
+      state->current_values_as_rgbw(&red, &green, &blue, &brightness);
+    } else {
+      state->current_values_as_rgb(&red, &green, &blue);
+    }
+  } else if (this->color_temperature_id_.has_value()) {
+    state->current_values_as_ct(&color_temperature, &brightness);
+  } else {
+    state->current_values_as_brightness(&brightness);
+  }
 
   if (brightness > 0.0f || !color_interlock_) {
     if (this->color_temperature_id_.has_value()) {
