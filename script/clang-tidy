@@ -54,7 +54,9 @@ def clang_options(idedata):
 
     # copy compiler flags, except those clang doesn't understand.
     cmd.extend(flag for flag in idedata['cxx_flags'].split(' ')
-               if flag not in ('-free', '-fipa-pta', '-fstrict-volatile-bitfields', '-mlongcalls', '-mtext-section-literals'))
+               if flag not in ('-free', '-fipa-pta', '-fstrict-volatile-bitfields',
+                               '-mlongcalls', '-mtext-section-literals',
+                               '-mfix-esp32-psram-cache-issue', '-mfix-esp32-psram-cache-strategy=memw'))
 
     # defines
     cmd.extend(f'-D{define}' for define in idedata['defines'])
