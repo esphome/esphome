@@ -25,7 +25,7 @@ class LEDCOutput : public output::FloatOutput, public Component {
   void setup() override;
   void dump_config() override;
   /// HARDWARE setup priority
-  float get_setup_priority() const override { return setup_priority::HARDWARE + 10; }
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   /// Override FloatOutput's write_state.
   void write_state(float state) override;
@@ -36,6 +36,7 @@ class LEDCOutput : public output::FloatOutput, public Component {
   uint8_t bit_depth_{};
   float frequency_{};
   float duty_{0.0f};
+  bool initialized_ = false;
 };
 
 template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
