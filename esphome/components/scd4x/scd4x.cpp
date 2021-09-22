@@ -232,6 +232,7 @@ bool SCD4XComponent::read_data_(uint16_t *data, uint8_t len) {
     }
     data[i] = (buf[j] << 8) | buf[j + 1];
   }
+  return true;
 }
 
 bool SCD4XComponent::write_command_(uint16_t command) {
