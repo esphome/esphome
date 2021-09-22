@@ -70,11 +70,11 @@ bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_l
   }
   // open/close state, 1 byte, 8-bit unsigned integer, 1:closed or 0,2:opened
   else if ((value_type == 0x19) && (value_length == 1)) {
-    result.is_open = (data[0] != 0x01) ? true : false;
+    result.is_open = data[0] != 0x01;
   }
   // light, 1 byte, 0 or 1
   else if ((value_type == 0x18) && (value_length == 1)) {
-    result.is_light = (data[0]) ? true : false;
+    result.is_light = data[0];
   }
   // idle time since last motion, 4 byte, 32-bit unsigned integer, 1 min
   else if ((value_type == 0x17) && (value_length == 4)) {
