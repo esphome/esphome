@@ -6,7 +6,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/am43/am43_base.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <esp_gattc_api.h>
 
@@ -28,8 +28,8 @@ class Am43 : public esphome::ble_client::BLEClientNode, public PollingComponent 
 
  protected:
   uint16_t char_handle_;
-  Am43Encoder *encoder_;
-  Am43Decoder *decoder_;
+  std::unique_ptr<Am43Encoder> encoder_;
+  std::unique_ptr<Am43Decoder> decoder_;
   bool logged_in_;
   sensor::Sensor *battery_{nullptr};
   sensor::Sensor *illuminance_{nullptr};

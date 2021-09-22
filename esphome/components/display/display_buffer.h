@@ -4,9 +4,14 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
 #include "display_color_utils.h"
+#include <cstdarg>
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
+#endif
+
+#ifdef USE_GRAPH
+#include "esphome/components/graph/graph.h"
 #endif
 
 namespace esphome {
@@ -272,6 +277,30 @@ class DisplayBuffer {
    * @param color_off The color to replace in binary images for the off bits.
    */
   void image(int x, int y, Image *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+
+#ifdef USE_GRAPH
+  /** Draw the `graph` with the top-left corner at [x,y] to the screen.
+   *
+   * @param x The x coordinate of the upper left corner.
+   * @param y The y coordinate of the upper left corner.
+   * @param graph The graph id to draw
+   * @param color_on The color to replace in binary images for the on bits.
+   */
+  void graph(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON);
+
+  /** Draw the `legend` for graph with the top-left corner at [x,y] to the screen.
+   *
+   * @param x The x coordinate of the upper left corner.
+   * @param y The y coordinate of the upper left corner.
+   * @param graph The graph id for which the legend applies to
+   * @param graph The graph id for which the legend applies to
+   * @param graph The graph id for which the legend applies to
+   * @param name_font The font used for the trace name
+   * @param value_font The font used for the trace value and units
+   * @param color_on The color of the border
+   */
+  void legend(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON);
+#endif  // USE_GRAPH
 
   /** Get the text bounds of the given string.
    *

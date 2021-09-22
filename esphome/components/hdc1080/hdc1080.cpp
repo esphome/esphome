@@ -1,5 +1,6 @@
 #include "hdc1080.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace hdc1080 {
@@ -36,18 +37,30 @@ void HDC1080Component::dump_config() {
 }
 void HDC1080Component::update() {
   uint16_t raw_temp;
-  if (!this->read_byte_16(HDC1080_CMD_TEMPERATURE, &raw_temp, 20)) {
+  if (this->write(&HDC1080_CMD_TEMPERATURE, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
+  delay(20);
+  if (this->read(reinterpret_cast<uint8_t *>(&raw_temp), 2) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
+  raw_temp = i2c::i2ctohs(raw_temp);
   float temp = raw_temp * 0.0025177f - 40.0f;  // raw * 2^-16 * 165 - 40
   this->temperature_->publish_state(temp);
 
   uint16_t raw_humidity;
-  if (!this->read_byte_16(HDC1080_CMD_HUMIDITY, &raw_humidity, 20)) {
+  if (this->write(&HDC1080_CMD_HUMIDITY, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
+  delay(20);
+  if (this->read(reinterpret_cast<uint8_t *>(&raw_humidity), 2) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
+  raw_humidity = i2c::i2ctohs(raw_humidity);
   float humidity = raw_humidity * 0.001525879f;  // raw * 2^-16 * 100
   this->humidity_->publish_state(humidity);
 

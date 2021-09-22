@@ -12,14 +12,17 @@ CODEOWNERS = ["@OttoWinter"]
 captive_portal_ns = cg.esphome_ns.namespace("captive_portal")
 CaptivePortal = captive_portal_ns.class_("CaptivePortal", cg.Component)
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(CaptivePortal),
-        cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
-            web_server_base.WebServerBase
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(CaptivePortal),
+            cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
+                web_server_base.WebServerBase
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.only_with_arduino,
+)
 
 
 @coroutine_with_priority(64.0)

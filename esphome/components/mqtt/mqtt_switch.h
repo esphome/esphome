@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 
+#ifdef USE_MQTT
 #ifdef USE_SWITCH
 
 #include "esphome/components/switch/switch.h"
@@ -39,3 +40,4 @@ class MQTTSwitchComponent : public mqtt::MQTTComponent {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

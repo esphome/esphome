@@ -1,7 +1,7 @@
 #include "esphome/core/component.h"
 
 #include "esphome/core/application.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <utility>
@@ -20,6 +20,7 @@ const float PROCESSOR = 400.0;
 const float BLUETOOTH = 350.0f;
 const float AFTER_BLUETOOTH = 300.0f;
 const float WIFI = 250.0f;
+const float BEFORE_CONNECTION = 220.0f;
 const float AFTER_WIFI = 200.0f;
 const float AFTER_CONNECTION = 100.0f;
 const float LATE = -100.0f;
@@ -63,8 +64,9 @@ bool Component::cancel_timeout(const std::string &name) {  // NOLINT
 }
 
 void Component::call_loop() { this->loop(); }
-
 void Component::call_setup() { this->setup(); }
+void Component::call_dump_config() { this->dump_config(); }
+
 uint32_t Component::get_component_state() const { return this->component_state_; }
 void Component::call() {
   uint32_t state = this->component_state_ & COMPONENT_STATE_MASK;
@@ -142,7 +144,7 @@ void Component::status_momentary_error(const std::string &name, uint32_t length)
 }
 void Component::dump_config() {}
 float Component::get_actual_setup_priority() const {
-  if (isnan(this->setup_priority_override_))
+  if (std::isnan(this->setup_priority_override_))
     return this->get_setup_priority();
   return this->setup_priority_override_;
 }
@@ -195,10 +197,8 @@ uint32_t Nameable::get_object_id_hash() { return this->object_id_hash_; }
 bool Nameable::is_disabled_by_default() const { return this->disabled_by_default_; }
 void Nameable::set_disabled_by_default(bool disabled_by_default) { this->disabled_by_default_ = disabled_by_default; }
 
-WarnIfComponentBlockingGuard::WarnIfComponentBlockingGuard(Component *component) {
-  component_ = component;
-  started_ = millis();
-}
+WarnIfComponentBlockingGuard::WarnIfComponentBlockingGuard(Component *component)
+    : started_(millis()), component_(component) {}
 WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {
   uint32_t now = millis();
   if (now - started_ > 50) {

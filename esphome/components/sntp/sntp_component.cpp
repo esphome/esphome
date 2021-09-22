@@ -1,10 +1,10 @@
 #include "sntp_component.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include "lwip/apps/sntp.h"
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include "sntp.h"
 #endif
 
@@ -20,13 +20,13 @@ static const char *const TAG = "sntp";
 
 void SNTPComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SNTP...");
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   if (sntp_enabled()) {
     sntp_stop();
   }
   sntp_setoperatingmode(SNTP_OPMODE_POLL);
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   sntp_stop();
 #endif
 

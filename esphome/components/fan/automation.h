@@ -50,6 +50,23 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
   FanState *state_;
 };
 
+template<typename... Ts> class FanIsOnCondition : public Condition<Ts...> {
+ public:
+  explicit FanIsOnCondition(FanState *state) : state_(state) {}
+  bool check(Ts... x) override { return this->state_->state; }
+
+ protected:
+  FanState *state_;
+};
+template<typename... Ts> class FanIsOffCondition : public Condition<Ts...> {
+ public:
+  explicit FanIsOffCondition(FanState *state) : state_(state) {}
+  bool check(Ts... x) override { return !this->state_->state; }
+
+ protected:
+  FanState *state_;
+};
+
 class FanTurnOnTrigger : public Trigger<> {
  public:
   FanTurnOnTrigger(FanState *state) {
@@ -84,6 +101,24 @@ class FanTurnOffTrigger : public Trigger<> {
 
  protected:
   bool last_on_;
+};
+
+class FanSpeedSetTrigger : public Trigger<> {
+ public:
+  FanSpeedSetTrigger(FanState *state) {
+    state->add_on_state_callback([this, state]() {
+      auto speed = state->speed;
+      auto should_trigger = speed != !this->last_speed_;
+      this->last_speed_ = speed;
+      if (should_trigger) {
+        this->trigger();
+      }
+    });
+    this->last_speed_ = state->speed;
+  }
+
+ protected:
+  int last_speed_;
 };
 
 }  // namespace fan

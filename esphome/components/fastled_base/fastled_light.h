@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/light/addressable_light.h"
@@ -30,7 +32,7 @@ class FastLEDLightOutput : public light::AddressableLight {
   CLEDController &add_leds(CLEDController *controller, int num_leds) {
     this->controller_ = controller;
     this->num_leds_ = num_leds;
-    this->leds_ = new CRGB[num_leds];
+    this->leds_ = new CRGB[num_leds];  // NOLINT
 
     for (int i = 0; i < this->num_leds_; i++)
       this->leds_[i] = CRGB::Black;
@@ -237,3 +239,5 @@ class FastLEDLightOutput : public light::AddressableLight {
 
 }  // namespace fastled_base
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

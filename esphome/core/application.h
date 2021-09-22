@@ -51,7 +51,6 @@ class Application {
       this->name_ = name;
     }
     this->compilation_time_ = compilation_time;
-    global_preferences.begin();
   }
 
 #ifdef USE_BINARY_SENSOR

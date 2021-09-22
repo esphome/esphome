@@ -1,6 +1,7 @@
 #include "mqtt_climate.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_CLIMATE
 
 namespace esphome {
@@ -245,7 +246,7 @@ bool MQTTClimateComponent::publish_state_() {
   if (!this->publish(this->get_mode_state_topic(), mode_s))
     success = false;
   int8_t accuracy = traits.get_temperature_accuracy_decimals();
-  if (traits.get_supports_current_temperature() && !isnan(this->device_->current_temperature)) {
+  if (traits.get_supports_current_temperature() && !std::isnan(this->device_->current_temperature)) {
     std::string payload = value_accuracy_to_string(this->device_->current_temperature, accuracy);
     if (!this->publish(this->get_current_temperature_state_topic(), payload))
       success = false;
@@ -359,3 +360,4 @@ bool MQTTClimateComponent::publish_state_() {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

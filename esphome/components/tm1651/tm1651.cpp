@@ -1,5 +1,8 @@
+#ifdef USE_ARDUINO
+
 #include "tm1651.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace tm1651 {
@@ -19,7 +22,7 @@ void TM1651Display::setup() {
   uint8_t clk = clk_pin_->get_pin();
   uint8_t dio = dio_pin_->get_pin();
 
-  battery_display_ = new TM1651(clk, dio);
+  battery_display_ = make_unique<TM1651>(clk, dio);
   battery_display_->init();
   battery_display_->clearDisplay();
 }
@@ -87,3 +90,5 @@ uint8_t TM1651Display::calculate_brightness_(uint8_t new_brightness) {
 
 }  // namespace tm1651
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

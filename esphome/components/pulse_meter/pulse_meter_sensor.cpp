@@ -9,7 +9,7 @@ static const char *const TAG = "pulse_meter";
 void PulseMeterSensor::setup() {
   this->pin_->setup();
   this->isr_pin_ = pin_->to_isr();
-  this->pin_->attach_interrupt(PulseMeterSensor::gpio_intr, this, CHANGE);
+  this->pin_->attach_interrupt(PulseMeterSensor::gpio_intr, this, gpio::INTERRUPT_ANY_EDGE);
 
   this->last_detected_edge_us_ = 0;
   this->last_valid_edge_us_ = 0;
@@ -56,14 +56,14 @@ void PulseMeterSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Assuming 0 pulses/min after not receiving a pulse for %us", this->timeout_us_ / 1000000);
 }
 
-void ICACHE_RAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
+void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
   // This is an interrupt handler - we can't call any virtual method from this method
 
   // Get the current time before we do anything else so the measurements are consistent
   const uint32_t now = micros();
 
   // We only look at rising edges
-  if (!sensor->isr_pin_->digital_read()) {
+  if (!sensor->isr_pin_.digital_read()) {
     return;
   }
 

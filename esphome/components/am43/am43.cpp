@@ -1,12 +1,13 @@
 #include "am43.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace am43 {
 
-static const char *TAG = "am43";
+static const char *const TAG = "am43";
 
 void Am43::dump_config() {
   ESP_LOGCONFIG(TAG, "AM43");
@@ -15,8 +16,8 @@ void Am43::dump_config() {
 }
 
 void Am43::setup() {
-  this->encoder_ = new Am43Encoder();
-  this->decoder_ = new Am43Decoder();
+  this->encoder_ = make_unique<Am43Encoder>();
+  this->decoder_ = make_unique<Am43Decoder>();
   this->logged_in_ = false;
   this->last_battery_update_ = 0;
   this->current_sensor_ = 0;

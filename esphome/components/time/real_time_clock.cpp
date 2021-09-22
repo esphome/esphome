@@ -1,7 +1,7 @@
 #include "real_time_clock.h"
 #include "esphome/core/log.h"
 #include "lwip/opt.h"
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include "sys/time.h"
 #endif
 #include <cerrno>

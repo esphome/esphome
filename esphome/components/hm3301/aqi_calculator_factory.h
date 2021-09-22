@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "caqi_calculator.h"
 #include "aqi_calculator.h"
 
@@ -27,3 +29,5 @@ class AQICalculatorFactory {
 
 }  // namespace hm3301
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

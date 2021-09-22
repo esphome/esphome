@@ -1,5 +1,6 @@
 #include "time_based_cover.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace time_based {

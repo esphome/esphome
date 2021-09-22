@@ -473,7 +473,8 @@ message ListEntitiesSensorResponse {
   bool force_update = 8;
   string device_class = 9;
   SensorStateClass state_class = 10;
-  SensorLastResetType last_reset_type = 11;
+  // Last reset type removed in 2021.9.0
+  SensorLastResetType legacy_last_reset_type = 11;
   bool disabled_by_default = 12;
 }
 message SensorStateResponse {
