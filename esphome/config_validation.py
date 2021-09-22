@@ -1,5 +1,6 @@
 """Helpers for config validation using voluptuous."""
 
+from dataclasses import dataclass
 import logging
 import os
 import re
@@ -33,7 +34,9 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
     CONF_TYPE,
-    CONF_PACKAGES,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+    KEY_TARGET_FRAMEWORK,
 )
 from esphome.core import (
     CORE,
@@ -278,8 +281,7 @@ def string_strict(value):
     if isinstance(value, str):
         return value
     raise Invalid(
-        "Must be string, got {}. did you forget putting quotes "
-        "around the value?".format(type(value))
+        f"Must be string, got {type(value)}. did you forget putting quotes around the value?"
     )
 
 
@@ -312,8 +314,7 @@ def boolean(value):
         if value in ("false", "no", "off", "disable"):
             return False
     raise Invalid(
-        "Expected boolean value, but cannot convert {} to a boolean. "
-        "Please use 'true' or 'false'".format(value)
+        f"Expected boolean value, but cannot convert {value} to a boolean. Please use 'true' or 'false'"
     )
 
 
@@ -359,8 +360,7 @@ def int_(value):
         if int(value) == value:
             return int(value)
         raise Invalid(
-            "This option only accepts integers with no fractional part. Please remove "
-            "the fractional part from {}".format(value)
+            f"This option only accepts integers with no fractional part. Please remove the fractional part from {value}"
         )
     value = string_strict(value).lower()
     base = 10
@@ -425,20 +425,17 @@ def validate_id_name(value):
         raise Invalid(
             "Dashes are not supported in IDs, please use underscores instead."
         )
-    valid_chars = ascii_letters + digits + "_"
+    valid_chars = f"{ascii_letters + digits}_"
     for char in value:
         if char not in valid_chars:
             raise Invalid(
-                "IDs must only consist of upper/lowercase characters, the underscore"
-                "character and numbers. The character '{}' cannot be used"
-                "".format(char)
+                f"IDs must only consist of upper/lowercase characters, the underscorecharacter and numbers. The character '{char}' cannot be used"
             )
     if value in RESERVED_IDS:
         raise Invalid(f"ID '{value}' is reserved internally and cannot be used")
     if value in CORE.loaded_integrations:
         raise Invalid(
-            "ID '{}' conflicts with the name of an esphome integration, please use "
-            "another ID name.".format(value)
+            f"ID '{value}' conflicts with the name of an esphome integration, please use another ID name."
         )
     return value
 
@@ -499,20 +496,37 @@ def templatable(other_validators):
 
 
 def only_on(platforms):
-    """Validate that this option can only be specified on the given ESP platforms."""
+    """Validate that this option can only be specified on the given target platforms."""
     if not isinstance(platforms, list):
         platforms = [platforms]
 
     def validator_(obj):
-        if CORE.esp_platform not in platforms:
+        if CORE.target_platform not in platforms:
             raise Invalid(f"This feature is only available on {platforms}")
         return obj
 
     return validator_
 
 
-only_on_esp32 = only_on("ESP32")
-only_on_esp8266 = only_on("ESP8266")
+def only_with_framework(frameworks):
+    """Validate that this option can only be specified on the given frameworks."""
+    if not isinstance(frameworks, list):
+        frameworks = [frameworks]
+
+    def validator_(obj):
+        if CORE.target_framework not in frameworks:
+            raise Invalid(
+                f"This feature is only available with frameworks {frameworks}"
+            )
+        return obj
+
+    return validator_
+
+
+only_on_esp32 = only_on("esp32")
+only_on_esp8266 = only_on("esp8266")
+only_with_arduino = only_with_framework("arduino")
+only_with_esp_idf = only_with_framework("esp-idf")
 
 
 # Adapted from:
@@ -526,7 +540,7 @@ def has_at_least_one_key(*keys):
             raise Invalid("expected dictionary")
 
         if not any(k in keys for k in obj):
-            raise Invalid("Must contain at least one of {}.".format(", ".join(keys)))
+            raise Invalid(f"Must contain at least one of {', '.join(keys)}.")
         return obj
 
     return validate
@@ -541,9 +555,9 @@ def has_exactly_one_key(*keys):
 
         number = sum(k in keys for k in obj)
         if number > 1:
-            raise Invalid("Cannot specify more than one of {}.".format(", ".join(keys)))
+            raise Invalid(f"Cannot specify more than one of {', '.join(keys)}.")
         if number < 1:
-            raise Invalid("Must contain exactly one of {}.".format(", ".join(keys)))
+            raise Invalid(f"Must contain exactly one of {', '.join(keys)}.")
         return obj
 
     return validate
@@ -558,7 +572,7 @@ def has_at_most_one_key(*keys):
 
         number = sum(k in keys for k in obj)
         if number > 1:
-            raise Invalid("Cannot specify more than one of {}.".format(", ".join(keys)))
+            raise Invalid(f"Cannot specify more than one of {', '.join(keys)}.")
         return obj
 
     return validate
@@ -573,9 +587,7 @@ def has_none_or_all_keys(*keys):
 
         number = sum(k in keys for k in obj)
         if number != 0 and number != len(keys):
-            raise Invalid(
-                "Must specify either none or all of {}.".format(", ".join(keys))
-            )
+            raise Invalid(f"Must specify either none or all of {', '.join(keys)}.")
         return obj
 
     return validate
@@ -633,8 +645,7 @@ def time_period_str_unit(value):
 
     if isinstance(value, int):
         raise Invalid(
-            "Don't know what '{0}' means as it has no time *unit*! Did you mean "
-            "'{0}s'?".format(value)
+            f"Don't know what '{value}' means as it has no time *unit*! Did you mean '{value}s'?"
         )
     if isinstance(value, TimePeriod):
         value = str(value)
@@ -660,7 +671,7 @@ def time_period_str_unit(value):
     match = re.match(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*)$", value)
 
     if match is None:
-        raise Invalid("Expected time period with unit, " "got {}".format(value))
+        raise Invalid(f"Expected time period with unit, got {value}")
     kwarg = unit_to_kwarg[one_of(*unit_to_kwarg)(match.group(2))]
 
     return TimePeriod(**{kwarg: float(match.group(1))})
@@ -797,7 +808,7 @@ METRIC_SUFFIXES = {
 
 def float_with_unit(quantity, regex_suffix, optional_unit=False):
     pattern = re.compile(
-        r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)" + regex_suffix + r"$", re.UNICODE
+        f"^([-+]?[0-9]*\\.?[0-9]*)\\s*(\\w*?){regex_suffix}$", re.UNICODE
     )
 
     def validator(value):
@@ -813,7 +824,7 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
 
         mantissa = float(match.group(1))
         if match.group(2) not in METRIC_SUFFIXES:
-            raise Invalid("Invalid {} suffix {}".format(quantity, match.group(2)))
+            raise Invalid(f"Invalid {quantity} suffix {match.group(2)}")
 
         multiplier = METRIC_SUFFIXES[match.group(2)]
         return mantissa * multiplier
@@ -836,10 +847,11 @@ pressure = float_with_unit("pressure", "(bar|Bar)", optional_unit=True)
 
 
 def temperature(value):
+    err = None
     try:
         return _temperature_c(value)
-    except Invalid as orig_err:  # noqa
-        pass
+    except Invalid as orig_err:
+        err = orig_err
 
     try:
         kelvin = _temperature_k(value)
@@ -853,7 +865,7 @@ def temperature(value):
     except Invalid:
         pass
 
-    raise orig_err  # noqa
+    raise err
 
 
 _color_temperature_mireds = float_with_unit("Color Temperature", r"(mireds|Mireds)")
@@ -879,23 +891,31 @@ def validate_bytes(value):
 
     mantissa = int(match.group(1))
     if match.group(2) not in METRIC_SUFFIXES:
-        raise Invalid("Invalid metric suffix {}".format(match.group(2)))
+        raise Invalid(f"Invalid metric suffix {match.group(2)}")
     multiplier = METRIC_SUFFIXES[match.group(2)]
     if multiplier < 1:
         raise Invalid(
-            "Only suffixes with positive exponents are supported. "
-            "Got {}".format(match.group(2))
+            f"Only suffixes with positive exponents are supported. Got {match.group(2)}"
         )
     return int(mantissa * multiplier)
 
 
 def hostname(value):
     value = string(value)
+    warned_underscore = False
     if len(value) > 63:
         raise Invalid("Hostnames can only be 63 characters long")
     for c in value:
-        if not (c.isalnum() or c in "_-"):
-            raise Invalid("Hostname can only have alphanumeric characters and _ or -")
+        if not (c.isalnum() or c in "-_"):
+            raise Invalid("Hostname can only have alphanumeric characters and -")
+        if c in "_" and not warned_underscore:
+            _LOGGER.warning(
+                "'%s': Using the '_' (underscore) character in the hostname is discouraged "
+                "as it can cause problems with some DHCP and local name services. "
+                "For more information, see https://esphome.io/guides/faq.html#why-shouldn-t-i-use-underscores-in-my-device-name",
+                value,
+            )
+            warned_underscore = True
     return value
 
 
@@ -1026,7 +1046,7 @@ def requires_component(comp):
     # pylint: disable=unsupported-membership-test
     def validator(value):
         # pylint: disable=unsupported-membership-test
-        if comp not in CORE.raw_config:
+        if comp not in CORE.loaded_integrations:
             raise Invalid(f"This option requires component {comp}")
         return value
 
@@ -1175,10 +1195,8 @@ def one_of(*values, **kwargs):
             option = str(value)
             matches = difflib.get_close_matches(option, options_)
             if matches:
-                raise Invalid(
-                    "Unknown value '{}', did you mean {}?"
-                    "".format(value, ", ".join(f"'{x}'" for x in matches))
-                )
+                matches_str = ", ".join(f"'{x}'" for x in matches)
+                raise Invalid(f"Unknown value '{value}', did you mean {matches_str}?")
             raise Invalid(f"Unknown value '{value}', valid options are {options}.")
         return value
 
@@ -1220,13 +1238,10 @@ def lambda_(value):
     entity_id_parts = re.split(LAMBDA_ENTITY_ID_PROG, value.value)
     if len(entity_id_parts) != 1:
         entity_ids = " ".join(
-            "'{}'".format(entity_id_parts[i]) for i in range(1, len(entity_id_parts), 2)
+            f"'{entity_id_parts[i]}'" for i in range(1, len(entity_id_parts), 2)
         )
         raise Invalid(
-            "Lambda contains reference to entity-id-style ID {}. "
-            "The id() wrapper only works for ESPHome-internal types. For importing "
-            "states from Home Assistant use the 'homeassistant' sensor platforms."
-            "".format(entity_ids)
+            f"Lambda contains reference to entity-id-style ID {entity_ids}. The id() wrapper only works for ESPHome-internal types. For importing states from Home Assistant use the 'homeassistant' sensor platforms."
         )
     return value
 
@@ -1250,9 +1265,7 @@ def returning_lambda(value):
 def dimensions(value):
     if isinstance(value, list):
         if len(value) != 2:
-            raise Invalid(
-                "Dimensions must have a length of two, not {}".format(len(value))
-            )
+            raise Invalid(f"Dimensions must have a length of two, not {len(value)}")
         try:
             width, height = int(value[0]), int(value[1])
         except ValueError:
@@ -1292,19 +1305,16 @@ def directory(value):
         if data["content"]:
             return value
         raise Invalid(
-            "Could not find directory '{}'. Please make sure it exists (full path: {})."
-            "".format(path, os.path.abspath(path))
+            f"Could not find directory '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
         )
 
     if not os.path.exists(path):
         raise Invalid(
-            "Could not find directory '{}'. Please make sure it exists (full path: {})."
-            "".format(path, os.path.abspath(path))
+            f"Could not find directory '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
         )
     if not os.path.isdir(path):
         raise Invalid(
-            "Path '{}' is not a directory (full path: {})."
-            "".format(path, os.path.abspath(path))
+            f"Path '{path}' is not a directory (full path: {os.path.abspath(path)})."
         )
     return value
 
@@ -1331,19 +1341,16 @@ def file_(value):
         if data["content"]:
             return value
         raise Invalid(
-            "Could not find file '{}'. Please make sure it exists (full path: {})."
-            "".format(path, os.path.abspath(path))
+            f"Could not find file '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
         )
 
     if not os.path.exists(path):
         raise Invalid(
-            "Could not find file '{}'. Please make sure it exists (full path: {})."
-            "".format(path, os.path.abspath(path))
+            f"Could not find file '{path}'. Please make sure it exists (full path: {os.path.abspath(path)})."
         )
     if not os.path.isfile(path):
         raise Invalid(
-            "Path '{}' is not a file (full path: {})."
-            "".format(path, os.path.abspath(path))
+            f"Path '{path}' is not a file (full path: {os.path.abspath(path)})."
         )
     return value
 
@@ -1396,7 +1403,7 @@ def typed_schema(schemas, **kwargs):
         value = value.copy()
         schema_option = value.pop(key, default_schema_option)
         if schema_option is None:
-            raise Invalid(key + " not specified!")
+            raise Invalid(f"{key} not specified!")
         key_v = key_validator(schema_option)
         value = schemas[key_v](value)
         value[key] = key_v
@@ -1415,18 +1422,32 @@ class GenerateID(Optional):
 class SplitDefault(Optional):
     """Mark this key to have a split default for ESP8266/ESP32."""
 
-    def __init__(self, key, esp8266=vol.UNDEFINED, esp32=vol.UNDEFINED):
+    def __init__(
+        self,
+        key,
+        esp8266=vol.UNDEFINED,
+        esp32=vol.UNDEFINED,
+        esp32_arduino=vol.UNDEFINED,
+        esp32_idf=vol.UNDEFINED,
+    ):
         super().__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
-        self._esp32_default = vol.default_factory(esp32)
+        self._esp32_arduino_default = vol.default_factory(
+            esp32_arduino if esp32 is vol.UNDEFINED else esp32
+        )
+        self._esp32_idf_default = vol.default_factory(
+            esp32_idf if esp32 is vol.UNDEFINED else esp32
+        )
 
     @property
     def default(self):
         if CORE.is_esp8266:
             return self._esp8266_default
-        if CORE.is_esp32:
-            return self._esp32_default
-        raise ValueError
+        if CORE.is_esp32 and CORE.using_arduino:
+            return self._esp32_arduino_default
+        if CORE.is_esp32 and CORE.using_esp_idf:
+            return self._esp32_idf_default
+        raise NotImplementedError
 
     @default.setter
     def default(self, value):
@@ -1445,11 +1466,7 @@ class OnlyWith(Optional):
     @property
     def default(self):
         # pylint: disable=unsupported-membership-test
-        if self._component in CORE.raw_config or (
-            CONF_PACKAGES in CORE.raw_config
-            and self._component
-            in {list(x.keys())[0] for x in CORE.raw_config[CONF_PACKAGES].values()}
-        ):
+        if self._component in CORE.loaded_integrations:
             return self._default
         return vol.UNDEFINED
 
@@ -1493,8 +1510,7 @@ def validate_registry_entry(name, registry):
             value = {value: {}}
         if not isinstance(value, dict):
             raise Invalid(
-                "{} must consist of key-value mapping! Got {}"
-                "".format(name.title(), value)
+                f"{name.title()} must consist of key-value mapping! Got {value}"
             )
         key = next((x for x in value if x not in ignore_keys), None)
         if key is None:
@@ -1504,9 +1520,8 @@ def validate_registry_entry(name, registry):
         key2 = next((x for x in value if x != key and x not in ignore_keys), None)
         if key2 is not None:
             raise Invalid(
-                "Cannot have two {0}s in one item. Key '{1}' overrides '{2}'! "
-                "Did you forget to indent the block inside the {0}?"
-                "".format(name, key, key2)
+                f"Cannot have two {name}s in one item. Key '{key}' overrides '{key2}'! "
+                f"Did you forget to indent the block inside the {key}?"
             )
 
         if value[key] is None:
@@ -1619,3 +1634,87 @@ def url(value):
     if not parsed.scheme or not parsed.netloc:
         raise Invalid("Expected a URL scheme and host")
     return parsed.geturl()
+
+
+def git_ref(value):
+    if re.match(r"[a-zA-Z0-9\-_.\./]+", value) is None:
+        raise Invalid("Not a valid git ref")
+    return value
+
+
+def source_refresh(value: str):
+    if value.lower() == "always":
+        return source_refresh("0s")
+    if value.lower() == "never":
+        return source_refresh("1000y")
+    return positive_time_period_seconds(value)
+
+
+@dataclass(frozen=True, order=True)
+class Version:
+    major: int
+    minor: int
+    patch: int
+
+    def __str__(self):
+        return f"{self.major}.{self.minor}.{self.patch}"
+
+    @classmethod
+    def parse(cls, value: str) -> "Version":
+        match = re.match(r"(\d+).(\d+).(\d+)", value)
+        if match is None:
+            raise ValueError(f"Not a valid version number {value}")
+        major = int(match[1])
+        minor = int(match[2])
+        patch = int(match[3])
+        return Version(major=major, minor=minor, patch=patch)
+
+
+def version_number(value):
+    value = string_strict(value)
+    try:
+        return str(Version.parse(value))
+    except ValueError as e:
+        raise Invalid("Not a version number") from e
+
+
+def require_framework_version(
+    *,
+    esp_idf=None,
+    esp32_arduino=None,
+    esp8266_arduino=None,
+):
+    def validator(value):
+        core_data = CORE.data[KEY_CORE]
+        framework = core_data[KEY_TARGET_FRAMEWORK]
+        if framework == "esp-idf":
+            if esp_idf is None:
+                raise Invalid("This feature is incompatible with esp-idf")
+            required = esp_idf
+        elif CORE.is_esp32 and framework == "arduino":
+            if esp32_arduino is None:
+                raise Invalid(
+                    "This feature is incompatible with ESP32 using arduino framework"
+                )
+            required = esp32_arduino
+        elif CORE.is_esp8266 and framework == "arduino":
+            if esp8266_arduino is None:
+                raise Invalid("This feature is incompatible with ESP8266")
+            required = esp8266_arduino
+        else:
+            raise NotImplementedError
+        if core_data[KEY_FRAMEWORK_VERSION] < required:
+            raise Invalid(
+                f"This feature requires at least framework version {required}"
+            )
+        return value
+
+    return validator
+
+
+@contextmanager
+def suppress_invalid():
+    try:
+        yield
+    except vol.Invalid:
+        pass

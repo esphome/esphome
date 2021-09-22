@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 
+#ifdef USE_MQTT
 #ifdef USE_SELECT
 
 #include "esphome/components/select/select.h"
@@ -44,3 +45,4 @@ class MQTTSelectComponent : public mqtt::MQTTComponent {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

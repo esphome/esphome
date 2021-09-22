@@ -1,19 +1,20 @@
 #include "remote_receiver.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 
 namespace esphome {
 namespace remote_receiver {
 
 static const char *const TAG = "remote_receiver.esp8266";
 
-void ICACHE_RAM_ATTR HOT RemoteReceiverComponentStore::gpio_intr(RemoteReceiverComponentStore *arg) {
+void IRAM_ATTR HOT RemoteReceiverComponentStore::gpio_intr(RemoteReceiverComponentStore *arg) {
   const uint32_t now = micros();
   // If the lhs is 1 (rising edge) we should write to an uneven index and vice versa
   const uint32_t next = (arg->buffer_write_at + 1) % arg->buffer_size;
-  const bool level = arg->pin->digital_read();
+  const bool level = arg->pin.digital_read();
   if (level != next % 2)
     return;
 
@@ -53,7 +54,7 @@ void RemoteReceiverComponent::setup() {
   } else {
     s.buffer_write_at = s.buffer_read_at = 0;
   }
-  this->pin_->attach_interrupt(RemoteReceiverComponentStore::gpio_intr, &this->store_, CHANGE);
+  this->pin_->attach_interrupt(RemoteReceiverComponentStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
 }
 void RemoteReceiverComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Remote Receiver:");

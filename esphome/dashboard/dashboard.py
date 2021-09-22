@@ -41,7 +41,7 @@ from .util import password_hash
 # pylint: disable=unused-import, wrong-import-order
 from typing import Optional  # noqa
 
-from esphome.zeroconf import DashboardStatus, Zeroconf
+from esphome.zeroconf import DashboardStatus, EsphomeZeroconf
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ class DashboardSettings:
         return os.path.join(self.config_dir, *args)
 
     def list_yaml_files(self):
-        return util.list_yaml_files(self.config_dir)
+        return util.list_yaml_files([self.config_dir])
 
 
 settings = DashboardSettings()
@@ -368,7 +368,7 @@ class WizardRequestHandler(BaseHandler):
             if k in ("name", "platform", "board", "ssid", "psk", "password")
         }
         kwargs["ota_password"] = secrets.token_hex(16)
-        destination = settings.rel_path(kwargs["name"] + ".yaml")
+        destination = settings.rel_path(f"{kwargs['name']}.yaml")
         wizard.wizard_write(path=destination, **kwargs)
         self.set_status(200)
         self.finish()
@@ -431,7 +431,7 @@ class DashboardEntry:
     @property
     def name(self):
         if self.storage is None:
-            return self.filename[: -len(".yaml")]
+            return self.filename.replace(".yml", "").replace(".yaml", "")
         return self.storage.name
 
     @property
@@ -441,16 +441,10 @@ class DashboardEntry:
         return self.storage.comment
 
     @property
-    def esp_platform(self):
+    def target_platform(self):
         if self.storage is None:
             return None
-        return self.storage.esp_platform
-
-    @property
-    def board(self):
-        if self.storage is None:
-            return None
-        return self.storage.board
+        return self.storage.target_platform
 
     @property
     def update_available(self):
@@ -501,7 +495,7 @@ def _ping_func(filename, address):
 
 class MDNSStatusThread(threading.Thread):
     def run(self):
-        zc = Zeroconf()
+        zc = EsphomeZeroconf()
 
         def on_update(dat):
             for key, b in dat.items():
@@ -512,7 +506,7 @@ class MDNSStatusThread(threading.Thread):
         while not STOP_EVENT.is_set():
             entries = _list_dashboard_entries()
             stat.request_query(
-                {entry.filename: entry.name + ".local." for entry in entries}
+                {entry.filename: f"{entry.name}.local." for entry in entries}
             )
 
             PING_REQUEST.wait()
@@ -600,7 +594,7 @@ class EditRequestHandler(BaseHandler):
         content = ""
         if os.path.isfile(filename):
             # pylint: disable=no-value-for-parameter
-            with open(filename, "r") as f:
+            with open(file=filename, mode="r", encoding="utf-8") as f:
                 content = f.read()
         self.write(content)
 
@@ -608,7 +602,7 @@ class EditRequestHandler(BaseHandler):
     @bind_config
     def post(self, configuration=None):
         # pylint: disable=no-value-for-parameter
-        with open(settings.rel_path(configuration), "wb") as f:
+        with open(file=settings.rel_path(configuration), mode="wb") as f:
             f.write(self.request.body)
         self.set_status(200)
 
@@ -795,27 +789,27 @@ def make_app(debug=get_bool_env(ENV_DEV)):
     rel = settings.relative_url
     app = tornado.web.Application(
         [
-            (rel + "", MainRequestHandler),
-            (rel + "login", LoginHandler),
-            (rel + "logout", LogoutHandler),
-            (rel + "logs", EsphomeLogsHandler),
-            (rel + "upload", EsphomeUploadHandler),
-            (rel + "compile", EsphomeCompileHandler),
-            (rel + "validate", EsphomeValidateHandler),
-            (rel + "clean-mqtt", EsphomeCleanMqttHandler),
-            (rel + "clean", EsphomeCleanHandler),
-            (rel + "vscode", EsphomeVscodeHandler),
-            (rel + "ace", EsphomeAceEditorHandler),
-            (rel + "update-all", EsphomeUpdateAllHandler),
-            (rel + "info", InfoRequestHandler),
-            (rel + "edit", EditRequestHandler),
-            (rel + "download.bin", DownloadBinaryRequestHandler),
-            (rel + "serial-ports", SerialPortRequestHandler),
-            (rel + "ping", PingRequestHandler),
-            (rel + "delete", DeleteRequestHandler),
-            (rel + "undo-delete", UndoDeleteRequestHandler),
-            (rel + "wizard.html", WizardRequestHandler),
-            (rel + r"static/(.*)", StaticFileHandler, {"path": get_static_path()}),
+            (f"{rel}", MainRequestHandler),
+            (f"{rel}login", LoginHandler),
+            (f"{rel}logout", LogoutHandler),
+            (f"{rel}logs", EsphomeLogsHandler),
+            (f"{rel}upload", EsphomeUploadHandler),
+            (f"{rel}compile", EsphomeCompileHandler),
+            (f"{rel}validate", EsphomeValidateHandler),
+            (f"{rel}clean-mqtt", EsphomeCleanMqttHandler),
+            (f"{rel}clean", EsphomeCleanHandler),
+            (f"{rel}vscode", EsphomeVscodeHandler),
+            (f"{rel}ace", EsphomeAceEditorHandler),
+            (f"{rel}update-all", EsphomeUpdateAllHandler),
+            (f"{rel}info", InfoRequestHandler),
+            (f"{rel}edit", EditRequestHandler),
+            (f"{rel}download.bin", DownloadBinaryRequestHandler),
+            (f"{rel}serial-ports", SerialPortRequestHandler),
+            (f"{rel}ping", PingRequestHandler),
+            (f"{rel}delete", DeleteRequestHandler),
+            (f"{rel}undo-delete", UndoDeleteRequestHandler),
+            (f"{rel}wizard.html", WizardRequestHandler),
+            (f"{rel}static/(.*)", StaticFileHandler, {"path": get_static_path()}),
         ],
         **app_settings,
     )

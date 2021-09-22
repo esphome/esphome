@@ -136,8 +136,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool fan_mode_change_delayed();
   /// Returns the climate action that is being delayed (check climate_action_change_delayed(), first!)
   climate::ClimateAction delayed_climate_action();
-  /// Returns the fan mode that is being delayed (check fan_mode_change_delayed(), first!)
-  climate::ClimateFanMode delayed_fan_mode();
+  /// Returns the fan mode that is locked in (check fan_mode_change_delayed(), first!)
+  climate::ClimateFanMode locked_fan_mode();
   /// Set point and hysteresis validation
   bool hysteresis_valid();  // returns true if valid
   void validate_target_temperature();
@@ -376,9 +376,6 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *prev_fan_mode_trigger_{nullptr};
   Trigger<> *prev_mode_trigger_{nullptr};
   Trigger<> *prev_swing_mode_trigger_{nullptr};
-
-  /// Desired fan_mode -- used to store desired mode for callback when switching is delayed
-  climate::ClimateFanMode desired_fan_mode_{climate::CLIMATE_FAN_ON};
 
   /// Store previously-known states
   ///

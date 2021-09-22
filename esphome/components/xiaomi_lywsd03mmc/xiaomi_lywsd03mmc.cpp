@@ -1,7 +1,7 @@
 #include "xiaomi_lywsd03mmc.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace xiaomi_lywsd03mmc {
@@ -56,11 +56,7 @@ bool XiaomiLYWSD03MMC::parse_device(const esp32_ble_tracker::ESPBTDevice &device
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 void XiaomiLYWSD03MMC::set_bindkey(const std::string &bindkey) {
@@ -71,7 +67,7 @@ void XiaomiLYWSD03MMC::set_bindkey(const std::string &bindkey) {
   char temp[3] = {0};
   for (int i = 0; i < 16; i++) {
     strncpy(temp, &(bindkey.c_str()[i * 2]), 2);
-    bindkey_[i] = std::strtoul(temp, NULL, 16);
+    bindkey_[i] = std::strtoul(temp, nullptr, 16);
   }
 }
 

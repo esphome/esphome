@@ -3,8 +3,9 @@
 // https://www.ti.com/lit/ds/symlink/tlc5947.pdf
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/output/float_output.h"
+#include <vector>
 
 namespace esphome {
 namespace tlc5947 {

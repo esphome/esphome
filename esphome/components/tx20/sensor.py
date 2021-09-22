@@ -33,9 +33,7 @@ CONFIG_SCHEMA = cv.Schema(
             accuracy_decimals=1,
             state_class=STATE_CLASS_NONE,
         ),
-        cv.Required(CONF_PIN): cv.All(
-            pins.internal_gpio_input_pin_schema, pins.validate_has_interrupt
-        ),
+        cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

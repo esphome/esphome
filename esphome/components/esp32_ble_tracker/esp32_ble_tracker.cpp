@@ -1,17 +1,23 @@
+#ifdef USE_ESP32
+
 #include "esp32_ble_tracker.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
-
-#ifdef ARDUINO_ARCH_ESP32
+#include "esphome/core/hal.h"
 
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <esp_bt_main.h>
 #include <esp_bt.h>
+#include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_gap_ble_api.h>
 #include <esp_bt_defs.h>
+
+#ifdef USE_ARDUINO
+#include <esp32-hal-bt.h>
+#endif
 
 // bt_trace.h
 #undef TAG
@@ -21,7 +27,7 @@ namespace esp32_ble_tracker {
 
 static const char *const TAG = "esp32_ble_tracker";
 
-ESP32BLETracker *global_esp32_ble_tracker = nullptr;
+ESP32BLETracker *global_esp32_ble_tracker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
   uint64_t u = 0;
@@ -55,7 +61,7 @@ void ESP32BLETracker::loop() {
                                      &ble_event->event_.gattc.gattc_param);
     else
       this->real_gap_event_handler(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
-    delete ble_event;
+    delete ble_event;  // NOLINT(cppcoreguidelines-owning-memory)
     ble_event = this->ble_events_.pop();
   }
 
@@ -126,13 +132,32 @@ bool ESP32BLETracker::ble_setup() {
     return false;
   }
 
-  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
-
-  // Initialize the bluetooth controller with the default configuration
-  if (!btStart()) {
-    ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
-    return false;
+  if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
+    // start bt controller
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
+      esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+      err = esp_bt_controller_init(&cfg);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bt_controller_init failed: %s", esp_err_to_name(err));
+        return false;
+      }
+      while (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE)
+        ;
+    }
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
+      err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bt_controller_enable failed: %s", esp_err_to_name(err));
+        return false;
+      }
+    }
+    if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
+      ESP_LOGE(TAG, "esp bt controller enable failed");
+      return false;
+    }
   }
+
+  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 
   err = esp_bluedroid_init();
   if (err != ESP_OK) {
@@ -204,9 +229,9 @@ void ESP32BLETracker::register_client(ESPBTClient *client) {
 }
 
 void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  BLEEvent *gap_event = new BLEEvent(event, param);
+  BLEEvent *gap_event = new BLEEvent(event, param);  // NOLINT(cppcoreguidelines-owning-memory)
   global_esp32_ble_tracker->ble_events_.push(gap_event);
-}
+}  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void ESP32BLETracker::real_gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   switch (event) {
@@ -254,9 +279,9 @@ void ESP32BLETracker::gap_scan_result(const esp_ble_gap_cb_param_t::ble_scan_res
 
 void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                           esp_ble_gattc_cb_param_t *param) {
-  BLEEvent *gattc_event = new BLEEvent(event, gattc_if, param);
+  BLEEvent *gattc_event = new BLEEvent(event, gattc_if, param);  // NOLINT(cppcoreguidelines-owning-memory)
   global_esp32_ble_tracker->ble_events_.push(gattc_event);
-}
+}  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void ESP32BLETracker::real_gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                                esp_ble_gattc_cb_param_t *param) {
@@ -434,6 +459,14 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
   }
   for (auto &data : this->manufacturer_datas_) {
     ESP_LOGVV(TAG, "  Manufacturer data: %s", hexencode(data.data).c_str());
+    if (this->get_ibeacon().has_value()) {
+      auto ibeacon = this->get_ibeacon().value();
+      ESP_LOGVV(TAG, "    iBeacon data:");
+      ESP_LOGVV(TAG, "      UUID: %s", ibeacon.get_uuid().to_string().c_str());
+      ESP_LOGVV(TAG, "      Major: %u", ibeacon.get_major());
+      ESP_LOGVV(TAG, "      Minor: %u", ibeacon.get_minor());
+      ESP_LOGVV(TAG, "      TXPower: %d", ibeacon.get_signal_power());
+    }
   }
   for (auto &data : this->service_datas_) {
     ESP_LOGVV(TAG, "  Service data:");

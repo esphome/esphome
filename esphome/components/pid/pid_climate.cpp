@@ -100,7 +100,7 @@ void PIDClimate::write_output_(float value) {
 }
 void PIDClimate::update_pid_() {
   float value;
-  if (isnan(this->current_temperature) || isnan(this->target_temperature)) {
+  if (std::isnan(this->current_temperature) || std::isnan(this->target_temperature)) {
     // if any control parameters are nan, turn off all outputs
     value = 0.0;
   } else {

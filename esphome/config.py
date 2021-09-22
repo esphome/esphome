@@ -1,4 +1,6 @@
-import collections
+import abc
+import functools
+import heapq
 import logging
 import re
 
@@ -15,6 +17,7 @@ from esphome.const import (
     CONF_PACKAGES,
     CONF_SUBSTITUTIONS,
     CONF_EXTERNAL_COMPONENTS,
+    TARGET_PLATFORMS,
 )
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import indent
@@ -42,7 +45,7 @@ def iter_components(config):
             yield domain, component, conf
         if component.is_platform_component:
             for p_config in conf:
-                p_name = "{}.{}".format(domain, p_config[CONF_PLATFORM])
+                p_name = f"{domain}.{p_config[CONF_PLATFORM]}"
                 platform = get_platform(domain, p_config[CONF_PLATFORM])
                 yield p_name, platform, p_config
 
@@ -54,6 +57,27 @@ def _path_begins_with(path, other):  # type: (ConfigPath, ConfigPath) -> bool
     if len(path) < len(other):
         return False
     return path[: len(other)] == other
+
+
+@functools.total_ordering
+class _ValidationStepTask:
+    def __init__(self, priority: float, id_number: int, step: "ConfigValidationStep"):
+        self.priority = priority
+        self.id_number = id_number
+        self.step = step
+
+    @property
+    def _cmp_tuple(self) -> Tuple[float, int]:
+        return (-self.priority, self.id_number)
+
+    def __eq__(self, other):
+        return self._cmp_tuple == other._cmp_tuple
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __lt__(self, other):
+        return self._cmp_tuple < other._cmp_tuple
 
 
 class Config(OrderedDict, fv.FinalValidateConfig):
@@ -68,6 +92,10 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         # A list of components ids with the config path
         self.declare_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
         self._data = {}
+        # Store pending validation tasks (in heap order)
+        self._validation_tasks: List[_ValidationStepTask] = []
+        # ID to ensure stable order for keys with equal priority
+        self._validation_tasks_id = 0
 
     def add_error(self, error):
         # type: (vol.Invalid) -> None
@@ -82,6 +110,18 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             )
             error.path = error.path[last_root + 1 :]
         self.errors.append(error)
+
+    def add_validation_step(self, step: "ConfigValidationStep"):
+        id_num = self._validation_tasks_id
+        self._validation_tasks_id += 1
+        heapq.heappush(
+            self._validation_tasks, _ValidationStepTask(step.priority, id_num, step)
+        )
+
+    def run_validation_steps(self):
+        while self._validation_tasks:
+            task = heapq.heappop(self._validation_tasks)
+            task.step.run(self)
 
     @contextmanager
     def catch_error(self, path=None):
@@ -206,97 +246,6 @@ def iter_ids(config, path=None):
             yield from iter_ids(value, path + [key])
 
 
-def do_id_pass(result):  # type: (Config) -> None
-    from esphome.cpp_generator import MockObjClass
-    from esphome.cpp_types import Component
-
-    searching_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
-    for id, path in iter_ids(result):
-        if id.is_declaration:
-            if id.id is not None:
-                # Look for duplicate definitions
-                match = next((v for v in result.declare_ids if v[0].id == id.id), None)
-                if match is not None:
-                    opath = "->".join(str(v) for v in match[1])
-                    result.add_str_error(f"ID {id.id} redefined! Check {opath}", path)
-                    continue
-            result.declare_ids.append((id, path))
-        else:
-            searching_ids.append((id, path))
-    # Resolve default ids after manual IDs
-    for id, _ in result.declare_ids:
-        id.resolve([v[0].id for v in result.declare_ids])
-        if isinstance(id.type, MockObjClass) and id.type.inherits_from(Component):
-            CORE.component_ids.add(id.id)
-
-    # Check searched IDs
-    for id, path in searching_ids:
-        if id.id is not None:
-            # manually declared
-            match = next((v[0] for v in result.declare_ids if v[0].id == id.id), None)
-            if match is None or not match.is_manual:
-                # No declared ID with this name
-                import difflib
-
-                error = (
-                    "Couldn't find ID '{}'. Please check you have defined "
-                    "an ID with that name in your configuration.".format(id.id)
-                )
-                # Find candidates
-                matches = difflib.get_close_matches(
-                    id.id, [v[0].id for v in result.declare_ids if v[0].is_manual]
-                )
-                if matches:
-                    matches_s = ", ".join(f'"{x}"' for x in matches)
-                    error += f" These IDs look similar: {matches_s}."
-                result.add_str_error(error, path)
-                continue
-            if not isinstance(match.type, MockObjClass) or not isinstance(
-                id.type, MockObjClass
-            ):
-                continue
-            if not match.type.inherits_from(id.type):
-                result.add_str_error(
-                    "ID '{}' of type {} doesn't inherit from {}. Please "
-                    "double check your ID is pointing to the correct value"
-                    "".format(id.id, match.type, id.type),
-                    path,
-                )
-
-        if id.id is None and id.type is not None:
-            matches = []
-            for v in result.declare_ids:
-                if v[0] is None or not isinstance(v[0].type, MockObjClass):
-                    continue
-                inherits = v[0].type.inherits_from(id.type)
-                if inherits:
-                    matches.append(v[0])
-
-            if len(matches) == 0:
-                result.add_str_error(
-                    f"Couldn't find any component that can be used for '{id.type}'. Are you missing a hub declaration?",
-                    path,
-                )
-            elif len(matches) == 1:
-                id.id = matches[0].id
-            elif len(matches) > 1:
-                if str(id.type) == "time::RealTimeClock":
-                    id.id = matches[0].id
-                else:
-                    manual_declared_count = sum(1 for m in matches if m.is_manual)
-                    if manual_declared_count > 0:
-                        ids = ", ".join([f"'{m.id}'" for m in matches if m.is_manual])
-                        result.add_str_error(
-                            f"Too many candidates found for '{path[-1]}' type '{id.type}' {'Some are' if manual_declared_count > 1 else 'One is'} {ids}",
-                            path,
-                        )
-                    else:
-                        result.add_str_error(
-                            f"Too many candidates found for '{path[-1]}' type '{id.type}' You must assign an explicit ID to the parent component you want to use.",
-                            path,
-                        )
-
-
 def recursive_check_replaceme(value):
     if isinstance(value, list):
         return cv.Schema([recursive_check_replaceme])(value)
@@ -313,6 +262,389 @@ def recursive_check_replaceme(value):
             'please use "!force REPLACEME"'
         )
     return value
+
+
+class ConfigValidationStep(abc.ABC):
+    """A step to for the validation phase."""
+
+    # Priority of this step, higher means run earlier
+    priority: float = 0.0
+
+    @abc.abstractmethod
+    def run(self, result: Config) -> None:
+        ...
+
+
+class LoadValidationStep(ConfigValidationStep):
+    """Load step, this step is called once for each domain config fragment.
+
+    Responsibilties:
+    - Load component code
+    - Ensure all AUTO_LOADs are added
+    - Set output paths of result
+    """
+
+    def __init__(self, domain: str, conf: ConfigType):
+        self.domain = domain
+        self.conf = conf
+
+    def run(self, result: Config) -> None:
+        if self.domain.startswith("."):
+            # Ignore top-level keys starting with a dot
+            return
+        result.add_output_path([self.domain], self.domain)
+        result[self.domain] = self.conf
+        component = get_component(self.domain)
+        path = [self.domain]
+        if component is None:
+            result.add_str_error(f"Component not found: {self.domain}", path)
+            return
+        CORE.loaded_integrations.add(self.domain)
+
+        # Process AUTO_LOAD
+        for load in component.auto_load:
+            if load not in result:
+                result.add_validation_step(AutoLoadValidationStep(load))
+
+        if not component.is_platform_component:
+            result.add_validation_step(
+                MetadataValidationStep([self.domain], self.domain, self.conf, component)
+            )
+            return
+
+        # This is a platform component, proceed to reading platform entries
+        # Remove this is as an output path
+        result.remove_output_path([self.domain], self.domain)
+
+        # Ensure conf is a list
+        if not self.conf:
+            result[self.domain] = self.conf = []
+        elif not isinstance(self.conf, list):
+            result[self.domain] = self.conf = [self.conf]
+
+        for i, p_config in enumerate(self.conf):
+            path = [self.domain, i]
+            # Construct temporary unknown output path
+            p_domain = f"{self.domain}.unknown"
+            result.add_output_path(path, p_domain)
+            result[self.domain][i] = p_config
+            if not isinstance(p_config, dict):
+                result.add_str_error("Platform schemas must be key-value pairs.", path)
+                continue
+            p_name = p_config.get("platform")
+            if p_name is None:
+                result.add_str_error("No platform specified! See 'platform' key.", path)
+                continue
+            # Remove temp output path and construct new one
+            result.remove_output_path(path, p_domain)
+            p_domain = f"{self.domain}.{p_name}"
+            result.add_output_path(path, p_domain)
+            # Try Load platform
+            platform = get_platform(self.domain, p_name)
+            if platform is None:
+                result.add_str_error(f"Platform not found: '{p_domain}'", path)
+                continue
+            CORE.loaded_integrations.add(p_name)
+
+            # Process AUTO_LOAD
+            for load in platform.auto_load:
+                if load not in result:
+                    result.add_validation_step(AutoLoadValidationStep(load))
+
+            result.add_validation_step(
+                MetadataValidationStep(path, p_domain, p_config, platform)
+            )
+
+
+class AutoLoadValidationStep(ConfigValidationStep):
+    """Auto load step. This step is used to automatically load components if
+    a component requested that with AUTO_LOAD.
+    """
+
+    # Only load after all regular loads have taken place
+    priority = -1.0
+
+    def __init__(self, domain: str):
+        self.domain = domain
+
+    def run(self, result: Config) -> None:
+        if self.domain in result:
+            # already loaded
+            return
+        result.add_validation_step(LoadValidationStep(self.domain, core.AutoLoad()))
+
+
+class MetadataValidationStep(ConfigValidationStep):
+    """Validate component metadata
+
+    Responsibilties:
+     - Config transformation (nullable, multi conf)
+     - Check dependencies
+     - Check conflicts
+     - Check supported target platforms
+    """
+
+    # All components need to be loaded first to ensure dependency check works
+    priority = -2.0
+
+    def __init__(
+        self,
+        path: ConfigPath,
+        domain: str,
+        conf: ConfigType,
+        component: ComponentManifest,
+    ) -> None:
+        self.path = path
+        self.domain = domain
+        self.conf = conf
+        self.comp = component
+
+    def run(self, result: Config) -> None:
+        if self.conf is None:
+            result[self.domain] = self.conf = {}
+
+        success = True
+        for dependency in self.comp.dependencies:
+            if dependency not in result:
+                result.add_str_error(
+                    f"Component {self.domain} requires component {dependency}",
+                    self.path,
+                )
+                success = False
+        if not success:
+            return
+
+        success = True
+        for conflict in self.comp.conflicts_with:
+            if conflict in result:
+                result.add_str_error(
+                    f"Component {self.domain} cannot be used together with component {conflict}",
+                    self.path,
+                )
+                success = False
+        if not success:
+            return
+
+        if (
+            not self.comp.is_platform_component
+            and self.comp.config_schema is None
+            and not isinstance(self.conf, core.AutoLoad)
+        ):
+            result.add_str_error(
+                f"Component {self.domain} cannot be loaded via YAML "
+                "(no CONFIG_SCHEMA).",
+                self.path,
+            )
+            return
+
+        if self.comp.multi_conf:
+            if not isinstance(self.conf, list):
+                result[self.domain] = self.conf = [self.conf]
+            if (
+                not isinstance(self.comp.multi_conf, bool)
+                and len(self.conf) > self.comp.multi_conf
+            ):
+                result.add_str_error(
+                    f"Component {self.domain} supports a maximum of {self.comp.multi_conf} "
+                    f"entries ({len(self.conf)} found).",
+                    self.path,
+                )
+                return
+            for i, part_conf in enumerate(self.conf):
+                result.add_validation_step(
+                    SchemaValidationStep(
+                        self.domain, self.path + [i], part_conf, self.comp
+                    )
+                )
+            return
+
+        result.add_validation_step(
+            SchemaValidationStep(self.domain, self.path, self.conf, self.comp)
+        )
+
+
+class SchemaValidationStep(ConfigValidationStep):
+    """Schema validation step.
+
+    During this step all CONFIG_SCHEMAs are checked against the configs.
+    """
+
+    def __init__(
+        self, domain: str, path: ConfigPath, conf: ConfigType, comp: ComponentManifest
+    ):
+        self.path = path
+        self.conf = conf
+        self.comp = comp
+
+    def run(self, result: Config) -> None:
+        if self.comp.config_schema is None:
+            return
+        with result.catch_error(self.path):
+            if self.comp.is_platform:
+                # Remove 'platform' key for validation
+                input_conf = OrderedDict(self.conf)
+                platform_val = input_conf.pop("platform")
+                schema = cv.Schema(self.comp.config_schema)
+                validated = schema(input_conf)
+                # Ensure result is OrderedDict so we can call move_to_end
+                if not isinstance(validated, OrderedDict):
+                    validated = OrderedDict(validated)
+                validated["platform"] = platform_val
+                validated.move_to_end("platform", last=False)
+                result.set_by_path(self.path, validated)
+            else:
+                schema = cv.Schema(self.comp.config_schema)
+                validated = schema(self.conf)
+                result.set_by_path(self.path, validated)
+
+        result.add_validation_step(FinalValidateValidationStep(self.path, self.comp))
+
+
+class IDPassValidationStep(ConfigValidationStep):
+    """ID Pass step.
+
+    During this step all ID references are checked.
+
+    If an automatic ID reference is used, a fitting declared ID is automatically searched.
+    Also checks duplicate ID names, and that referenced IDs are declared.
+    """
+
+    # Has to happen after all schemas validated
+    priority = -10.0
+
+    def __init__(self) -> None:
+        pass
+
+    def run(self, result: Config) -> None:
+        from esphome.cpp_generator import MockObjClass
+        from esphome.cpp_types import Component
+
+        if result.errors:
+            # If result already has errors, skip this step
+            # Otherwise the user will get a bunch of missing ID warnings
+            # because the component that did not validate doesn't have any IDs set
+            return
+
+        searching_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
+        for id, path in iter_ids(result):
+            if id.is_declaration:
+                if id.id is not None:
+                    # Look for duplicate definitions
+                    match = next(
+                        (v for v in result.declare_ids if v[0].id == id.id), None
+                    )
+                    if match is not None:
+                        opath = "->".join(str(v) for v in match[1])
+                        result.add_str_error(
+                            f"ID {id.id} redefined! Check {opath}", path
+                        )
+                        continue
+                result.declare_ids.append((id, path))
+            else:
+                searching_ids.append((id, path))
+
+        # Resolve default ids after manual IDs
+        for id, _ in result.declare_ids:
+            id.resolve([v[0].id for v in result.declare_ids])
+            if isinstance(id.type, MockObjClass) and id.type.inherits_from(Component):
+                CORE.component_ids.add(id.id)
+
+        # Check searched IDs
+        for id, path in searching_ids:
+            if id.id is not None:
+                # manually declared
+                match = next(
+                    (v[0] for v in result.declare_ids if v[0].id == id.id), None
+                )
+                if match is None or not match.is_manual:
+                    # No declared ID with this name
+                    import difflib
+
+                    error = (
+                        f"Couldn't find ID '{id.id}'. Please check you have defined "
+                        "an ID with that name in your configuration."
+                    )
+                    # Find candidates
+                    matches = difflib.get_close_matches(
+                        id.id, [v[0].id for v in result.declare_ids if v[0].is_manual]
+                    )
+                    if matches:
+                        matches_s = ", ".join(f'"{x}"' for x in matches)
+                        error += f" These IDs look similar: {matches_s}."
+                    result.add_str_error(error, path)
+                    continue
+                if not isinstance(match.type, MockObjClass) or not isinstance(
+                    id.type, MockObjClass
+                ):
+                    continue
+                if not match.type.inherits_from(id.type):
+                    result.add_str_error(
+                        f"ID '{id.id}' of type {match.type} doesn't inherit from {id.type}. "
+                        "Please double check your ID is pointing to the correct value",
+                        path,
+                    )
+
+            if id.id is None and id.type is not None:
+                matches = []
+                for v in result.declare_ids:
+                    if v[0] is None or not isinstance(v[0].type, MockObjClass):
+                        continue
+                    inherits = v[0].type.inherits_from(id.type)
+                    if inherits:
+                        matches.append(v[0])
+
+                if len(matches) == 0:
+                    result.add_str_error(
+                        f"Couldn't find any component that can be used for '{id.type}'. Are you missing a hub declaration?",
+                        path,
+                    )
+                elif len(matches) == 1:
+                    id.id = matches[0].id
+                elif len(matches) > 1:
+                    if str(id.type) == "time::RealTimeClock":
+                        id.id = matches[0].id
+                    else:
+                        manual_declared_count = sum(1 for m in matches if m.is_manual)
+                        if manual_declared_count > 0:
+                            ids = ", ".join(
+                                [f"'{m.id}'" for m in matches if m.is_manual]
+                            )
+                            result.add_str_error(
+                                f"Too many candidates found for '{path[-1]}' type '{id.type}' {'Some are' if manual_declared_count > 1 else 'One is'} {ids}",
+                                path,
+                            )
+                        else:
+                            result.add_str_error(
+                                f"Too many candidates found for '{path[-1]}' type '{id.type}' You must assign an explicit ID to the parent component you want to use.",
+                                path,
+                            )
+
+
+class FinalValidateValidationStep(ConfigValidationStep):
+    """Run final_validate_schema for all components."""
+
+    # Has to happen after ID pass validated
+    priority = -20.0
+
+    def __init__(self, path: ConfigPath, comp: ComponentManifest) -> None:
+        self.path = path
+        self.comp = comp
+
+    def run(self, result: Config) -> None:
+        if result.errors:
+            # If result already has errors, skip this step
+            return
+
+        if self.comp.final_validate_schema is None:
+            return
+
+        token = fv.full_config.set(result)
+
+        conf = result.get_nested_item(self.path)
+        with result.catch_error(self.path):
+            self.comp.final_validate_schema(conf)
+
+        fv.full_config.reset(token)
 
 
 def validate_config(config, command_line_substitutions):
@@ -333,6 +665,8 @@ def validate_config(config, command_line_substitutions):
             result.add_error(err)
             return result
 
+    CORE.raw_config = config
+
     # 1. Load substitutions
     if CONF_SUBSTITUTIONS in config:
         from esphome.components import substitutions
@@ -347,6 +681,8 @@ def validate_config(config, command_line_substitutions):
         except vol.Invalid as err:
             result.add_error(err)
             return result
+
+    CORE.raw_config = config
 
     # 1.1. Check for REPLACEME special value
     try:
@@ -385,218 +721,29 @@ def validate_config(config, command_line_substitutions):
     result[CONF_ESPHOME] = config[CONF_ESPHOME]
     result.add_output_path([CONF_ESPHOME], CONF_ESPHOME)
     try:
-        core_config.preload_core_config(config)
+        core_config.preload_core_config(config, result)
     except vol.Invalid as err:
         result.add_error(err)
         return result
     # Remove temporary esphome config path again, it will be reloaded later
     result.remove_output_path([CONF_ESPHOME], CONF_ESPHOME)
 
-    # 3. Load components.
-    # Load components (also AUTO_LOAD) and set output paths of result
-    # Queue of items to load, FIFO
-    load_queue = collections.deque()
+    # First run platform validation steps
+    for key in TARGET_PLATFORMS:
+        if key in config:
+            result.add_validation_step(LoadValidationStep(key, config[key]))
+    result.run_validation_steps()
+
+    if result.errors:
+        return result
+
     for domain, conf in config.items():
-        load_queue.append((domain, conf))
+        result.add_validation_step(LoadValidationStep(domain, conf))
+    result.add_validation_step(IDPassValidationStep())
 
-    # List of items to enter next stage
-    check_queue = (
-        []
-    )  # type: List[Tuple[ConfigPath, str, ConfigType, ComponentManifest]]
-
-    # This step handles:
-    # - Adding output path
-    # - Auto Load
-    # - Loading configs into result
-
-    while load_queue:
-        domain, conf = load_queue.popleft()
-        if domain.startswith("."):
-            # Ignore top-level keys starting with a dot
-            continue
-        result.add_output_path([domain], domain)
-        result[domain] = conf
-        component = get_component(domain)
-        path = [domain]
-        if component is None:
-            result.add_str_error(f"Component not found: {domain}", path)
-            continue
-        CORE.loaded_integrations.add(domain)
-
-        # Process AUTO_LOAD
-        for load in component.auto_load:
-            if load not in config:
-                load_conf = core.AutoLoad()
-                config[load] = load_conf
-                load_queue.append((load, load_conf))
-
-        if not component.is_platform_component:
-            check_queue.append(([domain], domain, conf, component))
-            continue
-
-        # This is a platform component, proceed to reading platform entries
-        # Remove this is as an output path
-        result.remove_output_path([domain], domain)
-
-        # Ensure conf is a list
-        if not conf:
-            result[domain] = conf = []
-        elif not isinstance(conf, list):
-            result[domain] = conf = [conf]
-
-        for i, p_config in enumerate(conf):
-            path = [domain, i]
-            # Construct temporary unknown output path
-            p_domain = f"{domain}.unknown"
-            result.add_output_path(path, p_domain)
-            result[domain][i] = p_config
-            if not isinstance(p_config, dict):
-                result.add_str_error("Platform schemas must be key-value pairs.", path)
-                continue
-            p_name = p_config.get("platform")
-            if p_name is None:
-                result.add_str_error("No platform specified! See 'platform' key.", path)
-                continue
-            # Remove temp output path and construct new one
-            result.remove_output_path(path, p_domain)
-            p_domain = f"{domain}.{p_name}"
-            result.add_output_path(path, p_domain)
-            # Try Load platform
-            platform = get_platform(domain, p_name)
-            if platform is None:
-                result.add_str_error(f"Platform not found: '{p_domain}'", path)
-                continue
-            CORE.loaded_integrations.add(p_name)
-
-            # Process AUTO_LOAD
-            for load in platform.auto_load:
-                if load not in config:
-                    load_conf = core.AutoLoad()
-                    config[load] = load_conf
-                    load_queue.append((load, load_conf))
-
-            check_queue.append((path, p_domain, p_config, platform))
-
-    # 4. Validate component metadata, including
-    # - Transformation (nullable, multi conf)
-    # - Dependencies
-    # - Conflicts
-    # - Supported ESP Platform
-
-    # List of items to proceed to next stage
-    validate_queue = []  # type: List[Tuple[ConfigPath, ConfigType, ComponentManifest]]
-    for path, domain, conf, comp in check_queue:
-        if conf is None:
-            result[domain] = conf = {}
-
-        success = True
-        for dependency in comp.dependencies:
-            if dependency not in config:
-                result.add_str_error(
-                    "Component {} requires component {}" "".format(domain, dependency),
-                    path,
-                )
-                success = False
-        if not success:
-            continue
-
-        success = True
-        for conflict in comp.conflicts_with:
-            if conflict in config:
-                result.add_str_error(
-                    "Component {} cannot be used together with component {}"
-                    "".format(domain, conflict),
-                    path,
-                )
-                success = False
-        if not success:
-            continue
-
-        if CORE.esp_platform not in comp.esp_platforms:
-            result.add_str_error(
-                "Component {} doesn't support {}.".format(domain, CORE.esp_platform),
-                path,
-            )
-            continue
-
-        if (
-            not comp.is_platform_component
-            and comp.config_schema is None
-            and not isinstance(conf, core.AutoLoad)
-        ):
-            result.add_str_error(
-                "Component {} cannot be loaded via YAML "
-                "(no CONFIG_SCHEMA).".format(domain),
-                path,
-            )
-            continue
-
-        if comp.multi_conf:
-            if not isinstance(conf, list):
-                result[domain] = conf = [conf]
-            if not isinstance(comp.multi_conf, bool) and len(conf) > comp.multi_conf:
-                result.add_str_error(
-                    "Component {} supports a maximum of {} "
-                    "entries ({} found).".format(domain, comp.multi_conf, len(conf)),
-                    path,
-                )
-                continue
-            for i, part_conf in enumerate(conf):
-                validate_queue.append((path + [i], part_conf, comp))
-            continue
-
-        validate_queue.append((path, conf, comp))
-
-    # 5. Validate configuration schema
-    for path, conf, comp in validate_queue:
-        if comp.config_schema is None:
-            continue
-        with result.catch_error(path):
-            if comp.is_platform:
-                # Remove 'platform' key for validation
-                input_conf = OrderedDict(conf)
-                platform_val = input_conf.pop("platform")
-                validated = comp.config_schema(input_conf)
-                # Ensure result is OrderedDict so we can call move_to_end
-                if not isinstance(validated, OrderedDict):
-                    validated = OrderedDict(validated)
-                validated["platform"] = platform_val
-                validated.move_to_end("platform", last=False)
-                result.set_by_path(path, validated)
-            else:
-                validated = comp.config_schema(conf)
-                result.set_by_path(path, validated)
-
-    # 6. If no validation errors, check IDs
-    if not result.errors:
-        # Only parse IDs if no validation error. Otherwise
-        # user gets confusing messages
-        do_id_pass(result)
-
-    # 7. Final validation
-    if not result.errors:
-        # Inter - components validation
-        token = fv.full_config.set(result)
-
-        for path, _, comp in validate_queue:
-            if comp.final_validate_schema is None:
-                continue
-            conf = result.get_nested_item(path)
-            with result.catch_error(path):
-                comp.final_validate_schema(conf)
-
-        fv.full_config.reset(token)
+    result.run_validation_steps()
 
     return result
-
-
-def _nested_getitem(data, path):
-    for item_index in path:
-        try:
-            data = data[item_index]
-        except (KeyError, IndexError, TypeError):
-            return None
-    return data
 
 
 def humanize_error(config, validation_error):
@@ -632,18 +779,14 @@ def _format_vol_invalid(ex, config):
 
     if isinstance(ex, ExtraKeysInvalid):
         if ex.candidates:
-            message += "[{}] is an invalid option for [{}]. Did you mean {}?".format(
-                ex.path[-1], paren, ", ".join(f"[{x}]" for x in ex.candidates)
-            )
+            message += f"[{ex.path[-1]}] is an invalid option for [{paren}]. Did you mean {', '.join(f'[{x}]' for x in ex.candidates)}?"
         else:
-            message += "[{}] is an invalid option for [{}]. Please check the indentation.".format(
-                ex.path[-1], paren
-            )
+            message += f"[{ex.path[-1]}] is an invalid option for [{paren}]. Please check the indentation."
     elif "extra keys not allowed" in str(ex):
-        message += "[{}] is an invalid option for [{}].".format(ex.path[-1], paren)
+        message += f"[{ex.path[-1]}] is an invalid option for [{paren}]."
     elif isinstance(ex, vol.RequiredFieldInvalid):
         if ex.msg == "required key not provided":
-            message += "'{}' is a required option for [{}].".format(ex.path[-1], paren)
+            message += f"'{ex.path[-1]}' is a required option for [{paren}]."
         else:
             # Required has set a custom error message
             message += ex.msg
@@ -669,7 +812,6 @@ def _load_config(command_line_substitutions):
         config = yaml_util.load_yaml(CORE.config_path)
     except EsphomeError as e:
         raise InvalidYAMLError(e) from e
-    CORE.raw_config = config
 
     try:
         result = validate_config(config, command_line_substitutions)
@@ -696,7 +838,7 @@ def line_info(config, path, highlight=True):
     obj = config.get_deepest_document_range_for_path(path)
     if obj:
         mark = obj.start_mark
-        source = "[source {}:{}]".format(mark.document, mark.line + 1)
+        source = f"[source {mark.document}:{mark.line + 1}]"
         return color(Fore.CYAN, source)
     return "None"
 
@@ -720,9 +862,7 @@ def dump_dict(config, path, at_root=True):
     if at_root:
         error = config.get_error_for_path(path)
         if error is not None:
-            ret += (
-                "\n" + color(Fore.BOLD_RED, _format_vol_invalid(error, config)) + "\n"
-            )
+            ret += f"\n{color(Fore.BOLD_RED, _format_vol_invalid(error, config))}\n"
 
     if isinstance(conf, (list, tuple)):
         multiline = True
@@ -734,11 +874,7 @@ def dump_dict(config, path, at_root=True):
             path_ = path + [i]
             error = config.get_error_for_path(path_)
             if error is not None:
-                ret += (
-                    "\n"
-                    + color(Fore.BOLD_RED, _format_vol_invalid(error, config))
-                    + "\n"
-                )
+                ret += f"\n{color(Fore.BOLD_RED, _format_vol_invalid(error, config))}\n"
 
             sep = "- "
             if config.is_in_error_path(path_):
@@ -747,10 +883,10 @@ def dump_dict(config, path, at_root=True):
             msg = indent(msg)
             inf = line_info(config, path_, highlight=config.is_in_error_path(path_))
             if inf is not None:
-                msg = inf + "\n" + msg
+                msg = f"{inf}\n{msg}"
             elif msg:
                 msg = msg[2:]
-            ret += sep + msg + "\n"
+            ret += f"{sep + msg}\n"
     elif isinstance(conf, dict):
         multiline = True
         if not conf:
@@ -761,11 +897,7 @@ def dump_dict(config, path, at_root=True):
             path_ = path + [k]
             error = config.get_error_for_path(path_)
             if error is not None:
-                ret += (
-                    "\n"
-                    + color(Fore.BOLD_RED, _format_vol_invalid(error, config))
-                    + "\n"
-                )
+                ret += f"\n{color(Fore.BOLD_RED, _format_vol_invalid(error, config))}\n"
 
             st = f"{k}: "
             if config.is_in_error_path(path_):
@@ -774,30 +906,30 @@ def dump_dict(config, path, at_root=True):
 
             inf = line_info(config, path_, highlight=config.is_in_error_path(path_))
             if m:
-                msg = "\n" + indent(msg)
+                msg = f"\n{indent(msg)}"
 
             if inf is not None:
                 if m:
-                    msg = " " + inf + msg
+                    msg = f" {inf}{msg}"
                 else:
-                    msg = msg + " " + inf
-            ret += st + msg + "\n"
+                    msg = f"{msg} {inf}"
+            ret += f"{st + msg}\n"
     elif isinstance(conf, str):
         if is_secret(conf):
-            conf = "!secret {}".format(is_secret(conf))
+            conf = f"!secret {is_secret(conf)}"
         if not conf:
             conf += "''"
 
         if len(conf) > 80:
-            conf = "|-\n" + indent(conf)
+            conf = f"|-\n{indent(conf)}"
         error = config.get_error_for_path(path)
         col = Fore.BOLD_RED if error else Fore.KEEP
         ret += color(col, str(conf))
     elif isinstance(conf, core.Lambda):
         if is_secret(conf):
-            conf = "!secret {}".format(is_secret(conf))
+            conf = f"!secret {is_secret(conf)}"
 
-        conf = "!lambda |-\n" + indent(str(conf.value))
+        conf = f"!lambda |-\n{indent(str(conf.value))}"
         error = config.get_error_for_path(path)
         col = Fore.BOLD_RED if error else Fore.KEEP
         ret += color(col, conf)
@@ -856,7 +988,7 @@ def read_config(command_line_substitutions):
             errstr = color(Fore.BOLD_RED, f"{domain}:")
             errline = line_info(res, path)
             if errline:
-                errstr += " " + errline
+                errstr += f" {errline}"
             safe_print(errstr)
             safe_print(indent(dump_dict(res, path)[0]))
         return None

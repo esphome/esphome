@@ -14,12 +14,14 @@ ethernet:
   clk_mode: GPIO0_IN
   phy_addr: 0
   power_pin: GPIO25
-  enable_mdns: false
   manual_ip:
     static_ip: 192.168.178.56
     gateway: 192.168.178.1
     subnet: 255.255.255.0
   domain: .local
+
+mdns:
+  disabled: true
 
 api:
 
@@ -246,6 +248,24 @@ sensor:
     id: freezer_temp_source
     reference_voltage: 3.19
     number: 0
+  - platform: airthings_wave_plus
+    ble_client_id: airthings01
+    update_interval: 5min
+    temperature:
+      name: "Wave Plus Temperature"
+    radon:
+      name: "Wave Plus Radon"
+    radon_long_term:
+      name: "Wave Plus Radon Long Term"
+    pressure:
+      name: "Wave Plus Pressure"
+    humidity:
+      name: "Wave Plus Humidity"
+    co2:
+      name: "Wave Plus CO2"
+    tvoc:
+      name: "Wave Plus VOC"
+
 time:
   - platform: homeassistant
     on_time:
@@ -276,6 +296,11 @@ binary_sensor:
   - platform: ble_presence
     service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
     name: 'BLE Test Service 128 Presence'
+  - platform: ble_presence
+    ibeacon_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
+    ibeacon_major: 100
+    ibeacon_minor: 1
+    name: 'BLE Test iBeacon Presence'
   - platform: esp32_touch
     name: 'ESP32 Touch Pad GPIO27'
     pin: GPIO27
@@ -333,6 +358,12 @@ esp32_ble_tracker:
       then:
         - lambda: !lambda |-
             ESP_LOGD("main", "Length of manufacturer data is %i", x.size());
+
+ble_client:
+  - mac_address: 01:02:03:04:05:06
+    id: airthings01
+
+airthings_ble:
 
 #esp32_ble_beacon:
 #  type: iBeacon
@@ -431,3 +462,4 @@ interval:
     - logger.log: 'Interval Run'
 
 display:
+

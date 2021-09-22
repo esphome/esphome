@@ -1,7 +1,9 @@
 #include "api_connection.h"
 #include "esphome/core/log.h"
-#include "esphome/core/util.h"
+#include "esphome/components/network/util.h"
 #include "esphome/core/version.h"
+#include "esphome/core/hal.h"
+#include <cerrno>
 
 #ifdef USE_DEEP_SLEEP
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
@@ -18,143 +20,144 @@ namespace api {
 
 static const char *const TAG = "api.connection";
 
-APIConnection::APIConnection(AsyncClient *client, APIServer *parent)
-    : client_(client), parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
-  this->client_->onError([](void *s, AsyncClient *c, int8_t error) { ((APIConnection *) s)->on_error_(error); }, this);
-  this->client_->onDisconnect([](void *s, AsyncClient *c) { ((APIConnection *) s)->on_disconnect_(); }, this);
-  this->client_->onTimeout([](void *s, AsyncClient *c, uint32_t time) { ((APIConnection *) s)->on_timeout_(time); },
-                           this);
-  this->client_->onData([](void *s, AsyncClient *c, void *buf,
-                           size_t len) { ((APIConnection *) s)->on_data_(reinterpret_cast<uint8_t *>(buf), len); },
-                        this);
+APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
+    : parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
+  this->proto_write_buffer_.reserve(64);
 
-  this->send_buffer_.reserve(64);
-  this->recv_buffer_.reserve(32);
-  this->client_info_ = this->client_->remoteIP().toString().c_str();
+#if defined(USE_API_PLAINTEXT)
+  helper_ = std::unique_ptr<APIFrameHelper>{new APIPlaintextFrameHelper(std::move(sock))};
+#elif defined(USE_API_NOISE)
+  helper_ = std::unique_ptr<APIFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
+#else
+#error "No frame helper defined"
+#endif
+}
+void APIConnection::start() {
   this->last_traffic_ = millis();
-}
-APIConnection::~APIConnection() { delete this->client_; }
-void APIConnection::on_error_(int8_t error) { this->remove_ = true; }
-void APIConnection::on_disconnect_() { this->remove_ = true; }
-void APIConnection::on_timeout_(uint32_t time) { this->on_fatal_error(); }
-void APIConnection::on_data_(uint8_t *buf, size_t len) {
-  if (len == 0 || buf == nullptr)
+
+  APIError err = helper_->init();
+  if (err != APIError::OK) {
+    on_fatal_error();
+    ESP_LOGW(TAG, "%s: Helper init failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
     return;
-  this->recv_buffer_.insert(this->recv_buffer_.end(), buf, buf + len);
-}
-void APIConnection::parse_recv_buffer_() {
-  if (this->recv_buffer_.empty() || this->remove_)
-    return;
-
-  while (!this->recv_buffer_.empty()) {
-    if (this->recv_buffer_[0] != 0x00) {
-      ESP_LOGW(TAG, "Invalid preamble from %s", this->client_info_.c_str());
-      this->on_fatal_error();
-      return;
-    }
-    uint32_t i = 1;
-    const uint32_t size = this->recv_buffer_.size();
-    uint32_t consumed;
-    auto msg_size_varint = ProtoVarInt::parse(&this->recv_buffer_[i], size - i, &consumed);
-    if (!msg_size_varint.has_value())
-      // not enough data there yet
-      return;
-    i += consumed;
-    uint32_t msg_size = msg_size_varint->as_uint32();
-
-    auto msg_type_varint = ProtoVarInt::parse(&this->recv_buffer_[i], size - i, &consumed);
-    if (!msg_type_varint.has_value())
-      // not enough data there yet
-      return;
-    i += consumed;
-    uint32_t msg_type = msg_type_varint->as_uint32();
-
-    if (size - i < msg_size)
-      // message body not fully received
-      return;
-
-    uint8_t *msg = &this->recv_buffer_[i];
-    this->read_message(msg_size, msg_type, msg);
-    if (this->remove_)
-      return;
-    // pop front
-    uint32_t total = i + msg_size;
-    this->recv_buffer_.erase(this->recv_buffer_.begin(), this->recv_buffer_.begin() + total);
-    this->last_traffic_ = millis();
   }
-}
-
-void APIConnection::disconnect_client() {
-  this->client_->close();
-  this->remove_ = true;
+  client_info_ = helper_->getpeername();
+  helper_->set_log_info(client_info_);
 }
 
 void APIConnection::loop() {
   if (this->remove_)
     return;
 
-  if (this->next_close_) {
-    this->disconnect_client();
-    return;
-  }
-
-  if (!network_is_connected()) {
+  if (!network::is_connected()) {
     // when network is disconnected force disconnect immediately
     // don't wait for timeout
     this->on_fatal_error();
+    ESP_LOGW(TAG, "%s: Network unavailable, disconnecting", client_info_.c_str());
     return;
   }
-  if (this->client_->disconnected()) {
-    // failsafe for disconnect logic
-    this->on_disconnect_();
+  if (this->next_close_) {
+    // requested a disconnect
+    this->helper_->close();
+    this->remove_ = true;
     return;
   }
-  this->parse_recv_buffer_();
+
+  APIError err = helper_->loop();
+  if (err != APIError::OK) {
+    on_fatal_error();
+    ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+    return;
+  }
+  ReadPacketBuffer buffer;
+  err = helper_->read_packet(&buffer);
+  if (err == APIError::WOULD_BLOCK) {
+    // pass
+  } else if (err != APIError::OK) {
+    on_fatal_error();
+    if (err == APIError::SOCKET_READ_FAILED && errno == ECONNRESET) {
+      ESP_LOGW(TAG, "%s: Connection reset", client_info_.c_str());
+    } else {
+      ESP_LOGW(TAG, "%s: Reading failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+    }
+    return;
+  } else {
+    this->last_traffic_ = millis();
+    // read a packet
+    this->read_message(buffer.data_len, buffer.type, &buffer.container[buffer.data_offset]);
+    if (this->remove_)
+      return;
+  }
 
   this->list_entities_iterator_.advance();
   this->initial_state_iterator_.advance();
 
   const uint32_t keepalive = 60000;
+  const uint32_t now = millis();
   if (this->sent_ping_) {
     // Disconnect if not responded within 2.5*keepalive
-    if (millis() - this->last_traffic_ > (keepalive * 5) / 2) {
-      ESP_LOGW(TAG, "'%s' didn't respond to ping request in time. Disconnecting...", this->client_info_.c_str());
-      this->disconnect_client();
+    if (now - this->last_traffic_ > (keepalive * 5) / 2) {
+      on_fatal_error();
+      ESP_LOGW(TAG, "%s didn't respond to ping request in time. Disconnecting...", this->client_info_.c_str());
     }
-  } else if (millis() - this->last_traffic_ > keepalive) {
+  } else if (now - this->last_traffic_ > keepalive) {
     this->sent_ping_ = true;
     this->send_ping_request(PingRequest());
   }
 
 #ifdef USE_ESP32_CAMERA
-  if (this->image_reader_.available()) {
-    uint32_t space = this->client_->space();
-    // reserve 15 bytes for metadata, and at least 64 bytes of data
-    if (space >= 15 + 64) {
-      uint32_t to_send = std::min(space - 15, this->image_reader_.available());
-      auto buffer = this->create_buffer();
-      // fixed32 key = 1;
-      buffer.encode_fixed32(1, esp32_camera::global_esp32_camera->get_object_id_hash());
-      // bytes data = 2;
-      buffer.encode_bytes(2, this->image_reader_.peek_data_buffer(), to_send);
-      // bool done = 3;
-      bool done = this->image_reader_.available() == to_send;
-      buffer.encode_bool(3, done);
-      bool success = this->send_buffer(buffer, 44);
+  if (this->image_reader_.available() && this->helper_->can_write_without_blocking()) {
+    uint32_t to_send = std::min((size_t) 1024, this->image_reader_.available());
+    auto buffer = this->create_buffer();
+    // fixed32 key = 1;
+    buffer.encode_fixed32(1, esp32_camera::global_esp32_camera->get_object_id_hash());
+    // bytes data = 2;
+    buffer.encode_bytes(2, this->image_reader_.peek_data_buffer(), to_send);
+    // bool done = 3;
+    bool done = this->image_reader_.available() == to_send;
+    buffer.encode_bool(3, done);
+    bool success = this->send_buffer(buffer, 44);
 
-      if (success) {
-        this->image_reader_.consume_data(to_send);
-      }
-      if (success && done) {
-        this->image_reader_.return_image();
-      }
+    if (success) {
+      this->image_reader_.consume_data(to_send);
+    }
+    if (success && done) {
+      this->image_reader_.return_image();
     }
   }
 #endif
+
+  if (state_subs_at_ != -1) {
+    const auto &subs = this->parent_->get_state_subs();
+    if (state_subs_at_ >= subs.size()) {
+      state_subs_at_ = -1;
+    } else {
+      auto &it = subs[state_subs_at_];
+      SubscribeHomeAssistantStateResponse resp;
+      resp.entity_id = it.entity_id;
+      resp.attribute = it.attribute.value();
+      if (this->send_subscribe_home_assistant_state_response(resp)) {
+        state_subs_at_++;
+      }
+    }
+  }
 }
 
 std::string get_default_unique_id(const std::string &component_type, Nameable *nameable) {
   return App.get_name() + component_type + nameable->get_object_id();
+}
+
+DisconnectResponse APIConnection::disconnect(const DisconnectRequest &msg) {
+  // remote initiated disconnect_client
+  // don't close yet, we still need to send the disconnect response
+  // close will happen on next loop
+  ESP_LOGD(TAG, "%s requested disconnected", client_info_.c_str());
+  this->next_close_ = true;
+  DisconnectResponse resp;
+  return resp;
+}
+void APIConnection::on_disconnect_response(const DisconnectResponse &value) {
+  // pass
 }
 
 #ifdef USE_BINARY_SENSOR
@@ -241,6 +244,9 @@ void APIConnection::cover_command(const CoverCommandRequest &msg) {
 #endif
 
 #ifdef USE_FAN
+// Shut-up about usage of deprecated speed_level_to_enum/speed_enum_to_level functions for a bit.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 bool APIConnection::send_fan_state(fan::FanState *fan) {
   if (!this->state_subscription_)
     return false;
@@ -295,6 +301,7 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
     call.set_direction(static_cast<fan::FanDirection>(msg.direction));
   call.perform();
 }
+#pragma GCC diagnostic pop
 #endif
 
 #ifdef USE_LIGHT
@@ -310,22 +317,15 @@ bool APIConnection::send_light_state(light::LightState *light) {
   resp.key = light->get_object_id_hash();
   resp.state = values.is_on();
   resp.color_mode = static_cast<enums::ColorMode>(color_mode);
-  if (color_mode & light::ColorCapability::BRIGHTNESS)
-    resp.brightness = values.get_brightness();
-  if (color_mode & light::ColorCapability::RGB) {
-    resp.color_brightness = values.get_color_brightness();
-    resp.red = values.get_red();
-    resp.green = values.get_green();
-    resp.blue = values.get_blue();
-  }
-  if (color_mode & light::ColorCapability::WHITE)
-    resp.white = values.get_white();
-  if (color_mode & light::ColorCapability::COLOR_TEMPERATURE)
-    resp.color_temperature = values.get_color_temperature();
-  if (color_mode & light::ColorCapability::COLD_WARM_WHITE) {
-    resp.cold_white = values.get_cold_white();
-    resp.warm_white = values.get_warm_white();
-  }
+  resp.brightness = values.get_brightness();
+  resp.color_brightness = values.get_color_brightness();
+  resp.red = values.get_red();
+  resp.green = values.get_green();
+  resp.blue = values.get_blue();
+  resp.white = values.get_white();
+  resp.color_temperature = values.get_color_temperature();
+  resp.cold_white = values.get_cold_white();
+  resp.warm_white = values.get_warm_white();
   if (light->supports_effects())
     resp.effect = light->get_effect_name();
   return this->send_light_state_response(resp);
@@ -423,8 +423,7 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   msg.accuracy_decimals = sensor->get_accuracy_decimals();
   msg.force_update = sensor->get_force_update();
   msg.device_class = sensor->get_device_class();
-  msg.state_class = static_cast<enums::SensorStateClass>(sensor->state_class);
-  msg.last_reset_type = static_cast<enums::SensorLastResetType>(sensor->last_reset_type);
+  msg.state_class = static_cast<enums::SensorStateClass>(sensor->get_state_class());
   msg.disabled_by_default = sensor->is_disabled_by_default();
 
   return this->send_list_entities_sensor_response(msg);
@@ -664,7 +663,7 @@ void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage>
     return;
   if (this->image_reader_.available())
     return;
-  this->image_reader_.set_image(image);
+  this->image_reader_.set_image(std::move(image));
 }
 bool APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
   ListEntitiesCameraResponse msg;
@@ -701,25 +700,15 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
   auto buffer = this->create_buffer();
   // LogLevel level = 1;
   buffer.encode_uint32(1, static_cast<uint32_t>(level));
-  // string tag = 2;
-  // buffer.encode_string(2, tag, strlen(tag));
   // string message = 3;
   buffer.encode_string(3, line, strlen(line));
   // SubscribeLogsResponse - 29
-  bool success = this->send_buffer(buffer, 29);
-  if (!success) {
-    buffer = this->create_buffer();
-    // bool send_failed = 4;
-    buffer.encode_bool(4, true);
-    return this->send_buffer(buffer, 29);
-  } else {
-    return true;
-  }
+  return this->send_buffer(buffer, 29);
 }
 
 HelloResponse APIConnection::hello(const HelloRequest &msg) {
-  this->client_info_ = msg.client_info + " (" + this->client_->remoteIP().toString().c_str();
-  this->client_info_ += ")";
+  this->client_info_ = msg.client_info + " (" + this->helper_->getpeername() + ")";
+  this->helper_->set_log_info(client_info_);
   ESP_LOGV(TAG, "Hello from client: '%s'", this->client_info_.c_str());
 
   HelloResponse resp;
@@ -736,7 +725,7 @@ ConnectResponse APIConnection::connect(const ConnectRequest &msg) {
   // bool invalid_password = 1;
   resp.invalid_password = !correct;
   if (correct) {
-    ESP_LOGD(TAG, "Client '%s' connected successfully!", this->client_info_.c_str());
+    ESP_LOGD(TAG, "%s: Connected successfully", this->client_info_.c_str());
     this->connection_state_ = ConnectionState::AUTHENTICATED;
 
 #ifdef USE_HOMEASSISTANT_TIME
@@ -754,9 +743,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.mac_address = get_mac_address_pretty();
   resp.esphome_version = ESPHOME_VERSION;
   resp.compilation_time = App.get_compilation_time();
-#ifdef ARDUINO_BOARD
-  resp.model = ARDUINO_BOARD;
-#endif
+  resp.model = ESPHOME_BOARD;
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
@@ -784,30 +771,20 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   }
 }
 void APIConnection::subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) {
-  for (auto &it : this->parent_->get_state_subs()) {
-    SubscribeHomeAssistantStateResponse resp;
-    resp.entity_id = it.entity_id;
-    resp.attribute = it.attribute.value();
-    if (!this->send_subscribe_home_assistant_state_response(resp)) {
-      this->on_fatal_error();
-      return;
-    }
-  }
+  state_subs_at_ = 0;
 }
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) {
   if (this->remove_)
     return false;
-
-  std::vector<uint8_t> header;
-  header.push_back(0x00);
-  ProtoVarInt(buffer.get_buffer()->size()).encode(header);
-  ProtoVarInt(message_type).encode(header);
-
-  size_t needed_space = buffer.get_buffer()->size() + header.size();
-
-  if (needed_space > this->client_->space()) {
+  if (!this->helper_->can_write_without_blocking()) {
     delay(0);
-    if (needed_space > this->client_->space()) {
+    APIError err = helper_->loop();
+    if (err != APIError::OK) {
+      on_fatal_error();
+      ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+      return false;
+    }
+    if (!this->helper_->can_write_without_blocking()) {
       // SubscribeLogsResponse
       if (message_type != 29) {
         ESP_LOGV(TAG, "Cannot send message because of TCP buffer space");
@@ -817,24 +794,31 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
     }
   }
 
-  this->client_->add(reinterpret_cast<char *>(header.data()), header.size(),
-                     ASYNC_WRITE_FLAG_COPY | ASYNC_WRITE_FLAG_MORE);
-  this->client_->add(reinterpret_cast<char *>(buffer.get_buffer()->data()), buffer.get_buffer()->size(),
-                     ASYNC_WRITE_FLAG_COPY);
-  bool ret = this->client_->send();
-  return ret;
+  APIError err = this->helper_->write_packet(message_type, buffer.get_buffer()->data(), buffer.get_buffer()->size());
+  if (err == APIError::WOULD_BLOCK)
+    return false;
+  if (err != APIError::OK) {
+    on_fatal_error();
+    if (err == APIError::SOCKET_WRITE_FAILED && errno == ECONNRESET) {
+      ESP_LOGW(TAG, "%s: Connection reset", client_info_.c_str());
+    } else {
+      ESP_LOGW(TAG, "%s: Packet write failed %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+    }
+    return false;
+  }
+  this->last_traffic_ = millis();
+  return true;
 }
 void APIConnection::on_unauthenticated_access() {
-  ESP_LOGD(TAG, "'%s' tried to access without authentication.", this->client_info_.c_str());
   this->on_fatal_error();
+  ESP_LOGD(TAG, "%s: tried to access without authentication.", this->client_info_.c_str());
 }
 void APIConnection::on_no_setup_connection() {
-  ESP_LOGD(TAG, "'%s' tried to access without full connection.", this->client_info_.c_str());
   this->on_fatal_error();
+  ESP_LOGD(TAG, "%s: tried to access without full connection.", this->client_info_.c_str());
 }
 void APIConnection::on_fatal_error() {
-  ESP_LOGV(TAG, "Error: Disconnecting %s", this->client_info_.c_str());
-  this->client_->close();
+  this->helper_->close();
   this->remove_ = true;
 }
 

@@ -48,6 +48,7 @@ from esphome.const import (
     DEVICE_CLASS_SAFETY,
     DEVICE_CLASS_SMOKE,
     DEVICE_CLASS_SOUND,
+    DEVICE_CLASS_UPDATE,
     DEVICE_CLASS_VIBRATION,
     DEVICE_CLASS_WINDOW,
 )
@@ -79,6 +80,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_SAFETY,
     DEVICE_CLASS_SMOKE,
     DEVICE_CLASS_SOUND,
+    DEVICE_CLASS_UPDATE,
     DEVICE_CLASS_VIBRATION,
     DEVICE_CLASS_WINDOW,
 ]
@@ -229,17 +231,16 @@ def parse_multi_click_timing_str(value):
     parts = value.lower().split(" ")
     if len(parts) != 5:
         raise cv.Invalid(
-            "Multi click timing grammar consists of exactly 5 words, not {}"
-            "".format(len(parts))
+            f"Multi click timing grammar consists of exactly 5 words, not {len(parts)}"
         )
     try:
         state = cv.boolean(parts[0])
     except cv.Invalid:
         # pylint: disable=raise-missing-from
-        raise cv.Invalid("First word must either be ON or OFF, not {}".format(parts[0]))
+        raise cv.Invalid(f"First word must either be ON or OFF, not {parts[0]}")
 
     if parts[1] != "for":
-        raise cv.Invalid("Second word must be 'for', got {}".format(parts[1]))
+        raise cv.Invalid(f"Second word must be 'for', got {parts[1]}")
 
     if parts[2] == "at":
         if parts[3] == "least":
@@ -248,8 +249,7 @@ def parse_multi_click_timing_str(value):
             key = CONF_MAX_LENGTH
         else:
             raise cv.Invalid(
-                "Third word after at must either be 'least' or 'most', got {}"
-                "".format(parts[3])
+                f"Third word after at must either be 'least' or 'most', got {parts[3]}"
             )
         try:
             length = cv.positive_time_period_milliseconds(parts[4])
@@ -294,13 +294,11 @@ def validate_multi_click_timing(value):
         new_state = v_.get(CONF_STATE, not state)
         if new_state == state:
             raise cv.Invalid(
-                "Timings must have alternating state. Indices {} and {} have "
-                "the same state {}".format(i, i + 1, state)
+                f"Timings must have alternating state. Indices {i} and {i + 1} have the same state {state}"
             )
         if max_length is not None and max_length < min_length:
             raise cv.Invalid(
-                "Max length ({}) must be larger than min length ({})."
-                "".format(max_length, min_length)
+                f"Max length ({max_length}) must be larger than min length ({min_length})."
             )
 
         state = new_state

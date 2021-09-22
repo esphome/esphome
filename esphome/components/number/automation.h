@@ -57,9 +57,9 @@ template<typename... Ts> class NumberInRangeCondition : public Condition<Ts...> 
   void set_max(float max) { this->max_ = max; }
   bool check(Ts... x) override {
     const float state = this->parent_->state;
-    if (isnan(this->min_)) {
+    if (std::isnan(this->min_)) {
       return state <= this->max_;
-    } else if (isnan(this->max_)) {
+    } else if (std::isnan(this->max_)) {
       return state >= this->min_;
     } else {
       return this->min_ <= state && state <= this->max_;
