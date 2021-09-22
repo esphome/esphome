@@ -8,8 +8,6 @@ ADC_MODE(ADC_VCC)
 #include <Arduino.h>
 #endif
 
-
-
 namespace esphome {
 namespace adc {
 
