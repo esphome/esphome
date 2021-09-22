@@ -50,6 +50,42 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
   FanState *state_;
 };
 
+template<typename... Ts> class CycleSpeedAction : public Action<Ts...> {
+ public:
+  explicit CycleSpeedAction(FanState *state) : state_(state) {}
+
+  void play(Ts... x) override {
+    // check to see if fan supports speeds and is on
+    if (this->state_->get_traits().supported_speed_count()) {
+      if (this->state_->state) {
+        int speed = this->state_->speed + 1;
+        int supported_speed_count = this->state_->get_traits().supported_speed_count();
+        if (speed > supported_speed_count) {
+          // was running at max speed, so turn off
+          speed = 1;
+          auto call = this->state_->turn_off();
+          call.set_speed(speed);
+          call.perform();
+        } else {
+          auto call = this->state_->turn_on();
+          call.set_speed(speed);
+          call.perform();
+        }
+      } else {
+        // fan was off, so set speed to 1
+        auto call = this->state_->turn_on();
+        call.set_speed(1);
+        call.perform();
+      }
+    } else {
+      // fan doesn't support speed counts, so toggle
+      this->state_->toggle().perform();
+    }
+  }
+
+  FanState *state_;
+};
+
 template<typename... Ts> class FanIsOnCondition : public Condition<Ts...> {
  public:
   explicit FanIsOnCondition(FanState *state) : state_(state) {}
@@ -119,42 +155,6 @@ class FanSpeedSetTrigger : public Trigger<> {
 
  protected:
   int last_speed_;
-};
-
-template<typename... Ts> class CycleSpeedAction : public Action<Ts...> {
- public:
-  explicit CycleSpeedAction(FanState *state) : state_(state) {}
-
-  void play(Ts... x) override {
-    // check to see if fan supports speeds and is on
-    if (this->state_->get_traits().supported_speed_count()) {
-      if (this->state_->state) {
-        int speed = this->state_->speed + 1;
-        int supported_speed_count = this->state_->get_traits().supported_speed_count();
-        if (speed > supported_speed_count) {
-          // was running at max speed, so turn off
-          speed = 1;
-          auto call = this->state_->turn_off();
-          call.set_speed(speed);
-          call.perform();
-        } else {
-          auto call = this->state_->turn_on();
-          call.set_speed(speed);
-          call.perform();
-        }
-      } else {
-        // fan was off, so set speed to 1
-        auto call = this->state_->turn_on();
-        call.set_speed(1);
-        call.perform();
-      }
-    } else {
-      // fan doesn't support speed counts, so toggle
-      this->state_->toggle().perform();
-    }
-  }
-
-  FanState *state_;
 };
 
 }  // namespace fan

@@ -156,12 +156,6 @@ async def fan_turn_off_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("fan.cycle_speed", CycleSpeedAction, FAN_ACTION_SCHEMA)
-async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
 @automation.register_action(
     "fan.turn_on",
     TurnOnAction,
@@ -189,6 +183,12 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(config[CONF_DIRECTION], args, FanDirection)
         cg.add(var.set_direction(template_))
     return var
+
+
+@automation.register_action("fan.cycle_speed", CycleSpeedAction, FAN_ACTION_SCHEMA)
+async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_condition(
