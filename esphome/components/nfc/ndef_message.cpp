@@ -46,7 +46,7 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
 
     std::vector<uint8_t> payload_data(data.begin() + index, data.begin() + index + payload_length);
 
-    auto record = make_unique<NdefRecord>();
+    std::unique_ptr<NdefRecord> record;
 
     // Based on tnf and type, create a more specific NdefRecord object
     // constructed from the payload data

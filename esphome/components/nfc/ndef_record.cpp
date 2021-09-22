@@ -9,7 +9,6 @@ NdefRecord::NdefRecord(std::vector<uint8_t> payload_data) {
   this->payload_ = std::string(payload_data.begin(), payload_data.end());
 }
 
-// Get more specific
 std::vector<uint8_t> NdefRecord::encode(bool first, bool last) {
   std::vector<uint8_t> data;
 
