@@ -1081,7 +1081,6 @@ void WaveshareEPaper7P5InV2::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-<<<<<<< HEAD
 /* 7.50in-bc */
 void WaveshareEPaper7P5InBC::initialize() {
   /* The command sequence is similar to the 7P5In display but differs in subtle ways 
