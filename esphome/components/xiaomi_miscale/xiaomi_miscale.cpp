@@ -110,9 +110,9 @@ bool XiaomiMiscale::parse_message_V2(const std::vector<uint8_t> &message, ParseR
 
   const uint8_t *data = message.data();
 
-  bool has_impedance = ((data[1] & (1 << 1)) != 0) ? true : false;
-  bool is_stabilized = ((data[1] & (1 << 5)) != 0) ? true : false;
-  bool load_removed = ((data[1] & (1 << 7)) != 0) ? true : false;
+  bool has_impedance = ((data[1] & (1 << 1)) != 0);
+  bool is_stabilized = ((data[1] & (1 << 5)) != 0);
+  bool load_removed = ((data[1] & (1 << 7)) != 0);
 
   if (!is_stabilized || load_removed) {
     return false;
