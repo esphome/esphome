@@ -480,7 +480,7 @@ class DashboardEntry:
         return self.storage.loaded_integrations
 
 
-class ListEntriesHandler(BaseHandler):
+class ListDevicesHandler(BaseHandler):
     @authenticated
     def get(self):
         entries = _list_dashboard_entries()
@@ -492,7 +492,7 @@ class ListEntriesHandler(BaseHandler):
                     "configured": [
                         {
                             "name": entry.name,
-                            "filename": entry.filename,
+                            "configuration": entry.filename,
                             "loaded_integrations": entry.loaded_integrations,
                             "deployed_version": entry.update_old,
                             "current_version": entry.update_new,
@@ -859,7 +859,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}undo-delete", UndoDeleteRequestHandler),
             (f"{rel}wizard", WizardRequestHandler),
             (f"{rel}static/(.*)", StaticFileHandler, {"path": get_static_path()}),
-            (f"{rel}list-entries", ListEntriesHandler),
+            (f"{rel}devices", ListDevicesHandler),
             (f"{rel}import", ImportRequestHandler),
         ],
         **app_settings,
