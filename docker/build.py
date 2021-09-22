@@ -58,7 +58,7 @@ class DockerParams:
         }[build_type]
         platform = {
             ARCH_AMD64: "linux/amd64",
-            ARCH_ARMV7: "linux/arm/v7",
+            ARCH_ARMV7: "linux/arm",
             ARCH_AARCH64: "linux/arm64",
         }[arch]
         target = {
