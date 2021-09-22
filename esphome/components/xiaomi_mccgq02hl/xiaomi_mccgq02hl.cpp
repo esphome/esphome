@@ -52,11 +52,7 @@ bool XiaomiMCCGQ02HL::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 void XiaomiMCCGQ02HL::set_bindkey(const std::string &bindkey) {
@@ -67,7 +63,7 @@ void XiaomiMCCGQ02HL::set_bindkey(const std::string &bindkey) {
   char temp[3] = {0};
   for (int i = 0; i < 16; i++) {
     strncpy(temp, &(bindkey.c_str()[i * 2]), 2);
-    bindkey_[i] = std::strtoul(temp, NULL, 16);
+    bindkey_[i] = std::strtoul(temp, nullptr, 16);
   }
 }
 
