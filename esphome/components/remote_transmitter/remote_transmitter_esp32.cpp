@@ -92,7 +92,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     val = this->from_microseconds(static_cast<uint32_t>(val));
 
     do {
-      int32_t item = std::min(val, 32767);
+      int32_t item = std::min(val, int32_t(32767));
       val -= item;
 
       if (rmt_i % 2 == 0) {
