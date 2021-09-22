@@ -35,11 +35,11 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   void set_contrast(float contrast);
   void init_brightness(float brightness) { this->brightness_ = brightness; }
   void set_brightness(float brightness);
-  void init_flip_x(boolean flip_x) { this->flip_x_ = flip_x; }
-  void init_flip_y(boolean flip_y) { this->flip_y_ = flip_y; }
+  void init_flip_x(bool flip_x) { this->flip_x_ = flip_x; }
+  void init_flip_y(bool flip_y) { this->flip_y_ = flip_y; }
   void init_offset_x(uint8_t offset_x) { this->offset_x_ = offset_x; }
   void init_offset_y(uint8_t offset_y) { this->offset_y_ = offset_y; }
-  void init_invert(boolean invert) { this->invert_ = invert; }
+  void init_invert(bool invert) { this->invert_ = invert; }
   bool is_on();
   void turn_on();
   void turn_off();
