@@ -60,14 +60,6 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   if (at == 0)
     return true;
   uint8_t address = raw[0];
-  /*
-   if (at == 1) {
-     if (address != waiting_for_response && waiting_for_response != 0) {
-       ESP_LOGW(TAG, "Response from wrong device got %d waiting for %d", address, waiting_for_response);
-       return false;
-     }
-   }
-   */
   uint8_t function_code = raw[1];
   // Byte 2: Size (with modbus rtu function code 4/3)
   // See also https://en.wikipedia.org/wiki/Modbus
