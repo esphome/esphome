@@ -10,11 +10,11 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
 )
-from esphome.core import CORE
+from esphome.core import CORE, coroutine_with_priority
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
-from .const import CONF_RESTORE_FROM_FLASH, KEY_BOARD, KEY_ESP8266
+from .const import CONF_RESTORE_FROM_FLASH, KEY_BOARD, KEY_ESP8266, esp8266_ns
 from .boards import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 
 # force import gpio to register pin schema
@@ -23,6 +23,7 @@ from .gpio import esp8266_pin_to_code  # noqa
 
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
+AUTO_LOAD = ["preferences"]
 
 
 def set_core_data(config):
@@ -152,7 +153,10 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+@coroutine_with_priority(1000)
 async def to_code(config):
+    cg.add(esp8266_ns.setup_preferences())
+
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_ESP8266")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])

@@ -1615,6 +1615,7 @@ light:
       - id: addr2
         from: 20
         to: 25
+      - single_light_id: ${roomname}_lights
 
 remote_transmitter:
   - pin: 32
@@ -1977,6 +1978,8 @@ fan:
     direction_output: gpio_26
     oscillation_state_topic: oscillation/state/topic
     oscillation_command_topic: oscillation/command/topic
+    speed_level_state_topic: speed_level/state/topic
+    speed_level_command_topic: speed_level/command/topic
     speed_state_topic: speed/state/topic
     speed_command_topic: speed/command/topic
     on_speed_set:
@@ -2069,7 +2072,7 @@ display:
     reset_pin: GPIO23
     address: 0x3C
     id: display1
-    brightness: 60%
+    contrast: 60%
     pages:
       - id: page1
         lambda: |-
@@ -2356,6 +2359,8 @@ text_sensor:
     name: Template Text Sensor
     id: ${textname}_text
   - platform: wifi_info
+    scan_results:
+      name: 'Scan Results'
     ip_address:
       name: 'IP Address'
     ssid:

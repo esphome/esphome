@@ -1,3 +1,4 @@
+from esphome.const import CONF_ID
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import CORE
@@ -5,11 +6,26 @@ from esphome.core import CORE
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
 
+mdns_ns = cg.esphome_ns.namespace("mdns")
+MDNSComponent = mdns_ns.class_("MDNSComponent", cg.Component)
+
+
+def _remove_id_if_disabled(value):
+    value = value.copy()
+    if value[CONF_DISABLED]:
+        value.pop(CONF_ID)
+    return value
+
+
 CONF_DISABLED = "disabled"
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_DISABLED, default=False): cv.boolean,
-    }
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(MDNSComponent),
+            cv.Optional(CONF_DISABLED, default=False): cv.boolean,
+        }
+    ),
+    _remove_id_if_disabled,
 )
 
 
@@ -23,3 +39,6 @@ async def to_code(config):
             cg.add_library("ESPmDNS", None)
         elif CORE.is_esp8266:
             cg.add_library("ESP8266mDNS", None)
+
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)

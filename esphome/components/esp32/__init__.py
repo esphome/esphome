@@ -34,6 +34,7 @@ from .gpio import esp32_pin_to_code  # noqa
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@esphome/core"]
+AUTO_LOAD = ["preferences"]
 
 
 def set_core_data(config):
