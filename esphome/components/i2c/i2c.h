@@ -139,6 +139,8 @@ class I2CDevice;
 class I2CMultiplexer;
 class I2CRegister {
  public:
+  I2CRegister(I2CDevice *parent, uint8_t a_register) : parent_(parent), register_(a_register) {}
+
   I2CRegister &operator=(uint8_t value);
   I2CRegister &operator=(const std::vector<uint8_t> &value);
   I2CRegister &operator&=(uint8_t value);
@@ -147,10 +149,6 @@ class I2CRegister {
   uint8_t get();
 
  protected:
-  friend class I2CDevice;
-
-  I2CRegister(I2CDevice *parent, uint8_t a_register) : parent_(parent), register_(a_register) {}
-
   I2CDevice *parent_;
   uint8_t register_;
 };
