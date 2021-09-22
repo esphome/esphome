@@ -17,6 +17,51 @@ namespace esphome {
 
 #define TEMPLATABLE_VALUE(type, name) TEMPLATABLE_VALUE_(type, name)
 
+template<typename T, typename... X> class TemplatableValue {
+ public:
+  TemplatableValue() : type_(EMPTY) {}
+
+  template<typename F, enable_if_t<!is_callable<F, X...>::value, int> = 0>
+  TemplatableValue(F value) : type_(VALUE), value_(value) {}
+
+  template<typename F, enable_if_t<is_callable<F, X...>::value, int> = 0>
+  TemplatableValue(F f) : type_(LAMBDA), f_(f) {}
+
+  bool has_value() { return this->type_ != EMPTY; }
+
+  T value(X... x) {
+    if (this->type_ == LAMBDA) {
+      return this->f_(x...);
+    }
+    // return value also when empty
+    return this->value_;
+  }
+
+  optional<T> optional_value(X... x) {
+    if (!this->has_value()) {
+      return {};
+    }
+    return this->value(x...);
+  }
+
+  T value_or(X... x, T default_value) {
+    if (!this->has_value()) {
+      return default_value;
+    }
+    return this->value(x...);
+  }
+
+ protected:
+  enum {
+    EMPTY,
+    VALUE,
+    LAMBDA,
+  } type_;
+
+  T value_{};
+  std::function<T(X...)> f_{};
+};
+
 /** Base class for all automation conditions.
  *
  * @tparam Ts The template parameters to pass when executing.
