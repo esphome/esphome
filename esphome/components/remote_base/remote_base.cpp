@@ -6,6 +6,7 @@ namespace remote_base {
 
 static const char *const TAG = "remote_base";
 
+#ifdef USE_ESP32
 RemoteRMTChannel::RemoteRMTChannel(uint8_t mem_block_num) : mem_block_num_(mem_block_num) {
   static rmt_channel_t next_rmt_channel = RMT_CHANNEL_0;
   this->channel_ = next_rmt_channel;
