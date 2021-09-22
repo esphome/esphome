@@ -6,6 +6,9 @@
 #ifdef USE_API
 #include "esphome/components/api/api_server.h"
 #endif
+#ifdef USE_DASHBOARD_IMPORT
+#include "esphome/components/dashboard_import/dashboard_import.h"
+#endif
 
 namespace esphome {
 namespace mdns {
@@ -42,6 +45,11 @@ std::vector<MDNSService> MDNSComponent::compile_services_() {
     service.txt_records.push_back({"project_name", ESPHOME_PROJECT_NAME});
     service.txt_records.push_back({"project_version", ESPHOME_PROJECT_VERSION});
 #endif  // ESPHOME_PROJECT_NAME
+
+#ifdef USE_DASHBOARD_IMPORT
+    service.txt_records.push_back({"import_config", dashboard_import::get_dashboard_import_config()});
+#endif
+
     res.push_back(service);
   }
 #endif  // USE_API

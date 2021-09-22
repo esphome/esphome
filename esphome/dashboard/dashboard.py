@@ -41,7 +41,7 @@ from .util import password_hash
 # pylint: disable=unused-import, wrong-import-order
 from typing import Optional  # noqa
 
-from esphome.zeroconf import DashboardStatus, EsphomeZeroconf
+from esphome.zeroconf import DashboardImportDiscovery, DashboardStatus, EsphomeZeroconf
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -154,9 +154,6 @@ def is_authenticated(request_handler):
 def bind_config(func):
     def decorator(self, *args, **kwargs):
         configuration = self.get_argument("configuration")
-        if not is_allowed(configuration):
-            self.set_status(500)
-            return None
         kwargs = kwargs.copy()
         kwargs["configuration"] = configuration
         return func(self, *args, **kwargs)
@@ -363,13 +360,27 @@ class WizardRequestHandler(BaseHandler):
         from esphome import wizard
 
         kwargs = {
-            k: "".join(x.decode() for x in v)
-            for k, v in self.request.arguments.items()
+            k: v
+            for k, v in json.loads(self.request.body.decode()).items()
             if k in ("name", "platform", "board", "ssid", "psk", "password")
         }
         kwargs["ota_password"] = secrets.token_hex(16)
         destination = settings.rel_path(f"{kwargs['name']}.yaml")
         wizard.wizard_write(path=destination, **kwargs)
+        self.set_status(200)
+        self.finish()
+
+
+class ImportRequestHandler(BaseHandler):
+    @authenticated
+    def post(self):
+        args = json.loads(self.request.body.decode())
+        destination = settings.rel_path(f"{args['name']}.yaml")
+        with open(destination, "w") as fh:
+            fh.write("substitutions:\n")
+            fh.write(f'  name: "{args["name"]}"\n')
+            fh.write("\n")
+            fh.write(args["import_config"])
         self.set_status(200)
         self.finish()
 
@@ -469,15 +480,51 @@ class DashboardEntry:
         return self.storage.loaded_integrations
 
 
+class ListEntriesHandler(BaseHandler):
+    @authenticated
+    def get(self):
+        entries = _list_dashboard_entries()
+        self.set_header("content-type", "application/json")
+        configured = {entry.name for entry in entries}
+        self.write(
+            json.dumps(
+                {
+                    "configured": [
+                        {
+                            "name": entry.name,
+                            "filename": entry.filename,
+                            "loaded_integrations": entry.loaded_integrations,
+                            "deployed_version": entry.update_old,
+                            "current_version": entry.update_new,
+                            "path": entry.path,
+                            "comment": entry.comment,
+                            "address": entry.address,
+                            "target_platform": entry.target_platform,
+                        }
+                        for entry in entries
+                    ],
+                    "importable": [
+                        {
+                            "name": res.node_name,
+                            "import_config": res.import_config,
+                            "project_name": res.project_name,
+                            "project_version": res.project_version,
+                        }
+                        for res in IMPORT_RESULT.values()
+                        if res.node_name not in configured
+                    ],
+                }
+            )
+        )
+
+
 class MainRequestHandler(BaseHandler):
     @authenticated
     def get(self):
         begin = bool(self.get_argument("begin", False))
-        entries = _list_dashboard_entries()
 
         self.render(
             get_template_path("index"),
-            entries=entries,
             begin=begin,
             **template_args(),
             login_enabled=settings.using_auth,
@@ -495,6 +542,8 @@ def _ping_func(filename, address):
 
 class MDNSStatusThread(threading.Thread):
     def run(self):
+        global IMPORT_RESULT
+
         zc = EsphomeZeroconf()
 
         def on_update(dat):
@@ -502,17 +551,22 @@ class MDNSStatusThread(threading.Thread):
                 PING_RESULT[key] = b
 
         stat = DashboardStatus(zc, on_update)
+        imports = DashboardImportDiscovery(zc)
+
         stat.start()
         while not STOP_EVENT.is_set():
             entries = _list_dashboard_entries()
             stat.request_query(
                 {entry.filename: f"{entry.name}.local." for entry in entries}
             )
+            IMPORT_RESULT = imports.import_state
 
             PING_REQUEST.wait()
             PING_REQUEST.clear()
+
         stat.stop()
         stat.join()
+        imports.cancel()
         zc.close()
 
 
@@ -567,10 +621,6 @@ class PingRequestHandler(BaseHandler):
         self.write(json.dumps(PING_RESULT))
 
 
-def is_allowed(configuration):
-    return os.path.sep not in configuration
-
-
 class InfoRequestHandler(BaseHandler):
     @authenticated
     @bind_config
@@ -613,20 +663,18 @@ class DeleteRequestHandler(BaseHandler):
     def post(self, configuration=None):
         config_file = settings.rel_path(configuration)
         storage_path = ext_storage_path(settings.config_dir, configuration)
-        storage_json = StorageJSON.load(storage_path)
-        if storage_json is None:
-            self.set_status(500)
-            return
 
-        name = storage_json.name
         trash_path = trash_storage_path(settings.config_dir)
         mkdir_p(trash_path)
         shutil.move(config_file, os.path.join(trash_path, configuration))
 
-        # Delete build folder (if exists)
-        build_folder = os.path.join(settings.config_dir, name)
-        if build_folder is not None:
-            shutil.rmtree(build_folder, os.path.join(trash_path, name))
+        storage_json = StorageJSON.load(storage_path)
+        if storage_json is not None:
+            # Delete build folder (if exists)
+            name = storage_json.name
+            build_folder = os.path.join(settings.config_dir, name)
+            if build_folder is not None:
+                shutil.rmtree(build_folder, os.path.join(trash_path, name))
 
 
 class UndoDeleteRequestHandler(BaseHandler):
@@ -639,6 +687,7 @@ class UndoDeleteRequestHandler(BaseHandler):
 
 
 PING_RESULT = {}  # type: dict
+IMPORT_RESULT = {}
 STOP_EVENT = threading.Event()
 PING_REQUEST = threading.Event()
 
@@ -808,8 +857,10 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}ping", PingRequestHandler),
             (f"{rel}delete", DeleteRequestHandler),
             (f"{rel}undo-delete", UndoDeleteRequestHandler),
-            (f"{rel}wizard.html", WizardRequestHandler),
+            (f"{rel}wizard", WizardRequestHandler),
             (f"{rel}static/(.*)", StaticFileHandler, {"path": get_static_path()}),
+            (f"{rel}list-entries", ListEntriesHandler),
+            (f"{rel}import", ImportRequestHandler),
         ],
         **app_settings,
     )
