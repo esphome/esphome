@@ -71,7 +71,6 @@ wifi:
       password: ''
       channel: 14
       bssid: 'A1:63:95:47:D3:1D'
-  enable_mdns: true
   manual_ip:
     static_ip: 192.168.178.230
     gateway: 192.168.178.1
@@ -81,6 +80,9 @@ wifi:
   domain: .local
   reboot_timeout: 120s
   power_save_mode: light
+
+mdns:
+  disabled: false
 
 http_request:
   useragent: esphome/device
@@ -129,6 +131,8 @@ mqtt:
             - mqtt.connected:
             - light.is_on: kitchen
             - light.is_off: kitchen
+            - fan.is_on: fan_speed
+            - fan.is_off: fan_speed
           then:
             - lambda: |-
                 int data = x["my_data"];
@@ -168,6 +172,7 @@ i2c:
   scan: True
   frequency: 100kHz
   setup_priority: -100
+  id: i2c_bus
 
 spi:
   clk_pin: GPIO21
@@ -175,15 +180,18 @@ spi:
   miso_pin: GPIO23
 
 uart:
-  - tx_pin: GPIO22
-    rx_pin: GPIO23
+  - tx_pin:
+      number: GPIO22
+      inverted: yes
+    rx_pin:
+      number: GPIO23
+      inverted: yes
     baud_rate: 115200
     id: uart0
     parity: NONE
     data_bits: 8
     stop_bits: 1
     rx_buffer_size: 512
-    invert: false
 
   - id: adalight_uart
     tx_pin: GPIO25
@@ -244,6 +252,7 @@ deep_sleep:
 
 ads1115:
   address: 0x48
+  i2c_id: i2c_bus
 
 dallas:
   pin: GPIO23
@@ -434,6 +443,7 @@ sensor:
     availability:
     state_topic: livingroom/custom_state_topic
     measurement_duration: 31
+    i2c_id: i2c_bus
   - platform: bme280
     temperature:
       name: 'Outside Temperature'
@@ -447,6 +457,7 @@ sensor:
     address: 0x77
     iir_filter: 16x
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: bme680
     temperature:
       name: 'Outside Temperature'
@@ -462,6 +473,7 @@ sensor:
       temperature: 320
       duration: 150ms
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: bmp085
     temperature:
       name: 'Outside Temperature'
@@ -471,6 +483,7 @@ sensor:
         - lambda: >-
             return x / powf(1.0 - (x / 44330.0), 5.255);
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: bmp280
     temperature:
       name: 'Outside Temperature'
@@ -480,6 +493,7 @@ sensor:
     address: 0x77
     update_interval: 15s
     iir_filter: 16x
+    i2c_id: i2c_bus
   - platform: dallas
     address: 0x1C0000031EDD2A28
     name: 'Living Room Temperature'
@@ -501,6 +515,7 @@ sensor:
     humidity:
       name: 'Living Room Humidity 4'
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: duty_cycle
     pin: GPIO25
     name: Duty Cycle Sensor
@@ -513,6 +528,7 @@ sensor:
     humidity:
       name: 'Living Room Pressure 5'
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: hlw8012
     sel_pin: 5
     cf_pin: 14
@@ -558,6 +574,7 @@ sensor:
     range: 130uT
     oversampling: 8x
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: qmc5883l
     address: 0x0D
     field_strength_x:
@@ -571,6 +588,7 @@ sensor:
     range: 800uT
     oversampling: 256x
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: hx711
     name: 'HX711 Value'
     dout_pin: GPIO23
@@ -591,6 +609,7 @@ sensor:
     max_voltage: 32.0V
     max_current: 3.2A
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: ina226
     address: 0x40
     shunt_resistance: 0.1 ohm
@@ -604,6 +623,7 @@ sensor:
       name: 'INA226 Shunt Voltage'
     max_current: 3.2A
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: ina3221
     address: 0x40
     channel_1:
@@ -617,12 +637,14 @@ sensor:
       shunt_voltage:
         name: 'INA3221 Channel 1 Shunt Voltage'
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: htu21d
     temperature:
       name: 'Living Room Temperature 6'
     humidity:
       name: 'Living Room Humidity 6'
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: max6675
     name: 'Living Room Temperature'
     cs_pin: GPIO23
@@ -668,6 +690,7 @@ sensor:
       name: 'MPU6050 Gyro z'
     temperature:
       name: 'MPU6050 Temperature'
+    i2c_id: i2c_bus
   - platform: ms5611
     temperature:
       name: 'Outside Temperature'
@@ -675,6 +698,7 @@ sensor:
       name: 'Outside Pressure'
     address: 0x77
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: pmsa003i
     pm_1_0:
       name: "PMSA003i PM1.0"
@@ -696,6 +720,7 @@ sensor:
       name: "PMSA003i PMC <10µm"
     address: 0x12
     standard_units: True
+    i2c_id: i2c_bus
   - platform: pulse_counter
     name: 'Pulse Counter'
     pin: GPIO12
@@ -766,10 +791,12 @@ sensor:
     humidity:
       name: 'Living Room Humidity 8'
     address: 0x44
+    i2c_id: i2c_bus
     update_interval: 15s
   - platform: sts3x
     name: 'Living Room Temperature 9'
     address: 0x4A
+    i2c_id: i2c_bus
   - platform: scd30
     co2:
       name: 'Living Room CO2 9'
@@ -783,6 +810,7 @@ sensor:
     altitude_compensation: 10m
     ambient_pressure_compensation: 961mBar
     temperature_offset: 4.2C
+    i2c_id: i2c_bus
   - platform: sgp30
     eco2:
       name: 'Workshop eCO2'
@@ -792,6 +820,7 @@ sensor:
       accuracy_decimals: 1
     address: 0x58
     update_interval: 5s
+    i2c_id: i2c_bus
   - platform: sps30
     pm_1_0:
       name: 'Workshop PM <1µm Weight concentration'
@@ -822,6 +851,7 @@ sensor:
       id: 'workshop_PMC_10_0'
     address: 0x69
     update_interval: 10s
+    i2c_id: i2c_bus
   - platform: sht4x
     temperature:
       name: 'SHT4X Temperature'
@@ -829,6 +859,7 @@ sensor:
       name: 'SHT4X Humidity'
     address: 0x44
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: shtcx
     temperature:
       name: 'Living Room Temperature 10'
@@ -836,6 +867,7 @@ sensor:
       name: 'Living Room Humidity 10'
     address: 0x70
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: template
     name: 'Template Sensor'
     state_class: measurement
@@ -861,6 +893,7 @@ sensor:
     is_cs_package: true
     integration_time: 402ms
     gain: 16x
+    i2c_id: i2c_bus
   - platform: tsl2591
     id: this_little_light_of_mine
     address: 0x29
@@ -880,6 +913,7 @@ sensor:
     calculated_lux:
       name: "tsl2591 calculated_lux"
       id: tsl2591_cl
+    i2c_id: i2c_bus
   - platform: ultrasonic
     trigger_pin: GPIO25
     echo_pin:
@@ -919,6 +953,7 @@ sensor:
       name: CCS811 TVOC
     update_interval: 30s
     baseline: 0x4242
+    i2c_id: i2c_bus
   - platform: tx20
     wind_speed:
       name: 'Windspeed'
@@ -944,6 +979,7 @@ sensor:
   - platform: tmp117
     name: 'TMP117 Temperature'
     update_interval: 5s
+    i2c_id: i2c_bus
   - platform: hm3301
     pm_1_0:
       name: 'PM1.0'
@@ -954,6 +990,7 @@ sensor:
     aqi:
       name: 'AQI'
       calculation_type: 'CAQI'
+    i2c_id: i2c_bus
   - platform: teleinfo
     tag_name: "HCHC"
     name: "hchc"
@@ -963,15 +1000,18 @@ sensor:
   - platform: mcp9808
     name: 'MCP9808 Temperature'
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: ezo
     id: ph_ezo
     address: 99
     unit_of_measurement: 'pH'
+    i2c_id: i2c_bus
   - platform: sdp3x
     name: "HVAC Filter Pressure drop"
     id: filter_pressure
     update_interval: 5s
     accuracy_decimals: 3
+    i2c_id: i2c_bus
   - platform: cs5460a
     id: cs5460a1
     current:
@@ -1214,14 +1254,18 @@ binary_sensor:
 pca9685:
   frequency: 500
   address: 0x0
+  i2c_id: i2c_bus
 
 tlc59208f:
   - address: 0x20
     id: tlc59208f_1
+    i2c_id: i2c_bus
   - address: 0x22
     id: tlc59208f_2
+    i2c_id: i2c_bus
   - address: 0x24
     id: tlc59208f_3
+    i2c_id: i2c_bus
 
 my9231:
   data_pin: GPIO12
@@ -1361,6 +1405,7 @@ output:
     id: dac_output
   - platform: mcp4725
     id: mcp4725_dac_output
+    i2c_id: i2c_bus
 
 e131:
 
@@ -1570,6 +1615,7 @@ light:
       - id: addr2
         from: 20
         to: 25
+      - single_light_id: ${roomname}_lights
 
 remote_transmitter:
   - pin: 32
@@ -1613,29 +1659,84 @@ climate:
     name: HeatpumpIR Climate
     min_temperature: 18
     max_temperature: 30
-  - platform: midea_ac
+  - platform: midea
+    id: midea_unit
+    uart_id: uart0
+    name: Midea Climate
+    transmitter_id:
+    period: 1s
+    num_attempts: 5
+    timeout: 2s
+    beeper: false
+    autoconf: true
     visual:
-      min_temperature: 18 °C
-      max_temperature: 25 °C
-      temperature_step: 0.1 °C
-    name: 'Electrolux EACS'
-    beeper: true
+      min_temperature: 17 °C
+      max_temperature: 30 °C
+      temperature_step: 0.5 °C
+    supported_modes:
+      - FAN_ONLY
+      - HEAT_COOL
+      - COOL
+      - HEAT
+      - DRY
+    custom_fan_modes:
+      - SILENT
+      - TURBO
+    supported_presets:
+      - ECO
+      - BOOST
+      - SLEEP
+    custom_presets:
+      - FREEZE_PROTECTION
+    supported_swing_modes:
+      - VERTICAL
+      - HORIZONTAL
+      - BOTH
     outdoor_temperature:
-      name: 'Temp'
+      name: "Temp"
     power_usage:
-      name: 'Power'
+      name: "Power"
     humidity_setpoint:
-      name: 'Hum'
+      name: "Humidity"
   - platform: anova
     name: Anova cooker
     ble_client_id: ble_blah
     unit_of_measurement: c
 
-midea_dongle:
-  uart_id: uart0
-  strength_icon: true
+script:
+  - id: climate_custom
+    then:
+      - climate.control:
+          id: midea_unit
+          custom_preset: FREEZE_PROTECTION
+          custom_fan_mode: SILENT
+  - id: climate_preset
+    then:
+      - climate.control:
+          id: midea_unit
+          preset: SLEEP
 
 switch:
+  - platform: template
+    name: MIDEA_AC_TOGGLE_LIGHT
+    turn_on_action:
+      midea_ac.display_toggle:
+  - platform: template
+    name: MIDEA_AC_SWING_STEP
+    turn_on_action:
+      midea_ac.swing_step:
+  - platform: template
+    name: MIDEA_AC_BEEPER_CONTROL
+    optimistic: true
+    turn_on_action:
+      midea_ac.beeper_on:
+    turn_off_action:
+      midea_ac.beeper_off:
+  - platform: template
+    name: MIDEA_RAW
+    turn_on_action:
+      remote_transmitter.transmit_midea:
+        code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
   - platform: gpio
     name: 'MCP23S08 Pin #0'
     pin:
@@ -1867,6 +1968,7 @@ switch:
       inverted: False
   - platform: template
     id: ble1_status
+    optimistic: true
 
 fan:
   - platform: binary
@@ -1875,6 +1977,7 @@ fan:
     oscillation_output: gpio_19
     direction_output: gpio_26
   - platform: speed
+    id: fan_speed
     output: pca_6
     speed_count: 10
     name: 'Living Room Fan 2'
@@ -1882,8 +1985,13 @@ fan:
     direction_output: gpio_26
     oscillation_state_topic: oscillation/state/topic
     oscillation_command_topic: oscillation/command/topic
+    speed_level_state_topic: speed_level/state/topic
+    speed_level_command_topic: speed_level/command/topic
     speed_state_topic: speed/state/topic
     speed_command_topic: speed/command/topic
+    on_speed_set:
+      then:
+        - logger.log: "Fan speed was changed!"
 
 interval:
   - interval: 10s
@@ -1937,6 +2045,7 @@ display:
     address: 0x3F
     lambda: |-
       it.print("Hello World!");
+    i2c_id: i2c_bus
   - platform: max7219
     cs_pin: GPIO23
     num_chips: 1
@@ -1970,7 +2079,7 @@ display:
     reset_pin: GPIO23
     address: 0x3C
     id: display1
-    brightness: 60%
+    contrast: 60%
     pages:
       - id: page1
         lambda: |-
@@ -1984,6 +2093,7 @@ display:
       then:
         lambda: |-
           ESP_LOGD("display", "1 -> 2");
+    i2c_id: i2c_bus
   - platform: ssd1306_spi
     model: 'SSD1306 128x64'
     cs_pin: GPIO23
@@ -2018,6 +2128,7 @@ display:
       - id: page13272
         lambda: |-
           // Nothing
+    i2c_id: i2c_bus
   - platform: ssd1327_spi
     model: 'SSD1327 128x128'
     cs_pin: GPIO23
@@ -2043,6 +2154,14 @@ display:
     dc_pin: GPIO16
     reset_pin: GPIO23
     backlight_pin: GPIO4
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: st7920
+    width: 128
+    height: 64
+    cs_pin:
+      number: GPIO23
+      inverted: true
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7735
@@ -2088,6 +2207,7 @@ pn532_spi:
         payload: !lambda 'return x;'
 
 pn532_i2c:
+  i2c_id: i2c_bus
 
 rdm6300:
   uart_id: uart0
@@ -2104,11 +2224,13 @@ rc522_i2c:
     on_tag:
       - lambda: |-
           ESP_LOGD("main", "Found tag %s", x.c_str());
+    i2c_id: i2c_bus
 
   - update_interval: 1s
     on_tag:
       - lambda: |-
           ESP_LOGD("main", "Found tag %s", x.c_str());
+    i2c_id: i2c_bus
 
 gps:
   uart_id: uart0
@@ -2135,6 +2257,7 @@ time:
     on_time:
       seconds: 0
       then: ds1307.read_time
+    i2c_id: i2c_bus
 
 cover:
   - platform: template
@@ -2162,31 +2285,35 @@ debug:
 tca9548a:
   - address: 0x70
     id: multiplex0
-    scan: True
+    channels:
+      - bus_id: multiplex0_chan0
+        channel: 0
+    i2c_id: i2c_bus
   - address: 0x71
     id: multiplex1
-    scan: True
-    multiplexer:
-      id: multiplex0
-      channel: 0
+    i2c_id: multiplex0_chan0
 
 pcf8574:
   - id: 'pcf8574_hub'
     address: 0x21
     pcf8575: False
+    i2c_id: i2c_bus
 
 mcp23017:
   - id: 'mcp23017_hub'
     open_drain_interrupt: 'true'
+    i2c_id: i2c_bus
 
 mcp23008:
   - id: 'mcp23008_hub'
     address: 0x22
     open_drain_interrupt: 'true'
+    i2c_id: i2c_bus
 
 mcp23016:
   - id: 'mcp23016_hub'
     address: 0x23
+    i2c_id: i2c_bus
 
 stepper:
   - platform: a4988
@@ -2239,6 +2366,8 @@ text_sensor:
     name: Template Text Sensor
     id: ${textname}_text
   - platform: wifi_info
+    scan_results:
+      name: 'Scan Results'
     ip_address:
       name: 'IP Address'
     ssid:

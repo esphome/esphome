@@ -12,8 +12,7 @@ void AddressableLight::call_setup() {
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   this->set_interval(5000, [this]() {
     const char *name = this->state_parent_ == nullptr ? "" : this->state_parent_->get_name().c_str();
-    ESP_LOGVV(TAG, "Addressable Light '%s' (effect_active=%s next_show=%s)", name, YESNO(this->effect_active_),
-              YESNO(this->next_show_));
+    ESP_LOGVV(TAG, "Addressable Light '%s' (effect_active=%s)", name, YESNO(this->effect_active_));
     for (int i = 0; i < this->size(); i++) {
       auto color = this->get(i);
       ESP_LOGVV(TAG, "  [%2d] Color: R=%3u G=%3u B=%3u W=%3u", i, color.get_red_raw(), color.get_green_raw(),
@@ -28,7 +27,7 @@ std::unique_ptr<LightTransformer> AddressableLight::create_default_transition() 
   return make_unique<AddressableLightTransformer>(*this);
 }
 
-Color esp_color_from_light_color_values(LightColorValues val) {
+Color color_from_light_color_values(LightColorValues val) {
   auto r = to_uint8_scale(val.get_color_brightness() * val.get_red());
   auto g = to_uint8_scale(val.get_color_brightness() * val.get_green());
   auto b = to_uint8_scale(val.get_color_brightness() * val.get_blue());
@@ -36,7 +35,7 @@ Color esp_color_from_light_color_values(LightColorValues val) {
   return Color(r, g, b, w);
 }
 
-void AddressableLight::write_state(LightState *state) {
+void AddressableLight::update_state(LightState *state) {
   auto val = state->current_values;
   auto max_brightness = to_uint8_scale(val.get_brightness() * val.get_state());
   this->correction_.set_local_brightness(max_brightness);
@@ -45,12 +44,17 @@ void AddressableLight::write_state(LightState *state) {
     return;
 
   // don't use LightState helper, gamma correction+brightness is handled by ESPColorView
-  this->all() = esp_color_from_light_color_values(val);
+  this->all() = color_from_light_color_values(val);
+  this->schedule_show();
 }
 
 void AddressableLightTransformer::start() {
+  // don't try to transition over running effects.
+  if (this->light_.is_effect_active())
+    return;
+
   auto end_values = this->target_values_;
-  this->target_color_ = esp_color_from_light_color_values(end_values);
+  this->target_color_ = color_from_light_color_values(end_values);
 
   // our transition will handle brightness, disable brightness in correction.
   this->light_.correction_.set_local_brightness(255);
@@ -58,10 +62,13 @@ void AddressableLightTransformer::start() {
 }
 
 optional<LightColorValues> AddressableLightTransformer::apply() {
-  // Don't try to transition over running effects, instead immediately use the target values. write_state() and the
-  // effects pick up the change from current_values.
+  float smoothed_progress = LightTransitionTransformer::smoothed_progress(this->get_progress_());
+
+  // When running an output-buffer modifying effect, don't try to transition individual LEDs, but instead just fade the
+  // LightColorValues. write_state() then picks up the change in brightness, and the color change is picked up by the
+  // effects which respect it.
   if (this->light_.is_effect_active())
-    return this->target_values_;
+    return LightColorValues::lerp(this->get_start_values(), this->get_target_values(), smoothed_progress);
 
   // Use a specialized transition for addressable lights: instead of using a unified transition for
   // all LEDs, we use the current state of each LED as the start.
@@ -70,8 +77,6 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
   // state of each LED at the start of the transition.
   // Instead, we "fake" the look of the LERP by using an exponential average over time and using
   // dynamically-calculated alpha values to match the look.
-
-  float smoothed_progress = LightTransitionTransformer::smoothed_progress(this->get_progress_());
 
   float denom = (1.0f - smoothed_progress);
   float alpha = denom == 0.0f ? 0.0f : (smoothed_progress - this->last_transition_progress_) / denom;

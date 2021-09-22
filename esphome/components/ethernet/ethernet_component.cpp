@@ -3,7 +3,7 @@
 #include "esphome/core/util.h"
 #include "esphome/core/application.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 #include <eth_phy/phy_lan8720.h>
 #include <eth_phy/phy_tlk110.h>
@@ -16,17 +16,17 @@
 
 // Defined in WiFiGeneric.cpp, sets global initialized flag, starts network event task queue and calls
 // tcpip_adapter_init()
-extern void tcpipInit();
+extern void tcpipInit();  // NOLINT(readability-identifier-naming)
 
 namespace esphome {
 namespace ethernet {
 
 static const char *const TAG = "ethernet";
 
-EthernetComponent *global_eth_component;
+EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #define ESPHL_ERROR_CHECK(err, message) \
-  if (err != ESP_OK) { \
+  if ((err) != ESP_OK) { \
     ESP_LOGE(TAG, message ": (%d) %s", err, esp_err_to_name(err)); \
     this->mark_failed(); \
     return; \
@@ -75,10 +75,6 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "ETH init error");
   err = esp_eth_enable();
   ESPHL_ERROR_CHECK(err, "ETH enable error");
-
-#ifdef USE_MDNS
-  network_setup_mdns();
-#endif
 }
 void EthernetComponent::loop() {
   const uint32_t now = millis();
@@ -118,8 +114,6 @@ void EthernetComponent::loop() {
       }
       break;
   }
-
-  network_tick_mdns();
 }
 void EthernetComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Ethernet:");
@@ -131,10 +125,10 @@ void EthernetComponent::dump_config() {
 }
 float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI; }
 bool EthernetComponent::can_proceed() { return this->is_connected(); }
-IPAddress EthernetComponent::get_ip_address() {
+network::IPAddress EthernetComponent::get_ip_address() {
   tcpip_adapter_ip_info_t ip;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_ETH, &ip);
-  return IPAddress(ip.ip.addr);
+  return {ip.ip.addr};
 }
 
 void EthernetComponent::on_wifi_event_(system_event_id_t event, system_event_info_t info) {
@@ -229,10 +223,10 @@ bool EthernetComponent::is_connected() { return this->state_ == EthernetComponen
 void EthernetComponent::dump_connect_params_() {
   tcpip_adapter_ip_info_t ip;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_ETH, &ip);
-  ESP_LOGCONFIG(TAG, "  IP Address: %s", IPAddress(ip.ip.addr).toString().c_str());
+  ESP_LOGCONFIG(TAG, "  IP Address: %s", network::IPAddress(ip.ip.addr).str().c_str());
   ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());
-  ESP_LOGCONFIG(TAG, "  Subnet: %s", IPAddress(ip.netmask.addr).toString().c_str());
-  ESP_LOGCONFIG(TAG, "  Gateway: %s", IPAddress(ip.gw.addr).toString().c_str());
+  ESP_LOGCONFIG(TAG, "  Subnet: %s", network::IPAddress(ip.netmask.addr).str().c_str());
+  ESP_LOGCONFIG(TAG, "  Gateway: %s", network::IPAddress(ip.gw.addr).str().c_str());
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(3, 3, 4)
   const ip_addr_t *dns_ip1 = dns_getserver(0);
@@ -243,8 +237,8 @@ void EthernetComponent::dump_connect_params_() {
   ip_addr_t tmp_ip2 = dns_getserver(1);
   const ip_addr_t *dns_ip2 = &tmp_ip2;
 #endif
-  ESP_LOGCONFIG(TAG, "  DNS1: %s", IPAddress(dns_ip1->u_addr.ip4.addr).toString().c_str());
-  ESP_LOGCONFIG(TAG, "  DNS2: %s", IPAddress(dns_ip2->u_addr.ip4.addr).toString().c_str());
+  ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->u_addr.ip4.addr).str().c_str());
+  ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->u_addr.ip4.addr).str().c_str());
   uint8_t mac[6];
   esp_eth_get_mac(mac);
   ESP_LOGCONFIG(TAG, "  MAC Address: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -258,7 +252,7 @@ void EthernetComponent::set_mdc_pin(uint8_t mdc_pin) { this->mdc_pin_ = mdc_pin;
 void EthernetComponent::set_mdio_pin(uint8_t mdio_pin) { this->mdio_pin_ = mdio_pin; }
 void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
 void EthernetComponent::set_clk_mode(eth_clock_mode_t clk_mode) { this->clk_mode_ = clk_mode; }
-void EthernetComponent::set_manual_ip(ManualIP manual_ip) { this->manual_ip_ = manual_ip; }
+void EthernetComponent::set_manual_ip(const ManualIP &manual_ip) { this->manual_ip_ = manual_ip; }
 std::string EthernetComponent::get_use_address() const {
   if (this->use_address_.empty()) {
     return App.get_name() + ".local";
@@ -270,4 +264,4 @@ void EthernetComponent::set_use_address(const std::string &use_address) { this->
 }  // namespace ethernet
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

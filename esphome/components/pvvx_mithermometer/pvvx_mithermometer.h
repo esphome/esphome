@@ -4,7 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace pvvx_mithermometer {
@@ -14,7 +14,6 @@ struct ParseResult {
   optional<float> humidity;
   optional<float> battery_level;
   optional<float> battery_voltage;
-  bool is_duplicate;
   int raw_offset;
 };
 

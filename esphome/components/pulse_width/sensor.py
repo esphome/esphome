@@ -26,9 +26,7 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.GenerateID(): cv.declare_id(PulseWidthSensor),
-            cv.Required(CONF_PIN): cv.All(
-                pins.internal_gpio_input_pin_schema, pins.validate_has_interrupt
-            ),
+            cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
         }
     )
     .extend(cv.polling_component_schema("60s"))

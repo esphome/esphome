@@ -80,9 +80,13 @@ void TuyaFan::write_state() {
   }
   if (this->speed_id_.has_value()) {
     ESP_LOGV(TAG, "Setting speed: %d", this->fan_->speed);
-    this->parent_->set_integer_datapoint_value(*this->speed_id_, this->fan_->speed - 1);
+    this->parent_->set_enum_datapoint_value(*this->speed_id_, this->fan_->speed - 1);
   }
 }
+
+// We need a higher priority than the FanState component to make sure that the traits are set
+// when that component sets itself up.
+float TuyaFan::get_setup_priority() const { return fan_->get_setup_priority() + 1.0f; }
 
 }  // namespace tuya
 }  // namespace esphome

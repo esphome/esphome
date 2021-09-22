@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 
+#ifdef USE_MQTT
 #ifdef USE_TEXT_SENSOR
 
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -40,3 +41,4 @@ class MQTTTextSensor : public mqtt::MQTTComponent {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
@@ -46,12 +46,12 @@ class ZaSensorStore {
   float temperature = NAN;
   float humidity = NAN;
 
-  void setup(GPIOPin *pin_clock, GPIOPin *pin_data);
+  void setup(InternalGPIOPin *pin_clock, InternalGPIOPin *pin_data);
   static void interrupt(ZaSensorStore *arg);
 
  protected:
-  ISRInternalGPIOPin *pin_clock_;
-  ISRInternalGPIOPin *pin_data_;
+  ISRInternalGPIOPin pin_clock_;
+  ISRInternalGPIOPin pin_data_;
   ZaDataProcessor processor_;
 
   void set_data_(ZaMessage *message);
@@ -60,8 +60,8 @@ class ZaSensorStore {
 /// Component for reading temperature/co2/humidity measurements from ZyAura sensors.
 class ZyAuraSensor : public PollingComponent {
  public:
-  void set_pin_clock(GPIOPin *pin) { pin_clock_ = pin; }
-  void set_pin_data(GPIOPin *pin) { pin_data_ = pin; }
+  void set_pin_clock(InternalGPIOPin *pin) { pin_clock_ = pin; }
+  void set_pin_data(InternalGPIOPin *pin) { pin_data_ = pin; }
   void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
@@ -73,8 +73,8 @@ class ZyAuraSensor : public PollingComponent {
 
  protected:
   ZaSensorStore store_;
-  GPIOPin *pin_clock_;
-  GPIOPin *pin_data_;
+  InternalGPIOPin *pin_clock_;
+  InternalGPIOPin *pin_data_;
   sensor::Sensor *co2_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};

@@ -1,7 +1,7 @@
 #include "inkbird_ibsth1_mini.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace inkbird_ibsth1_mini {
@@ -37,25 +37,25 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
     ESP_LOGVV(TAG, "parse_device(): address is not public");
     return false;
   }
-  if (device.get_service_datas().size() != 0) {
+  if (!device.get_service_datas().empty()) {
     ESP_LOGVV(TAG, "parse_device(): service_data is expected to be empty");
     return false;
   }
-  auto mnfDatas = device.get_manufacturer_datas();
-  if (mnfDatas.size() != 1) {
+  auto mnf_datas = device.get_manufacturer_datas();
+  if (mnf_datas.size() != 1) {
     ESP_LOGVV(TAG, "parse_device(): manufacturer_datas is expected to have a single element");
     return false;
   }
-  auto mnfData = mnfDatas[0];
-  if (mnfData.uuid.get_uuid().len != ESP_UUID_LEN_16) {
+  auto mnf_data = mnf_datas[0];
+  if (mnf_data.uuid.get_uuid().len != ESP_UUID_LEN_16) {
     ESP_LOGVV(TAG, "parse_device(): manufacturer data element is expected to have uuid of length 16");
     return false;
   }
-  if (mnfData.data.size() != 7) {
+  if (mnf_data.data.size() != 7) {
     ESP_LOGVV(TAG, "parse_device(): manufacturer data element length is expected to be of length 7");
     return false;
   }
-  if (mnfData.data[6] != 8) {
+  if (mnf_data.data[6] != 8) {
     ESP_LOGVV(TAG, "parse_device(): unexpected data");
     return false;
   }
@@ -72,26 +72,26 @@ bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &devi
   auto external_temperature = NAN;
 
   // Read bluetooth data into variable
-  auto measured_temperature = mnfData.uuid.get_uuid().uuid.uuid16 / 100.0f;
+  auto measured_temperature = mnf_data.uuid.get_uuid().uuid.uuid16 / 100.0f;
 
   // Set temperature or external_temperature based on which sensor is in use
-  if (mnfData.data[2] == 0) {
+  if (mnf_data.data[2] == 0) {
     temperature = measured_temperature;
-  } else if (mnfData.data[2] == 1) {
+  } else if (mnf_data.data[2] == 1) {
     external_temperature = measured_temperature;
   } else {
     ESP_LOGVV(TAG, "parse_device(): unknown sensor type");
     return false;
   }
 
-  auto battery_level = mnfData.data[5];
-  auto humidity = ((mnfData.data[1] << 8) + mnfData.data[0]) / 100.0f;
+  auto battery_level = mnf_data.data[5];
+  auto humidity = ((mnf_data.data[1] << 8) + mnf_data.data[0]) / 100.0f;
 
   // Send temperature only if the value is set
-  if (!isnan(temperature) && this->temperature_ != nullptr) {
+  if (!std::isnan(temperature) && this->temperature_ != nullptr) {
     this->temperature_->publish_state(temperature);
   }
-  if (!isnan(external_temperature) && this->external_temperature_ != nullptr) {
+  if (!std::isnan(external_temperature) && this->external_temperature_ != nullptr) {
     this->external_temperature_->publish_state(external_temperature);
   }
   if (this->humidity_ != nullptr) {

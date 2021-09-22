@@ -4,7 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace b_parasite {
@@ -37,4 +37,4 @@ class BParasite : public Component, public esp32_ble_tracker::ESPBTDeviceListene
 }  // namespace b_parasite
 }  // namespace esphome
 
-#endif  // ARDUINO_ARCH_ESP32
+#endif  // USE_ESP32

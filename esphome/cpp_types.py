@@ -30,5 +30,7 @@ JsonObject = arduino_json_ns.class_("JsonObject")
 JsonObjectRef = JsonObject.operator("ref")
 JsonObjectConstRef = JsonObjectRef.operator("const")
 Controller = esphome_ns.class_("Controller")
-
 GPIOPin = esphome_ns.class_("GPIOPin")
+InternalGPIOPin = esphome_ns.class_("InternalGPIOPin", GPIOPin)
+gpio_ns = esphome_ns.namespace("gpio")
+gpio_Flags = gpio_ns.enum("Flags", is_class=True)

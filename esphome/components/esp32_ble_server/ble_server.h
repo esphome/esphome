@@ -12,7 +12,7 @@
 
 #include <map>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <esp_gap_ble_api.h>
 #include <esp_gatts_api.h>

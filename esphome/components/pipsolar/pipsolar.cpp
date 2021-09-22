@@ -840,7 +840,7 @@ void Pipsolar::send_next_poll_() {
            this->used_polling_commands_[this->last_polling_command_].length);
 }
 
-void Pipsolar::queue_command_(const char *command, byte length) {
+void Pipsolar::queue_command_(const char *command, uint8_t length) {
   uint8_t next_position = command_queue_position_;
   for (uint8_t i = 0; i < COMMAND_QUEUE_LENGTH; i++) {
     uint8_t testposition = (next_position + i) % COMMAND_QUEUE_LENGTH;
@@ -881,7 +881,7 @@ void Pipsolar::add_polling_command_(const char *command, ENUMPollingCommand poll
       size_t length = strlen(command) + 1;
       const char *beg = command;
       const char *end = command + length;
-      used_polling_command.command = new uint8_t[length];
+      used_polling_command.command = new uint8_t[length];  // NOLINT(cppcoreguidelines-owning-memory)
       size_t i = 0;
       for (; beg != end; ++beg, ++i) {
         used_polling_command.command[i] = (uint8_t)(*beg);

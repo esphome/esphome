@@ -18,6 +18,7 @@ DEPENDENCIES = ["tuya"]
 CONF_DIMMER_DATAPOINT = "dimmer_datapoint"
 CONF_MIN_VALUE_DATAPOINT = "min_value_datapoint"
 CONF_COLOR_TEMPERATURE_DATAPOINT = "color_temperature_datapoint"
+CONF_COLOR_TEMPERATURE_INVERT = "color_temperature_invert"
 CONF_COLOR_TEMPERATURE_MAX_VALUE = "color_temperature_max_value"
 
 TuyaLight = tuya_ns.class_("TuyaLight", light.LightOutput, cg.Component)
@@ -33,6 +34,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Inclusive(
                 CONF_COLOR_TEMPERATURE_DATAPOINT, "color_temperature"
             ): cv.uint8_t,
+            cv.Optional(CONF_COLOR_TEMPERATURE_INVERT, default=False): cv.boolean,
             cv.Optional(CONF_MIN_VALUE): cv.int_,
             cv.Optional(CONF_MAX_VALUE): cv.int_,
             cv.Optional(CONF_COLOR_TEMPERATURE_MAX_VALUE): cv.int_,
@@ -67,6 +69,8 @@ async def to_code(config):
         cg.add(var.set_switch_id(config[CONF_SWITCH_DATAPOINT]))
     if CONF_COLOR_TEMPERATURE_DATAPOINT in config:
         cg.add(var.set_color_temperature_id(config[CONF_COLOR_TEMPERATURE_DATAPOINT]))
+        cg.add(var.set_color_temperature_invert(config[CONF_COLOR_TEMPERATURE_INVERT]))
+
         cg.add(
             var.set_cold_white_temperature(config[CONF_COLD_WHITE_COLOR_TEMPERATURE])
         )
