@@ -14,11 +14,9 @@ from esphome.const import (
 
 from .. import (
     modbus_controller_ns,
-    MODBUS_REGISTER_TYPE,
     ModbusController,
     SENSOR_VALUE_TYPE,
     SensorItem,
-    set_register_type,
 )
 
 
@@ -28,7 +26,6 @@ from ..const import (
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_COUNT,
-    CONF_REGISTER_TYPE,
     CONF_SKIP_UPDATES,
     CONF_VALUE_TYPE,
     CONF_WRITE_LAMBDA,
@@ -75,7 +72,6 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ModbusNumber),
             cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
             cv.Required(CONF_ADDRESS): cv.positive_int,
-            cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
             cv.Optional(CONF_OFFSET, default=0): cv.positive_int,
             cv.Optional(CONF_BYTE_OFFSET): cv.positive_int,
             cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
@@ -109,11 +105,8 @@ async def to_code(config):
     reg_count = config[CONF_REGISTER_COUNT]
     if reg_count == 0:
         reg_count = TYPE_REGISTER_MAP[value_type]
-    reg_type = set_register_type(config)
-
     var = cg.new_Pvariable(
         config[CONF_ID],
-        reg_type,
         config[CONF_ADDRESS],
         byte_offset,
         config[CONF_BITMASK],
