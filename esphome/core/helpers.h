@@ -19,10 +19,6 @@
 #define ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
-#define xSemaphoreWait(semaphore, wait_time) \
-  xSemaphoreTake(semaphore, wait_time); \
-  xSemaphoreGive(semaphore);
-
 namespace esphome {
 
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
