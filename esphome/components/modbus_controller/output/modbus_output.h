@@ -2,9 +2,7 @@
 
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/modbus_controller/modbus_controller.h"
-#include "esphome/components/modbus_controller/sensor/modbus_sensor.h"
 #include "esphome/core/component.h"
-#include "esphome/core/preferences.h"
 
 namespace esphome {
 namespace modbus_controller {
@@ -28,16 +26,17 @@ class ModbusOutput : public output::FloatOutput, public Component, public Sensor
   void dump_config() override;
 
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
-  void set_multiply(float factor) { multiply_by_ = factor; }
+  void set_write_multiply(float factor) { multiply_by_ = factor; }
   // Do nothing
   void parse_and_publish(const std::vector<uint8_t> &data) override{};
 
-  using transform_func_t = std::function<optional<float>(ModbusOutput *, float, std::vector<uint16_t> &)>;
-  void set_template(transform_func_t &&f) { this->transform_func_ = f; }
+  using write_transform_func_t = std::function<optional<float>(ModbusOutput *, float, std::vector<uint16_t> &)>;
+  void set_write_template(write_transform_func_t &&f) { this->write_transform_func_ = f; }
 
  protected:
   void write_state(float value) override;
-  optional<transform_func_t> transform_func_{nullopt};
+  optional<write_transform_func_t> write_transform_func_{nullopt};
+
   ModbusController *parent_;
   float multiply_by_{1.0};
 };

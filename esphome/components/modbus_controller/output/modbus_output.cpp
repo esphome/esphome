@@ -21,11 +21,11 @@ void ModbusOutput::write_state(float value) {
   std::vector<uint16_t> data;
   auto original_value = value;
   // Is there are lambda configured?
-  if (this->transform_func_.has_value()) {
+  if (this->write_transform_func_.has_value()) {
     // data is passed by reference
     // the lambda can fill the empty vector directly
     // in that case the return value is ignored
-    auto val = (*this->transform_func_)(this, value, data);
+    auto val = (*this->write_transform_func_)(this, value, data);
     if (val.has_value()) {
       ESP_LOGV(TAG, "Value overwritten by lambda");
       value = val.value();
