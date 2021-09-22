@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 
+#ifdef USE_MQTT
 #ifdef USE_NUMBER
 
 #include "esphome/components/number/number.h"
@@ -44,3 +45,4 @@ class MQTTNumberComponent : public mqtt::MQTTComponent {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

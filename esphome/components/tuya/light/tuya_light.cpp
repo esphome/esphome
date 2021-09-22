@@ -9,10 +9,14 @@ static const char *const TAG = "tuya.light";
 void TuyaLight::setup() {
   if (this->color_temperature_id_.has_value()) {
     this->parent_->register_listener(*this->color_temperature_id_, [this](const TuyaDatapoint &datapoint) {
+      auto datapoint_value = datapoint.value_uint;
+      if (this->color_temperature_invert_) {
+        datapoint_value = this->color_temperature_max_value_ - datapoint_value;
+      }
       auto call = this->state_->make_call();
       call.set_color_temperature(this->cold_white_temperature_ +
                                  (this->warm_white_temperature_ - this->cold_white_temperature_) *
-                                     (float(datapoint.value_uint) / float(this->color_temperature_max_value_)));
+                                     (float(datapoint_value) / this->color_temperature_max_value_));
       call.perform();
     });
   }
@@ -78,6 +82,9 @@ void TuyaLight::write_state(light::LightState *state) {
         static_cast<uint32_t>(this->color_temperature_max_value_ *
                               (state->current_values.get_color_temperature() - this->cold_white_temperature_) /
                               (this->warm_white_temperature_ - this->cold_white_temperature_));
+    if (this->color_temperature_invert_) {
+      color_temp_int = this->color_temperature_max_value_ - color_temp_int;
+    }
     parent_->set_integer_datapoint_value(*this->color_temperature_id_, color_temp_int);
   }
 

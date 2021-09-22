@@ -1,9 +1,11 @@
 #include "airthings_wave_plus.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 namespace esphome {
 namespace airthings_wave_plus {
+
+static const char *const TAG = "airthings_wave_plus";
 
 void AirthingsWavePlus::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                             esp_ble_gattc_cb_param_t *param) {
@@ -21,15 +23,15 @@ void AirthingsWavePlus::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt
     }
 
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      this->handle = 0;
-      auto chr = this->parent()->get_characteristic(service_uuid, sensors_data_characteristic_uuid);
+      this->handle_ = 0;
+      auto chr = this->parent()->get_characteristic(service_uuid_, sensors_data_characteristic_uuid_);
       if (chr == nullptr) {
-        ESP_LOGW(TAG, "No sensor characteristic found at service %s char %s", service_uuid.to_string().c_str(),
-                 sensors_data_characteristic_uuid.to_string().c_str());
+        ESP_LOGW(TAG, "No sensor characteristic found at service %s char %s", service_uuid_.to_string().c_str(),
+                 sensors_data_characteristic_uuid_.to_string().c_str());
         break;
       }
-      this->handle = chr->handle;
-      this->node_state = espbt::ClientState::Established;
+      this->handle_ = chr->handle;
+      this->node_state = esp32_ble_tracker::ClientState::Established;
 
       request_read_values_();
       break;
@@ -42,7 +44,7 @@ void AirthingsWavePlus::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt
         ESP_LOGW(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
         break;
       }
-      if (param->read.handle == this->handle) {
+      if (param->read.handle == this->handle_) {
         read_sensors_(param->read.value, param->read.value_len);
       }
       break;
@@ -88,16 +90,16 @@ void AirthingsWavePlus::read_sensors_(uint8_t *raw_value, uint16_t value_len) {
   }
 }
 
-bool AirthingsWavePlus::is_valid_radon_value_(short radon) { return 0 <= radon && radon <= 16383; }
+bool AirthingsWavePlus::is_valid_radon_value_(uint16_t radon) { return 0 <= radon && radon <= 16383; }
 
-bool AirthingsWavePlus::is_valid_voc_value_(short voc) { return 0 <= voc && voc <= 16383; }
+bool AirthingsWavePlus::is_valid_voc_value_(uint16_t voc) { return 0 <= voc && voc <= 16383; }
 
-bool AirthingsWavePlus::is_valid_co2_value_(short co2) { return 0 <= co2 && co2 <= 16383; }
+bool AirthingsWavePlus::is_valid_co2_value_(uint16_t co2) { return 0 <= co2 && co2 <= 16383; }
 
 void AirthingsWavePlus::loop() {}
 
 void AirthingsWavePlus::update() {
-  if (this->node_state != espbt::ClientState::Established) {
+  if (this->node_state != esp32_ble_tracker::ClientState::Established) {
     if (!parent()->enabled) {
       ESP_LOGW(TAG, "Reconnecting to device");
       parent()->set_enabled(true);
@@ -110,7 +112,7 @@ void AirthingsWavePlus::update() {
 
 void AirthingsWavePlus::request_read_values_() {
   auto status =
-      esp_ble_gattc_read_char(this->parent()->gattc_if, this->parent()->conn_id, this->handle, ESP_GATT_AUTH_REQ_NONE);
+      esp_ble_gattc_read_char(this->parent()->gattc_if, this->parent()->conn_id, this->handle_, ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     ESP_LOGW(TAG, "Error sending read request for sensor, status=%d", status);
   }
@@ -130,8 +132,8 @@ AirthingsWavePlus::AirthingsWavePlus() : PollingComponent(10000) {
   auto service_bt = *BLEUUID::fromString(std::string("b42e1c08-ade7-11e4-89d3-123b93f75cba")).getNative();
   auto characteristic_bt = *BLEUUID::fromString(std::string("b42e2a68-ade7-11e4-89d3-123b93f75cba")).getNative();
 
-  service_uuid = espbt::ESPBTUUID::from_uuid(service_bt);
-  sensors_data_characteristic_uuid = espbt::ESPBTUUID::from_uuid(characteristic_bt);
+  service_uuid_ = esp32_ble_tracker::ESPBTUUID::from_uuid(service_bt);
+  sensors_data_characteristic_uuid_ = esp32_ble_tracker::ESPBTUUID::from_uuid(characteristic_bt);
 }
 
 void AirthingsWavePlus::setup() {}
@@ -139,4 +141,4 @@ void AirthingsWavePlus::setup() {}
 }  // namespace airthings_wave_plus
 }  // namespace esphome
 
-#endif  // ARDUINO_ARCH_ESP32
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

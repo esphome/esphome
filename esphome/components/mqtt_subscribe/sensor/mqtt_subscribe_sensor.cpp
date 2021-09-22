@@ -1,4 +1,7 @@
 #include "mqtt_subscribe_sensor.h"
+
+#ifdef USE_MQTT
+
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -31,3 +34,5 @@ void MQTTSubscribeSensor::dump_config() {
 
 }  // namespace mqtt_subscribe
 }  // namespace esphome
+
+#endif  // USE_MQTT

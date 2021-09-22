@@ -109,8 +109,7 @@ def validate_send_first_at(value):
     send_every = value[CONF_SEND_EVERY]
     if send_first_at is not None and send_first_at > send_every:
         raise cv.Invalid(
-            "send_first_at must be smaller than or equal to send_every! {} <= {}"
-            "".format(send_first_at, send_every)
+            f"send_first_at must be smaller than or equal to send_every! {send_first_at} <= {send_every}"
         )
     return value
 
@@ -459,8 +458,7 @@ CONF_DEGREE = "degree"
 def validate_calibrate_polynomial(config):
     if config[CONF_DEGREE] >= len(config[CONF_DATAPOINTS]):
         raise cv.Invalid(
-            "Degree is too high! Maximum possible degree with given datapoints is "
-            "{}".format(len(config[CONF_DATAPOINTS]) - 1),
+            f"Degree is too high! Maximum possible degree with given datapoints is {len(config[CONF_DATAPOINTS]) - 1}",
             [CONF_DEGREE],
         )
     return config

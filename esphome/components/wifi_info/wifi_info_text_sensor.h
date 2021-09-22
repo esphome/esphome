@@ -10,10 +10,10 @@ namespace wifi_info {
 class IPAddressWiFiInfo : public Component, public text_sensor::TextSensor {
  public:
   void loop() override {
-    IPAddress ip = WiFi.localIP();
+    auto ip = wifi::global_wifi_component->wifi_sta_ip();
     if (ip != this->last_ip_) {
       this->last_ip_ = ip;
-      this->publish_state(ip.toString().c_str());
+      this->publish_state(ip.str().c_str());
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
@@ -21,15 +21,15 @@ class IPAddressWiFiInfo : public Component, public text_sensor::TextSensor {
   void dump_config() override;
 
  protected:
-  IPAddress last_ip_;
+  network::IPAddress last_ip_;
 };
 
 class SSIDWiFiInfo : public Component, public text_sensor::TextSensor {
  public:
   void loop() override {
-    String ssid = WiFi.SSID();
-    if (this->last_ssid_ != ssid.c_str()) {
-      this->last_ssid_ = std::string(ssid.c_str());
+    std::string ssid = wifi::global_wifi_component->wifi_ssid();
+    if (this->last_ssid_ != ssid) {
+      this->last_ssid_ = ssid;
       this->publish_state(this->last_ssid_);
     }
   }
@@ -44,9 +44,9 @@ class SSIDWiFiInfo : public Component, public text_sensor::TextSensor {
 class BSSIDWiFiInfo : public Component, public text_sensor::TextSensor {
  public:
   void loop() override {
-    uint8_t *bssid = WiFi.BSSID();
-    if (memcmp(bssid, this->last_bssid_.data(), 6) != 0) {
-      std::copy(bssid, bssid + 6, this->last_bssid_.data());
+    wifi::bssid_t bssid = wifi::global_wifi_component->wifi_bssid();
+    if (memcmp(bssid.data(), last_bssid_.data(), 6) != 0) {
+      std::copy(bssid.begin(), bssid.end(), last_bssid_.begin());
       char buf[30];
       sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
       this->publish_state(buf);

@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 
+#ifdef USE_MQTT
 #ifdef USE_FAN
 
 #include "esphome/components/fan/fan_state.h"
@@ -45,3 +46,4 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

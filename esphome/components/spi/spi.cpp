@@ -8,12 +8,13 @@ namespace spi {
 
 static const char *const TAG = "spi";
 
-void ICACHE_RAM_ATTR HOT SPIComponent::disable() {
+void IRAM_ATTR HOT SPIComponent::disable() {
+#ifdef USE_SPI_ARDUINO_BACKEND
   if (this->hw_spi_ != nullptr) {
     this->hw_spi_->endTransaction();
   }
+#endif  // USE_SPI_ARDUINO_BACKEND
   if (this->active_cs_) {
-    ESP_LOGVV(TAG, "Disabling SPI Chip on pin %u...", this->active_cs_->get_pin());
     this->active_cs_->digital_write(true);
     this->active_cs_ = nullptr;
   }
@@ -23,19 +24,37 @@ void SPIComponent::setup() {
   this->clk_->setup();
   this->clk_->digital_write(true);
 
+#ifdef USE_SPI_ARDUINO_BACKEND
   bool use_hw_spi = true;
-  if (this->clk_->is_inverted())
-    use_hw_spi = false;
   const bool has_miso = this->miso_ != nullptr;
   const bool has_mosi = this->mosi_ != nullptr;
-  if (has_miso && this->miso_->is_inverted())
+  int8_t clk_pin = -1, miso_pin = -1, mosi_pin = -1;
+
+  if (!this->clk_->is_internal())
     use_hw_spi = false;
-  if (has_mosi && this->mosi_->is_inverted())
+  if (has_miso && !miso_->is_internal())
     use_hw_spi = false;
-  int8_t clk_pin = this->clk_->get_pin();
-  int8_t miso_pin = has_miso ? this->miso_->get_pin() : -1;
-  int8_t mosi_pin = has_mosi ? this->mosi_->get_pin() : -1;
-#ifdef ARDUINO_ARCH_ESP8266
+  if (has_mosi && !mosi_->is_internal())
+    use_hw_spi = false;
+  if (use_hw_spi) {
+    auto *clk_internal = (InternalGPIOPin *) clk_;
+    auto *miso_internal = (InternalGPIOPin *) miso_;
+    auto *mosi_internal = (InternalGPIOPin *) mosi_;
+
+    if (clk_internal->is_inverted())
+      use_hw_spi = false;
+    if (has_miso && miso_internal->is_inverted())
+      use_hw_spi = false;
+    if (has_mosi && mosi_internal->is_inverted())
+      use_hw_spi = false;
+
+    if (use_hw_spi) {
+      clk_pin = clk_internal->get_pin();
+      miso_pin = has_miso ? miso_internal->get_pin() : -1;
+      mosi_pin = has_mosi ? mosi_internal->get_pin() : -1;
+    }
+  }
+#ifdef USE_ESP8266
   if (clk_pin == 6 && miso_pin == 7 && mosi_pin == 8) {
     // pass
   } else if (clk_pin == 14 && (!has_miso || miso_pin == 12) && (!has_mosi || mosi_pin == 13)) {
@@ -50,8 +69,8 @@ void SPIComponent::setup() {
     this->hw_spi_->begin();
     return;
   }
-#endif
-#ifdef ARDUINO_ARCH_ESP32
+#endif  // USE_ESP8266
+#ifdef USE_ESP32
   static uint8_t spi_bus_num = 0;
   if (spi_bus_num >= 2) {
     use_hw_spi = false;
@@ -61,13 +80,14 @@ void SPIComponent::setup() {
     if (spi_bus_num == 0) {
       this->hw_spi_ = &SPI;
     } else {
-      this->hw_spi_ = new SPIClass(VSPI);
+      this->hw_spi_ = new SPIClass(VSPI);  // NOLINT(cppcoreguidelines-owning-memory)
     }
     spi_bus_num++;
     this->hw_spi_->begin(clk_pin, miso_pin, mosi_pin);
     return;
   }
-#endif
+#endif  // USE_ESP32
+#endif  // USE_SPI_ARDUINO_BACKEND
 
   if (this->miso_ != nullptr) {
     this->miso_->setup();
@@ -82,32 +102,28 @@ void SPIComponent::dump_config() {
   LOG_PIN("  CLK Pin: ", this->clk_);
   LOG_PIN("  MISO Pin: ", this->miso_);
   LOG_PIN("  MOSI Pin: ", this->mosi_);
+#ifdef USE_SPI_ARDUINO_BACKEND
   ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", YESNO(this->hw_spi_ != nullptr));
+#endif  // USE_SPI_ARDUINO_BACKEND
 }
 float SPIComponent::get_setup_priority() const { return setup_priority::BUS; }
 
-void SPIComponent::debug_tx(uint8_t value) {
-  ESP_LOGVV(TAG, "    TX 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(value), value);
-}
-void SPIComponent::debug_rx(uint8_t value) {
-  ESP_LOGVV(TAG, "    RX 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(value), value);
-}
-void SPIComponent::debug_enable(uint8_t pin) { ESP_LOGVV(TAG, "Enabling SPI Chip on pin %u...", pin); }
-
 void SPIComponent::cycle_clock_(bool value) {
-  uint32_t start = ESP.getCycleCount();
-  while (start - ESP.getCycleCount() < this->wait_cycle_)
+  uint32_t start = arch_get_cpu_cycle_count();
+  while (start - arch_get_cpu_cycle_count() < this->wait_cycle_)
     ;
   this->clk_->digital_write(value);
   start += this->wait_cycle_;
-  while (start - ESP.getCycleCount() < this->wait_cycle_)
+  while (start - arch_get_cpu_cycle_count() < this->wait_cycle_)
     ;
 }
 
 // NOLINTNEXTLINE
+#ifndef CLANG_TIDY
 #pragma GCC optimize("unroll-loops")
 // NOLINTNEXTLINE
 #pragma GCC optimize("O2")
+#endif  // CLANG_TIDY
 
 template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, bool READ, bool WRITE>
 uint8_t HOT SPIComponent::transfer_(uint8_t data) {
@@ -152,15 +168,6 @@ uint8_t HOT SPIComponent::transfer_(uint8_t data) {
       }
     }
   }
-
-#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  if (WRITE) {
-    SPIComponent::debug_tx(data);
-  }
-  if (READ) {
-    SPIComponent::debug_rx(out_data);
-  }
-#endif
 
   App.feed_wdt();
 

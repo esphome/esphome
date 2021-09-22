@@ -1,9 +1,10 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
-#ifdef ARDUINO_ARCH_ESP32
+#include "esphome/core/component.h"
+#include "esphome/core/hal.h"
+#include "esphome/components/network/ip_address.h"
 
 #include "esp_eth.h"
 #include <esp_wifi.h>
@@ -19,11 +20,11 @@ enum EthernetType {
 };
 
 struct ManualIP {
-  IPAddress static_ip;
-  IPAddress gateway;
-  IPAddress subnet;
-  IPAddress dns1;  ///< The first DNS server. 0.0.0.0 for default.
-  IPAddress dns2;  ///< The second DNS server. 0.0.0.0 for default.
+  network::IPAddress static_ip;
+  network::IPAddress gateway;
+  network::IPAddress subnet;
+  network::IPAddress dns1;  ///< The first DNS server. 0.0.0.0 for default.
+  network::IPAddress dns2;  ///< The second DNS server. 0.0.0.0 for default.
 };
 
 enum class EthernetComponentState {
@@ -48,9 +49,9 @@ class EthernetComponent : public Component {
   void set_mdio_pin(uint8_t mdio_pin);
   void set_type(EthernetType type);
   void set_clk_mode(eth_clock_mode_t clk_mode);
-  void set_manual_ip(ManualIP manual_ip);
+  void set_manual_ip(const ManualIP &manual_ip);
 
-  IPAddress get_ip_address();
+  network::IPAddress get_ip_address();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
 
@@ -84,4 +85,4 @@ extern EthernetComponent *global_eth_component;
 }  // namespace ethernet
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

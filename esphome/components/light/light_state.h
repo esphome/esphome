@@ -154,10 +154,10 @@ class LightState : public Nameable, public Component {
   /// Internal method to stop the current effect (if one is active).
   void stop_effect_();
   /// Internal method to start a transition to the target color with the given length.
-  void start_transition_(const LightColorValues &target, uint32_t length);
+  void start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values);
 
   /// Internal method to start a flash for the specified amount of time.
-  void start_flash_(const LightColorValues &target, uint32_t length);
+  void start_flash_(const LightColorValues &target, uint32_t length, bool set_remote_values);
 
   /// Internal method to set the color values to target immediately (with no transition).
   void set_immediately_(const LightColorValues &target, bool set_remote_values);

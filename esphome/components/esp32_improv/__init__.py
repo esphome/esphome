@@ -1,14 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor, output, esp32_ble_server
-from esphome.const import CONF_ID, ESP_PLATFORM_ESP32
+from esphome.const import CONF_ID
 
 
 AUTO_LOAD = ["binary_sensor", "output", "improv", "esp32_ble_server"]
 CODEOWNERS = ["@jesserockz"]
 CONFLICTS_WITH = ["esp32_ble_tracker", "esp32_ble_beacon"]
-DEPENDENCIES = ["wifi"]
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+DEPENDENCIES = ["wifi", "esp32"]
 
 CONF_AUTHORIZED_DURATION = "authorized_duration"
 CONF_AUTHORIZER = "authorizer"

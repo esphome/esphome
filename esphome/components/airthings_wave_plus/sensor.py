@@ -34,7 +34,7 @@ AirthingsWavePlus = airthings_wave_plus_ns.class_(
 )
 
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(AirthingsWavePlus),
@@ -83,7 +83,9 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("5mins"))
-    .extend(ble_client.BLE_CLIENT_SCHEMA)
+    .extend(ble_client.BLE_CLIENT_SCHEMA),
+    # Until BLEUUID reference removed
+    cv.only_with_arduino,
 )
 
 

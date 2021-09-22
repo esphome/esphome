@@ -1,10 +1,10 @@
 #pragma once
 
+#include "esphome/components/socket/socket.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
-#include <WiFiServer.h>
-#include <WiFiClient.h>
+#include "esphome/core/defines.h"
 
 namespace esphome {
 namespace ota {
@@ -30,6 +30,7 @@ enum OTAResponseTypes {
   OTA_RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG = 135,
   OTA_RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE = 136,
   OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE = 137,
+  OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION = 138,
   OTA_RESPONSE_ERROR_UNKNOWN = 255,
 };
 
@@ -38,14 +39,9 @@ enum OTAState { OTA_COMPLETED = 0, OTA_STARTED, OTA_IN_PROGRESS, OTA_ERROR };
 /// OTAComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
 class OTAComponent : public Component {
  public:
-  /** Set a plaintext password that OTA will use for authentication.
-   *
-   * Warning: This password will be stored in plaintext in the ROM and can be read
-   * by intruders.
-   *
-   * @param password The plaintext password.
-   */
-  void set_auth_password(const std::string &password);
+#ifdef USE_OTA_PASSWORD
+  void set_auth_password(const std::string &password) { password_ = password; }
+#endif  // USE_OTA_PASSWORD
 
   /// Manually set the port OTA should listen on.
   void set_port(uint16_t port);
@@ -74,14 +70,17 @@ class OTAComponent : public Component {
   uint32_t read_rtc_();
 
   void handle_();
-  size_t wait_receive_(uint8_t *buf, size_t bytes, bool check_disconnected = true);
+  bool readall_(uint8_t *buf, size_t len);
+  bool writeall_(const uint8_t *buf, size_t len);
 
+#ifdef USE_OTA_PASSWORD
   std::string password_;
+#endif  // USE_OTA_PASSWORD
 
   uint16_t port_;
 
-  WiFiServer *server_{nullptr};
-  WiFiClient client_{};
+  std::unique_ptr<socket::Socket> server_;
+  std::unique_ptr<socket::Socket> client_;
 
   bool has_safe_mode_{false};              ///< stores whether safe mode can be enabled.
   uint32_t safe_mode_start_time_;          ///< stores when safe mode was enabled.

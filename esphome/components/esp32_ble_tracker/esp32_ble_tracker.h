@@ -4,7 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "queue.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <string>
 #include <array>

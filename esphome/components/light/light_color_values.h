@@ -2,6 +2,7 @@
 
 #include "esphome/core/helpers.h"
 #include "color_mode.h"
+#include <cmath>
 
 namespace esphome {
 namespace light {

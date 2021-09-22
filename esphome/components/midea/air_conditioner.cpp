@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "esphome/core/log.h"
 #include "air_conditioner.h"
 #include "adapter.h"
@@ -150,3 +152,5 @@ void AirConditioner::do_display_toggle() {
 
 }  // namespace midea
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

@@ -1,6 +1,7 @@
 #include "mqtt_select.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_SELECT
 
 namespace esphome {
@@ -56,3 +57,4 @@ bool MQTTSelectComponent::publish_state(const std::string &value) {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

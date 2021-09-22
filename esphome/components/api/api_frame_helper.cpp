@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "proto.h"
+#include <cstring>
 
 namespace esphome {
 namespace api {
@@ -17,7 +18,59 @@ bool is_would_block(ssize_t ret) {
   return ret == 0;
 }
 
+const char *api_error_to_str(APIError err) {
+  // not using switch to ensure compiler doesn't try to build a big table out of it
+  if (err == APIError::OK) {
+    return "OK";
+  } else if (err == APIError::WOULD_BLOCK) {
+    return "WOULD_BLOCK";
+  } else if (err == APIError::BAD_HANDSHAKE_PACKET_LEN) {
+    return "BAD_HANDSHAKE_PACKET_LEN";
+  } else if (err == APIError::BAD_INDICATOR) {
+    return "BAD_INDICATOR";
+  } else if (err == APIError::BAD_DATA_PACKET) {
+    return "BAD_DATA_PACKET";
+  } else if (err == APIError::TCP_NODELAY_FAILED) {
+    return "TCP_NODELAY_FAILED";
+  } else if (err == APIError::TCP_NONBLOCKING_FAILED) {
+    return "TCP_NONBLOCKING_FAILED";
+  } else if (err == APIError::CLOSE_FAILED) {
+    return "CLOSE_FAILED";
+  } else if (err == APIError::SHUTDOWN_FAILED) {
+    return "SHUTDOWN_FAILED";
+  } else if (err == APIError::BAD_STATE) {
+    return "BAD_STATE";
+  } else if (err == APIError::BAD_ARG) {
+    return "BAD_ARG";
+  } else if (err == APIError::SOCKET_READ_FAILED) {
+    return "SOCKET_READ_FAILED";
+  } else if (err == APIError::SOCKET_WRITE_FAILED) {
+    return "SOCKET_WRITE_FAILED";
+  } else if (err == APIError::HANDSHAKESTATE_READ_FAILED) {
+    return "HANDSHAKESTATE_READ_FAILED";
+  } else if (err == APIError::HANDSHAKESTATE_WRITE_FAILED) {
+    return "HANDSHAKESTATE_WRITE_FAILED";
+  } else if (err == APIError::HANDSHAKESTATE_BAD_STATE) {
+    return "HANDSHAKESTATE_BAD_STATE";
+  } else if (err == APIError::CIPHERSTATE_DECRYPT_FAILED) {
+    return "CIPHERSTATE_DECRYPT_FAILED";
+  } else if (err == APIError::CIPHERSTATE_ENCRYPT_FAILED) {
+    return "CIPHERSTATE_ENCRYPT_FAILED";
+  } else if (err == APIError::OUT_OF_MEMORY) {
+    return "OUT_OF_MEMORY";
+  } else if (err == APIError::HANDSHAKESTATE_SETUP_FAILED) {
+    return "HANDSHAKESTATE_SETUP_FAILED";
+  } else if (err == APIError::HANDSHAKESTATE_SPLIT_FAILED) {
+    return "HANDSHAKESTATE_SPLIT_FAILED";
+  } else if (err == APIError::BAD_HANDSHAKE_ERROR_BYTE) {
+    return "BAD_HANDSHAKE_ERROR_BYTE";
+  }
+  return "UNKNOWN";
+}
+
 #define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s: " msg, info_.c_str(), ##__VA_ARGS__)
+// uncomment to log raw packets
+//#define HELPER_LOG_PACKETS
 
 #ifdef USE_API_NOISE
 static const char *const PROLOGUE_INIT = "NoiseAPIInit";
@@ -72,13 +125,6 @@ APIError APINoiseFrameHelper::init() {
     state_ = State::FAILED;
     HELPER_LOG("Setting nonblocking failed with errno %d", errno);
     return APIError::TCP_NONBLOCKING_FAILED;
-  }
-  int enable = 1;
-  err = socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
-  if (err != 0) {
-    state_ = State::FAILED;
-    HELPER_LOG("Setting nodelay failed with errno %d", errno);
-    return APIError::TCP_NODELAY_FAILED;
   }
 
   // init prologue
@@ -188,7 +234,9 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
   }
 
   // uncomment for even more debugging
-  // ESP_LOGVV(TAG, "Received frame: %s", hexencode(rx_buf_).c_str());
+#ifdef HELPER_LOG_PACKETS
+  ESP_LOGVV(TAG, "Received frame: %s", hexencode(rx_buf_).c_str());
+#endif
   frame->msg = std::move(rx_buf_);
   // consume msg
   rx_buf_ = {};
@@ -217,6 +265,14 @@ APIError APINoiseFrameHelper::state_action_() {
     // waiting for client hello
     ParsedFrame frame;
     aerr = try_read_frame_(&frame);
+    if (aerr == APIError::BAD_INDICATOR) {
+      send_explicit_handshake_reject_("Bad indicator byte");
+      return aerr;
+    }
+    if (aerr == APIError::BAD_HANDSHAKE_PACKET_LEN) {
+      send_explicit_handshake_reject_("Bad handshake packet len");
+      return aerr;
+    }
     if (aerr != APIError::OK)
       return aerr;
     // ignore contents, may be used in future for flags
@@ -260,11 +316,11 @@ APIError APINoiseFrameHelper::state_action_() {
 
       if (frame.msg.empty()) {
         send_explicit_handshake_reject_("Empty handshake message");
-        return APIError::BAD_HANDSHAKE_PACKET_LEN;
+        return APIError::BAD_HANDSHAKE_ERROR_BYTE;
       } else if (frame.msg[0] != 0x00) {
         HELPER_LOG("Bad handshake error byte: %u", frame.msg[0]);
         send_explicit_handshake_reject_("Bad handshake error byte");
-        return APIError::BAD_HANDSHAKE_PACKET_LEN;
+        return APIError::BAD_HANDSHAKE_ERROR_BYTE;
       }
 
       NoiseBuffer mbuf;
@@ -272,7 +328,6 @@ APIError APINoiseFrameHelper::state_action_() {
       noise_buffer_set_input(mbuf, frame.msg.data() + 1, frame.msg.size() - 1);
       err = noise_handshakestate_read_message(handshake_, &mbuf, nullptr);
       if (err != 0) {
-        // TODO: explicit rejection
         state_ = State::FAILED;
         HELPER_LOG("noise_handshakestate_read_message failed: %s", noise_err_to_str(err).c_str());
         if (err == NOISE_ERROR_MAC_FAILURE) {
@@ -320,12 +375,16 @@ APIError APINoiseFrameHelper::state_action_() {
 }
 void APINoiseFrameHelper::send_explicit_handshake_reject_(const std::string &reason) {
   std::vector<uint8_t> data;
-  data.reserve(reason.size() + 1);
+  data.resize(reason.length() + 1);
   data[0] = 0x01;  // failure
-  for (size_t i = 0; i < reason.size(); i++) {
+  for (size_t i = 0; i < reason.length(); i++) {
     data[i + 1] = (uint8_t) reason[i];
   }
+  // temporarily remove failed state
+  auto orig_state = state_;
+  state_ = State::EXPLICIT_REJECT;
   write_frame_(data.data(), data.size());
+  state_ = orig_state;
 }
 
 APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
@@ -429,12 +488,13 @@ APIError APINoiseFrameHelper::write_packet(uint16_t type, const uint8_t *payload
   size_t total_len = 3 + mbuf.size;
   tmpbuf[1] = (uint8_t)(mbuf.size >> 8);
   tmpbuf[2] = (uint8_t) mbuf.size;
+
+  struct iovec iov;
+  iov.iov_base = &tmpbuf[0];
+  iov.iov_len = total_len;
+
   // write raw to not have two packets sent if NAGLE disabled
-  aerr = write_raw_(&tmpbuf[0], total_len);
-  if (aerr != APIError::OK) {
-    return aerr;
-  }
-  return APIError::OK;
+  return write_raw_(&iov, 1);
 }
 APIError APINoiseFrameHelper::try_send_tx_buf_() {
   // try send from tx_buf
@@ -461,14 +521,19 @@ APIError APINoiseFrameHelper::try_send_tx_buf_() {
  * @param data The data to write
  * @param len The length of data
  */
-APIError APINoiseFrameHelper::write_raw_(const uint8_t *data, size_t len) {
-  if (len == 0)
+APIError APINoiseFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
+  if (iovcnt == 0)
     return APIError::OK;
   int err;
   APIError aerr;
 
-  // uncomment for even more debugging
-  // ESP_LOGVV(TAG, "Sending raw: %s", hexencode(data, len).c_str());
+  size_t total_write_len = 0;
+  for (int i = 0; i < iovcnt; i++) {
+#ifdef HELPER_LOG_PACKETS
+    ESP_LOGVV(TAG, "Sending raw: %s", hexencode(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len).c_str());
+#endif
+    total_write_len += iov[i].iov_len;
+  }
 
   if (!tx_buf_.empty()) {
     // try to empty tx_buf_ first
@@ -479,41 +544,56 @@ APIError APINoiseFrameHelper::write_raw_(const uint8_t *data, size_t len) {
 
   if (!tx_buf_.empty()) {
     // tx buf not empty, can't write now because then stream would be inconsistent
-    tx_buf_.insert(tx_buf_.end(), data, data + len);
+    for (int i = 0; i < iovcnt; i++) {
+      tx_buf_.insert(tx_buf_.end(), reinterpret_cast<uint8_t *>(iov[i].iov_base),
+                     reinterpret_cast<uint8_t *>(iov[i].iov_base) + iov[i].iov_len);
+    }
     return APIError::OK;
   }
 
-  ssize_t sent = socket_->write(data, len);
+  ssize_t sent = socket_->writev(iov, iovcnt);
   if (is_would_block(sent)) {
     // operation would block, add buffer to tx_buf
-    tx_buf_.insert(tx_buf_.end(), data, data + len);
+    for (int i = 0; i < iovcnt; i++) {
+      tx_buf_.insert(tx_buf_.end(), reinterpret_cast<uint8_t *>(iov[i].iov_base),
+                     reinterpret_cast<uint8_t *>(iov[i].iov_base) + iov[i].iov_len);
+    }
     return APIError::OK;
   } else if (sent == -1) {
     // an error occured
     state_ = State::FAILED;
     HELPER_LOG("Socket write failed with errno %d", errno);
     return APIError::SOCKET_WRITE_FAILED;
-  } else if (sent != len) {
+  } else if (sent != total_write_len) {
     // partially sent, add end to tx_buf
-    tx_buf_.insert(tx_buf_.end(), data + sent, data + len);
+    size_t to_consume = sent;
+    for (int i = 0; i < iovcnt; i++) {
+      if (to_consume >= iov[i].iov_len) {
+        to_consume -= iov[i].iov_len;
+      } else {
+        tx_buf_.insert(tx_buf_.end(), reinterpret_cast<uint8_t *>(iov[i].iov_base) + to_consume,
+                       reinterpret_cast<uint8_t *>(iov[i].iov_base) + iov[i].iov_len);
+        to_consume = 0;
+      }
+    }
     return APIError::OK;
   }
   // fully sent
   return APIError::OK;
 }
 APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, size_t len) {
-  APIError aerr;
-
   uint8_t header[3];
   header[0] = 0x01;  // indicator
   header[1] = (uint8_t)(len >> 8);
   header[2] = (uint8_t) len;
 
-  aerr = write_raw_(header, 3);
-  if (aerr != APIError::OK)
-    return aerr;
-  aerr = write_raw_(data, len);
-  return aerr;
+  struct iovec iov[2];
+  iov[0].iov_base = header;
+  iov[0].iov_len = 3;
+  iov[1].iov_base = const_cast<uint8_t *>(data);
+  iov[1].iov_len = len;
+
+  return write_raw_(iov, 2);
 }
 
 /** Initiate the data structures for the handshake.
@@ -642,13 +722,6 @@ APIError APIPlaintextFrameHelper::init() {
     HELPER_LOG("Setting nonblocking failed with errno %d", errno);
     return APIError::TCP_NONBLOCKING_FAILED;
   }
-  int enable = 1;
-  err = socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
-  if (err != 0) {
-    state_ = State::FAILED;
-    HELPER_LOG("Setting nodelay failed with errno %d", errno);
-    return APIError::TCP_NODELAY_FAILED;
-  }
 
   state_ = State::DATA;
   return APIError::OK;
@@ -707,7 +780,7 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
     }
 
     size_t i = 1;
-    size_t consumed = 0;
+    uint32_t consumed = 0;
     auto msg_size_varint = ProtoVarInt::parse(&rx_header_buf_[i], rx_header_buf_.size() - i, &consumed);
     if (!msg_size_varint.has_value()) {
       // not enough data there yet
@@ -751,7 +824,9 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
   }
 
   // uncomment for even more debugging
-  // ESP_LOGVV(TAG, "Received frame: %s", hexencode(rx_buf_).c_str());
+#ifdef HELPER_LOG_PACKETS
+  ESP_LOGVV(TAG, "Received frame: %s", hexencode(rx_buf_).c_str());
+#endif
   frame->msg = std::move(rx_buf_);
   // consume msg
   rx_buf_ = {};
@@ -794,28 +869,24 @@ APIError APIPlaintextFrameHelper::write_packet(uint16_t type, const uint8_t *pay
   ProtoVarInt(payload_len).encode(header);
   ProtoVarInt(type).encode(header);
 
-  aerr = write_raw_(&header[0], header.size());
-  if (aerr != APIError::OK) {
-    return aerr;
-  }
-  aerr = write_raw_(payload, payload_len);
-  if (aerr != APIError::OK) {
-    return aerr;
-  }
-  return APIError::OK;
+  struct iovec iov[2];
+  iov[0].iov_base = &header[0];
+  iov[0].iov_len = header.size();
+  iov[1].iov_base = const_cast<uint8_t *>(payload);
+  iov[1].iov_len = payload_len;
+
+  return write_raw_(iov, 2);
 }
 APIError APIPlaintextFrameHelper::try_send_tx_buf_() {
   // try send from tx_buf
   while (state_ != State::CLOSED && !tx_buf_.empty()) {
     ssize_t sent = socket_->write(tx_buf_.data(), tx_buf_.size());
-    if (sent == -1) {
-      if (errno == EWOULDBLOCK || errno == EAGAIN)
-        break;
+    if (is_would_block(sent)) {
+      break;
+    } else if (sent == -1) {
       state_ = State::FAILED;
       HELPER_LOG("Socket write failed with errno %d", errno);
       return APIError::SOCKET_WRITE_FAILED;
-    } else if (sent == 0) {
-      break;
     }
     // TODO: inefficient if multiple packets in txbuf
     // replace with deque of buffers
@@ -829,14 +900,19 @@ APIError APIPlaintextFrameHelper::try_send_tx_buf_() {
  * @param data The data to write
  * @param len The length of data
  */
-APIError APIPlaintextFrameHelper::write_raw_(const uint8_t *data, size_t len) {
-  if (len == 0)
+APIError APIPlaintextFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
+  if (iovcnt == 0)
     return APIError::OK;
   int err;
   APIError aerr;
 
-  // uncomment for even more debugging
-  // ESP_LOGVV(TAG, "Sending raw: %s", hexencode(data, len).c_str());
+  size_t total_write_len = 0;
+  for (int i = 0; i < iovcnt; i++) {
+#ifdef HELPER_LOG_PACKETS
+    ESP_LOGVV(TAG, "Sending raw: %s", hexencode(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len).c_str());
+#endif
+    total_write_len += iov[i].iov_len;
+  }
 
   if (!tx_buf_.empty()) {
     // try to empty tx_buf_ first
@@ -847,41 +923,42 @@ APIError APIPlaintextFrameHelper::write_raw_(const uint8_t *data, size_t len) {
 
   if (!tx_buf_.empty()) {
     // tx buf not empty, can't write now because then stream would be inconsistent
-    tx_buf_.insert(tx_buf_.end(), data, data + len);
+    for (int i = 0; i < iovcnt; i++) {
+      tx_buf_.insert(tx_buf_.end(), reinterpret_cast<uint8_t *>(iov[i].iov_base),
+                     reinterpret_cast<uint8_t *>(iov[i].iov_base) + iov[i].iov_len);
+    }
     return APIError::OK;
   }
 
-  ssize_t sent = socket_->write(data, len);
+  ssize_t sent = socket_->writev(iov, iovcnt);
   if (is_would_block(sent)) {
     // operation would block, add buffer to tx_buf
-    tx_buf_.insert(tx_buf_.end(), data, data + len);
+    for (int i = 0; i < iovcnt; i++) {
+      tx_buf_.insert(tx_buf_.end(), reinterpret_cast<uint8_t *>(iov[i].iov_base),
+                     reinterpret_cast<uint8_t *>(iov[i].iov_base) + iov[i].iov_len);
+    }
     return APIError::OK;
   } else if (sent == -1) {
     // an error occured
     state_ = State::FAILED;
     HELPER_LOG("Socket write failed with errno %d", errno);
     return APIError::SOCKET_WRITE_FAILED;
-  } else if (sent != len) {
+  } else if (sent != total_write_len) {
     // partially sent, add end to tx_buf
-    tx_buf_.insert(tx_buf_.end(), data + sent, data + len);
+    size_t to_consume = sent;
+    for (int i = 0; i < iovcnt; i++) {
+      if (to_consume >= iov[i].iov_len) {
+        to_consume -= iov[i].iov_len;
+      } else {
+        tx_buf_.insert(tx_buf_.end(), reinterpret_cast<uint8_t *>(iov[i].iov_base) + to_consume,
+                       reinterpret_cast<uint8_t *>(iov[i].iov_base) + iov[i].iov_len);
+        to_consume = 0;
+      }
+    }
     return APIError::OK;
   }
   // fully sent
   return APIError::OK;
-}
-APIError APIPlaintextFrameHelper::write_frame_(const uint8_t *data, size_t len) {
-  APIError aerr;
-
-  uint8_t header[3];
-  header[0] = 0x01;  // indicator
-  header[1] = (uint8_t)(len >> 8);
-  header[2] = (uint8_t) len;
-
-  aerr = write_raw_(header, 3);
-  if (aerr != APIError::OK)
-    return aerr;
-  aerr = write_raw_(data, len);
-  return aerr;
 }
 
 APIError APIPlaintextFrameHelper::close() {

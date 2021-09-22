@@ -123,11 +123,11 @@ inline uint8_t oversampling_to_time(BMP280Oversampling over_sampling) { return (
 void BMP280Component::update() {
   // Enable sensor
   ESP_LOGV(TAG, "Sending conversion request...");
-  uint8_t meas_register = 0;
-  meas_register |= (this->temperature_oversampling_ & 0b111) << 5;
-  meas_register |= (this->pressure_oversampling_ & 0b111) << 2;
-  meas_register |= 0b01;  // Forced mode
-  if (!this->write_byte(BMP280_REGISTER_CONTROL, meas_register)) {
+  uint8_t meas_value = 0;
+  meas_value |= (this->temperature_oversampling_ & 0b111) << 5;
+  meas_value |= (this->pressure_oversampling_ & 0b111) << 2;
+  meas_value |= 0b01;  // Forced mode
+  if (!this->write_byte(BMP280_REGISTER_CONTROL, meas_value)) {
     this->status_set_warning();
     return;
   }
@@ -139,7 +139,7 @@ void BMP280Component::update() {
   this->set_timeout("data", uint32_t(ceilf(meas_time)), [this]() {
     int32_t t_fine = 0;
     float temperature = this->read_temperature_(&t_fine);
-    if (isnan(temperature)) {
+    if (std::isnan(temperature)) {
       ESP_LOGW(TAG, "Invalid temperature, cannot read pressure values.");
       this->status_set_warning();
       return;
