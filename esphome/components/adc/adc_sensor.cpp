@@ -4,7 +4,11 @@
 #ifdef USE_ADC_SENSOR_VCC
 #include <Esp.h>
 ADC_MODE(ADC_VCC)
+#else
+#include <Arduino.h>
 #endif
+
+
 
 namespace esphome {
 namespace adc {
