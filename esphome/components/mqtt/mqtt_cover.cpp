@@ -46,8 +46,6 @@ void MQTTCoverComponent::setup() {
 }
 
 void MQTTCoverComponent::dump_config() {
-  MQTTComponent::dump_config();
-
   ESP_LOGCONFIG(TAG, "MQTT cover '%s':", this->cover_->get_name().c_str());
   auto traits = this->cover_->get_traits();
   // no state topic for position
