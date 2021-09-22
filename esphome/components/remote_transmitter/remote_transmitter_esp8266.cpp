@@ -2,12 +2,12 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 
 namespace esphome {
 namespace remote_transmitter {
 
-static const char *TAG = "remote_transmitter";
+static const char *const TAG = "remote_transmitter";
 
 void RemoteTransmitterComponent::setup() {
   this->pin_->setup();

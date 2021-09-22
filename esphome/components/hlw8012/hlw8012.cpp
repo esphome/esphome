@@ -4,17 +4,34 @@
 namespace esphome {
 namespace hlw8012 {
 
-static const char *TAG = "hlw8012";
+static const char *const TAG = "hlw8012";
 
+// valid for HLW8012 and CSE7759
 static const uint32_t HLW8012_CLOCK_FREQUENCY = 3579000;
-static const float HLW8012_REFERENCE_VOLTAGE = 2.43f;
 
 void HLW8012Component::setup() {
+  float reference_voltage = 0;
   ESP_LOGCONFIG(TAG, "Setting up HLW8012...");
   this->sel_pin_->setup();
   this->sel_pin_->digital_write(this->current_mode_);
   this->cf_store_.pulse_counter_setup(this->cf_pin_);
   this->cf1_store_.pulse_counter_setup(this->cf1_pin_);
+
+  // Initialize multipliers
+  if (this->sensor_model_ == HLW8012_SENSOR_MODEL_BL0937) {
+    reference_voltage = 1.218f;
+    this->power_multiplier_ =
+        reference_voltage * reference_voltage * this->voltage_divider_ / this->current_resistor_ / 1721506.0f;
+    this->current_multiplier_ = reference_voltage / this->current_resistor_ / 94638.0f;
+    this->voltage_multiplier_ = reference_voltage * this->voltage_divider_ / 15397.0f;
+  } else {
+    // HLW8012 and CSE7759 have same reference specs
+    reference_voltage = 2.43f;
+    this->power_multiplier_ = reference_voltage * reference_voltage * this->voltage_divider_ / this->current_resistor_ *
+                              64.0f / 24.0f / HLW8012_CLOCK_FREQUENCY;
+    this->current_multiplier_ = reference_voltage / this->current_resistor_ * 512.0f / 24.0f / HLW8012_CLOCK_FREQUENCY;
+    this->voltage_multiplier_ = reference_voltage * this->voltage_divider_ * 256.0f / HLW8012_CLOCK_FREQUENCY;
+  }
 }
 void HLW8012Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HLW8012:");
@@ -28,6 +45,7 @@ void HLW8012Component::dump_config() {
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_)
   LOG_SENSOR("  ", "Current", this->current_sensor_)
   LOG_SENSOR("  ", "Power", this->power_sensor_)
+  LOG_SENSOR("  ", "Energy", this->energy_sensor_)
 }
 float HLW8012Component::get_setup_priority() const { return setup_priority::DATA; }
 void HLW8012Component::update() {
@@ -49,25 +67,18 @@ void HLW8012Component::update() {
     return;
   }
 
-  const float v_ref_squared = HLW8012_REFERENCE_VOLTAGE * HLW8012_REFERENCE_VOLTAGE;
-  const float power_multiplier_micros =
-      64000000.0f * v_ref_squared * this->voltage_divider_ / this->current_resistor_ / 24.0f / HLW8012_CLOCK_FREQUENCY;
-  float power = cf_hz * power_multiplier_micros / 1000000.0f;
+  float power = cf_hz * this->power_multiplier_;
 
   if (this->change_mode_at_ != 0) {
     // Only read cf1 after one cycle. Apparently it's quite unstable after being changed.
     if (this->current_mode_) {
-      const float current_multiplier_micros =
-          512000000.0f * HLW8012_REFERENCE_VOLTAGE / this->current_resistor_ / 24.0f / HLW8012_CLOCK_FREQUENCY;
-      float current = cf1_hz * current_multiplier_micros / 1000000.0f;
+      float current = cf1_hz * this->current_multiplier_;
       ESP_LOGD(TAG, "Got power=%.1fW, current=%.1fA", power, current);
       if (this->current_sensor_ != nullptr) {
         this->current_sensor_->publish_state(current);
       }
     } else {
-      const float voltage_multiplier_micros =
-          256000000.0f * HLW8012_REFERENCE_VOLTAGE * this->voltage_divider_ / HLW8012_CLOCK_FREQUENCY;
-      float voltage = cf1_hz * voltage_multiplier_micros / 1000000.0f;
+      float voltage = cf1_hz * this->voltage_multiplier_;
       ESP_LOGD(TAG, "Got power=%.1fW, voltage=%.1fV", power, voltage);
       if (this->voltage_sensor_ != nullptr) {
         this->voltage_sensor_->publish_state(voltage);
@@ -81,7 +92,7 @@ void HLW8012Component::update() {
 
   if (this->energy_sensor_ != nullptr) {
     cf_total_pulses_ += raw_cf;
-    float energy = cf_total_pulses_ * power_multiplier_micros / 3600 / 1000000.0f;
+    float energy = cf_total_pulses_ * this->power_multiplier_ / 3600;
     this->energy_sensor_->publish_state(energy);
   }
 

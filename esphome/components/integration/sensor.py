@@ -27,6 +27,8 @@ INTEGRATION_METHODS = {
 
 CONF_TIME_UNIT = "time_unit"
 CONF_INTEGRATION_METHOD = "integration_method"
+CONF_MIN_SAVE_INTERVAL = "min_save_interval"
+
 
 CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
     {
@@ -37,21 +39,25 @@ CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
             INTEGRATION_METHODS, lower=True
         ),
         cv.Optional(CONF_RESTORE, default=False): cv.boolean,
+        cv.Optional(
+            CONF_MIN_SAVE_INTERVAL, default="0s"
+        ): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
 
-    sens = yield cg.get_variable(config[CONF_SENSOR])
+    sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_sensor(sens))
     cg.add(var.set_time(config[CONF_TIME_UNIT]))
     cg.add(var.set_method(config[CONF_INTEGRATION_METHOD]))
     cg.add(var.set_restore(config[CONF_RESTORE]))
+    cg.add(var.set_min_save_interval(config[CONF_MIN_SAVE_INTERVAL]))
 
 
 @automation.register_action(
@@ -63,6 +69,6 @@ def to_code(config):
         }
     ),
 )
-def sensor_integration_reset_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+async def sensor_integration_reset_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)

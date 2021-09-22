@@ -15,19 +15,19 @@ static const uint8_t MCP9808_AMBIENT_CLEAR_FLAGS = 0x1F;
 static const uint8_t MCP9808_AMBIENT_CLEAR_SIGN = 0x0F;
 static const uint8_t MCP9808_AMBIENT_TEMP_NEGATIVE = 0x10;
 
-static const char *TAG = "mcp9808";
+static const char *const TAG = "mcp9808";
 
 void MCP9808Sensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up %s...", this->name_.c_str());
 
-  uint16_t manu;
-  if (!this->read_byte_16(MCP9808_REG_MANUF_ID, &manu, 0) || manu != MCP9808_MANUF_ID) {
+  uint16_t manu = 0;
+  if (!this->read_byte_16(MCP9808_REG_MANUF_ID, &manu) || manu != MCP9808_MANUF_ID) {
     this->mark_failed();
     ESP_LOGE(TAG, "%s manufacuturer id failed, device returned %X", this->name_.c_str(), manu);
     return;
   }
-  uint16_t dev_id;
-  if (!this->read_byte_16(MCP9808_REG_DEVICE_ID, &dev_id, 0) || dev_id != MCP9808_DEV_ID) {
+  uint16_t dev_id = 0;
+  if (!this->read_byte_16(MCP9808_REG_DEVICE_ID, &dev_id) || dev_id != MCP9808_DEV_ID) {
     this->mark_failed();
     ESP_LOGE(TAG, "%s device id failed, device returned %X", this->name_.c_str(), dev_id);
     return;
@@ -66,7 +66,7 @@ void MCP9808Sensor::update() {
     temp = (uint16_t)(msb) *16 + lsb / 16.0f;
   }
 
-  if (isnan(temp)) {
+  if (std::isnan(temp)) {
     this->status_set_warning();
     return;
   }

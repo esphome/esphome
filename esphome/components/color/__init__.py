@@ -26,7 +26,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     r = 0
     if CONF_RED in config:
         r = int(config[CONF_RED] * 255)

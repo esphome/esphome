@@ -16,10 +16,10 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 @coroutine_with_priority(80.0)
-def to_code(config):
-    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
+async def to_code(config):
+    pin = await cg.gpio_pin_expression(config[CONF_PIN])
     rhs = StatusLED.new(pin)
     var = cg.Pvariable(config[CONF_ID], rhs)
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
     cg.add(var.pre_setup())
     cg.add_define("USE_STATUS_LED")

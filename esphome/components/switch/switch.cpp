@@ -4,7 +4,7 @@
 namespace esphome {
 namespace switch_ {
 
-static const char *TAG = "switch";
+static const char *const TAG = "switch";
 
 std::string Switch::icon() { return ""; }
 Switch::Switch(const std::string &name) : Nameable(name), state(false) {}
@@ -30,7 +30,7 @@ void Switch::toggle() {
   this->write_state(this->inverted_ == this->state);
 }
 optional<bool> Switch::get_initial_state() {
-  this->rtc_ = global_preferences.make_preference<bool>(this->get_object_id_hash());
+  this->rtc_ = global_preferences->make_preference<bool>(this->get_object_id_hash());
   bool initial_state;
   if (!this->rtc_.load(&initial_state))
     return {};

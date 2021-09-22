@@ -1,7 +1,10 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
 namespace esphome {
@@ -87,8 +90,8 @@ class DoubleClickTrigger : public Trigger<> {
 
 class MultiClickTrigger : public Trigger<>, public Component {
  public:
-  explicit MultiClickTrigger(BinarySensor *parent, const std::vector<MultiClickTriggerEvent> &timing)
-      : parent_(parent), timing_(timing) {}
+  explicit MultiClickTrigger(BinarySensor *parent, std::vector<MultiClickTriggerEvent> timing)
+      : parent_(parent), timing_(std::move(timing)) {}
 
   void setup() override {
     this->last_state_ = this->parent_->state;

@@ -29,7 +29,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
         }
     )
@@ -38,24 +38,25 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield spi.register_spi_device(var, config)
+    await cg.register_component(var, config)
+    await spi.register_spi_device(var, config)
 
-    dc = yield cg.gpio_pin_expression(config[CONF_DC_PIN])
+    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
 
-    reset = yield cg.gpio_pin_expression(config[CONF_RESET_PIN])
+    reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
     cg.add(var.set_reset_pin(reset))
 
-    bl = yield cg.gpio_pin_expression(config[CONF_BACKLIGHT_PIN])
-    cg.add(var.set_backlight_pin(bl))
+    if CONF_BACKLIGHT_PIN in config:
+        bl = await cg.gpio_pin_expression(config[CONF_BACKLIGHT_PIN])
+        cg.add(var.set_backlight_pin(bl))
 
     if CONF_LAMBDA in config:
-        lambda_ = yield cg.process_lambda(
+        lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
 
-    yield display.register_display(var, config)
+    await display.register_display(var, config)

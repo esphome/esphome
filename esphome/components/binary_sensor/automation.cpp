@@ -4,7 +4,7 @@
 namespace esphome {
 namespace binary_sensor {
 
-static const char *TAG = "binary_sensor.automation";
+static const char *const TAG = "binary_sensor.automation";
 
 void binary_sensor::MultiClickTrigger::on_state_(bool state) {
   // Handle duplicate events
@@ -80,6 +80,10 @@ void binary_sensor::MultiClickTrigger::schedule_cooldown_() {
   this->cancel_timeout("is_not_valid");
 }
 void binary_sensor::MultiClickTrigger::schedule_is_valid_(uint32_t min_length) {
+  if (min_length == 0) {
+    this->is_valid_ = true;
+    return;
+  }
   this->is_valid_ = false;
   this->set_timeout("is_valid", min_length, [this]() {
     ESP_LOGV(TAG, "Multi Click: You can now %s the button.", this->parent_->state ? "RELEASE" : "PRESS");

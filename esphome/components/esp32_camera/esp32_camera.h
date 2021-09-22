@@ -1,10 +1,12 @@
 #pragma once
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include <esp_camera.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 
 namespace esphome {
 namespace esp32_camera {
@@ -37,7 +39,6 @@ class CameraImageReader {
 
 enum ESP32CameraFrameSize {
   ESP32_CAMERA_SIZE_160X120,    // QQVGA
-  ESP32_CAMERA_SIZE_128X160,    // QQVGA2
   ESP32_CAMERA_SIZE_176X144,    // QCIF
   ESP32_CAMERA_SIZE_240X176,    // HQVGA
   ESP32_CAMERA_SIZE_320X240,    // QVGA

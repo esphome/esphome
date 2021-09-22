@@ -18,12 +18,12 @@ CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield switch.register_switch(var, config)
+    await cg.register_component(var, config)
+    await switch.register_switch(var, config)
 
-    paren = yield cg.get_variable(config[CONF_TUYA_ID])
+    paren = await cg.get_variable(config[CONF_TUYA_ID])
     cg.add(var.set_tuya_parent(paren))
 
     cg.add(var.set_switch_id(config[CONF_SWITCH_DATAPOINT]))

@@ -40,7 +40,7 @@ def validate_type(value):
         raise cv.Invalid("Must have B in type")
     rest = set(value) - set("RGBW")
     if rest:
-        raise cv.Invalid("Type has invalid color: {}".format(", ".join(rest)))
+        raise cv.Invalid(f"Type has invalid color: {', '.join(rest)}")
     if len(set(value)) != len(value):
         raise cv.Invalid("Type has duplicate color!")
     return value
@@ -95,9 +95,7 @@ def validate_method_pin(value):
     for opt in (CONF_PIN, CONF_CLOCK_PIN, CONF_DATA_PIN):
         if opt in value and value[opt] not in pins_:
             raise cv.Invalid(
-                "Method {} only supports pin(s) {}".format(
-                    method, ", ".join(f"GPIO{x}" for x in pins_)
-                ),
+                f"Method {method} only supports pin(s) {', '.join(f'GPIO{x}' for x in pins_)}",
                 path=[CONF_METHOD],
             )
     return value
@@ -139,7 +137,7 @@ def format_method(config):
 
     if config[CONF_INVERT]:
         if method == "ESP8266_DMA":
-            variant = "Inverted" + variant
+            variant = f"Inverted{variant}"
         else:
             variant += "Inverted"
 
@@ -150,7 +148,7 @@ def format_method(config):
     raise NotImplementedError
 
 
-def validate(config):
+def _validate(config):
     if CONF_PIN in config:
         if CONF_CLOCK_PIN in config or CONF_DATA_PIN in config:
             raise cv.Invalid("Cannot specify both 'pin' and 'clock_pin'+'data_pin'")
@@ -170,18 +168,19 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_VARIANT, default="800KBPS"): validate_variant,
             cv.Optional(CONF_METHOD, default=None): validate_method,
             cv.Optional(CONF_INVERT, default="no"): cv.boolean,
-            cv.Optional(CONF_PIN): pins.output_pin,
-            cv.Optional(CONF_CLOCK_PIN): pins.output_pin,
-            cv.Optional(CONF_DATA_PIN): pins.output_pin,
+            cv.Optional(CONF_PIN): pins.internal_gpio_output_pin_number,
+            cv.Optional(CONF_CLOCK_PIN): pins.internal_gpio_output_pin_number,
+            cv.Optional(CONF_DATA_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    validate,
+    _validate,
     validate_method_pin,
+    cv.only_with_arduino,
 )
 
 
-def to_code(config):
+async def to_code(config):
     has_white = "W" in config[CONF_TYPE]
     template = cg.TemplateArguments(getattr(cg.global_ns, format_method(config)))
     if has_white:
@@ -190,8 +189,8 @@ def to_code(config):
         out_type = NeoPixelRGBLightOutput.template(template)
     rhs = out_type.new()
     var = cg.Pvariable(config[CONF_OUTPUT_ID], rhs, out_type)
-    yield light.register_light(var, config)
-    yield cg.register_component(var, config)
+    await light.register_light(var, config)
+    await cg.register_component(var, config)
 
     if CONF_PIN in config:
         cg.add(var.add_leds(config[CONF_NUM_LEDS], config[CONF_PIN]))
@@ -205,4 +204,4 @@ def to_code(config):
     cg.add(var.set_pixel_order(getattr(ESPNeoPixelOrder, config[CONF_TYPE])))
 
     # https://github.com/Makuna/NeoPixelBus/blob/master/library.json
-    cg.add_library("NeoPixelBus-esphome", "2.5.7")
+    cg.add_library("makuna/NeoPixelBus", "2.6.7")

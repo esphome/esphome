@@ -2,17 +2,34 @@
 Checks: >-
   *,
   -abseil-*,
+  -altera-*,
   -android-*,
   -boost-*,
-  -bugprone-macro-parentheses,
+  -bugprone-branch-clone,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-signed-char-misuse,
+  -bugprone-too-small-loop-variable,
   -cert-dcl50-cpp,
   -cert-err58-cpp,
-  -clang-analyzer-core.CallAndMessage,
+  -cert-oop57-cpp,
+  -cert-str34-c,
+  -clang-analyzer-optin.cplusplus.UninitializedObject,
   -clang-analyzer-osx.*,
-  -clang-analyzer-security.*,
+  -clang-diagnostic-delete-abstract-non-virtual-dtor,
+  -clang-diagnostic-delete-non-abstract-non-virtual-dtor,
+  -clang-diagnostic-shadow-field,
+  -clang-diagnostic-sign-compare,
+  -clang-diagnostic-unused-variable,
+  -clang-diagnostic-unused-const-variable,
+  -concurrency-*,
+  -cppcoreguidelines-avoid-c-arrays,
   -cppcoreguidelines-avoid-goto,
-  -cppcoreguidelines-c-copy-assignment-signature,
-  -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-init-variables,
+  -cppcoreguidelines-macro-usage,
+  -cppcoreguidelines-narrowing-conversions,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
   -cppcoreguidelines-pro-bounds-constant-array-index,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
@@ -24,42 +41,55 @@ Checks: >-
   -cppcoreguidelines-pro-type-union-access,
   -cppcoreguidelines-pro-type-vararg,
   -cppcoreguidelines-special-member-functions,
-  -fuchsia-*,
   -fuchsia-default-arguments,
   -fuchsia-multiple-inheritance,
   -fuchsia-overloaded-operator,
   -fuchsia-statically-constructed-objects,
+  -fuchsia-default-arguments-declarations,
+  -fuchsia-default-arguments-calls,
   -google-build-using-namespace,
   -google-explicit-constructor,
   -google-readability-braces-around-statements,
   -google-readability-casting,
   -google-readability-todo,
-  -google-runtime-int,
   -google-runtime-references,
   -hicpp-*,
+  -llvm-else-after-return,
   -llvm-header-guard,
   -llvm-include-order,
-  -misc-unconventional-assign-operator,
+  -llvm-qualified-auto,
+  -llvmlibc-*,
+  -misc-non-private-member-variables-in-classes,
+  -misc-no-recursion,
   -misc-unused-parameters,
-  -modernize-deprecated-headers,
-  -modernize-pass-by-value,
-  -modernize-pass-by-value,
+  -modernize-avoid-c-arrays,
+  -modernize-avoid-bind,
+  -modernize-concat-nested-namespaces,
   -modernize-return-braced-init-list,
   -modernize-use-auto,
   -modernize-use-default-member-init,
   -modernize-use-equals-default,
+  -modernize-use-trailing-return-type,
+  -modernize-use-nodiscard,
   -mpi-*,
   -objc-*,
-  -performance-unnecessary-value-param,
   -readability-braces-around-statements,
+  -readability-const-return-type,
+  -readability-convert-member-functions-to-static,
   -readability-else-after-return,
+  -readability-function-cognitive-complexity,
   -readability-implicit-bool-conversion,
+  -readability-isolate-declaration,
+  -readability-magic-numbers,
+  -readability-make-member-function-const,
   -readability-named-parameter,
+  -readability-qualified-auto,
+  -readability-redundant-access-specifiers,
   -readability-redundant-member-init,
-  -warnings-as-errors,
-  -zircon-*
+  -readability-redundant-string-init,
+  -readability-uppercase-literal-suffix,
+  -readability-use-anyofallof,
 WarningsAsErrors: '*'
-HeaderFilterRegex: '^.*/src/esphome/.*'
 AnalyzeTemporaryDtors: false
 FormatStyle:     google
 CheckOptions:
@@ -83,6 +113,10 @@ CheckOptions:
     value:           llvm
   - key:             modernize-use-nullptr.NullMacros
     value:           'NULL'
+  - key:             modernize-make-unique.MakeSmartPtrFunction
+    value:           'make_unique'
+  - key:             modernize-make-unique.MakeSmartPtrFunctionHeader
+    value:           'esphome/core/helpers.h'
   - key:             readability-identifier-naming.LocalVariableCase
     value:           'lower_case'
   - key:             readability-identifier-naming.ClassCase
@@ -96,7 +130,7 @@ CheckOptions:
   - key:             readability-identifier-naming.StaticConstantCase
     value:           'UPPER_CASE'
   - key:             readability-identifier-naming.StaticVariableCase
-    value:           'UPPER_CASE'
+    value:           'lower_case'
   - key:             readability-identifier-naming.GlobalConstantCase
     value:           'UPPER_CASE'
   - key:             readability-identifier-naming.ParameterCase

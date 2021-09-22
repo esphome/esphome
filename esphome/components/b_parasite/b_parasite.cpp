@@ -1,12 +1,12 @@
 #include "b_parasite.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace b_parasite {
 
-static const char* TAG = "b_parasite";
+static const char *const TAG = "b_parasite";
 
 void BParasite::dump_config() {
   ESP_LOGCONFIG(TAG, "b_parasite");
@@ -16,25 +16,25 @@ void BParasite::dump_config() {
   LOG_SENSOR("  ", "Soil Moisture", this->soil_moisture_);
 }
 
-bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice& device) {
+bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (device.address_uint64() != address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
   }
   ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
-  const auto& service_datas = device.get_service_datas();
+  const auto &service_datas = device.get_service_datas();
   if (service_datas.size() != 1) {
     ESP_LOGE(TAG, "Unexpected service_datas size (%d)", service_datas.size());
     return false;
   }
-  const auto& service_data = service_datas[0];
+  const auto &service_data = service_datas[0];
 
   ESP_LOGVV(TAG, "Service data:");
   for (const uint8_t byte : service_data.data) {
     ESP_LOGVV(TAG, "0x%02x", byte);
   }
 
-  const auto& data = service_data.data;
+  const auto &data = service_data.data;
 
   // Counter for deduplicating messages.
   uint8_t counter = data[1] & 0x0f;
@@ -47,7 +47,7 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice& device) {
   uint16_t battery_millivolt = data[2] << 8 | data[3];
   float battery_voltage = battery_millivolt / 1000.0f;
 
-  // Temperature in 1000 * Celcius.
+  // Temperature in 1000 * Celsius.
   uint16_t temp_millicelcius = data[4] << 8 | data[5];
   float temp_celcius = temp_millicelcius / 1000.0f;
 
@@ -79,4 +79,4 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice& device) {
 }  // namespace b_parasite
 }  // namespace esphome
 
-#endif  // ARDUINO_ARCH_ESP32
+#endif  // USE_ESP32

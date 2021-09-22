@@ -19,10 +19,10 @@ CONFIG_SCHEMA = automation.validate_automation(
 )
 
 
-def to_code(config):
+async def to_code(config):
     for conf in config:
         var = cg.new_Pvariable(conf[CONF_ID])
-        yield cg.register_component(var, conf)
-        yield automation.build_automation(var, [], conf)
+        await cg.register_component(var, conf)
+        await automation.build_automation(var, [], conf)
 
         cg.add(var.set_update_interval(conf[CONF_INTERVAL]))

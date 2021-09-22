@@ -11,6 +11,7 @@ from esphome.config import iter_components, read_config, strip_default_ids
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_BROKER,
+    CONF_DEASSERT_RTS_DTR,
     CONF_LOGGER,
     CONF_OTA,
     CONF_PASSWORD,
@@ -18,7 +19,7 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
 )
-from esphome.core import CORE, EsphomeError, coroutine, coroutine_with_priority
+from esphome.core import CORE, EsphomeError, coroutine
 from esphome.helpers import indent
 from esphome.util import (
     run_external_command,
@@ -71,7 +72,7 @@ def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api
         if default == "OTA":
             return CORE.address
     if show_mqtt and "mqtt" in CORE.config:
-        options.append(("MQTT ({})".format(CORE.config["mqtt"][CONF_BROKER]), "MQTT"))
+        options.append((f"MQTT ({CORE.config['mqtt'][CONF_BROKER]})", "MQTT"))
         if default == "OTA":
             return "MQTT"
     if default is not None:
@@ -99,10 +100,21 @@ def run_miniterm(config, port):
     baud_rate = config["logger"][CONF_BAUD_RATE]
     if baud_rate == 0:
         _LOGGER.info("UART logging is disabled (baud_rate=0). Not starting UART logs.")
+        return
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
     backtrace_state = False
-    with serial.Serial(port, baudrate=baud_rate) as ser:
+    ser = serial.Serial()
+    ser.baudrate = baud_rate
+    ser.port = port
+
+    # We can't set to False by default since it leads to toggling and hence
+    # ESP32 resets on some platforms.
+    if config["logger"][CONF_DEASSERT_RTS_DTR]:
+        ser.dtr = False
+        ser.rts = False
+
+    with ser:
         while True:
             try:
                 raw = ser.readline()
@@ -127,15 +139,16 @@ def wrap_to_code(name, comp):
     coro = coroutine(comp.to_code)
 
     @functools.wraps(comp.to_code)
-    @coroutine_with_priority(coro.priority)
-    def wrapped(conf):
+    async def wrapped(conf):
         cg.add(cg.LineComment(f"{name}:"))
         if comp.config_schema is not None:
             conf_str = yaml_util.dump(conf)
             conf_str = conf_str.replace("//", "")
             cg.add(cg.LineComment(indent(conf_str)))
-        yield coro(conf)
+        await coro(conf)
 
+    if hasattr(coro, "priority"):
+        wrapped.priority = coro.priority
     return wrapped
 
 
@@ -232,7 +245,7 @@ def upload_program(config, args, host):
 
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
-    password = ota_conf[CONF_PASSWORD]
+    password = ota_conf.get(CONF_PASSWORD, "")
     return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
 
 
@@ -243,7 +256,7 @@ def show_logs(config, args, port):
         run_miniterm(config, port)
         return 0
     if get_port_type(port) == "NETWORK" and "api" in config:
-        from esphome.api.client import run_logs
+        from esphome.components.api.client import run_logs
 
         return run_logs(config, port)
     if get_port_type(port) == "MQTT" and "mqtt" in config:
@@ -267,7 +280,7 @@ def clean_mqtt(config, args):
 def command_wizard(args):
     from esphome import wizard
 
-    return wizard.wizard(args.configuration[0])
+    return wizard.wizard(args.configuration)
 
 
 def command_config(args, config):
@@ -283,7 +296,6 @@ def command_vscode(args):
 
     logging.disable(logging.INFO)
     logging.disable(logging.WARNING)
-    CORE.config_path = args.configuration[0]
     vscode.read_config(args)
 
 
@@ -303,7 +315,7 @@ def command_compile(args, config):
 
 def command_upload(args, config):
     port = choose_upload_log_host(
-        default=args.upload_port,
+        default=args.device,
         check_default=None,
         show_ota=True,
         show_mqtt=False,
@@ -318,7 +330,7 @@ def command_upload(args, config):
 
 def command_logs(args, config):
     port = choose_upload_log_host(
-        default=args.serial_port,
+        default=args.device,
         check_default=None,
         show_ota=False,
         show_mqtt=True,
@@ -336,7 +348,7 @@ def command_run(args, config):
         return exit_code
     _LOGGER.info("Successfully compiled program.")
     port = choose_upload_log_host(
-        default=args.upload_port,
+        default=args.device,
         check_default=None,
         show_ota=True,
         show_mqtt=False,
@@ -349,7 +361,7 @@ def command_run(args, config):
     if args.no_logs:
         return 0
     port = choose_upload_log_host(
-        default=args.upload_port,
+        default=args.device,
         check_default=port,
         show_ota=False,
         show_mqtt=True,
@@ -393,7 +405,7 @@ def command_update_all(args):
     import click
 
     success = {}
-    files = list_yaml_files(args.configuration[0])
+    files = list_yaml_files(args.configuration)
     twidth = 60
 
     def print_bar(middle_text):
@@ -403,30 +415,30 @@ def command_update_all(args):
         click.echo(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
-        print("Updating {}".format(color(Fore.CYAN, f)))
+        print(f"Updating {color(Fore.CYAN, f)}")
         print("-" * twidth)
         print()
         rc = run_external_process(
-            "esphome", "--dashboard", f, "run", "--no-logs", "--upload-port", "OTA"
+            "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
         )
         if rc == 0:
-            print_bar("[{}] {}".format(color(Fore.BOLD_GREEN, "SUCCESS"), f))
+            print_bar(f"[{color(Fore.BOLD_GREEN, 'SUCCESS')}] {f}")
             success[f] = True
         else:
-            print_bar("[{}] {}".format(color(Fore.BOLD_RED, "ERROR"), f))
+            print_bar(f"[{color(Fore.BOLD_RED, 'ERROR')}] {f}")
             success[f] = False
 
         print()
         print()
         print()
 
-    print_bar("[{}]".format(color(Fore.BOLD_WHITE, "SUMMARY")))
+    print_bar(f"[{color(Fore.BOLD_WHITE, 'SUMMARY')}]")
     failed = 0
     for f in files:
         if success[f]:
-            print("  - {}: {}".format(f, color(Fore.GREEN, "SUCCESS")))
+            print(f"  - {f}: {color(Fore.GREEN, 'SUCCESS')}")
         else:
-            print("  - {}: {}".format(f, color(Fore.BOLD_RED, "FAILED")))
+            print(f"  - {f}: {color(Fore.BOLD_RED, 'FAILED')}")
             failed += 1
     return failed
 
@@ -452,15 +464,17 @@ POST_CONFIG_ACTIONS = {
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(description=f"ESPHome v{const.__version__}")
-    parser.add_argument(
-        "-v", "--verbose", help="Enable verbose esphome logs.", action="store_true"
+    options_parser = argparse.ArgumentParser(add_help=False)
+    options_parser.add_argument(
+        "-v", "--verbose", help="Enable verbose ESPHome logs.", action="store_true"
     )
-    parser.add_argument(
-        "-q", "--quiet", help="Disable all esphome logs.", action="store_true"
+    options_parser.add_argument(
+        "-q", "--quiet", help="Disable all ESPHome logs.", action="store_true"
     )
-    parser.add_argument("--dashboard", help=argparse.SUPPRESS, action="store_true")
-    parser.add_argument(
+    options_parser.add_argument(
+        "--dashboard", help=argparse.SUPPRESS, action="store_true"
+    )
+    options_parser.add_argument(
         "-s",
         "--substitution",
         nargs=2,
@@ -468,16 +482,34 @@ def parse_args(argv):
         help="Add a substitution",
         metavar=("key", "value"),
     )
-    parser.add_argument(
-        "configuration", help="Your YAML configuration file.", nargs="*"
+
+    parser = argparse.ArgumentParser(
+        description=f"ESPHome v{const.__version__}", parents=[options_parser]
     )
 
-    subparsers = parser.add_subparsers(help="Commands", dest="command")
+    mqtt_options = argparse.ArgumentParser(add_help=False)
+    mqtt_options.add_argument("--topic", help="Manually set the MQTT topic.")
+    mqtt_options.add_argument("--username", help="Manually set the MQTT username.")
+    mqtt_options.add_argument("--password", help="Manually set the MQTT password.")
+    mqtt_options.add_argument("--client-id", help="Manually set the MQTT client id.")
+
+    subparsers = parser.add_subparsers(
+        help="Command to run:", dest="command", metavar="command"
+    )
     subparsers.required = True
-    subparsers.add_parser("config", help="Validate the configuration and spit it out.")
+
+    parser_config = subparsers.add_parser(
+        "config", help="Validate the configuration and spit it out."
+    )
+    parser_config.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
 
     parser_compile = subparsers.add_parser(
         "compile", help="Read the configuration and compile a program."
+    )
+    parser_compile.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
     parser_compile.add_argument(
         "--only-generate",
@@ -486,108 +518,200 @@ def parse_args(argv):
     )
 
     parser_upload = subparsers.add_parser(
-        "upload", help="Validate the configuration " "and upload the latest binary."
+        "upload", help="Validate the configuration and upload the latest binary."
     )
     parser_upload.add_argument(
-        "--upload-port",
-        help="Manually specify the upload port to use. "
-        "For example /dev/cu.SLAB_USBtoUART.",
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
+    parser_upload.add_argument(
+        "--device",
+        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
     )
 
     parser_logs = subparsers.add_parser(
-        "logs", help="Validate the configuration " "and show all MQTT logs."
+        "logs",
+        help="Validate the configuration and show all logs.",
+        parents=[mqtt_options],
     )
-    parser_logs.add_argument("--topic", help="Manually set the topic to subscribe to.")
-    parser_logs.add_argument("--username", help="Manually set the username.")
-    parser_logs.add_argument("--password", help="Manually set the password.")
-    parser_logs.add_argument("--client-id", help="Manually set the client id.")
     parser_logs.add_argument(
-        "--serial-port",
-        help="Manually specify a serial port to use"
-        "For example /dev/cu.SLAB_USBtoUART.",
+        "configuration", help="Your YAML configuration file.", nargs=1
+    )
+    parser_logs.add_argument(
+        "--device",
+        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
     )
 
     parser_run = subparsers.add_parser(
         "run",
-        help="Validate the configuration, create a binary, "
-        "upload it, and start MQTT logs.",
+        help="Validate the configuration, create a binary, upload it, and start logs.",
+        parents=[mqtt_options],
     )
     parser_run.add_argument(
-        "--upload-port",
-        help="Manually specify the upload port/ip to use. "
-        "For example /dev/cu.SLAB_USBtoUART.",
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
     parser_run.add_argument(
-        "--no-logs", help="Disable starting MQTT logs.", action="store_true"
+        "--device",
+        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
     )
     parser_run.add_argument(
-        "--topic", help="Manually set the topic to subscribe to for logs."
+        "--no-logs", help="Disable starting logs.", action="store_true"
     )
-    parser_run.add_argument(
-        "--username", help="Manually set the MQTT username for logs."
-    )
-    parser_run.add_argument(
-        "--password", help="Manually set the MQTT password for logs."
-    )
-    parser_run.add_argument("--client-id", help="Manually set the client id for logs.")
 
     parser_clean = subparsers.add_parser(
-        "clean-mqtt", help="Helper to clear an MQTT topic from " "retain messages."
+        "clean-mqtt",
+        help="Helper to clear retained messages from an MQTT topic.",
+        parents=[mqtt_options],
     )
-    parser_clean.add_argument("--topic", help="Manually set the topic to subscribe to.")
-    parser_clean.add_argument("--username", help="Manually set the username.")
-    parser_clean.add_argument("--password", help="Manually set the password.")
-    parser_clean.add_argument("--client-id", help="Manually set the client id.")
+    parser_clean.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
 
-    subparsers.add_parser(
+    parser_wizard = subparsers.add_parser(
         "wizard",
-        help="A helpful setup wizard that will guide "
-        "you through setting up esphome.",
+        help="A helpful setup wizard that will guide you through setting up ESPHome.",
+    )
+    parser_wizard.add_argument(
+        "configuration",
+        help="Your YAML configuration file.",
     )
 
-    subparsers.add_parser(
+    parser_fingerprint = subparsers.add_parser(
         "mqtt-fingerprint", help="Get the SSL fingerprint from a MQTT broker."
     )
+    parser_fingerprint.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
 
-    subparsers.add_parser("version", help="Print the esphome version and exit.")
+    subparsers.add_parser("version", help="Print the ESPHome version and exit.")
 
-    subparsers.add_parser("clean", help="Delete all temporary build files.")
+    parser_clean = subparsers.add_parser(
+        "clean", help="Delete all temporary build files."
+    )
+    parser_clean.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
 
-    dashboard = subparsers.add_parser(
+    parser_dashboard = subparsers.add_parser(
         "dashboard", help="Create a simple web server for a dashboard."
     )
-    dashboard.add_argument(
+    parser_dashboard.add_argument(
+        "configuration",
+        help="Your YAML configuration file directory.",
+    )
+    parser_dashboard.add_argument(
         "--port",
         help="The HTTP port to open connections on. Defaults to 6052.",
         type=int,
         default=6052,
     )
-    dashboard.add_argument(
+    parser_dashboard.add_argument(
         "--username",
-        help="The optional username to require " "for authentication.",
+        help="The optional username to require for authentication.",
         type=str,
         default="",
     )
-    dashboard.add_argument(
+    parser_dashboard.add_argument(
         "--password",
-        help="The optional password to require " "for authentication.",
+        help="The optional password to require for authentication.",
         type=str,
         default="",
     )
-    dashboard.add_argument(
+    parser_dashboard.add_argument(
         "--open-ui", help="Open the dashboard UI in a browser.", action="store_true"
     )
-    dashboard.add_argument("--hassio", help=argparse.SUPPRESS, action="store_true")
-    dashboard.add_argument(
+    parser_dashboard.add_argument(
+        "--hassio", help=argparse.SUPPRESS, action="store_true"
+    )
+    parser_dashboard.add_argument(
         "--socket", help="Make the dashboard serve under a unix socket", type=str
     )
 
-    vscode = subparsers.add_parser("vscode", help=argparse.SUPPRESS)
-    vscode.add_argument("--ace", action="store_true")
+    parser_vscode = subparsers.add_parser("vscode")
+    parser_vscode.add_argument("configuration", help="Your YAML configuration file.")
+    parser_vscode.add_argument("--ace", action="store_true")
 
-    subparsers.add_parser("update-all", help=argparse.SUPPRESS)
+    parser_update = subparsers.add_parser("update-all")
+    parser_update.add_argument(
+        "configuration", help="Your YAML configuration file directories.", nargs="+"
+    )
 
-    return parser.parse_args(argv[1:])
+    # Keep backward compatibility with the old command line format of
+    # esphome <config> <command>.
+    #
+    # Unfortunately this can't be done by adding another configuration argument to the
+    # main config parser, as argparse is greedy when parsing arguments, so in regular
+    # usage it'll eat the command as the configuration argument and error out out
+    # because it can't parse the configuration as a command.
+    #
+    # Instead, if parsing using the current format fails, construct an ad-hoc parser
+    # that doesn't actually process the arguments, but parses them enough to let us
+    # figure out if the old format is used. In that case, swap the command and
+    # configuration in the arguments and retry with the normal parser (and raise
+    # a deprecation warning).
+    arguments = argv[1:]
+
+    # On Python 3.9+ we can simply set exit_on_error=False in the constructor
+    def _raise(x):
+        raise argparse.ArgumentError(None, x)
+
+    # First, try new-style parsing, but don't exit in case of failure
+    try:
+        # duplicate parser so that we can use the original one to raise errors later on
+        current_parser = argparse.ArgumentParser(add_help=False, parents=[parser])
+        current_parser.set_defaults(deprecated_argv_suggestion=None)
+        current_parser.error = _raise
+        return current_parser.parse_args(arguments)
+    except argparse.ArgumentError:
+        pass
+
+    # Second, try compat parsing and rearrange the command-line if it succeeds
+    # Disable argparse's built-in help option and add it manually to prevent this
+    # parser from printing the help messagefor the old format when invoked with -h.
+    compat_parser = argparse.ArgumentParser(parents=[options_parser], add_help=False)
+    compat_parser.add_argument("-h", "--help", action="store_true")
+    compat_parser.add_argument("configuration", nargs="*")
+    compat_parser.add_argument(
+        "command",
+        choices=[
+            "config",
+            "compile",
+            "upload",
+            "logs",
+            "run",
+            "clean-mqtt",
+            "wizard",
+            "mqtt-fingerprint",
+            "version",
+            "clean",
+            "dashboard",
+            "vscode",
+            "update-all",
+        ],
+    )
+
+    try:
+        compat_parser.error = _raise
+        result, unparsed = compat_parser.parse_known_args(argv[1:])
+        last_option = len(arguments) - len(unparsed) - 1 - len(result.configuration)
+        unparsed = [
+            "--device" if arg in ("--upload-port", "--serial-port") else arg
+            for arg in unparsed
+        ]
+        arguments = (
+            arguments[0:last_option]
+            + [result.command]
+            + result.configuration
+            + unparsed
+        )
+        deprecated_argv_suggestion = arguments
+    except argparse.ArgumentError:
+        # old-style parsing failed, don't suggest any argument
+        deprecated_argv_suggestion = None
+
+    # Finally, run the new-style parser again with the possibly swapped arguments,
+    # and let it error out if the command is unparsable.
+    parser.set_defaults(deprecated_argv_suggestion=deprecated_argv_suggestion)
+    return parser.parse_args(arguments)
 
 
 def run_esphome(argv):
@@ -595,9 +719,13 @@ def run_esphome(argv):
     CORE.dashboard = args.dashboard
 
     setup_log(args.verbose, args.quiet)
-    if args.command != "version" and not args.configuration:
-        _LOGGER.error("Missing configuration parameter, see esphome --help.")
-        return 1
+    if args.deprecated_argv_suggestion is not None and args.command != "vscode":
+        _LOGGER.warning(
+            "Calling ESPHome with the configuration before the command is deprecated "
+            "and will be removed in the future. "
+        )
+        _LOGGER.warning("Please instead use:")
+        _LOGGER.warning("   esphome %s", " ".join(args.deprecated_argv_suggestion))
 
     if sys.version_info < (3, 7, 0):
         _LOGGER.error(
@@ -610,7 +738,7 @@ def run_esphome(argv):
         try:
             return PRE_CONFIG_ACTIONS[args.command](args)
         except EsphomeError as e:
-            _LOGGER.error(e)
+            _LOGGER.error(e, exc_info=args.verbose)
             return 1
 
     for conf_path in args.configuration:
@@ -628,7 +756,7 @@ def run_esphome(argv):
         try:
             rc = POST_CONFIG_ACTIONS[args.command](args, config)
         except EsphomeError as e:
-            _LOGGER.error(e)
+            _LOGGER.error(e, exc_info=args.verbose)
             return 1
         if rc != 0:
             return rc

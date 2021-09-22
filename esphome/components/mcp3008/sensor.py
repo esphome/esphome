@@ -24,8 +24,8 @@ CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
 ).extend(cv.polling_component_schema("1s"))
 
 
-def to_code(config):
-    parent = yield cg.get_variable(config[CONF_MCP3008_ID])
+async def to_code(config):
+    parent = await cg.get_variable(config[CONF_MCP3008_ID])
     var = cg.new_Pvariable(
         config[CONF_ID],
         parent,
@@ -33,5 +33,5 @@ def to_code(config):
         config[CONF_NUMBER],
         config[CONF_REFERENCE_VOLTAGE],
     )
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)

@@ -7,7 +7,7 @@ from esphome.const import CONF_NAME, CONF_PORT
 wled_ns = cg.esphome_ns.namespace("wled")
 WLEDLightEffect = wled_ns.class_("WLEDLightEffect", AddressableLightEffect)
 
-CONFIG_SCHEMA = cv.Schema({})
+CONFIG_SCHEMA = cv.All(cv.Schema({}), cv.only_with_arduino)
 
 
 @register_addressable_effect(
@@ -18,8 +18,8 @@ CONFIG_SCHEMA = cv.Schema({})
         cv.Optional(CONF_PORT, default=21324): cv.port,
     },
 )
-def wled_light_effect_to_code(config, effect_id):
+async def wled_light_effect_to_code(config, effect_id):
     effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(effect.set_port(config[CONF_PORT]))
 
-    yield effect
+    return effect

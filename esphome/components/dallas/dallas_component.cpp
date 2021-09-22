@@ -4,7 +4,7 @@
 namespace esphome {
 namespace dallas {
 
-static const char *TAG = "dallas.sensor";
+static const char *const TAG = "dallas.sensor";
 
 static const uint8_t DALLAS_MODEL_DS18S20 = 0x10;
 static const uint8_t DALLAS_MODEL_DS1822 = 0x22;
@@ -97,16 +97,7 @@ void DallasComponent::dump_config() {
   }
 }
 
-DallasTemperatureSensor *DallasComponent::get_sensor_by_address(uint64_t address, uint8_t resolution) {
-  auto s = new DallasTemperatureSensor(address, resolution, this);
-  this->sensors_.push_back(s);
-  return s;
-}
-DallasTemperatureSensor *DallasComponent::get_sensor_by_index(uint8_t index, uint8_t resolution) {
-  auto s = this->get_sensor_by_address(0, resolution);
-  s->set_index(index);
-  return s;
-}
+void DallasComponent::register_sensor(DallasTemperatureSensor *sensor) { this->sensors_.push_back(sensor); }
 void DallasComponent::update() {
   this->status_clear_warning();
 
@@ -137,7 +128,7 @@ void DallasComponent::update() {
       }
 
       if (!res) {
-        ESP_LOGW(TAG, "'%s' - Reseting bus for read failed!", sensor->get_name().c_str());
+        ESP_LOGW(TAG, "'%s' - Resetting bus for read failed!", sensor->get_name().c_str());
         sensor->publish_state(NAN);
         this->status_set_warning();
         return;
@@ -157,11 +148,6 @@ void DallasComponent::update() {
 }
 DallasComponent::DallasComponent(ESPOneWire *one_wire) : one_wire_(one_wire) {}
 
-DallasTemperatureSensor::DallasTemperatureSensor(uint64_t address, uint8_t resolution, DallasComponent *parent)
-    : parent_(parent) {
-  this->set_address(address);
-  this->set_resolution(resolution);
-}
 void DallasTemperatureSensor::set_address(uint64_t address) { this->address_ = address; }
 uint8_t DallasTemperatureSensor::get_resolution() const { return this->resolution_; }
 void DallasTemperatureSensor::set_resolution(uint8_t resolution) { this->resolution_ = resolution; }
@@ -175,7 +161,7 @@ const std::string &DallasTemperatureSensor::get_address_name() {
 
   return this->address_name_;
 }
-bool ICACHE_RAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
+bool IRAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
   ESPOneWire *wire = this->parent_->one_wire_;
   if (!wire->reset()) {
     return false;

@@ -39,7 +39,7 @@ def patch_structhash():
     command.clean_build_dir = patched_clean_build_dir
 
 
-IGNORE_LIB_WARNINGS = r"(?:" + "|".join(["Hash", "Update"]) + r")"
+IGNORE_LIB_WARNINGS = f"(?:{'|'.join(['Hash', 'Update'])})"
 FILTER_PLATFORMIO_LINES = [
     r"Verbose mode can be enabled via `-v, --verbose` option.*",
     r"CONFIGURATION: https://docs.platformio.org/.*",
@@ -48,13 +48,9 @@ FILTER_PLATFORMIO_LINES = [
     r"PACKAGES: .*",
     r"LDF: Library Dependency Finder -> http://bit.ly/configure-pio-ldf.*",
     r"LDF Modes: Finder ~ chain, Compatibility ~ soft.*",
-    r"Looking for " + IGNORE_LIB_WARNINGS + r" library in registry",
-    r"Warning! Library `.*'"
-    + IGNORE_LIB_WARNINGS
-    + r".*` has not been found in PlatformIO Registry.",
-    r"You can ignore this message, if `.*"
-    + IGNORE_LIB_WARNINGS
-    + r".*` is a built-in library.*",
+    f"Looking for {IGNORE_LIB_WARNINGS} library in registry",
+    f"Warning! Library `.*'{IGNORE_LIB_WARNINGS}.*` has not been found in PlatformIO Registry.",
+    f"You can ignore this message, if `.*{IGNORE_LIB_WARNINGS}.*` is a built-in library.*",
     r"Scanning dependencies...",
     r"Found \d+ compatible libraries",
     r"Memory Usage -> http://bit.ly/pio-memory-usage",
@@ -71,8 +67,8 @@ FILTER_PLATFORMIO_LINES = [
 def run_platformio_cli(*args, **kwargs) -> Union[str, int]:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
-    os.environ["PLATFORMIO_LIBDEPS_DIR"] = os.path.abspath(
-        CORE.relative_piolibdeps_path()
+    os.environ.setdefault(
+        "PLATFORMIO_LIBDEPS_DIR", os.path.abspath(CORE.relative_piolibdeps_path())
     )
     cmd = ["platformio"] + list(args)
 
@@ -200,13 +196,15 @@ def _parse_register(config, regex, line):
 STACKTRACE_ESP8266_EXCEPTION_TYPE_RE = re.compile(r"[eE]xception \((\d+)\):")
 STACKTRACE_ESP8266_PC_RE = re.compile(r"epc1=0x(4[0-9a-fA-F]{7})")
 STACKTRACE_ESP8266_EXCVADDR_RE = re.compile(r"excvaddr=0x(4[0-9a-fA-F]{7})")
-STACKTRACE_ESP32_PC_RE = re.compile(r"PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_PC_RE = re.compile(r".*PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7}).*")
 STACKTRACE_ESP32_EXCVADDR_RE = re.compile(r"EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_C3_PC_RE = re.compile(r"MEPC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_C3_RA_RE = re.compile(r"RA\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
 STACKTRACE_BAD_ALLOC_RE = re.compile(
     r"^last failed alloc call: (4[0-9a-fA-F]{7})\((\d+)\)$"
 )
 STACKTRACE_ESP32_BACKTRACE_RE = re.compile(
-    r"Backtrace:(?:\s+0x[0-9a-fA-F]{8}:0x[0-9a-fA-F]{8})+"
+    r"Backtrace:(?:\s*0x[0-9a-fA-F]{8}:0x[0-9a-fA-F]{8})+"
 )
 STACKTRACE_ESP32_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
 STACKTRACE_ESP8266_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
@@ -228,6 +226,9 @@ def process_stacktrace(config, line, backtrace_state):
     # ESP32 PC/EXCVADDR
     _parse_register(config, STACKTRACE_ESP32_PC_RE, line)
     _parse_register(config, STACKTRACE_ESP32_EXCVADDR_RE, line)
+    # ESP32-C3 PC/RA
+    _parse_register(config, STACKTRACE_ESP32_C3_PC_RE, line)
+    _parse_register(config, STACKTRACE_ESP32_C3_RA_RE, line)
 
     # bad alloc
     match = re.match(STACKTRACE_BAD_ALLOC_RE, line)
@@ -291,6 +292,6 @@ class IDEData:
 
         # Windows
         if cc_path.endswith(".exe"):
-            return cc_path[:-7] + "addr2line.exe"
+            return f"{cc_path[:-7]}addr2line.exe"
 
-        return cc_path[:-3] + "addr2line"
+        return f"{cc_path[:-3]}addr2line"

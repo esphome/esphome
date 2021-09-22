@@ -4,7 +4,7 @@
 namespace esphome {
 namespace cover {
 
-static const char *TAG = "cover";
+static const char *const TAG = "cover";
 
 const float COVER_OPEN = 1.0f;
 const float COVER_CLOSED = 0.0f;
@@ -180,7 +180,7 @@ void Cover::publish_state(bool save) {
   }
 }
 optional<CoverRestoreState> Cover::restore_state_() {
-  this->rtc_ = global_preferences.make_preference<CoverRestoreState>(this->get_object_id_hash());
+  this->rtc_ = global_preferences->make_preference<CoverRestoreState>(this->get_object_id_hash());
   CoverRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
     return {};

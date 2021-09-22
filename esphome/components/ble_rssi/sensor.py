@@ -6,8 +6,8 @@ from esphome.const import (
     CONF_MAC_ADDRESS,
     CONF_ID,
     DEVICE_CLASS_SIGNAL_STRENGTH,
+    STATE_CLASS_MEASUREMENT,
     UNIT_DECIBEL,
-    ICON_EMPTY,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -18,7 +18,12 @@ BLERSSISensor = ble_rssi_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(UNIT_DECIBEL, ICON_EMPTY, 0, DEVICE_CLASS_SIGNAL_STRENGTH)
+    sensor.sensor_schema(
+        unit_of_measurement=UNIT_DECIBEL,
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(BLERSSISensor),
@@ -32,11 +37,11 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield esp32_ble_tracker.register_ble_device(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await esp32_ble_tracker.register_ble_device(var, config)
+    await sensor.register_sensor(var, config)
 
     if CONF_MAC_ADDRESS in config:
         cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
@@ -55,5 +60,5 @@ def to_code(config):
                 )
             )
         elif len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid128_format):
-            uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_SERVICE_UUID])
+            uuid128 = esp32_ble_tracker.as_reversed_hex_array(config[CONF_SERVICE_UUID])
             cg.add(var.set_service_uuid128(uuid128))

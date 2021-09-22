@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/mcp23x08_base/mcp23x08_base.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {

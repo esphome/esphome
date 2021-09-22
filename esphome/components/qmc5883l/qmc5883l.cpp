@@ -1,10 +1,12 @@
 #include "qmc5883l.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
+#include <cmath>
 
 namespace esphome {
 namespace qmc5883l {
 
-static const char *TAG = "qmc5883l";
+static const char *const TAG = "qmc5883l";
 static const uint8_t QMC5883L_ADDRESS = 0x0D;
 
 static const uint8_t QMC5883L_REGISTER_DATA_X_LSB = 0x00;
@@ -115,9 +117,10 @@ void QMC5883LComponent::update() {
 }
 
 bool QMC5883LComponent::read_byte_16_(uint8_t a_register, uint16_t *data) {
-  bool success = this->read_byte_16(a_register, data);
-  *data = (*data & 0x00FF) << 8 | (*data & 0xFF00) >> 8;  // Flip Byte oder, LSB first;
-  return success;
+  if (!this->read_byte_16(a_register, data))
+    return false;
+  *data = (*data & 0x00FF) << 8 | (*data & 0xFF00) >> 8;  // Flip Byte order, LSB first;
+  return true;
 }
 
 }  // namespace qmc5883l

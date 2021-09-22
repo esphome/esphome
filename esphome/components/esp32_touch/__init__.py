@@ -9,12 +9,11 @@ from esphome.const import (
     CONF_SETUP_MODE,
     CONF_SLEEP_DURATION,
     CONF_VOLTAGE_ATTENUATION,
-    ESP_PLATFORM_ESP32,
 )
 from esphome.core import TimePeriod
 
 AUTO_LOAD = ["binary_sensor"]
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+DEPENDENCIES = ["esp32"]
 
 esp32_touch_ns = cg.esphome_ns.namespace("esp32_touch")
 ESP32TouchComponent = esp32_touch_ns.class_("ESP32TouchComponent", cg.Component)
@@ -77,9 +76,9 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     touch = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(touch, config)
+    await cg.register_component(touch, config)
 
     cg.add(touch.set_setup_mode(config[CONF_SETUP_MODE]))
     cg.add(touch.set_iir_filter(config[CONF_IIR_FILTER]))

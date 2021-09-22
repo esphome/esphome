@@ -12,7 +12,7 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
 )
 
 
-def to_code(config):
-    hub = yield cg.get_variable(config[CONF_AS3935_ID])
-    var = yield binary_sensor.new_binary_sensor(config)
+async def to_code(config):
+    hub = await cg.get_variable(config[CONF_AS3935_ID])
+    var = await binary_sensor.new_binary_sensor(config)
     cg.add(hub.set_thunder_alert_binary_sensor(var))
