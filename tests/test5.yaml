@@ -1,11 +1,14 @@
 esphome:
   name: test5
-  platform: ESP32
-  board: nodemcu-32s
   build_path: build/test5
   project:
     name: esphome.test5_project
     version: "1.0.0"
+
+esp32:
+  board: nodemcu-32s
+  framework:
+    type: esp-idf
 
 wifi:
   networks:
@@ -151,20 +154,3 @@ sensor:
     uart_id: uart2
     co2:
       name: CO2 Sensor
-
-display:
-  - platform: inkplate6
-    id: inkplate_display
-    greyscale: false
-    partial_updating: false
-    update_interval: 60s
-
-    ckv_pin: GPIO1
-    sph_pin: GPIO1
-    gmod_pin: GPIO1
-    gpio0_enable_pin: GPIO1
-    oe_pin: GPIO1
-    spv_pin: GPIO1
-    powerup_pin: GPIO1
-    wakeup_pin: GPIO1
-    vcom_pin: GPIO1

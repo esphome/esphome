@@ -1,5 +1,6 @@
 #include "ccs811.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace ccs811 {
@@ -124,12 +125,12 @@ void CCS811Component::send_env_data_() {
   float humidity = NAN;
   if (this->humidity_ != nullptr)
     humidity = this->humidity_->state;
-  if (isnan(humidity) || humidity < 0 || humidity > 100)
+  if (std::isnan(humidity) || humidity < 0 || humidity > 100)
     humidity = 50;
   float temperature = NAN;
   if (this->temperature_ != nullptr)
     temperature = this->temperature_->state;
-  if (isnan(temperature) || temperature < -25 || temperature > 50)
+  if (std::isnan(temperature) || temperature < -25 || temperature > 50)
     temperature = 25;
   // temperature has a 25° offset to allow negative temperatures
   temperature += 25;

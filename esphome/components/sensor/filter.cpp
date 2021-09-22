@@ -1,6 +1,7 @@
 #include "filter.h"
 #include "sensor.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace sensor {
@@ -35,7 +36,7 @@ MedianFilter::MedianFilter(size_t window_size, size_t send_every, size_t send_fi
 void MedianFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void MedianFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
 optional<float> MedianFilter::new_value(float value) {
-  if (!isnan(value)) {
+  if (!std::isnan(value)) {
     while (this->queue_.size() >= this->window_size_) {
       this->queue_.pop_front();
     }
@@ -71,7 +72,7 @@ MinFilter::MinFilter(size_t window_size, size_t send_every, size_t send_first_at
 void MinFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void MinFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
 optional<float> MinFilter::new_value(float value) {
-  if (!isnan(value)) {
+  if (!std::isnan(value)) {
     while (this->queue_.size() >= this->window_size_) {
       this->queue_.pop_front();
     }
@@ -100,7 +101,7 @@ MaxFilter::MaxFilter(size_t window_size, size_t send_every, size_t send_first_at
 void MaxFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void MaxFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
 optional<float> MaxFilter::new_value(float value) {
-  if (!isnan(value)) {
+  if (!std::isnan(value)) {
     while (this->queue_.size() >= this->window_size_) {
       this->queue_.pop_front();
     }
@@ -130,7 +131,7 @@ SlidingWindowMovingAverageFilter::SlidingWindowMovingAverageFilter(size_t window
 void SlidingWindowMovingAverageFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void SlidingWindowMovingAverageFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
 optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
-  if (!isnan(value)) {
+  if (!std::isnan(value)) {
     if (this->queue_.size() == this->window_size_) {
       this->sum_ -= this->queue_[0];
       this->queue_.pop_front();
@@ -165,7 +166,7 @@ optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
 ExponentialMovingAverageFilter::ExponentialMovingAverageFilter(float alpha, size_t send_every)
     : send_every_(send_every), send_at_(send_every - 1), alpha_(alpha) {}
 optional<float> ExponentialMovingAverageFilter::new_value(float value) {
-  if (!isnan(value)) {
+  if (!std::isnan(value)) {
     if (this->first_value_)
       this->accumulator_ = value;
     else
@@ -211,8 +212,8 @@ optional<float> MultiplyFilter::new_value(float value) { return value * this->mu
 FilterOutValueFilter::FilterOutValueFilter(float value_to_filter_out) : value_to_filter_out_(value_to_filter_out) {}
 
 optional<float> FilterOutValueFilter::new_value(float value) {
-  if (isnan(this->value_to_filter_out_)) {
-    if (isnan(value))
+  if (std::isnan(this->value_to_filter_out_)) {
+    if (std::isnan(value))
       return {};
     else
       return value;
@@ -243,9 +244,9 @@ optional<float> ThrottleFilter::new_value(float value) {
 // DeltaFilter
 DeltaFilter::DeltaFilter(float min_delta) : min_delta_(min_delta), last_value_(NAN) {}
 optional<float> DeltaFilter::new_value(float value) {
-  if (isnan(value))
+  if (std::isnan(value))
     return {};
-  if (isnan(this->last_value_)) {
+  if (std::isnan(this->last_value_)) {
     return this->last_value_ = value;
   }
   if (fabsf(value - this->last_value_) >= this->min_delta_) {

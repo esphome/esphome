@@ -12,6 +12,8 @@ from esphome.const import (
     CONF_OSCILLATION_COMMAND_TOPIC,
     CONF_OSCILLATION_STATE_TOPIC,
     CONF_SPEED,
+    CONF_SPEED_LEVEL_COMMAND_TOPIC,
+    CONF_SPEED_LEVEL_STATE_TOPIC,
     CONF_SPEED_COMMAND_TOPIC,
     CONF_SPEED_STATE_TOPIC,
     CONF_NAME,
@@ -55,6 +57,12 @@ FAN_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
         cv.Optional(CONF_OSCILLATION_COMMAND_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.subscribe_topic
+        ),
+        cv.Optional(CONF_SPEED_LEVEL_STATE_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_SPEED_LEVEL_COMMAND_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.subscribe_topic
         ),
         cv.Optional(CONF_SPEED_STATE_TOPIC): cv.All(
@@ -102,6 +110,18 @@ async def setup_fan_core_(var, config):
             cg.add(
                 mqtt_.set_custom_oscillation_command_topic(
                     config[CONF_OSCILLATION_COMMAND_TOPIC]
+                )
+            )
+        if CONF_SPEED_LEVEL_STATE_TOPIC in config:
+            cg.add(
+                mqtt_.set_custom_speed_level_state_topic(
+                    config[CONF_SPEED_LEVEL_STATE_TOPIC]
+                )
+            )
+        if CONF_SPEED_LEVEL_COMMAND_TOPIC in config:
+            cg.add(
+                mqtt_.set_custom_speed_level_command_topic(
+                    config[CONF_SPEED_LEVEL_COMMAND_TOPIC]
                 )
             )
         if CONF_SPEED_STATE_TOPIC in config:

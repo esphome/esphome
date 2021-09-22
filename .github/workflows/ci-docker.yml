@@ -7,11 +7,15 @@ on:
     paths:
       - 'docker/**'
       - '.github/workflows/**'
+      - 'requirements*.txt'
+      - 'platformio.ini'
 
   pull_request:
     paths:
       - 'docker/**'
       - '.github/workflows/**'
+      - 'requirements*.txt'
+      - 'platformio.ini'
 
 jobs:
   check-docker:
@@ -27,6 +31,11 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: '3.9'
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v1
+
     - name: Set TAG
       run: |
         echo "TAG=check" >> $GITHUB_ENV

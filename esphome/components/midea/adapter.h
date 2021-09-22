@@ -1,4 +1,7 @@
 #pragma once
+
+#ifdef USE_ARDUINO
+
 #include <Appliance/AirConditioner/AirConditioner.h>
 #include "esphome/components/climate/climate_traits.h"
 #include "appliance_base.h"
@@ -40,3 +43,5 @@ class Converters {
 
 }  // namespace midea
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

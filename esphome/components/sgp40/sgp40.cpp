@@ -1,5 +1,6 @@
-#include "esphome/core/log.h"
 #include "sgp40.h"
+#include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 #include <cinttypes>
 
 namespace esphome {
@@ -55,7 +56,7 @@ void SGP40Component::setup() {
     // Hash with compilation time
     // This ensures the baseline storage is cleared after OTA
     uint32_t hash = fnv1_hash(App.get_compilation_time());
-    this->pref_ = global_preferences.make_preference<SGP40Baselines>(hash, true);
+    this->pref_ = global_preferences->make_preference<SGP40Baselines>(hash, true);
 
     if (this->pref_.load(&this->baselines_storage_)) {
       this->state0_ = this->baselines_storage_.state0;
@@ -165,7 +166,7 @@ uint16_t SGP40Component::measure_raw_() {
   if (this->humidity_sensor_ != nullptr) {
     humidity = this->humidity_sensor_->state;
   }
-  if (isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
+  if (std::isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
     humidity = 50;
   }
 
@@ -173,7 +174,7 @@ uint16_t SGP40Component::measure_raw_() {
   if (this->temperature_sensor_ != nullptr) {
     temperature = float(this->temperature_sensor_->state);
   }
-  if (isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
+  if (std::isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
     temperature = 25;
   }
 
@@ -191,9 +192,9 @@ uint16_t SGP40Component::measure_raw_() {
   command[6] = tempticks & 0xFF;
   command[7] = generate_crc_(command + 5, 2);
 
-  if (!this->write_bytes_raw(command, 8)) {
+  if (this->write(command, 8) != i2c::ERROR_OK) {
     this->status_set_warning();
-    ESP_LOGD(TAG, "write_bytes_raw error");
+    ESP_LOGD(TAG, "write error");
     return UINT16_MAX;
   }
   delay(250);  // NOLINT
@@ -302,7 +303,7 @@ bool SGP40Component::read_data_(uint16_t *data, uint8_t len) {
   const uint8_t num_bytes = len * 3;
   std::vector<uint8_t> buf(num_bytes);
 
-  if (!this->parent_->raw_receive(this->address_, buf.data(), num_bytes)) {
+  if (this->read(buf.data(), num_bytes) != i2c::ERROR_OK) {
     return false;
   }
 

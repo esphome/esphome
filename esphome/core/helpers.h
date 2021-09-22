@@ -6,7 +6,7 @@
 #include <memory>
 #include <type_traits>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include "esp32-hal-psram.h"
 #endif
 
@@ -151,7 +151,7 @@ uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb);
  * This behaves like std::lock_guard. As long as the value is visible in the current stack, all interrupts
  * (including flash reads) will be disabled.
  *
- * Please note all functions called when the interrupt lock must be marked ICACHE_RAM_ATTR (loading code into
+ * Please note all functions called when the interrupt lock must be marked IRAM_ATTR (loading code into
  * instruction cache is done via interrupts; disabling interrupts prevents data not already in cache from being
  * pulled from flash).
  *
@@ -173,7 +173,7 @@ class InterruptLock {
   ~InterruptLock();
 
  protected:
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   uint32_t xt_state_;
 #endif
 };
@@ -277,8 +277,8 @@ template<typename T, typename... X> class TemplatableValue {
     LAMBDA,
   } type_;
 
-  T value_;
-  std::function<T(X...)> f_;
+  T value_{};
+  std::function<T(X...)> f_{};
 };
 
 template<typename... X> class TemplatableStringValue : public TemplatableValue<std::string, X...> {
@@ -329,7 +329,7 @@ uint32_t fnv1_hash(const std::string &str);
 
 template<typename T> T *new_buffer(size_t length) {
   T *buffer;
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
   if (psramFound()) {
     buffer = (T *) ps_malloc(length);
   } else {

@@ -14,6 +14,7 @@
 
 #include "aht10.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace aht10 {
@@ -33,8 +34,19 @@ void AHT10Component::setup() {
     this->mark_failed();
     return;
   }
-  uint8_t data;
-  if (!this->read_byte(0, &data, AHT10_DEFAULT_DELAY)) {
+  uint8_t data = 0;
+  if (this->write(&data, 1) != i2c::ERROR_OK) {
+    ESP_LOGD(TAG, "Communication with AHT10 failed!");
+    this->mark_failed();
+    return;
+  }
+  delay(AHT10_DEFAULT_DELAY);
+  if (this->read(&data, 1) != i2c::ERROR_OK) {
+    ESP_LOGD(TAG, "Communication with AHT10 failed!");
+    this->mark_failed();
+    return;
+  }
+  if (this->read(&data, 1) != i2c::ERROR_OK) {
     ESP_LOGD(TAG, "Communication with AHT10 failed!");
     this->mark_failed();
     return;
@@ -55,15 +67,26 @@ void AHT10Component::update() {
     return;
   }
   uint8_t data[6];
-  uint8_t delay = AHT10_DEFAULT_DELAY;
+  uint8_t delay_ms = AHT10_DEFAULT_DELAY;
   if (this->humidity_sensor_ != nullptr)
-    delay = AHT10_HUMIDITY_DELAY;
+    delay_ms = AHT10_HUMIDITY_DELAY;
+  bool success = false;
   for (int i = 0; i < AHT10_ATTEMPTS; ++i) {
-    ESP_LOGVV(TAG, "Attempt %u at %6ld", i, millis());
+    ESP_LOGVV(TAG, "Attempt %d at %6u", i, millis());
     delay_microseconds_accurate(4);
-    if (!this->read_bytes(0, data, 6, delay)) {
+
+    uint8_t reg = 0;
+    if (this->write(&reg, 1) != i2c::ERROR_OK) {
       ESP_LOGD(TAG, "Communication with AHT10 failed, waiting...");
-    } else if ((data[0] & 0x80) == 0x80) {  // Bit[7] = 0b1, device is busy
+      continue;
+    }
+    delay(delay_ms);
+    if (this->read(data, 6) != i2c::ERROR_OK) {
+      ESP_LOGD(TAG, "Communication with AHT10 failed, waiting...");
+      continue;
+    }
+
+    if ((data[0] & 0x80) == 0x80) {  // Bit[7] = 0b1, device is busy
       ESP_LOGD(TAG, "AHT10 is busy, waiting...");
     } else if (data[1] == 0x0 && data[2] == 0x0 && (data[3] >> 4) == 0x0) {
       // Unrealistic humidity (0x0)
@@ -80,11 +103,12 @@ void AHT10Component::update() {
       }
     } else {
       // data is valid, we can break the loop
-      ESP_LOGVV(TAG, "Answer at %6ld", millis());
+      ESP_LOGVV(TAG, "Answer at %6u", millis());
+      success = true;
       break;
     }
   }
-  if ((data[0] & 0x80) == 0x80) {
+  if (!success || (data[0] & 0x80) == 0x80) {
     ESP_LOGE(TAG, "Measurements reading timed-out!");
     this->status_set_warning();
     return;
@@ -105,7 +129,7 @@ void AHT10Component::update() {
     this->temperature_sensor_->publish_state(temperature);
   }
   if (this->humidity_sensor_ != nullptr) {
-    if (isnan(humidity))
+    if (std::isnan(humidity))
       ESP_LOGW(TAG, "Invalid humidity! Sensor reported 0%% Hum");
     this->humidity_sensor_->publish_state(humidity);
   }

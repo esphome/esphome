@@ -1,17 +1,23 @@
+#ifdef USE_ESP32
+
 #include "esp32_ble_tracker.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
-
-#ifdef ARDUINO_ARCH_ESP32
+#include "esphome/core/hal.h"
 
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <esp_bt_main.h>
 #include <esp_bt.h>
+#include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_gap_ble_api.h>
 #include <esp_bt_defs.h>
+
+#ifdef USE_ARDUINO
+#include <esp32-hal-bt.h>
+#endif
 
 // bt_trace.h
 #undef TAG
@@ -126,13 +132,32 @@ bool ESP32BLETracker::ble_setup() {
     return false;
   }
 
-  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
-
-  // Initialize the bluetooth controller with the default configuration
-  if (!btStart()) {
-    ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
-    return false;
+  if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
+    // start bt controller
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
+      esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+      err = esp_bt_controller_init(&cfg);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bt_controller_init failed: %s", esp_err_to_name(err));
+        return false;
+      }
+      while (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE)
+        ;
+    }
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
+      err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bt_controller_enable failed: %s", esp_err_to_name(err));
+        return false;
+      }
+    }
+    if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
+      ESP_LOGE(TAG, "esp bt controller enable failed");
+      return false;
+    }
   }
+
+  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 
   err = esp_bluedroid_init();
   if (err != ESP_OK) {
@@ -355,8 +380,8 @@ bool ESPBTUUID::operator==(const ESPBTUUID &uuid) const {
   }
   return false;
 }
-esp_bt_uuid_t ESPBTUUID::get_uuid() { return this->uuid_; }
-std::string ESPBTUUID::to_string() {
+esp_bt_uuid_t ESPBTUUID::get_uuid() const { return this->uuid_; }
+std::string ESPBTUUID::to_string() const {
   char sbuf[64];
   switch (this->uuid_.len) {
     case ESP_UUID_LEN_16:

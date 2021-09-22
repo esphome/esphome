@@ -63,9 +63,7 @@ SENSORS_TO_TYPE = {
 def validate_pmsx003_sensors(value):
     for key, types in SENSORS_TO_TYPE.items():
         if key in value and value[CONF_TYPE] not in types:
-            raise cv.Invalid(
-                "{} does not have {} sensor!".format(value[CONF_TYPE], key)
-            )
+            raise cv.Invalid(f"{value[CONF_TYPE]} does not have {key} sensor!")
     return value
 
 

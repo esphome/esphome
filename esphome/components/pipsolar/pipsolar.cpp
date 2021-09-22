@@ -840,7 +840,7 @@ void Pipsolar::send_next_poll_() {
            this->used_polling_commands_[this->last_polling_command_].length);
 }
 
-void Pipsolar::queue_command_(const char *command, byte length) {
+void Pipsolar::queue_command_(const char *command, uint8_t length) {
   uint8_t next_position = command_queue_position_;
   for (uint8_t i = 0; i < COMMAND_QUEUE_LENGTH; i++) {
     uint8_t testposition = (next_position + i) % COMMAND_QUEUE_LENGTH;

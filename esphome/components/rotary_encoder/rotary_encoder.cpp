@@ -82,12 +82,12 @@ static const uint16_t DRAM_ATTR STATE_LOOKUP_TABLE[32] = {
     STATE_CW | STATE_S3                                // 0x1F: stay here
 };
 
-void ICACHE_RAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore *arg) {
+void IRAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore *arg) {
   // Forget upper bits and add pin states
   uint8_t input_state = arg->state & STATE_LUT_MASK;
-  if (arg->pin_a->digital_read())
+  if (arg->pin_a.digital_read())
     input_state |= STATE_PIN_A_HIGH;
-  if (arg->pin_b->digital_read())
+  if (arg->pin_b.digital_read())
     input_state |= STATE_PIN_B_HIGH;
 
   int8_t rotation_dir = 0;
@@ -134,8 +134,8 @@ void RotaryEncoderSensor::setup() {
     this->pin_i_->setup();
   }
 
-  this->pin_a_->attach_interrupt(RotaryEncoderSensorStore::gpio_intr, &this->store_, CHANGE);
-  this->pin_b_->attach_interrupt(RotaryEncoderSensorStore::gpio_intr, &this->store_, CHANGE);
+  this->pin_a_->attach_interrupt(RotaryEncoderSensorStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
+  this->pin_b_->attach_interrupt(RotaryEncoderSensorStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
 }
 void RotaryEncoderSensor::dump_config() {
   LOG_SENSOR("", "Rotary Encoder", this);
@@ -157,13 +157,14 @@ void RotaryEncoderSensor::dump_config() {
 void RotaryEncoderSensor::loop() {
   std::array<int8_t, 8> rotation_events;
   bool rotation_events_overflow;
-  ets_intr_lock();
-  rotation_events = this->store_.rotation_events;
-  rotation_events_overflow = this->store_.rotation_events_overflow;
+  {
+    InterruptLock lock;
+    rotation_events = this->store_.rotation_events;
+    rotation_events_overflow = this->store_.rotation_events_overflow;
 
-  this->store_.rotation_events.fill(0);
-  this->store_.rotation_events_overflow = false;
-  ets_intr_unlock();
+    this->store_.rotation_events.fill(0);
+    this->store_.rotation_events_overflow = false;
+  }
 
   if (rotation_events_overflow) {
     ESP_LOGW(TAG, "Captured more rotation events than expected");

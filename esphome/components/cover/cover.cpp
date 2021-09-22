@@ -180,7 +180,7 @@ void Cover::publish_state(bool save) {
   }
 }
 optional<CoverRestoreState> Cover::restore_state_() {
-  this->rtc_ = global_preferences.make_preference<CoverRestoreState>(this->get_object_id_hash());
+  this->rtc_ = global_preferences->make_preference<CoverRestoreState>(this->get_object_id_hash());
   CoverRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
     return {};

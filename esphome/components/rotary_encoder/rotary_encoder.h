@@ -3,7 +3,7 @@
 #include <array>
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 
@@ -19,8 +19,8 @@ enum RotaryEncoderResolution {
 };
 
 struct RotaryEncoderSensorStore {
-  ISRInternalGPIOPin *pin_a;
-  ISRInternalGPIOPin *pin_b;
+  ISRInternalGPIOPin pin_a;
+  ISRInternalGPIOPin pin_b;
 
   volatile int32_t counter{0};
   RotaryEncoderResolution resolution{ROTARY_ENCODER_1_PULSE_PER_CYCLE};
@@ -37,8 +37,8 @@ struct RotaryEncoderSensorStore {
 
 class RotaryEncoderSensor : public sensor::Sensor, public Component {
  public:
-  void set_pin_a(GPIOPin *pin_a) { pin_a_ = pin_a; }
-  void set_pin_b(GPIOPin *pin_b) { pin_b_ = pin_b; }
+  void set_pin_a(InternalGPIOPin *pin_a) { pin_a_ = pin_a; }
+  void set_pin_b(InternalGPIOPin *pin_b) { pin_b_ = pin_b; }
 
   /** Set the resolution of the rotary encoder.
    *
@@ -76,8 +76,8 @@ class RotaryEncoderSensor : public sensor::Sensor, public Component {
   }
 
  protected:
-  GPIOPin *pin_a_;
-  GPIOPin *pin_b_;
+  InternalGPIOPin *pin_a_;
+  InternalGPIOPin *pin_b_;
   GPIOPin *pin_i_{nullptr};  /// Index pin, if this is not nullptr, the counter will reset to 0 once this pin is HIGH.
 
   RotaryEncoderSensorStore store_{};

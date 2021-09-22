@@ -14,12 +14,14 @@ ethernet:
   clk_mode: GPIO0_IN
   phy_addr: 0
   power_pin: GPIO25
-  enable_mdns: false
   manual_ip:
     static_ip: 192.168.178.56
     gateway: 192.168.178.1
     subnet: 255.255.255.0
   domain: .local
+
+mdns:
+  disabled: true
 
 api:
 
@@ -236,6 +238,20 @@ sensor:
       name: 'Inkbird IBS-TH1 Humidity'
     battery_level:
       name: 'Inkbird IBS-TH1 Battery Level'
+  - platform: ltr390
+    uv:
+      name: "LTR390 UV"
+    uv_index:
+      name: "LTR390 UVI"
+    light:
+      name: "LTR390 Light"
+    ambient_light:
+      name: "LTR390 ALS"
+    gain: "X3"
+    resolution: 18
+    window_correction_factor: 1.0
+    address: 0x53
+    update_interval: 60s
   - platform: sgp40
     name: 'Workshop VOC'
     update_interval: 5s
@@ -360,7 +376,7 @@ esp32_ble_tracker:
 ble_client:
   - mac_address: 01:02:03:04:05:06
     id: airthings01
-    
+
 airthings_ble:
 
 #esp32_ble_beacon:

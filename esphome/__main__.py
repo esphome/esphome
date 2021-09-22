@@ -72,7 +72,7 @@ def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api
         if default == "OTA":
             return CORE.address
     if show_mqtt and "mqtt" in CORE.config:
-        options.append(("MQTT ({})".format(CORE.config["mqtt"][CONF_BROKER]), "MQTT"))
+        options.append((f"MQTT ({CORE.config['mqtt'][CONF_BROKER]})", "MQTT"))
         if default == "OTA":
             return "MQTT"
     if default is not None:
@@ -245,7 +245,7 @@ def upload_program(config, args, host):
 
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
-    password = ota_conf[CONF_PASSWORD]
+    password = ota_conf.get(CONF_PASSWORD, "")
     return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
 
 
@@ -415,30 +415,30 @@ def command_update_all(args):
         click.echo(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
-        print("Updating {}".format(color(Fore.CYAN, f)))
+        print(f"Updating {color(Fore.CYAN, f)}")
         print("-" * twidth)
         print()
         rc = run_external_process(
             "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
         )
         if rc == 0:
-            print_bar("[{}] {}".format(color(Fore.BOLD_GREEN, "SUCCESS"), f))
+            print_bar(f"[{color(Fore.BOLD_GREEN, 'SUCCESS')}] {f}")
             success[f] = True
         else:
-            print_bar("[{}] {}".format(color(Fore.BOLD_RED, "ERROR"), f))
+            print_bar(f"[{color(Fore.BOLD_RED, 'ERROR')}] {f}")
             success[f] = False
 
         print()
         print()
         print()
 
-    print_bar("[{}]".format(color(Fore.BOLD_WHITE, "SUMMARY")))
+    print_bar(f"[{color(Fore.BOLD_WHITE, 'SUMMARY')}]")
     failed = 0
     for f in files:
         if success[f]:
-            print("  - {}: {}".format(f, color(Fore.GREEN, "SUCCESS")))
+            print(f"  - {f}: {color(Fore.GREEN, 'SUCCESS')}")
         else:
-            print("  - {}: {}".format(f, color(Fore.BOLD_RED, "FAILED")))
+            print(f"  - {f}: {color(Fore.BOLD_RED, 'FAILED')}")
             failed += 1
     return failed
 

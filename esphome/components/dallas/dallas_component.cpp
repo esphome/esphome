@@ -161,7 +161,7 @@ const std::string &DallasTemperatureSensor::get_address_name() {
 
   return this->address_name_;
 }
-bool ICACHE_RAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
+bool IRAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
   ESPOneWire *wire = this->parent_->one_wire_;
   if (!wire->reset()) {
     return false;

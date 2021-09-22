@@ -1,4 +1,7 @@
 #pragma once
+
+#ifdef USE_ARDUINO
+
 #include <Appliance/AirConditioner/AirConditioner.h>
 #include "appliance_base.h"
 #include "esphome/components/sensor/sensor.h"
@@ -39,3 +42,5 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner> 
 
 }  // namespace midea
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

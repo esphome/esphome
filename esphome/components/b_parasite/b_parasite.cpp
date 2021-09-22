@@ -1,7 +1,7 @@
 #include "b_parasite.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace b_parasite {
@@ -79,4 +79,4 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 }  // namespace b_parasite
 }  // namespace esphome
 
-#endif  // ARDUINO_ARCH_ESP32
+#endif  // USE_ESP32

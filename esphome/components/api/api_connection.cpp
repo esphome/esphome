@@ -1,7 +1,8 @@
 #include "api_connection.h"
 #include "esphome/core/log.h"
-#include "esphome/core/util.h"
+#include "esphome/components/network/util.h"
 #include "esphome/core/version.h"
+#include "esphome/core/hal.h"
 #include <cerrno>
 
 #ifdef USE_DEEP_SLEEP
@@ -48,7 +49,7 @@ void APIConnection::loop() {
   if (this->remove_)
     return;
 
-  if (!network_is_connected()) {
+  if (!network::is_connected()) {
     // when network is disconnected force disconnect immediately
     // don't wait for timeout
     this->on_fatal_error();
@@ -702,15 +703,7 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
   // string message = 3;
   buffer.encode_string(3, line, strlen(line));
   // SubscribeLogsResponse - 29
-  bool success = this->send_buffer(buffer, 29);
-  if (!success) {
-    buffer = this->create_buffer();
-    // bool send_failed = 4;
-    buffer.encode_bool(4, true);
-    return this->send_buffer(buffer, 29);
-  } else {
-    return true;
-  }
+  return this->send_buffer(buffer, 29);
 }
 
 HelloResponse APIConnection::hello(const HelloRequest &msg) {
@@ -783,8 +776,23 @@ void APIConnection::subscribe_home_assistant_states(const SubscribeHomeAssistant
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) {
   if (this->remove_)
     return false;
-  if (!this->helper_->can_write_without_blocking())
-    return false;
+  if (!this->helper_->can_write_without_blocking()) {
+    delay(0);
+    APIError err = helper_->loop();
+    if (err != APIError::OK) {
+      on_fatal_error();
+      ESP_LOGW(TAG, "%s: Socket operation failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
+      return false;
+    }
+    if (!this->helper_->can_write_without_blocking()) {
+      // SubscribeLogsResponse
+      if (message_type != 29) {
+        ESP_LOGV(TAG, "Cannot send message because of TCP buffer space");
+      }
+      delay(0);
+      return false;
+    }
+  }
 
   APIError err = this->helper_->write_packet(message_type, buffer.get_buffer()->data(), buffer.get_buffer()->size());
   if (err == APIError::WOULD_BLOCK)

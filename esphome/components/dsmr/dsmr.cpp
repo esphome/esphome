@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "dsmr.h"
 #include "esphome/core/log.h"
 
@@ -36,6 +38,12 @@ void Dsmr::receive_telegram_() {
       ESP_LOGE(TAG, "Error: Message larger than buffer");
       return;
     }
+
+    // Some v2.2 or v3 meters will send a new value which starts with '('
+    // in a new line while the value belongs to the previous ObisId. For
+    // proper parsing remove these new line characters
+    while (c == '(' && (telegram_[telegram_len_ - 1] == '\n' || telegram_[telegram_len_ - 1] == '\r'))
+      telegram_len_--;
 
     telegram_[telegram_len_] = c;
     telegram_len_++;
@@ -122,16 +130,17 @@ void Dsmr::receive_encrypted_() {
       delay(4);  // Wait for data
     }
   }
-  if (buffer_length > 0)
+  if (buffer_length > 0) {
     ESP_LOGW(TAG, "Timeout while waiting for encrypted data or invalid data received.");
+  }
 }
 
 bool Dsmr::parse_telegram() {
   MyData data;
   ESP_LOGV(TAG, "Trying to parse");
   ::dsmr::ParseResult<void> res =
-      ::dsmr::P1Parser::parse(&data, telegram_, telegram_len_,
-                              false);  // Parse telegram according to data definition. Ignore unknown values.
+      ::dsmr::P1Parser::parse(&data, telegram_, telegram_len_, false,
+                              this->crc_check_);  // Parse telegram according to data definition. Ignore unknown values.
   if (res.err) {
     // Parsing error, show it
     auto err_str = res.fullError(telegram_, telegram_ + telegram_len_);
@@ -180,3 +189,5 @@ void Dsmr::set_decryption_key(const std::string &decryption_key) {
 
 }  // namespace dsmr
 }  // namespace esphome
+
+#endif  // USE_ARDUINO
