@@ -4,6 +4,6 @@
 # This files creates all directories used by esphome
 # ==============================================================================
 
-PLATFORMIO_CORE_DIR=/data/cache/platformio
+pio_cache_base=/data/cache/platformio
 
-mkdir -p "${PLATFORMIO_CORE_DIR}"
+mkdir -p "${pio_cache_base}"

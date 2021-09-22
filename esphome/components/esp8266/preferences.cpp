@@ -73,33 +73,7 @@ template<class It> uint32_t calculate_crc(It first, It last, uint32_t type) {
   return crc;
 }
 
-static bool safe_flash() {
-  if (!s_flash_dirty)
-    return true;
-
-  ESP_LOGVV(TAG, "Saving preferences to flash...");
-  SpiFlashOpResult erase_res, write_res = SPI_FLASH_RESULT_OK;
-  {
-    InterruptLock lock;
-    erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
-    if (erase_res == SPI_FLASH_RESULT_OK) {
-      write_res = spi_flash_write(get_esp8266_flash_address(), s_flash_storage, ESP8266_FLASH_STORAGE_SIZE * 4);
-    }
-  }
-  if (erase_res != SPI_FLASH_RESULT_OK) {
-    ESP_LOGV(TAG, "Erase ESP8266 flash failed!");
-    return false;
-  }
-  if (write_res != SPI_FLASH_RESULT_OK) {
-    ESP_LOGV(TAG, "Write ESP8266 flash failed!");
-    return false;
-  }
-
-  s_flash_dirty = false;
-  return true;
-}
-
-static bool safe_to_flash(size_t offset, const uint32_t *data, size_t len) {
+static bool save_to_flash(size_t offset, const uint32_t *data, size_t len) {
   for (uint32_t i = 0; i < len; i++) {
     uint32_t j = offset + i;
     if (j >= ESP8266_FLASH_STORAGE_SIZE)
@@ -110,7 +84,7 @@ static bool safe_to_flash(size_t offset, const uint32_t *data, size_t len) {
       s_flash_dirty = true;
     *ptr = v;
   }
-  return safe_flash();
+  return true;
 }
 
 static bool load_from_flash(size_t offset, uint32_t *data, size_t len) {
@@ -123,7 +97,7 @@ static bool load_from_flash(size_t offset, uint32_t *data, size_t len) {
   return true;
 }
 
-static bool safe_to_rtc(size_t offset, const uint32_t *data, size_t len) {
+static bool save_to_rtc(size_t offset, const uint32_t *data, size_t len) {
   for (uint32_t i = 0; i < len; i++)
     if (!esp_rtc_user_mem_write(offset + i, data[i]))
       return false;
@@ -154,9 +128,9 @@ class ESP8266PreferenceBackend : public ESPPreferenceBackend {
     buffer[buffer.size() - 1] = calculate_crc(buffer.begin(), buffer.end() - 1, type);
 
     if (in_flash) {
-      return safe_to_flash(offset, buffer.data(), buffer.size());
+      return save_to_flash(offset, buffer.data(), buffer.size());
     } else {
-      return safe_to_rtc(offset, buffer.data(), buffer.size());
+      return save_to_rtc(offset, buffer.data(), buffer.size());
     }
   }
   bool load(uint8_t *data, size_t len) override {
@@ -175,7 +149,12 @@ class ESP8266PreferenceBackend : public ESPPreferenceBackend {
       return false;
 
     uint32_t crc = calculate_crc(buffer.begin(), buffer.end() - 1, type);
-    return buffer[buffer.size() - 1] == crc;
+    if (buffer[buffer.size() - 1] != crc) {
+      return false;
+    }
+
+    memcpy(data, buffer.data(), len);
+    return true;
   }
 };
 
@@ -244,6 +223,34 @@ class ESP8266Preferences : public ESPPreferences {
 #else
     return make_preference(length, type, false);
 #endif
+  }
+
+  bool sync() override {
+    if (!s_flash_dirty)
+      return true;
+    if (s_prevent_write)
+      return false;
+
+    ESP_LOGD(TAG, "Saving preferences to flash...");
+    SpiFlashOpResult erase_res, write_res = SPI_FLASH_RESULT_OK;
+    {
+      InterruptLock lock;
+      erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
+      if (erase_res == SPI_FLASH_RESULT_OK) {
+        write_res = spi_flash_write(get_esp8266_flash_address(), s_flash_storage, ESP8266_FLASH_STORAGE_SIZE * 4);
+      }
+    }
+    if (erase_res != SPI_FLASH_RESULT_OK) {
+      ESP_LOGV(TAG, "Erase ESP8266 flash failed!");
+      return false;
+    }
+    if (write_res != SPI_FLASH_RESULT_OK) {
+      ESP_LOGV(TAG, "Write ESP8266 flash failed!");
+      return false;
+    }
+
+    s_flash_dirty = false;
+    return true;
   }
 };
 

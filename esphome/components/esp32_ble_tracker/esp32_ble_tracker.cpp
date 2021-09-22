@@ -380,8 +380,8 @@ bool ESPBTUUID::operator==(const ESPBTUUID &uuid) const {
   }
   return false;
 }
-esp_bt_uuid_t ESPBTUUID::get_uuid() { return this->uuid_; }
-std::string ESPBTUUID::to_string() {
+esp_bt_uuid_t ESPBTUUID::get_uuid() const { return this->uuid_; }
+std::string ESPBTUUID::to_string() const {
   char sbuf[64];
   switch (this->uuid_.len) {
     case ESP_UUID_LEN_16:

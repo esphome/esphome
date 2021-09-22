@@ -126,3 +126,4 @@ tests/.esphome/
 .pio/
 
 sdkconfig.*
+!sdkconfig.defaults
