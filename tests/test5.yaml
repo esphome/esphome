@@ -1,11 +1,14 @@
 esphome:
   name: test5
-  platform: ESP32
-  board: nodemcu-32s
   build_path: build/test5
   project:
     name: esphome.test5_project
     version: "1.0.0"
+
+esp32:
+  board: nodemcu-32s
+  framework:
+    type: esp-idf
 
 wifi:
   networks:
@@ -27,6 +30,8 @@ uart:
     tx_pin: 17
     rx_pin: 16
     baud_rate: 19200
+
+i2c:
 
 
 modbus:
@@ -137,10 +142,13 @@ sensor:
       name: "SelecEM2M Frequency"
     maximum_demand_active_power:
       name: "SelecEM2M Maximum Demand Active Power"
+      disabled_by_default: true
     maximum_demand_reactive_power:
       name: "SelecEM2M Maximum Demand Reactive Power"
+      disabled_by_default: true
     maximum_demand_apparent_power:
       name: "SelecEM2M Maximum Demand Apparent Power"
+      disabled_by_default: true
 
   - platform: t6615
     uart_id: uart2

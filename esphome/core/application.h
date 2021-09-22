@@ -51,7 +51,6 @@ class Application {
       this->name_ = name;
     }
     this->compilation_time_ = compilation_time;
-    global_preferences.begin();
   }
 
 #ifdef USE_BINARY_SENSOR
@@ -249,6 +248,8 @@ class Application {
   void register_component_(Component *comp);
 
   void calculate_looping_components_();
+
+  void feed_wdt_arch_();
 
   std::vector<Component *> components_{};
   std::vector<Component *> looping_components_{};

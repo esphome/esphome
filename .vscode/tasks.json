@@ -10,7 +10,7 @@
     {
       "label": "clang-tidy",
       "type": "shell",
-      "command": "test -f .gcc-flags.json || pio init --silent --ide atom; ./script/clang-tidy",
+      "command": "./script/clang-tidy",
       "problemMatcher": [
         {
           "owner": "clang-tidy",

@@ -3,9 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/preferences.h"
-#include "light_effect.h"
-#include "light_color_values.h"
 #include "light_call.h"
+#include "light_color_values.h"
+#include "light_effect.h"
 #include "light_traits.h"
 #include "light_transformer.h"
 
@@ -54,6 +54,8 @@ class LightState : public Nameable, public Component {
    * property will be changed continuously (in contrast to .remote_values, where they
    * are constant during transitions).
    *
+   * This value does not have gamma correction applied.
+   *
    * This property is read-only for users. Any changes to it will be ignored.
    */
   LightColorValues current_values;
@@ -63,6 +65,8 @@ class LightState : public Nameable, public Component {
    * These are different from the "current" values: For example transitions will
    * continuously change the "current" values. But the remote values will immediately
    * switch to the target value for a transition, reducing the number of packets sent.
+   *
+   * This value does not have gamma correction applied.
    *
    * This property is read-only for users. Any changes to it will be ignored.
    */
@@ -95,6 +99,11 @@ class LightState : public Nameable, public Component {
 
   /// Set the default transition length, i.e. the transition length when no transition is provided.
   void set_default_transition_length(uint32_t default_transition_length);
+  uint32_t get_default_transition_length() const;
+
+  /// Set the flash transition length
+  void set_flash_transition_length(uint32_t flash_transition_length);
+  uint32_t get_flash_transition_length() const;
 
   /// Set the gamma correction factor
   void set_gamma_correct(float gamma_correct);
@@ -112,6 +121,7 @@ class LightState : public Nameable, public Component {
   /// Add effects for this light state.
   void add_effects(const std::vector<LightEffect *> &effects);
 
+  /// The result of all the current_values_as_* methods have gamma correction applied.
   void current_values_as_binary(bool *binary);
 
   void current_values_as_brightness(float *brightness);
@@ -121,9 +131,14 @@ class LightState : public Nameable, public Component {
   void current_values_as_rgbw(float *red, float *green, float *blue, float *white, bool color_interlock = false);
 
   void current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
-                               bool constant_brightness = false, bool color_interlock = false);
+                               bool constant_brightness = false);
+
+  void current_values_as_rgbct(float *red, float *green, float *blue, float *color_temperature,
+                               float *white_brightness);
 
   void current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness = false);
+
+  void current_values_as_ct(float *color_temperature, float *white_brightness);
 
  protected:
   friend LightOutput;
@@ -139,16 +154,13 @@ class LightState : public Nameable, public Component {
   /// Internal method to stop the current effect (if one is active).
   void stop_effect_();
   /// Internal method to start a transition to the target color with the given length.
-  void start_transition_(const LightColorValues &target, uint32_t length);
+  void start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values);
 
   /// Internal method to start a flash for the specified amount of time.
-  void start_flash_(const LightColorValues &target, uint32_t length);
+  void start_flash_(const LightColorValues &target, uint32_t length, bool set_remote_values);
 
   /// Internal method to set the color values to target immediately (with no transition).
   void set_immediately_(const LightColorValues &target, bool set_remote_values);
-
-  /// Internal method to start a transformer.
-  void set_transformer_(std::unique_ptr<LightTransformer> transformer);
 
   /// Internal method to save the current remote_values to the preferences
   void save_remote_values_();
@@ -181,6 +193,8 @@ class LightState : public Nameable, public Component {
 
   /// Default transition length for all transitions in ms.
   uint32_t default_transition_length_{};
+  /// Transition length to use for flash transitions.
+  uint32_t flash_transition_length_{};
   /// Gamma correction factor for the light.
   float gamma_correct_{};
   /// Restore mode of the light.

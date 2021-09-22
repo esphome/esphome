@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace ili9341 {
@@ -185,8 +186,8 @@ void ILI9341Display::end_data_() { this->disable(); }
 void ILI9341Display::init_lcd_(const uint8_t *init_cmd) {
   uint8_t cmd, x, num_args;
   const uint8_t *addr = init_cmd;
-  while ((cmd = pgm_read_byte(addr++)) > 0) {
-    x = pgm_read_byte(addr++);
+  while ((cmd = progmem_read_byte(addr++)) > 0) {
+    x = progmem_read_byte(addr++);
     num_args = x & 0x7F;
     send_command(cmd, addr, num_args);
     addr += num_args;
@@ -225,7 +226,7 @@ void ILI9341M5Stack::initialize() {
   this->width_ = 320;
   this->height_ = 240;
   this->invert_display_(true);
-  this->fill_internal_(COLOR_BLACK);
+  this->fill_internal_(Color::BLACK);
 }
 
 //   24_TFT display
@@ -233,7 +234,7 @@ void ILI9341TFT24::initialize() {
   this->init_lcd_(INITCMD_TFT);
   this->width_ = 240;
   this->height_ = 320;
-  this->fill_internal_(COLOR_BLACK);
+  this->fill_internal_(Color::BLACK);
 }
 
 }  // namespace ili9341

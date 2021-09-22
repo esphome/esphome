@@ -10,7 +10,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace esp32_improv {

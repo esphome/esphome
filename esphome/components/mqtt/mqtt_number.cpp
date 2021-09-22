@@ -1,6 +1,7 @@
 #include "mqtt_number.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_NUMBER
 
 namespace esphome {
@@ -63,3 +64,4 @@ bool MQTTNumberComponent::publish_state(float value) {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

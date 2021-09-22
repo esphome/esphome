@@ -1,6 +1,7 @@
 #include "mqtt_switch.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_SWITCH
 
 namespace esphome {
@@ -58,3 +59,4 @@ bool MQTTSwitchComponent::publish_state(bool state) {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

@@ -1,6 +1,7 @@
 #include "sgp30.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace sgp30 {
@@ -47,7 +48,7 @@ void SGP30Component::setup() {
   }
   this->serial_number_ = (uint64_t(raw_serial_number[0]) << 24) | (uint64_t(raw_serial_number[1]) << 16) |
                          (uint64_t(raw_serial_number[2]));
-  ESP_LOGD(TAG, "Serial Number: %llu", this->serial_number_);
+  ESP_LOGD(TAG, "Serial Number: %" PRIu64, this->serial_number_);
 
   // Featureset identification for future use
   if (!this->write_command_(SGP30_CMD_GET_FEATURESET)) {
@@ -84,7 +85,7 @@ void SGP30Component::setup() {
   // Hash with compilation time
   // This ensures the baseline storage is cleared after OTA
   uint32_t hash = fnv1_hash(App.get_compilation_time());
-  this->pref_ = global_preferences.make_preference<SGP30Baselines>(hash, true);
+  this->pref_ = global_preferences->make_preference<SGP30Baselines>(hash, true);
 
   if (this->pref_.load(&this->baselines_storage_)) {
     ESP_LOGI(TAG, "Loaded eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", this->baselines_storage_.eco2,
@@ -172,7 +173,7 @@ void SGP30Component::send_env_data_() {
   float humidity = NAN;
   if (this->humidity_sensor_ != nullptr)
     humidity = this->humidity_sensor_->state;
-  if (isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
+  if (std::isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
     ESP_LOGW(TAG, "Compensation not possible yet: bad humidity data.");
     return;
   } else {
@@ -182,7 +183,7 @@ void SGP30Component::send_env_data_() {
   if (this->temperature_sensor_ != nullptr) {
     temperature = float(this->temperature_sensor_->state);
   }
-  if (isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
+  if (std::isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
     ESP_LOGW(TAG, "Compensation not possible yet: bad temperature value data.");
     return;
   } else {
@@ -245,7 +246,7 @@ void SGP30Component::dump_config() {
         break;
     }
   } else {
-    ESP_LOGCONFIG(TAG, "  Serial number: %llu", this->serial_number_);
+    ESP_LOGCONFIG(TAG, "  Serial number: %" PRIu64, this->serial_number_);
     if (this->eco2_baseline_ != 0x0000 && this->tvoc_baseline_ != 0x0000) {
       ESP_LOGCONFIG(TAG, "  Baseline:");
       ESP_LOGCONFIG(TAG, "    eCO2 Baseline: 0x%04X", this->eco2_baseline_);
@@ -332,10 +333,9 @@ uint8_t SGP30Component::sht_crc_(uint8_t data1, uint8_t data2) {
 
 bool SGP30Component::read_data_(uint16_t *data, uint8_t len) {
   const uint8_t num_bytes = len * 3;
-  auto *buf = new uint8_t[num_bytes];
+  std::vector<uint8_t> buf(num_bytes);
 
-  if (!this->parent_->raw_receive(this->address_, buf, num_bytes)) {
-    delete[](buf);
+  if (this->read(buf.data(), num_bytes) != i2c::ERROR_OK) {
     return false;
   }
 
@@ -344,13 +344,11 @@ bool SGP30Component::read_data_(uint16_t *data, uint8_t len) {
     uint8_t crc = sht_crc_(buf[j], buf[j + 1]);
     if (crc != buf[j + 2]) {
       ESP_LOGE(TAG, "CRC8 Checksum invalid! 0x%02X != 0x%02X", buf[j + 2], crc);
-      delete[](buf);
       return false;
     }
     data[i] = (buf[j] << 8) | buf[j + 1];
   }
 
-  delete[](buf);
   return true;
 }
 

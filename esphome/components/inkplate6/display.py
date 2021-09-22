@@ -8,11 +8,9 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_PAGES,
     CONF_WAKEUP_PIN,
-    ESP_PLATFORM_ESP32,
 )
 
-DEPENDENCIES = ["i2c"]
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+DEPENDENCIES = ["i2c", "esp32"]
 
 CONF_DISPLAY_DATA_0_PIN = "display_data_0_pin"
 CONF_DISPLAY_DATA_1_PIN = "display_data_1_pin"
@@ -91,6 +89,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("5s"))
     .extend(i2c.i2c_device_schema(0x48)),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
+    cv.only_with_arduino,
 )
 
 
