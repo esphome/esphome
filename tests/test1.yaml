@@ -1615,6 +1615,7 @@ light:
       - id: addr2
         from: 20
         to: 25
+      - single_light_id: ${roomname}_lights
 
 remote_transmitter:
   - pin: 32
