@@ -40,6 +40,9 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("5s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "sim800l", baud_rate=9600, require_tx=True, require_rx=True
+)
 
 
 async def to_code(config):

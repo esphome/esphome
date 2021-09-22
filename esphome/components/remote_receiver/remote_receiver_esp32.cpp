@@ -1,13 +1,13 @@
 #include "remote_receiver.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <driver/rmt.h>
 
 namespace esphome {
 namespace remote_receiver {
 
-static const char *TAG = "remote_receiver.esp32";
+static const char *const TAG = "remote_receiver.esp32";
 
 void RemoteReceiverComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Remote Receiver...");

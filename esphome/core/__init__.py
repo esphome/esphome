@@ -2,16 +2,17 @@ import logging
 import math
 import os
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
 
 from esphome.const import (
-    CONF_ARDUINO_VERSION,
     CONF_COMMENT,
     CONF_ESPHOME,
     CONF_USE_ADDRESS,
     CONF_ETHERNET,
     CONF_WIFI,
-    SOURCE_FILE_EXTENSIONS,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
 )
 from esphome.coroutine import FakeAwaitable as _FakeAwaitable
 from esphome.coroutine import FakeEventLoop as _FakeEventLoop
@@ -23,6 +24,7 @@ from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
     from ..cpp_generator import MockObj, MockObjClass, Statement
+    from ..types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -407,19 +409,28 @@ class Define:
 
 
 class Library:
-    def __init__(self, name, version):
+    def __init__(self, name, version, repository=None):
         self.name = name
         self.version = version
+        self.repository = repository
+
+    def __str__(self):
+        return self.as_lib_dep
 
     @property
     def as_lib_dep(self):
+        if self.repository is not None:
+            if self.name is not None:
+                return f"{self.name}={self.repository}"
+            return self.repository
+
         if self.version is None:
             return self.name
         return f"{self.name}@{self.version}"
 
     @property
     def as_tuple(self):
-        return self.name, self.version
+        return self.name, self.version, self.repository
 
     def __hash__(self):
         return hash(self.as_tuple)
@@ -428,19 +439,6 @@ class Library:
         if isinstance(other, Library):
             return self.as_tuple == other.as_tuple
         return NotImplemented
-
-
-def find_source_files(file):
-    files = set()
-    directory = os.path.abspath(os.path.dirname(file))
-    for f in os.listdir(directory):
-        if not os.path.isfile(os.path.join(directory, f)):
-            continue
-        _, ext = os.path.splitext(f)
-        if ext.lower() not in SOURCE_FILE_EXTENSIONS:
-            continue
-        files.add(f)
-    return files
 
 
 # pylint: disable=too-many-instance-attributes,too-many-public-methods
@@ -453,18 +451,15 @@ class EsphomeCore:
         self.ace = False
         # The name of the node
         self.name: Optional[str] = None
+        # Additional data components can store temporary data in
+        # The first key to this dict should always be the integration name
+        self.data = {}
         # The relative path to the configuration YAML
         self.config_path: Optional[str] = None
         # The relative path to where all build files are stored
         self.build_path: Optional[str] = None
-        # The platform (ESP8266, ESP32) of this device
-        self.esp_platform: Optional[str] = None
-        # The board that's used (for example nodemcuv2)
-        self.board: Optional[str] = None
-        # The full raw configuration
-        self.raw_config: Optional[ConfigType] = None
         # The validated configuration, this is None until the config has been validated
-        self.config: Optional[ConfigType] = None
+        self.config: Optional["ConfigType"] = None
         # The pending tasks in the task queue (mostly for C++ generation)
         # This is a priority queue (with heapq)
         # Each item is a tuple of form: (-priority, unique number, task)
@@ -483,6 +478,8 @@ class EsphomeCore:
         self.build_flags: Set[str] = set()
         # A set of defines to set for the compile process in esphome/core/defines.h
         self.defines: Set["Define"] = set()
+        # A map of all platformio options to apply
+        self.platformio_options: Dict[str, Union[str, List[str]]] = {}
         # A set of strings of names of loaded integrations, used to find namespace ID conflicts
         self.loaded_integrations = set()
         # A set of component IDs to track what Component subclasses are declared
@@ -493,11 +490,9 @@ class EsphomeCore:
     def reset(self):
         self.dashboard = False
         self.name = None
+        self.data = {}
         self.config_path = None
         self.build_path = None
-        self.esp_platform = None
-        self.board = None
-        self.raw_config = None
         self.config = None
         self.event_loop = _FakeEventLoop()
         self.task_counter = 0
@@ -507,6 +502,7 @@ class EsphomeCore:
         self.libraries = []
         self.build_flags = set()
         self.defines = set()
+        self.platformio_options = {}
         self.loaded_integrations = set()
         self.component_ids = set()
 
@@ -532,13 +528,6 @@ class EsphomeCore:
             return self.config[CONF_ESPHOME][CONF_COMMENT]
 
         return None
-
-    @property
-    def arduino_version(self) -> str:
-        if self.config is None:
-            raise ValueError("Config has not been loaded yet")
-
-        return self.config[CONF_ESPHOME][CONF_ARDUINO_VERSION]
 
     @property
     def config_dir(self):
@@ -576,16 +565,28 @@ class EsphomeCore:
         return self.relative_pioenvs_path(self.name, "firmware.bin")
 
     @property
+    def target_platform(self):
+        return self.data[KEY_CORE][KEY_TARGET_PLATFORM]
+
+    @property
     def is_esp8266(self):
-        if self.esp_platform is None:
-            raise ValueError("No platform specified")
-        return self.esp_platform == "ESP8266"
+        return self.target_platform == "esp8266"
 
     @property
     def is_esp32(self):
-        if self.esp_platform is None:
-            raise ValueError("No platform specified")
-        return self.esp_platform == "ESP32"
+        return self.target_platform == "esp32"
+
+    @property
+    def target_framework(self):
+        return self.data[KEY_CORE][KEY_TARGET_FRAMEWORK]
+
+    @property
+    def using_arduino(self):
+        return self.target_framework == "arduino"
+
+    @property
+    def using_esp_idf(self):
+        return self.target_framework == "esp-idf"
 
     def add_job(self, func, *args, **kwargs):
         self.event_loop.add_job(func, *args, **kwargs)
@@ -603,8 +604,7 @@ class EsphomeCore:
             expression = statement(expression)
         if not isinstance(expression, Statement):
             raise ValueError(
-                "Add '{}' must be expression or statement, not {}"
-                "".format(expression, type(expression))
+                f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
 
         self.main_statements.append(expression)
@@ -618,8 +618,7 @@ class EsphomeCore:
             expression = statement(expression)
         if not isinstance(expression, Statement):
             raise ValueError(
-                "Add '{}' must be expression or statement, not {}"
-                "".format(expression, type(expression))
+                f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
         self.global_statements.append(expression)
         _LOGGER.debug("Adding global: %s", expression)
@@ -628,13 +627,25 @@ class EsphomeCore:
     def add_library(self, library):
         if not isinstance(library, Library):
             raise ValueError(
-                "Library {} must be instance of Library, not {}"
-                "".format(library, type(library))
+                f"Library {library} must be instance of Library, not {type(library)}"
             )
-        _LOGGER.debug("Adding library: %s", library)
         for other in self.libraries[:]:
-            if other.name != library.name:
+            if other.name != library.name or other.name is None or library.name is None:
                 continue
+            if other.repository is not None:
+                if library.repository is None or other.repository == library.repository:
+                    # Other is using a/the same repository, takes precendence
+                    break
+                raise ValueError(
+                    f"Adding named Library with repository failed! Libraries {library} and {other} "
+                    "requested with conflicting repositories!"
+                )
+
+            if library.repository is not None:
+                # This is more specific since its using a repository
+                self.libraries.remove(other)
+                continue
+
             if library.version is None:
                 # Other requirement is more specific
                 break
@@ -646,11 +657,11 @@ class EsphomeCore:
                 break
 
             raise ValueError(
-                "Version pinning failed! Libraries {} and {} "
+                f"Version pinning failed! Libraries {library} and {other} "
                 "requested with conflicting versions!"
-                "".format(library, other)
             )
         else:
+            _LOGGER.debug("Adding library: %s", library)
             self.libraries.append(library)
         return library
 
@@ -666,12 +677,19 @@ class EsphomeCore:
             pass
         else:
             raise ValueError(
-                "Define {} must be string or Define, not {}"
-                "".format(define, type(define))
+                f"Define {define} must be string or Define, not {type(define)}"
             )
         self.defines.add(define)
         _LOGGER.debug("Adding define: %s", define)
         return define
+
+    def add_platformio_option(self, key: str, value: Union[str, List[str]]) -> None:
+        new_val = value
+        old_val = self.platformio_options.get(key)
+        if isinstance(old_val, list):
+            assert isinstance(value, list)
+            new_val = old_val + value
+        self.platformio_options[key] = new_val
 
     def _get_variable_generator(self, id):
         while True:
@@ -752,6 +770,3 @@ class EnumValue:
 
 
 CORE = EsphomeCore()
-
-ConfigType = Dict[str, Any]
-CoreType = EsphomeCore

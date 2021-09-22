@@ -4,7 +4,7 @@
 namespace esphome {
 namespace gpio {
 
-static const char *TAG = "gpio.output";
+static const char *const TAG = "gpio.output";
 
 void GPIOBinaryOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "GPIO Binary Output:");

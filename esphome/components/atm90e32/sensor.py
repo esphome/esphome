@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import sensor, spi
 from esphome.const import (
     CONF_ID,
+    CONF_REACTIVE_POWER,
     CONF_VOLTAGE,
     CONF_CURRENT,
     CONF_POWER,
@@ -11,20 +12,19 @@ from esphome.const import (
     CONF_FORWARD_ACTIVE_ENERGY,
     CONF_REVERSE_ACTIVE_ENERGY,
     DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
-    ICON_EMPTY,
     ICON_LIGHTBULB,
     ICON_CURRENT_AC,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_HERTZ,
     UNIT_VOLT,
     UNIT_AMPERE,
     UNIT_WATT,
-    UNIT_EMPTY,
     UNIT_CELSIUS,
     UNIT_VOLT_AMPS_REACTIVE,
     UNIT_WATT_HOURS,
@@ -34,7 +34,6 @@ CONF_PHASE_A = "phase_a"
 CONF_PHASE_B = "phase_b"
 CONF_PHASE_C = "phase_c"
 
-CONF_REACTIVE_POWER = "reactive_power"
 CONF_LINE_FREQUENCY = "line_frequency"
 CONF_CHIP_TEMPERATURE = "chip_temperature"
 CONF_GAIN_PGA = "gain_pga"
@@ -63,25 +62,45 @@ ATM90E32Component = atm90e32_ns.class_(
 ATM90E32_PHASE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-            UNIT_VOLT, ICON_EMPTY, 2, DEVICE_CLASS_VOLTAGE
+            unit_of_measurement=UNIT_VOLT,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_VOLTAGE,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-            UNIT_AMPERE, ICON_EMPTY, 2, DEVICE_CLASS_CURRENT
+            unit_of_measurement=UNIT_AMPERE,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_CURRENT,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_POWER): sensor.sensor_schema(
-            UNIT_WATT, ICON_EMPTY, 2, DEVICE_CLASS_POWER
+            unit_of_measurement=UNIT_WATT,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_REACTIVE_POWER): sensor.sensor_schema(
-            UNIT_VOLT_AMPS_REACTIVE, ICON_LIGHTBULB, 2, DEVICE_CLASS_EMPTY
+            unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
+            icon=ICON_LIGHTBULB,
+            accuracy_decimals=2,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
-            UNIT_EMPTY, ICON_EMPTY, 2, DEVICE_CLASS_POWER_FACTOR
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_POWER_FACTOR,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_FORWARD_ACTIVE_ENERGY): sensor.sensor_schema(
-            UNIT_WATT_HOURS, ICON_EMPTY, 2, DEVICE_CLASS_ENERGY
+            unit_of_measurement=UNIT_WATT_HOURS,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_ENERGY,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional(CONF_REVERSE_ACTIVE_ENERGY): sensor.sensor_schema(
-            UNIT_WATT_HOURS, ICON_EMPTY, 2, DEVICE_CLASS_ENERGY
+            unit_of_measurement=UNIT_WATT_HOURS,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_ENERGY,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional(CONF_GAIN_VOLTAGE, default=7305): cv.uint16_t,
         cv.Optional(CONF_GAIN_CT, default=27961): cv.uint16_t,
@@ -96,10 +115,16 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PHASE_B): ATM90E32_PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_C): ATM90E32_PHASE_SCHEMA,
             cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
-                UNIT_HERTZ, ICON_CURRENT_AC, 1, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_HERTZ,
+                icon=ICON_CURRENT_AC,
+                accuracy_decimals=1,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CHIP_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
             cv.Optional(CONF_CURRENT_PHASES, default="3"): cv.enum(

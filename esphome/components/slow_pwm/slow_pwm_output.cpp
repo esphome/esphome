@@ -4,7 +4,7 @@
 namespace esphome {
 namespace slow_pwm {
 
-static const char *TAG = "output.slow_pwm";
+static const char *const TAG = "output.slow_pwm";
 
 void SlowPWMOutput::setup() {
   this->pin_->setup();
@@ -12,7 +12,7 @@ void SlowPWMOutput::setup() {
 }
 
 void SlowPWMOutput::loop() {
-  unsigned long now = millis();
+  uint32_t now = millis();
   float scaled_state = this->state_ * this->period_;
 
   if (now - this->period_start_time_ > this->period_) {

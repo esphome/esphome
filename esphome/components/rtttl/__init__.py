@@ -1,8 +1,12 @@
+import logging
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import automation
 from esphome.components.output import FloatOutput
-from esphome.const import CONF_ID, CONF_OUTPUT, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_OUTPUT, CONF_PLATFORM, CONF_TRIGGER_ID
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@glmnet"]
 CONF_RTTTL = "rtttl"
@@ -31,6 +35,40 @@ CONFIG_SCHEMA = cv.Schema(
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+
+def validate_parent_output_config(value):
+    platform = value.get(CONF_PLATFORM)
+    PWM_GOOD = ["esp8266_pwm", "ledc"]
+    PWM_BAD = [
+        "ac_dimmer ",
+        "esp32_dac",
+        "slow_pwm",
+        "mcp4725",
+        "pca9685",
+        "tlc59208f",
+        "my9231",
+        "sm16716",
+    ]
+
+    if platform in PWM_BAD:
+        raise cv.Invalid(f"Component rtttl cannot use {platform} as output component")
+
+    if platform not in PWM_GOOD:
+        _LOGGER.warning(
+            "Component rtttl is not known to work with the selected output type. "
+            "Make sure this output supports custom frequency output method."
+        )
+
+
+FINAL_VALIDATE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_OUTPUT): fv.id_declaration_match_schema(
+            validate_parent_output_config
+        )
+    },
+    extra=cv.ALLOW_EXTRA,
+)
 
 
 async def to_code(config):

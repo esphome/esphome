@@ -6,7 +6,11 @@ from esphome.const import (
     CONF_PM_2_5,
     CONF_PM_10_0,
     CONF_PM_1_0,
-    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_AQI,
+    DEVICE_CLASS_PM1,
+    DEVICE_CLASS_PM10,
+    DEVICE_CLASS_PM25,
+    STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     ICON_CHEMICAL_WEAPON,
 )
@@ -29,7 +33,7 @@ AQI_CALCULATION_TYPE = {
 }
 
 
-def validate(config):
+def _validate(config):
     if CONF_AQI in config and CONF_PM_2_5 not in config:
         raise cv.Invalid("AQI sensor requires PM 2.5")
     if CONF_AQI in config and CONF_PM_10_0 not in config:
@@ -42,25 +46,32 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(HM3301Component),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
-                UNIT_MICROGRAMS_PER_CUBIC_METER,
-                ICON_CHEMICAL_WEAPON,
-                0,
-                DEVICE_CLASS_EMPTY,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM1,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                UNIT_MICROGRAMS_PER_CUBIC_METER,
-                ICON_CHEMICAL_WEAPON,
-                0,
-                DEVICE_CLASS_EMPTY,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM25,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
-                UNIT_MICROGRAMS_PER_CUBIC_METER,
-                ICON_CHEMICAL_WEAPON,
-                0,
-                DEVICE_CLASS_EMPTY,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM10,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AQI): sensor.sensor_schema(
-                UNIT_INDEX, ICON_CHEMICAL_WEAPON, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_INDEX,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_AQI,
+                state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
                     cv.Required(CONF_CALCULATION_TYPE): cv.enum(
@@ -72,7 +83,8 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x40)),
-    validate,
+    _validate,
+    cv.only_with_arduino,
 )
 
 
@@ -99,4 +111,4 @@ async def to_code(config):
         cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))
 
     # https://platformio.org/lib/show/6306/Grove%20-%20Laser%20PM2.5%20Sensor%20HM3301
-    cg.add_library("6306", "1.0.3")
+    cg.add_library("seeed-studio/Grove - Laser PM2.5 Sensor HM3301", "1.0.3")

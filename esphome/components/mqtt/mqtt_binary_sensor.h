@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-
+#ifdef USE_MQTT
 #ifdef USE_BINARY_SENSOR
 
 #include "mqtt_component.h"
@@ -41,3 +41,4 @@ class MQTTBinarySensorComponent : public mqtt::MQTTComponent {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

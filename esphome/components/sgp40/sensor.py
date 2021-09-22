@@ -1,7 +1,12 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, DEVICE_CLASS_EMPTY, ICON_RADIATOR, UNIT_EMPTY
+from esphome.const import (
+    CONF_ID,
+    ICON_RADIATOR,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    STATE_CLASS_MEASUREMENT,
+)
 
 DEPENDENCIES = ["i2c"]
 
@@ -19,7 +24,12 @@ CONF_STORE_BASELINE = "store_baseline"
 CONF_VOC_BASELINE = "voc_baseline"
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_EMPTY, ICON_RADIATOR, 0, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        icon=ICON_RADIATOR,
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(SGP40Component),

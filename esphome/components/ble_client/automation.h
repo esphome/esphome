@@ -3,7 +3,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/ble_client/ble_client.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace ble_client {

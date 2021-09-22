@@ -1,10 +1,11 @@
 #include "time_based_cover.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace time_based {
 
-static const char *TAG = "time_based.cover";
+static const char *const TAG = "time_based.cover";
 
 using namespace esphome::cover;
 
@@ -115,13 +116,13 @@ void TimeBasedCover::start_direction_(CoverOperation dir) {
 
   this->current_operation = dir;
 
-  this->stop_prev_trigger_();
-  trig->trigger();
-  this->prev_command_trigger_ = trig;
-
   const uint32_t now = millis();
   this->start_dir_time_ = now;
   this->last_recompute_time_ = now;
+
+  this->stop_prev_trigger_();
+  trig->trigger();
+  this->prev_command_trigger_ = trig;
 }
 void TimeBasedCover::recompute_position_() {
   if (this->current_operation == COVER_OPERATION_IDLE)

@@ -1,12 +1,13 @@
 #include "mqtt_text_sensor.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_TEXT_SENSOR
 
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt.text_sensor";
+static const char *const TAG = "mqtt.text_sensor";
 
 using namespace esphome::text_sensor;
 
@@ -43,3 +44,4 @@ std::string MQTTTextSensor::unique_id() { return this->sensor_->unique_id(); }
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

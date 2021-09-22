@@ -5,9 +5,7 @@ from esphome.const import (
     CONF_ATTRIBUTE,
     CONF_ENTITY_ID,
     CONF_ID,
-    ICON_EMPTY,
-    UNIT_EMPTY,
-    DEVICE_CLASS_EMPTY,
+    STATE_CLASS_NONE,
 )
 from .. import homeassistant_ns
 
@@ -18,7 +16,8 @@ HomeassistantSensor = homeassistant_ns.class_(
 )
 
 CONFIG_SCHEMA = sensor.sensor_schema(
-    UNIT_EMPTY, ICON_EMPTY, 1, DEVICE_CLASS_EMPTY
+    accuracy_decimals=1,
+    state_class=STATE_CLASS_NONE,
 ).extend(
     {
         cv.GenerateID(): cv.declare_id(HomeassistantSensor),

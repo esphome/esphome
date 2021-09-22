@@ -1,11 +1,12 @@
 #include "uptime_sensor.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace uptime {
 
-static const char *TAG = "uptime.sensor";
+static const char *const TAG = "uptime.sensor";
 
 void UptimeSensor::update() {
   const uint32_t ms = millis();

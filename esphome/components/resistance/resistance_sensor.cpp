@@ -4,7 +4,7 @@
 namespace esphome {
 namespace resistance {
 
-static const char *TAG = "resistance";
+static const char *const TAG = "resistance";
 
 void ResistanceSensor::dump_config() {
   LOG_SENSOR("", "Resistance Sensor", this);
@@ -13,7 +13,7 @@ void ResistanceSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Reference Voltage: %.1fV", this->reference_voltage_);
 }
 void ResistanceSensor::process_(float value) {
-  if (isnan(value)) {
+  if (std::isnan(value)) {
     this->publish_state(NAN);
     return;
   }

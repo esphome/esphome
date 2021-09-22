@@ -5,13 +5,15 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <esp_gattc_api.h>
 
 namespace esphome {
 namespace ble_client {
 
 namespace espbt = esphome::esp32_ble_tracker;
+
+using data_to_value_t = std::function<float(std::vector<uint8_t>)>;
 
 class BLESensor : public sensor::Sensor, public PollingComponent, public BLEClientNode {
  public:
@@ -30,11 +32,14 @@ class BLESensor : public sensor::Sensor, public PollingComponent, public BLEClie
   void set_descr_uuid16(uint16_t uuid) { this->descr_uuid_ = espbt::ESPBTUUID::from_uint16(uuid); }
   void set_descr_uuid32(uint32_t uuid) { this->descr_uuid_ = espbt::ESPBTUUID::from_uint32(uuid); }
   void set_descr_uuid128(uint8_t *uuid) { this->descr_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
+  void set_data_to_value(data_to_value_t &&lambda_) { this->data_to_value_func_ = lambda_; }
   void set_enable_notify(bool notify) { this->notify_ = notify; }
   uint16_t handle;
 
  protected:
   uint32_t hash_base() override;
+  float parse_data(uint8_t *value, uint16_t value_len);
+  optional<data_to_value_t> data_to_value_func_{};
   bool notify_;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;

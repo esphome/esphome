@@ -1,12 +1,12 @@
 #include "ruuvi_ble.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace ruuvi_ble {
 
-static const char *TAG = "ruuvi_ble";
+static const char *const TAG = "ruuvi_ble";
 
 bool parse_ruuvi_data_byte(const esp32_ble_tracker::adv_data_t &adv_data, RuuviParseResult &result) {
   const uint8_t data_type = adv_data[0];

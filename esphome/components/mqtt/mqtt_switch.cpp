@@ -1,12 +1,13 @@
 #include "mqtt_switch.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_SWITCH
 
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt.switch";
+static const char *const TAG = "mqtt.switch";
 
 using namespace esphome::switch_;
 
@@ -58,3 +59,4 @@ bool MQTTSwitchComponent::publish_state(bool state) {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

@@ -4,14 +4,13 @@ from datetime import datetime
 import json
 import logging
 import os
+from typing import Any, Optional, List
 
 from esphome import const
 from esphome.core import CORE
 from esphome.helpers import write_file_if_changed
 
-# pylint: disable=unused-import, wrong-import-order
-from esphome.core import CoreType
-from typing import Any, Optional, List
+from esphome.types import CoreType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,10 +40,8 @@ class StorageJSON:
         comment,
         esphome_version,
         src_version,
-        arduino_version,
         address,
-        esp_platform,
-        board,
+        target_platform,
         build_path,
         firmware_bin_path,
         loaded_integrations,
@@ -61,15 +58,10 @@ class StorageJSON:
         # The version of the file in src/main.cpp - Used to migrate the file
         assert src_version is None or isinstance(src_version, int)
         self.src_version = src_version  # type: int
-        # The version of the Arduino framework, the build files need to be cleared each time
-        # this changes
-        self.arduino_version = arduino_version  # type: str
         # Address of the ESP, for example livingroom.local or a static IP
         self.address = address  # type: str
         # The type of ESP in use, either ESP32 or ESP8266
-        self.esp_platform = esp_platform  # type: str
-        # The ESP board used, for example nodemcuv2
-        self.board = board  # type: str
+        self.target_platform = target_platform  # type: str
         # The absolute path to the platformio project
         self.build_path = build_path  # type: str
         # The absolute path to the firmware binary
@@ -85,17 +77,15 @@ class StorageJSON:
             "comment": self.comment,
             "esphome_version": self.esphome_version,
             "src_version": self.src_version,
-            "arduino_version": self.arduino_version,
             "address": self.address,
-            "esp_platform": self.esp_platform,
-            "board": self.board,
+            "esp_platform": self.target_platform,
             "build_path": self.build_path,
             "firmware_bin_path": self.firmware_bin_path,
             "loaded_integrations": self.loaded_integrations,
         }
 
     def to_json(self):
-        return json.dumps(self.as_dict(), indent=2) + "\n"
+        return f"{json.dumps(self.as_dict(), indent=2)}\n"
 
     def save(self, path):
         write_file_if_changed(path, self.to_json())
@@ -110,28 +100,24 @@ class StorageJSON:
             comment=esph.comment,
             esphome_version=const.__version__,
             src_version=1,
-            arduino_version=esph.arduino_version,
             address=esph.address,
-            esp_platform=esph.esp_platform,
-            board=esph.board,
+            target_platform=esph.target_platform,
             build_path=esph.build_path,
             firmware_bin_path=esph.firmware_bin,
             loaded_integrations=list(esph.loaded_integrations),
         )
 
     @staticmethod
-    def from_wizard(name, address, esp_platform, board):
-        # type: (str, str, str, str) -> StorageJSON
+    def from_wizard(name, address, esp_platform):
+        # type: (str, str, str) -> StorageJSON
         return StorageJSON(
             storage_version=1,
             name=name,
             comment=None,
             esphome_version=const.__version__,
             src_version=1,
-            arduino_version=None,
             address=address,
-            esp_platform=esp_platform,
-            board=board,
+            target_platform=esp_platform,
             build_path=None,
             firmware_bin_path=None,
             loaded_integrations=[],
@@ -148,10 +134,8 @@ class StorageJSON:
             "esphome_version", storage.get("esphomeyaml_version")
         )
         src_version = storage.get("src_version")
-        arduino_version = storage.get("arduino_version")
         address = storage.get("address")
         esp_platform = storage.get("esp_platform")
-        board = storage.get("board")
         build_path = storage.get("build_path")
         firmware_bin_path = storage.get("firmware_bin_path")
         loaded_integrations = storage.get("loaded_integrations", [])
@@ -161,10 +145,8 @@ class StorageJSON:
             comment,
             esphome_version,
             src_version,
-            arduino_version,
             address,
             esp_platform,
-            board,
             build_path,
             firmware_bin_path,
             loaded_integrations,
@@ -215,7 +197,7 @@ class EsphomeStorageJSON:
         self.last_update_check_str = new.strftime("%Y-%m-%dT%H:%M:%S")
 
     def to_json(self):  # type: () -> dict
-        return json.dumps(self.as_dict(), indent=2) + "\n"
+        return f"{json.dumps(self.as_dict(), indent=2)}\n"
 
     def save(self, path):  # type: (str) -> None
         write_file_if_changed(path, self.to_json())

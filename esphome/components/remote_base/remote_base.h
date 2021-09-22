@@ -3,11 +3,11 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <driver/rmt.h>
 #endif
 
@@ -33,7 +33,7 @@ class RemoteTransmitData {
 
   const std::vector<int32_t> &get_data() const { return this->data_; }
 
-  void set_data(std::vector<int32_t> data) {
+  void set_data(const std::vector<int32_t> &data) {
     this->data_.clear();
     this->data_.reserve(data.size());
     for (auto dat : data)
@@ -146,13 +146,13 @@ template<typename T> class RemoteProtocol {
 
 class RemoteComponentBase {
  public:
-  explicit RemoteComponentBase(GPIOPin *pin) : pin_(pin){};
+  explicit RemoteComponentBase(InternalGPIOPin *pin) : pin_(pin){};
 
  protected:
-  GPIOPin *pin_;
+  InternalGPIOPin *pin_;
 };
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 class RemoteRMTChannel {
  public:
   explicit RemoteRMTChannel(uint8_t mem_block_num = 1);
@@ -178,7 +178,7 @@ class RemoteRMTChannel {
 
 class RemoteTransmitterBase : public RemoteComponentBase {
  public:
-  RemoteTransmitterBase(GPIOPin *pin) : RemoteComponentBase(pin) {}
+  RemoteTransmitterBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
   class TransmitCall {
    public:
     explicit TransmitCall(RemoteTransmitterBase *parent) : parent_(parent) {}
@@ -221,7 +221,7 @@ class RemoteReceiverDumperBase {
 
 class RemoteReceiverBase : public RemoteComponentBase {
  public:
-  RemoteReceiverBase(GPIOPin *pin) : RemoteComponentBase(pin) {}
+  RemoteReceiverBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
   void register_listener(RemoteReceiverListener *listener) { this->listeners_.push_back(listener); }
   void register_dumper(RemoteReceiverDumperBase *dumper) {
     if (dumper->is_secondary()) {

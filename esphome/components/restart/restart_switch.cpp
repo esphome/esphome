@@ -1,11 +1,12 @@
 #include "restart_switch.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
 namespace esphome {
 namespace restart {
 
-static const char *TAG = "restart";
+static const char *const TAG = "restart";
 
 void RestartSwitch::write_state(bool state) {
   // Acknowledge

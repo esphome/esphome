@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sht4x {
 
-static const char *TAG = "sht4x";
+static const char *const TAG = "sht4x";
 
 static const uint8_t MEASURECOMMANDS[] = {0xFD, 0xF6, 0xE0};
 
@@ -12,7 +12,7 @@ void SHT4XComponent::start_heater_() {
   uint8_t cmd[] = {MEASURECOMMANDS[this->heater_command_]};
 
   ESP_LOGD(TAG, "Heater turning on");
-  this->write_bytes_raw(cmd, 1);
+  this->write(cmd, 1);
 }
 
 void SHT4XComponent::setup() {
@@ -53,7 +53,7 @@ void SHT4XComponent::update() {
   uint8_t cmd[] = {MEASURECOMMANDS[this->precision_]};
 
   // Send command
-  this->write_bytes_raw(cmd, 1);
+  this->write(cmd, 1);
 
   this->set_timeout(10, [this]() {
     const uint8_t num_bytes = 6;

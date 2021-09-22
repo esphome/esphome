@@ -1,27 +1,32 @@
 #include "sntp_component.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include "lwip/apps/sntp.h"
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include "sntp.h"
+#endif
+
+// Yes, the server names are leaked, but that's fine.
+#ifdef CLANG_TIDY
+#define strdup(x) (const_cast<char *>(x))
 #endif
 
 namespace esphome {
 namespace sntp {
 
-static const char *TAG = "sntp";
+static const char *const TAG = "sntp";
 
 void SNTPComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SNTP...");
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   if (sntp_enabled()) {
     sntp_stop();
   }
   sntp_setoperatingmode(SNTP_OPMODE_POLL);
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   sntp_stop();
 #endif
 
@@ -51,9 +56,8 @@ void SNTPComponent::loop() {
   if (!time.is_valid())
     return;
 
-  char buf[128];
-  time.strftime(buf, sizeof(buf), "%c");
-  ESP_LOGD(TAG, "Synchronized time: %s", buf);
+  ESP_LOGD(TAG, "Synchronized time: %d-%d-%d %d:%d:%d", time.year, time.month, time.day_of_month, time.hour,
+           time.minute, time.second);
   this->time_sync_callback_.call();
   this->has_time_ = true;
 }

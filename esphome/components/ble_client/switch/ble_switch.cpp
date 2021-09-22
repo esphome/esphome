@@ -2,12 +2,12 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace ble_client {
 
-static const char *TAG = "ble_switch";
+static const char *const TAG = "ble_switch";
 
 void BLEClientSwitch::write_state(bool state) {
   this->parent_->set_enabled(state);

@@ -12,10 +12,15 @@ from esphome.const import (
     CONF_STATE,
     CONF_DURATION,
     CONF_BRIGHTNESS,
+    CONF_COLOR_MODE,
+    CONF_COLOR_BRIGHTNESS,
     CONF_RED,
     CONF_GREEN,
     CONF_BLUE,
     CONF_WHITE,
+    CONF_COLOR_TEMPERATURE,
+    CONF_COLD_WHITE,
+    CONF_WARM_WHITE,
     CONF_ALPHA,
     CONF_INTENSITY,
     CONF_SPEED,
@@ -26,6 +31,8 @@ from esphome.const import (
 )
 from esphome.util import Registry
 from .types import (
+    ColorMode,
+    COLOR_MODES,
     LambdaLightEffect,
     PulseLightEffect,
     RandomLightEffect,
@@ -211,10 +218,17 @@ async def random_effect_to_code(config, effect_id):
                     {
                         cv.Optional(CONF_STATE, default=True): cv.boolean,
                         cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
+                        cv.Optional(CONF_COLOR_MODE): cv.enum(
+                            COLOR_MODES, upper=True, space="_"
+                        ),
+                        cv.Optional(CONF_COLOR_BRIGHTNESS, default=1.0): cv.percentage,
                         cv.Optional(CONF_RED, default=1.0): cv.percentage,
                         cv.Optional(CONF_GREEN, default=1.0): cv.percentage,
                         cv.Optional(CONF_BLUE, default=1.0): cv.percentage,
                         cv.Optional(CONF_WHITE, default=1.0): cv.percentage,
+                        cv.Optional(CONF_COLOR_TEMPERATURE): cv.color_temperature,
+                        cv.Optional(CONF_COLD_WHITE, default=1.0): cv.percentage,
+                        cv.Optional(CONF_WARM_WHITE, default=1.0): cv.percentage,
                         cv.Required(
                             CONF_DURATION
                         ): cv.positive_time_period_milliseconds,
@@ -223,10 +237,15 @@ async def random_effect_to_code(config, effect_id):
                 cv.has_at_least_one_key(
                     CONF_STATE,
                     CONF_BRIGHTNESS,
+                    CONF_COLOR_MODE,
+                    CONF_COLOR_BRIGHTNESS,
                     CONF_RED,
                     CONF_GREEN,
                     CONF_BLUE,
                     CONF_WHITE,
+                    CONF_COLOR_TEMPERATURE,
+                    CONF_COLD_WHITE,
+                    CONF_WARM_WHITE,
                 ),
             ),
             cv.Length(min=2),
@@ -243,12 +262,17 @@ async def strobe_effect_to_code(config, effect_id):
                 (
                     "color",
                     LightColorValues(
+                        color.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
                         color[CONF_STATE],
                         color[CONF_BRIGHTNESS],
+                        color[CONF_COLOR_BRIGHTNESS],
                         color[CONF_RED],
                         color[CONF_GREEN],
                         color[CONF_BLUE],
                         color[CONF_WHITE],
+                        color.get(CONF_COLOR_TEMPERATURE, 0.0),
+                        color[CONF_COLD_WHITE],
+                        color[CONF_WARM_WHITE],
                     ),
                 ),
                 ("duration", color[CONF_DURATION]),
@@ -466,8 +490,7 @@ def validate_effects(allowed_effects):
             if key not in allowed_effects:
                 errors.append(
                     cv.Invalid(
-                        "The effect '{}' is not allowed for this "
-                        "light type".format(key),
+                        f"The effect '{key}' is not allowed for this light type",
                         [i],
                     )
                 )
@@ -476,8 +499,7 @@ def validate_effects(allowed_effects):
             if name in names:
                 errors.append(
                     cv.Invalid(
-                        "Found the effect name '{}' twice. All effects must have "
-                        "unique names".format(name),
+                        f"Found the effect name '{name}' twice. All effects must have unique names",
                         [i],
                     )
                 )

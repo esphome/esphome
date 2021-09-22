@@ -4,7 +4,7 @@
 namespace esphome {
 namespace bh1750 {
 
-static const char *TAG = "bh1750.sensor";
+static const char *const TAG = "bh1750.sensor";
 
 static const uint8_t BH1750_COMMAND_POWER_ON = 0b00000001;
 static const uint8_t BH1750_COMMAND_MT_REG_HI = 0b01000000;  // last 3 bits
@@ -71,10 +71,11 @@ void BH1750Sensor::update() {
 float BH1750Sensor::get_setup_priority() const { return setup_priority::DATA; }
 void BH1750Sensor::read_data_() {
   uint16_t raw_value;
-  if (!this->parent_->raw_receive_16(this->address_, &raw_value, 1)) {
+  if (!this->read(reinterpret_cast<uint8_t *>(&raw_value), 2)) {
     this->status_set_warning();
     return;
   }
+  raw_value = i2c::i2ctohs(raw_value);
 
   float lx = float(raw_value) / 1.2f;
   lx *= 69.0f / this->measurement_duration_;

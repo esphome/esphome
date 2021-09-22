@@ -1,12 +1,13 @@
 #include "mqtt_binary_sensor.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_BINARY_SENSOR
 
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt.binary_sensor";
+static const char *const TAG = "mqtt.binary_sensor";
 
 std::string MQTTBinarySensorComponent::component_type() const { return "binary_sensor"; }
 
@@ -55,3 +56,4 @@ bool MQTTBinarySensorComponent::publish_state(bool state) {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_RAW,
     CONF_SYNC,
     CONF_TRIGGER_ID,
+    CONF_DURATION,
 )
 
 DEPENDENCIES = ["uart"]
@@ -48,6 +49,12 @@ RFBridgeStartAdvancedSniffingAction = rf_bridge_ns.class_(
 RFBridgeStopAdvancedSniffingAction = rf_bridge_ns.class_(
     "RFBridgeStopAdvancedSniffingAction", automation.Action
 )
+
+RFBridgeStartBucketSniffingAction = rf_bridge_ns.class_(
+    "RFBridgeStartBucketSniffingAction", automation.Action
+)
+
+RFBridgeBeepAction = rf_bridge_ns.class_("RFBridgeBeepAction", automation.Action)
 
 RFBridgeSendRawAction = rf_bridge_ns.class_("RFBridgeSendRawAction", automation.Action)
 
@@ -159,6 +166,19 @@ async def rf_bridge_stop_advanced_sniffing_to_code(
     return var
 
 
+@automation.register_action(
+    "rf_bridge.start_bucket_sniffing",
+    RFBridgeStartBucketSniffingAction,
+    RFBRIDGE_ID_SCHEMA,
+)
+async def rf_bridge_start_bucket_sniffing_to_code(
+    config, action_id, template_args, args
+):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_args, paren)
+    return var
+
+
 RFBRIDGE_SEND_ADVANCED_CODE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(RFBridgeComponent),
@@ -202,4 +222,21 @@ async def rf_bridge_send_raw_to_code(config, action_id, template_args, args):
     var = cg.new_Pvariable(action_id, template_args, paren)
     template_ = await cg.templatable(config[CONF_RAW], args, cg.std_string)
     cg.add(var.set_raw(template_))
+    return var
+
+
+RFBRIDGE_BEEP_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(RFBridgeComponent),
+        cv.Required(CONF_DURATION): cv.templatable(cv.uint16_t),
+    }
+)
+
+
+@automation.register_action("rf_bridge.beep", RFBridgeBeepAction, RFBRIDGE_BEEP_SCHEMA)
+async def rf_bridge_beep_to_code(config, action_id, template_args, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_args, paren)
+    template_ = await cg.templatable(config[CONF_DURATION], args, cg.uint16)
+    cg.add(var.set_duration(template_))
     return var

@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import (
     CONF_ID,
-    DEVICE_CLASS_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
     ICON_GAUGE,
     CONF_TYPE,
@@ -28,7 +28,12 @@ PID_CLIMATE_SENSOR_TYPES = {
 
 CONF_CLIMATE_ID = "climate_id"
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_PERCENT, ICON_GAUGE, 1, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        unit_of_measurement=UNIT_PERCENT,
+        icon=ICON_GAUGE,
+        accuracy_decimals=1,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(PIDClimateSensor),

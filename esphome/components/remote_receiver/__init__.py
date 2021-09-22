@@ -25,9 +25,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(RemoteReceiverComponent),
-            cv.Required(CONF_PIN): cv.All(
-                pins.internal_gpio_input_pin_schema, pins.validate_has_interrupt
-            ),
+            cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
             cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
             cv.Optional(CONF_TOLERANCE, default=25): cv.All(
                 cv.percentage_int, cv.Range(min=0)
@@ -54,7 +52,10 @@ async def to_code(config):
     else:
         var = cg.new_Pvariable(config[CONF_ID], pin)
 
-    await remote_base.build_dumpers(config[CONF_DUMP])
+    dumpers = await remote_base.build_dumpers(config[CONF_DUMP])
+    for dumper in dumpers:
+        cg.add(var.register_dumper(dumper))
+
     await remote_base.build_triggers(config)
     await cg.register_component(var, config)
 
