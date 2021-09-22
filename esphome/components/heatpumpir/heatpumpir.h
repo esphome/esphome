@@ -1,7 +1,10 @@
 #pragma once
 
 #include "esphome/components/climate_ir/climate_ir.h"
-#include "HeatpumpIRFactory.h"
+
+// Forward-declare HeatpumpIR class from library. We cannot include its header here because it has unnamespaced defines
+// that conflict with ESPHome.
+class HeatpumpIR;
 
 namespace esphome {
 namespace heatpumpir {

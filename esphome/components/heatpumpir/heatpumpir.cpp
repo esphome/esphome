@@ -2,6 +2,7 @@
 #include "heatpumpir.h"
 #include "esphome/core/log.h"
 #include "ir_sender_esphome.h"
+#include "HeatpumpIRFactory.h"
 
 namespace esphome {
 namespace heatpumpir {
