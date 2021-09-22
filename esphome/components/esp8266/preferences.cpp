@@ -149,7 +149,12 @@ class ESP8266PreferenceBackend : public ESPPreferenceBackend {
       return false;
 
     uint32_t crc = calculate_crc(buffer.begin(), buffer.end() - 1, type);
-    return buffer[buffer.size() - 1] == crc;
+    if (buffer[buffer.size() - 1] != crc) {
+      return false;
+    }
+
+    memcpy(data, buffer.data(), len);
+    return true;
   }
 };
 
