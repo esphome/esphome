@@ -217,10 +217,9 @@ uint8_t SCD4XComponent::sht_crc_(uint8_t data1, uint8_t data2) {
 
 bool SCD4XComponent::read_data_(uint16_t *data, uint8_t len) {
   const uint8_t num_bytes = len * 3;
-  auto *buf = new uint8_t[num_bytes];
+  std::vector<uint8_t> buf(num_bytes);
 
-  if (!this->parent_->raw_receive(this->address_, buf, num_bytes)) {
-    delete[](buf);
+  if (this->read(buf.data(), num_bytes) != i2c::ERROR_OK) {
     return false;
   }
 
@@ -229,14 +228,10 @@ bool SCD4XComponent::read_data_(uint16_t *data, uint8_t len) {
     uint8_t crc = sht_crc_(buf[j], buf[j + 1]);
     if (crc != buf[j + 2]) {
       ESP_LOGE(TAG, "CRC8 Checksum invalid! 0x%02X != 0x%02X", buf[j + 2], crc);
-      delete[](buf);
       return false;
     }
     data[i] = (buf[j] << 8) | buf[j + 1];
   }
-
-  delete[](buf);
-  return true;
 }
 
 bool SCD4XComponent::write_command_(uint16_t command) {
@@ -246,7 +241,7 @@ bool SCD4XComponent::write_command_(uint16_t command) {
   buffer[0] = (command >> 8);
   buffer[1] = command & 0xff;
 
-  return this->write_bytes_raw(buffer, num_bytes);
+  return this->write(buffer, num_bytes) == i2c::ERROR_OK;
 }
 
 bool SCD4XComponent::write_command_(uint16_t command, uint16_t data) {
@@ -256,7 +251,7 @@ bool SCD4XComponent::write_command_(uint16_t command, uint16_t data) {
   raw[2] = data >> 8;
   raw[3] = data & 0xFF;
   raw[4] = sht_crc_(raw[2], raw[3]);
-  return this->write_bytes_raw(raw, 5);
+  return this->write(raw, 5) == i2c::ERROR_OK;
 }
 
 }  // namespace scd4x
