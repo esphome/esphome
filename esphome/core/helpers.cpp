@@ -274,12 +274,12 @@ optional<int> parse_hex(const std::string &str, size_t start, size_t length) {
   if (str.length() < start) {
     return {};
   }
-  size_t len = start + length;
-  if (str.length() < len) {
+  size_t end = start + length;
+  if (str.length() < end) {
     return {};
   }
   int out = 0;
-  for (size_t i = start; i < len; i++) {
+  for (size_t i = start; i < end; i++) {
     char chr = str[i];
     auto digit = parse_hex(chr);
     if (!digit.has_value()) {
