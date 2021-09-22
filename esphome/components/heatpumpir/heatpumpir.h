@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/components/climate_ir/climate_ir.h"
 
 // Forward-declare HeatpumpIR class from library. We cannot include its header here because it has unnamespaced defines
@@ -110,3 +112,5 @@ class HeatpumpIRClimate : public climate_ir::ClimateIR {
 
 }  // namespace heatpumpir
 }  // namespace esphome
+
+#endif

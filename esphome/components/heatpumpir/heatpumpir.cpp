@@ -1,8 +1,11 @@
-#include <map>
 #include "heatpumpir.h"
-#include "esphome/core/log.h"
+
+#ifdef USE_ARDUINO
+
+#include <map>
 #include "ir_sender_esphome.h"
 #include "HeatpumpIRFactory.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace heatpumpir {
@@ -176,3 +179,5 @@ void HeatpumpIRClimate::transmit_state() {
 
 }  // namespace heatpumpir
 }  // namespace esphome
+
+#endif

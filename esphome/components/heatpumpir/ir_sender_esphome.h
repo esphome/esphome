@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/components/remote_transmitter/remote_transmitter.h"
 #include <IRSender.h>  // arduino-heatpump library
@@ -21,3 +23,5 @@ class IRSenderESPHome : public IRSender {
 
 }  // namespace heatpumpir
 }  // namespace esphome
+
+#endif

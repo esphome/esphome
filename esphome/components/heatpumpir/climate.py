@@ -80,15 +80,18 @@ VERTICAL_DIRECTIONS = {
     "down": VerticalDirections.VERTICAL_DIRECTION_DOWN,
 }
 
-CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(HeatpumpIRClimate),
-        cv.Required(CONF_PROTOCOL): cv.enum(PROTOCOLS),
-        cv.Required(CONF_HORIZONTAL_DEFAULT): cv.enum(HORIZONTAL_DIRECTIONS),
-        cv.Required(CONF_VERTICAL_DEFAULT): cv.enum(VERTICAL_DIRECTIONS),
-        cv.Required(CONF_MIN_TEMPERATURE): cv.temperature,
-        cv.Required(CONF_MAX_TEMPERATURE): cv.temperature,
-    }
+CONFIG_SCHEMA = cv.All(
+    climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(HeatpumpIRClimate),
+            cv.Required(CONF_PROTOCOL): cv.enum(PROTOCOLS),
+            cv.Required(CONF_HORIZONTAL_DEFAULT): cv.enum(HORIZONTAL_DIRECTIONS),
+            cv.Required(CONF_VERTICAL_DEFAULT): cv.enum(VERTICAL_DIRECTIONS),
+            cv.Required(CONF_MIN_TEMPERATURE): cv.temperature,
+            cv.Required(CONF_MAX_TEMPERATURE): cv.temperature,
+        }
+    ),
+    cv.only_with_arduino,
 )
 
 

@@ -1,5 +1,7 @@
 #include "ir_sender_esphome.h"
 
+#ifdef USE_ARDUINO
+
 namespace esphome {
 namespace heatpumpir {
 
@@ -26,3 +28,5 @@ void IRSenderESPHome::space(int space_length) {
 
 }  // namespace heatpumpir
 }  // namespace esphome
+
+#endif
