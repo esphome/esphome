@@ -50,10 +50,6 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 def validate_framework(value):
-    if not CORE.is_esp8266:
-        # only for ESP8266
-        return
-
     framework_version = fv.get_arduino_framework_version()
     if framework_version is None or framework_version == "dev":
         return
