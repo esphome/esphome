@@ -22,6 +22,7 @@ class BParasite : public Component, public esp32_ble_tracker::ESPBTDeviceListene
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
   void set_soil_moisture(sensor::Sensor *soil_moisture) { soil_moisture_ = soil_moisture; }
+  void set_illuminance(sensor::Sensor *illuminance) { illuminance_ = illuminance; }
 
  protected:
   // The received advertisement packet contains an unsigned 4 bits wrap-around counter
@@ -32,6 +33,7 @@ class BParasite : public Component, public esp32_ble_tracker::ESPBTDeviceListene
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *soil_moisture_{nullptr};
+  sensor::Sensor *illuminance_{nullptr};
 };
 
 }  // namespace b_parasite
