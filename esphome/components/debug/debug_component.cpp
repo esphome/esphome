@@ -25,10 +25,10 @@ void DebugComponent::dump_config() {
 
   ESP_LOGCONFIG(TAG, "DebugComponent:");
   LOG_TEXT_SENSOR("  ", "Device info", this->device_info_);
-  LOG_SENSOR("  ", "Free", this->free_sensor_);
+  LOG_SENSOR("  ", "Free space on heap", this->free_sensor_);
 #ifdef ARDUINO_ARCH_ESP8266
-  LOG_SENSOR("  ", "Fragmentation", this->fragmentation_sensor_);
-  LOG_SENSOR("  ", "Max Block", this->block_sensor_);
+  LOG_SENSOR("  ", "Heap fragmentation", this->fragmentation_sensor_);
+  LOG_SENSOR("  ", "Largest free heap block", this->block_sensor_);
 #endif
 
   ESP_LOGD(TAG, "ESPHome version %s", ESPHOME_VERSION);
