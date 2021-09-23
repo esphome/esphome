@@ -32,7 +32,7 @@ class DebugComponent : public PollingComponent {
 
   text_sensor::TextSensor *device_info_{nullptr};
   sensor::Sensor *free_sensor_{nullptr};
-#ifdef ARDUINO_ARCH_ESP8266
+#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
   sensor::Sensor *fragmentation_sensor_{nullptr};
   sensor::Sensor *block_sensor_{nullptr};
 #endif
