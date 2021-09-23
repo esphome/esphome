@@ -310,6 +310,19 @@ class FloatLiteral(Literal):
         return f"{self.f}f"
 
 
+class BinOpExpression(Expression):
+    __slots__ = ("op", "lhs", "rhs")
+
+    def __init__(self, op: str, lhs: SafeExpType, rhs: SafeExpType):
+        # Remove every None on end
+        self.op = op
+        self.lhs = safe_exp(lhs)
+        self.rhs = safe_exp(rhs)
+
+    def __str__(self):
+        return f"{self.lhs} {self.op} {self.rhs}"
+
+
 def safe_exp(obj: SafeExpType) -> Expression:
     """Try to convert obj to an expression by automatically converting native python types to
     expressions/literals.
@@ -755,6 +768,10 @@ class MockObj(Expression):
             item = item[1:]
             next_op = "->"
         return MockObj(f"{self.base}[{item}]", next_op)
+
+    def __or__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression("|", self, other)
+        return MockObj(op)
 
 
 class MockObjEnum(MockObj):
