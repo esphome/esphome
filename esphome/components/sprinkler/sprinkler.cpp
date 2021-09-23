@@ -2,6 +2,7 @@
 #include "sprinkler.h"
 
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <utility>
 
@@ -127,7 +128,7 @@ void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &e
   sprinkler_start_valve_action->set_valve_to_start(new_valve_number);
   sprinkler_turn_on_automation->add_actions({sprinkler_start_valve_action});
 
-  new_valve->enable_switch = std::unique_ptr<SprinklerSwitch>{new SprinklerSwitch()};
+  new_valve->enable_switch = make_unique<SprinklerSwitch>();
   new_valve->enable_switch->set_component_source("sprinkler.switch");
   App.register_component(new_valve->enable_switch.get());
   App.register_switch(new_valve->enable_switch.get());
@@ -135,7 +136,7 @@ void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &e
   new_valve->enable_switch->set_disabled_by_default(false);
   new_valve->enable_switch->set_optimistic(true);
   new_valve->enable_switch->set_assumed_state(false);
-  new_valve->enable_switch->set_restore_state(false);
+  new_valve->enable_switch->set_restore_state(true);
 }
 
 void Sprinkler::configure_valve_switch(const size_t valve_number, switch_::Switch *valve_switch,
