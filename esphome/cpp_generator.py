@@ -976,10 +976,10 @@ class MockObjClass(MockObj):
             self._parents += paren._parents
 
     def inherits_from(self, other: "MockObjClass") -> bool:
-        if self == other:
+        if str(self) == str(other):
             return True
         for parent in self._parents:
-            if parent == other:
+            if str(parent) == str(other):
                 return True
         return False
 
