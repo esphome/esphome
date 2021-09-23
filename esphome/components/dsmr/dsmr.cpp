@@ -58,7 +58,7 @@ void Dsmr::receive_telegram_() {
       footer_found_ = true;
       continue;
     }
-    // Check for the end of the footer checksum, i.e. a newline.
+    // Check for the end of the hex checksum, i.e. a newline.
     if (footer_found_ && c == '\n') {
       header_found_ = false;
       // Parse the telegram and publish sensor values.
