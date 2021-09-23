@@ -20,7 +20,7 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
   }
   void pin_mode(gpio::Flags flags) override {
     gpio_config_t conf{};
-    conf.pin_bit_mask = 1 << static_cast<uint32_t>(pin_);
+    conf.pin_bit_mask = 1ULL << static_cast<uint32_t>(pin_);
     conf.mode = flags_to_mode_(flags);
     conf.pull_up_en = flags & gpio::FLAG_PULLUP ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE;
     conf.pull_down_en = flags & gpio::FLAG_PULLDOWN ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE;
