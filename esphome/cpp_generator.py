@@ -107,12 +107,6 @@ class ExpressionList(Expression):
         return iter(self.args)
 
 
-class ExpressionListFlags(ExpressionList):
-    def __str__(self):
-        text = " | ".join(str(x) for x in self.args)
-        return indent_all_but_first_and_last(text)
-
-
 class TemplateArguments(Expression):
     __slots__ = ("args",)
 
@@ -314,6 +308,19 @@ class FloatLiteral(Literal):
         if math.isnan(self.f):
             return "NAN"
         return f"{self.f}f"
+
+
+class BinOpExpression(Expression):
+    __slots__ = ("op", "lhs", "rhs")
+
+    def __init__(self, op: str, lhs: SafeExpType, rhs: SafeExpType):
+        # Remove every None on end
+        self.op = op
+        self.lhs = safe_exp(lhs)
+        self.rhs = safe_exp(rhs)
+
+    def __str__(self):
+        return f"{self.lhs} {self.op} {self.rhs}"
 
 
 def safe_exp(obj: SafeExpType) -> Expression:
@@ -761,6 +768,10 @@ class MockObj(Expression):
             item = item[1:]
             next_op = "->"
         return MockObj(f"{self.base}[{item}]", next_op)
+
+    def __or__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression("|", self, other)
+        return MockObj(op)
 
 
 class MockObjEnum(MockObj):
