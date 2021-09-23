@@ -313,14 +313,26 @@ class FloatLiteral(Literal):
 class BinOpExpression(Expression):
     __slots__ = ("op", "lhs", "rhs")
 
-    def __init__(self, op: str, lhs: SafeExpType, rhs: SafeExpType):
-        # Remove every None on end
-        self.op = op
+    def __init__(self, lhs: SafeExpType, op: str, rhs: SafeExpType):
         self.lhs = safe_exp(lhs)
+        self.op = op
         self.rhs = safe_exp(rhs)
 
     def __str__(self):
-        return f"{self.lhs} {self.op} {self.rhs}"
+        # Surround with parentheses to ensure generated code has same
+        # order as python one
+        return f"({self.lhs} {self.op} {self.rhs})"
+
+
+class UnaryOpExpression(Expression):
+    __slots__ = ("op", "exp")
+
+    def __init__(self, op: str, exp: SafeExpType):
+        self.op = op
+        self.exp = safe_exp(exp)
+
+    def __str__(self):
+        return f"({self.op}{self.exp})"
 
 
 def safe_exp(obj: SafeExpType) -> Expression:
@@ -729,6 +741,7 @@ class MockObj(Expression):
         return MockObj(f"new {self.base}", "->")
 
     def template(self, *args: SafeExpType) -> "MockObj":
+        """Apply template parameters to this object."""
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
             args = TemplateArguments(*args)
         else:
@@ -749,6 +762,10 @@ class MockObj(Expression):
         return MockObjEnum(enum=name, is_class=is_class, base=self.base, op=self.op)
 
     def operator(self, name: str) -> "MockObj":
+        """Various other operations.
+
+        Named operator because it's a C++ keyword and can't occur in valid code.
+        """
         if name == "ref":
             return MockObj(f"{self.base} &", "")
         if name == "ptr":
@@ -769,8 +786,160 @@ class MockObj(Expression):
             next_op = "->"
         return MockObj(f"{self.base}[{item}]", next_op)
 
+    def __lt__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "<", other)
+        return MockObj(op)
+
+    def __le__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "<=", other)
+        return MockObj(op)
+
+    def __eq__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "==", other)
+        return MockObj(op)
+
+    def __ne__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "!=", other)
+        return MockObj(op)
+
+    def __gt__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, ">", other)
+        return MockObj(op)
+
+    def __ge__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, ">=", other)
+        return MockObj(op)
+
+    def __add__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "+", other)
+        return MockObj(op)
+
+    def __sub__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "-", other)
+        return MockObj(op)
+
+    def __mul__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "*", other)
+        return MockObj(op)
+
+    def __truediv__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "/", other)
+        return MockObj(op)
+
+    def __mod__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "%", other)
+        return MockObj(op)
+
+    def __lshift__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "<<", other)
+        return MockObj(op)
+
+    def __rshift__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, ">>", other)
+        return MockObj(op)
+
+    def __and__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "&", other)
+        return MockObj(op)
+
+    def __xor__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "^", other)
+        return MockObj(op)
+
     def __or__(self, other: SafeExpType) -> "MockObj":
-        op = BinOpExpression("|", self, other)
+        op = BinOpExpression(self, "|", other)
+        return MockObj(op)
+
+    def __radd__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(other, "+", self)
+        return MockObj(op)
+
+    def __rsub__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(other, "-", self)
+        return MockObj(op)
+
+    def __rmul__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(other, "*", self)
+        return MockObj(op)
+
+    def __rtruediv__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(other, "/", self)
+        return MockObj(op)
+
+    def __rmod__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(other, "%", self)
+        return MockObj(op)
+
+    def __rlshift__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(other, "<<", self)
+        return MockObj(op)
+
+    def __rrshift__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(other, ">>", self)
+        return MockObj(op)
+
+    def __rand__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(other, "&", self)
+        return MockObj(op)
+
+    def __rxor__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(other, "^", self)
+        return MockObj(op)
+
+    def __ror__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(other, "|", self)
+        return MockObj(op)
+
+    def __iadd__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "+=", other)
+        return MockObj(op)
+
+    def __isub__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "-=", other)
+        return MockObj(op)
+
+    def __imul__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "*=", other)
+        return MockObj(op)
+
+    def __itruediv__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "/=", other)
+        return MockObj(op)
+
+    def __imod__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "%=", other)
+        return MockObj(op)
+
+    def __ilshift__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "<<=", other)
+        return MockObj(op)
+
+    def __irshift__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, ">>=", other)
+        return MockObj(op)
+
+    def __iand__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "&=", other)
+        return MockObj(op)
+
+    def __ixor__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "^=", other)
+        return MockObj(op)
+
+    def __ior__(self, other: SafeExpType) -> "MockObj":
+        op = BinOpExpression(self, "|=", other)
+        return MockObj(op)
+
+    def __neg__(self) -> "MockObj":
+        op = UnaryOpExpression("-", self)
+        return MockObj(op)
+
+    def __pos__(self) -> "MockObj":
+        op = UnaryOpExpression("+", self)
+        return MockObj(op)
+
+    def __invert__(self) -> "MockObj":
+        op = UnaryOpExpression("~", self)
         return MockObj(op)
 
 
@@ -807,10 +976,10 @@ class MockObjClass(MockObj):
             self._parents += paren._parents
 
     def inherits_from(self, other: "MockObjClass") -> bool:
-        if self == other:
+        if str(self) == str(other):
             return True
         for parent in self._parents:
-            if parent == other:
+            if str(parent) == str(other):
                 return True
         return False
 
