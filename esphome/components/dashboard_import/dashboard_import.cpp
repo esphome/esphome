@@ -3,13 +3,13 @@
 namespace esphome {
 namespace dashboard_import {
 
-static std::string g_import_config;  // NOLINT
+static std::string g_package_import_url;  // NOLINT
 
-std::string get_dashboard_import_config() {
-  return g_import_config;
+std::string get_package_import_url() {
+  return g_package_import_url;
 }
-void set_dashboard_import_config(std::string config) {
-  g_import_config = std::move(config);
+void set_package_import_url(std::string url) {
+  g_package_import_url = std::move(url);
 }
 
 }  // namespace dashboard_import

@@ -47,7 +47,7 @@ std::vector<MDNSService> MDNSComponent::compile_services_() {
 #endif  // ESPHOME_PROJECT_NAME
 
 #ifdef USE_DASHBOARD_IMPORT
-    service.txt_records.push_back({"import_config", dashboard_import::get_dashboard_import_config()});
+    service.txt_records.push_back({"package_import_url", dashboard_import::get_package_import_url()});
 #endif
 
     res.push_back(service);

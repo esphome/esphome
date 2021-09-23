@@ -5,8 +5,8 @@
 namespace esphome {
 namespace dashboard_import {
 
-std::string get_dashboard_import_config();
-void set_dashboard_import_config(std::string config);
+std::string get_package_import_url();
+void set_package_import_url(std::string url);
 
 }  // namespace dashboard_import
 }  // namespace esphome

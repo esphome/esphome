@@ -374,13 +374,22 @@ class WizardRequestHandler(BaseHandler):
 class ImportRequestHandler(BaseHandler):
     @authenticated
     def post(self):
+        from esphome.components.dashboard_import import import_config
+
         args = json.loads(self.request.body.decode())
-        destination = settings.rel_path(f"{args['name']}.yaml")
-        with open(destination, "w") as fh:
-            fh.write("substitutions:\n")
-            fh.write(f'  name: "{args["name"]}"\n')
-            fh.write("\n")
-            fh.write(args["import_config"])
+        try:
+            name = args["name"]
+            import_config(
+                settings.rel_path(f"{name}.yaml"),
+                name,
+                args["project_name"],
+                args["package_import_url"],
+            )
+        except FileExistsError:
+            self.set_status(500)
+            self.write("File already exists")
+            return
+
         self.set_status(200)
         self.finish()
 
@@ -505,13 +514,13 @@ class ListDevicesHandler(BaseHandler):
                     ],
                     "importable": [
                         {
-                            "name": res.node_name,
-                            "import_config": res.import_config,
+                            "name": res.device_name,
+                            "package_import_url": res.package_import_url,
                             "project_name": res.project_name,
                             "project_version": res.project_version,
                         }
                         for res in IMPORT_RESULT.values()
-                        if res.node_name not in configured
+                        if res.device_name not in configured
                     ],
                 }
             )

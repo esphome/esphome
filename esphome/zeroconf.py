@@ -114,15 +114,15 @@ class DashboardStatus(threading.Thread):
 
 
 ESPHOME_SERVICE_TYPE = "_esphomelib._tcp.local."
-TXT_RECORD_IMPORT_CONFIG = b"import_config"
+TXT_RECORD_PACKAGE_IMPORT_URL = b"package_import_url"
 TXT_RECORD_PROJECT_NAME = b"project_name"
 TXT_RECORD_PROJECT_VERSION = b"project_version"
 
 
 @dataclass
 class DiscoveredImport:
-    node_name: str
-    import_config: str
+    device_name: str
+    package_import_url: str
     project_name: str
     project_version: str
 
@@ -159,7 +159,7 @@ class DashboardImportDiscovery:
             return
         node_name = name[: -len(ESPHOME_SERVICE_TYPE) - 1]
         required_keys = [
-            TXT_RECORD_IMPORT_CONFIG,
+            TXT_RECORD_PACKAGE_IMPORT_URL,
             TXT_RECORD_PROJECT_NAME,
             TXT_RECORD_PROJECT_VERSION,
         ]
@@ -167,13 +167,13 @@ class DashboardImportDiscovery:
             # Not a dashboard import device
             return
 
-        import_config = info.properties[TXT_RECORD_IMPORT_CONFIG].decode()
+        import_url = info.properties[TXT_RECORD_PACKAGE_IMPORT_URL].decode()
         project_name = info.properties[TXT_RECORD_PROJECT_NAME].decode()
         project_version = info.properties[TXT_RECORD_PROJECT_VERSION].decode()
 
         self.import_state[name] = DiscoveredImport(
-            node_name=node_name,
-            import_config=import_config,
+            device_name=node_name,
+            package_import_url=import_url,
             project_name=project_name,
             project_version=project_version,
         )
