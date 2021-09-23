@@ -271,9 +271,7 @@ void DebugComponent::update() {
     this->free_sensor_->publish_state(new_free_heap);
   }
 
-// CLANG_TIDY uses an old arduino framework which doesn't support the heap state functions
-#if defined(ARDUINO_ARCH_ESP8266) & !defined(CLANG_TIDY)
-  // NOTE: Requires arduino_version 2.5.2 or above
+#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
   if (this->fragmentation_sensor_ != nullptr) {
     this->fragmentation_sensor_->publish_state(ESP.getHeapFragmentation());
   }
