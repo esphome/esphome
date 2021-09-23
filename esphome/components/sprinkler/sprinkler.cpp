@@ -10,10 +10,73 @@ namespace sprinkler {
 
 static const char *const TAG = "sprinkler";
 
+SprinklerSwitch::SprinklerSwitch() : turn_on_trigger_(new Trigger<>()), turn_off_trigger_(new Trigger<>()) {}
+
+void SprinklerSwitch::loop() {
+  if (!this->f_.has_value())
+    return;
+  auto s = (*this->f_)();
+  if (!s.has_value())
+    return;
+
+  this->publish_state(*s);
+}
+
+void SprinklerSwitch::write_state(bool state) {
+  if (this->prev_trigger_ != nullptr) {
+    this->prev_trigger_->stop_action();
+  }
+
+  if (state) {
+    this->prev_trigger_ = this->turn_on_trigger_;
+    this->turn_on_trigger_->trigger();
+  } else {
+    this->prev_trigger_ = this->turn_off_trigger_;
+    this->turn_off_trigger_->trigger();
+  }
+
+  if (this->optimistic_)
+    this->publish_state(state);
+}
+
+void SprinklerSwitch::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
+bool SprinklerSwitch::assumed_state() { return this->assumed_state_; }
+void SprinklerSwitch::set_state_lambda(std::function<optional<bool>()> &&f) { this->f_ = f; }
+float SprinklerSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
+
+Trigger<> *SprinklerSwitch::get_turn_on_trigger() const { return this->turn_on_trigger_; }
+Trigger<> *SprinklerSwitch::get_turn_off_trigger() const { return this->turn_off_trigger_; }
+
+void SprinklerSwitch::setup() {
+  if (!this->restore_state_)
+    return;
+
+  auto restored = this->get_initial_state();
+  if (!restored.has_value())
+    return;
+
+  ESP_LOGD(TAG, "  Restored state %s", ONOFF(*restored));
+  if (*restored) {
+    this->turn_on();
+  } else {
+    this->turn_off();
+  }
+}
+
+void SprinklerSwitch::dump_config() {
+  LOG_SWITCH("", "Sprinkler Switch", this);
+  ESP_LOGCONFIG(TAG, "  Restore State: %s", YESNO(this->restore_state_));
+  ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
+}
+
+void SprinklerSwitch::set_restore_state(bool restore_state) { this->restore_state_ = restore_state; }
+
+void SprinklerSwitch::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
+
 void Sprinkler::pre_setup(const std::string &name) {
   this->name_ = name;
   // set up controller's "active" switch
-  this->controller_sw_ = new template_::TemplateSwitch();
+  this->controller_sw_ = new SprinklerSwitch();
   this->controller_sw_->set_component_source("sprinkler.switch");
   App.register_component(this->controller_sw_);
   App.register_switch(this->controller_sw_);
@@ -41,7 +104,7 @@ Sprinkler::Sprinkler() {}
 
 void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &enable_sw_name) {
   auto new_valve_number = this->number_of_valves();
-  auto controller_switch = new template_::TemplateSwitch();
+  auto controller_switch = new SprinklerSwitch();
   controller_switch->set_component_source("sprinkler.switch");
   App.register_component(controller_switch);
   App.register_switch(controller_switch);
@@ -61,7 +124,7 @@ void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &e
   sprinkler_start_valve_action->set_valve_to_start(new_valve_number);
   sprinkler_turn_on_automation->add_actions({sprinkler_start_valve_action});
 
-  auto *enable_switch = new template_::TemplateSwitch();
+  auto *enable_switch = new SprinklerSwitch();
   enable_switch->set_component_source("sprinkler.switch");
   App.register_component(enable_switch);
   App.register_switch(enable_switch);

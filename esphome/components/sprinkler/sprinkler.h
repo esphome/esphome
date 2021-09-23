@@ -3,7 +3,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
-#include "esphome/components/template/switch/template_switch.h"
 
 namespace esphome {
 namespace sprinkler {
@@ -14,6 +13,8 @@ enum SprinklerTimerIndex : size_t {
   TIMER_VALVE_RUN_DURATION = 2,
 };
 
+class SprinklerSwitch;
+
 struct SprinklerTimer {
   const std::string name;
   bool active;
@@ -23,12 +24,43 @@ struct SprinklerTimer {
 };
 
 struct SprinklerValve {
-  template_::TemplateSwitch *controller_switch;
-  template_::TemplateSwitch *enable_switch;
+  SprinklerSwitch *controller_switch;
+  SprinklerSwitch *enable_switch;
   switch_::Switch *pump_switch;
   switch_::Switch *valve_switch;
   uint32_t valve_run_duration;
   bool valve_cycle_complete;
+};
+
+class SprinklerSwitch : public switch_::Switch, public Component {
+ public:
+  SprinklerSwitch();
+
+  void setup() override;
+  void dump_config() override;
+
+  void set_state_lambda(std::function<optional<bool>()> &&f);
+  void set_restore_state(bool restore_state);
+  Trigger<> *get_turn_on_trigger() const;
+  Trigger<> *get_turn_off_trigger() const;
+  void set_optimistic(bool optimistic);
+  void set_assumed_state(bool assumed_state);
+  void loop() override;
+
+  float get_setup_priority() const override;
+
+ protected:
+  bool assumed_state() override;
+
+  void write_state(bool state) override;
+
+  optional<std::function<optional<bool>()>> f_;
+  bool optimistic_{false};
+  bool assumed_state_{false};
+  Trigger<> *turn_on_trigger_;
+  Trigger<> *turn_off_trigger_;
+  Trigger<> *prev_trigger_{nullptr};
+  bool restore_state_{false};
 };
 
 class Sprinkler : public Component {
@@ -224,9 +256,9 @@ class Sprinkler : public Component {
       {"cycle_complete", false, 0, 0, std::bind(&Sprinkler::valve_cycle_complete_callback_, this)}};
 
   /// Switches we'll present to the front end
-  template_::TemplateSwitch *auto_adv_sw_;
-  template_::TemplateSwitch *controller_sw_;
-  template_::TemplateSwitch *reverse_sw_;
+  SprinklerSwitch *auto_adv_sw_;
+  SprinklerSwitch *controller_sw_;
+  SprinklerSwitch *reverse_sw_;
 };
 
 }  // namespace sprinkler
