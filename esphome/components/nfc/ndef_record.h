@@ -23,12 +23,7 @@ class NdefRecord {
   void set_type(const std::string &type) { this->type_ = type; };
   void set_payload(const std::string &payload) { this->payload_ = payload; };
   void set_id(const std::string &id) { this->id_ = id; };
-  NdefRecord(const NdefRecord &rhs) {
-    this->tnf_ = rhs.tnf_;
-    this->type_ = rhs.type_;
-    this->payload_ = rhs.payload_;
-    this->id_ = rhs.id_;
-  };
+  NdefRecord(const NdefRecord &) = default;
   virtual ~NdefRecord() {}
   virtual std::unique_ptr<NdefRecord> clone() const {  // To allow copying polymorphic classes
     return make_unique<NdefRecord>(*this);
