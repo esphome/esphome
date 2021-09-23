@@ -2,6 +2,7 @@
 
 #include "i2c_bus_arduino.h"
 #include "esphome/core/log.h"
+#include <Arduino.h>
 #include <cstring>
 
 namespace esphome {
@@ -10,6 +11,7 @@ namespace i2c {
 static const char *const TAG = "i2c.arduino";
 
 void ArduinoI2CBus::setup() {
+  recover();
 #ifdef USE_ESP32
   static uint8_t next_bus_num = 0;
   if (next_bus_num == 0)
@@ -91,6 +93,32 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
   return ERROR_UNKNOWN;
 }
 
+void ArduinoI2CBus::recover() {
+  // Perform I2C bus recovery, see
+  // https://www.analog.com/media/en/technical-documentation/application-notes/54305147357414AN686_0.pdf
+  // or see the linux kernel implementation, e.g.
+  // https://elixir.bootlin.com/linux/v5.14.6/source/drivers/i2c/i2c-core-base.c#L200
+
+  // try to get about 100kHz toggle frequency
+  const auto half_period_usec = 1000000 / 100000 / 2;
+  const auto recover_scl_periods = 9;
+
+  // configure scl as output
+  pinMode(scl_pin_, OUTPUT);  // NOLINT
+
+  // set scl high
+  digitalWrite(scl_pin_, 1);  // NOLINT
+
+  // in total generate 9 falling-rising edges
+  for (auto i = 0; i < recover_scl_periods; i++) {
+    delayMicroseconds(half_period_usec);
+    digitalWrite(scl_pin_, 0);  // NOLINT
+    delayMicroseconds(half_period_usec);
+    digitalWrite(scl_pin_, 1);  // NOLINT
+  }
+
+  delayMicroseconds(half_period_usec);
+}
 }  // namespace i2c
 }  // namespace esphome
 
