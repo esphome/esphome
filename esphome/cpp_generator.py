@@ -107,6 +107,12 @@ class ExpressionList(Expression):
         return iter(self.args)
 
 
+class ExpressionListFlags(ExpressionList):
+    def __str__(self):
+        text = " | ".join(str(x) for x in self.args)
+        return indent_all_but_first_and_last(text)
+
+
 class TemplateArguments(Expression):
     __slots__ = ("args",)
 

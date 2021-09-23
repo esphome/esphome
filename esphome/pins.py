@@ -1,5 +1,4 @@
-import operator
-from functools import reduce
+from esphome.cpp_generator import ExpressionListFlags
 
 from esphome.const import (
     CONF_INPUT,
@@ -93,7 +92,7 @@ def gpio_flags_expr(mode):
     if not active_flags:
         return cg.gpio_Flags.FLAG_NONE
 
-    return reduce(operator.or_, active_flags)
+    return ExpressionListFlags(*active_flags)
 
 
 gpio_pin_schema = _schema_creator
