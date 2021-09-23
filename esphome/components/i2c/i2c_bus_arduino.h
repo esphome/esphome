@@ -22,6 +22,9 @@ class ArduinoI2CBus : public I2CBus, public Component {
   void set_scl_pin(uint8_t scl_pin) { scl_pin_ = scl_pin; }
   void set_frequency(uint32_t frequency) { frequency_ = frequency; }
 
+ private:
+  void recover();
+
  protected:
   TwoWire *wire_;
   bool scan_;
