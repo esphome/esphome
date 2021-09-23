@@ -5,8 +5,6 @@ from esphome.const import CONF_ID, CONF_ADDRESS
 from esphome.cpp_helpers import logging
 from .const import (
     CONF_COMMAND_THROTTLE,
-    CONF_MODBUS_FUNCTIONCODE,
-    CONF_REGISTER_TYPE,
 )
 
 CODEOWNERS = ["@martgras"]
@@ -114,37 +112,3 @@ def find_by_value(dict, find_value):
         if find_value == value:
             return key
     return "not found"
-
-
-# Helper method to translate function_code to register_type
-# Warn the user if function_code is still in used
-# Can be removed after some time
-def set_register_type(cfg):
-    if CONF_REGISTER_TYPE in cfg:
-        reg_type = cfg[CONF_REGISTER_TYPE]
-    else:
-        reg_type = function_code_to_register(cfg[CONF_MODBUS_FUNCTIONCODE])
-        reg_type_name = str(reg_type)
-        reg_type_name = reg_type_name[reg_type_name.rfind("::") + 2 :].lower()
-        _LOGGER.warning(
-            "%s has been been deprected. Component id=%00s\n        Change '%s: %s' to '%s: %s' ",
-            CONF_MODBUS_FUNCTIONCODE,
-            cfg[CONF_ID],
-            CONF_MODBUS_FUNCTIONCODE,
-            cfg[CONF_MODBUS_FUNCTIONCODE],
-            CONF_REGISTER_TYPE,
-            reg_type_name,
-        )
-    return reg_type
-
-
-def validate_register_type(config):
-    if CONF_MODBUS_FUNCTIONCODE not in config and CONF_REGISTER_TYPE not in config:
-        raise cv.Invalid(
-            "Either "
-            + CONF_REGISTER_TYPE
-            + " or "
-            + CONF_MODBUS_FUNCTIONCODE
-            + " moust be set"
-        )
-    return config
