@@ -42,4 +42,4 @@ def import_config(path: str, name: str, project_name: str, import_url: str) -> N
         raise FileExistsError
 
     config = {"substitutions": {"name": name}, "packages": {project_name: import_url}}
-    p.write_text(dump(config))
+    p.write_text(dump(config), encoding="utf8")
