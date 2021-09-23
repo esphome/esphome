@@ -56,8 +56,8 @@ def validate_framework(value):
 
     if framework_version < "2.5.2":
         raise cv.Invalid(
-            "This component is not supported on arduino framework version below 2.5.2, "
-            "please check esphome->arduino_version"
+            "This sensor is not supported on Arduino framework versions below 2.5.2, "
+            "please change esphome->arduino_version or remove this sensor."
         )
 
 
