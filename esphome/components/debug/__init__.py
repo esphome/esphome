@@ -16,7 +16,6 @@ from esphome.const import (
     UNIT_BYTES,
     DEVICE_CLASS_EMPTY,
 )
-from esphome.core import CORE
 
 CODEOWNERS = ["@OttoWinter"]
 DEPENDENCIES = ["logger"]
