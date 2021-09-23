@@ -106,23 +106,23 @@ void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &e
   this->valve_.resize(new_valve_number + 1);
   SprinklerValve *new_valve = &this->valve_[new_valve_number];
 
-  new_valve->controller_switch = std::unique_ptr<SprinklerSwitch>{new SprinklerSwitch()};
-  new_valve->controller_switch.get()->set_component_source("sprinkler.switch");
+  new_valve->controller_switch = make_unique<SprinklerSwitch>();
+  new_valve->controller_switch->set_component_source("sprinkler.switch");
   App.register_component(new_valve->controller_switch.get());
   App.register_switch(new_valve->controller_switch.get());
-  new_valve->controller_switch.get()->set_name(valve_sw_name);
-  new_valve->controller_switch.get()->set_disabled_by_default(false);
-  new_valve->controller_switch.get()->set_optimistic(false);
-  new_valve->controller_switch.get()->set_assumed_state(false);
-  new_valve->controller_switch.get()->set_restore_state(false);
-  new_valve->controller_switch.get()->set_state_lambda(
+  new_valve->controller_switch->set_name(valve_sw_name);
+  new_valve->controller_switch->set_disabled_by_default(false);
+  new_valve->controller_switch->set_optimistic(false);
+  new_valve->controller_switch->set_assumed_state(false);
+  new_valve->controller_switch->set_restore_state(false);
+  new_valve->controller_switch->set_state_lambda(
       [=]() -> optional<bool> { return this->active_valve() == new_valve_number; });
 
-  auto sprinkler_turn_off_automation = new Automation<>(new_valve->controller_switch.get()->get_turn_off_trigger());
+  auto sprinkler_turn_off_automation = new Automation<>(new_valve->controller_switch->get_turn_off_trigger());
   auto sprinkler_shutdown_action = new sprinkler::ShutdownAction<>(this);
   sprinkler_turn_off_automation->add_actions({sprinkler_shutdown_action});
 
-  auto sprinkler_turn_on_automation = new Automation<>(new_valve->controller_switch.get()->get_turn_on_trigger());
+  auto sprinkler_turn_on_automation = new Automation<>(new_valve->controller_switch->get_turn_on_trigger());
   auto sprinkler_start_valve_action = new sprinkler::StartSingleValveAction<>(this);
   sprinkler_start_valve_action->set_valve_to_start(new_valve_number);
   sprinkler_turn_on_automation->add_actions({sprinkler_start_valve_action});
@@ -131,11 +131,11 @@ void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &e
   new_valve->enable_switch->set_component_source("sprinkler.switch");
   App.register_component(new_valve->enable_switch.get());
   App.register_switch(new_valve->enable_switch.get());
-  new_valve->enable_switch.get()->set_name(enable_sw_name);
-  new_valve->enable_switch.get()->set_disabled_by_default(false);
-  new_valve->enable_switch.get()->set_optimistic(true);
-  new_valve->enable_switch.get()->set_assumed_state(false);
-  new_valve->enable_switch.get()->set_restore_state(false);
+  new_valve->enable_switch->set_name(enable_sw_name);
+  new_valve->enable_switch->set_disabled_by_default(false);
+  new_valve->enable_switch->set_optimistic(true);
+  new_valve->enable_switch->set_assumed_state(false);
+  new_valve->enable_switch->set_restore_state(false);
 }
 
 void Sprinkler::configure_valve_switch(const size_t valve_number, switch_::Switch *valve_switch,
@@ -203,8 +203,8 @@ void Sprinkler::start_full_cycle() {
     // if no valves are enabled, enable them all so that auto-advance can work
     if (!this->any_valve_is_enabled_()) {
       for (auto &valve : this->valve_) {
-        valve.enable_switch.get()->turn_on();
-        valve.enable_switch.get()->publish_state(true);
+        valve.enable_switch->turn_on();
+        valve.enable_switch->publish_state(true);
       }
     }
     this->auto_advance_ = true;
@@ -291,7 +291,7 @@ bool Sprinkler::there_is_an_active_valve_() {
 bool Sprinkler::valve_is_enabled_(const size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
     if (this->valve_[valve_number].enable_switch != nullptr) {
-      return this->valve_[valve_number].enable_switch.get()->state;
+      return this->valve_[valve_number].enable_switch->state;
     } else {
       return true;
     }
