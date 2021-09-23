@@ -1129,22 +1129,31 @@ climate:
       kd: 0.0
 
 sprinkler:
+  name: "Sprinkler Controller"
   id: sprinkler_ctrlr
-  pump: gpio_switch1
-  valve_open_delay: 5s
+  # valve_open_delay: 5s
+  valve_overlap: 5s
   valves:
-    - name: "Test Valve 1"
+    - valve_switch_name: "Test Valve 0"
+      enable_switch_name: "Enable Test Valve 0"
+      pump_switch: gpio_switch1
       run_duration: 10s
-      enable_switch: gpio_switch2
-      valve_switch: gpio_switch1
-    - name: "Test Valve 2"
+      valve_switch: gpio_switch2
+    - valve_switch_name: "Test Valve 1"
+      enable_switch_name: "Enable Test Valve 1"
+      pump_switch: gpio_switch1
       run_duration: 10s
-      enable_switch: gpio_switch2
-      valve_switch: gpio_switch1
-    - name: "Test Valve 3"
+      valve_switch: gpio_switch2
+    - valve_switch_name: "Test Valve 2"
+      enable_switch_name: "Enable Test Valve 2"
+      pump_switch: gpio_switch1
       run_duration: 10s
-      enable_switch: gpio_switch2
-      valve_switch: gpio_switch1
+      valve_switch: gpio_switch2
+    - valve_switch_name: "Test Valve 3"
+      enable_switch_name: "Enable Test Valve 3"
+      pump_switch: gpio_switch1
+      run_duration: 10s
+      valve_switch: gpio_switch2
 
 cover:
   - platform: endstop

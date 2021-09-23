@@ -10,7 +10,7 @@ namespace sprinkler {
 
 static const char *const TAG = "sprinkler";
 
-void Sprinkler::pre_setup(const std::string name) {
+void Sprinkler::pre_setup(const std::string &name) {
   this->name_ = name;
   // set up controller's "active" switch
   this->controller_sw_ = new template_::TemplateSwitch();
@@ -39,7 +39,7 @@ void Sprinkler::setup() { this->all_valves_off_(true); }
 
 Sprinkler::Sprinkler() {}
 
-void Sprinkler::add_valve(std::string valve_sw_name, std::string enable_sw_name) {
+void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &enable_sw_name) {
   auto new_valve_number = this->number_of_valves();
   auto controller_switch = new template_::TemplateSwitch();
   controller_switch->set_component_source("sprinkler.switch");

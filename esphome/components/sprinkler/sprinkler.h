@@ -34,12 +34,12 @@ struct SprinklerValve {
 class Sprinkler : public Component {
  public:
   Sprinkler();
-  void pre_setup(std::string name);
+  void pre_setup(const std::string &name);
   void setup() override;
   void dump_config() override;
 
   /// add a valve to the controller
-  void add_valve(std::string valve_sw_name, std::string enable_sw_name);
+  void add_valve(const std::string &valve_sw_name, const std::string &enable_sw_name);
 
   /// configure a valve's switch object, run duration and pump switch (if provided).
   ///  valve_run_duration is time in seconds.
