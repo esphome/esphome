@@ -24,8 +24,8 @@ struct SprinklerTimer {
 };
 
 struct SprinklerValve {
-  SprinklerSwitch *controller_switch;
-  SprinklerSwitch *enable_switch;
+  std::unique_ptr<SprinklerSwitch> controller_switch;
+  std::unique_ptr<SprinklerSwitch> enable_switch;
   switch_::Switch *pump_switch;
   switch_::Switch *valve_switch;
   uint32_t valve_run_duration;
@@ -256,9 +256,9 @@ class Sprinkler : public Component {
       {"cycle_complete", false, 0, 0, std::bind(&Sprinkler::valve_cycle_complete_callback_, this)}};
 
   /// Switches we'll present to the front end
-  SprinklerSwitch *auto_adv_sw_;
-  SprinklerSwitch *controller_sw_;
-  SprinklerSwitch *reverse_sw_;
+  SprinklerSwitch auto_adv_sw_;
+  SprinklerSwitch controller_sw_;
+  SprinklerSwitch reverse_sw_;
 };
 
 }  // namespace sprinkler
