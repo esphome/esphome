@@ -1130,6 +1130,8 @@ climate:
 
 sprinkler:
   name: "Sprinkler Controller"
+  auto_advance_switch_name: "Sprinkler Controller Auto Advance"
+  reverse_switch_name: "Sprinkler Controller Reverse"
   id: sprinkler_ctrlr
   # valve_open_delay: 5s
   valve_overlap: 5s

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "automation.h"
-
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
@@ -16,6 +14,9 @@ enum SprinklerTimerIndex : size_t {
 };
 
 class SprinklerSwitch;
+template<typename... Ts> class StartSingleValveAction;
+template<typename... Ts> class ShutdownAction;
+template<typename... Ts> class ResumeOrStartAction;
 
 struct SprinklerTimer {
   const std::string name;
@@ -24,10 +25,6 @@ struct SprinklerTimer {
   uint32_t start_time;
   std::function<void()> func;
 };
-
-template<typename... Ts> class StartSingleValveAction;
-template<typename... Ts> class ShutdownAction;
-template<typename... Ts> class ResumeOrStartAction;
 
 struct SprinklerValve {
   std::unique_ptr<SprinklerSwitch> controller_switch;
@@ -237,12 +234,6 @@ class Sprinkler : public Component {
 
   /// The name of the sprinkler controller component
   std::string name_{""};
-
-  /// Automatically advance to the next valve after run duration elapses
-  bool auto_advance_{false};
-
-  /// Iterate through valves in reverse (descending) order when true
-  bool reverse_{false};
 
   /// The number of the valve that is currently active
   int8_t active_valve_{this->none_active};

@@ -81,7 +81,6 @@ void Sprinkler::pre_setup(const std::string &name, const std::string &auto_adv_n
   App.register_component(&this->controller_sw_);
   App.register_switch(&this->controller_sw_);
   this->controller_sw_.set_name(name);
-  this->controller_sw_.set_disabled_by_default(false);
   this->controller_sw_.set_state_lambda(
       [=]() -> optional<bool> { return this->is_a_valid_valve(this->active_valve()); });
 
@@ -92,10 +91,20 @@ void Sprinkler::pre_setup(const std::string &name, const std::string &auto_adv_n
   this->sprinkler_turn_on_automation = make_unique<Automation<>>(this->controller_sw_.get_turn_on_trigger());
   this->sprinkler_resumeorstart_action = make_unique<sprinkler::ResumeOrStartAction<>>(this);
   this->sprinkler_turn_on_automation->add_actions({sprinkler_resumeorstart_action.get()});
-
-  this->controller_sw_.set_optimistic(false);
-  this->controller_sw_.set_assumed_state(false);
-  this->controller_sw_.set_restore_state(false);
+  // set up controller's "auto-advance" switch
+  this->auto_adv_sw_.set_component_source("sprinkler.switch");
+  App.register_component(&this->auto_adv_sw_);
+  App.register_switch(&this->auto_adv_sw_);
+  this->auto_adv_sw_.set_name(auto_adv_name);
+  this->auto_adv_sw_.set_optimistic(true);
+  this->auto_adv_sw_.set_restore_state(true);
+  // set up controller's "reverse" switch
+  this->reverse_sw_.set_component_source("sprinkler.switch");
+  App.register_component(&this->reverse_sw_);
+  App.register_switch(&this->reverse_sw_);
+  this->reverse_sw_.set_name(reverse_name);
+  this->reverse_sw_.set_optimistic(true);
+  this->reverse_sw_.set_restore_state(true);
 }
 
 void Sprinkler::setup() { this->all_valves_off_(true); }
@@ -112,7 +121,6 @@ void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &e
   App.register_component(new_valve->controller_switch.get());
   App.register_switch(new_valve->controller_switch.get());
   new_valve->controller_switch->set_name(valve_sw_name);
-  new_valve->controller_switch->set_disabled_by_default(false);
   new_valve->controller_switch->set_optimistic(false);
   new_valve->controller_switch->set_assumed_state(false);
   new_valve->controller_switch->set_restore_state(false);
@@ -134,7 +142,6 @@ void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &e
   App.register_component(new_valve->enable_switch.get());
   App.register_switch(new_valve->enable_switch.get());
   new_valve->enable_switch->set_name(enable_sw_name);
-  new_valve->enable_switch->set_disabled_by_default(false);
   new_valve->enable_switch->set_optimistic(true);
   new_valve->enable_switch->set_assumed_state(false);
   new_valve->enable_switch->set_restore_state(true);
@@ -173,9 +180,9 @@ void Sprinkler::set_valve_run_duration(const size_t valve_number, const uint32_t
   }
 }
 
-void Sprinkler::set_auto_advance(const bool auto_advance) { this->auto_advance_ = auto_advance; }
+void Sprinkler::set_auto_advance(const bool auto_advance) { this->auto_adv_sw_.publish_state(auto_advance); }
 
-void Sprinkler::set_reverse(const bool reverse) { this->reverse_ = reverse; }
+void Sprinkler::set_reverse(const bool reverse) { this->reverse_sw_.publish_state(reverse); }
 
 uint32_t Sprinkler::valve_run_duration(const size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
@@ -195,21 +202,20 @@ uint32_t Sprinkler::valve_run_duration_adjusted(const size_t valve_number) {
   return run_duration;
 }
 
-bool Sprinkler::auto_advance() { return this->auto_advance_; }
+bool Sprinkler::auto_advance() { return this->auto_adv_sw_.state; }
 
-bool Sprinkler::reverse() { return this->reverse_; }
+bool Sprinkler::reverse() { return this->reverse_sw_.state; }
 
 void Sprinkler::start_full_cycle() {
-  // if auto_advance_ is enabled and there_is_an_active_valve_ then a cycle is already in progress so don't do anything
-  if (!(this->auto_advance_ && this->there_is_an_active_valve_())) {
+  // if auto-advance is enabled and there_is_an_active_valve_ then a cycle is already in progress so don't do anything
+  if (!(this->auto_adv_sw_.state && this->there_is_an_active_valve_())) {
     // if no valves are enabled, enable them all so that auto-advance can work
     if (!this->any_valve_is_enabled_()) {
       for (auto &valve : this->valve_) {
-        valve.enable_switch->turn_on();
         valve.enable_switch->publish_state(true);
       }
     }
-    this->auto_advance_ = true;
+    this->auto_adv_sw_.publish_state(true);
     this->reset_cycle_states_();
     if (!this->there_is_an_active_valve_()) {
       // activate the first valve
@@ -220,7 +226,7 @@ void Sprinkler::start_full_cycle() {
 
 void Sprinkler::start_single_valve(const optional<size_t> valve_number) {
   if (valve_number.has_value()) {
-    this->auto_advance_ = false;
+    this->auto_adv_sw_.publish_state(false);
     this->reset_cycle_states_();
     this->start_valve_(valve_number.value());
   }
@@ -343,7 +349,7 @@ int8_t Sprinkler::previous_valve_number_(const int8_t first_valve) {
 }
 
 int8_t Sprinkler::next_valve_number_in_cycle_(const int8_t first_valve) {
-  if (this->reverse_)
+  if (this->reverse_sw_.state)
     return this->previous_enabled_incomplete_valve_number_(first_valve);
 
   return this->next_enabled_incomplete_valve_number_(first_valve);
@@ -510,7 +516,7 @@ void Sprinkler::valve_cycle_complete_callback_() {
   ESP_LOGD(TAG, "cycle_complete timer expired:");
   this->timer_[sprinkler::TIMER_VALVE_RUN_DURATION].active = false;
   this->mark_valve_cycle_complete_(this->active_valve_);
-  if (this->auto_advance_ && this->is_a_valid_valve(this->next_valve_number_in_cycle_(this->active_valve_))) {
+  if (this->auto_adv_sw_.state && this->is_a_valid_valve(this->next_valve_number_in_cycle_(this->active_valve_))) {
     ESP_LOGD(TAG, "  Advancing to valve %i", this->next_valve_number_in_cycle_(this->active_valve_));
     this->start_valve_(this->next_valve_number_in_cycle_(this->active_valve_));
   } else {
