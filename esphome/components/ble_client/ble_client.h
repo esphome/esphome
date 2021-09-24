@@ -82,7 +82,8 @@ class BLEClient : public espbt::ESPBTClient, public Component {
   void dump_config() override;
   void loop() override;
 
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) override;
+  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                           esp_ble_gattc_cb_param_t *param) override;
   bool parse_device(const espbt::ESPBTDevice &device) override;
   void on_scan_end() override {}
   void connect() override;

@@ -58,7 +58,7 @@ void ESP32BLETracker::loop() {
   while (ble_event != nullptr) {
     if (ble_event->type_)
       this->real_gattc_event_handler_(ble_event->event_.gattc.gattc_event, ble_event->event_.gattc.gattc_if,
-                                     &ble_event->event_.gattc.gattc_param);
+                                      &ble_event->event_.gattc.gattc_param);
     else
       this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
     delete ble_event;  // NOLINT(cppcoreguidelines-owning-memory)
@@ -284,7 +284,7 @@ void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
 }  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void ESP32BLETracker::real_gattc_event_handler_(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                                               esp_ble_gattc_cb_param_t *param) {
+                                                esp_ble_gattc_cb_param_t *param) {
   for (auto *client : global_esp32_ble_tracker->clients_) {
     client->gattc_event_handler(event, gattc_if, param);
   }

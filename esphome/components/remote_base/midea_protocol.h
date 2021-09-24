@@ -92,7 +92,7 @@ using MideaDumper = RemoteReceiverDumper<MideaProtocol, MideaData>;
 
 template<typename... Ts> class MideaAction : public RemoteTransmitterActionBase<Ts...> {
   TEMPLATABLE_VALUE(std::vector<uint8_t>, code)
-  void set_code(const std::vector<uint8_t>& code) { code_ = code; }
+  void set_code(const std::vector<uint8_t> &code) { code_ = code; }
   void encode(RemoteTransmitData *dst, Ts... x) override {
     MideaData data = this->code_.value(x...);
     data.finalize();
