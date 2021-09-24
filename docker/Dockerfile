@@ -133,10 +133,20 @@ ENV \
 
 RUN \
     apt-get update \
+    && apt-get install -y --no-install-recommends gnupg \
+    && rm -rf \
+        /tmp/* \
+        /var/{cache,log}/* \
+        /var/lib/apt/lists/*
+
+RUN \
+    curl https://apt.llvm.org/llvm-snapshot.gpg.key|apt-key add - \
+    && echo "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-13 main" >> /etc/apt/sources.list \
+    && apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        clang-format-11=1:11.0.1-2 \
-        clang-tidy-11=1:11.0.1-2 \
+        clang-format-13 \
+        clang-tidy-13 \
         patch=2.7.6-7 \
         software-properties-common=0.96.20.2-2.1 \
         nano=5.4-2 \

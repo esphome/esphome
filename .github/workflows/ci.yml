@@ -101,8 +101,8 @@ jobs:
       - name: Install clang tools
         run: |
           sudo apt-get install \
-              clang-format-11 \
-              clang-tidy-11
+              clang-format-13 \
+              clang-tidy-13
         if: matrix.id == 'clang-tidy' || matrix.id == 'clang-format'
 
       - name: Register problem matchers
