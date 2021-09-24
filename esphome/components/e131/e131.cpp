@@ -1,12 +1,14 @@
+#ifdef USE_ARDUINO
+
 #include "e131.h"
 #include "e131_addressable_light_effect.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <WiFi.h>
 #endif
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #endif
@@ -26,7 +28,7 @@ E131Component::~E131Component() {
 }
 
 void E131Component::setup() {
-  udp_.reset(new WiFiUDP());
+  udp_ = make_unique<WiFiUDP>();
 
   if (!udp_->begin(PORT)) {
     ESP_LOGE(TAG, "Cannot bind E131 to %d.", PORT);
@@ -50,7 +52,7 @@ void E131Component::loop() {
     }
 
     if (!packet_(payload, universe, packet)) {
-      ESP_LOGV(TAG, "Invalid packet recevied of size %zu.", payload.size());
+      ESP_LOGV(TAG, "Invalid packet received of size %zu.", payload.size());
       continue;
     }
 
@@ -104,3 +106,5 @@ bool E131Component::process_(int universe, const E131Packet &packet) {
 
 }  // namespace e131
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

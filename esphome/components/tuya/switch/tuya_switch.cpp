@@ -15,7 +15,7 @@ void TuyaSwitch::setup() {
 
 void TuyaSwitch::write_state(bool state) {
   ESP_LOGV(TAG, "Setting switch %u: %s", this->switch_id_, ONOFF(state));
-  this->parent_->set_datapoint_value(this->switch_id_, state);
+  this->parent_->set_boolean_datapoint_value(this->switch_id_, state);
   this->publish_state(state);
 }
 

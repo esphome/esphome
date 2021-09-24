@@ -1,7 +1,7 @@
 #include "real_time_clock.h"
 #include "esphome/core/log.h"
 #include "lwip/opt.h"
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include "sys/time.h"
 #endif
 #include <cerrno>
@@ -35,9 +35,8 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   }
 
   auto time = this->now();
-  char buf[128];
-  time.strftime(buf, sizeof(buf), "%c");
-  ESP_LOGD(TAG, "Synchronized time: %s", buf);
+  ESP_LOGD(TAG, "Synchronized time: %d-%d-%d %d:%d:%d", time.year, time.month, time.day_of_month, time.hour,
+           time.minute, time.second);
 
   this->time_sync_callback_.call();
 }

@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #include "mqtt_component.h"
 
+#ifdef USE_MQTT
 #ifdef USE_COVER
 
 #include "esphome/components/cover/cover.h"
@@ -40,3 +41,4 @@ class MQTTCoverComponent : public mqtt::MQTTComponent {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

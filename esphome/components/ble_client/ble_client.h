@@ -4,7 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <string>
 #include <array>
@@ -25,7 +25,7 @@ class BLEClientNode {
  public:
   virtual void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) = 0;
-  virtual void loop() = 0;
+  virtual void loop(){};
   void set_address(uint64_t address) { address_ = address; }
   espbt::ESPBTClient *client;
   // This should be transitioned to Established once the node no longer needs

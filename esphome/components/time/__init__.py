@@ -67,9 +67,7 @@ def _week_of_month(dt):
 
 def _tz_dst_str(dt):
     td = datetime.timedelta(hours=dt.hour, minutes=dt.minute, seconds=dt.second)
-    return "M{}.{}.{}/{}".format(
-        dt.month, _week_of_month(dt), dt.isoweekday() % 7, _tz_timedelta(td)
-    )
+    return f"M{dt.month}.{_week_of_month(dt)}.{dt.isoweekday() % 7}/{_tz_timedelta(td)}"
 
 
 def _safe_tzname(tz, dt):
@@ -88,7 +86,7 @@ def _non_dst_tz(tz, dt):
     _LOGGER.info(
         "Detected timezone '%s' with UTC offset %s", tzname, _tz_timedelta(utcoffset)
     )
-    tzbase = "{}{}".format(tzname, _tz_timedelta(-1 * utcoffset))
+    tzbase = f"{tzname}{_tz_timedelta(-1 * utcoffset)}"
     return tzbase
 
 
@@ -129,14 +127,9 @@ def convert_tz(pytz_obj):
     dst_ends_utc = transition_times[idx2]
     dst_ends_local = dst_ends_utc + utcoffset_on
 
-    tzbase = "{}{}".format(tzname_off, _tz_timedelta(-1 * utcoffset_off))
+    tzbase = f"{tzname_off}{_tz_timedelta(-1 * utcoffset_off)}"
 
-    tzext = "{}{},{},{}".format(
-        tzname_on,
-        _tz_timedelta(-1 * utcoffset_on),
-        _tz_dst_str(dst_begins_local),
-        _tz_dst_str(dst_ends_local),
-    )
+    tzext = f"{tzname_on}{_tz_timedelta(-1 * utcoffset_on)},{_tz_dst_str(dst_begins_local)},{_tz_dst_str(dst_ends_local)}"
     _LOGGER.info(
         "Detected timezone '%s' with UTC offset %s and daylight saving time from "
         "%s to %s",
@@ -176,9 +169,7 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         data = part.split("/")
         if len(data) > 2:
             raise cv.Invalid(
-                "Can't have more than two '/' in one time expression, got {}".format(
-                    part
-                )
+                f"Can't have more than two '/' in one time expression, got {part}"
             )
         offset, repeat = data
         offset_n = 0
@@ -194,18 +185,14 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         except ValueError:
             # pylint: disable=raise-missing-from
             raise cv.Invalid(
-                "Repeat for '/' time expression must be an integer, got {}".format(
-                    repeat
-                )
+                f"Repeat for '/' time expression must be an integer, got {repeat}"
             )
         return set(range(offset_n, max_value + 1, repeat_n))
     if "-" in part:
         data = part.split("-")
         if len(data) > 2:
             raise cv.Invalid(
-                "Can't have more than two '-' in range time expression '{}'".format(
-                    part
-                )
+                f"Can't have more than two '-' in range time expression '{part}'"
             )
         begin, end = data
         begin_n = _parse_cron_int(
@@ -233,13 +220,11 @@ def cron_expression_validator(name, min_value, max_value, special_mapping=None):
             for v in value:
                 if not isinstance(v, int):
                     raise cv.Invalid(
-                        "Expected integer for {} '{}', got {}".format(v, name, type(v))
+                        f"Expected integer for {v} '{name}', got {type(v)}"
                     )
                 if v < min_value or v > max_value:
                     raise cv.Invalid(
-                        "{} {} is out of range (min={} max={}).".format(
-                            name, v, min_value, max_value
-                        )
+                        f"{name} {v} is out of range (min={min_value} max={max_value})."
                     )
             return list(sorted(value))
         value = cv.string(value)
@@ -295,8 +280,7 @@ def validate_cron_raw(value):
     value = value.split(" ")
     if len(value) != 6:
         raise cv.Invalid(
-            "Cron expression must consist of exactly 6 space-separated parts, "
-            "not {}".format(len(value))
+            f"Cron expression must consist of exactly 6 space-separated parts, not {len(value)}"
         )
     seconds, minutes, hours, days_of_month, months, days_of_week = value
     return {

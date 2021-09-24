@@ -1,7 +1,7 @@
 #include "b_parasite.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace b_parasite {
@@ -47,7 +47,7 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   uint16_t battery_millivolt = data[2] << 8 | data[3];
   float battery_voltage = battery_millivolt / 1000.0f;
 
-  // Temperature in 1000 * Celcius.
+  // Temperature in 1000 * Celsius.
   uint16_t temp_millicelcius = data[4] << 8 | data[5];
   float temp_celcius = temp_millicelcius / 1000.0f;
 
@@ -79,4 +79,4 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 }  // namespace b_parasite
 }  // namespace esphome
 
-#endif  // ARDUINO_ARCH_ESP32
+#endif  // USE_ESP32

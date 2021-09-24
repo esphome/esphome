@@ -17,6 +17,8 @@ void FloatOutput::set_min_power(float min_power) {
   this->min_power_ = clamp(min_power, 0.0f, this->max_power_);  // Clamp to 0.0>=MIN>=MAX
 }
 
+void FloatOutput::set_zero_means_zero(bool zero_means_zero) { this->zero_means_zero_ = zero_means_zero; }
+
 float FloatOutput::get_min_power() const { return this->min_power_; }
 
 void FloatOutput::set_level(float state) {
@@ -29,10 +31,13 @@ void FloatOutput::set_level(float state) {
     this->power_.unrequest();
   }
 #endif
+
+  if (!(state == 0.0f && this->zero_means_zero_))  // regardless of min_power_, 0.0 means off
+    state = (state * (this->max_power_ - this->min_power_)) + this->min_power_;
+
   if (this->is_inverted())
     state = 1.0f - state;
-  float adjusted_value = (state * (this->max_power_ - this->min_power_)) + this->min_power_;
-  this->write_state(adjusted_value);
+  this->write_state(state);
 }
 
 void FloatOutput::write_state(bool state) { this->set_level(state != this->inverted_ ? 1.0f : 0.0f); }

@@ -3,15 +3,13 @@ from esphome.components import output
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
-    CONF_BIT_DEPTH,
     CONF_CHANNEL,
     CONF_FREQUENCY,
     CONF_ID,
     CONF_PIN,
-    ESP_PLATFORM_ESP32,
 )
 
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+DEPENDENCIES = ["esp32"]
 
 
 def calc_max_frequency(bit_depth):
@@ -29,13 +27,11 @@ def validate_frequency(value):
     max_freq = calc_max_frequency(1)
     if value < min_freq:
         raise cv.Invalid(
-            "This frequency setting is not possible, please choose a higher "
-            "frequency (at least {}Hz)".format(int(min_freq))
+            f"This frequency setting is not possible, please choose a higher frequency (at least {int(min_freq)}Hz)"
         )
     if value > max_freq:
         raise cv.Invalid(
-            "This frequency setting is not possible, please choose a lower "
-            "frequency (at most {}Hz)".format(int(max_freq))
+            f"This frequency setting is not possible, please choose a lower frequency (at most {int(max_freq)}Hz)"
         )
     return value
 
@@ -50,10 +46,6 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
         cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
         cv.Optional(CONF_FREQUENCY, default="1kHz"): cv.frequency,
         cv.Optional(CONF_CHANNEL): cv.int_range(min=0, max=15),
-        cv.Optional(CONF_BIT_DEPTH): cv.invalid(
-            "The bit_depth option has been removed in v1.14, the "
-            "best bit depth is now automatically calculated."
-        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

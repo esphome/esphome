@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/components/web_server_base/web_server_base.h"
@@ -163,6 +165,15 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string number_json(number::Number *obj, float value);
 #endif
 
+#ifdef USE_SELECT
+  void on_select_update(select::Select *obj, const std::string &state) override;
+  /// Handle a select request under '/select/<id>'.
+  void handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the number state with its value as a JSON string.
+  std::string select_json(select::Select *obj, const std::string &value);
+#endif
+
   /// Override the web handler's canHandle method.
   bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.
@@ -183,3 +194,5 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
 }  // namespace web_server
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

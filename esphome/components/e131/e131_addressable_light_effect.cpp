@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "e131.h"
 #include "e131_addressable_light_effect.h"
 #include "esphome/core/log.h"
@@ -84,8 +86,11 @@ bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet
       break;
   }
 
+  it->schedule_show();
   return true;
 }
 
 }  // namespace e131
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

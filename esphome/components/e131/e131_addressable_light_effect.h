@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/components/light/addressable_light_effect.h"
 
@@ -46,3 +48,5 @@ class E131AddressableLightEffect : public light::AddressableLightEffect {
 
 }  // namespace e131
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

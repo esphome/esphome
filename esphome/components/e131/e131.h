@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 
 #include <memory>
@@ -55,3 +57,5 @@ class E131Component : public esphome::Component {
 
 }  // namespace e131
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

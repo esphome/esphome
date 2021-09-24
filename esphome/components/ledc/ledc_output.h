@@ -1,11 +1,11 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/output/float_output.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace ledc {
@@ -14,7 +14,7 @@ extern uint8_t next_ledc_channel;
 
 class LEDCOutput : public output::FloatOutput, public Component {
  public:
-  explicit LEDCOutput(GPIOPin *pin) : pin_(pin) { this->channel_ = next_ledc_channel++; }
+  explicit LEDCOutput(InternalGPIOPin *pin) : pin_(pin) { this->channel_ = next_ledc_channel++; }
 
   void set_channel(uint8_t channel) { this->channel_ = channel; }
   void set_frequency(float frequency) { this->frequency_ = frequency; }
@@ -31,11 +31,12 @@ class LEDCOutput : public output::FloatOutput, public Component {
   void write_state(float state) override;
 
  protected:
-  GPIOPin *pin_;
+  InternalGPIOPin *pin_;
   uint8_t channel_{};
   uint8_t bit_depth_{};
   float frequency_{};
   float duty_{0.0f};
+  bool initialized_ = false;
 };
 
 template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {

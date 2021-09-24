@@ -1,25 +1,29 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/display/display_buffer.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 namespace esphome {
 namespace inkplate6 {
 
 class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public i2c::I2CDevice {
  public:
-  const uint8_t LUT2[16] = {B10101010, B10101001, B10100110, B10100101, B10011010, B10011001, B10010110, B10010101,
-                            B01101010, B01101001, B01100110, B01100101, B01011010, B01011001, B01010110, B01010101};
-  const uint8_t LUTW[16] = {B11111111, B11111110, B11111011, B11111010, B11101111, B11101110, B11101011, B11101010,
-                            B10111111, B10111110, B10111011, B10111010, B10101111, B10101110, B10101011, B10101010};
-  const uint8_t LUTB[16] = {B11111111, B11111101, B11110111, B11110101, B11011111, B11011101, B11010111, B11010101,
-                            B01111111, B01111101, B01110111, B01110101, B01011111, B01011101, B01010111, B01010101};
-  const uint8_t pixelMaskLUT[8] = {B00000001, B00000010, B00000100, B00001000,
-                                   B00010000, B00100000, B01000000, B10000000};
-  const uint8_t pixelMaskGLUT[2] = {B00001111, B11110000};
+  const uint8_t LUT2[16] = {0b10101010, 0b10101001, 0b10100110, 0b10100101, 0b10011010, 0b10011001,
+                            0b10010110, 0b10010101, 0b01101010, 0b01101001, 0b01100110, 0b01100101,
+                            0b01011010, 0b01011001, 0b01010110, 0b01010101};
+  const uint8_t LUTW[16] = {0b11111111, 0b11111110, 0b11111011, 0b11111010, 0b11101111, 0b11101110,
+                            0b11101011, 0b11101010, 0b10111111, 0b10111110, 0b10111011, 0b10111010,
+                            0b10101111, 0b10101110, 0b10101011, 0b10101010};
+  const uint8_t LUTB[16] = {0b11111111, 0b11111101, 0b11110111, 0b11110101, 0b11011111, 0b11011101,
+                            0b11010111, 0b11010101, 0b01111111, 0b01111101, 0b01110111, 0b01110101,
+                            0b01011111, 0b01011101, 0b01010111, 0b01010101};
+  const uint8_t pixelMaskLUT[8] = {0b00000001, 0b00000010, 0b00000100, 0b00001000,
+                                   0b00010000, 0b00100000, 0b01000000, 0b10000000};
+  const uint8_t pixelMaskGLUT[2] = {0b00001111, 0b11110000};
   const uint8_t waveform3Bit[8][8] = {{0, 0, 0, 0, 1, 1, 1, 0}, {1, 2, 2, 2, 1, 1, 1, 0}, {0, 1, 2, 1, 1, 2, 1, 0},
                                       {0, 2, 1, 2, 1, 2, 1, 0}, {0, 0, 0, 1, 1, 1, 2, 0}, {2, 1, 1, 1, 2, 1, 2, 0},
                                       {1, 1, 1, 2, 1, 2, 2, 0}, {0, 0, 0, 0, 0, 0, 2, 0}};
@@ -39,20 +43,20 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   void set_partial_updating(bool partial_updating) { this->partial_updating_ = partial_updating; }
   void set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 
-  void set_display_data_0_pin(GPIOPin *data) { this->display_data_0_pin_ = data; }
-  void set_display_data_1_pin(GPIOPin *data) { this->display_data_1_pin_ = data; }
-  void set_display_data_2_pin(GPIOPin *data) { this->display_data_2_pin_ = data; }
-  void set_display_data_3_pin(GPIOPin *data) { this->display_data_3_pin_ = data; }
-  void set_display_data_4_pin(GPIOPin *data) { this->display_data_4_pin_ = data; }
-  void set_display_data_5_pin(GPIOPin *data) { this->display_data_5_pin_ = data; }
-  void set_display_data_6_pin(GPIOPin *data) { this->display_data_6_pin_ = data; }
-  void set_display_data_7_pin(GPIOPin *data) { this->display_data_7_pin_ = data; }
+  void set_display_data_0_pin(InternalGPIOPin *data) { this->display_data_0_pin_ = data; }
+  void set_display_data_1_pin(InternalGPIOPin *data) { this->display_data_1_pin_ = data; }
+  void set_display_data_2_pin(InternalGPIOPin *data) { this->display_data_2_pin_ = data; }
+  void set_display_data_3_pin(InternalGPIOPin *data) { this->display_data_3_pin_ = data; }
+  void set_display_data_4_pin(InternalGPIOPin *data) { this->display_data_4_pin_ = data; }
+  void set_display_data_5_pin(InternalGPIOPin *data) { this->display_data_5_pin_ = data; }
+  void set_display_data_6_pin(InternalGPIOPin *data) { this->display_data_6_pin_ = data; }
+  void set_display_data_7_pin(InternalGPIOPin *data) { this->display_data_7_pin_ = data; }
 
   void set_ckv_pin(GPIOPin *ckv) { this->ckv_pin_ = ckv; }
-  void set_cl_pin(GPIOPin *cl) { this->cl_pin_ = cl; }
+  void set_cl_pin(InternalGPIOPin *cl) { this->cl_pin_ = cl; }
   void set_gpio0_enable_pin(GPIOPin *gpio0_enable) { this->gpio0_enable_pin_ = gpio0_enable; }
   void set_gmod_pin(GPIOPin *gmod) { this->gmod_pin_ = gmod; }
-  void set_le_pin(GPIOPin *le) { this->le_pin_ = le; }
+  void set_le_pin(InternalGPIOPin *le) { this->le_pin_ = le; }
   void set_oe_pin(GPIOPin *oe) { this->oe_pin_ = oe; }
   void set_powerup_pin(GPIOPin *powerup) { this->powerup_pin_ = powerup; }
   void set_sph_pin(GPIOPin *sph) { this->sph_pin_ = sph; }
@@ -129,20 +133,20 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   bool greyscale_;
   bool partial_updating_;
 
-  GPIOPin *display_data_0_pin_;
-  GPIOPin *display_data_1_pin_;
-  GPIOPin *display_data_2_pin_;
-  GPIOPin *display_data_3_pin_;
-  GPIOPin *display_data_4_pin_;
-  GPIOPin *display_data_5_pin_;
-  GPIOPin *display_data_6_pin_;
-  GPIOPin *display_data_7_pin_;
+  InternalGPIOPin *display_data_0_pin_;
+  InternalGPIOPin *display_data_1_pin_;
+  InternalGPIOPin *display_data_2_pin_;
+  InternalGPIOPin *display_data_3_pin_;
+  InternalGPIOPin *display_data_4_pin_;
+  InternalGPIOPin *display_data_5_pin_;
+  InternalGPIOPin *display_data_6_pin_;
+  InternalGPIOPin *display_data_7_pin_;
 
   GPIOPin *ckv_pin_;
-  GPIOPin *cl_pin_;
+  InternalGPIOPin *cl_pin_;
   GPIOPin *gpio0_enable_pin_;
   GPIOPin *gmod_pin_;
-  GPIOPin *le_pin_;
+  InternalGPIOPin *le_pin_;
   GPIOPin *oe_pin_;
   GPIOPin *powerup_pin_;
   GPIOPin *sph_pin_;
@@ -154,4 +158,4 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
 }  // namespace inkplate6
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO
