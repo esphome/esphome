@@ -41,7 +41,7 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
  public:
   explicit ToggleAction(Cover *cover) : cover_(cover) {}
 
-  void play(Ts... x) override { this->cover_->toggle(); }
+  void play(Ts... x) override { this->cover_->make_call().set_command_toggle().perform(); }
 
  protected:
   Cover *cover_;
