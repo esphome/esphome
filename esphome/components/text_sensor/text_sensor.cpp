@@ -13,7 +13,7 @@ void TextSensor::publish_state(std::string state) {
   this->raw_state = state;
   this->raw_callback_.call(state);
 
-  ESP_LOGV(TAG, "'%s': Received new state %f", this->name_.c_str(), state);
+  ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), state.c_str());
 
   if (this->filter_list_ == nullptr) {
     this->internal_send_state_to_frontend(state);

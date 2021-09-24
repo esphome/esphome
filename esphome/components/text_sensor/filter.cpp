@@ -17,10 +17,10 @@ void Filter::input(std::string value) {
 }
 void Filter::output(std::string value) {
   if (this->next_ == nullptr) {
-    ESP_LOGVV(TAG, "Filter(%p)::output(%f) -> SENSOR", this, value);
+    ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> SENSOR", this, value.c_str());
     this->parent_->internal_send_state_to_frontend(value);
   } else {
-    ESP_LOGVV(TAG, "Filter(%p)::output(%f) -> %p", this, value, this->next_);
+    ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> %p", this, value.c_str(), this->next_);
     this->next_->input(value);
   }
 }
@@ -37,7 +37,7 @@ void LambdaFilter::set_lambda_filter(const lambda_filter_t &lambda_filter) { thi
 
 optional<std::string> LambdaFilter::new_value(std::string value) {
   auto it = this->lambda_filter_(value);
-  ESP_LOGVV(TAG, "LambdaFilter(%p)::new_value(%f) -> %f", this, value, it.value_or(INFINITY));
+  ESP_LOGVV(TAG, "LambdaFilter(%p)::new_value(%s) -> %s", this, value.c_str(), it.value_or(INFINITY));
   return it;
 }
 
