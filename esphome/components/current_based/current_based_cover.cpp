@@ -1,11 +1,12 @@
 #include "current_based_cover.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <cfloat>
 
 namespace esphome {
 namespace current_based {
 
-static const char *TAG = "current_based.cover";
+static const char *const TAG = "current_based.cover";
 
 using namespace esphome::cover;
 
