@@ -12,8 +12,10 @@ from esphome.const import (
 
 CODEOWNERS = ["@kbx81"]
 
+CONF_AUTO_ADVANCE_SWITCH_NAME = "auto_advance_switch_name"
 CONF_ENABLE_SWITCH_NAME = "enable_switch_name"
 CONF_PUMP_SWITCH = "pump_switch"
+CONF_REVERSE_SWITCH_NAME = "reverse_switch_name"
 CONF_VALVE_OPEN_DELAY = "valve_open_delay"
 CONF_VALVE_OVERLAP = "valve_overlap"
 CONF_VALVE_NUMBER = "valve_number"
@@ -94,7 +96,9 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Sprinkler),
+            cv.Required(CONF_AUTO_ADVANCE_SWITCH_NAME): cv.string,
             cv.Required(CONF_NAME): cv.string,
+            cv.Required(CONF_REVERSE_SWITCH_NAME): cv.string,
             cv.Exclusive(
                 CONF_VALVE_OVERLAP, "open_delay/overlap"
             ): cv.positive_time_period_seconds,
@@ -191,7 +195,13 @@ async def sprinkler_resume_or_start_full_cycle_to_code(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
-    cg.add(var.pre_setup(config[CONF_NAME]))
+    cg.add(
+        var.pre_setup(
+            config[CONF_NAME],
+            config[CONF_AUTO_ADVANCE_SWITCH_NAME],
+            config[CONF_REVERSE_SWITCH_NAME],
+        )
+    )
     for valve in config[CONF_VALVES]:
         cg.add(
             var.add_valve(valve[CONF_VALVE_SWITCH_NAME], valve[CONF_ENABLE_SWITCH_NAME])

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "automation.h"
+
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
@@ -23,6 +25,9 @@ struct SprinklerTimer {
   std::function<void()> func;
 };
 
+template<typename... Ts> class StartSingleValveAction;
+template<typename... Ts> class ShutdownAction;
+
 struct SprinklerValve {
   std::unique_ptr<SprinklerSwitch> controller_switch;
   std::unique_ptr<SprinklerSwitch> enable_switch;
@@ -30,6 +35,10 @@ struct SprinklerValve {
   switch_::Switch *valve_switch;
   uint32_t valve_run_duration;
   bool valve_cycle_complete;
+  ShutdownAction<> *valve_shutdown_action;
+  StartSingleValveAction<> *valve_resumeorstart_action;
+  Automation<> *valve_turn_off_automation;
+  Automation<> *valve_turn_on_automation;
 };
 
 class SprinklerSwitch : public switch_::Switch, public Component {
@@ -66,7 +75,7 @@ class SprinklerSwitch : public switch_::Switch, public Component {
 class Sprinkler : public Component {
  public:
   Sprinkler();
-  void pre_setup(const std::string &name);
+  void pre_setup(const std::string &name, const std::string &auto_adv_name, const std::string &reverse_name);
   void setup() override;
   void dump_config() override;
 
@@ -259,6 +268,12 @@ class Sprinkler : public Component {
   SprinklerSwitch auto_adv_sw_;
   SprinklerSwitch controller_sw_;
   SprinklerSwitch reverse_sw_;
+
+  Action<> *sprinkler_shutdown_action;
+  Action<> *sprinkler_resumeorstart_action;
+
+  Automation<> *sprinkler_turn_off_automation;
+  Automation<> *sprinkler_turn_on_automation;
 };
 
 }  // namespace sprinkler
