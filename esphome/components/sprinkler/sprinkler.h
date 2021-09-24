@@ -27,6 +27,7 @@ struct SprinklerTimer {
 
 template<typename... Ts> class StartSingleValveAction;
 template<typename... Ts> class ShutdownAction;
+template<typename... Ts> class ResumeOrStartAction;
 
 struct SprinklerValve {
   std::unique_ptr<SprinklerSwitch> controller_switch;
@@ -35,10 +36,10 @@ struct SprinklerValve {
   switch_::Switch *valve_switch;
   uint32_t valve_run_duration;
   bool valve_cycle_complete;
-  ShutdownAction<> *valve_shutdown_action;
-  StartSingleValveAction<> *valve_resumeorstart_action;
-  Automation<> *valve_turn_off_automation;
-  Automation<> *valve_turn_on_automation;
+  std::unique_ptr<ShutdownAction<>> valve_shutdown_action;
+  std::unique_ptr<StartSingleValveAction<>> valve_resumeorstart_action;
+  std::unique_ptr<Automation<>> valve_turn_off_automation;
+  std::unique_ptr<Automation<>> valve_turn_on_automation;
 };
 
 class SprinklerSwitch : public switch_::Switch, public Component {
@@ -269,11 +270,11 @@ class Sprinkler : public Component {
   SprinklerSwitch controller_sw_;
   SprinklerSwitch reverse_sw_;
 
-  Action<> *sprinkler_shutdown_action;
-  Action<> *sprinkler_resumeorstart_action;
+  std::unique_ptr<ShutdownAction<>> sprinkler_shutdown_action;
+  std::unique_ptr<ResumeOrStartAction<>> sprinkler_resumeorstart_action;
 
-  Automation<> *sprinkler_turn_off_automation;
-  Automation<> *sprinkler_turn_on_automation;
+  std::unique_ptr<Automation<>> sprinkler_turn_off_automation;
+  std::unique_ptr<Automation<>> sprinkler_turn_on_automation;
 };
 
 }  // namespace sprinkler

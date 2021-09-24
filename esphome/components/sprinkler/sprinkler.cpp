@@ -85,13 +85,13 @@ void Sprinkler::pre_setup(const std::string &name, const std::string &auto_adv_n
   this->controller_sw_.set_state_lambda(
       [=]() -> optional<bool> { return this->is_a_valid_valve(this->active_valve()); });
 
-  this->sprinkler_turn_off_automation = new Automation<>(this->controller_sw_.get_turn_off_trigger());
-  this->sprinkler_shutdown_action = new sprinkler::ShutdownAction<>(this);
-  this->sprinkler_turn_off_automation->add_actions({sprinkler_shutdown_action});
+  this->sprinkler_turn_off_automation = make_unique<Automation<>>(this->controller_sw_.get_turn_off_trigger());
+  this->sprinkler_shutdown_action = make_unique<sprinkler::ShutdownAction<>>(this);
+  this->sprinkler_turn_off_automation->add_actions({sprinkler_shutdown_action.get()});
 
-  this->sprinkler_turn_on_automation = new Automation<>(this->controller_sw_.get_turn_on_trigger());
-  this->sprinkler_resumeorstart_action = new sprinkler::ResumeOrStartAction<>(this);
-  this->sprinkler_turn_on_automation->add_actions({sprinkler_resumeorstart_action});
+  this->sprinkler_turn_on_automation = make_unique<Automation<>>(this->controller_sw_.get_turn_on_trigger());
+  this->sprinkler_resumeorstart_action = make_unique<sprinkler::ResumeOrStartAction<>>(this);
+  this->sprinkler_turn_on_automation->add_actions({sprinkler_resumeorstart_action.get()});
 
   this->controller_sw_.set_optimistic(false);
   this->controller_sw_.set_assumed_state(false);
@@ -119,14 +119,15 @@ void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &e
   new_valve->controller_switch->set_state_lambda(
       [=]() -> optional<bool> { return this->active_valve() == new_valve_number; });
 
-  new_valve->valve_turn_off_automation = new Automation<>(new_valve->controller_switch->get_turn_off_trigger());
-  new_valve->valve_shutdown_action = new sprinkler::ShutdownAction<>(this);
-  new_valve->valve_turn_off_automation->add_actions({new_valve->valve_shutdown_action});
+  new_valve->valve_turn_off_automation =
+      make_unique<Automation<>>(new_valve->controller_switch->get_turn_off_trigger());
+  new_valve->valve_shutdown_action = make_unique<sprinkler::ShutdownAction<>>(this);
+  new_valve->valve_turn_off_automation->add_actions({new_valve->valve_shutdown_action.get()});
 
-  new_valve->valve_turn_on_automation = new Automation<>(new_valve->controller_switch->get_turn_on_trigger());
-  new_valve->valve_resumeorstart_action = new sprinkler::StartSingleValveAction<>(this);
+  new_valve->valve_turn_on_automation = make_unique<Automation<>>(new_valve->controller_switch->get_turn_on_trigger());
+  new_valve->valve_resumeorstart_action = make_unique<sprinkler::StartSingleValveAction<>>(this);
   new_valve->valve_resumeorstart_action->set_valve_to_start(new_valve_number);
-  new_valve->valve_turn_on_automation->add_actions({new_valve->valve_resumeorstart_action});
+  new_valve->valve_turn_on_automation->add_actions({new_valve->valve_resumeorstart_action.get()});
 
   new_valve->enable_switch = make_unique<SprinklerSwitch>();
   new_valve->enable_switch->set_component_source("sprinkler.switch");
