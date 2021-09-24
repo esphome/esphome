@@ -247,6 +247,7 @@ async def _add_automations(config):
 @coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_global(cg.global_ns.namespace("esphome").using)
+    cg.add_global(cg.RawExpression("using std::isnan"))
     cg.add(
         cg.App.pre_setup(
             config[CONF_NAME],
