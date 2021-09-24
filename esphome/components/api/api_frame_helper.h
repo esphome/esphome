@@ -1,7 +1,8 @@
 #pragma once
 #include <cstdint>
-#include <vector>
 #include <deque>
+#include <utility>
+#include <vector>
 
 #include "esphome/core/defines.h"
 
@@ -75,8 +76,8 @@ class APIFrameHelper {
 class APINoiseFrameHelper : public APIFrameHelper {
  public:
   APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, std::shared_ptr<APINoiseContext> ctx)
-      : socket_(std::move(socket)), ctx_(ctx) {}
-  ~APINoiseFrameHelper();
+      : socket_(std::move(socket)), ctx_(std::move(std::move(ctx))) {}
+  ~APINoiseFrameHelper() override;
   APIError init() override;
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
@@ -136,7 +137,7 @@ class APINoiseFrameHelper : public APIFrameHelper {
 class APIPlaintextFrameHelper : public APIFrameHelper {
  public:
   APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket) : socket_(std::move(socket)) {}
-  ~APIPlaintextFrameHelper() = default;
+  ~APIPlaintextFrameHelper() override = default;
   APIError init() override;
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;

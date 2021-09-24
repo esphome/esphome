@@ -333,10 +333,10 @@ template<typename T> T *new_buffer(size_t length) {
   if (psramFound()) {
     buffer = (T *) ps_malloc(length);
   } else {
-    buffer = new T[length];
+    buffer = new T[length];  // NOLINT(cppcoreguidelines-owning-memory)
   }
 #else
-  buffer = new T[length];  // NOLINT
+  buffer = new T[length];  // NOLINT(cppcoreguidelines-owning-memory)
 #endif
 
   return buffer;

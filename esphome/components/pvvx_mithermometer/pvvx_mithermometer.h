@@ -36,9 +36,9 @@ class PVVXMiThermometer : public Component, public esp32_ble_tracker::ESPBTDevic
   sensor::Sensor *battery_level_{nullptr};
   sensor::Sensor *battery_voltage_{nullptr};
 
-  optional<ParseResult> parse_header(const esp32_ble_tracker::ServiceData &service_data);
-  bool parse_message(const std::vector<uint8_t> &message, ParseResult &result);
-  bool report_results(const optional<ParseResult> &result, const std::string &address);
+  optional<ParseResult> parse_header_(const esp32_ble_tracker::ServiceData &service_data);
+  bool parse_message_(const std::vector<uint8_t> &message, ParseResult &result);
+  bool report_results_(const optional<ParseResult> &result, const std::string &address);
 };
 
 }  // namespace pvvx_mithermometer

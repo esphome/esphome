@@ -14,7 +14,7 @@ void IDFI2CBus::setup() {
   static i2c_port_t next_port = 0;
   port_ = next_port++;
 
-  recover();
+  recover_();
 
   i2c_config_t conf{};
   memset(&conf, 0, sizeof(conf));
@@ -144,7 +144,7 @@ ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
   return ERROR_OK;
 }
 
-void IDFI2CBus::recover() {
+void IDFI2CBus::recover_() {
   // Perform I2C bus recovery, see
   // https://www.analog.com/media/en/technical-documentation/application-notes/54305147357414AN686_0.pdf
   // or see the linux kernel implementation, e.g.

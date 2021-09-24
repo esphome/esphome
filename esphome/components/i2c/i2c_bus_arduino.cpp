@@ -11,7 +11,7 @@ namespace i2c {
 static const char *const TAG = "i2c.arduino";
 
 void ArduinoI2CBus::setup() {
-  recover();
+  recover_();
 #ifdef USE_ESP32
   static uint8_t next_bus_num = 0;
   if (next_bus_num == 0)
@@ -92,7 +92,7 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
   return ERROR_UNKNOWN;
 }
 
-void ArduinoI2CBus::recover() {
+void ArduinoI2CBus::recover_() {
   // Perform I2C bus recovery, see
   // https://www.analog.com/media/en/technical-documentation/application-notes/54305147357414AN686_0.pdf
   // or see the linux kernel implementation, e.g.

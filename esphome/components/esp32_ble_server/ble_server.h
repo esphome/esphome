@@ -87,6 +87,7 @@ class BLEServer : public Component {
   } state_{INIT};
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern BLEServer *global_ble_server;
 
 }  // namespace esp32_ble_server

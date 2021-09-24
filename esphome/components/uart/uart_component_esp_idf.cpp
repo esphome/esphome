@@ -14,7 +14,7 @@ namespace esphome {
 namespace uart {
 static const char *const TAG = "uart.idf";
 
-uart_config_t IDFUARTComponent::get_config() {
+uart_config_t IDFUARTComponent::get_config_() {
   uart_parity_t parity = UART_PARITY_DISABLE;
   if (this->parity_ == UART_CONFIG_PARITY_EVEN)
     parity = UART_PARITY_EVEN;
@@ -70,7 +70,7 @@ void IDFUARTComponent::setup() {
 
   xSemaphoreTake(this->lock_, portMAX_DELAY);
 
-  uart_config_t uart_config = this->get_config();
+  uart_config_t uart_config = this->get_config_();
   esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));

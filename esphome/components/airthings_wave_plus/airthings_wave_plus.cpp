@@ -31,7 +31,7 @@ void AirthingsWavePlus::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt
         break;
       }
       this->handle_ = chr->handle;
-      this->node_state = esp32_ble_tracker::ClientState::Established;
+      this->node_state = esp32_ble_tracker::ClientState::ESTABLISHED;
 
       request_read_values_();
       break;
@@ -99,7 +99,7 @@ bool AirthingsWavePlus::is_valid_co2_value_(uint16_t co2) { return 0 <= co2 && c
 void AirthingsWavePlus::loop() {}
 
 void AirthingsWavePlus::update() {
-  if (this->node_state != esp32_ble_tracker::ClientState::Established) {
+  if (this->node_state != esp32_ble_tracker::ClientState::ESTABLISHED) {
     if (!parent()->enabled) {
       ESP_LOGW(TAG, "Reconnecting to device");
       parent()->set_enabled(true);

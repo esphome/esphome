@@ -25,7 +25,7 @@ class IDFI2CBus : public I2CBus, public Component {
   void set_frequency(uint32_t frequency) { frequency_ = frequency; }
 
  private:
-  void recover();
+  void recover_();
 
  protected:
   i2c_port_t port_;
