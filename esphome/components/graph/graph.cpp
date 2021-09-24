@@ -323,7 +323,8 @@ void Graph::draw_legend(display::DisplayBuffer *buff, uint16_t x_offset, uint16_
       for (int16_t i = 0; i < legend_->x0_ * 4 / 3; i++) {
         uint8_t b = (i % (thick * LineType::PATTERN_LENGTH)) / thick;
         if (((uint8_t) trace->get_line_type() & (1 << b)) == (1 << b)) {
-          buff->vertical_line(x - legend_->x0_ * 2 / 3 + i, y + legend_->yl_ - thick / 2, thick, trace->get_line_color());
+          buff->vertical_line(x - legend_->x0_ * 2 / 3 + i, y + legend_->yl_ - thick / 2, thick,
+                              trace->get_line_color());
         }
       }
     }
