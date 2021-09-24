@@ -1,5 +1,7 @@
 #include "sun.h"
+
 #include "esphome/core/log.h"
+#include <cstddef>
 
 /*
 The formulas/algorithms in this module are based on the book
@@ -301,7 +303,7 @@ optional<time::ESPTime> Sun::calc_event_(bool rising, double zenith) {
   if (it.has_value() && it->timestamp < now.timestamp) {
     // We're calculating *next* sunrise/sunset, but calculated event
     // is today, so try again tomorrow
-    time_t new_timestamp = today.timestamp + 24 * 60 * 60;
+    time_t new_timestamp = today.timestamp + 24ULL * 60 * 60;
     today = time::ESPTime::from_epoch_utc(new_timestamp);
     it = sun.event(rising, today, zenith);
   }
