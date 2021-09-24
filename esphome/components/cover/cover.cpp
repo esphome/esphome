@@ -164,11 +164,6 @@ void Cover::stop() {
   call.set_command_stop();
   call.perform();
 }
-void Cover::toggle() {
-  auto call = this->make_call();
-  call.set_command_toggle();
-  call.perform();
-}
 void Cover::add_on_state_callback(std::function<void()> &&f) { this->state_callback_.add(std::move(f)); }
 void Cover::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
