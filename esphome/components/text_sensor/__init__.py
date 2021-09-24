@@ -4,6 +4,7 @@ from esphome import automation
 from esphome.components import mqtt
 from esphome.const import (
     CONF_DISABLED_BY_DEFAULT,
+    CONF_FILTERS,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
@@ -14,6 +15,8 @@ from esphome.const import (
     CONF_STATE,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.util import Registry
+
 
 IS_PLATFORM_COMPONENT = True
 
@@ -32,12 +35,36 @@ TextSensorStateCondition = text_sensor_ns.class_(
     "TextSensorStateCondition", automation.Condition
 )
 
+FILTER_REGISTRY = Registry()
+validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
+
+# Filters
+Filter = text_sensor_ns.class_("Filter")
+LambdaFilter = text_sensor_ns.class_("LambdaFilter", Filter)
+ToUpperFilter = text_sensor_ns.class_("ToUpperFilter", Filter)
+
+@FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
+async def lambda_filter_to_code(config, filter_id):
+    lambda_ = await cg.process_lambda(
+        config, [(cg.std_string, "x")], return_type=cg.optional.template(cg.std_string)
+    )
+    return cg.new_Pvariable(filter_id, lambda_)
+
+# @FILTER_REGISTRY.register("to_upper", ToUpperFilter, cv.Schema({}))
+@FILTER_REGISTRY.register("to_upper", ToUpperFilter, cv.string)
+# @FILTER_REGISTRY.register("to_upper", ToUpperFilter, cv.Schema())
+# @FILTER_REGISTRY.register("to_upper", ToUpperFilter, cv.has_none_or_all_keys({}))
+async def to_upper_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
+
+
 icon = cv.icon
 
 TEXT_SENSOR_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
         cv.Optional(CONF_ICON): icon,
+        cv.Optional(CONF_FILTERS): validate_filters,
         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextSensorStateTrigger),
@@ -47,6 +74,10 @@ TEXT_SENSOR_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
 )
 
 
+async def build_filters(config):
+    return await cg.build_registry_list(FILTER_REGISTRY, config)
+
+
 async def setup_text_sensor_core_(var, config):
     cg.add(var.set_name(config[CONF_NAME]))
     cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
@@ -54,6 +85,10 @@ async def setup_text_sensor_core_(var, config):
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_ICON in config:
         cg.add(var.set_icon(config[CONF_ICON]))
+
+    if config.get(CONF_FILTERS):  # must exist and not be empty
+        filters = await build_filters(config[CONF_FILTERS])
+        cg.add(var.set_filters(filters))
 
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
