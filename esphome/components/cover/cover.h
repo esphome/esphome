@@ -143,12 +143,6 @@ class Cover : public Nameable {
    */
   ESPDEPRECATED("stop() is deprecated, use make_call().set_command_stop() instead.", "2021.9")
   void stop();
-  /** Toggle the cover.
-   *
-   * This is a legacy method and may be removed later, please use `.make_call()` instead.
-   */
-  ESPDEPRECATED("stop() is deprecated, use make_call().set_command_toggle() instead.", "2021.9")
-  void toggle();
 
   void add_on_state_callback(std::function<void()> &&f);
 
