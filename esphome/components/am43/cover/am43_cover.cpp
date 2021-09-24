@@ -24,7 +24,7 @@ void Am43Component::setup() {
 }
 
 void Am43Component::loop() {
-  if (this->node_state == espbt::ClientState::Established && !this->logged_in_) {
+  if (this->node_state == espbt::ClientState::ESTABLISHED && !this->logged_in_) {
     auto packet = this->encoder_->get_send_pin_request(this->pin_);
     auto status =
         esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_, packet->length,
@@ -46,7 +46,7 @@ CoverTraits Am43Component::get_traits() {
 }
 
 void Am43Component::control(const CoverCall &call) {
-  if (this->node_state != espbt::ClientState::Established) {
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "[%s] Cannot send cover control, not connected", this->get_name().c_str());
     return;
   }
@@ -98,7 +98,7 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      this->node_state = espbt::ClientState::Established;
+      this->node_state = espbt::ClientState::ESTABLISHED;
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {

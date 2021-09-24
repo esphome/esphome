@@ -13,7 +13,7 @@ class IPAddressWiFiInfo : public Component, public text_sensor::TextSensor {
     auto ip = wifi::global_wifi_component->wifi_sta_ip();
     if (ip != this->last_ip_) {
       this->last_ip_ = ip;
-      this->publish_state(ip.str().c_str());
+      this->publish_state(ip.str());
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }

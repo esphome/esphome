@@ -60,8 +60,8 @@ class EthernetComponent : public Component {
   void start_connect_();
   void dump_connect_params_();
 
-  static void eth_phy_config_gpio_();
-  static void eth_phy_power_enable_(bool enable);
+  static void eth_phy_config_gpio();
+  static void eth_phy_power_enable(bool enable);
 
   std::string use_address_;
   uint8_t phy_addr_{0};
@@ -76,10 +76,11 @@ class EthernetComponent : public Component {
   bool connected_{false};
   EthernetComponentState state_{EthernetComponentState::STOPPED};
   uint32_t connect_begin_;
-  eth_config_t eth_config;
+  eth_config_t eth_config_;
   eth_phy_power_enable_func orig_power_enable_fun_;
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
 
 }  // namespace ethernet

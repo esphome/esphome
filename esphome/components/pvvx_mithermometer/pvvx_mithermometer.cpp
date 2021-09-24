@@ -25,14 +25,14 @@ bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
-    auto res = parse_header(service_data);
+    auto res = parse_header_(service_data);
     if (!res.has_value()) {
       continue;
     }
-    if (!(parse_message(service_data.data, *res))) {
+    if (!(parse_message_(service_data.data, *res))) {
       continue;
     }
-    if (!(report_results(res, device.address_str()))) {
+    if (!(report_results_(res, device.address_str()))) {
       continue;
     }
     if (res->temperature.has_value() && this->temperature_ != nullptr)
@@ -49,7 +49,7 @@ bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
   return success;
 }
 
-optional<ParseResult> PVVXMiThermometer::parse_header(const esp32_ble_tracker::ServiceData &service_data) {
+optional<ParseResult> PVVXMiThermometer::parse_header_(const esp32_ble_tracker::ServiceData &service_data) {
   ParseResult result;
   if (!service_data.uuid.contains(0x1A, 0x18)) {
     ESP_LOGVV(TAG, "parse_header(): no service data UUID magic bytes.");
@@ -68,7 +68,7 @@ optional<ParseResult> PVVXMiThermometer::parse_header(const esp32_ble_tracker::S
   return result;
 }
 
-bool PVVXMiThermometer::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
+bool PVVXMiThermometer::parse_message_(const std::vector<uint8_t> &message, ParseResult &result) {
   /*
   All data little endian
   uint8_t     size;   // = 19
@@ -109,7 +109,7 @@ bool PVVXMiThermometer::parse_message(const std::vector<uint8_t> &message, Parse
   return true;
 }
 
-bool PVVXMiThermometer::report_results(const optional<ParseResult> &result, const std::string &address) {
+bool PVVXMiThermometer::report_results_(const optional<ParseResult> &result, const std::string &address) {
   if (!result.has_value()) {
     ESP_LOGVV(TAG, "report_results(): no results available.");
     return false;

@@ -45,11 +45,11 @@ void EthernetComponent::setup() {
 
   switch (this->type_) {
     case ETHERNET_TYPE_LAN8720: {
-      memcpy(&this->eth_config, &phy_lan8720_default_ethernet_config, sizeof(eth_config_t));
+      memcpy(&this->eth_config_, &phy_lan8720_default_ethernet_config, sizeof(eth_config_t));
       break;
     }
     case ETHERNET_TYPE_TLK110: {
-      memcpy(&this->eth_config, &phy_tlk110_default_ethernet_config, sizeof(eth_config_t));
+      memcpy(&this->eth_config_, &phy_tlk110_default_ethernet_config, sizeof(eth_config_t));
       break;
     }
     default: {
@@ -58,20 +58,20 @@ void EthernetComponent::setup() {
     }
   }
 
-  this->eth_config.phy_addr = static_cast<eth_phy_base_t>(this->phy_addr_);
-  this->eth_config.clock_mode = this->clk_mode_;
-  this->eth_config.gpio_config = EthernetComponent::eth_phy_config_gpio_;
-  this->eth_config.tcpip_input = tcpip_adapter_eth_input;
+  this->eth_config_.phy_addr = static_cast<eth_phy_base_t>(this->phy_addr_);
+  this->eth_config_.clock_mode = this->clk_mode_;
+  this->eth_config_.gpio_config = EthernetComponent::eth_phy_config_gpio;
+  this->eth_config_.tcpip_input = tcpip_adapter_eth_input;
 
   if (this->power_pin_ != nullptr) {
-    this->orig_power_enable_fun_ = this->eth_config.phy_power_enable;
-    this->eth_config.phy_power_enable = EthernetComponent::eth_phy_power_enable_;
+    this->orig_power_enable_fun_ = this->eth_config_.phy_power_enable;
+    this->eth_config_.phy_power_enable = EthernetComponent::eth_phy_power_enable;
   }
 
   tcpipInit();
 
   esp_err_t err;
-  err = esp_eth_init(&this->eth_config);
+  err = esp_eth_init(&this->eth_config_);
   ESPHL_ERROR_CHECK(err, "ETH init error");
   err = esp_eth_enable();
   ESPHL_ERROR_CHECK(err, "ETH enable error");
@@ -209,11 +209,11 @@ void EthernetComponent::start_connect_() {
   this->connect_begin_ = millis();
   this->status_set_warning();
 }
-void EthernetComponent::eth_phy_config_gpio_() {
+void EthernetComponent::eth_phy_config_gpio() {
   phy_rmii_configure_data_interface_pins();
   phy_rmii_smi_configure_pins(global_eth_component->mdc_pin_, global_eth_component->mdio_pin_);
 }
-void EthernetComponent::eth_phy_power_enable_(bool enable) {
+void EthernetComponent::eth_phy_power_enable(bool enable) {
   global_eth_component->power_pin_->digital_write(enable);
   // power up takes some time, datasheet says max 300µs
   delay(1);
@@ -242,9 +242,9 @@ void EthernetComponent::dump_connect_params_() {
   uint8_t mac[6];
   esp_eth_get_mac(mac);
   ESP_LOGCONFIG(TAG, "  MAC Address: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  ESP_LOGCONFIG(TAG, "  Is Full Duplex: %s", YESNO(this->eth_config.phy_get_duplex_mode()));
-  ESP_LOGCONFIG(TAG, "  Link Up: %s", YESNO(this->eth_config.phy_check_link()));
-  ESP_LOGCONFIG(TAG, "  Link Speed: %u", this->eth_config.phy_get_speed_mode() ? 100 : 10);
+  ESP_LOGCONFIG(TAG, "  Is Full Duplex: %s", YESNO(this->eth_config_.phy_get_duplex_mode()));
+  ESP_LOGCONFIG(TAG, "  Link Up: %s", YESNO(this->eth_config_.phy_check_link()));
+  ESP_LOGCONFIG(TAG, "  Link Speed: %u", this->eth_config_.phy_get_speed_mode() ? 100 : 10);
 }
 void EthernetComponent::set_phy_addr(uint8_t phy_addr) { this->phy_addr_ = phy_addr; }
 void EthernetComponent::set_power_pin(GPIOPin *power_pin) { this->power_pin_ = power_pin; }

@@ -21,7 +21,7 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
   void pin_mode(gpio::Flags flags) override {
     gpio_config_t conf{};
     conf.pin_bit_mask = 1ULL << static_cast<uint32_t>(pin_);
-    conf.mode = flags_to_mode_(flags);
+    conf.mode = flags_to_mode(flags);
     conf.pull_up_en = flags & gpio::FLAG_PULLUP ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE;
     conf.pull_down_en = flags & gpio::FLAG_PULLDOWN ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE;
     conf.intr_type = GPIO_INTR_DISABLE;
@@ -36,7 +36,7 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
   bool is_inverted() const override { return inverted_; }
 
  protected:
-  static gpio_mode_t flags_to_mode_(gpio::Flags flags) {
+  static gpio_mode_t flags_to_mode(gpio::Flags flags) {
     flags = (gpio::Flags)(flags & ~(gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN));
     if (flags == gpio::FLAG_NONE) {
       return GPIO_MODE_DISABLE;
@@ -55,7 +55,7 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
       return GPIO_MODE_DISABLE;
     }
   }
-  void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const override {
+  void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override {
     gpio_int_type_t idf_type = GPIO_INTR_ANYEDGE;
     switch (type) {
       case gpio::INTERRUPT_RISING_EDGE:
@@ -76,9 +76,9 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
     }
     gpio_set_intr_type(pin_, idf_type);
     gpio_intr_enable(pin_);
-    if (!isr_service_installed_) {
+    if (!isr_service_installed) {
       gpio_install_isr_service(ESP_INTR_FLAG_LEVEL5);
-      isr_service_installed_ = true;
+      isr_service_installed = true;
     }
     gpio_isr_handler_add(pin_, func, arg);
   }
@@ -87,7 +87,8 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
   bool inverted_;
   gpio_drive_cap_t drive_strength_;
   gpio::Flags flags_;
-  static bool isr_service_installed_;
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+  static bool isr_service_installed;
 };
 
 }  // namespace esp32

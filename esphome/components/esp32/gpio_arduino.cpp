@@ -21,7 +21,7 @@ ISRInternalGPIOPin ArduinoInternalGPIOPin::to_isr() const {
   return ISRInternalGPIOPin((void *) arg);
 }
 
-void ArduinoInternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
+void ArduinoInternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   uint8_t arduino_mode = DISABLED;
   switch (type) {
     case gpio::INTERRUPT_RISING_EDGE:
