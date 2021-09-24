@@ -11,7 +11,7 @@ namespace sgp40 {
 
 using fix16_t = int32_t;
 
-#define F16(x) ((fix16_t)(((x) >= 0) ? ((x) *65536.0 + 0.5) : ((x) *65536.0 - 0.5)))
+#define F16(x) ((fix16_t) (((x) >= 0) ? ((x) *65536.0 + 0.5) : ((x) *65536.0 - 0.5)))
 
 static const float VOC_ALGORITHM_SAMPLING_INTERVAL(1.);
 static const float VOC_ALGORITHM_INITIAL_BLACKOUT(45.);

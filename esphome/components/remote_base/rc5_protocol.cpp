@@ -78,7 +78,7 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
     out_data |= 1;
   }
 
-  out.command = (uint8_t)(out_data & 0x3F) + (1 - field_bit) * 64u;
+  out.command = (uint8_t) (out_data & 0x3F) + (1 - field_bit) * 64u;
   out.address = (out_data >> 6) & 0x1F;
   return out;
 }

@@ -149,7 +149,7 @@ void ILI9341Display::fill_internal_(Color color) {
     auto color565 = display::ColorUtil::color_to_565(color);
 
     while (dst < transfer_buffer_ + sizeof(transfer_buffer_)) {
-      *dst++ = (uint8_t)(color565 >> 8);
+      *dst++ = (uint8_t) (color565 >> 8);
       *dst++ = (uint8_t) color565;
     }
   }
@@ -248,7 +248,7 @@ uint32_t ILI9341Display::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
 
   for (uint32_t i = 0; i < sz; ++i) {
     uint16_t color = convert_to_16bit_color_(*src++);
-    *dst++ = (uint8_t)(color >> 8);
+    *dst++ = (uint8_t) (color >> 8);
     *dst++ = (uint8_t) color;
   }
 

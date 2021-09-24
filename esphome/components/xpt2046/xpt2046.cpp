@@ -92,8 +92,8 @@ void XPT2046Component::update() {
       y_val = 0x7fff - y_val;
     }
 
-    x_val = (int16_t)((int) x_val * this->x_dim_ / 0x7fff);
-    y_val = (int16_t)((int) y_val * this->y_dim_ / 0x7fff);
+    x_val = (int16_t) ((int) x_val * this->x_dim_ / 0x7fff);
+    y_val = (int16_t) ((int) y_val * this->y_dim_ / 0x7fff);
 
     if (!this->touched || (now - this->last_pos_ms_) >= this->report_millis_) {
       ESP_LOGD(TAG, "Raw [x, y] = [%d, %d], transformed = [%d, %d]", this->x_raw, this->y_raw, x_val, y_val);
@@ -177,7 +177,7 @@ int16_t XPT2046Component::normalize(int16_t val, int16_t min_val, int16_t max_va
   } else if (val >= max_val) {
     ret = 0x7fff;
   } else {
-    ret = (int16_t)((int) 0x7fff * (val - min_val) / (max_val - min_val));
+    ret = (int16_t) ((int) 0x7fff * (val - min_val) / (max_val - min_val));
   }
 
   return ret;
