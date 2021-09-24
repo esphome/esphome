@@ -4,7 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include <float.h>
+#include <cfloat>
 
 namespace esphome {
 namespace current_based {

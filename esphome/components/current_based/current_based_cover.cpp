@@ -1,6 +1,7 @@
 #include "current_based_cover.h"
 #include "esphome/core/log.h"
-#include <float.h>
+#include <cfloat>
+
 namespace esphome {
 namespace current_based {
 
