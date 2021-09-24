@@ -377,17 +377,20 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 #endif  // USE_WIFI_WPA2_EAP
 
+  // Reset flags, do this _before_ wifi_station_connect as the callback method
+  // may be called from wifi_station_connect
+  s_sta_connecting = true;
+  s_sta_connected = false;
+  s_sta_got_ip = false;
+  s_sta_connect_error = false;
+  s_sta_connect_not_found = false;
+
   err = esp_wifi_connect();
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "esp_wifi_connect failed: %s", esp_err_to_name(err));
     return false;
   }
 
-  s_sta_connecting = true;
-  s_sta_connected = false;
-  s_sta_got_ip = false;
-  s_sta_connect_error = false;
-  s_sta_connect_not_found = false;
   return true;
 }
 

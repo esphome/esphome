@@ -309,6 +309,14 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   this->wifi_apply_hostname_();
 
+  // Reset flags, do this _before_ wifi_station_connect as the callback method
+  // may be called from wifi_station_connect
+  s_sta_connecting = true;
+  s_sta_connected = false;
+  s_sta_got_ip = false;
+  s_sta_connect_error = false;
+  s_sta_connect_not_found = false;
+
   ETS_UART_INTR_DISABLE();
   ret = wifi_station_connect();
   ETS_UART_INTR_ENABLE();
@@ -324,12 +332,6 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
       return false;
     }
   }
-
-  s_sta_connecting = true;
-  s_sta_connected = false;
-  s_sta_got_ip = false;
-  s_sta_connect_error = false;
-  s_sta_connect_not_found = false;
 
   return true;
 }
