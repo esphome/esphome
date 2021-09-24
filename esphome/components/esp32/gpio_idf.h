@@ -87,6 +87,7 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
   bool inverted_;
   gpio_drive_cap_t drive_strength_;
   gpio::Flags flags_;
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
   static bool isr_service_installed;
 };
 
