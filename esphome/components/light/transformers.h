@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/log.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "light_color_values.h"
@@ -69,41 +70,38 @@ class LightFlashTransformer : public LightTransformer {
     if (this->transition_length_ * 2 > this->length_)
       this->transition_length_ = this->length_ / 2;
 
-    // do not create transition if length is 0
-    if (this->transition_length_ == 0)
-      return;
-
     // first transition to original target
     this->transformer_ = this->state_.get_output()->create_default_transition();
     this->transformer_->setup(this->state_.current_values, this->target_values_, this->transition_length_);
   }
 
   optional<LightColorValues> apply() override {
-    // transition transformer does not handle 0 length as progress returns nan
-    if (this->transition_length_ == 0)
-      return this->target_values_;
+    optional<LightColorValues> result = {};
 
-    if (this->transformer_ != nullptr) {
-      if (!this->transformer_->is_finished()) {
-        return this->transformer_->apply();
-      } else {
-        this->transformer_->stop();
-        this->transformer_ = nullptr;
-      }
-    }
-
-    if (millis() > this->start_time_ + this->length_ - this->transition_length_) {
+    if (this->transformer_ == nullptr && millis() > this->start_time_ + this->length_ - this->transition_length_) {
       // second transition back to start value
       this->transformer_ = this->state_.get_output()->create_default_transition();
       this->transformer_->setup(this->state_.current_values, this->get_start_values(), this->transition_length_);
     }
 
-    // once transition is complete, don't change states until next transition
-    return optional<LightColorValues>();
+    if (this->transformer_ != nullptr) {
+      result = this->transformer_->apply();
+
+      if (this->transformer_->is_finished()) {
+        this->transformer_->stop();
+        this->transformer_ = nullptr;
+      }
+    }
+
+    return result;
   }
 
   // Restore the original values after the flash.
   void stop() override {
+    if (this->transformer_ != nullptr) {
+      this->transformer_->stop();
+      this->transformer_ = nullptr;
+    }
     this->state_.current_values = this->get_start_values();
     this->state_.remote_values = this->get_start_values();
     this->state_.publish_state();
