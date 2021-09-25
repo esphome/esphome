@@ -600,7 +600,7 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   auto status = WiFiClass::status();
   if (status == WL_CONNECTED) {
     return WiFiSTAConnectStatus::CONNECTED;
-  } else if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST || status == WL_DISCONNECTED) {
+  } else if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST) {
     return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
   } else if (status == WL_NO_SSID_AVAIL) {
     return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
