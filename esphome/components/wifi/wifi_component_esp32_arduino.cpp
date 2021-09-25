@@ -597,7 +597,7 @@ void WiFiComponent::wifi_pre_setup_() {
   this->wifi_mode_(false, false);
 }
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
-  auto status = WiFi.status();
+  auto status = WiFiClass::status();
   if (status == WL_CONNECTED) {
     return WiFiSTAConnectStatus::CONNECTED;
   } else if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST || status == WL_DISCONNECTED) {
