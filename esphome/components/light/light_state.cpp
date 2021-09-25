@@ -127,7 +127,6 @@ void LightState::loop() {
       this->transformer_->stop();
       this->transformer_ = nullptr;
       this->target_state_reached_callback_.call();
-      this->output_->update_state(this);
     }
   }
 
