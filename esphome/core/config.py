@@ -247,7 +247,11 @@ async def _add_automations(config):
 @coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_global(cg.global_ns.namespace("esphome").using)
+    # These can be used by user lambdas, put them to default scope
     cg.add_global(cg.RawExpression("using std::isnan"))
+    cg.add_global(cg.RawExpression("using std::min"))
+    cg.add_global(cg.RawExpression("using std::max"))
+
     cg.add(
         cg.App.pre_setup(
             config[CONF_NAME],
