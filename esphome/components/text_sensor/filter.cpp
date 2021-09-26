@@ -42,9 +42,24 @@ optional<std::string> LambdaFilter::new_value(std::string value) {
 }
 
 // ToUpperFilter
-ToUpperFilter::ToUpperFilter(std::string dummy){};
+// ToUpperFilter::ToUpperFilter(std::string dummy){};
 optional<std::string> ToUpperFilter::new_value(std::string value) {
   std::for_each(value.begin(), value.end(), [](char &c) { c = ::toupper(c); });
+  return value;
+}
+
+// Append
+optional<std::string> AppendFilter::new_value(std::string value) { return value + this->suffix_; }
+
+// Prepend
+optional<std::string> PrependFilter::new_value(std::string value) { return this->prefix_ + value; }
+
+// Substitute
+optional<std::string> SubstituteFilter::new_value(std::string value) {
+  std::size_t pos;
+  for (int i = 0; i < this->from_strings_.size(); i++)
+    while ((pos = value.find(this->from_strings_[i])) != std::string::npos)
+      value.replace(pos, this->from_strings_[i].size(), this->to_strings_[i]);
   return value;
 }
 

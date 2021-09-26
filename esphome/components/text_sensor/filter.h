@@ -67,13 +67,44 @@ class LambdaFilter : public Filter {
 /// A simple filter that converts all text to uppercase
 class ToUpperFilter : public Filter {
  public:
-  explicit ToUpperFilter(std::string dummy);
-  // explicit ToUpperFilter();
-
+  ToUpperFilter(std::string dummy) {}
+  // ToUpperFilter();
   optional<std::string> new_value(std::string value) override;
 
  protected:
 };
 
-}  // namespace sensor
+/// A simple filter that adds a string to the end of another string
+class AppendFilter : public Filter {
+ public:
+  AppendFilter(std::string suffix) : suffix_(suffix) {}
+  optional<std::string> new_value(std::string value) override;
+
+ protected:
+  std::string suffix_;
+};
+
+/// A simple filter that adds a string to the end of another string
+class PrependFilter : public Filter {
+ public:
+  PrependFilter(std::string prefix) : prefix_(prefix) {}
+  optional<std::string> new_value(std::string value) override;
+
+ protected:
+  std::string prefix_;
+};
+
+/// A simple filter that adds a string to the end of another string
+class SubstituteFilter : public Filter {
+ public:
+  SubstituteFilter(std::vector<std::string> from_strings, std::vector<std::string> to_strings)
+      : from_strings_(std::move(from_strings)), to_strings_(std::move(to_strings)) {}
+  optional<std::string> new_value(std::string value) override;
+
+ protected:
+  std::vector<std::string> from_strings_;
+  std::vector<std::string> to_strings_;
+};
+
+}  // namespace text_sensor
 }  // namespace esphome

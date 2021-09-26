@@ -13,6 +13,8 @@ from esphome.const import (
     CONF_MQTT_ID,
     CONF_NAME,
     CONF_STATE,
+    CONF_FROM,
+    CONF_TO,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.util import Registry
@@ -42,6 +44,10 @@ validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
 Filter = text_sensor_ns.class_("Filter")
 LambdaFilter = text_sensor_ns.class_("LambdaFilter", Filter)
 ToUpperFilter = text_sensor_ns.class_("ToUpperFilter", Filter)
+AppendFilter = text_sensor_ns.class_("AppendFilter", Filter)
+PrependFilter = text_sensor_ns.class_("PrependFilter", Filter)
+SubstituteFilter = text_sensor_ns.class_("SubstituteFilter", Filter)
+
 
 @FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
 async def lambda_filter_to_code(config, filter_id):
@@ -50,12 +56,53 @@ async def lambda_filter_to_code(config, filter_id):
     )
     return cg.new_Pvariable(filter_id, lambda_)
 
+
 # @FILTER_REGISTRY.register("to_upper", ToUpperFilter, cv.Schema({}))
 @FILTER_REGISTRY.register("to_upper", ToUpperFilter, cv.string)
 # @FILTER_REGISTRY.register("to_upper", ToUpperFilter, cv.Schema())
 # @FILTER_REGISTRY.register("to_upper", ToUpperFilter, cv.has_none_or_all_keys({}))
 async def to_upper_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
+
+
+@FILTER_REGISTRY.register("append", AppendFilter, cv.string)
+async def append_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
+
+
+@FILTER_REGISTRY.register("prepend", PrependFilter, cv.string)
+async def prepend_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
+
+
+def validate_substitute(value):
+    if isinstance(value, dict):
+        return cv.Schema(
+            {
+                cv.Required(CONF_FROM): cv.string,
+                cv.Required(CONF_TO): cv.string,
+            }
+        )(value)
+    value = cv.string(value)
+    if "->" not in value:
+        raise cv.Invalid("Substitute mapping must contain '->'")
+    a, b = value.split("->", 1)
+    a, b = a.strip(), b.strip()
+    return validate_substitute({CONF_FROM: cv.string(a), CONF_TO: cv.string(b)})
+
+
+@FILTER_REGISTRY.register(
+    "substitute",
+    SubstituteFilter,
+    cv.All(
+        cv.ensure_list(validate_substitute),
+        cv.Length(min=2)
+    ),
+)
+async def substitute_filter_to_code(config, filter_id):
+    from_strings = [conf[CONF_FROM] for conf in config]
+    to_strings = [conf[CONF_TO] for conf in config]
+    return cg.new_Pvariable(filter_id, from_strings, to_strings)
 
 
 icon = cv.icon
