@@ -252,9 +252,9 @@ class Sprinkler : public Component {
 
   /// Valve control timers
   std::vector<SprinklerTimer> timer_{
-      {"open_delay", false, 0, 0, std::bind(&Sprinkler::valve_open_delay_callback_, this)},
-      {"overlap_delay", false, 0, 0, std::bind(&Sprinkler::valve_overlap_delay_callback_, this)},
-      {"cycle_complete", false, 0, 0, std::bind(&Sprinkler::valve_cycle_complete_callback_, this)}};
+      {this->name_ + "open_delay", false, 0, 0, std::bind(&Sprinkler::valve_open_delay_callback_, this)},
+      {this->name_ + "overlap_delay", false, 0, 0, std::bind(&Sprinkler::valve_overlap_delay_callback_, this)},
+      {this->name_ + "cycle_complete", false, 0, 0, std::bind(&Sprinkler::valve_cycle_complete_callback_, this)}};
 
   /// Switches we'll present to the front end
   SprinklerSwitch auto_adv_sw_;

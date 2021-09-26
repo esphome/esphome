@@ -40,21 +40,22 @@ ResumeOrStartAction = sprinkler_ns.class_("ResumeOrStartAction", automation.Acti
 
 
 def validate_sprinkler(config):
-    for valve in config[CONF_VALVES]:
-        if (
-            CONF_VALVE_OVERLAP in config
-            and valve[CONF_RUN_DURATION] <= config[CONF_VALVE_OVERLAP]
-        ):
-            raise cv.Invalid(
-                f"{CONF_RUN_DURATION} must be greater than {CONF_VALVE_OVERLAP}"
-            )
-        if (
-            CONF_VALVE_OPEN_DELAY in config
-            and valve[CONF_RUN_DURATION] <= config[CONF_VALVE_OPEN_DELAY]
-        ):
-            raise cv.Invalid(
-                f"{CONF_RUN_DURATION} must be greater than {CONF_VALVE_OPEN_DELAY}"
-            )
+    for valve_group in config:
+        for valve in valve_group:
+            if (
+                CONF_VALVE_OVERLAP in config
+                and valve[CONF_RUN_DURATION] <= config[CONF_VALVE_OVERLAP]
+            ):
+                raise cv.Invalid(
+                    f"{CONF_RUN_DURATION} must be greater than {CONF_VALVE_OVERLAP}"
+                )
+            if (
+                CONF_VALVE_OPEN_DELAY in config
+                and valve[CONF_RUN_DURATION] <= config[CONF_VALVE_OPEN_DELAY]
+            ):
+                raise cv.Invalid(
+                    f"{CONF_RUN_DURATION} must be greater than {CONF_VALVE_OPEN_DELAY}"
+                )
     return config
 
 
@@ -64,7 +65,6 @@ SPRINKLER_ACTION_SCHEMA = maybe_simple_id(
     }
 )
 
-
 SPRINKLER_ACTION_SINGLE_VALVE_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(Sprinkler),
@@ -72,14 +72,12 @@ SPRINKLER_ACTION_SINGLE_VALVE_SCHEMA = maybe_simple_id(
     }
 )
 
-
 SPRINKLER_ACTION_SET_MULTIPLIER_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(Sprinkler),
         cv.Required(CONF_MULTIPLIER): cv.templatable(cv.positive_float),
     }
 )
-
 
 SPRINKLER_VALVE_SCHEMA = cv.Schema(
     {
@@ -91,23 +89,24 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
     }
 )
 
+SPRINKLER_VALVE_GROUP_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(Sprinkler),
+        cv.Required(CONF_AUTO_ADVANCE_SWITCH_NAME): cv.string,
+        cv.Required(CONF_NAME): cv.string,
+        cv.Required(CONF_REVERSE_SWITCH_NAME): cv.string,
+        cv.Exclusive(
+            CONF_VALVE_OVERLAP, "open_delay/overlap"
+        ): cv.positive_time_period_seconds,
+        cv.Exclusive(
+            CONF_VALVE_OPEN_DELAY, "open_delay/overlap"
+        ): cv.positive_time_period_seconds,
+        cv.Required(CONF_VALVES): cv.ensure_list(SPRINKLER_VALVE_SCHEMA),
+    }
+)
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(Sprinkler),
-            cv.Required(CONF_AUTO_ADVANCE_SWITCH_NAME): cv.string,
-            cv.Required(CONF_NAME): cv.string,
-            cv.Required(CONF_REVERSE_SWITCH_NAME): cv.string,
-            cv.Exclusive(
-                CONF_VALVE_OVERLAP, "open_delay/overlap"
-            ): cv.positive_time_period_seconds,
-            cv.Exclusive(
-                CONF_VALVE_OPEN_DELAY, "open_delay/overlap"
-            ): cv.positive_time_period_seconds,
-            cv.Required(CONF_VALVES): cv.ensure_list(SPRINKLER_VALVE_SCHEMA),
-        }
-    ).extend(cv.COMPONENT_SCHEMA),
+    cv.ensure_list(SPRINKLER_VALVE_GROUP_SCHEMA),
     validate_sprinkler,
 )
 
@@ -193,38 +192,42 @@ async def sprinkler_resume_or_start_full_cycle_to_code(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-
-    cg.add(
-        var.pre_setup(
-            config[CONF_NAME],
-            config[CONF_AUTO_ADVANCE_SWITCH_NAME],
-            config[CONF_REVERSE_SWITCH_NAME],
-        )
-    )
-    for valve in config[CONF_VALVES]:
+    for valve_group in config:
+        var = cg.new_Pvariable(valve_group[CONF_ID])
         cg.add(
-            var.add_valve(valve[CONF_VALVE_SWITCH_NAME], valve[CONF_ENABLE_SWITCH_NAME])
+            var.pre_setup(
+                valve_group[CONF_NAME],
+                valve_group[CONF_AUTO_ADVANCE_SWITCH_NAME],
+                valve_group[CONF_REVERSE_SWITCH_NAME],
+            )
         )
-
-    if CONF_VALVE_OVERLAP in config:
-        cg.add(var.set_valve_overlap(config[CONF_VALVE_OVERLAP]))
-
-    if CONF_VALVE_OPEN_DELAY in config:
-        cg.add(var.set_valve_open_delay(config[CONF_VALVE_OPEN_DELAY]))
-
-    for valve_index, valve in enumerate(config[CONF_VALVES]):
-        valve_switch = await cg.get_variable(valve[CONF_VALVE_SWITCH])
-        if CONF_PUMP_SWITCH in valve:
-            pump = await cg.get_variable(valve[CONF_PUMP_SWITCH])
+        for valve in valve_group[CONF_VALVES]:
             cg.add(
-                var.configure_valve_switch(
-                    valve_index, valve_switch, valve[CONF_RUN_DURATION], pump
+                var.add_valve(
+                    valve[CONF_VALVE_SWITCH_NAME], valve[CONF_ENABLE_SWITCH_NAME]
                 )
             )
-        else:
-            cg.add(
-                var.configure_valve_switch(
-                    valve_index, valve_switch, valve[CONF_RUN_DURATION]
+
+        if CONF_VALVE_OVERLAP in valve_group:
+            cg.add(var.set_valve_overlap(valve_group[CONF_VALVE_OVERLAP]))
+
+        if CONF_VALVE_OPEN_DELAY in valve_group:
+            cg.add(var.set_valve_open_delay(valve_group[CONF_VALVE_OPEN_DELAY]))
+
+    for valve_group in config:
+        var = await cg.get_variable(valve_group[CONF_ID])
+        for valve_index, valve in enumerate(valve_group[CONF_VALVES]):
+            valve_switch = await cg.get_variable(valve[CONF_VALVE_SWITCH])
+            if CONF_PUMP_SWITCH in valve:
+                pump = await cg.get_variable(valve[CONF_PUMP_SWITCH])
+                cg.add(
+                    var.configure_valve_switch(
+                        valve_index, valve_switch, valve[CONF_RUN_DURATION], pump
+                    )
                 )
-            )
+            else:
+                cg.add(
+                    var.configure_valve_switch(
+                        valve_index, valve_switch, valve[CONF_RUN_DURATION]
+                    )
+                )

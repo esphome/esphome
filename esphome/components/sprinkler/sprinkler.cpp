@@ -121,9 +121,6 @@ void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &e
   App.register_component(new_valve->controller_switch.get());
   App.register_switch(new_valve->controller_switch.get());
   new_valve->controller_switch->set_name(valve_sw_name);
-  new_valve->controller_switch->set_optimistic(false);
-  new_valve->controller_switch->set_assumed_state(false);
-  new_valve->controller_switch->set_restore_state(false);
   new_valve->controller_switch->set_state_lambda(
       [=]() -> optional<bool> { return this->active_valve() == new_valve_number; });
 
@@ -143,7 +140,6 @@ void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &e
   App.register_switch(new_valve->enable_switch.get());
   new_valve->enable_switch->set_name(enable_sw_name);
   new_valve->enable_switch->set_optimistic(true);
-  new_valve->enable_switch->set_assumed_state(false);
   new_valve->enable_switch->set_restore_state(true);
 }
 
