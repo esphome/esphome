@@ -113,14 +113,17 @@ void ESP32BLEBeacon::ble_setup() {
     return;
   }
 
-  memcpy(&global_esp32_ble_beacon->ibeacon_adv_data_.ibeacon_head, &IBEACON_COMMON_HEAD, sizeof(esp_ble_ibeacon_head_t));
-  memcpy(&global_esp32_ble_beacon->ibeacon_adv_data_.ibeacon_vendor.proximity_uuid, global_esp32_ble_beacon->uuid_.data(),
+  memcpy(&global_esp32_ble_beacon->ibeacon_adv_data_.ibeacon_head, &IBEACON_COMMON_HEAD,
+         sizeof(esp_ble_ibeacon_head_t));
+  memcpy(&global_esp32_ble_beacon->ibeacon_adv_data_.ibeacon_vendor.proximity_uuid,
+         global_esp32_ble_beacon->uuid_.data(),
          sizeof(global_esp32_ble_beacon->ibeacon_adv_data_.ibeacon_vendor.proximity_uuid));
   global_esp32_ble_beacon->ibeacon_adv_data_.ibeacon_vendor.minor = ENDIAN_CHANGE_U16(global_esp32_ble_beacon->minor_);
   global_esp32_ble_beacon->ibeacon_adv_data_.ibeacon_vendor.major = ENDIAN_CHANGE_U16(global_esp32_ble_beacon->major_);
   global_esp32_ble_beacon->ibeacon_adv_data_.ibeacon_vendor.measured_power = 0xC5;
 
-  esp_ble_gap_config_adv_data_raw((uint8_t *) &global_esp32_ble_beacon->ibeacon_adv_data_, sizeof(global_esp32_ble_beacon->ibeacon_adv_data_));
+  esp_ble_gap_config_adv_data_raw((uint8_t *) &global_esp32_ble_beacon->ibeacon_adv_data_,
+                                  sizeof(global_esp32_ble_beacon->ibeacon_adv_data_));
 }
 
 void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
@@ -155,11 +158,14 @@ void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap
 }
 
 void ESP32BLEBeacon::update_advertisement(const std::array<uint8_t, 16> &uuid) {
-  if (global_esp32_ble_beacon == nullptr) return;
+  if (global_esp32_ble_beacon == nullptr)
+    return;
   global_esp32_ble_beacon->uuid_ = uuid;
-  memcpy(&global_esp32_ble_beacon->ibeacon_adv_data_.ibeacon_vendor.proximity_uuid, global_esp32_ble_beacon->uuid_.data(),
+  memcpy(&global_esp32_ble_beacon->ibeacon_adv_data_.ibeacon_vendor.proximity_uuid,
+         global_esp32_ble_beacon->uuid_.data(),
          sizeof(global_esp32_ble_beacon->ibeacon_adv_data_.ibeacon_vendor.proximity_uuid));
-  esp_ble_gap_config_adv_data_raw((uint8_t *) &global_esp32_ble_beacon->ibeacon_adv_data_, sizeof(global_esp32_ble_beacon->ibeacon_adv_data_));
+  esp_ble_gap_config_adv_data_raw((uint8_t *) &global_esp32_ble_beacon->ibeacon_adv_data_,
+                                  sizeof(global_esp32_ble_beacon->ibeacon_adv_data_));
 }
 
 ESP32BLEBeacon *global_esp32_ble_beacon = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
