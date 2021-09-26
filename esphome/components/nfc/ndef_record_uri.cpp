@@ -21,7 +21,7 @@ NdefRecordUri::NdefRecordUri(const std::vector<uint8_t> &payload) {
 
   this->tnf_ = TNF_WELL_KNOWN;
   this->type_ = "U";
-  this->set_URI(uri);
+  this->set_uri(uri);
 }
 
 std::vector<uint8_t> NdefRecordUri::get_encoded_payload() {
@@ -31,7 +31,7 @@ std::vector<uint8_t> NdefRecordUri::get_encoded_payload() {
   uint8_t payload_prefix_length = 0x00;
   for (uint8_t i = 1; i < PAYLOAD_IDENTIFIERS_COUNT; i++) {
     std::string prefix = PAYLOAD_IDENTIFIERS[i];
-    if (this->URI_.substr(0, prefix.length()).find(prefix) != std::string::npos) {
+    if (this->uri_.substr(0, prefix.length()).find(prefix) != std::string::npos) {
       payload_prefix = i;
       payload_prefix_length = prefix.length();
       break;
@@ -40,7 +40,7 @@ std::vector<uint8_t> NdefRecordUri::get_encoded_payload() {
 
   data.push_back(payload_prefix);
 
-  data.insert(data.end(), this->URI_.begin() + payload_prefix_length, this->URI_.end());
+  data.insert(data.end(), this->uri_.begin() + payload_prefix_length, this->uri_.end());
   return data;
 }
 
