@@ -57,9 +57,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(
-        CONF_DIMMER_DATAPOINT,
-        CONF_SWITCH_DATAPOINT,
-        CONF_RGB_DATAPOINT
+        CONF_DIMMER_DATAPOINT, CONF_SWITCH_DATAPOINT, CONF_RGB_DATAPOINT
     ),
 )
 
