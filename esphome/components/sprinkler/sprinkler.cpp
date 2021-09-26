@@ -134,13 +134,15 @@ void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &e
   new_valve->valve_resumeorstart_action->set_valve_to_start(new_valve_number);
   new_valve->valve_turn_on_automation->add_actions({new_valve->valve_resumeorstart_action.get()});
 
-  new_valve->enable_switch = make_unique<SprinklerSwitch>();
-  new_valve->enable_switch->set_component_source("sprinkler.switch");
-  App.register_component(new_valve->enable_switch.get());
-  App.register_switch(new_valve->enable_switch.get());
-  new_valve->enable_switch->set_name(enable_sw_name);
-  new_valve->enable_switch->set_optimistic(true);
-  new_valve->enable_switch->set_restore_state(true);
+  if (enable_sw_name != "") {
+    new_valve->enable_switch = make_unique<SprinklerSwitch>();
+    new_valve->enable_switch->set_component_source("sprinkler.switch");
+    App.register_component(new_valve->enable_switch.get());
+    App.register_switch(new_valve->enable_switch.get());
+    new_valve->enable_switch->set_name(enable_sw_name);
+    new_valve->enable_switch->set_optimistic(true);
+    new_valve->enable_switch->set_restore_state(true);
+  }
 }
 
 void Sprinkler::add_controller(Sprinkler *other_controller) { this->other_controllers_.push_back(other_controller); }
@@ -210,7 +212,9 @@ void Sprinkler::start_full_cycle() {
     // if no valves are enabled, enable them all so that auto-advance can work
     if (!this->any_valve_is_enabled_()) {
       for (auto &valve : this->valve_) {
-        valve.enable_switch->publish_state(true);
+        if (valve.enable_switch != nullptr) {
+          valve.enable_switch->publish_state(true);
+        }
       }
     }
     this->auto_adv_sw_.publish_state(true);

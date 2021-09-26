@@ -81,7 +81,7 @@ SPRINKLER_ACTION_SET_MULTIPLIER_SCHEMA = maybe_simple_id(
 
 SPRINKLER_VALVE_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ENABLE_SWITCH_NAME): cv.string,
+        cv.Optional(CONF_ENABLE_SWITCH_NAME): cv.string,
         cv.Optional(CONF_PUMP_SWITCH): cv.use_id(switch.Switch),
         cv.Required(CONF_RUN_DURATION): cv.positive_time_period_seconds,
         cv.Required(CONF_VALVE_SWITCH_NAME): cv.string,
@@ -194,19 +194,23 @@ async def sprinkler_resume_or_start_full_cycle_to_code(
 async def to_code(config):
     for valve_group in config:
         var = cg.new_Pvariable(valve_group[CONF_ID])
-        cg.add(
-            var.pre_setup(
-                valve_group[CONF_NAME],
-                valve_group[CONF_AUTO_ADVANCE_SWITCH_NAME],
-                valve_group[CONF_REVERSE_SWITCH_NAME],
-            )
-        )
-        for valve in valve_group[CONF_VALVES]:
+        if len(valve_group[CONF_VALVES]) > 1:
             cg.add(
-                var.add_valve(
-                    valve[CONF_VALVE_SWITCH_NAME], valve[CONF_ENABLE_SWITCH_NAME]
+                var.pre_setup(
+                    valve_group[CONF_NAME],
+                    valve_group[CONF_AUTO_ADVANCE_SWITCH_NAME],
+                    valve_group[CONF_REVERSE_SWITCH_NAME],
                 )
             )
+        for valve in valve_group[CONF_VALVES]:
+            if CONF_ENABLE_SWITCH_NAME in valve and len(valve_group[CONF_VALVES]) > 1:
+                cg.add(
+                    var.add_valve(
+                        valve[CONF_VALVE_SWITCH_NAME], valve[CONF_ENABLE_SWITCH_NAME]
+                    )
+                )
+            else:
+                cg.add(var.add_valve(valve[CONF_VALVE_SWITCH_NAME]))
 
         if CONF_VALVE_OVERLAP in valve_group:
             cg.add(var.set_valve_overlap(valve_group[CONF_VALVE_OVERLAP]))

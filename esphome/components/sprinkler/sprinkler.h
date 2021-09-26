@@ -78,7 +78,7 @@ class Sprinkler : public Component {
   void dump_config() override;
 
   /// add a valve to the controller
-  void add_valve(const std::string &valve_sw_name, const std::string &enable_sw_name);
+  void add_valve(const std::string &valve_sw_name, const std::string &enable_sw_name = "");
 
   /// add another controller to the controller so it can check if pumps/main valves are in use
   void add_controller(Sprinkler *other_controller);
