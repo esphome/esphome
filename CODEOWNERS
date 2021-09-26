@@ -88,6 +88,13 @@ esphome/components/mcp9808/* @k7hpn
 esphome/components/mdns/* @esphome/core
 esphome/components/midea/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
+esphome/components/modbus_controller/* @martgras
+esphome/components/modbus_controller/binary_sensor/* @martgras
+esphome/components/modbus_controller/number/* @martgras
+esphome/components/modbus_controller/output/* @martgras
+esphome/components/modbus_controller/sensor/* @martgras
+esphome/components/modbus_controller/switch/* @martgras
+esphome/components/modbus_controller/text_sensor/* @martgras
 esphome/components/network/* @esphome/core
 esphome/components/nextion/* @senexcrenshaw
 esphome/components/nextion/binary_sensor/* @senexcrenshaw
