@@ -8,7 +8,7 @@ namespace sml {
 class SmlSensor : public SmlListener, public sensor::Sensor, public Component {
  public:
   SmlSensor(const char *server_id, const char *obis);
-  void publish_val(ObisInfo obis_info) override;
+  void publish_val(const ObisInfo &obis_info) override;
   void dump_config() override;
 };
 

@@ -1,11 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text_sensor
-from esphome.const import CONF_ID
+from esphome.const import CONF_FORMAT, CONF_ID
 
 from .. import CONF_OBIS, CONF_SERVER_ID, CONF_SML_ID, Sml, sml_ns
-
-CONF_FORMAT = "format"
 
 SmlSensor = sml_ns.class_("SmlTextSensor", text_sensor.TextSensor, cg.Component)
 

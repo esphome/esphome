@@ -11,20 +11,20 @@ static const char *const TAG = "sml_text_sensor";
 SmlTextSensor::SmlTextSensor(const char *server_id, const char *obis, const char *format) {
   this->server_id = std::string(server_id);
   this->obis = std::string(obis);
-  this->format = std::string(format);
+  this->format_ = std::string(format);
 }
 
-void SmlTextSensor::publish_val(ObisInfo obis_info) {
+void SmlTextSensor::publish_val(const ObisInfo &obis_info) {
   char value_type;
-  if (this->format == "hex")
+  if (this->format_ == "hex")
     value_type = SML_HEX;
-  else if (this->format == "text")
+  else if (this->format_ == "text")
     value_type = SML_OCTET;
-  else if (this->format == "bool")
+  else if (this->format_ == "bool")
     value_type = SML_BOOL;
-  else if (this->format == "uint")
+  else if (this->format_ == "uint")
     value_type = SML_UINT;
-  else if (this->format == "int")
+  else if (this->format_ == "int")
     value_type = SML_INT;
   else
     value_type = obis_info.value_type;

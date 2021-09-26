@@ -6,6 +6,9 @@
 
 using namespace std;
 
+namespace esphome {
+namespace sml {
+
 uint16_t get_entry_length(const bytes &buffer, unsigned int &pos) {
   uint16_t type = buffer[pos] >> 4;
   uint16_t length = buffer[pos] & 0x0f;
@@ -153,7 +156,7 @@ ObisInfo::ObisInfo(bytes server_id, SmlNode val_list_entry) {
   this->value_type = value_node.type;
 }
 
-string ObisInfo::code_repr() {
+string ObisInfo::code_repr() const {
   ostringstream code_stream;
   code_stream << (unsigned int) this->code[0];
   code_stream << "-";
@@ -166,3 +169,6 @@ string ObisInfo::code_repr() {
   code_stream << (unsigned int) this->code[4];
   return code_stream.str();
 }
+
+}  // namespace sml
+}  // namespace esphome

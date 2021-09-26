@@ -8,11 +8,11 @@ namespace sml {
 class SmlTextSensor : public SmlListener, public text_sensor::TextSensor, public Component {
  public:
   SmlTextSensor(const char *server_id, const char *obis, const char *format);
-  void publish_val(ObisInfo obis_info) override;
+  void publish_val(const ObisInfo &obis_info) override;
   void dump_config() override;
 
  protected:
-  std::string format;
+  std::string format_;
 };
 
 }  // namespace sml

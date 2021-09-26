@@ -11,7 +11,7 @@ class SmlListener {
  public:
   std::string server_id;
   std::string obis;
-  virtual void publish_val(ObisInfo obis_info){};
+  virtual void publish_val(const ObisInfo &obis_info){};
 };
 
 class Sml : public Component, public uart::UARTDevice {
@@ -25,12 +25,12 @@ class Sml : public Component, public uart::UARTDevice {
   void process_sml_file_(const bytes &sml_data);
   void log_obis_info_(const std::vector<ObisInfo> &obis_info_vec);
   void publish_obis_info_(const std::vector<ObisInfo> &obis_info_vec);
-  char checkStartEndBytes_(char c);
-  void publish_value_(ObisInfo obis_info);
+  char check_start_end_bytes_(char c);
+  void publish_value_(const ObisInfo &obis_info);
 
   // Serial parser
   bool record_ = false;
-  char incomingBuffer_[8]{0};
+  char incoming_buffer_[8]{0};
   bytes sml_data_;
 };
 }  // namespace sml

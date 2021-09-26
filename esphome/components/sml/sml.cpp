@@ -9,21 +9,18 @@ namespace sml {
 
 static const char *const TAG = "sml";
 
-const char START_BYTES[8] = {0x1b, 0x1b, 0x1b, 0x1b, 0x01, 0x01, 0x01, 0x01};
-const char END_BYTES[5] = {0x1b, 0x1b, 0x1b, 0x1b, 0x1a};
-
 const char START_BYTES_DETECTED = 1;
 const char END_BYTES_DETECTED = 2;
 
-char Sml::checkStartEndBytes_(char c) {
+char Sml::check_start_end_bytes_(char c) {
   // fill sml_file with incoming bytes
   for (int k = 1; k < 8; k++)
-    this->incomingBuffer_[k - 1] = this->incomingBuffer_[k];
-  this->incomingBuffer_[7] = c;
+    this->incoming_buffer_[k - 1] = this->incoming_buffer_[k];
+  this->incoming_buffer_[7] = c;
 
-  if (memcmp(this->incomingBuffer_, START_BYTES, sizeof(START_BYTES)) == 0)
+  if (memcmp(this->incoming_buffer_, START_BYTES, sizeof(START_BYTES)) == 0)
     return START_BYTES_DETECTED;
-  if (memcmp(this->incomingBuffer_, END_BYTES, sizeof(END_BYTES)) == 0)
+  if (memcmp(this->incoming_buffer_, END_BYTES, sizeof(END_BYTES)) == 0)
     return END_BYTES_DETECTED;
   return 0;
 }
@@ -35,7 +32,7 @@ void Sml::loop() {
     if (this->record_)
       this->sml_data_.emplace_back(c);
 
-    switch (this->checkStartEndBytes_(c)) {
+    switch (this->check_start_end_bytes_(c)) {
       case START_BYTES_DETECTED: {
         this->record_ = true;
         this->sml_data_.assign(START_BYTES, START_BYTES + 8);
@@ -77,7 +74,7 @@ void Sml::process_sml_file_(const bytes &sml_data) {
 void Sml::log_obis_info_(const std::vector<ObisInfo> &obis_info_vec) {
   int i = 0;
   ESP_LOGD(TAG, "OBIS info:");
-  for (auto obis_info : obis_info_vec) {
+  for (auto const &obis_info : obis_info_vec) {
     std::ostringstream info_stream;
     info_stream << "  (" << bytes_repr(obis_info.server_id) << ") ";
     info_stream << obis_info.code_repr();
@@ -93,13 +90,13 @@ void Sml::publish_obis_info_(const std::vector<ObisInfo> &obis_info_vec) {
   }
 }
 
-void Sml::publish_value_(ObisInfo obis_info) {
-  for (auto element : sml_listeners_) {
-    if ((!element->server_id.empty()) && (bytes_repr(obis_info.server_id) != element->server_id))
+void Sml::publish_value_(const ObisInfo &obis_info) {
+  for (auto const &sml_listener : sml_listeners_) {
+    if ((!sml_listener->server_id.empty()) && (bytes_repr(obis_info.server_id) != sml_listener->server_id))
       continue;
-    if (obis_info.code_repr() != element->obis)
+    if (obis_info.code_repr() != sml_listener->obis)
       continue;
-    element->publish_val(obis_info);
+    sml_listener->publish_val(obis_info);
   }
 }
 

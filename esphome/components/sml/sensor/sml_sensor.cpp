@@ -12,7 +12,7 @@ SmlSensor::SmlSensor(const char *server_id, const char *obis) {
   this->obis = std::string(obis);
 }
 
-void SmlSensor::publish_val(ObisInfo obis_info) {
+void SmlSensor::publish_val(const ObisInfo &obis_info) {
   switch (obis_info.value_type) {
     case SML_INT: {
       publish_state(bytes_to_int(obis_info.value));
