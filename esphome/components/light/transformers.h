@@ -69,6 +69,8 @@ class LightFlashTransformer : public LightTransformer {
     if (this->transition_length_ * 2 > this->length_)
       this->transition_length_ = this->length_ / 2;
 
+    this->begun_lightstate_restore_ = false;
+
     // first transition to original target
     this->transformer_ = this->state_.get_output()->create_default_transition();
     this->transformer_->setup(this->state_.current_values, this->target_values_, this->transition_length_);
@@ -81,6 +83,7 @@ class LightFlashTransformer : public LightTransformer {
       // second transition back to start value
       this->transformer_ = this->state_.get_output()->create_default_transition();
       this->transformer_->setup(this->state_.current_values, this->get_start_values(), this->transition_length_);
+      this->begun_lightstate_restore_ = true;
     }
 
     if (this->transformer_ != nullptr) {
@@ -106,10 +109,15 @@ class LightFlashTransformer : public LightTransformer {
     this->state_.publish_state();
   }
 
+  bool is_finished() override {
+    return this->begun_lightstate_restore_ && LightTransformer::is_finished();
+  }
+
  protected:
   LightState &state_;
   uint32_t transition_length_;
   std::unique_ptr<LightTransformer> transformer_{nullptr};
+  bool begun_lightstate_restore_;
 };
 
 }  // namespace light
