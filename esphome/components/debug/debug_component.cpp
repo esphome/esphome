@@ -105,8 +105,12 @@ void DebugComponent::dump_config() {
   ESP_LOGD(TAG, "ESP-IDF Version: %s", esp_get_idf_version());
 
   uint64_t chip_mac = 0LL;
+#ifdef USE_IGNORE_EFUSE_MAC_CRC
+  esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, &chip_mac, 48);
+#else
   esp_efuse_mac_get_default((uint8_t *) (&chip_mac));
-  std::string mac = uint64_to_string(chip_mac);
+#endif
+e std::string mac = uint64_to_string(chip_mac);
   ESP_LOGD(TAG, "EFuse MAC: %s", mac.c_str());
 
   const char *reset_reason;

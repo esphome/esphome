@@ -24,6 +24,10 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/application.h"
 #include "esphome/core/util.h"
+#ifdef USE_IGNORE_EFUSE_MAC_CRC
+#include "esp_efuse.h"
+#include "esp_efuse_table.h"
+#endif
 
 namespace esphome {
 namespace wifi {
@@ -110,6 +114,18 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
 }
 
 void WiFiComponent::wifi_pre_setup_() {
+#ifdef USE_IGNORE_EFUSE_MAC_CRC
+  // On some devices, the MAC address that is burnt into EFuse does not match
+  // the CRC that goes along with it. As a result, the MAC address won't be
+  // used by the framework, and the device setup is aborted. This work-around
+  // reads the MAC address without checking the CRC and sets it as the MAC
+  // address to use from here on.
+  uint8_t mac[6];
+  ESP_LOGE(TAG, "Use EFuse MAC without checking CRC");
+  esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, 48);
+  esp_base_mac_addr_set(mac);
+  ESP_LOGE(TAG, "MAC = %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+#endif
   esp_err_t err = esp_netif_init();
   if (err != ERR_OK) {
     ESP_LOGE(TAG, "esp_netif_init failed: %s", esp_err_to_name(err));
