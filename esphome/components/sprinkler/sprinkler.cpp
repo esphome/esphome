@@ -84,13 +84,13 @@ void Sprinkler::pre_setup(const std::string &name, const std::string &auto_adv_n
   this->controller_sw_.set_state_lambda(
       [=]() -> optional<bool> { return this->is_a_valid_valve(this->active_valve()); });
 
-  this->sprinkler_turn_off_automation = make_unique<Automation<>>(this->controller_sw_.get_turn_off_trigger());
-  this->sprinkler_shutdown_action = make_unique<sprinkler::ShutdownAction<>>(this);
-  this->sprinkler_turn_off_automation->add_actions({sprinkler_shutdown_action.get()});
+  this->sprinkler_turn_off_automation_ = make_unique<Automation<>>(this->controller_sw_.get_turn_off_trigger());
+  this->sprinkler_shutdown_action_ = make_unique<sprinkler::ShutdownAction<>>(this);
+  this->sprinkler_turn_off_automation_->add_actions({sprinkler_shutdown_action_.get()});
 
-  this->sprinkler_turn_on_automation = make_unique<Automation<>>(this->controller_sw_.get_turn_on_trigger());
-  this->sprinkler_resumeorstart_action = make_unique<sprinkler::ResumeOrStartAction<>>(this);
-  this->sprinkler_turn_on_automation->add_actions({sprinkler_resumeorstart_action.get()});
+  this->sprinkler_turn_on_automation_ = make_unique<Automation<>>(this->controller_sw_.get_turn_on_trigger());
+  this->sprinkler_resumeorstart_action_ = make_unique<sprinkler::ResumeOrStartAction<>>(this);
+  this->sprinkler_turn_on_automation_->add_actions({sprinkler_resumeorstart_action_.get()});
   // set up controller's "auto-advance" switch
   this->auto_adv_sw_.set_component_source("sprinkler.switch");
   App.register_component(&this->auto_adv_sw_);
@@ -142,6 +142,8 @@ void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &e
   new_valve->enable_switch->set_optimistic(true);
   new_valve->enable_switch->set_restore_state(true);
 }
+
+void Sprinkler::add_controller(Sprinkler *other_controller) { this->other_controllers_.push_back(other_controller); }
 
 void Sprinkler::configure_valve_switch(const size_t valve_number, switch_::Switch *valve_switch,
                                        uint32_t valve_run_duration, switch_::Switch *pump_switch) {
@@ -278,6 +280,13 @@ bool Sprinkler::is_a_valid_valve(const size_t valve_number) {
 
 size_t Sprinkler::number_of_valves() { return this->valve_.size(); }
 
+bool Sprinkler::pump_in_use(switch_::Switch *pump_switch) {
+  if (this->is_a_valid_valve(this->active_valve_)) {
+    return this->valve_pump_switch_(this->active_valve_) == pump_switch;
+  }
+  return false;
+}
+
 uint32_t Sprinkler::time_remaining() {
   uint32_t secs_remaining = 0;
   if (this->is_a_valid_valve(this->active_valve_)) {
@@ -390,6 +399,14 @@ void Sprinkler::set_pump_state_(const size_t valve_number, const bool pump_state
     if (pump_state) {
       this->valve_[valve_number].pump_switch->turn_on();
     } else {
+      // don't turn off the pump if it is in use by another controller
+      for (auto &controller : this->other_controllers_) {
+        if (controller != this) {  // dummy check
+          if (controller->pump_in_use(valve_pump_switch_(valve_number))) {
+            return;
+          }
+        }
+      }
       this->valve_[valve_number].pump_switch->turn_off();
     }
   }
@@ -428,11 +445,10 @@ void Sprinkler::switch_to_pump_(size_t valve_number, bool no_shutdown) {
         // always turn on the "new" pump
         this->set_pump_state_(valve_index, true);
       } else if ((valve_pump_switch_(valve_index) != valve_pump_switch_(valve_number)) && (!no_shutdown)) {
-        // don't change the switch state if it's the same switch
+        // don't change the switch state if it's the same switch the previous valve was using
         this->set_pump_state_(valve_index, false);
       }
     }
-  } else {
   }
 }
 

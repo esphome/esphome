@@ -80,6 +80,9 @@ class Sprinkler : public Component {
   /// add a valve to the controller
   void add_valve(const std::string &valve_sw_name, const std::string &enable_sw_name);
 
+  /// add another controller to the controller so it can check if pumps/main valves are in use
+  void add_controller(Sprinkler *other_controller);
+
   /// configure a valve's switch object, run duration and pump switch (if provided).
   ///  valve_run_duration is time in seconds.
   void configure_valve_switch(size_t valve_number, switch_::Switch *valve_switch, uint32_t valve_run_duration,
@@ -154,6 +157,9 @@ class Sprinkler : public Component {
 
   /// returns the number of valves the controller is configured with
   size_t number_of_valves();
+
+  /// returns true if the pump the pointer points to is in use
+  bool pump_in_use(switch_::Switch *pump_switch);
 
   /// returns the amount of time remaining in seconds for the active valve
   uint32_t time_remaining();
@@ -256,16 +262,19 @@ class Sprinkler : public Component {
       {this->name_ + "overlap_delay", false, 0, 0, std::bind(&Sprinkler::valve_overlap_delay_callback_, this)},
       {this->name_ + "cycle_complete", false, 0, 0, std::bind(&Sprinkler::valve_cycle_complete_callback_, this)}};
 
+  /// Other Sprinkler instances we should be aware of (used to check if pumps are in use)
+  std::vector<Sprinkler *> other_controllers_;
+
   /// Switches we'll present to the front end
   SprinklerSwitch auto_adv_sw_;
   SprinklerSwitch controller_sw_;
   SprinklerSwitch reverse_sw_;
 
-  std::unique_ptr<ShutdownAction<>> sprinkler_shutdown_action;
-  std::unique_ptr<ResumeOrStartAction<>> sprinkler_resumeorstart_action;
+  std::unique_ptr<ShutdownAction<>> sprinkler_shutdown_action_;
+  std::unique_ptr<ResumeOrStartAction<>> sprinkler_resumeorstart_action_;
 
-  std::unique_ptr<Automation<>> sprinkler_turn_off_automation;
-  std::unique_ptr<Automation<>> sprinkler_turn_on_automation;
+  std::unique_ptr<Automation<>> sprinkler_turn_off_automation_;
+  std::unique_ptr<Automation<>> sprinkler_turn_on_automation_;
 };
 
 }  // namespace sprinkler
