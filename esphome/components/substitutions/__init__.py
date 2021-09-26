@@ -25,8 +25,7 @@ def validate_substitution_key(value):
     for char in value:
         if char not in VALID_SUBSTITUTIONS_CHARACTERS:
             raise cv.Invalid(
-                "Substitution must only consist of upper/lowercase characters, the underscore "
-                "and numbers. The character '{}' cannot be used".format(char)
+                f"Substitution must only consist of upper/lowercase characters, the underscore and numbers. The character '{char}' cannot be used"
             )
     return value
 
@@ -42,6 +41,7 @@ async def to_code(config):
     pass
 
 
+# pylint: disable=consider-using-f-string
 VARIABLE_PROG = re.compile(
     "\\$([{0}]+|\\{{[{0}]*\\}})".format(VALID_SUBSTITUTIONS_CHARACTERS)
 )
@@ -133,8 +133,7 @@ def do_substitution_pass(config, command_line_substitutions):
     with cv.prepend_path("substitutions"):
         if not isinstance(substitutions, dict):
             raise cv.Invalid(
-                "Substitutions must be a key to value mapping, got {}"
-                "".format(type(substitutions))
+                f"Substitutions must be a key to value mapping, got {type(substitutions)}"
             )
 
         replace_keys = []

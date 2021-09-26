@@ -32,7 +32,7 @@ class APIServer : public Component, public Controller {
   void set_reboot_timeout(uint32_t reboot_timeout);
 
 #ifdef USE_API_NOISE
-  void set_noise_psk(psk_t psk) { noise_ctx_->set_psk(std::move(psk)); }
+  void set_noise_psk(psk_t psk) { noise_ctx_->set_psk(psk); }
   std::shared_ptr<APINoiseContext> get_noise_ctx() { return noise_ctx_; }
 #endif  // USE_API_NOISE
 
@@ -91,7 +91,7 @@ class APIServer : public Component, public Controller {
   uint16_t port_{6053};
   uint32_t reboot_timeout_{300000};
   uint32_t last_connected_{0};
-  std::vector<APIConnection *> clients_;
+  std::vector<std::unique_ptr<APIConnection>> clients_;
   std::string password_;
   std::vector<HomeAssistantStateSubscription> state_subs_;
   std::vector<UserServiceDescriptor *> user_services_;

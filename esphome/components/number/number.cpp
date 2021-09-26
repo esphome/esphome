@@ -8,7 +8,7 @@ static const char *const TAG = "number";
 
 void NumberCall::perform() {
   ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
-  if (!this->value_.has_value() || isnan(*this->value_)) {
+  if (!this->value_.has_value() || std::isnan(*this->value_)) {
     ESP_LOGW(TAG, "No value set for NumberCall");
     return;
   }

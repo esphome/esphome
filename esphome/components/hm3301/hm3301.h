@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
@@ -27,7 +29,7 @@ class HM3301Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
  protected:
-  HM330X *hm3301_;
+  std::unique_ptr<HM330X> hm3301_;
 
   HM330XErrorCode error_code_{NO_ERROR};
 
@@ -48,3 +50,5 @@ class HM3301Component : public PollingComponent, public i2c::I2CDevice {
 
 }  // namespace hm3301
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

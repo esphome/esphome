@@ -1,6 +1,7 @@
 #include "mqtt_light.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_LIGHT
 
 #include "esphome/components/light/light_json_schema.h"
@@ -79,3 +80,4 @@ void MQTTJSONLightComponent::dump_config() {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

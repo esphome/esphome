@@ -1,17 +1,23 @@
+#ifdef USE_ESP32
+
 #include "esp32_ble_tracker.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
-
-#ifdef ARDUINO_ARCH_ESP32
+#include "esphome/core/hal.h"
 
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <esp_bt_main.h>
 #include <esp_bt.h>
+#include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_gap_ble_api.h>
 #include <esp_bt_defs.h>
+
+#ifdef USE_ARDUINO
+#include <esp32-hal-bt.h>
+#endif
 
 // bt_trace.h
 #undef TAG
@@ -21,7 +27,7 @@ namespace esp32_ble_tracker {
 
 static const char *const TAG = "esp32_ble_tracker";
 
-ESP32BLETracker *global_esp32_ble_tracker = nullptr;
+ESP32BLETracker *global_esp32_ble_tracker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
   uint64_t u = 0;
@@ -44,29 +50,29 @@ void ESP32BLETracker::setup() {
     return;
   }
 
-  global_esp32_ble_tracker->start_scan(true);
+  global_esp32_ble_tracker->start_scan_(true);
 }
 
 void ESP32BLETracker::loop() {
   BLEEvent *ble_event = this->ble_events_.pop();
   while (ble_event != nullptr) {
     if (ble_event->type_)
-      this->real_gattc_event_handler(ble_event->event_.gattc.gattc_event, ble_event->event_.gattc.gattc_if,
-                                     &ble_event->event_.gattc.gattc_param);
+      this->real_gattc_event_handler_(ble_event->event_.gattc.gattc_event, ble_event->event_.gattc.gattc_if,
+                                      &ble_event->event_.gattc.gattc_param);
     else
-      this->real_gap_event_handler(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
-    delete ble_event;
+      this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
+    delete ble_event;  // NOLINT(cppcoreguidelines-owning-memory)
     ble_event = this->ble_events_.pop();
   }
 
   bool connecting = false;
   for (auto *client : this->clients_) {
-    if (client->state() == ClientState::Connecting || client->state() == ClientState::Discovered)
+    if (client->state() == ClientState::CONNECTING || client->state() == ClientState::DISCOVERED)
       connecting = true;
   }
   if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
     xSemaphoreGive(this->scan_end_lock_);
-    global_esp32_ble_tracker->start_scan(false);
+    global_esp32_ble_tracker->start_scan_(false);
   }
 
   if (xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
@@ -88,7 +94,7 @@ void ESP32BLETracker::loop() {
       for (auto *client : this->clients_)
         if (client->parse_device(device)) {
           found = true;
-          if (client->state() == ClientState::Discovered) {
+          if (client->state() == ClientState::DISCOVERED) {
             esp_ble_gap_stop_scanning();
             if (xSemaphoreTake(this->scan_end_lock_, 10L / portTICK_PERIOD_MS)) {
               xSemaphoreGive(this->scan_end_lock_);
@@ -126,13 +132,32 @@ bool ESP32BLETracker::ble_setup() {
     return false;
   }
 
-  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
-
-  // Initialize the bluetooth controller with the default configuration
-  if (!btStart()) {
-    ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
-    return false;
+  if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
+    // start bt controller
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
+      esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+      err = esp_bt_controller_init(&cfg);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bt_controller_init failed: %s", esp_err_to_name(err));
+        return false;
+      }
+      while (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE)
+        ;
+    }
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
+      err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bt_controller_enable failed: %s", esp_err_to_name(err));
+        return false;
+      }
+    }
+    if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
+      ESP_LOGE(TAG, "esp bt controller enable failed");
+      return false;
+    }
   }
+
+  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 
   err = esp_bluedroid_init();
   if (err != ESP_OK) {
@@ -171,7 +196,7 @@ bool ESP32BLETracker::ble_setup() {
   return true;
 }
 
-void ESP32BLETracker::start_scan(bool first) {
+void ESP32BLETracker::start_scan_(bool first) {
   if (!xSemaphoreTake(this->scan_end_lock_, 0L)) {
     ESP_LOGW(TAG, "Cannot start scan!");
     return;
@@ -204,42 +229,42 @@ void ESP32BLETracker::register_client(ESPBTClient *client) {
 }
 
 void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  BLEEvent *gap_event = new BLEEvent(event, param);
+  BLEEvent *gap_event = new BLEEvent(event, param);  // NOLINT(cppcoreguidelines-owning-memory)
   global_esp32_ble_tracker->ble_events_.push(gap_event);
-}
+}  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
-void ESP32BLETracker::real_gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+void ESP32BLETracker::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   switch (event) {
     case ESP_GAP_BLE_SCAN_RESULT_EVT:
-      global_esp32_ble_tracker->gap_scan_result(param->scan_rst);
+      global_esp32_ble_tracker->gap_scan_result_(param->scan_rst);
       break;
     case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
-      global_esp32_ble_tracker->gap_scan_set_param_complete(param->scan_param_cmpl);
+      global_esp32_ble_tracker->gap_scan_set_param_complete_(param->scan_param_cmpl);
       break;
     case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
-      global_esp32_ble_tracker->gap_scan_start_complete(param->scan_start_cmpl);
+      global_esp32_ble_tracker->gap_scan_start_complete_(param->scan_start_cmpl);
       break;
     case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
-      global_esp32_ble_tracker->gap_scan_stop_complete(param->scan_stop_cmpl);
+      global_esp32_ble_tracker->gap_scan_stop_complete_(param->scan_stop_cmpl);
       break;
     default:
       break;
   }
 }
 
-void ESP32BLETracker::gap_scan_set_param_complete(const esp_ble_gap_cb_param_t::ble_scan_param_cmpl_evt_param &param) {
+void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t::ble_scan_param_cmpl_evt_param &param) {
   this->scan_set_param_failed_ = param.status;
 }
 
-void ESP32BLETracker::gap_scan_start_complete(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
+void ESP32BLETracker::gap_scan_start_complete_(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
   this->scan_start_failed_ = param.status;
 }
 
-void ESP32BLETracker::gap_scan_stop_complete(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param) {
+void ESP32BLETracker::gap_scan_stop_complete_(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param) {
   xSemaphoreGive(this->scan_end_lock_);
 }
 
-void ESP32BLETracker::gap_scan_result(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
+void ESP32BLETracker::gap_scan_result_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
   if (param.search_evt == ESP_GAP_SEARCH_INQ_RES_EVT) {
     if (xSemaphoreTake(this->scan_result_lock_, 0L)) {
       if (this->scan_result_index_ < 16) {
@@ -254,12 +279,12 @@ void ESP32BLETracker::gap_scan_result(const esp_ble_gap_cb_param_t::ble_scan_res
 
 void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                           esp_ble_gattc_cb_param_t *param) {
-  BLEEvent *gattc_event = new BLEEvent(event, gattc_if, param);
+  BLEEvent *gattc_event = new BLEEvent(event, gattc_if, param);  // NOLINT(cppcoreguidelines-owning-memory)
   global_esp32_ble_tracker->ble_events_.push(gattc_event);
-}
+}  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
-void ESP32BLETracker::real_gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                                               esp_ble_gattc_cb_param_t *param) {
+void ESP32BLETracker::real_gattc_event_handler_(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                                                esp_ble_gattc_cb_param_t *param) {
   for (auto *client : global_esp32_ble_tracker->clients_) {
     client->gattc_event_handler(event, gattc_if, param);
   }
@@ -355,8 +380,8 @@ bool ESPBTUUID::operator==(const ESPBTUUID &uuid) const {
   }
   return false;
 }
-esp_bt_uuid_t ESPBTUUID::get_uuid() { return this->uuid_; }
-std::string ESPBTUUID::to_string() {
+esp_bt_uuid_t ESPBTUUID::get_uuid() const { return this->uuid_; }
+std::string ESPBTUUID::to_string() const {
   char sbuf[64];
   switch (this->uuid_.len) {
     case ESP_UUID_LEN_16:

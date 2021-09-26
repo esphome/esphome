@@ -165,7 +165,7 @@ void HitachiClimate::transmit_state() {
       set_power_(false);
       break;
     default:
-      ESP_LOGW(TAG, "Unsupported mode: %s", climate_mode_to_string(this->mode));
+      ESP_LOGW(TAG, "Unsupported mode: %s", LOG_STR_ARG(climate_mode_to_string(this->mode)));
   }
 
   set_temp_(static_cast<uint8_t>(this->target_temperature));

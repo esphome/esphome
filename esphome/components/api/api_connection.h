@@ -16,7 +16,6 @@ class APIConnection : public APIServerConnection {
   virtual ~APIConnection() = default;
 
   void start();
-  void force_disconnect_client();
   void loop();
 
   bool send_list_info_done() {
@@ -88,10 +87,7 @@ class APIConnection : public APIServerConnection {
   }
 #endif
 
-  void on_disconnect_response(const DisconnectResponse &value) override {
-    this->helper_->close();
-    this->remove_ = true;
-  }
+  void on_disconnect_response(const DisconnectResponse &value) override;
   void on_ping_response(const PingResponse &value) override {
     // we initiated ping
     this->sent_ping_ = false;
@@ -102,14 +98,7 @@ class APIConnection : public APIServerConnection {
 #endif
   HelloResponse hello(const HelloRequest &msg) override;
   ConnectResponse connect(const ConnectRequest &msg) override;
-  DisconnectResponse disconnect(const DisconnectRequest &msg) override {
-    // remote initiated disconnect_client
-    // don't close yet, we still need to send the disconnect response
-    // close will happen on next loop
-    this->next_close_ = true;
-    DisconnectResponse resp;
-    return resp;
-  }
+  DisconnectResponse disconnect(const DisconnectRequest &msg) override;
   PingResponse ping(const PingRequest &msg) override { return {}; }
   DeviceInfoResponse device_info(const DeviceInfoRequest &msg) override;
   void list_entities(const ListEntitiesRequest &msg) override { this->list_entities_iterator_.begin(); }
@@ -177,6 +166,7 @@ class APIConnection : public APIServerConnection {
   APIServer *parent_;
   InitialStateIterator initial_state_iterator_;
   ListEntitiesIterator list_entities_iterator_;
+  int state_subs_at_ = -1;
 };
 
 }  // namespace api

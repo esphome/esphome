@@ -1,5 +1,6 @@
 #include "template_sensor.h"
 #include "esphome/core/log.h"
+#include <cmath>
 
 namespace esphome {
 namespace template_ {
@@ -12,7 +13,7 @@ void TemplateSensor::update() {
     if (val.has_value()) {
       this->publish_state(*val);
     }
-  } else if (!isnan(this->get_raw_state())) {
+  } else if (!std::isnan(this->get_raw_state())) {
     this->publish_state(this->get_raw_state());
   }
 }

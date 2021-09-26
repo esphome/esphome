@@ -1,10 +1,12 @@
 #pragma once
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include <esp_camera.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 
 namespace esphome {
 namespace esp32_camera {
@@ -104,6 +106,7 @@ class ESP32Camera : public Component, public Nameable {
   uint32_t last_update_{0};
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32Camera *global_esp32_camera;
 
 }  // namespace esp32_camera

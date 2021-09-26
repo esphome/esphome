@@ -1,5 +1,11 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_MQTT
+
+#include <memory>
+
 #include "esphome/core/component.h"
 #include "mqtt_client.h"
 
@@ -59,6 +65,8 @@ class MQTTComponent : public Component {
   void call_setup() override;
 
   void call_loop() override;
+
+  void call_dump_config() override;
 
   /// Send discovery info the Home Assistant, override this.
   virtual void send_discovery(JsonObject &root, SendDiscoveryConfig &config) = 0;
@@ -171,9 +179,11 @@ class MQTTComponent : public Component {
   std::string custom_command_topic_{};
   bool retain_{true};
   bool discovery_enabled_{true};
-  Availability *availability_{nullptr};
+  std::unique_ptr<Availability> availability_;
   bool resend_state_{false};
 };
 
 }  // namespace mqtt
 }  // namespace esphome
+
+#endif  // USE_MQTt

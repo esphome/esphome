@@ -490,8 +490,7 @@ def validate_effects(allowed_effects):
             if key not in allowed_effects:
                 errors.append(
                     cv.Invalid(
-                        "The effect '{}' is not allowed for this "
-                        "light type".format(key),
+                        f"The effect '{key}' is not allowed for this light type",
                         [i],
                     )
                 )
@@ -500,8 +499,7 @@ def validate_effects(allowed_effects):
             if name in names:
                 errors.append(
                     cv.Invalid(
-                        "Found the effect name '{}' twice. All effects must have "
-                        "unique names".format(name),
+                        f"Found the effect name '{name}' twice. All effects must have unique names",
                         [i],
                     )
                 )

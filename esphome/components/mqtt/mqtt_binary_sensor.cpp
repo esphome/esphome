@@ -1,6 +1,7 @@
 #include "mqtt_binary_sensor.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_BINARY_SENSOR
 
 namespace esphome {
@@ -55,3 +56,4 @@ bool MQTTBinarySensorComponent::publish_state(bool state) {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

@@ -1,15 +1,22 @@
 #include "esphome/core/helpers.h"
 #include <cstdio>
 #include <algorithm>
+#include <cmath>
+#include <cstring>
 
-#ifdef ARDUINO_ARCH_ESP8266
+#if defined(USE_ESP8266)
 #include <ESP8266WiFi.h>
-#else
+#include <osapi.h>
+#elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
 #include <Esp.h>
+#elif defined(USE_ESP_IDF)
+#include "esp_system.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/portmacro.h>
 #endif
 
 #include "esphome/core/log.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 
@@ -18,10 +25,10 @@ static const char *const TAG = "helpers";
 std::string get_mac_address() {
   char tmp[20];
   uint8_t mac[6];
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   esp_efuse_mac_get_default(mac);
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   WiFi.macAddress(mac);
 #endif
   sprintf(tmp, "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -31,10 +38,10 @@ std::string get_mac_address() {
 std::string get_mac_address_pretty() {
   char tmp[20];
   uint8_t mac[6];
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   esp_efuse_mac_get_default(mac);
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   WiFi.macAddress(mac);
 #endif
   sprintf(tmp, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -44,9 +51,9 @@ std::string get_mac_address_pretty() {
 std::string generate_hostname(const std::string &base) { return base + std::string("-") + get_mac_address(); }
 
 uint32_t random_uint32() {
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   return esp_random();
-#else
+#elif defined(USE_ESP8266)
   return os_random();
 #endif
 }
@@ -56,11 +63,13 @@ double random_double() { return random_uint32() / double(UINT32_MAX); }
 float random_float() { return float(random_double()); }
 
 void fill_random(uint8_t *data, size_t len) {
-#ifdef ARDUINO_ARCH_ESP32
+#if defined(USE_ESP_IDF) || defined(USE_ESP32_FRAMEWORK_ARDUINO)
   esp_fill_random(data, len);
-#else
+#elif defined(USE_ESP8266)
   int err = os_get_random(data, len);
   assert(err == 0);
+#else
+#error "No random source for this system config"
 #endif
 }
 
@@ -123,10 +132,13 @@ std::string truncate_string(const std::string &s, size_t length) {
 }
 
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
-  auto multiplier = float(powf(10.0f, accuracy_decimals));
-  float value_rounded = roundf(value * multiplier) / multiplier;
+  if (accuracy_decimals < 0) {
+    auto multiplier = powf(10.0f, accuracy_decimals);
+    value = roundf(value * multiplier) / multiplier;
+    accuracy_decimals = 0;
+  }
   char tmp[32];  // should be enough, but we should maybe improve this at some point.
-  dtostrf(value_rounded, 0, uint8_t(std::max(0, int(accuracy_decimals))), tmp);
+  snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
   return std::string(tmp);
 }
 std::string uint64_to_string(uint64_t num) {
@@ -140,21 +152,6 @@ std::string uint32_to_string(uint32_t num) {
   auto *address16 = reinterpret_cast<uint16_t *>(&num);
   snprintf(buffer, sizeof(buffer), "%04X%04X", address16[1], address16[0]);
   return std::string(buffer);
-}
-static char *global_json_build_buffer = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static size_t global_json_build_buffer_size = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-void reserve_global_json_build_buffer(size_t required_size) {
-  if (global_json_build_buffer_size == 0 || global_json_build_buffer_size < required_size) {
-    delete[] global_json_build_buffer;
-    global_json_build_buffer_size = std::max(required_size, global_json_build_buffer_size * 2);
-
-    size_t remainder = global_json_build_buffer_size % 16U;
-    if (remainder != 0)
-      global_json_build_buffer_size += 16 - remainder;
-
-    global_json_build_buffer = new char[global_json_build_buffer_size];
-  }
 }
 
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
@@ -273,6 +270,39 @@ optional<int> parse_int(const std::string &str) {
     return {};
   return value;
 }
+
+optional<int> parse_hex(const char chr) {
+  int out = chr;
+  if (out >= '0' && out <= '9')
+    return (out - '0');
+  if (out >= 'A' && out <= 'F')
+    return (10 + (out - 'A'));
+  if (out >= 'a' && out <= 'f')
+    return (10 + (out - 'a'));
+  return {};
+}
+
+optional<int> parse_hex(const std::string &str, size_t start, size_t length) {
+  if (str.length() < start) {
+    return {};
+  }
+  size_t end = start + length;
+  if (str.length() < end) {
+    return {};
+  }
+  int out = 0;
+  for (size_t i = start; i < end; i++) {
+    char chr = str[i];
+    auto digit = parse_hex(chr);
+    if (!digit.has_value()) {
+      ESP_LOGW(TAG, "Can't convert '%s' to number, invalid character %c!", str.substr(start, length).c_str(), chr);
+      return {};
+    }
+    out = (out << 4) | *digit;
+  }
+  return out;
+}
+
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
   for (char c : str) {
@@ -349,13 +379,13 @@ std::string hexencode(const uint8_t *data, uint32_t len) {
   return res;
 }
 
-#ifdef ARDUINO_ARCH_ESP8266
-ICACHE_RAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
-ICACHE_RAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
+#ifdef USE_ESP8266
+IRAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
+IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
 #endif
-#ifdef ARDUINO_ARCH_ESP32
-ICACHE_RAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
-ICACHE_RAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
+#ifdef USE_ESP32
+IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
+IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 #endif
 
 }  // namespace esphome
