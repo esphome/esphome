@@ -134,7 +134,7 @@ void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &e
   new_valve->valve_resumeorstart_action->set_valve_to_start(new_valve_number);
   new_valve->valve_turn_on_automation->add_actions({new_valve->valve_resumeorstart_action.get()});
 
-  if (enable_sw_name != "") {
+  if (!enable_sw_name.empty()) {
     new_valve->enable_switch = make_unique<SprinklerSwitch>();
     new_valve->enable_switch->set_component_source("sprinkler.switch");
     App.register_component(new_valve->enable_switch.get());

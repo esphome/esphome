@@ -41,6 +41,14 @@ ResumeOrStartAction = sprinkler_ns.class_("ResumeOrStartAction", automation.Acti
 
 def validate_sprinkler(config):
     for valve_group in config:
+        if len(valve_group[CONF_VALVES]) <= 1 and (
+            CONF_VALVE_OVERLAP in valve_group
+            or CONF_VALVE_OPEN_DELAY in valve_group
+            or CONF_ENABLE_SWITCH_NAME in valve_group[CONF_VALVES][0]
+        ):
+            raise cv.Invalid(
+                f"Do not specify {CONF_ENABLE_SWITCH_NAME}, {CONF_VALVE_OVERLAP} or {CONF_VALVE_OPEN_DELAY} with only one valve"
+            )
         for valve in valve_group:
             if (
                 CONF_VALVE_OVERLAP in config
