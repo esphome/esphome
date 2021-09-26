@@ -73,7 +73,7 @@ class SprinklerSwitch : public switch_::Switch, public Component {
 class Sprinkler : public Component {
  public:
   Sprinkler();
-  void pre_setup(const std::string &name, const std::string &auto_adv_name, const std::string &reverse_name);
+  void pre_setup(const std::string &name, const std::string &auto_adv_name, const std::string &reverse_name = "");
   void setup() override;
   void dump_config() override;
 

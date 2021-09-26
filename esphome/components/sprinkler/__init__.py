@@ -40,15 +40,33 @@ ResumeOrStartAction = sprinkler_ns.class_("ResumeOrStartAction", automation.Acti
 
 
 def validate_sprinkler(config):
-    for valve_group in config:
-        if len(valve_group[CONF_VALVES]) <= 1 and (
-            CONF_VALVE_OVERLAP in valve_group
-            or CONF_VALVE_OPEN_DELAY in valve_group
-            or CONF_ENABLE_SWITCH_NAME in valve_group[CONF_VALVES][0]
-        ):
-            raise cv.Invalid(
-                f"Do not specify {CONF_ENABLE_SWITCH_NAME}, {CONF_VALVE_OVERLAP} or {CONF_VALVE_OPEN_DELAY} with only one valve"
-            )
+    for valve_index, valve_group in enumerate(config):
+        if len(valve_group[CONF_VALVES]) <= 1:
+            exclusions = [
+                CONF_VALVE_OPEN_DELAY,
+                CONF_VALVE_OVERLAP,
+                CONF_AUTO_ADVANCE_SWITCH_NAME,
+                CONF_NAME,
+                CONF_REVERSE_SWITCH_NAME,
+            ]
+            for config_item in exclusions:
+                if config_item in valve_group:
+                    raise cv.Invalid(f"Do not define {config_item} with only one valve")
+            if CONF_ENABLE_SWITCH_NAME in valve_group[CONF_VALVES][0]:
+                raise cv.Invalid(
+                    f"Do not define {CONF_ENABLE_SWITCH_NAME} with only one valve"
+                )
+        else:
+            requirements = [
+                CONF_AUTO_ADVANCE_SWITCH_NAME,
+                CONF_NAME,
+            ]
+            for config_item in requirements:
+                if config_item not in valve_group:
+                    raise cv.Invalid(
+                        f"{config_item} is a required option for {valve_index}"
+                    )
+
         for valve in valve_group:
             if (
                 CONF_VALVE_OVERLAP in config
@@ -100,9 +118,9 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
 SPRINKLER_VALVE_GROUP_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Sprinkler),
-        cv.Required(CONF_AUTO_ADVANCE_SWITCH_NAME): cv.string,
-        cv.Required(CONF_NAME): cv.string,
-        cv.Required(CONF_REVERSE_SWITCH_NAME): cv.string,
+        cv.Optional(CONF_AUTO_ADVANCE_SWITCH_NAME): cv.string,
+        cv.Optional(CONF_NAME): cv.string,
+        cv.Optional(CONF_REVERSE_SWITCH_NAME): cv.string,
         cv.Exclusive(
             CONF_VALVE_OVERLAP, "open_delay/overlap"
         ): cv.positive_time_period_seconds,
@@ -203,13 +221,21 @@ async def to_code(config):
     for valve_group in config:
         var = cg.new_Pvariable(valve_group[CONF_ID])
         if len(valve_group[CONF_VALVES]) > 1:
-            cg.add(
-                var.pre_setup(
-                    valve_group[CONF_NAME],
-                    valve_group[CONF_AUTO_ADVANCE_SWITCH_NAME],
-                    valve_group[CONF_REVERSE_SWITCH_NAME],
+            if CONF_REVERSE_SWITCH_NAME in valve_group:
+                cg.add(
+                    var.pre_setup(
+                        valve_group[CONF_NAME],
+                        valve_group[CONF_AUTO_ADVANCE_SWITCH_NAME],
+                        valve_group[CONF_REVERSE_SWITCH_NAME],
+                    )
                 )
-            )
+            else:
+                cg.add(
+                    var.pre_setup(
+                        valve_group[CONF_NAME],
+                        valve_group[CONF_AUTO_ADVANCE_SWITCH_NAME],
+                    )
+                )
         for valve in valve_group[CONF_VALVES]:
             if CONF_ENABLE_SWITCH_NAME in valve and len(valve_group[CONF_VALVES]) > 1:
                 cg.add(

@@ -98,13 +98,15 @@ void Sprinkler::pre_setup(const std::string &name, const std::string &auto_adv_n
   this->auto_adv_sw_.set_name(auto_adv_name);
   this->auto_adv_sw_.set_optimistic(true);
   this->auto_adv_sw_.set_restore_state(true);
-  // set up controller's "reverse" switch
-  this->reverse_sw_.set_component_source("sprinkler.switch");
-  App.register_component(&this->reverse_sw_);
-  App.register_switch(&this->reverse_sw_);
-  this->reverse_sw_.set_name(reverse_name);
-  this->reverse_sw_.set_optimistic(true);
-  this->reverse_sw_.set_restore_state(true);
+  // set up controller's "reverse" switch, if provided
+  if (!reverse_name.empty()) {
+    this->reverse_sw_.set_component_source("sprinkler.switch");
+    App.register_component(&this->reverse_sw_);
+    App.register_switch(&this->reverse_sw_);
+    this->reverse_sw_.set_name(reverse_name);
+    this->reverse_sw_.set_optimistic(true);
+    this->reverse_sw_.set_restore_state(true);
+  }
 }
 
 void Sprinkler::setup() { this->all_valves_off_(true); }
