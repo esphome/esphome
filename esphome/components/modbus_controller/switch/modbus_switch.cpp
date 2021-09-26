@@ -7,7 +7,7 @@ namespace modbus_controller {
 static const char *const TAG = "modbus_controller.switch";
 
 void ModbusSwitch::setup() {
-  // value isn't required 
+  // value isn't required
   // without it we crash on save
   this->get_initial_state();
 }
