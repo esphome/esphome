@@ -34,6 +34,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, HexInt, coroutine_with_priority
 from esphome.components.network import IPAddress
+from esphome.components.esp32 import add_idf_sdkconfig_option
 from . import wpa2_eap
 
 
@@ -351,6 +352,7 @@ async def to_code(config):
 
     if config.get(CONF_IGNORE_EFUSE_MAC_CRC, False):
         cg.add_define("USE_IGNORE_EFUSE_MAC_CRC")
+        add_idf_sdkconfig_option("CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", True)
 
     # Register at end for OTA safe mode
     await cg.register_component(var, config)

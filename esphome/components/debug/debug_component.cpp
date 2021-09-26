@@ -110,7 +110,7 @@ void DebugComponent::dump_config() {
 #else
   esp_efuse_mac_get_default((uint8_t *) (&chip_mac));
 #endif
-e std::string mac = uint64_to_string(chip_mac);
+  std::string mac = uint64_to_string(chip_mac);
   ESP_LOGD(TAG, "EFuse MAC: %s", mac.c_str());
 
   const char *reset_reason;
