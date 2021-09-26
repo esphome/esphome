@@ -109,9 +109,7 @@ class LightFlashTransformer : public LightTransformer {
     this->state_.publish_state();
   }
 
-  bool is_finished() override {
-    return this->begun_lightstate_restore_ && LightTransformer::is_finished();
-  }
+  bool is_finished() override { return this->begun_lightstate_restore_ && LightTransformer::is_finished(); }
 
  protected:
   LightState &state_;
