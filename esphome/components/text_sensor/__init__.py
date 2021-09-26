@@ -44,6 +44,7 @@ validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
 Filter = text_sensor_ns.class_("Filter")
 LambdaFilter = text_sensor_ns.class_("LambdaFilter", Filter)
 ToUpperFilter = text_sensor_ns.class_("ToUpperFilter", Filter)
+ToLowerFilter = text_sensor_ns.class_("ToLowerFilter", Filter)
 AppendFilter = text_sensor_ns.class_("AppendFilter", Filter)
 PrependFilter = text_sensor_ns.class_("PrependFilter", Filter)
 SubstituteFilter = text_sensor_ns.class_("SubstituteFilter", Filter)
@@ -57,12 +58,14 @@ async def lambda_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, lambda_)
 
 
-# @FILTER_REGISTRY.register("to_upper", ToUpperFilter, cv.Schema({}))
-@FILTER_REGISTRY.register("to_upper", ToUpperFilter, cv.string)
-# @FILTER_REGISTRY.register("to_upper", ToUpperFilter, cv.Schema())
-# @FILTER_REGISTRY.register("to_upper", ToUpperFilter, cv.has_none_or_all_keys({}))
+@FILTER_REGISTRY.register("to_upper", ToUpperFilter, {})
 async def to_upper_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(filter_id, config)
+    return cg.new_Pvariable(filter_id)
+
+
+@FILTER_REGISTRY.register("to_lower", ToLowerFilter, {})
+async def to_lower_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id)
 
 
 @FILTER_REGISTRY.register("append", AppendFilter, cv.string)
@@ -94,10 +97,7 @@ def validate_substitute(value):
 @FILTER_REGISTRY.register(
     "substitute",
     SubstituteFilter,
-    cv.All(
-        cv.ensure_list(validate_substitute),
-        cv.Length(min=2)
-    ),
+    cv.All(cv.ensure_list(validate_substitute), cv.Length(min=2)),
 )
 async def substitute_filter_to_code(config, filter_id):
     from_strings = [conf[CONF_FROM] for conf in config]

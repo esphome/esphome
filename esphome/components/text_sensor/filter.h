@@ -10,7 +10,7 @@ namespace text_sensor {
 
 class TextSensor;
 
-/** Apply a filter to text sensor values such as toUpper.
+/** Apply a filter to text sensor values such as to_upper.
  *
  * This class is purposefully kept quite simple, since more complicated
  * filters should really be done with the filter sensor in Home Assistant.
@@ -46,7 +46,7 @@ using lambda_filter_t = std::function<optional<std::string>(std::string)>;
 
 /** This class allows for creation of simple template filters.
  *
- * The constructor accepts a lambda of the form float -> optional<float>.
+ * The constructor accepts a lambda of the form std::string -> optional<std::string>.
  * It will be called with each new value in the filter chain and returns the modified
  * value that shall be passed down the filter chain. Returning an empty Optional
  * means that the value shall be discarded.
@@ -67,11 +67,13 @@ class LambdaFilter : public Filter {
 /// A simple filter that converts all text to uppercase
 class ToUpperFilter : public Filter {
  public:
-  ToUpperFilter(std::string dummy) {}
-  // ToUpperFilter();
   optional<std::string> new_value(std::string value) override;
+};
 
- protected:
+/// A simple filter that converts all text to lowercase
+class ToLowerFilter : public Filter {
+ public:
+  optional<std::string> new_value(std::string value) override;
 };
 
 /// A simple filter that adds a string to the end of another string
@@ -84,7 +86,7 @@ class AppendFilter : public Filter {
   std::string suffix_;
 };
 
-/// A simple filter that adds a string to the end of another string
+/// A simple filter that adds a string to the start of another string
 class PrependFilter : public Filter {
  public:
   PrependFilter(std::string prefix) : prefix_(prefix) {}
@@ -94,7 +96,7 @@ class PrependFilter : public Filter {
   std::string prefix_;
 };
 
-/// A simple filter that adds a string to the end of another string
+/// A simple filter that replaces a substring with another substring
 class SubstituteFilter : public Filter {
  public:
   SubstituteFilter(std::vector<std::string> from_strings, std::vector<std::string> to_strings)

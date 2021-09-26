@@ -42,9 +42,14 @@ optional<std::string> LambdaFilter::new_value(std::string value) {
 }
 
 // ToUpperFilter
-// ToUpperFilter::ToUpperFilter(std::string dummy){};
 optional<std::string> ToUpperFilter::new_value(std::string value) {
   std::for_each(value.begin(), value.end(), [](char &c) { c = ::toupper(c); });
+  return value;
+}
+
+// ToLowerFilter
+optional<std::string> ToLowerFilter::new_value(std::string value) {
+  std::for_each(value.begin(), value.end(), [](char &c) { c = ::tolower(c); });
   return value;
 }
 
