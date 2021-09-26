@@ -379,6 +379,69 @@ std::string hexencode(const uint8_t *data, uint32_t len) {
   return res;
 }
 
+void rgb_to_hsv(float red, float green, float blue, int& hue, float& saturation, float& value) {
+  float maxRGorB = max(max(red, green), blue);
+  float minRGorB = min(min(red, green), blue);
+  float delta = maxRGorB - minRGorB;
+
+  if(delta == 0)
+    hue = 0;
+  else if(maxRGorB == red)
+    hue = int(fmod(((60*((green-blue)/delta))+360), 360));
+  else if(maxRGorB == green)
+    hue = int(fmod(((60*((blue-red)/delta))+120), 360));
+  else if(maxRGorB == blue)
+    hue = int(fmod(((60*((red-green)/delta))+240), 360));
+
+  if(maxRGorB == 0)
+    saturation = 0;
+  else
+    saturation = delta/maxRGorB;
+
+  value = maxRGorB;
+}
+
+void hsv_to_rgb(int hue, float saturation, float value, float& red, float& green, float& blue) {
+  float chroma = value * saturation;
+  float huePrime = fmod(hue / 60.0, 6);
+  float intermediate = chroma * (1 - fabs(fmod(huePrime, 2) - 1));
+  float delta = value - chroma;
+
+  if(0 <= huePrime && huePrime < 1) {
+    red = chroma;
+    green = intermediate;
+    blue = 0;
+  } else if(1 <= huePrime && huePrime < 2) {
+    red = intermediate;
+    green = chroma;
+    blue = 0;
+  } else if(2 <= huePrime && huePrime < 3) {
+    red = 0;
+    green = chroma;
+    blue = intermediate;
+  } else if(3 <= huePrime && huePrime < 4) {
+    red = 0;
+    green = intermediate;
+    blue = chroma;
+  } else if(4 <= huePrime && huePrime < 5) {
+    red = intermediate;
+    green = 0;
+    blue = chroma;
+  } else if(5 <= huePrime && huePrime < 6) {
+    red = chroma;
+    green = 0;
+    blue = intermediate;
+  } else {
+    red = 0;
+    green = 0;
+    blue = 0;
+  }
+
+  red += delta;
+  green += delta;
+  blue += delta;
+}
+
 #ifdef USE_ESP8266
 IRAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
 IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
