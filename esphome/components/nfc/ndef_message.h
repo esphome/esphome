@@ -5,6 +5,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "ndef_record.h"
+#include "ndef_record_text.h"
+#include "ndef_record_uri.h"
 
 namespace esphome {
 namespace nfc {
@@ -18,7 +20,7 @@ class NdefMessage {
   NdefMessage(const NdefMessage &msg) {
     records_.reserve(msg.records_.size());
     for (const auto &r : msg.records_) {
-      records_.emplace_back(make_unique<NdefRecord>(*r));
+      records_.emplace_back(r->clone());
     }
   }
 

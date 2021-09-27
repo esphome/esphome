@@ -39,7 +39,9 @@ esphome/components/coolix/* @glmnet
 esphome/components/cover/* @esphome/core
 esphome/components/cs5460a/* @balrog-kun
 esphome/components/ct_clamp/* @jesserockz
+esphome/components/current_based/* @djwmarcx
 esphome/components/daly_bms/* @s1lvi0
+esphome/components/dashboard_import/* @esphome/core
 esphome/components/debug/* @OttoWinter
 esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
@@ -88,6 +90,13 @@ esphome/components/mcp9808/* @k7hpn
 esphome/components/mdns/* @esphome/core
 esphome/components/midea/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
+esphome/components/modbus_controller/* @martgras
+esphome/components/modbus_controller/binary_sensor/* @martgras
+esphome/components/modbus_controller/number/* @martgras
+esphome/components/modbus_controller/output/* @martgras
+esphome/components/modbus_controller/sensor/* @martgras
+esphome/components/modbus_controller/switch/* @martgras
+esphome/components/modbus_controller/text_sensor/* @martgras
 esphome/components/network/* @esphome/core
 esphome/components/nextion/* @senexcrenshaw
 esphome/components/nextion/binary_sensor/* @senexcrenshaw
