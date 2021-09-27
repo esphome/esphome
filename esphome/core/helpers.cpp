@@ -61,9 +61,7 @@ std::string get_mac_address_pretty() {
 }
 
 #ifdef USE_ESP32
-void set_mac_address(uint8_t *mac) {
-  esp_base_mac_addr_set(mac);  
-}
+void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
 #endif
 
 std::string generate_hostname(const std::string &base) { return base + std::string("-") + get_mac_address(); }
