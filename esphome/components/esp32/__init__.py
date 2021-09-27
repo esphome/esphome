@@ -234,7 +234,7 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
             cv.Optional(CONF_PLATFORM_VERSION): cv.string_strict,
             cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
                 {
-                    cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC): cv.boolean,
+                    cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC, default=False): cv.boolean,
                 }
             ),
         }
@@ -302,7 +302,7 @@ async def to_code(config):
         for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
             add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
 
-        if conf[CONF_ADVANCED].get(CONF_IGNORE_EFUSE_MAC_CRC, False):
+        if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_MAC_CRC]:
             cg.add_define("USE_ESP32_IGNORE_EFUSE_MAC_CRC")
             add_idf_sdkconfig_option(
                 "CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", False
