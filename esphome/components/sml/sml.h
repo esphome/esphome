@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+#include <vector>
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "sml_parser.h"

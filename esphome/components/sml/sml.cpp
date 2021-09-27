@@ -1,5 +1,3 @@
-#include <iostream>
-#include <sstream>
 #include "sml.h"
 #include "esphome/core/log.h"
 #include "sml_parser.h"
@@ -80,11 +78,10 @@ void Sml::log_obis_info_(const std::vector<ObisInfo> &obis_info_vec) {
   int i = 0;
   ESP_LOGD(TAG, "OBIS info:");
   for (auto const &obis_info : obis_info_vec) {
-    std::ostringstream info_stream;
-    info_stream << "  (" << bytes_repr(obis_info.server_id) << ") ";
-    info_stream << obis_info.code_repr();
-    info_stream << "  [0x" << bytes_repr(obis_info.value) << "]";
-    std::string info = info_stream.str();
+    std::string info;
+    info += "  (" + bytes_repr(obis_info.server_id) + ") ";
+    info += obis_info.code_repr();
+    info += " [0x" + bytes_repr(obis_info.value) + "]";
     ESP_LOGD(TAG, "%s", info.c_str());
   }
 }

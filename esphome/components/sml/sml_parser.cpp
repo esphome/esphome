@@ -1,6 +1,3 @@
-#include <iostream>
-#include <sstream>
-#include <iomanip>
 #include "constants.h"
 #include "sml_parser.h"
 
@@ -106,11 +103,14 @@ uint16_t calc_crc16_kermit(const bytes &buffer) {
 }
 
 std::string bytes_repr(const bytes &buffer) {
-  std::ostringstream bytes_stream;
-  for (unsigned int i = 0; i != buffer.size(); i++) {
-    bytes_stream << std::setfill('0') << std::setw(2) << std::hex << (buffer[i] & 0xff);
+  std::string repr;
+  // for (unsigned int i = 0; i != buffer.size(); i++) {
+  for (auto const value : buffer) {
+    char buf[3];
+    sprintf(buf, "%02x", value & 0xff);
+    repr += buf;
   }
-  return bytes_stream.str();
+  return repr;
 }
 
 uint64_t bytes_to_uint(const bytes &buffer) {
@@ -143,8 +143,7 @@ int64_t bytes_to_int(const bytes &buffer) {
 
 std::string bytes_to_string(const bytes &buffer) { return std::string(buffer.begin(), buffer.end()); }
 
-ObisInfo::ObisInfo(bytes server_id, SmlNode val_list_entry) {
-  this->server_id = move(server_id);
+ObisInfo::ObisInfo(bytes server_id, SmlNode val_list_entry) : server_id(std::move(server_id)) {
   this->code = val_list_entry.nodes[0].value_bytes;
   this->status = val_list_entry.nodes[1].value_bytes;
   this->unit = bytes_to_uint(val_list_entry.nodes[3].value_bytes);
@@ -155,17 +154,9 @@ ObisInfo::ObisInfo(bytes server_id, SmlNode val_list_entry) {
 }
 
 std::string ObisInfo::code_repr() const {
-  std::ostringstream code_stream;
-  code_stream << (unsigned int) this->code[0];
-  code_stream << "-";
-  code_stream << (unsigned int) this->code[1];
-  code_stream << ":";
-  code_stream << (unsigned int) this->code[2];
-  code_stream << ".";
-  code_stream << (unsigned int) this->code[3];
-  code_stream << ".";
-  code_stream << (unsigned int) this->code[4];
-  return code_stream.str();
+  char repr[20];
+  sprintf(repr, "%d-%d:%d.%d.%d", this->code[0], this->code[1], this->code[2], this->code[3], this->code[4]);
+  return std::string(repr);
 }
 
 }  // namespace sml
