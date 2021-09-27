@@ -111,6 +111,11 @@ void TuyaLight::write_state(light::LightState *state) {
     state->current_values_as_brightness(&brightness);
   }
 
+  if (!state->current_values.is_on() && this->switch_id_.has_value()) {
+    parent_->set_boolean_datapoint_value(*this->switch_id_, false);
+    return;
+  }
+
   if (brightness > 0.0f || !color_interlock_) {
     if (this->color_temperature_id_.has_value()) {
       uint32_t color_temp_int = static_cast<uint32_t>(color_temperature * this->color_temperature_max_value_);
@@ -138,7 +143,7 @@ void TuyaLight::write_state(light::LightState *state) {
   }
 
   if (this->switch_id_.has_value()) {
-    parent_->set_boolean_datapoint_value(*this->switch_id_, state->current_values.is_on());
+    parent_->set_boolean_datapoint_value(*this->switch_id_, true);
   }
 }
 
