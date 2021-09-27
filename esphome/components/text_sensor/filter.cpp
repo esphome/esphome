@@ -37,7 +37,7 @@ void LambdaFilter::set_lambda_filter(const lambda_filter_t &lambda_filter) { thi
 
 optional<std::string> LambdaFilter::new_value(std::string value) {
   auto it = this->lambda_filter_(value);
-  ESP_LOGVV(TAG, "LambdaFilter(%p)::new_value(%s) -> %s", this, value.c_str(), it.value_or(INFINITY));
+  ESP_LOGVV(TAG, "LambdaFilter(%p)::new_value(%s) -> %s", this, value.c_str(), it.value_or("").c_str());
   return it;
 }
 
