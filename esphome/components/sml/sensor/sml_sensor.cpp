@@ -7,10 +7,7 @@ namespace sml {
 
 static const char *const TAG = "sml_sensor";
 
-SmlSensor::SmlSensor(const char *server_id, const char *obis) {
-  this->server_id = std::string(server_id);
-  this->obis = std::string(obis);
-}
+SmlSensor::SmlSensor(std::string server_id, std::string obis) : SmlListener(std::move(server_id), std::move(obis)) {}
 
 void SmlSensor::publish_val(const ObisInfo &obis_info) {
   switch (obis_info.value_type) {

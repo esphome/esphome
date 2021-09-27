@@ -12,6 +12,9 @@ static const char *const TAG = "sml";
 const char START_BYTES_DETECTED = 1;
 const char END_BYTES_DETECTED = 2;
 
+SmlListener::SmlListener(std::string server_id, std::string obis)
+    : server_id(std::move(server_id)), obis(std::move(obis)) {}
+
 char Sml::check_start_end_bytes_(char c) {
   // fill sml_file with incoming bytes
   for (int k = 1; k < 8; k++)

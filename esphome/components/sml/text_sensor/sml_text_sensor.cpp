@@ -8,11 +8,8 @@ namespace sml {
 
 static const char *const TAG = "sml_text_sensor";
 
-SmlTextSensor::SmlTextSensor(const char *server_id, const char *obis, const char *format) {
-  this->server_id = std::string(server_id);
-  this->obis = std::string(obis);
-  this->format_ = std::string(format);
-}
+SmlTextSensor::SmlTextSensor(std::string server_id, std::string obis, std::string format)
+    : SmlListener(std::move(server_id), std::move(obis)), format_(std::move(format)) {}
 
 void SmlTextSensor::publish_val(const ObisInfo &obis_info) {
   char value_type;

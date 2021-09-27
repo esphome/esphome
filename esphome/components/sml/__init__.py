@@ -7,7 +7,7 @@ CODEOWNERS = ["@alengwenus"]
 
 DEPENDENCIES = ["uart"]
 
-sml_ns = cg.esphome_ns.namespace("esphome::sml")
+sml_ns = cg.esphome_ns.namespace("sml")
 Sml = sml_ns.class_("Sml", cg.Component, uart.UARTDevice)
 
 CONF_SML_ID = "sml_id"

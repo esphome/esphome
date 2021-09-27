@@ -4,8 +4,6 @@
 #include "constants.h"
 #include "sml_parser.h"
 
-using namespace std;
-
 namespace esphome {
 namespace sml {
 
@@ -107,10 +105,10 @@ uint16_t calc_crc16_kermit(const bytes &buffer) {
   return crcsum;
 }
 
-string bytes_repr(const bytes &buffer) {
-  ostringstream bytes_stream;
+std::string bytes_repr(const bytes &buffer) {
+  std::ostringstream bytes_stream;
   for (unsigned int i = 0; i != buffer.size(); i++) {
-    bytes_stream << setfill('0') << setw(2) << hex << (buffer[i] & 0xff);
+    bytes_stream << std::setfill('0') << std::setw(2) << std::hex << (buffer[i] & 0xff);
   }
   return bytes_stream.str();
 }
@@ -143,7 +141,7 @@ int64_t bytes_to_int(const bytes &buffer) {
   return val;
 }
 
-string bytes_to_string(const bytes &buffer) { return string(buffer.begin(), buffer.end()); }
+std::string bytes_to_string(const bytes &buffer) { return std::string(buffer.begin(), buffer.end()); }
 
 ObisInfo::ObisInfo(bytes server_id, SmlNode val_list_entry) {
   this->server_id = move(server_id);
@@ -156,8 +154,8 @@ ObisInfo::ObisInfo(bytes server_id, SmlNode val_list_entry) {
   this->value_type = value_node.type;
 }
 
-string ObisInfo::code_repr() const {
-  ostringstream code_stream;
+std::string ObisInfo::code_repr() const {
+  std::ostringstream code_stream;
   code_stream << (unsigned int) this->code[0];
   code_stream << "-";
   code_stream << (unsigned int) this->code[1];

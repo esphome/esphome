@@ -11,6 +11,7 @@ class SmlListener {
  public:
   std::string server_id;
   std::string obis;
+  SmlListener(std::string server_id, std::string obis);
   virtual void publish_val(const ObisInfo &obis_info){};
 };
 
