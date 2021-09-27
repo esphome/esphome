@@ -29,11 +29,11 @@ extern const char *const HOSTNAME_CHARACTER_ALLOWLIST;
 /// Read the raw MAC address into the provided byte array (6 bytes).
 void get_mac_address_raw(uint8_t *mac);
 
-/// Gets the MAC address as a string, using lower case hex notation.
+/// Get the MAC address as a string, using lower case hex notation.
 /// This can be used as way to identify this ESP.
 std::string get_mac_address();
 
-/// Gets the MAC address as a string, using colon-separated upper case hex notation.
+/// Get the MAC address as a string, using colon-separated upper case hex notation.
 std::string get_mac_address_pretty();
 
 #ifdef USE_ESP32
