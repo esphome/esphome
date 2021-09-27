@@ -10,7 +10,7 @@ static const char *const TAG = "sensor.filter";
 
 // Filter
 void Filter::input(const std::string &value) {
-  ESP_LOGVV(TAG, "Filter(%p)::input(%f)", this, value);
+  ESP_LOGVV(TAG, "Filter(%p)::input(%s)", this, value);
   optional<std::string> out = this->new_value(value);
   if (out.has_value())
     this->output(*out);
