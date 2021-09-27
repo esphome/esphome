@@ -9,7 +9,7 @@ static const char *const TAG = "text_sensor";
 TextSensor::TextSensor() : TextSensor("") {}
 TextSensor::TextSensor(const std::string &name) : Nameable(name) {}
 
-void TextSensor::publish_state(const std::string& state) {
+void TextSensor::publish_state(const std::string &state) {
   this->raw_state = state;
   this->raw_callback_.call(state);
 
@@ -61,7 +61,7 @@ void TextSensor::add_on_raw_state_callback(std::function<void(std::string)> call
 
 std::string TextSensor::get_state() const { return this->state; }
 std::string TextSensor::get_raw_state() const { return this->raw_state; }
-void TextSensor::internal_send_state_to_frontend(const std::string& state) {
+void TextSensor::internal_send_state_to_frontend(const std::string &state) {
   this->state = this->raw_state;
   this->has_state_ = true;
   ESP_LOGD(TAG, "'%s': Sending state '%s'", this->name_.c_str(), state.c_str());

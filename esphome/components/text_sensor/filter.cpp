@@ -9,13 +9,13 @@ namespace text_sensor {
 static const char *const TAG = "sensor.filter";
 
 // Filter
-void Filter::input(const std::string& value) {
+void Filter::input(const std::string &value) {
   ESP_LOGVV(TAG, "Filter(%p)::input(%f)", this, value);
   optional<std::string> out = this->new_value(value);
   if (out.has_value())
     this->output(*out);
 }
-void Filter::output(const std::string& value) {
+void Filter::output(const std::string &value) {
   if (this->next_ == nullptr) {
     ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> SENSOR", this, value.c_str());
     this->parent_->internal_send_state_to_frontend(value);

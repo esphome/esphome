@@ -28,7 +28,7 @@ class TextSensor : public Nameable {
   /// Getter-syntax for .raw_state
   std::string get_raw_state() const;
 
-  void publish_state(const std::string& state);
+  void publish_state(const std::string &state);
 
   void set_icon(const std::string &icon);
 
@@ -61,7 +61,7 @@ class TextSensor : public Nameable {
 
   bool has_state();
 
-  void internal_send_state_to_frontend(const std::string& state);
+  void internal_send_state_to_frontend(const std::string &state);
 
  protected:
   uint32_t hash_base() override;
