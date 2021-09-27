@@ -6,7 +6,7 @@
 namespace esphome {
 namespace text_sensor {
 
-static const char *const TAG = "sensor.filter";
+static const char *const TAG = "text_sensor.filter";
 
 // Filter
 void Filter::input(const std::string &value) {
@@ -43,13 +43,15 @@ optional<std::string> LambdaFilter::new_value(std::string value) {
 
 // ToUpperFilter
 optional<std::string> ToUpperFilter::new_value(std::string value) {
-  std::for_each(value.begin(), value.end(), [](char &c) { c = ::toupper(c); });
+  for (char &c : value)
+    c = ::toupper(c);
   return value;
 }
 
 // ToLowerFilter
 optional<std::string> ToLowerFilter::new_value(std::string value) {
-  std::for_each(value.begin(), value.end(), [](char &c) { c = ::tolower(c); });
+  for (char &c : value)
+    c = ::toupper(c);
   return value;
 }
 
