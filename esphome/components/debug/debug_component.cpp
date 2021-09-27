@@ -104,10 +104,7 @@ void DebugComponent::dump_config() {
 
   ESP_LOGD(TAG, "ESP-IDF Version: %s", esp_get_idf_version());
 
-  uint64_t chip_mac = 0LL;
-  get_mac_address_raw(&chip_mac);
-  std::string mac = uint64_to_string(chip_mac);
-  ESP_LOGD(TAG, "EFuse MAC: %s", mac.c_str());
+  ESP_LOGD(TAG, "EFuse MAC: %s", get_mac_address_pretty().c_str());
 
   const char *reset_reason;
   switch (rtc_get_reset_reason(0)) {
