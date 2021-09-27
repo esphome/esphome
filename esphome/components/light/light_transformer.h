@@ -40,9 +40,13 @@ class LightTransformer {
  protected:
   /// The progress of this transition, on a scale of 0 to 1.
   float get_progress_() {
-    if (this->length_ == 0.0f)
+    uint32_t now = esphome::millis();
+    if (now < this->start_time_)
+      return 0.0f;
+    if (now >= this->start_time_ + this->length_)
       return 1.0f;
-    return clamp((millis() - this->start_time_) / float(this->length_), 0.0f, 1.0f);
+
+    return clamp((now - this->start_time_) / float(this->length_), 0.0f, 1.0f);
   }
 
   uint32_t start_time_;
