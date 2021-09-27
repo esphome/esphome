@@ -29,7 +29,7 @@ class CoverCall {
  public:
   CoverCall(Cover *parent);
 
-  /// Set the command as a string, "STOP", "OPEN", "CLOSE".
+  /// Set the command as a string, "STOP", "OPEN", "CLOSE", "TOGGLE".
   CoverCall &set_command(const char *command);
   /// Set the command to open the cover.
   CoverCall &set_command_open();
@@ -37,6 +37,8 @@ class CoverCall {
   CoverCall &set_command_close();
   /// Set the command to stop the cover.
   CoverCall &set_command_stop();
+  /// Set the command to toggle the cover.
+  CoverCall &set_command_toggle();
   /// Set the call to a certain target position.
   CoverCall &set_position(float position);
   /// Set the call to a certain target tilt.
@@ -50,6 +52,7 @@ class CoverCall {
   const optional<float> &get_position() const;
   bool get_stop() const;
   const optional<float> &get_tilt() const;
+  const optional<bool> &get_toggle() const;
 
  protected:
   void validate_();
@@ -58,6 +61,7 @@ class CoverCall {
   bool stop_{false};
   optional<float> position_{};
   optional<float> tilt_{};
+  optional<bool> toggle_{};
 };
 
 /// Struct used to store the restored state of a cover

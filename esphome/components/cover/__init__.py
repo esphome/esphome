@@ -59,6 +59,7 @@ validate_cover_operation = cv.enum(COVER_OPERATIONS, upper=True)
 OpenAction = cover_ns.class_("OpenAction", automation.Action)
 CloseAction = cover_ns.class_("CloseAction", automation.Action)
 StopAction = cover_ns.class_("StopAction", automation.Action)
+ToggleAction = cover_ns.class_("ToggleAction", automation.Action)
 ControlAction = cover_ns.class_("ControlAction", automation.Action)
 CoverPublishAction = cover_ns.class_("CoverPublishAction", automation.Action)
 CoverIsOpenCondition = cover_ns.class_("CoverIsOpenCondition", Condition)
@@ -117,6 +118,12 @@ async def cover_close_to_code(config, action_id, template_arg, args):
 async def cover_stop_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action("cover.toggle", ToggleAction, COVER_ACTION_SCHEMA)
+def cover_toggle_to_code(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
 COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
