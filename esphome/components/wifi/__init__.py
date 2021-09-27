@@ -352,7 +352,7 @@ async def to_code(config):
 
     if config.get(CONF_IGNORE_EFUSE_MAC_CRC, False):
         cg.add_define("USE_IGNORE_EFUSE_MAC_CRC")
-        add_idf_sdkconfig_option("CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", True)
+        add_idf_sdkconfig_option("CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", False)
 
     # Register at end for OTA safe mode
     await cg.register_component(var, config)
