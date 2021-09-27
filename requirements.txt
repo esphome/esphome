@@ -9,7 +9,7 @@ pyserial==3.5
 platformio==5.2.0
 esptool==3.1
 click==8.0.1
-esphome-dashboard==20210908.0
+esphome-dashboard==20210927.0
 aioesphomeapi==9.1.1
 
 # esp-idf requires this, but doesn't bundle it by default
