@@ -30,11 +30,9 @@ from esphome.const import (
     CONF_KEY,
     CONF_USERNAME,
     CONF_EAP,
-    CONF_ESP32_IGNORE_EFUSE_MAC_CRC,
 )
 from esphome.core import CORE, HexInt, coroutine_with_priority
 from esphome.components.network import IPAddress
-from esphome.components.esp32 import add_idf_sdkconfig_option
 from . import wpa2_eap
 
 
@@ -247,9 +245,6 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=10.0, max=20.5)
             ),
-            cv.Optional(CONF_ESP32_IGNORE_EFUSE_MAC_CRC): cv.All(
-                cv.boolean, cv.only_on_esp32, cv.only_with_esp_idf
-            ),
             cv.Optional("enable_mdns"): cv.invalid(
                 "This option has been removed. Please use the [disabled] option under the "
                 "new mdns component instead."
@@ -349,10 +344,6 @@ async def to_code(config):
         cg.add_library("ESP8266WiFi", None)
 
     cg.add_define("USE_WIFI")
-
-    if config.get(CONF_ESP32_IGNORE_EFUSE_MAC_CRC, False):
-        cg.add_define("USE_IGNORE_EFUSE_MAC_CRC")
-        add_idf_sdkconfig_option("CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", False)
 
     # Register at end for OTA safe mode
     await cg.register_component(var, config)

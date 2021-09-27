@@ -15,7 +15,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
 #endif
-#ifdef USE_IGNORE_EFUSE_MAC_CRC
+#ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
 #include "esp_efuse.h"
 #include "esp_efuse_table.h"
 #endif
@@ -31,7 +31,7 @@ std::string get_mac_address() {
   char tmp[20];
   uint8_t mac[6];
 #ifdef USE_ESP32
-#ifdef USE_IGNORE_EFUSE_MAC_CRC
+#ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
   esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, 48);
 #else
   esp_efuse_mac_get_default(mac);
@@ -48,7 +48,7 @@ std::string get_mac_address_pretty() {
   char tmp[20];
   uint8_t mac[6];
 #ifdef USE_ESP32
-#ifdef USE_IGNORE_EFUSE_MAC_CRC
+#ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
   esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, 48);
 #else
   esp_efuse_mac_get_default(mac);

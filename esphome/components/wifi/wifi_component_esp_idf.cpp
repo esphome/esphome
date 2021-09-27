@@ -24,7 +24,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/application.h"
 #include "esphome/core/util.h"
-#ifdef USE_IGNORE_EFUSE_MAC_CRC
+#ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
 #include "esp_efuse.h"
 #include "esp_efuse_table.h"
 #endif
@@ -114,7 +114,7 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
 }
 
 void WiFiComponent::wifi_pre_setup_() {
-#ifdef USE_IGNORE_EFUSE_MAC_CRC
+#ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
   // On some devices, the MAC address that is burnt into EFuse does not match
   // the CRC that goes along with it. As a result, the MAC address won't be
   // used by the framework, and the device setup is aborted. This work-around
