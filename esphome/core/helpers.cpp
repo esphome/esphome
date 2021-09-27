@@ -27,7 +27,7 @@ namespace esphome {
 
 static const char *const TAG = "helpers";
 
-void get_mac_address_raw(uint8_t* mac) {
+void get_mac_address_raw(uint8_t *mac) {
 #ifdef USE_ESP32
 #ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
   // On some devices, the MAC address that is burnt into EFuse does not
@@ -61,7 +61,7 @@ std::string get_mac_address_pretty() {
 }
 
 #ifdef USE_ESP32
-void set_mac_address(uint8_t* mac) {
+void set_mac_address(uint8_t *mac) {
   esp_base_mac_addr_set(mac);  
 }
 #endif
