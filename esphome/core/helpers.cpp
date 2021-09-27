@@ -379,55 +379,55 @@ std::string hexencode(const uint8_t *data, uint32_t len) {
   return res;
 }
 
-void rgb_to_hsv(float red, float green, float blue, int& hue, float& saturation, float& value) {
-  float maxRGorB = max(max(red, green), blue);
-  float minRGorB = min(min(red, green), blue);
-  float delta = maxRGorB - minRGorB;
+void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value) {
+  float max_color_value = std::max(std::max(red, green), blue);
+  float min_color_value = std::min(std::min(red, green), blue);
+  float delta = max_color_value - min_color_value;
 
-  if(delta == 0)
+  if (delta == 0)
     hue = 0;
-  else if(maxRGorB == red)
-    hue = int(fmod(((60*((green-blue)/delta))+360), 360));
-  else if(maxRGorB == green)
-    hue = int(fmod(((60*((blue-red)/delta))+120), 360));
-  else if(maxRGorB == blue)
-    hue = int(fmod(((60*((red-green)/delta))+240), 360));
+  else if (max_color_value == red)
+    hue = int(fmod(((60 * ((green - blue) / delta)) + 360), 360));
+  else if (max_color_value == green)
+    hue = int(fmod(((60 * ((blue - red) / delta)) + 120), 360));
+  else if (max_color_value == blue)
+    hue = int(fmod(((60 * ((red - green) / delta)) + 240), 360));
 
-  if(maxRGorB == 0)
+  if (max_color_value == 0)
     saturation = 0;
   else
-    saturation = delta/maxRGorB;
+    saturation = delta / max_color_value;
 
-  value = maxRGorB;
+  value = max_color_value;
 }
 
-void hsv_to_rgb(int hue, float saturation, float value, float& red, float& green, float& blue) {
+void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green, float &blue) {
   float chroma = value * saturation;
-  float huePrime = fmod(hue / 60.0, 6);
-  float intermediate = chroma * (1 - fabs(fmod(huePrime, 2) - 1));
+  float hue_prime = fmod(hue / 60.0, 6);
+  float intermediate = chroma * (1 - fabs(fmod(hue_prime, 2) - 1));
   float delta = value - chroma;
 
-  if(0 <= huePrime && huePrime < 1) {
+  if (0 <= hue_prime && hue_prime < 1) {
     red = chroma;
     green = intermediate;
     blue = 0;
-  } else if(1 <= huePrime && huePrime < 2) {
+  } else if (1 <= hue_prime && hue_prime < 2) {
     red = intermediate;
     green = chroma;
     blue = 0;
-  } else if(2 <= huePrime && huePrime < 3) {
+  } else if (2 <= hue_prime && hue_prime < 3) {
     red = 0;
     green = chroma;
     blue = intermediate;
-  } else if(3 <= huePrime && huePrime < 4) {
+  } else if (3 <= hue_prime && hue_prime < 4) {
     red = 0;
     green = intermediate;
     blue = chroma;
-  } else if(4 <= huePrime && huePrime < 5) {
+  } else if (4 <= hue_prime && hue_prime < 5) {
     red = intermediate;
     green = 0;
     blue = chroma;
-  } else if(5 <= huePrime && huePrime < 6) {
+  } else if (5 <= hue_prime && hue_prime < 6) {
     red = chroma;
     green = 0;
     blue = intermediate;

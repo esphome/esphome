@@ -147,9 +147,9 @@ std::array<uint8_t, 2> decode_uint16(uint16_t value);
 uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb);
 
 /// Convert RGB floats (0-1) to hue (0-360) & saturation/value percentage (0-1)
-void rgb_to_hsv(float red, float green, float blue, int& hue, float& saturation, float& value);
+void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
 /// Convert hue (0-360) & saturation/value percentage (0-1) to RGB floats (0-1)
-void hsv_to_rgb(int hue, float saturation, float value, float& red, float& green, float& blue);
+void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green, float &blue);
 
 /***
  * An interrupt helper class.
