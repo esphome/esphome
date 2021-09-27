@@ -31,9 +31,9 @@ class Filter {
   /// Initialize this filter, please note this can be called more than once.
   virtual void initialize(TextSensor *parent, Filter *next);
 
-  void input(std::string value);
+  void input(const std::string& value);
 
-  void output(std::string value);
+  void output(const std::string& value);
 
  protected:
   friend TextSensor;
