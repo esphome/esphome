@@ -39,8 +39,10 @@ void Sml::loop() {
         break;
       };
       case END_BYTES_DETECTED: {
-        this->record_ = false;
-        this->process_sml_file_(this->sml_data_);
+        if (this->record_) {
+          this->record_ = false;
+          this->process_sml_file_(this->sml_data_);
+        }
         break;
       };
     };
