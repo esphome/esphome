@@ -111,7 +111,7 @@ void TuyaLight::write_state(light::LightState *state) {
     state->current_values_as_brightness(&brightness);
   }
 
-  if (!state->current_values.is_on() && this->switch_id_.has_value())
+  if (!state->current_values.is_on() && this->switch_id_.has_value()) {
     parent_->set_boolean_datapoint_value(*this->switch_id_, false);
     return;
   }
