@@ -351,6 +351,21 @@ bool str_startswith(const std::string &full, const std::string &start) { return 
 bool str_endswith(const std::string &full, const std::string &ending) {
   return full.rfind(ending) == (full.size() - ending.size());
 }
+std::string str_sprintf(const char *fmt, ...) {
+  std::string str;
+  va_list args;
+
+  va_start(args, fmt);
+  size_t length = vsnprintf(nullptr, 0, fmt, args);
+  va_end(args);
+
+  str.resize(length);
+  va_start(args, fmt);
+  vsnprintf(&str[0], length + 1, fmt, args);
+  va_end(args);
+
+  return str;
+}
 
 uint16_t encode_uint16(uint8_t msb, uint8_t lsb) { return (uint16_t(msb) << 8) | uint16_t(lsb); }
 std::array<uint8_t, 2> decode_uint16(uint16_t value) {

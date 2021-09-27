@@ -59,6 +59,9 @@ bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 bool str_startswith(const std::string &full, const std::string &start);
 bool str_endswith(const std::string &full, const std::string &ending);
 
+/// sprintf-like function returning std::string instead of writing to char array.
+std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
+
 class HighFrequencyLoopRequester {
  public:
   void start();
