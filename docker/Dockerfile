@@ -8,9 +8,9 @@ ARG BASEIMGTYPE=docker
 FROM ghcr.io/hassio-addons/debian-base/amd64:5.1.0 AS base-hassio-amd64
 FROM ghcr.io/hassio-addons/debian-base/aarch64:5.1.0 AS base-hassio-arm64
 FROM ghcr.io/hassio-addons/debian-base/armv7:5.1.0 AS base-hassio-armv7
-FROM debian:bullseye-20210816-slim AS base-docker-amd64
-FROM debian:bullseye-20210816-slim AS base-docker-arm64
-FROM debian:bullseye-20210816-slim AS base-docker-armv7
+FROM debian:bullseye-20210902-slim AS base-docker-amd64
+FROM debian:bullseye-20210902-slim AS base-docker-arm64
+FROM debian:bullseye-20210902-slim AS base-docker-armv7
 
 # Use TARGETARCH/TARGETVARIANT defined by docker
 # https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
