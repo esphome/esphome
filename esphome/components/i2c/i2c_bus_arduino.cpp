@@ -102,17 +102,17 @@ void ArduinoI2CBus::recover_() {
   const auto half_period_usec = 1000000 / 100000 / 2;
 
   // set scl high
-  pinMode(scl_pin_, INPUT);  // NOLINT
+  pinMode(scl_pin_, INPUT);         // NOLINT
   pinMode(scl_pin_, INPUT_PULLUP);  // NOLINT
   delayMicroseconds(half_period_usec);
 
   // in total generate 9 falling-rising edges
   const auto recover_scl_periods = 9;
   for (auto i = 0; i < recover_scl_periods; i++) {
-    pinMode(scl_pin_, INPUT);  // NOLINT
+    pinMode(scl_pin_, INPUT);   // NOLINT
     pinMode(scl_pin_, OUTPUT);  // NOLINT
     delayMicroseconds(half_period_usec);
-    pinMode(scl_pin_, INPUT);  // NOLINT
+    pinMode(scl_pin_, INPUT);         // NOLINT
     pinMode(scl_pin_, INPUT_PULLUP);  // NOLINT
     delayMicroseconds(half_period_usec);
   }
