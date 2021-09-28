@@ -15,6 +15,17 @@ namespace web_server_base {
 
 static const char *const TAG = "web_server_base";
 
+void WebServerBase::add_handler(AsyncWebHandler *handler) {
+  // remove all handlers
+
+  if (!credentials_.username.empty()) {
+    handler = new internal::AuthMiddlewareHandler(handler, &credentials_);
+  }
+  this->handlers_.push_back(handler);
+  if (this->server_ != nullptr)
+    this->server_->addHandler(handler);
+}
+
 void report_ota_error() {
   StreamString ss;
   Update.printError(ss);
