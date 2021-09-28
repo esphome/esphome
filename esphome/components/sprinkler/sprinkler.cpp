@@ -423,22 +423,26 @@ void Sprinkler::set_pump_state_(const size_t valve_number, const bool pump_state
   }
 }
 
-void Sprinkler::start_valve_(const size_t valve_number, uint32_t run_duration) {
+void Sprinkler::start_valve_(const optional<size_t> valve_number, optional<uint32_t> run_duration) {
+  if (!valve_number.has_value()) {
+    return;
+  }
+
   if (this->active_valve_.has_value()) {
-    if (this->active_valve_.value() == valve_number) {
+    if (this->active_valve_.value() == valve_number.value()) {
       return;
     }
   }
-  if (!this->is_a_valid_valve(valve_number)) {
+  if (!this->is_a_valid_valve(valve_number.value())) {
     return;
   }
   this->active_valve_ = valve_number;
-  if (run_duration == 0) {
+  if (!run_duration.has_value()) {
     run_duration = this->valve_run_duration_adjusted(this->active_valve_.value());
   }
   this->reset_resume_();
-  ESP_LOGD(TAG, "Starting valve %i for %i seconds", this->active_valve_.value(), run_duration);
-  this->set_timer_duration_(sprinkler::TIMER_VALVE_RUN_DURATION, run_duration);
+  ESP_LOGD(TAG, "Starting valve %i for %i seconds", this->active_valve_.value(), run_duration.value());
+  this->set_timer_duration_(sprinkler::TIMER_VALVE_RUN_DURATION, run_duration.value());
   this->start_timer_(sprinkler::TIMER_VALVE_RUN_DURATION);
 
   if (this->timer_duration_(sprinkler::TIMER_VALVE_OPEN_DELAY) > 0) {
@@ -549,7 +553,8 @@ void Sprinkler::valve_cycle_complete_callback_() {
   }
   this->mark_valve_cycle_complete_(this->active_valve_.value());
   if (this->auto_adv_sw_.state && this->next_valve_number_in_cycle_(this->active_valve_.value()).has_value()) {
-    ESP_LOGD(TAG, "  Advancing to valve %i", this->next_valve_number_in_cycle_(this->active_valve_.value()).value());
+    ESP_LOGD(TAG, "  Advancing to valve %i",
+             this->next_valve_number_in_cycle_(this->active_valve_.value()).value_or(0));
     this->start_valve_(this->next_valve_number_in_cycle_(this->active_valve_.value()).value());
   } else {
     ESP_LOGD(TAG, "  Shutting down");

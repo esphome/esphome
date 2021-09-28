@@ -201,7 +201,7 @@ class Sprinkler : public Component {
 
   /// starts a valve with related timers, etc.
   ///  run_duration = 0 means we'll look up how long the valve is configured to run (with multiplier)
-  void start_valve_(size_t valve_number, uint32_t run_duration = 0);
+  void start_valve_(optional<size_t> valve_number, optional<uint32_t> run_duration = nullopt);
 
   /// switches to the specified valve's pump/valve
   void switch_to_pump_(size_t valve_number, bool no_shutdown = false);
