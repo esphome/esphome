@@ -100,23 +100,22 @@ void ArduinoI2CBus::recover_() {
 
   // try to get about 100kHz toggle frequency
   const auto half_period_usec = 1000000 / 100000 / 2;
-  const auto recover_scl_periods = 9;
-
-  // configure scl as output
-  pinMode(scl_pin_, OUTPUT);  // NOLINT
 
   // set scl high
-  digitalWrite(scl_pin_, 1);  // NOLINT
+  pinMode(scl_pin_, INPUT);  // NOLINT
+  pinMode(scl_pin_, INPUT_PULLUP);  // NOLINT
+  delayMicroseconds(half_period_usec);
 
   // in total generate 9 falling-rising edges
+  const auto recover_scl_periods = 9;
   for (auto i = 0; i < recover_scl_periods; i++) {
+    pinMode(scl_pin_, INPUT);  // NOLINT
+    pinMode(scl_pin_, OUTPUT);  // NOLINT
     delayMicroseconds(half_period_usec);
-    digitalWrite(scl_pin_, 0);  // NOLINT
+    pinMode(scl_pin_, INPUT);  // NOLINT
+    pinMode(scl_pin_, INPUT_PULLUP);  // NOLINT
     delayMicroseconds(half_period_usec);
-    digitalWrite(scl_pin_, 1);  // NOLINT
   }
-
-  delayMicroseconds(half_period_usec);
 }
 }  // namespace i2c
 }  // namespace esphome
