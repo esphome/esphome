@@ -811,6 +811,19 @@ sensor:
     ambient_pressure_compensation: 961mBar
     temperature_offset: 4.2C
     i2c_id: i2c_bus
+  - platform: scd4x
+    co2:
+      name: "SCD4X CO2"
+    temperature:
+      name: "SCD4X Temperature"
+    humidity:
+      name: "SCD4X Humidity"
+    update_interval: 15s
+    automatic_self_calibration: true
+    altitude_compensation: 10m
+    ambient_pressure_compensation: 961mBar
+    temperature_offset: 4.2C
+    i2c_id: i2c_bus
   - platform: sgp30
     eco2:
       name: 'Workshop eCO2'
