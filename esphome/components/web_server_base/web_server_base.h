@@ -3,6 +3,7 @@
 #ifdef USE_ARDUINO
 
 #include <memory>
+#include <utility>
 #include "esphome/core/component.h"
 
 #include <ESPAsyncWebServer.h>
@@ -96,8 +97,8 @@ class WebServerBase : public Component {
   std::shared_ptr<AsyncWebServer> get_server() const { return server_; }
   float get_setup_priority() const override;
 
-  void set_auth_username(std::string auth_username) { credentials_.username = auth_username; }
-  void set_auth_password(std::string auth_password) { credentials_.password = auth_password; }
+  void set_auth_username(std::string auth_username) { credentials_.username = std::move(auth_username); }
+  void set_auth_password(std::string auth_password) { credentials_.password = std::move(auth_password); }
 
   void add_handler(AsyncWebHandler *handler);
 
