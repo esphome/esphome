@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INTERNAL,
     CONF_ON_VALUE,
+    CONF_ON_RAW_VALUE,
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
     CONF_NAME,
@@ -29,6 +30,9 @@ TextSensorPtr = TextSensor.operator("ptr")
 
 TextSensorStateTrigger = text_sensor_ns.class_(
     "TextSensorStateTrigger", automation.Trigger.template(cg.std_string)
+)
+TextSensorStateRawTrigger = text_sensor_ns.class_(
+    "TextSensorStateRawTrigger", automation.Trigger.template(cg.std_string)
 )
 TextSensorPublishAction = text_sensor_ns.class_(
     "TextSensorPublishAction", automation.Action
@@ -117,6 +121,13 @@ TEXT_SENSOR_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextSensorStateTrigger),
             }
         ),
+        cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    TextSensorStateRawTrigger
+                ),
+            }
+        ),
     }
 )
 
@@ -138,6 +149,10 @@ async def setup_text_sensor_core_(var, config):
         cg.add(var.set_filters(filters))
 
     for conf in config.get(CONF_ON_VALUE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+
+    for conf in config.get(CONF_ON_RAW_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 

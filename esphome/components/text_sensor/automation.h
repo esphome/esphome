@@ -16,6 +16,13 @@ class TextSensorStateTrigger : public Trigger<std::string> {
   }
 };
 
+class TextSensorStateRawTrigger : public Trigger<std::string> {
+ public:
+  explicit TextSensorStateRawTrigger(TextSensor *parent) {
+    parent->add_on_raw_state_callback([this](std::string value) { this->trigger(std::move(value)); });
+  }
+};
+
 template<typename... Ts> class TextSensorStateCondition : public Condition<Ts...> {
  public:
   explicit TextSensorStateCondition(TextSensor *parent) : parent_(parent) {}
