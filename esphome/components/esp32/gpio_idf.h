@@ -77,7 +77,7 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
     gpio_set_intr_type(pin_, idf_type);
     gpio_intr_enable(pin_);
     if (!isr_service_installed) {
-      gpio_install_isr_service(ESP_INTR_FLAG_LEVEL5);
+      gpio_install_isr_service(ESP_INTR_FLAG_LEVEL3);
       isr_service_installed = true;
     }
     gpio_isr_handler_add(pin_, func, arg);
