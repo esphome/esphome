@@ -5,12 +5,12 @@
 namespace esphome {
 namespace sml {
 
-const char SML_OCTET = 0;
-const char SML_BOOL = 4;
-const char SML_INT = 5;
-const char SML_UINT = 6;
-const char SML_LIST = 7;
-const char SML_HEX = 10;
+const uint8_t SML_OCTET = 0;
+const uint8_t SML_BOOL = 4;
+const uint8_t SML_INT = 5;
+const uint8_t SML_UINT = 6;
+const uint8_t SML_LIST = 7;
+const uint8_t SML_HEX = 10;
 
 const uint16_t SML_PUBLIC_OPEN_RES = 0x0101;
 const uint16_t SML_GET_LIST_RES = 0x0701;

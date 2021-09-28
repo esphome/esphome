@@ -11,13 +11,13 @@ namespace sml {
 
 using bytes = std::vector<uint8_t>;
 
-uint16_t get_entry_length(const bytes &buffer, unsigned int &pos);
-
 class SmlBase {
  public:
-  uint16_t type;
-  uint16_t length;
+  uint8_t type;
+  uint8_t length;
   SmlBase(const bytes &buffer, unsigned int &pos);
+  bool is_list();
+  bool has_extended_length();
 
  protected:
   const bytes &buffer_;
@@ -26,7 +26,6 @@ class SmlBase {
 
 class SmlNode : public SmlBase {
  public:
-  bool is_list();
   SmlNode(const bytes &buffer, unsigned int &pos);
   bytes value_bytes;
   std::vector<SmlNode> nodes;
@@ -34,7 +33,7 @@ class SmlNode : public SmlBase {
 
 class ObisInfo {
  public:
-  ObisInfo(bytes server_id, SmlNode val_list);
+  ObisInfo(bytes server_id, SmlNode val_list_entry);
   bytes server_id;
   bytes code;
   bytes status;

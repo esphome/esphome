@@ -4,36 +4,36 @@
 namespace esphome {
 namespace sml {
 
-uint16_t get_entry_length(const bytes &buffer, unsigned int &pos) {
-  uint16_t type = buffer[pos] >> 4;
-  uint16_t length = buffer[pos] & 0x0f;
-
-  if (type & 0x08) {  // we have a long list/value (>15 entries)
-    length = (length << 4) + (buffer[pos + 1] & 0x0f);
-  };
-  return length;
-}
-
 SmlBase::SmlBase(const bytes &buffer, unsigned int &pos) : buffer_(buffer), startpos_(pos) {
-  this->type = buffer[pos] >> 4;
-  this->length = get_entry_length(buffer, pos);
+  this->type = buffer[pos] >> 4;      // type including overlength info
+  this->length = buffer[pos] & 0x0f;  // length including TL bytes
+  if (this->has_extended_length())    // we have a long list/value (>15 entries)
+    this->length = (this->length << 4) + (buffer[pos + 1] & 0x0f);
 }
+
+bool SmlBase::is_list() { return ((this->type & 0x07) == SML_LIST); }
+
+bool SmlBase::has_extended_length() { return this->type & 0x08; }
 
 SmlNode::SmlNode(const bytes &buffer, unsigned int &pos) : SmlBase(buffer, pos) {
+  uint8_t parse_length = this->length;
+  if (this->has_extended_length()) {
+    pos += 1;
+    parse_length -= 1;
+  }
+
   if (this->buffer_[pos] == 0x00)  // end of message
     pos += 1;
   else if (this->is_list()) {  // list
     pos += 1;
-    for (unsigned int i = 0; i != this->length; i++) {
+    for (unsigned int i = 0; i != parse_length; i++) {
       this->nodes.emplace_back(SmlNode(this->buffer_, pos));
     }
   } else {  // value
-    this->value_bytes = bytes(this->buffer_.begin() + pos + 1, this->buffer_.begin() + pos + this->length);
-    pos += length;
+    this->value_bytes = bytes(this->buffer_.begin() + pos + 1, this->buffer_.begin() + pos + parse_length);
+    pos += parse_length;
   }
 }
-
-bool SmlNode::is_list() { return ((this->type & 0x07) == SML_LIST); }
 
 SmlFile::SmlFile(bytes buffer) : buffer_(std::move(buffer)) {
   // extract messages
@@ -48,8 +48,7 @@ SmlFile::SmlFile(bytes buffer) : buffer_(std::move(buffer)) {
 
 std::vector<ObisInfo> SmlFile::get_obis_info() {
   std::vector<ObisInfo> obis_info;
-  for (unsigned int i = 0; i != this->messages.size(); i++) {
-    SmlNode message = this->messages[i];
+  for (auto const &message : messages) {
     SmlNode message_body = message.nodes[3];
     uint16_t message_type = bytes_to_uint(message_body.nodes[0].value_bytes);
     if (message_type != SML_GET_LIST_RES)
@@ -59,9 +58,8 @@ std::vector<ObisInfo> SmlFile::get_obis_info() {
     bytes server_id = get_list_response.nodes[1].value_bytes;
     SmlNode val_list = get_list_response.nodes[4];
 
-    std::vector<SmlNode> nodes = val_list.nodes;
-    for (unsigned int j = 0; j != nodes.size(); j++) {
-      obis_info.emplace_back(ObisInfo(server_id, nodes[j]));
+    for (auto const &val_list_entry : val_list.nodes) {
+      obis_info.emplace_back(ObisInfo(server_id, val_list_entry));
     }
   }
   return obis_info;
@@ -104,7 +102,6 @@ uint16_t calc_crc16_kermit(const bytes &buffer) {
 
 std::string bytes_repr(const bytes &buffer) {
   std::string repr;
-  // for (unsigned int i = 0; i != buffer.size(); i++) {
   for (auto const value : buffer) {
     char buf[3];
     sprintf(buf, "%02x", value & 0xff);
@@ -115,8 +112,8 @@ std::string bytes_repr(const bytes &buffer) {
 
 uint64_t bytes_to_uint(const bytes &buffer) {
   uint64_t val = 0;
-  for (unsigned int i = 0; i != buffer.size(); i++) {
-    val = (val << 8) + buffer.at(i);
+  for (auto const value : buffer) {
+    val = (val << 8) + value;
   }
   return val;
 }
