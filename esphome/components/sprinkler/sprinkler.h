@@ -146,11 +146,11 @@ class Sprinkler : public Component {
   /// returns a pointer to a valve's name string object; returns nullptr if valve_number is invalid
   const char *valve_name(size_t valve_number);
 
-  /// returns the number of the valve that is currently active or 'sprinkler::none_active' if no valve is active
-  int8_t active_valve();
+  /// returns the number of the valve that is currently active, if any. check with 'has_value()'
+  optional<uint8_t> active_valve();
 
-  /// returns the number of the valve that is paused or 'sprinkler::none_active' if no valve is paused
-  int8_t paused_valve();
+  /// returns the number of the valve that is paused, if any. check with 'has_value()'
+  optional<uint8_t> paused_valve();
 
   /// returns true if valve number is valid
   bool is_a_valid_valve(size_t valve_number);
@@ -161,16 +161,10 @@ class Sprinkler : public Component {
   /// returns true if the pump the pointer points to is in use
   bool pump_in_use(switch_::Switch *pump_switch);
 
-  /// returns the amount of time remaining in seconds for the active valve
-  uint32_t time_remaining();
-
-  /// value indicating that no valve is currently active
-  const int8_t none_active{-1};
+  /// returns the amount of time remaining in seconds for the active valve, if any. check with 'has_value()'
+  optional<uint32_t> time_remaining();
 
  protected:
-  /// returns true if any valve is active/turned on
-  bool there_is_an_active_valve_();
-
   /// returns true if valve number is enabled
   bool valve_is_enabled_(size_t valve_number);
 
@@ -187,17 +181,17 @@ class Sprinkler : public Component {
   switch_::Switch *valve_pump_switch_(size_t valve_number);
 
   /// returns the number of the next/previous valve in the vector
-  int8_t next_valve_number_(int8_t first_valve);
-  int8_t previous_valve_number_(int8_t first_valve);
+  uint8_t next_valve_number_(uint8_t first_valve);
+  uint8_t previous_valve_number_(uint8_t first_valve);
 
   /// returns the number of the next valve that should be activated in a full cycle.
-  ///  if no valve is next (cycle is complete), returns this->none_active
-  int8_t next_valve_number_in_cycle_(int8_t first_valve);
+  ///  if no valve is next (cycle is complete), returns no value (check with 'has_value()')
+  optional<uint8_t> next_valve_number_in_cycle_(optional<uint8_t> first_valve);
 
   /// returns the number of the next/previous valve that should be activated.
-  ///  if no valve is next (cycle is complete), returns none_active
-  int8_t next_enabled_incomplete_valve_number_(int8_t first_valve);
-  int8_t previous_enabled_incomplete_valve_number_(int8_t first_valve);
+  ///  if no valve is next (cycle is complete), returns no value (check with 'has_value()')
+  optional<uint8_t> next_enabled_incomplete_valve_number_(optional<uint8_t> first_valve);
+  optional<uint8_t> previous_enabled_incomplete_valve_number_(optional<uint8_t> first_valve);
 
   /// returns true if any valve is enabled
   bool any_valve_is_enabled_();
@@ -242,13 +236,13 @@ class Sprinkler : public Component {
   std::string name_{""};
 
   /// The number of the valve that is currently active
-  int8_t active_valve_{this->none_active};
+  optional<uint8_t> active_valve_;
 
   /// The number of the valve to resume from (if paused)
-  int8_t paused_valve_{this->none_active};
+  optional<uint8_t> paused_valve_;
 
   /// Set from time_remaining() when paused
-  uint32_t resume_duration_;
+  optional<uint32_t> resume_duration_;
 
   /// Sprinkler valve run time multiplier value
   float multiplier_{1.0};
