@@ -270,6 +270,39 @@ optional<int> parse_int(const std::string &str) {
     return {};
   return value;
 }
+
+optional<int> parse_hex(const char chr) {
+  int out = chr;
+  if (out >= '0' && out <= '9')
+    return (out - '0');
+  if (out >= 'A' && out <= 'F')
+    return (10 + (out - 'A'));
+  if (out >= 'a' && out <= 'f')
+    return (10 + (out - 'a'));
+  return {};
+}
+
+optional<int> parse_hex(const std::string &str, size_t start, size_t length) {
+  if (str.length() < start) {
+    return {};
+  }
+  size_t end = start + length;
+  if (str.length() < end) {
+    return {};
+  }
+  int out = 0;
+  for (size_t i = start; i < end; i++) {
+    char chr = str[i];
+    auto digit = parse_hex(chr);
+    if (!digit.has_value()) {
+      ESP_LOGW(TAG, "Can't convert '%s' to number, invalid character %c!", str.substr(start, length).c_str(), chr);
+      return {};
+    }
+    out = (out << 4) | *digit;
+  }
+  return out;
+}
+
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
   for (char c : str) {
@@ -318,6 +351,21 @@ bool str_startswith(const std::string &full, const std::string &start) { return 
 bool str_endswith(const std::string &full, const std::string &ending) {
   return full.rfind(ending) == (full.size() - ending.size());
 }
+std::string str_sprintf(const char *fmt, ...) {
+  std::string str;
+  va_list args;
+
+  va_start(args, fmt);
+  size_t length = vsnprintf(nullptr, 0, fmt, args);
+  va_end(args);
+
+  str.resize(length);
+  va_start(args, fmt);
+  vsnprintf(&str[0], length + 1, fmt, args);
+  va_end(args);
+
+  return str;
+}
 
 uint16_t encode_uint16(uint8_t msb, uint8_t lsb) { return (uint16_t(msb) << 8) | uint16_t(lsb); }
 std::array<uint8_t, 2> decode_uint16(uint16_t value) {
@@ -350,7 +398,7 @@ std::string hexencode(const uint8_t *data, uint32_t len) {
 IRAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
 IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
 #endif
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_ESP32
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 #endif

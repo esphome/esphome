@@ -479,7 +479,7 @@ void Tuya::set_string_datapoint_value(uint8_t datapoint_id, const std::string &v
   for (char const &c : value) {
     data.push_back(c);
   }
-  this->send_datapoint_command_(datapoint->id, datapoint->type, data);
+  this->send_datapoint_command_(datapoint_id, TuyaDatapointType::STRING, data);
 }
 
 void Tuya::set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value) {

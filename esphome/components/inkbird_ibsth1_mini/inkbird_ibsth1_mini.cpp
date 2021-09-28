@@ -8,7 +8,7 @@ namespace inkbird_ibsth1_mini {
 
 static const char *const TAG = "inkbird_ibsth1_mini";
 
-void InkbirdIBSTH1_MINI::dump_config() {
+void InkbirdIbstH1Mini::dump_config() {
   ESP_LOGCONFIG(TAG, "Inkbird IBS TH1 MINI");
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "External Temperature", this->external_temperature_);
@@ -16,7 +16,7 @@ void InkbirdIBSTH1_MINI::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-bool InkbirdIBSTH1_MINI::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool InkbirdIbstH1Mini::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   // The below is based on my research and reverse engineering of a single device
   // It is entirely possible that some of that may be inaccurate or incomplete
 

@@ -126,7 +126,7 @@ void ESP32ImprovComponent::loop() {
 
         std::string url = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
         std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, {url});
-        this->send_response(data);
+        this->send_response_(data);
         this->set_timeout("end-service", 1000, [this] {
           this->service_->stop();
           this->set_state_(improv::STATE_STOPPED);
@@ -181,7 +181,7 @@ void ESP32ImprovComponent::set_error_(improv::Error error) {
   }
 }
 
-void ESP32ImprovComponent::send_response(std::vector<uint8_t> &response) {
+void ESP32ImprovComponent::send_response_(std::vector<uint8_t> &response) {
   this->rpc_response_->set_value(response);
   if (this->state_ != improv::STATE_STOPPED)
     this->rpc_response_->notify();

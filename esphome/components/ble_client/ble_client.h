@@ -82,10 +82,11 @@ class BLEClient : public espbt::ESPBTClient, public Component {
   void dump_config() override;
   void loop() override;
 
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
+  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                           esp_ble_gattc_cb_param_t *param) override;
   bool parse_device(const espbt::ESPBTDevice &device) override;
   void on_scan_end() override {}
-  void connect();
+  void connect() override;
 
   void set_address(uint64_t address) { this->address = address; }
 
@@ -116,16 +117,16 @@ class BLEClient : public espbt::ESPBTClient, public Component {
   std::string address_str() const;
 
  protected:
-  void set_states(espbt::ClientState st) {
+  void set_states_(espbt::ClientState st) {
     this->set_state(st);
     for (auto &node : nodes_)
       node->node_state = st;
   }
-  bool all_nodes_established() {
-    if (this->state() != espbt::ClientState::Established)
+  bool all_nodes_established_() {
+    if (this->state() != espbt::ClientState::ESTABLISHED)
       return false;
     for (auto &node : nodes_)
-      if (node->node_state != espbt::ClientState::Established)
+      if (node->node_state != espbt::ClientState::ESTABLISHED)
         return false;
     return true;
   }

@@ -23,16 +23,16 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
-    auto res = parse_header(service_data);
+    auto res = parse_header_(service_data);
     if (!res.has_value()) {
       continue;
     }
 
-    if (!(parse_message(service_data.data, *res))) {
+    if (!(parse_message_(service_data.data, *res))) {
       continue;
     }
 
-    if (!(report_results(res, device.address_str()))) {
+    if (!(report_results_(res, device.address_str()))) {
       continue;
     }
 
@@ -49,7 +49,7 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return success;
 }
 
-optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::ServiceData &service_data) {
+optional<ParseResult> XiaomiMiscale::parse_header_(const esp32_ble_tracker::ServiceData &service_data) {
   ParseResult result;
   if (service_data.uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(0x181D) && service_data.data.size() == 10) {
     result.version = 1;
@@ -65,15 +65,15 @@ optional<ParseResult> XiaomiMiscale::parse_header(const esp32_ble_tracker::Servi
   return result;
 }
 
-bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
+bool XiaomiMiscale::parse_message_(const std::vector<uint8_t> &message, ParseResult &result) {
   if (result.version == 1) {
-    return parse_message_V1(message, result);
+    return parse_message_v1_(message, result);
   } else {
-    return parse_message_V2(message, result);
+    return parse_message_v2_(message, result);
   }
 }
 
-bool XiaomiMiscale::parse_message_V1(const std::vector<uint8_t> &message, ParseResult &result) {
+bool XiaomiMiscale::parse_message_v1_(const std::vector<uint8_t> &message, ParseResult &result) {
   // message size is checked in parse_header
   // 1-2 Weight (MISCALE 181D)
   // 3-4 Years (MISCALE 181D)
@@ -97,7 +97,7 @@ bool XiaomiMiscale::parse_message_V1(const std::vector<uint8_t> &message, ParseR
   return true;
 }
 
-bool XiaomiMiscale::parse_message_V2(const std::vector<uint8_t> &message, ParseResult &result) {
+bool XiaomiMiscale::parse_message_v2_(const std::vector<uint8_t> &message, ParseResult &result) {
   // message size is checked in parse_header
   // 2-3 Years (MISCALE 2 181B)
   // 4 month (MISCALE 2 181B)
@@ -138,7 +138,7 @@ bool XiaomiMiscale::parse_message_V2(const std::vector<uint8_t> &message, ParseR
   return true;
 }
 
-bool XiaomiMiscale::report_results(const optional<ParseResult> &result, const std::string &address) {
+bool XiaomiMiscale::report_results_(const optional<ParseResult> &result, const std::string &address) {
   if (!result.has_value()) {
     ESP_LOGVV(TAG, "report_results(): no results available.");
     return false;

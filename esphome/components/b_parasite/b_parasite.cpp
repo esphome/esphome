@@ -14,6 +14,7 @@ void BParasite::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Soil Moisture", this->soil_moisture_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_);
 }
 
 bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -35,6 +36,15 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   }
 
   const auto &data = service_data.data;
+
+  const uint8_t protocol_version = data[0] >> 4;
+  if (protocol_version != 1) {
+    ESP_LOGE(TAG, "Unsupported protocol version: %u", protocol_version);
+    return false;
+  }
+
+  // Some b-parasite versions have an (optional) illuminance sensor.
+  bool has_illuminance = data[0] & 0x1;
 
   // Counter for deduplicating messages.
   uint8_t counter = data[1] & 0x0f;
@@ -59,6 +69,9 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   uint16_t soil_moisture = data[8] << 8 | data[9];
   float moisture_percent = (100.0f * soil_moisture) / (1 << 16);
 
+  // Ambient light in lux.
+  float illuminance = has_illuminance ? data[16] << 8 | data[17] : 0.0f;
+
   if (battery_voltage_ != nullptr) {
     battery_voltage_->publish_state(battery_voltage);
   }
@@ -70,6 +83,13 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   }
   if (soil_moisture_ != nullptr) {
     soil_moisture_->publish_state(moisture_percent);
+  }
+  if (illuminance_ != nullptr) {
+    if (has_illuminance) {
+      illuminance_->publish_state(illuminance);
+    } else {
+      ESP_LOGE(TAG, "No lux information is present in the BLE packet");
+    }
   }
 
   last_processed_counter_ = counter;

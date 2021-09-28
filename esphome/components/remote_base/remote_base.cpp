@@ -14,8 +14,8 @@ RemoteRMTChannel::RemoteRMTChannel(uint8_t mem_block_num) : mem_block_num_(mem_b
 }
 
 void RemoteRMTChannel::config_rmt(rmt_config_t &rmt) {
-  if (rmt_channel_t(int(this->channel_) + this->mem_block_num_) > RMT_CHANNEL_7) {
-    this->mem_block_num_ = int(RMT_CHANNEL_7) - int(this->channel_) + 1;
+  if (rmt_channel_t(int(this->channel_) + this->mem_block_num_) >= RMT_CHANNEL_MAX) {
+    this->mem_block_num_ = int(RMT_CHANNEL_MAX) - int(this->channel_);
     ESP_LOGW(TAG, "Not enough RMT memory blocks available, reduced to %i blocks.", this->mem_block_num_);
   }
   rmt.channel = this->channel_;

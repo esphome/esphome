@@ -26,25 +26,25 @@ void DalyBmsComponent::dump_config() {
 }
 
 void DalyBmsComponent::update() {
-  this->request_data(DALY_REQUEST_BATTERY_LEVEL);
-  this->request_data(DALY_REQUEST_MIN_MAX_VOLTAGE);
-  this->request_data(DALY_REQUEST_MIN_MAX_TEMPERATURE);
-  this->request_data(DALY_REQUEST_MOS);
-  this->request_data(DALY_REQUEST_STATUS);
-  this->request_data(DALY_REQUEST_TEMPERATURE);
+  this->request_data_(DALY_REQUEST_BATTERY_LEVEL);
+  this->request_data_(DALY_REQUEST_MIN_MAX_VOLTAGE);
+  this->request_data_(DALY_REQUEST_MIN_MAX_TEMPERATURE);
+  this->request_data_(DALY_REQUEST_MOS);
+  this->request_data_(DALY_REQUEST_STATUS);
+  this->request_data_(DALY_REQUEST_TEMPERATURE);
 
   std::vector<uint8_t> get_battery_level_data;
   int available_data = this->available();
   if (available_data >= DALY_FRAME_SIZE) {
     get_battery_level_data.resize(available_data);
     this->read_array(get_battery_level_data.data(), available_data);
-    this->decode_data(get_battery_level_data);
+    this->decode_data_(get_battery_level_data);
   }
 }
 
 float DalyBmsComponent::get_setup_priority() const { return setup_priority::DATA; }
 
-void DalyBmsComponent::request_data(uint8_t data_id) {
+void DalyBmsComponent::request_data_(uint8_t data_id) {
   uint8_t request_message[DALY_FRAME_SIZE];
 
   request_message[0] = 0xA5;     // Start Flag
@@ -66,7 +66,7 @@ void DalyBmsComponent::request_data(uint8_t data_id) {
   this->flush();
 }
 
-void DalyBmsComponent::decode_data(std::vector<uint8_t> data) {
+void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
   auto it = data.begin();
 
   while ((it = std::find(it, data.end(), 0xA5)) != data.end()) {

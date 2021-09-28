@@ -63,12 +63,13 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
 
   void set_state_(improv::State state);
   void set_error_(improv::Error error);
-  void send_response(std::vector<uint8_t> &response);
+  void send_response_(std::vector<uint8_t> &response);
   void process_incoming_data_();
   void on_wifi_connect_timeout_();
   bool check_identify_();
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32ImprovComponent *global_improv_component;
 
 }  // namespace esp32_improv

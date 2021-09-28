@@ -20,7 +20,7 @@ ISRInternalGPIOPin ESP8266GPIOPin::to_isr() const {
   return ISRInternalGPIOPin((void *) arg);
 }
 
-void ESP8266GPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
+void ESP8266GPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   uint8_t arduino_mode = 0;
   switch (type) {
     case gpio::INTERRUPT_RISING_EDGE:

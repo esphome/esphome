@@ -24,11 +24,7 @@ namespace wifi {
 
 static const char *const TAG = "wifi_esp32";
 
-static bool s_sta_connected = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_got_ip = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connect_error = false;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_sta_connecting = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connecting = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = WiFiClass::getMode();
@@ -122,8 +118,8 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
 
   esp_err_t dhcp_stop_ret = tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA);
-  if (dhcp_stop_ret != ESP_OK) {
-    ESP_LOGV(TAG, "Stopping DHCP client failed! %d", dhcp_stop_ret);
+  if (dhcp_stop_ret != ESP_OK && dhcp_stop_ret != ESP_ERR_TCPIP_ADAPTER_DHCP_ALREADY_STOPPED) {
+    ESP_LOGV(TAG, "Stopping DHCP client failed! %s", esp_err_to_name(dhcp_stop_ret));
   }
 
   esp_err_t wifi_set_info_ret = tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_STA, &info);
@@ -280,17 +276,13 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   this->wifi_apply_hostname_();
 
+  s_sta_connecting = true;
+
   err = esp_wifi_connect();
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "esp_wifi_connect failed! %d", err);
     return false;
   }
-
-  s_sta_connecting = true;
-  s_sta_connected = false;
-  s_sta_got_ip = false;
-  s_sta_connect_error = false;
-  s_sta_connect_not_found = false;
 
   return true;
 }
@@ -402,35 +394,78 @@ const char *get_disconnect_reason_str(uint8_t reason) {
       return "Unspecified";
   }
 }
+
 #if ESP_IDF_VERSION_MAJOR >= 4
-void WiFiComponent::wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info) {
-#else
-void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_info_t info) {
-#endif
+
+#define ESPHOME_EVENT_ID_WIFI_READY ARDUINO_EVENT_WIFI_READY
+#define ESPHOME_EVENT_ID_WIFI_SCAN_DONE ARDUINO_EVENT_WIFI_SCAN_DONE
+#define ESPHOME_EVENT_ID_WIFI_STA_START ARDUINO_EVENT_WIFI_STA_START
+#define ESPHOME_EVENT_ID_WIFI_STA_STOP ARDUINO_EVENT_WIFI_STA_STOP
+#define ESPHOME_EVENT_ID_WIFI_STA_CONNECTED ARDUINO_EVENT_WIFI_STA_CONNECTED
+#define ESPHOME_EVENT_ID_WIFI_STA_DISCONNECTED ARDUINO_EVENT_WIFI_STA_DISCONNECTED
+#define ESPHOME_EVENT_ID_WIFI_STA_AUTHMODE_CHANGE ARDUINO_EVENT_WIFI_STA_AUTHMODE_CHANGE
+#define ESPHOME_EVENT_ID_WIFI_STA_GOT_IP ARDUINO_EVENT_WIFI_STA_GOT_IP
+#define ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6 ARDUINO_EVENT_WIFI_STA_GOT_IP6
+#define ESPHOME_EVENT_ID_WIFI_STA_LOST_IP ARDUINO_EVENT_WIFI_STA_LOST_IP
+#define ESPHOME_EVENT_ID_WIFI_AP_START ARDUINO_EVENT_WIFI_AP_START
+#define ESPHOME_EVENT_ID_WIFI_AP_STOP ARDUINO_EVENT_WIFI_AP_STOP
+#define ESPHOME_EVENT_ID_WIFI_AP_STACONNECTED ARDUINO_EVENT_WIFI_AP_STACONNECTED
+#define ESPHOME_EVENT_ID_WIFI_AP_STADISCONNECTED ARDUINO_EVENT_WIFI_AP_STADISCONNECTED
+#define ESPHOME_EVENT_ID_WIFI_AP_STAIPASSIGNED ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED
+#define ESPHOME_EVENT_ID_WIFI_AP_PROBEREQRECVED ARDUINO_EVENT_WIFI_AP_PROBEREQRECVED
+#define ESPHOME_EVENT_ID_WIFI_AP_GOT_IP6 ARDUINO_EVENT_WIFI_AP_GOT_IP6
+using esphome_wifi_event_id_t = arduino_event_id_t;
+using esphome_wifi_event_info_t = arduino_event_info_t;
+
+#else  // ESP_IDF_VERSION_MAJOR >= 4
+
+#define ESPHOME_EVENT_ID_WIFI_READY SYSTEM_EVENT_WIFI_READY
+#define ESPHOME_EVENT_ID_WIFI_SCAN_DONE SYSTEM_EVENT_SCAN_DONE
+#define ESPHOME_EVENT_ID_WIFI_STA_START SYSTEM_EVENT_STA_START
+#define ESPHOME_EVENT_ID_WIFI_STA_STOP SYSTEM_EVENT_STA_STOP
+#define ESPHOME_EVENT_ID_WIFI_STA_CONNECTED SYSTEM_EVENT_STA_CONNECTED
+#define ESPHOME_EVENT_ID_WIFI_STA_DISCONNECTED SYSTEM_EVENT_STA_DISCONNECTED
+#define ESPHOME_EVENT_ID_WIFI_STA_AUTHMODE_CHANGE SYSTEM_EVENT_STA_AUTHMODE_CHANGE
+#define ESPHOME_EVENT_ID_WIFI_STA_GOT_IP SYSTEM_EVENT_STA_GOT_IP
+#define ESPHOME_EVENT_ID_WIFI_STA_LOST_IP SYSTEM_EVENT_STA_LOST_IP
+#define ESPHOME_EVENT_ID_WIFI_AP_START SYSTEM_EVENT_AP_START
+#define ESPHOME_EVENT_ID_WIFI_AP_STOP SYSTEM_EVENT_AP_STOP
+#define ESPHOME_EVENT_ID_WIFI_AP_STACONNECTED SYSTEM_EVENT_AP_STACONNECTED
+#define ESPHOME_EVENT_ID_WIFI_AP_STADISCONNECTED SYSTEM_EVENT_AP_STADISCONNECTED
+#define ESPHOME_EVENT_ID_WIFI_AP_STAIPASSIGNED SYSTEM_EVENT_AP_STAIPASSIGNED
+#define ESPHOME_EVENT_ID_WIFI_AP_PROBEREQRECVED SYSTEM_EVENT_AP_PROBEREQRECVED
+using esphome_wifi_event_id_t = system_event_id_t;
+using esphome_wifi_event_info_t = system_event_info_t;
+
+#endif  // !(ESP_IDF_VERSION_MAJOR >= 4)
+
+void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_wifi_event_info_t info) {
   switch (event) {
-    case SYSTEM_EVENT_WIFI_READY: {
+    case ESPHOME_EVENT_ID_WIFI_READY: {
       ESP_LOGV(TAG, "Event: WiFi ready");
       break;
     }
-    case SYSTEM_EVENT_SCAN_DONE: {
+    case ESPHOME_EVENT_ID_WIFI_SCAN_DONE: {
 #if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_scan_done;
 #else
       auto it = info.scan_done;
 #endif
       ESP_LOGV(TAG, "Event: WiFi Scan Done status=%u number=%u scan_id=%u", it.status, it.number, it.scan_id);
+
+      this->wifi_scan_done_callback_();
       break;
     }
-    case SYSTEM_EVENT_STA_START: {
+    case ESPHOME_EVENT_ID_WIFI_STA_START: {
       ESP_LOGV(TAG, "Event: WiFi STA start");
       tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, App.get_name().c_str());
       break;
     }
-    case SYSTEM_EVENT_STA_STOP: {
+    case ESPHOME_EVENT_ID_WIFI_STA_STOP: {
       ESP_LOGV(TAG, "Event: WiFi STA stop");
       break;
     }
-    case SYSTEM_EVENT_STA_CONNECTED: {
+    case ESPHOME_EVENT_ID_WIFI_STA_CONNECTED: {
 #if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_sta_connected;
 #else
@@ -441,10 +476,10 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       buf[it.ssid_len] = '\0';
       ESP_LOGV(TAG, "Event: Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
                format_mac_addr(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
-      s_sta_connected = true;
+
       break;
     }
-    case SYSTEM_EVENT_STA_DISCONNECTED: {
+    case ESPHOME_EVENT_ID_WIFI_STA_DISCONNECTED: {
 #if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_sta_disconnected;
 #else
@@ -455,17 +490,26 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       buf[it.ssid_len] = '\0';
       if (it.reason == WIFI_REASON_NO_AP_FOUND) {
         ESP_LOGW(TAG, "Event: Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
-        s_sta_connect_not_found = true;
       } else {
         ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
                  format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
-        s_sta_connect_error = true;
       }
-      s_sta_connected = false;
+
+      uint8_t reason = it.reason;
+      if (reason == WIFI_REASON_AUTH_EXPIRE || reason == WIFI_REASON_BEACON_TIMEOUT ||
+          reason == WIFI_REASON_NO_AP_FOUND || reason == WIFI_REASON_ASSOC_FAIL ||
+          reason == WIFI_REASON_HANDSHAKE_TIMEOUT) {
+        err_t err = esp_wifi_disconnect();
+        if (err != ESP_OK) {
+          ESP_LOGV(TAG, "Disconnect failed: %s", esp_err_to_name(err));
+        }
+        this->error_from_callback_ = true;
+      }
+
       s_sta_connecting = false;
       break;
     }
-    case SYSTEM_EVENT_STA_AUTHMODE_CHANGE: {
+    case ESPHOME_EVENT_ID_WIFI_STA_AUTHMODE_CHANGE: {
 #if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_sta_authmode_change;
 #else
@@ -487,27 +531,26 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       }
       break;
     }
-    case SYSTEM_EVENT_STA_GOT_IP: {
+    case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP: {
       auto it = info.got_ip.ip_info;
       ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s", format_ip4_addr(it.ip).c_str(),
                format_ip4_addr(it.gw).c_str());
-      s_sta_got_ip = true;
+      s_sta_connecting = false;
       break;
     }
-    case SYSTEM_EVENT_STA_LOST_IP: {
+    case ESPHOME_EVENT_ID_WIFI_STA_LOST_IP: {
       ESP_LOGV(TAG, "Event: Lost IP");
-      s_sta_got_ip = false;
       break;
     }
-    case SYSTEM_EVENT_AP_START: {
+    case ESPHOME_EVENT_ID_WIFI_AP_START: {
       ESP_LOGV(TAG, "Event: WiFi AP start");
       break;
     }
-    case SYSTEM_EVENT_AP_STOP: {
+    case ESPHOME_EVENT_ID_WIFI_AP_STOP: {
       ESP_LOGV(TAG, "Event: WiFi AP stop");
       break;
     }
-    case SYSTEM_EVENT_AP_STACONNECTED: {
+    case ESPHOME_EVENT_ID_WIFI_AP_STACONNECTED: {
 #if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_sta_connected;
       auto &mac = it.bssid;
@@ -518,7 +561,7 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       ESP_LOGV(TAG, "Event: AP client connected MAC=%s", format_mac_addr(mac).c_str());
       break;
     }
-    case SYSTEM_EVENT_AP_STADISCONNECTED: {
+    case ESPHOME_EVENT_ID_WIFI_AP_STADISCONNECTED: {
 #if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_sta_disconnected;
       auto &mac = it.bssid;
@@ -529,11 +572,11 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       ESP_LOGV(TAG, "Event: AP client disconnected MAC=%s", format_mac_addr(mac).c_str());
       break;
     }
-    case SYSTEM_EVENT_AP_STAIPASSIGNED: {
+    case ESPHOME_EVENT_ID_WIFI_AP_STAIPASSIGNED: {
       ESP_LOGV(TAG, "Event: AP client assigned IP");
       break;
     }
-    case SYSTEM_EVENT_AP_PROBEREQRECVED: {
+    case ESPHOME_EVENT_ID_WIFI_AP_PROBEREQRECVED: {
 #if ESP_IDF_VERSION_MAJOR >= 4
       auto it = info.wifi_ap_probereqrecved;
 #else
@@ -545,31 +588,6 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
     default:
       break;
   }
-
-#if ESP_IDF_VERSION_MAJOR >= 4
-  if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
-    uint8_t reason = info.wifi_sta_disconnected.reason;
-#else
-  if (event == SYSTEM_EVENT_STA_DISCONNECTED) {
-    uint8_t reason = info.disconnected.reason;
-#endif
-    if (reason == WIFI_REASON_AUTH_EXPIRE || reason == WIFI_REASON_BEACON_TIMEOUT ||
-        reason == WIFI_REASON_NO_AP_FOUND || reason == WIFI_REASON_ASSOC_FAIL ||
-        reason == WIFI_REASON_HANDSHAKE_TIMEOUT) {
-      err_t err = esp_wifi_disconnect();
-      if (err != ESP_OK) {
-        ESP_LOGV(TAG, "Disconnect failed: %s", esp_err_to_name(err));
-      }
-      this->error_from_callback_ = true;
-    }
-  }
-#if ESP_IDF_VERSION_MAJOR >= 4
-  if (event == ARDUINO_EVENT_WIFI_SCAN_DONE) {
-#else
-  if (event == SYSTEM_EVENT_SCAN_DONE) {
-#endif
-    this->wifi_scan_done_callback_();
-  }
 }
 void WiFiComponent::wifi_pre_setup_() {
   auto f = std::bind(&WiFiComponent::wifi_event_callback_, this, std::placeholders::_1, std::placeholders::_2);
@@ -579,16 +597,14 @@ void WiFiComponent::wifi_pre_setup_() {
   this->wifi_mode_(false, false);
 }
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
-  if (s_sta_connected && s_sta_got_ip) {
+  auto status = WiFiClass::status();
+  if (status == WL_CONNECTED) {
     return WiFiSTAConnectStatus::CONNECTED;
-  }
-  if (s_sta_connect_error) {
+  } else if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST) {
     return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
-  }
-  if (s_sta_connect_not_found) {
+  } else if (status == WL_NO_SSID_AVAIL) {
     return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
-  }
-  if (s_sta_connecting) {
+  } else if (s_sta_connecting) {
     return WiFiSTAConnectStatus::CONNECTING;
   }
   return WiFiSTAConnectStatus::IDLE;

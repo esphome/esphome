@@ -41,6 +41,7 @@ FAN_DIRECTION_ENUM = {
 TurnOnAction = fan_ns.class_("TurnOnAction", automation.Action)
 TurnOffAction = fan_ns.class_("TurnOffAction", automation.Action)
 ToggleAction = fan_ns.class_("ToggleAction", automation.Action)
+CycleSpeedAction = fan_ns.class_("CycleSpeedAction", automation.Action)
 
 FanTurnOnTrigger = fan_ns.class_("FanTurnOnTrigger", automation.Trigger.template())
 FanTurnOffTrigger = fan_ns.class_("FanTurnOffTrigger", automation.Trigger.template())
@@ -202,6 +203,12 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(config[CONF_DIRECTION], args, FanDirection)
         cg.add(var.set_direction(template_))
     return var
+
+
+@automation.register_action("fan.cycle_speed", CycleSpeedAction, FAN_ACTION_SCHEMA)
+async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_condition(

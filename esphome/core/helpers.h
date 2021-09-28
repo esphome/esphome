@@ -43,7 +43,8 @@ std::string to_string(double val);
 std::string to_string(long double val);
 optional<float> parse_float(const std::string &str);
 optional<int> parse_int(const std::string &str);
-
+optional<int> parse_hex(const std::string &str, size_t start, size_t length);
+optional<int> parse_hex(char chr);
 /// Sanitize the hostname by removing characters that are not in the allowlist and truncating it to 63 chars.
 std::string sanitize_hostname(const std::string &hostname);
 
@@ -57,6 +58,9 @@ std::string to_lowercase_underscore(std::string s);
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 bool str_startswith(const std::string &full, const std::string &start);
 bool str_endswith(const std::string &full, const std::string &ending);
+
+/// sprintf-like function returning std::string instead of writing to char array.
+std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
 
 class HighFrequencyLoopRequester {
  public:
@@ -333,10 +337,10 @@ template<typename T> T *new_buffer(size_t length) {
   if (psramFound()) {
     buffer = (T *) ps_malloc(length);
   } else {
-    buffer = new T[length];
+    buffer = new T[length];  // NOLINT(cppcoreguidelines-owning-memory)
   }
 #else
-  buffer = new T[length];  // NOLINT
+  buffer = new T[length];  // NOLINT(cppcoreguidelines-owning-memory)
 #endif
 
   return buffer;

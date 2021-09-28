@@ -31,9 +31,10 @@ class ApplianceBase : public Component, public uart::UARTDevice, public climate:
   ApplianceBase() {
     this->base_.setStream(this);
     this->base_.addOnStateCallback(std::bind(&ApplianceBase::on_status_change, this));
-    dudanov::midea::ApplianceBase::setLogger([](int level, const char *tag, int line, String format, va_list args) {
-      esp_log_vprintf_(level, tag, line, format.c_str(), args);
-    });
+    dudanov::midea::ApplianceBase::setLogger(
+        [](int level, const char *tag, int line, const String &format, va_list args) {
+          esp_log_vprintf_(level, tag, line, format.c_str(), args);
+        });
   }
   bool can_proceed() override {
     return this->base_.getAutoconfStatus() != dudanov::midea::AutoconfStatus::AUTOCONF_PROGRESS;
@@ -46,11 +47,11 @@ class ApplianceBase : public Component, public uart::UARTDevice, public climate:
   void set_request_attempts(uint32_t attempts) { this->base_.setNumAttempts(attempts); }
   void set_beeper_feedback(bool state) { this->base_.setBeeper(state); }
   void set_autoconf(bool value) { this->base_.setAutoconf(value); }
-  void set_supported_modes(std::set<ClimateMode> modes) { this->supported_modes_ = std::move(modes); }
-  void set_supported_swing_modes(std::set<ClimateSwingMode> modes) { this->supported_swing_modes_ = std::move(modes); }
-  void set_supported_presets(std::set<ClimatePreset> presets) { this->supported_presets_ = std::move(presets); }
-  void set_custom_presets(std::set<std::string> presets) { this->supported_custom_presets_ = std::move(presets); }
-  void set_custom_fan_modes(std::set<std::string> modes) { this->supported_custom_fan_modes_ = std::move(modes); }
+  void set_supported_modes(const std::set<ClimateMode> &modes) { this->supported_modes_ = modes; }
+  void set_supported_swing_modes(const std::set<ClimateSwingMode> &modes) { this->supported_swing_modes_ = modes; }
+  void set_supported_presets(const std::set<ClimatePreset> &presets) { this->supported_presets_ = presets; }
+  void set_custom_presets(const std::set<std::string> &presets) { this->supported_custom_presets_ = presets; }
+  void set_custom_fan_modes(const std::set<std::string> &modes) { this->supported_custom_fan_modes_ = modes; }
   virtual void on_status_change() = 0;
 #ifdef USE_REMOTE_TRANSMITTER
   void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {

@@ -9,7 +9,7 @@ namespace light {
 class AddressableLightWrapper : public light::AddressableLight {
  public:
   explicit AddressableLightWrapper(light::LightState *light_state) : light_state_(light_state) {
-    this->wrapper_state_ = new uint8_t[5];
+    this->wrapper_state_ = new uint8_t[5];  // NOLINT(cppcoreguidelines-owning-memory)
   }
 
   int32_t size() const override { return 1; }
