@@ -23,10 +23,10 @@ class TuyaCover : public cover::Cover, public Component {
 
   Tuya *parent_;
   optional<uint8_t> position_id_{};
-  uint32_t min_value_ = 0;
-  uint32_t max_value_ = 100;
+  uint32_t min_value_;
+  uint32_t max_value_;
   uint32_t value_range_;
-  bool invert_position_ = false;
+  bool invert_position_;
 };
 
 }  // namespace tuya
