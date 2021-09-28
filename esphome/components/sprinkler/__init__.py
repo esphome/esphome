@@ -27,6 +27,7 @@ sprinkler_ns = cg.esphome_ns.namespace("sprinkler")
 Sprinkler = sprinkler_ns.class_("Sprinkler")
 
 SetMultiplierAction = sprinkler_ns.class_("SetMultiplierAction", automation.Action)
+SetRunDurationAction = sprinkler_ns.class_("SetRunDurationAction", automation.Action)
 StartFullCycleAction = sprinkler_ns.class_("StartFullCycleAction", automation.Action)
 StartSingleValveAction = sprinkler_ns.class_(
     "StartSingleValveAction", automation.Action
@@ -105,6 +106,14 @@ SPRINKLER_ACTION_SET_MULTIPLIER_SCHEMA = maybe_simple_id(
     }
 )
 
+SPRINKLER_ACTION_SET_RUN_DURATION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(Sprinkler),
+        cv.Required(CONF_RUN_DURATION): cv.templatable(cv.positive_time_period_seconds),
+        cv.Required(CONF_VALVE_NUMBER): cv.templatable(cv.positive_int),
+    }
+)
+
 SPRINKLER_VALVE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ENABLE_SWITCH_NAME): cv.string,
@@ -147,6 +156,23 @@ async def sprinkler_set_multiplier_to_code(config, action_id, template_arg, args
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_MULTIPLIER], args, cg.float_)
     cg.add(var.set_multiplier(template_))
+    return var
+
+
+@automation.register_action(
+    "sprinkler.set_valve_run_duration",
+    SetRunDurationAction,
+    SPRINKLER_ACTION_SET_RUN_DURATION_SCHEMA,
+)
+async def sprinkler_set_valve_run_duration_to_code(
+    config, action_id, template_arg, args
+):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_VALVE_NUMBER], args, cg.uint8)
+    cg.add(var.set_valve_number(template_))
+    template_ = await cg.templatable(config[CONF_RUN_DURATION], args, cg.uint32)
+    cg.add(var.set_valve_run_duration(template_))
     return var
 
 

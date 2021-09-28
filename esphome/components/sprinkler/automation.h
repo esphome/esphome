@@ -19,6 +19,22 @@ template<typename... Ts> class SetMultiplierAction : public Action<Ts...> {
   Sprinkler *sprinkler_;
 };
 
+template<typename... Ts> class SetRunDurationAction : public Action<Ts...> {
+ public:
+  explicit SetRunDurationAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
+
+  TEMPLATABLE_VALUE(size_t, valve_number)
+  TEMPLATABLE_VALUE(uint32_t, valve_run_duration)
+
+  void play(Ts... x) override {
+    this->sprinkler_->set_valve_run_duration(this->valve_number_.optional_value(x...),
+                                             this->valve_run_duration_.optional_value(x...));
+  }
+
+ protected:
+  Sprinkler *sprinkler_;
+};
+
 template<typename... Ts> class StartFullCycleAction : public Action<Ts...> {
  public:
   explicit StartFullCycleAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}

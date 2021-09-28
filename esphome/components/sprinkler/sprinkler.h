@@ -98,7 +98,7 @@ class Sprinkler : public Component {
   void set_valve_overlap(uint32_t valve_overlap);
 
   /// how long the valve should remain on/open (time in seconds)
-  void set_valve_run_duration(size_t valve_number, uint32_t valve_run_duration);
+  void set_valve_run_duration(optional<size_t> valve_number, optional<uint32_t> valve_run_duration);
 
   /// if auto_advance is true, controller will iterate through all enabled valves
   void set_auto_advance(bool auto_advance);

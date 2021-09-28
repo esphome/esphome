@@ -175,9 +175,12 @@ void Sprinkler::set_valve_overlap(uint32_t valve_overlap) {
   this->set_timer_duration_(sprinkler::TIMER_VALVE_OVERLAP_DELAY, valve_overlap);
 }
 
-void Sprinkler::set_valve_run_duration(const size_t valve_number, const uint32_t valve_run_duration) {
-  if (this->is_a_valid_valve(valve_number)) {
-    this->valve_[valve_number].valve_run_duration = valve_run_duration;
+void Sprinkler::set_valve_run_duration(const optional<size_t> valve_number,
+                                       const optional<uint32_t> valve_run_duration) {
+  if (valve_number.has_value() && valve_run_duration.has_value()) {
+    if (this->is_a_valid_valve(valve_number.value())) {
+      this->valve_[valve_number.value()].valve_run_duration = valve_run_duration.value();
+    }
   }
 }
 
