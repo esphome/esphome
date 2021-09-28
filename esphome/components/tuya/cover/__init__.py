@@ -19,9 +19,7 @@ TuyaCover = tuya_ns.class_("TuyaCover", cover.Cover, cg.Component)
 def validate_range(config):
     if config[CONF_MIN_VALUE] > config[CONF_MAX_VALUE]:
         raise cv.Invalid(
-            "min_value({}) cannot be greater than max_value({})".format(
-                config[CONF_MIN_VALUE], config[CONF_MAX_VALUE]
-            )
+            f"min_value ({config[CONF_MIN_VALUE]}) cannot be greater than max_value ({config[CONF_MAX_VALUE]})"
         )
     return config
 
