@@ -1587,7 +1587,7 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     }
 )
 
-NAMEABLE_SCHEMA = Schema(
+ENTITY_BASE_SCHEMA = Schema(
     {
         Optional(CONF_NAME): string,
         Optional(CONF_INTERNAL): boolean,
@@ -1595,7 +1595,7 @@ NAMEABLE_SCHEMA = Schema(
     }
 )
 
-NAMEABLE_SCHEMA.add_extra(_nameable_validator)
+ENTITY_BASE_SCHEMA.add_extra(_nameable_validator)
 
 COMPONENT_SCHEMA = Schema({Optional(CONF_SETUP_PRIORITY): float_})
 

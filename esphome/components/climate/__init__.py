@@ -88,7 +88,7 @@ validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 # Actions
 ControlAction = climate_ns.class_("ControlAction", automation.Action)
 
-CLIMATE_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
+CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(Climate),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTClimateComponent),
