@@ -440,7 +440,7 @@ void Climate::set_visual_max_temperature_override(float visual_max_temperature_o
 void Climate::set_visual_temperature_step_override(float visual_temperature_step_override) {
   this->visual_temperature_step_override_ = visual_temperature_step_override;
 }
-Climate::Climate(const std::string &name) : Nameable(name) {}
+Climate::Climate(const std::string &name) : EntityBase(name) {}
 Climate::Climate() : Climate("") {}
 ClimateCall Climate::make_call() { return ClimateCall(this); }
 

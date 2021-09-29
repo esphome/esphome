@@ -143,8 +143,8 @@ void APIConnection::loop() {
   }
 }
 
-std::string get_default_unique_id(const std::string &component_type, Nameable *nameable) {
-  return App.get_name() + component_type + nameable->get_object_id();
+std::string get_default_unique_id(const std::string &component_type, EntityBase *entity) {
+  return App.get_name() + component_type + entity->get_object_id();
 }
 
 DisconnectResponse APIConnection::disconnect(const DisconnectRequest &msg) {

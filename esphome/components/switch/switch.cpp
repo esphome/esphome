@@ -7,7 +7,7 @@ namespace switch_ {
 static const char *const TAG = "switch";
 
 std::string Switch::icon() { return ""; }
-Switch::Switch(const std::string &name) : Nameable(name), state(false) {}
+Switch::Switch(const std::string &name) : EntityBase(name), state(false) {}
 Switch::Switch() : Switch("") {}
 
 std::string Switch::get_icon() {

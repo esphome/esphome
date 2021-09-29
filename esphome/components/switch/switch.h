@@ -26,7 +26,7 @@ namespace switch_ {
  * A switch is basically just a combination of a binary sensor (for reporting switch values)
  * and a write_state method that writes a state to the hardware.
  */
-class Switch : public Nameable {
+class Switch : public EntityBase {
  public:
   explicit Switch();
   explicit Switch(const std::string &name);

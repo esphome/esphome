@@ -66,7 +66,7 @@ class FanStateCall {
   optional<FanDirection> direction_{};
 };
 
-class FanState : public Nameable, public Component {
+class FanState : public EntityBase, public Component {
  public:
   FanState() = default;
   /// Construct the fan state with name.

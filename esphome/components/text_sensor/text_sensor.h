@@ -18,7 +18,7 @@ namespace text_sensor {
     } \
   }
 
-class TextSensor : public Nameable {
+class TextSensor : public EntityBase {
  public:
   explicit TextSensor();
   explicit TextSensor(const std::string &name);

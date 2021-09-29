@@ -50,7 +50,7 @@ class SelectTraits {
  *
  * A select can use publish_state to send out a new value.
  */
-class Select : public Nameable {
+class Select : public EntityBase {
  public:
   std::string state;
 

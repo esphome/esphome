@@ -43,7 +43,7 @@ std::string state_class_to_string(StateClass state_class);
  *
  * A sensor has unit of measurement and can use publish_state to send out a new value with the specified accuracy.
  */
-class Sensor : public Nameable {
+class Sensor : public EntityBase {
  public:
   explicit Sensor();
   explicit Sensor(const std::string &name);

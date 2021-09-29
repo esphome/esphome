@@ -22,7 +22,7 @@ namespace binary_sensor {
  * The sub classes should notify the front-end of new states via the publish_state() method which
  * handles inverted inputs for you.
  */
-class BinarySensor : public Nameable {
+class BinarySensor : public EntityBase {
  public:
   explicit BinarySensor();
   /** Construct a binary sensor with the specified name

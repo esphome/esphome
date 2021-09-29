@@ -107,7 +107,7 @@ const char *cover_operation_to_str(CoverOperation op);
  * to control all values of the cover. Also implement get_traits() to return what operations
  * the cover supports.
  */
-class Cover : public Nameable {
+class Cover : public EntityBase {
  public:
   explicit Cover();
   explicit Cover(const std::string &name);

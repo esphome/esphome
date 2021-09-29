@@ -265,13 +265,13 @@ class PollingComponent : public Component {
 };
 
 /// Helper class that enables naming of objects so that it doesn't have to be re-implement every time.
-class Nameable {
+class EntityBase {
  public:
-  Nameable() : Nameable("") {}
-  explicit Nameable(std::string name);
+  EntityBase() : EntityBase("") {}
+  explicit EntityBase(std::string name);
   const std::string &get_name() const;
   void set_name(const std::string &name);
-  /// Get the sanitized name of this nameable as an ID. Caching it internally.
+  /// Get the sanitized name of this entity as an ID. Caching it internally.
   const std::string &get_object_id();
   uint32_t get_object_id_hash();
 

@@ -54,7 +54,7 @@ class NumberTraits {
  *
  * A number can use publish_state to send out a new value.
  */
-class Number : public Nameable {
+class Number : public EntityBase {
  public:
   float state;
 
