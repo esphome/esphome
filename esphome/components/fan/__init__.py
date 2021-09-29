@@ -28,7 +28,7 @@ from esphome.core import CORE, coroutine_with_priority
 IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace("fan")
-FanState = fan_ns.class_("FanState", cg.Nameable, cg.Component)
+FanState = fan_ns.class_("FanState", cg.EntityBase, cg.Component)
 MakeFan = cg.Application.struct("MakeFan")
 
 FanDirection = fan_ns.enum("FanDirection")

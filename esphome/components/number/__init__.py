@@ -24,7 +24,7 @@ CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
 number_ns = cg.esphome_ns.namespace("number")
-Number = number_ns.class_("Number", cg.Nameable)
+Number = number_ns.class_("Number", cg.EntityBase)
 NumberPtr = Number.operator("ptr")
 
 # Triggers

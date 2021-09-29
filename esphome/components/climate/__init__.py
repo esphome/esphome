@@ -30,7 +30,7 @@ IS_PLATFORM_COMPONENT = True
 CODEOWNERS = ["@esphome/core"]
 climate_ns = cg.esphome_ns.namespace("climate")
 
-Climate = climate_ns.class_("Climate", cg.Nameable)
+Climate = climate_ns.class_("Climate", cg.EntityBase)
 ClimateCall = climate_ns.class_("ClimateCall")
 ClimateTraits = climate_ns.class_("ClimateTraits")
 

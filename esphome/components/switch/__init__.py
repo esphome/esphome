@@ -21,7 +21,7 @@ CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
 switch_ns = cg.esphome_ns.namespace("switch_")
-Switch = switch_ns.class_("Switch", cg.Nameable)
+Switch = switch_ns.class_("Switch", cg.EntityBase)
 SwitchPtr = Switch.operator("ptr")
 
 ToggleAction = switch_ns.class_("ToggleAction", automation.Action)

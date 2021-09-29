@@ -36,7 +36,7 @@ DEVICE_CLASSES = [
 
 cover_ns = cg.esphome_ns.namespace("cover")
 
-Cover = cover_ns.class_("Cover", cg.Nameable)
+Cover = cover_ns.class_("Cover", cg.EntityBase)
 
 COVER_OPEN = cover_ns.COVER_OPEN
 COVER_CLOSED = cover_ns.COVER_CLOSED

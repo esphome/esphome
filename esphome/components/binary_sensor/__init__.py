@@ -88,7 +88,7 @@ DEVICE_CLASSES = [
 IS_PLATFORM_COMPONENT = True
 
 binary_sensor_ns = cg.esphome_ns.namespace("binary_sensor")
-BinarySensor = binary_sensor_ns.class_("BinarySensor", cg.Nameable)
+BinarySensor = binary_sensor_ns.class_("BinarySensor", cg.EntityBase)
 BinarySensorInitiallyOff = binary_sensor_ns.class_(
     "BinarySensorInitiallyOff", BinarySensor
 )

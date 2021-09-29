@@ -136,7 +136,7 @@ def validate_datapoint(value):
 
 # Base
 sensor_ns = cg.esphome_ns.namespace("sensor")
-Sensor = sensor_ns.class_("Sensor", cg.Nameable)
+Sensor = sensor_ns.class_("Sensor", cg.EntityBase)
 SensorPtr = Sensor.operator("ptr")
 
 # Triggers

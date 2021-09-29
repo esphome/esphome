@@ -1476,7 +1476,7 @@ class OnlyWith(Optional):
         pass
 
 
-def _nameable_validator(config):
+def _entity_base_validator(config):
     if CONF_NAME not in config and CONF_ID not in config:
         raise Invalid("At least one of 'id:' or 'name:' is required!")
     if CONF_NAME not in config:
@@ -1595,7 +1595,7 @@ ENTITY_BASE_SCHEMA = Schema(
     }
 )
 
-ENTITY_BASE_SCHEMA.add_extra(_nameable_validator)
+ENTITY_BASE_SCHEMA.add_extra(_entity_base_validator)
 
 COMPONENT_SCHEMA = Schema({Optional(CONF_SETUP_PRIORITY): float_})
 

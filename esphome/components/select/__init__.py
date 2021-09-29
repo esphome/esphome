@@ -21,7 +21,7 @@ CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
 select_ns = cg.esphome_ns.namespace("select")
-Select = select_ns.class_("Select", cg.Nameable)
+Select = select_ns.class_("Select", cg.EntityBase)
 SelectPtr = Select.operator("ptr")
 
 # Triggers
