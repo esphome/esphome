@@ -17,6 +17,7 @@ class RGBWLightOutput : public light::LightOutput {
   void set_warm_white_temperature(float warm_white_temperature) { warm_white_temperature_ = warm_white_temperature; }
   void set_blue_white_percentage(float blue_white_percentage) { blue_white_percentage_ = blue_white_percentage; }
   void set_red_white_percentage(float red_white_percentage) { red_white_percentage_ = red_white_percentage; }
+  void set_additive_brightness(bool additive_brightness) { additive_brightness_ = additive_brightness; }
   void set_color_interlock(bool color_interlock) { color_interlock_ = color_interlock; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
@@ -37,7 +38,7 @@ class RGBWLightOutput : public light::LightOutput {
     (!this->pseudo_color_temperature_)
         ? state->current_values_as_rgbw(&red, &green, &blue, &white, this->color_interlock_)
         : state->current_values_as_emulated_rgbww(&red, &green, &blue, &white, this->blue_white_percentage_,
-                                                this->red_white_percentage_);
+                                                  this->red_white_percentage_, this->additive_brightness_);
     this->red_->set_level(red);
     this->green_->set_level(green);
     this->blue_->set_level(blue);
@@ -55,6 +56,7 @@ class RGBWLightOutput : public light::LightOutput {
   float warm_white_temperature_{0};
   float blue_white_percentage_{0};
   float red_white_percentage_{0};
+  bool additive_brightness_{false};
 };
 
 }  // namespace rgbw

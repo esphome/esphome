@@ -160,28 +160,33 @@ class LightColorValues {
   /// Convert these light color values to an RGBWW emulation by mixing in red or blue, and write them to red, green,
   /// blue, white.
   void as_emulated_rgbww(float *red, float *green, float *blue, float *white, float blue_white_percentage,
-                       float red_white_percentage, float min_mireds, float max_mireds, float gamma = 0) const {
+                         float red_white_percentage, float min_mireds, float max_mireds, bool additive_brightness,
+                         float gamma = 0) const {
     if (this->color_mode_ & ColorCapability::RGB) {
       this->as_rgb(red, green, blue, gamma);
       *white = 0;
     } else {
-      *white = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
       const float mireds_half_range = ((max_mireds - min_mireds) / 2) + min_mireds;
       if (this->color_temperature_ > mireds_half_range) {
         // warm
         // Do not Gamma correct!
-        *red = this->brightness_ * red_white_percentage *
-               ((this->color_temperature_ - mireds_half_range) / (max_mireds - mireds_half_range));
+        *red = gamma_correct(this->brightness_ * red_white_percentage *
+                                 ((this->color_temperature_ - mireds_half_range) / (max_mireds - mireds_half_range)),
+                             gamma);
         *blue = *green = 0;
       } else if (this->color_temperature_ < mireds_half_range) {
         // cool
         // Do not Gamma correct!
-        *blue = this->brightness_ * blue_white_percentage *
-                ((this->color_temperature_ - mireds_half_range) / (min_mireds - mireds_half_range));
+        *blue = gamma_correct(this->brightness_ * blue_white_percentage *
+                                  ((this->color_temperature_ - mireds_half_range) / (min_mireds - mireds_half_range)),
+                              gamma);
         *red = *green = 0;
       } else {
         this->as_rgb(red, green, blue, gamma);
       }
+      *white = (additive_brightness)
+                   ? gamma_correct(this->state_ * this->brightness_ * this->white_, gamma)
+                   : gamma_correct(this->state_ * (this->brightness_) * this->white_, gamma) - *blue - *red;
     }
   }
 

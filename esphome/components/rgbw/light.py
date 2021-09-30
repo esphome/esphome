@@ -15,6 +15,7 @@ from esphome.const import (
 rgbw_ns = cg.esphome_ns.namespace("rgbw")
 RGBWLightOutput = rgbw_ns.class_("RGBWLightOutput", light.LightOutput)
 CONF_EMULATE_RGBWW = "emulate_rgbww"
+CONF_ADDITIVE_BRIGHTNESS = "additive_brightness"
 
 
 def validate_emulate_rgbww(value):
@@ -46,6 +47,7 @@ CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
                     ): cv.color_temperature,
                     cv.Optional(CONF_BLUE): cv.percentage,
                     cv.Optional(CONF_RED): cv.percentage,
+                    cv.Optional(CONF_ADDITIVE_BRIGHTNESS, default=False): cv.boolean,
                 }
             ),
             light.validate_color_temperature_channels,
@@ -84,3 +86,4 @@ async def to_code(config):
             cg.add(var.set_blue_white_percentage(emulate_rgbww[CONF_BLUE]))
         if CONF_RED in emulate_rgbww:
             cg.add(var.set_red_white_percentage(emulate_rgbww[CONF_RED]))
+        cg.add(var.set_additive_brightness(emulate_rgbww[CONF_ADDITIVE_BRIGHTNESS]))

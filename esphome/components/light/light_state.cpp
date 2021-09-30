@@ -193,10 +193,12 @@ void LightState::current_values_as_rgbww(float *red, float *green, float *blue, 
   this->current_values.as_rgbww(red, green, blue, cold_white, warm_white, this->gamma_correct_, constant_brightness);
 }
 void LightState::current_values_as_emulated_rgbww(float *red, float *green, float *blue, float *white,
-                                                float blue_white_percentage, float red_white_percentage) {
+                                                  float blue_white_percentage, float red_white_percentage,
+                                                  bool additive_brightness) {
   auto traits = this->get_traits();
   this->current_values.as_emulated_rgbww(red, green, blue, white, blue_white_percentage, red_white_percentage,
-                                         traits.get_min_mireds(), traits.get_max_mireds(), this->gamma_correct_);
+                                         traits.get_min_mireds(), traits.get_max_mireds(), additive_brightness,
+                                         this->gamma_correct_);
 }
 void LightState::current_values_as_rgbct(float *red, float *green, float *blue, float *color_temperature,
                                          float *white_brightness) {
