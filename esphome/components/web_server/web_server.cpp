@@ -165,7 +165,8 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
   std::string title = App.get_name() + " Web Server";
   stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8>"
-                  "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>"));
+                  "<meta name=\"viewport\" content=\"width=device-width, "
+                  "initial-scale=1.0\"><title>"));
   stream->print(title.c_str());
   stream->print(F("</title>"));
 #ifdef WEBSERVER_CSS_INCLUDE
