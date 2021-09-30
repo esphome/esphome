@@ -86,7 +86,7 @@ class RFBridgeReceivedAdvancedCodeTrigger : public Trigger<RFBridgeAdvancedData>
  public:
   explicit RFBridgeReceivedAdvancedCodeTrigger(RFBridgeComponent *parent) {
     parent->add_on_advanced_code_received_callback(
-        [this](RFBridgeAdvancedData data) { this->trigger(std::move(data)); });
+        [this](const RFBridgeAdvancedData& data) { this->trigger(data); });
   }
 };
 
