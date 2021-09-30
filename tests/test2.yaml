@@ -307,6 +307,20 @@ sensor:
       name: "Wave Mini Pressure"
     tvoc:
       name: "Wave Mini VOC"
+  - platform: mopeka_pro_check
+    mac_address: D3:75:F2:DC:16:91
+    tank_type: CUSTOM
+    full_distance: 40cm
+    empty_distance: 10mm
+    temperature:
+      name: "Propane test temp"
+    level:
+      name: "Propane test level"
+    distance:
+      name: "Propane test distance"
+    battery_level:
+      name: "Propane test battery level"
+
 
 time:
   - platform: homeassistant
