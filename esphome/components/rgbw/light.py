@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import light, output
 from esphome.const import (
     CONF_BLUE,
+    CONF_COLOR_INTERLOCK,
     CONF_GREEN,
     CONF_RED,
     CONF_OUTPUT_ID,
@@ -13,7 +14,6 @@ from esphome.const import (
 
 rgbw_ns = cg.esphome_ns.namespace("rgbw")
 RGBWLightOutput = rgbw_ns.class_("RGBWLightOutput", light.LightOutput)
-CONF_COLOR_INTERLOCK = "color_interlock"
 CONF_EMULATE_RGBWW = "emulate_rgbww"
 
 
