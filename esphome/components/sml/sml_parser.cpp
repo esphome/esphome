@@ -26,6 +26,7 @@ SmlNode::SmlNode(const bytes &buffer, unsigned int &pos) : SmlBase(buffer, pos) 
     pos += 1;
   else if (this->is_list()) {  // list
     pos += 1;
+    this->nodes.reserve(parse_length);
     for (unsigned int i = 0; i != parse_length; i++) {
       this->nodes.emplace_back(SmlNode(this->buffer_, pos));
     }
