@@ -164,6 +164,12 @@ class Sprinkler : public Component {
   /// returns the amount of time remaining in seconds for the active valve, if any. check with 'has_value()'
   optional<uint32_t> time_remaining();
 
+  /// returns a pointer to a valve's control switch object
+  SprinklerSwitch *control_switch(size_t valve_number);
+
+  /// returns a pointer to a valve's enable switch object
+  SprinklerSwitch *enable_switch(size_t valve_number);
+
  protected:
   /// returns true if valve number is enabled
   bool valve_is_enabled_(size_t valve_number);

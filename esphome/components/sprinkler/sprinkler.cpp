@@ -279,7 +279,7 @@ void Sprinkler::resume_or_start_full_cycle() {
 
 const char *Sprinkler::valve_name(const size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
-    return this->valve_[valve_number].valve_switch->get_name().c_str();
+    return this->valve_[valve_number].controller_switch->get_name().c_str();
   }
   return nullptr;
 }
@@ -313,6 +313,20 @@ optional<uint32_t> Sprinkler::time_remaining() {
     }
   }
   return secs_remaining;
+}
+
+SprinklerSwitch *Sprinkler::control_switch(size_t valve_number) {
+  if (this->is_a_valid_valve(valve_number)) {
+    return this->valve_[valve_number].controller_switch.get();
+  }
+  return nullptr;
+}
+
+SprinklerSwitch *Sprinkler::enable_switch(size_t valve_number) {
+  if (this->is_a_valid_valve(valve_number)) {
+    return this->valve_[valve_number].enable_switch.get();
+  }
+  return nullptr;
 }
 
 bool Sprinkler::valve_is_enabled_(const size_t valve_number) {
