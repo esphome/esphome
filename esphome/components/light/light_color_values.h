@@ -169,14 +169,12 @@ class LightColorValues {
       const float mireds_half_range = ((max_mireds - min_mireds) / 2) + min_mireds;
       if (this->color_temperature_ > mireds_half_range) {
         // warm
-        // Do not Gamma correct!
         *red = gamma_correct(this->brightness_ * red_white_percentage *
                                  ((this->color_temperature_ - mireds_half_range) / (max_mireds - mireds_half_range)),
                              gamma);
         *blue = *green = 0;
       } else if (this->color_temperature_ < mireds_half_range) {
         // cool
-        // Do not Gamma correct!
         *blue = gamma_correct(this->brightness_ * blue_white_percentage *
                                   ((this->color_temperature_ - mireds_half_range) / (min_mireds - mireds_half_range)),
                               gamma);
