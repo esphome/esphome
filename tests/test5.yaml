@@ -9,6 +9,8 @@ esp32:
   board: nodemcu-32s
   framework:
     type: esp-idf
+    advanced:
+      ignore_efuse_mac_crc: true 
 
 wifi:
   networks:

@@ -26,10 +26,20 @@ namespace esphome {
 /// The characters that are allowed in a hostname.
 extern const char *const HOSTNAME_CHARACTER_ALLOWLIST;
 
-/// Gets the MAC address as a string, this can be used as way to identify this ESP.
+/// Read the raw MAC address into the provided byte array (6 bytes).
+void get_mac_address_raw(uint8_t *mac);
+
+/// Get the MAC address as a string, using lower case hex notation.
+/// This can be used as way to identify this ESP.
 std::string get_mac_address();
 
+/// Get the MAC address as a string, using colon-separated upper case hex notation.
 std::string get_mac_address_pretty();
+
+#ifdef USE_ESP32
+/// Set the MAC address to use from the provided byte array (6 bytes).
+void set_mac_address(uint8_t *mac);
+#endif
 
 std::string to_string(const std::string &val);
 std::string to_string(int val);
