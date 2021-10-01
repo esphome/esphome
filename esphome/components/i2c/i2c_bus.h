@@ -15,12 +15,6 @@ enum ErrorCode {
   ERROR_UNKNOWN = 6,
 };
 
-enum RecoveryCode {
-  RECOVERY_FAILED_SCL_LOW,
-  RECOVERY_FAILED_SDA_LOW,
-  RECOVERY_COMPLETED,
-};
-
 struct ReadBuffer {
   uint8_t *data;
   size_t len;
