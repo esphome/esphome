@@ -108,8 +108,7 @@ bool ImperialComponent::parse_imperial_byte_(uint8_t byte) {
     return byte == 'L';
 
   if (at == 8)
-    return true;
-  uint8_t version = raw[8];
+    return byte == IMPERIAL_VERSION;
 
   if (at == 9)
     return true;
@@ -170,7 +169,7 @@ void ImperialComponent::set_state_(improv::State state) {
 
   std::vector<uint8_t> data = {'I', 'M', 'P', 'E', 'R', 'I', 'A', 'L'};
   data.resize(13);
-  data[8] = VERSION;
+  data[8] = IMPERIAL_VERSION;
   data[9] = TYPE_CURRENT_STATE;
   data[10] = 1;
   data[11] = state;
@@ -186,7 +185,7 @@ void ImperialComponent::set_state_(improv::State state) {
 void ImperialComponent::set_error_(improv::Error error) {
   std::vector<uint8_t> data = {'I', 'M', 'P', 'E', 'R', 'I', 'A', 'L'};
   data.resize(13);
-  data[8] = VERSION;
+  data[8] = IMPERIAL_VERSION;
   data[9] = TYPE_ERROR_STATE;
   data[10] = 1;
   data[11] = error;
@@ -201,7 +200,7 @@ void ImperialComponent::set_error_(improv::Error error) {
 void ImperialComponent::send_response_(std::vector<uint8_t> &response) {
   std::vector<uint8_t> data = {'I', 'M', 'P', 'E', 'R', 'I', 'A', 'L'};
   data.resize(11);
-  data[8] = VERSION;
+  data[8] = IMPERIAL_VERSION;
   data[9] = TYPE_RPC;
   data[10] = response.size();
   data.insert(data.end(), response.begin(), response.end());

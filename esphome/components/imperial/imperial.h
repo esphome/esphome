@@ -22,7 +22,7 @@ enum ImperialType : uint8_t {
   TYPE_RPC = 0x03,
 };
 
-static const uint8_t VERSION = 1;
+static const uint8_t IMPERIAL_VERSION = 1;
 
 class ImperialComponent : public Component {
  public:
@@ -58,7 +58,7 @@ class ImperialComponent : public Component {
   improv::State state_{improv::STATE_AUTHORIZED};
 };
 
-extern ImperialComponent *global_imperial_component;
+extern ImperialComponent *global_imperial_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace imperial
 }  // namespace esphome
