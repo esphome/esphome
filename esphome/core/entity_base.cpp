@@ -22,6 +22,10 @@ void EntityBase::set_internal(bool internal) { this->internal_ = internal; }
 bool EntityBase::is_disabled_by_default() const { return this->disabled_by_default_; }
 void EntityBase::set_disabled_by_default(bool disabled_by_default) { this->disabled_by_default_ = disabled_by_default; }
 
+// Entity Icon
+const std::string &EntityBase::get_icon() const { return this->icon_; }
+void EntityBase::set_icon(const std::string &name) { this->icon_ = name; }
+
 // Entity Object ID
 const std::string &EntityBase::get_object_id() { return this->object_id_; }
 

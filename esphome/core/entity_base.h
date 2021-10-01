@@ -10,9 +10,8 @@ class EntityBase {
   EntityBase() : EntityBase("") {}
   explicit EntityBase(std::string name);
 
-  // Get the name of this Entity
+  // Get/set the name of this Entity
   const std::string &get_name() const;
-  // Set the name of this Entity
   void set_name(const std::string &name);
 
   // Get the sanitized name of this Entity as an ID. Caching it internally.
@@ -31,12 +30,17 @@ class EntityBase {
   bool is_disabled_by_default() const;
   void set_disabled_by_default(bool disabled_by_default);
 
+  // Get/set this entity's icon
+  const std::string &get_icon() const;
+  void set_icon(const std::string &name);
+
  protected:
   virtual uint32_t hash_base() = 0;
   void calc_object_id_();
 
   std::string name_;
   std::string object_id_;
+  std::string icon_;
   uint32_t object_id_hash_;
   bool internal_{false};
   bool disabled_by_default_{false};
