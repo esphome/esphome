@@ -63,7 +63,7 @@ def convert_iana_key(iana_key: str) -> str:
     except (IndexError, UnicodeDecodeError) as e:
         raise cv.Invalid(
             f"Could not determine TZ string for timezone '{iana_key}'. "
-            "Please report this issues"
+            "Please report this issue"
         ) from e
 
 
