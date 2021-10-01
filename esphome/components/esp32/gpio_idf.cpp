@@ -45,7 +45,7 @@ void IDFInternalGPIOPin::digital_write(bool value) {
   gpio_set_level(pin_, value != inverted_ ? 1 : 0);
 }
 
-static gpio_mode_t IDFInternalGPIOPin::flags_to_mode(gpio::Flags flags) {
+gpio_mode_t IDFInternalGPIOPin::flags_to_mode(gpio::Flags flags) {
   flags = (gpio::Flags)(flags & ~(gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN));
   if (flags == gpio::FLAG_NONE) {
     return GPIO_MODE_DISABLE;
@@ -65,7 +65,7 @@ static gpio_mode_t IDFInternalGPIOPin::flags_to_mode(gpio::Flags flags) {
   }
 }
 
-void IDFInternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override {
+void IDFInternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   gpio_int_type_t idf_type = GPIO_INTR_ANYEDGE;
   switch (type) {
     case gpio::INTERRUPT_RISING_EDGE:
