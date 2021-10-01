@@ -36,8 +36,6 @@ bool MQTTSelectComponent::is_disabled_by_default() const { return this->select_-
 void MQTTSelectComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   const auto &traits = select_->traits;
   // https://www.home-assistant.io/integrations/select.mqtt/
-  if (!traits.get_icon().empty())
-    root["icon"] = traits.get_icon();
   JsonArray &options = root.createNestedArray("options");
   for (const auto &option : traits.get_options())
     options.add(option);

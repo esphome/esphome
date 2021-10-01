@@ -52,9 +52,6 @@ void MQTTSensorComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryCo
   if (this->get_expire_after() > 0)
     root["expire_after"] = this->get_expire_after() / 1000;
 
-  if (!this->sensor_->get_icon().empty())
-    root["icon"] = this->sensor_->get_icon();
-
   if (this->sensor_->get_force_update())
     root["force_update"] = true;
 

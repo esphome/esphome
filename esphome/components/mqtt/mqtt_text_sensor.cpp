@@ -13,9 +13,6 @@ using namespace esphome::text_sensor;
 
 MQTTTextSensor::MQTTTextSensor(TextSensor *sensor) : MQTTComponent(), sensor_(sensor) {}
 void MQTTTextSensor::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
-  if (!this->sensor_->get_icon().empty())
-    root["icon"] = this->sensor_->get_icon();
-
   config.command_topic = false;
 }
 void MQTTTextSensor::setup() {
