@@ -9,11 +9,11 @@ namespace esphome {
 namespace ota {
 
 OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
-  const esp_partition_t *update_partition = esp_ota_get_next_update_partition(nullptr);
-  if (update_partition == nullptr) {
+  this->partition_ = esp_ota_get_next_update_partition(nullptr);
+  if (this->partition_ == nullptr) {
     return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
   }
-  esp_err_t err = esp_ota_begin(update_partition, image_size, &this->update_handle_);
+  esp_err_t err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
   if (err != ESP_OK) {
     esp_ota_abort(this->update_handle_);
     this->update_handle_ = 0;
@@ -47,16 +47,25 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
 OTAResponseTypes IDFOTABackend::end() {
   esp_err_t err = esp_ota_end(this->update_handle_);
   this->update_handle_ = 0;
-  if (err != ESP_OK) {
-    if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
-      return OTA_RESPONSE_ERROR_UPDATE_END;
+  if (err == ESP_OK) {
+    err = esp_ota_set_boot_partition(this->partition_);
+    if (err == ESP_OK) {
+      return OTA_RESPONSE_OK;
     }
-    return OTA_RESPONSE_ERROR_UNKNOWN;
   }
-  return OTA_RESPONSE_OK;
+  if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
+    return OTA_RESPONSE_ERROR_UPDATE_END;
+  }
+  if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
+    return OTA_RESPONSE_ERROR_WRITING_FLASH;
+  }
+  return OTA_RESPONSE_ERROR_UNKNOWN;
 }
 
-void IDFOTABackend::abort() { esp_ota_abort(this->update_handle_); }
+void IDFOTABackend::abort() {
+  esp_ota_abort(this->update_handle_);
+  this->update_handle_ = 0;
+}
 
 }  // namespace ota
 }  // namespace esphome

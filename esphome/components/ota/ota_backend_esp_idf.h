@@ -18,6 +18,7 @@ class IDFOTABackend : public OTABackend {
 
  private:
   esp_ota_handle_t update_handle_{0};
+  const esp_partition_t *partition_;
 };
 
 }  // namespace ota
