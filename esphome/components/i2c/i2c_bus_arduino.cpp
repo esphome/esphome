@@ -115,15 +115,15 @@ void ArduinoI2CBus::recover_() {
   // the I2C bus cannot be recovered.
   pinMode(scl_pin_, INPUT_PULLUP);     // NOLINT
   if (digitalRead(scl_pin_) == LOW) {  // NOLINT
-    ESP_LOGE(TAG, "Recovery failed: SCL is held LOW, I2C bus cannot become master");
+    ESP_LOGE(TAG, "Recovery failed: SCL is held LOW on the I2C bus");
     recovery_result_ = RECOVERY_FAILED_SCL_LOW;
     return;
   }
 
   // From the specification:
-  // "If the data line (SDA) is stuck LOW, the master should send nine clock
-  //  pulses. The device that held the bus LOW should release it sometime
-  //  within those nine clocks."
+  // "If the data line (SDA) is stuck LOW, send nine clock pulses. The
+  //  device that held the bus LOW should release it sometime within
+  //  those nine clocks."
   // We don't really have to detect if SDA is stuck low. We'll simply send
   // nine clock pulses here, just in case SDA is stuck.
 
@@ -175,7 +175,7 @@ void ArduinoI2CBus::recover_() {
   // transation, meaning that it should have freed up the SDA line, resulting
   // in SDA being pulled up.
   if (digitalRead(sda_pin_) == LOW) {  // NOLINT
-    ESP_LOGE(TAG, "Recovery failed: SDA is LOW after clock pulse cycle");
+    ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");
     recovery_result_ = RECOVERY_FAILED_SDA_LOW;
     return;
   }
@@ -203,8 +203,8 @@ void ArduinoI2CBus::recover_() {
   // Finally, we'll bring the I2C bus into a starting state by generating
   // a STOP condition.
   ESP_LOGI(TAG, "Generate STOP condition to finalize recovery");
-  pinMode(sda_pin_, INPUT);          // NOLINT
-  pinMode(sda_pin_, INPUT_PULLUP);   // NOLINT
+  pinMode(sda_pin_, INPUT);         // NOLINT
+  pinMode(sda_pin_, INPUT_PULLUP);  // NOLINT
 
   recovery_result_ = RECOVERY_COMPLETED;
 }
