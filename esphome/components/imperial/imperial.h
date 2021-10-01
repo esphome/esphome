@@ -30,7 +30,7 @@ class ImperialComponent : public Component {
   void loop() override;
   void dump_config() override;
 
-  float get_setup_priority() const { return setup_priority::HARDWARE; }
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
  protected:
   bool parse_imperial_byte_(uint8_t byte);
