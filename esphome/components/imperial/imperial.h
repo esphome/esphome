@@ -34,7 +34,7 @@ class ImperialComponent : public Component {
 
  protected:
   bool parse_imperial_byte_(uint8_t byte);
-  bool parse_improv_payload_(improv::ImprovCommand command);
+  bool parse_improv_payload_(const improv::ImprovCommand command);
 
   void set_state_(improv::State state);
   void set_error_(improv::Error error);

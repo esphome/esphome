@@ -132,7 +132,7 @@ bool ImperialComponent::parse_imperial_byte_(uint8_t byte) {
   return true;
 }
 
-bool ImperialComponent::parse_improv_payload_(improv::ImprovCommand command) {
+bool ImperialComponent::parse_improv_payload_(const improv::ImprovCommand command) {
   switch (command.command) {
     case improv::BAD_CHECKSUM:
       ESP_LOGW(TAG, "Error decoding Improv payload");
