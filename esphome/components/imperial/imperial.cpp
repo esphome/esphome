@@ -47,7 +47,7 @@ uint8_t ImperialComponent::read_byte_() {
 void ImperialComponent::write_data_(std::vector<uint8_t> &data) {
   data.push_back('\n');
 #ifdef USE_ARDUINO
-  data this->hw_serial_->write(data.data(), data.size());
+  this->hw_serial_->write(data.data(), data.size());
 #endif
 #ifdef USE_ESP_IDF
   uart_write_bytes(this->uart_num_, data.data(), data.size());
