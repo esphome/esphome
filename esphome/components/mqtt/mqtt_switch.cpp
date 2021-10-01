@@ -50,6 +50,9 @@ void MQTTSwitchComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryCo
 bool MQTTSwitchComponent::send_initial_state() { return this->publish_state(this->switch_->state); }
 bool MQTTSwitchComponent::is_internal() { return this->switch_->is_internal(); }
 std::string MQTTSwitchComponent::friendly_name() const { return this->switch_->get_name(); }
+std::string MQTTSwitchComponent::get_icon() const { return this->switch_->get_icon(); }
+bool MQTTSwitchComponent::is_disabled_by_default() const { return this->switch_->is_disabled_by_default(); }
+
 bool MQTTSwitchComponent::publish_state(bool state) {
   const char *state_s = state ? "ON" : "OFF";
   return this->publish(this->get_state_topic_(), state_s);

@@ -158,6 +158,12 @@ class MQTTComponent : public Component {
    */
   virtual std::string unique_id();
 
+  /// Get the icon field of this component
+  virtual std::string get_icon() const = 0;
+
+  /// Get whether the underlying Entity is disabled by default
+  virtual bool is_disabled_by_default() const = 0;
+
   /// Get the MQTT topic that new states will be shared to.
   const std::string get_state_topic_() const;
 

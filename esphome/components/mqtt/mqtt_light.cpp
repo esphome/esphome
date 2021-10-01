@@ -33,6 +33,9 @@ bool MQTTJSONLightComponent::publish_state_() {
 }
 LightState *MQTTJSONLightComponent::get_state() const { return this->state_; }
 std::string MQTTJSONLightComponent::friendly_name() const { return this->state_->get_name(); }
+std::string MQTTJSONLightComponent::get_icon() const { return this->state_->get_icon(); }
+bool MQTTJSONLightComponent::is_disabled_by_default() const { return this->state_->is_disabled_by_default(); }
+
 void MQTTJSONLightComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   root["schema"] = "json";
   auto traits = this->state_->get_traits();

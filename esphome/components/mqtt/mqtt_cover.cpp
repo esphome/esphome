@@ -84,6 +84,9 @@ void MQTTCoverComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryCon
 
 std::string MQTTCoverComponent::component_type() const { return "cover"; }
 std::string MQTTCoverComponent::friendly_name() const { return this->cover_->get_name(); }
+std::string MQTTCoverComponent::get_icon() const { return this->cover_->get_icon(); }
+bool MQTTCoverComponent::is_disabled_by_default() const { return this->cover_->is_disabled_by_default(); }
+
 bool MQTTCoverComponent::send_initial_state() { return this->publish_state(); }
 bool MQTTCoverComponent::is_internal() { return this->cover_->is_internal(); }
 bool MQTTCoverComponent::publish_state() {

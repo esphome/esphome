@@ -26,6 +26,8 @@ MQTTBinarySensorComponent::MQTTBinarySensorComponent(binary_sensor::BinarySensor
   }
 }
 std::string MQTTBinarySensorComponent::friendly_name() const { return this->binary_sensor_->get_name(); }
+std::string MQTTBinarySensorComponent::get_icon() const { return this->binary_sensor_->get_icon(); }
+bool MQTTBinarySensorComponent::is_disabled_by_default() const { return this->binary_sensor_->is_disabled_by_default(); }
 
 void MQTTBinarySensorComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   if (!this->binary_sensor_->get_device_class().empty())

@@ -30,6 +30,9 @@ void MQTTSelectComponent::dump_config() {
 std::string MQTTSelectComponent::component_type() const { return "select"; }
 
 std::string MQTTSelectComponent::friendly_name() const { return this->select_->get_name(); }
+std::string MQTTSelectComponent::get_icon() const { return this->select_->get_icon(); }
+bool MQTTSelectComponent::is_disabled_by_default() const { return this->select_->is_disabled_by_default(); }
+
 void MQTTSelectComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   const auto &traits = select_->traits;
   // https://www.home-assistant.io/integrations/select.mqtt/

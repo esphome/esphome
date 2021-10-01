@@ -68,8 +68,13 @@ bool MQTTComponent::send_discovery_() {
 
         this->send_discovery(root, config);
 
-        std::string name = this->friendly_name();
-        root["name"] = name;
+        // Fields from EntityBase
+        root["name"] = this->friendly_name();
+        if (this->is_disabled_by_default())
+          root["enabled_by_default"] = false;
+        if (!this->get_icon().empty())
+          root["icon"] =  this->get_icon();
+
         if (config.state_topic)
           root["state_topic"] = this->get_state_topic_();
         if (config.command_topic)

@@ -114,6 +114,9 @@ void MQTTFanComponent::dump_config() {
 
 bool MQTTFanComponent::send_initial_state() { return this->publish_state(); }
 std::string MQTTFanComponent::friendly_name() const { return this->state_->get_name(); }
+std::string MQTTFanComponent::get_icon() const { return this->state_->get_icon(); }
+bool MQTTFanComponent::is_disabled_by_default() const { return this->state_->is_disabled_by_default(); }
+
 void MQTTFanComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   if (this->state_->get_traits().supports_oscillation()) {
     root["oscillation_command_topic"] = this->get_oscillation_command_topic();

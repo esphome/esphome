@@ -35,8 +35,9 @@ class MQTTSelectComponent : public mqtt::MQTTComponent {
  protected:
   /// Override for MQTTComponent, returns "select".
   std::string component_type() const override;
-
   std::string friendly_name() const override;
+  std::string get_icon() const override;
+  bool is_disabled_by_default() const override;
 
   select::Select *select_;
 };

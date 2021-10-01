@@ -33,6 +33,10 @@ class MQTTSwitchComponent : public mqtt::MQTTComponent {
   /// "switch" component type.
   std::string component_type() const override;
 
+  std::string get_icon() const override;
+
+  bool is_disabled_by_default() const override;
+
   switch_::Switch *switch_;
 };
 
