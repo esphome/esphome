@@ -3,6 +3,7 @@
 #include "web_server.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/util.h"
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"

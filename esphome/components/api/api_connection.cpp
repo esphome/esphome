@@ -1,4 +1,5 @@
 #include "api_connection.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/version.h"
