@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_COMMAND_TOPIC,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
+    CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
     CONF_NAME,
@@ -34,6 +35,7 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
     CONF_TYPE,
+    ICON_EMPTY,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
@@ -1592,6 +1594,7 @@ ENTITY_BASE_SCHEMA = Schema(
         Optional(CONF_NAME): string,
         Optional(CONF_INTERNAL): boolean,
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
+        Optional(CONF_ICON, default=ICON_EMPTY): icon,
     }
 )
 

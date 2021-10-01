@@ -1,6 +1,10 @@
 import logging
 
 from esphome.const import (
+    CONF_DISABLED_BY_DEFAULT,
+    CONF_ICON,
+    CONF_INTERNAL,
+    CONF_NAME,
     CONF_SETUP_PRIORITY,
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
@@ -88,6 +92,15 @@ async def register_parented(var, value):
     else:
         paren = value
     add(var.set_parent(paren))
+
+
+async def setup_entity(var, config):
+    """Set up generic properties of an Entity"""
+    add(var.set_name(config[CONF_NAME]))
+    add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
+    if CONF_INTERNAL in config:
+        add(var.set_internal(config[CONF_INTERNAL]))
+    add(var.set_icon(config[CONF_ICON]))
 
 
 def extract_registry_entry_config(registry, full_config):
