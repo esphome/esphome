@@ -37,13 +37,9 @@ void IDFInternalGPIOPin::pin_mode(gpio::Flags flags) {
   gpio_config(&conf);
 }
 
-bool IDFInternalGPIOPin::digital_read() {
-  return bool(gpio_get_level(pin_)) != inverted_;
-}
+bool IDFInternalGPIOPin::digital_read() { return bool(gpio_get_level(pin_)) != inverted_; }
 
-void IDFInternalGPIOPin::digital_write(bool value) {
-  gpio_set_level(pin_, value != inverted_ ? 1 : 0);
-}
+void IDFInternalGPIOPin::digital_write(bool value) { gpio_set_level(pin_, value != inverted_ ? 1 : 0); }
 
 gpio_mode_t IDFInternalGPIOPin::flags_to_mode(gpio::Flags flags) {
   flags = (gpio::Flags)(flags & ~(gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN));
@@ -96,7 +92,6 @@ void IDFInternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio:
   }
   gpio_isr_handler_add(pin_, func, arg);
 }
-
 
 std::string IDFInternalGPIOPin::dump_summary() const {
   char buffer[32];
