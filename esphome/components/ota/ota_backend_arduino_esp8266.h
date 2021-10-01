@@ -1,3 +1,4 @@
+#pragma once
 #include "esphome/core/defines.h"
 #ifdef USE_ARDUINO
 #ifdef USE_ESP8266

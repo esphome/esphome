@@ -39,9 +39,7 @@ OTAResponseTypes ArduinoESP32OTABackend::end() {
   return OTA_RESPONSE_OK;
 }
 
-void ArduinoESP32OTABackend::abort() {
-  Update.abort();
-}
+void ArduinoESP32OTABackend::abort() { Update.abort(); }
 
 }  // namespace ota
 }  // namespace esphome
