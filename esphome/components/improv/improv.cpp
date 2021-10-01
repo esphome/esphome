@@ -7,7 +7,6 @@ ImprovCommand parse_improv_data(const std::vector<uint8_t> &data) {
 }
 
 ImprovCommand parse_improv_data(const uint8_t *data, size_t length) {
-
   ImprovCommand improv_command;
   Command command = (Command) data[0];
   uint8_t data_length = data[1];
