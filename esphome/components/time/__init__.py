@@ -43,36 +43,37 @@ TimeHasTimeCondition = time_ns.class_("TimeHasTimeCondition", Condition)
 
 def _load_tzdata(iana_key: str) -> Optional[bytes]:
     # From https://tzdata.readthedocs.io/en/latest/#examples
-    package_loc, resource = iana_key.rsplit("/", 1)
+    try:
+        package_loc, resource = iana_key.rsplit("/", 1)
+    except ValueError:
+        return None
     package = "tzdata.zoneinfo." + package_loc.replace("/", ".")
 
     try:
         return resources.read_binary(package, resource)
     except (FileNotFoundError, ModuleNotFoundError):
-        raise
+        return None
 
 
-def convert_iana_key(iana_key: str) -> str:
-    """Converts an IANA key like 'Europe/Vienna' to TZ string."""
-    dat = _load_tzdata(iana_key)
-    if dat is None:
-        raise cv.Invalid(f"Could not find timezone '{iana_key}'")
-
+def _extract_tz_string(tzfile: bytes) -> str:
     try:
-        return dat.split(b"\n")[-2].decode()
-    except (IndexError, UnicodeDecodeError) as e:
-        _LOGGER.error("%s", dat, exc_info=True)
-        raise cv.Invalid(
-            f"Could not determine TZ string for timezone '{iana_key}'. "
-            "Please report this issue"
-        ) from e
+        return tzfile.split(b"\n")[-2].decode()
+    except (IndexError, UnicodeDecodeError):
+        _LOGGER.error("Could not determine TZ string. Please report this issue.")
+        _LOGGER.error("tzfile contents: %s", tzfile, exc_info=True)
+        raise
 
 
 def detect_tz() -> str:
     iana_key = tzlocal.get_localzone().key
     _LOGGER.info("Detected timezone '%s'", iana_key)
-    ret = convert_iana_key(iana_key)
-    _LOGGER.info(" -> TZ string %s", ret)
+    tzfile = _load_tzdata(iana_key)
+    if tzfile is None:
+        raise cv.Invalid(
+            "Could not automatically determine timezone, please set timezone manually."
+        )
+    ret = _extract_tz_string(tzfile)
+    _LOGGER.debug(" -> TZ string %s", ret)
     return ret
 
 
@@ -252,14 +253,15 @@ def validate_cron_keys(value):
     return cv.has_at_least_one_key(*CRON_KEYS)(value)
 
 
-def validate_tz(value):
+def validate_tz(value: str) -> str:
     value = cv.string_strict(value)
 
-    if _load_tzdata(value) is None:
+    tzfile = _load_tzdata(value)
+    if tzfile is None:
         # Not a IANA key, probably a TZ string
         return value
 
-    return convert_iana_key(value)
+    return _extract_tz_string(tzfile)
 
 
 TIME_SCHEMA = cv.Schema(
