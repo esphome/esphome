@@ -61,6 +61,7 @@ def convert_iana_key(iana_key: str) -> str:
     try:
         return dat.split(b"\n")[-2].decode()
     except (IndexError, UnicodeDecodeError) as e:
+        _LOGGER.error("%s", dat, exc_info=True)
         raise cv.Invalid(
             f"Could not determine TZ string for timezone '{iana_key}'. "
             "Please report this issue"
@@ -71,7 +72,7 @@ def detect_tz() -> str:
     iana_key = tzlocal.get_localzone().key
     _LOGGER.info("Detected timezone '%s'", iana_key)
     ret = convert_iana_key(iana_key)
-    _LOGGER.debug(" -> TZ string %s", ret)
+    _LOGGER.info(" -> TZ string %s", ret)
     return ret
 
 
