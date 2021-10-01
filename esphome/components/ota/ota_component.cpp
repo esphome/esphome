@@ -13,6 +13,10 @@
 #include <cerrno>
 #include <cstdio>
 
+#ifdef USE_OTA_PASSWORD
+#include <MD5Builder.h>
+#endif
+
 namespace esphome {
 namespace ota {
 
