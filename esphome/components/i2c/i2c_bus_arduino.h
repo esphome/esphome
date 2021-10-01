@@ -24,6 +24,7 @@ class ArduinoI2CBus : public I2CBus, public Component {
 
  private:
   void recover_();
+  RecoveryCode recovery_result_;
 
  protected:
   TwoWire *wire_;
