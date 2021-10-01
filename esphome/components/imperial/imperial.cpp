@@ -20,9 +20,7 @@ void ImperialComponent::setup() {
 #endif
 }
 
-void ImperialComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Imperial:");
-}
+void ImperialComponent::dump_config() { ESP_LOGCONFIG(TAG, "Imperial:"); }
 
 int ImperialComponent::available_() {
 #ifdef USE_ARDUINO
