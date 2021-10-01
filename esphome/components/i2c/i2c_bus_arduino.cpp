@@ -183,7 +183,7 @@ void ArduinoI2CBus::recover_() {
   // From the specification:
   // "I2C-bus compatible devices must reset their bus logic on receipt of
   //  a START or repeated START condition such that they all anticipate
-  //  the sending of a slave address, even if these START conditions are
+  //  the sending of a target address, even if these START conditions are
   //  not positioned according to the proper format."
   // While the 9 clock pulses from above might have drained all bits of a
   // single byte within a transaction, a device might have more bytes to
