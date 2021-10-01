@@ -1,3 +1,6 @@
+#include "esphome/core/defines.h"
+#ifdef USE_ESP_IDF
+
 #include "ota_component.h"
 #include <esp_ota_ops.h>
 
@@ -61,3 +64,4 @@ class IDFOTABackend : public OTABackend {
 
 }  // namespace ota
 }  // namespace esphome
+#endif

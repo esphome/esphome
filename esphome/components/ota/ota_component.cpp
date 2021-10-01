@@ -1,5 +1,8 @@
 #include "ota_component.h"
 #include "ota_backend.h"
+#include "ota_backend_arduino_esp32.h"
+#include "ota_backend_arduino_esp8266.h"
+#include "ota_backend_esp_idf.h"
 
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"

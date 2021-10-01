@@ -1,3 +1,4 @@
+#pragma once
 #include "ota_component.h"
 
 namespace esphome {
@@ -12,3 +13,6 @@ class OTABackend {
   virtual OTAResponseTypes end() = 0;
   virtual void abort() = 0;
 };
+
+}  // namespace ota
+}  // namespace esphome
