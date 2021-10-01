@@ -1,12 +1,15 @@
+from dataclasses import dataclass
 import json
-from typing import Union
+from typing import List, Union
+from pathlib import Path
 
 import logging
 import os
 import re
 import subprocess
 
-from esphome.core import CORE
+from esphome.const import KEY_CORE
+from esphome.core import CORE, EsphomeError
 from esphome.util import run_external_command, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
@@ -96,36 +99,56 @@ def run_compile(config, verbose):
     return run_platformio_cli_run(config, verbose)
 
 
-def run_upload(config, verbose, port):
-    return run_platformio_cli_run(
-        config, verbose, "-t", "upload", "--upload-port", port
-    )
-
-
-def run_idedata(config):
+def _run_idedata(config):
     args = ["-t", "idedata"]
     stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True)
     match = re.search(r'{\s*".*}', stdout)
     if match is None:
-        _LOGGER.debug("Could not match IDEData for %s", stdout)
-        return IDEData(None)
+        _LOGGER.error("Could not match idedata, please report this error")
+        _LOGGER.error("Stdout: %s", stdout)
+        raise EsphomeError
+
     try:
-        return IDEData(json.loads(match.group()))
+        return json.loads(match.group())
     except ValueError:
-        _LOGGER.debug("Could not load IDEData for %s", stdout, exc_info=1)
-        return IDEData(None)
+        _LOGGER.error("Could not parse idedata", exc_info=True)
+        _LOGGER.error("Stdout: %s", stdout)
+        raise
 
 
-IDE_DATA = None
+def _load_idedata(config):
+    platformio_ini = Path(CORE.relative_build_path("platformio.ini"))
+    temp_idedata = Path(CORE.relative_internal_path(CORE.name, "idedata.json"))
+
+    changed = False
+    if not platformio_ini.is_file() or not temp_idedata.is_file():
+        changed = True
+    elif platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime:
+        changed = True
+
+    if not changed:
+        try:
+            return json.loads(temp_idedata.read_text(encoding="utf-8"))
+        except ValueError:
+            pass
+
+    temp_idedata.parent.mkdir(exist_ok=True, parents=True)
+
+    data = _run_idedata(config)
+
+    temp_idedata.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return data
 
 
-def get_idedata(config):
-    global IDE_DATA
+KEY_IDEDATA = "idedata"
 
-    if IDE_DATA is None:
-        _LOGGER.info("Need to fetch platformio IDE-data, please stand by")
-        IDE_DATA = run_idedata(config)
-    return IDE_DATA
+
+def get_idedata(config) -> "IDEData":
+    if KEY_IDEDATA in CORE.data[KEY_CORE]:
+        return CORE.data[KEY_CORE][KEY_IDEDATA]
+    idedata = IDEData(_load_idedata(config))
+    CORE.data[KEY_CORE][KEY_IDEDATA] = idedata
+    return idedata
 
 
 # ESP logs stack trace decoder, based on https://github.com/me-no-dev/EspExceptionDecoder
@@ -261,37 +284,42 @@ def process_stacktrace(config, line, backtrace_state):
     return backtrace_state
 
 
+@dataclass
+class FlashImage:
+    path: str
+    offset: str
+
+
 class IDEData:
     def __init__(self, raw):
-        if not isinstance(raw, dict):
-            self.raw = {}
-        else:
-            self.raw = raw
+        self.raw = raw
 
     @property
     def firmware_elf_path(self):
-        return self.raw.get("prog_path")
+        return self.raw["prog_path"]
 
     @property
-    def flash_extra_images(self):
+    def firmware_bin_path(self) -> str:
+        return str(Path(self.firmware_elf_path).with_suffix(".bin"))
+
+    @property
+    def extra_flash_images(self) -> List[FlashImage]:
         return [
-            (x["path"], x["offset"]) for x in self.raw.get("flash_extra_images", [])
+            FlashImage(path=entry["path"], offset=entry["offset"])
+            for entry in self.raw["extra"]["flash_images"]
         ]
 
     @property
-    def cc_path(self):
+    def cc_path(self) -> str:
         # For example /Users/<USER>/.platformio/packages/toolchain-xtensa32/bin/xtensa-esp32-elf-gcc
-        return self.raw.get("cc_path")
+        return self.raw["cc_path"]
 
     @property
-    def addr2line_path(self):
-        cc_path = self.cc_path
-        if cc_path is None:
-            return None
+    def addr2line_path(self) -> str:
         # replace gcc at end with addr2line
 
         # Windows
-        if cc_path.endswith(".exe"):
-            return f"{cc_path[:-7]}addr2line.exe"
+        if self.cc_path.endswith(".exe"):
+            return f"{self.cc_path[:-7]}addr2line.exe"
 
-        return f"{cc_path[:-3]}addr2line"
+        return f"{self.cc_path[:-3]}addr2line"

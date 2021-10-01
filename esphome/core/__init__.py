@@ -542,6 +542,9 @@ class EsphomeCore:
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.config_dir, path_)
 
+    def relative_internal_path(self, *path: str) -> str:
+        return self.relative_config_path(".esphome", *path)
+
     def relative_build_path(self, *path):
         # pylint: disable=no-value-for-parameter
         path_ = os.path.expanduser(os.path.join(*path))
