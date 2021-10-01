@@ -49,7 +49,7 @@ def _load_tzdata(iana_key: str) -> Optional[bytes]:
     try:
         return resources.read_binary(package, resource)
     except (FileNotFoundError, ModuleNotFoundError):
-        return None
+        raise
 
 
 def convert_iana_key(iana_key: str) -> str:
