@@ -32,6 +32,8 @@ class LightState : public EntityBase, public Component {
   /// Construct this LightState using the provided traits and name.
   LightState(const std::string &name, LightOutput *output);
 
+  LightState(LightOutput *output);
+
   LightTraits get_traits();
 
   /// Make a light state call

@@ -3,21 +3,18 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
 from esphome.const import (
-    CONF_DISABLED_BY_DEFAULT,
     CONF_FILTERS,
-    CONF_ICON,
     CONF_ID,
-    CONF_INTERNAL,
     CONF_ON_VALUE,
     CONF_ON_RAW_VALUE,
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
-    CONF_NAME,
     CONF_STATE,
     CONF_FROM,
     CONF_TO,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
 
@@ -114,7 +111,6 @@ icon = cv.icon
 TEXT_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
-        cv.Optional(CONF_ICON): icon,
         cv.Optional(CONF_FILTERS): validate_filters,
         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
             {
@@ -137,12 +133,7 @@ async def build_filters(config):
 
 
 async def setup_text_sensor_core_(var, config):
-    cg.add(var.set_name(config[CONF_NAME]))
-    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
-    if CONF_INTERNAL in config:
-        cg.add(var.set_internal(config[CONF_INTERNAL]))
-    if CONF_ICON in config:
-        cg.add(var.set_icon(config[CONF_ICON]))
+    await setup_entity(var, config)
 
     if config.get(CONF_FILTERS):  # must exist and not be empty
         filters = await build_filters(config[CONF_FILTERS])

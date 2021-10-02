@@ -1,15 +1,14 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.cpp_helpers import setup_entity
 from esphome import automation, core
 from esphome.automation import Condition, maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import (
     CONF_DELAY,
     CONF_DEVICE_CLASS,
-    CONF_DISABLED_BY_DEFAULT,
     CONF_FILTERS,
     CONF_ID,
-    CONF_INTERNAL,
     CONF_INVALID_COOLDOWN,
     CONF_INVERTED,
     CONF_MAX_LENGTH,
@@ -375,10 +374,8 @@ BINARY_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).ex
 
 
 async def setup_binary_sensor_core_(var, config):
-    cg.add(var.set_name(config[CONF_NAME]))
-    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
-    if CONF_INTERNAL in config:
-        cg.add(var.set_internal(config[CONF_INTERNAL]))
+    await setup_entity(var, config)
+
     if CONF_DEVICE_CLASS in config:
         cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
     if CONF_INVERTED in config:

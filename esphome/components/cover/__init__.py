@@ -4,18 +4,16 @@ from esphome import automation
 from esphome.automation import maybe_simple_id, Condition
 from esphome.components import mqtt
 from esphome.const import (
-    CONF_DISABLED_BY_DEFAULT,
     CONF_ID,
-    CONF_INTERNAL,
     CONF_DEVICE_CLASS,
     CONF_STATE,
     CONF_POSITION,
     CONF_TILT,
     CONF_STOP,
     CONF_MQTT_ID,
-    CONF_NAME,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_helpers import setup_entity
 
 IS_PLATFORM_COMPONENT = True
 
@@ -76,10 +74,8 @@ COVER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).ex
 
 
 async def setup_cover_core_(var, config):
-    cg.add(var.set_name(config[CONF_NAME]))
-    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
-    if CONF_INTERNAL in config:
-        cg.add(var.set_internal(config[CONF_INTERNAL]))
+    await setup_entity(var, config)
+
     if CONF_DEVICE_CLASS in config:
         cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
 

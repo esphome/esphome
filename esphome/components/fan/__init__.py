@@ -4,9 +4,7 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import (
-    CONF_DISABLED_BY_DEFAULT,
     CONF_ID,
-    CONF_INTERNAL,
     CONF_MQTT_ID,
     CONF_OSCILLATING,
     CONF_OSCILLATION_COMMAND_TOPIC,
@@ -16,7 +14,6 @@ from esphome.const import (
     CONF_SPEED_LEVEL_STATE_TOPIC,
     CONF_SPEED_COMMAND_TOPIC,
     CONF_SPEED_STATE_TOPIC,
-    CONF_NAME,
     CONF_ON_SPEED_SET,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
@@ -24,6 +21,7 @@ from esphome.const import (
     CONF_DIRECTION,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_helpers import setup_entity
 
 IS_PLATFORM_COMPONENT = True
 
@@ -92,10 +90,7 @@ FAN_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).exte
 
 
 async def setup_fan_core_(var, config):
-    cg.add(var.set_name(config[CONF_NAME]))
-    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
-    if CONF_INTERNAL in config:
-        cg.add(var.set_internal(config[CONF_INTERNAL]))
+    await setup_entity(var, config)
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
