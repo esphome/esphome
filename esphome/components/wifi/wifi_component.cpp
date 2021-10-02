@@ -350,7 +350,8 @@ void WiFiComponent::print_connect_params_() {
   bssid_t bssid = wifi_bssid();
 
   std::string m = get_mac_address();
-  ESP_LOGCONFIG(TAG, "  Local MAC: %c%c:%c%c:%c%c:%c%c:%c%c:%c%c", m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11]);
+  ESP_LOGCONFIG(TAG, "  Local MAC: %c%c:%c%c:%c%c:%c%c:%c%c:%c%c", m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8],
+                m[9], m[10], m[11]);
   ESP_LOGCONFIG(TAG, "  SSID: " LOG_SECRET("'%s'"), wifi_ssid().c_str());
   ESP_LOGCONFIG(TAG, "  IP Address: %s", wifi_sta_ip().str().c_str());
   ESP_LOGCONFIG(TAG, "  BSSID: " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X"), bssid[0], bssid[1], bssid[2], bssid[3],
