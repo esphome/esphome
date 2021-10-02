@@ -26,18 +26,34 @@ void CD74HC4067Component::dump_config() {
 }
 
 float CD74HC4067Component::read_data_(uint8_t pin) {
-   this->s0_pin_->digital_write(HIGH && bitRead(pin, 0));
-   this->s1_pin_->digital_write(HIGH && bitRead(pin, 1));
-   this->s2_pin_->digital_write(HIGH && bitRead(pin, 2));
-   this->s3_pin_->digital_write(HIGH && bitRead(pin, 3));
-   delay(10);
+  static int mux_channel[16][4]= {
+    {0,0,0,0}, //channel 0
+    {1,0,0,0}, //channel 1
+    {0,1,0,0}, //channel 2
+    {1,1,0,0}, //channel 3
+    {0,0,1,0}, //channel 4
+    {1,0,1,0}, //channel 5
+    {0,1,1,0}, //channel 6
+    {1,1,1,0}, //channel 7
+    {0,0,0,1}, //channel 8
+    {1,0,0,1}, //channel 9
+    {0,1,0,1}, //channel 10
+    {1,1,0,1}, //channel 11
+    {0,0,1,1}, //channel 12
+    {1,0,1,1}, //channel 13
+    {0,1,1,1}, //channel 14
+    {1,1,1,1}  //channel 15
+  };
+   this->s0_pin_->digital_write(mux_channel[pin][0]);
+   this->s1_pin_->digital_write(mux_channel[pin][1]);
+   this->s2_pin_->digital_write(mux_channel[pin][2]);
+   this->s3_pin_->digital_write(mux_channel[pin][3]);
    static int num_samples = 1000;
    float sum_squares = 0;
    for (int i = 0; i < num_samples; ++i)
    {
-     float value = analogRead(this->adc_pin_);
+     float value = analogRead(this->adc_pin_); //NO_LINT
      sum_squares += value * value;
-     delay(0.0002);
    }
    float rms = sqrt(sum_squares / num_samples);
  
@@ -70,9 +86,7 @@ float CD74HC4067Sensor::sample() {
 }
 
 std::string CD74HC4067Sensor::unique_id() { 
-  char buffer[3];
-  itoa(pin_, buffer, 10);
-  return get_mac_address() + "-" + buffer; 
+  return get_mac_address() + "-" + to_string(pin_); 
 }
 
 void CD74HC4067Sensor::dump_config() {
