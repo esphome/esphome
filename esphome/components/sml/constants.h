@@ -5,22 +5,22 @@
 namespace esphome {
 namespace sml {
 
-const uint8_t SML_OCTET = 0;
-const uint8_t SML_BOOL = 4;
-const uint8_t SML_INT = 5;
-const uint8_t SML_UINT = 6;
-const uint8_t SML_LIST = 7;
-const uint8_t SML_HEX = 10;
+enum SmlType : uint8_t {
+  SML_OCTET = 0,
+  SML_BOOL = 4,
+  SML_INT = 5,
+  SML_UINT = 6,
+  SML_LIST = 7,
+  SML_HEX = 10,
+  SML_UNDEFINED = 255
+};
 
-const uint16_t SML_PUBLIC_OPEN_RES = 0x0101;
-const uint16_t SML_GET_LIST_RES = 0x0701;
+enum SmlMessageType : uint16_t { SML_PUBLIC_OPEN_RES = 0x0101, SML_GET_LIST_RES = 0x701 };
+
+enum Crc16CheckResult : uint8_t { CHECK_CRC16_FAILED, CHECK_CRC16_X25_SUCCESS, CHECK_CRC16_KERMIT_SUCCESS };
 
 const char START_BYTES[8] = {0x1b, 0x1b, 0x1b, 0x1b, 0x01, 0x01, 0x01, 0x01};
 const char END_BYTES[5] = {0x1b, 0x1b, 0x1b, 0x1b, 0x1a};
-
-const char CHECK_CRC16_X25_SUCCESS = 1;
-const char CHECK_CRC16_KERMIT_SUCCESS = 2;
-const char CHECK_CRC16_FAILED = 0;
 
 const uint16_t CRC16_X25_TABLE[256] = {
     0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf, 0x8c48, 0x9dc1, 0xaf5a, 0xbed3, 0xca6c, 0xdbe5,

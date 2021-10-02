@@ -11,22 +11,11 @@ namespace sml {
 
 using bytes = std::vector<uint8_t>;
 
-class SmlBase {
+class SmlNode {
  public:
   uint8_t type;
-  uint8_t length;
-  SmlBase(const bytes &buffer, unsigned int &pos);
-  bool is_list();
-  bool has_extended_length();
-
- protected:
-  const bytes &buffer_;
-  const unsigned int startpos_;
-};
-
-class SmlNode : public SmlBase {
- public:
-  SmlNode(const bytes &buffer, unsigned int &pos);
+  SmlNode(uint8_t type);
+  static SmlNode from_buffer(const bytes &buffer, size_t *pos);
   bytes value_bytes;
   std::vector<SmlNode> nodes;
 };
@@ -56,9 +45,9 @@ class SmlFile {
 
 char check_sml_data(const bytes &buffer);
 
-uint16_t calc_crc16_x25(const bytes &buffer);
+uint16_t calc_crc16_x25(const uint8_t *buffer, size_t length);
 
-uint16_t calc_crc16_kermit(const bytes &buffer);
+uint16_t calc_crc16_kermit(const uint8_t *buffer, size_t length);
 
 std::string bytes_repr(const bytes &buffer);
 

@@ -12,8 +12,8 @@ namespace sml {
 class SmlListener {
  public:
   std::string server_id;
-  std::string obis;
-  SmlListener(std::string server_id, std::string obis);
+  std::string obis_code;
+  SmlListener(std::string server_id, std::string obis_code);
   virtual void publish_val(const ObisInfo &obis_info){};
 };
 

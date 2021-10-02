@@ -10,13 +10,11 @@ static const char *const TAG = "sml";
 const char START_BYTES_DETECTED = 1;
 const char END_BYTES_DETECTED = 2;
 
-SmlListener::SmlListener(std::string server_id, std::string obis)
-    : server_id(std::move(server_id)), obis(std::move(obis)) {}
+SmlListener::SmlListener(std::string server_id, std::string obis_code)
+    : server_id(std::move(server_id)), obis_code(std::move(obis_code)) {}
 
 char Sml::check_start_end_bytes_(char c) {
-  // fill sml_file with incoming bytes
-  for (int k = 1; k < 8; k++)
-    this->incoming_buffer_[k - 1] = this->incoming_buffer_[k];
+  std::rotate(incoming_buffer_, incoming_buffer_ + 1, incoming_buffer_ + 8);
   this->incoming_buffer_[7] = c;
 
   if (memcmp(this->incoming_buffer_, START_BYTES, sizeof(START_BYTES)) == 0)
@@ -96,7 +94,7 @@ void Sml::publish_value_(const ObisInfo &obis_info) {
   for (auto const &sml_listener : sml_listeners_) {
     if ((!sml_listener->server_id.empty()) && (bytes_repr(obis_info.server_id) != sml_listener->server_id))
       continue;
-    if (obis_info.code_repr() != sml_listener->obis)
+    if (obis_info.code_repr() != sml_listener->obis_code)
       continue;
     sml_listener->publish_val(obis_info);
   }

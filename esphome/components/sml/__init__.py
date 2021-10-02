@@ -15,7 +15,7 @@ sml_ns = cg.esphome_ns.namespace("sml")
 Sml = sml_ns.class_("Sml", cg.Component, uart.UARTDevice)
 
 CONF_SML_ID = "sml_id"
-CONF_OBIS = "obis"
+CONF_OBIS_CODE = "obis_code"
 CONF_SERVER_ID = "server_id"
 
 CONFIG_SCHEMA = cv.Schema(
@@ -31,7 +31,7 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
 
-def obis(value):
+def obis_code(value):
     value = cv.string(value)
     match = re.match(r"^\d{1,3}-\d{1,3}:\d{1,3}\.\d{1,3}\.\d{1,3}$", value)
     if match is None:
