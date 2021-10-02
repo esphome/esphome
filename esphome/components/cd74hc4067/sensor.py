@@ -2,11 +2,12 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
 from esphome.const import (
+    CONF_ID,
+    CONF_NAME,
     CONF_NUMBER,
     ICON_FLASH,
     UNIT_VOLT,
-    CONF_ID,
-    CONF_NAME,
+    STATE_CLASS_MEASUREMENT,
 )
 from . import cd74hc4067_ns, CD74HC4067Component
 
@@ -21,7 +22,7 @@ CD74HC4067Sensor = cd74hc4067_ns.class_(
 
 CONF_cd74hc4067_ID = "cd74hc4067_id"
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 3)
+    sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 3, STATE_CLASS_MEASUREMENT)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(CD74HC4067Sensor),
