@@ -11,7 +11,9 @@ namespace i2c {
 static const char *const TAG = "i2c.arduino";
 
 void ArduinoI2CBus::setup() {
+
   recover_();
+
 #ifdef USE_ESP32
   static uint8_t next_bus_num = 0;
   if (next_bus_num == 0)
@@ -109,10 +111,10 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
 void ArduinoI2CBus::recover_() {
   ESP_LOGI(TAG, "Performing I2C bus recovery");
 
-  // Activate the pull up resistor on the SCL pin. This should make the
-  // signal on the line HIGH. If SCL is pulled low on the I2C bus however,
-  // then some device is interfering with the SCL line. In that case,
-  // the I2C bus cannot be recovered.
+  // Activate input and pull up resistor for the SCL pin. This should make
+  // the signal on the line HIGH. If SCL is pulled low on the I2C bus
+  // however, then some device is interfering with the SCL line. In that
+  // case, the I2C bus cannot be recovered.
   pinMode(scl_pin_, INPUT_PULLUP);     // NOLINT
   if (digitalRead(scl_pin_) == LOW) {  // NOLINT
     ESP_LOGE(TAG, "Recovery failed: SCL is held LOW on the I2C bus");
@@ -133,13 +135,13 @@ void ArduinoI2CBus::recover_() {
   // is no problem.
   const auto half_period_usec = 1000000 / 100000 / 2;
 
-  // Make sure that switching to mode OUTPUT will make SCL low, just in
+  // Make sure that switching to output mode will make SCL low, just in
   // case other code has setup the pin to output a HIGH signal.
   digitalWrite(scl_pin_, LOW);  // NOLINT
 
-  // Activate the pull up resistor for SDA, so after the clock pulse cycle
-  // we can verify if SDA is pulled high. Also make sure that switching to
-  // mode OUTPUT will make SDA low.
+  // Activate input and pull resistor for the SDA pin, so after the clock
+  // pulse cycle we can verify that SDA is pulled high. Also make sure
+  // that switching to output mode will make SDA low.
   pinMode(sda_pin_, INPUT_PULLUP);  // NOLINT
   digitalWrite(sda_pin_, LOW);      // NOLINT
 
