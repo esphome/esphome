@@ -6,8 +6,9 @@ from esphome.const import (
     CONF_NAME,
     CONF_NUMBER,
     ICON_FLASH,
-    UNIT_VOLT,
+    UNIT_WATT,
     STATE_CLASS_MEASUREMENT,
+    DEVICE_CLASS_ENERGY,
 )
 from . import cd74hc4067_ns, CD74HC4067Component
 
@@ -22,7 +23,13 @@ CD74HC4067Sensor = cd74hc4067_ns.class_(
 
 CONF_cd74hc4067_ID = "cd74hc4067_id"
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 3, STATE_CLASS_MEASUREMENT)
+    sensor.sensor_schema(
+        unit_of_measurement=UNIT_WATT,
+        accuracy_decimals=3,
+        device_class=DEVICE_CLASS_ENERGY,
+        state_class=STATE_CLASS_MEASUREMENT,
+        icon=ICON_FLASH,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(CD74HC4067Sensor),
