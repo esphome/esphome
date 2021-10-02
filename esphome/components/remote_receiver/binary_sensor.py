@@ -1,4 +1,3 @@
-import esphome.codegen as cg
 from esphome.components import binary_sensor, remote_base
 
 DEPENDENCIES = ["remote_receiver"]
