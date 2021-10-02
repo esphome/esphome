@@ -100,7 +100,8 @@ async def setup_entity(var, config):
     add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     if CONF_INTERNAL in config:
         add(var.set_internal(config[CONF_INTERNAL]))
-    add(var.set_icon(config[CONF_ICON]))
+    if CONF_ICON in config:
+        add(var.set_icon(config[CONF_ICON]))
 
 
 def extract_registry_entry_config(registry, full_config):

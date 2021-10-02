@@ -1594,7 +1594,7 @@ ENTITY_BASE_SCHEMA = Schema(
         Optional(CONF_NAME): string,
         Optional(CONF_INTERNAL): boolean,
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
-        Optional(CONF_ICON, default=ICON_EMPTY): icon,
+        Optional(CONF_ICON): icon,
     }
 )
 
