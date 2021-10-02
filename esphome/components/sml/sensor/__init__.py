@@ -3,15 +3,16 @@ import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import CONF_ID
 
-from .. import CONF_OBIS, CONF_SERVER_ID, CONF_SML_ID, Sml, sml_ns
+from .. import CONF_OBIS, CONF_SERVER_ID, CONF_SML_ID, Sml, obis, sml_ns
 
 SmlSensor = sml_ns.class_("SmlSensor", sensor.Sensor, cg.Component)
+
 
 CONFIG_SCHEMA = sensor.sensor_schema().extend(
     {
         cv.GenerateID(): cv.declare_id(SmlSensor),
         cv.GenerateID(CONF_SML_ID): cv.use_id(Sml),
-        cv.Required(CONF_OBIS): cv.string,
+        cv.Required(CONF_OBIS): obis,
         cv.Optional(CONF_SERVER_ID, default=""): cv.string,
     }
 )
