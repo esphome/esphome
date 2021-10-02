@@ -12,8 +12,8 @@ namespace select {
 #define LOG_SELECT(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->traits.get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->traits.get_icon().c_str()); \
+    if (!(obj)->get_icon().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
     } \
   }
 
@@ -39,12 +39,9 @@ class SelectTraits {
  public:
   void set_options(std::vector<std::string> options) { this->options_ = std::move(options); }
   const std::vector<std::string> get_options() const { return this->options_; }
-  void set_icon(std::string icon) { icon_ = std::move(icon); }
-  const std::string &get_icon() const { return icon_; }
 
  protected:
   std::vector<std::string> options_;
-  std::string icon_;
 };
 
 /** Base-class for all selects.

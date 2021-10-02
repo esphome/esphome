@@ -10,8 +10,8 @@ namespace number {
 #define LOG_NUMBER(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->traits.get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->traits.get_icon().c_str()); \
+    if (!(obj)->get_icon().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
     } \
   }
 
@@ -41,14 +41,11 @@ class NumberTraits {
   float get_max_value() const { return max_value_; }
   void set_step(float step) { step_ = step; }
   float get_step() const { return step_; }
-  void set_icon(std::string icon) { icon_ = std::move(icon); }
-  const std::string &get_icon() const { return icon_; }
 
  protected:
   float min_value_ = NAN;
   float max_value_ = NAN;
   float step_ = NAN;
-  std::string icon_;
 };
 
 /** Base-class for all numbers.

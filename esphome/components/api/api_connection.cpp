@@ -602,7 +602,7 @@ bool APIConnection::send_number_info(number::Number *number) {
   msg.object_id = number->get_object_id();
   msg.name = number->get_name();
   msg.unique_id = get_default_unique_id("number", number);
-  msg.icon = number->traits.get_icon();
+  msg.icon = number->get_icon();
   msg.disabled_by_default = number->is_disabled_by_default();
 
   msg.min_value = number->traits.get_min_value();
@@ -639,7 +639,7 @@ bool APIConnection::send_select_info(select::Select *select) {
   msg.object_id = select->get_object_id();
   msg.name = select->get_name();
   msg.unique_id = get_default_unique_id("select", select);
-  msg.icon = select->traits.get_icon();
+  msg.icon = select->get_icon();
   msg.disabled_by_default = select->is_disabled_by_default();
 
   for (const auto &option : select->traits.get_options())
