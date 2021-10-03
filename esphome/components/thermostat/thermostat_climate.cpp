@@ -346,7 +346,7 @@ climate::ClimateAction ThermostatClimate::compute_supplemental_action_() {
   return target_action;
 }
 
-void ThermostatClimate::switch_to_action_(climate::ClimateAction action, const bool publish_state) {
+void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool publish_state) {
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((action == this->action) && this->setup_complete_)
     // already in target mode
@@ -513,7 +513,7 @@ void ThermostatClimate::trigger_supplemental_action_() {
   }
 }
 
-void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode, const bool publish_state) {
+void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode, bool publish_state) {
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((fan_mode == this->prev_fan_mode_) && this->setup_complete_)
     // already in target mode
@@ -580,7 +580,7 @@ void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode, co
   }
 }
 
-void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode, const bool publish_state) {
+void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode, bool publish_state) {
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((mode == this->prev_mode_) && this->setup_complete_)
     // already in target mode
@@ -625,7 +625,7 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode, const bool pu
     this->publish_state();
 }
 
-void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mode, const bool publish_state) {
+void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mode, bool publish_state) {
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((swing_mode == this->prev_swing_mode_) && this->setup_complete_)
     // already in target mode

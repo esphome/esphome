@@ -160,18 +160,18 @@ class ThermostatClimate : public climate::Climate, public Component {
   climate::ClimateAction compute_supplemental_action_();
 
   /// Switch the climate device to the given climate action.
-  void switch_to_action_(climate::ClimateAction action, const bool publish_state = true);
+  void switch_to_action_(climate::ClimateAction action, bool publish_state = true);
   void switch_to_supplemental_action_(climate::ClimateAction action);
   void trigger_supplemental_action_();
 
   /// Switch the climate device to the given climate fan mode.
-  void switch_to_fan_mode_(climate::ClimateFanMode fan_mode, const bool publish_state = true);
+  void switch_to_fan_mode_(climate::ClimateFanMode fan_mode, bool publish_state = true);
 
   /// Switch the climate device to the given climate mode.
-  void switch_to_mode_(climate::ClimateMode mode, const bool publish_state = true);
+  void switch_to_mode_(climate::ClimateMode mode, bool publish_state = true);
 
   /// Switch the climate device to the given climate swing mode.
-  void switch_to_swing_mode_(climate::ClimateSwingMode swing_mode, const bool publish_state = true);
+  void switch_to_swing_mode_(climate::ClimateSwingMode swing_mode, bool publish_state = true);
 
   /// Check if the temperature change trigger should be called.
   void check_temperature_change_trigger_();
