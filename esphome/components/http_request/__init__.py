@@ -92,6 +92,11 @@ async def to_code(config):
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
+
+    if CORE.is_esp32:
+        cg.add_library("WiFiClientSecure", None)
+        cg.add_library("HTTPClient", None)
+
     await cg.register_component(var, config)
 
 

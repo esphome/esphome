@@ -30,15 +30,16 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    if config[CONF_DISABLED]:
-        return
-
-    cg.add_define("USE_MDNS")
     if CORE.using_arduino:
         if CORE.is_esp32:
             cg.add_library("ESPmDNS", None)
         elif CORE.is_esp8266:
             cg.add_library("ESP8266mDNS", None)
+
+    if config[CONF_DISABLED]:
+        return
+
+    cg.add_define("USE_MDNS")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
