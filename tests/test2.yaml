@@ -281,6 +281,15 @@ sensor:
       name: "Wave Plus CO2"
     tvoc:
       name: "Wave Plus VOC"
+  - platform: airthings_wave_mini
+    ble_client_id: airthingsmini01
+    update_interval: 5min
+    temperature:
+      name: "Wave Plus Temperature"
+    humidity:
+      name: "Wave Plus Humidity"
+    tvoc:
+      name: "Wave Plus VOC"
 
 time:
   - platform: homeassistant
