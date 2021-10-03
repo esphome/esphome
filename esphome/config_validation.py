@@ -35,7 +35,6 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
     CONF_TYPE,
-    ICON_EMPTY,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
