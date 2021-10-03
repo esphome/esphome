@@ -22,6 +22,8 @@ class INA226Component : public PollingComponent, public i2c::I2CDevice {
   void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
 
  protected:
+  bool read_ina226_reg_(uint8_t reg, uint16_t *result);
+
   float shunt_resistance_ohm_;
   float max_current_a_;
   uint32_t calibration_lsb_;

@@ -94,45 +94,51 @@ void INA226Component::dump_config() {
 
 float INA226Component::get_setup_priority() const { return setup_priority::DATA; }
 
+bool INA226Component::read_ina226_reg_(uint8_t reg, uint16_t *result) {
+  if (write(&reg, 1) != i2c::ERROR_OK) {
+    status_set_warning();
+    return false;
+  }
+  delay(1);  // conversion time
+  if (read(reinterpret_cast<uint8_t *>(result), 2) != i2c::ERROR_OK) {
+    status_set_warning();
+    return false;
+  }
+  *result = i2c::i2ctohs(*result);
+  return true;
+}
+
 void INA226Component::update() {
   if (this->bus_voltage_sensor_ != nullptr) {
     uint16_t raw_bus_voltage;
-    if (!this->read_byte_16(INA226_REGISTER_BUS_VOLTAGE, &raw_bus_voltage)) {
-      this->status_set_warning();
-      return;
+    if (read_ina226_reg_(INA226_REGISTER_BUS_VOLTAGE, &raw_bus_voltage)) {
+      float bus_voltage_v = int16_t(raw_bus_voltage) * 0.00125f;
+      this->bus_voltage_sensor_->publish_state(bus_voltage_v);
     }
-    float bus_voltage_v = int16_t(raw_bus_voltage) * 0.00125f;
-    this->bus_voltage_sensor_->publish_state(bus_voltage_v);
   }
 
   if (this->shunt_voltage_sensor_ != nullptr) {
     uint16_t raw_shunt_voltage;
-    if (!this->read_byte_16(INA226_REGISTER_SHUNT_VOLTAGE, &raw_shunt_voltage)) {
-      this->status_set_warning();
-      return;
+    if (read_ina226_reg_(INA226_REGISTER_SHUNT_VOLTAGE, &raw_shunt_voltage)) {
+      float shunt_voltage_v = int16_t(raw_shunt_voltage) * 0.0000025f;
+      this->shunt_voltage_sensor_->publish_state(shunt_voltage_v);
     }
-    float shunt_voltage_v = int16_t(raw_shunt_voltage) * 0.0000025f;
-    this->shunt_voltage_sensor_->publish_state(shunt_voltage_v);
   }
 
   if (this->current_sensor_ != nullptr) {
     uint16_t raw_current;
-    if (!this->read_byte_16(INA226_REGISTER_CURRENT, &raw_current)) {
-      this->status_set_warning();
-      return;
+    if (read_ina226_reg_(INA226_REGISTER_CURRENT, &raw_current)) {
+      float current_ma = int16_t(raw_current) * (this->calibration_lsb_ / 1000.0f);
+      this->current_sensor_->publish_state(current_ma / 1000.0f);
     }
-    float current_ma = int16_t(raw_current) * (this->calibration_lsb_ / 1000.0f);
-    this->current_sensor_->publish_state(current_ma / 1000.0f);
   }
 
   if (this->power_sensor_ != nullptr) {
     uint16_t raw_power;
-    if (!this->read_byte_16(INA226_REGISTER_POWER, &raw_power)) {
-      this->status_set_warning();
-      return;
+    if (read_ina226_reg_(INA226_REGISTER_POWER, &raw_power)) {
+      float power_mw = int16_t(raw_power) * (this->calibration_lsb_ * 25.0f / 1000.0f);
+      this->power_sensor_->publish_state(power_mw / 1000.0f);
     }
-    float power_mw = int16_t(raw_power) * (this->calibration_lsb_ * 25.0f / 1000.0f);
-    this->power_sensor_->publish_state(power_mw / 1000.0f);
   }
 
   this->status_clear_warning();
