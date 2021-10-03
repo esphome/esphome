@@ -26,6 +26,10 @@ class CD74HC4067Component : public Component {
   void set_pin_s2(InternalGPIOPin *pin) { this->pin_s2_ = pin; }
   /// set the pin connected to multiplexer control pin 3
   void set_pin_s3(InternalGPIOPin *pin) { this->pin_s3_ = pin; }
+
+  /// set the delay needed after an input switch
+  void set_switch_delay(uint32_t switch_delay) { this->switch_delay_ = switch_delay; }
+
   /// sets the multiplexer to the desired input and reads the value from the adc pin
   float read_data_(uint8_t pin);
 
@@ -36,6 +40,7 @@ class CD74HC4067Component : public Component {
   InternalGPIOPin *pin_s3_;
   /// the currently active pin
   uint8_t active_pin_;
+  uint32_t switch_delay_;
 };
 
 class CD74HC4067Sensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {

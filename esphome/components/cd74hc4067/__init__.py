@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome import pins
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DELAY,
     CONF_ID,
 )
 
@@ -19,6 +20,9 @@ CONF_PIN_S1 = "pin_s1"
 CONF_PIN_S2 = "pin_s2"
 CONF_PIN_S3 = "pin_s3"
 
+DEFAULT_DELAY = "2ms"
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CD74HC4067Component),
@@ -26,6 +30,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_PIN_S1): pins.internal_gpio_output_pin_schema,
         cv.Required(CONF_PIN_S2): pins.internal_gpio_output_pin_schema,
         cv.Required(CONF_PIN_S3): pins.internal_gpio_output_pin_schema,
+        cv.Optional(
+            CONF_DELAY, default=DEFAULT_DELAY
+        ): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -42,3 +49,5 @@ async def to_code(config):
     cg.add(var.set_pin_s2(pin_s2))
     pin_s3 = await cg.gpio_pin_expression(config[CONF_PIN_S3])
     cg.add(var.set_pin_s3(pin_s3))
+
+    cg.add(var.set_switch_delay(config[CONF_DELAY]))

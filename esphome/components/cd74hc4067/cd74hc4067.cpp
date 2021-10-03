@@ -28,6 +28,7 @@ void CD74HC4067Component::dump_config() {
   LOG_PIN("  S1 Pin: ", this->pin_s1_);
   LOG_PIN("  S2 Pin: ", this->pin_s2_);
   LOG_PIN("  S3 Pin: ", this->pin_s3_);
+  ESP_LOGCONFIG(TAG, "switch delay: %d", switch_delay_);
 }
 
 void CD74HC4067Component::activate_pin(uint8_t pin) {
@@ -39,7 +40,7 @@ void CD74HC4067Component::activate_pin(uint8_t pin) {
     this->pin_s2_->digital_write(HIGH && bitRead(pin, 2));
     this->pin_s3_->digital_write(HIGH && bitRead(pin, 3));
     // small delay is needed to let the multiplexer switch
-    delay(10);
+    delay(switch_delay_);
     active_pin_ = pin;
   }
 }
@@ -48,14 +49,14 @@ CD74HC4067Sensor::CD74HC4067Sensor(CD74HC4067Component *parent, std::string name
     : PollingComponent(1000), parent_(parent), pin_(pin) {
   this->set_name(name);
 }
-void CD74HC4067Sensor::setup() { LOG_SENSOR("", "Setting up CD74HC4067 Multiplexer '%s'...", this); }
+void CD74HC4067Sensor::setup() { LOG_SENSOR("", "Setting up CD74HC4067 Multiplexer Channel", this); }
 
 void CD74HC4067Sensor::update() {
   float value_v = this->sample();
   this->publish_state(value_v);
 }
 
-float CD74HC4067Sensor::get_setup_priority() const { return parent_->get_setup_priority() - 1; }
+float CD74HC4067Sensor::get_setup_priority() const { return parent_->get_setup_priority() - 1.0f; }
 
 float CD74HC4067Sensor::sample() {
   this->parent_->activate_pin(pin_);
