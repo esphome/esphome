@@ -16,6 +16,7 @@ OTAResponseTypes ArduinoESP8266OTABackend::begin(size_t image_size) {
   bool ret = Update.begin(image_size, U_FLASH);
   if (ret) {
     esp8266::preferences_prevent_write(true);
+    return OTA_RESPONSE_OK;
   }
 
   uint8_t error = Update.getError();
