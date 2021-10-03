@@ -21,10 +21,9 @@ void RestartSwitch::write_state(bool state) {
   this->publish_state(false);
 
   if (state) {
-    // TODO: OTA Safe Mode
-    // if(this->ota_ != nullptr) {
-    //   this->ota_->set_safe_mode_pending(this->safe_mode_);
-    // }
+    if(this->ota_ != nullptr) {
+      this->ota_->set_safe_mode_pending(this->safe_mode_);
+    }
 
     ESP_LOGI(TAG, "Restarting device...");
     // Let MQTT settle a bit
