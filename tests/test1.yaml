@@ -1905,6 +1905,10 @@ switch:
           state: yes
   - platform: restart
     name: 'Living Room Restart'
+  - platform: restart
+    name: 'Living Room Restart (Safe Mode)'
+    ota_options:
+      safe_mode: true
   - platform: shutdown
     name: 'Living Room Shutdown'
   - platform: output
