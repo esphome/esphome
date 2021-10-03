@@ -8,7 +8,7 @@ from esphome.const import (
     ICON_FLASH,
     UNIT_WATT,
     STATE_CLASS_MEASUREMENT,
-    DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_POWER,
 )
 from . import cd74hc4067_ns, CD74HC4067Component
 
@@ -26,7 +26,7 @@ CONFIG_SCHEMA = (
     sensor.sensor_schema(
         unit_of_measurement=UNIT_WATT,
         accuracy_decimals=3,
-        device_class=DEVICE_CLASS_ENERGY,
+        device_class=DEVICE_CLASS_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
         icon=ICON_FLASH,
     )

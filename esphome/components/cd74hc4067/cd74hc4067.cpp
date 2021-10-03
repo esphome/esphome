@@ -20,11 +20,11 @@ void CD74HC4067Component::setup() {
 }
 void CD74HC4067Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CD74HC4067 Multiplexer:");
-  LOG_PIN("  ADC Pin: %u", this->pin_adc_);
-  LOG_PIN("  S0 Pin: %u", this->pin_s0_);
-  LOG_PIN("  S1 Pin: %u", this->pin_s1_);
-  LOG_PIN("  S2 Pin: %u", this->pin_s2_);
-  LOG_PIN("  S3 Pin: %u", this->pin_s3_);
+  LOG_PIN("  ADC Pin: ", this->pin_adc_);
+  LOG_PIN("  S0 Pin: ", this->pin_s0_);
+  LOG_PIN("  S1 Pin: ", this->pin_s1_);
+  LOG_PIN("  S2 Pin: ", this->pin_s2_);
+  LOG_PIN("  S3 Pin: ", this->pin_s3_);
 }
 
 float CD74HC4067Component::read_data_(uint8_t pin) {
@@ -71,7 +71,7 @@ float CD74HC4067Sensor::sample() {
 std::string CD74HC4067Sensor::unique_id() { return get_mac_address() + "-" + to_string(pin_); }
 
 void CD74HC4067Sensor::dump_config() {
-  LOG_SENSOR("", "Multiplexer ADC Sensor", this);
+  LOG_SENSOR(TAG, "Multiplexer ADC Sensor", this);
   ESP_LOGCONFIG(TAG, "CD74HC4067 Pin: %u", this->pin_);
   LOG_UPDATE_INTERVAL(this);
 }
