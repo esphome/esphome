@@ -33,6 +33,7 @@ esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/captive_portal/* @OttoWinter
 esphome/components/ccs811/* @habbie
+esphome/components/cd74hc4067/* @asoehlke
 esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/color_temperature/* @jesserockz

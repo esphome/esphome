@@ -6,7 +6,7 @@ from esphome.const import (
     CONF_ID,
 )
 
-CODEOWNERS = ["@asoehlke", "rmorenoramos"]
+CODEOWNERS = ["@asoehlke"]
 AUTO_LOAD = ["sensor", "voltage_sampler"]
 
 cd74hc4067_ns = cg.esphome_ns.namespace("cd74hc4067")
