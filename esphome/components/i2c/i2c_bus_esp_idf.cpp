@@ -43,8 +43,6 @@ void IDFI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "  SDA Pin: GPIO%u", this->sda_pin_);
   ESP_LOGCONFIG(TAG, "  SCL Pin: GPIO%u", this->scl_pin_);
   ESP_LOGCONFIG(TAG, "  Frequency: %u Hz", this->frequency_);
-  // HACK XXX TODO 
-  ESP_LOGCONFIG(TAG, "  VERSION 2");
   switch (this->recovery_result_) {
     case RECOVERY_COMPLETED:
       ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
@@ -166,82 +164,59 @@ void IDFI2CBus::recover_() {
   const gpio_num_t scl_pin = static_cast<gpio_num_t>(scl_pin_);
   const gpio_num_t sda_pin = static_cast<gpio_num_t>(sda_pin_);
 
-  // Activate input and pull up resistor for the SCL pin. This should make
-  // the signal on the line HIGH. If SCL is pulled low on the I2C bus
-  // however, then some device is interfering with the SCL line. In that
-  // case, the I2C bus cannot be recovered.
-  gpio_config_t scl_conf{};
-  scl_conf.pin_bit_mask = 1ULL << scl_pin_;
-  scl_conf.mode = GPIO_MODE_INPUT;
-  scl_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-  scl_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-  scl_conf.intr_type = GPIO_INTR_DISABLE;
-  gpio_config(&scl_conf);
+  // For the upcoming operations, target for a 100kHz toggle frequency.
+  // This is the maximum frequency for I2C running in standard-mode.
+  // The actual frequency will be lower, because of the additional
+  // function calls that are done, but that is no problem.
+  const auto half_period_usec = 1000000 / 100000 / 2;
+
+  // Configure SCL pin for open drain input/output, with a pull up resistor.
+  gpio_set_level(scl_pin, 1);
+  gpio_config_t scl_config{};
+  scl_config.pin_bit_mask = 1ULL << scl_pin_;
+  scl_config.mode = GPIO_MODE_INPUT_OUTPUT_OD;
+  scl_config.pull_up_en = GPIO_PULLUP_ENABLE;
+  scl_config.pull_down_en = GPIO_PULLDOWN_DISABLE;
+  scl_config.intr_type = GPIO_INTR_DISABLE;
+  gpio_config(&scl_config);
+
+  // Configure SDA pin for open drain input/output, with a pull up resistor.
+  gpio_set_level(sda_pin, 1);
+  gpio_config_t sda_conf{};
+  sda_conf.pin_bit_mask = 1ULL << sda_pin_;
+  sda_conf.mode = GPIO_MODE_INPUT_OUTPUT_OD;
+  sda_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+  sda_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+  sda_conf.intr_type = GPIO_INTR_DISABLE;
+  gpio_config(&sda_conf);
+
+  // If SCL is pulled low on the I2C bus, then some device is interfering
+  // with the SCL line. In that case, the I2C bus cannot be recovered.
+  delayMicroseconds(half_period_usec);
   if (gpio_get_level(scl_pin) == 0) {
     ESP_LOGE(TAG, "Recovery failed: SCL is held LOW on the I2C bus");
     recovery_result_ = RECOVERY_FAILED_SCL_LOW;
     return;
   }
-  ESP_LOGI(TAG, "SCL is high, the I2C bus can be controlled");
 
   // From the specification:
   // "If the data line (SDA) is stuck LOW, send nine clock pulses. The
   //  device that held the bus LOW should release it sometime within
   //  those nine clocks."
   // We don't really have to detect if SDA is stuck low. We'll simply send
-  // nine clock pulses here, just in case SDA is stuck.
-
-  // Use a 100kHz toggle frequency (i.e. the maximum frequency for I2C
-  // running in standard-mode). The resulting frequency will be lower,
-  // because of the additional function calls that are done, but that
-  // is no problem.
-  const auto half_period_usec = 1000000 / 100000 / 2;
-
-//  // Activate input and pull up resistor for the SDA pin, so after the
-//  // clock pulse cycle we can verify that SDA is pulled high. Also make
-//  // sure that switching to output mode will make SDA low.
-//  gpio_config_t sda_conf{};
-//  sda_conf.pin_bit_mask = 1ULL << sda_pin_;
-//  sda_conf.mode = GPIO_MODE_INPUT;
-//  sda_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-//  sda_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-//  sda_conf.intr_type = GPIO_INTR_DISABLE;
-//  gpio_config(&sda_conf);
-//  gpio_set_level(sda_pin, 0);
-
-  // Activate output and pull up resistor for the SCL pin.
-  scl_conf.pin_bit_mask = 1ULL << scl_pin_;
-  scl_conf.mode = GPIO_MODE_OUTPUT_OD;
-  scl_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-  scl_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-  scl_conf.intr_type = GPIO_INTR_DISABLE;
-  gpio_config(&scl_conf);
-
-  delayMicroseconds(half_period_usec);
-  delayMicroseconds(half_period_usec);
-delay(1000);return;
-
-  ESP_LOGI(TAG, "Sending 9 clock pulses to drain any stuck device output");
+  // nine clock pulses here, just in case SDA is stuck. Actual checks on
+  // the SDA line status will be done after the clock pulses.
   for (auto i = 0; i < 9; i++) {
-    gpio_set_direction(scl_pin, GPIO_MODE_OUTPUT_OD);  
     gpio_set_level(scl_pin, 0);
     delayMicroseconds(half_period_usec);
     gpio_set_level(scl_pin, 1);
     delayMicroseconds(half_period_usec);
-    if (i == 1) {
-      delayMicroseconds(half_period_usec);
-      delayMicroseconds(half_period_usec);
-      delayMicroseconds(half_period_usec);
-      delayMicroseconds(half_period_usec);
-      delayMicroseconds(half_period_usec);
-    }
 
     // When SCL is kept LOW at this point, we might be looking at a device
     // that applies clock stretching. Wait for the release of the SCL line,
     // but not forever. There is no specification for the maximum allowed
     // time. We'll stick to 500ms here.
     auto wait = 20;
-    gpio_set_direction(scl_pin, GPIO_MODE_INPUT);  
     while (wait-- && gpio_get_level(scl_pin) == 0) {
       delay(25);
     }
@@ -251,50 +226,6 @@ delay(1000);return;
       return;
     }
   }
-
-  delayMicroseconds(half_period_usec);
-
-  recovery_result_ = RECOVERY_COMPLETED;
-  return;
-
-
-
-
-
-
-  ESP_LOGI(TAG, "Sending 9 clock pulses to drain any stuck device output");
-  delayMicroseconds(half_period_usec);
-  for (auto i = 0; i < 9; i++) {
-    // Release pull up resistor and switch to output to make the signal LOW.
-    gpio_set_direction(scl_pin, GPIO_MODE_OUTPUT);   // XXX OD
-    gpio_set_level(scl_pin, 0);
-    delayMicroseconds(half_period_usec);
-
-    // Release output and activate pull up resistor to make the signal HIGH.
-    //gpio_set_direction(scl_pin, GPIO_MODE_INPUT);  
-    gpio_set_level(scl_pin, 1);
-    //gpio_pullup_en(scl_pin);
-    delayMicroseconds(half_period_usec);
-
-    // When SCL is kept LOW at this point, we might be looking at a device
-    // that applies clock stretching. Wait for the release of the SCL line,
-    // but not forever. There is no specification for the maximum allowed
-    // time. We'll stick to 500ms here.
-    //auto wait = 20;
-    //gpio_set_direction(scl_pin, GPIO_MODE_INPUT);  
-    //while (wait-- && gpio_get_level(scl_pin) == 0) {
-    //  delay(25);
-    //}
-    //if (gpio_get_level(scl_pin) == 0) {
-    //  ESP_LOGE(TAG, "Recovery failed: SCL is held LOW during clock pulse cycle");
-    //  recovery_result_ = RECOVERY_FAILED_SCL_LOW;
-    //  return;
-    //}
-  }
-
-  // HACK
-  recovery_result_ = RECOVERY_COMPLETED;
-  return;
 
   // By now, any stuck device ought to have sent all remaining bits of its
   // transation, meaning that it should have freed up the SDA line, resulting
@@ -316,11 +247,9 @@ delay(1000);return;
   // out of this state.
   // SCL and SDA are already high at this point, so we can generate a START
   // condition by making the SDA signal LOW.
-  ESP_LOGI(TAG, "Generate START condition to reset bus logic of I2C devices");
   //gpio_pullup_dis(sda_pin);
-  gpio_set_direction(sda_pin, GPIO_MODE_OUTPUT_OD);  
-  gpio_set_level(scl_pin, 0);
   delayMicroseconds(half_period_usec);
+  gpio_set_level(sda_pin, 0);
 
   // From the specification:
   // "A START condition immediately followed by a STOP condition (void
@@ -328,9 +257,8 @@ delay(1000);return;
   //  operate properly under this condition."
   // Finally, we'll bring the I2C bus into a starting state by generating
   // a STOP condition.
-  ESP_LOGI(TAG, "Generate STOP condition to finalize recovery");
-  gpio_set_direction(sda_pin, GPIO_MODE_INPUT);  
-  //gpio_pullup_en(sda_pin);
+  delayMicroseconds(half_period_usec);
+  gpio_set_level(sda_pin, 1);
 
   recovery_result_ = RECOVERY_COMPLETED;
 }

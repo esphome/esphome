@@ -111,6 +111,12 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
 void ArduinoI2CBus::recover_() {
   ESP_LOGI(TAG, "Performing I2C bus recovery");
 
+  // For the upcoming operations, target for a 100kHz toggle frequency.
+  // This is the maximum frequency for I2C running in standard-mode.
+  // The actual frequency will be lower, because of the additional
+  // function calls that are done, but that is no problem.
+  const auto half_period_usec = 1000000 / 100000 / 2;
+
   // Activate input and pull up resistor for the SCL pin. This should make
   // the signal on the line HIGH. If SCL is pulled low on the I2C bus
   // however, then some device is interfering with the SCL line. In that
@@ -127,13 +133,8 @@ void ArduinoI2CBus::recover_() {
   //  device that held the bus LOW should release it sometime within
   //  those nine clocks."
   // We don't really have to detect if SDA is stuck low. We'll simply send
-  // nine clock pulses here, just in case SDA is stuck.
-
-  // Use a 100kHz toggle frequency (i.e. the maximum frequency for I2C
-  // running in standard-mode). The resulting frequency will be lower,
-  // because of the additional function calls that are done, but that
-  // is no problem.
-  const auto half_period_usec = 1000000 / 100000 / 2;
+  // nine clock pulses here, just in case SDA is stuck. Actual checks on
+  // the SDA line status will be done after the clock pulses.
 
   // Make sure that switching to output mode will make SCL low, just in
   // case other code has setup the pin to output a HIGH signal.
