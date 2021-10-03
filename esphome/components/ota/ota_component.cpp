@@ -109,11 +109,11 @@ void OTAComponent::loop() {
 void OTAComponent::handle_() {
   OTAResponseTypes error_code = OTA_RESPONSE_ERROR_UNKNOWN;
   bool update_started = false;
-  uint32_t total = 0;
+  size_t total = 0;
   uint32_t last_progress = 0;
   uint8_t buf[1024];
   char *sbuf = reinterpret_cast<char *>(buf);
-  uint32_t ota_size;
+  size_t ota_size;
   uint8_t ota_features;
   std::unique_ptr<OTABackend> backend;
   (void) ota_features;
