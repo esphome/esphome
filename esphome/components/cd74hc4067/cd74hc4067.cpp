@@ -5,7 +5,7 @@
 namespace esphome {
 namespace cd74hc4067 {
 
-static const char *TAG = "cd74hc4067";
+static const char *const TAG = "cd74hc4067";
 
 float CD74HC4067Component::get_setup_priority() const { return setup_priority::DATA; }
 
@@ -63,7 +63,7 @@ void CD74HC4067Component::activate_pin(uint8_t pin) {
   }
 }
 
-CD74HC4067Sensor::CD74HC4067Sensor(CD74HC4067Component *parent, std::string name, uint8_t pin)
+CD74HC4067Sensor::CD74HC4067Sensor(CD74HC4067Component *parent, const std::string &name, uint8_t pin)
     : PollingComponent(1000), parent_(parent), pin_(pin) {
   this->set_name(name);
 }

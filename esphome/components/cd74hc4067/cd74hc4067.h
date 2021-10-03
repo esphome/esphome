@@ -42,7 +42,7 @@ class CD74HC4067Component : public Component {
 
 class CD74HC4067Sensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:
-  CD74HC4067Sensor(CD74HC4067Component *parent, std::string name, uint8_t pin);
+  CD74HC4067Sensor(CD74HC4067Component *parent, const std::string &name, uint8_t pin);
 
   void setup() override;
   void update() override;
