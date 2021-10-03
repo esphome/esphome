@@ -18,8 +18,8 @@ void ThermostatClimate::setup() {
   // add a callback so that whenever the sensor state changes we can take action
   this->sensor_->add_on_state_callback([this](float state) {
     this->current_temperature = state;
-    // required action may have changed, recompute, refresh
-    this->switch_to_action_(this->compute_action_());
+    // required action may have changed, recompute, refresh, we'll publish_state() later
+    this->switch_to_action_(this->compute_action_(), false);
     this->switch_to_supplemental_action_(this->compute_supplemental_action_());
     // current temperature and possibly action changed, so publish the new state
     this->publish_state();
@@ -34,8 +34,8 @@ void ThermostatClimate::setup() {
     this->mode = this->default_mode_;
     this->change_away_(false);
   }
-  // refresh the climate action based on the restored settings
-  this->switch_to_action_(this->compute_action_());
+  // refresh the climate action based on the restored settings, we'll publish_state() later
+  this->switch_to_action_(this->compute_action_(), false);
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
   this->setup_complete_ = true;
   this->publish_state();
@@ -47,11 +47,11 @@ float ThermostatClimate::heat_deadband() { return this->heating_deadband_; }
 float ThermostatClimate::heat_overrun() { return this->heating_overrun_; }
 
 void ThermostatClimate::refresh() {
-  this->switch_to_mode_(this->mode);
-  this->switch_to_action_(this->compute_action_());
+  this->switch_to_mode_(this->mode, false);
+  this->switch_to_action_(this->compute_action_(), false);
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
-  this->switch_to_fan_mode_(this->fan_mode.value());
-  this->switch_to_swing_mode_(this->swing_mode);
+  this->switch_to_fan_mode_(this->fan_mode.value(), false);
+  this->switch_to_swing_mode_(this->swing_mode, false);
   this->check_temperature_change_trigger_();
   this->publish_state();
 }
@@ -346,7 +346,7 @@ climate::ClimateAction ThermostatClimate::compute_supplemental_action_() {
   return target_action;
 }
 
-void ThermostatClimate::switch_to_action_(climate::ClimateAction action) {
+void ThermostatClimate::switch_to_action_(climate::ClimateAction action, const bool publish_state) {
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((action == this->action) && this->setup_complete_)
     // already in target mode
@@ -358,6 +358,8 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action) {
     // switching from OFF to IDLE or vice-versa -- this is only a visual difference.
     // OFF means user manually disabled, IDLE means the temperature is in target range.
     this->action = action;
+    if (publish_state)
+      this->publish_state();
     return;
   }
 
@@ -452,6 +454,8 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action) {
       ESP_LOGVV(TAG, "Calling FAN_ONLY action with HEATING/COOLING action");
       trig_fan->trigger();
     }
+    if (publish_state)
+      this->publish_state();
   }
 }
 
@@ -509,13 +513,15 @@ void ThermostatClimate::trigger_supplemental_action_() {
   }
 }
 
-void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
+void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode, const bool publish_state) {
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((fan_mode == this->prev_fan_mode_) && this->setup_complete_)
     // already in target mode
     return;
 
   this->fan_mode = fan_mode;
+  if (publish_state)
+    this->publish_state();
 
   if (this->fan_mode_ready_()) {
     Trigger<> *trig = this->fan_mode_auto_trigger_;
@@ -574,7 +580,7 @@ void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
   }
 }
 
-void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode) {
+void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode, const bool publish_state) {
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((mode == this->prev_mode_) && this->setup_complete_)
     // already in target mode
@@ -615,9 +621,11 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode) {
   this->mode = mode;
   this->prev_mode_ = mode;
   this->prev_mode_trigger_ = trig;
+  if (publish_state)
+    this->publish_state();
 }
 
-void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mode) {
+void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mode, const bool publish_state) {
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((swing_mode == this->prev_swing_mode_) && this->setup_complete_)
     // already in target mode
@@ -652,6 +660,8 @@ void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mo
   this->swing_mode = swing_mode;
   this->prev_swing_mode_ = swing_mode;
   this->prev_swing_mode_trigger_ = trig;
+  if (publish_state)
+    this->publish_state();
 }
 
 bool ThermostatClimate::idle_action_ready_() {
