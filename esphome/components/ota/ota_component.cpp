@@ -89,7 +89,8 @@ void OTAComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Using Password.");
   }
 #endif
-  if (this->has_safe_mode_ && this->safe_mode_rtc_value_ > 1 && this->safe_mode_rtc_value_ != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
+  if (this->has_safe_mode_ && this->safe_mode_rtc_value_ > 1 &&
+      this->safe_mode_rtc_value_ != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
     ESP_LOGW(TAG, "Last Boot was an unhandled reset, will proceed to safe mode in %d restarts",
              this->safe_mode_num_attempts_ - this->safe_mode_rtc_value_);
   }
@@ -418,7 +419,7 @@ void OTAComponent::set_safe_mode_pending(const bool &pending) {
     this->clean_rtc();
   }
 }
-const bool OTAComponent::get_safe_mode_pending() {
+bool OTAComponent::get_safe_mode_pending() {
   return this->has_safe_mode_ && this->read_rtc_() == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC;
 }
 

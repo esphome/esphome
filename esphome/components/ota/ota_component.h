@@ -50,7 +50,7 @@ class OTAComponent : public Component {
 
   /// Set to true if the next startup will enter safe mode
   void set_safe_mode_pending(const bool &pending);
-  const bool get_safe_mode_pending();
+  bool get_safe_mode_pending();
 
 #ifdef USE_OTA_STATE_CALLBACK
   void add_on_state_callback(std::function<void(OTAState, float, uint8_t)> &&callback);
@@ -93,7 +93,8 @@ class OTAComponent : public Component {
   uint8_t safe_mode_num_attempts_;
   ESPPreferenceObject rtc_;
 
-  static const uint32_t ENTER_SAFE_MODE_MAGIC = 0x5afe5afe; ///< a magic number to indicate that safe mode should be entered on next boot
+  static const uint32_t ENTER_SAFE_MODE_MAGIC =
+      0x5afe5afe;  ///< a magic number to indicate that safe mode should be entered on next boot
 
 #ifdef USE_OTA_STATE_CALLBACK
   CallbackManager<void(OTAState, float, uint8_t)> state_callback_{};

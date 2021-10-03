@@ -12,10 +12,10 @@ class RestartSwitch : public switch_::Switch, public Component {
   void dump_config() override;
 
   /// Sets the OTA component to be configured when rebooting
-  const void set_ota(ota::OTAComponent *ota);
+  void set_ota(ota::OTAComponent *ota);
 
   /// Sets whether the restart switch should enter safe mode on reboot
-  const void set_safe_mode(bool safe_mode);
+  void set_safe_mode(bool safe_mode);
 
  protected:
   void write_state(bool state) override;
