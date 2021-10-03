@@ -96,6 +96,9 @@ class BSDSocketImpl : public Socket {
         break;
     }
     return ret;
+#elif defined(ARDUINO_ARCH_ESP32)
+    // ESP-IDF v4 only has symbol lwip_readv
+    return ::lwip_readv(fd_, iov, iovcnt);
 #else
     return ::readv(fd_, iov, iovcnt);
 #endif
@@ -120,6 +123,9 @@ class BSDSocketImpl : public Socket {
         break;
     }
     return ret;
+#elif defined(ARDUINO_ARCH_ESP32)
+    // ESP-IDF v4 only has symbol lwip_writev
+    return ::lwip_writev(fd_, iov, iovcnt);
 #else
     return ::writev(fd_, iov, iovcnt);
 #endif
