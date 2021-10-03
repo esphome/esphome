@@ -30,9 +30,6 @@ class CD74HC4067Component : public Component {
   /// set the delay needed after an input switch
   void set_switch_delay(uint32_t switch_delay) { this->switch_delay_ = switch_delay; }
 
-  /// sets the multiplexer to the desired input and reads the value from the adc pin
-  float read_data_(uint8_t pin);
-
  private:
   InternalGPIOPin *pin_s0_;
   InternalGPIOPin *pin_s1_;
