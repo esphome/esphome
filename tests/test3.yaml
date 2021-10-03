@@ -363,6 +363,10 @@ sensor:
             - 400 -> 500
             - -50 -> -1000
             - -100 -> -10000
+  - platform: cd74hc4067
+    id: cd74hc4067_0
+    number: 0
+    sensor: my_sensor
   - platform: resistance
     sensor: my_sensor
     configuration: DOWNSTREAM
@@ -1294,3 +1298,10 @@ dsmr:
 daly_bms:
   update_interval: 20s
   uart_id: uart1
+
+cd74hc4067:
+  pin_s0: D0
+  pin_s1: D1
+  pin_s2: D2
+  pin_s3: D3
+  
