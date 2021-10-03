@@ -89,7 +89,7 @@ void OTAComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Using Password.");
   }
 #endif
-  if (this->has_safe_mode_ && this->safe_mode_rtc_value_ > 1 && this->safe_mode_rtc_value_ != this->enter_safe_mode_magic) {
+  if (this->has_safe_mode_ && this->safe_mode_rtc_value_ > 1 && this->safe_mode_rtc_value_ != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
     ESP_LOGW(TAG, "Last Boot was an unhandled reset, will proceed to safe mode in %d restarts",
              this->safe_mode_num_attempts_ - this->safe_mode_rtc_value_);
   }
@@ -408,18 +408,18 @@ void OTAComponent::set_safe_mode_pending(const bool &pending) {
 
   uint32_t current_rtc = this->read_rtc_();
 
-  if (pending && current_rtc != this->enter_safe_mode_magic) {
+  if (pending && current_rtc != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
     ESP_LOGI(TAG, "Device will enter safe mode on next boot.");
-    this->write_rtc_(this->enter_safe_mode_magic);
+    this->write_rtc_(esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC);
   }
 
-  if (!pending && current_rtc == this->enter_safe_mode_magic) {
+  if (!pending && current_rtc == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
     ESP_LOGI(TAG, "Safe mode pending has been cleared");
     this->clean_rtc();
   }
 }
 const bool OTAComponent::get_safe_mode_pending() {
-  return this->has_safe_mode_ && this->read_rtc_() == this->enter_safe_mode_magic;
+  return this->has_safe_mode_ && this->read_rtc_() == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC;
 }
 
 bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
@@ -430,7 +430,7 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
   this->rtc_ = global_preferences->make_preference<uint32_t>(233825507UL, false);
   this->safe_mode_rtc_value_ = this->read_rtc_();
 
-  bool is_manual_safe_mode = this->safe_mode_rtc_value_ == this->enter_safe_mode_magic;
+  bool is_manual_safe_mode = this->safe_mode_rtc_value_ == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC;
 
   if (is_manual_safe_mode)
     ESP_LOGI(TAG, "Safe mode has been entered manually");
@@ -472,7 +472,7 @@ uint32_t OTAComponent::read_rtc_() {
 }
 void OTAComponent::clean_rtc() { this->write_rtc_(0); }
 void OTAComponent::on_safe_shutdown() {
-  if (this->has_safe_mode_ && this->read_rtc_() != this->enter_safe_mode_magic)
+  if (this->has_safe_mode_ && this->read_rtc_() != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC)
     this->clean_rtc();
 }
 

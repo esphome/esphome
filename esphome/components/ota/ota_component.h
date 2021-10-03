@@ -93,7 +93,7 @@ class OTAComponent : public Component {
   uint8_t safe_mode_num_attempts_;
   ESPPreferenceObject rtc_;
 
-  static const uint32_t enter_safe_mode_magic = 0x5afe5afe; ///< a magic number to indicate that safe mode should be entered on next boot
+  static const uint32_t ENTER_SAFE_MODE_MAGIC = 0x5afe5afe; ///< a magic number to indicate that safe mode should be entered on next boot
 
 #ifdef USE_OTA_STATE_CALLBACK
   CallbackManager<void(OTAState, float, uint8_t)> state_callback_{};
