@@ -38,6 +38,7 @@ void CD74HC4067Component::activate_pin(uint8_t pin) {
     this->pin_s1_->digital_write(HIGH && bitRead(pin, 1));
     this->pin_s2_->digital_write(HIGH && bitRead(pin, 2));
     this->pin_s3_->digital_write(HIGH && bitRead(pin, 3));
+    // small delay is needed to let the multiplexer switch
     delay(10);
     active_pin_ = pin;
   }

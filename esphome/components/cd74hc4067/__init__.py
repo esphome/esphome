@@ -19,7 +19,6 @@ CONF_PIN_S1 = "pin_s1"
 CONF_PIN_S2 = "pin_s2"
 CONF_PIN_S3 = "pin_s3"
 
-
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CD74HC4067Component),
