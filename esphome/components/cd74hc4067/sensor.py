@@ -22,7 +22,8 @@ CD74HC4067Sensor = cd74hc4067_ns.class_(
     voltage_sampler.VoltageSampler,
 )
 
-CONF_cd74hc4067_ID = "cd74hc4067_id"
+CONF_CD74HC4067_ID = "cd74hc4067_id"
+
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         unit_of_measurement=UNIT_WATT,
@@ -34,7 +35,7 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.GenerateID(): cv.declare_id(CD74HC4067Sensor),
-            cv.GenerateID(CONF_cd74hc4067_ID): cv.use_id(CD74HC4067Component),
+            cv.GenerateID(CONF_CD74HC4067_ID): cv.use_id(CD74HC4067Component),
             cv.Required(CONF_NUMBER): cv.int_range(0, 15),
             cv.Required(CONF_SENSOR): cv.use_id(voltage_sampler.VoltageSampler),
         }
@@ -44,7 +45,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_cd74hc4067_ID])
+    parent = await cg.get_variable(config[CONF_CD74HC4067_ID])
     var = cg.new_Pvariable(
         config[CONF_ID], parent, config[CONF_NAME], config[CONF_NUMBER]
     )

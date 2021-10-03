@@ -1,6 +1,5 @@
 #include "cd74hc4067.h"
 #include "esphome/core/log.h"
-#include <Arduino.h>
 
 namespace esphome {
 namespace cd74hc4067 {
