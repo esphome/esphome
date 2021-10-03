@@ -27,26 +27,25 @@ void CD74HC4067Component::dump_config() {
   LOG_PIN("  S3 Pin: ", this->pin_s3_);
 }
 
-float CD74HC4067Component::read_data_(uint8_t pin) {
-  this->pin_s0_->digital_write(HIGH && bitRead(pin, 0));
-  this->pin_s1_->digital_write(HIGH && bitRead(pin, 1));
-  this->pin_s2_->digital_write(HIGH && bitRead(pin, 2));
-  this->pin_s3_->digital_write(HIGH && bitRead(pin, 3));
-  delay(10);
-  static int num_samples = 1000;
-  float sum_squares = 0;
-  for (int i = 0; i < num_samples; ++i) {
-    float value = analogRead(this->pin_adc_->get_pin());
-    sum_squares += value * value;
-    delay(0.0002);
+void CD74HC4067Component::activate_pin(uint8_t pin) {
+  if (active_pin_ != pin) {
+    this->pin_s0_->digital_write(HIGH && bitRead(pin, 0));
+    this->pin_s1_->digital_write(HIGH && bitRead(pin, 1));
+    this->pin_s2_->digital_write(HIGH && bitRead(pin, 2));
+    this->pin_s3_->digital_write(HIGH && bitRead(pin, 3));
+    delay(10);
   }
-  float rms = sqrt(sum_squares / num_samples);
+}
+
+float CD74HC4067Component::read_data_(uint8_t pin) {
+  activate_pin(pin);
+  float value = analogRead(this->pin_adc_->get_pin());
 
 #ifdef ARDUINO_ARCH_ESP8266
-  return rms / 1024.0f;
+  return value / 1024.0f;
 #endif
 #ifdef ARDUINO_ARCH_ESP32
-  return rms / 4095.0f;
+  return value / 4095.0f;
 #endif
 }
 
