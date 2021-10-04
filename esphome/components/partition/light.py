@@ -36,16 +36,20 @@ def validate_from_to(value):
 def validate_segment(config):
     fconf = fv.full_config.get()
 
-    if CONF_ID in config: # only validate addressable segments
+    if CONF_ID in config:  # only validate addressable segments
         path = fconf.get_path_for_id(config[CONF_ID])[:-1]
         segment_light_config = fconf.get_config_for_path(path)
 
         if CONF_NUM_LEDS in segment_light_config:
             segment_len = segment_light_config[CONF_NUM_LEDS]
             if config[CONF_FROM] >= segment_len:
-                raise cv.Invalid(f"FROM ({config[CONF_FROM]}) must be less than the number of LEDs in light '{config[CONF_ID]}' ({segment_len})")
+                raise cv.Invalid(
+                    f"FROM ({config[CONF_FROM]}) must be less than the number of LEDs in light '{config[CONF_ID]}' ({segment_len})"
+                )
             if config[CONF_TO] >= segment_len:
-                raise cv.Invalid(f"TO ({config[CONF_TO]}) must be less than the number of LEDs in light '{config[CONF_ID]}' ({segment_len})")
+                raise cv.Invalid(
+                    f"TO ({config[CONF_TO]}) must be less than the number of LEDs in light '{config[CONF_ID]}' ({segment_len})"
+                )
 
 
 ADDRESSABLE_SEGMENT_SCHEMA = cv.Schema(
