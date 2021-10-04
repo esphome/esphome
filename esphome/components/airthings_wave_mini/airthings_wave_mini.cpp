@@ -59,26 +59,20 @@ void AirthingsWaveMini::read_sensors_(uint8_t *raw_value, uint16_t value_len) {
   auto value = (WaveMiniReadings *) raw_value;
 
   if (sizeof(WaveMiniReadings) <= value_len) {
-    ESP_LOGD(TAG, "version = %d", value->version);
+    
+    this->humidity_sensor_->publish_state(value->humidity / 100.0f);
+    this->pressure_sensor_->publish_state(value->pressure / 50.0f);
+    this->temperature_sensor_->publish_state(value->temperature / 100.0f - 273.15f);
 
-    if (value->version == 1) {
-      ESP_LOGD(TAG, "ambient light = %d", value->ambientLight);
-
-      this->humidity_sensor_->publish_state(value->humidity / 2.0f);
-
-      this->temperature_sensor_->publish_state(value->temperature / 100.0f);
-
-      if (is_valid_voc_value_(value->voc)) {
-        this->tvoc_sensor_->publish_state(value->voc);
-      }
-
-      // This instance must not stay connected
-      // so other clients can connect to it (e.g. the
-      // mobile app).
-      parent()->set_enabled(false);
-    } else {
-      ESP_LOGE(TAG, "Invalid payload version (%d != 1, newer version or not a Wave Mini?)", value->version);
+    if (is_valid_voc_value_(value->voc)) {
+      this->tvoc_sensor_->publish_state(value->voc);
     }
+
+    // This instance must not stay connected
+    // so other clients can connect to it (e.g. the
+    // mobile app).
+    parent()->set_enabled(false);
+
   }
 }
 
@@ -109,12 +103,13 @@ void AirthingsWaveMini::request_read_values_() {
 void AirthingsWaveMini::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
   LOG_SENSOR("  ", "TVOC", this->tvoc_sensor_);
 }
 
 AirthingsWaveMini::AirthingsWaveMini() : PollingComponent(10000) {
-  auto service_bt = *BLEUUID::fromString(std::string("b42e1c08-ade7-11e4-89d3-123b93f75cba")).getNative();
-  auto characteristic_bt = *BLEUUID::fromString(std::string("b42e2a68-ade7-11e4-89d3-123b93f75cba")).getNative();
+  auto service_bt = *BLEUUID::fromString(std::string("b42e3882-ade7-11e4-89d3-123b93f75cba")).getNative();
+  auto characteristic_bt = *BLEUUID::fromString(std::string("b42e3b98-ade7-11e4-89d3-123b93f75cba")).getNative();
 
   service_uuid_ = esp32_ble_tracker::ESPBTUUID::from_uuid(service_bt);
   sensors_data_characteristic_uuid_ = esp32_ble_tracker::ESPBTUUID::from_uuid(characteristic_bt);

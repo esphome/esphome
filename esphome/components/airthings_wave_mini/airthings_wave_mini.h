@@ -29,6 +29,7 @@ class AirthingsWaveMini : public PollingComponent, public ble_client::BLEClientN
 
   void set_temperature(sensor::Sensor *temperature) { temperature_sensor_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { humidity_sensor_ = humidity; }
+  void set_pressure(sensor::Sensor *pressure) { pressure_sensor_ = pressure; }
   void set_tvoc(sensor::Sensor *tvoc) { tvoc_sensor_ = tvoc; }
 
  protected:
@@ -39,6 +40,7 @@ class AirthingsWaveMini : public PollingComponent, public ble_client::BLEClientN
 
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
+  sensor::Sensor *pressure_sensor_{nullptr};
   sensor::Sensor *tvoc_sensor_{nullptr};
 
   uint16_t handle_;
@@ -46,16 +48,14 @@ class AirthingsWaveMini : public PollingComponent, public ble_client::BLEClientN
   esp32_ble_tracker::ESPBTUUID sensors_data_characteristic_uuid_;
 
   struct WaveMiniReadings {
-    uint8_t version;
-    uint8_t humidity;
-    uint8_t ambientLight;
-    uint8_t unused01;
-    uint16_t radon;
-    uint16_t radon_lt;
+    uint16_t unused01;
     uint16_t temperature;
     uint16_t pressure;
-    uint16_t co2;
+    uint16_t humidity;
     uint16_t voc;
+    uint16_t unused02;
+    uint32_t unused03;
+    uint32_t unused04;
   };
 };
 
