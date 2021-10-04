@@ -26,7 +26,6 @@
 #define USE_LOGGER
 #define USE_MDNS
 #define USE_NUMBER
-#define USE_OTA
 #define USE_OTA_STATE_CALLBACK
 #define USE_POWER_SUPPLY
 #define USE_PROMETHEUS
