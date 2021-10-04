@@ -2,7 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import sensor
-from esphome.const import CONF_ID, CONF_SENSOR, CONF_RESTORE
+from esphome.const import CONF_ICON, CONF_ID, CONF_SENSOR, CONF_RESTORE
+from esphome.core.entity_helpers import inherit_property_from
 
 integration_ns = cg.esphome_ns.namespace("integration")
 IntegrationSensor = integration_ns.class_(
@@ -29,7 +30,6 @@ CONF_TIME_UNIT = "time_unit"
 CONF_INTEGRATION_METHOD = "integration_method"
 CONF_MIN_SAVE_INTERVAL = "min_save_interval"
 
-
 CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(IntegrationSensor),
@@ -44,6 +44,19 @@ CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
         ): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(IntegrationSensor),
+            cv.Optional(CONF_ICON): cv.icon,
+            cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
+        },
+        extra=cv.ALLOW_EXTRA,
+    ),
+    inherit_property_from(CONF_ICON, CONF_SENSOR),
+)
 
 
 async def to_code(config):
