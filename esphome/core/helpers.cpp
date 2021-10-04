@@ -1,4 +1,5 @@
 #include "esphome/core/helpers.h"
+#include "esphome/core/defines.h"
 #include <cstdio>
 #include <algorithm>
 #include <cmath>
@@ -14,6 +15,10 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
 #endif
+#ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
+#include "esp_efuse.h"
+#include "esp_efuse_table.h"
+#endif
 
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -22,15 +27,27 @@ namespace esphome {
 
 static const char *const TAG = "helpers";
 
-std::string get_mac_address() {
-  char tmp[20];
-  uint8_t mac[6];
+void get_mac_address_raw(uint8_t *mac) {
 #ifdef USE_ESP32
+#ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
+  // On some devices, the MAC address that is burnt into EFuse does not
+  // match the CRC that goes along with it. For those devices, this
+  // work-around reads and uses the MAC address as-is from EFuse,
+  // without doing the CRC check.
+  esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, 48);
+#else
   esp_efuse_mac_get_default(mac);
+#endif
 #endif
 #ifdef USE_ESP8266
   WiFi.macAddress(mac);
 #endif
+}
+
+std::string get_mac_address() {
+  char tmp[20];
+  uint8_t mac[6];
+  get_mac_address_raw(mac);
   sprintf(tmp, "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   return std::string(tmp);
 }
@@ -38,15 +55,14 @@ std::string get_mac_address() {
 std::string get_mac_address_pretty() {
   char tmp[20];
   uint8_t mac[6];
-#ifdef USE_ESP32
-  esp_efuse_mac_get_default(mac);
-#endif
-#ifdef USE_ESP8266
-  WiFi.macAddress(mac);
-#endif
+  get_mac_address_raw(mac);
   sprintf(tmp, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   return std::string(tmp);
 }
+
+#ifdef USE_ESP32
+void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
+#endif
 
 std::string generate_hostname(const std::string &base) { return base + std::string("-") + get_mac_address(); }
 

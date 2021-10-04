@@ -1,6 +1,7 @@
+#include "nextion.h"
+
 #ifdef USE_NEXTION_TFT_UPLOAD
 
-#include "nextion.h"
 #include "esphome/core/application.h"
 #include "esphome/core/macros.h"
 #include "esphome/core/util.h"
