@@ -43,6 +43,17 @@ void IDFI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "  SDA Pin: GPIO%u", this->sda_pin_);
   ESP_LOGCONFIG(TAG, "  SCL Pin: GPIO%u", this->scl_pin_);
   ESP_LOGCONFIG(TAG, "  Frequency: %u Hz", this->frequency_);
+  switch (this->recovery_result_) {
+    case RECOVERY_COMPLETED:
+      ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
+      break;
+    case RECOVERY_FAILED_SCL_LOW:
+      ESP_LOGCONFIG(TAG, "  Recovery: failed, SCL is held low on the bus");
+      break;
+    case RECOVERY_FAILED_SDA_LOW:
+      ESP_LOGCONFIG(TAG, "  Recovery: failed, SDA is held low on the bus");
+      break;
+  }
   if (this->scan_) {
     ESP_LOGI(TAG, "Scanning i2c bus for active devices...");
     uint8_t found = 0;
@@ -144,39 +155,113 @@ ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
   return ERROR_OK;
 }
 
+/// Perform I2C bus recovery, see:
+/// https://www.nxp.com/docs/en/user-guide/UM10204.pdf
+/// https://www.analog.com/media/en/technical-documentation/application-notes/54305147357414AN686_0.pdf
 void IDFI2CBus::recover_() {
-  // Perform I2C bus recovery, see
-  // https://www.analog.com/media/en/technical-documentation/application-notes/54305147357414AN686_0.pdf
-  // or see the linux kernel implementation, e.g.
-  // https://elixir.bootlin.com/linux/v5.14.6/source/drivers/i2c/i2c-core-base.c#L200
+  ESP_LOGI(TAG, "Performing I2C bus recovery");
 
-  // try to get about 100kHz toggle frequency
-  const auto half_period_usec = 1000000 / 100000 / 2;
-  const auto recover_scl_periods = 9;
   const gpio_num_t scl_pin = static_cast<gpio_num_t>(scl_pin_);
+  const gpio_num_t sda_pin = static_cast<gpio_num_t>(sda_pin_);
 
-  // configure scl as output
-  gpio_config_t conf{};
-  conf.pin_bit_mask = 1ULL << static_cast<uint32_t>(scl_pin_);
-  conf.mode = GPIO_MODE_OUTPUT;
-  conf.pull_up_en = GPIO_PULLUP_DISABLE;
-  conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-  conf.intr_type = GPIO_INTR_DISABLE;
+  // For the upcoming operations, target for a 60kHz toggle frequency.
+  // 1000kHz is the maximum frequency for I2C running in standard-mode,
+  // but lower frequencies are not a problem.
+  // Note: the timing that is used here is chosen manually, to get
+  // results that are close to the timing that can be archieved by the
+  // implementation for the Arduino framework.
+  const auto half_period_usec = 7;
 
-  gpio_config(&conf);
-
-  // set scl high
+  // Configure SCL pin for open drain input/output, with a pull up resistor.
   gpio_set_level(scl_pin, 1);
+  gpio_config_t scl_config{};
+  scl_config.pin_bit_mask = 1ULL << scl_pin_;
+  scl_config.mode = GPIO_MODE_INPUT_OUTPUT_OD;
+  scl_config.pull_up_en = GPIO_PULLUP_ENABLE;
+  scl_config.pull_down_en = GPIO_PULLDOWN_DISABLE;
+  scl_config.intr_type = GPIO_INTR_DISABLE;
+  gpio_config(&scl_config);
 
-  // in total generate 9 falling-rising edges
-  for (auto i = 0; i < recover_scl_periods; i++) {
-    delayMicroseconds(half_period_usec);
+  // Configure SDA pin for open drain input/output, with a pull up resistor.
+  gpio_set_level(sda_pin, 1);
+  gpio_config_t sda_conf{};
+  sda_conf.pin_bit_mask = 1ULL << sda_pin_;
+  sda_conf.mode = GPIO_MODE_INPUT_OUTPUT_OD;
+  sda_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+  sda_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+  sda_conf.intr_type = GPIO_INTR_DISABLE;
+  gpio_config(&sda_conf);
+
+  // If SCL is pulled low on the I2C bus, then some device is interfering
+  // with the SCL line. In that case, the I2C bus cannot be recovered.
+  delayMicroseconds(half_period_usec);
+  if (gpio_get_level(scl_pin) == 0) {
+    ESP_LOGE(TAG, "Recovery failed: SCL is held LOW on the I2C bus");
+    recovery_result_ = RECOVERY_FAILED_SCL_LOW;
+    return;
+  }
+
+  // From the specification:
+  // "If the data line (SDA) is stuck LOW, send nine clock pulses. The
+  //  device that held the bus LOW should release it sometime within
+  //  those nine clocks."
+  // We don't really have to detect if SDA is stuck low. We'll simply send
+  // nine clock pulses here, just in case SDA is stuck. Actual checks on
+  // the SDA line status will be done after the clock pulses.
+  for (auto i = 0; i < 9; i++) {
     gpio_set_level(scl_pin, 0);
     delayMicroseconds(half_period_usec);
     gpio_set_level(scl_pin, 1);
+    delayMicroseconds(half_period_usec);
+
+    // When SCL is kept LOW at this point, we might be looking at a device
+    // that applies clock stretching. Wait for the release of the SCL line,
+    // but not forever. There is no specification for the maximum allowed
+    // time. We'll stick to 500ms here.
+    auto wait = 20;
+    while (wait-- && gpio_get_level(scl_pin) == 0) {
+      delay(25);
+    }
+    if (gpio_get_level(scl_pin) == 0) {
+      ESP_LOGE(TAG, "Recovery failed: SCL is held LOW during clock pulse cycle");
+      recovery_result_ = RECOVERY_FAILED_SCL_LOW;
+      return;
+    }
   }
 
+  // By now, any stuck device ought to have sent all remaining bits of its
+  // transation, meaning that it should have freed up the SDA line, resulting
+  // in SDA being pulled up.
+  if (gpio_get_level(sda_pin) == 0) {
+    ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");
+    recovery_result_ = RECOVERY_FAILED_SDA_LOW;
+    return;
+  }
+
+  // From the specification:
+  // "I2C-bus compatible devices must reset their bus logic on receipt of
+  //  a START or repeated START condition such that they all anticipate
+  //  the sending of a target address, even if these START conditions are
+  //  not positioned according to the proper format."
+  // While the 9 clock pulses from above might have drained all bits of a
+  // single byte within a transaction, a device might have more bytes to
+  // transmit. So here we'll generate a START condition to snap the device
+  // out of this state.
+  // SCL and SDA are already high at this point, so we can generate a START
+  // condition by making the SDA signal LOW.
   delayMicroseconds(half_period_usec);
+  gpio_set_level(sda_pin, 0);
+
+  // From the specification:
+  // "A START condition immediately followed by a STOP condition (void
+  //  message) is an illegal format. Many devices however are designed to
+  //  operate properly under this condition."
+  // Finally, we'll bring the I2C bus into a starting state by generating
+  // a STOP condition.
+  delayMicroseconds(half_period_usec);
+  gpio_set_level(sda_pin, 1);
+
+  recovery_result_ = RECOVERY_COMPLETED;
 }
 
 }  // namespace i2c
