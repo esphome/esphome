@@ -276,6 +276,8 @@ async def to_code(config):
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{config[CONF_VARIANT]}")
 
+    cg.add_platformio_option("lib_ldf_mode", "off")
+
     conf = config[CONF_FRAMEWORK]
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_platformio_option(
