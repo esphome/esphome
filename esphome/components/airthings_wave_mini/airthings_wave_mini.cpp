@@ -70,7 +70,6 @@ void AirthingsWaveMini::read_sensors_(uint8_t *raw_value, uint16_t value_len) {
     // so other clients can connect to it (e.g. the
     // mobile app).
     parent()->set_enabled(false);
-
   }
 }
 
