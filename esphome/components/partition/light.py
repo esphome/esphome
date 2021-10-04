@@ -1,11 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome.components import light
 from esphome.const import (
     CONF_ADDRESSABLE_LIGHT_ID,
     CONF_FROM,
     CONF_ID,
     CONF_LIGHT_ID,
+    CONF_NUM_LEDS,
     CONF_SEGMENTS,
     CONF_SINGLE_LIGHT_ID,
     CONF_TO,
@@ -29,6 +31,21 @@ def validate_from_to(value):
             f"From ({value[CONF_FROM]}) must not be larger than to ({value[CONF_TO]})"
         )
     return value
+
+
+def validate_segments(config):
+    fconf = fv.full_config.get()
+
+    if CONF_ID in config: # only validate addressable segments
+        path = fconf.get_path_for_id(config[CONF_ID])[:-1]
+        segment_light_config = fconf.get_config_for_path(path)
+
+        if CONF_NUM_LEDS in segment_light_config:
+            segment_len = segment_light_config[CONF_NUM_LEDS]
+            if config[CONF_FROM] >= segment_len:
+                raise cv.Invalid(f"FROM ({config[CONF_FROM]}) must be less than the number of LEDs in light '{config[CONF_ID]}' ({segment_len})")
+            if config[CONF_TO] >= segment_len:
+                raise cv.Invalid(f"TO ({config[CONF_TO]}) must be less than the number of LEDs in light '{config[CONF_ID]}' ({segment_len})")
 
 
 ADDRESSABLE_SEGMENT_SCHEMA = cv.Schema(
@@ -61,6 +78,18 @@ CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
             cv.Length(min=1),
         ),
     }
+)
+
+FINAL_VALIDATE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_SEGMENTS): cv.ensure_list(
+            cv.All(
+                cv.Any(ADDRESSABLE_SEGMENT_SCHEMA, NONADDRESSABLE_SEGMENT_SCHEMA),
+                validate_segments,
+            )
+        ),
+    },
+    extra=cv.ALLOW_EXTRA,
 )
 
 
