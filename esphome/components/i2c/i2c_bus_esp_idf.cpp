@@ -164,11 +164,13 @@ void IDFI2CBus::recover_() {
   const gpio_num_t scl_pin = static_cast<gpio_num_t>(scl_pin_);
   const gpio_num_t sda_pin = static_cast<gpio_num_t>(sda_pin_);
 
-  // For the upcoming operations, target for a 100kHz toggle frequency.
-  // This is the maximum frequency for I2C running in standard-mode.
-  // The actual frequency will be lower, because of the additional
-  // function calls that are done, but that is no problem.
-  const auto half_period_usec = 1000000 / 100000 / 2;
+  // For the upcoming operations, target for a 60kHz toggle frequency.
+  // 1000kHz is the maximum frequency for I2C running in standard-mode,
+  // but lower frequencies are not a problem.
+  // Note: the timing that is used here is chosen manually, to get
+  // results that are close to the timing that can be archieved by the
+  // implementation for the Arduino framework.
+  const auto half_period_usec = 7;
 
   // Configure SCL pin for open drain input/output, with a pull up resistor.
   gpio_set_level(scl_pin, 1);
