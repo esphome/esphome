@@ -33,7 +33,7 @@ def validate_from_to(value):
     return value
 
 
-def validate_segments(config):
+def validate_segment(config):
     fconf = fv.full_config.get()
 
     if CONF_ID in config: # only validate addressable segments
@@ -85,7 +85,7 @@ FINAL_VALIDATE_SCHEMA = cv.Schema(
         cv.Required(CONF_SEGMENTS): cv.ensure_list(
             cv.All(
                 cv.Any(ADDRESSABLE_SEGMENT_SCHEMA, NONADDRESSABLE_SEGMENT_SCHEMA),
-                validate_segments,
+                validate_segment,
             )
         ),
     },
