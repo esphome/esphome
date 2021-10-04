@@ -44,11 +44,13 @@ def validate_segment(config):
             segment_len = segment_light_config[CONF_NUM_LEDS]
             if config[CONF_FROM] >= segment_len:
                 raise cv.Invalid(
-                    f"FROM ({config[CONF_FROM]}) must be less than the number of LEDs in light '{config[CONF_ID]}' ({segment_len})"
+                    f"FROM ({config[CONF_FROM]}) must be less than the number of LEDs in light '{config[CONF_ID]}' ({segment_len})",
+                    [CONF_FROM],
                 )
             if config[CONF_TO] >= segment_len:
                 raise cv.Invalid(
-                    f"TO ({config[CONF_TO]}) must be less than the number of LEDs in light '{config[CONF_ID]}' ({segment_len})"
+                    f"TO ({config[CONF_TO]}) must be less than the number of LEDs in light '{config[CONF_ID]}' ({segment_len})",
+                    [CONF_TO],
                 )
 
 
@@ -86,12 +88,7 @@ CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
 
 FINAL_VALIDATE_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_SEGMENTS): cv.ensure_list(
-            cv.All(
-                cv.Any(ADDRESSABLE_SEGMENT_SCHEMA, NONADDRESSABLE_SEGMENT_SCHEMA),
-                validate_segment,
-            )
-        ),
+        cv.Required(CONF_SEGMENTS): [validate_segment],
     },
     extra=cv.ALLOW_EXTRA,
 )
