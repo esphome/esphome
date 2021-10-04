@@ -638,7 +638,7 @@ async def process_lambda(
     :param return_type: The return type of the lambda.
     :return: The generated lambda expression.
     """
-    from esphome.components.globals import GlobalsComponent
+    from esphome.components.globals import GlobalsComponent, RestoringGlobalsComponent
 
     if value is None:
         return
@@ -648,7 +648,10 @@ async def process_lambda(
         if (
             full_id is not None
             and isinstance(full_id.type, MockObjClass)
-            and full_id.type.inherits_from(GlobalsComponent)
+            and (
+                full_id.type.inherits_from(GlobalsComponent)
+                or full_id.type.inherits_from(RestoringGlobalsComponent)
+            )
         ):
             parts[i * 3 + 1] = var.value()
             continue
