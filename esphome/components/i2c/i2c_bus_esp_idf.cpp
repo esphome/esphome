@@ -247,7 +247,6 @@ void IDFI2CBus::recover_() {
   // out of this state.
   // SCL and SDA are already high at this point, so we can generate a START
   // condition by making the SDA signal LOW.
-  //gpio_pullup_dis(sda_pin);
   delayMicroseconds(half_period_usec);
   gpio_set_level(sda_pin, 0);
 
