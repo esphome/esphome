@@ -17,7 +17,7 @@ def inherit_property_from(property_to_inherit, parent_id_property):
         if property_to_inherit not in config:
             fconf = fv.full_config.get()
 
-            # Get config for this entity
+            # Get config for the parent entity
             path = fconf.get_path_for_id(config[parent_id_property])[:-1]
             parent_config = fconf.get_config_for_path(path)
 
