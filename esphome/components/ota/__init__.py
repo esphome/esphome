@@ -84,6 +84,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 @coroutine_with_priority(50.0)
 async def to_code(config):
+    cg.add_define("USE_OTA")
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_port(config[CONF_PORT]))
     if CONF_PASSWORD in config:
