@@ -116,11 +116,13 @@ void ArduinoI2CBus::recover_() {
   // function calls that are done, but that is no problem.
   const auto half_period_usec = 1000000 / 100000 / 2;
 
-  // Activate input and pull up resistor for the SCL pin. This should make
-  // the signal on the line HIGH. If SCL is pulled low on the I2C bus
-  // however, then some device is interfering with the SCL line. In that
-  // case, the I2C bus cannot be recovered.
-  pinMode(scl_pin_, INPUT_PULLUP);     // NOLINT
+  // Activate input and pull up resistor for the SCL pin.
+  pinMode(scl_pin_, INPUT_PULLUP);  // NOLINT
+
+  // This should make the signal on the line HIGH. If SCL is pulled low
+  // on the I2C bus however, then some device is interfering with the SCL
+  // line. In that case, the I2C bus cannot be recovered.
+  delayMicroseconds(half_period_usec);
   if (digitalRead(scl_pin_) == LOW) {  // NOLINT
     ESP_LOGE(TAG, "Recovery failed: SCL is held LOW on the I2C bus");
     recovery_result_ = RECOVERY_FAILED_SCL_LOW;
@@ -136,16 +138,9 @@ void ArduinoI2CBus::recover_() {
   // the SDA line status will be done after the clock pulses.
 
   // Make sure that switching to output mode will make SCL low, just in
-  // case other code has setup the pin to output a HIGH signal.
+  // case other code has setup the pin for a HIGH signal.
   digitalWrite(scl_pin_, LOW);  // NOLINT
 
-  // Activate input and pull resistor for the SDA pin, so after the clock
-  // pulse cycle we can verify that SDA is pulled high. Also make sure
-  // that switching to output mode will make SDA low.
-  pinMode(sda_pin_, INPUT_PULLUP);  // NOLINT
-  digitalWrite(sda_pin_, LOW);      // NOLINT
-
-  ESP_LOGI(TAG, "Sending 9 clock pulses to drain any stuck device output");
   delayMicroseconds(half_period_usec);
   for (auto i = 0; i < 9; i++) {
     // Release pull up resistor and switch to output to make the signal LOW.
@@ -173,6 +168,11 @@ void ArduinoI2CBus::recover_() {
     }
   }
 
+  // Activate input and pull resistor for the SDA pin, so we can verify
+  // that SDA is pulled HIGH in the following step.
+  pinMode(sda_pin_, INPUT_PULLUP);  // NOLINT
+  digitalWrite(sda_pin_, LOW);      // NOLINT
+
   // By now, any stuck device ought to have sent all remaining bits of its
   // transation, meaning that it should have freed up the SDA line, resulting
   // in SDA being pulled up.
@@ -193,10 +193,9 @@ void ArduinoI2CBus::recover_() {
   // out of this state.
   // SCL and SDA are already high at this point, so we can generate a START
   // condition by making the SDA signal LOW.
-  ESP_LOGI(TAG, "Generate START condition to reset bus logic of I2C devices");
+  delayMicroseconds(half_period_usec);
   pinMode(sda_pin_, INPUT);   // NOLINT
   pinMode(sda_pin_, OUTPUT);  // NOLINT
-  delayMicroseconds(half_period_usec);
 
   // From the specification:
   // "A START condition immediately followed by a STOP condition (void
@@ -204,7 +203,7 @@ void ArduinoI2CBus::recover_() {
   //  operate properly under this condition."
   // Finally, we'll bring the I2C bus into a starting state by generating
   // a STOP condition.
-  ESP_LOGI(TAG, "Generate STOP condition to finalize recovery");
+  delayMicroseconds(half_period_usec);
   pinMode(sda_pin_, INPUT);         // NOLINT
   pinMode(sda_pin_, INPUT_PULLUP);  // NOLINT
 
