@@ -16,7 +16,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def storage_path():  # type: () -> str
-    return CORE.relative_config_path(".esphome", f"{CORE.config_filename}.json")
+    return CORE.relative_internal_path(f"{CORE.config_filename}.json")
 
 
 def ext_storage_path(base_path, config_filename):  # type: (str, str) -> str
