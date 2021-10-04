@@ -285,11 +285,13 @@ sensor:
     ble_client_id: airthingsmini01
     update_interval: 5min
     temperature:
-      name: "Wave Plus Temperature"
+      name: "Wave Mini Temperature"
     humidity:
-      name: "Wave Plus Humidity"
+      name: "Wave Mini Humidity"
+    pressure:
+      name: "Wave Mini Pressure"
     tvoc:
-      name: "Wave Plus VOC"
+      name: "Wave Mini VOC"
 
 time:
   - platform: homeassistant
