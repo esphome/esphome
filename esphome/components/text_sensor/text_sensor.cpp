@@ -68,14 +68,6 @@ void TextSensor::internal_send_state_to_frontend(const std::string &state) {
   this->callback_.call(state);
 }
 
-void TextSensor::set_icon(const std::string &icon) { this->icon_ = icon; }
-std::string TextSensor::get_icon() {
-  if (this->icon_.has_value())
-    return *this->icon_;
-  return this->icon();
-}
-std::string TextSensor::icon() { return ""; }
-
 std::string TextSensor::unique_id() { return ""; }
 bool TextSensor::has_state() { return this->has_state_; }
 uint32_t TextSensor::hash_base() { return 334300109UL; }

@@ -71,12 +71,6 @@ class Switch : public EntityBase {
    */
   void set_inverted(bool inverted);
 
-  /// Set the icon for this switch. "" for no icon.
-  void set_icon(const std::string &icon);
-
-  /// Get the icon for this switch. Using icon() if not manually set
-  std::string get_icon();
-
   /** Set callback for state changes.
    *
    * @param callback The void(bool) callback.
@@ -105,17 +99,7 @@ class Switch : public EntityBase {
    */
   virtual void write_state(bool state) = 0;
 
-  /** Override this to set the Home Assistant icon for this switch.
-   *
-   * Return "" to disable this feature.
-   *
-   * @return The icon of this switch, for example "mdi:fan".
-   */
-  virtual std::string icon();  // NOLINT
-
   uint32_t hash_base() override;
-
-  optional<std::string> icon_{};  ///< The icon shown here. Not set means use default from switch. Empty means no icon.
 
   CallbackManager<void(bool)> state_callback_{};
   bool inverted_{false};

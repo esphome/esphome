@@ -31,8 +31,6 @@ class TextSensor : public EntityBase {
 
   void publish_state(const std::string &state);
 
-  void set_icon(const std::string &icon);
-
   /// Add a filter to the filter chain. Will be appended to the back.
   void add_filter(Filter *filter);
 
@@ -54,10 +52,6 @@ class TextSensor : public EntityBase {
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  std::string get_icon();
-
-  virtual std::string icon();
-
   virtual std::string unique_id();
 
   bool has_state();
@@ -72,7 +66,6 @@ class TextSensor : public EntityBase {
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 
-  optional<std::string> icon_;
   bool has_state_{false};
 };
 
