@@ -402,7 +402,7 @@ sensor:
       name: Illuminance
     color_temperature:
       name: Color Temperature
-    integration_time: 700ms
+    integration_time: 614ms
     gain: 60x
   - platform: custom
     lambda: |-
