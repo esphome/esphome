@@ -4,45 +4,55 @@
 namespace esphome {
 namespace sml {
 
-SmlNode::SmlNode(uint8_t type) : type(type) {}
+SmlFile::SmlFile(bytes buffer) : buffer_(std::move(buffer)) {
+  // extract messages
+  this->pos_ = 8;
+  while (this->pos_ + 8 < this->buffer_.size()) {
+    if (this->buffer_[this->pos_] == 0x00)
+      break;  // fill byte detected -> no more messages
 
-SmlNode SmlNode::from_buffer(const bytes &buffer, size_t *pos) {
-  uint8_t type = buffer[*pos] >> 4;      // type including overlength info
-  uint8_t length = buffer[*pos] & 0x0f;  // length including TL bytes
+    SmlNode message = SmlNode();
+    if (!this->setup_node(&message))
+      break;
+    this->messages.emplace_back(message);
+  }
+}
+
+bool SmlFile::setup_node(SmlNode *node) {
+  uint8_t type = this->buffer_[this->pos_] >> 4;      // type including overlength info
+  uint8_t length = this->buffer_[this->pos_] & 0x0f;  // length including TL bytes
   bool is_list = (type & 0x07) == SML_LIST;
   bool has_extended_length = type & 0x08;  // we have a long list/value (>15 entries)
   uint8_t parse_length = length;
   if (has_extended_length) {
-    length = (length << 4) + (buffer[*pos + 1] & 0x0f);
+    length = (length << 4) + (this->buffer_[this->pos_ + 1] & 0x0f);
     parse_length = length - 1;
-    *pos += 1;
+    this->pos_ += 1;
   }
 
-  SmlNode node = SmlNode(type & 0x07);
-  if (buffer[*pos] == 0x00)  // end of message
-    *pos += 1;
+  if (this->pos_ + parse_length + 8 >= this->buffer_.size())
+    return false;
+
+  node->type = type & 0x07;
+  node->nodes.clear();
+  node->value_bytes.clear();
+  if (this->buffer_[this->pos_] == 0x00)  // end of message
+    this->pos_ += 1;
   else if (is_list) {  // list
-    *pos += 1;
-    node.nodes.reserve(parse_length);
+    this->pos_ += 1;
+    node->nodes.reserve(parse_length);
     for (size_t i = 0; i != parse_length; i++) {
-      node.nodes.emplace_back(SmlNode::from_buffer(buffer, pos));
+      SmlNode child_node = SmlNode();
+      if (!this->setup_node(&child_node))
+        return false;
+      node->nodes.emplace_back(child_node);
     }
   } else {  // value
-    node.value_bytes = bytes(buffer.begin() + *pos + 1, buffer.begin() + *pos + parse_length);
-    *pos += parse_length;
+    node->value_bytes =
+        bytes(this->buffer_.begin() + this->pos_ + 1, this->buffer_.begin() + this->pos_ + parse_length);
+    this->pos_ += parse_length;
   }
-  return node;
-}
-
-SmlFile::SmlFile(bytes buffer) : buffer_(std::move(buffer)) {
-  // extract messages
-  size_t pos = 8;
-  while (pos + 8 < this->buffer_.size()) {
-    if (this->buffer_[pos] == 0x00)
-      break;  // fill byte detected -> no more messages
-
-    this->messages.emplace_back(SmlNode::from_buffer(this->buffer_, &pos));
-  }
+  return true;
 }
 
 std::vector<ObisInfo> SmlFile::get_obis_info() {

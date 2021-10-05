@@ -14,8 +14,6 @@ using bytes = std::vector<uint8_t>;
 class SmlNode {
  public:
   uint8_t type;
-  SmlNode(uint8_t type);
-  static SmlNode from_buffer(const bytes &buffer, size_t *pos);
   bytes value_bytes;
   std::vector<SmlNode> nodes;
 };
@@ -36,11 +34,13 @@ class ObisInfo {
 class SmlFile {
  public:
   SmlFile(bytes buffer);
+  bool setup_node(SmlNode *node);
   std::vector<SmlNode> messages;
   std::vector<ObisInfo> get_obis_info();
 
  protected:
   const bytes buffer_;
+  size_t pos_;
 };
 
 char check_sml_data(const bytes &buffer);
