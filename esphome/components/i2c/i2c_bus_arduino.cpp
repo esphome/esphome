@@ -73,7 +73,7 @@ ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt)
     to_request += buffers[i].len;
   size_t ret = wire_->requestFrom((int) address, (int) to_request, 1);
   if (ret != to_request) {
-    ESP_LOGVV(TAG, "RX %u from %02X failed with error %u", to_request, ret);
+    ESP_LOGVV(TAG, "RX %u from %02X failed with error %u", to_request, address, ret);
     return ERROR_TIMEOUT;
   }
 
