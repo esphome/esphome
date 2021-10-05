@@ -55,8 +55,8 @@ class UARTComponent {
   uint32_t get_baud_rate() const { return baud_rate_; }
 
 #ifdef USE_UART_DEBUGGER
-  void add_data_callback(std::function<void(UARTDirection, uint8_t)> &&callback) {
-    this->data_callback_.add(std::move(callback));
+  void add_debug_callback(std::function<void(UARTDirection, uint8_t)> &&callback) {
+    this->debug_callback_.add(std::move(callback));
   }
 #endif
 
@@ -72,7 +72,7 @@ class UARTComponent {
   uint8_t data_bits_;
   UARTParityOptions parity_;
 #ifdef USE_UART_DEBUGGER
-  CallbackManager<void(UARTDirection, uint8_t)> data_callback_{};
+  CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};
 #endif
 };
 

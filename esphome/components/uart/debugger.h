@@ -21,7 +21,7 @@ enum UARTDirection {
 class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector<uint8_t>> {
  public:
   explicit UARTDebugger(UARTComponent *parent) {
-    parent->add_data_callback([this](UARTDirection direction, uint8_t byte) {
+    parent->add_debug_callback([this](UARTDirection direction, uint8_t byte) {
       if (!this->is_my_direction_(direction)) { return; }
       if (this->is_recursive_()) { return; }
       if (has_buffered_bytes_() && this->direction_changed_(direction)) {
@@ -129,9 +129,9 @@ class UARTDummyReceiver : public Component, public UARTDevice {
  public:
   UARTDummyReceiver(UARTComponent *parent) : UARTDevice(parent) {}
   void loop() override {
-    // Reading up to a maximum number of bytes, to make sure that this loop()
+    // Reading up to a limited number of bytes, to make sure that this loop()
     // won't lock up the system on a continuous incoming stream of bytes.
-    int count = 100;
+    int count = 50;
     while (this->available() && count--) {
       this->read();
     }
