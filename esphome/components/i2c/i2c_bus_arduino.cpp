@@ -94,7 +94,7 @@ ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt)
       debug_hex += debug_buf;
     }
   }
-  ESP_LOGVV(TAG, "0x%02X RX %s", debug_hex.c_str());
+  ESP_LOGVV(TAG, "0x%02X RX %s", address, debug_hex.c_str());
 #endif
 
   return ERROR_OK;
@@ -118,7 +118,7 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
       debug_hex += debug_buf;
     }
   }
-  ESP_LOGVV(TAG, "0x%02X TX %s", debug_hex.c_str());
+  ESP_LOGVV(TAG, "0x%02X TX %s", address, debug_hex.c_str());
 #endif
 
   wire_->beginTransmission(address);
