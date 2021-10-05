@@ -13,7 +13,7 @@ class SafeModeSwitch : public switch_::Switch, public Component {
   void set_ota(ota::OTAComponent *ota);
 
  protected:
-  ota::OTAComponent *ota_{nullptr};
+  ota::OTAComponent *ota_;
   void write_state(bool state) override;
 };
 

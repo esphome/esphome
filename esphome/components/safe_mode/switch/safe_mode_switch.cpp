@@ -16,10 +16,7 @@ void SafeModeSwitch::write_state(bool state) {
 
   if (state) {
     ESP_LOGI(TAG, "Restarting device in safe mode...");
-
-    if (this->ota_ != nullptr) {
-      this->ota_->set_safe_mode_pending(true);
-    }
+    this->ota_->set_safe_mode_pending(true);
 
     // Let MQTT settle a bit
     delay(100);  // NOLINT
