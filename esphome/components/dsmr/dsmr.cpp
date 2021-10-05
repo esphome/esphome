@@ -3,9 +3,9 @@
 #include "dsmr.h"
 #include "esphome/core/log.h"
 
-#include <AES.h>
-#include <Crypto.h>
-#include <GCM.h>
+// #include <AES.h>
+// #include <Crypto.h>
+// #include <GCM.h>
 
 namespace esphome {
 namespace dsmr {
@@ -104,7 +104,7 @@ void Dsmr::receive_encrypted_() {
       // Complete header + a few bytes of data
       packet_size = buffer[11] << 8 | buffer[12];
     }
-    if (buffer_length == packet_size + 13 && packet_size > 0) {
+    /*if (buffer_length == packet_size + 13 && packet_size > 0) {
       ESP_LOGV(TAG, "Encrypted data: %d bytes", buffer_length);
 
       GCM<AES128> *gcmaes128{new GCM<AES128>()};
@@ -130,7 +130,7 @@ void Dsmr::receive_encrypted_() {
       telegram_len_ = 0;
       return;
     }
-
+*/
     if (!available()) {
       // baud rate is 115200 for encrypted data, this means a few byte should arrive every time
       // program runs faster than buffer loading then available() might return false in the middle
