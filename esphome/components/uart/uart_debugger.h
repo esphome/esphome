@@ -10,14 +10,6 @@
 namespace esphome {
 namespace uart {
 
-static const char *const TAG = "uart_debugger";
-
-enum UARTDirection {
-  UART_DIRECTION_RX,
-  UART_DIRECTION_TX,
-  UART_DIRECTION_BOTH,
-};
-
 class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector<uint8_t>> {
  public:
   explicit UARTDebugger(UARTComponent *parent) {
@@ -131,9 +123,10 @@ class UARTDummyReceiver : public Component, public UARTDevice {
   void loop() override {
     // Reading up to a limited number of bytes, to make sure that this loop()
     // won't lock up the system on a continuous incoming stream of bytes.
+    uint8_t data;
     int count = 50;
     while (this->available() && count--) {
-      this->read();
+      this->read_byte(&data);
     }
   }
 };
