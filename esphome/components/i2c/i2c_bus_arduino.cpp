@@ -62,33 +62,75 @@ void ArduinoI2CBus::dump_config() {
   }
 }
 ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
-  if (!initialized_)
+  // logging is only enabled with vv level, if warnings are shown the caller
+  // should log them
+  if (!initialized_) {
+    ESP_LOGVV(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
+  }
   size_t to_request = 0;
   for (size_t i = 0; i < cnt; i++)
     to_request += buffers[i].len;
   size_t ret = wire_->requestFrom((int) address, (int) to_request, 1);
   if (ret != to_request) {
+    ESP_LOGVV(TAG, "RX %u from %02X failed with error %u", to_request, address, ret);
     return ERROR_TIMEOUT;
   }
+
   for (size_t i = 0; i < cnt; i++) {
     const auto &buf = buffers[i];
     for (size_t j = 0; j < buf.len; j++)
       buf.data[j] = wire_->read();
   }
+
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+  char debug_buf[4];
+  std::string debug_hex;
+
+  for (size_t i = 0; i < cnt; i++) {
+    const auto &buf = buffers[i];
+    for (size_t j = 0; j < buf.len; j++) {
+      snprintf(debug_buf, sizeof(debug_buf), "%02X", buf.data[j]);
+      debug_hex += debug_buf;
+    }
+  }
+  ESP_LOGVV(TAG, "0x%02X RX %s", address, debug_hex.c_str());
+#endif
+
   return ERROR_OK;
 }
 ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
-  if (!initialized_)
+  // logging is only enabled with vv level, if warnings are shown the caller
+  // should log them
+  if (!initialized_) {
+    ESP_LOGVV(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
+  }
+
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+  char debug_buf[4];
+  std::string debug_hex;
+
+  for (size_t i = 0; i < cnt; i++) {
+    const auto &buf = buffers[i];
+    for (size_t j = 0; j < buf.len; j++) {
+      snprintf(debug_buf, sizeof(debug_buf), "%02X", buf.data[j]);
+      debug_hex += debug_buf;
+    }
+  }
+  ESP_LOGVV(TAG, "0x%02X TX %s", address, debug_hex.c_str());
+#endif
 
   wire_->beginTransmission(address);
+  size_t written = 0;
   for (size_t i = 0; i < cnt; i++) {
     const auto &buf = buffers[i];
     if (buf.len == 0)
       continue;
     size_t ret = wire_->write(buf.data, buf.len);
+    written += ret;
     if (ret != buf.len) {
+      ESP_LOGVV(TAG, "TX failed at %u", written);
       return ERROR_UNKNOWN;
     }
   }
@@ -97,10 +139,13 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
     return ERROR_OK;
   } else if (status == 1) {
     // transmit buffer not large enough
+    ESP_LOGVV(TAG, "TX failed: buffer not large enough");
     return ERROR_UNKNOWN;
   } else if (status == 2 || status == 3) {
+    ESP_LOGVV(TAG, "TX failed: not acknowledged");
     return ERROR_NOT_ACKNOWLEDGED;
   }
+  ESP_LOGVV(TAG, "TX failed: unknown error %u", status);
   return ERROR_UNKNOWN;
 }
 

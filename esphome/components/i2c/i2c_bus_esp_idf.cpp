@@ -73,16 +73,22 @@ void IDFI2CBus::dump_config() {
   }
 }
 ErrorCode IDFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
-  if (!initialized_)
+  // logging is only enabled with vv level, if warnings are shown the caller
+  // should log them
+  if (!initialized_) {
+    ESP_LOGVV(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
+  }
   i2c_cmd_handle_t cmd = i2c_cmd_link_create();
   esp_err_t err = i2c_master_start(cmd);
   if (err != ESP_OK) {
+    ESP_LOGVV(TAG, "RX from %02X master start failed: %s", address, esp_err_to_name(err));
     i2c_cmd_link_delete(cmd);
     return ERROR_UNKNOWN;
   }
   err = i2c_master_write_byte(cmd, (address << 1) | I2C_MASTER_READ, true);
   if (err != ESP_OK) {
+    ESP_LOGVV(TAG, "RX from %02X address write failed: %s", address, esp_err_to_name(err));
     i2c_cmd_link_delete(cmd);
     return ERROR_UNKNOWN;
   }
@@ -92,12 +98,14 @@ ErrorCode IDFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
       continue;
     err = i2c_master_read(cmd, buf.data, buf.len, i == cnt - 1 ? I2C_MASTER_LAST_NACK : I2C_MASTER_ACK);
     if (err != ESP_OK) {
+      ESP_LOGVV(TAG, "RX from %02X data read failed: %s", address, esp_err_to_name(err));
       i2c_cmd_link_delete(cmd);
       return ERROR_UNKNOWN;
     }
   }
   err = i2c_master_stop(cmd);
   if (err != ESP_OK) {
+    ESP_LOGVV(TAG, "RX from %02X stop failed: %s", address, esp_err_to_name(err));
     i2c_cmd_link_delete(cmd);
     return ERROR_UNKNOWN;
   }
@@ -105,25 +113,64 @@ ErrorCode IDFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
   i2c_cmd_link_delete(cmd);
   if (err == ESP_FAIL) {
     // transfer not acked
+    ESP_LOGVV(TAG, "RX from %02X failed: not acked", address);
     return ERROR_NOT_ACKNOWLEDGED;
   } else if (err == ESP_ERR_TIMEOUT) {
+    ESP_LOGVV(TAG, "RX from %02X failed: timeout", address);
     return ERROR_TIMEOUT;
   } else if (err != ESP_OK) {
+    ESP_LOGVV(TAG, "RX from %02X failed: %s", address, esp_err_to_name(err));
     return ERROR_UNKNOWN;
   }
+
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+  char debug_buf[4];
+  std::string debug_hex;
+
+  for (size_t i = 0; i < cnt; i++) {
+    const auto &buf = buffers[i];
+    for (size_t j = 0; j < buf.len; j++) {
+      snprintf(debug_buf, sizeof(debug_buf), "%02X", buf.data[j]);
+      debug_hex += debug_buf;
+    }
+  }
+  ESP_LOGVV(TAG, "0x%02X RX %s", address, debug_hex.c_str());
+#endif
+
   return ERROR_OK;
 }
 ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
-  if (!initialized_)
+  // logging is only enabled with vv level, if warnings are shown the caller
+  // should log them
+  if (!initialized_) {
+    ESP_LOGVV(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
+  }
+
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+  char debug_buf[4];
+  std::string debug_hex;
+
+  for (size_t i = 0; i < cnt; i++) {
+    const auto &buf = buffers[i];
+    for (size_t j = 0; j < buf.len; j++) {
+      snprintf(debug_buf, sizeof(debug_buf), "%02X", buf.data[j]);
+      debug_hex += debug_buf;
+    }
+  }
+  ESP_LOGVV(TAG, "0x%02X TX %s", address, debug_hex.c_str());
+#endif
+
   i2c_cmd_handle_t cmd = i2c_cmd_link_create();
   esp_err_t err = i2c_master_start(cmd);
   if (err != ESP_OK) {
+    ESP_LOGVV(TAG, "TX to %02X master start failed: %s", address, esp_err_to_name(err));
     i2c_cmd_link_delete(cmd);
     return ERROR_UNKNOWN;
   }
   err = i2c_master_write_byte(cmd, (address << 1) | I2C_MASTER_WRITE, true);
   if (err != ESP_OK) {
+    ESP_LOGVV(TAG, "TX to %02X address write failed: %s", address, esp_err_to_name(err));
     i2c_cmd_link_delete(cmd);
     return ERROR_UNKNOWN;
   }
@@ -133,12 +180,14 @@ ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
       continue;
     err = i2c_master_write(cmd, buf.data, buf.len, true);
     if (err != ESP_OK) {
+      ESP_LOGVV(TAG, "TX to %02X data write failed: %s", address, esp_err_to_name(err));
       i2c_cmd_link_delete(cmd);
       return ERROR_UNKNOWN;
     }
   }
   err = i2c_master_stop(cmd);
   if (err != ESP_OK) {
+    ESP_LOGVV(TAG, "TX to %02X master stop failed: %s", address, esp_err_to_name(err));
     i2c_cmd_link_delete(cmd);
     return ERROR_UNKNOWN;
   }
@@ -146,10 +195,13 @@ ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
   i2c_cmd_link_delete(cmd);
   if (err == ESP_FAIL) {
     // transfer not acked
+    ESP_LOGVV(TAG, "TX to %02X failed: not acked", address);
     return ERROR_NOT_ACKNOWLEDGED;
   } else if (err == ESP_ERR_TIMEOUT) {
+    ESP_LOGVV(TAG, "TX to %02X failed: timeout", address);
     return ERROR_TIMEOUT;
   } else if (err != ESP_OK) {
+    ESP_LOGVV(TAG, "TX to %02X failed: %s", address, esp_err_to_name(err));
     return ERROR_UNKNOWN;
   }
   return ERROR_OK;
