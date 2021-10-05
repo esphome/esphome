@@ -582,7 +582,7 @@ class MDNSStatusThread(threading.Thread):
 class PingStatusThread(threading.Thread):
     def run(self):
         with multiprocessing.Pool(processes=8) as pool:
-            while not STOP_EVENT.is_set():
+            while not STOP_EVENT.wait(2):
                 # Only do pings if somebody has the dashboard open
 
                 def callback(ret):
