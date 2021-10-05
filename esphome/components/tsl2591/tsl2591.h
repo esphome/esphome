@@ -224,7 +224,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override;
 
  protected:
-  const char *name_;  // TODO: extend esphome::EntityBase
+  const char *name_;
   sensor::Sensor *full_spectrum_sensor_;
   sensor::Sensor *infrared_sensor_;
   sensor::Sensor *visible_sensor_;
