@@ -261,6 +261,8 @@ logger:
   level: DEBUG
   esp8266_store_log_strings_in_flash: true
 
+imperial:
+
 web_server:
 
 deep_sleep:
@@ -1297,4 +1299,3 @@ dsmr:
 daly_bms:
   update_interval: 20s
   uart_id: uart1
-
