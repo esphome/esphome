@@ -166,13 +166,13 @@ void Sprinkler::set_multiplier(const optional<float> multiplier) {
 }
 
 void Sprinkler::set_valve_open_delay(const uint32_t valve_open_delay) {
-  this->set_timer_duration_(sprinkler::TIMER_VALVE_OVERLAP_DELAY, 0);
-  this->set_timer_duration_(sprinkler::TIMER_VALVE_OPEN_DELAY, valve_open_delay);
+  this->valve_overlap_ = false;
+  this->set_timer_duration_(sprinkler::TIMER_VALVE_SWITCHING_DELAY, valve_open_delay);
 }
 
 void Sprinkler::set_valve_overlap(uint32_t valve_overlap) {
-  this->set_timer_duration_(sprinkler::TIMER_VALVE_OPEN_DELAY, 0);
-  this->set_timer_duration_(sprinkler::TIMER_VALVE_OVERLAP_DELAY, valve_overlap);
+  this->valve_overlap_ = true;
+  this->set_timer_duration_(sprinkler::TIMER_VALVE_SWITCHING_DELAY, valve_overlap);
 }
 
 void Sprinkler::set_valve_run_duration(const optional<size_t> valve_number,
@@ -246,8 +246,8 @@ void Sprinkler::next_valve() {
 void Sprinkler::previous_valve() { this->start_valve_(this->previous_valve_number_(this->active_valve_.value_or(0))); }
 
 void Sprinkler::shutdown() {
-  this->cancel_timer_(sprinkler::TIMER_VALVE_RUN_DURATION);
-  this->cancel_timer_(sprinkler::TIMER_VALVE_OPEN_DELAY);
+  this->cancel_timer_(sprinkler::TIMER_VALVE_RUN);
+  this->cancel_timer_(sprinkler::TIMER_VALVE_SWITCHING_DELAY);
   this->all_valves_off_(true);
   this->active_valve_.reset();
 }
@@ -307,8 +307,8 @@ optional<uint32_t> Sprinkler::time_remaining() {
   optional<uint32_t> secs_remaining;
   if (this->active_valve_.has_value()) {
     if (this->is_a_valid_valve(this->active_valve_.value())) {
-      secs_remaining = (this->timer_[sprinkler::TIMER_VALVE_RUN_DURATION].start_time +
-                        this->timer_[sprinkler::TIMER_VALVE_RUN_DURATION].time - millis()) /
+      secs_remaining = (this->timer_[sprinkler::TIMER_VALVE_RUN].start_time +
+                        this->timer_[sprinkler::TIMER_VALVE_RUN].time - millis()) /
                        1000;
     }
   }
@@ -441,35 +441,41 @@ void Sprinkler::set_pump_state_(const size_t valve_number, const bool pump_state
 }
 
 void Sprinkler::start_valve_(const optional<size_t> valve_number, optional<uint32_t> run_duration) {
+  // we can't do anything if valve_number isn't present or isn't valid
   if (!valve_number.has_value()) {
     return;
   }
-
+  if (!this->is_a_valid_valve(valve_number.value())) {
+    return;
+  }
+  // we also won't do anything if valve_number matches the active_valve_
   if (this->active_valve_.has_value()) {
     if (this->active_valve_.value() == valve_number.value()) {
       return;
     }
   }
-  if (!this->is_a_valid_valve(valve_number.value())) {
-    return;
-  }
+  // sanity checks passed, compute run_duration, make valve_number the active_valve_ and start it
   this->active_valve_ = valve_number;
   if (!run_duration.has_value()) {
+    run_duration = this->valve_run_duration_adjusted(this->active_valve_.value());
+  } else if (run_duration.value() == 0) {
     run_duration = this->valve_run_duration_adjusted(this->active_valve_.value());
   }
   this->reset_resume_();
   ESP_LOGD(TAG, "Starting valve %i for %i seconds", this->active_valve_.value(), run_duration.value());
-  this->set_timer_duration_(sprinkler::TIMER_VALVE_RUN_DURATION, run_duration.value());
-  this->start_timer_(sprinkler::TIMER_VALVE_RUN_DURATION);
+  this->set_timer_duration_(sprinkler::TIMER_VALVE_RUN, run_duration.value());
+  this->start_timer_(sprinkler::TIMER_VALVE_RUN);
 
-  if (this->timer_duration_(sprinkler::TIMER_VALVE_OPEN_DELAY) > 0) {
-    this->start_timer_(sprinkler::TIMER_VALVE_OPEN_DELAY);
-    this->switch_to_pump_(this->active_valve_.value());
-    this->all_valves_off_();
-  } else if (this->timer_duration_(sprinkler::TIMER_VALVE_OVERLAP_DELAY) > 0) {
-    this->start_timer_(sprinkler::TIMER_VALVE_OVERLAP_DELAY);
-    this->switch_to_valve_(this->active_valve_.value(), true);
-    this->switch_to_pump_(this->active_valve_.value(), true);
+  if (this->timer_duration_(sprinkler::TIMER_VALVE_SWITCHING_DELAY) > 0) {
+    if (this->valve_overlap_) {
+      this->start_timer_(sprinkler::TIMER_VALVE_SWITCHING_DELAY);
+      this->switch_to_valve_(this->active_valve_.value(), true);
+      this->switch_to_pump_(this->active_valve_.value(), true);
+    } else {
+      this->start_timer_(sprinkler::TIMER_VALVE_SWITCHING_DELAY);
+      this->switch_to_pump_(this->active_valve_.value());
+      this->all_valves_off_();
+    }
   } else {
     this->switch_to_valve_(this->active_valve_.value());
     this->switch_to_pump_(this->active_valve_.value());
@@ -548,23 +554,9 @@ std::function<void()> Sprinkler::timer_cbf_(const SprinklerTimerIndex timer_inde
   return this->timer_[timer_index].func;
 }
 
-void Sprinkler::valve_open_delay_callback_() {
-  ESP_LOGD(TAG, "open_delay timer expired; activating valve %i", this->active_valve_.value());
-  this->timer_[sprinkler::TIMER_VALVE_OPEN_DELAY].active = false;
-  this->switch_to_valve_(this->active_valve_.value());
-}
-
-void Sprinkler::valve_overlap_delay_callback_() {
-  ESP_LOGD(TAG, "overlap_delay timer expired; deactivating previous valve, valve %i remains active",
-           this->active_valve_.value());
-  this->timer_[sprinkler::TIMER_VALVE_OVERLAP_DELAY].active = false;
-  this->switch_to_pump_(this->active_valve_.value());
-  this->switch_to_valve_(this->active_valve_.value());
-}
-
-void Sprinkler::valve_cycle_complete_callback_() {
-  ESP_LOGD(TAG, "cycle_complete timer expired:");
-  this->timer_[sprinkler::TIMER_VALVE_RUN_DURATION].active = false;
+void Sprinkler::valve_cycle_timer_callback_() {
+  ESP_LOGD(TAG, "Valve cycle_timer expired");
+  this->timer_[sprinkler::TIMER_VALVE_RUN].active = false;
   if (!this->active_valve_.has_value()) {
     return;
   }
@@ -580,13 +572,30 @@ void Sprinkler::valve_cycle_complete_callback_() {
   }
 }
 
+void Sprinkler::valve_switching_delay_callback_() {
+  this->timer_[sprinkler::TIMER_VALVE_SWITCHING_DELAY].active = false;
+  ESP_LOGD(TAG, "Valve switching_delay timer expired");
+  if (!this->active_valve_.has_value()) {
+    return;
+  }
+  if (this->valve_overlap_) {
+    ESP_LOGD(TAG, "  Deactivating previous valve, valve %i remains active", this->active_valve_.value());
+    this->switch_to_pump_(this->active_valve_.value());
+    this->switch_to_valve_(this->active_valve_.value());
+  } else {
+    ESP_LOGD(TAG, "  Activating valve %i", this->active_valve_.value());
+    this->switch_to_valve_(this->active_valve_.value());
+  }
+}
+
 void Sprinkler::dump_config() {
   ESP_LOGCONFIG(TAG, "Sprinkler Controller");
-  if (this->timer_duration_(sprinkler::TIMER_VALVE_OPEN_DELAY)) {
-    ESP_LOGCONFIG(TAG, "  Valve Open Delay: %u seconds", this->timer_duration_(sprinkler::TIMER_VALVE_OPEN_DELAY));
-  }
-  if (this->timer_duration_(sprinkler::TIMER_VALVE_OVERLAP_DELAY)) {
-    ESP_LOGCONFIG(TAG, "  Valve Overlap: %u seconds", this->timer_duration_(sprinkler::TIMER_VALVE_OVERLAP_DELAY));
+  if (this->timer_duration_(sprinkler::TIMER_VALVE_SWITCHING_DELAY)) {
+    if (this->valve_overlap_)
+      ESP_LOGCONFIG(TAG, "  Valve Overlap: %u seconds", this->timer_duration_(sprinkler::TIMER_VALVE_SWITCHING_DELAY));
+    else
+      ESP_LOGCONFIG(TAG, "  Valve Open Delay: %u seconds",
+                    this->timer_duration_(sprinkler::TIMER_VALVE_SWITCHING_DELAY));
   }
   for (size_t valve_number = 0; valve_number < this->number_of_valves(); valve_number++) {
     ESP_LOGCONFIG(TAG, "  Valve %u:", valve_number);

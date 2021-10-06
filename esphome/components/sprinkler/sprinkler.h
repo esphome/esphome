@@ -8,9 +8,8 @@ namespace esphome {
 namespace sprinkler {
 
 enum SprinklerTimerIndex : size_t {
-  TIMER_VALVE_OPEN_DELAY = 0,
-  TIMER_VALVE_OVERLAP_DELAY = 1,
-  TIMER_VALVE_RUN_DURATION = 2,
+  TIMER_VALVE_RUN = 0,
+  TIMER_VALVE_SWITCHING_DELAY = 1,
 };
 
 class SprinklerSwitch;
@@ -234,9 +233,11 @@ class Sprinkler : public Component {
   std::function<void()> timer_cbf_(SprinklerTimerIndex timer_index);
 
   /// callback functions for timers
-  void valve_open_delay_callback_();
-  void valve_overlap_delay_callback_();
-  void valve_cycle_complete_callback_();
+  void valve_cycle_timer_callback_();
+  void valve_switching_delay_callback_();
+
+  /// Sprinkler valve cycle should overlap
+  bool valve_overlap_{false};
 
   /// The name of the sprinkler controller component
   std::string name_{""};
@@ -258,9 +259,8 @@ class Sprinkler : public Component {
 
   /// Valve control timers
   std::vector<SprinklerTimer> timer_{
-      {this->name_ + "open_delay", false, 0, 0, std::bind(&Sprinkler::valve_open_delay_callback_, this)},
-      {this->name_ + "overlap_delay", false, 0, 0, std::bind(&Sprinkler::valve_overlap_delay_callback_, this)},
-      {this->name_ + "cycle_complete", false, 0, 0, std::bind(&Sprinkler::valve_cycle_complete_callback_, this)}};
+      {this->name_ + "cycle_timer", false, 0, 0, std::bind(&Sprinkler::valve_cycle_timer_callback_, this)},
+      {this->name_ + "switching_delay", false, 0, 0, std::bind(&Sprinkler::valve_switching_delay_callback_, this)}};
 
   /// Other Sprinkler instances we should be aware of (used to check if pumps are in use)
   std::vector<Sprinkler *> other_controllers_;
