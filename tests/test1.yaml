@@ -1708,6 +1708,7 @@ climate:
     name: Anova cooker
     ble_client_id: ble_blah
     unit_of_measurement: c
+    icon: mdi:stove
 
 script:
   - id: climate_custom
@@ -1986,6 +1987,7 @@ fan:
     direction_output: gpio_26
   - platform: speed
     id: fan_speed
+    icon: mdi:weather-windy
     output: pca_6
     speed_count: 10
     name: 'Living Room Fan 2'
@@ -2287,6 +2289,7 @@ cover:
     name: 'Test AM43'
     id: am43_test
     ble_client_id: ble_foo
+    icon: mdi:blinds
 
 debug:
 
