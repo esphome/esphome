@@ -1,5 +1,7 @@
 #include "airthings_wave_mini.h"
 
+#ifdef USE_ESP32
+
 namespace esphome {
 namespace airthings_wave_mini {
 
@@ -107,3 +109,5 @@ AirthingsWaveMini::AirthingsWaveMini()
 
 }  // namespace airthings_wave_mini
 }  // namespace esphome
+
+#endif  // USE_ESP32

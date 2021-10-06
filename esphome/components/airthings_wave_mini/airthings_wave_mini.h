@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include <esp_gattc_api.h>
 #include <algorithm>
 #include <iterator>
@@ -59,3 +61,5 @@ class AirthingsWaveMini : public PollingComponent, public ble_client::BLEClientN
 
 }  // namespace airthings_wave_mini
 }  // namespace esphome
+
+#endif  // USE_ESP32

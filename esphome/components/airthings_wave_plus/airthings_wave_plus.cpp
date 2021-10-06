@@ -1,5 +1,7 @@
 #include "airthings_wave_plus.h"
 
+#ifdef USE_ESP32
+
 namespace esphome {
 namespace airthings_wave_plus {
 
@@ -131,3 +133,5 @@ AirthingsWavePlus::AirthingsWavePlus()
 
 }  // namespace airthings_wave_plus
 }  // namespace esphome
+
+#endif  // USE_ESP32
