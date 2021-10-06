@@ -1905,6 +1905,8 @@ switch:
           state: yes
   - platform: restart
     name: 'Living Room Restart'
+  - platform: safe_mode
+    name: 'Living Room Restart (Safe Mode)'
   - platform: shutdown
     name: 'Living Room Shutdown'
   - platform: output
