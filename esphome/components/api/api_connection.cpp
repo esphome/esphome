@@ -181,6 +181,7 @@ bool APIConnection::send_binary_sensor_info(binary_sensor::BinarySensor *binary_
   msg.device_class = binary_sensor->get_device_class();
   msg.is_status_binary_sensor = binary_sensor->is_status_binary_sensor();
   msg.disabled_by_default = binary_sensor->is_disabled_by_default();
+  msg.icon = binary_sensor->get_icon();
   return this->send_list_entities_binary_sensor_response(msg);
 }
 #endif
@@ -213,6 +214,7 @@ bool APIConnection::send_cover_info(cover::Cover *cover) {
   msg.supports_tilt = traits.get_supports_tilt();
   msg.device_class = cover->get_device_class();
   msg.disabled_by_default = cover->is_disabled_by_default();
+  msg.icon = cover->get_icon();
   return this->send_list_entities_cover_response(msg);
 }
 void APIConnection::cover_command(const CoverCommandRequest &msg) {
@@ -278,6 +280,7 @@ bool APIConnection::send_fan_info(fan::FanState *fan) {
   msg.supports_direction = traits.supports_direction();
   msg.supported_speed_count = traits.supported_speed_count();
   msg.disabled_by_default = fan->is_disabled_by_default();
+  msg.icon = fan->get_icon();
   return this->send_list_entities_fan_response(msg);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
@@ -340,6 +343,7 @@ bool APIConnection::send_light_info(light::LightState *light) {
   msg.unique_id = get_default_unique_id("light", light);
 
   msg.disabled_by_default = light->is_disabled_by_default();
+  msg.icon = light->get_icon();
 
   for (auto mode : traits.get_supported_color_modes())
     msg.supported_color_modes.push_back(static_cast<enums::ColorMode>(mode));
@@ -530,6 +534,7 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   msg.unique_id = get_default_unique_id("climate", climate);
 
   msg.disabled_by_default = climate->is_disabled_by_default();
+  msg.icon = climate->get_icon();
 
   msg.supports_current_temperature = traits.get_supports_current_temperature();
   msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
