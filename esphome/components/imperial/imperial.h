@@ -41,7 +41,7 @@ class ImperialComponent : public Component {
   void send_response_(std::vector<uint8_t> &response);
   void on_wifi_connect_timeout_();
 
-  std::vector<uint8_t> &build_rpc_settings_response_();
+  std::vector<uint8_t> build_rpc_settings_response_();
   int available_();
   uint8_t read_byte_();
   void write_data_(std::vector<uint8_t> &data);
