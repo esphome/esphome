@@ -1,44 +1,106 @@
 #include "bedjet.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace bedjet {
 
-static const char *TAG = "bedjet";
-
 using namespace esphome::climate;
+
+/// Converts a BedJet temp step into degrees Celsius.
+float bedjet_temp_to_c(const uint8_t temp) {
+  // BedJet temp is "C*2"; to get C, divide by 2.
+  return temp / 2.0f;
+}
+
+/// Converts a BedJet fan step to a speed percentage, in the range of 5% to 100%.
+uint8_t bedjet_fan_step_to_speed(const uint8_t fan) {
+  //  0 =  5%
+  // 19 = 100%
+  return 5 * fan + 5;
+}
+
+static const char *bedjet_fan_step_to_fan_mode(const uint8_t fan_step) {
+  if (fan_step >= 0 && fan_step <= 19)
+    return BEDJET_FAN_STEP_NAMES[fan_step];
+  return nullptr;
+}
+
+static uint8_t bedjet_fan_speed_to_step(const std::string &fan_step_percent) {
+  if (fan_step_percent == "5%")
+    return 0;
+  if (fan_step_percent == "10%")
+    return 1;
+  if (fan_step_percent == "15%")
+    return 2;
+  if (fan_step_percent == "20%")
+    return 3;
+  if (fan_step_percent == "25%")
+    return 4;
+  if (fan_step_percent == "30%")
+    return 5;
+  if (fan_step_percent == "35%")
+    return 6;
+  if (fan_step_percent == "40%")
+    return 7;
+  if (fan_step_percent == "45%")
+    return 8;
+  if (fan_step_percent == "50%")
+    return 9;
+  if (fan_step_percent == "55%")
+    return 10;
+  if (fan_step_percent == "60%")
+    return 11;
+  if (fan_step_percent == "65%")
+    return 12;
+  if (fan_step_percent == "70%")
+    return 13;
+  if (fan_step_percent == "75%")
+    return 14;
+  if (fan_step_percent == "80%")
+    return 15;
+  if (fan_step_percent == "85%")
+    return 16;
+  if (fan_step_percent == "90%")
+    return 17;
+  if (fan_step_percent == "95%")
+    return 18;
+  if (fan_step_percent == "100%")
+    return 19;
+  return -1;
+}
 
 void Bedjet::dump_config() {
   LOG_CLIMATE("", "BedJet Climate", this);
   auto traits = this->get_traits();
 
-  if (!BEDJET_DEBUG) return;
+  if (!BEDJET_DEBUG)
+    return;
   ESP_LOGCONFIG(TAG, "  Supported modes:");
   for (auto mode : traits.get_supported_modes()) {
-    ESP_LOGCONFIG(TAG, "   - %s", climate_mode_to_string(mode));
+    ESP_LOGCONFIG(TAG, "   - %s", LOG_STR_ARG(climate_mode_to_string(mode)));
   }
 
   ESP_LOGCONFIG(TAG, "  Supported fan modes:");
-  for (auto mode : traits.get_supported_fan_modes()) {
-    ESP_LOGCONFIG(TAG, "   - %s", climate_fan_mode_to_string(mode));
+  for (const auto &mode : traits.get_supported_fan_modes()) {
+    ESP_LOGCONFIG(TAG, "   - %s", LOG_STR_ARG(climate_fan_mode_to_string(mode)));
   }
-  for (auto mode : traits.get_supported_custom_fan_modes()) {
+  for (const auto &mode : traits.get_supported_custom_fan_modes()) {
     ESP_LOGCONFIG(TAG, "   - %s (c)", mode.c_str());
   }
 
   ESP_LOGCONFIG(TAG, "  Supported presets:");
   for (auto preset : traits.get_supported_presets()) {
-    ESP_LOGCONFIG(TAG, "   - %s", climate_preset_to_string(preset));
+    ESP_LOGCONFIG(TAG, "   - %s", LOG_STR_ARG(climate_preset_to_string(preset)));
   }
-  for (auto preset : traits.get_supported_custom_presets()) {
+  for (const auto &preset : traits.get_supported_custom_presets()) {
     ESP_LOGCONFIG(TAG, "   - %s (c)", preset.c_str());
   }
 }
 
 void Bedjet::setup() {
-  this->codec_ = new BedjetCodec();
+  this->codec_ = make_unique<BedjetCodec>();
 
   // restore set points
   auto restore = this->restore_state_();
@@ -47,14 +109,14 @@ void Bedjet::setup() {
     restore->apply(this);
   } else {
     // Initial status is unknown until we connect
-    this->reset_state();
+    this->reset_state_();
   }
 
   this->setup_time_();
 }
 
 /** Resets states to defaults. */
-void Bedjet::reset_state() {
+void Bedjet::reset_state_() {
   this->mode = climate::CLIMATE_MODE_OFF;
   this->action = climate::CLIMATE_ACTION_IDLE;
   this->target_temperature = NAN;
@@ -67,9 +129,9 @@ void Bedjet::reset_state() {
 void Bedjet::loop() {}
 
 void Bedjet::control(const ClimateCall &call) {
-  ESP_LOGD("bedjet", "Received Bedjet::control");
-  if (this->node_state != espbt::ClientState::Established) {
-    ESP_LOGW("bedjet", "Not connected, cannot handle control call yet.");
+  ESP_LOGD(TAG, "Received Bedjet::control");
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
+    ESP_LOGW(TAG, "Not connected, cannot handle control call yet.");
     return;
   }
 
@@ -94,7 +156,7 @@ void Bedjet::control(const ClimateCall &call) {
         return;
     }
 
-    auto status = this->write_bedjet_packet(pkt);
+    auto status = this->write_bedjet_packet_(pkt);
 
     if (status) {
       ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
@@ -110,7 +172,7 @@ void Bedjet::control(const ClimateCall &call) {
   if (call.get_target_temperature().has_value()) {
     auto target_temp = *call.get_target_temperature();
     auto pkt = this->codec_->get_set_target_temp_request(target_temp);
-    auto status = this->write_bedjet_packet(pkt);
+    auto status = this->write_bedjet_packet_(pkt);
 
     if (status) {
       ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
@@ -130,7 +192,7 @@ void Bedjet::control(const ClimateCall &call) {
       return;
     }
 
-    auto status = this->write_bedjet_packet(pkt);
+    auto status = this->write_bedjet_packet_(pkt);
     if (status) {
       ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
     } else {
@@ -153,7 +215,7 @@ void Bedjet::control(const ClimateCall &call) {
     } else if (BEDJET_DEBUG) {
       // When BEDJET_DEBUG is enabled, we can optionally offer some additional commands via "presets"
       if (preset == "Update Firmware") {
-        // For debugging, use this to check for a firmware update, which also acts as a way to sort of reboot the Bedjet.
+        // For debugging, this can check for a firmware update
         pkt = this->codec_->get_button_request(MAGIC_UPDATE);
       } else if (BEDJET_DEBUG && preset == "Debug On") {
         pkt = this->codec_->get_button_request(MAGIC_DEBUG_ON);
@@ -165,7 +227,7 @@ void Bedjet::control(const ClimateCall &call) {
       return;
     }
 
-    auto status = this->write_bedjet_packet(pkt);
+    auto status = this->write_bedjet_packet_(pkt);
     if (status) {
       ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
     } else {
@@ -186,11 +248,12 @@ void Bedjet::control(const ClimateCall &call) {
     } else if (fan_mode == climate::CLIMATE_FAN_HIGH) {
       pkt = this->codec_->get_set_fan_speed_request(14 /* = 75% */);
     } else {
-      ESP_LOGW(TAG, "[%s] Unsupported fan mode: %s", this->get_name().c_str(), climate_fan_mode_to_string(fan_mode));
+      ESP_LOGW(TAG, "[%s] Unsupported fan mode: %s", this->get_name().c_str(),
+               LOG_STR_ARG(climate_fan_mode_to_string(fan_mode)));
       return;
     }
 
-    auto status = this->write_bedjet_packet(pkt);
+    auto status = this->write_bedjet_packet_(pkt);
     if (status) {
       ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
     } else {
@@ -199,13 +262,13 @@ void Bedjet::control(const ClimateCall &call) {
     }
   } else if (call.get_custom_fan_mode().has_value()) {
     auto fan_mode = *call.get_custom_fan_mode();
-    auto fan_step = bedjet_fan_speed_to_step_(fan_mode);
+    auto fan_step = bedjet_fan_speed_to_step(fan_mode);
     if (fan_step >= 0 && fan_step <= 19) {
-      ESP_LOGV(TAG, "[%s] Converted fan mode %s to bedjet fan step %d",
-               this->get_name().c_str(), fan_mode.c_str(), fan_step);
+      ESP_LOGV(TAG, "[%s] Converted fan mode %s to bedjet fan step %d", this->get_name().c_str(), fan_mode.c_str(),
+               fan_step);
       // The index should represent the fan_step index.
       BedjetPacket *pkt = this->codec_->get_set_fan_speed_request(fan_step);
-      auto status = this->write_bedjet_packet(pkt);
+      auto status = this->write_bedjet_packet_(pkt);
       if (status) {
         ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
       } else {
@@ -219,11 +282,7 @@ void Bedjet::control(const ClimateCall &call) {
 void Bedjet::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
-      // FIXME: sometimes the Bedjet drops the connection, and on reconnecting it won't notify anymore.
-      //  The lack of notify MIGHT NOT be related to a previous disconnect?
       ESP_LOGV(TAG, "Disconnected: reason=%d", param->disconnect.reason);
-      // If we're intending to disconnect/reconnect, this is expected.
-      // this->reset_state();
       this->status_set_warning();
       break;
     }
@@ -243,15 +302,16 @@ void Bedjet::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
 
       this->char_handle_status_ = chr->handle;
       // We also need to obtain the config descriptor for this handle.
-      // Otherwise once we set node_state=Established, the parent will flush all handles/descriptors, and we won't be able to look it up.
+      // Otherwise once we set node_state=Established, the parent will flush all handles/descriptors, and we won't be
+      // able to look it up.
       auto descr = this->parent_->get_config_descriptor(this->char_handle_status_);
       if (descr == nullptr) {
-        ESP_LOGW(TAG, "No config descriptor found for notify of status handle 0x%x. Will not be able to receive status notifications",
+        ESP_LOGW(TAG, "No config descriptor for status handle 0x%x. Will not be able to receive status notifications",
                  this->char_handle_status_);
       } else if (descr->uuid.get_uuid().len != ESP_UUID_LEN_16 ||
-          descr->uuid.get_uuid().uuid.uuid16 != ESP_GATT_UUID_CHAR_CLIENT_CONFIG) {
-        ESP_LOGW(TAG, "Config descriptor 0x%x (uuid %s) is not a client config char uuid",
-                 this->char_handle_status_, descr->uuid.to_string().c_str());
+                 descr->uuid.get_uuid().uuid.uuid16 != ESP_GATT_UUID_CHAR_CLIENT_CONFIG) {
+        ESP_LOGW(TAG, "Config descriptor 0x%x (uuid %s) is not a client config char uuid", this->char_handle_status_,
+                 descr->uuid.to_string().c_str());
       } else {
         this->config_descr_status_ = descr->handle;
       }
@@ -259,30 +319,35 @@ void Bedjet::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
       chr = this->parent_->get_characteristic(BEDJET_SERVICE_UUID, BEDJET_NAME_UUID);
       if (chr != nullptr) {
         this->char_handle_name_ = chr->handle;
-        auto status = esp_ble_gattc_read_char(
-            this->parent_->gattc_if, this->parent_->conn_id,
-            this->char_handle_name_, ESP_GATT_AUTH_REQ_NONE);
+        auto status = esp_ble_gattc_read_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_name_,
+                                              ESP_GATT_AUTH_REQ_NONE);
+        if (status) {
+          ESP_LOGI(TAG, "[%s] Unable to read name characteristic: %d", this->get_name().c_str(), status);
+        }
       }
 
       ESP_LOGD(TAG, "Services complete: obtained char handles.");
-      this->node_state = espbt::ClientState::Established;
+      this->node_state = espbt::ClientState::ESTABLISHED;
 
-      this->set_notify(true);
+      this->set_notify_(true);
       if (this->time_id_.has_value()) {
         this->send_local_time_();
       }
 
       if (BEDJET_DEBUG) {
         BedjetPacket *pkt = this->codec_->get_button_request(MAGIC_DEBUG_ON);
-        auto status = this->write_bedjet_packet(pkt);
+        auto status = this->write_bedjet_packet_(pkt);
         if (status) {
-          ESP_LOGW(TAG, "[%s] enabling debug mode failed, status=%d", this->parent_->address_str().c_str(), status);
+          ESP_LOGW(TAG, "[%s] enabling debug mode failed, status=%d", this->get_name().c_str(), status);
         } else {
-          ESP_LOGV(TAG, "[%s] enabling debug mode succeeded", this->parent_->address_str().c_str());
+          ESP_LOGV(TAG, "[%s] enabling debug mode succeeded", this->get_name().c_str());
         }
       } else {
         BedjetPacket *pkt = this->codec_->get_button_request(MAGIC_DEBUG_OFF);
-        auto status = this->write_bedjet_packet(pkt);
+        auto status = this->write_bedjet_packet_(pkt);
+        if (status) {
+          ESP_LOGV(TAG, "[%s] disabling debug mode failed, status=%d", this->get_name().c_str(), status);
+        }
       }
       break;
     }
@@ -294,7 +359,8 @@ void Bedjet::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
       }
       // [16:44:44][V][bedjet:279]: [JOENJET] Register for notify event success: h=0x002a s=0
       // This might be the enable-notify descriptor? (or disable-notify)
-      ESP_LOGV(TAG, "[%s] Write to handle 0x%04x status=%d", this->get_name().c_str(), param->write.handle, param->write.status);
+      ESP_LOGV(TAG, "[%s] Write to handle 0x%04x status=%d", this->get_name().c_str(), param->write.handle,
+               param->write.status);
       break;
     }
     case ESP_GATTC_WRITE_CHAR_EVT: {
@@ -323,7 +389,7 @@ void Bedjet::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
       } else if (param->read.handle == this->char_handle_name_) {
         // The data should represent the name.
         if (param->read.status == ESP_GATT_OK && param->read.value_len > 0) {
-          std::string bedjet_name(reinterpret_cast<char const*>(param->read.value), param->read.value_len);
+          std::string bedjet_name(reinterpret_cast<char const *>(param->read.value), param->read.value_len);
           // this->set_name(bedjet_name);
           ESP_LOGV(TAG, "[%s] Got BedJet name: '%s'", this->get_name().c_str(), bedjet_name.c_str());
         }
@@ -331,10 +397,11 @@ void Bedjet::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      // This event means that ESP received the request to enable notifications on the client side. But we also have to tell the server that we want
-      // it to send notifications. Normally BLEClient parent would handle this automatically, but as soon as we set our status to Established, the
-      // parent is going to purge all the service/char/descriptor handles, and then get_config_descriptor() won't work anymore.
-      // There's no way to disable the BLEClient parent behavior, so our only option is to write the handle anyway, and hope a double-write
+      // This event means that ESP received the request to enable notifications on the client side. But we also have to
+      // tell the server that we want it to send notifications. Normally BLEClient parent would handle this
+      // automatically, but as soon as we set our status to Established, the parent is going to purge all the
+      // service/char/descriptor handles, and then get_config_descriptor() won't work anymore. There's no way to disable
+      // the BLEClient parent behavior, so our only option is to write the handle anyway, and hope a double-write
       // doesn't break anything.
 
       if (param->reg_for_notify.handle != this->char_handle_status_) {
@@ -363,8 +430,8 @@ void Bedjet::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
     }
     case ESP_GATTC_NOTIFY_EVT: {
       if (param->notify.handle != this->char_handle_status_) {
-        ESP_LOGW(TAG, "[%s] Unexpected notify handle, wanted %04X, got %04X",
-            this->get_name().c_str(), this->char_handle_status_, param->notify.handle);
+        ESP_LOGW(TAG, "[%s] Unexpected notify handle, wanted %04X, got %04X", this->get_name().c_str(),
+                 this->char_handle_status_, param->notify.handle);
         break;
       }
 
@@ -382,9 +449,11 @@ void Bedjet::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
 
         if (needs_extra) {
           // this means the packet was partial, so read the status characteristic to get the second part.
-          auto status = esp_ble_gattc_read_char(
-              this->parent_->gattc_if, this->parent_->conn_id,
-              this->char_handle_status_, ESP_GATT_AUTH_REQ_NONE);
+          auto status = esp_ble_gattc_read_char(this->parent_->gattc_if, this->parent_->conn_id,
+                                                this->char_handle_status_, ESP_GATT_AUTH_REQ_NONE);
+          if (status) {
+            ESP_LOGI(TAG, "[%s] Unable to read extended status packet", this->get_name().c_str());
+          }
         }
 
         if (this->force_refresh_) {
@@ -418,22 +487,23 @@ uint8_t Bedjet::write_notify_config_descriptor_(bool enable) {
   }
 
   // NOTE: BLEClient uses `uint8_t*` of length 1, but BLE spec requires 16 bits.
-  uint8_t notify_en[] = { 0, 0 };
+  uint8_t notify_en[] = {0, 0};
   notify_en[0] = enable;
-  auto status = esp_ble_gattc_write_char_descr(this->parent_->gattc_if, this->parent_->conn_id, handle,
-                                               sizeof(notify_en), &notify_en[0],
-                                               ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
+  auto status =
+      esp_ble_gattc_write_char_descr(this->parent_->gattc_if, this->parent_->conn_id, handle, sizeof(notify_en),
+                                     &notify_en[0], ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     ESP_LOGW(TAG, "esp_ble_gattc_write_char_descr error, status=%d", status);
     return status;
   }
-  ESP_LOGD(TAG, "[%s] wrote notify=%s to status config 0x%04x", this->get_name().c_str(), enable ? "true" : "false", handle);
+  ESP_LOGD(TAG, "[%s] wrote notify=%s to status config 0x%04x", this->get_name().c_str(), enable ? "true" : "false",
+           handle);
   return ESP_GATT_OK;
 }
 
 /** Attempts to sync the local time (via `time_id`) to the BedJet device. */
 void Bedjet::send_local_time_() {
-  if (this->node_state != espbt::ClientState::Established) {
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGV(TAG, "[%s] Not connected, cannot send time.", this->get_name().c_str());
     return;
   }
@@ -443,7 +513,7 @@ void Bedjet::send_local_time_() {
     uint8_t hour = now.hour;
     uint8_t minute = now.minute;
     BedjetPacket *pkt = this->codec_->get_set_time_request(hour, minute);
-    auto status = this->write_bedjet_packet(pkt);
+    auto status = this->write_bedjet_packet_(pkt);
     if (status) {
       ESP_LOGW(TAG, "Failed setting BedJet clock: %d", status);
     } else {
@@ -466,8 +536,8 @@ void Bedjet::setup_time_() {
 }
 
 /** Writes one BedjetPacket to the BLE client on the BEDJET_COMMAND_UUID. */
-uint8_t Bedjet::write_bedjet_packet(BedjetPacket * pkt) {
-  if (this->node_state != espbt::ClientState::Established) {
+uint8_t Bedjet::write_bedjet_packet_(BedjetPacket *pkt) {
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
     if (!this->parent_->enabled) {
       ESP_LOGI(TAG, "[%s] Cannot write packet: Not connected, enabled=false", this->get_name().c_str());
     } else {
@@ -475,22 +545,24 @@ uint8_t Bedjet::write_bedjet_packet(BedjetPacket * pkt) {
     }
     return -1;
   }
-  auto status = esp_ble_gattc_write_char(
-      this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_cmd_,
-      pkt->data_length + 1, (uint8_t *) &pkt->command, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+  auto status = esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_cmd_,
+                                         pkt->data_length + 1, (uint8_t *) &pkt->command, ESP_GATT_WRITE_TYPE_NO_RSP,
+                                         ESP_GATT_AUTH_REQ_NONE);
   return status;
 }
 
 /** Configures the local ESP BLE client to register (`true`) or unregister (`false`) for status notifications. */
-uint8_t Bedjet::set_notify(const bool enable) {
+uint8_t Bedjet::set_notify_(const bool enable) {
   uint8_t status;
   if (enable) {
-    status = esp_ble_gattc_register_for_notify(this->parent_->gattc_if, this->parent_->remote_bda, this->char_handle_status_);
+    status = esp_ble_gattc_register_for_notify(this->parent_->gattc_if, this->parent_->remote_bda,
+                                               this->char_handle_status_);
     if (status) {
       ESP_LOGW(TAG, "[%s] esp_ble_gattc_register_for_notify failed, status=%d", this->get_name().c_str(), status);
     }
   } else {
-    status = esp_ble_gattc_unregister_for_notify(this->parent_->gattc_if, this->parent_->remote_bda, this->char_handle_status_);
+    status = esp_ble_gattc_unregister_for_notify(this->parent_->gattc_if, this->parent_->remote_bda,
+                                                 this->char_handle_status_);
     if (status) {
       ESP_LOGW(TAG, "[%s] esp_ble_gattc_unregister_for_notify failed, status=%d", this->get_name().c_str(), status);
     }
@@ -503,21 +575,24 @@ uint8_t Bedjet::set_notify(const bool enable) {
  *
  * @return `true` if the status has been applied; `false` if there is nothing to apply.
  */
-bool Bedjet::update_status() {
-  if (!this->codec_->has_status()) return false;
+bool Bedjet::update_status_() {
+  if (!this->codec_->has_status())
+    return false;
 
   BedjetStatusPacket status = *this->codec_->get_status_packet();
 
-  auto converted_temp = bedjet_temp_to_c_(status.target_temp_step);
-  if (converted_temp > 0) this->target_temperature = converted_temp;
-  converted_temp = bedjet_temp_to_c_(status.ambient_temp_step);
-  if (converted_temp > 0) this->current_temperature = converted_temp;
+  auto converted_temp = bedjet_temp_to_c(status.target_temp_step);
+  if (converted_temp > 0)
+    this->target_temperature = converted_temp;
+  converted_temp = bedjet_temp_to_c(status.ambient_temp_step);
+  if (converted_temp > 0)
+    this->current_temperature = converted_temp;
 
-  auto fan_mode_name = bedjet_fan_step_to_fan_mode_(status.fan_step);
+  auto fan_mode_name = bedjet_fan_step_to_fan_mode(status.fan_step);
   if (fan_mode_name != nullptr) {
     this->custom_fan_mode = std::string(fan_mode_name);
   } else {
-    auto fan_speed = bedjet_fan_step_to_speed_(status.fan_step);
+    auto fan_speed = bedjet_fan_step_to_speed(status.fan_step);
     // FIXME: fan speed should support 5-100, at 5% increments
     if (fan_speed <= 33) {
       this->fan_mode = climate::CLIMATE_FAN_LOW;
@@ -580,7 +655,7 @@ bool Bedjet::update_status() {
       break;
   }
 
-  if (this->is_valid()) {
+  if (this->is_valid_()) {
     this->publish_state();
     this->codec_->clear_status();
     this->status_clear_warning();
@@ -592,7 +667,7 @@ bool Bedjet::update_status() {
 void Bedjet::update() {
   ESP_LOGV(TAG, "[%s] update()", this->get_name().c_str());
 
-  if (this->node_state != espbt::ClientState::Established) {
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
     if (!this->parent()->enabled) {
       ESP_LOGD(TAG, "[%s] Not connected, because enabled=false", this->get_name().c_str());
     } else {
@@ -603,7 +678,7 @@ void Bedjet::update() {
     return;
   }
 
-  auto result = this->update_status();
+  auto result = this->update_status_();
   if (!result) {
     uint32_t now = millis();
     uint32_t diff = now - this->last_notify_;
@@ -615,7 +690,7 @@ void Bedjet::update() {
       // But how do we know for sure which state we're in, and how do we actually clear out the buggy state?
 
       ESP_LOGI(TAG, "[%s] Still waiting for first GATT notify event.", this->get_name().c_str());
-      this->set_notify(false);
+      this->set_notify_(false);
     } else if (diff > NOTIFY_WARN_THRESHOLD) {
       ESP_LOGW(TAG, "[%s] Last GATT notify was %d seconds ago.", this->get_name().c_str(), diff / 1000);
     }

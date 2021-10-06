@@ -1,7 +1,15 @@
 #include "bedjet_base.h"
+#include <cstdio>
+#include <cstring>
 
 namespace esphome {
 namespace bedjet {
+
+/// Converts a BedJet temp step into degrees Fahrenheit.
+float bedjet_temp_to_f(const uint8_t temp) {
+  // BedJet temp is "C*2"; to get F, multiply by 0.9 (half 1.8) and add 32.
+  return 0.9f * temp + 32.0f;
+}
 
 /** Cleans up the packet before sending. */
 BedjetPacket *BedjetCodec::clean_packet_() {
@@ -10,7 +18,7 @@ BedjetPacket *BedjetCodec::clean_packet_() {
   for (int i = this->packet_.data_length; i < 2; i++) {
     this->packet_.data[i] = '\0';
   }
-  ESP_LOGV("bedjet", "Created packet: %02X, %02X %02X", this->packet_.command, this->packet_.data[0], this->packet_.data[1]);
+  ESP_LOGV(TAG, "Created packet: %02X, %02X %02X", this->packet_.command, this->packet_.data[0], this->packet_.data[1]);
   return &this->packet_;
 }
 
@@ -49,22 +57,20 @@ BedjetPacket *BedjetCodec::get_set_time_request(const uint8_t hour, const uint8_
 
 /** Decodes the extra bytes that were received after being notified with a partial packet. */
 void BedjetCodec::decode_extra(const uint8_t *data, uint16_t length) {
-  ESP_LOGV("bedjet", "Received extra: %d bytes: %d %d %d %d", length, data[1], data[2], data[3], data[4]);
+  ESP_LOGV(TAG, "Received extra: %d bytes: %d %d %d %d", length, data[1], data[2], data[3], data[4]);
   uint8_t offset = this->last_buffer_size_;
   if (offset > 0 && length + offset <= sizeof(BedjetStatusPacket)) {
-    memcpy(((uint8_t *)(&this->buf_)) + offset, data, length);
-    ESP_LOGV("bedjet", "Extra bytes: skip1=0x%08x, skip2=0x%04x, skip3=0x%02x; update phase=0x%02x, "
-            "flags=BedjetFlags <conn=%c, leds=%c, units=%c, mute=%c, others=%02x>",
-        this->buf_.__skip_1_, this->buf_.__skip_2_, this->buf_.__skip_3_, this->buf_.update_phase,
-        this->buf_.flags & 0x20 ? '1' : '0',
-        this->buf_.flags & 0x10 ? '1' : '0',
-        this->buf_.flags & 0x04 ? '1' : '0',
-        this->buf_.flags & 0x01 ? '1' : '0',
-        this->buf_.flags & ~(0x20|0x10|0x04|0x01)
-    );
+    memcpy(((uint8_t *) (&this->buf_)) + offset, data, length);
+    ESP_LOGV(TAG,
+             "Extra bytes: skip1=0x%08x, skip2=0x%04x, skip3=0x%02x; update phase=0x%02x, "
+             "flags=BedjetFlags <conn=%c, leds=%c, units=%c, mute=%c, others=%02x>",
+             this->buf_._skip_1_, this->buf_._skip_2_, this->buf_._skip_3_, this->buf_.update_phase,
+             this->buf_.flags & 0x20 ? '1' : '0', this->buf_.flags & 0x10 ? '1' : '0',
+             this->buf_.flags & 0x04 ? '1' : '0', this->buf_.flags & 0x01 ? '1' : '0',
+             this->buf_.flags & ~(0x20 | 0x10 | 0x04 | 0x01));
   } else {
-    ESP_LOGI("bedjet", "Could not determine where to append to, last offset=%d, max size=%d, new size would be %d",
-        offset, sizeof(BedjetStatusPacket), length + offset);
+    ESP_LOGI(TAG, "Could not determine where to append to, last offset=%d, max size=%u, new size would be %d", offset,
+             sizeof(BedjetStatusPacket), length + offset);
   }
 }
 
@@ -73,7 +79,7 @@ void BedjetCodec::decode_extra(const uint8_t *data, uint16_t length) {
  * @return `true` if the packet was decoded and represents a "partial" packet; `false` otherwise.
  */
 bool BedjetCodec::decode_notify(const uint8_t *data, uint16_t length) {
-  ESP_LOGV("bedjet", "Received: %d bytes: %d %d %d %d", length, data[1], data[2], data[3], data[4]);
+  ESP_LOGV(TAG, "Received: %d bytes: %d %d %d %d", length, data[1], data[2], data[3], data[4]);
 
   if (data[1] == PACKET_FORMAT_V3_HOME && data[3] == PACKET_TYPE_STATUS) {
     this->status_packet_.reset();
@@ -85,23 +91,23 @@ bool BedjetCodec::decode_notify(const uint8_t *data, uint16_t length) {
     this->last_buffer_size_ = length;
 
     // TODO: validate the packet checksum?
-    if (this->buf_.mode >= 0 && this->buf_.mode < 7 &&
-        this->buf_.target_temp_step >= 38 && this->buf_.target_temp_step <= 86 &&
-        this->buf_.actual_temp_step > 1 && this->buf_.actual_temp_step <= 100 &&
-        this->buf_.ambient_temp_step > 1 && this->buf_.ambient_temp_step <= 100
-        ) {
+    if (this->buf_.mode >= 0 && this->buf_.mode < 7 && this->buf_.target_temp_step >= 38 &&
+        this->buf_.target_temp_step <= 86 && this->buf_.actual_temp_step > 1 && this->buf_.actual_temp_step <= 100 &&
+        this->buf_.ambient_temp_step > 1 && this->buf_.ambient_temp_step <= 100) {
       // and save it for the update() loop
       this->status_packet_ = this->buf_;
       return this->buf_.is_partial == 1;
     } else {
       // TODO: log a warning if we detect that we connected to a non-V3 device.
-      ESP_LOGW("bedjet", "Received potentially invalid packet (len %d):", length);
+      ESP_LOGW(TAG, "Received potentially invalid packet (len %d):", length);
     }
   } else if (data[1] == PACKET_FORMAT_DEBUG || data[3] == PACKET_TYPE_DEBUG) {
     // TODO: we're not sure what the format is for this.
-    ESP_LOGV("bedjet", "received DEBUG packet: set1=%01fF, set2=%01fF, air=%01fF;  [7]=%d, [8]=%d, [9]=%d, [10]=%d, [11]=%d, [12]=%d, [-1]=%d",
-        bedjet_temp_to_f_(data[4]), bedjet_temp_to_f_(data[5]), bedjet_temp_to_f_(data[6]),
-        data[7], data[8], data[9], data[10], data[11], data[12], data[length - 1]);
+    ESP_LOGV(TAG,
+             "received DEBUG packet: set1=%01fF, set2=%01fF, air=%01fF;  [7]=%d, [8]=%d, [9]=%d, [10]=%d, [11]=%d, "
+             "[12]=%d, [-1]=%d",
+             bedjet_temp_to_f(data[4]), bedjet_temp_to_f(data[5]), bedjet_temp_to_f(data[6]), data[7], data[8], data[9],
+             data[10], data[11], data[12], data[length - 1]);
 
     if (this->has_status()) {
       this->status_packet_->ambient_temp_step = data[6];

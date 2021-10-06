@@ -1,13 +1,14 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/time/real_time_clock.h"
+#include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "bedjet_base.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <esp_gattc_api.h>
 
@@ -20,7 +21,6 @@ static const espbt::ESPBTUUID BEDJET_SERVICE_UUID = espbt::ESPBTUUID::from_raw("
 static const espbt::ESPBTUUID BEDJET_STATUS_UUID = espbt::ESPBTUUID::from_raw("00002000-bed0-0080-aa55-4265644a6574");
 static const espbt::ESPBTUUID BEDJET_COMMAND_UUID = espbt::ESPBTUUID::from_raw("00002004-bed0-0080-aa55-4265644a6574");
 static const espbt::ESPBTUUID BEDJET_NAME_UUID = espbt::ESPBTUUID::from_raw("00002001-bed0-0080-aa55-4265644a6574");
-
 
 class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNode, public PollingComponent {
  public:
@@ -35,7 +35,7 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
   void set_status_timeout(uint32_t timeout) { this->timeout_ = timeout; }
 
-  climate::ClimateTraits traits() {
+  climate::ClimateTraits traits() override {
     auto traits = climate::ClimateTraits();
     traits.set_supports_action(true);
     traits.set_supports_current_temperature(true);
@@ -54,19 +54,9 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
         climate::CLIMATE_FAN_LOW,
     });
     // It would be better if we had a slider for the fan modes.
-    traits.set_supported_custom_fan_modes({
-        // FIXME: this set is not ordered by insertion, it is sorted alphabetically...
-         "5%",        "10%",
-        "15%",        "20%",
-        "25%",        "30%",
-        "35%",        "40%",
-        "45%",        "50%",
-        "55%",        "60%",
-        "65%",        "70%",
-        "75%",        "80%",
-        "85%",        "90%",
-        "95%",        "100%"
-    });
+    // FIXME: this set is not ordered by insertion, it is sorted alphabetically...
+    traits.set_supported_custom_fan_modes({"5%",  "10%", "15%", "20%", "25%", "30%", "35%", "40%", "45%", "50%",
+                                           "55%", "60%", "65%", "70%", "75%", "80%", "85%", "90%", "95%", "100%"});
     traits.set_supported_presets({
         // If we support NONE, then have to decide what happens if the user switches to it (turn off?)
         // climate::CLIMATE_PRESET_NONE,
@@ -76,7 +66,9 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
     if (BEDJET_DEBUG) {
       // In debug mode, use custom presets to handle custom commands
       traits.set_supported_custom_presets({
-          "M1", "M2", "M3",
+          "M1",
+          "M2",
+          "M3",
 
           "Update Firmware",
           "Debug On",
@@ -87,7 +79,9 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
           // TODO: we can fetch biodata from bedjet and set these names that way.
           //  But then we have to invert the lookup in order to send the right preset.
           //  For now, we can leave them as M1-3 to match the remote buttons.
-          "M1", "M2", "M3",
+          "M1",
+          "M2",
+          "M3",
       });
     }
     traits.set_visual_min_temperature(19.0);
@@ -111,23 +105,21 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
 
   static const bool BEDJET_DEBUG = false;
 
-  uint8_t set_notify(const bool enable);
-  uint8_t write_bedjet_packet(BedjetPacket * pkt);
-  void reset_state();
-  bool update_status();
+  uint8_t set_notify_(bool enable);
+  uint8_t write_bedjet_packet_(BedjetPacket *pkt);
+  void reset_state_();
+  bool update_status_();
 
-  bool is_valid() {
+  bool is_valid_() {
     // FIXME: find a better way to check this?
-    return !isnan(this->current_temperature) &&
-        !isnan(this->target_temperature) &&
-        this->current_temperature > 1 &&
-        this->target_temperature > 1;
+    return !std::isnan(this->current_temperature) && !std::isnan(this->target_temperature) &&
+           this->current_temperature > 1 && this->target_temperature > 1;
   }
 
   uint32_t last_notify_ = 0;
   bool force_refresh_ = false;
 
-  BedjetCodec *codec_;
+  std::unique_ptr<BedjetCodec> codec_;
   uint16_t char_handle_cmd_;
   uint16_t char_handle_name_;
   uint16_t char_handle_status_;

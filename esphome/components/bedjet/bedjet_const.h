@@ -3,6 +3,7 @@
 namespace esphome {
 namespace bedjet {
 
+static const char *const TAG = "bedjet";
 
 enum BedjetMode : uint8_t {
   /// BedJet is Off
@@ -60,6 +61,10 @@ enum BedjetCommand : uint8_t {
   CMD_SET_FAN = 0x7,
   CMD_SET_TIME = 0x8,
 };
+
+static const char *const BEDJET_FAN_STEP_NAMES[20] = {"5%",  "10%", "15%", "20%", "25%", "30%", "35%",
+                                                      "40%", "45%", "50%", "55%", "60%", "65%", "70%",
+                                                      "75%", "80%", "85%", "90%", "95%", "100%"};
 
 }  // namespace bedjet
 }  // namespace esphome
