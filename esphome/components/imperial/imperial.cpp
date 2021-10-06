@@ -18,6 +18,10 @@ void ImperialComponent::setup() {
 #ifdef USE_ESP_IDF
   this->uart_num_ = logger::global_logger->get_uart_num();
 #endif
+
+  if (wifi::global_wifi_component->has_sta()) {
+    this->state_ = improv::STATE_PROVISIONED;
+  }
 }
 
 void ImperialComponent::dump_config() { ESP_LOGCONFIG(TAG, "Imperial:"); }
