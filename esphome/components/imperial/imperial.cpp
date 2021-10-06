@@ -82,11 +82,15 @@ void ImperialComponent::loop() {
       this->cancel_timeout("wifi-connect-timeout");
       this->set_state_(improv::STATE_PROVISIONED);
 
-      std::string url = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
-      std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, {url});
-      this->send_response_(data);
+      this->send_response_(this->build_rpc_settings_response_());
     }
   }
+}
+
+std::vector<uint8_t> &ImperialComponent::build_rpc_settings_response_() {
+  std::string url = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
+  std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, {url});
+  return data;
 }
 
 bool ImperialComponent::parse_imperial_byte_(uint8_t byte) {
@@ -159,6 +163,9 @@ bool ImperialComponent::parse_improv_payload_(improv::ImprovCommand &command) {
     }
     case improv::GET_CURRENT_STATE:
       this->set_state_(this->state_);
+      if (this->state_ == improv::STATE_PROVISIONED) {
+        this->send_response_(this->build_rpc_settings_response_());
+      }
       return true;
     default: {
       ESP_LOGW(TAG, "Unknown Improv payload");
