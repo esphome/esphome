@@ -7,6 +7,13 @@ namespace atm90e32 {
 
 static const char *const TAG = "atm90e32";
 
+static float cumulative_forward_active_energy_a;
+static float cumulative_forward_active_energy_b;
+static float cumulative_forward_active_energy_c;
+static float cumulative_reverse_active_energy_a;
+static float cumulative_reverse_active_energy_b;
+static float cumulative_reverse_active_energy_c;
+
 void ATM90E32Component::update() {
   if (this->read16_(ATM90E32_REGISTER_METEREN) != 1) {
     this->status_set_warning();
@@ -265,27 +272,33 @@ float ATM90E32Component::get_power_factor_c_() {
 }
 float ATM90E32Component::get_forward_active_energy_a_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYA);
-  return (float) val * 10 / 3200;  // convert register value to WattHours
+  cumulative_forward_active_energy_a += ((float) val * 10 / 3200);
+  return cumulative_forward_active_energy_a;
 }
 float ATM90E32Component::get_forward_active_energy_b_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYB);
-  return (float) val * 10 / 3200;
+  cumulative_forward_active_energy_b += ((float) val * 10 / 3200);
+  return cumulative_forward_active_energy_b;
 }
 float ATM90E32Component::get_forward_active_energy_c_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYC);
-  return (float) val * 10 / 3200;
+  cumulative_forward_active_energy_c += ((float) val * 10 / 3200);
+  return cumulative_forward_active_energy_c;
 }
 float ATM90E32Component::get_reverse_active_energy_a_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYA);
-  return (float) val * 10 / 3200;
+  cumulative_reverse_active_energy_a += ((float) val * 10 / 3200);
+  return cumulative_reverse_active_energy_a;
 }
 float ATM90E32Component::get_reverse_active_energy_b_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYB);
-  return (float) val * 10 / 3200;
+  cumulative_reverse_active_energy_b += ((float) val * 10 / 3200);
+  return cumulative_reverse_active_energy_b;
 }
 float ATM90E32Component::get_reverse_active_energy_c_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYC);
-  return (float) val * 10 / 3200;
+  cumulative_reverse_active_energy_c += ((float) val * 10 / 3200);
+  return cumulative_reverse_active_energy_c;
 }
 float ATM90E32Component::get_frequency_() {
   uint16_t freq = this->read16_(ATM90E32_REGISTER_FREQ);
