@@ -22,6 +22,7 @@ CONF_HUMIDITY_SOURCE = "humidity_source"
 CONF_TEMPERATURE_SOURCE = "temperature_source"
 CONF_STORE_BASELINE = "store_baseline"
 CONF_VOC_BASELINE = "voc_baseline"
+CONF_OPTIMAL_SAMPLING = "optimal_sampling"
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -34,6 +35,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SGP40Component),
             cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
+            cv.Optional(CONF_OPTIMAL_SAMPLING, default=True): cv.boolean,
             cv.Optional(CONF_VOC_BASELINE): cv.hex_uint16_t,
             cv.Optional(CONF_COMPENSATION): cv.Schema(
                 {
@@ -62,6 +64,7 @@ async def to_code(config):
         cg.add(var.set_temperature_sensor(sens))
 
     cg.add(var.set_store_baseline(config[CONF_STORE_BASELINE]))
+    cg.add(var.set_use_optimal_sampling(config[CONF_OPTIMAL_SAMPLING]))
 
     if CONF_VOC_BASELINE in config:
         cg.add(var.set_voc_baseline(CONF_VOC_BASELINE))

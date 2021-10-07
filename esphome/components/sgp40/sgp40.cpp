@@ -77,6 +77,26 @@ void SGP40Component::setup() {
   }
 
   this->self_test_();
+
+  /* The official spec for this sensor at https://docs.rs-online.com/1956/A700000007055193.pdf
+  indicates this sensor should be driven at 1Hz. Comments from the developers at:
+  https://github.com/Sensirion/embedded-sgp/issues/136 indicate the algorithm should be a bit
+  resilient to slight timing variations so the software timer should be accurate enough for
+  this.
+
+  This block starts sampling from the sensor at 1Hz, and is done seperately from the call
+  to the update method. This seperation is to support getting accurate measurements but
+  limit the amount of communication done over wifi for power consumption or to keep the
+  number of records reported from being overwhelming.
+
+  At configuration the component can be configured to turn off optimal sampling in which
+  case the sensor will be read out with the same cadence as the update method, leading to
+  likely inacurate measurements, but possibly accurate enough for certain use cases. 
+  */
+  if (this->optimal_sampling_) {
+    ESP_LOGD(TAG, "Using optimal sampling, setting up background sampler");
+    App.scheduler.set_interval(this, "", 1000, [this](){this->update_voc_index();});
+  }
 }
 
 void SGP40Component::self_test_() {
@@ -224,21 +244,32 @@ uint8_t SGP40Component::generate_crc_(const uint8_t *data, uint8_t datalen) {
   return crc;
 }
 
-void SGP40Component::update() {
-  this->seconds_since_last_store_ += this->update_interval_ / 1000;
+void SGP40Component::update_voc_index() {
+  uint32_t update_interval = this->optimal_sampling_ ? 1 : this->update_interval_ / 1000; 
+  this->seconds_since_last_store_ += update_interval;
 
-  uint32_t voc_index = this->measure_voc_index_();
-
+  this->voc_index_ = this->measure_voc_index_();
   if (this->samples_read_ < this->samples_to_stabalize_) {
     this->samples_read_++;
     ESP_LOGD(TAG, "Sensor has not collected enough samples yet. (%d/%d) VOC index is: %u", this->samples_read_,
-             this->samples_to_stabalize_, voc_index);
+             this->samples_to_stabalize_, this->voc_index_);
     return;
   }
 
-  if (voc_index != UINT16_MAX) {
+}
+
+void SGP40Component::update() {
+  if (!(this->optimal_sampling_)) {
+    this->update_voc_index();
+  }
+
+  if (this->samples_read_ < this->samples_to_stabalize_) {
+    return;
+  }
+
+  if (this->voc_index_ != UINT16_MAX) {
     this->status_clear_warning();
-    this->publish_state(voc_index);
+    this->publish_state(this->voc_index_);
   } else {
     this->status_set_warning();
   }
@@ -247,6 +278,7 @@ void SGP40Component::update() {
 void SGP40Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SGP40:");
   LOG_I2C_DEVICE(this);
+  ESP_LOGCONFIG(TAG, "  optimal_samping: %d", this->optimal_sampling_);
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
