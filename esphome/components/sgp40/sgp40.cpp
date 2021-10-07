@@ -279,6 +279,8 @@ void SGP40Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SGP40:");
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  optimal_samping: %d", this->optimal_sampling_);
+  ESP_LOGCONFIG(TAG, "  store_baseline: %d", this->store_baseline_);
+
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
