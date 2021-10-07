@@ -30,6 +30,7 @@ void MQTTSensorComponent::dump_config() {
 }
 
 std::string MQTTSensorComponent::component_type() const { return "sensor"; }
+const EntityBase *MQTTSensorComponent::get_entity() const { return this->sensor_; }
 
 uint32_t MQTTSensorComponent::get_expire_after() const {
   if (this->expire_after_.has_value())
@@ -38,9 +39,6 @@ uint32_t MQTTSensorComponent::get_expire_after() const {
 }
 void MQTTSensorComponent::set_expire_after(uint32_t expire_after) { this->expire_after_ = expire_after; }
 void MQTTSensorComponent::disable_expire_after() { this->expire_after_ = 0; }
-std::string MQTTSensorComponent::friendly_name() const { return this->sensor_->get_name(); }
-std::string MQTTSensorComponent::get_icon() const { return this->sensor_->get_icon(); }
-bool MQTTSensorComponent::is_disabled_by_default() const { return this->sensor_->is_disabled_by_default(); }
 
 void MQTTSensorComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   if (!this->sensor_->get_device_class().empty())
@@ -67,7 +65,6 @@ bool MQTTSensorComponent::send_initial_state() {
     return true;
   }
 }
-bool MQTTSensorComponent::is_internal() { return this->sensor_->is_internal(); }
 bool MQTTSensorComponent::publish_state(float value) {
   int8_t accuracy = this->sensor_->get_accuracy_decimals();
   return this->publish(this->get_state_topic_(), value_accuracy_to_string(value, accuracy));

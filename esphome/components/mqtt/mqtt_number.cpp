@@ -33,10 +33,7 @@ void MQTTNumberComponent::dump_config() {
 }
 
 std::string MQTTNumberComponent::component_type() const { return "number"; }
-
-std::string MQTTNumberComponent::friendly_name() const { return this->number_->get_name(); }
-std::string MQTTNumberComponent::get_icon() const { return this->number_->get_icon(); }
-bool MQTTNumberComponent::is_disabled_by_default() const { return this->number_->is_disabled_by_default(); }
+const EntityBase *MQTTNumberComponent::get_entity() const { return this->number_; }
 
 void MQTTNumberComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   const auto &traits = number_->traits;
@@ -54,7 +51,6 @@ bool MQTTNumberComponent::send_initial_state() {
     return true;
   }
 }
-bool MQTTNumberComponent::is_internal() { return this->number_->is_internal(); }
 bool MQTTNumberComponent::publish_state(float value) {
   char buffer[64];
   snprintf(buffer, sizeof(buffer), "%f", value);

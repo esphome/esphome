@@ -28,10 +28,7 @@ void MQTTSelectComponent::dump_config() {
 }
 
 std::string MQTTSelectComponent::component_type() const { return "select"; }
-
-std::string MQTTSelectComponent::friendly_name() const { return this->select_->get_name(); }
-std::string MQTTSelectComponent::get_icon() const { return this->select_->get_icon(); }
-bool MQTTSelectComponent::is_disabled_by_default() const { return this->select_->is_disabled_by_default(); }
+const EntityBase *MQTTSelectComponent::get_entity() const { return this->select_; }
 
 void MQTTSelectComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   const auto &traits = select_->traits;
@@ -49,7 +46,6 @@ bool MQTTSelectComponent::send_initial_state() {
     return true;
   }
 }
-bool MQTTSelectComponent::is_internal() { return this->select_->is_internal(); }
 bool MQTTSelectComponent::publish_state(const std::string &value) {
   return this->publish(this->get_state_topic_(), value);
 }

@@ -41,15 +41,12 @@ class MQTTSensorComponent : public mqtt::MQTTComponent {
 
   bool publish_state(float value);
   bool send_initial_state() override;
-  bool is_internal() override;
 
  protected:
   /// Override for MQTTComponent, returns "sensor".
   std::string component_type() const override;
-  std::string friendly_name() const override;
+  const EntityBase *get_entity() const override;
   std::string unique_id() override;
-  std::string get_icon() const override;
-  bool is_disabled_by_default() const override;
 
   sensor::Sensor *sensor_;
   optional<uint32_t> expire_after_;  // Override the expire after advertised to Home Assistant

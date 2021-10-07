@@ -25,13 +25,9 @@ class MQTTJSONLightComponent : public mqtt::MQTTComponent {
 
   bool send_initial_state() override;
 
-  bool is_internal() override;
-
  protected:
-  std::string friendly_name() const override;
   std::string component_type() const override;
-  std::string get_icon() const override;
-  bool is_disabled_by_default() const override;
+  const EntityBase *get_entity() const override;
 
   bool publish_state_();
 

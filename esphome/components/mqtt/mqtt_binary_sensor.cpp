@@ -10,6 +10,7 @@ namespace mqtt {
 static const char *const TAG = "mqtt.binary_sensor";
 
 std::string MQTTBinarySensorComponent::component_type() const { return "binary_sensor"; }
+const EntityBase *MQTTBinarySensorComponent::get_entity() const { return this->binary_sensor_; }
 
 void MQTTBinarySensorComponent::setup() {
   this->binary_sensor_->add_on_state_callback([this](bool state) { this->publish_state(state); });
@@ -24,11 +25,6 @@ MQTTBinarySensorComponent::MQTTBinarySensorComponent(binary_sensor::BinarySensor
   if (this->binary_sensor_->is_status_binary_sensor()) {
     this->set_custom_state_topic(mqtt::global_mqtt_client->get_availability().topic);
   }
-}
-std::string MQTTBinarySensorComponent::friendly_name() const { return this->binary_sensor_->get_name(); }
-std::string MQTTBinarySensorComponent::get_icon() const { return this->binary_sensor_->get_icon(); }
-bool MQTTBinarySensorComponent::is_disabled_by_default() const {
-  return this->binary_sensor_->is_disabled_by_default();
 }
 
 void MQTTBinarySensorComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
@@ -47,7 +43,6 @@ bool MQTTBinarySensorComponent::send_initial_state() {
     return true;
   }
 }
-bool MQTTBinarySensorComponent::is_internal() { return this->binary_sensor_->is_internal(); }
 bool MQTTBinarySensorComponent::publish_state(bool state) {
   if (this->binary_sensor_->is_status_binary_sensor())
     return true;

@@ -25,14 +25,10 @@ class MQTTTextSensor : public mqtt::MQTTComponent {
 
   bool send_initial_state() override;
 
-  bool is_internal() override;
-
  protected:
   std::string component_type() const override;
-  std::string friendly_name() const override;
+  const EntityBase *get_entity() const override;
   std::string unique_id() override;
-  std::string get_icon() const override;
-  bool is_disabled_by_default() const override;
 
   text_sensor::TextSensor *sensor_;
 };

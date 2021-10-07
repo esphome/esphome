@@ -13,6 +13,7 @@ static const char *const TAG = "mqtt.light";
 using namespace esphome::light;
 
 std::string MQTTJSONLightComponent::component_type() const { return "light"; }
+const EntityBase *MQTTJSONLightComponent::get_entity() const { return this->state_; }
 
 void MQTTJSONLightComponent::setup() {
   this->subscribe_json(this->get_command_topic_(), [this](const std::string &topic, JsonObject &root) {
@@ -32,9 +33,6 @@ bool MQTTJSONLightComponent::publish_state_() {
                             [this](JsonObject &root) { LightJSONSchema::dump_json(*this->state_, root); });
 }
 LightState *MQTTJSONLightComponent::get_state() const { return this->state_; }
-std::string MQTTJSONLightComponent::friendly_name() const { return this->state_->get_name(); }
-std::string MQTTJSONLightComponent::get_icon() const { return this->state_->get_icon(); }
-bool MQTTJSONLightComponent::is_disabled_by_default() const { return this->state_->is_disabled_by_default(); }
 
 void MQTTJSONLightComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   root["schema"] = "json";
@@ -73,7 +71,6 @@ void MQTTJSONLightComponent::send_discovery(JsonObject &root, mqtt::SendDiscover
   }
 }
 bool MQTTJSONLightComponent::send_initial_state() { return this->publish_state_(); }
-bool MQTTJSONLightComponent::is_internal() { return this->state_->is_internal(); }
 void MQTTJSONLightComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Light '%s':", this->state_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, true)

@@ -32,12 +32,9 @@ bool MQTTTextSensor::send_initial_state() {
     return true;
   }
 }
-bool MQTTTextSensor::is_internal() { return this->sensor_->is_internal(); }
 std::string MQTTTextSensor::component_type() const { return "sensor"; }
-std::string MQTTTextSensor::friendly_name() const { return this->sensor_->get_name(); }
+const EntityBase *MQTTTextSensor::get_entity() const { return this->sensor_; }
 std::string MQTTTextSensor::unique_id() { return this->sensor_->unique_id(); }
-std::string MQTTTextSensor::get_icon() const { return this->sensor_->get_icon(); }
-bool MQTTTextSensor::is_disabled_by_default() const { return this->sensor_->is_disabled_by_default(); }
 
 }  // namespace mqtt
 }  // namespace esphome

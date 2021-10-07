@@ -204,6 +204,12 @@ void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
 std::string MQTTComponent::unique_id() { return ""; }
 bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
 
+// Pull these properties from EntityBase if not overridden
+std::string MQTTComponent::friendly_name() const { return this->get_entity()->get_name(); }
+std::string MQTTComponent::get_icon() const { return this->get_entity()->get_icon(); }
+bool MQTTComponent::is_disabled_by_default() const { return this->get_entity()->is_disabled_by_default(); }
+bool MQTTComponent::is_internal() { return this->get_entity()->is_internal(); }
+
 }  // namespace mqtt
 }  // namespace esphome
 

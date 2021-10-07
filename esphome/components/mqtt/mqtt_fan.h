@@ -39,12 +39,9 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
 
   fan::FanState *get_state() const;
 
-  bool is_internal() override;
-
  protected:
-  std::string friendly_name() const override;
-  std::string get_icon() const override;
-  bool is_disabled_by_default() const override;
+  const EntityBase *get_entity() const override;
+
   fan::FanState *state_;
 };
 

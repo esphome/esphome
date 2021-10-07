@@ -212,11 +212,8 @@ void MQTTClimateComponent::setup() {
 }
 MQTTClimateComponent::MQTTClimateComponent(Climate *device) : device_(device) {}
 bool MQTTClimateComponent::send_initial_state() { return this->publish_state_(); }
-bool MQTTClimateComponent::is_internal() { return this->device_->is_internal(); }
 std::string MQTTClimateComponent::component_type() const { return "climate"; }
-std::string MQTTClimateComponent::friendly_name() const { return this->device_->get_name(); }
-std::string MQTTClimateComponent::get_icon() const { return this->device_->get_icon(); }
-bool MQTTClimateComponent::is_disabled_by_default() const { return this->device_->is_disabled_by_default(); }
+const EntityBase *MQTTClimateComponent::get_entity() const { return this->device_; }
 
 bool MQTTClimateComponent::publish_state_() {
   auto traits = this->device_->get_traits();
