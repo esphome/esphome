@@ -96,6 +96,9 @@ class Sprinkler : public Component {
   /// how long the controller should wait after opening a valve before closing the previous valve
   void set_valve_overlap(uint32_t valve_overlap);
 
+  /// how long the controller should wait to activate a valve after next_valve() or previous_valve() is called
+  void set_manual_selection_delay(uint32_t manual_selection_delay);
+
   /// how long the valve should remain on/open (time in seconds)
   void set_valve_run_duration(optional<size_t> valve_number, optional<uint32_t> valve_run_duration);
 
@@ -124,6 +127,9 @@ class Sprinkler : public Component {
   /// activates a single valve and disables auto_advance.
   void start_single_valve(optional<size_t> valve_number);
 
+  /// queues up a single valve to be run after the active valve, regardless of auto-advance
+  void queue_single_valve(optional<size_t> valve_number);
+
   /// advances to the next valve (numerically)
   void next_valve();
 
@@ -131,7 +137,7 @@ class Sprinkler : public Component {
   void previous_valve();
 
   /// turns off all valves, effectively shutting down the system.
-  void shutdown();
+  void shutdown(bool clear_queue = true);
 
   /// same as shutdown(), but also stores active_valve() and time_remaining() allowing resume() to continue the cycle
   void pause();
@@ -151,11 +157,18 @@ class Sprinkler : public Component {
   /// returns the number of the valve that is paused, if any. check with 'has_value()'
   optional<uint8_t> paused_valve();
 
-  /// returns true if valve number is valid
-  bool is_a_valid_valve(size_t valve_number);
+  /// returns the number of the valve that is queued, if any. check with 'has_value()'
+  optional<uint8_t> queued_valve();
+
+  /// returns the number of the valve that is manually selected, if any. check with 'has_value()'
+  ///  this is set by next_valve() and previous_valve() when manual_selection_delay_ > 0
+  optional<uint8_t> manual_valve();
 
   /// returns the number of valves the controller is configured with
   size_t number_of_valves();
+
+  /// returns true if valve number is valid
+  bool is_a_valid_valve(size_t valve_number);
 
   /// returns true if the pump the pointer points to is in use
   bool pump_in_use(switch_::Switch *pump_switch);
@@ -248,8 +261,20 @@ class Sprinkler : public Component {
   /// The number of the valve to resume from (if paused)
   optional<uint8_t> paused_valve_;
 
+  /// The number of the manually selected valve to activate
+  optional<uint8_t> manual_valve_;
+
+  /// The number of the valve to activate next, regardless of auto-advance
+  optional<uint8_t> queued_valve_;
+
   /// Set from time_remaining() when paused
   optional<uint32_t> resume_duration_;
+
+  /// Manual switching delay
+  optional<uint32_t> manual_selection_delay_;
+
+  /// Valve switching delay
+  optional<uint32_t> switching_delay_;
 
   /// Sprinkler valve run time multiplier value
   float multiplier_{1.0};

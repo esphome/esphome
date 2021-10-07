@@ -166,13 +166,29 @@ void Sprinkler::set_multiplier(const optional<float> multiplier) {
 }
 
 void Sprinkler::set_valve_open_delay(const uint32_t valve_open_delay) {
-  this->valve_overlap_ = false;
-  this->set_timer_duration_(sprinkler::TIMER_VALVE_SWITCHING_DELAY, valve_open_delay);
+  if (valve_open_delay > 0) {
+    this->valve_overlap_ = false;
+    this->switching_delay_ = valve_open_delay;
+  } else {
+    this->switching_delay_.reset();
+  }
 }
 
 void Sprinkler::set_valve_overlap(uint32_t valve_overlap) {
-  this->valve_overlap_ = true;
-  this->set_timer_duration_(sprinkler::TIMER_VALVE_SWITCHING_DELAY, valve_overlap);
+  if (valve_overlap > 0) {
+    this->valve_overlap_ = true;
+    this->switching_delay_ = valve_overlap;
+  } else {
+    this->switching_delay_.reset();
+  }
+}
+
+void Sprinkler::set_manual_selection_delay(uint32_t manual_selection_delay) {
+  if (manual_selection_delay > 0) {
+    this->manual_selection_delay_ = manual_selection_delay;
+  } else {
+    this->manual_selection_delay_.reset();
+  }
 }
 
 void Sprinkler::set_valve_run_duration(const optional<size_t> valve_number,
@@ -239,17 +255,46 @@ void Sprinkler::start_single_valve(const optional<size_t> valve_number) {
   }
 }
 
-void Sprinkler::next_valve() {
-  this->start_valve_(this->next_valve_number_(this->active_valve_.value_or(this->number_of_valves() - 1)));
+void Sprinkler::queue_single_valve(optional<size_t> valve_number) {
+  if (valve_number.has_value()) {
+    if (this->is_a_valid_valve(valve_number.value())) {
+      this->queued_valve_ = valve_number;
+    } else {
+      this->queued_valve_.reset();
+    }
+  }
 }
 
-void Sprinkler::previous_valve() { this->start_valve_(this->previous_valve_number_(this->active_valve_.value_or(0))); }
+void Sprinkler::next_valve() {
+  if (this->manual_selection_delay_.has_value()) {
+    this->manual_valve_ = this->next_valve_number_(
+        this->manual_valve_.value_or(this->active_valve_.value_or(this->number_of_valves() - 1)));
+    this->set_timer_duration_(sprinkler::TIMER_VALVE_SWITCHING_DELAY, this->manual_selection_delay_.value());
+    this->start_timer_(sprinkler::TIMER_VALVE_SWITCHING_DELAY);
+  } else {
+    this->start_valve_(this->next_valve_number_(this->active_valve_.value_or(this->number_of_valves() - 1)));
+  }
+}
 
-void Sprinkler::shutdown() {
+void Sprinkler::previous_valve() {
+  if (this->manual_selection_delay_.has_value()) {
+    this->manual_valve_ = this->previous_valve_number_(this->manual_valve_.value_or(this->active_valve_.value_or(0)));
+    this->set_timer_duration_(sprinkler::TIMER_VALVE_SWITCHING_DELAY, this->manual_selection_delay_.value());
+    this->start_timer_(sprinkler::TIMER_VALVE_SWITCHING_DELAY);
+  } else {
+    this->start_valve_(this->previous_valve_number_(this->active_valve_.value_or(0)));
+  }
+}
+
+void Sprinkler::shutdown(bool clear_queue) {
   this->cancel_timer_(sprinkler::TIMER_VALVE_RUN);
   this->cancel_timer_(sprinkler::TIMER_VALVE_SWITCHING_DELAY);
   this->all_valves_off_(true);
   this->active_valve_.reset();
+  this->manual_valve_.reset();
+  if (clear_queue) {
+    this->queued_valve_.reset();
+  }
 }
 
 void Sprinkler::pause() {
@@ -259,7 +304,7 @@ void Sprinkler::pause() {
   }
   this->paused_valve_ = this->active_valve();
   this->resume_duration_ = this->time_remaining();
-  this->shutdown();
+  this->shutdown(false);
 }
 
 void Sprinkler::resume() {
@@ -285,14 +330,15 @@ const char *Sprinkler::valve_name(const size_t valve_number) {
 }
 
 optional<uint8_t> Sprinkler::active_valve() { return this->active_valve_; }
-
 optional<uint8_t> Sprinkler::paused_valve() { return this->paused_valve_; }
+optional<uint8_t> Sprinkler::queued_valve() { return this->queued_valve_; }
+optional<uint8_t> Sprinkler::manual_valve() { return this->manual_valve_; }
+
+size_t Sprinkler::number_of_valves() { return this->valve_.size(); }
 
 bool Sprinkler::is_a_valid_valve(const size_t valve_number) {
   return ((valve_number >= 0) && (valve_number < this->number_of_valves()));
 }
-
-size_t Sprinkler::number_of_valves() { return this->valve_.size(); }
 
 bool Sprinkler::pump_in_use(switch_::Switch *pump_switch) {
   if (this->active_valve_.has_value()) {
@@ -466,13 +512,13 @@ void Sprinkler::start_valve_(const optional<size_t> valve_number, optional<uint3
   this->set_timer_duration_(sprinkler::TIMER_VALVE_RUN, run_duration.value());
   this->start_timer_(sprinkler::TIMER_VALVE_RUN);
 
-  if (this->timer_duration_(sprinkler::TIMER_VALVE_SWITCHING_DELAY) > 0) {
+  if (this->switching_delay_.has_value()) {
+    this->set_timer_duration_(sprinkler::TIMER_VALVE_SWITCHING_DELAY, this->switching_delay_.value());
+    this->start_timer_(sprinkler::TIMER_VALVE_SWITCHING_DELAY);
     if (this->valve_overlap_) {
-      this->start_timer_(sprinkler::TIMER_VALVE_SWITCHING_DELAY);
       this->switch_to_valve_(this->active_valve_.value(), true);
       this->switch_to_pump_(this->active_valve_.value(), true);
     } else {
-      this->start_timer_(sprinkler::TIMER_VALVE_SWITCHING_DELAY);
       this->switch_to_pump_(this->active_valve_.value());
       this->all_valves_off_();
     }
@@ -575,27 +621,34 @@ void Sprinkler::valve_cycle_timer_callback_() {
 void Sprinkler::valve_switching_delay_callback_() {
   this->timer_[sprinkler::TIMER_VALVE_SWITCHING_DELAY].active = false;
   ESP_LOGD(TAG, "Valve switching_delay timer expired");
-  if (!this->active_valve_.has_value()) {
-    return;
-  }
-  if (this->valve_overlap_) {
-    ESP_LOGD(TAG, "  Deactivating previous valve, valve %i remains active", this->active_valve_.value());
-    this->switch_to_pump_(this->active_valve_.value());
-    this->switch_to_valve_(this->active_valve_.value());
-  } else {
-    ESP_LOGD(TAG, "  Activating valve %i", this->active_valve_.value());
-    this->switch_to_valve_(this->active_valve_.value());
+  if (this->manual_valve_.has_value()) {
+    this->start_valve_(this->manual_valve_.value());
+    this->manual_valve_.reset();
+  } else if (this->queued_valve_.has_value()) {
+    this->start_valve_(this->queued_valve_.value());
+    this->queued_valve_.reset();
+  } else if (this->active_valve_.has_value()) {
+    if (this->valve_overlap_) {
+      ESP_LOGD(TAG, "  Deactivating previous valve, valve %i remains active", this->active_valve_.value());
+      this->switch_to_pump_(this->active_valve_.value());
+      this->switch_to_valve_(this->active_valve_.value());
+    } else {
+      ESP_LOGD(TAG, "  Activating valve %i", this->active_valve_.value());
+      this->switch_to_valve_(this->active_valve_.value());
+    }
   }
 }
 
 void Sprinkler::dump_config() {
   ESP_LOGCONFIG(TAG, "Sprinkler Controller");
-  if (this->timer_duration_(sprinkler::TIMER_VALVE_SWITCHING_DELAY)) {
+  if (this->manual_selection_delay_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Manual Selection Delay: %u seconds", this->manual_selection_delay_.value_or(0));
+  }
+  if (this->switching_delay_.has_value()) {
     if (this->valve_overlap_)
-      ESP_LOGCONFIG(TAG, "  Valve Overlap: %u seconds", this->timer_duration_(sprinkler::TIMER_VALVE_SWITCHING_DELAY));
+      ESP_LOGCONFIG(TAG, "  Valve Overlap: %u seconds", this->switching_delay_.value_or(0));
     else
-      ESP_LOGCONFIG(TAG, "  Valve Open Delay: %u seconds",
-                    this->timer_duration_(sprinkler::TIMER_VALVE_SWITCHING_DELAY));
+      ESP_LOGCONFIG(TAG, "  Valve Open Delay: %u seconds", this->switching_delay_.value_or(0));
   }
   for (size_t valve_number = 0; valve_number < this->number_of_valves(); valve_number++) {
     ESP_LOGCONFIG(TAG, "  Valve %u:", valve_number);

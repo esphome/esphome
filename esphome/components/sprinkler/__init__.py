@@ -14,6 +14,7 @@ CODEOWNERS = ["@kbx81"]
 
 CONF_AUTO_ADVANCE_SWITCH_NAME = "auto_advance_switch_name"
 CONF_ENABLE_SWITCH_NAME = "enable_switch_name"
+CONF_MANUAL_SELECTION_DELAY = "manual_selection_delay"
 CONF_PUMP_SWITCH = "pump_switch"
 CONF_REVERSE_SWITCH_NAME = "reverse_switch_name"
 CONF_VALVE_OPEN_DELAY = "valve_open_delay"
@@ -130,6 +131,7 @@ SPRINKLER_VALVE_GROUP_SCHEMA = cv.Schema(
         cv.Optional(CONF_AUTO_ADVANCE_SWITCH_NAME): cv.string,
         cv.Optional(CONF_NAME): cv.string,
         cv.Optional(CONF_REVERSE_SWITCH_NAME): cv.string,
+        cv.Optional(CONF_MANUAL_SELECTION_DELAY): cv.positive_time_period_seconds,
         cv.Exclusive(
             CONF_VALVE_OVERLAP, "open_delay/overlap"
         ): cv.positive_time_period_seconds,
@@ -271,6 +273,11 @@ async def to_code(config):
                 )
             else:
                 cg.add(var.add_valve(valve[CONF_VALVE_SWITCH_NAME]))
+
+        if CONF_MANUAL_SELECTION_DELAY in valve_group:
+            cg.add(
+                var.set_manual_selection_delay(valve_group[CONF_MANUAL_SELECTION_DELAY])
+            )
 
         if CONF_VALVE_OVERLAP in valve_group:
             cg.add(var.set_valve_overlap(valve_group[CONF_VALVE_OVERLAP]))
