@@ -7,13 +7,6 @@ namespace atm90e32 {
 
 static const char *const TAG = "atm90e32";
 
-static float cumulative_forward_active_energy_a;
-static float cumulative_forward_active_energy_b;
-static float cumulative_forward_active_energy_c;
-static float cumulative_reverse_active_energy_a;
-static float cumulative_reverse_active_energy_b;
-static float cumulative_reverse_active_energy_c;
-
 void ATM90E32Component::update() {
   if (this->read16_(ATM90E32_REGISTER_METEREN) != 1) {
     this->status_set_warning();
@@ -272,33 +265,57 @@ float ATM90E32Component::get_power_factor_c_() {
 }
 float ATM90E32Component::get_forward_active_energy_a_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYA);
-  cumulative_forward_active_energy_a += ((float) val * 10 / 3200);
-  return cumulative_forward_active_energy_a;
+  if ((UINT32_MAX - this->phase_[0].cumulative_forward_active_energy_) > val) {
+    this->phase_[0].cumulative_forward_active_energy_ += val;
+  } else {
+    this->phase_[0].cumulative_forward_active_energy_ = val;
+  }
+  return ((float) this->phase_[0].cumulative_forward_active_energy_ * 10 / 3200);
 }
 float ATM90E32Component::get_forward_active_energy_b_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYB);
-  cumulative_forward_active_energy_b += ((float) val * 10 / 3200);
-  return cumulative_forward_active_energy_b;
+  if (UINT32_MAX - this->phase_[1].cumulative_forward_active_energy_ > val) {
+    this->phase_[1].cumulative_forward_active_energy_ += val;
+  } else {
+    this->phase_[1].cumulative_forward_active_energy_ = val;
+  }
+  return ((float) this->phase_[1].cumulative_forward_active_energy_ * 10 / 3200);
 }
 float ATM90E32Component::get_forward_active_energy_c_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYC);
-  cumulative_forward_active_energy_c += ((float) val * 10 / 3200);
-  return cumulative_forward_active_energy_c;
+  if (UINT32_MAX - this->phase_[2].cumulative_forward_active_energy_ > val) {
+    this->phase_[2].cumulative_forward_active_energy_ += val;
+  } else {
+    this->phase_[2].cumulative_forward_active_energy_ = val;
+  }
+  return ((float) this->phase_[2].cumulative_forward_active_energy_ * 10 / 3200);
 }
 float ATM90E32Component::get_reverse_active_energy_a_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYA);
-  cumulative_reverse_active_energy_a += ((float) val * 10 / 3200);
-  return cumulative_reverse_active_energy_a;
+  if (UINT32_MAX - this->phase_[0].cumulative_reverse_active_energy_ > val) {
+    this->phase_[0].cumulative_reverse_active_energy_ += val;
+  } else {
+    this->phase_[0].cumulative_reverse_active_energy_ = val;
+  }
+  return ((float) this->phase_[0].cumulative_reverse_active_energy_ * 10 / 3200);
 }
 float ATM90E32Component::get_reverse_active_energy_b_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYB);
-  cumulative_reverse_active_energy_b += ((float) val * 10 / 3200);
-  return cumulative_reverse_active_energy_b;
+  if (UINT32_MAX - this->phase_[1].cumulative_reverse_active_energy_ > val) {
+    this->phase_[1].cumulative_reverse_active_energy_ += val;
+  } else {
+    this->phase_[1].cumulative_reverse_active_energy_ = val;
+  }
+  return ((float) this->phase_[1].cumulative_reverse_active_energy_ * 10 / 3200);
 }
 float ATM90E32Component::get_reverse_active_energy_c_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYC);
-  cumulative_reverse_active_energy_c += ((float) val * 10 / 3200);
-  return cumulative_reverse_active_energy_c;
+  if (UINT32_MAX - this->phase_[2].cumulative_reverse_active_energy_ > val) {
+    this->phase_[2].cumulative_reverse_active_energy_ += val;
+  } else {
+    this->phase_[2].cumulative_reverse_active_energy_ = val;
+  }
+  return ((float) this->phase_[2].cumulative_reverse_active_energy_ * 10 / 3200);
 }
 float ATM90E32Component::get_frequency_() {
   uint16_t freq = this->read16_(ATM90E32_REGISTER_FREQ);
