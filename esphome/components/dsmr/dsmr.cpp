@@ -14,13 +14,47 @@ static const char *const TAG = "dsmr";
 
 void Dsmr::setup() {
   telegram_ = new char[max_telegram_len_];  // NOLINT
+  if (this->request_pin_ != nullptr) {
+    this->request_pin_->setup();
+  }
 }
 
 void Dsmr::loop() {
-  if (decryption_key_.empty())
-    receive_telegram_();
-  else
-    receive_encrypted_();
+  if (ready_to_request_data_()) {
+    if (this->decryption_key_.empty()) {
+      this->receive_telegram_();
+    } else {
+      this->receive_encrypted_();
+    }
+  }
+}
+
+bool Dsmr::ready_to_request_data_() {
+  // When using a request pin, then wait for the next request interval.
+  if (request_pin_ != nullptr) {
+    if (!requesting_data_ && request_interval_reached_()) {
+      start_requesting_data_();
+    }
+  }
+  // Otherwise, sink serial data until next request interval.
+  else {
+    if (request_interval_reached_()) {
+      start_requesting_data_();
+    }
+    if (!requesting_data_) {
+      while (available()) {
+        read();
+      }
+    }
+  }
+  return requesting_data_;
+}
+
+bool Dsmr::request_interval_reached_() {
+  if (last_request_time_ == 0) {
+    return true;
+  }
+  return millis() - last_request_time_ > request_interval_;
 }
 
 bool Dsmr::available_within_timeout_() {
@@ -32,6 +66,34 @@ bool Dsmr::available_within_timeout_() {
     }
   }
   return false;
+}
+
+void Dsmr::start_requesting_data_() {
+  if (!this->requesting_data_) {
+    if (this->request_pin_ != nullptr) {
+      ESP_LOGV(TAG, "Start requesting data from P1 port");
+      this->request_pin_->digital_write(true);
+    } else {
+      ESP_LOGV(TAG, "Start reading data from P1 port");
+    }
+    this->requesting_data_ = true;
+    last_request_time_ = millis();
+  }
+}
+
+void Dsmr::stop_requesting_data_() {
+  if (this->requesting_data_ == true) {
+    if (this->request_pin_ != nullptr) {
+      ESP_LOGV(TAG, "Stop requesting data from P1 port");
+      this->request_pin_->digital_write(false);
+    } else {
+      ESP_LOGV(TAG, "Stop reading data from P1 port");
+    }
+    while (available()) {
+      read();
+    }
+    this->requesting_data_ = false;
+  }
 }
 
 void Dsmr::receive_telegram_() {
@@ -162,6 +224,7 @@ void Dsmr::receive_encrypted_() {
 bool Dsmr::parse_telegram() {
   MyData data;
   ESP_LOGV(TAG, "Trying to parse telegram");
+  this->stop_requesting_data_();
   ::dsmr::ParseResult<void> res =
       ::dsmr::P1Parser::parse(&data, telegram_, telegram_len_, false,
                               crc_check_);  // Parse telegram according to data definition. Ignore unknown values.
@@ -180,6 +243,13 @@ bool Dsmr::parse_telegram() {
 void Dsmr::dump_config() {
   ESP_LOGCONFIG(TAG, "DSMR:");
   ESP_LOGCONFIG(TAG, "  Max telegram length: %d", max_telegram_len_);
+
+  if (request_pin_ != nullptr) {
+    LOG_PIN("  Request Pin: ", request_pin_);
+  }
+  if (request_interval_ > 0) {
+    ESP_LOGCONFIG(TAG, "  Request Interval: %.1fs", request_interval_ / 1e3f);
+  }
 
 #define DSMR_LOG_SENSOR(s) LOG_SENSOR("  ", #s, this->s_##s##_);
   DSMR_SENSOR_LIST(DSMR_LOG_SENSOR, )
