@@ -105,6 +105,9 @@ class Sprinkler : public Component {
   /// if auto_advance is true, controller will iterate through all enabled valves
   void set_auto_advance(bool auto_advance);
 
+  /// set the number of times to repeat a full cycle
+  void set_repeat(optional<uint32_t> repeat);
+
   /// if reverse is true, controller will iterate through all enabled valves in reverse (descending) order
   void set_reverse(bool reverse);
 
@@ -117,17 +120,23 @@ class Sprinkler : public Component {
   /// returns true if auto_advance is enabled
   bool auto_advance();
 
+  /// returns the number of times the controller is set to repeat cycles, if at all. check with 'has_value()'
+  optional<uint32_t> repeat();
+
+  /// if a cycle is active, returns the number of times the controller has repeated the cycle. check with 'has_value()'
+  optional<uint32_t> repeat_count();
+
   /// returns true if reverse is enabled
   bool reverse();
 
   /// starts a full cycle of all enabled valves and enables auto_advance.
   /// if no valves are enabled, all valves will be enabled.
-  void start_full_cycle();
+  void start_full_cycle(bool restart = false);
 
   /// activates a single valve and disables auto_advance.
   void start_single_valve(optional<size_t> valve_number);
 
-  /// queues up a single valve to be run after the active valve, regardless of auto-advance
+  /// sets a single valve to be run after the active valve, regardless of auto-advance
   void queue_single_valve(optional<size_t> valve_number);
 
   /// advances to the next valve (numerically)
@@ -267,6 +276,9 @@ class Sprinkler : public Component {
   /// The number of the valve to activate next, regardless of auto-advance
   optional<uint8_t> queued_valve_;
 
+  /// Set the number of times to repeat a full cycle
+  optional<uint32_t> target_repeats_;
+
   /// Set from time_remaining() when paused
   optional<uint32_t> resume_duration_;
 
@@ -275,6 +287,9 @@ class Sprinkler : public Component {
 
   /// Valve switching delay
   optional<uint32_t> switching_delay_;
+
+  /// Number of times the full cycle has been repeated
+  uint32_t repeat_count_{0};
 
   /// Sprinkler valve run time multiplier value
   float multiplier_{1.0};

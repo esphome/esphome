@@ -19,6 +19,30 @@ template<typename... Ts> class SetMultiplierAction : public Action<Ts...> {
   Sprinkler *sprinkler_;
 };
 
+template<typename... Ts> class QueueValveAction : public Action<Ts...> {
+ public:
+  explicit QueueValveAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
+
+  TEMPLATABLE_VALUE(size_t, queued_valve)
+
+  void play(Ts... x) override { this->sprinkler_->queue_single_valve(this->queued_valve_.optional_value(x...)); }
+
+ protected:
+  Sprinkler *sprinkler_;
+};
+
+template<typename... Ts> class SetRepeatAction : public Action<Ts...> {
+ public:
+  explicit SetRepeatAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
+
+  TEMPLATABLE_VALUE(uint32_t, repeat)
+
+  void play(Ts... x) override { this->sprinkler_->set_repeat(this->repeat_.optional_value(x...)); }
+
+ protected:
+  Sprinkler *sprinkler_;
+};
+
 template<typename... Ts> class SetRunDurationAction : public Action<Ts...> {
  public:
   explicit SetRunDurationAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}

@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MULTIPLIER,
     CONF_NAME,
+    CONF_REPEAT,
     CONF_RUN_DURATION,
 )
 
@@ -28,6 +29,8 @@ sprinkler_ns = cg.esphome_ns.namespace("sprinkler")
 Sprinkler = sprinkler_ns.class_("Sprinkler")
 
 SetMultiplierAction = sprinkler_ns.class_("SetMultiplierAction", automation.Action)
+QueueValveAction = sprinkler_ns.class_("QueueValveAction", automation.Action)
+SetRepeatAction = sprinkler_ns.class_("SetRepeatAction", automation.Action)
 SetRunDurationAction = sprinkler_ns.class_("SetRunDurationAction", automation.Action)
 StartFullCycleAction = sprinkler_ns.class_("StartFullCycleAction", automation.Action)
 StartSingleValveAction = sprinkler_ns.class_(
@@ -93,6 +96,13 @@ SPRINKLER_ACTION_SCHEMA = maybe_simple_id(
     }
 )
 
+SPRINKLER_ACTION_REPEAT_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(Sprinkler),
+        cv.Required(CONF_REPEAT): cv.templatable(cv.positive_int),
+    }
+)
+
 SPRINKLER_ACTION_SINGLE_VALVE_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(Sprinkler),
@@ -132,6 +142,7 @@ SPRINKLER_VALVE_GROUP_SCHEMA = cv.Schema(
         cv.Optional(CONF_NAME): cv.string,
         cv.Optional(CONF_REVERSE_SWITCH_NAME): cv.string,
         cv.Optional(CONF_MANUAL_SELECTION_DELAY): cv.positive_time_period_seconds,
+        cv.Optional(CONF_REPEAT): cv.positive_int,
         cv.Exclusive(
             CONF_VALVE_OVERLAP, "open_delay/overlap"
         ): cv.positive_time_period_seconds,
@@ -158,6 +169,32 @@ async def sprinkler_set_multiplier_to_code(config, action_id, template_arg, args
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_MULTIPLIER], args, cg.float_)
     cg.add(var.set_multiplier(template_))
+    return var
+
+
+@automation.register_action(
+    "sprinkler.queue_single_valve",
+    QueueValveAction,
+    SPRINKLER_ACTION_SINGLE_VALVE_SCHEMA,
+)
+async def sprinkler_set_queued_valve_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_VALVE_NUMBER], args, cg.uint8)
+    cg.add(var.set_queued_valve(template_))
+    return var
+
+
+@automation.register_action(
+    "sprinkler.set_repeat",
+    SetRepeatAction,
+    SPRINKLER_ACTION_REPEAT_SCHEMA,
+)
+async def sprinkler_set_repeat_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_REPEAT], args, cg.float_)
+    cg.add(var.set_repeat(template_))
     return var
 
 
@@ -278,6 +315,9 @@ async def to_code(config):
             cg.add(
                 var.set_manual_selection_delay(valve_group[CONF_MANUAL_SELECTION_DELAY])
             )
+
+        if CONF_REPEAT in valve_group:
+            cg.add(var.set_repeat(valve_group[CONF_REPEAT]))
 
         if CONF_VALVE_OVERLAP in valve_group:
             cg.add(var.set_valve_overlap(valve_group[CONF_VALVE_OVERLAP]))
