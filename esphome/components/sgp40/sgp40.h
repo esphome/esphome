@@ -50,8 +50,6 @@ class SGP40Component : public PollingComponent, public sensor::Sensor, public i2
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
   void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
-  void set_use_optimal_sampling(bool optimal_sampling) {optimal_sampling_ = optimal_sampling; }
-  bool get_use_optimal_sampling() const { return optimal_sampling_; }
 
  protected:
   /// Input sensor for humidity and temperature compensation.
@@ -73,7 +71,6 @@ class SGP40Component : public PollingComponent, public sensor::Sensor, public i2
   VocAlgorithmParams voc_algorithm_params_;
   bool self_test_complete_;
   bool store_baseline_;
-  bool optimal_sampling_ = 1;
   int32_t state0_;
   int32_t state1_;
   int32_t voc_index_ = 0;

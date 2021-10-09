@@ -88,15 +88,9 @@ void SGP40Component::setup() {
   to the update method. This seperation is to support getting accurate measurements but
   limit the amount of communication done over wifi for power consumption or to keep the
   number of records reported from being overwhelming.
-
-  At configuration the component can be configured to turn off optimal sampling in which
-  case the sensor will be read out with the same cadence as the update method, leading to
-  likely inacurate measurements, but possibly accurate enough for certain use cases. 
   */
-  if (this->optimal_sampling_) {
-    ESP_LOGD(TAG, "Using optimal sampling, setting up background sampler");
-    App.scheduler.set_interval(this, "", 1000, [this](){this->update_voc_index();});
-  }
+  ESP_LOGD(TAG, "Component requires sampling of 1Hz, setting up background sampler");
+  this->set_interval(1000, [this](){this->update_voc_index();});
 }
 
 void SGP40Component::self_test_() {
@@ -245,8 +239,7 @@ uint8_t SGP40Component::generate_crc_(const uint8_t *data, uint8_t datalen) {
 }
 
 void SGP40Component::update_voc_index() {
-  uint32_t update_interval = this->optimal_sampling_ ? 1 : this->update_interval_ / 1000; 
-  this->seconds_since_last_store_ += update_interval;
+  this->seconds_since_last_store_ += 1;
 
   this->voc_index_ = this->measure_voc_index_();
   if (this->samples_read_ < this->samples_to_stabalize_) {
@@ -259,10 +252,6 @@ void SGP40Component::update_voc_index() {
 }
 
 void SGP40Component::update() {
-  if (!(this->optimal_sampling_)) {
-    this->update_voc_index();
-  }
-
   if (this->samples_read_ < this->samples_to_stabalize_) {
     return;
   }
@@ -278,7 +267,6 @@ void SGP40Component::update() {
 void SGP40Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SGP40:");
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  optimal_samping: %d", this->optimal_sampling_);
   ESP_LOGCONFIG(TAG, "  store_baseline: %d", this->store_baseline_);
 
   if (this->is_failed()) {
