@@ -90,7 +90,7 @@ void SGP40Component::setup() {
   number of records reported from being overwhelming.
   */
   ESP_LOGD(TAG, "Component requires sampling of 1Hz, setting up background sampler");
-  this->set_interval(1000, [this](){this->update_voc_index();});
+  this->set_interval(1000, [this](){ this->update_voc_index(); });
 }
 
 void SGP40Component::self_test_() {
@@ -248,7 +248,6 @@ void SGP40Component::update_voc_index() {
              this->samples_to_stabalize_, this->voc_index_);
     return;
   }
-
 }
 
 void SGP40Component::update() {
