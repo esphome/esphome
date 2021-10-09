@@ -52,7 +52,6 @@ class ILI9341Display : public PollingComponent,
   void fill_internal_(Color color);
   void display_();
   uint16_t convert_to_16bit_color_(uint8_t color_8bit);
-  uint8_t convert_to_8bit_color_(uint16_t color_16bit);
 
   ILI9341Model model_;
   int16_t width_{320};   ///< Display width as modified by current rotation

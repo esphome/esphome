@@ -123,18 +123,9 @@ uint16_t ILI9341Display::convert_to_16bit_color_(uint8_t color_8bit) {
   return color;
 }
 
-uint8_t ILI9341Display::convert_to_8bit_color_(uint16_t color_16bit) {
-  // convert 16bit color to 8 bit buffer
-  uint8_t r = color_16bit >> 11;
-  uint8_t g = (color_16bit >> 5) & 0x3F;
-  uint8_t b = color_16bit & 0x1F;
-
-  return ((b / 0x0A) | ((g / 0x09) << 2) | ((r / 0x04) << 5));
-}
-
 void ILI9341Display::fill(Color color) {
-  auto color565 = display::ColorUtil::color_to_565(color);
-  memset(this->buffer_, convert_to_8bit_color_(color565), this->get_buffer_length_());
+  uint8_t color332 = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
+  memset(this->buffer_, color332, this->get_buffer_length_());
   this->x_low_ = 0;
   this->y_low_ = 0;
   this->x_high_ = this->get_width_internal() - 1;
@@ -181,8 +172,8 @@ void HOT ILI9341Display::draw_absolute_pixel_internal(int x, int y, Color color)
   this->y_high_ = (y > this->y_high_) ? y : this->y_high_;
 
   uint32_t pos = (y * width_) + x;
-  auto color565 = display::ColorUtil::color_to_565(color);
-  buffer_[pos] = convert_to_8bit_color_(color565);
+  uint8_t color332 = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
+  buffer_[pos] = color332;
 }
 
 // should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color
