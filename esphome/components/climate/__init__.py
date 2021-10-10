@@ -137,10 +137,10 @@ CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).
         cv.Optional(CONF_MODE_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
-        cv.Optional(CONF_SWING_COMMAND_TOPIC): cv.All(
+        cv.Optional(CONF_SWING_MODE_COMMAND_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
-        cv.Optional(CONF_SWING_STATE_TOPIC): cv.All(
+        cv.Optional(CONF_SWING_MODE_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
         cv.Optional(CONF_TARGET_TEMPERATURE_COMMAND_TOPIC): cv.All(
