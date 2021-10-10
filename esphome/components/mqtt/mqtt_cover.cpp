@@ -70,6 +70,7 @@ void MQTTCoverComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryCon
     root["optimistic"] = true;
   }
   if (traits.get_supports_position()) {
+    config.state_topic = false;
     root["position_topic"] = this->get_position_state_topic();
     root["set_position_topic"] = this->get_position_command_topic();
   }
