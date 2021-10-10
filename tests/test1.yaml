@@ -2285,6 +2285,12 @@ cover:
           id: template_cover
           state: CLOSED
     assumed_state: no
+    has_position: yes
+    position_state_topic: position/state/topic
+    position_command_topic: position/command/topic
+    tilt_lambda: !lambda 'return 0.5;'
+    tilt_state_topic: tilt/state/topic
+    tilt_command_topic: tilt/command/topic
   - platform: am43
     name: 'Test AM43'
     id: am43_test
