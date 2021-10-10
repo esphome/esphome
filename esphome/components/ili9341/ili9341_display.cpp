@@ -112,17 +112,6 @@ void ILI9341Display::display_() {
   this->y_high_ = 0;
 }
 
-uint16_t ILI9341Display::convert_to_16bit_color_(uint8_t color_8bit) {
-  int r = color_8bit >> 5;
-  int g = (color_8bit >> 2) & 0x07;
-  int b = color_8bit & 0x03;
-  uint16_t color = (r * 0x04) << 11;
-  color |= (g * 0x09) << 5;
-  color |= (b * 0x0A);
-
-  return color;
-}
-
 void ILI9341Display::fill(Color color) {
   uint8_t color332 = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
   memset(this->buffer_, color332, this->get_buffer_length_());
@@ -238,7 +227,7 @@ uint32_t ILI9341Display::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
   }
 
   for (uint32_t i = 0; i < sz; ++i) {
-    uint16_t color = convert_to_16bit_color_(*src++);
+    uint16_t color = display::ColorUtil::convert_332_to_565(*src++);
     *dst++ = (uint8_t)(color >> 8);
     *dst++ = (uint8_t) color;
   }
