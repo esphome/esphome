@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include <esp_camera.h>
 #include <freertos/FreeRTOS.h>
@@ -50,7 +51,7 @@ enum ESP32CameraFrameSize {
   ESP32_CAMERA_SIZE_1600X1200,  // UXGA
 };
 
-class ESP32Camera : public Component, public Nameable {
+class ESP32Camera : public Component, public EntityBase {
  public:
   ESP32Camera(const std::string &name);
   void set_data_pins(std::array<uint8_t, 8> pins);

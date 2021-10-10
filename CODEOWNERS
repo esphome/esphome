@@ -126,6 +126,7 @@ esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rgbct/* @jesserockz
 esphome/components/rtttl/* @glmnet
+esphome/components/safe_mode/* @paulmonigatti
 esphome/components/scd4x/* @sjtrny
 esphome/components/script/* @esphome/core
 esphome/components/sdm_meter/* @jesserockz @polyfaces

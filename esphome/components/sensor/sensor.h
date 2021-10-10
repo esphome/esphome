@@ -2,6 +2,7 @@
 
 #include "esphome/core/log.h"
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/filter.h"
 
@@ -43,7 +44,7 @@ std::string state_class_to_string(StateClass state_class);
  *
  * A sensor has unit of measurement and can use publish_state to send out a new value with the specified accuracy.
  */
-class Sensor : public Nameable {
+class Sensor : public EntityBase {
  public:
   explicit Sensor();
   explicit Sensor(const std::string &name);
@@ -52,11 +53,6 @@ class Sensor : public Nameable {
   std::string get_unit_of_measurement();
   /// Manually set the unit of measurement.
   void set_unit_of_measurement(const std::string &unit_of_measurement);
-
-  /// Get the icon. Uses the manual override if specified or the default value instead.
-  std::string get_icon();
-  /// Manually set the icon, for example "mdi:flash".
-  void set_icon(const std::string &icon);
 
   /// Get the accuracy in decimals, using the manual override if set.
   int8_t get_accuracy_decimals();
@@ -157,9 +153,6 @@ class Sensor : public Nameable {
   /// Override this to set the default unit of measurement.
   virtual std::string unit_of_measurement();  // NOLINT
 
-  /// Override this to set the default icon.
-  virtual std::string icon();  // NOLINT
-
   /// Override this to set the default accuracy in decimals.
   virtual int8_t accuracy_decimals();  // NOLINT
 
@@ -178,7 +171,6 @@ class Sensor : public Nameable {
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 
   optional<std::string> unit_of_measurement_;           ///< Unit of measurement override
-  optional<std::string> icon_;                          ///< Icon override
   optional<int8_t> accuracy_decimals_;                  ///< Accuracy in decimals override
   optional<std::string> device_class_;                  ///< Device class override
   optional<StateClass> state_class_{STATE_CLASS_NONE};  ///< State class override

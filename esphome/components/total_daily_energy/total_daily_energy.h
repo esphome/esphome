@@ -25,7 +25,6 @@ class TotalDailyEnergy : public sensor::Sensor, public Component {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
   std::string unit_of_measurement() override { return this->parent_->get_unit_of_measurement() + "h"; }
-  std::string icon() override { return this->parent_->get_icon(); }
   int8_t accuracy_decimals() override { return this->parent_->get_accuracy_decimals() + 2; }
   void loop() override;
 

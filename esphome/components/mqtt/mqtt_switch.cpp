@@ -41,15 +41,13 @@ void MQTTSwitchComponent::dump_config() {
 }
 
 std::string MQTTSwitchComponent::component_type() const { return "switch"; }
+const EntityBase *MQTTSwitchComponent::get_entity() const { return this->switch_; }
 void MQTTSwitchComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
-  if (!this->switch_->get_icon().empty())
-    root["icon"] = this->switch_->get_icon();
   if (this->switch_->assumed_state())
     root["optimistic"] = true;
 }
 bool MQTTSwitchComponent::send_initial_state() { return this->publish_state(this->switch_->state); }
-bool MQTTSwitchComponent::is_internal() { return this->switch_->is_internal(); }
-std::string MQTTSwitchComponent::friendly_name() const { return this->switch_->get_name(); }
+
 bool MQTTSwitchComponent::publish_state(bool state) {
   const char *state_s = state ? "ON" : "OFF";
   return this->publish(this->get_state_topic_(), state_s);
