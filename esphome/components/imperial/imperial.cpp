@@ -1,5 +1,6 @@
 #include "imperial.h"
 
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -90,7 +91,13 @@ void ImperialComponent::loop() {
 
 std::vector<uint8_t> ImperialComponent::build_rpc_settings_response_() {
   std::string url = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
-  std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, {url});
+  std::vector<std::string> urls = {url};
+#ifdef USE_WEBSERVER
+  auto ip = wifi::global_wifi_component->wifi_sta_ip();
+  std::string webserver_url = "http://" + ip.str() + ":" + to_string(WEBSERVER_PORT);
+  urls.push_back(webserver_url);
+#endif
+  std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, urls);
   return data;
 }
 

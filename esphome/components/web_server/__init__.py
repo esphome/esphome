@@ -52,6 +52,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
 
+    cg.add_define("USE_WEBSERVER")
+
     cg.add(paren.set_port(config[CONF_PORT]))
     cg.add_define("WEBSERVER_PORT", config[CONF_PORT])
     cg.add(var.set_css_url(config[CONF_CSS_URL]))
