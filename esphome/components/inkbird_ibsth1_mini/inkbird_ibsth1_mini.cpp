@@ -71,8 +71,10 @@ bool InkbirdIbstH1Mini::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
   auto temperature = NAN;
   auto external_temperature = NAN;
 
-  // Read bluetooth data into variable
-  auto measured_temperature = mnf_data.uuid.get_uuid().uuid.uuid16 / 100.0f;
+  // while uuid16's type is uint16_t, the actual reported temperature
+  // is in fact signed, and below zero values will be encoded as standard
+  // signed integer, so converting the value to int16_t
+  auto measured_temperature = ((int16_t) mnf_data.uuid.get_uuid().uuid.uuid16) / 100.0f;
 
   // Set temperature or external_temperature based on which sensor is in use
   if (mnf_data.data[2] == 0) {
