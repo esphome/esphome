@@ -3,6 +3,7 @@
 #include "http_request.h"
 #include "esphome/core/macros.h"
 #include "esphome/core/log.h"
+#include "esphome/components/network/util.h"
 
 namespace esphome {
 namespace http_request {
@@ -28,6 +29,13 @@ void HttpRequestComponent::set_url(std::string url) {
 }
 
 void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> &response_triggers) {
+  if(!network::is_connected()) {
+    this->client_.end();
+    this->status_set_warning();
+    ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
+    return;
+  }
+
   bool begin_status = false;
   const String url = this->url_.c_str();
 #ifdef USE_ESP32
