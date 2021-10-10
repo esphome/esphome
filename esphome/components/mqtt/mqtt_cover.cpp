@@ -84,9 +84,9 @@ void MQTTCoverComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryCon
 }
 
 std::string MQTTCoverComponent::component_type() const { return "cover"; }
-std::string MQTTCoverComponent::friendly_name() const { return this->cover_->get_name(); }
+const EntityBase *MQTTCoverComponent::get_entity() const { return this->cover_; }
+
 bool MQTTCoverComponent::send_initial_state() { return this->publish_state(); }
-bool MQTTCoverComponent::is_internal() { return this->cover_->is_internal(); }
 bool MQTTCoverComponent::publish_state() {
   auto traits = this->cover_->get_traits();
   bool success = true;

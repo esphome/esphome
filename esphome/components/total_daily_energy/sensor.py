@@ -2,12 +2,14 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, time
 from esphome.const import (
+    CONF_ICON,
     CONF_ID,
     CONF_TIME_ID,
     DEVICE_CLASS_ENERGY,
     CONF_METHOD,
     STATE_CLASS_TOTAL_INCREASING,
 )
+from esphome.core.entity_helpers import inherit_property_from
 
 DEPENDENCIES = ["time"]
 
@@ -43,6 +45,18 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
+)
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(TotalDailyEnergy),
+            cv.Optional(CONF_ICON): cv.icon,
+            cv.Required(CONF_POWER_ID): cv.use_id(sensor.Sensor),
+        },
+        extra=cv.ALLOW_EXTRA,
+    ),
+    inherit_property_from(CONF_ICON, CONF_POWER_ID),
 )
 
 

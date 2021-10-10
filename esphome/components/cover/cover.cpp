@@ -31,7 +31,7 @@ const char *cover_operation_to_str(CoverOperation op) {
   }
 }
 
-Cover::Cover(const std::string &name) : Nameable(name), position{COVER_OPEN} {}
+Cover::Cover(const std::string &name) : EntityBase(name), position{COVER_OPEN} {}
 
 uint32_t Cover::hash_base() { return 1727367479UL; }
 

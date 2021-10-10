@@ -1,14 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.cpp_helpers import setup_entity
 from esphome import automation
 from esphome.components import mqtt
 from esphome.const import (
     CONF_AWAY,
     CONF_CUSTOM_FAN_MODE,
     CONF_CUSTOM_PRESET,
-    CONF_DISABLED_BY_DEFAULT,
     CONF_ID,
-    CONF_INTERNAL,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
     CONF_MODE,
@@ -19,7 +18,6 @@ from esphome.const import (
     CONF_TEMPERATURE_STEP,
     CONF_VISUAL,
     CONF_MQTT_ID,
-    CONF_NAME,
     CONF_FAN_MODE,
     CONF_SWING_MODE,
 )
@@ -30,7 +28,7 @@ IS_PLATFORM_COMPONENT = True
 CODEOWNERS = ["@esphome/core"]
 climate_ns = cg.esphome_ns.namespace("climate")
 
-Climate = climate_ns.class_("Climate", cg.Nameable)
+Climate = climate_ns.class_("Climate", cg.EntityBase)
 ClimateCall = climate_ns.class_("ClimateCall")
 ClimateTraits = climate_ns.class_("ClimateTraits")
 
@@ -88,7 +86,7 @@ validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 # Actions
 ControlAction = climate_ns.class_("ControlAction", automation.Action)
 
-CLIMATE_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
+CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(Climate),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTClimateComponent),
@@ -105,10 +103,8 @@ CLIMATE_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).ext
 
 
 async def setup_climate_core_(var, config):
-    cg.add(var.set_name(config[CONF_NAME]))
-    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
-    if CONF_INTERNAL in config:
-        cg.add(var.set_internal(config[CONF_INTERNAL]))
+    await setup_entity(var, config)
+
     visual = config[CONF_VISUAL]
     if CONF_MIN_TEMPERATURE in visual:
         cg.add(var.set_visual_min_temperature_override(visual[CONF_MIN_TEMPERATURE]))
