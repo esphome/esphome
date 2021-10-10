@@ -10,6 +10,7 @@ namespace ili9341 {
 static const char *const TAG = "ili9341";
 
 void ILI9341Display::setup_pins_() {
+  this->color_mode_ = BITS_8_INDEXED;
   this->init_internal_(this->get_buffer_length_());
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
@@ -161,8 +162,13 @@ void HOT ILI9341Display::draw_absolute_pixel_internal(int x, int y, Color color)
   this->y_high_ = (y > this->y_high_) ? y : this->y_high_;
 
   uint32_t pos = (y * width_) + x;
-  uint8_t color332 = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
-  buffer_[pos] = color332;
+  if (this->color_mode_ == BITS_8) {
+    uint8_t color332 = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
+    buffer_[pos] = color332;
+  } else {  // if (this->color_mode_ == BITS_8_INDEXED) {
+    uint8_t index = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
+    buffer_[pos] = index;
+  }
 }
 
 // should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color
@@ -227,7 +233,13 @@ uint32_t ILI9341Display::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
   }
 
   for (uint32_t i = 0; i < sz; ++i) {
-    uint16_t color = display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(*src++));
+    uint16_t color;
+    if (this->color_mode_ == BITS_8) {
+      color = display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(*src++));
+    } else {  //  if (this->color_mode == BITS_8_INDEXED) {
+      Color col = display::ColorUtil::index8_to_color_palette888(*src++, this->palette_);
+      color = display::ColorUtil::color_to_565(col);
+    }
     *dst++ = (uint8_t)(color >> 8);
     *dst++ = (uint8_t) color;
   }
