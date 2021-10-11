@@ -8,7 +8,7 @@ tzdata>=2021.1  # from time
 pyserial==3.5
 platformio==5.2.0
 esptool==3.1
-click==8.0.1
+click==8.0.3
 esphome-dashboard==20211006.0
 aioesphomeapi==9.1.5
 
