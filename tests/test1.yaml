@@ -2307,6 +2307,12 @@ cover:
     tilt_lambda: !lambda 'return 0.5;'
     tilt_state_topic: tilt/state/topic
     tilt_command_topic: tilt/command/topic
+    on_open:
+      then:
+        - lambda: 'ESP_LOGD("cover", "open");'
+    on_closed:
+      then:
+        - lambda: 'ESP_LOGD("cover", "closed");'
   - platform: am43
     name: 'Test AM43'
     id: am43_test
