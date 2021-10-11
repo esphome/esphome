@@ -37,7 +37,6 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
   if (this->carrier_duty_percent_ == 100 || (on_time == 0 && off_time == 0)) {
     this->pin_->digital_write(true);
     delay_microseconds_accurate(usec);
-    this->pin_->digital_write(false);
     return;
   }
 
@@ -81,6 +80,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
       }
     }
 
+    this->pin_->digital_write(false);
     if (i + 1 < send_times) {
       delay_microseconds_accurate(send_wait);
     }
