@@ -136,6 +136,7 @@ class ColorUtil {
       x = (uint32_t) std::abs(tgt_r - plt_r);
       y = (uint32_t) std::abs(tgt_g - plt_g);
       z = (uint32_t) std::abs(tgt_b - plt_b);
+      uint32_t dist2 = x * x + y * y + z * z;
       if (dist2 < minimum_dist2) {
         minimum_dist2 = dist2;
         closest_index = (uint8_t) i;
