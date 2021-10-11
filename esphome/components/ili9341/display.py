@@ -34,7 +34,7 @@ MODELS = {
 
 ILI9341_MODEL = cv.enum(MODELS, upper=True, space="_")
 
-COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "AUTO")
+COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE")
 
 CONF_RAW_DATA_ID = "raw_data_id"
 
