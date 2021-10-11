@@ -418,8 +418,8 @@ async def heartbeat_filter_to_code(config, filter_id):
 
 
 @FILTER_REGISTRY.register(
-    "periodical_average", 
-    PeriodicalAverageFilter, 
+    "periodical_average",
+    PeriodicalAverageFilter,
     cv.positive_time_period_milliseconds
 )
 async def periodical_average_filter_to_code(config, filter_id):
