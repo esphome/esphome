@@ -74,7 +74,7 @@ void PZEMAC::dump_config() {
   LOG_SENSOR("", "Power Factor", this->power_factor_sensor_);
 }
 
-void PZEMAC::reset_energy() {
+void PZEMAC::reset_energy_() {
   std::vector<uint8_t> cmd;
   cmd.push_back(this->address_);
   cmd.push_back(PZEM_CMD_RESET_ENERGY);
