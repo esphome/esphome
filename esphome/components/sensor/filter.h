@@ -285,7 +285,7 @@ class PeriodicalAverageFilter : public Filter, public Component {
  protected:
   uint32_t time_period_;
   float sum_{0.0f};
-  size_t n_{0};
+  unsigned int n_{0};
 };
 
 class DeltaFilter : public Filter {

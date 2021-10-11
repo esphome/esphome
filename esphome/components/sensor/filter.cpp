@@ -322,7 +322,7 @@ optional<float> PeriodicalAverageFilter::new_value(float value) {
 }
 void PeriodicalAverageFilter::setup() {
   this->set_interval("periodical_average", this->time_period_, [this]() {
-    ESP_LOGVV(TAG, "PeriodicalAverageFilter(%p)::interval(sum=%f, n=%zu)", this, this->sum_, this->n_);
+    ESP_LOGVV(TAG, "PeriodicalAverageFilter(%p)::interval(sum=%f, n=%i)", this, this->sum_, this->n_);
     if (this->n_ == 0)
       return;
 
