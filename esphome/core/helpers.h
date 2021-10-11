@@ -26,10 +26,20 @@ namespace esphome {
 /// The characters that are allowed in a hostname.
 extern const char *const HOSTNAME_CHARACTER_ALLOWLIST;
 
-/// Gets the MAC address as a string, this can be used as way to identify this ESP.
+/// Read the raw MAC address into the provided byte array (6 bytes).
+void get_mac_address_raw(uint8_t *mac);
+
+/// Get the MAC address as a string, using lower case hex notation.
+/// This can be used as way to identify this ESP.
 std::string get_mac_address();
 
+/// Get the MAC address as a string, using colon-separated upper case hex notation.
 std::string get_mac_address_pretty();
+
+#ifdef USE_ESP32
+/// Set the MAC address to use from the provided byte array (6 bytes).
+void set_mac_address(uint8_t *mac);
+#endif
 
 std::string to_string(const std::string &val);
 std::string to_string(int val);
@@ -43,7 +53,8 @@ std::string to_string(double val);
 std::string to_string(long double val);
 optional<float> parse_float(const std::string &str);
 optional<int> parse_int(const std::string &str);
-
+optional<int> parse_hex(const std::string &str, size_t start, size_t length);
+optional<int> parse_hex(char chr);
 /// Sanitize the hostname by removing characters that are not in the allowlist and truncating it to 63 chars.
 std::string sanitize_hostname(const std::string &hostname);
 
@@ -57,6 +68,9 @@ std::string to_lowercase_underscore(std::string s);
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 bool str_startswith(const std::string &full, const std::string &start);
 bool str_endswith(const std::string &full, const std::string &ending);
+
+/// sprintf-like function returning std::string instead of writing to char array.
+std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
 
 class HighFrequencyLoopRequester {
  public:
@@ -144,6 +158,11 @@ uint16_t encode_uint16(uint8_t msb, uint8_t lsb);
 std::array<uint8_t, 2> decode_uint16(uint16_t value);
 /// Encode a 32-bit unsigned integer given four bytes in MSB -> LSB order
 uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb);
+
+/// Convert RGB floats (0-1) to hue (0-360) & saturation/value percentage (0-1)
+void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
+/// Convert hue (0-360) & saturation/value percentage (0-1) to RGB floats (0-1)
+void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green, float &blue);
 
 /***
  * An interrupt helper class.
@@ -333,10 +352,10 @@ template<typename T> T *new_buffer(size_t length) {
   if (psramFound()) {
     buffer = (T *) ps_malloc(length);
   } else {
-    buffer = new T[length];
+    buffer = new T[length];  // NOLINT(cppcoreguidelines-owning-memory)
   }
 #else
-  buffer = new T[length];  // NOLINT
+  buffer = new T[length];  // NOLINT(cppcoreguidelines-owning-memory)
 #endif
 
   return buffer;

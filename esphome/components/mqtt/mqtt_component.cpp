@@ -68,8 +68,13 @@ bool MQTTComponent::send_discovery_() {
 
         this->send_discovery(root, config);
 
-        std::string name = this->friendly_name();
-        root["name"] = name;
+        // Fields from EntityBase
+        root["name"] = this->friendly_name();
+        if (this->is_disabled_by_default())
+          root["enabled_by_default"] = false;
+        if (!this->get_icon().empty())
+          root["icon"] = this->get_icon();
+
         if (config.state_topic)
           root["state_topic"] = this->get_state_topic_();
         if (config.command_topic)
@@ -198,6 +203,12 @@ void MQTTComponent::call_dump_config() {
 void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
 std::string MQTTComponent::unique_id() { return ""; }
 bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
+
+// Pull these properties from EntityBase if not overridden
+std::string MQTTComponent::friendly_name() const { return this->get_entity()->get_name(); }
+std::string MQTTComponent::get_icon() const { return this->get_entity()->get_icon(); }
+bool MQTTComponent::is_disabled_by_default() const { return this->get_entity()->is_disabled_by_default(); }
+bool MQTTComponent::is_internal() { return this->get_entity()->is_internal(); }
 
 }  // namespace mqtt
 }  // namespace esphome

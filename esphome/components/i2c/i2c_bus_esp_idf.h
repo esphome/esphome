@@ -9,6 +9,12 @@
 namespace esphome {
 namespace i2c {
 
+enum RecoveryCode {
+  RECOVERY_FAILED_SCL_LOW,
+  RECOVERY_FAILED_SDA_LOW,
+  RECOVERY_COMPLETED,
+};
+
 class IDFI2CBus : public I2CBus, public Component {
  public:
   void setup() override;
@@ -23,6 +29,10 @@ class IDFI2CBus : public I2CBus, public Component {
   void set_scl_pin(uint8_t scl_pin) { scl_pin_ = scl_pin; }
   void set_scl_pullup_enabled(bool scl_pullup_enabled) { scl_pullup_enabled_ = scl_pullup_enabled; }
   void set_frequency(uint32_t frequency) { frequency_ = frequency; }
+
+ private:
+  void recover_();
+  RecoveryCode recovery_result_;
 
  protected:
   i2c_port_t port_;

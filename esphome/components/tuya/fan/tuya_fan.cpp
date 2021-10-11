@@ -76,7 +76,7 @@ void TuyaFan::write_state() {
   if (this->direction_id_.has_value()) {
     bool enable = this->fan_->direction == fan::FAN_DIRECTION_REVERSE;
     ESP_LOGV(TAG, "Setting reverse direction: %s", ONOFF(enable));
-    this->parent_->set_boolean_datapoint_value(*this->direction_id_, enable);
+    this->parent_->set_enum_datapoint_value(*this->direction_id_, enable);
   }
   if (this->speed_id_.has_value()) {
     ESP_LOGV(TAG, "Setting speed: %d", this->fan_->speed);

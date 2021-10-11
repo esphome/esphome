@@ -4,15 +4,21 @@
 # otherwise use path in /config (so that PIO packages aren't downloaded on each compile)
 
 if [[ -d /cache ]]; then
-    export PLATFORMIO_CORE_DIR=/cache/platformio
+    pio_cache_base=/cache/platformio
 else
-    export PLATFORMIO_CORE_DIR=/config/.esphome/platformio
+    pio_cache_base=/config/.esphome/platformio
 fi
 
-if [[ ! -d "${PLATFORMIO_CORE_DIR}" ]]; then
-    echo "Creating cache directory ${PLATFORMIO_CORE_DIR}"
+if [[ ! -d "${pio_cache_base}" ]]; then
+    echo "Creating cache directory ${pio_cache_base}"
     echo "You can change this behavior by mounting a directory to the container's /cache directory."
-    mkdir -p "${PLATFORMIO_CORE_DIR}"
+    mkdir -p "${pio_cache_base}"
 fi
+
+# we can't set core_dir, because the settings file is stored in `core_dir/appstate.json`
+# setting `core_dir` would therefore prevent pio from accessing
+export PLATFORMIO_PLATFORMS_DIR="${pio_cache_base}/platforms"
+export PLATFORMIO_PACKAGES_DIR="${pio_cache_base}/packages"
+export PLATFORMIO_CACHE_DIR="${pio_cache_base}/cache"
 
 exec esphome "$@"

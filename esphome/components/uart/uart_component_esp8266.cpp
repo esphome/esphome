@@ -13,7 +13,7 @@ namespace esphome {
 namespace uart {
 
 static const char *const TAG = "uart.arduino_esp8266";
-bool ESP8266UartComponent::serial0InUse = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint32_t ESP8266UartComponent::get_config() {
   uint32_t config = 0;
@@ -55,7 +55,7 @@ void ESP8266UartComponent::setup() {
   // is 1 we still want to use Serial.
   SerialConfig config = static_cast<SerialConfig>(get_config());
 
-  if (!ESP8266UartComponent::serial0InUse && (tx_pin_ == nullptr || tx_pin_->get_pin() == 1) &&
+  if (!ESP8266UartComponent::serial0_in_use && (tx_pin_ == nullptr || tx_pin_->get_pin() == 1) &&
       (rx_pin_ == nullptr || rx_pin_->get_pin() == 3)
 #ifdef USE_LOGGER
       // we will use UART0 if logger isn't using it in swapped mode
@@ -66,8 +66,8 @@ void ESP8266UartComponent::setup() {
     this->hw_serial_ = &Serial;
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
-    ESP8266UartComponent::serial0InUse = true;
-  } else if (!ESP8266UartComponent::serial0InUse && (tx_pin_ == nullptr || tx_pin_->get_pin() == 15) &&
+    ESP8266UartComponent::serial0_in_use = true;
+  } else if (!ESP8266UartComponent::serial0_in_use && (tx_pin_ == nullptr || tx_pin_->get_pin() == 15) &&
              (rx_pin_ == nullptr || rx_pin_->get_pin() == 13)
 #ifdef USE_LOGGER
              // we will use UART0 swapped if logger isn't using it in regular mode
@@ -79,7 +79,7 @@ void ESP8266UartComponent::setup() {
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
-    ESP8266UartComponent::serial0InUse = true;
+    ESP8266UartComponent::serial0_in_use = true;
   } else if ((tx_pin_ == nullptr || tx_pin_->get_pin() == 2) && (rx_pin_ == nullptr || rx_pin_->get_pin() == 8)) {
     this->hw_serial_ = &Serial1;
     this->hw_serial_->begin(this->baud_rate_, config);

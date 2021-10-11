@@ -110,6 +110,12 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
 }
 
 void WiFiComponent::wifi_pre_setup_() {
+#ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
+  uint8_t mac[6];
+  get_mac_address_raw(mac);
+  set_mac_address(mac);
+  ESP_LOGV(TAG, "Use EFuse MAC without checking CRC: %s", get_mac_address_pretty().c_str());
+#endif
   esp_err_t err = esp_netif_init();
   if (err != ERR_OK) {
     ESP_LOGE(TAG, "esp_netif_init failed: %s", esp_err_to_name(err));
@@ -377,17 +383,20 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 #endif  // USE_WIFI_WPA2_EAP
 
+  // Reset flags, do this _before_ wifi_station_connect as the callback method
+  // may be called from wifi_station_connect
+  s_sta_connecting = true;
+  s_sta_connected = false;
+  s_sta_got_ip = false;
+  s_sta_connect_error = false;
+  s_sta_connect_not_found = false;
+
   err = esp_wifi_connect();
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "esp_wifi_connect failed: %s", esp_err_to_name(err));
     return false;
   }
 
-  s_sta_connecting = true;
-  s_sta_connected = false;
-  s_sta_got_ip = false;
-  s_sta_connect_error = false;
-  s_sta_connect_not_found = false;
   return true;
 }
 

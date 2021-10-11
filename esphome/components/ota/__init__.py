@@ -101,7 +101,7 @@ async def to_code(config):
     if CORE.is_esp8266:
         cg.add_library("Update", None)
     elif CORE.is_esp32 and CORE.using_arduino:
-        cg.add_library("Hash", None)
+        cg.add_library("Update", None)
 
     use_state_callback = False
     for conf in config.get(CONF_ON_STATE_CHANGE, []):

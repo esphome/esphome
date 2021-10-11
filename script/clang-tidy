@@ -17,7 +17,7 @@ import pexpect
 
 sys.path.append(os.path.dirname(__file__))
 from helpers import shlex_quote, get_output, filter_grep, \
-    build_all_include, temp_header_file, git_ls_files, filter_changed, load_idedata
+    build_all_include, temp_header_file, git_ls_files, filter_changed, load_idedata, basepath
 
 
 def clang_options(idedata):
@@ -54,7 +54,9 @@ def clang_options(idedata):
 
     # copy compiler flags, except those clang doesn't understand.
     cmd.extend(flag for flag in idedata['cxx_flags'].split(' ')
-               if flag not in ('-free', '-fipa-pta', '-fstrict-volatile-bitfields', '-mlongcalls', '-mtext-section-literals'))
+               if flag not in ('-free', '-fipa-pta', '-fstrict-volatile-bitfields',
+                               '-mlongcalls', '-mtext-section-literals',
+                               '-mfix-esp32-psram-cache-issue', '-mfix-esp32-psram-cache-strategy=memw'))
 
     # defines
     cmd.extend(f'-D{define}' for define in idedata['defines'])
@@ -87,6 +89,7 @@ def run_tidy(args, options, tmpdir, queue, lock, failed_files):
             invocation.append('-quiet')
 
         invocation.append(os.path.abspath(path))
+        invocation.append(f"--header-filter={os.path.abspath(basepath)}/.*")
         invocation.append('--')
         invocation.extend(options)
         invocation_s = ' '.join(shlex_quote(x) for x in invocation)
@@ -119,7 +122,7 @@ def main():
     parser.add_argument('-j', '--jobs', type=int,
                         default=multiprocessing.cpu_count(),
                         help='number of tidy instances to be run in parallel.')
-    parser.add_argument('-e', '--environment', default='esp8266-tidy',
+    parser.add_argument('-e', '--environment', default='esp32-tidy',
                         help='the PlatformIO environment to run against (esp8266-tidy or esp32-tidy)')
     parser.add_argument('files', nargs='*', default=[],
                         help='files to be processed (regex on path)')

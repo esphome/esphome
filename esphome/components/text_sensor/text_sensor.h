@@ -1,7 +1,9 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/components/text_sensor/filter.h"
 
 namespace esphome {
 namespace text_sensor {
@@ -17,34 +19,53 @@ namespace text_sensor {
     } \
   }
 
-class TextSensor : public Nameable {
+class TextSensor : public EntityBase {
  public:
   explicit TextSensor();
   explicit TextSensor(const std::string &name);
 
+  /// Getter-syntax for .state.
+  std::string get_state() const;
+  /// Getter-syntax for .raw_state
+  std::string get_raw_state() const;
+
   void publish_state(const std::string &state);
 
-  void set_icon(const std::string &icon);
+  /// Add a filter to the filter chain. Will be appended to the back.
+  void add_filter(Filter *filter);
+
+  /// Add a list of vectors to the back of the filter chain.
+  void add_filters(const std::vector<Filter *> &filters);
+
+  /// Clear the filters and replace them by filters.
+  void set_filters(const std::vector<Filter *> &filters);
+
+  /// Clear the entire filter chain.
+  void clear_filters();
 
   void add_on_state_callback(std::function<void(std::string)> callback);
+  /// Add a callback that will be called every time the sensor sends a raw value.
+  void add_on_raw_state_callback(std::function<void(std::string)> callback);
 
   std::string state;
+  std::string raw_state;
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  std::string get_icon();
-
-  virtual std::string icon();
-
   virtual std::string unique_id();
 
   bool has_state();
 
+  void internal_send_state_to_frontend(const std::string &state);
+
  protected:
   uint32_t hash_base() override;
 
-  CallbackManager<void(std::string)> callback_;
-  optional<std::string> icon_;
+  CallbackManager<void(std::string)> raw_callback_;  ///< Storage for raw state callbacks.
+  CallbackManager<void(std::string)> callback_;      ///< Storage for filtered state callbacks.
+
+  Filter *filter_list_{nullptr};  ///< Store all active filters.
+
   bool has_state_{false};
 };
 

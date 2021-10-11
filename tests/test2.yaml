@@ -91,6 +91,8 @@ sensor:
       name: 'b-parasite Soil Moisture'
     battery_voltage:
       name: 'b-parasite Battery Voltage'
+    illuminance:
+      name: 'b-parasite Illuminance'
   - platform: senseair
     id: senseair0
     co2:
@@ -238,6 +240,20 @@ sensor:
       name: 'Inkbird IBS-TH1 Humidity'
     battery_level:
       name: 'Inkbird IBS-TH1 Battery Level'
+  - platform: ltr390
+    uv:
+      name: "LTR390 UV"
+    uv_index:
+      name: "LTR390 UVI"
+    light:
+      name: "LTR390 Light"
+    ambient_light:
+      name: "LTR390 ALS"
+    gain: "X3"
+    resolution: 18
+    window_correction_factor: 1.0
+    address: 0x53
+    update_interval: 60s
   - platform: sgp40
     name: 'Workshop VOC'
     update_interval: 5s
@@ -265,6 +281,17 @@ sensor:
       name: "Wave Plus CO2"
     tvoc:
       name: "Wave Plus VOC"
+  - platform: airthings_wave_mini
+    ble_client_id: airthingsmini01
+    update_interval: 5min
+    temperature:
+      name: "Wave Mini Temperature"
+    humidity:
+      name: "Wave Mini Humidity"
+    pressure:
+      name: "Wave Mini Pressure"
+    tvoc:
+      name: "Wave Mini VOC"
 
 time:
   - platform: homeassistant
@@ -362,6 +389,9 @@ esp32_ble_tracker:
 ble_client:
   - mac_address: 01:02:03:04:05:06
     id: airthings01
+  - mac_address: 01:02:03:04:05:06
+    id: airthingsmini01
+
 
 airthings_ble:
 

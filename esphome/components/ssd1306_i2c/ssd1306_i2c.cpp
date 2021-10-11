@@ -25,6 +25,11 @@ void I2CSSD1306::dump_config() {
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   ESP_LOGCONFIG(TAG, "  External VCC: %s", YESNO(this->external_vcc_));
+  ESP_LOGCONFIG(TAG, "  Flip X: %s", YESNO(this->flip_x_));
+  ESP_LOGCONFIG(TAG, "  Flip Y: %s", YESNO(this->flip_y_));
+  ESP_LOGCONFIG(TAG, "  Offset X: %d", this->offset_x_);
+  ESP_LOGCONFIG(TAG, "  Offset Y: %d", this->offset_y_);
+  ESP_LOGCONFIG(TAG, "  Inverted Color: %s", YESNO(this->invert_));
   LOG_UPDATE_INTERVAL(this);
 
   if (this->error_code_ == COMMUNICATION_FAILED) {

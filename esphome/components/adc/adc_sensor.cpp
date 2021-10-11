@@ -1,9 +1,13 @@
 #include "adc_sensor.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_ESP8266
 #ifdef USE_ADC_SENSOR_VCC
 #include <Esp.h>
 ADC_MODE(ADC_VCC)
+#else
+#include <Arduino.h>
+#endif
 #endif
 
 namespace esphome {

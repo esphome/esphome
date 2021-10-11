@@ -178,13 +178,12 @@ void Logger::pre_setup() {
         uart_num_ = UART_NUM_2;
         break;
     }
-    uart_config_t uart_config = {
-        .baud_rate = (int) baud_rate_,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-    };
+    uart_config_t uart_config{};
+    uart_config.baud_rate = (int) baud_rate_;
+    uart_config.data_bits = UART_DATA_8_BITS;
+    uart_config.parity = UART_PARITY_DISABLE;
+    uart_config.stop_bits = UART_STOP_BITS_1;
+    uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
     uart_param_config(uart_num_, &uart_config);
     const int uart_buffer_size = tx_buffer_size_;
     // Install UART driver using an event queue here

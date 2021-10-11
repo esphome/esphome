@@ -4,7 +4,7 @@ from esphome import core
 from esphome.components import display
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_FILE, CONF_GLYPHS, CONF_ID, CONF_SIZE
+from esphome.const import CONF_FILE, CONF_GLYPHS, CONF_ID, CONF_RAW_DATA_ID, CONF_SIZE
 from esphome.core import CORE, HexInt
 
 DEPENDENCIES = ["display"]
@@ -72,9 +72,8 @@ def validate_truetype_file(value):
 
 
 DEFAULT_GLYPHS = (
-    ' !"%()+,-.:/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
+    ' !"%()+=,-.:/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
 )
-CONF_RAW_DATA_ID = "raw_data_id"
 CONF_RAW_GLYPH_ID = "raw_glyph_id"
 
 FONT_SCHEMA = cv.Schema(

@@ -71,7 +71,7 @@ void BH1750Sensor::update() {
 float BH1750Sensor::get_setup_priority() const { return setup_priority::DATA; }
 void BH1750Sensor::read_data_() {
   uint16_t raw_value;
-  if (!this->read(reinterpret_cast<uint8_t *>(&raw_value), 2)) {
+  if (this->read(reinterpret_cast<uint8_t *>(&raw_value), 2) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }

@@ -241,8 +241,10 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   size_t data_size = (buffer[2] << 8) + buffer[3];
   const uint8_t *data = buffer + 4;
   size_t data_len = len - 4;
-  if (data_size != data_len) {
-    ESP_LOGW(TAG, "Datapoint %u is not expected size (%zu != %zu)", datapoint.id, data_size, data_len);
+  if (data_size > data_len) {
+    ESP_LOGW(TAG, "Datapoint %u has extra bytes that will be ignored (%zu > %zu)", datapoint.id, data_size, data_len);
+  } else if (data_size < data_len) {
+    ESP_LOGW(TAG, "Datapoint %u is truncated and cannot be parsed (%zu < %zu)", datapoint.id, data_size, data_len);
     return;
   }
   datapoint.len = data_len;
@@ -477,7 +479,7 @@ void Tuya::set_string_datapoint_value(uint8_t datapoint_id, const std::string &v
   for (char const &c : value) {
     data.push_back(c);
   }
-  this->send_datapoint_command_(datapoint->id, datapoint->type, data);
+  this->send_datapoint_command_(datapoint_id, TuyaDatapointType::STRING, data);
 }
 
 void Tuya::set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value) {
