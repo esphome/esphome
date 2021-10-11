@@ -56,7 +56,7 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
     this->wait_to_micros_(on_time);
     if (micros() > target_time - off_time)
       break;
-    
+
     this->pin_->digital_write(false);
     this->wait_to_micros_(off_time);
   }
