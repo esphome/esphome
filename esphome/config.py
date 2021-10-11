@@ -747,7 +747,7 @@ def validate_config(config, command_line_substitutions):
                 _LOGGER.warning(
                     "Cannot disable '%s': component configuration not found", key
                 )
-        del config["disable"]
+        del config[CONF_DISABLE]
 
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
