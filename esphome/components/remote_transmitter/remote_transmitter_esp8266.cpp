@@ -34,10 +34,10 @@ void RemoteTransmitterComponent::calculate_on_off_time_(uint32_t carrier_frequen
 }
 
 void RemoteTransmitterComponent::wait_to_micros_(uint32_t usec) {
-  while (micros() - this->start_time_ < usec)  // variable delay that self-aligns to the "start_time_" reference
+  while (micros() - this->ref_time_ < usec)  // variable delay that self-aligns to the "ref_time_" reference
     ;
 
-  this->start_time_ += usec;  // exact shift to the next time reference
+  this->ref_time_ += usec;
 }
 
 void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint32_t usec) {
@@ -47,16 +47,18 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
     return;
   }
 
-  while (micros() - this->start_time_ < usec) {  // modulate with carrier frequency
+  const uint32_t start_time = this->ref_time_;
+
+  while (micros() - start_time < usec) {  // modulate with carrier frequency
     this->pin_->digital_write(true);
     this->wait_to_micros_(std::min(on_time, usec));
-    if (micros() - this->start_time_ >= usec)
+    if (micros() - start_time >= usec)
       break;
 
     this->pin_->digital_write(false);
     this->wait_to_micros_(std::min(off_time, usec));
   }
-  this->start_time_ += usec;  // exact shift to the next time reference
+  this->ref_time_ = start_time + usec;
 }
 
 void RemoteTransmitterComponent::space_(uint32_t usec) {
@@ -71,7 +73,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   for (uint32_t i = 0; i < send_times; i++) {
     {
       InterruptLock lock;
-      this->start_time_ = micros();  // "start_time_" is the absolute reference for each IO sequence
+      this->ref_time_ = micros();  // "ref_time_" is the absolute reference for each pulse train
       for (int32_t item : this->temp_.get_data()) {
         if (item > 0) {
           const auto length = uint32_t(item);

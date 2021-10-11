@@ -34,7 +34,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   void space_(uint32_t usec);
 
   void wait_to_micros_(uint32_t usec);
-  uint32_t start_time_;
+  uint32_t ref_time_;
 #endif
 
 #ifdef USE_ESP32
