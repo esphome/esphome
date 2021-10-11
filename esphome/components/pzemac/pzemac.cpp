@@ -7,6 +7,7 @@ namespace pzemac {
 static const char *const TAG = "pzemac";
 
 static const uint8_t PZEM_CMD_READ_IN_REGISTERS = 0x04;
+static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
 static const uint8_t PZEM_REGISTER_COUNT = 10;  // 10x 16-bit registers
 
 void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
@@ -61,7 +62,7 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
     this->power_factor_sensor_->publish_state(power_factor);
 }
 
-void PZEMAC::update() { this->send(PZEM_CMD_READ_IN_REGISTERS, 0, PZEM_REGISTER_COUNT); }
+void PZEMAC::update() { this->send(PZEM_CMD_RESET_ENERGY, 0, PZEM_REGISTER_COUNT); }
 void PZEMAC::dump_config() {
   ESP_LOGCONFIG(TAG, "PZEMAC:");
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
@@ -71,6 +72,13 @@ void PZEMAC::dump_config() {
   LOG_SENSOR("", "Energy", this->energy_sensor_);
   LOG_SENSOR("", "Frequency", this->frequency_sensor_);
   LOG_SENSOR("", "Power Factor", this->power_factor_sensor_);
+}
+
+void PZEMAC::reset_energy() {
+  std::vector<uint8_t> cmd;
+  cmd.push_back(this->address_);
+  cmd.push_back(PZEM_CMD_RESET_ENERGY);
+  this->send_raw(cmd);
 }
 
 }  // namespace pzemac
