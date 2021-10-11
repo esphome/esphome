@@ -11,30 +11,35 @@
 namespace esphome {
 namespace uart {
 
+/// The UARTDebugger class adds debugging support to a UART bus.
+///
+/// It accumulates bytes that travel over the UART bus and triggers one or
+/// more actions that can log the data at an appropriate time. What
+/// 'appropriate time' means exactly, is determined by a number of
+/// configurable constraints. E.g. when a given number of bytes is gathered
+/// and/or when no more data has been seen for a given time interval.
 class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector<uint8_t>> {
  public:
-  explicit UARTDebugger(UARTComponent *parent) {
-    parent->add_debug_callback([this](UARTDirection direction, uint8_t byte) {
-      if (!this->is_my_direction_(direction)) { return; }
-      if (this->is_recursive_()) { return; }
-      if (has_buffered_bytes_() && this->direction_changed_(direction)) {
-        this->fire_trigger_();
-      }
-      this->store_byte_(direction, byte);
-      this->trigger_after_delmiter(byte) ||
-      this->trigger_after_bytes_();
-    });
-  }
+  explicit UARTDebugger(UARTComponent *parent);
+  void loop() override;
 
-  void loop() {
-    if (this->has_buffered_bytes_()) {
-      this->trigger_after_timeout_();
-    }
-  }
-
+  /// Set the direction in which to inspect the bytes: incoming, outgoing
+  /// or both. When debugging in both directions, logging will be triggered
+  /// when the direction of the data stream changes.
   void set_direction(UARTDirection direction) { this->for_direction_ = direction; }
+
+  /// Set the maximum number of bytes to accumulate. When the number of bytes
+  /// is reached, logging will be triggered.
   void set_after_bytes(size_t size) { this->after_bytes_ = size; }
+
+  /// Set a timeout for the data stream. When no new bytes are seen during
+  /// this timeout, logging will be triggered.
   void set_after_timeout(uint32_t timeout) { this->after_timeout_ = timeout; }
+
+  /// Add a delimiter byte. This can be called multiple times to setup a
+  /// multi-byte delimiter (a typical example would be '\r\n'). 
+  /// When the constructued byte sequence is found in the data stream,
+  /// logging will be triggered.
   void add_delimiter_byte(uint8_t byte) { this->after_delimiter_.push_back(byte); }
 
  protected:
@@ -48,68 +53,15 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   size_t after_delimiter_pos_{};
   bool is_triggering_{false};
 
-  bool is_my_direction_(UARTDirection direction) {
-    return this->for_direction_ == UART_DIRECTION_BOTH ||
-           this->for_direction_ == direction;
-  }
-
-  bool is_recursive_() {
-    return this->is_triggering_;
-  }
-
-  bool direction_changed_(UARTDirection direction) {
-    return this->for_direction_ == UART_DIRECTION_BOTH &&
-           this->last_direction_ != direction;
-  }
-
-  void store_byte_(UARTDirection direction, uint8_t byte) {
-    this->bytes_.push_back(byte);
-    this->last_direction_ = direction;
-    this->last_time_ = millis();
-  }
-
-  bool trigger_after_delmiter(uint8_t byte) {
-    if (this->after_delimiter_.size() > 0) {
-      if (this->after_delimiter_[this->after_delimiter_pos_] == byte) {
-        this->after_delimiter_pos_++;
-        if (this->after_delimiter_pos_ == this->after_delimiter_.size()) {
-          this->fire_trigger_();
-          this->after_delimiter_pos_ = 0;
-          return true;
-        }
-      } else {
-        this->after_delimiter_pos_ = 0;
-      }
-    }
-    return false;
-  }
-
-  bool trigger_after_bytes_() {
-    if (this->after_bytes_ > 0 && this->bytes_.size() >= this->after_bytes_) {
-      this->fire_trigger_();
-      return true;
-    }
-    return false;
-  }
-
-  bool trigger_after_timeout_() {
-    if (this->after_timeout_ > 0 && millis() - this->last_time_ >= this->after_timeout_) {
-      this->fire_trigger_();
-      return true;
-    }
-    return false;
-  }
-
-  bool has_buffered_bytes_() {
-    return this->bytes_.size() > 0;
-  }
-
-  void fire_trigger_() {
-    this->is_triggering_ = true;
-    trigger(this->last_direction_, this->bytes_);
-    this->bytes_.clear();
-    this->is_triggering_ = false;
-  }
+  bool is_my_direction_(UARTDirection direction);
+  bool is_recursive_();
+  bool direction_changed_(UARTDirection direction);
+  void store_byte_(UARTDirection direction, uint8_t byte);
+  bool trigger_after_delmiter(uint8_t byte);
+  bool trigger_after_bytes_();
+  bool trigger_after_timeout_();
+  bool has_buffered_bytes_();
+  void fire_trigger_();
 };
 
 /// This UARTDevice is used by the serial debugger to read data from a
@@ -121,17 +73,11 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
 class UARTDummyReceiver : public Component, public UARTDevice {
  public:
   UARTDummyReceiver(UARTComponent *parent) : UARTDevice(parent) {}
-  void loop() override {
-    // Reading up to a limited number of bytes, to make sure that this loop()
-    // won't lock up the system on a continuous incoming stream of bytes.
-    uint8_t data;
-    int count = 50;
-    while (this->available() && count--) {
-      this->read_byte(&data);
-    }
-  }
+  void loop() override;
 };
 
+/// This class contains some static methods, that can be used to easily
+/// create a logging action for the debugger.
 class UARTDebug {
  public:
   /// Log the bytes as hex values, separated by the provided separator

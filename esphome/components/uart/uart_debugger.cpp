@@ -10,70 +10,145 @@ namespace uart {
 
 static const char *const TAG = "uart_debug";
 
-static const char *hexchars = "0123456789ABCDEF";
+UARTDebugger::UARTDebugger(UARTComponent *parent) {
+  parent->add_debug_callback([this](UARTDirection direction, uint8_t byte) {
+    if (!this->is_my_direction_(direction)) { return; }
+    if (this->is_recursive_()) { return; }
+    if (has_buffered_bytes_() && this->direction_changed_(direction)) {
+      this->fire_trigger_();
+    }
+    this->store_byte_(direction, byte);
+    this->trigger_after_delmiter(byte) ||
+    this->trigger_after_bytes_();
+  });
+}
+
+void UARTDebugger::loop() {
+  if (this->has_buffered_bytes_()) {
+    this->trigger_after_timeout_();
+  }
+}
+
+bool UARTDebugger::is_my_direction_(UARTDirection direction) {
+  return this->for_direction_ == UART_DIRECTION_BOTH ||
+         this->for_direction_ == direction;
+}
+
+bool UARTDebugger::is_recursive_() {
+  return this->is_triggering_;
+}
+
+bool UARTDebugger::direction_changed_(UARTDirection direction) {
+  return this->for_direction_ == UART_DIRECTION_BOTH &&
+         this->last_direction_ != direction;
+}
+
+void UARTDebugger::store_byte_(UARTDirection direction, uint8_t byte) {
+  this->bytes_.push_back(byte);
+  this->last_direction_ = direction;
+  this->last_time_ = millis();
+}
+
+bool UARTDebugger::trigger_after_delmiter(uint8_t byte) {
+  if (this->after_delimiter_.size() > 0) {
+    if (this->after_delimiter_[this->after_delimiter_pos_] == byte) {
+      this->after_delimiter_pos_++;
+      if (this->after_delimiter_pos_ == this->after_delimiter_.size()) {
+        this->fire_trigger_();
+        this->after_delimiter_pos_ = 0;
+        return true;
+      }
+    } else {
+      this->after_delimiter_pos_ = 0;
+    }
+  }
+  return false;
+}
+
+bool UARTDebugger::trigger_after_bytes_() {
+  if (this->after_bytes_ > 0 && this->bytes_.size() >= this->after_bytes_) {
+    this->fire_trigger_();
+    return true;
+  }
+  return false;
+}
+
+bool UARTDebugger::trigger_after_timeout_() {
+  if (this->after_timeout_ > 0 && millis() - this->last_time_ >= this->after_timeout_) {
+    this->fire_trigger_();
+    return true;
+  }
+  return false;
+}
+
+bool UARTDebugger::has_buffered_bytes_() {
+  return this->bytes_.size() > 0;
+}
+
+void UARTDebugger::fire_trigger_() {
+  this->is_triggering_ = true;
+  trigger(this->last_direction_, this->bytes_);
+  this->bytes_.clear();
+  this->is_triggering_ = false;
+}
+
+void UARTDummyReceiver::loop() {
+  // Reading up to a limited number of bytes, to make sure that this loop()
+  // won't lock up the system on a continuous incoming stream of bytes.
+  uint8_t data;
+  int count = 50;
+  while (this->available() && count--) {
+    this->read_byte(&data);
+  }
+}
 
 void UARTDebug::log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator) {
-  size_t len = bytes.size();
-  size_t target_len = len * 3 - 1 + 4 /* prefix */;
-  std::string res(target_len, ' ');
+  std::string res;
   if (direction == UART_DIRECTION_RX) {
-    res[0] = res[1] = res[2] = '<';
+    res += "<<< ";
   } else {
-    res[0] = res[1] = res[2] = '>';
-  } 
+    res += ">>> ";
+  }
+  size_t len = bytes.size();
+  char hexbuf[5];
   for (size_t i = 0; i < len; i++) {
-    res[4 + 3*i] = hexchars[(bytes[i] & 0xF0) >> 4];
-    res[4 + 3*i + 1] = hexchars[(bytes[i] & 0x0F) >> 0];
-    if (i != (len - 1)) {
-      res[4 + 3*i + 2] = separator;
-    }
+    if (i > 0) { res += separator; }
+    sprintf(hexbuf, "%02X", bytes[i]);
+    res += hexbuf;
   }
   ESP_LOGD(TAG, "%s", res.c_str());
 }
 
 void UARTDebug::log_string(UARTDirection direction, std::vector<uint8_t> bytes) {
-  size_t len = bytes.size();
-  size_t target_len = len + 4 /* prefix */ + 2 /* quotes */;
-  for (int i = 0; i < len; i++) {
-    if ((bytes[i] >= 7 && bytes[i] <= 13) || bytes[i] == 27 ||
-        bytes[i] == 34 || bytes[i] == 39 || bytes[i] == 92) {
-      target_len += 2;
-    }
-    else if (bytes[i] < 32 || bytes[i] > 126) {
-      target_len += 4;
-    }
-  }
-  std::string res(target_len, ' ');
+  std::string res;
   if (direction == UART_DIRECTION_RX) {
-    res[0] = res[1] = res[2] = '<';
+    res += "<<< \"";
   } else {
-    res[0] = res[1] = res[2] = '>';
-  } 
-  size_t pos = 4;
-  res[pos++] = '"';
+    res += ">>> \"";
+  }
+  size_t len = bytes.size();
+  char hexbuf[5];
   for (size_t i = 0; i < len; i++) {
-    if (bytes[i] == 7) { res[pos++] = '\\'; res[pos++] = 'a'; }
-    else if (bytes[i] == 8) { res[pos++] = '\\'; res[pos++] = 'b'; }
-    else if (bytes[i] == 9) { res[pos++] = '\\'; res[pos++] = 't'; }
-    else if (bytes[i] == 10) { res[pos++] = '\\'; res[pos++] = 'n'; }
-    else if (bytes[i] == 11) { res[pos++] = '\\'; res[pos++] = 'v'; }
-    else if (bytes[i] == 12) { res[pos++] = '\\'; res[pos++] = 'f'; }
-    else if (bytes[i] == 13) { res[pos++] = '\\'; res[pos++] = 'r'; }
-    else if (bytes[i] == 27) { res[pos++] = '\\'; res[pos++] = 'e'; }
-    else if (bytes[i] == 34) { res[pos++] = '\\'; res[pos++] = '"'; }
-    else if (bytes[i] == 39) { res[pos++] = '\\'; res[pos++] = '\''; }
-    else if (bytes[i] == 92) { res[pos++] = '\\'; res[pos++] = '\\'; }
+    if (bytes[i] == 7) { res += "\\a"; }
+    else if (bytes[i] == 8) { res += "\\b"; }
+    else if (bytes[i] == 9) { res += "\\t"; }
+    else if (bytes[i] == 10) { res += "\\n"; }
+    else if (bytes[i] == 11) { res += "\\v"; }
+    else if (bytes[i] == 12) { res += "\\f"; }
+    else if (bytes[i] == 13) { res += "\\r"; }
+    else if (bytes[i] == 27) { res += "\\e"; }
+    else if (bytes[i] == 34) { res += "\\\""; }
+    else if (bytes[i] == 39) { res += "\\'"; }
+    else if (bytes[i] == 92) { res += "\\\\"; }
     else if (bytes[i] < 32 || bytes[i] > 127) {
-      res[pos++] = '\\';
-      res[pos++] = 'x';
-      res[pos++] = hexchars[(bytes[i] & 0xF0) >> 4];
-      res[pos++] = hexchars[(bytes[i] & 0x0F) >> 0];
+      sprintf(hexbuf, "\\x%02X", bytes[i]);
+      res += hexbuf;
     }
     else {
-      res[pos++] = bytes[i]; 
+      res += bytes[i];
     }
   } 
-  res[pos++] = '"';
+  res += '"';
   ESP_LOGD(TAG, "%s", res.c_str());
 }
 
