@@ -187,6 +187,29 @@ optional<float> ExponentialMovingAverageFilter::new_value(float value) {
 void ExponentialMovingAverageFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void ExponentialMovingAverageFilter::set_alpha(float alpha) { this->alpha_ = alpha; }
 
+// PeriodicalAverageFilter
+PeriodicalAverageFilter::PeriodicalAverageFilter(uint32_t time_period) : time_period_(time_period) {}
+
+optional<float> PeriodicalAverageFilter::new_value(float value) {
+  ESP_LOGVV(TAG, "PeriodicalAverageFilter(%p)::new_value(value=%f)", this, value);
+  this->sum_ += value;
+  this->n_++;
+
+  return {};
+}
+void PeriodicalAverageFilter::setup() {
+  this->set_interval("periodical_average", this->time_period_, [this]() {
+    ESP_LOGVV(TAG, "PeriodicalAverageFilter(%p)::interval(sum=%f, n=%i)", this, this->sum_, this->n_);
+    if (this->n_ == 0)
+      return;
+
+    this->output(this->sum_ / this->n_);
+    this->sum_ = 0.0f;
+    this->n_ = 0;
+  });
+}
+float PeriodicalAverageFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
+
 // LambdaFilter
 LambdaFilter::LambdaFilter(lambda_filter_t lambda_filter) : lambda_filter_(std::move(lambda_filter)) {}
 const lambda_filter_t &LambdaFilter::get_lambda_filter() const { return this->lambda_filter_; }
@@ -309,29 +332,6 @@ void HeartbeatFilter::setup() {
   });
 }
 float HeartbeatFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
-
-// PeriodicalAverageFilter
-PeriodicalAverageFilter::PeriodicalAverageFilter(uint32_t time_period) : time_period_(time_period) {}
-
-optional<float> PeriodicalAverageFilter::new_value(float value) {
-  ESP_LOGVV(TAG, "PeriodicalAverageFilter(%p)::new_value(value=%f)", this, value);
-  this->sum_ += value;
-  this->n_++;
-
-  return {};
-}
-void PeriodicalAverageFilter::setup() {
-  this->set_interval("periodical_average", this->time_period_, [this]() {
-    ESP_LOGVV(TAG, "PeriodicalAverageFilter(%p)::interval(sum=%f, n=%i)", this, this->sum_, this->n_);
-    if (this->n_ == 0)
-      return;
-
-    this->output(this->sum_ / this->n_);
-    this->sum_ = 0.0f;
-    this->n_ = 0;
-  });
-}
-float PeriodicalAverageFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 optional<float> CalibrateLinearFilter::new_value(float value) { return value * this->slope_ + this->bias_; }
 CalibrateLinearFilter::CalibrateLinearFilter(float slope, float bias) : slope_(slope), bias_(bias) {}
