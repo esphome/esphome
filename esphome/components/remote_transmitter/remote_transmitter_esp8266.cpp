@@ -33,33 +33,36 @@ void RemoteTransmitterComponent::calculate_on_off_time_(uint32_t carrier_frequen
   *off_time_period = period - *on_time_period;
 }
 
+void RemoteTransmitterComponent::wait_to_micros(uint32_t usec) {
+  const uint32_t target_time = this->last_time + usec;
+
+  while (micros() < target_time);
+
+  this->last_time = target_time;
+}
+
 void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint32_t usec) {
   if (this->carrier_duty_percent_ == 100 || (on_time == 0 && off_time == 0)) {
     this->pin_->digital_write(true);
-    delay_microseconds_accurate(usec);
+    this->wait_to_micros(usec);
     return;
   }
 
-  const uint32_t start_time = micros();
-  uint32_t current_time = start_time;
+  const uint32_t target_time = this->last_time + usec;
 
-  while (current_time - start_time < usec) {
-    const uint32_t elapsed = current_time - start_time;
+  while (micros() <= target_time-on_time) {
     this->pin_->digital_write(true);
-
-    delay_microseconds_accurate(std::min(on_time, usec - elapsed));
+    this->wait_to_micros(on_time);
+    if (micros() > target_time-off_time) break;
+    
     this->pin_->digital_write(false);
-    if (elapsed + on_time >= usec)
-      return;
-
-    delay_microseconds_accurate(std::min(usec - elapsed - on_time, off_time));
-
-    current_time = micros();
+    this->wait_to_micros(off_time);
   }
+  this->last_time = target_time;
 }
 void RemoteTransmitterComponent::space_(uint32_t usec) {
   this->pin_->digital_write(false);
-  delay_microseconds_accurate(usec);
+  this->wait_to_micros(usec);
 }
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   ESP_LOGD(TAG, "Sending remote code...");
@@ -68,6 +71,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   for (uint32_t i = 0; i < send_times; i++) {
     {
       InterruptLock lock;
+      this->last_time = micros();
       for (int32_t item : this->temp_.get_data()) {
         if (item > 0) {
           const auto length = uint32_t(item);
@@ -78,9 +82,9 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
         }
         App.feed_wdt();
       }
+      this->pin_->digital_write(false);
     }
 
-    this->pin_->digital_write(false);
     if (i + 1 < send_times) {
       delay_microseconds_accurate(send_wait);
     }
