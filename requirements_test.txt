@@ -1,5 +1,5 @@
 pylint==2.11.1
-flake8==3.9.2
+flake8==4.0.1
 black==21.9b0
 pexpect==4.8.0
 pre-commit
