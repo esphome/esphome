@@ -36,7 +36,8 @@ void RemoteTransmitterComponent::calculate_on_off_time_(uint32_t carrier_frequen
 void RemoteTransmitterComponent::wait_to_micros_(uint32_t usec) {
   const uint32_t target_time = this->last_time_ + usec;
 
-  while (micros() < target_time);
+  while (micros() < target_time)
+    ;
 
   this->last_time_ = target_time;
 }
@@ -50,10 +51,11 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
 
   const uint32_t target_time = this->last_time_ + usec;
 
-  while (micros() <= target_time-on_time) {
+  while (micros() <= target_time - on_time) {
     this->pin_->digital_write(true);
     this->wait_to_micros_(on_time);
-    if (micros() > target_time-off_time) break;
+    if (micros() > target_time - off_time)
+      break;
     
     this->pin_->digital_write(false);
     this->wait_to_micros_(off_time);

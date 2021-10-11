@@ -32,7 +32,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   void mark_(uint32_t on_time, uint32_t off_time, uint32_t usec);
 
   void space_(uint32_t usec);
-  
+
   void wait_to_micros_(uint32_t usec);
   uint32_t last_time_;
 #endif
