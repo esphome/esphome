@@ -448,6 +448,7 @@ sensor:
     power:
       name: 'PZEM004T Power'
   - platform: pzemac
+    id: pzemac1
     voltage:
       name: 'PZEMAC Voltage'
     current:
@@ -734,6 +735,11 @@ binary_sensor:
     on_press:
       then:
         - cover.toggle: time_based_cover
+  - platform: template
+    id: 'pzemac_reset_energy'
+    on_press:
+      then:
+        - pzemac.reset_energy: pzemac1
 
 globals:
   - id: my_global_string
