@@ -167,6 +167,7 @@ FilterOutValueFilter = sensor_ns.class_("FilterOutValueFilter", Filter)
 ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter, cg.Component)
 HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter, cg.Component)
+PeriodicalAverageFilter = sensor_ns.class_("PeriodicalAverageFilter", Filter, cg.Component)
 DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
 OrFilter = sensor_ns.class_("OrFilter", Filter)
 CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
@@ -411,6 +412,15 @@ async def throttle_filter_to_code(config, filter_id):
     "heartbeat", HeartbeatFilter, cv.positive_time_period_milliseconds
 )
 async def heartbeat_filter_to_code(config, filter_id):
+    var = cg.new_Pvariable(filter_id, config)
+    await cg.register_component(var, {})
+    return var
+
+
+@FILTER_REGISTRY.register(
+    "periodical_average", PeriodicalAverageFilter, cv.positive_time_period_milliseconds
+)
+async def periodical_average_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id, config)
     await cg.register_component(var, {})
     return var

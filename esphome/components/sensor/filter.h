@@ -272,6 +272,22 @@ class HeartbeatFilter : public Filter, public Component {
   bool has_value_{false};
 };
 
+class PeriodicalAverageFilter : public Filter, public Component {
+ public:
+  explicit PeriodicalAverageFilter(uint32_t time_period);
+
+  void setup() override;
+
+  optional<float> new_value(float value) override;
+
+  float get_setup_priority() const override;
+
+ protected:
+  uint32_t time_period_;
+  float sum_{0.0f};
+  size_t n_{0};
+};
+
 class DeltaFilter : public Filter {
  public:
   explicit DeltaFilter(float min_delta);
