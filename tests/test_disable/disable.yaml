@@ -1,0 +1,20 @@
+esphome:
+  platform: ESP8266
+  board: esp12e
+  name: disable
+
+
+# Directly include a disabled component
+api:
+
+
+# Include disabled component via packages
+packages:
+  mqtt: !include package_mqtt.yaml
+
+
+# Disable components - they should not appear in the resulting configuration and no validations should be run
+disable:
+  - api
+  - mqtt
+  - non_existent

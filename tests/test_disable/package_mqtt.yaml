@@ -1,0 +1,6 @@
+# This is an example of an invalid MQTT configuration file included via 'packages'.
+#
+# No validation errors should appear during disable.yaml processing as the component will be explicitly disabled
+# by 'disable' key.
+mqtt:
+  id: ignored

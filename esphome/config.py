@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_PACKAGES,
     CONF_SUBSTITUTIONS,
     CONF_EXTERNAL_COMPONENTS,
+    CONF_DISABLE,
     TARGET_PLATFORMS,
 )
 from esphome.core import CORE, EsphomeError
@@ -736,6 +737,17 @@ def validate_config(config, command_line_substitutions):
 
     if result.errors:
         return result
+
+    # Disable/remove explicitly listed components before adding validations
+    if CONF_DISABLE in config:
+        for key in config[CONF_DISABLE]:
+            if key in config:
+                del config[key]
+            else:
+                _LOGGER.warning(
+                    "Cannot disable '%s': component configuration not found", key
+                )
+        del config["disable"]
 
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
