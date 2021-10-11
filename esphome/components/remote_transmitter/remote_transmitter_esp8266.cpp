@@ -48,15 +48,19 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
   }
 
   const uint32_t start_time = this->ref_time_;
+  uint32_t current_time = start_time;
 
-  while (micros() - start_time < usec) {  // modulate with carrier frequency
+  while (current_time - start_time < usec) {  // modulate with carrier frequency
+    const uint32_t elapsed = current_time - start_time;
     this->pin_->digital_write(true);
-    this->wait_to_micros_(std::min(on_time, usec));
-    if (micros() - start_time >= usec)
+    this->wait_to_micros_(std::min(on_time, usec - elapsed));
+    if (elapsed + on_time >= usec)
       break;
 
     this->pin_->digital_write(false);
-    this->wait_to_micros_(std::min(off_time, usec));
+    this->wait_to_micros_(std::min(usec - elapsed - on_time, off_time));
+
+    current_time = micros();
   }
   this->ref_time_ = start_time + usec;
 }
