@@ -30,6 +30,7 @@ class ILI9341Display : public PollingComponent,
   void set_led_pin(GPIOPin *led) { this->led_pin_ = led; }
   void set_model(ILI9341Model model) { this->model_ = model; }
   void set_palette(const uint8_t *palette) { this->palette_ = palette; }
+  void set_buffer_color_mode(ILI9341ColorMode color_mode) { this->buffer_color_mode_ = color_mode; }
 
   void command(uint8_t value);
   void data(uint8_t value);
@@ -67,7 +68,7 @@ class ILI9341Display : public PollingComponent,
   uint16_t y_high_{0};
   const uint8_t *palette_;
 
-  ILI9341ColorMode color_mode_{BITS_8};
+  ILI9341ColorMode buffer_color_mode_{BITS_8};
 
   uint32_t get_buffer_length_();
   int get_width_internal() override;

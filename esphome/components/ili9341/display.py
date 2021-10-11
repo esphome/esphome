@@ -25,6 +25,7 @@ ILI9341M5Stack = ili9341_ns.class_("ILI9341M5Stack", ili9341)
 ILI9341TFT24 = ili9341_ns.class_("ILI9341TFT24", ili9341)
 
 ILI9341Model = ili9341_ns.enum("ILI9341Model")
+ILI9341ColorMode = ili9341_ns.enum("ILI9341ColorMode")
 
 MODELS = {
     "M5STACK": ILI9341Model.M5STACK,
@@ -83,11 +84,11 @@ async def to_code(config):
         cg.add(var.set_led_pin(led_pin))
 
     if config[CONF_COLOR_PALETTE] == "GRAYSCALE":
+        cg.add(var.set_buffer_color_mode(ILI9341ColorMode.BITS_8_INDEXED))
         rhs = []
         for x in range(256):
             rhs.extend([HexInt(x), HexInt(x), HexInt(x)])
         prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
         cg.add(var.set_palette(prog_arr))
     else:
-        print("No color palette defined, skipping.")
         pass
