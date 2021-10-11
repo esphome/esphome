@@ -230,8 +230,8 @@ void ImprovSerialComponent::on_wifi_connect_timeout_() {
   wifi::global_wifi_component->clear_sta();
 }
 
-ImprovSerialComponent *global_improv_serial_component =
-    nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+ImprovSerialComponent *global_improv_serial_component =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+    nullptr;                                             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace improv_serial
 }  // namespace esphome
