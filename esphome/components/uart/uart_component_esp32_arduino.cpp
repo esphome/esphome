@@ -121,7 +121,7 @@ void ESP32ArduinoUARTComponent::write_array(const uint8_t *data, size_t len) {
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
   }
-#endif 
+#endif
 }
 
 bool ESP32ArduinoUARTComponent::peek_byte(uint8_t *data) {
