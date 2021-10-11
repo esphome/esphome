@@ -18,7 +18,7 @@ std::string state_class_to_string(StateClass state_class) {
   }
 }
 
-Sensor::Sensor(const std::string &name) : Nameable(name), state(NAN), raw_state(NAN) {}
+Sensor::Sensor(const std::string &name) : EntityBase(name), state(NAN), raw_state(NAN) {}
 Sensor::Sensor() : Sensor("") {}
 
 std::string Sensor::get_unit_of_measurement() {
@@ -30,14 +30,6 @@ void Sensor::set_unit_of_measurement(const std::string &unit_of_measurement) {
   this->unit_of_measurement_ = unit_of_measurement;
 }
 std::string Sensor::unit_of_measurement() { return ""; }
-
-std::string Sensor::get_icon() {
-  if (this->icon_.has_value())
-    return *this->icon_;
-  return this->icon();
-}
-void Sensor::set_icon(const std::string &icon) { this->icon_ = icon; }
-std::string Sensor::icon() { return ""; }
 
 int8_t Sensor::get_accuracy_decimals() {
   if (this->accuracy_decimals_.has_value())

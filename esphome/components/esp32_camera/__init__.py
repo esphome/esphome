@@ -21,7 +21,7 @@ from esphome.components.esp32 import add_idf_sdkconfig_option
 DEPENDENCIES = ["esp32", "api"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
-ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.Nameable)
+ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
 ESP32CameraFrameSize = esp32_camera_ns.enum("ESP32CameraFrameSize")
 FRAME_SIZES = {
     "160X120": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_160X120,

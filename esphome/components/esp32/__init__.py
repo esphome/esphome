@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VARIANT,
     CONF_VERSION,
+    CONF_ADVANCED,
+    CONF_IGNORE_EFUSE_MAC_CRC,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
@@ -230,6 +232,11 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
                 cv.string_strict: cv.string_strict
             },
             cv.Optional(CONF_PLATFORM_VERSION): cv.string_strict,
+            cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+                {
+                    cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC, default=False): cv.boolean,
+                }
+            ),
         }
     ),
     _esp_idf_check_versions,
@@ -269,6 +276,8 @@ async def to_code(config):
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{config[CONF_VARIANT]}")
 
+    cg.add_platformio_option("lib_ldf_mode", "off")
+
     conf = config[CONF_FRAMEWORK]
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_platformio_option(
@@ -294,6 +303,12 @@ async def to_code(config):
 
         for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
             add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
+
+        if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_MAC_CRC]:
+            cg.add_define("USE_ESP32_IGNORE_EFUSE_MAC_CRC")
+            add_idf_sdkconfig_option(
+                "CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", False
+            )
 
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         cg.add_platformio_option(
