@@ -37,7 +37,7 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   void set_after_timeout(uint32_t timeout) { this->after_timeout_ = timeout; }
 
   /// Add a delimiter byte. This can be called multiple times to setup a
-  /// multi-byte delimiter (a typical example would be '\r\n'). 
+  /// multi-byte delimiter (a typical example would be '\r\n').
   /// When the constructued byte sequence is found in the data stream,
   /// logging will be triggered.
   void add_delimiter_byte(uint8_t byte) { this->after_delimiter_.push_back(byte); }
@@ -85,11 +85,11 @@ class UARTDebug {
   static void log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator);
 
   /// Log the bytes as string values, escaping unprintable characters.
-  static void log_string(UARTDirection direction, std::vector<uint8_t> bytes); 
+  static void log_string(UARTDirection direction, std::vector<uint8_t> bytes);
 
   /// Log the bytes as integer values, separated by the provided separator
   /// character.
-  static void log_int(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator); 
+  static void log_int(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator);
 };
 
 }  // namespace uart

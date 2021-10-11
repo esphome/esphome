@@ -33,8 +33,7 @@ void UARTDebugger::loop() {
 }
 
 bool UARTDebugger::is_my_direction_(UARTDirection direction) {
-  return this->for_direction_ == UART_DIRECTION_BOTH ||
-         this->for_direction_ == direction;
+  return this->for_direction_ == UART_DIRECTION_BOTH || this->for_direction_ == direction;
 }
 
 bool UARTDebugger::is_recursive_() { return this->is_triggering_; }
