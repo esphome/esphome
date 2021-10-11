@@ -33,7 +33,7 @@ void RemoteTransmitterComponent::calculate_on_off_time_(uint32_t carrier_frequen
   *off_time_period = period - *on_time_period;
 }
 
-void RemoteTransmitterComponent::wait_to_micros_(uint32_t usec) {
+void RemoteTransmitterComponent::wait_to_micros_(uint32_t usec) { // variable delay that self-aligns to the "last_time_" reference
   const uint32_t target_time = this->last_time_ + usec;
 
   while (micros() < target_time)
@@ -51,9 +51,10 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
 
   const uint32_t target_time = this->last_time_ + usec;
 
-  while (micros() <= target_time - on_time) {
+  while (micros() <= target_time - on_time) { // modulate with carrier frequency
     this->pin_->digital_write(true);
     this->wait_to_micros_(on_time);
+
     if (micros() > target_time - off_time)
       break;
 
@@ -62,10 +63,12 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
   }
   this->last_time_ = target_time;
 }
+
 void RemoteTransmitterComponent::space_(uint32_t usec) {
   this->pin_->digital_write(false);
   this->wait_to_micros_(usec);
 }
+
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   ESP_LOGD(TAG, "Sending remote code...");
   uint32_t on_time, off_time;
@@ -73,7 +76,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   for (uint32_t i = 0; i < send_times; i++) {
     {
       InterruptLock lock;
-      this->last_time_ = micros();
+      this->last_time_ = micros(); // "last_time_" is the absolute reference for each time sequence
       for (int32_t item : this->temp_.get_data()) {
         if (item > 0) {
           const auto length = uint32_t(item);
