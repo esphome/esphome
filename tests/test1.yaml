@@ -345,6 +345,7 @@ sensor:
           send_every: 15
       - throttle: 1s
       - heartbeat: 5s
+      - periodical_average: 60s
       - debounce: 0.1s
       - delta: 5.0
       - or:

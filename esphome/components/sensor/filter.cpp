@@ -311,23 +311,24 @@ void HeartbeatFilter::setup() {
 float HeartbeatFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 // PeriodicalAverageFilter
-PeriodicalAverageFilter::PeriodicalAverageFilter(uint32_t time_period) : time_period_(time_period), last_input_(NAN) {}
+PeriodicalAverageFilter::PeriodicalAverageFilter(uint32_t time_period) : time_period_(time_period) {}
 
 optional<float> PeriodicalAverageFilter::new_value(float value) {
   ESP_LOGVV(TAG, "PeriodicalAverageFilter(%p)::new_value(value=%f)", this, value);
-  this->last_input_ = value;
-  this->has_value_ = true;
+  this->sum_ += value;
+  this->n_++;
 
   return {};
 }
 void PeriodicalAverageFilter::setup() {
   this->set_interval("periodical_average", this->time_period_, [this]() {
-    ESP_LOGVV(TAG, "PeriodicalAverageFilter(%p)::interval(has_value=%s, last_input=%f)", this, YESNO(this->has_value_),
-              this->last_input_);
-    if (!this->has_value_)
+    ESP_LOGVV(TAG, "PeriodicalAverageFilter(%p)::interval(sum=%f, n=%zu)", this, this->sum_, this->n_);
+    if (this->n_ == 0)
       return;
 
-    this->output(this->last_input_);
+    this->output(this->sum_ / this->n_);
+    this->sum_ = 0.0f;
+    this->n_ = 0;
   });
 }
 float PeriodicalAverageFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
