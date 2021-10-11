@@ -1,10 +1,11 @@
 #pragma once
+#include "esphome/core/defines.h"
 #ifdef USE_UART_DEBUGGER
 
 #include <vector>
-#include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "uart.h"
 #include "uart_component.h"
 
 namespace esphome {
@@ -129,6 +130,20 @@ class UARTDummyReceiver : public Component, public UARTDevice {
       this->read_byte(&data);
     }
   }
+};
+
+class UARTDebug {
+ public:
+  /// Log the bytes as hex values, separated by the provided separator
+  /// character.
+  static void log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator);
+
+  /// Log the bytes as string values, escaping unprintable characters.
+  static void log_string(UARTDirection direction, std::vector<uint8_t> bytes); 
+
+  /// Log the bytes as integer values, separated by the provided separator
+  /// character.
+  static void log_int(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator); 
 };
 
 }  // namespace uart
