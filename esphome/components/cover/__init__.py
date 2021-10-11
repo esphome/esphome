@@ -70,9 +70,7 @@ CoverIsClosedCondition = cover_ns.class_("CoverIsClosedCondition", Condition)
 
 # Triggers
 CoverOpenTrigger = cover_ns.class_("CoverOpenTrigger", automation.Trigger.template())
-CoverClosedTrigger = cover_ns.class_(
-    "CoverClosedTrigger", automation.Trigger.template()
-)
+CoverClosedTrigger = cover_ns.class_("CoverClosedTrigger", automation.Trigger.template())
 
 CONF_ON_OPEN = "on_open"
 CONF_ON_CLOSED = "on_closed"
