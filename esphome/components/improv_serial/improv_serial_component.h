@@ -14,17 +14,17 @@
 #endif
 
 namespace esphome {
-namespace imperial {
+namespace improv_serial {
 
-enum ImperialType : uint8_t {
+enum ImprovSerialType : uint8_t {
   TYPE_CURRENT_STATE = 0x01,
   TYPE_ERROR_STATE = 0x02,
   TYPE_RPC = 0x03,
 };
 
-static const uint8_t IMPERIAL_VERSION = 1;
+static const uint8_t IMPROV_SERIAL_VERSION = 1;
 
-class ImperialComponent : public Component {
+class ImprovSerialComponent : public Component {
  public:
   void setup() override;
   void loop() override;
@@ -33,7 +33,7 @@ class ImperialComponent : public Component {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
  protected:
-  bool parse_imperial_byte_(uint8_t byte);
+  bool parse_improv_serial_byte_(uint8_t byte);
   bool parse_improv_payload_(improv::ImprovCommand &command);
 
   void set_state_(improv::State state);
@@ -59,7 +59,8 @@ class ImperialComponent : public Component {
   improv::State state_{improv::STATE_AUTHORIZED};
 };
 
-extern ImperialComponent *global_imperial_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+extern ImprovSerialComponent
+    *global_improv_serial_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace imperial
+}  // namespace improv_serial
 }  // namespace esphome

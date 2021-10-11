@@ -1,4 +1,4 @@
-#include "imperial.h"
+#include "improv_serial_component.h"
 
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -7,12 +7,12 @@
 #include "esphome/components/logger/logger.h"
 
 namespace esphome {
-namespace imperial {
+namespace improv_serial {
 
-static const char *const TAG = "imperial";
+static const char *const TAG = "improv_serial";
 
-void ImperialComponent::setup() {
-  global_imperial_component = this;
+void ImprovSerialComponent::setup() {
+  global_improv_serial_component = this;
 #ifdef USE_ARDUINO
   this->hw_serial_ = logger::global_logger->get_hw_serial();
 #endif
@@ -25,9 +25,9 @@ void ImperialComponent::setup() {
   }
 }
 
-void ImperialComponent::dump_config() { ESP_LOGCONFIG(TAG, "Imperial:"); }
+void ImprovSerialComponent::dump_config() { ESP_LOGCONFIG(TAG, "Improv Serial:"); }
 
-int ImperialComponent::available_() {
+int ImprovSerialComponent::available_() {
 #ifdef USE_ARDUINO
   return this->hw_serial_->available();
 #endif
@@ -38,7 +38,7 @@ int ImperialComponent::available_() {
 #endif
 }
 
-uint8_t ImperialComponent::read_byte_() {
+uint8_t ImprovSerialComponent::read_byte_() {
   uint8_t data;
 #ifdef USE_ARDUINO
   this->hw_serial_->readBytes(&data, 1);
@@ -49,7 +49,7 @@ uint8_t ImperialComponent::read_byte_() {
   return data;
 }
 
-void ImperialComponent::write_data_(std::vector<uint8_t> &data) {
+void ImprovSerialComponent::write_data_(std::vector<uint8_t> &data) {
   data.push_back('\n');
 #ifdef USE_ARDUINO
   this->hw_serial_->write(data.data(), data.size());
@@ -59,7 +59,7 @@ void ImperialComponent::write_data_(std::vector<uint8_t> &data) {
 #endif
 }
 
-void ImperialComponent::loop() {
+void ImprovSerialComponent::loop() {
   const uint32_t now = millis();
   if (now - this->last_read_byte_ > 50) {
     this->rx_buffer_.clear();
@@ -68,7 +68,7 @@ void ImperialComponent::loop() {
 
   while (this->available_()) {
     uint8_t byte = this->read_byte_();
-    if (this->parse_imperial_byte_(byte)) {
+    if (this->parse_improv_serial_byte_(byte)) {
       this->last_read_byte_ = now;
     } else {
       this->rx_buffer_.clear();
@@ -89,7 +89,7 @@ void ImperialComponent::loop() {
   }
 }
 
-std::vector<uint8_t> ImperialComponent::build_rpc_settings_response_() {
+std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_() {
   std::string url = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
   std::vector<std::string> urls = {url};
 #ifdef USE_WEBSERVER
@@ -101,10 +101,10 @@ std::vector<uint8_t> ImperialComponent::build_rpc_settings_response_() {
   return data;
 }
 
-bool ImperialComponent::parse_imperial_byte_(uint8_t byte) {
+bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
   size_t at = this->rx_buffer_.size();
   this->rx_buffer_.push_back(byte);
-  ESP_LOGD(TAG, "Imperial byte: 0x%02X", byte);
+  ESP_LOGD(TAG, "Improv Serial byte: 0x%02X", byte);
   const uint8_t *raw = &this->rx_buffer_[0];
   if (at == 0)
     return byte == 'I';
@@ -113,31 +113,27 @@ bool ImperialComponent::parse_imperial_byte_(uint8_t byte) {
   if (at == 2)
     return byte == 'P';
   if (at == 3)
-    return byte == 'E';
-  if (at == 4)
     return byte == 'R';
+  if (at == 4)
+    return byte == 'O';
   if (at == 5)
-    return byte == 'I';
+    return byte == 'V';
+
   if (at == 6)
-    return byte == 'A';
+    return byte == IMPROV_SERIAL_VERSION;
+
   if (at == 7)
-    return byte == 'L';
+    return true;
+  uint8_t type = raw[7];
 
   if (at == 8)
-    return byte == IMPERIAL_VERSION;
-
-  if (at == 9)
     return true;
-  uint8_t type = raw[9];
+  uint8_t data_len = raw[8];
 
-  if (at == 10)
-    return true;
-  uint8_t data_len = raw[10];
-
-  if (at < 10 + data_len)
+  if (at < 8 + data_len)
     return true;
 
-  if (at == 10 + data_len) {
+  if (at == 8 + data_len) {
     if (type == TYPE_RPC) {
       this->set_error_(improv::ERROR_NONE);
       auto command = improv::parse_improv_data(&raw[11], data_len);
@@ -147,7 +143,7 @@ bool ImperialComponent::parse_imperial_byte_(uint8_t byte) {
   return true;
 }
 
-bool ImperialComponent::parse_improv_payload_(improv::ImprovCommand &command) {
+bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command) {
   switch (command.command) {
     case improv::BAD_CHECKSUM:
       ESP_LOGW(TAG, "Error decoding Improv payload");
@@ -165,7 +161,7 @@ bool ImperialComponent::parse_improv_payload_(improv::ImprovCommand &command) {
       ESP_LOGD(TAG, "Received Improv wifi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                command.password.c_str());
 
-      auto f = std::bind(&ImperialComponent::on_wifi_connect_timeout_, this);
+      auto f = std::bind(&ImprovSerialComponent::on_wifi_connect_timeout_, this);
       this->set_timeout("wifi-connect-timeout", 30000, f);
       return true;
     }
@@ -184,12 +180,12 @@ bool ImperialComponent::parse_improv_payload_(improv::ImprovCommand &command) {
   }
 }
 
-void ImperialComponent::set_state_(improv::State state) {
+void ImprovSerialComponent::set_state_(improv::State state) {
   this->state_ = state;
 
-  std::vector<uint8_t> data = {'I', 'M', 'P', 'E', 'R', 'I', 'A', 'L'};
-  data.resize(13);
-  data[8] = IMPERIAL_VERSION;
+  std::vector<uint8_t> data = {'I', 'M', 'P', 'R', 'O', 'V'};
+  data.resize(11);
+  data[8] = IMPROV_SERIAL_VERSION;
   data[9] = TYPE_CURRENT_STATE;
   data[10] = 1;
   data[11] = state;
@@ -202,10 +198,10 @@ void ImperialComponent::set_state_(improv::State state) {
   this->write_data_(data);
 }
 
-void ImperialComponent::set_error_(improv::Error error) {
-  std::vector<uint8_t> data = {'I', 'M', 'P', 'E', 'R', 'I', 'A', 'L'};
-  data.resize(13);
-  data[8] = IMPERIAL_VERSION;
+void ImprovSerialComponent::set_error_(improv::Error error) {
+  std::vector<uint8_t> data = {'I', 'M', 'P', 'R', 'O', 'V'};
+  data.resize(11);
+  data[8] = IMPROV_SERIAL_VERSION;
   data[9] = TYPE_ERROR_STATE;
   data[10] = 1;
   data[11] = error;
@@ -217,24 +213,25 @@ void ImperialComponent::set_error_(improv::Error error) {
   this->write_data_(data);
 }
 
-void ImperialComponent::send_response_(std::vector<uint8_t> &response) {
-  std::vector<uint8_t> data = {'I', 'M', 'P', 'E', 'R', 'I', 'A', 'L'};
-  data.resize(11);
-  data[8] = IMPERIAL_VERSION;
+void ImprovSerialComponent::send_response_(std::vector<uint8_t> &response) {
+  std::vector<uint8_t> data = {'I', 'M', 'P', 'R', 'O', 'V'};
+  data.resize(9);
+  data[8] = IMPROV_SERIAL_VERSION;
   data[9] = TYPE_RPC;
   data[10] = response.size();
   data.insert(data.end(), response.begin(), response.end());
   this->write_data_(data);
 }
 
-void ImperialComponent::on_wifi_connect_timeout_() {
+void ImprovSerialComponent::on_wifi_connect_timeout_() {
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
   ESP_LOGW(TAG, "Timed out trying to connect to given WiFi network");
   wifi::global_wifi_component->clear_sta();
 }
 
-ImperialComponent *global_imperial_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+ImprovSerialComponent *global_improv_serial_component =
+    nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace imperial
+}  // namespace improv_serial
 }  // namespace esphome

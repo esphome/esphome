@@ -261,7 +261,7 @@ logger:
   level: DEBUG
   esp8266_store_log_strings_in_flash: true
 
-imperial:
+improv_serial:
 
 web_server:
 
