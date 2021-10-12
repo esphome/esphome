@@ -178,13 +178,13 @@ class ExponentialMovingAverageFilter : public Filter {
   float alpha_;
 };
 
-/** Simple periodical average filter.
+/** Simple throttle average filter.
  *
  * It takes the average of all the values received in a period of time.
  */
-class PeriodicalAverageFilter : public Filter, public Component {
+class ThrottleAverageFilter : public Filter, public Component {
  public:
-  explicit PeriodicalAverageFilter(uint32_t time_period);
+  explicit ThrottleAverageFilter(uint32_t time_period);
 
   void setup() override;
 

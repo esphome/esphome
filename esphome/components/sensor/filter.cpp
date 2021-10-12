@@ -187,20 +187,20 @@ optional<float> ExponentialMovingAverageFilter::new_value(float value) {
 void ExponentialMovingAverageFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void ExponentialMovingAverageFilter::set_alpha(float alpha) { this->alpha_ = alpha; }
 
-// PeriodicalAverageFilter
-PeriodicalAverageFilter::PeriodicalAverageFilter(uint32_t time_period) : time_period_(time_period) {}
+// ThrottleAverageFilter
+ThrottleAverageFilter::ThrottleAverageFilter(uint32_t time_period) : time_period_(time_period) {}
 
-optional<float> PeriodicalAverageFilter::new_value(float value) {
-  ESP_LOGVV(TAG, "PeriodicalAverageFilter(%p)::new_value(value=%f)", this, value);
+optional<float> ThrottleAverageFilter::new_value(float value) {
+  ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::new_value(value=%f)", this, value);
   if (!std::isnan(value)) {
     this->sum_ += value;
     this->n_++;
   }
   return {};
 }
-void PeriodicalAverageFilter::setup() {
-  this->set_interval("periodical_average", this->time_period_, [this]() {
-    ESP_LOGVV(TAG, "PeriodicalAverageFilter(%p)::interval(sum=%f, n=%i)", this, this->sum_, this->n_);
+void ThrottleAverageFilter::setup() {
+  this->set_interval("throttle_average", this->time_period_, [this]() {
+    ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::interval(sum=%f, n=%i)", this, this->sum_, this->n_);
     if (this->n_ == 0) {
       this->output(NAN);
     } else {
@@ -210,7 +210,7 @@ void PeriodicalAverageFilter::setup() {
     }
   });
 }
-float PeriodicalAverageFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
+float ThrottleAverageFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 // LambdaFilter
 LambdaFilter::LambdaFilter(lambda_filter_t lambda_filter) : lambda_filter_(std::move(lambda_filter)) {}
