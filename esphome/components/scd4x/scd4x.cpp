@@ -161,13 +161,6 @@ void SCD4XComponent::update() {
     if (!std::isnan(pressure)) {
       set_ambient_pressure_compensation(this->pressure_sensor_->state / 1000.0f);
     }
-  } else {
-    if (this->altidute_sensor_ != nullptr) {
-      float altidute = this->altidute_sensor_->state;
-      if (!std::isnan(altidute)) {
-        set_altitude_compensation(this->altidute_sensor_->state);
-      }
-    }
   }
 
   // Check if data is ready
@@ -212,17 +205,6 @@ void SCD4XComponent::update() {
   this->status_clear_warning();
 }
 
-void SCD4XComponent::set_altitude_compensation(uint16_t altitude) {
-  // setting an ambient pressure overrides altitude compensation
-  // divide by 10 for change detection +/- 10m doesn't make a difference
-  if (initialized_ && !ambient_pressure_compensation_ && (altitude / 10 != altitude_compensation_ / 10)) {
-    update_altitude_compensation_(altitude);
-    altitude_compensation_ = altitude;
-  } else {
-    ESP_LOGD(TAG, "altitude compensation skipped no change required");
-  }
-}
-
 void SCD4XComponent::set_ambient_pressure_compensation(float pressure) {
   ambient_pressure_compensation_ = true;
   uint16_t new_ambient_pressure = (uint16_t)(pressure * 1000);
@@ -232,16 +214,6 @@ void SCD4XComponent::set_ambient_pressure_compensation(float pressure) {
     ambient_pressure_ = new_ambient_pressure;
   } else {
     ESP_LOGD(TAG, "ambient pressure compensation skipped - no change required");
-  }
-}
-
-bool SCD4XComponent::update_altitude_compensation_(uint16_t altitude) {
-  if (this->write_command_(SCD4X_CMD_ALTITUDE_COMPENSATION, altitude)) {
-    ESP_LOGD(TAG, "setting altitude compensation to %d m", altitude);
-    return true;
-  } else {
-    ESP_LOGE(TAG, "Error setting altitude compensation.");
-    return false;
   }
 }
 
