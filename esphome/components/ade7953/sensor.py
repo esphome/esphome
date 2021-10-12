@@ -8,7 +8,6 @@ from esphome.const import (
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
     UNIT_AMPERE,
@@ -30,29 +29,36 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ADE7953),
-            cv.Optional(CONF_IRQ_PIN): pins.input_pin,
+            cv.Optional(CONF_IRQ_PIN): pins.internal_gpio_input_pin_schema,
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_VOLTAGE, STATE_CLASS_MEASUREMENT
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CURRENT_A): sensor.sensor_schema(
-                UNIT_AMPERE,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_CURRENT,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_AMPERE,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_CURRENT,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CURRENT_B): sensor.sensor_schema(
-                UNIT_AMPERE,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_CURRENT,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_AMPERE,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_CURRENT,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ACTIVE_POWER_A): sensor.sensor_schema(
-                UNIT_WATT, ICON_EMPTY, 1, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+                unit_of_measurement=UNIT_WATT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ACTIVE_POWER_B): sensor.sensor_schema(
-                UNIT_WATT, ICON_EMPTY, 1, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+                unit_of_measurement=UNIT_WATT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )
@@ -67,7 +73,8 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     if CONF_IRQ_PIN in config:
-        cg.add(var.set_irq_pin(config[CONF_IRQ_PIN]))
+        irq_pin = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
+        cg.add(var.set_irq_pin(irq_pin))
 
     for key in [
         CONF_VOLTAGE,

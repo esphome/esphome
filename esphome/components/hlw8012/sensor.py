@@ -11,15 +11,15 @@ from esphome.const import (
     CONF_POWER,
     CONF_ENERGY,
     CONF_SEL_PIN,
+    CONF_MODEL,
     CONF_VOLTAGE,
     CONF_VOLTAGE_DIVIDER,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_NONE,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_VOLT,
     UNIT_AMPERE,
     UNIT_WATT,
@@ -31,9 +31,17 @@ AUTO_LOAD = ["pulse_counter"]
 hlw8012_ns = cg.esphome_ns.namespace("hlw8012")
 HLW8012Component = hlw8012_ns.class_("HLW8012Component", cg.PollingComponent)
 HLW8012InitialMode = hlw8012_ns.enum("HLW8012InitialMode")
+HLW8012SensorModels = hlw8012_ns.enum("HLW8012SensorModels")
+
 INITIAL_MODES = {
     CONF_CURRENT: HLW8012InitialMode.HLW8012_INITIAL_MODE_CURRENT,
     CONF_VOLTAGE: HLW8012InitialMode.HLW8012_INITIAL_MODE_VOLTAGE,
+}
+
+MODELS = {
+    "HLW8012": HLW8012SensorModels.HLW8012_SENSOR_MODEL_HLW8012,
+    "CSE7759": HLW8012SensorModels.HLW8012_SENSOR_MODEL_CSE7759,
+    "BL0937": HLW8012SensorModels.HLW8012_SENSOR_MODEL_BL0937,
 }
 
 CONF_CF1_PIN = "cf1_pin"
@@ -42,26 +50,35 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(HLW8012Component),
         cv.Required(CONF_SEL_PIN): pins.gpio_output_pin_schema,
-        cv.Required(CONF_CF_PIN): cv.All(
-            pins.internal_gpio_input_pullup_pin_schema, pins.validate_has_interrupt
-        ),
-        cv.Required(CONF_CF1_PIN): cv.All(
-            pins.internal_gpio_input_pullup_pin_schema, pins.validate_has_interrupt
-        ),
+        cv.Required(CONF_CF_PIN): cv.All(pins.internal_gpio_input_pullup_pin_schema),
+        cv.Required(CONF_CF1_PIN): cv.All(pins.internal_gpio_input_pullup_pin_schema),
         cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-            UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_VOLTAGE, STATE_CLASS_MEASUREMENT
+            unit_of_measurement=UNIT_VOLT,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_VOLTAGE,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-            UNIT_AMPERE, ICON_EMPTY, 2, DEVICE_CLASS_CURRENT, STATE_CLASS_MEASUREMENT
+            unit_of_measurement=UNIT_AMPERE,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_CURRENT,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_POWER): sensor.sensor_schema(
-            UNIT_WATT, ICON_EMPTY, 1, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+            unit_of_measurement=UNIT_WATT,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_ENERGY): sensor.sensor_schema(
-            UNIT_WATT_HOURS, ICON_EMPTY, 1, DEVICE_CLASS_ENERGY, STATE_CLASS_NONE
+            unit_of_measurement=UNIT_WATT_HOURS,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_ENERGY,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
         cv.Optional(CONF_VOLTAGE_DIVIDER, default=2351): cv.positive_float,
+        cv.Optional(CONF_MODEL, default="HLW8012"): cv.enum(MODELS, upper=True),
         cv.Optional(CONF_CHANGE_MODE_EVERY, default=8): cv.All(
             cv.uint32_t, cv.Range(min=1)
         ),
@@ -99,3 +116,4 @@ async def to_code(config):
     cg.add(var.set_voltage_divider(config[CONF_VOLTAGE_DIVIDER]))
     cg.add(var.set_change_mode_every(config[CONF_CHANGE_MODE_EVERY]))
     cg.add(var.set_initial_mode(INITIAL_MODES[config[CONF_INITIAL_MODE]]))
+    cg.add(var.set_sensor_model(config[CONF_MODEL]))

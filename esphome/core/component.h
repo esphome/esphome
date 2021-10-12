@@ -2,7 +2,7 @@
 
 #include <string>
 #include <functional>
-#include "Arduino.h"
+#include <cmath>
 
 #include "esphome/core/optional.h"
 
@@ -22,13 +22,15 @@ extern const float IO;
 extern const float HARDWARE;
 /// For components that import data from directly connected sensors like DHT.
 extern const float DATA;
-/// Alias for DATA (here for compatability reasons)
+/// Alias for DATA (here for compatibility reasons)
 extern const float HARDWARE_LATE;
 /// For components that use data from sensors like displays
 extern const float PROCESSOR;
 extern const float BLUETOOTH;
 extern const float AFTER_BLUETOOTH;
 extern const float WIFI;
+/// For components that should be initialized after WiFi and before API is connected.
+extern const float BEFORE_CONNECTION;
 /// For components that should be initialized after WiFi is connected.
 extern const float AFTER_WIFI;
 /// For components that should be initialized after a data connection (API/MQTT) is connected.
@@ -38,8 +40,12 @@ extern const float LATE;
 
 }  // namespace setup_priority
 
+static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
+
 #define LOG_UPDATE_INTERVAL(this) \
-  if (this->get_update_interval() < 100) { \
+  if (this->get_update_interval() == SCHEDULER_DONT_RUN) { \
+    ESP_LOGCONFIG(TAG, "  Update Interval: never"); \
+  } else if (this->get_update_interval() < 100) { \
     ESP_LOGCONFIG(TAG, "  Update Interval: %.3fs", this->get_update_interval() / 1000.0f); \
   } else { \
     ESP_LOGCONFIG(TAG, "  Update Interval: %.1fs", this->get_update_interval() / 1000.0f); \
@@ -130,9 +136,24 @@ class Component {
 
   bool has_overridden_loop() const;
 
+  /** Set where this component was loaded from for some debug messages.
+   *
+   * This is set by the ESPHome core, and should not be called manually.
+   */
+  void set_component_source(const char *source) { component_source_ = source; }
+  /** Get the integration where this component was declared as a string.
+   *
+   * Returns "<unknown>" if source not set
+   */
+  const char *get_component_source() const;
+
  protected:
+  friend class Application;
+
   virtual void call_loop();
   virtual void call_setup();
+  virtual void call_dump_config();
+
   /** Set an interval function with a unique name. Empty name means no cancelling possible.
    *
    * This will call f every interval ms. Can be cancelled via CancelInterval().
@@ -201,6 +222,7 @@ class Component {
 
   uint32_t component_state_{0x0000};  ///< State of this component.
   float setup_priority_override_{NAN};
+  const char *component_source_ = nullptr;
 };
 
 /** This class simplifies creating components that periodically check a state.
@@ -242,29 +264,14 @@ class PollingComponent : public Component {
   uint32_t update_interval_;
 };
 
-/// Helper class that enables naming of objects so that it doesn't have to be re-implement every time.
-class Nameable {
+class WarnIfComponentBlockingGuard {
  public:
-  Nameable() : Nameable("") {}
-  explicit Nameable(std::string name);
-  const std::string &get_name() const;
-  void set_name(const std::string &name);
-  /// Get the sanitized name of this nameable as an ID. Caching it internally.
-  const std::string &get_object_id();
-  uint32_t get_object_id_hash();
-
-  bool is_internal() const;
-  void set_internal(bool internal);
+  WarnIfComponentBlockingGuard(Component *component);
+  ~WarnIfComponentBlockingGuard();
 
  protected:
-  virtual uint32_t hash_base() = 0;
-
-  void calc_object_id_();
-
-  std::string name_;
-  std::string object_id_;
-  uint32_t object_id_hash_;
-  bool internal_{false};
+  uint32_t started_;
+  Component *component_;
 };
 
 }  // namespace esphome

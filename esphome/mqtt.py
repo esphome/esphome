@@ -104,9 +104,9 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
         if CONF_LOG_TOPIC in conf:
             topic = config[CONF_MQTT][CONF_LOG_TOPIC][CONF_TOPIC]
         elif CONF_TOPIC_PREFIX in config[CONF_MQTT]:
-            topic = config[CONF_MQTT][CONF_TOPIC_PREFIX] + "/debug"
+            topic = f"{config[CONF_MQTT][CONF_TOPIC_PREFIX]}/debug"
         else:
-            topic = config[CONF_ESPHOME][CONF_NAME] + "/debug"
+            topic = f"{config[CONF_ESPHOME][CONF_NAME]}/debug"
     else:
         _LOGGER.error("MQTT isn't setup, can't start MQTT logs")
         return 1
@@ -158,9 +158,8 @@ def get_fingerprint(config):
 
     sha1 = hashlib.sha1(cert_der).hexdigest()
 
-    safe_print("SHA1 Fingerprint: " + color(Fore.CYAN, sha1))
+    safe_print(f"SHA1 Fingerprint: {color(Fore.CYAN, sha1)}")
     safe_print(
-        "Copy the string above into mqtt.ssl_fingerprints section of {}"
-        "".format(CORE.config_path)
+        f"Copy the string above into mqtt.ssl_fingerprints section of {CORE.config_path}"
     )
     return 0

@@ -1,6 +1,7 @@
 #include "st7735.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace st7735 {
@@ -220,16 +221,16 @@ static const uint8_t PROGMEM
 // clang-format on
 static const char *const TAG = "st7735";
 
-ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, boolean eightbitcolor,
-               boolean usebgr) {
-  model_ = model;
-  this->width_ = width;
-  this->height_ = height;
-  this->colstart_ = colstart;
-  this->rowstart_ = rowstart;
-  this->eightbitcolor_ = eightbitcolor;
-  this->usebgr_ = usebgr;
-}
+ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, bool eightbitcolor, bool usebgr,
+               bool invert_colors)
+    : model_(model),
+      colstart_(colstart),
+      rowstart_(rowstart),
+      eightbitcolor_(eightbitcolor),
+      usebgr_(usebgr),
+      invert_colors_(invert_colors),
+      width_(width),
+      height_(height) {}
 
 void ST7735::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ST7735...");
@@ -282,6 +283,9 @@ void ST7735::setup() {
     data = data | ST77XX_MADCTL_RGB;
   }
   sendcommand_(ST77XX_MADCTL, &data, 1);
+
+  if (this->invert_colors_)
+    sendcommand_(ST77XX_INVON, nullptr, 0);
 
   this->init_internal_(this->get_buffer_length());
   memset(this->buffer_, 0x00, this->get_buffer_length());
@@ -350,17 +354,17 @@ void ST7735::display_init_(const uint8_t *addr) {
   uint8_t num_commands, cmd, num_args;
   uint16_t ms;
 
-  num_commands = pgm_read_byte(addr++);  // Number of commands to follow
-  while (num_commands--) {               // For each command...
-    cmd = pgm_read_byte(addr++);         // Read command
-    num_args = pgm_read_byte(addr++);    // Number of args to follow
-    ms = num_args & ST_CMD_DELAY;        // If hibit set, delay follows args
-    num_args &= ~ST_CMD_DELAY;           // Mask out delay bit
+  num_commands = progmem_read_byte(addr++);  // Number of commands to follow
+  while (num_commands--) {                   // For each command...
+    cmd = progmem_read_byte(addr++);         // Read command
+    num_args = progmem_read_byte(addr++);    // Number of args to follow
+    ms = num_args & ST_CMD_DELAY;            // If hibit set, delay follows args
+    num_args &= ~ST_CMD_DELAY;               // Mask out delay bit
     this->sendcommand_(cmd, addr, num_args);
     addr += num_args;
 
     if (ms) {
-      ms = pgm_read_byte(addr++);  // Read post-command delay time (ms)
+      ms = progmem_read_byte(addr++);  // Read post-command delay time (ms)
       if (ms == 255)
         ms = 500;  // If 255, delay for 500 ms
       delay(ms);
@@ -407,7 +411,7 @@ void HOT ST7735::senddata_(const uint8_t *data_bytes, uint8_t num_data_bytes) {
   this->cs_->digital_write(false);
   this->enable();
   for (uint8_t i = 0; i < num_data_bytes; i++) {
-    this->write_byte(pgm_read_byte(data_bytes++));  // write byte - SPI library
+    this->write_byte(progmem_read_byte(data_bytes++));  // write byte - SPI library
   }
   this->cs_->digital_write(true);
   this->disable();
@@ -460,26 +464,26 @@ void HOT ST7735::write_display_data_() {
 }
 
 void ST7735::spi_master_write_addr_(uint16_t addr1, uint16_t addr2) {
-  static uint8_t BYTE[4];
-  BYTE[0] = (addr1 >> 8) & 0xFF;
-  BYTE[1] = addr1 & 0xFF;
-  BYTE[2] = (addr2 >> 8) & 0xFF;
-  BYTE[3] = addr2 & 0xFF;
+  static uint8_t byte[4];
+  byte[0] = (addr1 >> 8) & 0xFF;
+  byte[1] = addr1 & 0xFF;
+  byte[2] = (addr2 >> 8) & 0xFF;
+  byte[3] = addr2 & 0xFF;
 
   this->dc_pin_->digital_write(true);
-  this->write_array(BYTE, 4);
+  this->write_array(byte, 4);
 }
 
 void ST7735::spi_master_write_color_(uint16_t color, uint16_t size) {
-  static uint8_t BYTE[1024];
+  static uint8_t byte[1024];
   int index = 0;
   for (int i = 0; i < size; i++) {
-    BYTE[index++] = (color >> 8) & 0xFF;
-    BYTE[index++] = color & 0xFF;
+    byte[index++] = (color >> 8) & 0xFF;
+    byte[index++] = color & 0xFF;
   }
 
   this->dc_pin_->digital_write(true);
-  return write_array(BYTE, size * 2);
+  return write_array(byte, size * 2);
 }
 
 }  // namespace st7735

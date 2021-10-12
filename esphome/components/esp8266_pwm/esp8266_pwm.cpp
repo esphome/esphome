@@ -1,9 +1,12 @@
+#ifdef USE_ESP8266
+
 #include "esp8266_pwm.h"
+#include "esphome/core/macros.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-#ifdef ARDUINO_ESP8266_RELEASE_2_3_0
-#error ESP8266 PWM requires at least arduino_core_version 2.4.0
+#if defined(USE_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
+#error ESP8266 PWM requires at least arduino_version 2.4.0
 #endif
 
 #include <core_esp8266_waveform.h>
@@ -54,3 +57,5 @@ void HOT ESP8266PWM::write_state(float state) {
 
 }  // namespace esp8266_pwm
 }  // namespace esphome
+
+#endif

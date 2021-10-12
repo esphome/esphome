@@ -13,8 +13,9 @@ void DutyCycleSensor::setup() {
   this->store_.pin = this->pin_->to_isr();
   this->store_.last_level = this->pin_->digital_read();
   this->last_update_ = micros();
+  this->store_.last_interrupt = micros();
 
-  this->pin_->attach_interrupt(DutyCycleSensorStore::gpio_intr, &this->store_, CHANGE);
+  this->pin_->attach_interrupt(DutyCycleSensorStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
 }
 void DutyCycleSensor::dump_config() {
   LOG_SENSOR("", "Duty Cycle Sensor", this);
@@ -43,8 +44,8 @@ void DutyCycleSensor::update() {
 
 float DutyCycleSensor::get_setup_priority() const { return setup_priority::DATA; }
 
-void ICACHE_RAM_ATTR DutyCycleSensorStore::gpio_intr(DutyCycleSensorStore *arg) {
-  const bool new_level = arg->pin->digital_read();
+void IRAM_ATTR DutyCycleSensorStore::gpio_intr(DutyCycleSensorStore *arg) {
+  const bool new_level = arg->pin.digital_read();
   if (new_level == arg->last_level)
     return;
   arg->last_level = new_level;

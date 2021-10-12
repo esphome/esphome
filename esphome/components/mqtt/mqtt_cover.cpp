@@ -1,6 +1,7 @@
 #include "mqtt_cover.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_COVER
 
 namespace esphome {
@@ -61,11 +62,15 @@ void MQTTCoverComponent::dump_config() {
   }
 }
 void MQTTCoverComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+  if (!this->cover_->get_device_class().empty())
+    root["device_class"] = this->cover_->get_device_class();
+
   auto traits = this->cover_->get_traits();
   if (traits.get_is_assumed_state()) {
     root["optimistic"] = true;
   }
   if (traits.get_supports_position()) {
+    config.state_topic = false;
     root["position_topic"] = this->get_position_state_topic();
     root["set_position_topic"] = this->get_position_command_topic();
   }
@@ -79,9 +84,9 @@ void MQTTCoverComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryCon
 }
 
 std::string MQTTCoverComponent::component_type() const { return "cover"; }
-std::string MQTTCoverComponent::friendly_name() const { return this->cover_->get_name(); }
+const EntityBase *MQTTCoverComponent::get_entity() const { return this->cover_; }
+
 bool MQTTCoverComponent::send_initial_state() { return this->publish_state(); }
-bool MQTTCoverComponent::is_internal() { return this->cover_->is_internal(); }
 bool MQTTCoverComponent::publish_state() {
   auto traits = this->cover_->get_traits();
   bool success = true;
@@ -112,3 +117,4 @@ bool MQTTCoverComponent::publish_state() {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

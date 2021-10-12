@@ -31,7 +31,9 @@ DisplayPageShowPrevAction = display_ns.class_(
 DisplayIsDisplayingPageCondition = display_ns.class_(
     "DisplayIsDisplayingPageCondition", automation.Condition
 )
-DisplayOnPageChangeTrigger = display_ns.class_("DisplayOnPageChangeTrigger")
+DisplayOnPageChangeTrigger = display_ns.class_(
+    "DisplayOnPageChangeTrigger", automation.Trigger
+)
 
 CONF_ON_PAGE_CHANGE = "on_page_change"
 

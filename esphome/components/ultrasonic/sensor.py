@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_ID,
     CONF_TRIGGER_PIN,
     CONF_TIMEOUT,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
     ICON_ARROW_EXPAND_VERTICAL,
@@ -22,11 +21,10 @@ UltrasonicSensorComponent = ultrasonic_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_METER,
-        ICON_ARROW_EXPAND_VERTICAL,
-        2,
-        DEVICE_CLASS_EMPTY,
-        STATE_CLASS_MEASUREMENT,
+        unit_of_measurement=UNIT_METER,
+        icon=ICON_ARROW_EXPAND_VERTICAL,
+        accuracy_decimals=2,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {
@@ -37,13 +35,6 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_PULSE_TIME, default="10us"
             ): cv.positive_time_period_microseconds,
-            cv.Optional("timeout_meter"): cv.invalid(
-                "The timeout_meter option has been renamed " "to 'timeout' in 1.12."
-            ),
-            cv.Optional("timeout_time"): cv.invalid(
-                "The timeout_time option has been removed. Please "
-                "use 'timeout' in 1.12."
-            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))

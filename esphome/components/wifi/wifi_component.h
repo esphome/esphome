@@ -1,23 +1,24 @@
 #pragma once
 
+#include "esphome/core/macros.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
+#include "esphome/components/network/ip_address.h"
 #include <string>
-#include <IPAddress.h>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp_wifi.h>
 #include <WiFiType.h>
 #include <WiFi.h>
 #endif
 
-#ifdef ARDUINO_ARCH_ESP8266
-#include <ESP8266WiFiType.h>
+#ifdef USE_ESP8266
 #include <ESP8266WiFi.h>
+#include <ESP8266WiFiType.h>
 
-#ifdef ARDUINO_ESP8266_RELEASE_2_3_0
+#if defined(USE_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
 extern "C" {
 #include <user_interface.h>
 };
@@ -53,16 +54,24 @@ enum WiFiComponentState {
   WIFI_COMPONENT_STATE_AP,
 };
 
-/// Struct for setting static IPs in WiFiComponent.
-struct ManualIP {
-  IPAddress static_ip;
-  IPAddress gateway;
-  IPAddress subnet;
-  IPAddress dns1;  ///< The first DNS server. 0.0.0.0 for default.
-  IPAddress dns2;  ///< The second DNS server. 0.0.0.0 for default.
+enum class WiFiSTAConnectStatus : int {
+  IDLE,
+  CONNECTING,
+  CONNECTED,
+  ERROR_NETWORK_NOT_FOUND,
+  ERROR_CONNECT_FAILED,
 };
 
-#ifdef ESPHOME_WIFI_WPA2_EAP
+/// Struct for setting static IPs in WiFiComponent.
+struct ManualIP {
+  network::IPAddress static_ip;
+  network::IPAddress gateway;
+  network::IPAddress subnet;
+  network::IPAddress dns1;  ///< The first DNS server. 0.0.0.0 for default.
+  network::IPAddress dns2;  ///< The second DNS server. 0.0.0.0 for default.
+};
+
+#ifdef USE_WIFI_WPA2_EAP
 struct EAPAuth {
   std::string identity;  // required for all auth types
   std::string username;
@@ -72,7 +81,7 @@ struct EAPAuth {
   const char *client_cert;
   const char *client_key;
 };
-#endif  // ESPHOME_WIFI_WPA2_EAP
+#endif  // USE_WIFI_WPA2_EAP
 
 using bssid_t = std::array<uint8_t, 6>;
 
@@ -82,9 +91,9 @@ class WiFiAP {
   void set_bssid(bssid_t bssid);
   void set_bssid(optional<bssid_t> bssid);
   void set_password(const std::string &password);
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
   void set_eap(optional<EAPAuth> eap_auth);
-#endif  // ESPHOME_WIFI_WPA2_EAP
+#endif  // USE_WIFI_WPA2_EAP
   void set_channel(optional<uint8_t> channel);
   void set_priority(float priority) { priority_ = priority; }
   void set_manual_ip(optional<ManualIP> manual_ip);
@@ -92,9 +101,9 @@ class WiFiAP {
   const std::string &get_ssid() const;
   const optional<bssid_t> &get_bssid() const;
   const std::string &get_password() const;
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
   const optional<EAPAuth> &get_eap() const;
-#endif  // ESPHOME_WIFI_WPA2_EAP
+#endif  // USE_WIFI_WPA2_EAP
   const optional<uint8_t> &get_channel() const;
   float get_priority() const { return priority_; }
   const optional<ManualIP> &get_manual_ip() const;
@@ -104,9 +113,9 @@ class WiFiAP {
   std::string ssid_;
   optional<bssid_t> bssid_;
   std::string password_;
-#ifdef ESPHOME_WIFI_WPA2_EAP
+#ifdef USE_WIFI_WPA2_EAP
   optional<EAPAuth> eap_;
-#endif  // ESPHOME_WIFI_WPA2_EAP
+#endif  // USE_WIFI_WPA2_EAP
   optional<uint8_t> channel_;
   float priority_{0};
   optional<ManualIP> manual_ip_;
@@ -151,6 +160,10 @@ enum WiFiPowerSaveMode {
   WIFI_POWER_SAVE_LIGHT,
   WIFI_POWER_SAVE_HIGH,
 };
+
+#ifdef USE_ESP_IDF
+struct IDFWiFiEvent;
+#endif
 
 /// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent : public Component {
@@ -206,13 +219,13 @@ class WiFiComponent : public Component {
   bool has_sta() const;
   bool has_ap() const;
 
-  IPAddress get_ip_address();
+  network::IPAddress get_ip_address();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
 
   const std::vector<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 
-  IPAddress wifi_soft_ap_ip();
+  network::IPAddress wifi_soft_ap_ip();
 
   bool has_sta_priority(const bssid_t &bssid) {
     for (auto &it : this->sta_priorities_)
@@ -238,42 +251,55 @@ class WiFiComponent : public Component {
     });
   }
 
+  network::IPAddress wifi_sta_ip();
+  std::string wifi_ssid();
+  bssid_t wifi_bssid();
+
+  int8_t wifi_rssi();
+
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
   void setup_ap_config_();
   void print_connect_params_();
 
+  void wifi_loop_();
   bool wifi_mode_(optional<bool> sta, optional<bool> ap);
   bool wifi_sta_pre_setup_();
   bool wifi_apply_output_power_(float output_power);
   bool wifi_apply_power_save_();
   bool wifi_sta_ip_config_(optional<ManualIP> manual_ip);
-  IPAddress wifi_sta_ip_();
   bool wifi_apply_hostname_();
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
-  wl_status_t wifi_sta_status_();
+  WiFiSTAConnectStatus wifi_sta_connect_status_();
   bool wifi_scan_start_();
   bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
   bool wifi_disconnect_();
+  int32_t wifi_channel_();
+  network::IPAddress wifi_subnet_mask_();
+  network::IPAddress wifi_gateway_ip_();
+  network::IPAddress wifi_dns_ip_(int num);
 
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   static void wifi_event_callback(System_Event_t *event);
   void wifi_scan_done_callback_(void *arg, STATUS status);
   static void s_wifi_scan_done_callback(void *arg, STATUS status);
 #endif
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #if ESP_IDF_VERSION_MAJOR >= 4
   void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
 #else
   void wifi_event_callback_(system_event_id_t event, system_event_info_t info);
 #endif
   void wifi_scan_done_callback_();
+#endif
+#ifdef USE_ESP_IDF
+  void wifi_process_event_(IDFWiFiEvent *);
 #endif
 
   std::string use_address_;
@@ -282,6 +308,7 @@ class WiFiComponent : public Component {
   WiFiAP selected_ap_;
   bool fast_connect_{false};
 
+  bool has_ap_{false};
   WiFiAP ap_;
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   uint32_t action_started_;

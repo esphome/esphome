@@ -5,7 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
@@ -79,11 +79,9 @@ bool BLEServer::create_device_characteristics_() {
         this->device_information_service_->create_characteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
     model->set_value(this->model_.value());
   } else {
-#ifdef ARDUINO_BOARD
     BLECharacteristic *model =
         this->device_information_service_->create_characteristic(MODEL_UUID, BLECharacteristic::PROPERTY_READ);
-    model->set_value(ARDUINO_BOARD);
-#endif
+    model->set_value(ESPHOME_BOARD);
   }
 
   BLECharacteristic *version =
@@ -108,7 +106,7 @@ BLEService *BLEServer::create_service(const std::string &uuid, bool advertise) {
 }
 BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles, uint8_t inst_id) {
   ESP_LOGV(TAG, "Creating service - %s", uuid.to_string().c_str());
-  BLEService *service = new BLEService(uuid, num_handles, inst_id);
+  BLEService *service = new BLEService(uuid, num_handles, inst_id);  // NOLINT(cppcoreguidelines-owning-memory)
   this->services_.push_back(service);
   if (advertise) {
     esp32_ble::global_ble->get_advertising()->add_service_uuid(uuid);
@@ -157,7 +155,7 @@ float BLEServer::get_setup_priority() const { return setup_priority::BLUETOOTH -
 
 void BLEServer::dump_config() { ESP_LOGCONFIG(TAG, "ESP32 BLE Server:"); }
 
-BLEServer *global_ble_server = nullptr;
+BLEServer *global_ble_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esp32_ble_server
 }  // namespace esphome

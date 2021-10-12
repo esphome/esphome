@@ -41,7 +41,7 @@ from .util import password_hash
 # pylint: disable=unused-import, wrong-import-order
 from typing import Optional  # noqa
 
-from esphome.zeroconf import DashboardStatus, Zeroconf
+from esphome.zeroconf import DashboardImportDiscovery, DashboardStatus, EsphomeZeroconf
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ class DashboardSettings:
         return os.path.join(self.config_dir, *args)
 
     def list_yaml_files(self):
-        return util.list_yaml_files(self.config_dir)
+        return util.list_yaml_files([self.config_dir])
 
 
 settings = DashboardSettings()
@@ -154,9 +154,6 @@ def is_authenticated(request_handler):
 def bind_config(func):
     def decorator(self, *args, **kwargs):
         configuration = self.get_argument("configuration")
-        if not is_allowed(configuration):
-            self.set_status(500)
-            return None
         kwargs = kwargs.copy()
         kwargs["configuration"] = configuration
         return func(self, *args, **kwargs)
@@ -329,7 +326,7 @@ class EsphomeVscodeHandler(EsphomeCommandWebSocket):
 
 class EsphomeAceEditorHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
-        return ["esphome", "--dashboard", "-q", "vscode", settings.config_dir, "--ace"]
+        return ["esphome", "--dashboard", "-q", "vscode", "--ace", settings.config_dir]
 
 
 class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):
@@ -363,13 +360,36 @@ class WizardRequestHandler(BaseHandler):
         from esphome import wizard
 
         kwargs = {
-            k: "".join(x.decode() for x in v)
-            for k, v in self.request.arguments.items()
+            k: v
+            for k, v in json.loads(self.request.body.decode()).items()
             if k in ("name", "platform", "board", "ssid", "psk", "password")
         }
         kwargs["ota_password"] = secrets.token_hex(16)
-        destination = settings.rel_path(kwargs["name"] + ".yaml")
+        destination = settings.rel_path(f"{kwargs['name']}.yaml")
         wizard.wizard_write(path=destination, **kwargs)
+        self.set_status(200)
+        self.finish()
+
+
+class ImportRequestHandler(BaseHandler):
+    @authenticated
+    def post(self):
+        from esphome.components.dashboard_import import import_config
+
+        args = json.loads(self.request.body.decode())
+        try:
+            name = args["name"]
+            import_config(
+                settings.rel_path(f"{name}.yaml"),
+                name,
+                args["project_name"],
+                args["package_import_url"],
+            )
+        except FileExistsError:
+            self.set_status(500)
+            self.write("File already exists")
+            return
+
         self.set_status(200)
         self.finish()
 
@@ -431,7 +451,7 @@ class DashboardEntry:
     @property
     def name(self):
         if self.storage is None:
-            return self.filename[: -len(".yaml")]
+            return self.filename.replace(".yml", "").replace(".yaml", "")
         return self.storage.name
 
     @property
@@ -441,16 +461,10 @@ class DashboardEntry:
         return self.storage.comment
 
     @property
-    def esp_platform(self):
+    def target_platform(self):
         if self.storage is None:
             return None
-        return self.storage.esp_platform
-
-    @property
-    def board(self):
-        if self.storage is None:
-            return None
-        return self.storage.board
+        return self.storage.target_platform
 
     @property
     def update_available(self):
@@ -475,15 +489,51 @@ class DashboardEntry:
         return self.storage.loaded_integrations
 
 
+class ListDevicesHandler(BaseHandler):
+    @authenticated
+    def get(self):
+        entries = _list_dashboard_entries()
+        self.set_header("content-type", "application/json")
+        configured = {entry.name for entry in entries}
+        self.write(
+            json.dumps(
+                {
+                    "configured": [
+                        {
+                            "name": entry.name,
+                            "configuration": entry.filename,
+                            "loaded_integrations": entry.loaded_integrations,
+                            "deployed_version": entry.update_old,
+                            "current_version": entry.update_new,
+                            "path": entry.path,
+                            "comment": entry.comment,
+                            "address": entry.address,
+                            "target_platform": entry.target_platform,
+                        }
+                        for entry in entries
+                    ],
+                    "importable": [
+                        {
+                            "name": res.device_name,
+                            "package_import_url": res.package_import_url,
+                            "project_name": res.project_name,
+                            "project_version": res.project_version,
+                        }
+                        for res in IMPORT_RESULT.values()
+                        if res.device_name not in configured
+                    ],
+                }
+            )
+        )
+
+
 class MainRequestHandler(BaseHandler):
     @authenticated
     def get(self):
         begin = bool(self.get_argument("begin", False))
-        entries = _list_dashboard_entries()
 
         self.render(
             get_template_path("index"),
-            entries=entries,
             begin=begin,
             **template_args(),
             login_enabled=settings.using_auth,
@@ -501,31 +551,38 @@ def _ping_func(filename, address):
 
 class MDNSStatusThread(threading.Thread):
     def run(self):
-        zc = Zeroconf()
+        global IMPORT_RESULT
+
+        zc = EsphomeZeroconf()
 
         def on_update(dat):
             for key, b in dat.items():
                 PING_RESULT[key] = b
 
         stat = DashboardStatus(zc, on_update)
+        imports = DashboardImportDiscovery(zc)
+
         stat.start()
         while not STOP_EVENT.is_set():
             entries = _list_dashboard_entries()
             stat.request_query(
-                {entry.filename: entry.name + ".local." for entry in entries}
+                {entry.filename: f"{entry.name}.local." for entry in entries}
             )
+            IMPORT_RESULT = imports.import_state
 
             PING_REQUEST.wait()
             PING_REQUEST.clear()
+
         stat.stop()
         stat.join()
+        imports.cancel()
         zc.close()
 
 
 class PingStatusThread(threading.Thread):
     def run(self):
         with multiprocessing.Pool(processes=8) as pool:
-            while not STOP_EVENT.is_set():
+            while not STOP_EVENT.wait(2):
                 # Only do pings if somebody has the dashboard open
 
                 def callback(ret):
@@ -573,10 +630,6 @@ class PingRequestHandler(BaseHandler):
         self.write(json.dumps(PING_RESULT))
 
 
-def is_allowed(configuration):
-    return os.path.sep not in configuration
-
-
 class InfoRequestHandler(BaseHandler):
     @authenticated
     @bind_config
@@ -600,7 +653,7 @@ class EditRequestHandler(BaseHandler):
         content = ""
         if os.path.isfile(filename):
             # pylint: disable=no-value-for-parameter
-            with open(filename, "r") as f:
+            with open(file=filename, mode="r", encoding="utf-8") as f:
                 content = f.read()
         self.write(content)
 
@@ -608,7 +661,7 @@ class EditRequestHandler(BaseHandler):
     @bind_config
     def post(self, configuration=None):
         # pylint: disable=no-value-for-parameter
-        with open(settings.rel_path(configuration), "wb") as f:
+        with open(file=settings.rel_path(configuration), mode="wb") as f:
             f.write(self.request.body)
         self.set_status(200)
 
@@ -619,20 +672,18 @@ class DeleteRequestHandler(BaseHandler):
     def post(self, configuration=None):
         config_file = settings.rel_path(configuration)
         storage_path = ext_storage_path(settings.config_dir, configuration)
-        storage_json = StorageJSON.load(storage_path)
-        if storage_json is None:
-            self.set_status(500)
-            return
 
-        name = storage_json.name
         trash_path = trash_storage_path(settings.config_dir)
         mkdir_p(trash_path)
         shutil.move(config_file, os.path.join(trash_path, configuration))
 
-        # Delete build folder (if exists)
-        build_folder = os.path.join(settings.config_dir, name)
-        if build_folder is not None:
-            shutil.rmtree(build_folder, os.path.join(trash_path, name))
+        storage_json = StorageJSON.load(storage_path)
+        if storage_json is not None:
+            # Delete build folder (if exists)
+            name = storage_json.name
+            build_folder = os.path.join(settings.config_dir, name)
+            if build_folder is not None:
+                shutil.rmtree(build_folder, os.path.join(trash_path, name))
 
 
 class UndoDeleteRequestHandler(BaseHandler):
@@ -645,6 +696,7 @@ class UndoDeleteRequestHandler(BaseHandler):
 
 
 PING_RESULT = {}  # type: dict
+IMPORT_RESULT = {}
 STOP_EVENT = threading.Event()
 PING_REQUEST = threading.Event()
 
@@ -716,9 +768,6 @@ class LogoutHandler(BaseHandler):
         self.redirect("./login")
 
 
-_STATIC_FILE_HASHES = {}
-
-
 def get_base_frontend_path():
     if ENV_DEV not in os.environ:
         import esphome_dashboard
@@ -741,19 +790,23 @@ def get_static_path(*args):
     return os.path.join(get_base_frontend_path(), "static", *args)
 
 
+@functools.lru_cache(maxsize=None)
 def get_static_file_url(name):
+    base = f"./static/{name}"
+
+    if ENV_DEV in os.environ:
+        return base
+
     # Module imports can't deduplicate if stuff added to url
     if name == "js/esphome/index.js":
-        return f"./static/{name}"
+        import esphome_dashboard
 
-    if name in _STATIC_FILE_HASHES:
-        hash_ = _STATIC_FILE_HASHES[name]
-    else:
-        path = get_static_path(name)
-        with open(path, "rb") as f_handle:
-            hash_ = hashlib.md5(f_handle.read()).hexdigest()[:8]
-        _STATIC_FILE_HASHES[name] = hash_
-    return f"./static/{name}?hash={hash_}"
+        return base.replace("index.js", esphome_dashboard.entrypoint())
+
+    path = get_static_path(name)
+    with open(path, "rb") as f_handle:
+        hash_ = hashlib.md5(f_handle.read()).hexdigest()[:8]
+    return f"{base}?hash={hash_}"
 
 
 def make_app(debug=get_bool_env(ENV_DEV)):
@@ -781,10 +834,9 @@ def make_app(debug=get_bool_env(ENV_DEV)):
 
     class StaticFileHandler(tornado.web.StaticFileHandler):
         def set_extra_headers(self, path):
-            if debug:
-                self.set_header(
-                    "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
-                )
+            self.set_header(
+                "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
+            )
 
     app_settings = {
         "debug": debug,
@@ -795,33 +847,32 @@ def make_app(debug=get_bool_env(ENV_DEV)):
     rel = settings.relative_url
     app = tornado.web.Application(
         [
-            (rel + "", MainRequestHandler),
-            (rel + "login", LoginHandler),
-            (rel + "logout", LogoutHandler),
-            (rel + "logs", EsphomeLogsHandler),
-            (rel + "upload", EsphomeUploadHandler),
-            (rel + "compile", EsphomeCompileHandler),
-            (rel + "validate", EsphomeValidateHandler),
-            (rel + "clean-mqtt", EsphomeCleanMqttHandler),
-            (rel + "clean", EsphomeCleanHandler),
-            (rel + "vscode", EsphomeVscodeHandler),
-            (rel + "ace", EsphomeAceEditorHandler),
-            (rel + "update-all", EsphomeUpdateAllHandler),
-            (rel + "info", InfoRequestHandler),
-            (rel + "edit", EditRequestHandler),
-            (rel + "download.bin", DownloadBinaryRequestHandler),
-            (rel + "serial-ports", SerialPortRequestHandler),
-            (rel + "ping", PingRequestHandler),
-            (rel + "delete", DeleteRequestHandler),
-            (rel + "undo-delete", UndoDeleteRequestHandler),
-            (rel + "wizard.html", WizardRequestHandler),
-            (rel + r"static/(.*)", StaticFileHandler, {"path": get_static_path()}),
+            (f"{rel}", MainRequestHandler),
+            (f"{rel}login", LoginHandler),
+            (f"{rel}logout", LogoutHandler),
+            (f"{rel}logs", EsphomeLogsHandler),
+            (f"{rel}upload", EsphomeUploadHandler),
+            (f"{rel}compile", EsphomeCompileHandler),
+            (f"{rel}validate", EsphomeValidateHandler),
+            (f"{rel}clean-mqtt", EsphomeCleanMqttHandler),
+            (f"{rel}clean", EsphomeCleanHandler),
+            (f"{rel}vscode", EsphomeVscodeHandler),
+            (f"{rel}ace", EsphomeAceEditorHandler),
+            (f"{rel}update-all", EsphomeUpdateAllHandler),
+            (f"{rel}info", InfoRequestHandler),
+            (f"{rel}edit", EditRequestHandler),
+            (f"{rel}download.bin", DownloadBinaryRequestHandler),
+            (f"{rel}serial-ports", SerialPortRequestHandler),
+            (f"{rel}ping", PingRequestHandler),
+            (f"{rel}delete", DeleteRequestHandler),
+            (f"{rel}undo-delete", UndoDeleteRequestHandler),
+            (f"{rel}wizard", WizardRequestHandler),
+            (f"{rel}static/(.*)", StaticFileHandler, {"path": get_static_path()}),
+            (f"{rel}devices", ListDevicesHandler),
+            (f"{rel}import", ImportRequestHandler),
         ],
         **app_settings,
     )
-
-    if debug:
-        _STATIC_FILE_HASHES.clear()
 
     return app
 

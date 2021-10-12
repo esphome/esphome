@@ -67,22 +67,26 @@ void TuyaFan::dump_config() {
 void TuyaFan::write_state() {
   if (this->switch_id_.has_value()) {
     ESP_LOGV(TAG, "Setting switch: %s", ONOFF(this->fan_->state));
-    this->parent_->set_datapoint_value(*this->switch_id_, this->fan_->state);
+    this->parent_->set_boolean_datapoint_value(*this->switch_id_, this->fan_->state);
   }
   if (this->oscillation_id_.has_value()) {
     ESP_LOGV(TAG, "Setting oscillating: %s", ONOFF(this->fan_->oscillating));
-    this->parent_->set_datapoint_value(*this->oscillation_id_, this->fan_->oscillating);
+    this->parent_->set_boolean_datapoint_value(*this->oscillation_id_, this->fan_->oscillating);
   }
   if (this->direction_id_.has_value()) {
     bool enable = this->fan_->direction == fan::FAN_DIRECTION_REVERSE;
     ESP_LOGV(TAG, "Setting reverse direction: %s", ONOFF(enable));
-    this->parent_->set_datapoint_value(*this->direction_id_, enable);
+    this->parent_->set_enum_datapoint_value(*this->direction_id_, enable);
   }
   if (this->speed_id_.has_value()) {
     ESP_LOGV(TAG, "Setting speed: %d", this->fan_->speed);
-    this->parent_->set_datapoint_value(*this->speed_id_, this->fan_->speed);
+    this->parent_->set_enum_datapoint_value(*this->speed_id_, this->fan_->speed - 1);
   }
 }
+
+// We need a higher priority than the FanState component to make sure that the traits are set
+// when that component sets itself up.
+float TuyaFan::get_setup_priority() const { return fan_->get_setup_priority() + 1.0f; }
 
 }  // namespace tuya
 }  // namespace esphome

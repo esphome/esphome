@@ -155,7 +155,7 @@ void HitachiClimate::transmit_state() {
     case climate::CLIMATE_MODE_HEAT:
       set_mode_(HITACHI_AC344_MODE_HEAT);
       break;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       set_mode_(HITACHI_AC344_MODE_AUTO);
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
@@ -165,7 +165,7 @@ void HitachiClimate::transmit_state() {
       set_power_(false);
       break;
     default:
-      ESP_LOGW(TAG, "Unsupported mode: %s", climate_mode_to_string(this->mode));
+      ESP_LOGW(TAG, "Unsupported mode: %s", LOG_STR_ARG(climate_mode_to_string(this->mode)));
   }
 
   set_temp_(static_cast<uint8_t>(this->target_temperature));
@@ -251,7 +251,7 @@ bool HitachiClimate::parse_mode_(const uint8_t remote_state[]) {
         this->mode = climate::CLIMATE_MODE_HEAT;
         break;
       case HITACHI_AC344_MODE_AUTO:
-        this->mode = climate::CLIMATE_MODE_AUTO;
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
       case HITACHI_AC344_MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;

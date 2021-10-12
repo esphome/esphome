@@ -6,16 +6,15 @@ namespace mcp23xxx_base {
 
 float MCP23XXXBase::get_setup_priority() const { return setup_priority::IO; }
 
-MCP23XXXGPIOPin::MCP23XXXGPIOPin(MCP23XXXBase *parent, uint8_t pin, uint8_t mode, bool inverted,
-                                 MCP23XXXInterruptMode interrupt_mode)
-    : GPIOPin(pin, mode, inverted), parent_(parent), interrupt_mode_(interrupt_mode) {}
-void MCP23XXXGPIOPin::setup() { this->pin_mode(this->mode_); }
-void MCP23XXXGPIOPin::pin_mode(uint8_t mode) {
-  this->parent_->pin_mode(this->pin_, mode);
-  this->parent_->pin_interrupt_mode(this->pin_, this->interrupt_mode_);
-}
+void MCP23XXXGPIOPin::setup() { pin_mode(flags_); }
+void MCP23XXXGPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool MCP23XXXGPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void MCP23XXXGPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
+std::string MCP23XXXGPIOPin::dump_summary() const {
+  char buffer[32];
+  snprintf(buffer, sizeof(buffer), "%u via MCP23XXX", pin_);
+  return buffer;
+}
 
 }  // namespace mcp23xxx_base
 }  // namespace esphome

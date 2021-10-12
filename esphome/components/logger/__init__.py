@@ -7,6 +7,7 @@ from esphome.automation import LambdaAction
 from esphome.const import (
     CONF_ARGS,
     CONF_BAUD_RATE,
+    CONF_DEASSERT_RTS_DTR,
     CONF_FORMAT,
     CONF_HARDWARE_UART,
     CONF_ID,
@@ -85,8 +86,7 @@ def validate_local_no_higher_than_global(value):
     for tag, level in value.get(CONF_LOGS, {}).items():
         if LOG_LEVEL_SEVERITY.index(level) > LOG_LEVEL_SEVERITY.index(global_level):
             raise EsphomeError(
-                "The local log level {} for {} must be less severe than the "
-                "global log level {}.".format(level, tag, global_level)
+                f"The local log level {level} for {tag} must be less severe than the global log level {global_level}."
             )
     return value
 
@@ -104,6 +104,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(Logger),
             cv.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
             cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.validate_bytes,
+            cv.Optional(CONF_DEASSERT_RTS_DTR, default=False): cv.boolean,
             cv.Optional(CONF_HARDWARE_UART, default="UART0"): uart_selection,
             cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
             cv.Optional(CONF_LOGS, default={}): cv.Schema(
@@ -143,7 +144,7 @@ async def to_code(config):
     level = config[CONF_LEVEL]
     cg.add_define("USE_LOGGER")
     this_severity = LOG_LEVEL_SEVERITY.index(level)
-    cg.add_build_flag("-DESPHOME_LOG_LEVEL={}".format(LOG_LEVELS[level]))
+    cg.add_build_flag(f"-DESPHOME_LOG_LEVEL={LOG_LEVELS[level]}")
 
     verbose_severity = LOG_LEVEL_SEVERITY.index("VERBOSE")
     very_verbose_severity = LOG_LEVEL_SEVERITY.index("VERY_VERBOSE")
@@ -205,8 +206,7 @@ def maybe_simple_message(schema):
 
 def validate_printf(value):
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
-    # pylint: disable=anomalous-backslash-in-string
-    cfmt = """\
+    cfmt = r"""
     (                                  # start of capture group 1
     %                                  # literal "%"
     (?:[-+0 #]{0,5})                   # optional flags
@@ -214,13 +214,12 @@ def validate_printf(value):
     (?:\.(?:\d+|\*))?                  # precision
     (?:h|l|ll|w|I|I32|I64)?            # size
     [cCdiouxXeEfgGaAnpsSZ]             # type
-    ) 
+    )
     """  # noqa
     matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.X)
     if len(matches) != len(value[CONF_ARGS]):
         raise cv.Invalid(
-            "Found {} printf-patterns ({}), but {} args were given!"
-            "".format(len(matches), ", ".join(matches), len(value[CONF_ARGS]))
+            f"Found {len(matches)} printf-patterns ({', '.join(matches)}), but {len(value[CONF_ARGS])} args were given!"
         )
     return value
 

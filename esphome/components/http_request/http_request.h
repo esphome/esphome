@@ -1,18 +1,24 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/components/json/json_util.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include <list>
 #include <map>
 #include <utility>
+#include <memory>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <HTTPClient.h>
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include <ESP8266HTTPClient.h>
+#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
 #include <WiFiClientSecure.h>
+#endif
 #endif
 
 namespace esphome {
@@ -34,7 +40,7 @@ class HttpRequestComponent : public Component {
   void set_method(const char *method) { this->method_ = method; }
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
-  void set_body(std::string body) { this->body_ = std::move(body); }
+  void set_body(const std::string &body) { this->body_ = body; }
   void set_headers(std::list<Header> headers) { this->headers_ = std::move(headers); }
   void send(const std::vector<HttpRequestResponseTrigger *> &response_triggers);
   void close();
@@ -50,10 +56,12 @@ class HttpRequestComponent : public Component {
   uint16_t timeout_{5000};
   std::string body_;
   std::list<Header> headers_;
-#ifdef ARDUINO_ARCH_ESP8266
-  WiFiClient *wifi_client_{nullptr};
-  BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
-  WiFiClient *get_wifi_client_();
+#ifdef USE_ESP8266
+  std::shared_ptr<WiFiClient> wifi_client_;
+#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
+  std::shared_ptr<BearSSL::WiFiClientSecure> wifi_client_secure_;
+#endif
+  std::shared_ptr<WiFiClient> get_wifi_client_();
 #endif
 };
 
@@ -131,3 +139,5 @@ class HttpRequestResponseTrigger : public Trigger<int> {
 
 }  // namespace http_request
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

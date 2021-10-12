@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 #include "cover_traits.h"
@@ -13,7 +14,7 @@ const extern float COVER_CLOSED;
 
 #define LOG_COVER(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, (obj)->get_name().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
     auto traits_ = (obj)->get_traits(); \
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
@@ -29,7 +30,7 @@ class CoverCall {
  public:
   CoverCall(Cover *parent);
 
-  /// Set the command as a string, "STOP", "OPEN", "CLOSE".
+  /// Set the command as a string, "STOP", "OPEN", "CLOSE", "TOGGLE".
   CoverCall &set_command(const char *command);
   /// Set the command to open the cover.
   CoverCall &set_command_open();
@@ -37,6 +38,8 @@ class CoverCall {
   CoverCall &set_command_close();
   /// Set the command to stop the cover.
   CoverCall &set_command_stop();
+  /// Set the command to toggle the cover.
+  CoverCall &set_command_toggle();
   /// Set the call to a certain target position.
   CoverCall &set_position(float position);
   /// Set the call to a certain target tilt.
@@ -50,6 +53,7 @@ class CoverCall {
   const optional<float> &get_position() const;
   bool get_stop() const;
   const optional<float> &get_tilt() const;
+  const optional<bool> &get_toggle() const;
 
  protected:
   void validate_();
@@ -58,6 +62,7 @@ class CoverCall {
   bool stop_{false};
   optional<float> position_{};
   optional<float> tilt_{};
+  optional<bool> toggle_{};
 };
 
 /// Struct used to store the restored state of a cover
@@ -103,22 +108,19 @@ const char *cover_operation_to_str(CoverOperation op);
  * to control all values of the cover. Also implement get_traits() to return what operations
  * the cover supports.
  */
-class Cover : public Nameable {
+class Cover : public EntityBase {
  public:
   explicit Cover();
   explicit Cover(const std::string &name);
 
   /// The current operation of the cover (idle, opening, closing).
   CoverOperation current_operation{COVER_OPERATION_IDLE};
-  union {
-    /** The position of the cover from 0.0 (fully closed) to 1.0 (fully open).
-     *
-     * For binary covers this is always equals to 0.0 or 1.0 (see also COVER_OPEN and
-     * COVER_CLOSED constants).
-     */
-    float position;
-    ESPDEPRECATED("<cover>.state is deprecated, please use .position instead") float state;
-  };
+  /** The position of the cover from 0.0 (fully closed) to 1.0 (fully open).
+   *
+   * For binary covers this is always equals to 0.0 or 1.0 (see also COVER_OPEN and
+   * COVER_CLOSED constants).
+   */
+  float position;
   /// The current tilt value of the cover from 0.0 to 1.0.
   float tilt{COVER_OPEN};
 
@@ -128,16 +130,19 @@ class Cover : public Nameable {
    *
    * This is a legacy method and may be removed later, please use `.make_call()` instead.
    */
+  ESPDEPRECATED("open() is deprecated, use make_call().set_command_open() instead.", "2021.9")
   void open();
   /** Close the cover.
    *
    * This is a legacy method and may be removed later, please use `.make_call()` instead.
    */
+  ESPDEPRECATED("close() is deprecated, use make_call().set_command_close() instead.", "2021.9")
   void close();
   /** Stop the cover.
    *
    * This is a legacy method and may be removed later, please use `.make_call()` instead.
    */
+  ESPDEPRECATED("stop() is deprecated, use make_call().set_command_stop() instead.", "2021.9")
   void stop();
 
   void add_on_state_callback(std::function<void()> &&f);

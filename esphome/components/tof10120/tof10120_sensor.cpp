@@ -1,5 +1,6 @@
 #include "tof10120_sensor.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 // Very basic support for TOF10120 distance sensor
 
@@ -31,7 +32,12 @@ void TOF10120Sensor::update() {
   }
 
   uint8_t data[2];
-  if (!this->read_bytes(TOF10120_DISTANCE_REGISTER, data, 2, TOF10120_DEFAULT_DELAY)) {
+  if (this->write(&TOF10120_DISTANCE_REGISTER, 1) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
+  delay(TOF10120_DEFAULT_DELAY);
+  if (this->read(data, 2) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with TOF10120 failed on read");
     this->status_set_warning();
     return;

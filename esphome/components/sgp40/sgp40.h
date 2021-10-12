@@ -46,6 +46,7 @@ class SGP40Component : public PollingComponent, public sensor::Sensor, public i2
 
   void setup() override;
   void update() override;
+  void update_voc_index();
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
   void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
@@ -68,9 +69,11 @@ class SGP40Component : public PollingComponent, public sensor::Sensor, public i2
   int32_t seconds_since_last_store_;
   SGP40Baselines baselines_storage_;
   VocAlgorithmParams voc_algorithm_params_;
+  bool self_test_complete_;
   bool store_baseline_;
   int32_t state0_;
   int32_t state1_;
+  int32_t voc_index_ = 0;
   uint8_t samples_read_ = 0;
   uint8_t samples_to_stabalize_ = static_cast<int8_t>(VOC_ALGORITHM_INITIAL_BLACKOUT) * 2;
 

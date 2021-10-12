@@ -4,7 +4,7 @@ from esphome import core
 from esphome.components import display
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_FILE, CONF_GLYPHS, CONF_ID, CONF_SIZE
+from esphome.const import CONF_FILE, CONF_GLYPHS, CONF_ID, CONF_RAW_DATA_ID, CONF_SIZE
 from esphome.core import CORE, HexInt
 
 DEPENDENCIES = ["display"]
@@ -61,8 +61,7 @@ def validate_pillow_installed(value):
 def validate_truetype_file(value):
     if value.endswith(".zip"):  # for Google Fonts downloads
         raise cv.Invalid(
-            "Please unzip the font archive '{}' first and then use the .ttf files "
-            "inside.".format(value)
+            f"Please unzip the font archive '{value}' first and then use the .ttf files inside."
         )
     if not value.endswith(".ttf"):
         raise cv.Invalid(
@@ -73,9 +72,8 @@ def validate_truetype_file(value):
 
 
 DEFAULT_GLYPHS = (
-    ' !"%()+,-.:/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
+    ' !"%()+=,-.:/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
 )
-CONF_RAW_DATA_ID = "raw_data_id"
 CONF_RAW_GLYPH_ID = "raw_glyph_id"
 
 FONT_SCHEMA = cv.Schema(
@@ -110,7 +108,7 @@ async def to_code(config):
         _, (offset_x, offset_y) = font.font.getsize(glyph)
         width, height = mask.size
         width8 = ((width + 7) // 8) * 8
-        glyph_data = [0 for _ in range(height * width8 // 8)]  # noqa: F812
+        glyph_data = [0] * (height * width8 // 8)
         for y in range(height):
             for x in range(width):
                 if not mask.getpixel((x, y)):
@@ -131,7 +129,7 @@ async def to_code(config):
                 ("a_char", glyph),
                 (
                     "data",
-                    cg.RawExpression(str(prog_arr) + " + " + str(glyph_args[glyph][0])),
+                    cg.RawExpression(f"{str(prog_arr)} + {str(glyph_args[glyph][0])}"),
                 ),
                 ("offset_x", glyph_args[glyph][1]),
                 ("offset_y", glyph_args[glyph][2]),

@@ -24,6 +24,8 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     if CORE.is_esp32:
+        cg.add_library("WiFi", None)
         cg.add_library("FS", None)
-    # https://github.com/OttoWinter/ESPAsyncWebServer/blob/master/library.json
-    cg.add_library("ESPAsyncWebServer-esphome", "1.2.7")
+        cg.add_library("Update", None)
+    # https://github.com/esphome/ESPAsyncWebServer/blob/master/library.json
+    cg.add_library("esphome/ESPAsyncWebServer-esphome", "1.3.0")

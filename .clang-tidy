@@ -2,9 +2,11 @@
 Checks: >-
   *,
   -abseil-*,
+  -altera-*,
   -android-*,
   -boost-*,
   -bugprone-branch-clone,
+  -bugprone-easily-swappable-parameters,
   -bugprone-narrowing-conversions,
   -bugprone-signed-char-misuse,
   -bugprone-too-small-loop-variable,
@@ -14,7 +16,13 @@ Checks: >-
   -cert-str34-c,
   -clang-analyzer-optin.cplusplus.UninitializedObject,
   -clang-analyzer-osx.*,
+  -clang-diagnostic-delete-abstract-non-virtual-dtor,
+  -clang-diagnostic-delete-non-abstract-non-virtual-dtor,
   -clang-diagnostic-shadow-field,
+  -clang-diagnostic-sign-compare,
+  -clang-diagnostic-unused-variable,
+  -clang-diagnostic-unused-const-variable,
+  -concurrency-*,
   -cppcoreguidelines-avoid-c-arrays,
   -cppcoreguidelines-avoid-goto,
   -cppcoreguidelines-avoid-magic-numbers,
@@ -22,7 +30,6 @@ Checks: >-
   -cppcoreguidelines-macro-usage,
   -cppcoreguidelines-narrowing-conversions,
   -cppcoreguidelines-non-private-member-variables-in-classes,
-  -cppcoreguidelines-owning-memory,
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
   -cppcoreguidelines-pro-bounds-constant-array-index,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
@@ -56,17 +63,21 @@ Checks: >-
   -misc-no-recursion,
   -misc-unused-parameters,
   -modernize-avoid-c-arrays,
+  -modernize-avoid-bind,
+  -modernize-concat-nested-namespaces,
   -modernize-return-braced-init-list,
   -modernize-use-auto,
   -modernize-use-default-member-init,
   -modernize-use-equals-default,
   -modernize-use-trailing-return-type,
+  -modernize-use-nodiscard,
   -mpi-*,
   -objc-*,
   -readability-braces-around-statements,
   -readability-const-return-type,
   -readability-convert-member-functions-to-static,
   -readability-else-after-return,
+  -readability-function-cognitive-complexity,
   -readability-implicit-bool-conversion,
   -readability-isolate-declaration,
   -readability-magic-numbers,
@@ -78,9 +89,7 @@ Checks: >-
   -readability-redundant-string-init,
   -readability-uppercase-literal-suffix,
   -readability-use-anyofallof,
-  -warnings-as-errors
 WarningsAsErrors: '*'
-HeaderFilterRegex: '^.*/src/esphome/.*'
 AnalyzeTemporaryDtors: false
 FormatStyle:     google
 CheckOptions:
@@ -104,6 +113,10 @@ CheckOptions:
     value:           llvm
   - key:             modernize-use-nullptr.NullMacros
     value:           'NULL'
+  - key:             modernize-make-unique.MakeSmartPtrFunction
+    value:           'make_unique'
+  - key:             modernize-make-unique.MakeSmartPtrFunctionHeader
+    value:           'esphome/core/helpers.h'
   - key:             readability-identifier-naming.LocalVariableCase
     value:           'lower_case'
   - key:             readability-identifier-naming.ClassCase
@@ -117,15 +130,19 @@ CheckOptions:
   - key:             readability-identifier-naming.StaticConstantCase
     value:           'UPPER_CASE'
   - key:             readability-identifier-naming.StaticVariableCase
-    value:           'UPPER_CASE'
+    value:           'lower_case'
   - key:             readability-identifier-naming.GlobalConstantCase
     value:           'UPPER_CASE'
   - key:             readability-identifier-naming.ParameterCase
     value:           'lower_case'
-  - key:             readability-identifier-naming.PrivateMemberPrefix
-    value:           'NO_PRIVATE_MEMBERS_ALWAYS_USE_PROTECTED'
-  - key:             readability-identifier-naming.PrivateMethodPrefix
-    value:           'NO_PRIVATE_METHODS_ALWAYS_USE_PROTECTED'
+  - key:             readability-identifier-naming.PrivateMemberCase
+    value:           'lower_case'
+  - key:             readability-identifier-naming.PrivateMemberSuffix
+    value:           '_'
+  - key:             readability-identifier-naming.PrivateMethodCase
+    value:           'lower_case'
+  - key:             readability-identifier-naming.PrivateMethodSuffix
+    value:           '_'
   - key:             readability-identifier-naming.ClassMemberCase
     value:           'lower_case'
   - key:             readability-identifier-naming.ClassMemberCase

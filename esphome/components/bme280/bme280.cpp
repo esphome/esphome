@@ -113,14 +113,14 @@ void BME280Component::setup() {
   this->calibration_.h5 = read_u8_(BME280_REGISTER_DIG_H5 + 1) << 4 | (read_u8_(BME280_REGISTER_DIG_H5) >> 4);
   this->calibration_.h6 = read_u8_(BME280_REGISTER_DIG_H6);
 
-  uint8_t humid_register = 0;
-  if (!this->read_byte(BME280_REGISTER_CONTROLHUMID, &humid_register)) {
+  uint8_t humid_control_val = 0;
+  if (!this->read_byte(BME280_REGISTER_CONTROLHUMID, &humid_control_val)) {
     this->mark_failed();
     return;
   }
-  humid_register &= ~0b00000111;
-  humid_register |= this->humidity_oversampling_ & 0b111;
-  if (!this->write_byte(BME280_REGISTER_CONTROLHUMID, humid_register)) {
+  humid_control_val &= ~0b00000111;
+  humid_control_val |= this->humidity_oversampling_ & 0b111;
+  if (!this->write_byte(BME280_REGISTER_CONTROLHUMID, humid_control_val)) {
     this->mark_failed();
     return;
   }
@@ -169,11 +169,11 @@ inline uint8_t oversampling_to_time(BME280Oversampling over_sampling) { return (
 void BME280Component::update() {
   // Enable sensor
   ESP_LOGV(TAG, "Sending conversion request...");
-  uint8_t meas_register = 0;
-  meas_register |= (this->temperature_oversampling_ & 0b111) << 5;
-  meas_register |= (this->pressure_oversampling_ & 0b111) << 2;
-  meas_register |= BME280_MODE_FORCED;
-  if (!this->write_byte(BME280_REGISTER_CONTROL, meas_register)) {
+  uint8_t meas_value = 0;
+  meas_value |= (this->temperature_oversampling_ & 0b111) << 5;
+  meas_value |= (this->pressure_oversampling_ & 0b111) << 2;
+  meas_value |= BME280_MODE_FORCED;
+  if (!this->write_byte(BME280_REGISTER_CONTROL, meas_value)) {
     this->status_set_warning();
     return;
   }
@@ -186,7 +186,7 @@ void BME280Component::update() {
   this->set_timeout("data", uint32_t(ceilf(meas_time)), [this]() {
     int32_t t_fine = 0;
     float temperature = this->read_temperature_(&t_fine);
-    if (isnan(temperature)) {
+    if (std::isnan(temperature)) {
       ESP_LOGW(TAG, "Invalid temperature, cannot read pressure & humidity values.");
       this->status_set_warning();
       return;

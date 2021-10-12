@@ -5,7 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace esp32_improv {
@@ -32,7 +32,7 @@ void ESP32ImprovComponent::setup_characteristics() {
 
   this->rpc_ = this->service_->create_characteristic(improv::RPC_COMMAND_UUID, BLECharacteristic::PROPERTY_WRITE);
   this->rpc_->on_write([this](const std::vector<uint8_t> &data) {
-    if (data.size() > 0) {
+    if (!data.empty()) {
       this->incoming_data_.insert(this->incoming_data_.end(), data.begin(), data.end());
     }
   });
@@ -56,7 +56,7 @@ void ESP32ImprovComponent::setup_characteristics() {
 }
 
 void ESP32ImprovComponent::loop() {
-  if (this->incoming_data_.size() > 0)
+  if (!this->incoming_data_.empty())
     this->process_incoming_data_();
   uint32_t now = millis();
 
@@ -126,7 +126,7 @@ void ESP32ImprovComponent::loop() {
 
         std::string url = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
         std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, {url});
-        this->send_response(data);
+        this->send_response_(data);
         this->set_timeout("end-service", 1000, [this] {
           this->service_->stop();
           this->set_state_(improv::STATE_STOPPED);
@@ -162,7 +162,7 @@ bool ESP32ImprovComponent::check_identify_() {
 void ESP32ImprovComponent::set_state_(improv::State state) {
   ESP_LOGV(TAG, "Setting state: %d", state);
   this->state_ = state;
-  if (this->status_->get_value().size() == 0 || this->status_->get_value()[0] != state) {
+  if (this->status_->get_value().empty() || this->status_->get_value()[0] != state) {
     uint8_t data[1]{state};
     this->status_->set_value(data, 1);
     if (state != improv::STATE_STOPPED)
@@ -173,7 +173,7 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
 void ESP32ImprovComponent::set_error_(improv::Error error) {
   if (error != improv::ERROR_NONE)
     ESP_LOGE(TAG, "Error: %d", error);
-  if (this->error_->get_value().size() == 0 || this->error_->get_value()[0] != error) {
+  if (this->error_->get_value().empty() || this->error_->get_value()[0] != error) {
     uint8_t data[1]{error};
     this->error_->set_value(data, 1);
     if (this->state_ != improv::STATE_STOPPED)
@@ -181,7 +181,7 @@ void ESP32ImprovComponent::set_error_(improv::Error error) {
   }
 }
 
-void ESP32ImprovComponent::send_response(std::vector<uint8_t> &response) {
+void ESP32ImprovComponent::send_response_(std::vector<uint8_t> &response) {
   this->rpc_response_->set_value(response);
   if (this->state_ != improv::STATE_STOPPED)
     this->rpc_response_->notify();
@@ -274,7 +274,7 @@ void ESP32ImprovComponent::on_wifi_connect_timeout_() {
 
 void ESP32ImprovComponent::on_client_disconnect() { this->set_error_(improv::ERROR_NONE); };
 
-ESP32ImprovComponent *global_improv_component = nullptr;
+ESP32ImprovComponent *global_improv_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esp32_improv
 }  // namespace esphome

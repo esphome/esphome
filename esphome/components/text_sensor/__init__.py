@@ -3,26 +3,33 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
 from esphome.const import (
-    CONF_ICON,
+    CONF_FILTERS,
     CONF_ID,
-    CONF_INTERNAL,
     CONF_ON_VALUE,
+    CONF_ON_RAW_VALUE,
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
-    CONF_NAME,
     CONF_STATE,
+    CONF_FROM,
+    CONF_TO,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_helpers import setup_entity
+from esphome.util import Registry
+
 
 IS_PLATFORM_COMPONENT = True
 
 # pylint: disable=invalid-name
 text_sensor_ns = cg.esphome_ns.namespace("text_sensor")
-TextSensor = text_sensor_ns.class_("TextSensor", cg.Nameable)
+TextSensor = text_sensor_ns.class_("TextSensor", cg.EntityBase)
 TextSensorPtr = TextSensor.operator("ptr")
 
 TextSensorStateTrigger = text_sensor_ns.class_(
     "TextSensorStateTrigger", automation.Trigger.template(cg.std_string)
+)
+TextSensorStateRawTrigger = text_sensor_ns.class_(
+    "TextSensorStateRawTrigger", automation.Trigger.template(cg.std_string)
 )
 TextSensorPublishAction = text_sensor_ns.class_(
     "TextSensorPublishAction", automation.Action
@@ -31,29 +38,112 @@ TextSensorStateCondition = text_sensor_ns.class_(
     "TextSensorStateCondition", automation.Condition
 )
 
+FILTER_REGISTRY = Registry()
+validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
+
+# Filters
+Filter = text_sensor_ns.class_("Filter")
+LambdaFilter = text_sensor_ns.class_("LambdaFilter", Filter)
+ToUpperFilter = text_sensor_ns.class_("ToUpperFilter", Filter)
+ToLowerFilter = text_sensor_ns.class_("ToLowerFilter", Filter)
+AppendFilter = text_sensor_ns.class_("AppendFilter", Filter)
+PrependFilter = text_sensor_ns.class_("PrependFilter", Filter)
+SubstituteFilter = text_sensor_ns.class_("SubstituteFilter", Filter)
+
+
+@FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
+async def lambda_filter_to_code(config, filter_id):
+    lambda_ = await cg.process_lambda(
+        config, [(cg.std_string, "x")], return_type=cg.optional.template(cg.std_string)
+    )
+    return cg.new_Pvariable(filter_id, lambda_)
+
+
+@FILTER_REGISTRY.register("to_upper", ToUpperFilter, {})
+async def to_upper_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id)
+
+
+@FILTER_REGISTRY.register("to_lower", ToLowerFilter, {})
+async def to_lower_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id)
+
+
+@FILTER_REGISTRY.register("append", AppendFilter, cv.string)
+async def append_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
+
+
+@FILTER_REGISTRY.register("prepend", PrependFilter, cv.string)
+async def prepend_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
+
+
+def validate_substitute(value):
+    if isinstance(value, dict):
+        return cv.Schema(
+            {
+                cv.Required(CONF_FROM): cv.string,
+                cv.Required(CONF_TO): cv.string,
+            }
+        )(value)
+    value = cv.string(value)
+    if "->" not in value:
+        raise cv.Invalid("Substitute mapping must contain '->'")
+    a, b = value.split("->", 1)
+    a, b = a.strip(), b.strip()
+    return validate_substitute({CONF_FROM: cv.string(a), CONF_TO: cv.string(b)})
+
+
+@FILTER_REGISTRY.register(
+    "substitute",
+    SubstituteFilter,
+    cv.All(cv.ensure_list(validate_substitute), cv.Length(min=2)),
+)
+async def substitute_filter_to_code(config, filter_id):
+    from_strings = [conf[CONF_FROM] for conf in config]
+    to_strings = [conf[CONF_TO] for conf in config]
+    return cg.new_Pvariable(filter_id, from_strings, to_strings)
+
+
 icon = cv.icon
 
-TEXT_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
+TEXT_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
-        cv.Optional(CONF_ICON): icon,
+        cv.Optional(CONF_FILTERS): validate_filters,
         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextSensorStateTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    TextSensorStateRawTrigger
+                ),
             }
         ),
     }
 )
 
 
+async def build_filters(config):
+    return await cg.build_registry_list(FILTER_REGISTRY, config)
+
+
 async def setup_text_sensor_core_(var, config):
-    cg.add(var.set_name(config[CONF_NAME]))
-    if CONF_INTERNAL in config:
-        cg.add(var.set_internal(config[CONF_INTERNAL]))
-    if CONF_ICON in config:
-        cg.add(var.set_icon(config[CONF_ICON]))
+    await setup_entity(var, config)
+
+    if config.get(CONF_FILTERS):  # must exist and not be empty
+        filters = await build_filters(config[CONF_FILTERS])
+        cg.add(var.set_filters(filters))
 
     for conf in config.get(CONF_ON_VALUE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+
+    for conf in config.get(CONF_ON_RAW_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 

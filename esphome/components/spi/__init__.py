@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import pins
 from esphome.const import (
     CONF_CLK_PIN,
@@ -9,7 +10,7 @@ from esphome.const import (
     CONF_SPI_ID,
     CONF_CS_PIN,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import coroutine_with_priority, CORE
 
 CODEOWNERS = ["@esphome/core"]
 spi_ns = cg.esphome_ns.namespace("spi")
@@ -45,6 +46,9 @@ async def to_code(config):
         mosi = await cg.gpio_pin_expression(config[CONF_MOSI_PIN])
         cg.add(var.set_mosi(mosi))
 
+    if CORE.is_esp32:
+        cg.add_library("SPI", None)
+
 
 def spi_device_schema(cs_pin_required=True):
     """Create a schema for an SPI device.
@@ -69,9 +73,24 @@ async def register_spi_device(var, config):
         cg.add(var.set_cs_pin(pin))
 
 
-def validate_device(name, config, item_config, require_mosi, require_miso):
-    spi_config = config.get_config_by_id(item_config[CONF_SPI_ID])
-    if require_mosi and CONF_MISO_PIN not in spi_config:
-        raise ValueError(f"Component {name} requires parent spi to declare miso_pin")
-    if require_miso and CONF_MOSI_PIN not in spi_config:
-        raise ValueError(f"Component {name} requires parent spi to declare mosi_pin")
+def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso: bool):
+    hub_schema = {}
+    if require_miso:
+        hub_schema[
+            cv.Required(
+                CONF_MISO_PIN,
+                msg=f"Component {name} requires this spi bus to declare a miso_pin",
+            )
+        ] = cv.valid
+    if require_mosi:
+        hub_schema[
+            cv.Required(
+                CONF_MOSI_PIN,
+                msg=f"Component {name} requires this spi bus to declare a mosi_pin",
+            )
+        ] = cv.valid
+
+    return cv.Schema(
+        {cv.Required(CONF_SPI_ID): fv.id_declaration_match_schema(hub_schema)},
+        extra=cv.ALLOW_EXTRA,
+    )

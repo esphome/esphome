@@ -16,7 +16,7 @@ CONFIG_SCHEMA = time_.TIME_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(SNTPComponent),
         cv.Optional(CONF_SERVERS, default=DEFAULT_SERVERS): cv.All(
-            cv.ensure_list(cv.domain), cv.Length(min=1, max=3)
+            cv.ensure_list(cv.Any(cv.domain, cv.hostname)), cv.Length(min=1, max=3)
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)

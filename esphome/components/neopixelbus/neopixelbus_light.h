@@ -1,13 +1,16 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
+#include "esphome/core/macros.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/color.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/light/addressable_light.h"
 
-#ifdef ARDUINO_ESP8266_RELEASE_2_3_0
-#error The NeoPixelBus library requires at least arduino_core_version 2.4.x
+#if defined(USE_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
+#error The NeoPixelBus library requires at least arduino_version 2.4.x
 #endif
 
 #include "NeoPixelBus.h"
@@ -78,14 +81,11 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
       (*this)[i] = Color(0, 0, 0, 0);
     }
 
-    this->effect_data_ = new uint8_t[this->size()];
+    this->effect_data_ = new uint8_t[this->size()];  // NOLINT
     this->controller_->Begin();
   }
 
-  void loop() override {
-    if (!this->should_show_())
-      return;
-
+  void write_state(light::LightState *state) override {
     this->mark_shown_();
     this->controller_->Dirty();
 
@@ -115,8 +115,7 @@ class NeoPixelRGBLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COL
  public:
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    traits.set_supports_brightness(true);
-    traits.set_supports_rgb(true);
+    traits.set_supported_color_modes({light::ColorMode::RGB});
     return traits;
   }
 
@@ -133,9 +132,7 @@ class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_CO
  public:
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    traits.set_supports_brightness(true);
-    traits.set_supports_rgb(true);
-    traits.set_supports_rgb_white_value(true);
+    traits.set_supported_color_modes({light::ColorMode::RGB_WHITE});
     return traits;
   }
 
@@ -149,3 +146,5 @@ class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_CO
 
 }  // namespace neopixelbus
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

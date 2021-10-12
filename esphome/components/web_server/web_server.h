@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/components/web_server_base/web_server_base.h"
@@ -29,10 +31,6 @@ struct UrlMatch {
 class WebServer : public Controller, public Component, public AsyncWebHandler {
  public:
   WebServer(web_server_base::WebServerBase *base) : base_(base) {}
-
-  void set_username(const char *username) { username_ = username; }
-
-  void set_password(const char *password) { password_ = password; }
 
   /** Set the URL to the CSS <link> that's sent to each client. Defaults to
    * https://esphome.io/_static/webserver-v1.min.css
@@ -82,8 +80,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// Handle included js request under '/0.js'.
   void handle_js_request(AsyncWebServerRequest *request);
 #endif
-
-  bool using_auth() { return username_ != nullptr && password_ != nullptr; }
 
 #ifdef USE_SENSOR
   void on_sensor_update(sensor::Sensor *obj, float state) override;
@@ -154,6 +150,24 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string cover_json(cover::Cover *obj);
 #endif
 
+#ifdef USE_NUMBER
+  void on_number_update(number::Number *obj, float state) override;
+  /// Handle a number request under '/number/<id>'.
+  void handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the number state with its value as a JSON string.
+  std::string number_json(number::Number *obj, float value);
+#endif
+
+#ifdef USE_SELECT
+  void on_select_update(select::Select *obj, const std::string &state) override;
+  /// Handle a select request under '/select/<id>'.
+  void handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the number state with its value as a JSON string.
+  std::string select_json(select::Select *obj, const std::string &value);
+#endif
+
   /// Override the web handler's canHandle method.
   bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.
@@ -164,8 +178,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
  protected:
   web_server_base::WebServerBase *base_;
   AsyncEventSource events_{"/events"};
-  const char *username_{nullptr};
-  const char *password_{nullptr};
   const char *css_url_{nullptr};
   const char *css_include_{nullptr};
   const char *js_url_{nullptr};
@@ -174,3 +186,5 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
 }  // namespace web_server
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

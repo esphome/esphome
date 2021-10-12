@@ -1,7 +1,7 @@
 #include "xiaomi_jqjcy01ym.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace xiaomi_jqjcy01ym {
@@ -53,11 +53,7 @@ bool XiaomiJQJCY01YM::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 }  // namespace xiaomi_jqjcy01ym
