@@ -23,9 +23,7 @@ UARTDebugger::UARTDebugger(UARTComponent *parent) {
   });
 }
 
-void UARTDebugger::loop() {
-  this->trigger_after_timeout_();
-}
+void UARTDebugger::loop() { this->trigger_after_timeout_(); }
 
 bool UARTDebugger::is_my_direction_(UARTDirection direction) {
   return this->for_direction_ == UART_DIRECTION_BOTH || this->for_direction_ == direction;
@@ -62,15 +60,13 @@ void UARTDebugger::trigger_after_delimiter_(uint8_t byte) {
 }
 
 void UARTDebugger::trigger_after_bytes_() {
-  if (this->has_buffered_bytes_() && this->after_bytes_ > 0 &&
-      this->bytes_.size() >= this->after_bytes_) {
+  if (this->has_buffered_bytes_() && this->after_bytes_ > 0 && this->bytes_.size() >= this->after_bytes_) {
     this->fire_trigger_();
   }
 }
 
 void UARTDebugger::trigger_after_timeout_() {
-  if (this->has_buffered_bytes_() && this->after_timeout_ > 0 &&
-      millis() - this->last_time_ >= this->after_timeout_) {
+  if (this->has_buffered_bytes_() && this->after_timeout_ > 0 && millis() - this->last_time_ >= this->after_timeout_) {
     this->fire_trigger_();
   }
 }
