@@ -192,16 +192,17 @@ PeriodicalAverageFilter::PeriodicalAverageFilter(uint32_t time_period) : time_pe
 
 optional<float> PeriodicalAverageFilter::new_value(float value) {
   ESP_LOGVV(TAG, "PeriodicalAverageFilter(%p)::new_value(value=%f)", this, value);
-  this->sum_ += value;
-  this->n_++;
-
+  if (!std::isnan(value)) {
+    this->sum_ += value;
+    this->n_++;
+  }
   return {};
 }
 void PeriodicalAverageFilter::setup() {
   this->set_interval("periodical_average", this->time_period_, [this]() {
     ESP_LOGVV(TAG, "PeriodicalAverageFilter(%p)::interval(sum=%f, n=%i)", this, this->sum_, this->n_);
     if (this->n_ == 0)
-      return;
+      return NAN;
 
     this->output(this->sum_ / this->n_);
     this->sum_ = 0.0f;
