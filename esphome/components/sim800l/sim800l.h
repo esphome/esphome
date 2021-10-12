@@ -10,7 +10,7 @@
 namespace esphome {
 namespace sim800l {
 
-const uint8_t SIM800L_READ_BUFFER_LENGTH = 255;
+const uint16_t SIM800L_READ_BUFFER_LENGTH = 1024;
 
 enum State {
   STATE_IDLE = 0,
@@ -58,6 +58,7 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   void parse_cmd_(std::string);
 
   std::string sender_;
+  std::string message_;
   char read_buffer_[SIM800L_READ_BUFFER_LENGTH];
   size_t read_pos_{0};
   uint8_t parse_index_{0};

@@ -182,20 +182,20 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       /* Our recipient is set and the message body is in message
         kick ESPHome callback now
       */
-      ESP_LOGD(TAG, "Received SMS from: %s", this->sender_.c_str());
-      ESP_LOGD(TAG, "%s", message.c_str());
-      this->callback_.call(message, this->sender_);
-      /* If the message is multiline, next lines will contain message data.
-         If there were other messages in the list, next line will be +CMGL: ...
-         At the end of the list the new line and the OK should be received.
-         To keep this simple just first line of message if considered, then
-         the next state will swallow all received data and in next poll event
-         this message index is marked for deletion.
-      */
-      this->state_ = STATE_RECEIVEDSMS;
+      if (message == "OK" || message.compare(0, 6, "+CMGL:") == 0) {
+        ESP_LOGI(TAG, "Received SMS from: %s", this->sender_.c_str());
+        ESP_LOGI(TAG, "Mesage: %s", this->message_.c_str());
+        this->callback_.call(this->message_, this->sender_);
+        this->state_ = STATE_RECEIVEDSMS;
+      } else {
+        this->message_.append(message.c_str());
+        this->message_.append("\n");
+      }
       break;
     case STATE_RECEIVEDSMS:
       // Let the buffer flush. Next poll will request to delete the parsed index message.
+      this->sender_.erase();
+      this->message_.erase();
       break;
     case STATE_SENDINGSMS1:
       this->send_cmd_("AT+CMGS=\"" + this->recipient_ + "\"");
