@@ -34,8 +34,10 @@ void RemoteTransmitterComponent::calculate_on_off_time_(uint32_t carrier_frequen
 }
 
 void RemoteTransmitterComponent::wait_to_micros_(uint32_t usec) {
-  while (micros() - this->ref_time_ < usec)  // variable delay that self-aligns to the "ref_time_" reference
-    ;
+  if (usec > 5000UL)
+    delay_microseconds_accurate(usec - 5000UL); // coarse delay up to the last 5ms
+
+  while (micros() - this->ref_time_ < usec){}  // variable delay that self-aligns to the "ref_time_" reference
 
   this->ref_time_ += usec;
 }
