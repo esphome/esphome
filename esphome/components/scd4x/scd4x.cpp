@@ -165,7 +165,7 @@ void SCD4XComponent::update() {
     if (this->altidute_sensor_ != nullptr) {
       float altidute = this->altidute_sensor_->state;
       if (!std::isnan(altidute)) {
-        set_ambient_pressure_compensation(this->altidute_sensor_->state);
+        set_altitude_compensation(this->altidute_sensor_->state);
       }
     }
   }
