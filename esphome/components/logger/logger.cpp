@@ -111,14 +111,15 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   this->set_null_terminator_();
 
   const char *msg = this->tx_buffer_ + offset;
+  if (this->baud_rate_ > 0) {
 #ifdef USE_ARDUINO
-  if (this->baud_rate_ > 0)
     this->hw_serial_->println(msg);
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
-  uart_write_bytes(uart_num_, msg, strlen(msg));
-  uart_write_bytes(uart_num_, "\n", 1);
+    uart_write_bytes(uart_num_, msg, strlen(msg));
+    uart_write_bytes(uart_num_, "\n", 1);
 #endif
+  }
 
 #ifdef USE_ESP32
   // Suppress network-logging if memory constrained, but still log to serial
