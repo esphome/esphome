@@ -1,20 +1,17 @@
 #include "ds3231.h"
 #include "esphome/core/log.h"
 
-// Datasheet:
-// - https://datasheets.maximintegrated.com/en/ds/DS1307.pdf
-
 namespace esphome {
 namespace ds3231 {
 
 static const char *const TAG = "ds3231.rtc";
 
 void DS3231RTC::dump_config() {
-  ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
+  ESP_LOGCONFIG(TAG, "DS3231 Timezone: '%s'", this->timezone_.c_str());
 }
 
 void DS3231RTC::read_time() {
-  if (!this->parent_->read_stat_()) {
+  if (!this->parent_->read_status_()) {
     ESP_LOGE(TAG, "Failed to read status, not syncing to system clock.");
     return;
   }
@@ -50,13 +47,13 @@ void DS3231RTC::write_time() {
     ESP_LOGW(TAG, "Invalid system time, not syncing to RTC.");
     return;
   }
-  if (!this->parent_->read_stat_()) {
+  if (!this->parent_->read_status_()) {
     ESP_LOGE(TAG, "Failed to read status, not syncing to RTC.");
     return;
   }
   if (this->parent_->ds3231_.stat.reg.osc_stop) {
     this->parent_->ds3231_.stat.reg.osc_stop = false;
-    if (!this->parent_->write_stat_()) {
+    if (!this->parent_->write_status_()) {
       ESP_LOGE(TAG, "Failed to write status, not syncing to RTC.");
     }
   }

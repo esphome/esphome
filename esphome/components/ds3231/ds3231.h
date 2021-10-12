@@ -8,53 +8,54 @@ namespace esphome {
 namespace ds3231 {
 
 enum DS3231Alarm1Type {
-  EverySecond = 0x0F,
-  EverySecondWithInterupt = 0x4F,
-  MatchSecond = 0x0E,
-  MatchSecondWithInterupt = 0x4E,
-  MatchMinuteSecond = 0x0C,
-  MatchMinuteSecondWithInterupt = 0x4C,
-  MatchHourMinuteSecond = 0x08,
-  MatchHourMinuteSecondWithInterupt = 0x48,
-  MatchDayOfMonthHourMinuteSecond = 0x00,
-  MatchDayOfMonthHourMinuteSecondWithInterupt = 0x40,
-  MatchDayOfWeekHourMinuteSecond = 0x10,
-  MatchDayOfWeekHourMinuteSecondWithInterupt = 0x50,
+  EVERY_SECOND = 0x0F,
+  EVERY_SECOND_WITH_INTERRUPT = 0x4F,
+  MATCH_SECOND = 0x0E,
+  MATCH_SECOND_WITH_INTERRUPT = 0x4E,
+  MATCH_MINUTE_SECOND = 0x0C,
+  MATCH_MINUTE_SECOND_WITH_INTERRUPT = 0x4C,
+  MATCH_HOUR_MINUTE_SECOND = 0x08,
+  MATCH_HOUR_MINUTE_SECOND_WITH_INTERRUPT = 0x48,
+  MATCH_DAY_OF_MONTH_HOUR_MINUTE_SECOND = 0x00,
+  MATCH_DAY_OF_MONTH_HOUR_MINUTE_SECOND_WITH_INTERRUPT = 0x40,
+  MATCH_DAY_OF_WEEK_HOUR_MINUTE_SECOND = 0x10,
+  MATCH_DAY_OF_WEEK_HOUR_MINUTE_SECOND_WITH_INTERRUPT = 0x50,
 };
 
 enum DS3231Alarm2Type {
-  EveryMinute = 0x0E,
-  EveryMinuteWithInterupt = 0x4E,
-  MatchMinute = 0x0C,
-  MatchMinuteWithInterupt = 0x4C,
-  MatchHourMinute = 0x08,
-  MatchHourMinuteWithInterupt = 0x48,
-  MatchDayOfMonthHourMinute = 0x00,
-  MatchDayOfMonthHourMinuteWithInterupt = 0x40,
-  MatchDayOfWeekHourMinute = 0x10,
-  MatchDayOfWeekHourMinuteWithInterupt = 0x50,
+  EVERY_MINUTE = 0x0E,
+  EVERY_MINUTE_WITH_INTERRUPT = 0x4E,
+  MATCH_MINUTE = 0x0C,
+  MATCH_MINUTE_WITH_INTERRUPT = 0x4C,
+  MATCH_HOUR_MINUTE = 0x08,
+  MATCH_HOUR_MINUTE_WITH_INTERRUPT = 0x48,
+  MATCH_DAY_OF_MONTH_HOUR_MINUTE = 0x00,
+  MATCH_DAY_OF_MONTH_HOUR_MINUTE_WITH_INTERRUPT = 0x40,
+  MATCH_DAY_OF_WEEK_HOUR_MINUTE = 0x10,
+  MATCH_DAY_OF_WEEK_HOUR_MINUTE_WITH_INTERRUPT = 0x50,
 };
 
 enum DS3231SquareWaveMode {
-  SquareWave,
-  Interupt,
+  SQUARE_WAVE_MODE,
+  INTERRUPT_MODE,
 };
 
 enum DS3231SquareWaveFrequency {
-  Frequency1Hz = 0x00,
-  Frequency1024Hz = 0x01,
-  Frequency4096Hz = 0x02,
-  Frequency8192Hz = 0x03,
+  FREQUENCY_1_HZ = 0x00,
+  FREQUENCY_1024_HZ = 0x01,
+  FREQUENCY_4096_HZ = 0x02,
+  FREQUENCY_8192_HZ = 0x03,
 };
 
 class DS3231RTC;
 
 class DS3231Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  float get_setup_priority() const override { return setup_priority::DATA; };
+  float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
   void update() override { this->read_status_(); }
+  
   void set_alarm_1(DS3231Alarm1Type alarm_type, uint8_t second, uint8_t minute, uint8_t hour, uint8_t day);
   void reset_alarm_1();
   void set_alarm_2(DS3231Alarm2Type alarm_type, uint8_t minute, uint8_t hour, uint8_t day);
@@ -169,7 +170,7 @@ class DS3231Component : public PollingComponent, public i2c::I2CDevice {
 class DS3231RTC : public time::RealTimeClock {
  public:
   void set_ds3231_parent(DS3231Component *parent) { this->parent_ = parent; }
-  float get_setup_priority() const override { return setup_priority::DATA; };
+  float get_setup_priority() const override { return setup_priority::DATA; }
   void dump_config() override;
   void update() override { this->read_time(); }
   void read_time();
@@ -177,16 +178,6 @@ class DS3231RTC : public time::RealTimeClock {
 
  protected:
   DS3231Component *parent_;
-};
-
-template<typename... Ts> class WriteTimeAction : public Action<Ts...>, public Parented<DS3231RTC> {
- public:
-  void play(Ts... x) override { this->parent_->write_time(); }
-};
-
-template<typename... Ts> class ReadTimeAction : public Action<Ts...>, public Parented<DS3231RTC> {
- public:
-  void play(Ts... x) override { this->parent_->read_time(); }
 };
 
 }  // namespace ds3231
