@@ -157,7 +157,7 @@ void SCD4XComponent::update() {
   }
 
   if (this->pressure_sensor_ != nullptr) {
-    float pressure = this->pressure_sensor_->state / 1000.0;
+    float pressure = this->pressure_sensor_->state / 1000.0f;
     if (!std::isnan(pressure)) {
       set_ambient_pressure_compensation(this->pressure_sensor_->state / 1000.0);
     }
