@@ -46,6 +46,7 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
     this->callback_.add(std::move(callback));
   }
   void send_sms(const std::string &recipient, const std::string &message);
+  void delete_sms();
   void dial(const std::string &recipient);
 
  protected:
@@ -89,6 +90,15 @@ template<typename... Ts> class Sim800LSendSmsAction : public Action<Ts...> {
     auto message = this->message_.value(x...);
     this->parent_->send_sms(recipient, message);
   }
+
+ protected:
+  Sim800LComponent *parent_;
+};
+
+template<typename... Ts> class Sim800LDeleteSmsAction : public Action<Ts...> {
+ public:
+  Sim800LDeleteSmsAction(Sim800LComponent *parent) : parent_(parent) {}
+  void play(Ts... x) { this->parent_->delete_sms(); }
 
  protected:
   Sim800LComponent *parent_;

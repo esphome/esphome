@@ -275,6 +275,14 @@ void Sim800LComponent::send_sms(const std::string &recipient, const std::string 
   this->send_pending_ = true;
   this->update();
 }
+
+void Sim800LComponent::delete_sms() {
+  this->send_cmd_("at+cmgda=\"del all\"\n\r");
+  this->state_ = STATE_CHECK_SMS;
+  this->expect_ack_ = true;
+  this->update();
+}
+
 void Sim800LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SIM800L:");
   ESP_LOGCONFIG(TAG, "  RSSI: %d dB", this->rssi_);

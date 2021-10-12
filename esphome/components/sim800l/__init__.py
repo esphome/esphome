@@ -19,6 +19,7 @@ Sim800LReceivedMessageTrigger = sim800l_ns.class_(
 # Actions
 Sim800LSendSmsAction = sim800l_ns.class_("Sim800LSendSmsAction", automation.Action)
 Sim800LDialAction = sim800l_ns.class_("Sim800LDialAction", automation.Action)
+Sim800LDeleteSmsAction = sim800l_ns.class_("Sim800LDeleteSmsAction", automation.Action)
 
 CONF_ON_SMS_RECEIVED = "on_sms_received"
 CONF_RECIPIENT = "recipient"
@@ -93,4 +94,20 @@ async def sim800l_dial_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_RECIPIENT], args, cg.std_string)
     cg.add(var.set_recipient(template_))
+    return var
+
+
+SIM800L_DELETE_SMS_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(Sim800LComponent),
+    }
+)
+
+
+@automation.register_action(
+    "sim800l.delete_sms", Sim800LDeleteSmsAction, SIM800L_DELETE_SMS_SCHEMA
+)
+async def sim800l_delete_sms_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     return var
