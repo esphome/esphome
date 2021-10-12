@@ -132,6 +132,12 @@ bool ESP32BLETracker::ble_setup() {
     return false;
   }
 
+#ifdef USE_ARDUINO
+  if (!btStart()) {
+    ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
+    return false;
+  }
+#else
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
@@ -156,6 +162,7 @@ bool ESP32BLETracker::ble_setup() {
       return false;
     }
   }
+#endif
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 
@@ -308,6 +315,63 @@ ESPBTUUID ESPBTUUID::from_raw(const uint8_t *data) {
   ret.uuid_.len = ESP_UUID_LEN_128;
   for (size_t i = 0; i < ESP_UUID_LEN_128; i++)
     ret.uuid_.uuid.uuid128[i] = data[i];
+  return ret;
+}
+ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
+  ESPBTUUID ret;
+  if (data.length() == 4) {
+    ret.uuid_.len = ESP_UUID_LEN_16;
+    ret.uuid_.uuid.uuid16 = 0;
+    for (int i = 0; i < data.length();) {
+      uint8_t msb = data.c_str()[i];
+      uint8_t lsb = data.c_str()[i + 1];
+
+      if (msb > '9')
+        msb -= 7;
+      if (lsb > '9')
+        lsb -= 7;
+      ret.uuid_.uuid.uuid16 += (((msb & 0x0F) << 4) | (lsb & 0x0F)) << (2 - i) * 4;
+      i += 2;
+    }
+  } else if (data.length() == 8) {
+    ret.uuid_.len = ESP_UUID_LEN_32;
+    ret.uuid_.uuid.uuid32 = 0;
+    for (int i = 0; i < data.length();) {
+      uint8_t msb = data.c_str()[i];
+      uint8_t lsb = data.c_str()[i + 1];
+
+      if (msb > '9')
+        msb -= 7;
+      if (lsb > '9')
+        lsb -= 7;
+      ret.uuid_.uuid.uuid32 += (((msb & 0x0F) << 4) | (lsb & 0x0F)) << (6 - i) * 4;
+      i += 2;
+    }
+  } else if (data.length() == 16) {  // how we can have 16 byte length string reprezenting 128 bit uuid??? needs to be
+                                     // investigated (lack of time)
+    ret.uuid_.len = ESP_UUID_LEN_128;
+    memcpy(ret.uuid_.uuid.uuid128, (uint8_t *) data.data(), 16);
+  } else if (data.length() == 36) {
+    // If the length of the string is 36 bytes then we will assume it is a long hex string in
+    // UUID format.
+    ret.uuid_.len = ESP_UUID_LEN_128;
+    int n = 0;
+    for (int i = 0; i < data.length();) {
+      if (data.c_str()[i] == '-')
+        i++;
+      uint8_t msb = data.c_str()[i];
+      uint8_t lsb = data.c_str()[i + 1];
+
+      if (msb > '9')
+        msb -= 7;
+      if (lsb > '9')
+        lsb -= 7;
+      ret.uuid_.uuid.uuid128[15 - n++] = ((msb & 0x0F) << 4) | (lsb & 0x0F);
+      i += 2;
+    }
+  } else {
+    ESP_LOGE(TAG, "ERROR: UUID value not 2, 4, 16 or 36 bytes - %s", data.c_str());
+  }
   return ret;
 }
 ESPBTUUID ESPBTUUID::from_uuid(esp_bt_uuid_t uuid) {

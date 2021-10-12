@@ -50,7 +50,7 @@ def color(col: str, msg: str, reset: bool = True) -> bool:
 
 class ESPHomeLogFormatter(logging.Formatter):
     def __init__(self):
-        super().__init__(fmt="%(levelname)s %(message)s", datefmt="%H:%M:%S", style="%")
+        super().__init__(fmt="%(asctime)s %(levelname)s %(message)s", style="%")
 
     def format(self, record):
         formatted = super().format(record)

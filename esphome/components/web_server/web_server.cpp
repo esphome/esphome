@@ -3,6 +3,7 @@
 #include "web_server.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/util.h"
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
@@ -28,8 +29,8 @@ namespace web_server {
 
 static const char *const TAG = "web_server";
 
-void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &klass, const std::string &action,
-               const std::function<void(AsyncResponseStream &stream, Nameable *obj)> &action_func = nullptr) {
+void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
+               const std::function<void(AsyncResponseStream &stream, EntityBase *obj)> &action_func = nullptr) {
   if (obj->is_internal())
     return;
   stream->print("<tr class=\"");
@@ -225,7 +226,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_SELECT
   for (auto *obj : App.get_selects())
-    write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, Nameable *obj) {
+    write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, EntityBase *obj) {
       select::Select *select = (select::Select *) obj;
       stream.print("<select>");
       stream.print("<option></option>");

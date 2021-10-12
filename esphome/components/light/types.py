@@ -3,7 +3,7 @@ from esphome import automation
 
 # Base
 light_ns = cg.esphome_ns.namespace("light")
-LightState = light_ns.class_("LightState", cg.Nameable, cg.Component)
+LightState = light_ns.class_("LightState", cg.EntityBase, cg.Component)
 # Fake class for addressable lights
 AddressableLightState = light_ns.class_("LightState", LightState)
 LightOutput = light_ns.class_("LightOutput")
