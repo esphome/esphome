@@ -142,7 +142,7 @@ void ILI9341Display::fill(Color color) {
 }
 
 void ILI9341Display::fill_internal_(Color color) {
-  if (color.raw_32 == COLOR_BLACK.raw_32) {
+  if (color.raw_32 == Color::BLACK.raw_32) {
     memset(transfer_buffer_, 0, sizeof(transfer_buffer_));
   } else {
     uint8_t *dst = transfer_buffer_;

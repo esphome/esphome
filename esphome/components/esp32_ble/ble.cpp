@@ -56,6 +56,12 @@ bool ESP32BLE::ble_setup_() {
     return false;
   }
 
+#ifdef USE_ARDUINO
+  if (!btStart()) {
+    ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
+    return false;
+  }
+#else
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
@@ -80,6 +86,7 @@ bool ESP32BLE::ble_setup_() {
       return false;
     }
   }
+#endif
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 

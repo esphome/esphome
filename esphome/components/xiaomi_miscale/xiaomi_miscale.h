@@ -30,11 +30,11 @@ class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceLis
   sensor::Sensor *weight_{nullptr};
   sensor::Sensor *impedance_{nullptr};
 
-  optional<ParseResult> parse_header(const esp32_ble_tracker::ServiceData &service_data);
-  bool parse_message(const std::vector<uint8_t> &message, ParseResult &result);
-  bool parse_message_V1(const std::vector<uint8_t> &message, ParseResult &result);
-  bool parse_message_V2(const std::vector<uint8_t> &message, ParseResult &result);
-  bool report_results(const optional<ParseResult> &result, const std::string &address);
+  optional<ParseResult> parse_header_(const esp32_ble_tracker::ServiceData &service_data);
+  bool parse_message_(const std::vector<uint8_t> &message, ParseResult &result);
+  bool parse_message_v1_(const std::vector<uint8_t> &message, ParseResult &result);
+  bool parse_message_v2_(const std::vector<uint8_t> &message, ParseResult &result);
+  bool report_results_(const optional<ParseResult> &result, const std::string &address);
 };
 
 }  // namespace xiaomi_miscale

@@ -184,12 +184,30 @@ def compile_program(args, config):
 
 
 def upload_using_esptool(config, port):
-    path = CORE.firmware_bin
+    from esphome import platformio_api
+
     first_baudrate = config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
         "upload_speed", 460800
     )
 
     def run_esptool(baud_rate):
+        idedata = platformio_api.get_idedata(config)
+
+        firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
+        flash_images = [
+            platformio_api.FlashImage(
+                path=idedata.firmware_bin_path,
+                offset=firmware_offset,
+            ),
+            *idedata.extra_flash_images,
+        ]
+
+        mcu = "esp8266"
+        if CORE.is_esp32:
+            from esphome.components.esp32 import get_esp32_variant
+
+            mcu = get_esp32_variant().lower()
+
         cmd = [
             "esptool.py",
             "--before",
@@ -198,14 +216,15 @@ def upload_using_esptool(config, port):
             "hard_reset",
             "--baud",
             str(baud_rate),
-            "--chip",
-            "esp8266",
             "--port",
             port,
+            "--chip",
+            mcu,
             "write_flash",
-            "0x0",
-            path,
+            "-z",
         ]
+        for img in flash_images:
+            cmd += [img.offset, img.path]
 
         if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
             import esptool
@@ -229,11 +248,7 @@ def upload_using_esptool(config, port):
 def upload_program(config, args, host):
     # if upload is to a serial port use platformio, otherwise assume ota
     if get_port_type(host) == "SERIAL":
-        from esphome import platformio_api
-
-        if CORE.is_esp8266:
-            return upload_using_esptool(config, host)
-        return platformio_api.run_upload(config, CORE.verbose, host)
+        return upload_using_esptool(config, host)
 
     from esphome import espota2
 

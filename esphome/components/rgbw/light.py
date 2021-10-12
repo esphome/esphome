@@ -1,11 +1,17 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import light, output
-from esphome.const import CONF_BLUE, CONF_GREEN, CONF_RED, CONF_OUTPUT_ID, CONF_WHITE
+from esphome.const import (
+    CONF_BLUE,
+    CONF_COLOR_INTERLOCK,
+    CONF_GREEN,
+    CONF_RED,
+    CONF_OUTPUT_ID,
+    CONF_WHITE,
+)
 
 rgbw_ns = cg.esphome_ns.namespace("rgbw")
 RGBWLightOutput = rgbw_ns.class_("RGBWLightOutput", light.LightOutput)
-CONF_COLOR_INTERLOCK = "color_interlock"
 
 CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
     {

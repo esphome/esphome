@@ -312,7 +312,7 @@ class ID:
         if self.id is None:
             base = str(self.type).replace("::", "_").lower()
             name = "".join(c for c in base if c.isalnum() or c == "_")
-            used = set(registered_ids) | set(RESERVED_IDS)
+            used = set(registered_ids) | set(RESERVED_IDS) | CORE.loaded_integrations
             self.id = ensure_unique_string(name, used)
         return self.id
 
@@ -541,6 +541,9 @@ class EsphomeCore:
         # pylint: disable=no-value-for-parameter
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.config_dir, path_)
+
+    def relative_internal_path(self, *path: str) -> str:
+        return self.relative_config_path(".esphome", *path)
 
     def relative_build_path(self, *path):
         # pylint: disable=no-value-for-parameter

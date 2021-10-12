@@ -123,3 +123,6 @@ async def to_code(config):
         cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
 
     cg.add_define("USE_ETHERNET")
+
+    if CORE.is_esp32:
+        cg.add_library("WiFi", None)

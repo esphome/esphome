@@ -6,7 +6,7 @@ namespace esphome {
 
 #define LOG_PIN(prefix, pin) \
   if ((pin) != nullptr) { \
-    ESP_LOGCONFIG(TAG, prefix "%s", pin->dump_summary().c_str()); \
+    ESP_LOGCONFIG(TAG, prefix "%s", (pin)->dump_summary().c_str()); \
   }
 
 // put GPIO flags in a namepsace to not pollute esphome namespace
@@ -78,7 +78,7 @@ class ISRInternalGPIOPin {
 class InternalGPIOPin : public GPIOPin {
  public:
   template<typename T> void attach_interrupt(void (*func)(T *), T *arg, gpio::InterruptType type) const {
-    this->attach_interrupt_(reinterpret_cast<void (*)(void *)>(func), arg, type);
+    this->attach_interrupt(reinterpret_cast<void (*)(void *)>(func), arg, type);
   }
 
   virtual void detach_interrupt() const = 0;
@@ -92,7 +92,7 @@ class InternalGPIOPin : public GPIOPin {
   virtual bool is_inverted() const = 0;
 
  protected:
-  virtual void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const = 0;
+  virtual void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const = 0;
 };
 
 }  // namespace esphome

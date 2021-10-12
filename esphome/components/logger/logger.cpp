@@ -111,14 +111,15 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   this->set_null_terminator_();
 
   const char *msg = this->tx_buffer_ + offset;
+  if (this->baud_rate_ > 0) {
 #ifdef USE_ARDUINO
-  if (this->baud_rate_ > 0)
     this->hw_serial_->println(msg);
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
-  uart_write_bytes(uart_num_, msg, strlen(msg));
-  uart_write_bytes(uart_num_, "\n", 1);
+    uart_write_bytes(uart_num_, msg, strlen(msg));
+    uart_write_bytes(uart_num_, "\n", 1);
 #endif
+  }
 
 #ifdef USE_ESP32
   // Suppress network-logging if memory constrained, but still log to serial
@@ -176,13 +177,12 @@ void Logger::pre_setup() {
         uart_num_ = UART_NUM_2;
         break;
     }
-    uart_config_t uart_config = {
-        .baud_rate = (int) baud_rate_,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-    };
+    uart_config_t uart_config{};
+    uart_config.baud_rate = (int) baud_rate_;
+    uart_config.data_bits = UART_DATA_8_BITS;
+    uart_config.parity = UART_PARITY_DISABLE;
+    uart_config.stop_bits = UART_STOP_BITS_1;
+    uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
     uart_param_config(uart_num_, &uart_config);
     const int uart_buffer_size = tx_buffer_size_;
     // Install UART driver using an event queue here

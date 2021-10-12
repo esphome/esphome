@@ -35,7 +35,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 #endif
 
 #ifdef USE_ESP32
-  void configure_rmt();
+  void configure_rmt_();
 
   uint32_t current_carrier_frequency_{UINT32_MAX};
   bool initialized_{false};

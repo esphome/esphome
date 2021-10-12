@@ -31,6 +31,11 @@ optional<uint8_t> ledc_bit_depth_for_frequency(float frequency) {
 }
 
 void LEDCOutput::write_state(float state) {
+  if (!initialized_) {
+    ESP_LOGW(TAG, "LEDC output hasn't been initialized yet!");
+    return;
+  }
+
   if (this->pin_->is_inverted())
     state = 1.0f - state;
 
@@ -81,6 +86,7 @@ void LEDCOutput::setup() {
   chan_conf.duty = inverted_ == pin_->is_inverted() ? 0 : (1U << bit_depth_);
   chan_conf.hpoint = 0;
   ledc_channel_config(&chan_conf);
+  initialized_ = true;
 #endif
 }
 
@@ -101,8 +107,13 @@ void LEDCOutput::update_frequency(float frequency) {
   this->frequency_ = frequency;
 #ifdef USE_ARDUINO
   ledcSetup(this->channel_, frequency, this->bit_depth_);
+  initialized_ = true;
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
+  if (!initialized_) {
+    ESP_LOGW(TAG, "LEDC output hasn't been initialized yet!");
+    return;
+  }
   auto speed_mode = channel_ < 8 ? LEDC_HIGH_SPEED_MODE : LEDC_LOW_SPEED_MODE;
   auto timer_num = static_cast<ledc_timer_t>((channel_ % 8) / 2);
 

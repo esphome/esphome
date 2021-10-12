@@ -50,6 +50,7 @@
 #ifdef USE_ESP32
 #define USE_ESP32_BLE_SERVER
 #define USE_ESP32_CAMERA
+#define USE_ESP32_IGNORE_EFUSE_MAC_CRC
 #define USE_IMPROV
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 
@@ -67,3 +68,5 @@
 
 // Disabled feature flags
 //#define USE_BSEC  // Requires a library with proprietary license.
+
+#define USE_DASHBOARD_IMPORT

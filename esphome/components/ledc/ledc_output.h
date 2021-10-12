@@ -10,6 +10,7 @@
 namespace esphome {
 namespace ledc {
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern uint8_t next_ledc_channel;
 
 class LEDCOutput : public output::FloatOutput, public Component {
@@ -36,6 +37,7 @@ class LEDCOutput : public output::FloatOutput, public Component {
   uint8_t bit_depth_{};
   float frequency_{};
   float duty_{0.0f};
+  bool initialized_ = false;
 };
 
 template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {

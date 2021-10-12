@@ -1,4 +1,8 @@
 #include "ota_component.h"
+#include "ota_backend.h"
+#include "ota_backend_arduino_esp32.h"
+#include "ota_backend_arduino_esp8266.h"
+#include "ota_backend_esp_idf.h"
 
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -9,23 +13,8 @@
 #include <cerrno>
 #include <cstdio>
 
-#ifdef USE_ARDUINO
 #ifdef USE_OTA_PASSWORD
 #include <MD5Builder.h>
-#endif  // USE_OTA_PASSWORD
-
-#ifdef USE_ESP32
-#include <Update.h>
-#endif  // USE_ESP32
-#endif  // USE_ARDUINO
-
-#ifdef USE_ESP8266
-#include <Updater.h>
-#include "esphome/components/esp8266/preferences.h"
-#endif  // USE_ESP8266
-
-#ifdef USE_ESP_IDF
-#include <esp_ota_ops.h>
 #endif
 
 namespace esphome {
@@ -35,125 +24,19 @@ static const char *const TAG = "ota";
 
 static const uint8_t OTA_VERSION_1_0 = 1;
 
-class OTABackend {
- public:
-  virtual ~OTABackend() = default;
-  virtual OTAResponseTypes begin(size_t image_size) = 0;
-  virtual void set_update_md5(const char *md5) = 0;
-  virtual OTAResponseTypes write(uint8_t *data, size_t len) = 0;
-  virtual OTAResponseTypes end() = 0;
-  virtual void abort() = 0;
-};
-
+std::unique_ptr<OTABackend> make_ota_backend() {
 #ifdef USE_ARDUINO
-class ArduinoOTABackend : public OTABackend {
- public:
-  OTAResponseTypes begin(size_t image_size) override {
-    bool ret = Update.begin(image_size, U_FLASH);
-    if (ret) {
 #ifdef USE_ESP8266
-      esp8266::preferences_prevent_write(true);
-#endif
-      return OTA_RESPONSE_OK;
-    }
-
-    uint8_t error = Update.getError();
-#ifdef USE_ESP8266
-    if (error == UPDATE_ERROR_BOOTSTRAP)
-      return OTA_RESPONSE_ERROR_INVALID_BOOTSTRAPPING;
-    if (error == UPDATE_ERROR_NEW_FLASH_CONFIG)
-      return OTA_RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG;
-    if (error == UPDATE_ERROR_FLASH_CONFIG)
-      return OTA_RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG;
-    if (error == UPDATE_ERROR_SPACE)
-      return OTA_RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE;
-#endif
+  return make_unique<ArduinoESP8266OTABackend>();
+#endif  // USE_ESP8266
 #ifdef USE_ESP32
-    if (error == UPDATE_ERROR_SIZE)
-      return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
-#endif
-    return OTA_RESPONSE_ERROR_UNKNOWN;
-  }
-  void set_update_md5(const char *md5) override { Update.setMD5(md5); }
-  OTAResponseTypes write(uint8_t *data, size_t len) override {
-    size_t written = Update.write(data, len);
-    if (written != len) {
-      return OTA_RESPONSE_ERROR_WRITING_FLASH;
-    }
-    return OTA_RESPONSE_OK;
-  }
-  OTAResponseTypes end() override {
-    if (!Update.end())
-      return OTA_RESPONSE_ERROR_UPDATE_END;
-    return OTA_RESPONSE_OK;
-  }
-  void abort() override {
-#ifdef USE_ESP32
-    Update.abort();
-#endif
-
-#ifdef USE_ESP8266
-    Update.end();
-    esp8266::preferences_prevent_write(false);
-#endif
-  }
-};
-std::unique_ptr<OTABackend> make_ota_backend() { return make_unique<ArduinoOTABackend>(); }
+  return make_unique<ArduinoESP32OTABackend>();
+#endif  // USE_ESP32
 #endif  // USE_ARDUINO
-
 #ifdef USE_ESP_IDF
-class IDFOTABackend : public OTABackend {
- public:
-  esp_ota_handle_t update_handle = 0;
-
-  OTAResponseTypes begin(size_t image_size) override {
-    const esp_partition_t *update_partition = esp_ota_get_next_update_partition(nullptr);
-    if (update_partition == nullptr) {
-      return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
-    }
-    esp_err_t err = esp_ota_begin(update_partition, image_size, &update_handle);
-    if (err != ESP_OK) {
-      esp_ota_abort(update_handle);
-      update_handle = 0;
-      if (err == ESP_ERR_INVALID_SIZE) {
-        return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
-      } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
-        return OTA_RESPONSE_ERROR_WRITING_FLASH;
-      }
-      return OTA_RESPONSE_ERROR_UNKNOWN;
-    }
-    return OTA_RESPONSE_OK;
-  }
-  void set_update_md5(const char *md5) override {
-    // pass
-  }
-  OTAResponseTypes write(uint8_t *data, size_t len) override {
-    esp_err_t err = esp_ota_write(update_handle, data, len);
-    if (err != ESP_OK) {
-      if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
-        return OTA_RESPONSE_ERROR_MAGIC;
-      } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
-        return OTA_RESPONSE_ERROR_WRITING_FLASH;
-      }
-      return OTA_RESPONSE_ERROR_UNKNOWN;
-    }
-    return OTA_RESPONSE_OK;
-  }
-  OTAResponseTypes end() override {
-    esp_err_t err = esp_ota_end(update_handle);
-    update_handle = 0;
-    if (err != ESP_OK) {
-      if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
-        return OTA_RESPONSE_ERROR_UPDATE_END;
-      }
-      return OTA_RESPONSE_ERROR_UNKNOWN;
-    }
-    return OTA_RESPONSE_OK;
-  }
-  void abort() override { esp_ota_abort(update_handle); }
-};
-std::unique_ptr<OTABackend> make_ota_backend() { return make_unique<IDFOTABackend>(); }
+  return make_unique<IDFOTABackend>();
 #endif  // USE_ESP_IDF
+}
 
 void OTAComponent::setup() {
   server_ = socket::socket(AF_INET, SOCK_STREAM, 0);
@@ -206,7 +89,8 @@ void OTAComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Using Password.");
   }
 #endif
-  if (this->has_safe_mode_ && this->safe_mode_rtc_value_ > 1) {
+  if (this->has_safe_mode_ && this->safe_mode_rtc_value_ > 1 &&
+      this->safe_mode_rtc_value_ != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
     ESP_LOGW(TAG, "Last Boot was an unhandled reset, will proceed to safe mode in %d restarts",
              this->safe_mode_num_attempts_ - this->safe_mode_rtc_value_);
   }
@@ -226,11 +110,11 @@ void OTAComponent::loop() {
 void OTAComponent::handle_() {
   OTAResponseTypes error_code = OTA_RESPONSE_ERROR_UNKNOWN;
   bool update_started = false;
-  uint32_t total = 0;
+  size_t total = 0;
   uint32_t last_progress = 0;
   uint8_t buf[1024];
   char *sbuf = reinterpret_cast<char *>(buf);
-  uint32_t ota_size;
+  size_t ota_size;
   uint8_t ota_features;
   std::unique_ptr<OTABackend> backend;
   (void) ota_features;
@@ -518,6 +402,27 @@ bool OTAComponent::writeall_(const uint8_t *buf, size_t len) {
 float OTAComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 uint16_t OTAComponent::get_port() const { return this->port_; }
 void OTAComponent::set_port(uint16_t port) { this->port_ = port; }
+
+void OTAComponent::set_safe_mode_pending(const bool &pending) {
+  if (!this->has_safe_mode_)
+    return;
+
+  uint32_t current_rtc = this->read_rtc_();
+
+  if (pending && current_rtc != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
+    ESP_LOGI(TAG, "Device will enter safe mode on next boot.");
+    this->write_rtc_(esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC);
+  }
+
+  if (!pending && current_rtc == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
+    ESP_LOGI(TAG, "Safe mode pending has been cleared");
+    this->clean_rtc();
+  }
+}
+bool OTAComponent::get_safe_mode_pending() {
+  return this->has_safe_mode_ && this->read_rtc_() == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC;
+}
+
 bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
   this->has_safe_mode_ = true;
   this->safe_mode_start_time_ = millis();
@@ -526,12 +431,18 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
   this->rtc_ = global_preferences->make_preference<uint32_t>(233825507UL, false);
   this->safe_mode_rtc_value_ = this->read_rtc_();
 
-  ESP_LOGCONFIG(TAG, "There have been %u suspected unsuccessful boot attempts.", this->safe_mode_rtc_value_);
+  bool is_manual_safe_mode = this->safe_mode_rtc_value_ == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC;
 
-  if (this->safe_mode_rtc_value_ >= num_attempts) {
+  if (is_manual_safe_mode)
+    ESP_LOGI(TAG, "Safe mode has been entered manually");
+  else
+    ESP_LOGCONFIG(TAG, "There have been %u suspected unsuccessful boot attempts.", this->safe_mode_rtc_value_);
+
+  if (this->safe_mode_rtc_value_ >= num_attempts || is_manual_safe_mode) {
     this->clean_rtc();
 
-    ESP_LOGE(TAG, "Boot loop detected. Proceeding to safe mode.");
+    if (!is_manual_safe_mode)
+      ESP_LOGE(TAG, "Boot loop detected. Proceeding to safe mode.");
 
     this->status_set_error();
     this->set_timeout(enable_time, []() {
@@ -562,7 +473,7 @@ uint32_t OTAComponent::read_rtc_() {
 }
 void OTAComponent::clean_rtc() { this->write_rtc_(0); }
 void OTAComponent::on_safe_shutdown() {
-  if (this->has_safe_mode_)
+  if (this->has_safe_mode_ && this->read_rtc_() != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC)
     this->clean_rtc();
 }
 

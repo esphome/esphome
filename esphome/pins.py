@@ -90,7 +90,7 @@ def gpio_flags_expr(mode):
         CONF_PULLDOWN: cg.gpio_Flags.FLAG_PULLDOWN,
     }
     active_flags = [v for k, v in FLAGS_MAPPING.items() if mode.get(k)]
-    if active_flags:
+    if not active_flags:
         return cg.gpio_Flags.FLAG_NONE
 
     return reduce(operator.or_, active_flags)

@@ -17,7 +17,7 @@ import pexpect
 
 sys.path.append(os.path.dirname(__file__))
 from helpers import shlex_quote, get_output, filter_grep, \
-    build_all_include, temp_header_file, git_ls_files, filter_changed, load_idedata
+    build_all_include, temp_header_file, git_ls_files, filter_changed, load_idedata, basepath
 
 
 def clang_options(idedata):
@@ -89,6 +89,7 @@ def run_tidy(args, options, tmpdir, queue, lock, failed_files):
             invocation.append('-quiet')
 
         invocation.append(os.path.abspath(path))
+        invocation.append(f"--header-filter={os.path.abspath(basepath)}/.*")
         invocation.append('--')
         invocation.extend(options)
         invocation_s = ' '.join(shlex_quote(x) for x in invocation)
@@ -121,7 +122,7 @@ def main():
     parser.add_argument('-j', '--jobs', type=int,
                         default=multiprocessing.cpu_count(),
                         help='number of tidy instances to be run in parallel.')
-    parser.add_argument('-e', '--environment', default='esp8266-tidy',
+    parser.add_argument('-e', '--environment', default='esp32-tidy',
                         help='the PlatformIO environment to run against (esp8266-tidy or esp32-tidy)')
     parser.add_argument('files', nargs='*', default=[],
                         help='files to be processed (regex on path)')

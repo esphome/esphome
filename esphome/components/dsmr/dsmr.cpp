@@ -20,19 +20,22 @@ void Dsmr::loop() {
 }
 
 void Dsmr::receive_telegram_() {
-  while (available()) {
+  int count = MAX_BYTES_PER_LOOP;
+  while (available() && count-- > 0) {
     const char c = read();
 
-    if (c == '/') {  // header: forward slash
+    // Find a new telegram header, i.e. forward slash.
+    if (c == '/') {
       ESP_LOGV(TAG, "Header found");
       header_found_ = true;
       footer_found_ = false;
       telegram_len_ = 0;
     }
-
     if (!header_found_)
       continue;
-    if (telegram_len_ >= MAX_TELEGRAM_LENGTH) {  // Buffer overflow
+
+    // Check for buffer overflow.
+    if (telegram_len_ >= MAX_TELEGRAM_LENGTH) {
       header_found_ = false;
       footer_found_ = false;
       ESP_LOGE(TAG, "Error: Message larger than buffer");
@@ -45,18 +48,22 @@ void Dsmr::receive_telegram_() {
     while (c == '(' && (telegram_[telegram_len_ - 1] == '\n' || telegram_[telegram_len_ - 1] == '\r'))
       telegram_len_--;
 
+    // Store the byte in the buffer.
     telegram_[telegram_len_] = c;
     telegram_len_++;
-    if (c == '!') {  // footer: exclamation mark
+
+    // Check for a footer, i.e. exlamation mark, followed by a hex checksum.
+    if (c == '!') {
       ESP_LOGV(TAG, "Footer found");
       footer_found_ = true;
-    } else {
-      if (footer_found_ && c == 10) {  // last \n after footer
-        header_found_ = false;
-        // Parse message
-        if (parse_telegram())
-          return;
-      }
+      continue;
+    }
+    // Check for the end of the hex checksum, i.e. a newline.
+    if (footer_found_ && c == '\n') {
+      header_found_ = false;
+      // Parse the telegram and publish sensor values.
+      if (parse_telegram())
+        return;
     }
   }
 }

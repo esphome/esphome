@@ -127,6 +127,14 @@ APIError APINoiseFrameHelper::init() {
     return APIError::TCP_NONBLOCKING_FAILED;
   }
 
+  int enable = 1;
+  err = socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
+  if (err != 0) {
+    state_ = State::FAILED;
+    HELPER_LOG("Setting nodelay failed with errno %d", errno);
+    return APIError::TCP_NODELAY_FAILED;
+  }
+
   // init prologue
   prologue_.insert(prologue_.end(), PROLOGUE_INIT, PROLOGUE_INIT + strlen(PROLOGUE_INIT));
 
@@ -721,6 +729,13 @@ APIError APIPlaintextFrameHelper::init() {
     state_ = State::FAILED;
     HELPER_LOG("Setting nonblocking failed with errno %d", errno);
     return APIError::TCP_NONBLOCKING_FAILED;
+  }
+  int enable = 1;
+  err = socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
+  if (err != 0) {
+    state_ = State::FAILED;
+    HELPER_LOG("Setting nodelay failed with errno %d", errno);
+    return APIError::TCP_NODELAY_FAILED;
   }
 
   state_ = State::DATA;
