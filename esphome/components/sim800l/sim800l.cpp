@@ -83,8 +83,9 @@ void Sim800LComponent::parse_cmd_(std::string message) {
     }
     case STATE_CHECK_SMS:
       send_cmd_("AT+CMGL=\"ALL\"");
-      this->state_ = STATE_PARSE_SMS;
+      this->state_ = STATE_PARSE_SMS_RESPONSE;
       this->parse_index_ = 0;
+      this->expect_ack_ = false;
       break;
     case STATE_DISABLE_ECHO:
       send_cmd_("ATE0");
@@ -142,9 +143,6 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       }
       this->expect_ack_ = true;
       this->state_ = STATE_CHECK_SMS;
-      break;
-    case STATE_PARSE_SMS:
-      this->state_ = STATE_PARSE_SMS_RESPONSE;
       break;
     case STATE_PARSE_SMS_RESPONSE:
       if (message.compare(0, 6, "+CMGL:") == 0 && this->parse_index_ == 0) {
