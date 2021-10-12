@@ -12,24 +12,18 @@ static const char *const TAG = "uart_debug";
 
 UARTDebugger::UARTDebugger(UARTComponent *parent) {
   parent->add_debug_callback([this](UARTDirection direction, uint8_t byte) {
-    if (!this->is_my_direction_(direction)) {
+    if (!this->is_my_direction_(direction) || this->is_recursive_()) {
       return;
     }
-    if (this->is_recursive_()) {
-      return;
-    }
-    if (has_buffered_bytes_() && this->direction_changed_(direction)) {
-      this->fire_trigger_();
-    }
+    this->trigger_after_direction_change_(direction);
     this->store_byte_(direction, byte);
-    this->trigger_after_delmiter(byte) || this->trigger_after_bytes_();
+    this->trigger_after_delimiter_(byte);
+    this->trigger_after_bytes_();
   });
 }
 
 void UARTDebugger::loop() {
-  if (this->has_buffered_bytes_()) {
-    this->trigger_after_timeout_();
-  }
+  this->trigger_after_timeout_();
 }
 
 bool UARTDebugger::is_my_direction_(UARTDirection direction) {
@@ -38,8 +32,11 @@ bool UARTDebugger::is_my_direction_(UARTDirection direction) {
 
 bool UARTDebugger::is_recursive_() { return this->is_triggering_; }
 
-bool UARTDebugger::direction_changed_(UARTDirection direction) {
-  return this->for_direction_ == UART_DIRECTION_BOTH && this->last_direction_ != direction;
+void UARTDebugger::trigger_after_direction_change_(UARTDirection direction) {
+  if (this->has_buffered_bytes_() && this->for_direction_ == UART_DIRECTION_BOTH &&
+      this->last_direction_ != direction) {
+    this->fire_trigger_();
+  }
 }
 
 void UARTDebugger::store_byte_(UARTDirection direction, uint8_t byte) {
@@ -48,36 +45,33 @@ void UARTDebugger::store_byte_(UARTDirection direction, uint8_t byte) {
   this->last_time_ = millis();
 }
 
-bool UARTDebugger::trigger_after_delmiter(uint8_t byte) {
-  if (this->after_delimiter_.size() > 0) {
-    if (this->after_delimiter_[this->after_delimiter_pos_] == byte) {
-      this->after_delimiter_pos_++;
-      if (this->after_delimiter_pos_ == this->after_delimiter_.size()) {
-        this->fire_trigger_();
-        this->after_delimiter_pos_ = 0;
-        return true;
-      }
-    } else {
-      this->after_delimiter_pos_ = 0;
-    }
+void UARTDebugger::trigger_after_delimiter_(uint8_t byte) {
+  if (this->after_delimiter_.size() == 0 || !this->has_buffered_bytes_()) {
+    return;
   }
-  return false;
+  if (this->after_delimiter_[this->after_delimiter_pos_] != byte) {
+    this->after_delimiter_pos_ = 0;
+    return;
+  }
+  this->after_delimiter_pos_++;
+  if (this->after_delimiter_pos_ == this->after_delimiter_.size()) {
+    this->fire_trigger_();
+    this->after_delimiter_pos_ = 0;
+  }
 }
 
-bool UARTDebugger::trigger_after_bytes_() {
-  if (this->after_bytes_ > 0 && this->bytes_.size() >= this->after_bytes_) {
+void UARTDebugger::trigger_after_bytes_() {
+  if (this->has_buffered_bytes_() && this->after_bytes_ > 0 &&
+      this->bytes_.size() >= this->after_bytes_) {
     this->fire_trigger_();
-    return true;
   }
-  return false;
 }
 
-bool UARTDebugger::trigger_after_timeout_() {
-  if (this->after_timeout_ > 0 && millis() - this->last_time_ >= this->after_timeout_) {
+void UARTDebugger::trigger_after_timeout_() {
+  if (this->has_buffered_bytes_() && this->after_timeout_ > 0 &&
+      millis() - this->last_time_ >= this->after_timeout_) {
     this->fire_trigger_();
-    return true;
   }
-  return false;
 }
 
 bool UARTDebugger::has_buffered_bytes_() { return this->bytes_.size() > 0; }

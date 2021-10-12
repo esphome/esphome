@@ -55,11 +55,11 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
 
   bool is_my_direction_(UARTDirection direction);
   bool is_recursive_();
-  bool direction_changed_(UARTDirection direction);
   void store_byte_(UARTDirection direction, uint8_t byte);
-  bool trigger_after_delmiter(uint8_t byte);
-  bool trigger_after_bytes_();
-  bool trigger_after_timeout_();
+  void trigger_after_direction_change_(UARTDirection direction);
+  void trigger_after_delimiter_(uint8_t byte);
+  void trigger_after_bytes_();
+  void trigger_after_timeout_();
   bool has_buffered_bytes_();
   void fire_trigger_();
 };
