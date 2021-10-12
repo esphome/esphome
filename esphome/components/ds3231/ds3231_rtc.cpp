@@ -6,9 +6,7 @@ namespace ds3231 {
 
 static const char *const TAG = "ds3231.rtc";
 
-void DS3231RTC::dump_config() {
-  ESP_LOGCONFIG(TAG, "DS3231 Timezone: '%s'", this->timezone_.c_str());
-}
+void DS3231RTC::dump_config() { ESP_LOGCONFIG(TAG, "DS3231 Timezone: '%s'", this->timezone_.c_str()); }
 
 void DS3231RTC::read_time() {
   if (!this->parent_->read_status_()) {
@@ -24,14 +22,14 @@ void DS3231RTC::read_time() {
     return;
   }
   time::ESPTime rtc_time{
-    .second = uint8_t(this->parent_->ds3231_.rtc.reg.second + 10 * this->parent_->ds3231_.rtc.reg.second_10),
-    .minute = uint8_t(this->parent_->ds3231_.rtc.reg.minute + 10u * this->parent_->ds3231_.rtc.reg.minute_10),
-    .hour = uint8_t(this->parent_->ds3231_.rtc.reg.hour + 10u * this->parent_->ds3231_.rtc.reg.hour_10),
-    .day_of_week = uint8_t(this->parent_->ds3231_.rtc.reg.weekday),
-    .day_of_month = uint8_t(this->parent_->ds3231_.rtc.reg.day + 10u * this->parent_->ds3231_.rtc.reg.day_10),
-    .day_of_year = 1,  // ignored by recalc_timestamp_utc(false)
-    .month = uint8_t(this->parent_->ds3231_.rtc.reg.month + 10u * this->parent_->ds3231_.rtc.reg.month_10),
-    .year = uint16_t(this->parent_->ds3231_.rtc.reg.year + 10u * this->parent_->ds3231_.rtc.reg.year_10 + 2000)
+      .second = uint8_t(this->parent_->ds3231_.rtc.reg.second + 10 * this->parent_->ds3231_.rtc.reg.second_10),
+      .minute = uint8_t(this->parent_->ds3231_.rtc.reg.minute + 10u * this->parent_->ds3231_.rtc.reg.minute_10),
+      .hour = uint8_t(this->parent_->ds3231_.rtc.reg.hour + 10u * this->parent_->ds3231_.rtc.reg.hour_10),
+      .day_of_week = uint8_t(this->parent_->ds3231_.rtc.reg.weekday),
+      .day_of_month = uint8_t(this->parent_->ds3231_.rtc.reg.day + 10u * this->parent_->ds3231_.rtc.reg.day_10),
+      .day_of_year = 1,  // ignored by recalc_timestamp_utc(false)
+      .month = uint8_t(this->parent_->ds3231_.rtc.reg.month + 10u * this->parent_->ds3231_.rtc.reg.month_10),
+      .year = uint16_t(this->parent_->ds3231_.rtc.reg.year + 10u * this->parent_->ds3231_.rtc.reg.year_10 + 2000)
   };
   rtc_time.recalc_timestamp_utc(false);
   if (!rtc_time.is_valid()) {

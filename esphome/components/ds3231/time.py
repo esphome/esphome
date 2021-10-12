@@ -1,12 +1,13 @@
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome import automation
-from esphome.components import i2c, time
+from esphome.components import time
 from esphome.const import CONF_ID
 
 
-CODEOWNERS = ["nuttytree"]
+CODEOWNERS = ["@nuttytree"]
 DEPENDENCIES = ["ds3231"]
+
 ds3231_ns = cg.esphome_ns.namespace("ds3231")
 DS3231RTC = ds3231_ns.class_("DS3231RTC", time.RealTimeClock)
 WriteTimeAction = ds3231_ns.class_("WriteTimeAction", automation.Action)

@@ -17,12 +17,8 @@ template<typename... Ts> class SetAlarm1Action : public Action<Ts...>, public Pa
   TEMPLATABLE_VALUE(int, day)
 
   void play(Ts... x) override {
-    this->parent_->set_alarm_1(
-      this->alarm_type_.value(x...),
-      this->second_.value(x...),
-      this->minute_.value(x...),
-      this->hour_.value(x...),
-      this->day_.value(x...));
+    this->parent_->set_alarm_1(this->alarm_type_.value(x...), this->second_.value(x...), this->minute_.value(x...),
+                               this->hour_.value(x...), this->day_.value(x...));
   }
 };
 
@@ -39,11 +35,8 @@ template<typename... Ts> class SetAlarm2Action : public Action<Ts...>, public Pa
   TEMPLATABLE_VALUE(int, day)
 
   void play(Ts... x) override {
-    this->parent_->set_alarm_2(
-      this->alarm_type_.value(x...),
-      this->minute_.value(x...),
-      this->hour_.value(x...),
-      this->day_.value(x...));
+    this->parent_->set_alarm_2(this->alarm_type_.value(x...), this->minute_.value(x...), this->hour_.value(x...),
+                               this->day_.value(x...));
   }
 };
 

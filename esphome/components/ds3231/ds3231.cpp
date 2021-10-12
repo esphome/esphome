@@ -28,14 +28,14 @@ void DS3231Component::setup() {
   if (!this->read_rtc_()) {
     this->mark_failed();
   }
-  if(!this->read_alarm_()) {
+  if (!this->read_alarm_()) {
     this->mark_failed();
   }
-  if(!this->read_control_()) {
+  if (!this->read_control_()) {
     this->mark_failed();
   }
 
-  if(!this->read_status_()) {
+  if (!this->read_status_()) {
     this->mark_failed();
   }
 }
@@ -48,7 +48,8 @@ void DS3231Component::dump_config() {
   }
 }
 
-void DS3231Component::set_alarm_1(DS3231Alarm1Type alarm_type, uint8_t second, uint8_t minute, uint8_t hour, uint8_t day) {
+void DS3231Component::set_alarm_1(DS3231Alarm1Type alarm_type, uint8_t second, uint8_t minute, uint8_t hour, 
+                                  uint8_t day) {
   this->ds3231_.alrm.reg.a1_second = second % 10;
   this->ds3231_.alrm.reg.a1_second_10 = second / 10;
   this->ds3231_.alrm.reg.a1_m1 = alarm_type & DS3231_MASK_ALARM_TYPE_M1;
@@ -107,8 +108,7 @@ void DS3231Component::set_square_wave_mode(DS3231SquareWaveMode mode) {
   if (mode == DS3231SquareWaveMode::INTERRUPT_MODE && !this->ds3231_.ctrl.reg.int_ctrl) {
     this->ds3231_.ctrl.reg.int_ctrl = true;
     this->write_control_();
-  }
-  else if (mode == DS3231SquareWaveMode::SQUARE_WAVE_MODE && this->ds3231_.ctrl.reg.int_ctrl) {
+  } else if (mode == DS3231SquareWaveMode::SQUARE_WAVE_MODE && this->ds3231_.ctrl.reg.int_ctrl) {
     this->ds3231_.ctrl.reg.int_ctrl = false;
     this->write_control_();
   }
@@ -126,12 +126,10 @@ bool DS3231Component::read_rtc_() {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u",
-           this->ds3231_.rtc.reg.hour_10, this->ds3231_.rtc.reg.hour,
-           this->ds3231_.rtc.reg.minute_10, this->ds3231_.rtc.reg.minute,
-           this->ds3231_.rtc.reg.second_10, this->ds3231_.rtc.reg.second,
-           this->ds3231_.rtc.reg.year_10, this->ds3231_.rtc.reg.year,
-           this->ds3231_.rtc.reg.month_10, this->ds3231_.rtc.reg.month,
+  ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u", this->ds3231_.rtc.reg.hour_10,
+           this->ds3231_.rtc.reg.hour, this->ds3231_.rtc.reg.minute_10, this->ds3231_.rtc.reg.minute,
+           this->ds3231_.rtc.reg.second_10, this->ds3231_.rtc.reg.second, this->ds3231_.rtc.reg.year_10,
+           this->ds3231_.rtc.reg.year, this->ds3231_.rtc.reg.month_10, this->ds3231_.rtc.reg.month,
            this->ds3231_.rtc.reg.day_10, this->ds3231_.rtc.reg.day);
   return true;
 }
@@ -141,12 +139,10 @@ bool DS3231Component::write_rtc_() {
     ESP_LOGE(TAG, "Can't write I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Write %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u",
-           this->ds3231_.rtc.reg.hour_10, this->ds3231_.rtc.reg.hour,
-           this->ds3231_.rtc.reg.minute_10, this->ds3231_.rtc.reg.minute,
-           this->ds3231_.rtc.reg.second_10, this->ds3231_.rtc.reg.second,
-           this->ds3231_.rtc.reg.year_10, this->ds3231_.rtc.reg.year,
-           this->ds3231_.rtc.reg.month_10, this->ds3231_.rtc.reg.month,
+  ESP_LOGD(TAG, "Write %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u", this->ds3231_.rtc.reg.hour_10,
+           this->ds3231_.rtc.reg.hour, this->ds3231_.rtc.reg.minute_10, this->ds3231_.rtc.reg.minute,
+           this->ds3231_.rtc.reg.second_10, this->ds3231_.rtc.reg.second, this->ds3231_.rtc.reg.year_10,
+           this->ds3231_.rtc.reg.year, this->ds3231_.rtc.reg.month_10, this->ds3231_.rtc.reg.month,
            this->ds3231_.rtc.reg.day_10, this->ds3231_.rtc.reg.day);
   return true;
 }
@@ -157,19 +153,16 @@ bool DS3231Component::read_alarm_() {
     return false;
   }
   ESP_LOGD(TAG, "Read  Alarm1 - %0u%0u:%0u%0u:%0u%0u %s:%0u%0u M1:%0u M2:%0u M3:%0u M4:%0u",
-           this->ds3231_.alrm.reg.a1_hour_10, this->ds3231_.alrm.reg.a1_hour,
-           this->ds3231_.alrm.reg.a1_minute_10, this->ds3231_.alrm.reg.a1_minute,
-           this->ds3231_.alrm.reg.a1_second_10, this->ds3231_.alrm.reg.a1_second,
-           this->ds3231_.alrm.reg.a1_day_mode == 0 ? "DoM" : "DoW",
-           this->ds3231_.alrm.reg.a1_day_10, this->ds3231_.alrm.reg.a1_day,
-           this->ds3231_.alrm.reg.a1_m1, this->ds3231_.alrm.reg.a1_m2,
+           this->ds3231_.alrm.reg.a1_hour_10, this->ds3231_.alrm.reg.a1_hour, this->ds3231_.alrm.reg.a1_minute_10,
+           this->ds3231_.alrm.reg.a1_minute, this->ds3231_.alrm.reg.a1_second_10, this->ds3231_.alrm.reg.a1_second,
+           this->ds3231_.alrm.reg.a1_day_mode == 0 ? "DoM" : "DoW", this->ds3231_.alrm.reg.a1_day_10,
+           this->ds3231_.alrm.reg.a1_day, this->ds3231_.alrm.reg.a1_m1, this->ds3231_.alrm.reg.a1_m2,
            this->ds3231_.alrm.reg.a1_m3, this->ds3231_.alrm.reg.a1_m4);
-  ESP_LOGD(TAG, "Read  Alarm2 - %0u%0u:%0u%0u %s:%0u%0u M2:%0u M3:%0u M4:%0u",
-           this->ds3231_.alrm.reg.a2_hour_10, this->ds3231_.alrm.reg.a2_hour,
-           this->ds3231_.alrm.reg.a2_minute_10, this->ds3231_.alrm.reg.a2_minute,
-           this->ds3231_.alrm.reg.a2_day_mode == 0 ? "DoM" : "DoW",
-           this->ds3231_.alrm.reg.a2_day_10, this->ds3231_.alrm.reg.a2_day,
-           this->ds3231_.alrm.reg.a2_m2, this->ds3231_.alrm.reg.a2_m3, this->ds3231_.alrm.reg.a2_m4);
+  ESP_LOGD(TAG, "Read  Alarm2 - %0u%0u:%0u%0u %s:%0u%0u M2:%0u M3:%0u M4:%0u", this->ds3231_.alrm.reg.a2_hour_10,
+           this->ds3231_.alrm.reg.a2_hour, this->ds3231_.alrm.reg.a2_minute_10, this->ds3231_.alrm.reg.a2_minute,
+           this->ds3231_.alrm.reg.a2_day_mode == 0 ? "DoM" : "DoW", this->ds3231_.alrm.reg.a2_day_10,
+           this->ds3231_.alrm.reg.a2_day, this->ds3231_.alrm.reg.a2_m2, this->ds3231_.alrm.reg.a2_m3,
+           this->ds3231_.alrm.reg.a2_m4);
   return true;
 }
 
@@ -179,19 +172,16 @@ bool DS3231Component::write_alarm_() {
     return false;
   }
   ESP_LOGD(TAG, "Write Alarm1 - %0u%0u:%0u%0u:%0u%0u %s:%0u%0u M1:%0u M2:%0u M3:%0u M4:%0u",
-           this->ds3231_.alrm.reg.a1_hour_10, this->ds3231_.alrm.reg.a1_hour,
-           this->ds3231_.alrm.reg.a1_minute_10, this->ds3231_.alrm.reg.a1_minute,
-           this->ds3231_.alrm.reg.a1_second_10, this->ds3231_.alrm.reg.a1_second,
-           this->ds3231_.alrm.reg.a1_day_mode == 0 ? "DoM" : "DoW",
-           this->ds3231_.alrm.reg.a1_day_10, this->ds3231_.alrm.reg.a1_day,
-           this->ds3231_.alrm.reg.a1_m1, this->ds3231_.alrm.reg.a1_m2,
+           this->ds3231_.alrm.reg.a1_hour_10, this->ds3231_.alrm.reg.a1_hour, this->ds3231_.alrm.reg.a1_minute_10,
+           this->ds3231_.alrm.reg.a1_minute, this->ds3231_.alrm.reg.a1_second_10, this->ds3231_.alrm.reg.a1_second,
+           this->ds3231_.alrm.reg.a1_day_mode == 0 ? "DoM" : "DoW", this->ds3231_.alrm.reg.a1_day_10,
+           this->ds3231_.alrm.reg.a1_day, this->ds3231_.alrm.reg.a1_m1, this->ds3231_.alrm.reg.a1_m2,
            this->ds3231_.alrm.reg.a1_m3, this->ds3231_.alrm.reg.a1_m4);
-  ESP_LOGD(TAG, "Write Alarm2 - %0u%0u:%0u%0u %s:%0u%0u M2:%0u M3:%0u M4:%0u",
-           this->ds3231_.alrm.reg.a2_hour_10, this->ds3231_.alrm.reg.a2_hour,
-           this->ds3231_.alrm.reg.a2_minute_10, this->ds3231_.alrm.reg.a2_minute,
-           this->ds3231_.alrm.reg.a2_day_mode == 0 ? "DoM" : "DoW",
-           this->ds3231_.alrm.reg.a2_day_10, this->ds3231_.alrm.reg.a2_day,
-           this->ds3231_.alrm.reg.a2_m2, this->ds3231_.alrm.reg.a2_m3, this->ds3231_.alrm.reg.a2_m4);
+  ESP_LOGD(TAG, "Write Alarm2 - %0u%0u:%0u%0u %s:%0u%0u M2:%0u M3:%0u M4:%0u", this->ds3231_.alrm.reg.a2_hour_10,
+           this->ds3231_.alrm.reg.a2_hour, this->ds3231_.alrm.reg.a2_minute_10, this->ds3231_.alrm.reg.a2_minute,
+           this->ds3231_.alrm.reg.a2_day_mode == 0 ? "DoM" : "DoW", this->ds3231_.alrm.reg.a2_day_10,
+           this->ds3231_.alrm.reg.a2_day, this->ds3231_.alrm.reg.a2_m2, this->ds3231_.alrm.reg.a2_m3,
+           this->ds3231_.alrm.reg.a2_m4);
   return true;
 }
 
@@ -200,13 +190,9 @@ bool DS3231Component::read_control_() {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Read  A1I:%s A2I:%s INT_SQW:%s RS:%0u CT:%s BSQW:%s OSC:%s",
-           ONOFF(this->ds3231_.ctrl.reg.alrm_1_int),
-           ONOFF(this->ds3231_.ctrl.reg.alrm_2_int),
-           this->ds3231_.ctrl.reg.int_ctrl ? "INT" : "SQW",
-           this->ds3231_.ctrl.reg.rs,
-           ONOFF(this->ds3231_.ctrl.reg.conv_tmp),
-           ONOFF(this->ds3231_.ctrl.reg.bat_sqw),
+  ESP_LOGD(TAG, "Read  A1I:%s A2I:%s INT_SQW:%s RS:%0u CT:%s BSQW:%s OSC:%s", ONOFF(this->ds3231_.ctrl.reg.alrm_1_int),
+           ONOFF(this->ds3231_.ctrl.reg.alrm_2_int), this->ds3231_.ctrl.reg.int_ctrl ? "INT" : "SQW",
+           this->ds3231_.ctrl.reg.rs, ONOFF(this->ds3231_.ctrl.reg.conv_tmp), ONOFF(this->ds3231_.ctrl.reg.bat_sqw),
            ONOFF(!this->ds3231_.ctrl.reg.osc_dis));
   return true;
 }
@@ -216,13 +202,9 @@ bool DS3231Component::write_control_() {
     ESP_LOGE(TAG, "Can't write I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Write A1I:%s A2I:%s INT_SQW:%s RS:%0u CT:%s BSQW:%s OSC:%s",
-           ONOFF(this->ds3231_.ctrl.reg.alrm_1_int),
-           ONOFF(this->ds3231_.ctrl.reg.alrm_2_int),
-           this->ds3231_.ctrl.reg.int_ctrl ? "INT" : "SQW",
-           this->ds3231_.ctrl.reg.rs,
-           ONOFF(this->ds3231_.ctrl.reg.conv_tmp),
-           ONOFF(this->ds3231_.ctrl.reg.bat_sqw),
+  ESP_LOGD(TAG, "Write A1I:%s A2I:%s INT_SQW:%s RS:%0u CT:%s BSQW:%s OSC:%s", ONOFF(this->ds3231_.ctrl.reg.alrm_1_int),
+           ONOFF(this->ds3231_.ctrl.reg.alrm_2_int), this->ds3231_.ctrl.reg.int_ctrl ? "INT" : "SQW",
+           this->ds3231_.ctrl.reg.rs, ONOFF(this->ds3231_.ctrl.reg.conv_tmp), ONOFF(this->ds3231_.ctrl.reg.bat_sqw),
            ONOFF(!this->ds3231_.ctrl.reg.osc_dis));
   return true;
 }
@@ -232,12 +214,9 @@ bool DS3231Component::read_status_() {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Read  A1:%s A2:%s BSY:%s 32K:%s OSC:%s",
-           ONOFF(this->ds3231_.stat.reg.alrm_1_act),
-           ONOFF(this->ds3231_.stat.reg.alrm_2_act),
-           YESNO(this->ds3231_.stat.reg.busy),
-           ONOFF(this->ds3231_.stat.reg.en32khz),
-           ONOFF(!this->ds3231_.stat.reg.osc_stop));
+  ESP_LOGD(TAG, "Read  A1:%s A2:%s BSY:%s 32K:%s OSC:%s", ONOFF(this->ds3231_.stat.reg.alrm_1_act),
+           ONOFF(this->ds3231_.stat.reg.alrm_2_act), YESNO(this->ds3231_.stat.reg.busy),
+           ONOFF(this->ds3231_.stat.reg.en32khz), ONOFF(!this->ds3231_.stat.reg.osc_stop));
   return true;
 }
 
@@ -246,12 +225,9 @@ bool DS3231Component::write_status_() {
     ESP_LOGE(TAG, "Can't write I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Write A1:%s A2:%s BSY:%s 32K:%s OSC:%s",
-           ONOFF(this->ds3231_.stat.reg.alrm_1_act),
-           ONOFF(this->ds3231_.stat.reg.alrm_2_act),
-           YESNO(this->ds3231_.stat.reg.busy),
-           ONOFF(this->ds3231_.stat.reg.en32khz),
-           ONOFF(!this->ds3231_.stat.reg.osc_stop));
+  ESP_LOGD(TAG, "Write A1:%s A2:%s BSY:%s 32K:%s OSC:%s", ONOFF(this->ds3231_.stat.reg.alrm_1_act),
+           ONOFF(this->ds3231_.stat.reg.alrm_2_act), YESNO(this->ds3231_.stat.reg.busy),
+           ONOFF(this->ds3231_.stat.reg.en32khz), ONOFF(!this->ds3231_.stat.reg.osc_stop));
   return true;
 }
 
