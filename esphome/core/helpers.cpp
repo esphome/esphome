@@ -210,14 +210,10 @@ void delay_microseconds_accurate(uint32_t usec) {
     delayMicroseconds(usec);
     return;
   }
-  const uint32_t start = micros();
-  uint32_t elapsed = 0;
-  while (elapsed < usec - 5000UL) {  // yielding delay up to the last 5ms
+  uint32_t start = micros();
+  while (micros() - start < usec) {
     delay(0);
-    elapsed = micros() - start;
   }
-  if (usec > elapsed)
-    delayMicroseconds(usec - elapsed);  // fine delay
 }
 
 uint8_t reverse_bits_8(uint8_t x) {
