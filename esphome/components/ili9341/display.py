@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_MODEL,
     CONF_PAGES,
+    CONF_RAW_DATA_ID,
     CONF_RESET_PIN,
 )
 from esphome.core import HexInt
@@ -35,8 +36,6 @@ MODELS = {
 ILI9341_MODEL = cv.enum(MODELS, upper=True, space="_")
 
 COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE")
-
-CONF_RAW_DATA_ID = "raw_data_id"
 
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
