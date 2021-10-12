@@ -6,11 +6,12 @@ esphome:
   build_path: build/test3
   on_boot:
     - if:
-        - api.connected
-        - wifi.connected
-        - time.has_time
-      then:
-        - logger.log: "Have time"
+        condition:
+          - api.connected
+          - wifi.connected
+          - time.has_time
+        then:
+          - logger.log: "Have time"
   includes:
     - custom.h
 
