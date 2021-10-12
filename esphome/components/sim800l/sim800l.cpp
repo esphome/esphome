@@ -105,13 +105,15 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       //           "+CREG: -,-" means not registered ok
       bool registered = message.compare(0, 6, "+CREG:") == 0 && (message[9] == '1' || message[9] == '5');
       if (registered) {
-        if (!this->registered_)
-          ESP_LOGD(TAG, "Registered OK");
+        if (!this->registered_) {
+          this->callback_reg.call();
+          ESP_LOGVV(TAG, "Registered OK");
+        }
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true;
       } else {
-        ESP_LOGW(TAG, "Registration Fail");
-        if (message[7] == '0') {  // Network registration is disable, enable it
+        ESP_LOGVV(TAG, "Registration Fail");
+        if (message[7] == '0') {  // Network registration is disabled, enable it
           send_cmd_("AT+CREG=1");
           this->expect_ack_ = true;
           this->state_ = STATE_CHECK_AT;

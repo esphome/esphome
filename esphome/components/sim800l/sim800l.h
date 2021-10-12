@@ -46,6 +46,7 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   void add_on_sms_received_callback(std::function<void(std::string, std::string)> callback) {
     this->callback_.add(std::move(callback));
   }
+  void add_on_connected_callback(std::function<void()> callback) { this->callback_reg.add(std::move(callback)); }
   void send_sms(const std::string &recipient, const std::string &message);
   void delete_sms();
   void dial(const std::string &recipient);
@@ -71,6 +72,8 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   bool dial_pending_;
 
   CallbackManager<void(std::string, std::string)> callback_;
+  CallbackManager<void()> callback_reg;
+
   sensor::Sensor *rssi_{nullptr};
 };
 
@@ -79,6 +82,13 @@ class Sim800LReceivedMessageTrigger : public Trigger<std::string, std::string> {
   explicit Sim800LReceivedMessageTrigger(Sim800LComponent *parent) {
     parent->add_on_sms_received_callback(
         [this](const std::string &message, const std::string &sender) { this->trigger(message, sender); });
+  }
+};
+
+class Sim800LRegistrationSuccededTrigger : public Trigger<> {
+ public:
+  explicit Sim800LRegistrationSuccededTrigger(Sim800LComponent *parent) {
+    parent->add_on_connected_callback([this]() { this->trigger(); });
   }
 };
 

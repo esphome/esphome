@@ -15,6 +15,10 @@ Sim800LReceivedMessageTrigger = sim800l_ns.class_(
     "Sim800LReceivedMessageTrigger",
     automation.Trigger.template(cg.std_string, cg.std_string),
 )
+Sim800LRegistrationSuccededTrigger = sim800l_ns.class_(
+    "Sim800LRegistrationSuccededTrigger",
+    automation.Trigger.template(),
+)
 
 # Actions
 Sim800LSendSmsAction = sim800l_ns.class_("Sim800LSendSmsAction", automation.Action)
@@ -22,6 +26,7 @@ Sim800LDialAction = sim800l_ns.class_("Sim800LDialAction", automation.Action)
 Sim800LDeleteSmsAction = sim800l_ns.class_("Sim800LDeleteSmsAction", automation.Action)
 
 CONF_ON_SMS_RECEIVED = "on_sms_received"
+CONF_ON_CONNECTED= "on_registration"
 CONF_RECIPIENT = "recipient"
 CONF_MESSAGE = "message"
 CONF_RSSI= "rssi"
@@ -42,6 +47,13 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_ON_CONNECTED): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        Sim800LRegistrationSuccededTrigger
+                    ),
+                }
             ),
         }
     )
