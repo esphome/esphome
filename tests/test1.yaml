@@ -204,6 +204,7 @@ uart:
         - lambda: UARTDebug::log_hex(direction, bytes, ':');
         - lambda: UARTDebug::log_string(direction, bytes);
         - lambda: UARTDebug::log_int(direction, bytes, ',');
+        - lambda: UARTDebug::log_binary(direction, bytes, ';');
 
   - id: adalight_uart
     tx_pin: GPIO25
