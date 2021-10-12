@@ -2,7 +2,7 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.components import output
 from esphome.const import CONF_ID, CONF_CHANNEL
-from . import MCP4728Output, mcp4728_ns
+from . import MCP4728OutputComponent, mcp4728_ns
 
 DEPENDENCIES = ["mcp4728"]
 
@@ -20,7 +20,7 @@ CHANNELS = {
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
         cv.Required(CONF_ID): cv.declare_id(MCP4728Channel),
-        cv.GenerateID(CONF_MCP4728_ID): cv.use_id(MCP4728Output),
+        cv.GenerateID(CONF_MCP4728_ID): cv.use_id(MCP4728OutputComponent),
         cv.Required(CONF_CHANNEL): cv.enum(CHANNELS, upper=True),
     }
 )

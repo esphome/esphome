@@ -9,12 +9,12 @@ AUTO_LOAD = ["output"]
 CODEOWNERS = ["@brotherdust"]
 
 mcp4728_ns = cg.esphome_ns.namespace("mcp4728")
-MCP4728Output = mcp4728_ns.class_("MCP4728OutputComponent", cg.Component, i2c.I2CDevice)
+MCP4728OutputComponent = mcp4728_ns.class_("MCP4728OutputComponent", cg.Component, i2c.I2CDevice)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(MCP4728Output),
+            cv.GenerateID(): cv.declare_id(MCP4728OutputComponent),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
