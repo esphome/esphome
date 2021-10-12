@@ -6,6 +6,7 @@ from esphome.const import CONF_ID
 AUTO_LOAD = ["pn532"]
 CODEOWNERS = ["@OttoWinter", "@jesserockz"]
 DEPENDENCIES = ["spi"]
+MULTI_CONF = True
 
 pn532_spi_ns = cg.esphome_ns.namespace("pn532_spi")
 PN532Spi = pn532_spi_ns.class_("PN532Spi", pn532.PN532, spi.SPIDevice)
