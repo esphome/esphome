@@ -261,8 +261,6 @@ logger:
   level: DEBUG
   esp8266_store_log_strings_in_flash: true
 
-web_server:
-
 deep_sleep:
   run_duration: 20s
   sleep_duration: 50s
@@ -1092,10 +1090,6 @@ output:
       return {s};
     outputs:
       - id: custom_float
-  - platform: ac_dimmer
-    id: dimmer1
-    gate_pin: GPIO5
-    zero_cross_pin: GPIO12
   - platform: slow_pwm
     pin: GPIO5
     id: my_slow_pwm
