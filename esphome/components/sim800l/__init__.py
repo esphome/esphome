@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.const import CONF_ID, CONF_TRIGGER_ID
-from esphome.components import uart
+from esphome.const import CONF_ID, CONF_TRIGGER_ID, UNIT_DECIBEL_MILLIWATT, DEVICE_CLASS_SIGNAL_STRENGTH, STATE_CLASS_MEASUREMENT
+from esphome.components import sensor, uart
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@glmnet"]
@@ -24,6 +24,7 @@ Sim800LDeleteSmsAction = sim800l_ns.class_("Sim800LDeleteSmsAction", automation.
 CONF_ON_SMS_RECEIVED = "on_sms_received"
 CONF_RECIPIENT = "recipient"
 CONF_MESSAGE = "message"
+CONF_RSSI= "rssi"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -35,6 +36,12 @@ CONFIG_SCHEMA = cv.All(
                         Sim800LReceivedMessageTrigger
                     ),
                 }
+            ),
+            cv.Optional(CONF_RSSI): sensor.sensor_schema(
+                unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )
@@ -50,6 +57,10 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+
+    if CONF_RSSI in config:
+        sens = await sensor.new_sensor(config[CONF_RSSI])
+        cg.add(var.set_rssi_(sens))
 
     for conf in config.get(CONF_ON_SMS_RECEIVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

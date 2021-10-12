@@ -10,6 +10,8 @@ static const char *const TAG = "sim800l";
 const char ASCII_CR = 0x0D;
 const char ASCII_LF = 0x0A;
 
+void Sim800LComponent::set_rssi_(sensor::Sensor *rssi) { rssi_ = rssi; }
+
 void Sim800LComponent::update() {
   if (this->watch_dog_++ == 2) {
     this->state_ = STATE_INIT;
@@ -29,6 +31,7 @@ void Sim800LComponent::update() {
     }
     this->expect_ack_ = true;
   }
+
   if (state_ == STATE_RECEIVEDSMS) {
     // Serial Buffer should have flushed.
     // Send cmd to delete received sms
@@ -128,8 +131,11 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       if (message.compare(0, 5, "+CSQ:") == 0) {
         size_t comma = message.find(',', 6);
         if (comma != 6) {
-          this->rssi_ = strtol(message.substr(6, comma - 6).c_str(), nullptr, 10);
-          ESP_LOGD(TAG, "RSSI: %d", this->rssi_);
+          int rssi = strtol(message.substr(6, comma - 6).c_str(), nullptr, 10);
+          if (this->rssi_ != nullptr) {
+            this->rssi_->publish_state(rssi);
+            ESP_LOGVV(TAG, "RSSI: %d", rssi);
+          }
         }
       }
       this->expect_ack_ = true;
@@ -285,7 +291,7 @@ void Sim800LComponent::delete_sms() {
 
 void Sim800LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SIM800L:");
-  ESP_LOGCONFIG(TAG, "  RSSI: %d dB", this->rssi_);
+  ESP_LOGCONFIG(TAG, "  RSSI: %f dB", this->rssi_->get_state());
 }
 void Sim800LComponent::dial(const std::string &recipient) {
   ESP_LOGD(TAG, "Dialing %s", recipient.c_str());
