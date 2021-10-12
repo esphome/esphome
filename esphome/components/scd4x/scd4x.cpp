@@ -39,6 +39,7 @@ void SCD4XComponent::setup() {
       return;
     }
 
+    uint32_t stop_measurement_delay = 0;
     // In order to query the device periodic measurement must be ceased
     if (raw_read_status[0]) {
       ESP_LOGD(TAG, "Sensor has data available, stopping periodic measurement");
@@ -49,69 +50,70 @@ void SCD4XComponent::setup() {
       }
       // According to the SCD4x datasheet the sensor will only respond to other commands after waiting 500 ms after
       // issuing the stop_periodic_measurement command
-      esphome::delay(500);  // NOLINT
+      stop_measurement_delay = 500;
     }
+    this->set_timeout(stop_measurement_delay, [this]() {
+      if (!this->write_command_(SCD4X_CMD_GET_SERIAL_NUMBER)) {
+        ESP_LOGE(TAG, "Failed to write get serial command");
+        this->error_code_ = COMMUNICATION_FAILED;
+        this->mark_failed();
+        return;
+      }
 
-    if (!this->write_command_(SCD4X_CMD_GET_SERIAL_NUMBER)) {
-      ESP_LOGE(TAG, "Failed to write get serial command");
-      this->error_code_ = COMMUNICATION_FAILED;
-      this->mark_failed();
-      return;
-    }
+      uint16_t raw_serial_number[3];
+      if (!this->read_data_(raw_serial_number, 3)) {
+        ESP_LOGE(TAG, "Failed to read serial number");
+        this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
+        this->mark_failed();
+        return;
+      }
+      ESP_LOGD(TAG, "Serial number %02d.%02d.%02d", (uint16_t(raw_serial_number[0]) >> 8),
+               uint16_t(raw_serial_number[0] & 0xFF), (uint16_t(raw_serial_number[1]) >> 8));
 
-    uint16_t raw_serial_number[3];
-    if (!this->read_data_(raw_serial_number, 3)) {
-      ESP_LOGE(TAG, "Failed to read serial number");
-      this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
-      this->mark_failed();
-      return;
-    }
-    ESP_LOGD(TAG, "Serial number %02d.%02d.%02d", (uint16_t(raw_serial_number[0]) >> 8),
-             uint16_t(raw_serial_number[0] & 0xFF), (uint16_t(raw_serial_number[1]) >> 8));
-
-    if (!this->write_command_(SCD4X_CMD_TEMPERATURE_OFFSET,
-                              (uint16_t)(temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
-      ESP_LOGE(TAG, "Error setting temperature offset.");
-      this->error_code_ = MEASUREMENT_INIT_FAILED;
-      this->mark_failed();
-      return;
-    }
-
-    // If pressure compensation available use it
-    // else use altitude
-    if (ambient_pressure_compensation_) {
-      if (!this->write_command_(SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION, ambient_pressure_compensation_)) {
-        ESP_LOGE(TAG, "Error setting ambient pressure compensation.");
+      if (!this->write_command_(SCD4X_CMD_TEMPERATURE_OFFSET,
+                                (uint16_t)(temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
+        ESP_LOGE(TAG, "Error setting temperature offset.");
         this->error_code_ = MEASUREMENT_INIT_FAILED;
         this->mark_failed();
         return;
       }
-    } else {
-      if (!this->write_command_(SCD4X_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
-        ESP_LOGE(TAG, "Error setting altitude compensation.");
+
+      // If pressure compensation available use it
+      // else use altitude
+      if (ambient_pressure_compensation_) {
+        if (!this->write_command_(SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION, ambient_pressure_compensation_)) {
+          ESP_LOGE(TAG, "Error setting ambient pressure compensation.");
+          this->error_code_ = MEASUREMENT_INIT_FAILED;
+          this->mark_failed();
+          return;
+        }
+      } else {
+        if (!this->write_command_(SCD4X_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
+          ESP_LOGE(TAG, "Error setting altitude compensation.");
+          this->error_code_ = MEASUREMENT_INIT_FAILED;
+          this->mark_failed();
+          return;
+        }
+      }
+
+      if (!this->write_command_(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
+        ESP_LOGE(TAG, "Error setting automatic self calibration.");
         this->error_code_ = MEASUREMENT_INIT_FAILED;
         this->mark_failed();
         return;
       }
-    }
 
-    if (!this->write_command_(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
-      ESP_LOGE(TAG, "Error setting automatic self calibration.");
-      this->error_code_ = MEASUREMENT_INIT_FAILED;
-      this->mark_failed();
-      return;
-    }
+      // Finally start sensor measurements
+      if (!this->write_command_(SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS)) {
+        ESP_LOGE(TAG, "Error starting continuous measurements.");
+        this->error_code_ = MEASUREMENT_INIT_FAILED;
+        this->mark_failed();
+        return;
+      }
 
-    // Finally start sensor measurements
-    if (!this->write_command_(SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS)) {
-      ESP_LOGE(TAG, "Error starting continuous measurements.");
-      this->error_code_ = MEASUREMENT_INIT_FAILED;
-      this->mark_failed();
-      return;
-    }
-
-    initialized_ = true;
-    ESP_LOGD(TAG, "Sensor initialized");
+      initialized_ = true;
+      ESP_LOGD(TAG, "Sensor initialized");
+    });
   });
 }
 
@@ -152,6 +154,20 @@ void SCD4XComponent::dump_config() {
 void SCD4XComponent::update() {
   if (!initialized_) {
     return;
+  }
+
+  if (this->pressure_sensor_ != nullptr) {
+    float pressure = this->pressure_sensor_->state / 1000.0;
+    if (!std::isnan(pressure)) {
+      set_ambient_pressure_compensation(this->pressure_sensor_->state / 1000.0);
+    }
+  } else {
+    if (this->altidute_sensor_ != nullptr) {
+      float altidute = this->altidute_sensor_->state;
+      if (!std::isnan(altidute)) {
+        set_ambient_pressure_compensation(this->altidute_sensor_->state);
+      }
+    }
   }
 
   // Check if data is ready
@@ -196,12 +212,35 @@ void SCD4XComponent::update() {
   this->status_clear_warning();
 }
 
+void SCD4XComponent::set_altitude_compensation(uint16_t altitude) {
+  // setting an ambient pressure overrides altitude compensation
+  // divide by 10 for change detection +/- 10m doesn't make a difference
+  if (initialized_ && !ambient_pressure_compensation_ && (altitude / 10 != altitude_compensation_ / 10)) {
+    update_altitude_compensation_(altitude);
+    altitude_compensation_ = altitude;
+  } else {
+    ESP_LOGD(TAG, "altitude compensation skipped no change required");
+  }
+}
+
+void SCD4XComponent::set_ambient_pressure_compensation(float pressure) {
+  ambient_pressure_compensation_ = true;
+  uint16_t new_ambient_pressure = (uint16_t)(pressure * 1000);
+  // remove millbar from comparison to avoid frequent updates +/- 10 millbar doesn't matter
+  if (initialized_ && (new_ambient_pressure / 10 != ambient_pressure_ / 10)) {
+    update_ambient_pressure_compensation_(new_ambient_pressure);
+    ambient_pressure_ = new_ambient_pressure;
+  } else {
+    ESP_LOGD(TAG, "ambient pressure compensation skipped - no change required");
+  }
+}
+
 bool SCD4XComponent::update_altitude_compensation_(uint16_t altitude) {
   if (this->write_command_(SCD4X_CMD_ALTITUDE_COMPENSATION, altitude)) {
     ESP_LOGD(TAG, "setting altitude compensation to %d m", altitude);
     return true;
   } else {
-    ESP_LOGE("main lambda", "Error setting altitude compensation.");
+    ESP_LOGE(TAG, "Error setting altitude compensation.");
     return false;
   }
 }
@@ -211,7 +250,7 @@ bool SCD4XComponent::update_ambient_pressure_compensation_(uint16_t pressure_in_
     ESP_LOGD(TAG, "setting ambient pressure compensation to %d hPa", pressure_in_hpa);
     return true;
   } else {
-    ESP_LOGE("main lambda", "Error setting ambient pressure compensation.");
+    ESP_LOGE(TAG, "Error setting ambient pressure compensation.");
     return false;
   }
 }
