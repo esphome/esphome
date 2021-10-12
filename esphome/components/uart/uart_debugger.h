@@ -90,6 +90,10 @@ class UARTDebug {
   /// Log the bytes as integer values, separated by the provided separator
   /// character.
   static void log_int(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator);
+
+  /// Log the bytes as '<binary> (<hex>)' values, separated by the provided
+  /// separator.
+  static void log_binary(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator);
 };
 
 }  // namespace uart

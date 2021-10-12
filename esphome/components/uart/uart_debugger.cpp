@@ -4,6 +4,7 @@
 #include <vector>
 #include "uart_debugger.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace uart {
@@ -101,13 +102,13 @@ void UARTDebug::log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uin
     res += ">>> ";
   }
   size_t len = bytes.size();
-  char hexbuf[5];
+  char buf[5];
   for (size_t i = 0; i < len; i++) {
     if (i > 0) {
       res += separator;
     }
-    sprintf(hexbuf, "%02X", bytes[i]);
-    res += hexbuf;
+    sprintf(buf, "%02X", bytes[i]);
+    res += buf;
   }
   ESP_LOGD(TAG, "%s", res.c_str());
 }
@@ -120,7 +121,7 @@ void UARTDebug::log_string(UARTDirection direction, std::vector<uint8_t> bytes) 
     res += ">>> \"";
   }
   size_t len = bytes.size();
-  char hexbuf[5];
+  char buf[5];
   for (size_t i = 0; i < len; i++) {
     if (bytes[i] == 7) {
       res += "\\a";
@@ -145,8 +146,8 @@ void UARTDebug::log_string(UARTDirection direction, std::vector<uint8_t> bytes) 
     } else if (bytes[i] == 92) {
       res += "\\\\";
     } else if (bytes[i] < 32 || bytes[i] > 127) {
-      sprintf(hexbuf, "\\x%02X", bytes[i]);
-      res += hexbuf;
+      sprintf(buf, "\\x%02X", bytes[i]);
+      res += buf;
     } else {
       res += bytes[i];
     }
@@ -168,6 +169,25 @@ void UARTDebug::log_int(UARTDirection direction, std::vector<uint8_t> bytes, uin
       res += separator;
     }
     res += to_string(bytes[i]);
+  }
+  ESP_LOGD(TAG, "%s", res.c_str());
+}
+
+void UARTDebug::log_binary(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator) {
+  std::string res;
+  size_t len = bytes.size();
+  if (direction == UART_DIRECTION_RX) {
+    res += "<<< ";
+  } else {
+    res += ">>> ";
+  }
+  char buf[20];
+  for (size_t i = 0; i < len; i++) {
+    if (i > 0) {
+      res += separator;
+    }
+    sprintf(buf, "0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(bytes[i]), bytes[i]);
+    res += buf;
   }
   ESP_LOGD(TAG, "%s", res.c_str());
 }
