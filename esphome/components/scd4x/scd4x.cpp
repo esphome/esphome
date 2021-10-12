@@ -1,4 +1,5 @@
 #include "scd4x.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -46,6 +47,9 @@ void SCD4XComponent::setup() {
         this->mark_failed();
         return;
       }
+      // According to the SCD4x datasheet the sensor will only respond to other commands after waiting 500 ms after
+      // issuing the stop_periodic_measurement command
+      esphome::delay(500);  // NOLINT
     }
 
     if (!this->write_command_(SCD4X_CMD_GET_SERIAL_NUMBER)) {
@@ -190,6 +194,26 @@ void SCD4XComponent::update() {
   }
 
   this->status_clear_warning();
+}
+
+bool SCD4XComponent::update_altitude_compensation_(uint16_t altitude) {
+  if (this->write_command_(SCD4X_CMD_ALTITUDE_COMPENSATION, altitude)) {
+    ESP_LOGD(TAG, "setting altitude compensation to %d m", altitude);
+    return true;
+  } else {
+    ESP_LOGE("main lambda", "Error setting altitude compensation.");
+    return false;
+  }
+}
+
+bool SCD4XComponent::update_ambient_pressure_compensation_(uint16_t pressure_in_hpa) {
+  if (this->write_command_(SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION, pressure_in_hpa)) {
+    ESP_LOGD(TAG, "setting ambient pressure compensation to %d hPa", pressure_in_hpa);
+    return true;
+  } else {
+    ESP_LOGE("main lambda", "Error setting ambient pressure compensation.");
+    return false;
+  }
 }
 
 uint8_t SCD4XComponent::sht_crc_(uint8_t data1, uint8_t data2) {

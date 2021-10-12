@@ -17,10 +17,21 @@ class SCD4XComponent : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
   void set_automatic_self_calibration(bool asc) { enable_asc_ = asc; }
-  void set_altitude_compensation(uint16_t altitude) { altitude_compensation_ = altitude; }
+  void set_altitude_compensation(uint16_t altitude) {
+    // setting an ambient pressure overrides altitude compensation
+    if (initialized_ && !ambient_pressure_compensation_ && (altitude != altitude_compensation_)) {
+      update_altitude_compensation_(altitude);
+      altitude_compensation_ = altitude;
+    }
+  }
+
   void set_ambient_pressure_compensation(float pressure) {
     ambient_pressure_compensation_ = true;
-    ambient_pressure_ = (uint16_t)(pressure * 1000);
+    uint16_t new_ambient_pressure = (uint16_t)(pressure * 1000);
+    if (initialized_ && (new_ambient_pressure != ambient_pressure_)) {
+      update_ambient_pressure_compensation_(new_ambient_pressure);
+      ambient_pressure_ = new_ambient_pressure;
+    }
   }
   void set_temperature_offset(float offset) { temperature_offset_ = offset; };
 
@@ -33,6 +44,8 @@ class SCD4XComponent : public PollingComponent, public i2c::I2CDevice {
   bool read_data_(uint16_t *data, uint8_t len);
   bool write_command_(uint16_t command);
   bool write_command_(uint16_t command, uint16_t data);
+  bool update_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
+  bool update_altitude_compensation_(uint16_t altitude);
 
   ERRORCODE error_code_;
 
