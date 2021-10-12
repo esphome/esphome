@@ -37,7 +37,8 @@ void RemoteTransmitterComponent::wait_to_micros_(uint32_t usec) {
   if (usec > 5000UL)
     delay_microseconds_accurate(usec - 5000UL);  // coarse delay up to the last 5ms
 
-  while (micros() - this->ref_time_ < usec){}  // variable delay that self-aligns to "ref_time_"
+  while (micros() - this->ref_time_ < usec)  // variable delay that precisely aligns to "ref_time_"
+    ;
 
   this->ref_time_ += usec;
 }
