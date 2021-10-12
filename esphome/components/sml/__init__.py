@@ -13,6 +13,7 @@ DEPENDENCIES = ["uart"]
 
 sml_ns = cg.esphome_ns.namespace("sml")
 Sml = sml_ns.class_("Sml", cg.Component, uart.UARTDevice)
+MULTI_CONF = True
 
 CONF_SML_ID = "sml_id"
 CONF_OBIS_CODE = "obis_code"
