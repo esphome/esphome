@@ -33,17 +33,17 @@ void RemoteTransmitterComponent::calculate_on_off_time_(uint32_t carrier_frequen
   *off_time_period = period - *on_time_period;
 }
 
-void RemoteTransmitterComponent::wait_to_micros_(uint32_t usec) {
+void RemoteTransmitterComponent::aligned_delay_microseconds_(uint32_t usec) {
   const uint32_t elapsed = micros() - this->ref_time_;
   if (usec > elapsed)
-    delay_microseconds_accurate(usec - elapsed);  // variable delay that precisely aligns to "ref_time_"
+    delay_microseconds_accurate(usec - elapsed);  // precisely aligns to "ref_time_"
   this->ref_time_ += usec;
 }
 
 void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint32_t usec) {
   if (this->carrier_duty_percent_ == 100 || (on_time == 0 && off_time == 0)) {
     this->pin_->digital_write(true);
-    this->wait_to_micros_(usec);
+    this->aligned_delay_microseconds_(usec);
     return;
   }
 
@@ -53,12 +53,12 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
   while (current_time - start_time < usec) {  // modulate with carrier frequency
     const uint32_t elapsed = current_time - start_time;
     this->pin_->digital_write(true);
-    this->wait_to_micros_(std::min(on_time, usec - elapsed));
+    this->aligned_delay_microseconds_(std::min(on_time, usec - elapsed));
     if (elapsed + on_time >= usec)
       break;
 
     this->pin_->digital_write(false);
-    this->wait_to_micros_(std::min(usec - elapsed - on_time, off_time));
+    this->aligned_delay_microseconds_(std::min(usec - elapsed - on_time, off_time));
 
     current_time = micros();
   }
@@ -67,7 +67,7 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
 
 void RemoteTransmitterComponent::space_(uint32_t usec) {
   this->pin_->digital_write(false);
-  this->wait_to_micros_(usec);
+  this->aligned_delay_microseconds_(usec);
 }
 
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
