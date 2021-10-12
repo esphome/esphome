@@ -32,7 +32,7 @@ class SCD30Component : public Component, public i2c::I2CDevice {
   bool write_command_(uint16_t command, uint16_t data);
   bool read_data_(uint16_t *data, uint8_t len);
   uint8_t sht_crc_(uint8_t data1, uint8_t data2);
-  bool isDataReady();
+  bool is_data_ready_();
 
   enum ErrorCode {
     COMMUNICATION_FAILED,

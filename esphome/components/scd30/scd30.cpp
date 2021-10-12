@@ -195,14 +195,14 @@ void SCD30Component::update() {
 void SCD30Component::schedule_next_check_() {
   // check each 500ms if data is ready before reading the value
   this->set_timeout("status-check", 500, [this]() {
-    if (isDataReady()) {
+    if (is_data_ready_()) {
       this->update();
     }
     this->schedule_next_check_();
   });
 }
 
-bool SCD30Component::isDataReady() {
+bool SCD30Component::is_data_ready_() {
   if (!this->write_command_(SCD30_CMD_GET_DATA_READY_STATUS)) {
     return false;
   }
