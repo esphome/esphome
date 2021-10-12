@@ -5,10 +5,12 @@ esphome:
   board: d1_mini
   build_path: build/test3
   on_boot:
-    - wait_until:
+    - if:
         - api.connected
         - wifi.connected
         - time.has_time
+      then:
+        - logger.log: "Have time"
   includes:
     - custom.h
 
@@ -1297,4 +1299,3 @@ dsmr:
 daly_bms:
   update_interval: 20s
   uart_id: uart1
-
