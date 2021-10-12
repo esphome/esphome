@@ -26,7 +26,7 @@ struct RotaryEncoderSensorStore {
   RotaryEncoderResolution resolution{ROTARY_ENCODER_1_PULSE_PER_CYCLE};
   int32_t min_value{INT32_MIN};
   int32_t max_value{INT32_MAX};
-  int32_t last_read{0};
+  int32_t last_read{-1};
   uint8_t state{0};
 
   std::array<int8_t, 8> rotation_events{};
