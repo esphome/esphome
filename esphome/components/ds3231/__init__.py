@@ -84,6 +84,7 @@ Alarm2Trigger = ds3231_ns.class_("Alarm2Trigger", automation.Trigger.template())
 CONF_DAY = "day"
 CONF_ON_ALARM_1 = "on_alarm_1"
 CONF_ON_ALARM_2 = "on_alarm_2"
+CONF_DS3231_ID = "ds3231_id"
 
 CONFIG_SCHEMA = (
     cv.Schema(

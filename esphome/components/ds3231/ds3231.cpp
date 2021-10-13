@@ -14,6 +14,7 @@ static const uint8_t DS3231_REGISTER_ADDRESS_RTC = 0x00;
 static const uint8_t DS3231_REGISTER_ADDRESS_ALARM = 0x07;
 static const uint8_t DS3231_REGISTER_ADDRESS_CONTROL = 0x0E;
 static const uint8_t DS3231_REGISTER_ADDRESS_STATUS = 0x0F;
+static const uint8_t DS3231_REGISTER_ADDRESS_TEMP = 0x11;
 
 // Alarm Type Bit Masks
 static const uint8_t DS3231_MASK_ALARM_TYPE_M1 = 0x01;
@@ -124,7 +125,7 @@ bool DS3231Component::read_rtc_() {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u", this->ds3231_.rtc.reg.hour_10,
+  ESP_LOGD(TAG, "Read Time - %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u", this->ds3231_.rtc.reg.hour_10,
            this->ds3231_.rtc.reg.hour, this->ds3231_.rtc.reg.minute_10, this->ds3231_.rtc.reg.minute,
            this->ds3231_.rtc.reg.second_10, this->ds3231_.rtc.reg.second, this->ds3231_.rtc.reg.year_10,
            this->ds3231_.rtc.reg.year, this->ds3231_.rtc.reg.month_10, this->ds3231_.rtc.reg.month,
@@ -137,7 +138,7 @@ bool DS3231Component::write_rtc_() {
     ESP_LOGE(TAG, "Can't write I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Write %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u", this->ds3231_.rtc.reg.hour_10,
+  ESP_LOGD(TAG, "Write Time - %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u", this->ds3231_.rtc.reg.hour_10,
            this->ds3231_.rtc.reg.hour, this->ds3231_.rtc.reg.minute_10, this->ds3231_.rtc.reg.minute,
            this->ds3231_.rtc.reg.second_10, this->ds3231_.rtc.reg.second, this->ds3231_.rtc.reg.year_10,
            this->ds3231_.rtc.reg.year, this->ds3231_.rtc.reg.month_10, this->ds3231_.rtc.reg.month,
@@ -150,13 +151,13 @@ bool DS3231Component::read_alarm_() {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Read  Alarm1 - %0u%0u:%0u%0u:%0u%0u %s:%0u%0u M1:%0u M2:%0u M3:%0u M4:%0u",
+  ESP_LOGD(TAG, "Read Alarm1 - %0u%0u:%0u%0u:%0u%0u %s:%0u%0u M1:%0u M2:%0u M3:%0u M4:%0u",
            this->ds3231_.alrm.reg.a1_hour_10, this->ds3231_.alrm.reg.a1_hour, this->ds3231_.alrm.reg.a1_minute_10,
            this->ds3231_.alrm.reg.a1_minute, this->ds3231_.alrm.reg.a1_second_10, this->ds3231_.alrm.reg.a1_second,
            this->ds3231_.alrm.reg.a1_day_mode == 0 ? "DoM" : "DoW", this->ds3231_.alrm.reg.a1_day_10,
            this->ds3231_.alrm.reg.a1_day, this->ds3231_.alrm.reg.a1_m1, this->ds3231_.alrm.reg.a1_m2,
            this->ds3231_.alrm.reg.a1_m3, this->ds3231_.alrm.reg.a1_m4);
-  ESP_LOGD(TAG, "Read  Alarm2 - %0u%0u:%0u%0u %s:%0u%0u M2:%0u M3:%0u M4:%0u", this->ds3231_.alrm.reg.a2_hour_10,
+  ESP_LOGD(TAG, "Read Alarm2 - %0u%0u:%0u%0u %s:%0u%0u M2:%0u M3:%0u M4:%0u", this->ds3231_.alrm.reg.a2_hour_10,
            this->ds3231_.alrm.reg.a2_hour, this->ds3231_.alrm.reg.a2_minute_10, this->ds3231_.alrm.reg.a2_minute,
            this->ds3231_.alrm.reg.a2_day_mode == 0 ? "DoM" : "DoW", this->ds3231_.alrm.reg.a2_day_10,
            this->ds3231_.alrm.reg.a2_day, this->ds3231_.alrm.reg.a2_m2, this->ds3231_.alrm.reg.a2_m3,
@@ -188,7 +189,7 @@ bool DS3231Component::read_control_() {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Read  A1I:%s A2I:%s INT_SQW:%s RS:%0u CT:%s BSQW:%s OSC:%s", ONOFF(this->ds3231_.ctrl.reg.alrm_1_int),
+  ESP_LOGD(TAG, "Read Control - A1I:%s A2I:%s INT_SQW:%s RS:%0u CT:%s BSQW:%s OSC:%s", ONOFF(this->ds3231_.ctrl.reg.alrm_1_int),
            ONOFF(this->ds3231_.ctrl.reg.alrm_2_int), this->ds3231_.ctrl.reg.int_ctrl ? "INT" : "SQW",
            this->ds3231_.ctrl.reg.rs, ONOFF(this->ds3231_.ctrl.reg.conv_tmp), ONOFF(this->ds3231_.ctrl.reg.bat_sqw),
            ONOFF(!this->ds3231_.ctrl.reg.osc_dis));
@@ -200,9 +201,10 @@ bool DS3231Component::write_control_() {
     ESP_LOGE(TAG, "Can't write I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Write A1I:%s A2I:%s INT_SQW:%s RS:%0u CT:%s BSQW:%s OSC:%s", ONOFF(this->ds3231_.ctrl.reg.alrm_1_int),
-           ONOFF(this->ds3231_.ctrl.reg.alrm_2_int), this->ds3231_.ctrl.reg.int_ctrl ? "INT" : "SQW",
-           this->ds3231_.ctrl.reg.rs, ONOFF(this->ds3231_.ctrl.reg.conv_tmp), ONOFF(this->ds3231_.ctrl.reg.bat_sqw),
+  ESP_LOGD(TAG, "Write Control -  A1I:%s A2I:%s INT_SQW:%s RS:%0u CT:%s BSQW:%s OSC:%s",
+           ONOFF(this->ds3231_.ctrl.reg.alrm_1_int), ONOFF(this->ds3231_.ctrl.reg.alrm_2_int),
+           this->ds3231_.ctrl.reg.int_ctrl ? "INT" : "SQW", this->ds3231_.ctrl.reg.rs,
+           ONOFF(this->ds3231_.ctrl.reg.conv_tmp), ONOFF(this->ds3231_.ctrl.reg.bat_sqw),
            ONOFF(!this->ds3231_.ctrl.reg.osc_dis));
   return true;
 }
@@ -215,7 +217,7 @@ bool DS3231Component::read_status_(bool initial_read) {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Read  A1:%s A2:%s BSY:%s 32K:%s OSC:%s", ONOFF(this->ds3231_.stat.reg.alrm_1_act),
+  ESP_LOGD(TAG, "Read Status - A1:%s A2:%s BSY:%s 32K:%s OSC:%s", ONOFF(this->ds3231_.stat.reg.alrm_1_act),
            ONOFF(this->ds3231_.stat.reg.alrm_2_act), YESNO(this->ds3231_.stat.reg.busy),
            ONOFF(this->ds3231_.stat.reg.en32khz), ONOFF(!this->ds3231_.stat.reg.osc_stop));
 
@@ -234,9 +236,18 @@ bool DS3231Component::write_status_() {
     ESP_LOGE(TAG, "Can't write I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Write A1:%s A2:%s BSY:%s 32K:%s OSC:%s", ONOFF(this->ds3231_.stat.reg.alrm_1_act),
+  ESP_LOGD(TAG, "Write Status - A1:%s A2:%s BSY:%s 32K:%s OSC:%s", ONOFF(this->ds3231_.stat.reg.alrm_1_act),
            ONOFF(this->ds3231_.stat.reg.alrm_2_act), YESNO(this->ds3231_.stat.reg.busy),
            ONOFF(this->ds3231_.stat.reg.en32khz), ONOFF(!this->ds3231_.stat.reg.osc_stop));
+  return true;
+}
+
+bool DS3231Component::read_temperature_() {
+  if (!this->read_bytes(DS3231_REGISTER_ADDRESS_TEMP, this->ds3231_.temp.raw, sizeof(this->ds3231_.temp.raw))) {
+    ESP_LOGE(TAG, "Can't read I2C data.");
+    return false;
+  }
+  ESP_LOGD(TAG, "Read Temperature - INT:%d FRAC:%d", this->ds3231_.temp.reg.upper, this->ds3231_.temp.reg.lower);
   return true;
 }
 

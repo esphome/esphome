@@ -646,6 +646,9 @@ sensor:
     name: 'testwave'
     component_id: 2
     wave_channel_id: 1
+  - platform: ds3231
+    id: ds3231_sensor
+
 time:
   - platform: homeassistant
     on_time_sync:

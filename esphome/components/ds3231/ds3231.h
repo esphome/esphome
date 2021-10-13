@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/time/real_time_clock.h"
 
 namespace esphome {
@@ -49,6 +50,8 @@ enum DS3231SquareWaveFrequency {
 
 class DS3231RTC;
 
+class DS3231Sensor;
+
 class DS3231Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void add_on_alarm_callback(std::function<void(uint8_t)> &&callback);
@@ -66,6 +69,7 @@ class DS3231Component : public PollingComponent, public i2c::I2CDevice {
 
  protected:
   friend DS3231RTC;
+  friend DS3231Sensor;
   bool read_rtc_();
   bool write_rtc_();
   bool read_alarm_();
@@ -74,6 +78,7 @@ class DS3231Component : public PollingComponent, public i2c::I2CDevice {
   bool write_control_();
   bool read_status_(bool initial_read = false);
   bool write_status_();
+  bool read_temperature_();
   CallbackManager<void(uint8_t)> alarm_callback_{};
   bool alarm_1_act_;
   bool alarm_2_act_;
@@ -168,20 +173,31 @@ class DS3231Component : public PollingComponent, public i2c::I2CDevice {
       } reg;
       mutable uint8_t raw[sizeof(reg)];
     } stat;
+    union DS3231Temp {
+      struct {
+        int8_t upper : 8;
+        uint8_t lower : 2;
+        uint8_t unused : 6;
+      } reg;
+      mutable uint8_t raw[sizeof(reg)];
+    } temp;
   } ds3231_;
 };
 
-class DS3231RTC : public time::RealTimeClock {
+class DS3231RTC : public time::RealTimeClock, public Parented<DS3231Component> {
  public:
-  void set_ds3231_parent(DS3231Component *parent) { this->parent_ = parent; }
   float get_setup_priority() const override { return setup_priority::DATA; }
   void dump_config() override;
   void update() override { this->read_time(); }
   void read_time();
   void write_time();
+};
 
- protected:
-  DS3231Component *parent_;
+class DS3231Sensor : public PollingComponent, public sensor::Sensor, public Parented<DS3231Component> {
+ public:
+  float get_setup_priority() const override { return setup_priority::DATA; }
+  void dump_config() override;
+  void update() override;
 };
 
 }  // namespace ds3231
