@@ -54,5 +54,25 @@ template<typename... Ts> class ReadTimeAction : public Action<Ts...>, public Par
   void play(Ts... x) override { this->parent_->read_time(); }
 };
 
+class Alarm1Trigger : public Trigger<> {
+ public:
+  explicit Alarm1Trigger(DS3231Component *parent) {
+    parent->add_on_alarm_callback([this](uint8_t alarm) {
+      if (alarm == 1)
+        this->trigger();
+    });
+  }
+};
+
+class Alarm2Trigger : public Trigger<> {
+ public:
+  explicit Alarm2Trigger(DS3231Component *parent) {
+    parent->add_on_alarm_callback([this](uint8_t alarm) {
+      if (alarm == 2)
+        this->trigger();
+    });
+  }
+};
+
 }  // namespace ds3231
 }  // namespace esphome

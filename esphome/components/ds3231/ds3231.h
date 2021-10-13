@@ -51,6 +51,7 @@ class DS3231RTC;
 
 class DS3231Component : public PollingComponent, public i2c::I2CDevice {
  public:
+  void add_on_alarm_callback(std::function<void(uint8_t)> &&callback);
   float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
@@ -71,8 +72,11 @@ class DS3231Component : public PollingComponent, public i2c::I2CDevice {
   bool write_alarm_();
   bool read_control_();
   bool write_control_();
-  bool read_status_();
+  bool read_status_(bool initial_read = false);
   bool write_status_();
+  CallbackManager<void(uint8_t)> alarm_callback_{};
+  bool alarm_1_act_;
+  bool alarm_2_act_;
   struct DS3231Reg {
     union DS3231RTC {
       struct {

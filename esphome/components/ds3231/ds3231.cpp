@@ -23,6 +23,10 @@ static const uint8_t DS3231_MASK_ALARM_TYPE_M4 = 0x08;
 static const uint8_t DS3231_MASK_ALARM_TYPE_DAY_MODE = 0x10;
 static const uint8_t DS3231_MASK_ALARM_TYPE_INTERRUPT_ENABLE = 0x40;
 
+void DS3231Component::add_on_alarm_callback(std::function<void(uint8_t)> &&callback) {
+  this->alarm_callback_.add(std::move(callback));
+}
+
 void DS3231Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DS3231...");
   if (!this->read_rtc_()) {
@@ -48,7 +52,7 @@ void DS3231Component::dump_config() {
   }
 }
 
-void DS3231Component::set_alarm_1(DS3231Alarm1Type alarm_type, uint8_t second, uint8_t minute, uint8_t hour, 
+void DS3231Component::set_alarm_1(DS3231Alarm1Type alarm_type, uint8_t second, uint8_t minute, uint8_t hour,
                                   uint8_t day) {
   this->ds3231_.alrm.reg.a1_second = second % 10;
   this->ds3231_.alrm.reg.a1_second_10 = second / 10;
@@ -71,11 +75,8 @@ void DS3231Component::set_alarm_1(DS3231Alarm1Type alarm_type, uint8_t second, u
 }
 
 void DS3231Component::reset_alarm_1() {
-  this->read_status_();
-  if (this->ds3231_.stat.reg.alrm_1_act) {
-    this->ds3231_.stat.reg.alrm_1_act = false;
-    this->write_status_();
-  }
+  this->ds3231_.stat.reg.alrm_1_act = false;
+  this->write_status_();
 }
 
 void DS3231Component::set_alarm_2(DS3231Alarm2Type alarm_type, uint8_t minute, uint8_t hour, uint8_t day) {
@@ -97,11 +98,8 @@ void DS3231Component::set_alarm_2(DS3231Alarm2Type alarm_type, uint8_t minute, u
 }
 
 void DS3231Component::reset_alarm_2() {
-  this->read_status_();
-  if (this->ds3231_.stat.reg.alrm_2_act) {
-    this->ds3231_.stat.reg.alrm_2_act = false;
-    this->write_status_();
-  }
+  this->ds3231_.stat.reg.alrm_2_act = false;
+  this->write_status_();
 }
 
 void DS3231Component::set_square_wave_mode(DS3231SquareWaveMode mode) {
@@ -209,7 +207,10 @@ bool DS3231Component::write_control_() {
   return true;
 }
 
-bool DS3231Component::read_status_() {
+bool DS3231Component::read_status_(bool initial_read) {
+  bool alarm_1_act = this->ds3231_.stat.reg.alrm_1_act;
+  bool alarm_2_act = this->ds3231_.stat.reg.alrm_2_act;
+
   if (!this->read_bytes(DS3231_REGISTER_ADDRESS_STATUS, this->ds3231_.stat.raw, sizeof(this->ds3231_.stat.raw))) {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
@@ -217,6 +218,14 @@ bool DS3231Component::read_status_() {
   ESP_LOGD(TAG, "Read  A1:%s A2:%s BSY:%s 32K:%s OSC:%s", ONOFF(this->ds3231_.stat.reg.alrm_1_act),
            ONOFF(this->ds3231_.stat.reg.alrm_2_act), YESNO(this->ds3231_.stat.reg.busy),
            ONOFF(this->ds3231_.stat.reg.en32khz), ONOFF(!this->ds3231_.stat.reg.osc_stop));
+  
+  if (!initial_read && alarm_1_act != this->ds3231_.stat.reg.alrm_1_act) {
+    this->alarm_callback_.call(1);
+  }
+  if (!initial_read && alarm_2_act != this->ds3231_.stat.reg.alrm_2_act) {
+    this->alarm_callback_.call(2);
+  }
+
   return true;
 }
 

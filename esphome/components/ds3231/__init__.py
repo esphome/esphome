@@ -5,6 +5,7 @@ from esphome.automation import maybe_simple_id
 from esphome.components import i2c
 from esphome.const import (
     CONF_ID,
+    CONF_TRIGGER_ID,
     CONF_SECOND,
     CONF_MINUTE,
     CONF_HOUR,
@@ -69,13 +70,29 @@ ResetAlarm1Action = ds3231_ns.class_("ResetAlarm1Action", automation.Action)
 SetAlarm2Action = ds3231_ns.class_("SetAlarm2Action", automation.Action)
 ResetAlarm2Action = ds3231_ns.class_("ResetAlarm2Action", automation.Action)
 
+# Triggers
+Alarm1Trigger = ds3231_ns.class_("Alarm1Trigger", automation.Trigger.template())
+Alarm2Trigger = ds3231_ns.class_("Alarm2Trigger", automation.Trigger.template())
+
 CONF_ALARM_TYPE = "alarm_type"
 CONF_DAY = "day"
+CONF_ON_ALARM_1 = "on_alarm_1"
+CONF_ON_ALARM_2 = "on_alarm_2"
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DS3231Component),
+            cv.Optional(CONF_ON_ALARM_1): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Alarm1Trigger),
+                }
+            ),
+            cv.Optional(CONF_ON_ALARM_2): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Alarm2Trigger),
+                }
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -88,6 +105,13 @@ async def to_code(config):
 
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+
+    for conf in config.get(CONF_ON_ALARM_1, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_ALARM_2, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
 
 
 RESET_ALARM_SCHEMA = maybe_simple_id(
