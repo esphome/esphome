@@ -47,6 +47,7 @@ esphome/components/debug/* @OttoWinter
 esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
 esphome/components/ds1307/* @badbadc0ffee
+esphome/components/ds3231/* @nuttytree
 esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @jesserockz

@@ -29,8 +29,7 @@ void DS3231RTC::read_time() {
       .day_of_month = uint8_t(this->parent_->ds3231_.rtc.reg.day + 10u * this->parent_->ds3231_.rtc.reg.day_10),
       .day_of_year = 1,  // ignored by recalc_timestamp_utc(false)
       .month = uint8_t(this->parent_->ds3231_.rtc.reg.month + 10u * this->parent_->ds3231_.rtc.reg.month_10),
-      .year = uint16_t(this->parent_->ds3231_.rtc.reg.year + 10u * this->parent_->ds3231_.rtc.reg.year_10 + 2000)
-  };
+      .year = uint16_t(this->parent_->ds3231_.rtc.reg.year + 10u * this->parent_->ds3231_.rtc.reg.year_10 + 2000)};
   rtc_time.recalc_timestamp_utc(false);
   if (!rtc_time.is_valid()) {
     ESP_LOGE(TAG, "Invalid RTC time, not syncing to system clock.");

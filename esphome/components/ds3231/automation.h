@@ -7,7 +7,6 @@
 namespace esphome {
 namespace ds3231 {
 
-
 template<typename... Ts> class SetAlarm1Action : public Action<Ts...>, public Parented<DS3231Component> {
  public:
   TEMPLATABLE_VALUE(DS3231Alarm1Type, alarm_type)

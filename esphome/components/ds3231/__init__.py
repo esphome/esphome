@@ -15,7 +15,9 @@ CODEOWNERS = ["@nuttytree"]
 DEPENDENCIES = ["i2c"]
 
 ds3231_ns = cg.esphome_ns.namespace("ds3231")
-DS3231Component = ds3231_ns.class_("DS3231Component", cg.PollingComponent, i2c.I2CDevice)
+DS3231Component = ds3231_ns.class_(
+    "DS3231Component", cg.PollingComponent, i2c.I2CDevice
+)
 
 Alarm1Type = ds3231_ns.enum("DS3231Alarm1Type")
 ALARM_1_TYPE_ENUM = {
@@ -127,11 +129,14 @@ async def set_alarm_1_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action("ds3231.reset_alarm_1", ResetAlarm1Action, RESET_ALARM_SCHEMA)
+@automation.register_action(
+    "ds3231.reset_alarm_1", ResetAlarm1Action, RESET_ALARM_SCHEMA
+)
 async def reset_alarm_1_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
+
 
 @automation.register_action(
     "ds3231.set_alarm_2",
@@ -162,7 +167,9 @@ async def set_alarm_2_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action("ds3231.reset_alarm_2", ResetAlarm2Action, RESET_ALARM_SCHEMA)
+@automation.register_action(
+    "ds3231.reset_alarm_2", ResetAlarm2Action, RESET_ALARM_SCHEMA
+)
 async def reset_alarm_2_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])

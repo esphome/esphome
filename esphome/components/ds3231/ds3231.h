@@ -55,7 +55,7 @@ class DS3231Component : public PollingComponent, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   void update() override { this->read_status_(); }
-  
+
   void set_alarm_1(DS3231Alarm1Type alarm_type, uint8_t second, uint8_t minute, uint8_t hour, uint8_t day);
   void reset_alarm_1();
   void set_alarm_2(DS3231Alarm2Type alarm_type, uint8_t minute, uint8_t hour, uint8_t day);
@@ -162,7 +162,7 @@ class DS3231Component : public PollingComponent, public i2c::I2CDevice {
         uint8_t unused : 3;
         bool osc_stop : 1;
       } reg;
-    mutable uint8_t raw[sizeof(reg)];
+      mutable uint8_t raw[sizeof(reg)];
     } stat;
   } ds3231_;
 };
