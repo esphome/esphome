@@ -189,9 +189,10 @@ bool DS3231Component::read_control_() {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Read Control - A1I:%s A2I:%s INT_SQW:%s RS:%0u CT:%s BSQW:%s OSC:%s", ONOFF(this->ds3231_.ctrl.reg.alrm_1_int),
-           ONOFF(this->ds3231_.ctrl.reg.alrm_2_int), this->ds3231_.ctrl.reg.int_ctrl ? "INT" : "SQW",
-           this->ds3231_.ctrl.reg.rs, ONOFF(this->ds3231_.ctrl.reg.conv_tmp), ONOFF(this->ds3231_.ctrl.reg.bat_sqw),
+  ESP_LOGD(TAG, "Read Control - A1I:%s A2I:%s INT_SQW:%s RS:%0u CT:%s BSQW:%s OSC:%s",
+           ONOFF(this->ds3231_.ctrl.reg.alrm_1_int), ONOFF(this->ds3231_.ctrl.reg.alrm_2_int),
+           this->ds3231_.ctrl.reg.int_ctrl ? "INT" : "SQW", this->ds3231_.ctrl.reg.rs,
+           ONOFF(this->ds3231_.ctrl.reg.conv_tmp), ONOFF(this->ds3231_.ctrl.reg.bat_sqw),
            ONOFF(!this->ds3231_.ctrl.reg.osc_dis));
   return true;
 }
