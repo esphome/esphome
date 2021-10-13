@@ -1,6 +1,12 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_ESP_IDF
 #include "esp32/rom/md5_hash.h"
+#endif
+#ifdef USE_ARDUINO
+#include "rom/md5_hash.h"
+#endif
 
 namespace esphome {
 
