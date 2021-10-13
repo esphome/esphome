@@ -29,8 +29,8 @@ class MD5Digest {
 
   /// Add bytes of data for the digest.
   void add(uint8_t *data, size_t len);
-  void add(char *data, size_t len) { this->add((uint8_t *)data, len); }
-  void add(const char *data, size_t len) { this->add((uint8_t *)data, len); }
+  void add(char *data, size_t len) { this->add((uint8_t *) data, len); }
+  void add(const char *data, size_t len) { this->add((uint8_t *) data, len); }
 
   /// Compute the digest, based on the provided data.
   void calculate();
