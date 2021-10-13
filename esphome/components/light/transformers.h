@@ -18,10 +18,13 @@ class LightTransitionTransformer : public LightTransformer {
       this->start_values_.set_brightness(0.0f);
     }
 
-    // When turning light off from on state, use source state and only decrease brightness to zero.
+    // When turning light off from on state, use source state and only decrease brightness to zero. Use a second
+    // variable for transition end state, as overwriting target_values breaks LightState logic.
     if (this->start_values_.is_on() && !this->target_values_.is_on()) {
-      this->target_values_ = LightColorValues(this->start_values_);
-      this->target_values_.set_brightness(0.0f);
+      this->end_values_ = LightColorValues(this->start_values_);
+      this->end_values_.set_brightness(0.0f);
+    } else {
+      this->end_values_ = LightColorValues(this->target_values_);
     }
 
     // When changing color mode, go through off state, as color modes are orthogonal and there can't be two active.
@@ -43,7 +46,7 @@ class LightTransitionTransformer : public LightTransformer {
     }
 
     LightColorValues &start = this->changing_color_mode_ && p > 0.5f ? this->intermediate_values_ : this->start_values_;
-    LightColorValues &end = this->changing_color_mode_ && p < 0.5f ? this->intermediate_values_ : this->target_values_;
+    LightColorValues &end = this->changing_color_mode_ && p < 0.5f ? this->intermediate_values_ : this->end_values_;
     if (this->changing_color_mode_)
       p = p < 0.5f ? p * 2 : (p - 0.5) * 2;
 
@@ -57,6 +60,7 @@ class LightTransitionTransformer : public LightTransformer {
   static float smoothed_progress(float x) { return x * x * x * (x * (x * 6.0f - 15.0f) + 10.0f); }
 
   bool changing_color_mode_{false};
+  LightColorValues end_values_{};
   LightColorValues intermediate_values_{};
 };
 
