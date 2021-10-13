@@ -102,4 +102,4 @@ async def to_code(config):
 
     if CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE in config:
         sens = await cg.get_variable(config[CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE])
-        cg.add(var.set_pressure_sensor(sens))
+        cg.add(var.set_ambient_pressure_source(sens))

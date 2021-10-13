@@ -81,7 +81,7 @@ void SCD4XComponent::setup() {
       // If pressure compensation available use it
       // else use altitude
       if (ambient_pressure_compensation_) {
-        if (!this->write_command_(SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION, ambient_pressure_compensation_)) {
+        if (!this->update_ambient_pressure_compensation_(ambient_pressure_)) {
           ESP_LOGE(TAG, "Error setting ambient pressure compensation.");
           this->error_code_ = MEASUREMENT_INIT_FAILED;
           this->mark_failed();
@@ -156,10 +156,10 @@ void SCD4XComponent::update() {
     return;
   }
 
-  if (this->pressure_sensor_ != nullptr) {
-    float pressure = this->pressure_sensor_->state / 1000.0f;
+  if (this->ambient_pressure_source_ != nullptr) {
+    float pressure = this->ambient_pressure_source_->state / 1000.0f;
     if (!std::isnan(pressure)) {
-      set_ambient_pressure_compensation(this->pressure_sensor_->state / 1000.0f);
+      set_ambient_pressure_compensation(this->ambient_pressure_source_->state / 1000.0f);
     }
   }
 
@@ -204,11 +204,11 @@ void SCD4XComponent::update() {
 
   this->status_clear_warning();
 }
-
-void SCD4XComponent::set_ambient_pressure_compensation(float pressure) {
+// Note pressure in bar here. Convert to hPa
+void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_bar) {
   ambient_pressure_compensation_ = true;
-  uint16_t new_ambient_pressure = (uint16_t)(pressure * 1000);
-  // remove millbar from comparison to avoid frequent updates +/- 10 millbar doesn't matter
+  uint16_t new_ambient_pressure = (uint16_t)(pressure_in_bar * 1000);
+  // remove millibar from comparison to avoid frequent updates +/- 10 millibar doesn't matter
   if (initialized_ && (new_ambient_pressure / 10 != ambient_pressure_ / 10)) {
     update_ambient_pressure_compensation_(new_ambient_pressure);
     ambient_pressure_ = new_ambient_pressure;
