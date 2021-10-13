@@ -149,10 +149,8 @@ async def debug_to_code(config, parent):
         )
     cg.add(trigger.set_direction(config[CONF_DIRECTION]))
     after = config[CONF_AFTER]
-    if CONF_BYTES in after:
-        cg.add(trigger.set_after_bytes(after[CONF_BYTES]))
-    if CONF_TIMEOUT in after:
-        cg.add(trigger.set_after_timeout(after[CONF_TIMEOUT]))
+    cg.add(trigger.set_after_bytes(after[CONF_BYTES]))
+    cg.add(trigger.set_after_timeout(after[CONF_TIMEOUT]))
     if CONF_DELIMITER in after:
         data = after[CONF_DELIMITER]
         if isinstance(data, bytes):
