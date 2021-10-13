@@ -48,7 +48,7 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
   std::vector<uint8_t> bytes_{};
   size_t after_bytes_;
   uint32_t after_timeout_;
-  unsigned long last_time_{};
+  uint32_t last_time_{};
   std::vector<uint8_t> after_delimiter_{};
   size_t after_delimiter_pos_{};
   bool is_triggering_{false};

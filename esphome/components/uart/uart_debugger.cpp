@@ -45,7 +45,7 @@ void UARTDebugger::store_byte_(UARTDirection direction, uint8_t byte) {
 }
 
 void UARTDebugger::trigger_after_delimiter_(uint8_t byte) {
-  if (this->after_delimiter_.size() == 0 || !this->has_buffered_bytes_()) {
+  if (this->after_delimiter_.empty() || !this->has_buffered_bytes_()) {
     return;
   }
   if (this->after_delimiter_[this->after_delimiter_pos_] != byte) {
