@@ -71,7 +71,7 @@ void UARTDebugger::trigger_after_timeout_() {
   }
 }
 
-bool UARTDebugger::has_buffered_bytes_() { return this->bytes_.size() > 0; }
+bool UARTDebugger::has_buffered_bytes_() { return !this->bytes_.empty(); }
 
 void UARTDebugger::fire_trigger_() {
   this->is_triggering_ = true;
