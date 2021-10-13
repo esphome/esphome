@@ -21,10 +21,6 @@ _FLAGS_QR_QUERY = 0x0000  # query
 _TYPE_A = 1
 _LOGGER = logging.getLogger(__name__)
 
-_CLASS_IN = 1
-_FLAGS_QR_QUERY = 0x0000  # query
-_TYPE_A = 1
-
 
 class HostResolver(RecordUpdateListener):
     def __init__(self, name: str):

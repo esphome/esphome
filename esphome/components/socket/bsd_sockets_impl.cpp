@@ -11,10 +11,6 @@
 #include <lwip/sockets.h>
 #endif
 
-#ifdef ARDUINO_ARCH_ESP32
-#include <esp_idf_version.h>
-#endif
-
 namespace esphome {
 namespace socket {
 

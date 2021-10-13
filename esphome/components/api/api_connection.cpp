@@ -161,19 +161,6 @@ void APIConnection::on_disconnect_response(const DisconnectResponse &value) {
   // pass
 }
 
-DisconnectResponse APIConnection::disconnect(const DisconnectRequest &msg) {
-  // remote initiated disconnect_client
-  // don't close yet, we still need to send the disconnect response
-  // close will happen on next loop
-  ESP_LOGD(TAG, "%s requested disconnected", client_info_.c_str());
-  this->next_close_ = true;
-  DisconnectResponse resp;
-  return resp;
-}
-void APIConnection::on_disconnect_response(const DisconnectResponse &value) {
-  // pass
-}
-
 #ifdef USE_BINARY_SENSOR
 bool APIConnection::send_binary_sensor_state(binary_sensor::BinarySensor *binary_sensor, bool state) {
   if (!this->state_subscription_)
