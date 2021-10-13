@@ -5,8 +5,6 @@
 #include "ota_component.h"
 #include <esp_ota_ops.h>
 #include "esp32/rom/md5_hash.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace ota {
@@ -31,6 +29,9 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
   return OTA_RESPONSE_OK;
 }
 
+// TODO: initializing the zeroed bytes when the provided MD5 is of an
+// incorrect length is a bit flaky. Check if this can be made a bool
+// return value that can be used to send an error back to the OTA client.
 void IDFOTABackend::set_update_md5(const char *md5) {
   if (strlen(md5) == 32) {
     char pair[3] = {0, 0, 0};
