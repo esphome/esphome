@@ -153,13 +153,9 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART1:
         this->hw_serial_ = &Serial1;
         break;
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && !CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2
       case UART_SELECTION_UART2:
-#if !CONFIG_IDF_TARGET_ESP32S2 && !CONFIG_IDF_TARGET_ESP32C3
-        // FIXME: Validate in config that UART2 can't be set for ESP32-S2 (only has
-        // UART0-UART1)
         this->hw_serial_ = &Serial2;
-#endif
         break;
 #endif
     }
@@ -173,9 +169,11 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART1:
         uart_num_ = UART_NUM_1;
         break;
+#if !CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2
       case UART_SELECTION_UART2:
         uart_num_ = UART_NUM_2;
         break;
+#endif
     }
     uart_config_t uart_config{};
     uart_config.baud_rate = (int) baud_rate_;
