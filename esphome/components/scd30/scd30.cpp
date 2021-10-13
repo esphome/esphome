@@ -110,7 +110,11 @@ void SCD30Component::setup() {
     return;
   }
 
-  this->schedule_next_check_();
+  // check each 500ms if data is ready, and read it in that case
+  this->set_interval("status-check", 500, [this]() {
+    if (this->is_data_ready_())
+      this->update();
+  });
 }
 
 void SCD30Component::dump_config() {
@@ -192,25 +196,15 @@ void SCD30Component::update() {
   });
 }
 
-void SCD30Component::schedule_next_check_() {
-  // check each 500ms if data is ready before reading the value
-  this->set_timeout("status-check", 500, [this]() {
-    if (is_data_ready_()) {
-      this->update();
-    }
-    this->schedule_next_check_();
-  });
-}
-
 bool SCD30Component::is_data_ready_() {
   if (!this->write_command_(SCD30_CMD_GET_DATA_READY_STATUS)) {
     return false;
   }
-  uint16_t is_data_ready[1];
-  if (!this->read_data_(is_data_ready, 1)) {
+  uint16_t is_data_ready;
+  if (!this->read_data_(&is_data_ready, 1)) {
     return false;
   }
-  return is_data_ready[0] == 1;
+  return is_data_ready == 1;
 }
 
 bool SCD30Component::write_command_(uint16_t command) {
