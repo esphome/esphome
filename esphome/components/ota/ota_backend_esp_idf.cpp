@@ -29,21 +29,12 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
   return OTA_RESPONSE_OK;
 }
 
-// TODO: initializing the zeroed bytes when the provided MD5 is of an
-// incorrect length is a bit flaky. Check if this can be made a bool
-// return value that can be used to send an error back to the OTA client.
-void IDFOTABackend::set_update_md5(const char *md5) {
-  if (strlen(md5) == 32) {
-    char pair[3] = {0, 0, 0};
-    for (int i = 0; i < 16; i++) {
-      pair[0] = md5[i*2 + 0];
-      pair[1] = md5[i*2 + 1];
-      this->expected_bin_md5_[i] = (char) strtol(pair, NULL, 16);
-    } 
-  } else {
-    for (int i = 0; i < 16; i++) {
-      this->expected_bin_md5_[i] = 0;
-    }
+void IDFOTABackend::set_update_md5(const char *expected_md5) {
+  char hex2[3] = {0, 0, 0};
+  for (int i = 0; i < 16; i++) {
+    hex2[0] = expected_md5[i*2 + 0];
+    hex2[1] = expected_md5[i*2 + 1];
+    this->expected_bin_md5_[i] = (char) strtol(hex2, NULL, 16);
   }
 }
 
