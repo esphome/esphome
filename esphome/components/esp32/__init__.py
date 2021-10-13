@@ -21,7 +21,7 @@ from esphome.core import CORE, HexInt
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
-from .const import (
+from .const import (  # noqa
     KEY_BOARD,
     KEY_ESP32,
     KEY_SDKCONFIG_OPTIONS,
