@@ -78,9 +78,12 @@ uint16_t SenseAirComponent::senseair_checksum_(uint8_t *ptr, uint8_t length) {
 }
 
 void SenseAirComponent::background_calibration() {
+  // Responses are just echoes but must be read to clear the buffer
   ESP_LOGD(TAG, "SenseAir Starting background calibration");
-  this->senseair_write_command_(SENSEAIR_COMMAND_CLEAR_ACK_REGISTER, nullptr, 0);
-  this->senseair_write_command_(SENSEAIR_COMMAND_BACKGROUND_CAL, nullptr, 0);
+  uint8_t command_length = sizeof(SENSEAIR_COMMAND_CLEAR_ACK_REGISTER) / sizeof(SENSEAIR_COMMAND_CLEAR_ACK_REGISTER[0]);
+  uint8_t response[command_length];
+  this->senseair_write_command_(SENSEAIR_COMMAND_CLEAR_ACK_REGISTER, response, command_length);
+  this->senseair_write_command_(SENSEAIR_COMMAND_BACKGROUND_CAL, response, command_length);
 }
 
 void SenseAirComponent::background_calibration_result() {
@@ -98,18 +101,25 @@ void SenseAirComponent::background_calibration_result() {
     return;
   }
 
-  ESP_LOGD(TAG, "SenseAir Result=%s (%02x%02x%02x)", response[2] == 2 ? "OK" : "NOT_OK", response[2], response[3],
-           response[4]);
+  // Check if 5th bit (register CI6) is set
+  ESP_LOGD(TAG, "SenseAir Result=%s (%02x%02x%02x %02x%02x %02x%02x)", (response[4] & 0b100000) != 0 ? "OK" : "NOT_OK",
+           response[0], response[1], response[2], response[3], response[4], response[5], response[6]);
 }
 
 void SenseAirComponent::abc_enable() {
+  // Response is just an echo but must be read to clear the buffer
   ESP_LOGD(TAG, "SenseAir Enabling automatic baseline calibration");
-  this->senseair_write_command_(SENSEAIR_COMMAND_ABC_ENABLE, nullptr, 0);
+  uint8_t command_length = sizeof(SENSEAIR_COMMAND_ABC_ENABLE) / sizeof(SENSEAIR_COMMAND_ABC_ENABLE[0]);
+  uint8_t response[command_length];
+  this->senseair_write_command_(SENSEAIR_COMMAND_ABC_ENABLE, response, command_length);
 }
 
 void SenseAirComponent::abc_disable() {
+  // Response is just an echo but must be read to clear the buffer
   ESP_LOGD(TAG, "SenseAir Disabling automatic baseline calibration");
-  this->senseair_write_command_(SENSEAIR_COMMAND_ABC_DISABLE, nullptr, 0);
+  uint8_t command_length = sizeof(SENSEAIR_COMMAND_ABC_DISABLE) / sizeof(SENSEAIR_COMMAND_ABC_DISABLE[0]);
+  uint8_t response[command_length];
+  this->senseair_write_command_(SENSEAIR_COMMAND_ABC_DISABLE, response, command_length);
 }
 
 void SenseAirComponent::abc_get_period() {

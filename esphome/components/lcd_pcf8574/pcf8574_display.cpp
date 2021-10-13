@@ -1,5 +1,6 @@
 #include "pcf8574_display.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace lcd_pcf8574 {

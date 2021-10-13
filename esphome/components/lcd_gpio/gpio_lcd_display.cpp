@@ -30,8 +30,15 @@ void GPIOLCDDisplay::dump_config() {
   LOG_PIN("  RW Pin: ", this->rw_pin_);
   LOG_PIN("  Enable Pin: ", this->enable_pin_);
 
-  for (uint8_t i = 0; i < (this->is_four_bit_mode() ? 4 : 8); i++) {
-    ESP_LOGCONFIG(TAG, "  Data Pin %u" LOG_PIN_PATTERN, i, LOG_PIN_ARGS(this->data_pins_[i]));
+  LOG_PIN("  Data Pin 0: ", data_pins_[0]);
+  LOG_PIN("  Data Pin 1: ", data_pins_[1]);
+  LOG_PIN("  Data Pin 2: ", data_pins_[2]);
+  LOG_PIN("  Data Pin 3: ", data_pins_[3]);
+  if (!is_four_bit_mode()) {
+    LOG_PIN("  Data Pin 4: ", data_pins_[4]);
+    LOG_PIN("  Data Pin 5: ", data_pins_[5]);
+    LOG_PIN("  Data Pin 6: ", data_pins_[6]);
+    LOG_PIN("  Data Pin 7: ", data_pins_[7]);
   }
   LOG_UPDATE_INTERVAL(this);
 }

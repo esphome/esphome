@@ -13,25 +13,19 @@ using namespace esphome;
 
 void setup() {
   App.pre_setup("livingroom", __DATE__ ", " __TIME__, false);
-  auto *log = new logger::Logger(115200, 512, logger::UART_SELECTION_UART0);
+  auto *log = new logger::Logger(115200, 512, logger::UART_SELECTION_UART0);  // NOLINT
   log->pre_setup();
   App.register_component(log);
 
-  auto *wifi = new wifi::WiFiComponent();
+  auto *wifi = new wifi::WiFiComponent();  // NOLINT
   App.register_component(wifi);
   wifi::WiFiAP ap;
   ap.set_ssid("Test SSID");
   ap.set_password("password1");
   wifi->add_sta(ap);
 
-  auto *ota = new ota::OTAComponent();
+  auto *ota = new ota::OTAComponent();  // NOLINT
   ota->set_port(8266);
-
-  auto *gpio = new gpio::GPIOSwitch();
-  gpio->set_name("GPIO Switch");
-  gpio->set_pin(new GPIOPin(8, OUTPUT, false));
-  App.register_component(gpio);
-  App.register_switch(gpio);
 
   App.setup();
 }

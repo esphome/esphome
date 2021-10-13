@@ -2,7 +2,7 @@
 
 #include <string>
 #include <functional>
-#include "Arduino.h"
+#include <cmath>
 
 #include "esphome/core/optional.h"
 
@@ -148,8 +148,12 @@ class Component {
   const char *get_component_source() const;
 
  protected:
+  friend class Application;
+
   virtual void call_loop();
   virtual void call_setup();
+  virtual void call_dump_config();
+
   /** Set an interval function with a unique name. Empty name means no cancelling possible.
    *
    * This will call f every interval ms. Can be cancelled via CancelInterval().
@@ -258,40 +262,6 @@ class PollingComponent : public Component {
 
  protected:
   uint32_t update_interval_;
-};
-
-/// Helper class that enables naming of objects so that it doesn't have to be re-implement every time.
-class Nameable {
- public:
-  Nameable() : Nameable("") {}
-  explicit Nameable(std::string name);
-  const std::string &get_name() const;
-  void set_name(const std::string &name);
-  /// Get the sanitized name of this nameable as an ID. Caching it internally.
-  const std::string &get_object_id();
-  uint32_t get_object_id_hash();
-
-  bool is_internal() const;
-  void set_internal(bool internal);
-
-  /** Check if this object is declared to be disabled by default.
-   *
-   * That means that when the device gets added to Home Assistant (or other clients) it should
-   * not be added to the default view by default, and a user action is necessary to manually add it.
-   */
-  bool is_disabled_by_default() const;
-  void set_disabled_by_default(bool disabled_by_default);
-
- protected:
-  virtual uint32_t hash_base() = 0;
-
-  void calc_object_id_();
-
-  std::string name_;
-  std::string object_id_;
-  uint32_t object_id_hash_;
-  bool internal_{false};
-  bool disabled_by_default_{false};
 };
 
 class WarnIfComponentBlockingGuard {

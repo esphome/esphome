@@ -11,7 +11,7 @@
 #include "esphome/components/esp32_ble_server/ble_server.h"
 #endif
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <esp_gap_ble_api.h>
 #include <esp_gatts_api.h>
@@ -19,6 +19,7 @@
 namespace esphome {
 namespace esp32_ble {
 
+// NOLINTNEXTLINE(modernize-use-using)
 typedef struct {
   void *peer_device;
   bool connected;
@@ -65,6 +66,7 @@ class ESP32BLE : public Component {
   BLEAdvertising *advertising_;
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32BLE *global_ble;
 
 }  // namespace esp32_ble

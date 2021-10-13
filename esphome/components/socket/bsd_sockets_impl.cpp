@@ -1,9 +1,15 @@
 #include "socket.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 
-#include <string.h>
+#include <cstring>
+
+#ifdef USE_ESP32
+#include <esp_idf_version.h>
+#include <lwip/sockets.h>
+#endif
 
 #ifdef ARDUINO_ARCH_ESP32
 #include <esp_idf_version.h>
@@ -17,14 +23,14 @@ std::string format_sockaddr(const struct sockaddr_storage &storage) {
     const struct sockaddr_in *addr = reinterpret_cast<const struct sockaddr_in *>(&storage);
     char buf[INET_ADDRSTRLEN];
     const char *ret = inet_ntop(AF_INET, &addr->sin_addr, buf, sizeof(buf));
-    if (ret == NULL)
+    if (ret == nullptr)
       return {};
     return std::string{buf};
   } else if (storage.ss_family == AF_INET6) {
     const struct sockaddr_in6 *addr = reinterpret_cast<const struct sockaddr_in6 *>(&storage);
     char buf[INET6_ADDRSTRLEN];
     const char *ret = inet_ntop(AF_INET6, &addr->sin6_addr, buf, sizeof(buf));
-    if (ret == NULL)
+    if (ret == nullptr)
       return {};
     return std::string{buf};
   }
@@ -36,14 +42,14 @@ class BSDSocketImpl : public Socket {
   BSDSocketImpl(int fd) : Socket(), fd_(fd) {}
   ~BSDSocketImpl() override {
     if (!closed_) {
-      close();
+      close();  // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
     }
   }
   std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) override {
     int fd = ::accept(fd_, addr, addrlen);
     if (fd == -1)
       return {};
-    return std::unique_ptr<BSDSocketImpl>{new BSDSocketImpl(fd)};
+    return make_unique<BSDSocketImpl>(fd);
   }
   int bind(const struct sockaddr *addr, socklen_t addrlen) override { return ::bind(fd_, addr, addrlen); }
   int close() override {
@@ -80,7 +86,7 @@ class BSDSocketImpl : public Socket {
   int listen(int backlog) override { return ::listen(fd_, backlog); }
   ssize_t read(void *buf, size_t len) override { return ::read(fd_, buf, len); }
   ssize_t readv(const struct iovec *iov, int iovcnt) override {
-#if defined(ARDUINO_ARCH_ESP32) && ESP_IDF_VERSION_MAJOR < 4
+#if defined(USE_ESP32) && ESP_IDF_VERSION_MAJOR < 4
     // esp-idf v3 doesn't have readv, emulate it
     ssize_t ret = 0;
     for (int i = 0; i < iovcnt; i++) {
@@ -96,7 +102,7 @@ class BSDSocketImpl : public Socket {
         break;
     }
     return ret;
-#elif defined(ARDUINO_ARCH_ESP32)
+#elif defined(USE_ESP32)
     // ESP-IDF v4 only has symbol lwip_readv
     return ::lwip_readv(fd_, iov, iovcnt);
 #else
@@ -106,7 +112,7 @@ class BSDSocketImpl : public Socket {
   ssize_t write(const void *buf, size_t len) override { return ::write(fd_, buf, len); }
   ssize_t send(void *buf, size_t len, int flags) { return ::send(fd_, buf, len, flags); }
   ssize_t writev(const struct iovec *iov, int iovcnt) override {
-#if defined(ARDUINO_ARCH_ESP32) && ESP_IDF_VERSION_MAJOR < 4
+#if defined(USE_ESP32) && ESP_IDF_VERSION_MAJOR < 4
     // esp-idf v3 doesn't have writev, emulate it
     ssize_t ret = 0;
     for (int i = 0; i < iovcnt; i++) {
@@ -123,7 +129,7 @@ class BSDSocketImpl : public Socket {
         break;
     }
     return ret;
-#elif defined(ARDUINO_ARCH_ESP32)
+#elif defined(USE_ESP32)
     // ESP-IDF v4 only has symbol lwip_writev
     return ::lwip_writev(fd_, iov, iovcnt);
 #else

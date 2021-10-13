@@ -1,7 +1,7 @@
 #include "remote_receiver.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <driver/rmt.h>
 
 namespace esphome {
@@ -20,9 +20,9 @@ void RemoteReceiverComponent::setup() {
     rmt.rx_config.filter_en = false;
   } else {
     rmt.rx_config.filter_en = true;
-    rmt.rx_config.filter_ticks_thresh = this->from_microseconds(this->filter_us_);
+    rmt.rx_config.filter_ticks_thresh = this->from_microseconds_(this->filter_us_);
   }
-  rmt.rx_config.idle_threshold = this->from_microseconds(this->idle_us_);
+  rmt.rx_config.idle_threshold = this->from_microseconds_(this->idle_us_);
 
   esp_err_t error = rmt_config(&rmt);
   if (error != ESP_OK) {
@@ -90,14 +90,14 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
   ESP_LOGVV(TAG, "START:");
   for (size_t i = 0; i < len; i++) {
     if (item[i].level0) {
-      ESP_LOGVV(TAG, "%u A: ON %uus (%u ticks)", i, this->to_microseconds(item[i].duration0), item[i].duration0);
+      ESP_LOGVV(TAG, "%u A: ON %uus (%u ticks)", i, this->to_microseconds_(item[i].duration0), item[i].duration0);
     } else {
-      ESP_LOGVV(TAG, "%u A: OFF %uus (%u ticks)", i, this->to_microseconds(item[i].duration0), item[i].duration0);
+      ESP_LOGVV(TAG, "%u A: OFF %uus (%u ticks)", i, this->to_microseconds_(item[i].duration0), item[i].duration0);
     }
     if (item[i].level1) {
-      ESP_LOGVV(TAG, "%u B: ON %uus (%u ticks)", i, this->to_microseconds(item[i].duration1), item[i].duration1);
+      ESP_LOGVV(TAG, "%u B: ON %uus (%u ticks)", i, this->to_microseconds_(item[i].duration1), item[i].duration1);
     } else {
-      ESP_LOGVV(TAG, "%u B: OFF %uus (%u ticks)", i, this->to_microseconds(item[i].duration1), item[i].duration1);
+      ESP_LOGVV(TAG, "%u B: OFF %uus (%u ticks)", i, this->to_microseconds_(item[i].duration1), item[i].duration1);
     }
   }
   ESP_LOGVV(TAG, "\n");
@@ -111,16 +111,16 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
     } else {
       if (prev_length > 0) {
         if (prev_level) {
-          this->temp_.push_back(this->to_microseconds(prev_length) * multiplier);
+          this->temp_.push_back(this->to_microseconds_(prev_length) * multiplier);
         } else {
-          this->temp_.push_back(-int32_t(this->to_microseconds(prev_length)) * multiplier);
+          this->temp_.push_back(-int32_t(this->to_microseconds_(prev_length)) * multiplier);
         }
       }
       prev_level = bool(item[i].level0);
       prev_length = item[i].duration0;
     }
 
-    if (this->to_microseconds(prev_length) > this->idle_us_) {
+    if (this->to_microseconds_(prev_length) > this->idle_us_) {
       break;
     }
 
@@ -131,24 +131,24 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
     } else {
       if (prev_length > 0) {
         if (prev_level) {
-          this->temp_.push_back(this->to_microseconds(prev_length) * multiplier);
+          this->temp_.push_back(this->to_microseconds_(prev_length) * multiplier);
         } else {
-          this->temp_.push_back(-int32_t(this->to_microseconds(prev_length)) * multiplier);
+          this->temp_.push_back(-int32_t(this->to_microseconds_(prev_length)) * multiplier);
         }
       }
       prev_level = bool(item[i].level1);
       prev_length = item[i].duration1;
     }
 
-    if (this->to_microseconds(prev_length) > this->idle_us_) {
+    if (this->to_microseconds_(prev_length) > this->idle_us_) {
       break;
     }
   }
   if (prev_length > 0) {
     if (prev_level) {
-      this->temp_.push_back(this->to_microseconds(prev_length) * multiplier);
+      this->temp_.push_back(this->to_microseconds_(prev_length) * multiplier);
     } else {
-      this->temp_.push_back(-int32_t(this->to_microseconds(prev_length)) * multiplier);
+      this->temp_.push_back(-int32_t(this->to_microseconds_(prev_length)) * multiplier);
     }
   }
 }

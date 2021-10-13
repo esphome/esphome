@@ -1,7 +1,9 @@
 #include "api_connection.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/log.h"
-#include "esphome/core/util.h"
+#include "esphome/components/network/util.h"
 #include "esphome/core/version.h"
+#include "esphome/core/hal.h"
 #include <cerrno>
 
 #ifdef USE_DEEP_SLEEP
@@ -48,7 +50,7 @@ void APIConnection::loop() {
   if (this->remove_)
     return;
 
-  if (!network_is_connected()) {
+  if (!network::is_connected()) {
     // when network is disconnected force disconnect immediately
     // don't wait for timeout
     this->on_fatal_error();
@@ -142,8 +144,21 @@ void APIConnection::loop() {
   }
 }
 
-std::string get_default_unique_id(const std::string &component_type, Nameable *nameable) {
-  return App.get_name() + component_type + nameable->get_object_id();
+std::string get_default_unique_id(const std::string &component_type, EntityBase *entity) {
+  return App.get_name() + component_type + entity->get_object_id();
+}
+
+DisconnectResponse APIConnection::disconnect(const DisconnectRequest &msg) {
+  // remote initiated disconnect_client
+  // don't close yet, we still need to send the disconnect response
+  // close will happen on next loop
+  ESP_LOGD(TAG, "%s requested disconnected", client_info_.c_str());
+  this->next_close_ = true;
+  DisconnectResponse resp;
+  return resp;
+}
+void APIConnection::on_disconnect_response(const DisconnectResponse &value) {
+  // pass
 }
 
 DisconnectResponse APIConnection::disconnect(const DisconnectRequest &msg) {
@@ -179,6 +194,7 @@ bool APIConnection::send_binary_sensor_info(binary_sensor::BinarySensor *binary_
   msg.device_class = binary_sensor->get_device_class();
   msg.is_status_binary_sensor = binary_sensor->is_status_binary_sensor();
   msg.disabled_by_default = binary_sensor->is_disabled_by_default();
+  msg.icon = binary_sensor->get_icon();
   return this->send_list_entities_binary_sensor_response(msg);
 }
 #endif
@@ -211,6 +227,7 @@ bool APIConnection::send_cover_info(cover::Cover *cover) {
   msg.supports_tilt = traits.get_supports_tilt();
   msg.device_class = cover->get_device_class();
   msg.disabled_by_default = cover->is_disabled_by_default();
+  msg.icon = cover->get_icon();
   return this->send_list_entities_cover_response(msg);
 }
 void APIConnection::cover_command(const CoverCommandRequest &msg) {
@@ -276,6 +293,7 @@ bool APIConnection::send_fan_info(fan::FanState *fan) {
   msg.supports_direction = traits.supports_direction();
   msg.supported_speed_count = traits.supported_speed_count();
   msg.disabled_by_default = fan->is_disabled_by_default();
+  msg.icon = fan->get_icon();
   return this->send_list_entities_fan_response(msg);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
@@ -338,6 +356,7 @@ bool APIConnection::send_light_info(light::LightState *light) {
   msg.unique_id = get_default_unique_id("light", light);
 
   msg.disabled_by_default = light->is_disabled_by_default();
+  msg.icon = light->get_icon();
 
   for (auto mode : traits.get_supported_color_modes())
     msg.supported_color_modes.push_back(static_cast<enums::ColorMode>(mode));
@@ -528,6 +547,7 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   msg.unique_id = get_default_unique_id("climate", climate);
 
   msg.disabled_by_default = climate->is_disabled_by_default();
+  msg.icon = climate->get_icon();
 
   msg.supports_current_temperature = traits.get_supports_current_temperature();
   msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
@@ -600,7 +620,7 @@ bool APIConnection::send_number_info(number::Number *number) {
   msg.object_id = number->get_object_id();
   msg.name = number->get_name();
   msg.unique_id = get_default_unique_id("number", number);
-  msg.icon = number->traits.get_icon();
+  msg.icon = number->get_icon();
   msg.disabled_by_default = number->is_disabled_by_default();
 
   msg.min_value = number->traits.get_min_value();
@@ -637,7 +657,7 @@ bool APIConnection::send_select_info(select::Select *select) {
   msg.object_id = select->get_object_id();
   msg.name = select->get_name();
   msg.unique_id = get_default_unique_id("select", select);
-  msg.icon = select->traits.get_icon();
+  msg.icon = select->get_icon();
   msg.disabled_by_default = select->is_disabled_by_default();
 
   for (const auto &option : select->traits.get_options())
@@ -662,7 +682,7 @@ void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage>
     return;
   if (this->image_reader_.available())
     return;
-  this->image_reader_.set_image(image);
+  this->image_reader_.set_image(std::move(image));
 }
 bool APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
   ListEntitiesCameraResponse msg;

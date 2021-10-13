@@ -11,13 +11,17 @@ dallas_ns = cg.esphome_ns.namespace("dallas")
 DallasComponent = dallas_ns.class_("DallasComponent", cg.PollingComponent)
 ESPOneWire = dallas_ns.class_("ESPOneWire")
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(DallasComponent),
-        cv.GenerateID(CONF_ONE_WIRE_ID): cv.declare_id(ESPOneWire),
-        cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
-    }
-).extend(cv.polling_component_schema("60s"))
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(DallasComponent),
+            cv.GenerateID(CONF_ONE_WIRE_ID): cv.declare_id(ESPOneWire),
+            cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
+        }
+    ).extend(cv.polling_component_schema("60s")),
+    # pin_mode call logs in esp-idf, but InterruptLock is active -> crash
+    cv.only_with_arduino,
+)
 
 
 async def to_code(config):

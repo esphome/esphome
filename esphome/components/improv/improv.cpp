@@ -65,6 +65,7 @@ std::vector<uint8_t> build_rpc_response(Command command, const std::vector<std::
   return out;
 }
 
+#ifdef USE_ARDUINO
 std::vector<uint8_t> build_rpc_response(Command command, const std::vector<String> &datum) {
   std::vector<uint8_t> out;
   uint32_t length = 0;
@@ -85,5 +86,6 @@ std::vector<uint8_t> build_rpc_response(Command command, const std::vector<Strin
   out.push_back(calculated_checksum);
   return out;
 }
+#endif  // USE_ARDUINO
 
 }  // namespace improv

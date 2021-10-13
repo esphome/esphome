@@ -1,12 +1,14 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_MODEL, ESP_PLATFORM_ESP32
+from esphome.const import CONF_ID, CONF_MODEL
 from esphome.components import esp32_ble
+from esphome.core import CORE
+from esphome.components.esp32 import add_idf_sdkconfig_option
 
 AUTO_LOAD = ["esp32_ble"]
 CODEOWNERS = ["@jesserockz"]
 CONFLICTS_WITH = ["esp32_ble_tracker", "esp32_ble_beacon"]
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+DEPENDENCIES = ["esp32"]
 
 CONF_MANUFACTURER = "manufacturer"
 CONF_BLE_ID = "ble_id"
@@ -37,3 +39,6 @@ async def to_code(config):
     cg.add_define("USE_ESP32_BLE_SERVER")
 
     cg.add(parent.set_server(var))
+
+    if CORE.using_esp_idf:
+        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)

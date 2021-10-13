@@ -74,7 +74,7 @@ class Sim800LReceivedMessageTrigger : public Trigger<std::string, std::string> {
  public:
   explicit Sim800LReceivedMessageTrigger(Sim800LComponent *parent) {
     parent->add_on_sms_received_callback(
-        [this](std::string message, std::string sender) { this->trigger(std::move(message), std::move(sender)); });
+        [this](const std::string &message, const std::string &sender) { this->trigger(message, sender); });
   }
 };
 

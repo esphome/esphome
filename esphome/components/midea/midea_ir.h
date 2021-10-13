@@ -1,4 +1,6 @@
 #pragma once
+
+#ifdef USE_ARDUINO
 #ifdef USE_REMOTE_TRANSMITTER
 #include "esphome/components/remote_base/midea_protocol.h"
 
@@ -40,3 +42,4 @@ class IrSpecialData : public IrData {
 }  // namespace esphome
 
 #endif
+#endif  // USE_ARDUINO
