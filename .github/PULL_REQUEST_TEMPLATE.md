@@ -15,7 +15,8 @@ Quick description and explanation of changes
 
 ## Test Environment
 
-- [ ] ESP32
+- [ ] ESP32 Arduino
+- [ ] ESP32 ESP-IDF
 - [ ] ESP8266
 
 ## Example entry for `config.yaml`:
