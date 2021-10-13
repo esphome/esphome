@@ -4,6 +4,9 @@
 #include "ota_backend_esp_idf.h"
 #include "ota_component.h"
 #include <esp_ota_ops.h>
+#include "esp32/rom/md5_hash.h"
+#include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace ota {
@@ -24,15 +27,28 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
     }
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
+  MD5Init(&this->md5_);
   return OTA_RESPONSE_OK;
 }
 
 void IDFOTABackend::set_update_md5(const char *md5) {
-  // pass
+  if (strlen(md5) == 32) {
+    char pair[3] = {0, 0, 0};
+    for (int i = 0; i < 16; i++) {
+      pair[0] = md5[i*2 + 0];
+      pair[1] = md5[i*2 + 1];
+      this->expected_bin_md5_[i] = (char) strtol(pair, NULL, 16);
+    } 
+  } else {
+    for (int i = 0; i < 16; i++) {
+      this->expected_bin_md5_[i] = 0;
+    }
+  }
 }
 
 OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
   esp_err_t err = esp_ota_write(this->update_handle_, data, len);
+  MD5Update(&this->md5_, data, len);
   if (err != ESP_OK) {
     if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
       return OTA_RESPONSE_ERROR_MAGIC;
@@ -45,6 +61,10 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
 }
 
 OTAResponseTypes IDFOTABackend::end() {
+  if (!this->verify_bin_md5_()) {
+    this->abort();
+    return OTA_RESPONSE_ERROR_UPDATE_END;
+  }
   esp_err_t err = esp_ota_end(this->update_handle_);
   this->update_handle_ = 0;
   if (err == ESP_OK) {
@@ -60,6 +80,17 @@ OTAResponseTypes IDFOTABackend::end() {
     return OTA_RESPONSE_ERROR_WRITING_FLASH;
   }
   return OTA_RESPONSE_ERROR_UNKNOWN;
+}
+
+bool IDFOTABackend::verify_bin_md5_() {
+  unsigned char digest[16];
+  MD5Final(digest, &this->md5_);
+  for (int i = 0; i < 16; i++) {
+    if (digest[i] != this->expected_bin_md5_[i]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 void IDFOTABackend::abort() {

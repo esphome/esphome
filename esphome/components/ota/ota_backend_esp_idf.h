@@ -5,6 +5,7 @@
 #include "ota_component.h"
 #include "ota_backend.h"
 #include <esp_ota_ops.h>
+#include "esp32/rom/md5_hash.h"
 
 namespace esphome {
 namespace ota {
@@ -20,6 +21,9 @@ class IDFOTABackend : public OTABackend {
  private:
   esp_ota_handle_t update_handle_{0};
   const esp_partition_t *partition_;
+  MD5Context md5_;
+  char expected_bin_md5_[16];
+  bool verify_bin_md5_();
 };
 
 }  // namespace ota
