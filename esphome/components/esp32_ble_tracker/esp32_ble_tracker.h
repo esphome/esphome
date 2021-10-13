@@ -169,6 +169,7 @@ class ESP32BLETracker : public Component {
   /// Setup the FreeRTOS task and the Bluetooth stack.
   void setup() override;
   void dump_config() override;
+  float get_setup_priority() const override;
 
   void loop() override;
 

@@ -40,6 +40,8 @@ uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
   return u;
 }
 
+float ESP32BLETracker::get_setup_priority() const { return setup_priority::BLUETOOTH; }
+
 void ESP32BLETracker::setup() {
   global_esp32_ble_tracker = this;
   this->scan_result_lock_ = xSemaphoreCreateMutex();

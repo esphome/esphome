@@ -53,7 +53,7 @@ void ESP32BLEBeacon::setup() {
   );
 }
 
-float ESP32BLEBeacon::get_setup_priority() const { return setup_priority::DATA; }
+float ESP32BLEBeacon::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 void ESP32BLEBeacon::ble_core_task(void *params) {
   ble_setup();
 

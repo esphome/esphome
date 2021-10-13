@@ -16,7 +16,6 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
-from esphome.coroutine import coroutine_with_priority
 
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["xiaomi_ble", "ruuvi_ble"]
@@ -180,7 +179,6 @@ ESP_BLE_DEVICE_SCHEMA = cv.Schema(
 )
 
 
-@coroutine_with_priority(20.0)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
