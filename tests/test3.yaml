@@ -5,10 +5,13 @@ esphome:
   board: d1_mini
   build_path: build/test3
   on_boot:
-    - wait_until:
-        - api.connected
-        - wifi.connected
-        - time.has_time
+    - if:
+        condition:
+          - api.connected
+          - wifi.connected
+          - time.has_time
+        then:
+          - logger.log: "Have time"
   includes:
     - custom.h
 
@@ -260,8 +263,6 @@ logger:
   hardware_uart: UART1
   level: DEBUG
   esp8266_store_log_strings_in_flash: true
-
-web_server:
 
 deep_sleep:
   run_duration: 20s
@@ -1092,10 +1093,6 @@ output:
       return {s};
     outputs:
       - id: custom_float
-  - platform: ac_dimmer
-    id: dimmer1
-    gate_pin: GPIO5
-    zero_cross_pin: GPIO12
   - platform: slow_pwm
     pin: GPIO5
     id: my_slow_pwm
@@ -1297,4 +1294,3 @@ dsmr:
 daly_bms:
   update_interval: 20s
   uart_id: uart1
-

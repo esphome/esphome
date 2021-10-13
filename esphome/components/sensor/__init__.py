@@ -160,6 +160,7 @@ SlidingWindowMovingAverageFilter = sensor_ns.class_(
 ExponentialMovingAverageFilter = sensor_ns.class_(
     "ExponentialMovingAverageFilter", Filter
 )
+ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter, cg.Component)
 LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
 OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
 MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
@@ -379,6 +380,15 @@ async def sliding_window_moving_average_filter_to_code(config, filter_id):
 )
 async def exponential_moving_average_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config[CONF_ALPHA], config[CONF_SEND_EVERY])
+
+
+@FILTER_REGISTRY.register(
+    "throttle_average", ThrottleAverageFilter, cv.positive_time_period_milliseconds
+)
+async def throttle_average_filter_to_code(config, filter_id):
+    var = cg.new_Pvariable(filter_id, config)
+    await cg.register_component(var, {})
+    return var
 
 
 @FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)

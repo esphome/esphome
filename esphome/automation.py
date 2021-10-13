@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_ELSE,
     CONF_ID,
     CONF_THEN,
+    CONF_TIMEOUT,
     CONF_TRIGGER_ID,
     CONF_TYPE_ID,
     CONF_TIME,
@@ -244,6 +245,9 @@ def validate_wait_until(value):
     schema = cv.Schema(
         {
             cv.Required(CONF_CONDITION): validate_potentially_and_condition,
+            cv.Optional(CONF_TIMEOUT): cv.templatable(
+                cv.positive_time_period_milliseconds
+            ),
         }
     )
     if isinstance(value, dict) and CONF_CONDITION in value:
@@ -255,6 +259,9 @@ def validate_wait_until(value):
 async def wait_until_action_to_code(config, action_id, template_arg, args):
     conditions = await build_condition(config[CONF_CONDITION], template_arg, args)
     var = cg.new_Pvariable(action_id, template_arg, conditions)
+    if CONF_TIMEOUT in config:
+        template_ = await cg.templatable(config[CONF_TIMEOUT], args, cg.uint32)
+        cg.add(var.set_timeout_value(template_))
     await cg.register_component(var, {})
     return var
 
