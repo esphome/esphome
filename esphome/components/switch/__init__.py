@@ -4,23 +4,21 @@ from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import (
-    CONF_ICON,
     CONF_ID,
-    CONF_INTERNAL,
     CONF_INVERTED,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
-    CONF_NAME,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
 switch_ns = cg.esphome_ns.namespace("switch_")
-Switch = switch_ns.class_("Switch", cg.Nameable)
+Switch = switch_ns.class_("Switch", cg.EntityBase)
 SwitchPtr = Switch.operator("ptr")
 
 ToggleAction = switch_ns.class_("ToggleAction", automation.Action)
@@ -38,10 +36,9 @@ SwitchTurnOffTrigger = switch_ns.class_(
 
 icon = cv.icon
 
-SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
+SWITCH_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),
-        cv.Optional(CONF_ICON): icon,
         cv.Optional(CONF_INVERTED): cv.boolean,
         cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
             {
@@ -58,11 +55,8 @@ SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend(
 
 
 async def setup_switch_core_(var, config):
-    cg.add(var.set_name(config[CONF_NAME]))
-    if CONF_INTERNAL in config:
-        cg.add(var.set_internal(config[CONF_INTERNAL]))
-    if CONF_ICON in config:
-        cg.add(var.set_icon(config[CONF_ICON]))
+    await setup_entity(var, config)
+
     if CONF_INVERTED in config:
         cg.add(var.set_inverted(config[CONF_INVERTED]))
     for conf in config.get(CONF_ON_TURN_ON, []):

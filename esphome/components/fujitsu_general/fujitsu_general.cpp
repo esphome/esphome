@@ -110,7 +110,7 @@ void FujitsuGeneralClimate::transmit_state() {
 
   // Set temperature
   uint8_t temperature_clamped =
-      (uint8_t) roundf(clamp(this->target_temperature, FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX));
+      (uint8_t) roundf(clamp<float>(this->target_temperature, FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX));
   uint8_t temperature_offset = temperature_clamped - FUJITSU_GENERAL_TEMP_MIN;
   SET_NIBBLE(remote_state, FUJITSU_GENERAL_TEMPERATURE_NIBBLE, temperature_offset);
 
@@ -295,12 +295,6 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
         return false;
       }
     }
-  }
-
-  // Validate footer
-  if (!data.expect_mark(FUJITSU_GENERAL_BIT_MARK)) {
-    ESP_LOGV(TAG, "Footer fail");
-    return false;
   }
 
   for (uint8_t byte = 0; byte < recv_message_length; ++byte) {

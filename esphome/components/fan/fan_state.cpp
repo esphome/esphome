@@ -12,7 +12,7 @@ void FanState::set_traits(const FanTraits &traits) { this->traits_ = traits; }
 void FanState::add_on_state_callback(std::function<void()> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
-FanState::FanState(const std::string &name) : Nameable(name) {}
+FanState::FanState(const std::string &name) : EntityBase(name) {}
 
 FanStateCall FanState::turn_on() { return this->make_call().set_state(true); }
 FanStateCall FanState::turn_off() { return this->make_call().set_state(false); }
@@ -27,7 +27,7 @@ struct FanStateRTCState {
 };
 
 void FanState::setup() {
-  this->rtc_ = global_preferences.make_preference<FanStateRTCState>(this->get_object_id_hash());
+  this->rtc_ = global_preferences->make_preference<FanStateRTCState>(this->get_object_id_hash());
   FanStateRTCState recovered{};
   if (!this->rtc_.load(&recovered))
     return;
@@ -39,7 +39,7 @@ void FanState::setup() {
   call.set_direction(recovered.direction);
   call.perform();
 }
-float FanState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
+float FanState::get_setup_priority() const { return setup_priority::DATA - 1.0f; }
 uint32_t FanState::hash_base() { return 418001110UL; }
 
 void FanStateCall::perform() const {
@@ -54,7 +54,7 @@ void FanStateCall::perform() const {
   }
   if (this->speed_.has_value()) {
     const int speed_count = this->state_->get_traits().supported_speed_count();
-    this->state_->speed = static_cast<int>(clamp(*this->speed_, 1, speed_count));
+    this->state_->speed = clamp(*this->speed_, 1, speed_count);
   }
 
   FanStateRTCState saved{};
@@ -67,6 +67,8 @@ void FanStateCall::perform() const {
   this->state_->state_callback_.call();
 }
 
+// This whole method is deprecated, don't warn about usage of deprecated methods inside of it.
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 FanStateCall &FanStateCall::set_speed(const char *legacy_speed) {
   const auto supported_speed_count = this->state_->get_traits().supported_speed_count();
   if (strcasecmp(legacy_speed, "low") == 0) {

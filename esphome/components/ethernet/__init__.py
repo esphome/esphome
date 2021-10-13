@@ -1,7 +1,6 @@
 from esphome import pins
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.components.network import add_mdns_library
 from esphome.const import (
     CONF_DOMAIN,
     CONF_ID,
@@ -9,17 +8,16 @@ from esphome.const import (
     CONF_STATIC_IP,
     CONF_TYPE,
     CONF_USE_ADDRESS,
-    ESP_PLATFORM_ESP32,
-    CONF_ENABLE_MDNS,
     CONF_GATEWAY,
     CONF_SUBNET,
     CONF_DNS1,
     CONF_DNS2,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.components.network import IPAddress
 
 CONFLICTS_WITH = ["wifi"]
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["network"]
 
 ethernet_ns = cg.esphome_ns.namespace("ethernet")
@@ -55,7 +53,6 @@ MANUAL_IP_SCHEMA = cv.Schema(
 )
 
 EthernetComponent = ethernet_ns.class_("EthernetComponent", cg.Component)
-IPAddress = cg.global_ns.class_("IPAddress")
 ManualIP = ethernet_ns.struct("ManualIP")
 
 
@@ -74,23 +71,24 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(EthernetComponent),
             cv.Required(CONF_TYPE): cv.enum(ETHERNET_TYPES, upper=True),
-            cv.Required(CONF_MDC_PIN): pins.output_pin,
-            cv.Required(CONF_MDIO_PIN): pins.input_output_pin,
+            cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
+            cv.Required(CONF_MDIO_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_CLK_MODE, default="GPIO0_IN"): cv.enum(
                 CLK_MODES, upper=True, space="_"
             ),
             cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
             cv.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
-            cv.Optional(CONF_ENABLE_MDNS, default=True): cv.boolean,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-            cv.Optional("hostname"): cv.invalid(
-                "The hostname option has been removed in 1.11.0"
+            cv.Optional("enable_mdns"): cv.invalid(
+                "This option has been removed. Please use the [disabled] option under the "
+                "new mdns component instead."
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate,
+    cv.only_with_arduino,
 )
 
 
@@ -126,5 +124,5 @@ async def to_code(config):
 
     cg.add_define("USE_ETHERNET")
 
-    if config[CONF_ENABLE_MDNS]:
-        add_mdns_library()
+    if CORE.is_esp32:
+        cg.add_library("WiFi", None)

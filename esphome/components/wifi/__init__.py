@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 import esphome.final_validate as fv
 from esphome import automation
 from esphome.automation import Condition
-from esphome.components.network import add_mdns_library
 from esphome.const import (
     CONF_AP,
     CONF_BSSID,
@@ -24,7 +23,6 @@ from esphome.const import (
     CONF_STATIC_IP,
     CONF_SUBNET,
     CONF_USE_ADDRESS,
-    CONF_ENABLE_MDNS,
     CONF_PRIORITY,
     CONF_IDENTITY,
     CONF_CERTIFICATE_AUTHORITY,
@@ -34,6 +32,7 @@ from esphome.const import (
     CONF_EAP,
 )
 from esphome.core import CORE, HexInt, coroutine_with_priority
+from esphome.components.network import IPAddress
 from . import wpa2_eap
 
 
@@ -41,7 +40,6 @@ AUTO_LOAD = ["network"]
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
-IPAddress = cg.global_ns.class_("IPAddress")
 ManualIP = wifi_ns.struct("ManualIP")
 WiFiComponent = wifi_ns.class_("WiFiComponent", cg.Component)
 WiFiAP = wifi_ns.struct("WiFiAP")
@@ -155,18 +153,17 @@ def final_validate_power_esp32_ble(value):
         # WiFi should be in modem sleep (!=NONE) with BLE coexistence
         # https://docs.espressif.com/projects/esp-idf/en/v3.3.5/api-guides/wifi.html#station-sleep
         return
-    framework_version = fv.get_arduino_framework_version()
-    if framework_version not in (None, "dev") and framework_version < "1.0.5":
-        # Only frameworks 1.0.5+ impacted
-        return
-    full = fv.full_config.get()
     for conflicting in [
         "esp32_ble",
         "esp32_ble_beacon",
         "esp32_ble_server",
         "esp32_ble_tracker",
     ]:
-        if conflicting in full:
+        try:
+            cv.require_framework_version(esp32_arduino=cv.Version(1, 0, 5))(None)
+        except cv.Invalid:
+            pass
+        else:
             raise cv.Invalid(
                 f"power_save_mode NONE is incompatible with {conflicting}. "
                 f"Please remove the power save mode. See also "
@@ -236,7 +233,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
             cv.Optional(CONF_AP): WIFI_NETWORK_AP,
-            cv.Optional(CONF_ENABLE_MDNS, default=True): cv.boolean,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
@@ -249,8 +245,9 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=10.0, max=20.5)
             ),
-            cv.Optional("hostname"): cv.invalid(
-                "The hostname option has been removed in 1.11.0"
+            cv.Optional("enable_mdns"): cv.invalid(
+                "This option has been removed. Please use the [disabled] option under the "
+                "new mdns component instead."
             ),
         }
     ),
@@ -308,7 +305,7 @@ def wifi_network(config, static_ip):
         cg.add(ap.set_password(config[CONF_PASSWORD]))
     if CONF_EAP in config:
         cg.add(ap.set_eap(eap_auth(config[CONF_EAP])))
-        cg.add_define("ESPHOME_WIFI_WPA2_EAP")
+        cg.add_define("USE_WIFI_WPA2_EAP")
     if CONF_BSSID in config:
         cg.add(ap.set_bssid([HexInt(i) for i in config[CONF_BSSID].parts]))
     if CONF_HIDDEN in config:
@@ -345,11 +342,10 @@ async def to_code(config):
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
+    elif CORE.is_esp32 and CORE.using_arduino:
+        cg.add_library("WiFi", None)
 
     cg.add_define("USE_WIFI")
-
-    if config[CONF_ENABLE_MDNS]:
-        add_mdns_library()
 
     # Register at end for OTA safe mode
     await cg.register_component(var, config)

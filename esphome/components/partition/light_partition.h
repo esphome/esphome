@@ -50,13 +50,11 @@ class PartitionLightOutput : public light::AddressableLight {
     }
   }
   light::LightTraits get_traits() override { return this->segments_[0].get_src()->get_traits(); }
-  void loop() override {
-    if (this->should_show_()) {
-      for (auto seg : this->segments_) {
-        seg.get_src()->schedule_show();
-      }
-      this->mark_shown_();
+  void write_state(light::LightState *state) override {
+    for (auto seg : this->segments_) {
+      seg.get_src()->schedule_show();
     }
+    this->mark_shown_();
   }
 
  protected:

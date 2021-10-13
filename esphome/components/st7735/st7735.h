@@ -37,7 +37,8 @@ class ST7735 : public PollingComponent,
                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                      spi::DATA_RATE_8MHZ> {
  public:
-  ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, boolean eightbitcolor, boolean usebgr);
+  ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, bool eightbitcolor, bool usebgr,
+         bool invert_colors);
   void dump_config() override;
   void setup() override;
 
@@ -75,8 +76,9 @@ class ST7735 : public PollingComponent,
 
   ST7735Model model_{ST7735_INITR_18BLACKTAB};
   uint8_t colstart_ = 0, rowstart_ = 0;
-  boolean eightbitcolor_ = false;
-  boolean usebgr_ = false;
+  bool eightbitcolor_ = false;
+  bool usebgr_ = false;
+  bool invert_colors_ = false;
   int16_t width_ = 80, height_ = 80;  // Watch heap size
 
   GPIOPin *reset_pin_{nullptr};

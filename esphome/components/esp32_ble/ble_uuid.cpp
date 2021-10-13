@@ -1,9 +1,15 @@
 #include "ble_uuid.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
+
+#include <cstring>
+#include <cstdio>
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace esp32_ble {
+
+static const char *const TAG = "esp32_ble";
 
 ESPBTUUID::ESPBTUUID() : uuid_() {}
 ESPBTUUID ESPBTUUID::from_uint16(uint16_t uuid) {
@@ -31,28 +37,28 @@ ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
     ret.uuid_.len = ESP_UUID_LEN_16;
     ret.uuid_.uuid.uuid16 = 0;
     for (int i = 0; i < data.length();) {
-      uint8_t MSB = data.c_str()[i];
-      uint8_t LSB = data.c_str()[i + 1];
+      uint8_t msb = data.c_str()[i];
+      uint8_t lsb = data.c_str()[i + 1];
 
-      if (MSB > '9')
-        MSB -= 7;
-      if (LSB > '9')
-        LSB -= 7;
-      ret.uuid_.uuid.uuid16 += (((MSB & 0x0F) << 4) | (LSB & 0x0F)) << (2 - i) * 4;
+      if (msb > '9')
+        msb -= 7;
+      if (lsb > '9')
+        lsb -= 7;
+      ret.uuid_.uuid.uuid16 += (((msb & 0x0F) << 4) | (lsb & 0x0F)) << (2 - i) * 4;
       i += 2;
     }
   } else if (data.length() == 8) {
     ret.uuid_.len = ESP_UUID_LEN_32;
     ret.uuid_.uuid.uuid32 = 0;
     for (int i = 0; i < data.length();) {
-      uint8_t MSB = data.c_str()[i];
-      uint8_t LSB = data.c_str()[i + 1];
+      uint8_t msb = data.c_str()[i];
+      uint8_t lsb = data.c_str()[i + 1];
 
-      if (MSB > '9')
-        MSB -= 7;
-      if (LSB > '9')
-        LSB -= 7;
-      ret.uuid_.uuid.uuid32 += (((MSB & 0x0F) << 4) | (LSB & 0x0F)) << (6 - i) * 4;
+      if (msb > '9')
+        msb -= 7;
+      if (lsb > '9')
+        lsb -= 7;
+      ret.uuid_.uuid.uuid32 += (((msb & 0x0F) << 4) | (lsb & 0x0F)) << (6 - i) * 4;
       i += 2;
     }
   } else if (data.length() == 16) {  // how we can have 16 byte length string reprezenting 128 bit uuid??? needs to be
@@ -67,14 +73,14 @@ ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
     for (int i = 0; i < data.length();) {
       if (data.c_str()[i] == '-')
         i++;
-      uint8_t MSB = data.c_str()[i];
-      uint8_t LSB = data.c_str()[i + 1];
+      uint8_t msb = data.c_str()[i];
+      uint8_t lsb = data.c_str()[i + 1];
 
-      if (MSB > '9')
-        MSB -= 7;
-      if (LSB > '9')
-        LSB -= 7;
-      ret.uuid_.uuid.uuid128[15 - n++] = ((MSB & 0x0F) << 4) | (LSB & 0x0F);
+      if (msb > '9')
+        msb -= 7;
+      if (lsb > '9')
+        lsb -= 7;
+      ret.uuid_.uuid.uuid128[15 - n++] = ((msb & 0x0F) << 4) | (lsb & 0x0F);
       i += 2;
     }
   } else {

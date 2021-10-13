@@ -1,25 +1,29 @@
 #pragma once
 
 #include <cstdint>
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace climate {
 
 /// Enum for all modes a climate device can be in.
 enum ClimateMode : uint8_t {
-  /// The climate device is off (not in auto, heat or cool mode)
+  /// The climate device is off
   CLIMATE_MODE_OFF = 0,
-  /// The climate device is set to automatically change the heating/cooling cycle
+  /// The climate device is set to heat/cool to reach the target temperature.
   CLIMATE_MODE_HEAT_COOL = 1,
-  /// The climate device is manually set to cool mode (not in auto mode!)
+  /// The climate device is set to cool to reach the target temperature
   CLIMATE_MODE_COOL = 2,
-  /// The climate device is manually set to heat mode (not in auto mode!)
+  /// The climate device is set to heat to reach the target temperature
   CLIMATE_MODE_HEAT = 3,
-  /// The climate device is manually set to fan only mode
+  /// The climate device only has the fan enabled, no heating or cooling is taking place
   CLIMATE_MODE_FAN_ONLY = 4,
-  /// The climate device is manually set to dry mode
+  /// The climate device is set to dry/humidity mode
   CLIMATE_MODE_DRY = 5,
-  /// The climate device is manually set to heat-cool mode
+  /** The climate device is adjusting the temperatre dynamically.
+   * For example, the target temperature can be adjusted based on a schedule, or learned behavior.
+   * The target temperature can't be adjusted when in this mode.
+   */
   CLIMATE_MODE_AUTO = 6
 };
 
@@ -27,15 +31,15 @@ enum ClimateMode : uint8_t {
 enum ClimateAction : uint8_t {
   /// The climate device is off (inactive or no power)
   CLIMATE_ACTION_OFF = 0,
-  /// The climate device is actively cooling (usually in cool or auto mode)
+  /// The climate device is actively cooling
   CLIMATE_ACTION_COOLING = 2,
-  /// The climate device is actively heating (usually in heat or auto mode)
+  /// The climate device is actively heating
   CLIMATE_ACTION_HEATING = 3,
   /// The climate device is idle (monitoring climate but no action needed)
   CLIMATE_ACTION_IDLE = 4,
-  /// The climate device is drying (either mode DRY or AUTO)
+  /// The climate device is drying
   CLIMATE_ACTION_DRYING = 5,
-  /// The climate device is in fan only mode (either mode FAN_ONLY or AUTO)
+  /// The climate device is in fan only mode
   CLIMATE_ACTION_FAN = 6,
 };
 
@@ -93,19 +97,19 @@ enum ClimatePreset : uint8_t {
 };
 
 /// Convert the given ClimateMode to a human-readable string.
-const char *climate_mode_to_string(ClimateMode mode);
+const LogString *climate_mode_to_string(ClimateMode mode);
 
 /// Convert the given ClimateAction to a human-readable string.
-const char *climate_action_to_string(ClimateAction action);
+const LogString *climate_action_to_string(ClimateAction action);
 
 /// Convert the given ClimateFanMode to a human-readable string.
-const char *climate_fan_mode_to_string(ClimateFanMode mode);
+const LogString *climate_fan_mode_to_string(ClimateFanMode mode);
 
 /// Convert the given ClimateSwingMode to a human-readable string.
-const char *climate_swing_mode_to_string(ClimateSwingMode mode);
+const LogString *climate_swing_mode_to_string(ClimateSwingMode mode);
 
 /// Convert the given ClimateSwingMode to a human-readable string.
-const char *climate_preset_to_string(ClimatePreset preset);
+const LogString *climate_preset_to_string(ClimatePreset preset);
 
 }  // namespace climate
 }  // namespace esphome

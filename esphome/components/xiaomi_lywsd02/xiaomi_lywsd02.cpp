@@ -1,7 +1,7 @@
 #include "xiaomi_lywsd02.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace xiaomi_lywsd02 {
@@ -50,11 +50,7 @@ bool XiaomiLYWSD02::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 }  // namespace xiaomi_lywsd02

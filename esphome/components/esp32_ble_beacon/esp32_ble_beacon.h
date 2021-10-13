@@ -2,13 +2,14 @@
 
 #include "esphome/core/component.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <esp_gap_ble_api.h>
 
 namespace esphome {
 namespace esp32_ble_beacon {
 
+// NOLINTNEXTLINE(modernize-use-using)
 typedef struct {
   uint8_t flags[3];
   uint8_t length;
@@ -17,6 +18,7 @@ typedef struct {
   uint16_t beacon_type;
 } __attribute__((packed)) esp_ble_ibeacon_head_t;
 
+// NOLINTNEXTLINE(modernize-use-using)
 typedef struct {
   uint8_t proximity_uuid[16];
   uint16_t major;
@@ -24,6 +26,7 @@ typedef struct {
   uint8_t measured_power;
 } __attribute__((packed)) esp_ble_ibeacon_vendor_t;
 
+// NOLINTNEXTLINE(modernize-use-using)
 typedef struct {
   esp_ble_ibeacon_head_t ibeacon_head;
   esp_ble_ibeacon_vendor_t ibeacon_vendor;
@@ -50,6 +53,7 @@ class ESP32BLEBeacon : public Component {
   uint16_t minor_{};
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32BLEBeacon *global_esp32_ble_beacon;
 
 }  // namespace esp32_ble_beacon

@@ -1,5 +1,6 @@
 #include "apds9960.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace apds9960 {

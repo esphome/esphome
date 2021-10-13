@@ -1,6 +1,7 @@
 #include "mqtt_text_sensor.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_TEXT_SENSOR
 
 namespace esphome {
@@ -12,9 +13,6 @@ using namespace esphome::text_sensor;
 
 MQTTTextSensor::MQTTTextSensor(TextSensor *sensor) : MQTTComponent(), sensor_(sensor) {}
 void MQTTTextSensor::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
-  if (!this->sensor_->get_icon().empty())
-    root["icon"] = this->sensor_->get_icon();
-
   config.command_topic = false;
 }
 void MQTTTextSensor::setup() {
@@ -34,12 +32,12 @@ bool MQTTTextSensor::send_initial_state() {
     return true;
   }
 }
-bool MQTTTextSensor::is_internal() { return this->sensor_->is_internal(); }
 std::string MQTTTextSensor::component_type() const { return "sensor"; }
-std::string MQTTTextSensor::friendly_name() const { return this->sensor_->get_name(); }
+const EntityBase *MQTTTextSensor::get_entity() const { return this->sensor_; }
 std::string MQTTTextSensor::unique_id() { return this->sensor_->unique_id(); }
 
 }  // namespace mqtt
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

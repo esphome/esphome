@@ -1,6 +1,7 @@
 #include "tm1637.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace tm1637 {
@@ -146,16 +147,16 @@ void TM1637Display::update() {
 float TM1637Display::get_setup_priority() const { return setup_priority::PROCESSOR; }
 void TM1637Display::bit_delay_() { delayMicroseconds(100); }
 void TM1637Display::start_() {
-  this->dio_pin_->pin_mode(OUTPUT);
+  this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->bit_delay_();
 }
 
 void TM1637Display::stop_() {
-  this->dio_pin_->pin_mode(OUTPUT);
+  this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
   bit_delay_();
-  this->clk_pin_->pin_mode(INPUT);
+  this->clk_pin_->pin_mode(gpio::FLAG_INPUT);
   bit_delay_();
-  this->dio_pin_->pin_mode(INPUT);
+  this->dio_pin_->pin_mode(gpio::FLAG_INPUT);
   bit_delay_();
 }
 
@@ -189,39 +190,39 @@ bool TM1637Display::send_byte_(uint8_t b) {
   // 8 Data Bits
   for (uint8_t i = 0; i < 8; i++) {
     // CLK low
-    this->clk_pin_->pin_mode(OUTPUT);
+    this->clk_pin_->pin_mode(gpio::FLAG_OUTPUT);
     this->bit_delay_();
 
     // Set data bit
     if (data & 0x01)
-      this->dio_pin_->pin_mode(INPUT);
+      this->dio_pin_->pin_mode(gpio::FLAG_INPUT);
     else
-      this->dio_pin_->pin_mode(OUTPUT);
+      this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
 
     this->bit_delay_();
 
     // CLK high
-    this->clk_pin_->pin_mode(INPUT);
+    this->clk_pin_->pin_mode(gpio::FLAG_INPUT);
     this->bit_delay_();
     data = data >> 1;
   }
 
   // Wait for acknowledge
   // CLK to zero
-  this->clk_pin_->pin_mode(OUTPUT);
-  this->dio_pin_->pin_mode(INPUT);
+  this->clk_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->dio_pin_->pin_mode(gpio::FLAG_INPUT);
   this->bit_delay_();
 
   // CLK to high
-  this->clk_pin_->pin_mode(INPUT);
+  this->clk_pin_->pin_mode(gpio::FLAG_INPUT);
   this->bit_delay_();
   uint8_t ack = this->dio_pin_->digital_read();
   if (ack == 0) {
-    this->dio_pin_->pin_mode(OUTPUT);
+    this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
   }
 
   this->bit_delay_();
-  this->clk_pin_->pin_mode(OUTPUT);
+  this->clk_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->bit_delay_();
 
   return ack;
@@ -233,7 +234,7 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
   for (; *str != '\0'; str++) {
     uint8_t data = TM1637_UNKNOWN_CHAR;
     if (*str >= ' ' && *str <= '~')
-      data = pgm_read_byte(&TM1637_ASCII_TO_RAW[*str - ' ']);
+      data = progmem_read_byte(&TM1637_ASCII_TO_RAW[*str - ' ']);
 
     if (data == TM1637_UNKNOWN_CHAR) {
       ESP_LOGW(TAG, "Encountered character '%c' with no TM1637 representation while translating string!", *str);

@@ -6,8 +6,8 @@ from esphome.components import sensor, uart
 from esphome.const import (
     CONF_CO2,
     CONF_ID,
-    DEVICE_CLASS_EMPTY,
     ICON_MOLECULE_CO2,
+    DEVICE_CLASS_CARBON_DIOXIDE,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
@@ -39,11 +39,11 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SenseAirComponent),
             cv.Required(CONF_CO2): sensor.sensor_schema(
-                UNIT_PARTS_PER_MILLION,
-                ICON_MOLECULE_CO2,
-                0,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_PARTS_PER_MILLION,
+                icon=ICON_MOLECULE_CO2,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )

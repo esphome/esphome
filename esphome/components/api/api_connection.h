@@ -5,16 +5,17 @@
 #include "api_pb2.h"
 #include "api_pb2_service.h"
 #include "api_server.h"
+#include "api_frame_helper.h"
 
 namespace esphome {
 namespace api {
 
 class APIConnection : public APIServerConnection {
  public:
-  APIConnection(AsyncClient *client, APIServer *parent);
-  virtual ~APIConnection();
+  APIConnection(std::unique_ptr<socket::Socket> socket, APIServer *parent);
+  virtual ~APIConnection() = default;
 
-  void disconnect_client();
+  void start();
   void loop();
 
   bool send_list_info_done() {
@@ -63,6 +64,16 @@ class APIConnection : public APIServerConnection {
   bool send_climate_info(climate::Climate *climate);
   void climate_command(const ClimateCommandRequest &msg) override;
 #endif
+#ifdef USE_NUMBER
+  bool send_number_state(number::Number *number, float state);
+  bool send_number_info(number::Number *number);
+  void number_command(const NumberCommandRequest &msg) override;
+#endif
+#ifdef USE_SELECT
+  bool send_select_state(select::Select *select, std::string state);
+  bool send_select_info(select::Select *select);
+  void select_command(const SelectCommandRequest &msg) override;
+#endif
   bool send_log_message(int level, const char *tag, const char *line);
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
     if (!this->service_call_subscription_)
@@ -76,10 +87,7 @@ class APIConnection : public APIServerConnection {
   }
 #endif
 
-  void on_disconnect_response(const DisconnectResponse &value) override {
-    // we initiated disconnect_client
-    this->next_close_ = true;
-  }
+  void on_disconnect_response(const DisconnectResponse &value) override;
   void on_ping_response(const PingResponse &value) override {
     // we initiated ping
     this->sent_ping_ = false;
@@ -90,12 +98,7 @@ class APIConnection : public APIServerConnection {
 #endif
   HelloResponse hello(const HelloRequest &msg) override;
   ConnectResponse connect(const ConnectRequest &msg) override;
-  DisconnectResponse disconnect(const DisconnectRequest &msg) override {
-    // remote initiated disconnect_client
-    this->next_close_ = true;
-    DisconnectResponse resp;
-    return resp;
-  }
+  DisconnectResponse disconnect(const DisconnectRequest &msg) override;
   PingResponse ping(const PingRequest &msg) override { return {}; }
   DeviceInfoResponse device_info(const DeviceInfoRequest &msg) override;
   void list_entities(const ListEntitiesRequest &msg) override { this->list_entities_iterator_.begin(); }
@@ -125,19 +128,16 @@ class APIConnection : public APIServerConnection {
   void on_unauthenticated_access() override;
   void on_no_setup_connection() override;
   ProtoWriteBuffer create_buffer() override {
-    this->send_buffer_.clear();
-    return {&this->send_buffer_};
+    // FIXME: ensure no recursive writes can happen
+    this->proto_write_buffer_.clear();
+    return {&this->proto_write_buffer_};
   }
   bool send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) override;
 
  protected:
   friend APIServer;
 
-  void on_error_(int8_t error);
-  void on_disconnect_();
-  void on_timeout_(uint32_t time);
-  void on_data_(uint8_t *buf, size_t len);
-  void parse_recv_buffer_();
+  bool send_(const void *buf, size_t len, bool force);
 
   enum class ConnectionState {
     WAITING_FOR_HELLO,
@@ -147,8 +147,10 @@ class APIConnection : public APIServerConnection {
 
   bool remove_{false};
 
-  std::vector<uint8_t> send_buffer_;
-  std::vector<uint8_t> recv_buffer_;
+  // Buffer used to encode proto messages
+  // Re-use to prevent allocations
+  std::vector<uint8_t> proto_write_buffer_;
+  std::unique_ptr<APIFrameHelper> helper_;
 
   std::string client_info_;
 #ifdef USE_ESP32_CAMERA
@@ -160,12 +162,11 @@ class APIConnection : public APIServerConnection {
   uint32_t last_traffic_;
   bool sent_ping_{false};
   bool service_call_subscription_{false};
-  bool current_nodelay_{false};
-  bool next_close_{false};
-  AsyncClient *client_;
+  bool next_close_ = false;
   APIServer *parent_;
   InitialStateIterator initial_state_iterator_;
   ListEntitiesIterator list_entities_iterator_;
+  int state_subs_at_ = -1;
 };
 
 }  // namespace api

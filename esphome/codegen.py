@@ -30,6 +30,7 @@ from esphome.cpp_generator import (  # noqa
     add_library,
     add_build_flag,
     add_define,
+    add_platformio_option,
     get_variable,
     get_variable_with_full_id,
     process_lambda,
@@ -66,7 +67,7 @@ from esphome.cpp_types import (  # noqa
     NAN,
     esphome_ns,
     App,
-    Nameable,
+    EntityBase,
     Component,
     ComponentPtr,
     PollingComponent,
@@ -78,4 +79,6 @@ from esphome.cpp_types import (  # noqa
     JsonObjectConstRef,
     Controller,
     GPIOPin,
+    InternalGPIOPin,
+    gpio_Flags,
 )

@@ -57,6 +57,7 @@ def wrapped_load_pem_private_key(value, password):
 
 
 def read_relative_config_path(value):
+    # pylint: disable=unspecified-encoding
     return Path(CORE.relative_config_path(value)).read_text()
 
 

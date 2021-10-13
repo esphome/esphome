@@ -1,6 +1,7 @@
 #include "mqtt_climate.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_CLIMATE
 
 namespace esphome {
@@ -60,6 +61,8 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
   root["max_temp"] = traits.get_visual_max_temperature();
   // temp_step
   root["temp_step"] = traits.get_visual_temperature_step();
+  // temperature units are always coerced to Celsius internally
+  root["temp_unit"] = "C";
 
   if (traits.supports_preset(CLIMATE_PRESET_AWAY)) {
     // away_mode_command_topic
@@ -72,7 +75,7 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
     root["act_t"] = this->get_action_state_topic();
   }
 
-  if (traits.get_supports_fan_modes()) {
+  if (traits.get_supports_fan_modes() || !traits.get_supported_custom_fan_modes().empty()) {
     // fan_mode_command_topic
     root["fan_mode_cmd_t"] = this->get_fan_mode_command_topic();
     // fan_mode_state_topic
@@ -209,9 +212,9 @@ void MQTTClimateComponent::setup() {
 }
 MQTTClimateComponent::MQTTClimateComponent(Climate *device) : device_(device) {}
 bool MQTTClimateComponent::send_initial_state() { return this->publish_state_(); }
-bool MQTTClimateComponent::is_internal() { return this->device_->is_internal(); }
 std::string MQTTClimateComponent::component_type() const { return "climate"; }
-std::string MQTTClimateComponent::friendly_name() const { return this->device_->get_name(); }
+const EntityBase *MQTTClimateComponent::get_entity() const { return this->device_; }
+
 bool MQTTClimateComponent::publish_state_() {
   auto traits = this->device_->get_traits();
   // mode
@@ -243,7 +246,7 @@ bool MQTTClimateComponent::publish_state_() {
   if (!this->publish(this->get_mode_state_topic(), mode_s))
     success = false;
   int8_t accuracy = traits.get_temperature_accuracy_decimals();
-  if (traits.get_supports_current_temperature() && !isnan(this->device_->current_temperature)) {
+  if (traits.get_supports_current_temperature() && !std::isnan(this->device_->current_temperature)) {
     std::string payload = value_accuracy_to_string(this->device_->current_temperature, accuracy);
     if (!this->publish(this->get_current_temperature_state_topic(), payload))
       success = false;
@@ -357,3 +360,4 @@ bool MQTTClimateComponent::publish_state_() {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

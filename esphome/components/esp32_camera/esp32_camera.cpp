@@ -1,7 +1,10 @@
+#ifdef USE_ESP32
+
 #include "esp32_camera.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#include <freertos/task.h>
 
 namespace esphome {
 namespace esp32_camera {
@@ -42,7 +45,9 @@ void ESP32Camera::dump_config() {
   auto conf = this->config_;
   ESP_LOGCONFIG(TAG, "ESP32 Camera:");
   ESP_LOGCONFIG(TAG, "  Name: %s", this->name_.c_str());
+#ifdef USE_ARDUINO
   ESP_LOGCONFIG(TAG, "  Board Has PSRAM: %s", YESNO(psramFound()));
+#endif  // USE_ARDUINO
   ESP_LOGCONFIG(TAG, "  Data Pins: D0:%d D1:%d D2:%d D3:%d D4:%d D5:%d D6:%d D7:%d", conf.pin_d0, conf.pin_d1,
                 conf.pin_d2, conf.pin_d3, conf.pin_d4, conf.pin_d5, conf.pin_d6, conf.pin_d7);
   ESP_LOGCONFIG(TAG, "  VSYNC Pin: %d", conf.pin_vsync);
@@ -167,7 +172,7 @@ void ESP32Camera::framebuffer_task(void *pv) {
     esp_camera_fb_return(framebuffer);
   }
 }
-ESP32Camera::ESP32Camera(const std::string &name) : Nameable(name) {
+ESP32Camera::ESP32Camera(const std::string &name) : EntityBase(name) {
   this->config_.pin_pwdn = -1;
   this->config_.pin_reset = -1;
   this->config_.pin_xclk = -1;
@@ -275,10 +280,10 @@ void ESP32Camera::set_idle_update_interval(uint32_t idle_update_interval) {
 }
 void ESP32Camera::set_test_pattern(bool test_pattern) { this->test_pattern_ = test_pattern; }
 
-ESP32Camera *global_esp32_camera;
+ESP32Camera *global_esp32_camera;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void CameraImageReader::set_image(std::shared_ptr<CameraImage> image) {
-  this->image_ = image;
+  this->image_ = std::move(image);
   this->offset_ = 0;
 }
 size_t CameraImageReader::available() const {
