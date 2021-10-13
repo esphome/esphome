@@ -8,14 +8,11 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/util.h"
+#include "esphome/core/md5.h"
 #include "esphome/components/network/util.h"
 
 #include <cerrno>
 #include <cstdio>
-
-#ifdef USE_OTA_PASSWORD
-#include <MD5Builder.h>
-#endif
 
 namespace esphome {
 namespace ota {
@@ -173,12 +170,12 @@ void OTAComponent::handle_() {
   if (!this->password_.empty()) {
     buf[0] = OTA_RESPONSE_REQUEST_AUTH;
     this->writeall_(buf, 1);
-    MD5Builder md5_builder{};
-    md5_builder.begin();
+    MD5Digest md5{};
+    md5.init();
     sprintf(sbuf, "%08X", random_uint32());
-    md5_builder.add(sbuf);
-    md5_builder.calculate();
-    md5_builder.getChars(sbuf);
+    md5.add(sbuf, 8);
+    md5.calculate();
+    md5.get_hex(sbuf);
     ESP_LOGV(TAG, "Auth: Nonce is %s", sbuf);
 
     // Send nonce, 32 bytes hex MD5
@@ -188,10 +185,10 @@ void OTAComponent::handle_() {
     }
 
     // prepare challenge
-    md5_builder.begin();
-    md5_builder.add(this->password_.c_str());
+    md5.init();
+    md5.add(this->password_.c_str(), this->password_.length());
     // add nonce
-    md5_builder.add(sbuf);
+    md5.add(sbuf, 32);
 
     // Receive cnonce, 32 bytes hex MD5
     if (!this->readall_(buf, 32)) {
@@ -201,11 +198,11 @@ void OTAComponent::handle_() {
     sbuf[32] = '\0';
     ESP_LOGV(TAG, "Auth: CNonce is %s", sbuf);
     // add cnonce
-    md5_builder.add(sbuf);
+    md5.add(sbuf, 32);
 
     // calculate result
-    md5_builder.calculate();
-    md5_builder.getChars(sbuf);
+    md5.calculate();
+    md5.get_hex(sbuf);
     ESP_LOGV(TAG, "Auth: Result is %s", sbuf);
 
     // Receive result, 32 bytes hex MD5
