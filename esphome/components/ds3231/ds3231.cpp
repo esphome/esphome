@@ -218,7 +218,7 @@ bool DS3231Component::read_status_(bool initial_read) {
   ESP_LOGD(TAG, "Read  A1:%s A2:%s BSY:%s 32K:%s OSC:%s", ONOFF(this->ds3231_.stat.reg.alrm_1_act),
            ONOFF(this->ds3231_.stat.reg.alrm_2_act), YESNO(this->ds3231_.stat.reg.busy),
            ONOFF(this->ds3231_.stat.reg.en32khz), ONOFF(!this->ds3231_.stat.reg.osc_stop));
-  
+
   if (!initial_read && alarm_1_act != this->ds3231_.stat.reg.alrm_1_act) {
     this->alarm_callback_.call(1);
   }
