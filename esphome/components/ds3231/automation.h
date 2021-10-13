@@ -44,6 +44,20 @@ template<typename... Ts> class ResetAlarm2Action : public Action<Ts...>, public 
   void play(Ts... x) override { this->parent_->reset_alarm_2(); }
 };
 
+template<typename... Ts> class SetSquareWaveModeAction : public Action<Ts...>, public Parented<DS3231Component> {
+ public:
+  TEMPLATABLE_VALUE(DS3231SquareWaveMode, mode)
+
+  void play(Ts... x) override { this->parent_->set_square_wave_mode(this->mode_.value(x...)); }
+};
+
+template<typename... Ts> class SetSquareWaveFrequencyAction : public Action<Ts...>, public Parented<DS3231Component> {
+ public:
+  TEMPLATABLE_VALUE(DS3231SquareWaveFrequency, frequency)
+
+  void play(Ts... x) override { this->parent_->set_square_wave_frequency(this->frequency_.value(x...)); }
+};
+
 template<typename... Ts> class WriteTimeAction : public Action<Ts...>, public Parented<DS3231RTC> {
  public:
   void play(Ts... x) override { this->parent_->write_time(); }

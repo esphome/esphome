@@ -36,8 +36,8 @@ enum DS3231Alarm2Type {
 };
 
 enum DS3231SquareWaveMode {
-  SQUARE_WAVE_MODE,
-  INTERRUPT_MODE,
+  MODE_SQUARE_WAVE,
+  MODE_INTERRUPT,
 };
 
 enum DS3231SquareWaveFrequency {

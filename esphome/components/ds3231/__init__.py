@@ -6,9 +6,12 @@ from esphome.components import i2c
 from esphome.const import (
     CONF_ID,
     CONF_TRIGGER_ID,
+    CONF_TYPE,
     CONF_SECOND,
     CONF_MINUTE,
     CONF_HOUR,
+    CONF_MODE,
+    CONF_FREQUENCY,
 )
 
 
@@ -52,16 +55,16 @@ ALARM_2_TYPE_ENUM = {
 
 SquareWaveMode = ds3231_ns.enum("DS3231SquareWaveMode")
 SQUARE_WAVE_MODE_ENUM = {
-    "SQUARE_WAVE": SquareWaveMode.SQUARE_WAVE_MODE,
-    "INTERRUPT": SquareWaveMode.INTERRUPT_MODE,
+    "SQUARE_WAVE": SquareWaveMode.MODE_SQUARE_WAVE,
+    "INTERRUPT": SquareWaveMode.MODE_INTERRUPT,
 }
 
 SquareWaveFrequency = ds3231_ns.enum("DS3231SquareWaveFrequency")
 SQUARE_WAVE_FREQUENCY_ENUM = {
-    "FREQUENCY_1_HZ": SquareWaveFrequency.FREQUENCY_1_HZ,
-    "FREQUENCY_1024_HZ": SquareWaveFrequency.FREQUENCY_1024_HZ,
-    "FREQUENCY_4096_HZ": SquareWaveFrequency.FREQUENCY_4096_HZ,
-    "FREQUENCY_8192_HZ": SquareWaveFrequency.FREQUENCY_8192_HZ,
+    "1HZ": SquareWaveFrequency.FREQUENCY_1_HZ,
+    "1024HZ": SquareWaveFrequency.FREQUENCY_1024_HZ,
+    "4096HZ": SquareWaveFrequency.FREQUENCY_4096_HZ,
+    "8192HZ": SquareWaveFrequency.FREQUENCY_8192_HZ,
 }
 
 # Actions
@@ -69,12 +72,15 @@ SetAlarm1Action = ds3231_ns.class_("SetAlarm1Action", automation.Action)
 ResetAlarm1Action = ds3231_ns.class_("ResetAlarm1Action", automation.Action)
 SetAlarm2Action = ds3231_ns.class_("SetAlarm2Action", automation.Action)
 ResetAlarm2Action = ds3231_ns.class_("ResetAlarm2Action", automation.Action)
+SetSquareWaveModeAction = ds3231_ns.class_("SetSquareWaveModeAction", automation.Action)
+SetSquareWaveFrequencyAction = ds3231_ns.class_(
+    "SetSquareWaveFrequencyAction", automation.Action
+)
 
 # Triggers
 Alarm1Trigger = ds3231_ns.class_("Alarm1Trigger", automation.Trigger.template())
 Alarm2Trigger = ds3231_ns.class_("Alarm2Trigger", automation.Trigger.template())
 
-CONF_ALARM_TYPE = "alarm_type"
 CONF_DAY = "day"
 CONF_ON_ALARM_1 = "on_alarm_1"
 CONF_ON_ALARM_2 = "on_alarm_2"
@@ -127,7 +133,7 @@ RESET_ALARM_SCHEMA = maybe_simple_id(
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(DS3231Component),
-            cv.Required(CONF_ALARM_TYPE): cv.templatable(
+            cv.Required(CONF_TYPE): cv.templatable(
                 cv.enum(ALARM_1_TYPE_ENUM, upper=True)
             ),
             cv.Optional(CONF_SECOND, default="0"): cv.int_range(0, 59),
@@ -140,7 +146,7 @@ RESET_ALARM_SCHEMA = maybe_simple_id(
 async def set_alarm_1_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    alarm_type = await cg.templatable(config[CONF_ALARM_TYPE], args, Alarm1Type)
+    alarm_type = await cg.templatable(config[CONF_TYPE], args, Alarm1Type)
     cg.add(var.set_alarm_type(alarm_type))
     second = await cg.templatable(config[CONF_SECOND], args, int)
     cg.add(var.set_second(second))
@@ -168,7 +174,7 @@ async def reset_alarm_1_to_code(config, action_id, template_arg, args):
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(DS3231Component),
-            cv.Required(CONF_ALARM_TYPE): cv.templatable(
+            cv.Required(CONF_TYPE): cv.templatable(
                 cv.enum(ALARM_2_TYPE_ENUM, upper=True)
             ),
             cv.Optional(CONF_MINUTE, default="0"): cv.int_range(0, 59),
@@ -180,7 +186,7 @@ async def reset_alarm_1_to_code(config, action_id, template_arg, args):
 async def set_alarm_2_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    alarm_type = await cg.templatable(config[CONF_ALARM_TYPE], args, Alarm2Type)
+    alarm_type = await cg.templatable(config[CONF_TYPE], args, Alarm2Type)
     cg.add(var.set_alarm_type(alarm_type))
     minute = await cg.templatable(config[CONF_MINUTE], args, int)
     cg.add(var.set_minute(minute))
@@ -197,4 +203,44 @@ async def set_alarm_2_to_code(config, action_id, template_arg, args):
 async def reset_alarm_2_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
+@automation.register_action(
+    "ds3231.set_square_wave_mode",
+    SetSquareWaveModeAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(DS3231Component),
+            cv.Required(CONF_MODE): cv.templatable(
+                cv.enum(SQUARE_WAVE_MODE_ENUM, upper=True)
+            ),
+        }
+    ),
+)
+async def set_square_wave_mode_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    mode = await cg.templatable(config[CONF_MODE], args, SquareWaveMode)
+    cg.add(var.set_mode(mode))
+    return var
+
+
+@automation.register_action(
+    "ds3231.set_square_wave_frequency",
+    SetSquareWaveFrequencyAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(DS3231Component),
+            cv.Required(CONF_FREQUENCY): cv.templatable(
+                cv.enum(SQUARE_WAVE_FREQUENCY_ENUM, upper=True)
+            ),
+        }
+    ),
+)
+async def set_square_wave_frequency_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    frequency = await cg.templatable(config[CONF_FREQUENCY], args, SquareWaveFrequency)
+    cg.add(var.set_frequency(frequency))
     return var

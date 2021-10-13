@@ -103,10 +103,10 @@ void DS3231Component::reset_alarm_2() {
 }
 
 void DS3231Component::set_square_wave_mode(DS3231SquareWaveMode mode) {
-  if (mode == DS3231SquareWaveMode::INTERRUPT_MODE && !this->ds3231_.ctrl.reg.int_ctrl) {
+  if (mode == DS3231SquareWaveMode::MODE_INTERRUPT && !this->ds3231_.ctrl.reg.int_ctrl) {
     this->ds3231_.ctrl.reg.int_ctrl = true;
     this->write_control_();
-  } else if (mode == DS3231SquareWaveMode::SQUARE_WAVE_MODE && this->ds3231_.ctrl.reg.int_ctrl) {
+  } else if (mode == DS3231SquareWaveMode::MODE_SQUARE_WAVE && this->ds3231_.ctrl.reg.int_ctrl) {
     this->ds3231_.ctrl.reg.int_ctrl = false;
     this->write_control_();
   }
