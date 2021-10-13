@@ -72,7 +72,7 @@ def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api
         if default == "OTA":
             return CORE.address
     if show_mqtt and "mqtt" in CORE.config:
-        options.append(("MQTT ({})".format(CORE.config["mqtt"][CONF_BROKER]), "MQTT"))
+        options.append((f"MQTT ({CORE.config['mqtt'][CONF_BROKER]})", "MQTT"))
         if default == "OTA":
             return "MQTT"
     if default is not None:
@@ -184,12 +184,30 @@ def compile_program(args, config):
 
 
 def upload_using_esptool(config, port):
-    path = CORE.firmware_bin
+    from esphome import platformio_api
+
     first_baudrate = config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
         "upload_speed", 460800
     )
 
     def run_esptool(baud_rate):
+        idedata = platformio_api.get_idedata(config)
+
+        firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
+        flash_images = [
+            platformio_api.FlashImage(
+                path=idedata.firmware_bin_path,
+                offset=firmware_offset,
+            ),
+            *idedata.extra_flash_images,
+        ]
+
+        mcu = "esp8266"
+        if CORE.is_esp32:
+            from esphome.components.esp32 import get_esp32_variant
+
+            mcu = get_esp32_variant().lower()
+
         cmd = [
             "esptool.py",
             "--before",
@@ -198,14 +216,15 @@ def upload_using_esptool(config, port):
             "hard_reset",
             "--baud",
             str(baud_rate),
-            "--chip",
-            "esp8266",
             "--port",
             port,
+            "--chip",
+            mcu,
             "write_flash",
-            "0x0",
-            path,
+            "-z",
         ]
+        for img in flash_images:
+            cmd += [img.offset, img.path]
 
         if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
             import esptool
@@ -229,11 +248,7 @@ def upload_using_esptool(config, port):
 def upload_program(config, args, host):
     # if upload is to a serial port use platformio, otherwise assume ota
     if get_port_type(host) == "SERIAL":
-        from esphome import platformio_api
-
-        if CORE.is_esp8266:
-            return upload_using_esptool(config, host)
-        return platformio_api.run_upload(config, CORE.verbose, host)
+        return upload_using_esptool(config, host)
 
     from esphome import espota2
 
@@ -245,7 +260,7 @@ def upload_program(config, args, host):
 
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
-    password = ota_conf[CONF_PASSWORD]
+    password = ota_conf.get(CONF_PASSWORD, "")
     return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
 
 
@@ -415,30 +430,30 @@ def command_update_all(args):
         click.echo(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
-        print("Updating {}".format(color(Fore.CYAN, f)))
+        print(f"Updating {color(Fore.CYAN, f)}")
         print("-" * twidth)
         print()
         rc = run_external_process(
             "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
         )
         if rc == 0:
-            print_bar("[{}] {}".format(color(Fore.BOLD_GREEN, "SUCCESS"), f))
+            print_bar(f"[{color(Fore.BOLD_GREEN, 'SUCCESS')}] {f}")
             success[f] = True
         else:
-            print_bar("[{}] {}".format(color(Fore.BOLD_RED, "ERROR"), f))
+            print_bar(f"[{color(Fore.BOLD_RED, 'ERROR')}] {f}")
             success[f] = False
 
         print()
         print()
         print()
 
-    print_bar("[{}]".format(color(Fore.BOLD_WHITE, "SUMMARY")))
+    print_bar(f"[{color(Fore.BOLD_WHITE, 'SUMMARY')}]")
     failed = 0
     for f in files:
         if success[f]:
-            print("  - {}: {}".format(f, color(Fore.GREEN, "SUCCESS")))
+            print(f"  - {f}: {color(Fore.GREEN, 'SUCCESS')}")
         else:
-            print("  - {}: {}".format(f, color(Fore.BOLD_RED, "FAILED")))
+            print(f"  - {f}: {color(Fore.BOLD_RED, 'FAILED')}")
             failed += 1
     return failed
 

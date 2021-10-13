@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/preferences.h"
 #include "light_call.h"
@@ -26,10 +27,12 @@ enum LightRestoreMode {
 /** This class represents the communication layer between the front-end MQTT layer and the
  * hardware output layer.
  */
-class LightState : public Nameable, public Component {
+class LightState : public EntityBase, public Component {
  public:
   /// Construct this LightState using the provided traits and name.
   LightState(const std::string &name, LightOutput *output);
+
+  LightState(LightOutput *output);
 
   LightTraits get_traits();
 
@@ -154,10 +157,10 @@ class LightState : public Nameable, public Component {
   /// Internal method to stop the current effect (if one is active).
   void stop_effect_();
   /// Internal method to start a transition to the target color with the given length.
-  void start_transition_(const LightColorValues &target, uint32_t length);
+  void start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values);
 
   /// Internal method to start a flash for the specified amount of time.
-  void start_flash_(const LightColorValues &target, uint32_t length);
+  void start_flash_(const LightColorValues &target, uint32_t length, bool set_remote_values);
 
   /// Internal method to set the color values to target immediately (with no transition).
   void set_immediately_(const LightColorValues &target, bool set_remote_values);

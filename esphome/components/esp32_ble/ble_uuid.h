@@ -1,8 +1,9 @@
 #pragma once
 
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <string>
 #include <esp_bt_defs.h>

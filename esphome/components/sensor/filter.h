@@ -178,6 +178,26 @@ class ExponentialMovingAverageFilter : public Filter {
   float alpha_;
 };
 
+/** Simple throttle average filter.
+ *
+ * It takes the average of all the values received in a period of time.
+ */
+class ThrottleAverageFilter : public Filter, public Component {
+ public:
+  explicit ThrottleAverageFilter(uint32_t time_period);
+
+  void setup() override;
+
+  optional<float> new_value(float value) override;
+
+  float get_setup_priority() const override;
+
+ protected:
+  uint32_t time_period_;
+  float sum_{0.0f};
+  unsigned int n_{0};
+};
+
 using lambda_filter_t = std::function<optional<float>(float)>;
 
 /** This class allows for creation of simple template filters.

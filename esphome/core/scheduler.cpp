@@ -1,6 +1,7 @@
 #include "scheduler.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 #include <algorithm>
 
 namespace esphome {
@@ -81,7 +82,7 @@ optional<uint32_t> HOT Scheduler::next_schedule_in() {
     return 0;
   return next_time - now;
 }
-void ICACHE_RAM_ATTR HOT Scheduler::call() {
+void IRAM_ATTR HOT Scheduler::call() {
   const uint32_t now = this->millis_();
   this->process_to_add();
 

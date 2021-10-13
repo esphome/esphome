@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "dsmr.h"
 #include "esphome/core/log.h"
 
@@ -18,37 +20,50 @@ void Dsmr::loop() {
 }
 
 void Dsmr::receive_telegram_() {
-  while (available()) {
+  int count = MAX_BYTES_PER_LOOP;
+  while (available() && count-- > 0) {
     const char c = read();
 
-    if (c == '/') {  // header: forward slash
+    // Find a new telegram header, i.e. forward slash.
+    if (c == '/') {
       ESP_LOGV(TAG, "Header found");
       header_found_ = true;
       footer_found_ = false;
       telegram_len_ = 0;
     }
-
     if (!header_found_)
       continue;
-    if (telegram_len_ >= MAX_TELEGRAM_LENGTH) {  // Buffer overflow
+
+    // Check for buffer overflow.
+    if (telegram_len_ >= MAX_TELEGRAM_LENGTH) {
       header_found_ = false;
       footer_found_ = false;
       ESP_LOGE(TAG, "Error: Message larger than buffer");
       return;
     }
 
+    // Some v2.2 or v3 meters will send a new value which starts with '('
+    // in a new line while the value belongs to the previous ObisId. For
+    // proper parsing remove these new line characters
+    while (c == '(' && (telegram_[telegram_len_ - 1] == '\n' || telegram_[telegram_len_ - 1] == '\r'))
+      telegram_len_--;
+
+    // Store the byte in the buffer.
     telegram_[telegram_len_] = c;
     telegram_len_++;
-    if (c == '!') {  // footer: exclamation mark
+
+    // Check for a footer, i.e. exlamation mark, followed by a hex checksum.
+    if (c == '!') {
       ESP_LOGV(TAG, "Footer found");
       footer_found_ = true;
-    } else {
-      if (footer_found_ && c == 10) {  // last \n after footer
-        header_found_ = false;
-        // Parse message
-        if (parse_telegram())
-          return;
-      }
+      continue;
+    }
+    // Check for the end of the hex checksum, i.e. a newline.
+    if (footer_found_ && c == '\n') {
+      header_found_ = false;
+      // Parse the telegram and publish sensor values.
+      if (parse_telegram())
+        return;
     }
   }
 }
@@ -105,7 +120,7 @@ void Dsmr::receive_encrypted_() {
                          &buffer[18],
                          // cipher size
                          buffer_length - 17);
-      delete gcmaes128;
+      delete gcmaes128;  // NOLINT(cppcoreguidelines-owning-memory)
 
       telegram_len_ = strnlen(this->telegram_, sizeof(this->telegram_));
       ESP_LOGV(TAG, "Decrypted data length: %d", telegram_len_);
@@ -122,16 +137,17 @@ void Dsmr::receive_encrypted_() {
       delay(4);  // Wait for data
     }
   }
-  if (buffer_length > 0)
+  if (buffer_length > 0) {
     ESP_LOGW(TAG, "Timeout while waiting for encrypted data or invalid data received.");
+  }
 }
 
 bool Dsmr::parse_telegram() {
   MyData data;
   ESP_LOGV(TAG, "Trying to parse");
   ::dsmr::ParseResult<void> res =
-      ::dsmr::P1Parser::parse(&data, telegram_, telegram_len_,
-                              false);  // Parse telegram according to data definition. Ignore unknown values.
+      ::dsmr::P1Parser::parse(&data, telegram_, telegram_len_, false,
+                              this->crc_check_);  // Parse telegram according to data definition. Ignore unknown values.
   if (res.err) {
     // Parsing error, show it
     auto err_str = res.fullError(telegram_, telegram_ + telegram_len_);
@@ -180,3 +196,5 @@ void Dsmr::set_decryption_key(const std::string &decryption_key) {
 
 }  // namespace dsmr
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

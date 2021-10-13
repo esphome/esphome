@@ -19,22 +19,16 @@ void MCP23X17Base::digital_write(uint8_t pin, bool value) {
   this->update_reg(pin, value, reg_addr);
 }
 
-void MCP23X17Base::pin_mode(uint8_t pin, uint8_t mode) {
+void MCP23X17Base::pin_mode(uint8_t pin, gpio::Flags flags) {
   uint8_t iodir = pin < 8 ? mcp23x17_base::MCP23X17_IODIRA : mcp23x17_base::MCP23X17_IODIRB;
   uint8_t gppu = pin < 8 ? mcp23x17_base::MCP23X17_GPPUA : mcp23x17_base::MCP23X17_GPPUB;
-  switch (mode) {
-    case mcp23xxx_base::MCP23XXX_INPUT:
-      this->update_reg(pin, true, iodir);
-      break;
-    case mcp23xxx_base::MCP23XXX_INPUT_PULLUP:
-      this->update_reg(pin, true, iodir);
-      this->update_reg(pin, true, gppu);
-      break;
-    case mcp23xxx_base::MCP23XXX_OUTPUT:
-      this->update_reg(pin, false, iodir);
-      break;
-    default:
-      break;
+  if (flags == gpio::FLAG_INPUT) {
+    this->update_reg(pin, true, iodir);
+  } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
+    this->update_reg(pin, true, iodir);
+    this->update_reg(pin, true, gppu);
+  } else if (flags == gpio::FLAG_OUTPUT) {
+    this->update_reg(pin, false, iodir);
   }
 }
 

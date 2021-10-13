@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -15,6 +17,7 @@ namespace esphome {
 namespace dsmr {
 
 static constexpr uint32_t MAX_TELEGRAM_LENGTH = 1500;
+static constexpr uint32_t MAX_BYTES_PER_LOOP = 50;
 static constexpr uint32_t POLL_TIMEOUT = 1000;
 
 using namespace ::dsmr::fields;
@@ -48,7 +51,7 @@ using MyData = ::dsmr::ParsedData<DSMR_TEXT_SENSOR_LIST(DSMR_DATA_SENSOR, DSMR_C
 
 class Dsmr : public Component, public uart::UARTDevice {
  public:
-  Dsmr(uart::UARTComponent *uart) : uart::UARTDevice(uart) {}
+  Dsmr(uart::UARTComponent *uart, bool crc_check) : uart::UARTDevice(uart), crc_check_(crc_check) {}
 
   void loop() override;
 
@@ -99,6 +102,9 @@ class Dsmr : public Component, public uart::UARTDevice {
   DSMR_TEXT_SENSOR_LIST(DSMR_DECLARE_TEXT_SENSOR, )
 
   std::vector<uint8_t> decryption_key_{};
+  bool crc_check_;
 };
 }  // namespace dsmr
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

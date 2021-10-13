@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/gpio.h"
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
@@ -10,7 +10,7 @@ namespace ultrasonic {
 class UltrasonicSensorComponent : public sensor::Sensor, public PollingComponent {
  public:
   void set_trigger_pin(GPIOPin *trigger_pin) { trigger_pin_ = trigger_pin; }
-  void set_echo_pin(GPIOPin *echo_pin) { echo_pin_ = echo_pin; }
+  void set_echo_pin(InternalGPIOPin *echo_pin) { echo_pin_ = echo_pin; }
 
   /// Set the timeout for waiting for the echo in µs.
   void set_timeout_us(uint32_t timeout_us);
@@ -34,7 +34,8 @@ class UltrasonicSensorComponent : public sensor::Sensor, public PollingComponent
   /// Helper function to convert the specified distance in meters to the echo duration in µs.
 
   GPIOPin *trigger_pin_;
-  GPIOPin *echo_pin_;
+  InternalGPIOPin *echo_pin_;
+  ISRInternalGPIOPin echo_isr_;
   uint32_t timeout_us_{};  /// 2 meters.
   uint32_t pulse_time_us_{};
 };

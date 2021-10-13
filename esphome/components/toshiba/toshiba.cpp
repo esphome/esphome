@@ -127,7 +127,7 @@ void ToshibaClimate::setup() {
   this->fan_modes_ = this->toshiba_fan_modes_();
   this->swing_modes_ = this->toshiba_swing_modes_();
   // Never send nan to HA
-  if (isnan(this->target_temperature))
+  if (std::isnan(this->target_temperature))
     this->target_temperature = 24;
 }
 

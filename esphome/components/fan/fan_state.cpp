@@ -12,7 +12,7 @@ void FanState::set_traits(const FanTraits &traits) { this->traits_ = traits; }
 void FanState::add_on_state_callback(std::function<void()> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
-FanState::FanState(const std::string &name) : Nameable(name) {}
+FanState::FanState(const std::string &name) : EntityBase(name) {}
 
 FanStateCall FanState::turn_on() { return this->make_call().set_state(true); }
 FanStateCall FanState::turn_off() { return this->make_call().set_state(false); }
@@ -27,7 +27,7 @@ struct FanStateRTCState {
 };
 
 void FanState::setup() {
-  this->rtc_ = global_preferences.make_preference<FanStateRTCState>(this->get_object_id_hash());
+  this->rtc_ = global_preferences->make_preference<FanStateRTCState>(this->get_object_id_hash());
   FanStateRTCState recovered{};
   if (!this->rtc_.load(&recovered))
     return;

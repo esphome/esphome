@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "proto.h"
+#include <cstring>
 
 namespace esphome {
 namespace api {

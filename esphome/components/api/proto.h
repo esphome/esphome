@@ -246,6 +246,7 @@ class ProtoWriteBuffer {
 
 class ProtoMessage {
  public:
+  virtual ~ProtoMessage() = default;
   virtual void encode(ProtoWriteBuffer buffer) const = 0;
   void decode(const uint8_t *buffer, size_t length);
 #ifdef HAS_PROTO_MESSAGE_DUMP

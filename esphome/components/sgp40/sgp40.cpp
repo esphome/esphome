@@ -1,5 +1,7 @@
-#include "esphome/core/log.h"
 #include "sgp40.h"
+#include "esphome/core/log.h"
+#include "esphome/core/hal.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace sgp40 {
@@ -54,7 +56,7 @@ void SGP40Component::setup() {
     // Hash with compilation time
     // This ensures the baseline storage is cleared after OTA
     uint32_t hash = fnv1_hash(App.get_compilation_time());
-    this->pref_ = global_preferences.make_preference<SGP40Baselines>(hash, true);
+    this->pref_ = global_preferences->make_preference<SGP40Baselines>(hash, true);
 
     if (this->pref_.load(&this->baselines_storage_)) {
       this->state0_ = this->baselines_storage_.state0;
@@ -75,6 +77,20 @@ void SGP40Component::setup() {
   }
 
   this->self_test_();
+
+  /* The official spec for this sensor at https://docs.rs-online.com/1956/A700000007055193.pdf
+  indicates this sensor should be driven at 1Hz. Comments from the developers at:
+  https://github.com/Sensirion/embedded-sgp/issues/136 indicate the algorithm should be a bit
+  resilient to slight timing variations so the software timer should be accurate enough for
+  this.
+
+  This block starts sampling from the sensor at 1Hz, and is done seperately from the call
+  to the update method. This seperation is to support getting accurate measurements but
+  limit the amount of communication done over wifi for power consumption or to keep the
+  number of records reported from being overwhelming.
+  */
+  ESP_LOGD(TAG, "Component requires sampling of 1Hz, setting up background sampler");
+  this->set_interval(1000, [this]() { this->update_voc_index(); });
 }
 
 void SGP40Component::self_test_() {
@@ -164,7 +180,7 @@ uint16_t SGP40Component::measure_raw_() {
   if (this->humidity_sensor_ != nullptr) {
     humidity = this->humidity_sensor_->state;
   }
-  if (isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
+  if (std::isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
     humidity = 50;
   }
 
@@ -172,7 +188,7 @@ uint16_t SGP40Component::measure_raw_() {
   if (this->temperature_sensor_ != nullptr) {
     temperature = float(this->temperature_sensor_->state);
   }
-  if (isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
+  if (std::isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
     temperature = 25;
   }
 
@@ -190,9 +206,9 @@ uint16_t SGP40Component::measure_raw_() {
   command[6] = tempticks & 0xFF;
   command[7] = generate_crc_(command + 5, 2);
 
-  if (!this->write_bytes_raw(command, 8)) {
+  if (this->write(command, 8) != i2c::ERROR_OK) {
     this->status_set_warning();
-    ESP_LOGD(TAG, "write_bytes_raw error");
+    ESP_LOGD(TAG, "write error");
     return UINT16_MAX;
   }
   delay(250);  // NOLINT
@@ -222,21 +238,26 @@ uint8_t SGP40Component::generate_crc_(const uint8_t *data, uint8_t datalen) {
   return crc;
 }
 
-void SGP40Component::update() {
-  this->seconds_since_last_store_ += this->update_interval_ / 1000;
+void SGP40Component::update_voc_index() {
+  this->seconds_since_last_store_ += 1;
 
-  uint32_t voc_index = this->measure_voc_index_();
-
+  this->voc_index_ = this->measure_voc_index_();
   if (this->samples_read_ < this->samples_to_stabalize_) {
     this->samples_read_++;
     ESP_LOGD(TAG, "Sensor has not collected enough samples yet. (%d/%d) VOC index is: %u", this->samples_read_,
-             this->samples_to_stabalize_, voc_index);
+             this->samples_to_stabalize_, this->voc_index_);
+    return;
+  }
+}
+
+void SGP40Component::update() {
+  if (this->samples_read_ < this->samples_to_stabalize_) {
     return;
   }
 
-  if (voc_index != UINT16_MAX) {
+  if (this->voc_index_ != UINT16_MAX) {
     this->status_clear_warning();
-    this->publish_state(voc_index);
+    this->publish_state(this->voc_index_);
   } else {
     this->status_set_warning();
   }
@@ -245,6 +266,8 @@ void SGP40Component::update() {
 void SGP40Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SGP40:");
   LOG_I2C_DEVICE(this);
+  ESP_LOGCONFIG(TAG, "  store_baseline: %d", this->store_baseline_);
+
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
@@ -301,7 +324,7 @@ bool SGP40Component::read_data_(uint16_t *data, uint8_t len) {
   const uint8_t num_bytes = len * 3;
   std::vector<uint8_t> buf(num_bytes);
 
-  if (!this->parent_->raw_receive(this->address_, buf.data(), num_bytes)) {
+  if (this->read(buf.data(), num_bytes) != i2c::ERROR_OK) {
     return false;
   }
 

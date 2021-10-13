@@ -7,24 +7,24 @@ namespace light {
 
 static const char *const TAG = "light";
 
-static const char *color_mode_to_human(ColorMode color_mode) {
+static const LogString *color_mode_to_human(ColorMode color_mode) {
   if (color_mode == ColorMode::UNKNOWN)
-    return "Unknown";
+    return LOG_STR("Unknown");
   if (color_mode == ColorMode::WHITE)
-    return "White";
+    return LOG_STR("White");
   if (color_mode == ColorMode::COLOR_TEMPERATURE)
-    return "Color temperature";
+    return LOG_STR("Color temperature");
   if (color_mode == ColorMode::COLD_WARM_WHITE)
-    return "Cold/warm white";
+    return LOG_STR("Cold/warm white");
   if (color_mode == ColorMode::RGB)
-    return "RGB";
+    return LOG_STR("RGB");
   if (color_mode == ColorMode::RGB_WHITE)
-    return "RGBW";
+    return LOG_STR("RGBW");
   if (color_mode == ColorMode::RGB_COLD_WARM_WHITE)
-    return "RGB + cold/warm white";
+    return LOG_STR("RGB + cold/warm white");
   if (color_mode == ColorMode::RGB_COLOR_TEMPERATURE)
-    return "RGB + color temperature";
-  return "";
+    return LOG_STR("RGB + color temperature");
+  return LOG_STR("");
 }
 
 void LightCall::perform() {
@@ -37,7 +37,7 @@ void LightCall::perform() {
     // Only print color mode when it's being changed
     ColorMode current_color_mode = this->parent_->remote_values.get_color_mode();
     if (this->color_mode_.value_or(current_color_mode) != current_color_mode) {
-      ESP_LOGD(TAG, "  Color mode: %s", color_mode_to_human(v.get_color_mode()));
+      ESP_LOGD(TAG, "  Color mode: %s", LOG_STR_ARG(color_mode_to_human(v.get_color_mode())));
     }
 
     // Only print state when it's being changed
@@ -77,7 +77,7 @@ void LightCall::perform() {
       ESP_LOGD(TAG, "  Flash length: %.1fs", *this->flash_length_ / 1e3f);
     }
 
-    this->parent_->start_flash_(v, *this->flash_length_);
+    this->parent_->start_flash_(v, *this->flash_length_, this->publish_);
   } else if (this->has_transition_()) {
     // TRANSITION
     if (this->publish_) {
@@ -92,7 +92,7 @@ void LightCall::perform() {
       this->parent_->stop_effect_();
     }
 
-    this->parent_->start_transition_(v, *this->transition_length_);
+    this->parent_->start_transition_(v, *this->transition_length_, this->publish_);
 
   } else if (this->has_effect_()) {
     // EFFECT
@@ -135,7 +135,7 @@ LightColorValues LightCall::validate_() {
   // Color mode check
   if (this->color_mode_.has_value() && !traits.supports_color_mode(this->color_mode_.value())) {
     ESP_LOGW(TAG, "'%s' - This light does not support color mode %s!", name,
-             color_mode_to_human(this->color_mode_.value()));
+             LOG_STR_ARG(color_mode_to_human(this->color_mode_.value())));
     this->color_mode_.reset();
   }
 
@@ -206,7 +206,8 @@ LightColorValues LightCall::validate_() {
   if (name_##_.has_value()) { \
     auto val = *name_##_; \
     if (val < (min) || val > (max)) { \
-      ESP_LOGW(TAG, "'%s' - %s value %.2f is out of range [%.1f - %.1f]!", name, upper_name, val, (min), (max)); \
+      ESP_LOGW(TAG, "'%s' - %s value %.2f is out of range [%.1f - %.1f]!", name, LOG_STR_LITERAL(upper_name), val, \
+               (min), (max)); \
       name_##_ = clamp(val, (min), (max)); \
     } \
   }
@@ -387,7 +388,7 @@ ColorMode LightCall::compute_color_mode_() {
   // Don't change if the current mode is suitable.
   if (suitable_modes.count(current_mode) > 0) {
     ESP_LOGI(TAG, "'%s' - Keeping current color mode %s for call without color mode.",
-             this->parent_->get_name().c_str(), color_mode_to_human(current_mode));
+             this->parent_->get_name().c_str(), LOG_STR_ARG(color_mode_to_human(current_mode)));
     return current_mode;
   }
 
@@ -397,7 +398,7 @@ ColorMode LightCall::compute_color_mode_() {
       continue;
 
     ESP_LOGI(TAG, "'%s' - Using color mode %s for call without color mode.", this->parent_->get_name().c_str(),
-             color_mode_to_human(mode));
+             LOG_STR_ARG(color_mode_to_human(mode)));
     return mode;
   }
 
@@ -405,7 +406,7 @@ ColorMode LightCall::compute_color_mode_() {
   // out whatever we don't support.
   auto color_mode = current_mode != ColorMode::UNKNOWN ? current_mode : *supported_modes.begin();
   ESP_LOGW(TAG, "'%s' - No color mode suitable for this call supported, defaulting to %s!",
-           this->parent_->get_name().c_str(), color_mode_to_human(color_mode));
+           this->parent_->get_name().c_str(), LOG_STR_ARG(color_mode_to_human(color_mode)));
   return color_mode;
 }
 std::set<ColorMode> LightCall::get_suitable_color_modes_() {
@@ -531,7 +532,8 @@ LightCall &LightCall::set_white_if_supported(float white) {
   return *this;
 }
 LightCall &LightCall::set_color_temperature_if_supported(float color_temperature) {
-  if (this->get_active_color_mode_() & ColorCapability::COLOR_TEMPERATURE)
+  if (this->get_active_color_mode_() & ColorCapability::COLOR_TEMPERATURE ||
+      this->get_active_color_mode_() & ColorCapability::COLD_WARM_WHITE)
     this->set_color_temperature(color_temperature);
   return *this;
 }
