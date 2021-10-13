@@ -1,11 +1,20 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+
 #ifdef USE_ESP_IDF
 #include "esp32/rom/md5_hash.h"
+#define MD5_CTX_TYPE MD5Context
 #endif
-#ifdef USE_ARDUINO
+
+#if defined(USE_ARDUINO) && defined(USE_ESP32)
 #include "rom/md5_hash.h"
+#define MD5_CTX_TYPE MD5Context
+#endif
+
+#if defined(USE_ARDUINO) && defined(USE_ESP8266)
+#include <md5.h>
+#define MD5_CTX_TYPE md5_context_t
 #endif
 
 namespace esphome {
@@ -20,6 +29,8 @@ class MD5Digest {
 
   /// Add bytes of data for the digest.
   void add(uint8_t *data, size_t len);
+  void add(char *data, size_t len) { this->add((uint8_t *)data, len); }
+  void add(const char *data, size_t len) { this->add((uint8_t *)data, len); }
 
   /// Compute the digest, based on the provided data.
   void calculate();
@@ -39,7 +50,7 @@ class MD5Digest {
   bool equals_hex(const char *expected);
 
  protected:
-  MD5Context ctx_{};
+  MD5_CTX_TYPE ctx_{};
   uint8_t digest_[16];
 };
 
