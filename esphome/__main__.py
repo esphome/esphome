@@ -458,6 +458,21 @@ def command_update_all(args):
     return failed
 
 
+def command_idedata(args, config):
+    from esphome import platformio_api
+    import json
+
+    logging.disable(logging.INFO)
+    logging.disable(logging.WARNING)
+
+    idedata = platformio_api.get_idedata(config)
+    if idedata is None:
+        return 1
+
+    print(json.dumps(idedata.raw, indent=2) + "\n")
+    return 0
+
+
 PRE_CONFIG_ACTIONS = {
     "wizard": command_wizard,
     "version": command_version,
@@ -475,6 +490,7 @@ POST_CONFIG_ACTIONS = {
     "clean-mqtt": command_clean_mqtt,
     "mqtt-fingerprint": command_mqtt_fingerprint,
     "clean": command_clean,
+    "idedata": command_idedata,
 }
 
 
@@ -648,6 +664,13 @@ def parse_args(argv):
     parser_update = subparsers.add_parser("update-all")
     parser_update.add_argument(
         "configuration", help="Your YAML configuration file directories.", nargs="+"
+    )
+
+    parser_idedata = subparsers.add_parser(
+        "idedata", help="Fetch or generate the idedata and spit it out."
+    )
+    parser_idedata.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs=1
     )
 
     # Keep backward compatibility with the old command line format of
