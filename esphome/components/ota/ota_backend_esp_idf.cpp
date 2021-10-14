@@ -47,7 +47,7 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
 
 OTAResponseTypes IDFOTABackend::end() {
   this->md5_.calculate();
-  if (!this->md5_.equals_hex((char *) this->expected_bin_md5_)) {
+  if (!this->md5_.equals_hex(this->expected_bin_md5_)) {
     this->abort();
     return OTA_RESPONSE_ERROR_UPDATE_END;
   }
