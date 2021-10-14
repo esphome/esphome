@@ -86,12 +86,19 @@ uint8_t DelonghiClimate::temperature_() {
   uint8_t temperature = 0b0001;
   switch (this->mode) {
     case climate::CLIMATE_MODE_HEAT:
-      uint8_t temperature = (uint8_t) roundf(this->target_temperature) - DELONGHI_TEMP_OFFSET_COOL;
+      temperature = (uint8_t) roundf(this->target_temperature) - DELONGHI_TEMP_OFFSET_HEAT;
       break;
+    case climate::CLIMATE_MODE_COOL:
+    case climate::CLIMATE_MODE_DRY:
+    case climate::CLIMATE_MODE_HEAT_COOL:
+    case climate::CLIMATE_MODE_FAN_ONLY:
+    case climate::CLIMATE_MODE_OFF:    
     default:
-      uint8_t temperature = (uint8_t) roundf(this->target_temperature) - DELONGHI_TEMP_OFFSET_HEAT;
+      temperature = (uint8_t) roundf(this->target_temperature) - DELONGHI_TEMP_OFFSET_COOL;
   }
-  temperature = clamp<uint8_t>(temperature, 0x00, 0x0F);
+  if (temperature > 0x0F) {
+    temperature = 0x0F; // clamp maximum
+  }
   return temperature;
 }
 
