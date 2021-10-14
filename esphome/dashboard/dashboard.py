@@ -28,8 +28,6 @@ import tornado.web
 import tornado.websocket
 
 from esphome import const, platformio_api, util
-from esphome.config import read_config
-from esphome.core import CORE
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -413,11 +411,15 @@ class DownloadBinaryRequestHandler(BaseHandler):
             path = storage_json.firmware_bin_path
 
         else:
-            CORE.config_path = Path(settings.config_dir, configuration)
-            config = read_config({})
+            args = ["esphome", "idedata", settings.rel_path(configuration)]
+            rc, stdout, _ = run_system_command(*args)
 
-            idedata = platformio_api.get_idedata(config)
-            CORE.config_path = None
+            if rc != 0:
+                self.send_error(404 if rc == 2 else 500)
+                return
+
+            idedata = platformio_api.IDEData(json.loads(stdout))
+
             found = False
             for image in idedata.extra_flash_images:
                 if image.path.endswith(type):
@@ -427,15 +429,13 @@ class DownloadBinaryRequestHandler(BaseHandler):
                     break
 
             if not found:
-                self.write_error(404)
-                self.finish()
+                self.send_error(404)
                 return
 
         self.set_header("Content-Type", "application/octet-stream")
         self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
         if not Path(path).is_file():
-            self.write_error(404)
-            self.finish()
+            self.send_error(404)
             return
 
         with open(path, "rb") as f:
@@ -451,14 +451,16 @@ class ManifestRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
+        args = ["esphome", "idedata", settings.rel_path(configuration)]
+        rc, stdout, _ = run_system_command(*args)
 
-        CORE.config_path = Path(settings.config_dir, configuration)
-        config = read_config({})
+        if rc != 0:
+            self.send_error(404 if rc == 2 else 500)
+            return
 
-        idedata = platformio_api.get_idedata(config)
-        CORE.config_path = None
+        idedata = platformio_api.IDEData(json.loads(stdout))
 
-        firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
+        firmware_offset = "0x10000" if idedata.extra_flash_images else "0x0"
         flash_images = [
             {
                 "path": f"./download.bin?configuration={configuration}&type=firmware.bin",
