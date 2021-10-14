@@ -6,7 +6,7 @@
 namespace esphome {
 namespace ili9486 {
 
-static const char *TAG = "ili9486";
+static const char *const TAG = "ili9486";
 
 void ILI9486Display::setup_pins_() {
   this->init_internal_multiple_(this->get_buffer_length_());
