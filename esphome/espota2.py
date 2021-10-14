@@ -52,9 +52,7 @@ class ProgressBar:
             return
         self.last_progress = new_progress
         block = int(round(bar_length * progress))
-        text = "\rUploading: [{0}] {1}% {2}".format(
-            "=" * block + " " * (bar_length - block), new_progress, status
-        )
+        text = f"\rUploading: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
         sys.stderr.write(text)
         sys.stderr.flush()
 
@@ -154,7 +152,7 @@ def check_error(data, expect):
     if not isinstance(expect, (list, tuple)):
         expect = [expect]
     if dat not in expect:
-        raise OTAError("Unexpected response from ESP: 0x{:02X}".format(data[0]))
+        raise OTAError(f"Unexpected response from ESP: 0x{data[0]:02X}")
 
 
 def send_check(sock, data, msg):
@@ -296,15 +294,14 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
         _LOGGER.error("Connecting to %s:%s failed: %s", remote_host, remote_port, err)
         return 1
 
-    file_handle = open(filename, "rb")
-    try:
-        perform_ota(sock, password, file_handle, filename)
-    except OTAError as err:
-        _LOGGER.error(str(err))
-        return 1
-    finally:
-        sock.close()
-        file_handle.close()
+    with open(filename, "rb") as file_handle:
+        try:
+            perform_ota(sock, password, file_handle, filename)
+        except OTAError as err:
+            _LOGGER.error(str(err))
+            return 1
+        finally:
+            sock.close()
 
     return 0
 

@@ -1,12 +1,13 @@
 #include "servo.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace servo {
 
-static const char *TAG = "servo";
+static const char *const TAG = "servo";
 
-uint32_t global_servo_id = 1911044085ULL;
+uint32_t global_servo_id = 1911044085ULL;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void Servo::dump_config() {
   ESP_LOGCONFIG(TAG, "Servo:");

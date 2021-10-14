@@ -1,12 +1,12 @@
 #include "xiaomi_hhccjcy01.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace xiaomi_hhccjcy01 {
 
-static const char *TAG = "xiaomi_hhccjcy01";
+static const char *const TAG = "xiaomi_hhccjcy01";
 
 void XiaomiHHCCJCY01::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi HHCCJCY01");
@@ -56,11 +56,7 @@ bool XiaomiHHCCJCY01::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 }  // namespace xiaomi_hhccjcy01

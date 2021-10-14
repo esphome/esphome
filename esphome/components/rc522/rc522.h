@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
@@ -26,6 +27,33 @@ class RC522 : public PollingComponent {
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
 
  protected:
+  // Return codes from the functions in this class. Remember to update GetStatusCodeName() if you add more.
+  // last value set to 0xff, then compiler uses less ram, it seems some optimisations are triggered
+  enum StatusCode : uint8_t {
+    STATUS_OK,                 // Success
+    STATUS_WAITING,            // Waiting result from RC522 chip
+    STATUS_ERROR,              // Error in communication
+    STATUS_COLLISION,          // Collision detected
+    STATUS_TIMEOUT,            // Timeout in communication.
+    STATUS_NO_ROOM,            // A buffer is not big enough.
+    STATUS_INTERNAL_ERROR,     // Internal error in the code. Should not happen ;-)
+    STATUS_INVALID,            // Invalid argument.
+    STATUS_CRC_WRONG,          // The CRC_A does not match
+    STATUS_MIFARE_NACK = 0xff  // A MIFARE PICC responded with NAK.
+  };
+
+  enum State {
+    STATE_NONE = 0,
+    STATE_SETUP,
+    STATE_INIT,
+    STATE_PICC_REQUEST_A,
+    STATE_READ_SERIAL,
+    STATE_SELECT_SERIAL,
+    STATE_SELECT_SERIAL_DONE,
+    STATE_READ_SERIAL_DONE,
+    STATE_DONE,
+  } state_{STATE_NONE};
+
   enum PcdRegister : uint8_t {
     // Page 0: Command and status
     // 0x00      // reserved for future use
@@ -150,33 +178,11 @@ class RC522 : public PollingComponent {
     PICC_CMD_UL_WRITE = 0xA2  // Writes one 4 uint8_t page to the PICC.
   };
 
-  // Return codes from the functions in this class. Remember to update GetStatusCodeName() if you add more.
-  // last value set to 0xff, then compiler uses less ram, it seems some optimisations are triggered
-  enum StatusCode : uint8_t {
-    STATUS_OK,                 // Success
-    STATUS_ERROR,              // Error in communication
-    STATUS_COLLISION,          // Collission detected
-    STATUS_TIMEOUT,            // Timeout in communication.
-    STATUS_NO_ROOM,            // A buffer is not big enough.
-    STATUS_INTERNAL_ERROR,     // Internal error in the code. Should not happen ;-)
-    STATUS_INVALID,            // Invalid argument.
-    STATUS_CRC_WRONG,          // The CRC_A does not match
-    STATUS_MIFARE_NACK = 0xff  // A MIFARE PICC responded with NAK.
-  };
-
-  // A struct used for passing the UID of a PICC.
-  using Uid = struct {
-    uint8_t size;  // Number of uint8_ts in the UID. 4, 7 or 10.
-    uint8_t uiduint8_t[10];
-    uint8_t sak;  // The SAK (Select acknowledge) uint8_t returned from the PICC after successful selection.
-  };
-
-  Uid uid_;
-  uint32_t update_wait_{0};
-
   void pcd_reset_();
   void initialize_();
   void pcd_antenna_on_();
+  void pcd_antenna_off_();
+
   virtual uint8_t pcd_read_register(PcdRegister reg  ///< The register to read from. One of the PCD_Register enums.
                                     ) = 0;
 
@@ -202,15 +208,6 @@ class RC522 : public PollingComponent {
                                   uint8_t *values   ///< The values to write. uint8_t array.
                                   ) = 0;
 
-  StatusCode picc_request_a_(
-      uint8_t *buffer_atqa,  ///< The buffer to store the ATQA (Answer to request) in
-      uint8_t *buffer_size   ///< Buffer size, at least two uint8_ts. Also number of uint8_ts returned if STATUS_OK.
-  );
-  StatusCode picc_reqa_or_wupa_(
-      uint8_t command,       ///< The command to send - PICC_CMD_REQA or PICC_CMD_WUPA
-      uint8_t *buffer_atqa,  ///< The buffer to store the ATQA (Answer to request) in
-      uint8_t *buffer_size   ///< Buffer size, at least two uint8_ts. Also number of uint8_ts returned if STATUS_OK.
-  );
   void pcd_set_register_bit_mask_(PcdRegister reg,  ///< The register to update. One of the PCD_Register enums.
                                   uint8_t mask      ///< The bits to set.
   );
@@ -218,38 +215,33 @@ class RC522 : public PollingComponent {
                                     uint8_t mask      ///< The bits to clear.
   );
 
-  StatusCode pcd_transceive_data_(uint8_t *send_data, uint8_t send_len, uint8_t *back_data, uint8_t *back_len,
-                                  uint8_t *valid_bits = nullptr, uint8_t rx_align = 0, bool check_crc = false);
-  StatusCode pcd_communicate_with_picc_(uint8_t command, uint8_t wait_i_rq, uint8_t *send_data, uint8_t send_len,
-                                        uint8_t *back_data = nullptr, uint8_t *back_len = nullptr,
-                                        uint8_t *valid_bits = nullptr, uint8_t rx_align = 0, bool check_crc = false);
-  StatusCode pcd_calculate_crc_(
-      uint8_t *data,   ///< In: Pointer to the data to transfer to the FIFO for CRC calculation.
-      uint8_t length,  ///< In: The number of uint8_ts to transfer.
-      uint8_t *result  ///< Out: Pointer to result buffer. Result is written to result[0..1], low uint8_t first.
-  );
-  RC522::StatusCode picc_is_new_card_present_();
-  bool picc_read_card_serial_();
-  StatusCode picc_select_(
-      Uid *uid,               ///< Pointer to Uid struct. Normally output, but can also be used to supply a known UID.
-      uint8_t valid_bits = 0  ///< The number of known UID bits supplied in *uid. Normally 0. If set you must also
-                              ///< supply uid->size.
+  void pcd_transceive_data_(uint8_t send_len);
+
+  void pcd_calculate_crc_(uint8_t *data,  ///< In: Pointer to the data to transfer to the FIFO for CRC calculation.
+                          uint8_t length  ///< In: The number of uint8_ts to transfer.
   );
 
-  /** Read a data frame from the RC522 and return the result as a vector.
-   *
-   * Note that is_ready needs to be checked first before requesting this method.
-   *
-   * On failure, an empty vector is returned.
-   */
-  std::vector<uint8_t> r_c522_read_data_();
+  bool awaiting_comm_;
+  uint32_t awaiting_comm_time_;
+  StatusCode await_transceive_();
+  StatusCode await_crc_();
+
+  uint8_t buffer_[9];       ///< buffer for communication, the first bits [0..back_idx-1] are for tx ,
+                            ///< [back_idx..back_idx+back_len] for rx
+  uint8_t send_len_;        // index of first byte for RX
+  uint8_t back_length_;     ///< In: Max number of uint8_ts to write to *backData. Out: The number of uint8_ts returned.
+  uint8_t uid_buffer_[10];  // buffer to construct the uid (for 7 and 10 bit uids)
+  uint8_t uid_idx_ = 0;     // number of read uid bytes e.g. index of the next available position in uid_buffer
+  uint8_t error_counter_ = 0;  // to reset if unresponsive
+  uint8_t rx_align_;
+  uint8_t *valid_bits_;
 
   GPIOPin *reset_pin_{nullptr};
   uint8_t reset_count_{0};
   uint32_t reset_timeout_{0};
-  bool initialize_pending_{false};
   std::vector<RC522BinarySensor *> binary_sensors_;
   std::vector<RC522Trigger *> triggers_;
+  std::vector<uint8_t> current_uid_;
 
   enum RC522Error {
     NONE = 0,
@@ -261,7 +253,7 @@ class RC522BinarySensor : public binary_sensor::BinarySensor {
  public:
   void set_uid(const std::vector<uint8_t> &uid) { uid_ = uid; }
 
-  bool process(const uint8_t *data, uint8_t len);
+  bool process(std::vector<uint8_t> &data);
 
   void on_scan_end() {
     if (!this->found_) {
@@ -277,7 +269,7 @@ class RC522BinarySensor : public binary_sensor::BinarySensor {
 
 class RC522Trigger : public Trigger<std::string> {
  public:
-  void process(const uint8_t *uid, uint8_t uid_length);
+  void process(std::vector<uint8_t> &data);
 };
 
 }  // namespace rc522

@@ -444,16 +444,24 @@ class TestDefine:
 
 class TestLibrary:
     @pytest.mark.parametrize(
-        "name, value, prop, expected",
+        "name, version, repository, prop, expected",
         (
-            ("mylib", None, "as_lib_dep", "mylib"),
-            ("mylib", None, "as_tuple", ("mylib", None)),
-            ("mylib", "1.2.3", "as_lib_dep", "mylib@1.2.3"),
-            ("mylib", "1.2.3", "as_tuple", ("mylib", "1.2.3")),
+            ("mylib", None, None, "as_lib_dep", "mylib"),
+            ("mylib", None, None, "as_tuple", ("mylib", None, None)),
+            ("mylib", "1.2.3", None, "as_lib_dep", "mylib@1.2.3"),
+            ("mylib", "1.2.3", None, "as_tuple", ("mylib", "1.2.3", None)),
+            ("mylib", None, "file:///test", "as_lib_dep", "mylib=file:///test"),
+            (
+                "mylib",
+                None,
+                "file:///test",
+                "as_tuple",
+                ("mylib", None, "file:///test"),
+            ),
         ),
     )
-    def test_properties(self, name, value, prop, expected):
-        target = core.Library(name, value)
+    def test_properties(self, name, version, repository, prop, expected):
+        target = core.Library(name, version, repository)
 
         actual = getattr(target, prop)
 
@@ -465,6 +473,11 @@ class TestLibrary:
             ("__eq__", core.Library(name="libfoo", version="1.2.3"), True),
             ("__eq__", core.Library(name="libfoo", version="1.2.4"), False),
             ("__eq__", core.Library(name="libbar", version="1.2.3"), False),
+            (
+                "__eq__",
+                core.Library(name="libbar", version=None, repository="file:///test"),
+                False,
+            ),
             ("__eq__", 1000, NotImplemented),
             ("__eq__", "1000", NotImplemented),
             ("__eq__", True, NotImplemented),
@@ -490,11 +503,15 @@ class TestEsphomeCore:
 
     def test_reset(self, target):
         """Call reset on target and compare to new instance"""
-        other = core.EsphomeCore()
+        other = core.EsphomeCore().__dict__
 
         target.reset()
+        t = target.__dict__
+        # ignore event loop
+        del other["event_loop"]
+        del t["event_loop"]
 
-        assert target.__dict__ == other.__dict__
+        assert t == other
 
     def test_address__none(self, target):
         target.config = {}
@@ -503,24 +520,24 @@ class TestEsphomeCore:
     def test_address__wifi(self, target):
         target.config = {}
         target.config[const.CONF_WIFI] = {const.CONF_USE_ADDRESS: "1.2.3.4"}
-        target.config["ethernet"] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
+        target.config[const.CONF_ETHERNET] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
 
         assert target.address == "1.2.3.4"
 
     def test_address__ethernet(self, target):
         target.config = {}
-        target.config["ethernet"] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
+        target.config[const.CONF_ETHERNET] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
 
         assert target.address == "4.3.2.1"
 
     def test_is_esp32(self, target):
-        target.esp_platform = "ESP32"
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
 
         assert target.is_esp32 is True
         assert target.is_esp8266 is False
 
     def test_is_esp8266(self, target):
-        target.esp_platform = "ESP8266"
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp8266"}
 
         assert target.is_esp32 is False
         assert target.is_esp8266 is True

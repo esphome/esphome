@@ -7,7 +7,8 @@ from esphome.const import (
     CONF_WIND_SPEED,
     CONF_PIN,
     CONF_WIND_DIRECTION_DEGREES,
-    DEVICE_CLASS_EMPTY,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_NONE,
     UNIT_KILOMETER_PER_HOUR,
     ICON_WEATHER_WINDY,
     ICON_SIGN_DIRECTION,
@@ -21,31 +22,35 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Tx20Component),
         cv.Optional(CONF_WIND_SPEED): sensor.sensor_schema(
-            UNIT_KILOMETER_PER_HOUR, ICON_WEATHER_WINDY, 1, DEVICE_CLASS_EMPTY
+            unit_of_measurement=UNIT_KILOMETER_PER_HOUR,
+            icon=ICON_WEATHER_WINDY,
+            accuracy_decimals=1,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_WIND_DIRECTION_DEGREES): sensor.sensor_schema(
-            UNIT_DEGREES, ICON_SIGN_DIRECTION, 1, DEVICE_CLASS_EMPTY
+            unit_of_measurement=UNIT_DEGREES,
+            icon=ICON_SIGN_DIRECTION,
+            accuracy_decimals=1,
+            state_class=STATE_CLASS_NONE,
         ),
-        cv.Required(CONF_PIN): cv.All(
-            pins.internal_gpio_input_pin_schema, pins.validate_has_interrupt
-        ),
+        cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     if CONF_WIND_SPEED in config:
         conf = config[CONF_WIND_SPEED]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_wind_speed_sensor(sens))
 
     if CONF_WIND_DIRECTION_DEGREES in config:
         conf = config[CONF_WIND_DIRECTION_DEGREES]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_wind_direction_degrees_sensor(sens))
 
-    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
+    pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))

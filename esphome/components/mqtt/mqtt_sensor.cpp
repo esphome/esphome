@@ -1,6 +1,7 @@
 #include "mqtt_sensor.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_MQTT
 #ifdef USE_SENSOR
 
 #ifdef USE_DEEP_SLEEP
@@ -10,7 +11,7 @@
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt.sensor";
+static const char *const TAG = "mqtt.sensor";
 
 using namespace esphome::sensor;
 
@@ -29,34 +30,31 @@ void MQTTSensorComponent::dump_config() {
 }
 
 std::string MQTTSensorComponent::component_type() const { return "sensor"; }
+const EntityBase *MQTTSensorComponent::get_entity() const { return this->sensor_; }
 
 uint32_t MQTTSensorComponent::get_expire_after() const {
-  if (this->expire_after_.has_value()) {
+  if (this->expire_after_.has_value())
     return *this->expire_after_;
-  } else {
-#ifdef USE_DEEP_SLEEP
-    if (deep_sleep::global_has_deep_sleep) {
-      return 0;
-    }
-#endif
-    return this->sensor_->calculate_expected_filter_update_interval() * 5;
-  }
+  return 0;
 }
 void MQTTSensorComponent::set_expire_after(uint32_t expire_after) { this->expire_after_ = expire_after; }
 void MQTTSensorComponent::disable_expire_after() { this->expire_after_ = 0; }
-std::string MQTTSensorComponent::friendly_name() const { return this->sensor_->get_name(); }
+
 void MQTTSensorComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+  if (!this->sensor_->get_device_class().empty())
+    root["device_class"] = this->sensor_->get_device_class();
+
   if (!this->sensor_->get_unit_of_measurement().empty())
     root["unit_of_measurement"] = this->sensor_->get_unit_of_measurement();
 
   if (this->get_expire_after() > 0)
     root["expire_after"] = this->get_expire_after() / 1000;
 
-  if (!this->sensor_->get_icon().empty())
-    root["icon"] = this->sensor_->get_icon();
-
   if (this->sensor_->get_force_update())
     root["force_update"] = true;
+
+  if (this->sensor_->get_state_class() != STATE_CLASS_NONE)
+    root["state_class"] = state_class_to_string(this->sensor_->get_state_class());
 
   config.command_topic = false;
 }
@@ -67,7 +65,6 @@ bool MQTTSensorComponent::send_initial_state() {
     return true;
   }
 }
-bool MQTTSensorComponent::is_internal() { return this->sensor_->is_internal(); }
 bool MQTTSensorComponent::publish_state(float value) {
   int8_t accuracy = this->sensor_->get_accuracy_decimals();
   return this->publish(this->get_state_topic_(), value_accuracy_to_string(value, accuracy));
@@ -78,3 +75,4 @@ std::string MQTTSensorComponent::unique_id() { return this->sensor_->unique_id()
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

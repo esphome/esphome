@@ -4,7 +4,7 @@
 namespace esphome {
 namespace mcp3008 {
 
-static const char *TAG = "mcp3008";
+static const char *const TAG = "mcp3008";
 
 float MCP3008::get_setup_priority() const { return setup_priority::HARDWARE; }
 
@@ -37,11 +37,8 @@ float MCP3008::read_data(uint8_t pin) {
   return data / 1023.0f;
 }
 
-MCP3008Sensor::MCP3008Sensor(MCP3008 *parent, std::string name, uint8_t pin, float reference_voltage)
-    : PollingComponent(1000), parent_(parent), pin_(pin) {
-  this->set_name(name);
-  this->reference_voltage_ = reference_voltage;
-}
+MCP3008Sensor::MCP3008Sensor(MCP3008 *parent, uint8_t pin, float reference_voltage)
+    : PollingComponent(1000), parent_(parent), pin_(pin), reference_voltage_(reference_voltage) {}
 
 float MCP3008Sensor::get_setup_priority() const { return setup_priority::DATA; }
 

@@ -27,7 +27,7 @@ def test_alphanumeric__invalid(value):
         config_validation.alphanumeric(value)
 
 
-@given(value=text(alphabet=string.ascii_lowercase + string.digits + "_-"))
+@given(value=text(alphabet=string.ascii_lowercase + string.digits + "-_"))
 def test_valid_name__valid(value):
     actual = config_validation.valid_name(value)
 
@@ -38,6 +38,28 @@ def test_valid_name__valid(value):
 def test_valid_name__invalid(value):
     with pytest.raises(Invalid):
         config_validation.valid_name(value)
+
+
+@pytest.mark.parametrize("value", ("foo", "bar123", "foo-bar"))
+def test_hostname__valid(value):
+    actual = config_validation.hostname(value)
+
+    assert actual == value
+
+
+@pytest.mark.parametrize("value", ("foo bar", "foobar ", "foo#bar"))
+def test_hostname__invalid(value):
+    with pytest.raises(Invalid):
+        config_validation.hostname(value)
+
+
+def test_hostname__warning(caplog):
+    actual = config_validation.hostname("foo_bar")
+    assert actual == "foo_bar"
+    assert (
+        "Using the '_' (underscore) character in the hostname is discouraged"
+        in caplog.text
+    )
 
 
 @given(one_of(integers(), text()))

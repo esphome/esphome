@@ -1,10 +1,15 @@
 #include "scd30.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
+
+#ifdef USE_ESP8266
+#include <Wire.h>
+#endif
 
 namespace esphome {
 namespace scd30 {
 
-static const char *TAG = "scd30";
+static const char *const TAG = "scd30";
 
 static const uint16_t SCD30_CMD_GET_FIRMWARE_VERSION = 0xd100;
 static const uint16_t SCD30_CMD_START_CONTINUOUS_MEASUREMENTS = 0x0010;
@@ -23,7 +28,7 @@ static const uint16_t SCD30_CMD_SOFT_RESET = 0xD304;
 void SCD30Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up scd30...");
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   Wire.setClockStretchLimit(150000);
 #endif
 
@@ -43,14 +48,6 @@ void SCD30Component::setup() {
   ESP_LOGD(TAG, "SCD30 Firmware v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
            uint16_t(raw_firmware_version[0] & 0xFF));
 
-  /// Sensor initialization
-  if (!this->write_command_(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
-    ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
-    return;
-  }
-
   if (this->temperature_offset_ != 0) {
     if (!this->write_command_(SCD30_CMD_TEMPERATURE_OFFSET, (uint16_t)(temperature_offset_ * 100.0))) {
       ESP_LOGE(TAG, "Sensor SCD30 error setting temperature offset.");
@@ -59,18 +56,45 @@ void SCD30Component::setup() {
       return;
     }
   }
+#ifdef USE_ESP32
+  // According ESP32 clock stretching is typically 30ms and up to 150ms "due to
+  // internal calibration processes". The I2C peripheral only supports 13ms (at
+  // least when running at 80MHz).
+  // In practise it seems that clock stretching occurs during this calibration
+  // calls. It also seems that delays in between calls makes them
+  // disappear/shorter. Hence work around with delays for ESP32.
+  //
+  // By experimentation a delay of 20ms as already sufficient. Let's go
+  // safe and use 30ms delays.
+  delay(30);
+#endif
+
   // The start measurement command disables the altitude compensation, if any, so we only set it if it's turned on
   if (this->altitude_compensation_ != 0xFFFF) {
     if (!this->write_command_(SCD30_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
-      ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
+      ESP_LOGE(TAG, "Sensor SCD30 error setting altitude compensation.");
       this->error_code_ = MEASUREMENT_INIT_FAILED;
       this->mark_failed();
       return;
     }
   }
+#ifdef USE_ESP32
+  delay(30);
+#endif
 
   if (!this->write_command_(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
     ESP_LOGE(TAG, "Sensor SCD30 error setting automatic self calibration.");
+    this->error_code_ = MEASUREMENT_INIT_FAILED;
+    this->mark_failed();
+    return;
+  }
+#ifdef USE_ESP32
+  delay(30);
+#endif
+
+  /// Sensor initialization
+  if (!this->write_command_(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
+    ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
     this->error_code_ = MEASUREMENT_INIT_FAILED;
     this->mark_failed();
     return;
@@ -174,7 +198,7 @@ bool SCD30Component::write_command_(uint16_t command, uint16_t data) {
   raw[2] = data >> 8;
   raw[3] = data & 0xFF;
   raw[4] = sht_crc_(raw[2], raw[3]);
-  return this->write_bytes_raw(raw, 5);
+  return this->write(raw, 5) == i2c::ERROR_OK;
 }
 
 uint8_t SCD30Component::sht_crc_(uint8_t data1, uint8_t data2) {
@@ -202,10 +226,9 @@ uint8_t SCD30Component::sht_crc_(uint8_t data1, uint8_t data2) {
 
 bool SCD30Component::read_data_(uint16_t *data, uint8_t len) {
   const uint8_t num_bytes = len * 3;
-  auto *buf = new uint8_t[num_bytes];
+  std::vector<uint8_t> buf(num_bytes);
 
-  if (!this->parent_->raw_receive(this->address_, buf, num_bytes)) {
-    delete[](buf);
+  if (this->read(buf.data(), num_bytes) != i2c::ERROR_OK) {
     return false;
   }
 
@@ -214,13 +237,11 @@ bool SCD30Component::read_data_(uint16_t *data, uint8_t len) {
     uint8_t crc = sht_crc_(buf[j], buf[j + 1]);
     if (crc != buf[j + 2]) {
       ESP_LOGE(TAG, "CRC8 Checksum invalid! 0x%02X != 0x%02X", buf[j + 2], crc);
-      delete[](buf);
       return false;
     }
     data[i] = (buf[j] << 8) | buf[j + 1];
   }
 
-  delete[](buf);
   return true;
 }
 

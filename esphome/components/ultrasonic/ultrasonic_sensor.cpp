@@ -1,32 +1,42 @@
 #include "ultrasonic_sensor.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace ultrasonic {
 
-static const char *TAG = "ultrasonic.sensor";
+static const char *const TAG = "ultrasonic.sensor";
 
 void UltrasonicSensorComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Ultrasonic Sensor...");
   this->trigger_pin_->setup();
   this->trigger_pin_->digital_write(false);
   this->echo_pin_->setup();
+  // isr is faster to access
+  echo_isr_ = echo_pin_->to_isr();
 }
 void UltrasonicSensorComponent::update() {
   this->trigger_pin_->digital_write(true);
   delayMicroseconds(this->pulse_time_us_);
   this->trigger_pin_->digital_write(false);
 
-  uint32_t time = pulseIn(  // NOLINT
-      this->echo_pin_->get_pin(), uint8_t(!this->echo_pin_->is_inverted()), this->timeout_us_);
+  const uint32_t start = micros();
+  while (micros() - start < timeout_us_ && echo_isr_.digital_read())
+    ;
+  while (micros() - start < timeout_us_ && !echo_isr_.digital_read())
+    ;
+  const uint32_t pulse_start = micros();
+  while (micros() - start < timeout_us_ && echo_isr_.digital_read())
+    ;
+  const uint32_t pulse_end = micros();
 
-  ESP_LOGV(TAG, "Echo took %uµs", time);
+  ESP_LOGV(TAG, "Echo took %uµs", pulse_end - pulse_start);
 
-  if (time == 0) {
+  if (pulse_end - start >= timeout_us_) {
     ESP_LOGD(TAG, "'%s' - Distance measurement timed out!", this->name_.c_str());
     this->publish_state(NAN);
   } else {
-    float result = UltrasonicSensorComponent::us_to_m(time);
+    float result = UltrasonicSensorComponent::us_to_m(pulse_end - pulse_start);
     ESP_LOGD(TAG, "'%s' - Got distance: %.2f m", this->name_.c_str(), result);
     this->publish_state(result);
   }

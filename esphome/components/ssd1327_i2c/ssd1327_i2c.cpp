@@ -4,14 +4,14 @@
 namespace esphome {
 namespace ssd1327_i2c {
 
-static const char *TAG = "ssd1327_i2c";
+static const char *const TAG = "ssd1327_i2c";
 
 void I2CSSD1327::setup() {
   ESP_LOGCONFIG(TAG, "Setting up I2C SSD1327...");
   this->init_reset_();
 
-  this->parent_->raw_begin_transmission(this->address_);
-  if (!this->parent_->raw_end_transmission(this->address_)) {
+  auto err = this->write(nullptr, 0);
+  if (err != i2c::ERROR_OK) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;

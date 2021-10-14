@@ -7,7 +7,7 @@ from esphome.const import (
     CONF_INDEX,
     CONF_RESOLUTION,
     DEVICE_CLASS_TEMPERATURE,
-    ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     CONF_ID,
 )
@@ -16,7 +16,12 @@ from . import DallasComponent, dallas_ns
 DallasTemperatureSensor = dallas_ns.class_("DallasTemperatureSensor", sensor.Sensor)
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE).extend(
+    sensor.sensor_schema(
+        unit_of_measurement=UNIT_CELSIUS,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_TEMPERATURE,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ).extend(
         {
             cv.GenerateID(): cv.declare_id(DallasTemperatureSensor),
             cv.GenerateID(CONF_DALLAS_ID): cv.use_id(DallasComponent),
@@ -29,12 +34,19 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
-    hub = yield cg.get_variable(config[CONF_DALLAS_ID])
+async def to_code(config):
+    hub = await cg.get_variable(config[CONF_DALLAS_ID])
+    var = cg.new_Pvariable(config[CONF_ID])
+
     if CONF_ADDRESS in config:
-        address = config[CONF_ADDRESS]
-        rhs = hub.Pget_sensor_by_address(address, config.get(CONF_RESOLUTION))
+        cg.add(var.set_address(config[CONF_ADDRESS]))
     else:
-        rhs = hub.Pget_sensor_by_index(config[CONF_INDEX], config.get(CONF_RESOLUTION))
-    var = cg.Pvariable(config[CONF_ID], rhs)
-    yield sensor.register_sensor(var, config)
+        cg.add(var.set_index(config[CONF_INDEX]))
+
+    if CONF_RESOLUTION in config:
+        cg.add(var.set_resolution(config[CONF_RESOLUTION]))
+
+    cg.add(var.set_parent(hub))
+
+    cg.add(hub.register_sensor(var))
+    await sensor.register_sensor(var, config)

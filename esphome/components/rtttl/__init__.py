@@ -1,8 +1,12 @@
+import logging
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import automation
 from esphome.components.output import FloatOutput
-from esphome.const import CONF_ID, CONF_OUTPUT, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_OUTPUT, CONF_PLATFORM, CONF_TRIGGER_ID
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@glmnet"]
 CONF_RTTTL = "rtttl"
@@ -33,16 +37,50 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+def validate_parent_output_config(value):
+    platform = value.get(CONF_PLATFORM)
+    PWM_GOOD = ["esp8266_pwm", "ledc"]
+    PWM_BAD = [
+        "ac_dimmer ",
+        "esp32_dac",
+        "slow_pwm",
+        "mcp4725",
+        "pca9685",
+        "tlc59208f",
+        "my9231",
+        "sm16716",
+    ]
 
-    out = yield cg.get_variable(config[CONF_OUTPUT])
+    if platform in PWM_BAD:
+        raise cv.Invalid(f"Component rtttl cannot use {platform} as output component")
+
+    if platform not in PWM_GOOD:
+        _LOGGER.warning(
+            "Component rtttl is not known to work with the selected output type. "
+            "Make sure this output supports custom frequency output method."
+        )
+
+
+FINAL_VALIDATE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_OUTPUT): fv.id_declaration_match_schema(
+            validate_parent_output_config
+        )
+    },
+    extra=cv.ALLOW_EXTRA,
+)
+
+
+async def to_code(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+
+    out = await cg.get_variable(config[CONF_OUTPUT])
     cg.add(var.set_output(out))
 
     for conf in config.get(CONF_ON_FINISHED_PLAYBACK, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [], conf)
+        await automation.build_automation(trigger, [], conf)
 
 
 @automation.register_action(
@@ -56,12 +94,12 @@ def to_code(config):
         key=CONF_RTTTL,
     ),
 )
-def rtttl_play_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def rtttl_play_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = yield cg.templatable(config[CONF_RTTTL], args, cg.std_string)
+    template_ = await cg.templatable(config[CONF_RTTTL], args, cg.std_string)
     cg.add(var.set_value(template_))
-    yield var
+    return var
 
 
 @automation.register_action(
@@ -73,10 +111,10 @@ def rtttl_play_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def rtttl_stop_to_code(config, action_id, template_arg, args):
+async def rtttl_stop_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_condition(
@@ -88,7 +126,7 @@ def rtttl_stop_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def rtttl_is_playing_to_code(config, condition_id, template_arg, args):
+async def rtttl_is_playing_to_code(config, condition_id, template_arg, args):
     var = cg.new_Pvariable(condition_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var

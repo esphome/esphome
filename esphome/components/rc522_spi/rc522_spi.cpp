@@ -7,7 +7,7 @@
 namespace esphome {
 namespace rc522_spi {
 
-static const char *TAG = "rc522_spi";
+static const char *const TAG = "rc522_spi";
 
 void RC522Spi::setup() {
   ESP_LOGI(TAG, "SPI Setup");
@@ -32,7 +32,7 @@ uint8_t RC522Spi::pcd_read_register(PcdRegister reg  ///< The register to read f
   transfer_byte(0x80 | reg);
   value = read_byte();
   disable();
-  ESP_LOGV(TAG, "read_register_(%x) -> %x", reg, value);
+  ESP_LOGVV(TAG, "read_register_(%d) -> %d", reg, value);
   return value;
 }
 
@@ -45,9 +45,11 @@ void RC522Spi::pcd_read_register(PcdRegister reg,  ///< The register to read fro
                                  uint8_t *values,  ///< uint8_t array to store the values in.
                                  uint8_t rx_align  ///< Only bit positions rxAlign..7 in values[0] are updated.
 ) {
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   std::string buf;
   buf = "Rx";
   char cstrb[20];
+#endif
   if (count == 0) {
     return;
   }
@@ -68,25 +70,30 @@ void RC522Spi::pcd_read_register(PcdRegister reg,  ///< The register to read fro
     values[0] = (values[0] & ~mask) | (value & mask);
     index++;
 
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
     sprintf(cstrb, " %x", values[0]);
     buf.append(cstrb);
+#endif
   }
   while (index < count) {
     values[index] = transfer_byte(address);  // Read value and tell that we want to read the same address again.
 
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
     sprintf(cstrb, " %x", values[index]);
     buf.append(cstrb);
+#endif
 
     index++;
   }
   values[index] = transfer_byte(0);  // Read the final uint8_t. Send 0 to stop reading.
 
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   buf = buf + " ";
   sprintf(cstrb, "%x", values[index]);
   buf.append(cstrb);
 
   ESP_LOGVV(TAG, "read_register_array_(%x, %d, , %d) -> %s", reg, count, rx_align, buf.c_str());
-
+#endif
   disable();
 }
 
@@ -108,21 +115,25 @@ void RC522Spi::pcd_write_register(PcdRegister reg,  ///< The register to write t
                                   uint8_t count,    ///< The number of uint8_ts to write to the register
                                   uint8_t *values   ///< The values to write. uint8_t array.
 ) {
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   std::string buf;
   buf = "Tx";
+  char cstrb[20];
+#endif
 
   enable();
   transfer_byte(reg);
-  char cstrb[20];
 
   for (uint8_t index = 0; index < count; index++) {
     transfer_byte(values[index]);
 
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
     sprintf(cstrb, " %x", values[index]);
     buf.append(cstrb);
+#endif
   }
   disable();
-  ESP_LOGVV(TAG, "write_register_(%x, %d) -> %s", reg, count, buf.c_str());
+  ESP_LOGVV(TAG, "write_register_(%d, %d) -> %s", reg, count, buf.c_str());
 }
 
 }  // namespace rc522_spi

@@ -3,11 +3,9 @@ import esphome.config_validation as cv
 from esphome import automation, pins
 from esphome.components import i2c
 from esphome.const import CONF_ON_TAG, CONF_TRIGGER_ID, CONF_RESET_PIN
-from esphome.core import coroutine
 
 CODEOWNERS = ["@glmnet"]
 AUTO_LOAD = ["binary_sensor"]
-MULTI_CONF = True
 
 CONF_RC522_ID = "rc522_id"
 
@@ -30,15 +28,14 @@ RC522_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("1s"))
 
 
-@coroutine
-def setup_rc522(var, config):
-    yield cg.register_component(var, config)
+async def setup_rc522(var, config):
+    await cg.register_component(var, config)
 
     if CONF_RESET_PIN in config:
-        reset = yield cg.gpio_pin_expression(config[CONF_RESET_PIN])
+        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))
 
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_trigger(trigger))
-        yield automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)

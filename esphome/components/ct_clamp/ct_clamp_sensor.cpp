@@ -6,19 +6,7 @@
 namespace esphome {
 namespace ct_clamp {
 
-static const char *TAG = "ct_clamp";
-
-void CTClampSensor::setup() {
-  this->is_calibrating_offset_ = true;
-  this->high_freq_.start();
-  this->set_timeout("calibrate_offset", this->sample_duration_, [this]() {
-    this->high_freq_.stop();
-    this->is_calibrating_offset_ = false;
-    if (this->num_samples_ != 0) {
-      this->offset_ = this->sample_sum_ / this->num_samples_;
-    }
-  });
-}
+static const char *const TAG = "ct_clamp";
 
 void CTClampSensor::dump_config() {
   LOG_SENSOR("", "CT Clamp Sensor", this);
@@ -27,9 +15,6 @@ void CTClampSensor::dump_config() {
 }
 
 void CTClampSensor::update() {
-  if (this->is_calibrating_offset_)
-    return;
-
   // Update only starts the sampling phase, in loop() the actual sampling is happening.
 
   // Request a high loop() execution interval during sampling phase.
@@ -46,44 +31,39 @@ void CTClampSensor::update() {
       return;
     }
 
-    float raw = this->sample_sum_ / this->num_samples_;
-    float irms = std::sqrt(raw);
-    ESP_LOGD(TAG, "'%s' - Raw Value: %.2fA", this->name_.c_str(), irms);
-    this->publish_state(irms);
+    const float rms_ac_dc_squared = this->sample_squared_sum_ / this->num_samples_;
+    const float rms_dc = this->sample_sum_ / this->num_samples_;
+    const float rms_ac = std::sqrt(rms_ac_dc_squared - rms_dc * rms_dc);
+    ESP_LOGD(TAG, "'%s' - Raw AC Value: %.3fA after %d different samples (%d SPS)", this->name_.c_str(), rms_ac,
+             this->num_samples_, 1000 * this->num_samples_ / this->sample_duration_);
+    this->publish_state(rms_ac);
   });
 
   // Set sampling values
-  this->is_sampling_ = true;
+  this->last_value_ = 0.0;
   this->num_samples_ = 0;
   this->sample_sum_ = 0.0f;
+  this->sample_squared_sum_ = 0.0f;
+  this->is_sampling_ = true;
 }
 
 void CTClampSensor::loop() {
-  if (!this->is_sampling_ && !this->is_calibrating_offset_)
+  if (!this->is_sampling_)
     return;
 
   // Perform a single sample
   float value = this->source_->sample();
-  if (isnan(value))
+  if (std::isnan(value))
     return;
 
-  if (this->is_calibrating_offset_) {
-    this->sample_sum_ += value;
-    this->num_samples_++;
+  // Assuming a sine wave, avoid requesting values faster than the ADC can provide them
+  if (this->last_value_ == value)
     return;
-  }
+  this->last_value_ = value;
 
-  // Adjust DC offset via low pass filter (exponential moving average)
-  const float alpha = 0.001f;
-  this->offset_ = this->offset_ * (1 - alpha) + value * alpha;
-
-  // Filtered value centered around the mid-point (0V)
-  float filtered = value - this->offset_;
-
-  // IRMS is sqrt(∑v_i²)
-  float sq = filtered * filtered;
-  this->sample_sum_ += sq;
   this->num_samples_++;
+  this->sample_sum_ += value;
+  this->sample_squared_sum_ += value * value;
 }
 
 }  // namespace ct_clamp

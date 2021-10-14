@@ -1,5 +1,8 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_MQTT
+
 #include "esphome/core/component.h"
 #include "mqtt_client.h"
 
@@ -215,3 +218,5 @@ void CustomMQTTDevice::subscribe_json(const std::string &topic, void (T::*callba
 
 }  // namespace mqtt
 }  // namespace esphome
+
+#endif  // USE_MQTT

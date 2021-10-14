@@ -1,11 +1,17 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import light, output
-from esphome.const import CONF_BLUE, CONF_GREEN, CONF_RED, CONF_OUTPUT_ID, CONF_WHITE
+from esphome.const import (
+    CONF_BLUE,
+    CONF_COLOR_INTERLOCK,
+    CONF_GREEN,
+    CONF_RED,
+    CONF_OUTPUT_ID,
+    CONF_WHITE,
+)
 
 rgbw_ns = cg.esphome_ns.namespace("rgbw")
 RGBWLightOutput = rgbw_ns.class_("RGBWLightOutput", light.LightOutput)
-CONF_COLOR_INTERLOCK = "color_interlock"
 
 CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
     {
@@ -19,16 +25,16 @@ CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
-    yield light.register_light(var, config)
+    await light.register_light(var, config)
 
-    red = yield cg.get_variable(config[CONF_RED])
+    red = await cg.get_variable(config[CONF_RED])
     cg.add(var.set_red(red))
-    green = yield cg.get_variable(config[CONF_GREEN])
+    green = await cg.get_variable(config[CONF_GREEN])
     cg.add(var.set_green(green))
-    blue = yield cg.get_variable(config[CONF_BLUE])
+    blue = await cg.get_variable(config[CONF_BLUE])
     cg.add(var.set_blue(blue))
-    white = yield cg.get_variable(config[CONF_WHITE])
+    white = await cg.get_variable(config[CONF_WHITE])
     cg.add(var.set_white(white))
     cg.add(var.set_color_interlock(config[CONF_COLOR_INTERLOCK]))

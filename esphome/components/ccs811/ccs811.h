@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
@@ -12,6 +13,7 @@ class CCS811Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_co2(sensor::Sensor *co2) { co2_ = co2; }
   void set_tvoc(sensor::Sensor *tvoc) { tvoc_ = tvoc; }
+  void set_version(text_sensor::TextSensor *version) { version_ = version; }
   void set_baseline(uint16_t baseline) { baseline_ = baseline; }
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
@@ -34,7 +36,7 @@ class CCS811Component : public PollingComponent, public i2c::I2CDevice {
 
   enum ErrorCode {
     UNKNOWN,
-    COMMUNICAITON_FAILED,
+    COMMUNICATION_FAILED,
     INVALID_ID,
     SENSOR_REPORTED_ERROR,
     APP_INVALID,
@@ -43,6 +45,7 @@ class CCS811Component : public PollingComponent, public i2c::I2CDevice {
 
   sensor::Sensor *co2_{nullptr};
   sensor::Sensor *tvoc_{nullptr};
+  text_sensor::TextSensor *version_{nullptr};
   optional<uint16_t> baseline_{};
   /// Input sensor for humidity reading.
   sensor::Sensor *humidity_{nullptr};
