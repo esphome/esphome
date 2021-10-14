@@ -3,47 +3,47 @@
 #include "esphome/components/climate_ir/climate_ir.h"
 
 namespace esphome {
-namespace daikin {
+namespace delonghi {
 
-// Values for Daikin ARC43XXX IR Controllers
+// Values for DELONGHI ARC43XXX IR Controllers
+const uint8_t DELONGHI_ADDRESS = 83;
+
 // Temperature
-const uint8_t DAIKIN_TEMP_MIN = 10;  // Celsius
-const uint8_t DAIKIN_TEMP_MAX = 30;  // Celsius
+const uint8_t DELONGHI_TEMP_MIN = 13;  // Celsius
+const uint8_t DELONGHI_TEMP_MAX = 32;  // Celsius
+const uint8_t DELONGHI_TEMP_OFFSET_COOL = 17; // Celsius
+const uint8_t DELONGHI_TEMP_OFFSET_HEAT = 12; // Celsius
 
 // Modes
-const uint8_t DAIKIN_MODE_AUTO = 0x00;
-const uint8_t DAIKIN_MODE_COOL = 0x30;
-const uint8_t DAIKIN_MODE_HEAT = 0x40;
-const uint8_t DAIKIN_MODE_DRY = 0x20;
-const uint8_t DAIKIN_MODE_FAN = 0x60;
-const uint8_t DAIKIN_MODE_OFF = 0x00;
-const uint8_t DAIKIN_MODE_ON = 0x01;
+const uint8_t DELONGHI_MODE_AUTO = 0b1000;
+const uint8_t DELONGHI_MODE_COOL = 0b0000;
+const uint8_t DELONGHI_MODE_HEAT = 0b0110;
+const uint8_t DELONGHI_MODE_DRY = 0b0010;
+const uint8_t DELONGHI_MODE_FAN = 0b0100;
+const uint8_t DELONGHI_MODE_OFF = 0b0000;
+const uint8_t DELONGHI_MODE_ON = 0b0001;
 
 // Fan Speed
-const uint8_t DAIKIN_FAN_AUTO = 0xA0;
-const uint8_t DAIKIN_FAN_SILENT = 0xB0;
-const uint8_t DAIKIN_FAN_1 = 0x30;
-const uint8_t DAIKIN_FAN_2 = 0x40;
-const uint8_t DAIKIN_FAN_3 = 0x50;
-const uint8_t DAIKIN_FAN_4 = 0x60;
-const uint8_t DAIKIN_FAN_5 = 0x70;
+const uint8_t DELONGHI_FAN_AUTO = 0b00;
+const uint8_t DELONGHI_FAN_HIGH = 0b01;
+const uint8_t DELONGHI_FAN_MEDIUM = 0b10;
+const uint8_t DELONGHI_FAN_LOW = 0b11;
 
-// IR Transmission
-const uint32_t DAIKIN_IR_FREQUENCY = 38000;
-const uint32_t DAIKIN_HEADER_MARK = 3360;
-const uint32_t DAIKIN_HEADER_SPACE = 1760;
-const uint32_t DAIKIN_BIT_MARK = 520;
-const uint32_t DAIKIN_ONE_SPACE = 1370;
-const uint32_t DAIKIN_ZERO_SPACE = 360;
-const uint32_t DAIKIN_MESSAGE_SPACE = 32300;
+// IR Transmission - similar to NEC1
+const uint32_t DELONGHI_IR_FREQUENCY = 38000;
+const uint32_t DELONGHI_HEADER_MARK = 9000;
+const uint32_t DELONGHI_HEADER_SPACE = 4500;
+const uint32_t DELONGHI_BIT_MARK = 563;
+const uint32_t DELONGHI_ONE_SPACE = 1688;
+const uint32_t DELONGHI_ZERO_SPACE = 563;
 
 // State Frame size
-const uint8_t DAIKIN_STATE_FRAME_SIZE = 19;
+const uint8_t DELONGHI_STATE_FRAME_SIZE = 8;
 
-class DaikinClimate : public climate_ir::ClimateIR {
+class DelonghiClimate : public climate_ir::ClimateIR {
  public:
-  DaikinClimate()
-      : climate_ir::ClimateIR(DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX, 1.0f, true, true,
+  DelonghiClimate()
+      : climate_ir::ClimateIR(DELONGHI_TEMP_MIN, DELONGHI_TEMP_MAX, 1.0f, true, true,
                               {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
                                climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
@@ -60,5 +60,5 @@ class DaikinClimate : public climate_ir::ClimateIR {
   bool parse_state_frame_(const uint8_t frame[]);
 };
 
-}  // namespace daikin
+}  // namespace DELONGHI
 }  // namespace esphome
