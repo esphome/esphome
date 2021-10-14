@@ -316,11 +316,11 @@ class DisplayBuffer {
   void do_update_();
 
   // utility for buffer splitting
-  const static uint8_t display_buffer_parts = 4;
-  uint32_t buffer_size = 0;
-  uint32_t display_buffer_part(uint32_t x);
-  uint32_t display_buffer_pos(uint32_t x);
-  uint8_t *buffer_multiple_[display_buffer_parts]{nullptr};
+  const static uint8_t DISPLAY_BUFFER_PARTS = 4;
+  uint32_t buffer_size_ = 0;
+  uint32_t display_buffer_part_(uint32_t x);
+  uint32_t display_buffer_pos_(uint32_t x);
+  uint8_t *buffer_multiple_[DISPLAY_BUFFER_PARTS]{nullptr};
 
   uint8_t *buffer_{nullptr};
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};

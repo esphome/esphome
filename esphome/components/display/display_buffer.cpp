@@ -21,9 +21,9 @@ void DisplayBuffer::init_internal_(uint32_t buffer_length) {
 }
 // functions for buffer splitting
 void DisplayBuffer::init_internal_multiple_(uint32_t buffer_length) {
-  this->buffer_size = buffer_length;
+  this->buffer_size_ = buffer_length;
   for (auto &i : this->buffer_multiple_) {
-    i = new uint8_t[buffer_length / display_buffer_parts];
+    i = new uint8_t[buffer_length / DISPLAY_BUFFER_PARTS];
     if (i == nullptr) {
       ESP_LOGE(TAG, "Could not allocate buffer for display!");
       return;
@@ -31,11 +31,11 @@ void DisplayBuffer::init_internal_multiple_(uint32_t buffer_length) {
   }
   this->clear();
 }
-uint32_t DisplayBuffer::display_buffer_part(uint32_t x) {
-  return (uint32_t)(x / (this->buffer_size / display_buffer_parts));
+uint32_t DisplayBuffer::display_buffer_part_(uint32_t x) {
+  return (uint32_t)(x / (this->buffer_size_ / DISPLAY_BUFFER_PARTS));
 }
-uint32_t DisplayBuffer::display_buffer_pos(uint32_t x) {
-  return (uint32_t)(x % (this->buffer_size / display_buffer_parts));
+uint32_t DisplayBuffer::display_buffer_pos_(uint32_t x) {
+  return (uint32_t)(x % (this->buffer_size_ / DISPLAY_BUFFER_PARTS));
 }
 // end functions for buffer splitting
 
