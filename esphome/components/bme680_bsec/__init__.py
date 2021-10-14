@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
 from esphome.const import CONF_ID
+from esphome.core import CORE
 
 CODEOWNERS = ["@trvrnrth"]
 DEPENDENCIES = ["i2c"]
@@ -44,7 +45,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_STATE_SAVE_INTERVAL, default="6hours"
         ): cv.positive_time_period_minutes,
-    }
+    },
+    cv.only_with_arduino,
 ).extend(i2c.i2c_device_schema(0x76))
 
 
@@ -59,6 +61,10 @@ async def to_code(config):
     cg.add(
         var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)
     )
+
+    if CORE.is_esp32:
+        # Although this component does not use SPI, the BSEC library requires the SPI library
+        cg.add_library("SPI", None)
 
     cg.add_define("USE_BSEC")
     cg.add_library("BSEC Software Library", "1.6.1480")
