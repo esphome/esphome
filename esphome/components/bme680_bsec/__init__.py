@@ -63,6 +63,7 @@ async def to_code(config):
     )
 
     if CORE.is_esp32:
+        # Although this component does not use SPI, the BSEC library requires the SPI library
         cg.add_library("SPI", None)
 
     cg.add_define("USE_BSEC")
