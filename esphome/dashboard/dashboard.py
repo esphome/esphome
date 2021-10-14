@@ -10,7 +10,6 @@ import logging
 import multiprocessing
 import os
 from pathlib import Path
-from posixpath import basename
 import secrets
 import shutil
 import subprocess
@@ -467,7 +466,7 @@ class ManifestRequestHandler(BaseHandler):
             }
         ] + [
             {
-                "path": f"./download.bin?configuration={configuration}&type={basename(image.path)}",
+                "path": f"./download.bin?configuration={configuration}&type={os.path.basename(image.path)}",
                 "offset": image.offset,
             }
             for image in idedata.extra_flash_images
