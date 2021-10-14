@@ -18,6 +18,7 @@
 #endif
 
 namespace esphome {
+namespace md5 {
 
 class MD5Digest {
  public:
@@ -53,4 +54,5 @@ class MD5Digest {
   uint8_t digest_[16];
 };
 
+}  // namespace md5
 }  // namespace esphome

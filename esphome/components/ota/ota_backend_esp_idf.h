@@ -21,7 +21,7 @@ class IDFOTABackend : public OTABackend {
  private:
   esp_ota_handle_t update_handle_{0};
   const esp_partition_t *partition_;
-  MD5Digest md5_{};
+  md5::MD5Digest md5_{};
   char expected_bin_md5_[32];
 };
 

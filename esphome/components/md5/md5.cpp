@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome {
+namespace md5 {
 
 void MD5Digest::init() {
   memset(this->digest_, 0, 16);
@@ -46,4 +47,5 @@ bool MD5Digest::equals_hex(const char *expected) {
   return true;
 }
 
+}  // namespace md5
 }  // namespace esphome

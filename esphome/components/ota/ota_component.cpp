@@ -170,7 +170,7 @@ void OTAComponent::handle_() {
   if (!this->password_.empty()) {
     buf[0] = OTA_RESPONSE_REQUEST_AUTH;
     this->writeall_(buf, 1);
-    MD5Digest md5{};
+    md5::MD5Digest md5{};
     md5.init();
     sprintf(sbuf, "%08X", random_uint32());
     md5.add(sbuf, 8);
