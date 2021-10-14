@@ -762,7 +762,7 @@ def run_esphome(argv):
 
         config = read_config(dict(args.substitution) if args.substitution else {})
         if config is None:
-            return 1
+            return 2
         CORE.config = config
 
         if args.command not in POST_CONFIG_ACTIONS:
