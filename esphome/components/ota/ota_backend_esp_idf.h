@@ -5,7 +5,7 @@
 #include "ota_component.h"
 #include "ota_backend.h"
 #include <esp_ota_ops.h>
-#include "esphome/core/md5.h"
+#include "esphome/components/md5/md5.h"
 
 namespace esphome {
 namespace ota {

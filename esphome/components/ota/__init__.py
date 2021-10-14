@@ -15,7 +15,7 @@ from esphome.core import CORE, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["socket"]
+AUTO_LOAD = ["socket", "md5"]
 
 CONF_ON_STATE_CHANGE = "on_state_change"
 CONF_ON_BEGIN = "on_begin"

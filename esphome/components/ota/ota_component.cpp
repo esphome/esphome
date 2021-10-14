@@ -8,7 +8,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/util.h"
-#include "esphome/core/md5.h"
+#include "esphome/components/md5/md5.h"
 #include "esphome/components/network/util.h"
 
 #include <cerrno>
