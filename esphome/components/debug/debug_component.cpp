@@ -5,7 +5,7 @@
 #include "esphome/core/version.h"
 
 #ifdef USE_ESP32
-#include <rom/rtc.h>
+#include <esp32/rom/rtc.h>
 #include <esp_idf_version.h>
 #endif
 
