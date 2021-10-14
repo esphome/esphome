@@ -22,7 +22,7 @@ void DisplayBuffer::init_internal_(uint32_t buffer_length) {
 // functions for buffer splitting
 void DisplayBuffer::init_internal_multiple_(uint32_t buffer_length) {
   this->buffer_size_ = buffer_length;
-  for (auto &i : this->buffer_multiple_) {
+  for (uint8_t* &i : this->buffer_multiple_) {
     i = new uint8_t[buffer_length / DISPLAY_BUFFER_PARTS];
     if (i == nullptr) {
       ESP_LOGE(TAG, "Could not allocate buffer for display!");
