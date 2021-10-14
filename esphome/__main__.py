@@ -180,7 +180,11 @@ def compile_program(args, config):
     from esphome import platformio_api
 
     _LOGGER.info("Compiling app...")
-    return platformio_api.run_compile(config, CORE.verbose)
+    rc = platformio_api.run_compile(config, CORE.verbose)
+    if rc != 0:
+        return rc
+    idedata = platformio_api.get_idedata(config)
+    return 0 if idedata is not None else 1
 
 
 def upload_using_esptool(config, port):
