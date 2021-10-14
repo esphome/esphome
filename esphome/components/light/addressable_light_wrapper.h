@@ -16,7 +16,59 @@ class AddressableLightWrapper : public light::AddressableLight {
 
   void clear_effect_data() override { this->wrapper_state_[4] = 0; }
 
-  light::LightTraits get_traits() override { return this->light_state_->get_traits(); }
+  light::LightTraits get_traits() override {
+    LightTraits traits;
+
+    // Choose which color mode to use.
+    // This is ordered by how closely each color mode matches the underlying RGBW data structure used in LightPartition.
+    ColorMode color_mode_precedence[] = {ColorMode::RGB_WHITE,
+                                         ColorMode::RGB_COLD_WARM_WHITE,
+                                         ColorMode::RGB_COLOR_TEMPERATURE,
+                                         ColorMode::RGB,
+                                         ColorMode::WHITE,
+                                         ColorMode::COLD_WARM_WHITE,
+                                         ColorMode::COLOR_TEMPERATURE,
+                                         ColorMode::BRIGHTNESS,
+                                         ColorMode::ON_OFF,
+                                         ColorMode::UNKNOWN};
+
+    LightTraits parent_traits = this->light_state_->get_traits();
+    for (auto cm : color_mode_precedence) {
+      if (parent_traits.supports_color_mode(cm)) {
+        this->color_mode_ = cm;
+        break;
+      }
+    }
+
+    // Report a color mode that's compatible with both the partition and the underlying light
+    switch (this->color_mode_) {
+      case ColorMode::RGB_WHITE:
+      case ColorMode::RGB_COLD_WARM_WHITE:
+      case ColorMode::RGB_COLOR_TEMPERATURE:
+        traits.set_supported_color_modes({light::ColorMode::RGB_WHITE});
+        break;
+
+      case ColorMode::RGB:
+        traits.set_supported_color_modes({light::ColorMode::RGB});
+        break;
+
+      case ColorMode::WHITE:
+      case ColorMode::COLD_WARM_WHITE:
+      case ColorMode::COLOR_TEMPERATURE:
+      case ColorMode::BRIGHTNESS:
+        traits.set_supported_color_modes({light::ColorMode::BRIGHTNESS});
+        break;
+
+      case ColorMode::ON_OFF:
+        traits.set_supported_color_modes({light::ColorMode::ON_OFF});
+        break;
+
+      default:
+        traits.set_supported_color_modes({light::ColorMode::UNKNOWN});
+    }
+
+    return traits;
+  }
 
   void write_state(light::LightState *state) override {
     float gamma = this->light_state_->get_gamma_correct();
@@ -24,16 +76,28 @@ class AddressableLightWrapper : public light::AddressableLight {
     float g = gamma_uncorrect(this->wrapper_state_[1] / 255.0f, gamma);
     float b = gamma_uncorrect(this->wrapper_state_[2] / 255.0f, gamma);
     float w = gamma_uncorrect(this->wrapper_state_[3] / 255.0f, gamma);
-    float brightness = fmaxf(r, fmaxf(g, b));
 
     auto call = this->light_state_->make_call();
-    call.set_state(true);
-    call.set_brightness_if_supported(1.0f);
-    call.set_color_brightness_if_supported(brightness);
-    call.set_red_if_supported(r);
-    call.set_green_if_supported(g);
-    call.set_blue_if_supported(b);
-    call.set_white_if_supported(w);
+
+    float color_brightness = fmaxf(r, fmaxf(g, b));
+    float brightness = fmaxf(color_brightness, w);
+    if (brightness == 0.0f) {
+      call.set_state(false);
+    } else {
+      color_brightness /= brightness;
+      w /= brightness;
+
+      call.set_state(true);
+      call.set_color_mode_if_supported(this->color_mode_);
+      call.set_brightness_if_supported(brightness);
+      call.set_color_brightness_if_supported(color_brightness);
+      call.set_red_if_supported(r);
+      call.set_green_if_supported(g);
+      call.set_blue_if_supported(b);
+      call.set_white_if_supported(w);
+      call.set_warm_white_if_supported(w);
+      call.set_cold_white_if_supported(w);
+    }
     call.set_transition_length_if_supported(0);
     call.set_publish(false);
     call.set_save(false);
@@ -50,6 +114,7 @@ class AddressableLightWrapper : public light::AddressableLight {
 
   light::LightState *light_state_;
   uint8_t *wrapper_state_;
+  ColorMode color_mode_{ColorMode::UNKNOWN};
 };
 
 }  // namespace light
