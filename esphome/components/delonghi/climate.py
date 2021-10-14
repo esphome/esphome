@@ -5,8 +5,8 @@ from esphome.const import CONF_ID
 
 AUTO_LOAD = ["climate_ir"]
 
-daikin_ns = cg.esphome_ns.namespace("delonghi")
-DaikinClimate = daikin_ns.class_("DelonghiClimate", climate_ir.ClimateIR)
+delonghi_ns = cg.esphome_ns.namespace("delonghi")
+DelonghiClimate = delonghi_ns.class_("DelonghiClimate", climate_ir.ClimateIR)
 
 CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
     {

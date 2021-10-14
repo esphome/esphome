@@ -83,16 +83,16 @@ uint16_t DelonghiClimate::fan_speed_() {
 
 uint8_t DelonghiClimate::temperature_() {
   // Force special temperatures depending on the mode
+  uint8_t temperature = 0b0001;
   switch (this->mode) {
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      return 0x32;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-    case climate::CLIMATE_MODE_DRY:
-      return 0xc0;
+    case climate::CLIMATE_MODE_HEAT:
+      uint8_t temperature = (uint8_t) roundf(this->target_temperature) - DELONGHI_TEMP_OFFSET_COOL;
+      break;
     default:
-      uint8_t temperature = (uint8_t) roundf(clamp<float>(this->target_temperature, DELONGHI_TEMP_MIN, DELONGHI_TEMP_MAX));
-      return temperature << 1;
+      uint8_t temperature = (uint8_t) roundf(this->target_temperature) - DELONGHI_TEMP_OFFSET_HEAT;
   }
+  temperature = clamp<uint8_t>(temperature, 0x00, 0x0F);
+  return temperature;
 }
 
 bool DelonghiClimate::parse_state_frame_(const uint8_t frame[]) {
