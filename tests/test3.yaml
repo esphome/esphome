@@ -647,46 +647,39 @@ sensor:
     component_id: 2
     wave_channel_id: 1
   - platform: ds3231
-    id: ds3231_sensor
+    id: ds3231_temp
 
 time:
   - platform: homeassistant
     on_time_sync:
       then:
         - ds3231.write_time:
-            id: ds3231_time
         - ds3231.set_alarm_1:
-            id: ds3231_cmp
             type: match_day_of_month_hour_minute_second
             second: 1
             minute: 2
             hour: 3
             day: 4
         - ds3231.set_alarm_2:
-            id: ds3231_cmp
             type: every_minute
         - ds3231.set_square_wave_mode:
-            id: ds3231_cmp
             mode: square_wave
         - ds3231.set_square_wave_frequency:
-            id: ds3231_cmp
             frequency: 4096hz
   - platform: ds3231
-    id: ds3231_time
     update_interval: never
     on_time:
       seconds: 0
       then: ds3231.read_time
 
 ds3231:
-  id: ds3231_cmp
+  update_interval: 1s
   on_alarm_1:
     then:
-      ds3231.reset_alarm_1: ds3231_cmp
+      ds3231.reset_alarm_1:
   on_alarm_2:
     then:
       ds3231.reset_alarm_2:
-        id: ds3231_cmp
 
 apds9960:
   address: 0x20

@@ -25,10 +25,9 @@ CONFIG_SCHEMA = cv.All(
 @automation.register_action(
     "ds3231.write_time",
     WriteTimeAction,
-    cv.Schema(
+    automation.maybe_simple_id(
         {
             cv.GenerateID(): cv.use_id(DS3231RTC),
-            cv.GenerateID(CONF_DS3231_ID): cv.use_id(DS3231Component),
         }
     ),
 )

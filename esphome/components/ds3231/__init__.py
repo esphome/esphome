@@ -123,7 +123,7 @@ async def to_code(config):
 
 RESET_ALARM_SCHEMA = maybe_simple_id(
     {
-        cv.Required(CONF_ID): cv.use_id(DS3231Component),
+        cv.GenerateID(CONF_ID): cv.use_id(DS3231Component),
     }
 )
 
@@ -133,7 +133,7 @@ RESET_ALARM_SCHEMA = maybe_simple_id(
     SetAlarm1Action,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(DS3231Component),
+            cv.GenerateID(CONF_ID): cv.use_id(DS3231Component),
             cv.Required(CONF_TYPE): cv.templatable(
                 cv.enum(ALARM_1_TYPE_ENUM, upper=True)
             ),
@@ -174,7 +174,7 @@ async def reset_alarm_1_to_code(config, action_id, template_arg, args):
     SetAlarm2Action,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(DS3231Component),
+            cv.GenerateID(CONF_ID): cv.use_id(DS3231Component),
             cv.Required(CONF_TYPE): cv.templatable(
                 cv.enum(ALARM_2_TYPE_ENUM, upper=True)
             ),
@@ -212,7 +212,7 @@ async def reset_alarm_2_to_code(config, action_id, template_arg, args):
     SetSquareWaveModeAction,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(DS3231Component),
+            cv.GenerateID(CONF_ID): cv.use_id(DS3231Component),
             cv.Required(CONF_MODE): cv.templatable(
                 cv.enum(SQUARE_WAVE_MODE_ENUM, upper=True)
             ),
@@ -232,7 +232,7 @@ async def set_square_wave_mode_to_code(config, action_id, template_arg, args):
     SetSquareWaveFrequencyAction,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(DS3231Component),
+            cv.GenerateID(CONF_ID): cv.use_id(DS3231Component),
             cv.Required(CONF_FREQUENCY): cv.templatable(
                 cv.enum(SQUARE_WAVE_FREQUENCY_ENUM, upper=True)
             ),
