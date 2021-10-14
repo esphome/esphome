@@ -71,6 +71,12 @@ class AddressableLightWrapper : public light::AddressableLight {
   }
 
   void write_state(light::LightState *state) override {
+    // Don't overwrite state if the underlying light is turned on
+    if (this->light_state_->remote_values.is_on()) {
+      this->mark_shown_();
+      return;
+    }
+
     float gamma = this->light_state_->get_gamma_correct();
     float r = gamma_uncorrect(this->wrapper_state_[0] / 255.0f, gamma);
     float g = gamma_uncorrect(this->wrapper_state_[1] / 255.0f, gamma);
