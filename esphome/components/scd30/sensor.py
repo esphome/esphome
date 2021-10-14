@@ -89,8 +89,7 @@ async def to_code(config):
     if CONF_TEMPERATURE_OFFSET in config:
         cg.add(var.set_temperature_offset(config[CONF_TEMPERATURE_OFFSET]))
 
-    if CONF_UPDATE_INTERVAL in config:
-        cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+    cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
 
     if CONF_CO2 in config:
         sens = await sensor.new_sensor(config[CONF_CO2])
