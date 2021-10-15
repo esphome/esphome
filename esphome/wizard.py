@@ -368,6 +368,6 @@ def wizard(path):
     safe_print()
     safe_print("Next steps:")
     safe_print("  > Follow the rest of the getting started guide:")
-    safe_print("  > https://esphome.io/guides/getting_started_command_line.html")
+    safe_print("  > https://esphome.io/guides/getting_started_command_line.html#adding-some-features")
     safe_print("  > to learn how to customize ESPHome and install it to your device.")
     return 0
