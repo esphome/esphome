@@ -312,7 +312,7 @@ template<typename... X> class TemplatableStringValue : public TemplatableValue<s
       : TemplatableValue<std::string, X...>([f](X... x) -> std::string { return to_string(f(x...)); }) {}
 };
 
-void delay_microseconds_accurate(uint32_t usec);
+void delayMicroseconds_safe(uint32_t us);
 
 template<typename T> class Deduplicator {
  public:
