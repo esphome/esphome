@@ -8,32 +8,21 @@
 namespace esphome {
 namespace ds3231 {
 
-enum DS3231Alarm1Type {
+enum DS3231Alarm1Mode {
   EVERY_SECOND = 0x0F,
-  EVERY_SECOND_WITH_INTERRUPT = 0x4F,
   MATCH_SECOND = 0x0E,
-  MATCH_SECOND_WITH_INTERRUPT = 0x4E,
   MATCH_MINUTE_SECOND = 0x0C,
-  MATCH_MINUTE_SECOND_WITH_INTERRUPT = 0x4C,
   MATCH_HOUR_MINUTE_SECOND = 0x08,
-  MATCH_HOUR_MINUTE_SECOND_WITH_INTERRUPT = 0x48,
   MATCH_DAY_OF_MONTH_HOUR_MINUTE_SECOND = 0x00,
-  MATCH_DAY_OF_MONTH_HOUR_MINUTE_SECOND_WITH_INTERRUPT = 0x40,
   MATCH_DAY_OF_WEEK_HOUR_MINUTE_SECOND = 0x10,
-  MATCH_DAY_OF_WEEK_HOUR_MINUTE_SECOND_WITH_INTERRUPT = 0x50,
 };
 
-enum DS3231Alarm2Type {
+enum DS3231Alarm2Mode {
   EVERY_MINUTE = 0x0E,
-  EVERY_MINUTE_WITH_INTERRUPT = 0x4E,
   MATCH_MINUTE = 0x0C,
-  MATCH_MINUTE_WITH_INTERRUPT = 0x4C,
   MATCH_HOUR_MINUTE = 0x08,
-  MATCH_HOUR_MINUTE_WITH_INTERRUPT = 0x48,
   MATCH_DAY_OF_MONTH_HOUR_MINUTE = 0x00,
-  MATCH_DAY_OF_MONTH_HOUR_MINUTE_WITH_INTERRUPT = 0x40,
   MATCH_DAY_OF_WEEK_HOUR_MINUTE = 0x10,
-  MATCH_DAY_OF_WEEK_HOUR_MINUTE_WITH_INTERRUPT = 0x50,
 };
 
 enum DS3231SquareWaveMode {
@@ -54,8 +43,9 @@ class DS3231Sensor;
 
 class DS3231Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  void set_default_alarm_1(DS3231Alarm1Type alarm_type, uint8_t second, uint8_t minute, uint8_t hour, uint8_t day);
-  void set_default_alarm_2(DS3231Alarm2Type alarm_type, uint8_t minute, uint8_t hour, uint8_t day);
+  void set_default_alarm_1(DS3231Alarm1Mode mode, bool int_enabled, uint8_t second, uint8_t minute, uint8_t hour,
+                           uint8_t day);
+  void set_default_alarm_2(DS3231Alarm2Mode mode, bool int_enabled, uint8_t minute, uint8_t hour, uint8_t day);
   void set_default_square_wave_mode(DS3231SquareWaveMode mode) { this->square_wave_mode_ = mode; }
   void set_default_square_wave_frequency(DS3231SquareWaveFrequency frequency) {
     this->square_wave_frequency_ = frequency;
@@ -66,9 +56,9 @@ class DS3231Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   void update() override { this->read_status_(); }
 
-  void set_alarm_1(DS3231Alarm1Type alarm_type, uint8_t second, uint8_t minute, uint8_t hour, uint8_t day);
+  void set_alarm_1(DS3231Alarm1Mode mode, bool int_enabled, uint8_t second, uint8_t minute, uint8_t hour, uint8_t day);
   void reset_alarm_1();
-  void set_alarm_2(DS3231Alarm2Type alarm_type, uint8_t minute, uint8_t hour, uint8_t day);
+  void set_alarm_2(DS3231Alarm2Mode mode, bool int_enabled, uint8_t minute, uint8_t hour, uint8_t day);
   void reset_alarm_2();
   void set_square_wave_mode(DS3231SquareWaveMode mode);
   void set_square_wave_frequency(DS3231SquareWaveFrequency frequency);
@@ -88,12 +78,14 @@ class DS3231Component : public PollingComponent, public i2c::I2CDevice {
   bool read_temperature_();
   CallbackManager<void(uint8_t)> alarm_callback_{};
 
-  optional<DS3231Alarm1Type> alarm_1_type_{};
+  optional<DS3231Alarm1Mode> alarm_1_mode_{};
+  bool alarm_1_interrupt_anabled;
   uint8_t alarm_1_second_;
   uint8_t alarm_1_minute_;
   uint8_t alarm_1_hour_;
   uint8_t alarm_1_day_;
-  optional<DS3231Alarm2Type> alarm_2_type_{};
+  optional<DS3231Alarm2Mode> alarm_2_mode_{};
+  bool alarm_2_interrupt_anabled;
   uint8_t alarm_2_minute_;
   uint8_t alarm_2_hour_;
   uint8_t alarm_2_day_;

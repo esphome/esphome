@@ -9,15 +9,16 @@ namespace ds3231 {
 
 template<typename... Ts> class SetAlarm1Action : public Action<Ts...>, public Parented<DS3231Component> {
  public:
-  TEMPLATABLE_VALUE(DS3231Alarm1Type, alarm_type)
+  TEMPLATABLE_VALUE(DS3231Alarm1Mode, mode)
+  TEMPLATABLE_VALUE(bool, int_enabled)
   TEMPLATABLE_VALUE(int, second)
   TEMPLATABLE_VALUE(int, minute)
   TEMPLATABLE_VALUE(int, hour)
   TEMPLATABLE_VALUE(int, day)
 
   void play(Ts... x) override {
-    this->parent_->set_alarm_1(this->alarm_type_.value(x...), this->second_.value(x...), this->minute_.value(x...),
-                               this->hour_.value(x...), this->day_.value(x...));
+    this->parent_->set_alarm_1(this->mode_.value(x...), this->int_enabled_.value(x...), this->second_.value(x...),
+                               this->minute_.value(x...), this->hour_.value(x...), this->day_.value(x...));
   }
 };
 
@@ -28,14 +29,15 @@ template<typename... Ts> class ResetAlarm1Action : public Action<Ts...>, public 
 
 template<typename... Ts> class SetAlarm2Action : public Action<Ts...>, public Parented<DS3231Component> {
  public:
-  TEMPLATABLE_VALUE(DS3231Alarm2Type, alarm_type)
+  TEMPLATABLE_VALUE(DS3231Alarm2Mode, mode)
+  TEMPLATABLE_VALUE(bool, int_enabled)
   TEMPLATABLE_VALUE(int, minute)
   TEMPLATABLE_VALUE(int, hour)
   TEMPLATABLE_VALUE(int, day)
 
   void play(Ts... x) override {
-    this->parent_->set_alarm_2(this->alarm_type_.value(x...), this->minute_.value(x...), this->hour_.value(x...),
-                               this->day_.value(x...));
+    this->parent_->set_alarm_2(this->mode_.value(x...), this->int_enabled_.value(x...), this->minute_.value(x...),
+                               this->hour_.value(x...), this->day_.value(x...));
   }
 };
 

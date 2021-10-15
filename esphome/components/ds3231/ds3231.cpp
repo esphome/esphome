@@ -22,19 +22,21 @@ static const uint8_t DS3231_MASK_ALARM_TYPE_M2 = 0x02;
 static const uint8_t DS3231_MASK_ALARM_TYPE_M3 = 0x04;
 static const uint8_t DS3231_MASK_ALARM_TYPE_M4 = 0x08;
 static const uint8_t DS3231_MASK_ALARM_TYPE_DAY_MODE = 0x10;
-static const uint8_t DS3231_MASK_ALARM_TYPE_INTERRUPT_ENABLE = 0x40;
 
-void DS3231Component::set_default_alarm_1(DS3231Alarm1Type alarm_type, uint8_t second, uint8_t minute, uint8_t hour,
-                                          uint8_t day) {
-  this->alarm_1_type_ = alarm_type;
+void DS3231Component::set_default_alarm_1(DS3231Alarm1Mode mode, bool int_enabled, uint8_t second, uint8_t minute,
+                                          uint8_t hour, uint8_t day) {
+  this->alarm_1_mode_ = mode;
+  this->alarm_1_interrupt_anabled = int_enabled;
   this->alarm_1_second_ = second;
   this->alarm_1_minute_ = minute;
   this->alarm_1_hour_ = hour;
   this->alarm_1_day_ = day;
 }
 
-void DS3231Component::set_default_alarm_2(DS3231Alarm2Type alarm_type, uint8_t minute, uint8_t hour, uint8_t day) {
-  this->alarm_2_type_ = alarm_type;
+void DS3231Component::set_default_alarm_2(DS3231Alarm2Mode mode, bool int_enabled, uint8_t minute, uint8_t hour,
+                                          uint8_t day) {
+  this->alarm_2_mode_ = mode;
+  this->alarm_2_interrupt_anabled = int_enabled;
   this->alarm_2_minute_ = minute;
   this->alarm_2_hour_ = hour;
   this->alarm_2_day_ = day;
@@ -59,12 +61,13 @@ void DS3231Component::setup() {
     this->mark_failed();
   }
 
-  if (this->alarm_1_type_.has_value()) {
-    this->set_alarm_1(this->alarm_1_type_.value(), this->alarm_1_second_, this->alarm_1_minute_, this->alarm_1_hour_,
-                      this->alarm_1_day_);
+  if (this->alarm_1_mode_.has_value()) {
+    this->set_alarm_1(this->alarm_1_mode_.value(), this->alarm_1_interrupt_anabled, this->alarm_1_second_,
+                      this->alarm_1_minute_, this->alarm_1_hour_, this->alarm_1_day_);
   }
-  if (this->alarm_2_type_.has_value()) {
-    this->set_alarm_2(this->alarm_2_type_.value(), this->alarm_2_minute_, this->alarm_2_hour_, this->alarm_2_day_);
+  if (this->alarm_2_mode_.has_value()) {
+    this->set_alarm_2(this->alarm_2_mode_.value(), this->alarm_2_interrupt_anabled, this->alarm_2_minute_,
+                      this->alarm_2_hour_, this->alarm_2_day_);
   }
   if (this->square_wave_frequency_.has_value()) {
     this->set_square_wave_frequency(this->square_wave_frequency_.value());
@@ -82,24 +85,24 @@ void DS3231Component::dump_config() {
   }
 }
 
-void DS3231Component::set_alarm_1(DS3231Alarm1Type alarm_type, uint8_t second, uint8_t minute, uint8_t hour,
+void DS3231Component::set_alarm_1(DS3231Alarm1Mode mode, bool int_enabled, uint8_t second, uint8_t minute, uint8_t hour,
                                   uint8_t day) {
   this->ds3231_.alrm.reg.a1_second = second % 10;
   this->ds3231_.alrm.reg.a1_second_10 = second / 10;
-  this->ds3231_.alrm.reg.a1_m1 = alarm_type & DS3231_MASK_ALARM_TYPE_M1;
+  this->ds3231_.alrm.reg.a1_m1 = mode & DS3231_MASK_ALARM_TYPE_M1;
   this->ds3231_.alrm.reg.a1_minute = minute % 10;
   this->ds3231_.alrm.reg.a1_minute_10 = minute / 10;
-  this->ds3231_.alrm.reg.a1_m2 = alarm_type & DS3231_MASK_ALARM_TYPE_M2;
+  this->ds3231_.alrm.reg.a1_m2 = mode & DS3231_MASK_ALARM_TYPE_M2;
   this->ds3231_.alrm.reg.a1_hour = hour % 10;
   this->ds3231_.alrm.reg.a1_hour_10 = hour / 10;
-  this->ds3231_.alrm.reg.a1_m3 = alarm_type & DS3231_MASK_ALARM_TYPE_M3;
+  this->ds3231_.alrm.reg.a1_m3 = mode & DS3231_MASK_ALARM_TYPE_M3;
   this->ds3231_.alrm.reg.a1_day = day % 10;
   this->ds3231_.alrm.reg.a1_day_10 = day / 10;
-  this->ds3231_.alrm.reg.a1_day_mode = alarm_type & DS3231_MASK_ALARM_TYPE_DAY_MODE;
-  this->ds3231_.alrm.reg.a1_m4 = alarm_type & DS3231_MASK_ALARM_TYPE_M4;
+  this->ds3231_.alrm.reg.a1_day_mode = mode & DS3231_MASK_ALARM_TYPE_DAY_MODE;
+  this->ds3231_.alrm.reg.a1_m4 = mode & DS3231_MASK_ALARM_TYPE_M4;
   this->write_alarm_();
-  if (this->ds3231_.ctrl.reg.alrm_1_int != bool(alarm_type & DS3231_MASK_ALARM_TYPE_INTERRUPT_ENABLE)) {
-    this->ds3231_.ctrl.reg.alrm_1_int = bool(alarm_type & DS3231_MASK_ALARM_TYPE_INTERRUPT_ENABLE);
+  if (this->ds3231_.ctrl.reg.alrm_1_int != int_enabled) {
+    this->ds3231_.ctrl.reg.alrm_1_int = int_enabled;
     this->write_control_();
   }
 }
@@ -109,20 +112,20 @@ void DS3231Component::reset_alarm_1() {
   this->write_status_();
 }
 
-void DS3231Component::set_alarm_2(DS3231Alarm2Type alarm_type, uint8_t minute, uint8_t hour, uint8_t day) {
+void DS3231Component::set_alarm_2(DS3231Alarm2Mode mode, bool int_enabled, uint8_t minute, uint8_t hour, uint8_t day) {
   this->ds3231_.alrm.reg.a2_minute = minute % 10;
   this->ds3231_.alrm.reg.a2_minute_10 = minute / 10;
-  this->ds3231_.alrm.reg.a2_m2 = alarm_type & DS3231_MASK_ALARM_TYPE_M2;
+  this->ds3231_.alrm.reg.a2_m2 = mode & DS3231_MASK_ALARM_TYPE_M2;
   this->ds3231_.alrm.reg.a2_hour = hour % 10;
   this->ds3231_.alrm.reg.a2_hour_10 = hour / 10;
-  this->ds3231_.alrm.reg.a2_m3 = alarm_type & DS3231_MASK_ALARM_TYPE_M3;
+  this->ds3231_.alrm.reg.a2_m3 = mode & DS3231_MASK_ALARM_TYPE_M3;
   this->ds3231_.alrm.reg.a2_day = day % 10;
   this->ds3231_.alrm.reg.a2_day_10 = day / 10;
-  this->ds3231_.alrm.reg.a2_day_mode = alarm_type & DS3231_MASK_ALARM_TYPE_DAY_MODE;
-  this->ds3231_.alrm.reg.a2_m4 = alarm_type & DS3231_MASK_ALARM_TYPE_M4;
+  this->ds3231_.alrm.reg.a2_day_mode = mode & DS3231_MASK_ALARM_TYPE_DAY_MODE;
+  this->ds3231_.alrm.reg.a2_m4 = mode & DS3231_MASK_ALARM_TYPE_M4;
   this->write_alarm_();
-  if (this->ds3231_.ctrl.reg.alrm_2_int != bool(alarm_type & DS3231_MASK_ALARM_TYPE_INTERRUPT_ENABLE)) {
-    this->ds3231_.ctrl.reg.alrm_2_int = bool(alarm_type & DS3231_MASK_ALARM_TYPE_INTERRUPT_ENABLE);
+  if (this->ds3231_.ctrl.reg.alrm_2_int != int_enabled) {
+    this->ds3231_.ctrl.reg.alrm_2_int = int_enabled;
     this->write_control_();
   }
 }
