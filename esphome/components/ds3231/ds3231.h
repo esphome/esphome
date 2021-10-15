@@ -38,7 +38,7 @@ enum DS3231Alarm2Type {
 
 enum DS3231SquareWaveMode {
   MODE_SQUARE_WAVE,
-  MODE_INTERRUPT,
+  MODE_ALARM_INTERRUPT,
 };
 
 enum DS3231SquareWaveFrequency {
@@ -54,6 +54,12 @@ class DS3231Sensor;
 
 class DS3231Component : public PollingComponent, public i2c::I2CDevice {
  public:
+  void set_default_alarm_1(DS3231Alarm1Type alarm_type, uint8_t second, uint8_t minute, uint8_t hour, uint8_t day);
+  void set_default_alarm_2(DS3231Alarm2Type alarm_type, uint8_t minute, uint8_t hour, uint8_t day);
+  void set_default_square_wave_mode(DS3231SquareWaveMode mode) { this->square_wave_mode_ = mode; }
+  void set_default_square_wave_frequency(DS3231SquareWaveFrequency frequency) {
+    this->square_wave_frequency_ = frequency;
+  }
   void add_on_alarm_callback(std::function<void(uint8_t)> &&callback);
   float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
@@ -70,6 +76,7 @@ class DS3231Component : public PollingComponent, public i2c::I2CDevice {
  protected:
   friend DS3231RTC;
   friend DS3231Sensor;
+
   bool read_rtc_();
   bool write_rtc_();
   bool read_alarm_();
@@ -80,6 +87,18 @@ class DS3231Component : public PollingComponent, public i2c::I2CDevice {
   bool write_status_();
   bool read_temperature_();
   CallbackManager<void(uint8_t)> alarm_callback_{};
+
+  optional<DS3231Alarm1Type> alarm_1_type_{};
+  uint8_t alarm_1_second_;
+  uint8_t alarm_1_minute_;
+  uint8_t alarm_1_hour_;
+  uint8_t alarm_1_day_;
+  optional<DS3231Alarm2Type> alarm_2_type_{};
+  uint8_t alarm_2_minute_;
+  uint8_t alarm_2_hour_;
+  uint8_t alarm_2_day_;
+  optional<DS3231SquareWaveMode> square_wave_mode_;
+  optional<DS3231SquareWaveFrequency> square_wave_frequency_;
   bool alarm_1_act_;
   bool alarm_2_act_;
   struct DS3231Reg {

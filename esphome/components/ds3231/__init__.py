@@ -56,7 +56,7 @@ ALARM_2_TYPE_ENUM = {
 SquareWaveMode = ds3231_ns.enum("DS3231SquareWaveMode")
 SQUARE_WAVE_MODE_ENUM = {
     "SQUARE_WAVE": SquareWaveMode.MODE_SQUARE_WAVE,
-    "INTERRUPT": SquareWaveMode.MODE_INTERRUPT,
+    "ALARM_INTERRUPT": SquareWaveMode.MODE_ALARM_INTERRUPT,
 }
 
 SquareWaveFrequency = ds3231_ns.enum("DS3231SquareWaveFrequency")
@@ -82,14 +82,39 @@ Alarm1Trigger = ds3231_ns.class_("Alarm1Trigger", automation.Trigger.template())
 Alarm2Trigger = ds3231_ns.class_("Alarm2Trigger", automation.Trigger.template())
 
 CONF_DAY = "day"
+CONF_ALARM_1 = "alarm_1"
+CONF_ALARM_2 = "alarm_2"
 CONF_ON_ALARM_1 = "on_alarm_1"
 CONF_ON_ALARM_2 = "on_alarm_2"
+CONF_SQUARE_WAVE_MODE = "square_wave_mode"
+CONF_SQUARE_WAVE_FREQUENCY = "square_wave_frequency"
 CONF_DS3231_ID = "ds3231_id"
+
+CONFIG_ALARM_1_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_TYPE): cv.templatable(cv.enum(ALARM_1_TYPE_ENUM, upper=True)),
+        cv.Optional(CONF_SECOND, default="0"): cv.int_range(0, 59),
+        cv.Optional(CONF_MINUTE, default="0"): cv.int_range(0, 59),
+        cv.Optional(CONF_HOUR, default="0"): cv.int_range(0, 23),
+        cv.Optional(CONF_DAY, default="1"): cv.int_range(1, 31),
+    }
+)
+
+CONFIG_ALARM_2_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_TYPE): cv.templatable(cv.enum(ALARM_2_TYPE_ENUM, upper=True)),
+        cv.Optional(CONF_MINUTE, default="0"): cv.int_range(0, 59),
+        cv.Optional(CONF_HOUR, default="0"): cv.int_range(0, 23),
+        cv.Optional(CONF_DAY, default="1"): cv.int_range(1, 31),
+    }
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DS3231Component),
+            cv.Optional(CONF_ALARM_1): CONFIG_ALARM_1_SCHEMA,
+            cv.Optional(CONF_ALARM_2): CONFIG_ALARM_2_SCHEMA,
             cv.Optional(CONF_ON_ALARM_1): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Alarm1Trigger),
@@ -99,6 +124,12 @@ CONFIG_SCHEMA = (
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Alarm2Trigger),
                 }
+            ),
+            cv.Optional(CONF_SQUARE_WAVE_MODE): cv.templatable(
+                cv.enum(SQUARE_WAVE_MODE_ENUM, upper=True)
+            ),
+            cv.Optional(CONF_SQUARE_WAVE_FREQUENCY): cv.templatable(
+                cv.enum(SQUARE_WAVE_FREQUENCY_ENUM, upper=True)
             ),
         }
     )
@@ -112,6 +143,31 @@ async def to_code(config):
 
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+
+    if CONF_ALARM_1 in config:
+        alrm1 = config[CONF_ALARM_1]
+        cg.add(
+            var.set_default_alarm_1(
+                alrm1[CONF_TYPE],
+                alrm1[CONF_SECOND],
+                alrm1[CONF_MINUTE],
+                alrm1[CONF_HOUR],
+                alrm1[CONF_DAY],
+            )
+        )
+    if CONF_ALARM_2 in config:
+        alrm2 = config[CONF_ALARM_2]
+        cg.add(
+            var.set_default_alarm_2(
+                alrm2[CONF_TYPE], alrm2[CONF_MINUTE], alrm2[CONF_HOUR], alrm2[CONF_DAY]
+            )
+        )
+    if CONF_SQUARE_WAVE_MODE in config:
+        cg.add(var.set_default_square_wave_mode(config[CONF_SQUARE_WAVE_MODE]))
+    if CONF_SQUARE_WAVE_FREQUENCY in config:
+        cg.add(
+            var.set_default_square_wave_frequency(config[CONF_SQUARE_WAVE_FREQUENCY])
+        )
 
     for conf in config.get(CONF_ON_ALARM_1, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -134,15 +190,8 @@ RESET_ALARM_SCHEMA = maybe_simple_id(
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(DS3231Component),
-            cv.Required(CONF_TYPE): cv.templatable(
-                cv.enum(ALARM_1_TYPE_ENUM, upper=True)
-            ),
-            cv.Optional(CONF_SECOND, default="0"): cv.int_range(0, 59),
-            cv.Optional(CONF_MINUTE, default="0"): cv.int_range(0, 59),
-            cv.Optional(CONF_HOUR, default="0"): cv.int_range(0, 23),
-            cv.Optional(CONF_DAY, default="1"): cv.int_range(1, 31),
         }
-    ),
+    ).extend(CONFIG_ALARM_1_SCHEMA),
 )
 async def set_alarm_1_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -175,14 +224,8 @@ async def reset_alarm_1_to_code(config, action_id, template_arg, args):
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(DS3231Component),
-            cv.Required(CONF_TYPE): cv.templatable(
-                cv.enum(ALARM_2_TYPE_ENUM, upper=True)
-            ),
-            cv.Optional(CONF_MINUTE, default="0"): cv.int_range(0, 59),
-            cv.Optional(CONF_HOUR, default="0"): cv.int_range(0, 23),
-            cv.Optional(CONF_DAY, default="1"): cv.int_range(1, 31),
         }
-    ),
+    ).extend(CONFIG_ALARM_2_SCHEMA),
 )
 async def set_alarm_2_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

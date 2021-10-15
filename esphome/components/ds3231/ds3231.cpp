@@ -24,6 +24,22 @@ static const uint8_t DS3231_MASK_ALARM_TYPE_M4 = 0x08;
 static const uint8_t DS3231_MASK_ALARM_TYPE_DAY_MODE = 0x10;
 static const uint8_t DS3231_MASK_ALARM_TYPE_INTERRUPT_ENABLE = 0x40;
 
+void DS3231Component::set_default_alarm_1(DS3231Alarm1Type alarm_type, uint8_t second, uint8_t minute, uint8_t hour,
+                                          uint8_t day) {
+  this->alarm_1_type_ = alarm_type;
+  this->alarm_1_second_ = second;
+  this->alarm_1_minute_ = minute;
+  this->alarm_1_hour_ = hour;
+  this->alarm_1_day_ = day;
+}
+
+void DS3231Component::set_default_alarm_2(DS3231Alarm2Type alarm_type, uint8_t minute, uint8_t hour, uint8_t day) {
+  this->alarm_2_type_ = alarm_type;
+  this->alarm_2_minute_ = minute;
+  this->alarm_2_hour_ = hour;
+  this->alarm_2_day_ = day;
+}
+
 void DS3231Component::add_on_alarm_callback(std::function<void(uint8_t)> &&callback) {
   this->alarm_callback_.add(std::move(callback));
 }
@@ -39,9 +55,22 @@ void DS3231Component::setup() {
   if (!this->read_control_()) {
     this->mark_failed();
   }
-
   if (!this->read_status_()) {
     this->mark_failed();
+  }
+
+  if (this->alarm_1_type_.has_value()) {
+    this->set_alarm_1(this->alarm_1_type_.value(), this->alarm_1_second_, this->alarm_1_minute_, this->alarm_1_hour_,
+                      this->alarm_1_day_);
+  }
+  if (this->alarm_2_type_.has_value()) {
+    this->set_alarm_2(this->alarm_2_type_.value(), this->alarm_2_minute_, this->alarm_2_hour_, this->alarm_2_day_);
+  }
+  if (this->square_wave_frequency_.has_value()) {
+    this->set_square_wave_frequency(this->square_wave_frequency_.value());
+  }
+  if (this->square_wave_mode_.has_value()) {
+    this->set_square_wave_mode(this->square_wave_mode_.value());
   }
 }
 
@@ -104,7 +133,7 @@ void DS3231Component::reset_alarm_2() {
 }
 
 void DS3231Component::set_square_wave_mode(DS3231SquareWaveMode mode) {
-  if (mode == DS3231SquareWaveMode::MODE_INTERRUPT && !this->ds3231_.ctrl.reg.int_ctrl) {
+  if (mode == DS3231SquareWaveMode::MODE_ALARM_INTERRUPT && !this->ds3231_.ctrl.reg.int_ctrl) {
     this->ds3231_.ctrl.reg.int_ctrl = true;
     this->write_control_();
   } else if (mode == DS3231SquareWaveMode::MODE_SQUARE_WAVE && this->ds3231_.ctrl.reg.int_ctrl) {
