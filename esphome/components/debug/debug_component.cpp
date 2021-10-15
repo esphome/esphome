@@ -7,8 +7,7 @@
 #ifdef USE_ESP32
 #ifdef USE_ARDUINO
 #include <rom/rtc.h>
-#endif
-#ifdef USE_ESP_IDF
+#elif defined(USE_ESP_IDF)
 #include <esp32/rom/rtc.h>
 #endif
 #include <esp_idf_version.h>
