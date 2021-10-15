@@ -3,6 +3,7 @@ from typing import Union
 from pathlib import Path
 import logging
 
+from esphome import platformio_api
 from esphome.helpers import write_file_if_changed
 from esphome.const import (
     CONF_BOARD,
@@ -214,6 +215,26 @@ def _esp_idf_check_versions(value):
     return value
 
 
+def _detect_variant(value):
+    if CONF_VARIANT not in value:
+        board = platformio_api.get_board_config(value[CONF_BOARD])
+        if not board:
+            raise cv.Invalid("This board is unknown.", path=[CONF_BOARD])
+
+        if "mcu" not in board:
+            raise cv.Invalid(
+                "Could not autodetect ESP32 variant used by this board, please specify the variant option.",
+                path=[CONF_BOARD],
+            )
+
+        if board["mcu"] not in VARIANTS:
+            raise cv.Invalid(f"This board uses unsupported variant {board['mcu']}.")
+
+        value[CONF_VARIANT] = board["mcu"]
+
+    return value
+
+
 CONF_VERSION_HINT = "version_hint"
 CONF_PLATFORM_VERSION = "platform_version"
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
@@ -264,12 +285,11 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_BOARD): cv.string_strict,
-            cv.Optional(CONF_VARIANT, default="ESP32"): cv.one_of(
-                *VARIANTS, upper=True
-            ),
+            cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
         }
     ),
+    _detect_variant,
     set_core_data,
 )
 

@@ -151,6 +151,16 @@ def get_idedata(config) -> "IDEData":
     return idedata
 
 
+def get_board_config(board: str):
+    args = ["boards", "--json-output", board]
+    output = run_platformio_cli(*args, capture_stdout=True)
+    data = json.loads(output)
+    for item in data:
+        if item["id"] == board:
+            return item
+    return None
+
+
 # ESP logs stack trace decoder, based on https://github.com/me-no-dev/EspExceptionDecoder
 ESP8266_EXCEPTION_CODES = {
     0: "Illegal instruction (Is the flash damaged?)",
