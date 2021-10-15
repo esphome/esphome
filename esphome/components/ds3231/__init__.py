@@ -6,11 +6,10 @@ from esphome.components import i2c
 from esphome.const import (
     CONF_ID,
     CONF_TRIGGER_ID,
-    CONF_TYPE,
+    CONF_MODE,
     CONF_SECOND,
     CONF_MINUTE,
     CONF_HOUR,
-    CONF_MODE,
     CONF_FREQUENCY,
 )
 
@@ -23,34 +22,34 @@ DS3231Component = ds3231_ns.class_(
     "DS3231Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-Alarm1Type = ds3231_ns.enum("DS3231Alarm1Type")
-ALARM_1_TYPE_ENUM = {
-    "EVERY_SECOND": Alarm1Type.EVERY_SECOND,
-    "EVERY_SECOND_WITH_INTERRUPT": Alarm1Type.EVERY_SECOND_WITH_INTERRUPT,
-    "MATCH_SECOND": Alarm1Type.MATCH_SECOND,
-    "MATCH_SECOND_WITH_INTERRUPT": Alarm1Type.MATCH_SECOND_WITH_INTERRUPT,
-    "MATCH_MINUTE_SECOND": Alarm1Type.MATCH_MINUTE_SECOND,
-    "MATCH_MINUTE_SECOND_WITH_INTERRUPT": Alarm1Type.MATCH_MINUTE_SECOND_WITH_INTERRUPT,
-    "MATCH_HOUR_MINUTE_SECOND": Alarm1Type.MATCH_HOUR_MINUTE_SECOND,
-    "MATCH_HOUR_MINUTE_SECOND_WITH_INTERRUPT": Alarm1Type.MATCH_HOUR_MINUTE_SECOND_WITH_INTERRUPT,
-    "MATCH_DAY_OF_MONTH_HOUR_MINUTE_SECOND": Alarm1Type.MATCH_DAY_OF_MONTH_HOUR_MINUTE_SECOND,
-    "MATCH_DAY_OF_MONTH_HOUR_MINUTE_SECOND_WITH_INTERRUPT": Alarm1Type.MATCH_DAY_OF_MONTH_HOUR_MINUTE_SECOND_WITH_INTERRUPT,
-    "MATCH_DAY_OF_WEEK_HOUR_MINUTE_SECOND": Alarm1Type.MATCH_DAY_OF_WEEK_HOUR_MINUTE_SECOND,
-    "MATCH_DAY_OF_WEEK_HOUR_MINUTE_SECOND_WITH_INTERRUPT": Alarm1Type.MATCH_DAY_OF_WEEK_HOUR_MINUTE_SECOND_WITH_INTERRUPT,
+Alarm1Mode = ds3231_ns.enum("DS3231Alarm1Mode")
+ALARM_1_MODE_ENUM = {
+    "EVERY_SECOND": Alarm1Mode.EVERY_SECOND,
+    "EVERY_SECOND_WITH_INTERRUPT": Alarm1Mode.EVERY_SECOND_WITH_INTERRUPT,
+    "MATCH_SECOND": Alarm1Mode.MATCH_SECOND,
+    "MATCH_SECOND_WITH_INTERRUPT": Alarm1Mode.MATCH_SECOND_WITH_INTERRUPT,
+    "MATCH_MINUTE_SECOND": Alarm1Mode.MATCH_MINUTE_SECOND,
+    "MATCH_MINUTE_SECOND_WITH_INTERRUPT": Alarm1Mode.MATCH_MINUTE_SECOND_WITH_INTERRUPT,
+    "MATCH_HOUR_MINUTE_SECOND": Alarm1Mode.MATCH_HOUR_MINUTE_SECOND,
+    "MATCH_HOUR_MINUTE_SECOND_WITH_INTERRUPT": Alarm1Mode.MATCH_HOUR_MINUTE_SECOND_WITH_INTERRUPT,
+    "MATCH_DAY_OF_MONTH_HOUR_MINUTE_SECOND": Alarm1Mode.MATCH_DAY_OF_MONTH_HOUR_MINUTE_SECOND,
+    "MATCH_DAY_OF_MONTH_HOUR_MINUTE_SECOND_WITH_INTERRUPT": Alarm1Mode.MATCH_DAY_OF_MONTH_HOUR_MINUTE_SECOND_WITH_INTERRUPT,
+    "MATCH_DAY_OF_WEEK_HOUR_MINUTE_SECOND": Alarm1Mode.MATCH_DAY_OF_WEEK_HOUR_MINUTE_SECOND,
+    "MATCH_DAY_OF_WEEK_HOUR_MINUTE_SECOND_WITH_INTERRUPT": Alarm1Mode.MATCH_DAY_OF_WEEK_HOUR_MINUTE_SECOND_WITH_INTERRUPT,
 }
 
-Alarm2Type = ds3231_ns.enum("DS3231Alarm2Type")
-ALARM_2_TYPE_ENUM = {
-    "EVERY_MINUTE": Alarm2Type.EVERY_MINUTE,
-    "EVERY_MINUTE_WITH_INTERRUPT": Alarm2Type.EVERY_MINUTE_WITH_INTERRUPT,
-    "MATCH_MINUTE": Alarm2Type.MATCH_MINUTE,
-    "MATCH_MINUTE_WITH_INTERRUPT": Alarm2Type.MATCH_MINUTE_WITH_INTERRUPT,
-    "MATCH_HOUR_MINUTE": Alarm2Type.MATCH_HOUR_MINUTE,
-    "MATCH_HOUR_MINUTE_WITH_INTERRUPT": Alarm2Type.MATCH_HOUR_MINUTE_WITH_INTERRUPT,
-    "MATCH_DAY_OF_MONTH_HOUR_MINUTE": Alarm2Type.MATCH_DAY_OF_MONTH_HOUR_MINUTE,
-    "MATCH_DAY_OF_MONTH_HOUR_MINUTE_WITH_INTERRUPT": Alarm2Type.MATCH_DAY_OF_MONTH_HOUR_MINUTE_WITH_INTERRUPT,
-    "MATCH_DAY_OF_WEEK_HOUR_MINUTE": Alarm2Type.MATCH_DAY_OF_WEEK_HOUR_MINUTE,
-    "MATCH_DAY_OF_WEEK_HOUR_MINUTE_WITH_INTERRUPT": Alarm2Type.MATCH_DAY_OF_WEEK_HOUR_MINUTE_WITH_INTERRUPT,
+Alarm2Mode = ds3231_ns.enum("DS3231Alarm2Mode")
+ALARM_2_MODE_ENUM = {
+    "EVERY_MINUTE": Alarm2Mode.EVERY_MINUTE,
+    "EVERY_MINUTE_WITH_INTERRUPT": Alarm2Mode.EVERY_MINUTE_WITH_INTERRUPT,
+    "MATCH_MINUTE": Alarm2Mode.MATCH_MINUTE,
+    "MATCH_MINUTE_WITH_INTERRUPT": Alarm2Mode.MATCH_MINUTE_WITH_INTERRUPT,
+    "MATCH_HOUR_MINUTE": Alarm2Mode.MATCH_HOUR_MINUTE,
+    "MATCH_HOUR_MINUTE_WITH_INTERRUPT": Alarm2Mode.MATCH_HOUR_MINUTE_WITH_INTERRUPT,
+    "MATCH_DAY_OF_MONTH_HOUR_MINUTE": Alarm2Mode.MATCH_DAY_OF_MONTH_HOUR_MINUTE,
+    "MATCH_DAY_OF_MONTH_HOUR_MINUTE_WITH_INTERRUPT": Alarm2Mode.MATCH_DAY_OF_MONTH_HOUR_MINUTE_WITH_INTERRUPT,
+    "MATCH_DAY_OF_WEEK_HOUR_MINUTE": Alarm2Mode.MATCH_DAY_OF_WEEK_HOUR_MINUTE,
+    "MATCH_DAY_OF_WEEK_HOUR_MINUTE_WITH_INTERRUPT": Alarm2Mode.MATCH_DAY_OF_WEEK_HOUR_MINUTE_WITH_INTERRUPT,
 }
 
 SquareWaveMode = ds3231_ns.enum("DS3231SquareWaveMode")
@@ -92,7 +91,7 @@ CONF_DS3231_ID = "ds3231_id"
 
 CONFIG_ALARM_1_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_TYPE): cv.templatable(cv.enum(ALARM_1_TYPE_ENUM, upper=True)),
+        cv.Required(CONF_MODE): cv.templatable(cv.enum(ALARM_1_MODE_ENUM, upper=True)),
         cv.Optional(CONF_SECOND, default="0"): cv.int_range(0, 59),
         cv.Optional(CONF_MINUTE, default="0"): cv.int_range(0, 59),
         cv.Optional(CONF_HOUR, default="0"): cv.int_range(0, 23),
@@ -102,7 +101,7 @@ CONFIG_ALARM_1_SCHEMA = cv.Schema(
 
 CONFIG_ALARM_2_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_TYPE): cv.templatable(cv.enum(ALARM_2_TYPE_ENUM, upper=True)),
+        cv.Required(CONF_MODE): cv.templatable(cv.enum(ALARM_2_MODE_ENUM, upper=True)),
         cv.Optional(CONF_MINUTE, default="0"): cv.int_range(0, 59),
         cv.Optional(CONF_HOUR, default="0"): cv.int_range(0, 23),
         cv.Optional(CONF_DAY, default="1"): cv.int_range(1, 31),
@@ -148,7 +147,7 @@ async def to_code(config):
         alrm1 = config[CONF_ALARM_1]
         cg.add(
             var.set_default_alarm_1(
-                alrm1[CONF_TYPE],
+                alrm1[CONF_MODE],
                 alrm1[CONF_SECOND],
                 alrm1[CONF_MINUTE],
                 alrm1[CONF_HOUR],
@@ -159,7 +158,7 @@ async def to_code(config):
         alrm2 = config[CONF_ALARM_2]
         cg.add(
             var.set_default_alarm_2(
-                alrm2[CONF_TYPE], alrm2[CONF_MINUTE], alrm2[CONF_HOUR], alrm2[CONF_DAY]
+                alrm2[CONF_MODE], alrm2[CONF_MINUTE], alrm2[CONF_HOUR], alrm2[CONF_DAY]
             )
         )
     if CONF_SQUARE_WAVE_MODE in config:
@@ -196,7 +195,7 @@ RESET_ALARM_SCHEMA = maybe_simple_id(
 async def set_alarm_1_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    alarm_type = await cg.templatable(config[CONF_TYPE], args, Alarm1Type)
+    alarm_type = await cg.templatable(config[CONF_MODE], args, Alarm1Mode)
     cg.add(var.set_alarm_type(alarm_type))
     second = await cg.templatable(config[CONF_SECOND], args, int)
     cg.add(var.set_second(second))
@@ -230,7 +229,7 @@ async def reset_alarm_1_to_code(config, action_id, template_arg, args):
 async def set_alarm_2_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    alarm_type = await cg.templatable(config[CONF_TYPE], args, Alarm2Type)
+    alarm_type = await cg.templatable(config[CONF_MODE], args, Alarm2Mode)
     cg.add(var.set_alarm_type(alarm_type))
     minute = await cg.templatable(config[CONF_MINUTE], args, int)
     cg.add(var.set_minute(minute))

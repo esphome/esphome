@@ -655,13 +655,13 @@ time:
       then:
         - ds3231.write_time:
         - ds3231.set_alarm_1:
-            type: match_day_of_month_hour_minute_second
+            mode: match_day_of_month_hour_minute_second
             second: 5
             minute: 6
             hour: 7
             day: 8
         - ds3231.set_alarm_2:
-            type: match_day_of_month_hour_minute
+            mode: match_day_of_month_hour_minute
             minute: 9
             hour: 10
             day: 11
@@ -678,13 +678,13 @@ time:
 ds3231:
   update_interval: 1s
   alarm_1:
-    type: match_day_of_week_hour_minute_second
+    mode: match_day_of_week_hour_minute_second
     second: 1
     minute: 2
     hour: 3
     day: 4
   alarm_2:
-    type: every_minute
+    mode: every_minute
   square_wave_mode: square_wave
   square_wave_frequency: 1hz
   on_alarm_1:
