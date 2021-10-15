@@ -904,8 +904,8 @@ def validate_bytes(value):
 def hostname(value):
     value = string(value)
     warned_underscore = False
-    if len(value) > 63:
-        raise Invalid("Hostnames can only be 63 characters long")
+    if len(value) > 31:
+        raise Invalid("Hostnames can only be 31 characters long")
     for c in value:
         if not (c.isalnum() or c in "-_"):
             raise Invalid("Hostname can only have alphanumeric characters and -")
