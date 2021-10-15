@@ -79,13 +79,13 @@ class DS3231Component : public PollingComponent, public i2c::I2CDevice {
   CallbackManager<void(uint8_t)> alarm_callback_{};
 
   optional<DS3231Alarm1Mode> alarm_1_mode_{};
-  bool alarm_1_interrupt_anabled;
+  bool alarm_1_interrupt_anabled_;
   uint8_t alarm_1_second_;
   uint8_t alarm_1_minute_;
   uint8_t alarm_1_hour_;
   uint8_t alarm_1_day_;
   optional<DS3231Alarm2Mode> alarm_2_mode_{};
-  bool alarm_2_interrupt_anabled;
+  bool alarm_2_interrupt_anabled_;
   uint8_t alarm_2_minute_;
   uint8_t alarm_2_hour_;
   uint8_t alarm_2_day_;

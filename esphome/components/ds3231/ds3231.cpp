@@ -26,7 +26,7 @@ static const uint8_t DS3231_MASK_ALARM_TYPE_DAY_MODE = 0x10;
 void DS3231Component::set_default_alarm_1(DS3231Alarm1Mode mode, bool int_enabled, uint8_t second, uint8_t minute,
                                           uint8_t hour, uint8_t day) {
   this->alarm_1_mode_ = mode;
-  this->alarm_1_interrupt_anabled = int_enabled;
+  this->alarm_1_interrupt_anabled_ = int_enabled;
   this->alarm_1_second_ = second;
   this->alarm_1_minute_ = minute;
   this->alarm_1_hour_ = hour;
@@ -36,7 +36,7 @@ void DS3231Component::set_default_alarm_1(DS3231Alarm1Mode mode, bool int_enable
 void DS3231Component::set_default_alarm_2(DS3231Alarm2Mode mode, bool int_enabled, uint8_t minute, uint8_t hour,
                                           uint8_t day) {
   this->alarm_2_mode_ = mode;
-  this->alarm_2_interrupt_anabled = int_enabled;
+  this->alarm_2_interrupt_anabled_ = int_enabled;
   this->alarm_2_minute_ = minute;
   this->alarm_2_hour_ = hour;
   this->alarm_2_day_ = day;
@@ -62,11 +62,11 @@ void DS3231Component::setup() {
   }
 
   if (this->alarm_1_mode_.has_value()) {
-    this->set_alarm_1(this->alarm_1_mode_.value(), this->alarm_1_interrupt_anabled, this->alarm_1_second_,
+    this->set_alarm_1(this->alarm_1_mode_.value(), this->alarm_1_interrupt_anabled_, this->alarm_1_second_,
                       this->alarm_1_minute_, this->alarm_1_hour_, this->alarm_1_day_);
   }
   if (this->alarm_2_mode_.has_value()) {
-    this->set_alarm_2(this->alarm_2_mode_.value(), this->alarm_2_interrupt_anabled, this->alarm_2_minute_,
+    this->set_alarm_2(this->alarm_2_mode_.value(), this->alarm_2_interrupt_anabled_, this->alarm_2_minute_,
                       this->alarm_2_hour_, this->alarm_2_day_);
   }
   if (this->square_wave_frequency_.has_value()) {
