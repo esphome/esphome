@@ -168,7 +168,9 @@ void EthernetComponent::start_connect_() {
 
   esp_err_t err;
   err = tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_ETH, App.get_name().c_str());
-  ESPHL_ERROR_CHECK(err, "ETH set hostname error");
+  if (err != ERR_OK) {
+    ESP_LOGW(TAG, "tcpip_adapter_set_hostname failed: %s", esp_err_to_name(err));
+  }
 
   tcpip_adapter_ip_info_t info;
   if (this->manual_ip_.has_value()) {
