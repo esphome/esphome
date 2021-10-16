@@ -670,9 +670,7 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file directories.", nargs="+"
     )
 
-    parser_idedata = subparsers.add_parser(
-        "idedata", help="Fetch or generate the idedata and spit it out."
-    )
+    parser_idedata = subparsers.add_parser("idedata")
     parser_idedata.add_argument(
         "configuration", help="Your YAML configuration file(s).", nargs=1
     )
