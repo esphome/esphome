@@ -255,7 +255,7 @@ struct is_callable  // NOLINT
   static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
 };
 
-void delayMicroseconds_safe(uint32_t us);
+void delayMicroseconds_safe(uint32_t us);  // NOLINT(readability-identifier-naming)
 
 template<typename T> class Deduplicator {
  public:
