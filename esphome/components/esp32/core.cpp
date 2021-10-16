@@ -42,9 +42,9 @@ void IRAM_ATTR HOT arch_feed_wdt() {
   // was executed recently. Another option is to yield here with vTaskDelay(1),
   // but the fast/consistent method is to reset the registers directly:
 
-  TIMERG0.wdt_wprotect=TIMG_WDT_WKEY_VALUE;  // write enable
-  TIMERG0.wdt_feed=1;                        // feed dog 0
-  TIMERG0.wdt_wprotect=0;                    // write protect
+  TIMERG0.wdt_wprotect = TIMG_WDT_WKEY_VALUE;  // write enable
+  TIMERG0.wdt_feed = 1;                        // feed dog 0
+  TIMERG0.wdt_wprotect = 0;                    // write protect
 #endif
 }
 
