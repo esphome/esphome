@@ -7,6 +7,8 @@
 #include <freertos/task.h>
 #include <esp_idf_version.h>
 #include <soc/rtc.h>
+#include <soc/timer_group_struct.h>
+#include <soc/timer_group_reg.h>
 
 #if ESP_IDF_VERSION_MAJOR >= 4
 #include <hal/cpu_hal.h>
@@ -34,22 +36,16 @@ void arch_restart() {
   }
 }
 void IRAM_ATTR HOT arch_feed_wdt() {
-#ifdef USE_ARDUINO
-#if CONFIG_ARDUINO_RUNNING_CORE == 0
 #ifdef CONFIG_TASK_WDT_CHECK_IDLE_TASK_CPU0
   // ESP32 uses "Task Watchdog" which is hooked to the FreeRTOS idle task.
-  // To cause the Watchdog to be triggered we need to put the current task
-  // to sleep to get the idle task scheduled.
-  delay(1);
-#endif
-#endif
-#endif  // USE_ARDUINO
+  // Using esp_task_wdt_reset() would only feed the watchdog if the idle task
+  // was executed recently. Another option is to yield here with vTaskDelay(1),
+  // but the faster option is to reset the registers directly:
 
-#ifdef USE_ESP_IDF
-#ifdef CONFIG_TASK_WDT_CHECK_IDLE_TASK_CPU0
-  delay(1);
+  TIMERG0.wdt_wprotect=TIMG_WDT_WKEY_VALUE;  // write enable
+  TIMERG0.wdt_feed=1;                        // feed dog 0
+  TIMERG0.wdt_wprotect=0;                    // write protect
 #endif
-#endif  // USE_ESP_IDF
 }
 
 uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
