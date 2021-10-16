@@ -40,7 +40,7 @@ void IRAM_ATTR HOT arch_feed_wdt() {
   // ESP32 uses "Task Watchdog" which is hooked to the FreeRTOS idle task.
   // Using esp_task_wdt_reset() would only feed the watchdog if the idle task
   // was executed recently. Another option is to yield here with vTaskDelay(1),
-  // but the faster option is to reset the registers directly:
+  // but the fast/consistent method is to reset the registers directly:
 
   TIMERG0.wdt_wprotect=TIMG_WDT_WKEY_VALUE;  // write enable
   TIMERG0.wdt_feed=1;                        // feed dog 0
