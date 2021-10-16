@@ -3,7 +3,6 @@ from typing import Union
 from pathlib import Path
 import logging
 
-from esphome import platformio_api
 from esphome.helpers import write_file_if_changed
 from esphome.const import (
     CONF_BOARD,
@@ -28,13 +27,10 @@ from .const import (  # noqa
     KEY_ESP32,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
-    VARIANT_ESP32,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
     VARIANT_ESP32C3,
-    VARIANT_ESP32H2,
     VARIANTS,
 )
+from .boards import BOARD_TO_VARIANT
 
 # force import gpio to register pin schema
 from .gpio import esp32_pin_to_code  # noqa
@@ -202,20 +198,15 @@ def _esp_idf_check_versions(value):
 
 def _detect_variant(value):
     if CONF_VARIANT not in value:
-        board = platformio_api.get_board_config(value[CONF_BOARD])
-        if not board:
-            raise cv.Invalid("This board is unknown.", path=[CONF_BOARD])
-
-        if "mcu" not in board:
+        board = value[CONF_BOARD]
+        if board not in BOARD_TO_VARIANT:
             raise cv.Invalid(
-                "Could not autodetect ESP32 variant used by this board, please specify the variant option.",
+                "This board is unknown, please set the variant manually",
                 path=[CONF_BOARD],
             )
 
-        if board["mcu"] not in VARIANTS:
-            raise cv.Invalid(f"This board uses unsupported variant {board['mcu']}.")
-
-        value[CONF_VARIANT] = board["mcu"]
+        value = value.copy()
+        value[CONF_VARIANT] = BOARD_TO_VARIANT[board]
 
     return value
 
