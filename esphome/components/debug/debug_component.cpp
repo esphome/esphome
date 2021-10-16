@@ -4,22 +4,21 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/version.h"
 
-#ifdef USE_ESP32
-#ifdef USE_ARDUINO
-#include <rom/rtc.h>
-#elif defined(USE_ESP_IDF)
-#include <esp32/rom/rtc.h>
+#ifdef USE_ESP_IDF
+#include <esp_heap_caps.h>
+#include <esp_system.h>
 #endif
-#include <esp_idf_version.h>
+
+#ifdef USE_ESP32
+#if ESP_IDF_VERSION_MAJOR >= 4
+#include <esp32/rom/rtc.h>
+#else
+#include <rom/rtc.h>
+#endif
 #endif
 
 #ifdef USE_ARDUINO
 #include <Esp.h>
-#endif
-
-#ifdef USE_ESP_IDF
-#include <esp_heap_caps.h>
-#include <esp_system.h>
 #endif
 
 namespace esphome {
