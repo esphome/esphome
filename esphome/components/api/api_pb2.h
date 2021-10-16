@@ -270,6 +270,7 @@ class ListEntitiesBinarySensorResponse : public ProtoMessage {
   std::string device_class{};
   bool is_status_binary_sensor{false};
   bool disabled_by_default{false};
+  std::string icon{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -305,6 +306,7 @@ class ListEntitiesCoverResponse : public ProtoMessage {
   bool supports_tilt{false};
   std::string device_class{};
   bool disabled_by_default{false};
+  std::string icon{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -361,6 +363,7 @@ class ListEntitiesFanResponse : public ProtoMessage {
   bool supports_direction{false};
   int32_t supported_speed_count{0};
   bool disabled_by_default{false};
+  std::string icon{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -425,6 +428,7 @@ class ListEntitiesLightResponse : public ProtoMessage {
   float max_mireds{0.0f};
   std::vector<std::string> effects{};
   bool disabled_by_default{false};
+  std::string icon{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -857,6 +861,7 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   std::vector<enums::ClimatePreset> supported_presets{};
   std::vector<std::string> supported_custom_presets{};
   bool disabled_by_default{false};
+  std::string icon{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

@@ -51,6 +51,7 @@ binary_sensor:
   - platform: gpio
     pin: GPIO0
     id: io0_button
+    icon: mdi:gesture-tap-button
 
 tlc5947:
   data_pin: GPIO12

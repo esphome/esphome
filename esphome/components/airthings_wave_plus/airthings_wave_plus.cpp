@@ -1,6 +1,6 @@
 #include "airthings_wave_plus.h"
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace airthings_wave_plus {
@@ -96,8 +96,6 @@ bool AirthingsWavePlus::is_valid_voc_value_(uint16_t voc) { return 0 <= voc && v
 
 bool AirthingsWavePlus::is_valid_co2_value_(uint16_t co2) { return 0 <= co2 && co2 <= 16383; }
 
-void AirthingsWavePlus::loop() {}
-
 void AirthingsWavePlus::update() {
   if (this->node_state != esp32_ble_tracker::ClientState::ESTABLISHED) {
     if (!parent()->enabled) {
@@ -128,17 +126,12 @@ void AirthingsWavePlus::dump_config() {
   LOG_SENSOR("  ", "TVOC", this->tvoc_sensor_);
 }
 
-AirthingsWavePlus::AirthingsWavePlus() : PollingComponent(10000) {
-  auto service_bt = *BLEUUID::fromString(std::string("b42e1c08-ade7-11e4-89d3-123b93f75cba")).getNative();
-  auto characteristic_bt = *BLEUUID::fromString(std::string("b42e2a68-ade7-11e4-89d3-123b93f75cba")).getNative();
-
-  service_uuid_ = esp32_ble_tracker::ESPBTUUID::from_uuid(service_bt);
-  sensors_data_characteristic_uuid_ = esp32_ble_tracker::ESPBTUUID::from_uuid(characteristic_bt);
-}
-
-void AirthingsWavePlus::setup() {}
+AirthingsWavePlus::AirthingsWavePlus()
+    : PollingComponent(10000),
+      service_uuid_(esp32_ble_tracker::ESPBTUUID::from_raw(SERVICE_UUID)),
+      sensors_data_characteristic_uuid_(esp32_ble_tracker::ESPBTUUID::from_raw(CHARACTERISTIC_UUID)) {}
 
 }  // namespace airthings_wave_plus
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_ESP32

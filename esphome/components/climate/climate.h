@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/log.h"
@@ -163,7 +164,7 @@ struct ClimateDeviceRestoreState {
  * mode etc). These are read-only for the user and rw for integrations. The reason these are public
  * is for simple access to them from lambdas `if (id(my_climate).mode == climate::CLIMATE_MODE_HEAT_COOL) ...`
  */
-class Climate : public Nameable {
+class Climate : public EntityBase {
  public:
   /// Construct a climate device with empty name (will be set later).
   Climate();

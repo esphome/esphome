@@ -8,14 +8,11 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/util.h"
+#include "esphome/components/md5/md5.h"
 #include "esphome/components/network/util.h"
 
 #include <cerrno>
 #include <cstdio>
-
-#ifdef USE_OTA_PASSWORD
-#include <MD5Builder.h>
-#endif
 
 namespace esphome {
 namespace ota {
@@ -89,7 +86,8 @@ void OTAComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Using Password.");
   }
 #endif
-  if (this->has_safe_mode_ && this->safe_mode_rtc_value_ > 1) {
+  if (this->has_safe_mode_ && this->safe_mode_rtc_value_ > 1 &&
+      this->safe_mode_rtc_value_ != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
     ESP_LOGW(TAG, "Last Boot was an unhandled reset, will proceed to safe mode in %d restarts",
              this->safe_mode_num_attempts_ - this->safe_mode_rtc_value_);
   }
@@ -172,12 +170,12 @@ void OTAComponent::handle_() {
   if (!this->password_.empty()) {
     buf[0] = OTA_RESPONSE_REQUEST_AUTH;
     this->writeall_(buf, 1);
-    MD5Builder md5_builder{};
-    md5_builder.begin();
+    md5::MD5Digest md5{};
+    md5.init();
     sprintf(sbuf, "%08X", random_uint32());
-    md5_builder.add(sbuf);
-    md5_builder.calculate();
-    md5_builder.getChars(sbuf);
+    md5.add(sbuf, 8);
+    md5.calculate();
+    md5.get_hex(sbuf);
     ESP_LOGV(TAG, "Auth: Nonce is %s", sbuf);
 
     // Send nonce, 32 bytes hex MD5
@@ -187,10 +185,10 @@ void OTAComponent::handle_() {
     }
 
     // prepare challenge
-    md5_builder.begin();
-    md5_builder.add(this->password_.c_str());
+    md5.init();
+    md5.add(this->password_.c_str(), this->password_.length());
     // add nonce
-    md5_builder.add(sbuf);
+    md5.add(sbuf, 32);
 
     // Receive cnonce, 32 bytes hex MD5
     if (!this->readall_(buf, 32)) {
@@ -200,11 +198,11 @@ void OTAComponent::handle_() {
     sbuf[32] = '\0';
     ESP_LOGV(TAG, "Auth: CNonce is %s", sbuf);
     // add cnonce
-    md5_builder.add(sbuf);
+    md5.add(sbuf, 32);
 
     // calculate result
-    md5_builder.calculate();
-    md5_builder.getChars(sbuf);
+    md5.calculate();
+    md5.get_hex(sbuf);
     ESP_LOGV(TAG, "Auth: Result is %s", sbuf);
 
     // Receive result, 32 bytes hex MD5
@@ -401,6 +399,27 @@ bool OTAComponent::writeall_(const uint8_t *buf, size_t len) {
 float OTAComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 uint16_t OTAComponent::get_port() const { return this->port_; }
 void OTAComponent::set_port(uint16_t port) { this->port_ = port; }
+
+void OTAComponent::set_safe_mode_pending(const bool &pending) {
+  if (!this->has_safe_mode_)
+    return;
+
+  uint32_t current_rtc = this->read_rtc_();
+
+  if (pending && current_rtc != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
+    ESP_LOGI(TAG, "Device will enter safe mode on next boot.");
+    this->write_rtc_(esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC);
+  }
+
+  if (!pending && current_rtc == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
+    ESP_LOGI(TAG, "Safe mode pending has been cleared");
+    this->clean_rtc();
+  }
+}
+bool OTAComponent::get_safe_mode_pending() {
+  return this->has_safe_mode_ && this->read_rtc_() == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC;
+}
+
 bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
   this->has_safe_mode_ = true;
   this->safe_mode_start_time_ = millis();
@@ -409,12 +428,18 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
   this->rtc_ = global_preferences->make_preference<uint32_t>(233825507UL, false);
   this->safe_mode_rtc_value_ = this->read_rtc_();
 
-  ESP_LOGCONFIG(TAG, "There have been %u suspected unsuccessful boot attempts.", this->safe_mode_rtc_value_);
+  bool is_manual_safe_mode = this->safe_mode_rtc_value_ == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC;
 
-  if (this->safe_mode_rtc_value_ >= num_attempts) {
+  if (is_manual_safe_mode)
+    ESP_LOGI(TAG, "Safe mode has been entered manually");
+  else
+    ESP_LOGCONFIG(TAG, "There have been %u suspected unsuccessful boot attempts.", this->safe_mode_rtc_value_);
+
+  if (this->safe_mode_rtc_value_ >= num_attempts || is_manual_safe_mode) {
     this->clean_rtc();
 
-    ESP_LOGE(TAG, "Boot loop detected. Proceeding to safe mode.");
+    if (!is_manual_safe_mode)
+      ESP_LOGE(TAG, "Boot loop detected. Proceeding to safe mode.");
 
     this->status_set_error();
     this->set_timeout(enable_time, []() {
@@ -445,7 +470,7 @@ uint32_t OTAComponent::read_rtc_() {
 }
 void OTAComponent::clean_rtc() { this->write_rtc_(0); }
 void OTAComponent::on_safe_shutdown() {
-  if (this->has_safe_mode_)
+  if (this->has_safe_mode_ && this->read_rtc_() != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC)
     this->clean_rtc();
 }
 

@@ -2,7 +2,6 @@
 // See scripts/api_protobuf/api_protobuf.py
 #include "api_pb2.h"
 #include "esphome/core/log.h"
-#include <cstdio>
 
 namespace esphome {
 namespace api {
@@ -541,6 +540,10 @@ bool ListEntitiesBinarySensorResponse::decode_length(uint32_t field_id, ProtoLen
       this->device_class = value.as_string();
       return true;
     }
+    case 8: {
+      this->icon = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -563,6 +566,7 @@ void ListEntitiesBinarySensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(5, this->device_class);
   buffer.encode_bool(6, this->is_status_binary_sensor);
   buffer.encode_bool(7, this->disabled_by_default);
+  buffer.encode_string(8, this->icon);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
@@ -595,6 +599,10 @@ void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
 
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -687,6 +695,10 @@ bool ListEntitiesCoverResponse::decode_length(uint32_t field_id, ProtoLengthDeli
       this->device_class = value.as_string();
       return true;
     }
+    case 10: {
+      this->icon = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -711,6 +723,7 @@ void ListEntitiesCoverResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(7, this->supports_tilt);
   buffer.encode_string(8, this->device_class);
   buffer.encode_bool(9, this->disabled_by_default);
+  buffer.encode_string(10, this->icon);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesCoverResponse::dump_to(std::string &out) const {
@@ -751,6 +764,10 @@ void ListEntitiesCoverResponse::dump_to(std::string &out) const {
 
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -958,6 +975,10 @@ bool ListEntitiesFanResponse::decode_length(uint32_t field_id, ProtoLengthDelimi
       this->unique_id = value.as_string();
       return true;
     }
+    case 10: {
+      this->icon = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -982,6 +1003,7 @@ void ListEntitiesFanResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(7, this->supports_direction);
   buffer.encode_int32(8, this->supported_speed_count);
   buffer.encode_bool(9, this->disabled_by_default);
+  buffer.encode_string(10, this->icon);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesFanResponse::dump_to(std::string &out) const {
@@ -1023,6 +1045,10 @@ void ListEntitiesFanResponse::dump_to(std::string &out) const {
 
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -1272,6 +1298,10 @@ bool ListEntitiesLightResponse::decode_length(uint32_t field_id, ProtoLengthDeli
       this->effects.push_back(value.as_string());
       return true;
     }
+    case 14: {
+      this->icon = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -1312,6 +1342,7 @@ void ListEntitiesLightResponse::encode(ProtoWriteBuffer buffer) const {
     buffer.encode_string(11, it, true);
   }
   buffer.encode_bool(13, this->disabled_by_default);
+  buffer.encode_string(14, this->icon);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesLightResponse::dump_to(std::string &out) const {
@@ -1374,6 +1405,10 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
 
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -3082,6 +3117,10 @@ bool ListEntitiesClimateResponse::decode_length(uint32_t field_id, ProtoLengthDe
       this->supported_custom_presets.push_back(value.as_string());
       return true;
     }
+    case 19: {
+      this->icon = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -3139,6 +3178,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
     buffer.encode_string(17, it, true);
   }
   buffer.encode_bool(18, this->disabled_by_default);
+  buffer.encode_string(19, this->icon);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
@@ -3230,6 +3270,10 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
 
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
   out.append("\n");
   out.append("}");
 }

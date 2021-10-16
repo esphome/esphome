@@ -64,7 +64,7 @@ class ESP32TouchComponent : public Component {
 /// Simple helper class to expose a touch pad value as a binary sensor.
 class ESP32TouchBinarySensor : public binary_sensor::BinarySensor {
  public:
-  ESP32TouchBinarySensor(const std::string &name, touch_pad_t touch_pad, uint16_t threshold, uint16_t wakeup_threshold);
+  ESP32TouchBinarySensor(touch_pad_t touch_pad, uint16_t threshold, uint16_t wakeup_threshold);
 
   touch_pad_t get_touch_pad() const { return touch_pad_; }
   uint16_t get_threshold() const { return threshold_; }
