@@ -4,6 +4,7 @@
 #include "ota_backend_esp_idf.h"
 #include "ota_component.h"
 #include <esp_ota_ops.h>
+#include "esphome/components/md5/md5.h"
 
 namespace esphome {
 namespace ota {
@@ -24,15 +25,15 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
     }
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
+  this->md5_.init();
   return OTA_RESPONSE_OK;
 }
 
-void IDFOTABackend::set_update_md5(const char *md5) {
-  // pass
-}
+void IDFOTABackend::set_update_md5(const char *expected_md5) { memcpy(this->expected_bin_md5_, expected_md5, 32); }
 
 OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
   esp_err_t err = esp_ota_write(this->update_handle_, data, len);
+  this->md5_.add(data, len);
   if (err != ESP_OK) {
     if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
       return OTA_RESPONSE_ERROR_MAGIC;
@@ -45,6 +46,11 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
 }
 
 OTAResponseTypes IDFOTABackend::end() {
+  this->md5_.calculate();
+  if (!this->md5_.equals_hex(this->expected_bin_md5_)) {
+    this->abort();
+    return OTA_RESPONSE_ERROR_UPDATE_END;
+  }
   esp_err_t err = esp_ota_end(this->update_handle_);
   this->update_handle_ = 0;
   if (err == ESP_OK) {
