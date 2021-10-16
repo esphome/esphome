@@ -203,7 +203,7 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
   return crc;
 }
 
-void delayMicroseconds_safe(uint32_t us) {  // prevents CPU locks that could trigger WDT or affect WiFi/BT stability
+void delay_microseconds_safe(uint32_t us) {  // avoids CPU locks that could trigger WDT or affect WiFi/BT stability
   auto start = micros();
   const uint32_t lag = 5000;  // microseconds, specifies the maximum time for a CPU busy-loop.
                               // it must be larger than the worst-case duration of a delay(0) call (hardware tasks)
