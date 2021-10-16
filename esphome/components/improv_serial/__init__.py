@@ -31,4 +31,3 @@ FINAL_VALIDATE_SCHEMA = validate_logger_baud_rate
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    cg.add_define("USE_IMPROV_SERIAL")

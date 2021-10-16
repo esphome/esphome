@@ -22,7 +22,6 @@
 #define USE_FAN
 #define USE_GRAPH
 #define USE_HOMEASSISTANT_TIME
-#define USE_IMPROV_SERIAL
 #define USE_LIGHT
 #define USE_LOGGER
 #define USE_MDNS
