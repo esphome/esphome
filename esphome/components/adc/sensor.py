@@ -21,6 +21,7 @@ ATTENUATION_MODES = {
     "2.5db": cg.global_ns.ADC_ATTEN_DB_2_5,
     "6db": cg.global_ns.ADC_ATTEN_DB_6,
     "11db": cg.global_ns.ADC_ATTEN_DB_11,
+    "auto": "auto",
 }
 
 
@@ -92,4 +93,7 @@ async def to_code(config):
         cg.add(var.set_pin(pin))
 
     if CONF_ATTENUATION in config:
-        cg.add(var.set_attenuation(config[CONF_ATTENUATION]))
+        if CONF_ATTENUATION == "auto":
+            cg.add_define("USE_ADC_AUTORANGE")
+        else:
+            cg.add(var.set_attenuation(config[CONF_ATTENUATION]))
