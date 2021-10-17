@@ -36,9 +36,12 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
 
  protected:
   InternalGPIOPin *pin_;
+  int read_raw();
+  float raw_to_voltage(int raw);
 
 #ifdef USE_ESP32
   adc_atten_t attenuation_{ADC_ATTEN_DB_0};
+  bool auto_range_{false};
 #endif
 };
 
