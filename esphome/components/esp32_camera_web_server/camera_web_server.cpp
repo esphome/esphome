@@ -1,16 +1,13 @@
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
-#include "web_server.h"
-#include "esphome/core/log.h"
+#include "camera_web_server.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-#include <cstdlib>
 #include <esp_http_server.h>
-
-#ifdef USE_LOGGER
-#include <esphome/components/logger/logger.h>
-#endif
+#include <cstdlib>
 
 namespace esphome {
 namespace esp32_camera_web_server {
@@ -26,11 +23,16 @@ static const char *STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" P
 static const char *STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
 static const char *STREAM_PART = "Content-Type: " CONTENT_TYPE "\r\n" CONTENT_LENGTH ": %u\r\n\r\n";
 
-WebServer::WebServer() {}
+CameraWebServer::CameraWebServer() {}
 
-WebServer::~WebServer() {}
+CameraWebServer::~CameraWebServer() {}
 
-void WebServer::setup() {
+void CameraWebServer::setup() {
+  if (!esp32_camera::global_esp32_camera) {
+    this->mark_failed();
+    return;
+  }
+
   this->semaphore_ = xSemaphoreCreateBinary();
 
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -44,24 +46,23 @@ void WebServer::setup() {
     return;
   }
 
-  httpd_uri_t uri = {.uri = "/",
-                     .method = HTTP_GET,
-                     .handler = [](struct httpd_req *req) { return ((WebServer *) req->user_ctx)->handler_(req); },
-                     .user_ctx = this};
+  httpd_uri_t uri = {
+      .uri = "/",
+      .method = HTTP_GET,
+      .handler = [](struct httpd_req *req) { return ((CameraWebServer *) req->user_ctx)->handler_(req); },
+      .user_ctx = this};
 
   httpd_register_uri_handler(this->httpd_, &uri);
 
-  if (esp32_camera::global_esp32_camera) {
-    esp32_camera::global_esp32_camera->add_image_callback([this](std::shared_ptr<esp32_camera::CameraImage> image) {
-      if (this->running_) {
-        this->image_ = image;
-        xSemaphoreGive(this->semaphore_);
-      }
-    });
-  }
+  esp32_camera::global_esp32_camera->add_image_callback([this](std::shared_ptr<esp32_camera::CameraImage> image) {
+    if (this->running_) {
+      this->image_ = image;
+      xSemaphoreGive(this->semaphore_);
+    }
+  });
 }
 
-void WebServer::on_shutdown() {
+void CameraWebServer::on_shutdown() {
   this->running_ = false;
   this->image_ = nullptr;
   httpd_stop(this->httpd_);
@@ -70,7 +71,7 @@ void WebServer::on_shutdown() {
   this->semaphore_ = nullptr;
 }
 
-void WebServer::dump_config() {
+void CameraWebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP32 Camera Web Server:");
   ESP_LOGCONFIG(TAG, "  Port: %d", this->port_);
   if (this->mode_ == Stream)
@@ -79,15 +80,15 @@ void WebServer::dump_config() {
     ESP_LOGCONFIG(TAG, "  Mode: snapshot");
 }
 
-float WebServer::get_setup_priority() const { return setup_priority::LATE; }
+float CameraWebServer::get_setup_priority() const { return setup_priority::LATE; }
 
-void WebServer::loop() {
+void CameraWebServer::loop() {
   if (!this->running_) {
     this->image_ = nullptr;
   }
 }
 
-std::shared_ptr<esphome::esp32_camera::CameraImage> WebServer::wait_for_image() {
+std::shared_ptr<esphome::esp32_camera::CameraImage> CameraWebServer::wait_for_image() {
   std::shared_ptr<esphome::esp32_camera::CameraImage> image;
   image.swap(this->image_);
 
@@ -100,7 +101,7 @@ std::shared_ptr<esphome::esp32_camera::CameraImage> WebServer::wait_for_image() 
   return image;
 }
 
-esp_err_t WebServer::handler_(struct httpd_req *req) {
+esp_err_t CameraWebServer::handler_(struct httpd_req *req) {
   esp_err_t res = ESP_FAIL;
 
   this->image_ = nullptr;
@@ -121,7 +122,7 @@ esp_err_t WebServer::handler_(struct httpd_req *req) {
   return res;
 }
 
-esp_err_t WebServer::streaming_handler_(struct httpd_req *req) {
+esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
   esp_err_t res = ESP_OK;
   char part_buf[64];
 
@@ -176,7 +177,7 @@ esp_err_t WebServer::streaming_handler_(struct httpd_req *req) {
   return res;
 }
 
-esp_err_t WebServer::snapshot_handler_(struct httpd_req *req) {
+esp_err_t CameraWebServer::snapshot_handler_(struct httpd_req *req) {
   esp_err_t res = ESP_OK;
 
   res = httpd_resp_set_type(req, CONTENT_TYPE);
@@ -210,4 +211,4 @@ esp_err_t WebServer::snapshot_handler_(struct httpd_req *req) {
 }  // namespace esp32_camera_web_server
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO
