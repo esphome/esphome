@@ -68,9 +68,12 @@ void ADCSensor::setup() {
 #endif
 
 #ifdef USE_ESP32
+#ifdef USE_ADC_AUTORANGE
+  auto_range_ = true;
+#endif
   if (auto_range_)
-    this->attenuation_ = ADC_ATTEN_DB_11;
-  adc1_config_channel_atten(gpio_to_adc1(pin_->get_pin()), attenuation_);
+    attenuation_ = ADC_ATTEN_DB_11;
+  this->set_attenuation(attenuation_);
   adc1_config_width(ADC_WIDTH_BIT_12);
 #if !CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32H2
   adc_gpio_init(ADC_UNIT_1, (adc_channel_t) gpio_to_adc1(pin_->get_pin()));
