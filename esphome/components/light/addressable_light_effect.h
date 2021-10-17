@@ -38,11 +38,8 @@ class AddressableLightEffect : public LightEffect {
   void stop() override { this->get_addressable_()->set_effect_active(false); }
   virtual void apply(AddressableLight &it, const Color &current_color) = 0;
   void apply() override {
-    LightColorValues color = this->state_->remote_values;
-    // not using any color correction etc. that will be handled by the addressable layer
-    Color current_color =
-        Color(static_cast<uint8_t>(color.get_red() * 255), static_cast<uint8_t>(color.get_green() * 255),
-              static_cast<uint8_t>(color.get_blue() * 255), static_cast<uint8_t>(color.get_white() * 255));
+    // not using any color correction etc. that will be handled by the addressable layer through ESPColorCorrection
+    Color current_color = color_from_light_color_values(this->state_->remote_values);
     this->apply(*this->get_addressable_(), current_color);
   }
 

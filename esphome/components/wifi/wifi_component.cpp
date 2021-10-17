@@ -1,9 +1,9 @@
 #include "wifi_component.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#if defined(USE_ESP32) || defined(USE_ESP_IDF)
 #include <esp_wifi.h>
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include <user_interface.h>
 #endif
 
@@ -14,7 +14,7 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/util.h"
 #include "esphome/core/application.h"
 
@@ -39,7 +39,7 @@ void WiFiComponent::setup() {
   this->wifi_pre_setup_();
 
   uint32_t hash = fnv1_hash(App.get_compilation_time());
-  this->pref_ = global_preferences.make_preference<wifi::SavedWifiSettings>(hash, true);
+  this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 
   SavedWifiSettings save{};
   if (this->pref_.load(&save)) {
@@ -83,12 +83,10 @@ void WiFiComponent::setup() {
       esp32_improv::global_improv_component->start();
 #endif
   this->wifi_apply_hostname_();
-#if defined(ARDUINO_ARCH_ESP32) && defined(USE_MDNS)
-  network_setup_mdns();
-#endif
 }
 
 void WiFiComponent::loop() {
+  this->wifi_loop_();
   const uint32_t now = millis();
 
   if (this->has_sta()) {
@@ -158,8 +156,6 @@ void WiFiComponent::loop() {
       }
     }
   }
-
-  network_tick_mdns();
 }
 
 WiFiComponent::WiFiComponent() { global_wifi_component = this; }
@@ -167,9 +163,9 @@ WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 bool WiFiComponent::has_ap() const { return this->has_ap_; }
 bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
 void WiFiComponent::set_fast_connect(bool fast_connect) { this->fast_connect_ = fast_connect; }
-IPAddress WiFiComponent::get_ip_address() {
+network::IPAddress WiFiComponent::get_ip_address() {
   if (this->has_sta())
-    return this->wifi_sta_ip_();
+    return this->wifi_sta_ip();
   if (this->has_ap())
     return this->wifi_soft_ap_ip();
   return {};
@@ -205,16 +201,13 @@ void WiFiComponent::setup_ap_config_() {
   ESP_LOGCONFIG(TAG, "  AP Password: '%s'", this->ap_.get_password().c_str());
   if (this->ap_.get_manual_ip().has_value()) {
     auto manual = *this->ap_.get_manual_ip();
-    ESP_LOGCONFIG(TAG, "  AP Static IP: '%s'", manual.static_ip.toString().c_str());
-    ESP_LOGCONFIG(TAG, "  AP Gateway: '%s'", manual.gateway.toString().c_str());
-    ESP_LOGCONFIG(TAG, "  AP Subnet: '%s'", manual.subnet.toString().c_str());
+    ESP_LOGCONFIG(TAG, "  AP Static IP: '%s'", manual.static_ip.str().c_str());
+    ESP_LOGCONFIG(TAG, "  AP Gateway: '%s'", manual.gateway.str().c_str());
+    ESP_LOGCONFIG(TAG, "  AP Subnet: '%s'", manual.subnet.str().c_str());
   }
 
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
-  ESP_LOGCONFIG(TAG, "  IP Address: %s", this->wifi_soft_ap_ip().toString().c_str());
-#if defined(ARDUINO_ARCH_ESP8266) && defined(USE_MDNS)
-  network_setup_mdns(this->wifi_soft_ap_ip(), 1);
-#endif
+  ESP_LOGCONFIG(TAG, "  IP Address: %s", this->wifi_soft_ap_ip().str().c_str());
 
   if (!this->has_sta()) {
     this->state_ = WIFI_COMPONENT_STATE_AP;
@@ -239,11 +232,15 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
   strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid));
   strncpy(save.password, password.c_str(), sizeof(save.password));
   this->pref_.save(&save);
+  // ensure it's written immediately
+  global_preferences->sync();
 
   WiFiAP sta{};
   sta.set_ssid(ssid);
   sta.set_password(password);
   this->set_sta(sta);
+
+  this->start_scanning();
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
@@ -284,9 +281,8 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   }
   if (ap.get_manual_ip().has_value()) {
     ManualIP m = *ap.get_manual_ip();
-    ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.toString().c_str(),
-             m.gateway.toString().c_str(), m.subnet.toString().c_str(), m.dns1.toString().c_str(),
-             m.dns2.toString().c_str());
+    ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.str().c_str(),
+             m.gateway.str().c_str(), m.subnet.str().c_str(), m.dns1.str().c_str(), m.dns2.str().c_str());
   } else {
     ESP_LOGV(TAG, "  Using DHCP IP");
   }
@@ -307,7 +303,7 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   this->action_started_ = millis();
 }
 
-void print_signal_bars(int8_t rssi, char *buf) {
+const LogString *get_signal_bars(int8_t rssi) {
   // LOWER ONE QUARTER BLOCK
   // Unicode: U+2582, UTF-8: E2 96 82
   // LOWER HALF BLOCK
@@ -317,62 +313,58 @@ void print_signal_bars(int8_t rssi, char *buf) {
   // FULL BLOCK
   // Unicode: U+2588, UTF-8: E2 96 88
   if (rssi >= -50) {
-    sprintf(buf, "\033[0;32m"  // green
-                 "\xe2\x96\x82"
-                 "\xe2\x96\x84"
-                 "\xe2\x96\x86"
-                 "\xe2\x96\x88"
-                 "\033[0m");
+    return LOG_STR("\033[0;32m"  // green
+                   "\xe2\x96\x82"
+                   "\xe2\x96\x84"
+                   "\xe2\x96\x86"
+                   "\xe2\x96\x88"
+                   "\033[0m");
   } else if (rssi >= -65) {
-    sprintf(buf, "\033[0;33m"  // yellow
-                 "\xe2\x96\x82"
-                 "\xe2\x96\x84"
-                 "\xe2\x96\x86"
-                 "\033[0;37m"
-                 "\xe2\x96\x88"
-                 "\033[0m");
+    return LOG_STR("\033[0;33m"  // yellow
+                   "\xe2\x96\x82"
+                   "\xe2\x96\x84"
+                   "\xe2\x96\x86"
+                   "\033[0;37m"
+                   "\xe2\x96\x88"
+                   "\033[0m");
   } else if (rssi >= -85) {
-    sprintf(buf, "\033[0;33m"  // yellow
-                 "\xe2\x96\x82"
-                 "\xe2\x96\x84"
-                 "\033[0;37m"
-                 "\xe2\x96\x86"
-                 "\xe2\x96\x88"
-                 "\033[0m");
+    return LOG_STR("\033[0;33m"  // yellow
+                   "\xe2\x96\x82"
+                   "\xe2\x96\x84"
+                   "\033[0;37m"
+                   "\xe2\x96\x86"
+                   "\xe2\x96\x88"
+                   "\033[0m");
   } else {
-    sprintf(buf, "\033[0;31m"  // red
-                 "\xe2\x96\x82"
-                 "\033[0;37m"
-                 "\xe2\x96\x84"
-                 "\xe2\x96\x86"
-                 "\xe2\x96\x88"
-                 "\033[0m");
+    return LOG_STR("\033[0;31m"  // red
+                   "\xe2\x96\x82"
+                   "\033[0;37m"
+                   "\xe2\x96\x84"
+                   "\xe2\x96\x86"
+                   "\xe2\x96\x88"
+                   "\033[0m");
   }
 }
 
 void WiFiComponent::print_connect_params_() {
-  uint8_t bssid[6] = {};
-  uint8_t *raw_bssid = WiFi.BSSID();
-  if (raw_bssid != nullptr)
-    memcpy(bssid, raw_bssid, sizeof(bssid));
+  bssid_t bssid = wifi_bssid();
 
-  ESP_LOGCONFIG(TAG, "  SSID: " LOG_SECRET("'%s'"), WiFi.SSID().c_str());
-  ESP_LOGCONFIG(TAG, "  IP Address: %s", WiFi.localIP().toString().c_str());
+  ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
+  ESP_LOGCONFIG(TAG, "  SSID: " LOG_SECRET("'%s'"), wifi_ssid().c_str());
+  ESP_LOGCONFIG(TAG, "  IP Address: %s", wifi_sta_ip().str().c_str());
   ESP_LOGCONFIG(TAG, "  BSSID: " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X"), bssid[0], bssid[1], bssid[2], bssid[3],
                 bssid[4], bssid[5]);
   ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());
-  char signal_bars[50];
-  int8_t rssi = WiFi.RSSI();
-  print_signal_bars(rssi, signal_bars);
-  ESP_LOGCONFIG(TAG, "  Signal strength: %d dB %s", rssi, signal_bars);
+  int8_t rssi = wifi_rssi();
+  ESP_LOGCONFIG(TAG, "  Signal strength: %d dB %s", rssi, LOG_STR_ARG(get_signal_bars(rssi)));
   if (this->selected_ap_.get_bssid().has_value()) {
     ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*this->selected_ap_.get_bssid()));
   }
-  ESP_LOGCONFIG(TAG, "  Channel: %d", WiFi.channel());
-  ESP_LOGCONFIG(TAG, "  Subnet: %s", WiFi.subnetMask().toString().c_str());
-  ESP_LOGCONFIG(TAG, "  Gateway: %s", WiFi.gatewayIP().toString().c_str());
-  ESP_LOGCONFIG(TAG, "  DNS1: %s", WiFi.dnsIP(0).toString().c_str());
-  ESP_LOGCONFIG(TAG, "  DNS2: %s", WiFi.dnsIP(1).toString().c_str());
+  ESP_LOGCONFIG(TAG, "  Channel: %d", wifi_channel_());
+  ESP_LOGCONFIG(TAG, "  Subnet: %s", wifi_subnet_mask_().str().c_str());
+  ESP_LOGCONFIG(TAG, "  Gateway: %s", wifi_gateway_ip_().str().c_str());
+  ESP_LOGCONFIG(TAG, "  DNS1: %s", wifi_dns_ip_(0).str().c_str());
+  ESP_LOGCONFIG(TAG, "  DNS2: %s", wifi_dns_ip_(1).str().c_str());
 }
 
 void WiFiComponent::start_scanning() {
@@ -433,16 +425,15 @@ void WiFiComponent::check_scanning_finished() {
     char bssid_s[18];
     auto bssid = res.get_bssid();
     sprintf(bssid_s, "%02X:%02X:%02X:%02X:%02X:%02X", bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
-    char signal_bars[50];
-    print_signal_bars(res.get_rssi(), signal_bars);
 
     if (res.get_matches()) {
       ESP_LOGI(TAG, "- '%s' %s" LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(),
-               res.get_is_hidden() ? "(HIDDEN) " : "", bssid_s, signal_bars);
+               res.get_is_hidden() ? "(HIDDEN) " : "", bssid_s, LOG_STR_ARG(get_signal_bars(res.get_rssi())));
       ESP_LOGD(TAG, "    Channel: %u", res.get_channel());
       ESP_LOGD(TAG, "    RSSI: %d dB", res.get_rssi());
     } else {
-      ESP_LOGD(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s, signal_bars);
+      ESP_LOGD(TAG, "- " LOG_SECRET("'%s'") " " LOG_SECRET("(%s) ") "%s", res.get_ssid().c_str(), bssid_s,
+               LOG_STR_ARG(get_signal_bars(res.get_rssi())));
     }
   }
 
@@ -501,10 +492,10 @@ void WiFiComponent::dump_config() {
 }
 
 void WiFiComponent::check_connecting_finished() {
-  wl_status_t status = this->wifi_sta_status_();
+  auto status = this->wifi_sta_connect_status_();
 
-  if (status == WL_CONNECTED) {
-    if (WiFi.SSID().equals("")) {
+  if (status == WiFiSTAConnectStatus::CONNECTED) {
+    if (wifi_ssid().empty()) {
       ESP_LOGW(TAG, "Incomplete connection.");
       this->retry_connect();
       return;
@@ -528,9 +519,6 @@ void WiFiComponent::check_connecting_finished() {
     }
 #endif
 
-#if defined(ARDUINO_ARCH_ESP8266) && defined(USE_MDNS)
-    network_setup_mdns(this->wifi_sta_ip_(), 0);
-#endif
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
     return;
@@ -549,26 +537,23 @@ void WiFiComponent::check_connecting_finished() {
     return;
   }
 
-  if (status == WL_IDLE_STATUS || status == WL_DISCONNECTED || status == WL_CONNECTION_LOST) {
-    // WL_DISCONNECTED is set while not connected yet.
-    // WL_IDLE_STATUS is set while we're waiting for the IP address.
-    // WL_CONNECTION_LOST happens on the ESP32
+  if (status == WiFiSTAConnectStatus::CONNECTING) {
     return;
   }
 
-  if (status == WL_NO_SSID_AVAIL) {
+  if (status == WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND) {
     ESP_LOGW(TAG, "WiFi network can not be found anymore.");
     this->retry_connect();
     return;
   }
 
-  if (status == WL_CONNECT_FAILED) {
+  if (status == WiFiSTAConnectStatus::ERROR_CONNECT_FAILED) {
     ESP_LOGW(TAG, "Connecting to WiFi network failed. Are the credentials wrong?");
     this->retry_connect();
     return;
   }
 
-  ESP_LOGW(TAG, "WiFi Unknown connection status %d", status);
+  ESP_LOGW(TAG, "WiFi Unknown connection status %d", (int) status);
 }
 
 void WiFiComponent::retry_connect() {
@@ -609,8 +594,8 @@ bool WiFiComponent::can_proceed() {
 }
 void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 bool WiFiComponent::is_connected() {
-  return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED && this->wifi_sta_status_() == WL_CONNECTED &&
-         !this->error_from_callback_;
+  return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
+         this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
 }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) { this->power_save_ = power_save; }
 
@@ -642,7 +627,7 @@ void WiFiAP::set_password(const std::string &password) { this->password_ = passw
 void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
 #endif
 void WiFiAP::set_channel(optional<uint8_t> channel) { this->channel_ = channel; }
-void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = std::move(manual_ip); }
+void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
 void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
 const std::string &WiFiAP::get_ssid() const { return this->ssid_; }
 const optional<bssid_t> &WiFiAP::get_bssid() const { return this->bssid_; }

@@ -192,6 +192,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
+    cv.only_with_arduino,
 )
 
 
@@ -214,7 +215,7 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     # https://github.com/OttoWinter/async-mqtt-client/blob/master/library.json
-    cg.add_library("AsyncMqttClient-esphome", "0.8.4")
+    cg.add_library("ottowinter/AsyncMqttClient-esphome", "0.8.4")
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
 
@@ -266,8 +267,7 @@ async def to_code(config):
     if CONF_SSL_FINGERPRINTS in config:
         for fingerprint in config[CONF_SSL_FINGERPRINTS]:
             arr = [
-                cg.RawExpression("0x{}".format(fingerprint[i : i + 2]))
-                for i in range(0, 40, 2)
+                cg.RawExpression(f"0x{fingerprint[i:i + 2]}") for i in range(0, 40, 2)
             ]
             cg.add(var.add_ssl_fingerprint(arr))
         cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
@@ -353,9 +353,7 @@ def get_default_topic_for(data, component_type, name, suffix):
     sanitized_name = "".join(
         x for x in name.lower().replace(" ", "_") if x in allowlist
     )
-    return "{}/{}/{}/{}".format(
-        data.topic_prefix, component_type, sanitized_name, suffix
-    )
+    return f"{data.topic_prefix}/{component_type}/{sanitized_name}/{suffix}"
 
 
 async def register_mqtt_component(var, config):

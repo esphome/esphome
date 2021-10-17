@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/log.h"
@@ -12,7 +13,7 @@ namespace climate {
 
 #define LOG_CLIMATE(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, (obj)->get_name().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
   }
 
 class Climate;
@@ -163,7 +164,7 @@ struct ClimateDeviceRestoreState {
  * mode etc). These are read-only for the user and rw for integrations. The reason these are public
  * is for simple access to them from lambdas `if (id(my_climate).mode == climate::CLIMATE_MODE_HEAT_COOL) ...`
  */
-class Climate : public Nameable {
+class Climate : public EntityBase {
  public:
   /// Construct a climate device with empty name (will be set later).
   Climate();
@@ -245,6 +246,18 @@ class Climate : public Nameable {
  protected:
   friend ClimateCall;
 
+  /// Set fan mode. Reset custom fan mode. Return true if fan mode has been changed.
+  bool set_fan_mode_(ClimateFanMode mode);
+
+  /// Set custom fan mode. Reset primary fan mode. Return true if fan mode has been changed.
+  bool set_custom_fan_mode_(const std::string &mode);
+
+  /// Set preset. Reset custom preset. Return true if preset has been changed.
+  bool set_preset_(ClimatePreset preset);
+
+  /// Set custom preset. Reset primary preset. Return true if preset has been changed.
+  bool set_custom_preset_(const std::string &preset);
+
   /** Get the default traits of this climate device.
    *
    * Traits are static data that encode the capabilities and static data for a climate device such as supported
@@ -270,6 +283,7 @@ class Climate : public Nameable {
   void save_state_();
 
   uint32_t hash_base() override;
+  void dump_traits_(const char *tag);
 
   CallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;

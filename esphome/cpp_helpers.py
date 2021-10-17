@@ -1,9 +1,10 @@
 import logging
 
 from esphome.const import (
-    CONF_INVERTED,
-    CONF_MODE,
-    CONF_NUMBER,
+    CONF_DISABLED_BY_DEFAULT,
+    CONF_ICON,
+    CONF_INTERNAL,
+    CONF_NAME,
     CONF_SETUP_PRIORITY,
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
@@ -12,8 +13,8 @@ from esphome.const import (
 # pylint: disable=unused-import
 from esphome.core import coroutine, ID, CORE
 from esphome.types import ConfigType
-from esphome.cpp_generator import RawExpression, add, get_variable
-from esphome.cpp_types import App, GPIOPin
+from esphome.cpp_generator import add, get_variable
+from esphome.cpp_types import App
 from esphome.util import Registry, RegistryEntry
 
 
@@ -26,17 +27,13 @@ async def gpio_pin_expression(conf):
     This is a coroutine, you must await it with a 'await' expression!
     """
     if conf is None:
-        return
+        return None
     from esphome import pins
 
     for key, (func, _) in pins.PIN_SCHEMA_REGISTRY.items():
         if key in conf:
             return await coroutine(func)(conf)
-
-    number = conf[CONF_NUMBER]
-    mode = conf[CONF_MODE]
-    inverted = conf.get(CONF_INVERTED)
-    return GPIOPin.new(number, RawExpression(mode), inverted)
+    return await coroutine(pins.PIN_SCHEMA_REGISTRY[CORE.target_platform][0])(conf)
 
 
 async def register_component(var, config):
@@ -52,9 +49,7 @@ async def register_component(var, config):
     id_ = str(var.base)
     if id_ not in CORE.component_ids:
         raise ValueError(
-            "Component ID {} was not declared to inherit from Component, "
-            "or was registered twice. Please create a bug report with your "
-            "configuration.".format(id_)
+            f"Component ID {id_} was not declared to inherit from Component, or was registered twice. Please create a bug report with your configuration."
         )
     CORE.component_ids.remove(id_)
     if CONF_SETUP_PRIORITY in config:
@@ -97,6 +92,16 @@ async def register_parented(var, value):
     else:
         paren = value
     add(var.set_parent(paren))
+
+
+async def setup_entity(var, config):
+    """Set up generic properties of an Entity"""
+    add(var.set_name(config[CONF_NAME]))
+    add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
+    if CONF_INTERNAL in config:
+        add(var.set_internal(config[CONF_INTERNAL]))
+    if CONF_ICON in config:
+        add(var.set_icon(config[CONF_ICON]))
 
 
 def extract_registry_entry_config(registry, full_config):

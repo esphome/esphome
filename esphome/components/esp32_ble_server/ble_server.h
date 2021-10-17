@@ -12,7 +12,7 @@
 
 #include <map>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <esp_gap_ble_api.h>
 #include <esp_gatts_api.h>
@@ -87,6 +87,7 @@ class BLEServer : public Component {
   } state_{INIT};
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern BLEServer *global_ble_server;
 
 }  // namespace esp32_ble_server

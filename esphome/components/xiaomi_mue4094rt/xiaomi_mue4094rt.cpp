@@ -1,7 +1,7 @@
 #include "xiaomi_mue4094rt.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace xiaomi_mue4094rt {
@@ -46,11 +46,7 @@ bool XiaomiMUE4094RT::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 }  // namespace xiaomi_mue4094rt

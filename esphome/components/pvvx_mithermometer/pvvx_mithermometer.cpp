@@ -1,12 +1,12 @@
 #include "pvvx_mithermometer.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace pvvx_mithermometer {
 
-static const char *TAG = "pvvx_mithermometer";
+static const char *const TAG = "pvvx_mithermometer";
 
 void PVVXMiThermometer::dump_config() {
   ESP_LOGCONFIG(TAG, "PVVX MiThermometer");
@@ -25,14 +25,14 @@ bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
-    auto res = parse_header(service_data);
-    if (res->is_duplicate) {
+    auto res = parse_header_(service_data);
+    if (!res.has_value()) {
       continue;
     }
-    if (!(parse_message(service_data.data, *res))) {
+    if (!(parse_message_(service_data.data, *res))) {
       continue;
     }
-    if (!(report_results(res, device.address_str()))) {
+    if (!(report_results_(res, device.address_str()))) {
       continue;
     }
     if (res->temperature.has_value() && this->temperature_ != nullptr)
@@ -46,14 +46,10 @@ bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
-optional<ParseResult> PVVXMiThermometer::parse_header(const esp32_ble_tracker::ServiceData &service_data) {
+optional<ParseResult> PVVXMiThermometer::parse_header_(const esp32_ble_tracker::ServiceData &service_data) {
   ParseResult result;
   if (!service_data.uuid.contains(0x1A, 0x18)) {
     ESP_LOGVV(TAG, "parse_header(): no service data UUID magic bytes.");
@@ -64,17 +60,15 @@ optional<ParseResult> PVVXMiThermometer::parse_header(const esp32_ble_tracker::S
 
   static uint8_t last_frame_count = 0;
   if (last_frame_count == raw[13]) {
-    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
-    result.is_duplicate = true;
+    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%hhu).", last_frame_count);
     return {};
   }
   last_frame_count = raw[13];
-  result.is_duplicate = false;
 
   return result;
 }
 
-bool PVVXMiThermometer::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
+bool PVVXMiThermometer::parse_message_(const std::vector<uint8_t> &message, ParseResult &result) {
   /*
   All data little endian
   uint8_t     size;   // = 19
@@ -115,7 +109,7 @@ bool PVVXMiThermometer::parse_message(const std::vector<uint8_t> &message, Parse
   return true;
 }
 
-bool PVVXMiThermometer::report_results(const optional<ParseResult> &result, const std::string &address) {
+bool PVVXMiThermometer::report_results_(const optional<ParseResult> &result, const std::string &address) {
   if (!result.has_value()) {
     ESP_LOGVV(TAG, "report_results(): no results available.");
     return false;

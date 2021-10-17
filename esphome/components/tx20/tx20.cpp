@@ -20,7 +20,7 @@ void Tx20Component::setup() {
   this->store_.pin = this->pin_->to_isr();
   this->store_.reset();
 
-  this->pin_->attach_interrupt(Tx20ComponentStore::gpio_intr, &this->store_, CHANGE);
+  this->pin_->attach_interrupt(Tx20ComponentStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
 }
 void Tx20Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Tx20:");
@@ -140,8 +140,8 @@ void Tx20Component::decode_and_publish_() {
   }
 }
 
-void ICACHE_RAM_ATTR Tx20ComponentStore::gpio_intr(Tx20ComponentStore *arg) {
-  arg->pin_state = arg->pin->digital_read();
+void IRAM_ATTR Tx20ComponentStore::gpio_intr(Tx20ComponentStore *arg) {
+  arg->pin_state = arg->pin.digital_read();
   const uint32_t now = micros();
   if (!arg->start_time) {
     // only detect a start if the bit is high
@@ -183,7 +183,7 @@ void ICACHE_RAM_ATTR Tx20ComponentStore::gpio_intr(Tx20ComponentStore *arg) {
   arg->start_time = now;
   arg->buffer_index++;
 }
-void ICACHE_RAM_ATTR Tx20ComponentStore::reset() {
+void IRAM_ATTR Tx20ComponentStore::reset() {
   tx20_available = false;
   buffer_index = 0;
   spent_time = 0;

@@ -1,8 +1,13 @@
 #include "adc_sensor.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_ESP8266
 #ifdef USE_ADC_SENSOR_VCC
+#include <Esp.h>
 ADC_MODE(ADC_VCC)
+#else
+#include <Arduino.h>
+#endif
 #endif
 
 namespace esphome {
@@ -10,7 +15,7 @@ namespace adc {
 
 static const char *const TAG = "adc";
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 void ADCSensor::set_attenuation(adc_atten_t attenuation) { this->attenuation_ = attenuation; }
 
 inline adc1_channel_t gpio_to_adc1(uint8_t pin) {
@@ -57,28 +62,28 @@ inline adc1_channel_t gpio_to_adc1(uint8_t pin) {
 void ADCSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ADC '%s'...", this->get_name().c_str());
 #ifndef USE_ADC_SENSOR_VCC
-  GPIOPin(this->pin_, INPUT).setup();
+  pin_->setup();
 #endif
 
-#ifdef ARDUINO_ARCH_ESP32
-  adc1_config_channel_atten(gpio_to_adc1(pin_), attenuation_);
+#ifdef USE_ESP32
+  adc1_config_channel_atten(gpio_to_adc1(pin_->get_pin()), attenuation_);
   adc1_config_width(ADC_WIDTH_BIT_12);
 #if !CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32H2
-  adc_gpio_init(ADC_UNIT_1, (adc_channel_t) gpio_to_adc1(pin_));
+  adc_gpio_init(ADC_UNIT_1, (adc_channel_t) gpio_to_adc1(pin_->get_pin()));
 #endif
 #endif
 }
 void ADCSensor::dump_config() {
   LOG_SENSOR("", "ADC Sensor", this);
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #ifdef USE_ADC_SENSOR_VCC
   ESP_LOGCONFIG(TAG, "  Pin: VCC");
 #else
-  ESP_LOGCONFIG(TAG, "  Pin: %u", this->pin_);
+  LOG_PIN("  Pin: ", pin_);
 #endif
 #endif
-#ifdef ARDUINO_ARCH_ESP32
-  ESP_LOGCONFIG(TAG, "  Pin: %u", this->pin_);
+#ifdef USE_ESP32
+  LOG_PIN("  Pin: ", pin_);
   switch (this->attenuation_) {
     case ADC_ATTEN_DB_0:
       ESP_LOGCONFIG(TAG, " Attenuation: 0db (max 1.1V)");
@@ -105,8 +110,8 @@ void ADCSensor::update() {
   this->publish_state(value_v);
 }
 float ADCSensor::sample() {
-#ifdef ARDUINO_ARCH_ESP32
-  int raw = adc1_get_raw(gpio_to_adc1(pin_));
+#ifdef USE_ESP32
+  int raw = adc1_get_raw(gpio_to_adc1(pin_->get_pin()));
   float value_v = raw / 4095.0f;
 #if CONFIG_IDF_TARGET_ESP32
   switch (this->attenuation_) {
@@ -146,15 +151,15 @@ float ADCSensor::sample() {
   return value_v;
 #endif
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #ifdef USE_ADC_SENSOR_VCC
-  return ESP.getVcc() / 1024.0f;
+  return ESP.getVcc() / 1024.0f;  // NOLINT(readability-static-accessed-through-instance)
 #else
-  return analogRead(this->pin_) / 1024.0f;  // NOLINT
+  return analogRead(this->pin_->get_pin()) / 1024.0f;  // NOLINT
 #endif
 #endif
 }
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 std::string ADCSensor::unique_id() { return get_mac_address() + "-adc"; }
 #endif
 

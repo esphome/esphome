@@ -1,8 +1,12 @@
+#ifdef USE_ARDUINO
+
 #include "web_server.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/util.h"
 #include "esphome/components/json/json_util.h"
+#include "esphome/components/network/util.h"
 
 #include "StreamString.h"
 
@@ -25,7 +29,8 @@ namespace web_server {
 
 static const char *const TAG = "web_server";
 
-void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &klass, const std::string &action) {
+void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
+               const std::function<void(AsyncResponseStream &stream, EntityBase *obj)> &action_func = nullptr) {
   if (obj->is_internal())
     return;
   stream->print("<tr class=\"");
@@ -38,6 +43,9 @@ void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &kl
   stream->print(obj->get_name().c_str());
   stream->print("</td><td></td><td>");
   stream->print(action.c_str());
+  if (action_func) {
+    action_func(*stream, obj);
+  }
   stream->print("</td>");
   stream->print("</tr>");
 }
@@ -150,17 +158,16 @@ void WebServer::setup() {
 }
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
-  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network_get_address().c_str(), this->base_->get_port());
-  if (this->using_auth()) {
-    ESP_LOGCONFIG(TAG, "  Basic authentication enabled");
-  }
+  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->base_->get_port());
 }
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
   std::string title = App.get_name() + " Web Server";
-  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><title>"));
+  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8>"
+                  "<meta name=\"viewport\" content=\"width=device-width, "
+                  "initial-scale=1.0\"><title>"));
   stream->print(title.c_str());
   stream->print(F("</title>"));
 #ifdef WEBSERVER_CSS_INCLUDE
@@ -219,7 +226,17 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_SELECT
   for (auto *obj : App.get_selects())
-    write_row(stream, obj, "select", "");
+    write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, EntityBase *obj) {
+      select::Select *select = (select::Select *) obj;
+      stream.print("<select>");
+      stream.print("<option></option>");
+      for (auto const &option : select->traits.get_options()) {
+        stream.print("<option>");
+        stream.print(option.c_str());
+        stream.print("</option>");
+      }
+      stream.print("</select>");
+    });
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
@@ -397,6 +414,7 @@ std::string WebServer::fan_json(fan::FanState *obj) {
     const auto traits = obj->get_traits();
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
+      // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
       switch (fan::speed_level_to_enum(obj->speed, traits.supported_speed_count())) {
         case fan::FAN_SPEED_LOW:  // NOLINT(clang-diagnostic-deprecated-declarations)
           root["speed"] = "low";
@@ -647,8 +665,27 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
       continue;
     if (obj->get_object_id() != match.id)
       continue;
-    std::string data = this->select_json(obj, obj->state);
-    request->send(200, "text/json", data.c_str());
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->select_json(obj, obj->state);
+      request->send(200, "text/json", data.c_str());
+      return;
+    }
+
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    if (request->hasParam("option")) {
+      String option = request->getParam("option")->value();
+      call.set_option(option.c_str());  // NOLINT(clang-diagnostic-deprecated-declarations)
+    }
+
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
     return;
   }
   request->send(404);
@@ -720,17 +757,13 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_SELECT
-  if (request->method() == HTTP_GET && match.domain == "select")
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "select")
     return true;
 #endif
 
   return false;
 }
 void WebServer::handleRequest(AsyncWebServerRequest *request) {
-  if (this->using_auth() && !request->authenticate(this->username_, this->password_)) {
-    return request->requestAuthentication();
-  }
-
   if (request->url() == "/") {
     this->handle_index_request(request);
     return;
@@ -819,3 +852,5 @@ bool WebServer::isRequestHandlerTrivial() { return false; }
 
 }  // namespace web_server
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

@@ -20,7 +20,7 @@ void NextionSwitch::process_bool(const std::string &variable_name, bool on) {
 void NextionSwitch::update() {
   if (!this->nextion_->is_setup())
     return;
-  this->nextion_->add_to_get_queue(this);
+  this->nextion_->add_to_get_queue(shared_from_this());
 }
 
 void NextionSwitch::set_state(bool state, bool publish, bool send_to_nextion) {
@@ -32,7 +32,7 @@ void NextionSwitch::set_state(bool state, bool publish, bool send_to_nextion) {
       this->needs_to_send_update_ = true;
     } else {
       this->needs_to_send_update_ = false;
-      this->nextion_->add_no_result_to_queue_with_set(this, (int) state);
+      this->nextion_->add_no_result_to_queue_with_set(shared_from_this(), (int) state);
     }
   }
   if (publish) {

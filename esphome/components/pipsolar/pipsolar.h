@@ -197,7 +197,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   uint16_t crc_xmodem_update_(uint16_t crc, uint8_t data);
   uint8_t send_next_command_();
   void send_next_poll_();
-  void queue_command_(const char *command, byte length);
+  void queue_command_(const char *command, uint8_t length);
   std::string command_queue_[COMMAND_QUEUE_LENGTH];
   uint8_t command_queue_position_ = 0;
   uint8_t read_buffer_[PIPSOLAR_READ_BUFFER_LENGTH];

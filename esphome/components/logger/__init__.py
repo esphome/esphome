@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_TX_BUFFER_SIZE,
 )
 from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority
+from esphome.components.esp32 import get_esp32_variant, VARIANT_ESP32S2, VARIANT_ESP32C3
 
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")
@@ -52,6 +53,10 @@ LOG_LEVEL_SEVERITY = [
     "VERY_VERBOSE",
 ]
 
+ESP32_REDUCED_VARIANTS = [VARIANT_ESP32C3, VARIANT_ESP32S2]
+
+UART_SELECTION_ESP32_REDUCED = ["UART0", "UART1"]
+
 UART_SELECTION_ESP32 = ["UART0", "UART1", "UART2"]
 
 UART_SELECTION_ESP8266 = ["UART0", "UART0_SWAP", "UART1"]
@@ -75,6 +80,8 @@ is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 def uart_selection(value):
     if CORE.is_esp32:
+        if get_esp32_variant() in ESP32_REDUCED_VARIANTS:
+            return cv.one_of(*UART_SELECTION_ESP32_REDUCED, upper=True)(value)
         return cv.one_of(*UART_SELECTION_ESP32, upper=True)(value)
     if CORE.is_esp8266:
         return cv.one_of(*UART_SELECTION_ESP8266, upper=True)(value)
@@ -86,8 +93,7 @@ def validate_local_no_higher_than_global(value):
     for tag, level in value.get(CONF_LOGS, {}).items():
         if LOG_LEVEL_SEVERITY.index(level) > LOG_LEVEL_SEVERITY.index(global_level):
             raise EsphomeError(
-                "The local log level {} for {} must be less severe than the "
-                "global log level {}.".format(level, tag, global_level)
+                f"The local log level {level} for {tag} must be less severe than the global log level {global_level}."
             )
     return value
 
@@ -145,7 +151,7 @@ async def to_code(config):
     level = config[CONF_LEVEL]
     cg.add_define("USE_LOGGER")
     this_severity = LOG_LEVEL_SEVERITY.index(level)
-    cg.add_build_flag("-DESPHOME_LOG_LEVEL={}".format(LOG_LEVELS[level]))
+    cg.add_build_flag(f"-DESPHOME_LOG_LEVEL={LOG_LEVELS[level]}")
 
     verbose_severity = LOG_LEVEL_SEVERITY.index("VERBOSE")
     very_verbose_severity = LOG_LEVEL_SEVERITY.index("VERY_VERBOSE")
@@ -215,13 +221,12 @@ def validate_printf(value):
     (?:\.(?:\d+|\*))?                  # precision
     (?:h|l|ll|w|I|I32|I64)?            # size
     [cCdiouxXeEfgGaAnpsSZ]             # type
-    ) 
+    )
     """  # noqa
     matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.X)
     if len(matches) != len(value[CONF_ARGS]):
         raise cv.Invalid(
-            "Found {} printf-patterns ({}), but {} args were given!"
-            "".format(len(matches), ", ".join(matches), len(value[CONF_ARGS]))
+            f"Found {len(matches)} printf-patterns ({', '.join(matches)}), but {len(value[CONF_ARGS])} args were given!"
         )
     return value
 

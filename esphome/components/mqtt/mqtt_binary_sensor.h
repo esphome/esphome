@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-
+#ifdef USE_MQTT
 #ifdef USE_BINARY_SENSOR
 
 #include "mqtt_component.h"
@@ -28,11 +28,10 @@ class MQTTBinarySensorComponent : public mqtt::MQTTComponent {
 
   bool send_initial_state() override;
   bool publish_state(bool state);
-  bool is_internal() override;
 
  protected:
-  std::string friendly_name() const override;
   std::string component_type() const override;
+  const EntityBase *get_entity() const override;
 
   binary_sensor::BinarySensor *binary_sensor_;
 };
@@ -41,3 +40,4 @@ class MQTTBinarySensorComponent : public mqtt::MQTTComponent {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

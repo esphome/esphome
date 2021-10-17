@@ -1,8 +1,14 @@
 # Dummy integration to allow relying on AsyncTCP
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.core import CORE, coroutine_with_priority
 
 CODEOWNERS = ["@OttoWinter"]
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema({}),
+    cv.only_with_arduino,
+)
 
 
 @coroutine_with_priority(200.0)
@@ -12,4 +18,4 @@ async def to_code(config):
         cg.add_library("esphome/AsyncTCP-esphome", "1.2.2")
     elif CORE.is_esp8266:
         # https://github.com/OttoWinter/ESPAsyncTCP
-        cg.add_library("ESPAsyncTCP-esphome", "1.2.3")
+        cg.add_library("ottowinter/ESPAsyncTCP-esphome", "1.2.3")

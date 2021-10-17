@@ -2,7 +2,7 @@
 
 #define VERSION_CODE(major, minor, patch) ((major) << 16 | (minor) << 8 | (patch))
 
-#if defined(ARDUINO_ARCH_ESP8266)
+#if defined(USE_ESP8266)
 
 #include <core_version.h>
 #if defined(ARDUINO_ESP8266_MAJOR) && defined(ARDUINO_ESP8266_MINOR) && defined(ARDUINO_ESP8266_REVISION)  // v3.0.1+
@@ -43,7 +43,7 @@
 #warning "Could not determine Arduino framework version, update esphome/core/macros.h!"
 #endif
 
-#elif defined(ARDUINO_ARCH_ESP32)
+#elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
 
 #if defined(IDF_VER)  // identifies v2, needed since v1 doesn't have the esp_arduino_version.h header
 #include <esp_arduino_version.h>

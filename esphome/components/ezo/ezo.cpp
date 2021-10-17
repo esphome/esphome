@@ -1,5 +1,6 @@
 #include "ezo.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace ezo {
@@ -24,7 +25,7 @@ void EZOSensor::update() {
     return;
   }
   uint8_t c = 'R';
-  this->write_bytes_raw(&c, 1);
+  this->write(&c, 1);
   this->state_ |= EZO_STATE_WAIT;
   this->start_time_ = millis();
   this->wait_time_ = 900;
@@ -35,7 +36,7 @@ void EZOSensor::loop() {
   if (!(this->state_ & EZO_STATE_WAIT)) {
     if (this->state_ & EZO_STATE_SEND_TEMP) {
       int len = sprintf((char *) buf, "T,%0.3f", this->tempcomp_);
-      this->write_bytes_raw(buf, len);
+      this->write(buf, len);
       this->state_ = EZO_STATE_WAIT | EZO_STATE_WAIT_TEMP;
       this->start_time_ = millis();
       this->wait_time_ = 300;
