@@ -190,7 +190,7 @@ def _esp_idf_check_versions(value):
     platform_version = value.get(CONF_PLATFORM_VERSION, ESP_IDF_PLATFORM_VERSION)
     value[CONF_PLATFORM_VERSION] = str(platform_version)
 
-    if version != RECOMMENDED_ARDUINO_FRAMEWORK_VERSION:
+    if version != RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION:
         _LOGGER.warning(
             "The selected ESP-IDF framework version is not the recommended one. "
             "If there are connectivity or build issues please remove the manual version."
