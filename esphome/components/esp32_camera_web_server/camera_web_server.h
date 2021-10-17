@@ -1,11 +1,14 @@
 #pragma once
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+
+#include "esphome/components/esp32_camera/esp32_camera.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
-#include "esphome/components/esp32_camera/esp32_camera.h"
 
 struct httpd_req;
 
@@ -14,10 +17,10 @@ namespace esp32_camera_web_server {
 
 enum Mode { Stream, Snapshot };
 
-class WebServer : public Component {
+class CameraWebServer : public Component {
  public:
-  WebServer();
-  ~WebServer();
+  CameraWebServer();
+  ~CameraWebServer();
 
   void setup() override;
   void on_shutdown() override;
@@ -45,4 +48,4 @@ class WebServer : public Component {
 }  // namespace esp32_camera_web_server
 }  // namespace esphome
 
-#endif  // ARDUINO_ARCH_ESP32
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO
