@@ -11,7 +11,7 @@ namespace ble_client {
 
 static const char *const TAG = "ble_client";
 
-float ESP32BLETracker::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
+float BLEClient::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
 void BLEClient::setup() {
   auto ret = esp_ble_gattc_app_register(this->app_id);
