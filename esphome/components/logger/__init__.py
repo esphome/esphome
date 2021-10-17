@@ -19,7 +19,8 @@ from esphome.const import (
     CONF_TX_BUFFER_SIZE,
 )
 from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority
-from esphome.components.esp32 import get_esp32_variant, VARIANT_ESP32S2, VARIANT_ESP32C3
+from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32.const import VARIANT_ESP32S2, VARIANT_ESP32C3
 
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")
