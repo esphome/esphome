@@ -16,10 +16,6 @@ namespace adc {
 static const char *const TAG = "adc";
 
 #ifdef USE_ESP32
-void ADCSensor::set_attenuation(adc_atten_t attenuation) {
-  this->attenuation_ = attenuation;
-  adc1_config_channel_atten(gpio_to_adc1(pin_->get_pin()), attenuation_);
-}
 inline adc1_channel_t gpio_to_adc1(uint8_t pin) {
 #if CONFIG_IDF_TARGET_ESP32
   switch (pin) {
@@ -58,6 +54,10 @@ inline adc1_channel_t gpio_to_adc1(uint8_t pin) {
       return ADC1_CHANNEL_MAX;
   }
 #endif
+}
+void ADCSensor::set_attenuation(adc_atten_t attenuation) {
+  this->attenuation_ = attenuation;
+  adc1_config_channel_atten(gpio_to_adc1(pin_->get_pin()), attenuation_);
 }
 #endif
 
@@ -116,7 +116,7 @@ void ADCSensor::update() {
   ESP_LOGD(TAG, "'%s': Got voltage=%.2fV", this->get_name().c_str(), value_v);
   this->publish_state(value_v);
 }
-int ADCSensor::read_raw() {
+int ADCSensor::read_raw_() {
 #ifdef USE_ESP32
   return adc1_get_raw(gpio_to_adc1(pin_->get_pin()));
 #endif
@@ -129,7 +129,7 @@ int ADCSensor::read_raw() {
 #endif
 #endif
 }
-float ADCSensor::raw_to_voltage(int raw) {
+float ADCSensor::raw_to_voltage_(int raw) {
 #ifdef USE_ESP32
   float value_v = raw / 4095.0f;
 #if CONFIG_IDF_TARGET_ESP32
@@ -175,8 +175,8 @@ float ADCSensor::raw_to_voltage(int raw) {
 #endif
 }
 float ADCSensor::sample() {
-  int raw = this->read_raw();
-  float value_v = this->raw_to_voltage(raw);
+  int raw = this->read_raw_();
+  float value_v = this->raw_to_voltage_(raw);
 #ifdef USE_ESP32
   if (auto_range_) {
     float v_acc = 0;   // Accumulator for valid ADC samples (>0 && <4095)
@@ -187,23 +187,23 @@ float ADCSensor::sample() {
         nsamples++;
       }
       this->set_attenuation(ADC_ATTEN_DB_6);
-      raw = this->read_raw();
+      raw = this->read_raw_();
       if (raw < 4095) {
         if (raw > 0) {
-          v_acc += this->raw_to_voltage(raw);
+          v_acc += this->raw_to_voltage_(raw);
           nsamples++;
         }
         this->set_attenuation(ADC_ATTEN_DB_2_5);
-        raw = this->read_raw();
+        raw = this->read_raw_();
         if (raw < 4095) {
           if (raw > 0) {
-            v_acc += this->raw_to_voltage(raw);
+            v_acc += this->raw_to_voltage_(raw);
             nsamples++;
           }
           this->set_attenuation(ADC_ATTEN_DB_0);
-          raw = this->read_raw();
+          raw = this->read_raw_();
           if (raw < 4095) {
-            v_acc += this->raw_to_voltage(raw);
+            v_acc += this->raw_to_voltage_(raw);
             nsamples++;
           }
         }
