@@ -2,8 +2,11 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.const import (
+    CONF_DISABLED_BY_DEFAULT,
     CONF_FREQUENCY,
     CONF_ID,
+    CONF_INTERNAL,
+    CONF_NAME,
     CONF_PIN,
     CONF_SCL,
     CONF_SDA,
@@ -15,7 +18,6 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
-from esphome.cpp_helpers import setup_entity
 
 DEPENDENCIES = ["esp32", "api"]
 
@@ -65,6 +67,9 @@ camera_range_param = cv.int_range(min=-2, max=2)
 CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(ESP32Camera),
+        cv.Required(CONF_NAME): cv.string,
+        cv.Optional(CONF_INTERNAL, default=False): cv.boolean,
+        cv.Optional(CONF_DISABLED_BY_DEFAULT, default=False): cv.boolean,
         cv.Required(CONF_DATA_PINS): cv.All(
             [pins.internal_gpio_input_pin_number], cv.Length(min=8, max=8)
         ),
@@ -124,8 +129,9 @@ SETTERS = {
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await setup_entity(var, config)
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
+    cg.add(var.set_internal(config[CONF_INTERNAL]))
     await cg.register_component(var, config)
 
     for key, setter in SETTERS.items():
