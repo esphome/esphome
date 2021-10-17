@@ -88,7 +88,7 @@ void ADCSensor::dump_config() {
 #endif
 #ifdef USE_ESP32
   LOG_PIN("  Pin: ", pin_);
-  if (auto_range_) 
+  if (auto_range_)
     ESP_LOGCONFIG(TAG, " Attenuation: auto-range");
   else
     switch (this->attenuation_) {
@@ -117,24 +117,21 @@ void ADCSensor::update() {
   this->publish_state(value_v);
 }
 int ADCSensor::read_raw() {
-  int raw = 0;
-  #ifdef USE_ESP32
-    raw = adc1_get_raw(gpio_to_adc1(pin_->get_pin()));
-  #endif
-  
-  #ifdef USE_ESP8266
-  #ifdef USE_ADC_SENSOR_VCC
-    raw = ESP.getVcc();  // NOLINT(readability-static-accessed-through-instance)
-  #else
-    raw = analogRead(this->pin_->get_pin());  // NOLINT
-  #endif
-  #endif
-  return raw;
+#ifdef USE_ESP32
+  return adc1_get_raw(gpio_to_adc1(pin_->get_pin()));
+#endif
+
+#ifdef USE_ESP8266
+#ifdef USE_ADC_SENSOR_VCC
+  return ESP.getVcc();  // NOLINT(readability-static-accessed-through-instance)
+#else
+  return analogRead(this->pin_->get_pin());  // NOLINT
+#endif
+#endif
 }
 float ADCSensor::raw_to_voltage(int raw) {
-  float value_v = 0;
 #ifdef USE_ESP32
-  value_v = raw / 4095.0f;
+  float value_v = raw / 4095.0f;
 #if CONFIG_IDF_TARGET_ESP32
   switch (this->attenuation_) {
     case ADC_ATTEN_DB_0:
@@ -169,13 +166,13 @@ float ADCSensor::raw_to_voltage(int raw) {
     default:  // This is to satisfy the unused ADC_ATTEN_MAX
       break;
   }
-# endif
-# endif
-
-#ifdef USE_ESP8266
-  value_v = raw / 1024.0f;
 #endif
   return value_v;
+#endif
+
+#ifdef USE_ESP8266
+  return raw / 1024.0f;
+#endif
 }
 float ADCSensor::sample() {
   int raw = this->read_raw();
@@ -211,7 +208,7 @@ float ADCSensor::sample() {
           }
         }
       }
-      value_v = v_acc / (float)nsamples;  // Average the valid samples
+      value_v = v_acc / (float) nsamples;  // Average the valid samples
     }
     this->set_attenuation(ADC_ATTEN_DB_11);
   }
