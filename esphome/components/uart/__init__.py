@@ -104,7 +104,7 @@ DEBUG_SCHEMA = cv.Schema(
             {
                 cv.Optional(CONF_BYTES, default=256): cv.validate_bytes,
                 cv.Optional(
-                    CONF_TIMEOUT, default=100
+                    CONF_TIMEOUT, default="100ms"
                 ): cv.positive_time_period_milliseconds,
                 cv.Optional(CONF_DELIMITER): cv.templatable(validate_raw_data),
             }
