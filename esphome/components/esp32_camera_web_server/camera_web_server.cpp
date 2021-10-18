@@ -6,8 +6,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-#include <esp_http_server.h>
 #include <cstdlib>
+#include <esp_http_server.h>
+#include <utility>
 
 namespace esphome {
 namespace esp32_camera_web_server {
@@ -56,7 +57,7 @@ void CameraWebServer::setup() {
 
   esp32_camera::global_esp32_camera->add_image_callback([this](std::shared_ptr<esp32_camera::CameraImage> image) {
     if (this->running_) {
-      this->image_ = image;
+      this->image_ = std::move(image);
       xSemaphoreGive(this->semaphore_);
     }
   });
@@ -74,7 +75,7 @@ void CameraWebServer::on_shutdown() {
 void CameraWebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP32 Camera Web Server:");
   ESP_LOGCONFIG(TAG, "  Port: %d", this->port_);
-  if (this->mode_ == Stream)
+  if (this->mode_ == STREAM)
     ESP_LOGCONFIG(TAG, "  Mode: stream");
   else
     ESP_LOGCONFIG(TAG, "  Mode: snapshot");
@@ -88,7 +89,7 @@ void CameraWebServer::loop() {
   }
 }
 
-std::shared_ptr<esphome::esp32_camera::CameraImage> CameraWebServer::wait_for_image() {
+std::shared_ptr<esphome::esp32_camera::CameraImage> CameraWebServer::wait_for_image_() {
   std::shared_ptr<esphome::esp32_camera::CameraImage> image;
   image.swap(this->image_);
 
@@ -108,11 +109,11 @@ esp_err_t CameraWebServer::handler_(struct httpd_req *req) {
   this->running_ = true;
 
   switch (this->mode_) {
-    case Stream:
+    case STREAM:
       res = this->streaming_handler_(req);
       break;
 
-    case Snapshot:
+    case SNAPSHOT:
       res = this->snapshot_handler_(req);
       break;
   }
@@ -142,7 +143,7 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
       esp32_camera::global_esp32_camera->request_stream();
     }
 
-    auto image = this->wait_for_image();
+    auto image = this->wait_for_image_();
 
     if (!image) {
       ESP_LOGW(TAG, "STREAM: failed to acquire frame");
@@ -192,7 +193,7 @@ esp_err_t CameraWebServer::snapshot_handler_(struct httpd_req *req) {
     esp32_camera::global_esp32_camera->request_image();
   }
 
-  auto image = this->wait_for_image();
+  auto image = this->wait_for_image_();
 
   if (!image) {
     ESP_LOGW(TAG, "SNAPSHOT: failed to acquire frame");
