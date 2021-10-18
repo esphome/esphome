@@ -59,6 +59,11 @@ void ADCSensor::set_attenuation(adc_atten_t attenuation) {
   this->attenuation_ = attenuation;
   adc1_config_channel_atten(gpio_to_adc1(pin_->get_pin()), attenuation_);
 }
+void ADCSensor::set_autorange(bool autorange) {
+  this->autorange_ = autorange;
+  if (autorange)
+    this->set_attenuation(ADC_ATTEN_DB_11);
+}
 #endif
 
 void ADCSensor::setup() {
@@ -68,12 +73,9 @@ void ADCSensor::setup() {
 #endif
 
 #ifdef USE_ESP32
-#ifdef USE_ADC_AUTORANGE
-  auto_range_ = true;
-#endif
-  if (auto_range_)
-    attenuation_ = ADC_ATTEN_DB_11;
-  this->set_attenuation(attenuation_);
+  if (this->autorange_)
+    this->attenuation_ = ADC_ATTEN_DB_11;
+  this->set_attenuation(this->attenuation_);
   adc1_config_width(ADC_WIDTH_BIT_12);
 #if !CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32H2
   adc_gpio_init(ADC_UNIT_1, (adc_channel_t) gpio_to_adc1(pin_->get_pin()));
@@ -91,8 +93,8 @@ void ADCSensor::dump_config() {
 #endif
 #ifdef USE_ESP32
   LOG_PIN("  Pin: ", pin_);
-  if (auto_range_)
-    ESP_LOGCONFIG(TAG, " Attenuation: auto-range");
+  if (autorange_)
+    ESP_LOGCONFIG(TAG, " Attenuation: auto-range (max 3.9V)");
   else
     switch (this->attenuation_) {
       case ADC_ATTEN_DB_0:
@@ -181,7 +183,7 @@ float ADCSensor::sample() {
   int raw = this->read_raw_();
   float value_v = this->raw_to_voltage_(raw);
 #ifdef USE_ESP32
-  if (auto_range_) {
+  if (autorange_) {
     int raw11 = raw;
     int raw6 = 4095;
     int raw2 = 4095;
@@ -199,14 +201,17 @@ float ADCSensor::sample() {
       }
       this->set_attenuation(ADC_ATTEN_DB_11);
     }
-    // TO-DO: Cleanup the next part
-    float c11 = (float)(2048 - abs(raw11 - 2048)) / 2048.f;  // Triangular coefficient ponderation. 1 at middle, 0 at limits.
-    float c6 = (float)(2048 - abs(raw6 - 2048)) / 2048.f;
-    float c2 = (float)(2048 - abs(raw2 - 2048)) / 2048.f;
-    float c0 = (float)(2048 - abs(raw0 - 2048)) / 2048.f;
+    // Triangular coefficient ponderation. 1 at middle, 0 at limits.
+    float c11 = (float)abs(2048 - raw11) / 2048.f;
+    float c6 = (float)abs(2048 - raw6) / 2048.f;
+    float c2 = (float)abs(2048 - raw2) / 2048.f;
+    float c0 = (float)abs(2048 - raw0) / 2048.f;
     float csum = c11 + c6 + c2 + c0;  // To normalize the result
-    if (csum > 0)
-      value_v = (this->raw_to_voltage_(raw11) * c11 + this->raw_to_voltage_(raw6) * c6 + this->raw_to_voltage_(raw2) * c2 + this->raw_to_voltage_(raw0) * c0) / csum;
+    if (csum > 0) {
+      value_v = this->raw_to_voltage_(raw11) * c11 + this->raw_to_voltage_(raw6) * c6 +
+                this->raw_to_voltage_(raw2) * c2 + this->raw_to_voltage_(raw0) * c0);
+      value_v /= csum;
+    }
   }
 #endif
   return value_v;
