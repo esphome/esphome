@@ -15,7 +15,7 @@ struct httpd_req;
 namespace esphome {
 namespace esp32_camera_web_server {
 
-enum Mode { Stream, Snapshot };
+enum Mode { STREAM, SNAPSHOT };
 
 class CameraWebServer : public Component {
  public:
@@ -31,7 +31,7 @@ class CameraWebServer : public Component {
   void loop() override;
 
  protected:
-  std::shared_ptr<esphome::esp32_camera::CameraImage> wait_for_image();
+  std::shared_ptr<esphome::esp32_camera::CameraImage> wait_for_image_();
   esp_err_t handler_(struct httpd_req *req);
   esp_err_t streaming_handler_(struct httpd_req *req);
   esp_err_t snapshot_handler_(struct httpd_req *req);
@@ -42,7 +42,7 @@ class CameraWebServer : public Component {
   SemaphoreHandle_t semaphore_;
   std::shared_ptr<esphome::esp32_camera::CameraImage> image_;
   bool running_{false};
-  Mode mode_{Stream};
+  Mode mode_{STREAM};
 };
 
 }  // namespace esp32_camera_web_server

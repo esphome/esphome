@@ -10,13 +10,13 @@ esp32_camera_web_server_ns = cg.esphome_ns.namespace("esp32_camera_web_server")
 CameraWebServer = esp32_camera_web_server_ns.class_("CameraWebServer", cg.Component)
 Mode = esp32_camera_web_server_ns.enum("Mode")
 
-MODES = {"stream": Mode.Stream, "snapshot": Mode.Snapshot}
+MODES = {"STREAM": Mode.STREAM, "SNAPSHOT": Mode.SNAPSHOT}
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CameraWebServer),
         cv.Required(CONF_PORT): cv.port,
-        cv.Required(CONF_MODE): cv.enum(MODES),
+        cv.Required(CONF_MODE): cv.enum(MODES, upper=True),
     },
     cv.only_with_arduino,
 ).extend(cv.COMPONENT_SCHEMA)
