@@ -13,6 +13,7 @@ from esphome.const import (
     UNIT_WATT,
 )
 
+CODEOWNERS = ["@berfenger"]
 DEPENDENCIES = ["uart"]
 
 cse7761_ns = cg.esphome_ns.namespace("cse7761")
