@@ -84,7 +84,7 @@ void CSE7761Component::loop() {
     } else if (1 == this->data_.init) {
       if (1 == this->data_.ready) {
         this->write_(CSE7761_SPECIAL_COMMAND, CSE7761_CMD_CLOSE_WRITE);
-        ESP_LOGD(TAG, "C61: CSE7761 found");
+        ESP_LOGD(TAG, "CSE7761 found");
         this->data_.ready = 2;
       }
     }
@@ -154,11 +154,11 @@ bool CSE7761Component::read_once_(uint32_t reg, uint32_t size, uint32_t *value) 
   }
 
   if (!rcvd) {
-    ESP_LOGD(TAG, PSTR("C61: Rx none"));
+    ESP_LOGD(TAG, "Rx none");
     return false;
   }
   if (rcvd > 5) {
-    ESP_LOGD(TAG, PSTR("C61: Rx overflow"));
+    ESP_LOGD(TAG, "Rx overflow");
     return false;
   }
 
@@ -206,7 +206,7 @@ bool CSE7761Component::chip_init_() {
   calc_chksum = ~calc_chksum;
   uint16_t coeff_chksum = this->read_(CSE7761_REG_COEFFCHKSUM, 2);
   if ((calc_chksum != coeff_chksum) || (!calc_chksum)) {
-    ESP_LOGD(TAG, PSTR("C61: Default calibration"));
+    ESP_LOGD(TAG, "Default calibration");
     this->data_.coefficient[RMS_IAC] = CSE7761_IREF;
     this->data_.coefficient[RMS_UC] = CSE7761_UREF;
     this->data_.coefficient[POWER_PAC] = CSE7761_PREF;
@@ -223,7 +223,7 @@ bool CSE7761Component::chip_init_() {
     this->write_(CSE7761_REG_EMUCON2 | 0x80, 0x0FC1);  // Sonoff Dual R3 Pow
     this->write_(CSE7761_REG_PULSE1SEL | 0x80, 0x3290);
   } else {
-    ESP_LOGD(TAG, PSTR("C61: Write failed"));
+    ESP_LOGD(TAG, "Write failed");
     return false;
   }
   return true;
@@ -248,7 +248,7 @@ void CSE7761Component::get_data_() {
   value = this->read_fallback_(CSE7761_REG_POWERPB, this->data_.active_power[1], 4);
   this->data_.active_power[1] = (0 == this->data_.current_rms[1]) ? 0 : (value & 0x80000000) ? (~value) + 1 : value;
 
-  ESP_LOGD(TAG, PSTR("C61: F%d, U%d, I%d/%d, P%d/%d"), this->data_.frequency, this->data_.voltage_rms,
+  ESP_LOGD(TAG, "F%d, U%d, I%d/%d, P%d/%d", this->data_.frequency, this->data_.voltage_rms,
            this->data_.current_rms[0], this->data_.current_rms[1], this->data_.active_power[0],
            this->data_.active_power[1]);
 
@@ -263,7 +263,7 @@ void CSE7761Component::get_data_() {
     // Active power = PowerPA * PowerPAC * 1000 / 0x80000000
     float active_power = (float) this->data_.active_power[channel] / cse7761ref(POWER_PAC, &this->data_);  // W
     float amps = (float) this->data_.current_rms[channel] / cse7761ref(RMS_IAC, &this->data_);             // A
-    ESP_LOGD(TAG, PSTR("C61: Channel %d power %f W, current %f A"), channel, active_power, amps);
+    ESP_LOGD(TAG, "Channel %d power %f W, current %f A", channel, active_power, amps);
     if (channel == 0) {
       if (this->power_sensor_1_ != nullptr) {
         this->power_sensor_1_->publish_state(active_power);
