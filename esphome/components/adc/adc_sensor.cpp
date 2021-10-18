@@ -59,7 +59,7 @@ void ADCSensor::set_attenuation(adc_atten_t attenuation) {
   this->attenuation_ = attenuation;
   adc1_config_channel_atten(gpio_to_adc1(pin_->get_pin()), attenuation_);
 }
-void ADCSensor::set_autorange(bool autorange) {
+void ADCSensor::set_autorange(bool autorange = true) {
   this->autorange_ = autorange;
   if (autorange)
     this->set_attenuation(ADC_ATTEN_DB_11);
@@ -202,14 +202,14 @@ float ADCSensor::sample() {
       this->set_attenuation(ADC_ATTEN_DB_11);
     }
     // Triangular coefficient ponderation. 1 at middle, 0 at limits.
-    float c11 = (float)abs(2048 - raw11) / 2048.f;
-    float c6 = (float)abs(2048 - raw6) / 2048.f;
-    float c2 = (float)abs(2048 - raw2) / 2048.f;
-    float c0 = (float)abs(2048 - raw0) / 2048.f;
+    float c11 = (2048 - abs(raw11 - 2048)) / 2048.f;
+    float c6 = (2048 - abs(raw6 - 2048)) / 2048.f;
+    float c2 = (2048 - abs(raw2 - 2048)) / 2048.f;
+    float c0 = (2048 - abs(raw0 - 2048)) / 2048.f;
     float csum = c11 + c6 + c2 + c0;  // To normalize the result
     if (csum > 0) {
       value_v = this->raw_to_voltage_(raw11) * c11 + this->raw_to_voltage_(raw6) * c6 +
-                this->raw_to_voltage_(raw2) * c2 + this->raw_to_voltage_(raw0) * c0);
+                this->raw_to_voltage_(raw2) * c2 + this->raw_to_voltage_(raw0) * c0;
       value_v /= csum;
     }
   }
