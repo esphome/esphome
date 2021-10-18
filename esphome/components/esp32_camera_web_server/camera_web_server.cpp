@@ -14,15 +14,15 @@ namespace esphome {
 namespace esp32_camera_web_server {
 
 static const int IMAGE_REQUEST_TIMEOUT = 2000;
-static const char *TAG = "esp32_camera_web_server";
+static const char *const TAG = "esp32_camera_web_server";
 
 #define PART_BOUNDARY "123456789000000000000987654321"
 #define CONTENT_TYPE "image/jpeg"
 #define CONTENT_LENGTH "Content-Length"
 
-static const char *STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
-static const char *STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
-static const char *STREAM_PART = "Content-Type: " CONTENT_TYPE "\r\n" CONTENT_LENGTH ": %u\r\n\r\n";
+static const char *const STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
+static const char *const STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
+static const char *const STREAM_PART = "Content-Type: " CONTENT_TYPE "\r\n" CONTENT_LENGTH ": %u\r\n\r\n";
 
 CameraWebServer::CameraWebServer() {}
 
