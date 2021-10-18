@@ -758,7 +758,12 @@ def run_esphome(argv):
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
 
-    setup_log(args.verbose, args.quiet)
+    setup_log(
+        args.verbose,
+        args.quiet,
+        # Show timestamp for dashboard access logs
+        args.command == "dashboard",
+    )
     if args.deprecated_argv_suggestion is not None and args.command != "vscode":
         _LOGGER.warning(
             "Calling ESPHome with the configuration before the command is deprecated "
