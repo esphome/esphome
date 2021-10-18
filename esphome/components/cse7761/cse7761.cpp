@@ -41,7 +41,7 @@ static const uint8_t CSE7761_CMD_RESET = 0x96;  // Reset command, after receivin
 
 enum CSE7761 { RMS_IAC, RMS_IBC, RMS_UC, POWER_PAC, POWER_PBC, POWER_SC, ENERGY_AC, ENERGY_BC };
 
-inline int32_t time_difference(uint32_t prev, uint32_t next) { return ((int32_t) (next - prev)); }
+inline int32_t time_difference(uint32_t prev, uint32_t next) { return ((int32_t)(next - prev)); }
 
 int32_t time_passed_since(uint32_t timestamp) {
   // Compute the number of milliSeconds passed since timestamp given.
@@ -248,9 +248,8 @@ void CSE7761Component::get_data_() {
   value = this->read_fallback_(CSE7761_REG_POWERPB, this->data_.active_power[1], 4);
   this->data_.active_power[1] = (0 == this->data_.current_rms[1]) ? 0 : (value & 0x80000000) ? (~value) + 1 : value;
 
-  ESP_LOGD(TAG, "F%d, U%d, I%d/%d, P%d/%d", this->data_.frequency, this->data_.voltage_rms,
-           this->data_.current_rms[0], this->data_.current_rms[1], this->data_.active_power[0],
-           this->data_.active_power[1]);
+  ESP_LOGD(TAG, "F%d, U%d, I%d/%d, P%d/%d", this->data_.frequency, this->data_.voltage_rms, this->data_.current_rms[0],
+           this->data_.current_rms[1], this->data_.active_power[0], this->data_.active_power[1]);
 
   // convert values and publish to sensors
 
