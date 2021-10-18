@@ -27,13 +27,10 @@ from .const import (  # noqa
     KEY_ESP32,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
-    VARIANT_ESP32,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
     VARIANT_ESP32C3,
-    VARIANT_ESP32H2,
     VARIANTS,
 )
+from .boards import BOARD_TO_VARIANT
 
 # force import gpio to register pin schema
 from .gpio import esp32_pin_to_code  # noqa
@@ -199,6 +196,21 @@ def _esp_idf_check_versions(value):
     return value
 
 
+def _detect_variant(value):
+    if CONF_VARIANT not in value:
+        board = value[CONF_BOARD]
+        if board not in BOARD_TO_VARIANT:
+            raise cv.Invalid(
+                "This board is unknown, please set the variant manually",
+                path=[CONF_BOARD],
+            )
+
+        value = value.copy()
+        value[CONF_VARIANT] = BOARD_TO_VARIANT[board]
+
+    return value
+
+
 CONF_PLATFORM_VERSION = "platform_version"
 
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
@@ -250,12 +262,11 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_BOARD): cv.string_strict,
-            cv.Optional(CONF_VARIANT, default="ESP32"): cv.one_of(
-                *VARIANTS, upper=True
-            ),
+            cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
         }
     ),
+    _detect_variant,
     set_core_data,
 )
 
