@@ -16,6 +16,7 @@ namespace adc {
 static const char *const TAG = "adc";
 
 #ifdef USE_ESP32
+#define ADC_MAX 4095
 inline adc1_channel_t gpio_to_adc1(uint8_t pin) {
 #if CONFIG_IDF_TARGET_ESP32
   switch (pin) {
@@ -134,7 +135,7 @@ int ADCSensor::read_raw_() {
 }
 float ADCSensor::raw_to_voltage_(int raw) {
 #ifdef USE_ESP32
-  float value_v = raw / 4095.0f;
+  float value_v = raw / (float) ADC_MAX;
 #if CONFIG_IDF_TARGET_ESP32
   switch (this->attenuation_) {
     case ADC_ATTEN_DB_0:
@@ -182,38 +183,31 @@ float ADCSensor::sample() {
   float value_v = this->raw_to_voltage_(raw);
 #ifdef USE_ESP32
   if (auto_range_) {
-    float v_acc = 0;   // Accumulator for valid ADC samples (>0 && <4095)
-    int nsamples = 0;  // TO-DO: Work only with the linear range limits?
-    if (raw < 4095) {
-      if (raw > 0) {
-        v_acc += value_v;
-        nsamples++;
-      }
+    int raw11 = raw;
+    int raw6 = ADC_MAX;
+    int raw2 = ADC_MAX;
+    int raw0 = ADC_MAX;
+    if (raw11 < ADC_MAX) {  // Progressively read all attenuation ranges
       this->set_attenuation(ADC_ATTEN_DB_6);
-      raw = this->read_raw_();
-      if (raw < 4095) {
-        if (raw > 0) {
-          v_acc += this->raw_to_voltage_(raw);
-          nsamples++;
-        }
+      raw6 = this->read_raw_();
+      if (raw6 < ADC_MAX) {
         this->set_attenuation(ADC_ATTEN_DB_2_5);
-        raw = this->read_raw_();
-        if (raw < 4095) {
-          if (raw > 0) {
-            v_acc += this->raw_to_voltage_(raw);
-            nsamples++;
-          }
+        raw2 = this->read_raw_();
+        if (raw2 < ADC_MAX) {
           this->set_attenuation(ADC_ATTEN_DB_0);
-          raw = this->read_raw_();
-          if (raw < 4095) {
-            v_acc += this->raw_to_voltage_(raw);
-            nsamples++;
-          }
+          raw0 = this->read_raw_();
         }
       }
-      value_v = v_acc / (float) nsamples;  // Average the valid samples
+      this->set_attenuation(ADC_ATTEN_DB_11);
     }
-    this->set_attenuation(ADC_ATTEN_DB_11);
+    // TO-DO: Cleanup the next part
+    float c11 = (float)(2048-abs(raw11-2048)) / 2048.f;  // Triangular coefficient ponderation. 1 at middle, 0 at limits.
+    float c6 = (float)(2048-abs(raw6-2048)) / 2048.f;
+    float c2 = (float)(2048-abs(raw2-2048)) / 2048.f;
+    float c0 = (float)(2048-abs(raw0-2048)) / 2048.f;
+    float csum = c11 + c6 + c2 + c0;  // To normalize the result
+    if (csum > 0)
+      value_v = (this->raw_to_voltage(raw11)*c11 + this->raw_to_voltage(raw6)*c6 + this->raw_to_voltage(raw2)*c2 + this->raw_to_voltage(raw0)*c0) / csum;
   }
 #endif
   return value_v;
