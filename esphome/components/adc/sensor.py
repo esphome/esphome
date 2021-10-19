@@ -35,7 +35,7 @@ def validate_adc_pin(value):
         if is_esp32c3():
             if not (0 <= value <= 4):  # ADC1
                 raise cv.Invalid("ESP32-C3: Only pins 0 though 4 support ADC.")
-        if not (32 <= value <= 39):  # ADC1
+        elif not (32 <= value <= 39):  # ADC1
             raise cv.Invalid("ESP32: Only pins 32 though 39 support ADC.")
     elif CORE.is_esp8266:
         from esphome.components.esp8266.gpio import CONF_ANALOG
