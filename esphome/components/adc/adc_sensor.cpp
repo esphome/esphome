@@ -1,5 +1,6 @@
 #include "adc_sensor.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_ESP8266
 #ifdef USE_ADC_SENSOR_VCC
@@ -198,13 +199,11 @@ float ADCSensor::sample() {
         }
       }
       this->set_attenuation(ADC_ATTEN_DB_11);
-    }
-    float c11 = raw11 / 2048.0f;                     // Contribution coefficients:
-    if (c11 > 1) c11 = 1.0f;                         // high 1, middle 1, low 0
-    float c6 = (2048 - abs(raw6 - 2048)) / 2048.0f;  // high 0, middle 1, low 0
-    float c2 = (2048 - abs(raw2 - 2048)) / 2048.0f;  // high 0, middle 1, low 0
-    float c0 = (4095 - raw0) / 2048.0f;              // high 0, middle 1, low 1
-    if (c0 > 1) c0 = 1.0f;
+    }                                                 // Contribution coefficients:
+    float c11 = clamp(raw11 / 2048.0f, 0, 1);         // high 1, middle 1, low 0
+    float c6 = (2048 - abs(raw6 - 2048)) / 2048.0f;   // high 0, middle 1, low 0
+    float c2 = (2048 - abs(raw2 - 2048)) / 2048.0f;   // high 0, middle 1, low 0
+    float c0 = clamp((4095 - raw0) / 2048.0f, 0, 1);  // high 0, middle 1, low 1
     float csum = c11 + c6 + c2 + c0;  // sum to normalize the result
     if (csum > 0) {
       v = (v11 * c11) + (v6 * c6) + (v2 * c2) + (v0 * c0);
