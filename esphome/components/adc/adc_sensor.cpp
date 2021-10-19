@@ -199,10 +199,10 @@ float ADCSensor::sample() {
       }
       this->set_attenuation(ADC_ATTEN_DB_11);
     }                                                // Contribution coefficients:
-    float c11 = min(raw11, 2048) / 2048.0f;          // high 1, middle 1, low 0
+    float c11 = _min(raw11, 2048) / 2048.0f;          // high 1, middle 1, low 0
     float c6 = (2048 - abs(raw6 - 2048)) / 2048.0f;  // high 0, middle 1, low 0
     float c2 = (2048 - abs(raw2 - 2048)) / 2048.0f;  // high 0, middle 1, low 0
-    float c0 = min(4095 - raw0, 2048) / 2048.0f;     // high 0, middle 1, low 1
+    float c0 = _min(4095 - raw0, 2048) / 2048.0f;     // high 0, middle 1, low 1
     float csum = c11 + c6 + c2 + c0;                // sum to normalize the result
     if (csum > 0) {
       v = (v11 * c11) + (v6 * c6) + (v2 * c2) + (v0 * c0);
