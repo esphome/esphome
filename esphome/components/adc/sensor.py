@@ -93,7 +93,7 @@ async def to_code(config):
         cg.add(var.set_pin(pin))
 
     if CONF_ATTENUATION in config:
-        if CONF_ATTENUATION == "auto":
+        if config[CONF_ATTENUATION] == "auto":
             cg.add(var.set_autorange())
         else:
             cg.add(var.set_attenuation(config[CONF_ATTENUATION]))
