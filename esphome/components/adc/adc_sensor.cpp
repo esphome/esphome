@@ -208,8 +208,16 @@ float ADCSensor::sample() {
     float c0 = (2048 - abs(raw0 - 2048)) / 2048.f;
     float csum = c11 + c6 + c2 + c0;  // To normalize the result
     if (csum > 0) {
-      value_v = this->raw_to_voltage_(raw11) * c11 + this->raw_to_voltage_(raw6) * c6 +
-                this->raw_to_voltage_(raw2) * c2 + this->raw_to_voltage_(raw0) * c0;
+      this->attenuation_ = ADC_ATTEN_DB_11;  // TO-DO: Cleanup
+      float v11 = this->raw_to_voltage_(raw11);
+      this->attenuation_ = ADC_ATTEN_DB_6;
+      float v6 = this->raw_to_voltage_(raw6);
+      this->attenuation_ = ADC_ATTEN_DB_2_5;
+      float v2 = this->raw_to_voltage_(raw2);
+      this->attenuation_ = ADC_ATTEN_DB_0;
+      float v0 = this->raw_to_voltage_(raw0);
+      this->attenuation_ = ADC_ATTEN_DB_11;
+      value_v = (v11 * c11) + (v6 * c6) + (v2 * c2) + (v0 * c0);
       value_v /= csum;
     }
   }
