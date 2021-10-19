@@ -17,18 +17,24 @@ from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
     CONF_COMMAND_TOPIC,
+    CONF_CONNECTIONS,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
+    CONF_IDENTIFIERS,
     CONF_INTERNAL,
+    CONF_MANUFACTURER,
+    CONF_MODEL,
     CONF_NAME,
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
     CONF_RETAIN,
     CONF_SETUP_PRIORITY,
+    CONF_SOFTWARE_VERSION,
     CONF_STATE_TOPIC,
+    CONF_SUGGESTED_AREA,
     CONF_TOPIC,
     CONF_HOUR,
     CONF_MINUTE,
@@ -1603,6 +1609,26 @@ ENTITY_BASE_SCHEMA = Schema(
 )
 
 ENTITY_BASE_SCHEMA.add_extra(_entity_base_validator)
+
+# See https://developers.home-assistant.io/docs/device_registry_index
+DEVICE_REGISTRY_SCHEMA = Schema(
+    {
+        Optional(CONF_NAME): string,
+        Optional(CONF_IDENTIFIERS): ensure_list(string),
+        Optional(CONF_CONNECTIONS): ensure_list(
+            Schema(
+                {
+                    Required(CONF_TYPE): string,
+                    Required(CONF_VALUE): string,
+                }
+            )
+        ),
+        Optional(CONF_MANUFACTURER, default="espressif"): string,
+        Optional(CONF_MODEL): string,
+        Optional(CONF_SOFTWARE_VERSION): string,
+        Optional(CONF_SUGGESTED_AREA): string,
+    }
+)
 
 COMPONENT_SCHEMA = Schema({Optional(CONF_SETUP_PRIORITY): float_})
 
