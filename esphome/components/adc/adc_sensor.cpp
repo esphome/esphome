@@ -118,7 +118,7 @@ void ADCSensor::dump_config() {
 float ADCSensor::get_setup_priority() const { return setup_priority::DATA; }
 void ADCSensor::update() {
   float value_v = this->sample();
-  //ESP_LOGD(TAG, "'%s': Got voltage=%.2fV", this->get_name().c_str(), value_v);
+  // ESP_LOGD(TAG, "'%s': Got voltage=%.2fV", this->get_name().c_str(), value_v);  TO-DO: uncomment
   this->publish_state(value_v);
 }
 int ADCSensor::read_raw_() {
@@ -201,12 +201,11 @@ float ADCSensor::sample() {
       }
       this->set_attenuation(ADC_ATTEN_DB_11);
     }
-    // Triangular coefficient ponderation. 1 at middle, 0 at limits.
-    float c11 = (2048 - abs(raw11 - 2048)) / 2048.f;
-    float c6 = (2048 - abs(raw6 - 2048)) / 2048.f;
-    float c2 = (2048 - abs(raw2 - 2048)) / 2048.f;
-    float c0 = (2048 - abs(raw0 - 2048)) / 2048.f;
-    float csum = c11 + c6 + c2 + c0;  // To normalize the result
+    float c11 = raw11 / 4095.f;                     // 1 at max, 0 at min
+    float c6 = (2048 - abs(raw6 - 2048)) / 2048.f;  // 1 at middle, 0 at limits
+    float c2 = (2048 - abs(raw2 - 2048)) / 2048.f;  // 1 at middle, 0 at limits
+    float c0 = (4095 - raw11) / 4095.f;             // 0 at max, 1 at min
+    float csum = c11 + c6 + c2 + c0;                // to normalize the result
     if (csum > 0) {
       this->attenuation_ = ADC_ATTEN_DB_11;  // TO-DO: Cleanup
       float v11 = this->raw_to_voltage_(raw11);
