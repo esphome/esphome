@@ -6,6 +6,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/device_registry.h"
 #include "esphome/core/scheduler.h"
 
 #ifdef USE_BINARY_SENSOR
@@ -110,6 +111,12 @@ class Application {
 
   /// Get the name of this Application set by set_name().
   const std::string &get_name() const { return this->name_; }
+
+  /// Get the device registry entry representing this device
+  const DeviceRegistry *get_device_registry() const { return this->device_registry_; }
+
+  /// Sets the device registry entry representing this device.
+  void set_device_registry(DeviceRegistry *device_registry) { this->device_registry_ = device_registry; }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
@@ -287,6 +294,7 @@ class Application {
 
   std::string name_;
   std::string compilation_time_;
+  DeviceRegistry *device_registry_{nullptr};
   bool name_add_mac_suffix_;
   uint32_t last_loop_{0};
   uint32_t loop_interval_{16};

@@ -11,8 +11,10 @@ from esphome.const import (
     CONF_BOARD_FLASH_MODE,
     CONF_BUILD_PATH,
     CONF_COMMENT,
+    CONF_DEVICE,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
+    CONF_ID,
     CONF_INCLUDES,
     CONF_LIBRARIES,
     CONF_NAME,
@@ -32,6 +34,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_helpers import setup_device_registry
 from esphome.helpers import copy_file_if_changed, walk_files
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,6 +49,8 @@ ShutdownTrigger = cg.esphome_ns.class_(
 LoopTrigger = cg.esphome_ns.class_(
     "LoopTrigger", cg.Component, automation.Trigger.template()
 )
+
+DeviceRegistry = cg.esphome_ns.class_("DeviceRegistry")
 
 VERSION_REGEX = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$")
 
@@ -133,6 +138,11 @@ CONFIG_SCHEMA = cv.All(
                         cv.string_strict, valid_project_name
                     ),
                     cv.Required(CONF_VERSION): cv.string_strict,
+                }
+            ),
+            cv.Optional(CONF_DEVICE, default={}): cv.DEVICE_REGISTRY_SCHEMA.extend(
+                {
+                    cv.GenerateID(): cv.declare_id(DeviceRegistry),
                 }
             ),
         }
@@ -353,3 +363,9 @@ async def to_code(config):
 
     if config[CONF_PLATFORMIO_OPTIONS]:
         CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])
+
+    # Device Registry Entry
+    device_registry_config = config[CONF_DEVICE]
+    device = cg.new_Pvariable(config[CONF_DEVICE][CONF_ID])
+    await setup_device_registry(device, device_registry_config)
+    cg.add(cg.App.set_device_registry(device))
