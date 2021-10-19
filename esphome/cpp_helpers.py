@@ -1,20 +1,28 @@
 import logging
 
 from esphome.const import (
+    CONF_CONNECTIONS,
     CONF_DISABLED_BY_DEFAULT,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
+    CONF_IDENTIFIERS,
     CONF_INTERNAL,
+    CONF_MANUFACTURER,
+    CONF_MODEL,
     CONF_NAME,
     CONF_SETUP_PRIORITY,
+    CONF_SOFTWARE_VERSION,
+    CONF_SUGGESTED_AREA,
+    CONF_TYPE,
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
+    CONF_VALUE,
 )
 
 # pylint: disable=unused-import
 from esphome.core import coroutine, ID, CORE
 from esphome.types import ConfigType
-from esphome.cpp_generator import add, get_variable
+from esphome.cpp_generator import RawExpression, add, get_variable
 from esphome.cpp_types import App
 from esphome.util import Registry, RegistryEntry
 
@@ -105,6 +113,46 @@ async def setup_entity(var, config):
         add(var.set_icon(config[CONF_ICON]))
     if CONF_ENTITY_CATEGORY in config:
         add(var.set_entity_category(config[CONF_ENTITY_CATEGORY]))
+
+
+async def setup_device_registry(var, config):
+    """Sets up a device registry entry"""
+
+    # Defaults
+    if CONF_NAME not in config:
+        config[CONF_NAME] = RawExpression("App.get_name()")
+
+    if CONF_MODEL not in config:
+        config[CONF_MODEL] = RawExpression("ESPHOME_BOARD")
+
+    if CONF_SOFTWARE_VERSION not in config:
+        config[CONF_SOFTWARE_VERSION] = RawExpression(
+            '"esphome v" ESPHOME_VERSION " " + App.get_compilation_time()'
+        )
+
+    if CONF_IDENTIFIERS not in config:
+        config[CONF_IDENTIFIERS] = RawExpression("{get_mac_address()}")
+
+    property_map = {
+        CONF_NAME: var.set_name,
+        CONF_IDENTIFIERS: var.add_identifier,
+        CONF_MANUFACTURER: var.set_manufacturer,
+        CONF_MODEL: var.set_model,
+        CONF_SOFTWARE_VERSION: var.set_software_version,
+        CONF_SUGGESTED_AREA: var.set_suggested_area,
+    }
+
+    for property, func in property_map.items():
+        if property in config:
+            if isinstance(config[property], list):
+                for list_item in config[property]:
+                    add(func(list_item))
+            else:
+                add(func(config[property]))
+
+    if CONF_CONNECTIONS in config:
+        for connection in config[CONF_CONNECTIONS]:
+            add(var.add_connection(connection[CONF_TYPE], connection[CONF_VALUE]))
 
 
 def extract_registry_entry_config(registry, full_config):
