@@ -109,10 +109,8 @@ std::shared_ptr<BLEService> BLEServer::create_service(const std::string &uuid, b
 }
 std::shared_ptr<BLEService> BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles,
                                                       uint8_t inst_id) {
-  ESP_LOGD(TAG, "Creating service - %s", uuid.to_string().c_str());
+  ESP_LOGV(TAG, "Creating service - %s", uuid.to_string().c_str());
   std::shared_ptr<BLEService> service = std::make_shared<BLEService>(uuid, num_handles, inst_id);
-  ESP_LOGD(TAG, "Created service - %s", service->get_uuid().to_string().c_str());
-  ESP_LOGD(TAG, "services size - %d", this->services_.size());
   this->services_.emplace_back(service);
   if (advertise) {
     esp32_ble::global_ble->get_advertising()->add_service_uuid(uuid);
