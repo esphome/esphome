@@ -19,15 +19,15 @@ class DeviceRegistry {
 
   // Unique Identifiers
   const std::vector<std::string> &get_identifiers() const;
-  void add_identifier(std::string identifier);
+  void add_identifier(const std::string &identifier);
 
   // Connections
   const std::vector<std::tuple<std::string, std::string>> &get_connections() const;
-  void add_connection(const std::string connection_type, const std::string connection_identifier);
+  void add_connection(const std::string &connection_type, const std::string &connection_identifier);
 
   // Device Manufacturer
   const std::string &get_manufacturer() const;
-  void set_manufacturer(const std::string &name);
+  void set_manufacturer(const std::string &manufacturer);
 
   // Device Model
   const std::string &get_model() const;

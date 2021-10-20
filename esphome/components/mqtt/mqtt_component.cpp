@@ -133,9 +133,9 @@ bool MQTTComponent::send_discovery_() {
         }
 
         std::vector<std::tuple<std::string, std::string>> connections = device->get_connections();
-        if (connections.size() > 0) {
+        if (!connections.empty()) {
           JsonArray &json_connections = device_info.createNestedArray(MQTT_DEVICE_CONNECTIONS);
-          for (const auto connection : connections) {
+          for (std::tuple<std::string, std::string> &connection : connections) {
             JsonArray &json_connection = json_connections.createNestedArray();
             json_connection.add(std::get<0>(connection));
             json_connection.add(std::get<1>(connection));
