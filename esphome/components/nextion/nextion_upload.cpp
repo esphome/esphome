@@ -281,12 +281,12 @@ void Nextion::upload_tft() {
 #endif
       // NOLINTNEXTLINE(readability-static-accessed-through-instance)
       ESP_LOGD(TAG, "Allocating buffer size %d, Heap size is %u", chunk_size, ESP.getFreeHeap());
-      this->transfer_buffer_ = new (std::nothrow) uint8_t[chunk_size];  // NOLINT(cppcoreguidelines-owning-memory)
-      if (this->transfer_buffer_ == nullptr) {                          // Try a smaller size
+      this->transfer_buffer_ = new (std::nothrow) uint8_t[chunk_size];
+      if (this->transfer_buffer_ == nullptr) {  // Try a smaller size
         ESP_LOGD(TAG, "Could not allocate buffer size: %d trying 4096 instead", chunk_size);
         chunk_size = 4096;
         ESP_LOGD(TAG, "Allocating %d buffer", chunk_size);
-        this->transfer_buffer_ = new (std::nothrow) uint8_t[chunk_size];  // NOLINT(cppcoreguidelines-owning-memory)
+        this->transfer_buffer_ = new uint8_t[chunk_size];
 
         if (!this->transfer_buffer_)
           this->upload_end_();
@@ -330,7 +330,7 @@ void Nextion::upload_end_() {
 WiFiClient *Nextion::get_wifi_client_() {
   if (this->tft_url_.compare(0, 6, "https:") == 0) {
     if (this->wifi_client_secure_ == nullptr) {
-      this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();  // NOLINT(cppcoreguidelines-owning-memory)
+      this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();
       this->wifi_client_secure_->setInsecure();
       this->wifi_client_secure_->setBufferSizes(512, 512);
     }
@@ -338,7 +338,7 @@ WiFiClient *Nextion::get_wifi_client_() {
   }
 
   if (this->wifi_client_ == nullptr) {
-    this->wifi_client_ = new WiFiClient();  // NOLINT(cppcoreguidelines-owning-memory)
+    this->wifi_client_ = new WiFiClient();
   }
   return this->wifi_client_;
 }
