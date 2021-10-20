@@ -11,6 +11,19 @@ namespace mdns {
 
 static const char *const TAG = "mdns";
 
+void MDNSComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "MDNS:");
+  ESP_LOGCONFIG(TAG, "  Hostname: %s", compile_hostname_().c_str());
+  auto services = compile_services_();
+  ESP_LOGCONFIG(TAG, "  Services:");
+  for (const auto &service : services) {
+    ESP_LOGCONFIG(TAG, "  - %s, %s, %d", service.service_type.c_str(), service.proto.c_str(), service.port);
+    for (const auto &record : service.txt_records) {
+      ESP_LOGCONFIG(TAG, "    TXT: %s = %s", record.key.c_str(), record.value.c_str());
+    }
+  }
+}
+
 void MDNSComponent::setup() {
   network::IPAddress addr = network::get_ip_address();
   MDNS.begin(compile_hostname_().c_str(), (uint32_t) addr);

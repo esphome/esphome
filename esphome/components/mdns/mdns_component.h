@@ -26,6 +26,7 @@ struct MDNSService {
 class MDNSComponent : public Component {
  public:
   void setup() override;
+  void dump_config() override;
 
 #if defined(USE_ESP8266) && defined(USE_ARDUINO)
   void loop() override;
