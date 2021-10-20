@@ -1,6 +1,6 @@
 voluptuous==0.12.2
 PyYAML==6.0
-paho-mqtt==1.5.1
+paho-mqtt==1.6.0
 colorama==0.4.4
 tornado==6.1
 tzlocal==3.0    # from time
