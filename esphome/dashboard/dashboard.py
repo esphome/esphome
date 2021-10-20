@@ -597,7 +597,7 @@ class MainRequestHandler(BaseHandler):
             get_template_path("index"),
             begin=begin,
             **template_args(),
-            login_enabled=settings.using_auth,
+            login_enabled=settings.using_password,
         )
 
 
