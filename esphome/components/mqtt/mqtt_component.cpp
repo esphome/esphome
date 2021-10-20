@@ -4,6 +4,7 @@
 
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/device_registry.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/version.h"
 
@@ -109,7 +110,38 @@ bool MQTTComponent::send_discovery_() {
             root[MQTT_PAYLOAD_NOT_AVAILABLE] = this->availability_->payload_not_available;
         }
 
-        const std::string &node_name = App.get_name();
+        // Device Registry entry
+        const DeviceRegistry *device = App.get_device_registry();
+        JsonObject &device_info = root.createNestedObject(MQTT_DEVICE);
+        device_info[MQTT_DEVICE_NAME] = device->get_name();
+        device_info[MQTT_DEVICE_MANUFACTURER] = device->get_manufacturer();
+        device_info[MQTT_DEVICE_MODEL] = device->get_model();
+        device_info[MQTT_DEVICE_SW_VERSION] = device->get_software_version();
+        if (!device->get_suggested_area().empty())
+          device_info[MQTT_DEVICE_SUGGESTED_AREA] = device->get_suggested_area();
+        if (!device->get_via_device().empty())
+          device_info["via_device"] = device->get_via_device();
+
+        std::vector<std::string> identifiers = device->get_identifiers();
+        if (identifiers.size() == 1) {
+          device_info[MQTT_DEVICE_IDENTIFIERS] = identifiers.front();
+        } else if (identifiers.size() > 1) {
+          JsonArray &json_identifiers = device_info.createNestedArray(MQTT_DEVICE_IDENTIFIERS);
+          for (const auto &identifier : identifiers) {
+            json_identifiers.add(identifier);
+          }
+        }
+
+        std::vector<std::tuple<std::string, std::string>> connections = device->get_connections();
+        if (connections.size() > 0) {
+          JsonArray &json_connections = device_info.createNestedArray(MQTT_DEVICE_CONNECTIONS);
+          for (const auto connection : connections) {
+            JsonArray &json_connection = json_connections.createNestedArray();
+            json_connection.add(std::get<0>(connection));
+            json_connection.add(std::get<1>(connection));
+          }
+        }
+
         std::string unique_id = this->unique_id();
         if (!unique_id.empty()) {
           root[MQTT_UNIQUE_ID] = unique_id;
@@ -118,13 +150,6 @@ bool MQTTComponent::send_discovery_() {
           // gorgeous device registry view.
           root[MQTT_UNIQUE_ID] = "ESP" + this->component_type() + this->get_default_object_id_();
         }
-
-        JsonObject &device_info = root.createNestedObject(MQTT_DEVICE);
-        device_info[MQTT_DEVICE_IDENTIFIERS] = get_mac_address();
-        device_info[MQTT_DEVICE_NAME] = node_name;
-        device_info[MQTT_DEVICE_SW_VERSION] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();
-        device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
-        device_info[MQTT_DEVICE_MANUFACTURER] = "espressif";
       },
       0, discovery_info.retain);
 }
