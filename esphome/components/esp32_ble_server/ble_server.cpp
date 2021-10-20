@@ -98,19 +98,22 @@ bool BLEServer::create_device_characteristics_() {
   return true;
 }
 
-BLEService *BLEServer::create_service(const uint8_t *uuid, bool advertise) {
+std::shared_ptr<BLEService> BLEServer::create_service(const uint8_t *uuid, bool advertise) {
   return this->create_service(ESPBTUUID::from_raw(uuid), advertise);
 }
-BLEService *BLEServer::create_service(uint16_t uuid, bool advertise) {
+std::shared_ptr<BLEService> BLEServer::create_service(uint16_t uuid, bool advertise) {
   return this->create_service(ESPBTUUID::from_uint16(uuid), advertise);
 }
-BLEService *BLEServer::create_service(const std::string &uuid, bool advertise) {
+std::shared_ptr<BLEService> BLEServer::create_service(const std::string &uuid, bool advertise) {
   return this->create_service(ESPBTUUID::from_raw(uuid), advertise);
 }
-BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles, uint8_t inst_id) {
-  ESP_LOGV(TAG, "Creating service - %s", uuid.to_string().c_str());
-  BLEService *service = new BLEService(uuid, num_handles, inst_id);  // NOLINT(cppcoreguidelines-owning-memory)
-  this->services_.push_back(service);
+std::shared_ptr<BLEService> BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles,
+                                                      uint8_t inst_id) {
+  ESP_LOGD(TAG, "Creating service - %s", uuid.to_string().c_str());
+  std::shared_ptr<BLEService> service = std::make_shared<BLEService>(uuid, num_handles, inst_id);
+  ESP_LOGD(TAG, "Created service - %s", service->get_uuid().to_string().c_str());
+  ESP_LOGD(TAG, "services size - %d", this->services_.size());
+  this->services_.emplace_back(service);
   if (advertise) {
     esp32_ble::global_ble->get_advertising()->add_service_uuid(uuid);
   }
@@ -149,7 +152,7 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       break;
   }
 
-  for (auto *service : this->services_) {
+  for (auto service : this->services_) {
     service->gatts_event_handler(event, gatts_if, param);
   }
 }
