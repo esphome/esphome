@@ -154,7 +154,7 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
   }
 }
 
-float BLEServer::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
+float BLEServer::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH + 10; }
 
 void BLEServer::dump_config() { ESP_LOGCONFIG(TAG, "ESP32 BLE Server:"); }
 
