@@ -189,22 +189,25 @@ float ADCSensor::sample() {
     float v11 = v, v6 = v, v2 = v, v0 = v;
     if (raw11 < 4095) {  // Progressively read all attenuation ranges
       this->set_attenuation(ADC_ATTEN_DB_6);
-      raw6 = this->read_raw_(); v6 = this->raw_to_voltage_(raw6);
+      raw6 = this->read_raw_();
+      v6 = this->raw_to_voltage_(raw6);
       if (raw6 < 4095) {
         this->set_attenuation(ADC_ATTEN_DB_2_5);
-        raw2 = this->read_raw_(); v2 = this->raw_to_voltage_(raw2);
+        raw2 = this->read_raw_();
+        v2 = this->raw_to_voltage_(raw2);
         if (raw2 < 4095) {
           this->set_attenuation(ADC_ATTEN_DB_0);
-          raw0 = this->read_raw_(); v0 = this->raw_to_voltage_(raw0);
+          raw0 = this->read_raw_();
+          v0 = this->raw_to_voltage_(raw0);
         }
       }
       this->set_attenuation(ADC_ATTEN_DB_11);
-    }                                                 // Contribution coefficients:
-    float c11 = clamp(raw11 / 2048.0f, 0, 1);         // high 1, middle 1, low 0
-    float c6 = (2048 - abs(raw6 - 2048)) / 2048.0f;   // high 0, middle 1, low 0
-    float c2 = (2048 - abs(raw2 - 2048)) / 2048.0f;   // high 0, middle 1, low 0
-    float c0 = clamp((4095 - raw0) / 2048.0f, 0, 1);  // high 0, middle 1, low 1
-    float csum = c11 + c6 + c2 + c0;  // sum to normalize the result
+    }                                                // Contribution coefficients:
+    float c11 = clamp(raw11, 0, 2048) / 2048.0f;     // high 1, middle 1, low 0
+    float c6 = (2048 - abs(raw6 - 2048)) / 2048.0f;  // high 0, middle 1, low 0
+    float c2 = (2048 - abs(raw2 - 2048)) / 2048.0f;  // high 0, middle 1, low 0
+    float c0 = clamp(4095 - raw0, 0, 2048) / 2048f;  // high 0, middle 1, low 1
+    float csum = c11 + c6 + c2 + c0;                 // sum to normalize the result
     if (csum > 0) {
       v = (v11 * c11) + (v6 * c6) + (v2 * c2) + (v0 * c0);
       v /= csum;
