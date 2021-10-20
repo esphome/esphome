@@ -41,6 +41,10 @@ class DeviceRegistry {
   const std::string &get_software_version() const;
   void set_software_version(const std::string &software_version);
 
+  // Via Device
+  const std::string &get_via_device() const;
+  void set_via_device(const std::string &via_device);
+
  protected:
   std::string name_;
   std::vector<std::tuple<std::string, std::string>> connections_;
@@ -49,6 +53,7 @@ class DeviceRegistry {
   std::string model_;
   std::string suggested_area_;
   std::string software_version_;
+  std::string via_device_;
 };
 
 }  // namespace esphome

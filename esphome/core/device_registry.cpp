@@ -39,4 +39,8 @@ void DeviceRegistry::set_software_version(const std::string &software_version) {
   this->software_version_ = software_version;
 }
 
+// Via Device
+const std::string &DeviceRegistry::get_via_device() const { return this->via_device_; }
+void DeviceRegistry::set_via_device(const std::string &via_device) { this->via_device_ = via_device; }
+
 }  // namespace esphome
