@@ -152,7 +152,7 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       break;
   }
 
-  for (auto service : this->services_) {
+  for (const auto &service : this->services_) {
     service->gatts_event_handler(event, gatts_if, param);
   }
 }
