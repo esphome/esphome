@@ -193,13 +193,13 @@ float ADCSensor::sample() {
     uint32_t csum = c11 + c6 + c2 + c0;         // sum to normalize the final result
     if (csum > 0)
       v = (v11 * c11) + (v6 * c6) + (v2 * c2) + (v0 * c0);
-    else
-      csum = 1;   // in case of error, keep the 11db output
-    csum *= 1e6;  // include the microvolts->volts conversion factor
-    return (float) v / (float) csum;  // Normalize & convert
+    else  // in case of error, this keeps the 11db output (v)
+      csum = 1;
+    csum *= 1e6;                      // include the 1e6 microvolts->volts conversion factor
+    return (float) v / (float) csum;  // normalize, convert & return
   }
 #endif
-  return v / (float) 1e6;  // Convert from microvolts to volts
+  return v / (float) 1e6;  // convert from microvolts to volts
 }
 #ifdef USE_ESP8266
 std::string ADCSensor::unique_id() { return get_mac_address() + "-adc"; }
