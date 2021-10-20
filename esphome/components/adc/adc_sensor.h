@@ -8,6 +8,7 @@
 
 #ifdef USE_ESP32
 #include "driver/adc.h"
+#include <esp_adc_cal.h>
 #endif
 
 namespace esphome {
@@ -17,8 +18,9 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
  public:
 #ifdef USE_ESP32
   /// Set the attenuation for this pin. Only available on the ESP32.
-  void set_attenuation(adc_atten_t attenuation);
-  void set_autorange(bool autorange);
+  void set_attenuation(adc_atten_t attenuation) { attenuation_ = attenuation; }
+  void set_channel(adc1_channel_t channel) { channel_ = channel; }
+  void set_autorange(bool autorange) { autorange_ = autorange; }
 #endif
 
   /// Update adc values.
@@ -37,12 +39,12 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
 
  protected:
   InternalGPIOPin *pin_;
-  int read_raw_();
-  float raw_to_voltage_(int raw);
 
 #ifdef USE_ESP32
   adc_atten_t attenuation_{ADC_ATTEN_DB_0};
+  adc1_channel_t channel_{};
   bool autorange_{false};
+  esp_adc_cal_characteristics_t cal_characteristics_[4];
 #endif
 };
 
