@@ -95,7 +95,7 @@ void ADCSensor::dump_config() {
 #ifdef USE_ESP32
   LOG_PIN("  Pin: ", pin_);
   if (autorange_)
-    ESP_LOGCONFIG(TAG, " Attenuation: auto-range (max 3.9V)");
+    ESP_LOGCONFIG(TAG, " Attenuation: auto");
   else
     switch (this->attenuation_) {
       case ADC_ATTEN_DB_0:
@@ -186,7 +186,7 @@ float ADCSensor::sample() {
 #ifdef USE_ESP32
   if (autorange_) {
     int raw11 = raw, raw6 = 4095, raw2 = 4095, raw0 = 4095;
-    float v11 = v, v6 = v, v2 = v, v0 = v;
+    float v11 = v, v6 = 0, v2 = 0, v0 = 0;
     if (raw11 < 4095) {  // Progressively read all attenuation ranges
       this->set_attenuation(ADC_ATTEN_DB_6);
       raw6 = this->read_raw_();
