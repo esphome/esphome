@@ -23,6 +23,7 @@ from esphome.const import (
     CONF_PLATFORMIO_OPTIONS,
     CONF_PRIORITY,
     CONF_PROJECT,
+    CONF_SOURCE,
     CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_VERSION,
@@ -181,10 +182,12 @@ def preload_core_config(config, result):
         if CONF_BOARD_FLASH_MODE in conf:
             plat_conf[CONF_BOARD_FLASH_MODE] = conf.pop(CONF_BOARD_FLASH_MODE)
         if CONF_ARDUINO_VERSION in conf:
-            plat_conf[CONF_FRAMEWORK] = {
-                CONF_TYPE: "arduino",
-                CONF_VERSION: conf.pop(CONF_ARDUINO_VERSION),
-            }
+            plat_conf[CONF_FRAMEWORK] = {CONF_TYPE: "arduino"}
+            try:
+                cv.Version.parse(conf[CONF_ARDUINO_VERSION])
+                plat_conf[CONF_FRAMEWORK][CONF_VERSION] = conf.pop(CONF_ARDUINO_VERSION)
+            except ValueError:
+                plat_conf[CONF_FRAMEWORK][CONF_SOURCE] = conf.pop(CONF_ARDUINO_VERSION)
         if CONF_BOARD in conf:
             plat_conf[CONF_BOARD] = conf.pop(CONF_BOARD)
         # Insert generated target platform config to main config
