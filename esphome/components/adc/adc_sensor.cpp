@@ -60,7 +60,7 @@ void ADCSensor::set_attenuation(adc_atten_t attenuation) {
   this->attenuation_ = attenuation;
   adc1_config_channel_atten(gpio_to_adc1(pin_->get_pin()), attenuation_);
 }
-void ADCSensor::set_autorange(bool autorange = true) {
+void ADCSensor::set_autorange(bool autorange) {
   this->autorange_ = autorange;
   if (autorange)
     this->set_attenuation(ADC_ATTEN_DB_11);
@@ -119,7 +119,7 @@ void ADCSensor::dump_config() {
 float ADCSensor::get_setup_priority() const { return setup_priority::DATA; }
 void ADCSensor::update() {
   float value_v = this->sample();
-  // ESP_LOGD(TAG, "'%s': Got voltage=%.2fV", this->get_name().c_str(), value_v);  TO-DO: uncomment
+  ESP_LOGD(TAG, "'%s': Got voltage=%.2fV", this->get_name().c_str(), value_v);  TO-DO: uncomment
   this->publish_state(value_v);
 }
 int ADCSensor::read_raw_() {
