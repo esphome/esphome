@@ -760,6 +760,7 @@ void Nextion::process_nextion_commands_() {
         delete this->nextion_queue_[i];  // NOLINT(cppcoreguidelines-owning-memory)
 
         this->nextion_queue_.erase(this->nextion_queue_.begin() + i);
+        i--;
 
       } else {
         break;
