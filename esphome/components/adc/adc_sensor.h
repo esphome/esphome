@@ -46,7 +46,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   adc_atten_t attenuation_{ADC_ATTEN_DB_0};
   adc1_channel_t channel_{};
   bool autorange_{false};
-  esp_adc_cal_characteristics_t cal_characteristics_[4];
+  esp_adc_cal_characteristics_t cal_characteristics_[(int) ADC_ATTEN_MAX] = {};
 #endif
 };
 
