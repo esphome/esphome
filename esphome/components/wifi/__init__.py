@@ -159,11 +159,18 @@ def final_validate_power_esp32_ble(value):
         "esp32_ble_server",
         "esp32_ble_tracker",
     ]:
+        if conflicting not in fv.full_config.get():
+            continue
+
         try:
-            cv.require_framework_version(esp32_arduino=cv.Version(1, 0, 5))(None)
+            # Only arduino 1.0.5+ and esp-idf impacted
+            cv.require_framework_version(
+                esp32_arduino=cv.Version(1, 0, 5),
+            )(None)
         except cv.Invalid:
             pass
         else:
+
             raise cv.Invalid(
                 f"power_save_mode NONE is incompatible with {conflicting}. "
                 f"Please remove the power save mode. See also "
