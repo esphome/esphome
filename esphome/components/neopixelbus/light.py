@@ -177,7 +177,6 @@ def format_method(config):
             variant += "Inverted"
 
     return available_methods()[method].format(variant)
-    raise NotImplementedError
 
 
 def _validate(config):
