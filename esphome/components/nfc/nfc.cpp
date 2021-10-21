@@ -1,4 +1,5 @@
 #include "nfc.h"
+#include <cstdio>
 #include "esphome/core/log.h"
 
 namespace esphome {

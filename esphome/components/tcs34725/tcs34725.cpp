@@ -1,5 +1,6 @@
 #include "tcs34725.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace tcs34725 {

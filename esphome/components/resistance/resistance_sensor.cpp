@@ -13,7 +13,7 @@ void ResistanceSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Reference Voltage: %.1fV", this->reference_voltage_);
 }
 void ResistanceSensor::process_(float value) {
-  if (isnan(value)) {
+  if (std::isnan(value)) {
     this->publish_state(NAN);
     return;
   }

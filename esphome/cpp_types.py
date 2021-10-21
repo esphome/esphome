@@ -19,7 +19,7 @@ const_char_ptr = global_ns.namespace("const char *")
 NAN = global_ns.namespace("NAN")
 esphome_ns = global_ns  # using namespace esphome;
 App = esphome_ns.App
-Nameable = esphome_ns.class_("Nameable")
+EntityBase = esphome_ns.class_("EntityBase")
 Component = esphome_ns.class_("Component")
 ComponentPtr = Component.operator("ptr")
 PollingComponent = esphome_ns.class_("PollingComponent", Component)
@@ -30,5 +30,7 @@ JsonObject = arduino_json_ns.class_("JsonObject")
 JsonObjectRef = JsonObject.operator("ref")
 JsonObjectConstRef = JsonObjectRef.operator("const")
 Controller = esphome_ns.class_("Controller")
-
 GPIOPin = esphome_ns.class_("GPIOPin")
+InternalGPIOPin = esphome_ns.class_("InternalGPIOPin", GPIOPin)
+gpio_ns = esphome_ns.namespace("gpio")
+gpio_Flags = gpio_ns.enum("Flags", is_class=True)

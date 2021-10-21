@@ -10,7 +10,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace esp32_improv {
@@ -48,7 +48,7 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   std::vector<uint8_t> incoming_data_;
   wifi::WiFiAP connecting_sta_;
 
-  BLEService *service_;
+  std::shared_ptr<BLEService> service_;
   BLECharacteristic *status_;
   BLECharacteristic *error_;
   BLECharacteristic *rpc_;
@@ -63,12 +63,13 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
 
   void set_state_(improv::State state);
   void set_error_(improv::Error error);
-  void send_response(std::vector<uint8_t> &response);
+  void send_response_(std::vector<uint8_t> &response);
   void process_incoming_data_();
   void on_wifi_connect_timeout_();
   bool check_identify_();
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32ImprovComponent *global_improv_component;
 
 }  // namespace esp32_improv

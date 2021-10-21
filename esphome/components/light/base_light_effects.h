@@ -57,16 +57,31 @@ class RandomLightEffect : public LightEffect {
     if (now - this->last_color_change_ < this->update_interval_) {
       return;
     }
+
+    auto color_mode = this->state_->remote_values.get_color_mode();
     auto call = this->state_->turn_on();
-    if (this->state_->get_traits().get_supports_rgb()) {
-      call.set_red_if_supported(random_float());
-      call.set_green_if_supported(random_float());
-      call.set_blue_if_supported(random_float());
-      call.set_white_if_supported(random_float());
-    } else {
-      call.set_brightness_if_supported(random_float());
+    bool changed = false;
+    if (color_mode & ColorCapability::RGB) {
+      call.set_red(random_float());
+      call.set_green(random_float());
+      call.set_blue(random_float());
+      changed = true;
     }
-    call.set_color_temperature_if_supported(random_float());
+    if (color_mode & ColorCapability::COLOR_TEMPERATURE) {
+      float min = this->state_->get_traits().get_min_mireds();
+      float max = this->state_->get_traits().get_max_mireds();
+      call.set_color_temperature(min + random_float() * (max - min));
+      changed = true;
+    }
+    if (color_mode & ColorCapability::COLD_WARM_WHITE) {
+      call.set_cold_white(random_float());
+      call.set_warm_white(random_float());
+      changed = true;
+    }
+    if (!changed) {
+      // only randomize brightness if there's no colored option available
+      call.set_brightness(random_float());
+    }
     call.set_transition_length_if_supported(this->transition_length_);
     call.set_publish(true);
     call.set_save(false);
@@ -141,8 +156,7 @@ class StrobeLightEffect : public LightEffect {
 
     if (!color.is_on()) {
       // Don't turn the light off, otherwise the light effect will be stopped
-      call.set_brightness_if_supported(0.0f);
-      call.set_white_if_supported(0.0f);
+      call.set_brightness(0.0f);
       call.set_state(true);
     }
     call.set_publish(false);
@@ -177,13 +191,15 @@ class FlickerLightEffect : public LightEffect {
     out.set_green(remote.get_green() * beta + current.get_green() * alpha + (random_cubic_float() * this->intensity_));
     out.set_blue(remote.get_blue() * beta + current.get_blue() * alpha + (random_cubic_float() * this->intensity_));
     out.set_white(remote.get_white() * beta + current.get_white() * alpha + (random_cubic_float() * this->intensity_));
+    out.set_cold_white(remote.get_cold_white() * beta + current.get_cold_white() * alpha +
+                       (random_cubic_float() * this->intensity_));
+    out.set_warm_white(remote.get_warm_white() * beta + current.get_warm_white() * alpha +
+                       (random_cubic_float() * this->intensity_));
 
-    auto traits = this->state_->get_traits();
     auto call = this->state_->make_call();
     call.set_publish(false);
     call.set_save(false);
-    if (traits.get_supports_brightness())
-      call.set_transition_length(0);
+    call.set_transition_length_if_supported(0);
     call.from_light_color_values(out);
     call.set_state(true);
     call.perform();

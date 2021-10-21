@@ -4,12 +4,14 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "ble_client.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace ble_client {
 
 static const char *const TAG = "ble_client";
+
+float BLEClient::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
 void BLEClient::setup() {
   auto ret = esp_ble_gattc_app_register(this->app_id);
@@ -17,12 +19,12 @@ void BLEClient::setup() {
     ESP_LOGE(TAG, "gattc app register failed. app_id=%d code=%d", this->app_id, ret);
     this->mark_failed();
   }
-  this->set_states(espbt::ClientState::Idle);
+  this->set_states_(espbt::ClientState::IDLE);
   this->enabled = true;
 }
 
 void BLEClient::loop() {
-  if (this->state() == espbt::ClientState::Discovered) {
+  if (this->state() == espbt::ClientState::DISCOVERED) {
     this->connect();
   }
   for (auto *node : this->nodes_)
@@ -39,11 +41,11 @@ bool BLEClient::parse_device(const espbt::ESPBTDevice &device) {
     return false;
   if (device.address_uint64() != this->address)
     return false;
-  if (this->state() != espbt::ClientState::Idle)
+  if (this->state() != espbt::ClientState::IDLE)
     return false;
 
   ESP_LOGD(TAG, "Found device at MAC address [%s]", device.address_str().c_str());
-  this->set_states(espbt::ClientState::Discovered);
+  this->set_states_(espbt::ClientState::DISCOVERED);
 
   auto addr = device.address_uint64();
   this->remote_bda[0] = (addr >> 40) & 0xFF;
@@ -69,7 +71,7 @@ std::string BLEClient::address_str() const {
 void BLEClient::set_enabled(bool enabled) {
   if (enabled == this->enabled)
     return;
-  if (!enabled && this->state() != espbt::ClientState::Idle) {
+  if (!enabled && this->state() != espbt::ClientState::IDLE) {
     ESP_LOGI(TAG, "[%s] Disabling BLE client.", this->address_str().c_str());
     auto ret = esp_ble_gattc_close(this->gattc_if, this->conn_id);
     if (ret) {
@@ -84,9 +86,9 @@ void BLEClient::connect() {
   auto ret = esp_ble_gattc_open(this->gattc_if, this->remote_bda, BLE_ADDR_TYPE_PUBLIC, true);
   if (ret) {
     ESP_LOGW(TAG, "esp_ble_gattc_open error, address=%s status=%d", this->address_str().c_str(), ret);
-    this->set_states(espbt::ClientState::Idle);
+    this->set_states_(espbt::ClientState::IDLE);
   } else {
-    this->set_states(espbt::ClientState::Connecting);
+    this->set_states_(espbt::ClientState::CONNECTING);
   }
 }
 
@@ -97,7 +99,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
   if (event != ESP_GATTC_REG_EVT && esp_gattc_if != ESP_GATT_IF_NONE && esp_gattc_if != this->gattc_if)
     return;
 
-  bool all_established = this->all_nodes_established();
+  bool all_established = this->all_nodes_established_();
 
   switch (event) {
     case ESP_GATTC_REG_EVT: {
@@ -113,7 +115,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
       ESP_LOGV(TAG, "[%s] ESP_GATTC_OPEN_EVT", this->address_str().c_str());
       if (param->open.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "connect to %s failed, status=%d", this->address_str().c_str(), param->open.status);
-        this->set_states(espbt::ClientState::Idle);
+        this->set_states_(espbt::ClientState::IDLE);
         break;
       }
       this->conn_id = param->open.conn_id;
@@ -126,11 +128,11 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
     case ESP_GATTC_CFG_MTU_EVT: {
       if (param->cfg_mtu.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "cfg_mtu to %s failed, status %d", this->address_str().c_str(), param->cfg_mtu.status);
-        this->set_states(espbt::ClientState::Idle);
+        this->set_states_(espbt::ClientState::IDLE);
         break;
       }
       ESP_LOGV(TAG, "cfg_mtu status %d, mtu %d", param->cfg_mtu.status, param->cfg_mtu.mtu);
-      esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, NULL);
+      esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT: {
@@ -139,13 +141,13 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
       }
       ESP_LOGV(TAG, "[%s] ESP_GATTC_DISCONNECT_EVT", this->address_str().c_str());
       for (auto &svc : this->services_)
-        delete svc;
+        delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
       this->services_.clear();
-      this->set_states(espbt::ClientState::Idle);
+      this->set_states_(espbt::ClientState::IDLE);
       break;
     }
     case ESP_GATTC_SEARCH_RES_EVT: {
-      BLEService *ble_service = new BLEService();
+      BLEService *ble_service = new BLEService();  // NOLINT(cppcoreguidelines-owning-memory)
       ble_service->uuid = espbt::ESPBTUUID::from_uuid(param->search_res.srvc_id.uuid);
       ble_service->start_handle = param->search_res.start_handle;
       ble_service->end_handle = param->search_res.end_handle;
@@ -160,8 +162,8 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
         ESP_LOGI(TAG, "  start_handle: 0x%x  end_handle: 0x%x", svc->start_handle, svc->end_handle);
         svc->parse_characteristics();
       }
-      this->set_states(espbt::ClientState::Connected);
-      this->set_state(espbt::ClientState::Established);
+      this->set_states_(espbt::ClientState::CONNECTED);
+      this->set_state(espbt::ClientState::ESTABLISHED);
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
@@ -192,9 +194,9 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
     node->gattc_event_handler(event, esp_gattc_if, param);
 
   // Delete characteristics after clients have used them to save RAM.
-  if (!all_established && this->all_nodes_established()) {
+  if (!all_established && this->all_nodes_established_()) {
     for (auto &svc : this->services_)
-      delete svc;
+      delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
     this->services_.clear();
   }
 }
@@ -307,7 +309,7 @@ BLEDescriptor *BLEClient::get_descriptor(uint16_t service, uint16_t chr, uint16_
 
 BLEService::~BLEService() {
   for (auto &chr : this->characteristics)
-    delete chr;
+    delete chr;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 void BLEService::parse_characteristics() {
@@ -329,7 +331,7 @@ void BLEService::parse_characteristics() {
       break;
     }
 
-    BLECharacteristic *characteristic = new BLECharacteristic();
+    BLECharacteristic *characteristic = new BLECharacteristic();  // NOLINT(cppcoreguidelines-owning-memory)
     characteristic->uuid = espbt::ESPBTUUID::from_uuid(result.uuid);
     characteristic->properties = result.properties;
     characteristic->handle = result.char_handle;
@@ -344,7 +346,7 @@ void BLEService::parse_characteristics() {
 
 BLECharacteristic::~BLECharacteristic() {
   for (auto &desc : this->descriptors)
-    delete desc;
+    delete desc;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 void BLECharacteristic::parse_descriptors() {
@@ -366,7 +368,7 @@ void BLECharacteristic::parse_descriptors() {
       break;
     }
 
-    BLEDescriptor *desc = new BLEDescriptor();
+    BLEDescriptor *desc = new BLEDescriptor();  // NOLINT(cppcoreguidelines-owning-memory)
     desc->uuid = espbt::ESPBTUUID::from_uuid(result.uuid);
     desc->handle = result.handle;
     desc->characteristic = this;

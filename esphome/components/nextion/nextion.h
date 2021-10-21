@@ -7,11 +7,11 @@
 #include "nextion_component.h"
 #include "esphome/components/display/display_color_utils.h"
 
-#if defined(USE_ETHERNET) || defined(USE_WIFI)
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_NEXTION_TFT_UPLOAD
+#ifdef USE_ESP32
 #include <HTTPClient.h>
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
 #endif
@@ -419,7 +419,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * fill_area(50, 50, 100, 100, "RED");
    * ```
    *
-   * Fills an area that starts at x coordiante `50` and y coordinate `50` with a height of `100` and width of `100` with
+   * Fills an area that starts at x coordinate `50` and y coordinate `50` with a height of `100` and width of `100` with
    * the color of blue. Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to
    * convert color codes to Nextion HMI colors
    */
@@ -437,7 +437,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * fill_area(50, 50, 100, 100, color);
    * ```
    *
-   * Fills an area that starts at x coordiante `50` and y coordinate `50` with a height of `100` and width of `100` with
+   * Fills an area that starts at x coordinate `50` and y coordinate `50` with a height of `100` and width of `100` with
    * the color of blue. Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to
    * convert color codes to Nextion HMI colors
    */
@@ -546,7 +546,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * it.filled_cricle(25, 25, 10, "17013");
    * ```
    *
-   * Makes a filled circle at the x cordinates `25` and y coordinate `25` with a radius of `10` with a color of blue.
+   * Makes a filled circle at the x coordinate `25` and y coordinate `25` with a radius of `10` with a color of blue.
    * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
    * Nextion HMI colors.
    */
@@ -563,7 +563,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * it.filled_cricle(25, 25, 10, color);
    * ```
    *
-   * Makes a filled circle at the x cordinates `25` and y coordinate `25` with a radius of `10` with a color of blue.
+   * Makes a filled circle at the x coordinate `25` and y coordinate `25` with a radius of `10` with a color of blue.
    * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
    * Nextion HMI colors.
    */
@@ -652,7 +652,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   bool send_command_printf(const char *format, ...) __attribute__((format(printf, 2, 3)));
 
-#ifdef USE_TFT_UPLOAD
+#ifdef USE_NEXTION_TFT_UPLOAD
   /**
    * Set the tft file URL. https seems problamtic with arduino..
    */
@@ -769,9 +769,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
                                                  const std::string &variable_name_to_send,
                                                  const std::string &state_value, bool is_sleep_safe = false);
 
-#ifdef USE_TFT_UPLOAD
-#if defined(USE_ETHERNET) || defined(USE_WIFI)
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_NEXTION_TFT_UPLOAD
+#ifdef USE_ESP8266
   WiFiClient *wifi_client_{nullptr};
   BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
   WiFiClient *get_wifi_client_();
@@ -800,9 +799,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   bool upload_from_buffer_(const uint8_t *file_buf, size_t buf_size);
   void upload_end_();
 
-#endif
-
-#endif
+#endif  // USE_NEXTION_TFT_UPLOAD
 
   bool get_is_connected_() { return this->is_connected_; }
 
@@ -827,7 +824,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   void remove_front_no_sensors_();
 
-#ifdef USE_TFT_UPLOAD
+#ifdef USE_NEXTION_TFT_UPLOAD
   std::string tft_url_;
   uint8_t *transfer_buffer_{nullptr};
   size_t transfer_buffer_size_;

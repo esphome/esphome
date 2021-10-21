@@ -4,7 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace atc_mithermometer {
@@ -14,7 +14,6 @@ struct ParseResult {
   optional<float> humidity;
   optional<float> battery_level;
   optional<float> battery_voltage;
-  bool is_duplicate;
   int raw_offset;
 };
 
@@ -37,9 +36,9 @@ class ATCMiThermometer : public Component, public esp32_ble_tracker::ESPBTDevice
   sensor::Sensor *battery_level_{nullptr};
   sensor::Sensor *battery_voltage_{nullptr};
 
-  optional<ParseResult> parse_header(const esp32_ble_tracker::ServiceData &service_data);
-  bool parse_message(const std::vector<uint8_t> &message, ParseResult &result);
-  bool report_results(const optional<ParseResult> &result, const std::string &address);
+  optional<ParseResult> parse_header_(const esp32_ble_tracker::ServiceData &service_data);
+  bool parse_message_(const std::vector<uint8_t> &message, ParseResult &result);
+  bool report_results_(const optional<ParseResult> &result, const std::string &address);
 };
 
 }  // namespace atc_mithermometer

@@ -851,6 +851,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef USE_SELECT
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "select")
+    return true;
+#endif
+
   return false;
 }
 void WebServer::handleRequest(AsyncWebServerRequest *request) {

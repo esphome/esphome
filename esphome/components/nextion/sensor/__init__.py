@@ -4,10 +4,7 @@ from esphome.components import sensor
 
 from esphome.const import (
     CONF_ID,
-    UNIT_EMPTY,
-    ICON_EMPTY,
     CONF_COMPONENT_ID,
-    DEVICE_CLASS_EMPTY,
 )
 from .. import nextion_ns, CONF_NEXTION_ID
 
@@ -46,7 +43,9 @@ def _validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 2, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        accuracy_decimals=2,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(NextionSensor),

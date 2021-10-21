@@ -1,7 +1,7 @@
 #include "esphome/core/component.h"
 
 #include "esphome/core/application.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <utility>
@@ -20,6 +20,7 @@ const float PROCESSOR = 400.0;
 const float BLUETOOTH = 350.0f;
 const float AFTER_BLUETOOTH = 300.0f;
 const float WIFI = 250.0f;
+const float BEFORE_CONNECTION = 220.0f;
 const float AFTER_WIFI = 200.0f;
 const float AFTER_CONNECTION = 100.0f;
 const float LATE = -100.0f;
@@ -63,8 +64,9 @@ bool Component::cancel_timeout(const std::string &name) {  // NOLINT
 }
 
 void Component::call_loop() { this->loop(); }
-
 void Component::call_setup() { this->setup(); }
+void Component::call_dump_config() { this->dump_config(); }
+
 uint32_t Component::get_component_state() const { return this->component_state_; }
 void Component::call() {
   uint32_t state = this->component_state_ & COMPONENT_STATE_MASK;
@@ -92,8 +94,13 @@ void Component::call() {
       break;
   }
 }
+const char *Component::get_component_source() const {
+  if (this->component_source_ == nullptr)
+    return "<unknown>";
+  return this->component_source_;
+}
 void Component::mark_failed() {
-  ESP_LOGE(TAG, "Component was marked as failed.");
+  ESP_LOGE(TAG, "Component %s was marked as failed.", this->get_component_source());
   this->component_state_ &= ~COMPONENT_STATE_MASK;
   this->component_state_ |= COMPONENT_STATE_FAILED;
   this->status_set_error();
@@ -137,7 +144,7 @@ void Component::status_momentary_error(const std::string &name, uint32_t length)
 }
 void Component::dump_config() {}
 float Component::get_actual_setup_priority() const {
-  if (isnan(this->setup_priority_override_))
+  if (std::isnan(this->setup_priority_override_))
     return this->get_setup_priority();
   return this->setup_priority_override_;
 }
@@ -170,21 +177,16 @@ void PollingComponent::call_setup() {
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
 void PollingComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
-const std::string &Nameable::get_name() const { return this->name_; }
-void Nameable::set_name(const std::string &name) {
-  this->name_ = name;
-  this->calc_object_id_();
+WarnIfComponentBlockingGuard::WarnIfComponentBlockingGuard(Component *component)
+    : started_(millis()), component_(component) {}
+WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {
+  uint32_t now = millis();
+  if (now - started_ > 50) {
+    const char *src = component_ == nullptr ? "<null>" : component_->get_component_source();
+    ESP_LOGV(TAG, "Component %s took a long time for an operation (%.2f s).", src, (now - started_) / 1e3f);
+    ESP_LOGV(TAG, "Components should block for at most 20-30ms.");
+    ;
+  }
 }
-Nameable::Nameable(std::string name) : name_(std::move(name)) { this->calc_object_id_(); }
-
-const std::string &Nameable::get_object_id() { return this->object_id_; }
-bool Nameable::is_internal() const { return this->internal_; }
-void Nameable::set_internal(bool internal) { this->internal_ = internal; }
-void Nameable::calc_object_id_() {
-  this->object_id_ = sanitize_string_allowlist(to_lowercase_underscore(this->name_), HOSTNAME_CHARACTER_ALLOWLIST);
-  // FNV-1 hash
-  this->object_id_hash_ = fnv1_hash(this->object_id_);
-}
-uint32_t Nameable::get_object_id_hash() { return this->object_id_hash_; }
 
 }  // namespace esphome

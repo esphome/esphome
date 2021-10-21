@@ -1,13 +1,13 @@
 #include "scheduler.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 #include <algorithm>
 
 namespace esphome {
 
 static const char *const TAG = "scheduler";
 
-static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 10;
 
 // Uncomment to debug scheduler
@@ -82,7 +82,7 @@ optional<uint32_t> HOT Scheduler::next_schedule_in() {
     return 0;
   return next_time - now;
 }
-void ICACHE_RAM_ATTR HOT Scheduler::call() {
+void IRAM_ATTR HOT Scheduler::call() {
   const uint32_t now = this->millis_();
   this->process_to_add();
 
@@ -155,7 +155,10 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
       // Warning: During f(), a lot of stuff can happen, including:
       //  - timeouts/intervals get added, potentially invalidating vector pointers
       //  - timeouts/intervals get cancelled
-      item->f();
+      {
+        WarnIfComponentBlockingGuard guard{item->component};
+        item->f();
+      }
     }
 
     {
