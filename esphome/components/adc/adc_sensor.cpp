@@ -101,9 +101,9 @@ void ADCSensor::update() {
 #ifdef USE_ESP8266
 float ADCSensor::sample() {
 #ifdef USE_ADC_SENSOR_VCC
-  return ESP.getVcc() / 4096.0f;  // NOLINT(readability-static-accessed-through-instance)
+  return ESP.getVcc() / 1024.0f;  // NOLINT(readability-static-accessed-through-instance)
 #else
-  return analogRead(this->pin_->get_pin()) / 4096.0f;  // NOLINT
+  return analogRead(this->pin_->get_pin()) / 1024.0f;  // NOLINT
 #endif
 }
 #endif
