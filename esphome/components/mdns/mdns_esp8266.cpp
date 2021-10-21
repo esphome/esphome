@@ -15,7 +15,7 @@ void MDNSComponent::setup() {
   network::IPAddress addr = network::get_ip_address();
   MDNS.begin(compile_hostname_().c_str(), (uint32_t) addr);
 
-  auto services = compile_services_();
+  auto services = this->compile_services_();
   for (const auto &service : services) {
     // Strip the leading underscore from the proto and service_type. While it is
     // part of the wire protocol to have an underscore, and for example ESP-IDF
