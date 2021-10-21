@@ -14,7 +14,7 @@ static int IRAM_ATTR flags_to_mode(gpio::Flags flags, uint8_t pin) {
   } else if (flags == gpio::FLAG_OUTPUT) {
     return OUTPUT;
   } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
-    if (pin_ == 16) {
+    if (pin == 16) {
       // GPIO16 doesn't have a pullup, so pinMode would fail.
       // However, sometimes this method is called with pullup mode anyway
       // for example from dallas one_wire. For those cases convert this
@@ -101,7 +101,7 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
 }
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  pinMode(arg->pin, flags_to_mode(flags, args->pin));  // NOLINT
+  pinMode(arg->pin, flags_to_mode(flags, arg->pin));  // NOLINT
 }
 
 }  // namespace esphome
