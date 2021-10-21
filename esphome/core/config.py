@@ -68,6 +68,7 @@ def validate_hostname(config):
             "For more information, see https://esphome.io/guides/faq.html#why-shouldn-t-i-use-underscores-in-my-device-name",
             config[CONF_NAME],
         )
+    return config
 
 
 def valid_include(value):
