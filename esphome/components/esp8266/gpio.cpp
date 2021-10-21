@@ -50,6 +50,13 @@ void ESP8266GPIOPin::pin_mode(gpio::Flags flags) {
     mode = OUTPUT;
   } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
     mode = INPUT_PULLUP;
+    if (pin_ == 16) {
+      // GPIO16 doesn't have a pullup, so pinMode would fail.
+      // However, sometimes this method is called with pullup mode anyway
+      // for example from dallas one_wire. For those cases convert this
+      // to a INPUT mode.
+      mode = INPUT;
+    }
   } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN)) {
     mode = INPUT_PULLDOWN_16;
   } else if (flags == (gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN)) {
