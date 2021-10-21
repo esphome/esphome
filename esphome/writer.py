@@ -38,10 +38,8 @@ CPP_BASE_FORMAT = (
     """"
 
 void setup() {
-  // ===== DO NOT EDIT ANYTHING BELOW THIS LINE =====
   """,
     """
-  // ========= YOU CAN EDIT AFTER THIS LINE =========
   App.setup();
 }
 
@@ -59,10 +57,8 @@ lib_deps =
 build_flags =
 upload_flags =
 
-; ===== DO NOT EDIT ANYTHING BELOW THIS LINE =====
 """,
     """
-; ========= YOU CAN EDIT AFTER THIS LINE =========
 
 """,
 )
@@ -277,12 +273,12 @@ VERSION_H_TARGET = "esphome/core/version.h"
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
-ESPHome automatically populates the esphome/ directory, and any
+ESPHome automatically populates the build directory, and any
 changes to this directory will be removed the next time esphome is
 run.
 
-For modifying esphome's core files, please use a development esphome install
-or use the custom_components folder.
+For modifying esphome's core files, please use a development esphome install,
+the custom_components folder or the external_components feature.
 """
 
 
@@ -339,9 +335,7 @@ def copy_src_tree():
     write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "defines.h"), generate_defines_h()
     )
-    write_file_if_changed(
-        CORE.relative_src_path("esphome", "README.txt"), ESPHOME_README_TXT
-    )
+    write_file_if_changed(CORE.relative_build_path("README.txt"), ESPHOME_README_TXT)
     write_file_if_changed(
         CORE.relative_src_path("esphome.h"), ESPHOME_H_FORMAT.format(include_s)
     )
@@ -413,11 +407,6 @@ GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
 # This is an example and may include too much for your use-case.
 # You can modify this file to suit your needs.
 /.esphome/
-**/.pioenvs/
-**/.piolibdeps/
-**/lib/
-**/src/
-**/platformio.ini
 /secrets.yaml
 """
 
