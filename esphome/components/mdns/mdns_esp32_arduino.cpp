@@ -7,13 +7,12 @@
 namespace esphome {
 namespace mdns {
 
-static const char *const TAG = "mdns";
-
 void MDNSComponent::setup() {
-  MDNS.begin(compile_hostname_().c_str());
+  this->compile_records_();
 
-  auto services = compile_services_();
-  for (const auto &service : services) {
+  MDNS.begin(this->hostname_.c_str());
+
+  for (const auto &service : this->services_) {
     MDNS.addService(service.service_type.c_str(), service.proto.c_str(), service.port);
     for (const auto &record : service.txt_records) {
       MDNS.addServiceTxt(service.service_type.c_str(), service.proto.c_str(), record.key.c_str(), record.value.c_str());

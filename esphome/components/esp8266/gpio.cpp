@@ -8,12 +8,19 @@ namespace esp8266 {
 
 static const char *const TAG = "esp8266";
 
-static int IRAM_ATTR flags_to_mode(gpio::Flags flags) {
+static int IRAM_ATTR flags_to_mode(gpio::Flags flags, uint8_t pin) {
   if (flags == gpio::FLAG_INPUT) {
     return INPUT;
   } else if (flags == gpio::FLAG_OUTPUT) {
     return OUTPUT;
   } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
+    if (pin_ == 16) {
+      // GPIO16 doesn't have a pullup, so pinMode would fail.
+      // However, sometimes this method is called with pullup mode anyway
+      // for example from dallas one_wire. For those cases convert this
+      // to a INPUT mode.
+      return INPUT;
+    }
     return INPUT_PULLUP;
   } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN)) {
     return INPUT_PULLDOWN_16;
@@ -59,7 +66,7 @@ void ESP8266GPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::Int
   attachInterruptArg(pin_, func, arg, arduino_mode);
 }
 void ESP8266GPIOPin::pin_mode(gpio::Flags flags) {
-  pinMode(pin_, flags_to_mode(flags));  // NOLINT
+  pinMode(pin_, flags_to_mode(flags, pin_));  // NOLINT
 }
 
 std::string ESP8266GPIOPin::dump_summary() const {
@@ -94,7 +101,7 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
 }
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  pinMode(arg->pin, flags_to_mode(flags));  // NOLINT
+  pinMode(arg->pin, flags_to_mode(flags, args->pin));  // NOLINT
 }
 
 }  // namespace esphome

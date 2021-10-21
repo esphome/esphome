@@ -16,50 +16,6 @@ namespace adc {
 
 static const char *const TAG = "adc";
 
-#ifdef USE_ESP32
-inline adc1_channel_t gpio_to_adc1(uint8_t pin) {
-#if CONFIG_IDF_TARGET_ESP32
-  switch (pin) {
-    case 36:
-      return ADC1_CHANNEL_0;
-    case 37:
-      return ADC1_CHANNEL_1;
-    case 38:
-      return ADC1_CHANNEL_2;
-    case 39:
-      return ADC1_CHANNEL_3;
-    case 32:
-      return ADC1_CHANNEL_4;
-    case 33:
-      return ADC1_CHANNEL_5;
-    case 34:
-      return ADC1_CHANNEL_6;
-    case 35:
-      return ADC1_CHANNEL_7;
-    default:
-      return ADC1_CHANNEL_MAX;
-  }
-#elif CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32H2
-  switch (pin) {
-    case 0:
-      return ADC1_CHANNEL_0;
-    case 1:
-      return ADC1_CHANNEL_1;
-    case 2:
-      return ADC1_CHANNEL_2;
-    case 3:
-      return ADC1_CHANNEL_3;
-    case 4:
-      return ADC1_CHANNEL_4;
-    default:
-      return ADC1_CHANNEL_MAX;
-  }
-#endif
-}
-void ADCSensor::set_attenuation(adc_atten_t attenuation) { this->attenuation_ = attenuation; }
-void ADCSensor::set_autorange(bool autorange) { this->autorange_ = autorange; }
-#endif
-
 void ADCSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ADC '%s'...", this->get_name().c_str());
 #ifndef USE_ADC_SENSOR_VCC
@@ -67,15 +23,36 @@ void ADCSensor::setup() {
 #endif
 
 #ifdef USE_ESP32
-  if (this->autorange_)
-    this->attenuation_ = ADC_ATTEN_DB_11;
-  adc1_config_channel_atten(gpio_to_adc1(pin_->get_pin()), attenuation_);
   adc1_config_width(ADC_WIDTH_BIT_12);
-#if !CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32H2
-  adc_gpio_init(ADC_UNIT_1, (adc_channel_t) gpio_to_adc1(pin_->get_pin()));
+  if (!autorange_) {
+    adc1_config_channel_atten(channel_, attenuation_);
+  }
+
+  // load characteristics for each attenuation
+  for (int i = 0; i < (int) ADC_ATTEN_MAX; i++) {
+    auto cal_value = esp_adc_cal_characterize(ADC_UNIT_1, (adc_atten_t) i, ADC_WIDTH_BIT_12,
+                                              1100,  // default vref
+                                              &cal_characteristics_[i]);
+    switch (cal_value) {
+      case ESP_ADC_CAL_VAL_EFUSE_VREF:
+        ESP_LOGV(TAG, "Using eFuse Vref for calibration");
+        break;
+      case ESP_ADC_CAL_VAL_EFUSE_TP:
+        ESP_LOGV(TAG, "Using two-point eFuse Vref for calibration");
+        break;
+      case ESP_ADC_CAL_VAL_DEFAULT_VREF:
+      default:
+        break;
+    }
+  }
+
+  // adc_gpio_init doesn't exist on ESP32-C3 or ESP32-H2
+#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32H2)
+  adc_gpio_init(ADC_UNIT_1, (adc_channel_t) channel_);
 #endif
-#endif
+#endif  // USE_ESP32
 }
+
 void ADCSensor::dump_config() {
   LOG_SENSOR("", "ADC Sensor", this);
 #ifdef USE_ESP8266
@@ -84,7 +61,8 @@ void ADCSensor::dump_config() {
 #else
   LOG_PIN("  Pin: ", pin_);
 #endif
-#endif
+#endif  // USE_ESP8266
+
 #ifdef USE_ESP32
   LOG_PIN("  Pin: ", pin_);
   if (autorange_)
@@ -106,101 +84,81 @@ void ADCSensor::dump_config() {
       default:  // This is to satisfy the unused ADC_ATTEN_MAX
         break;
     }
-#endif
+#endif  // USE_ESP32
   LOG_UPDATE_INTERVAL(this);
 }
+
 float ADCSensor::get_setup_priority() const { return setup_priority::DATA; }
 void ADCSensor::update() {
   float value_v = this->sample();
   ESP_LOGD(TAG, "'%s': Got voltage=%.2fV", this->get_name().c_str(), value_v);
   this->publish_state(value_v);
 }
-uint16_t ADCSensor::read_raw_() {
-#ifdef USE_ESP32
-  return adc1_get_raw(gpio_to_adc1(pin_->get_pin()));
-#endif
 
 #ifdef USE_ESP8266
-#ifdef USE_ADC_SENSOR_VCC
-  return ESP.getVcc();  // NOLINT(readability-static-accessed-through-instance)
-#else
-  return analogRead(this->pin_->get_pin());  // NOLINT
-#endif
-#endif
-}
-uint32_t ADCSensor::raw_to_microvolts_(uint16_t raw) {
-#ifdef USE_ESP32
-#if CONFIG_IDF_TARGET_ESP32
-  switch (this->attenuation_) {
-    case ADC_ATTEN_DB_0:
-      return raw * 269;  // 1e6 * 1.1 / 4095
-    case ADC_ATTEN_DB_2_5:
-      return raw * 366;  // 1e6 * 1.5 / 4095
-    case ADC_ATTEN_DB_6:
-      return raw * 537;  // 1e6 * 2.2 / 4095
-    case ADC_ATTEN_DB_11:
-      return raw * 952;  // 1e6 * 3.9 / 4095
-    default:             // This is to satisfy the unused ADC_ATTEN_MAX
-      return raw * 244;  // 1e6 * 1.0 / 4095
-  }
-#elif CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32H2
-  switch (this->attenuation_) {
-    case ADC_ATTEN_DB_0:
-      return raw * 205;  // 1e6 * 0.84 / 4095
-    case ADC_ATTEN_DB_2_5:
-      return raw * 276;  // 1e6 * 1.13 / 4095
-    case ADC_ATTEN_DB_6:
-      return raw * 381;  // 1e6 * 1.56 / 4095
-    case ADC_ATTEN_DB_11:
-      return raw * 733;  // 1e6 * 3.0 / 4095
-    default:             // This is to satisfy the unused ADC_ATTEN_MAX
-      return raw * 244;  // 1e6 * 1.0 / 4095
-  }
-#endif
-#endif
-
-#ifdef USE_ESP8266
-  return raw * 977;  // 1e6 / 1024
-#endif
-}
 float ADCSensor::sample() {
-  int raw = this->read_raw_();
-  uint32_t v = this->raw_to_microvolts_(raw);
-#ifdef USE_ESP32
-  if (autorange_) {
-    int raw11 = raw, raw6 = 4095, raw2 = 4095, raw0 = 4095;
-    uint32_t v11 = v, v6 = 0, v2 = 0, v0 = 0;
-    if (raw11 < 4095) {  // Progressively read all attenuation ranges
-      adc1_config_channel_atten(gpio_to_adc1(pin_->get_pin()), ADC_ATTEN_DB_6);
-      raw6 = this->read_raw_();
-      v6 = this->raw_to_microvolts_(raw6);
-      if (raw6 < 4095) {
-        adc1_config_channel_atten(gpio_to_adc1(pin_->get_pin()), ADC_ATTEN_DB_2_5);
-        raw2 = this->read_raw_();
-        v2 = this->raw_to_microvolts_(raw2);
-        if (raw2 < 4095) {
-          adc1_config_channel_atten(gpio_to_adc1(pin_->get_pin()), ADC_ATTEN_DB_0);
-          raw0 = this->read_raw_();
-          v0 = this->raw_to_microvolts_(raw0);
-        }
-      }
-      adc1_config_channel_atten(gpio_to_adc1(pin_->get_pin()), ADC_ATTEN_DB_11);
-    }                                           // Contribution coefficients (normalized to 2048)
-    uint16_t c11 = clamp(raw11, 0, 2048);       // high 1, middle 1, low 0
-    uint16_t c6 = (2048 - abs(raw6 - 2048));    // high 0, middle 1, low 0
-    uint16_t c2 = (2048 - abs(raw2 - 2048));    // high 0, middle 1, low 0
-    uint16_t c0 = clamp(4095 - raw0, 0, 2048);  // high 0, middle 1, low 1
-    uint32_t csum = c11 + c6 + c2 + c0;         // sum to normalize the final result
-    if (csum > 0)
-      v = (v11 * c11) + (v6 * c6) + (v2 * c2) + (v0 * c0);
-    else  // in case of error, this keeps the 11db output (v)
-      csum = 1;
-    csum *= 1e6;                      // include the 1e6 microvolts->volts conversion factor
-    return (float) v / (float) csum;  // normalize, convert & return
-  }
+#ifdef USE_ADC_SENSOR_VCC
+  return ESP.getVcc() / 1024.0f;  // NOLINT(readability-static-accessed-through-instance)
+#else
+  return analogRead(this->pin_->get_pin()) / 1024.0f;  // NOLINT
 #endif
-  return v / (float) 1e6;  // convert from microvolts to volts
 }
+#endif
+
+#ifdef USE_ESP32
+float ADCSensor::sample() {
+  if (!autorange_) {
+    int raw = adc1_get_raw(channel_);
+    if (raw == -1) {
+      return NAN;
+    }
+    uint32_t mv = esp_adc_cal_raw_to_voltage(raw, &cal_characteristics_[(int) attenuation_]);
+    return mv / 1000.0f;
+  }
+
+  int raw11, raw6 = 4095, raw2 = 4095, raw0 = 4095;
+  adc1_config_channel_atten(channel_, ADC_ATTEN_DB_11);
+  raw11 = adc1_get_raw(channel_);
+  if (raw11 < 4095) {
+    adc1_config_channel_atten(channel_, ADC_ATTEN_DB_6);
+    raw6 = adc1_get_raw(channel_);
+    if (raw6 < 4095) {
+      adc1_config_channel_atten(channel_, ADC_ATTEN_DB_2_5);
+      raw2 = adc1_get_raw(channel_);
+      if (raw2 < 4095) {
+        adc1_config_channel_atten(channel_, ADC_ATTEN_DB_0);
+        raw0 = adc1_get_raw(channel_);
+      }
+    }
+  }
+
+  if (raw0 == -1 || raw2 == -1 || raw6 == -1 || raw11 == -1) {
+    return NAN;
+  }
+  // prevent divide by zero
+  if (raw0 == 0 && raw2 == 0 && raw6 == 0 && raw11 == 0) {
+    return 0;
+  }
+
+  uint32_t mv11 = esp_adc_cal_raw_to_voltage(raw11, &cal_characteristics_[(int) ADC_ATTEN_DB_11]);
+  uint32_t mv6 = esp_adc_cal_raw_to_voltage(raw6, &cal_characteristics_[(int) ADC_ATTEN_DB_6]);
+  uint32_t mv2 = esp_adc_cal_raw_to_voltage(raw2, &cal_characteristics_[(int) ADC_ATTEN_DB_2_5]);
+  uint32_t mv0 = esp_adc_cal_raw_to_voltage(raw0, &cal_characteristics_[(int) ADC_ATTEN_DB_0]);
+
+  // Contribution of each value, in range 0-2048
+  uint32_t c11 = std::min(raw11, 2048);
+  uint32_t c6 = 2048 - std::abs(raw6 - 2048);
+  uint32_t c2 = 2048 - std::abs(raw2 - 2048);
+  uint32_t c0 = std::min(4095 - raw0, 2048);
+  // max theoretical csum value is 2048*4 = 8192
+  uint32_t csum = c11 + c6 + c2 + c0;
+
+  // each mv is max 3900; so max value is 3900*2048*4, fits in unsigned
+  uint32_t mv_scaled = (mv11 * c11) + (mv6 * c6) + (mv2 * c2) + (mv0 * c0);
+  return mv_scaled / (float) (csum * 1000U);
+}
+#endif  // USE_ESP32
+
 #ifdef USE_ESP8266
 std::string ADCSensor::unique_id() { return get_mac_address() + "-adc"; }
 #endif
