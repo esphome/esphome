@@ -29,6 +29,7 @@ from esphome.const import (
     CONF_VERSION,
     KEY_CORE,
     TARGET_PLATFORMS,
+    PLATFORM_ESP8266,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, walk_files
@@ -182,7 +183,10 @@ def preload_core_config(config, result):
         if CONF_BOARD_FLASH_MODE in conf:
             plat_conf[CONF_BOARD_FLASH_MODE] = conf.pop(CONF_BOARD_FLASH_MODE)
         if CONF_ARDUINO_VERSION in conf:
-            plat_conf[CONF_FRAMEWORK] = {CONF_TYPE: "arduino"}
+            plat_conf[CONF_FRAMEWORK] = {}
+            if plat != PLATFORM_ESP8266:
+                plat_conf[CONF_FRAMEWORK][CONF_TYPE] = "arduino"
+
             try:
                 cv.Version.parse(conf[CONF_ARDUINO_VERSION])
                 plat_conf[CONF_FRAMEWORK][CONF_VERSION] = conf.pop(CONF_ARDUINO_VERSION)
