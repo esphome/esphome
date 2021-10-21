@@ -298,7 +298,7 @@ APIError APINoiseFrameHelper::state_action_() {
     msg.push_back(0x01);
 
     // node name, terminated by null byte
-    std::string name = App.get_name();
+    const std::string &name = App.get_name();
     const uint8_t *name_ptr = reinterpret_cast<const uint8_t *>(name.c_str());
     msg.insert(msg.end(), name_ptr, name_ptr + name.size() + 1);
 
