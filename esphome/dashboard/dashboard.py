@@ -963,7 +963,7 @@ def start_web_server(args):
         server.add_socket(socket)
     else:
         _LOGGER.info(
-            "Starting dashboard web server on port %s and configuration dir %s...",
+            "Starting dashboard web server on http://0.0.0.0:%s and configuration dir %s...",
             args.port,
             settings.config_dir,
         )
