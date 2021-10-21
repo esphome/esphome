@@ -188,7 +188,8 @@ def preload_core_config(config, result):
                 plat_conf[CONF_FRAMEWORK][CONF_TYPE] = "arduino"
 
             try:
-                cv.Version.parse(conf[CONF_ARDUINO_VERSION])
+                if conf[CONF_ARDUINO_VERSION] not in ("recommended", "latest", "dev"):
+                    cv.Version.parse(conf[CONF_ARDUINO_VERSION])
                 plat_conf[CONF_FRAMEWORK][CONF_VERSION] = conf.pop(CONF_ARDUINO_VERSION)
             except ValueError:
                 plat_conf[CONF_FRAMEWORK][CONF_SOURCE] = conf.pop(CONF_ARDUINO_VERSION)
