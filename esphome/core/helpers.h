@@ -26,10 +26,20 @@ namespace esphome {
 /// The characters that are allowed in a hostname.
 extern const char *const HOSTNAME_CHARACTER_ALLOWLIST;
 
-/// Gets the MAC address as a string, this can be used as way to identify this ESP.
+/// Read the raw MAC address into the provided byte array (6 bytes).
+void get_mac_address_raw(uint8_t *mac);
+
+/// Get the MAC address as a string, using lower case hex notation.
+/// This can be used as way to identify this ESP.
 std::string get_mac_address();
 
+/// Get the MAC address as a string, using colon-separated upper case hex notation.
 std::string get_mac_address_pretty();
+
+#ifdef USE_ESP32
+/// Set the MAC address to use from the provided byte array (6 bytes).
+void set_mac_address(uint8_t *mac);
+#endif
 
 std::string to_string(const std::string &val);
 std::string to_string(int val);
@@ -58,6 +68,9 @@ std::string to_lowercase_underscore(std::string s);
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 bool str_startswith(const std::string &full, const std::string &start);
 bool str_endswith(const std::string &full, const std::string &ending);
+
+/// sprintf-like function returning std::string instead of writing to char array.
+std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
 
 class HighFrequencyLoopRequester {
  public:
@@ -145,6 +158,11 @@ uint16_t encode_uint16(uint8_t msb, uint8_t lsb);
 std::array<uint8_t, 2> decode_uint16(uint16_t value);
 /// Encode a 32-bit unsigned integer given four bytes in MSB -> LSB order
 uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb);
+
+/// Convert RGB floats (0-1) to hue (0-360) & saturation/value percentage (0-1)
+void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
+/// Convert hue (0-360) & saturation/value percentage (0-1) to RGB floats (0-1)
+void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green, float &blue);
 
 /***
  * An interrupt helper class.
@@ -235,63 +253,6 @@ struct is_callable  // NOLINT
   template<class U> static auto test(...) -> decltype(std::false_type());
 
   static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
-};
-
-template<typename T, typename... X> class TemplatableValue {
- public:
-  TemplatableValue() : type_(EMPTY) {}
-
-  template<typename F, enable_if_t<!is_callable<F, X...>::value, int> = 0>
-  TemplatableValue(F value) : type_(VALUE), value_(value) {}
-
-  template<typename F, enable_if_t<is_callable<F, X...>::value, int> = 0>
-  TemplatableValue(F f) : type_(LAMBDA), f_(f) {}
-
-  bool has_value() { return this->type_ != EMPTY; }
-
-  T value(X... x) {
-    if (this->type_ == LAMBDA) {
-      return this->f_(x...);
-    }
-    // return value also when empty
-    return this->value_;
-  }
-
-  optional<T> optional_value(X... x) {
-    if (!this->has_value()) {
-      return {};
-    }
-    return this->value(x...);
-  }
-
-  T value_or(X... x, T default_value) {
-    if (!this->has_value()) {
-      return default_value;
-    }
-    return this->value(x...);
-  }
-
- protected:
-  enum {
-    EMPTY,
-    VALUE,
-    LAMBDA,
-  } type_;
-
-  T value_{};
-  std::function<T(X...)> f_{};
-};
-
-template<typename... X> class TemplatableStringValue : public TemplatableValue<std::string, X...> {
- public:
-  TemplatableStringValue() : TemplatableValue<std::string, X...>() {}
-
-  template<typename F, enable_if_t<!is_callable<F, X...>::value, int> = 0>
-  TemplatableStringValue(F value) : TemplatableValue<std::string, X...>(value) {}
-
-  template<typename F, enable_if_t<is_callable<F, X...>::value, int> = 0>
-  TemplatableStringValue(F f)
-      : TemplatableValue<std::string, X...>([f](X... x) -> std::string { return to_string(f(x...)); }) {}
 };
 
 void delay_microseconds_accurate(uint32_t usec);

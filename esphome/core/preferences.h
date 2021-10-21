@@ -30,7 +30,7 @@ class ESPPreferenceObject {
   }
 
  protected:
-  ESPPreferenceBackend *backend_;
+  ESPPreferenceBackend *backend_{nullptr};
 };
 
 class ESPPreferences {

@@ -5,10 +5,13 @@ esphome:
   board: d1_mini
   build_path: build/test3
   on_boot:
-    - wait_until:
-        - api.connected
-        - wifi.connected
-        - time.has_time
+    - if:
+        condition:
+          - api.connected
+          - wifi.connected
+          - time.has_time
+        then:
+          - logger.log: "Have time"
   includes:
     - custom.h
 
@@ -261,8 +264,6 @@ logger:
   level: DEBUG
   esp8266_store_log_strings_in_flash: true
 
-web_server:
-
 deep_sleep:
   run_duration: 20s
   sleep_duration: 50s
@@ -402,7 +403,7 @@ sensor:
       name: Illuminance
     color_temperature:
       name: Color Temperature
-    integration_time: 700ms
+    integration_time: 614ms
     gain: 60x
   - platform: custom
     lambda: |-
@@ -426,14 +427,19 @@ sensor:
     irq_pin: GPIO16
     voltage:
       name: ADE7953 Voltage
+      id: ade7953_voltage
     current_a:
       name: ADE7953 Current A
+      id: ade7953_current_a
     current_b:
       name: ADE7953 Current B
+      id: ade7953_current_b
     active_power_a:
       name: ADE7953 Active Power A
+      id: ade7953_active_power_a
     active_power_b:
       name: ADE7953 Active Power B
+      id: ade7953_active_power_b
   - platform: pzem004t
     uart_id: uart3
     voltage:
@@ -724,6 +730,12 @@ binary_sensor:
     id: r0_sensor
     name: 'R0 Sensor'
     component_name: page0.r0
+  - platform: template
+    id: 'cover_toggle'
+    on_press:
+      then:
+        - cover.toggle: time_based_cover
+
 globals:
   - id: my_global_string
     type: std::string
@@ -1013,6 +1025,7 @@ cover:
     max_duration: 10min
   - platform: time_based
     name: Time Based Cover
+    id: time_based_cover
     stop_action:
       - switch.turn_on: gpio_switch1
     open_action:
@@ -1021,6 +1034,29 @@ cover:
     close_action:
       - switch.turn_on: gpio_switch2
     close_duration: 4.5min
+  - platform: current_based
+    name: "Current Based Cover"
+    open_sensor: ade7953_current_a
+    open_moving_current_threshold: 0.5
+    open_obstacle_current_threshold: 0.8
+    open_duration: 12s
+    open_action:
+      - switch.turn_on: gpio_switch1
+    close_sensor: ade7953_current_b
+    close_moving_current_threshold: 0.5
+    close_obstacle_current_threshold: 0.8
+    close_duration: 10s
+    close_action:
+      - switch.turn_on: gpio_switch2
+    stop_action:
+      - switch.turn_off: gpio_switch1
+      - switch.turn_off: gpio_switch2
+    obstacle_rollback: 30%
+    start_sensing_delay: 0.8s
+    malfunction_detection: true
+    malfunction_action:
+      then:
+        - logger.log: "Malfunction Detected"
   - platform: template
     name: Template Cover with Tilt
     tilt_lambda: 'return 0.5;'
@@ -1057,10 +1093,6 @@ output:
       return {s};
     outputs:
       - id: custom_float
-  - platform: ac_dimmer
-    id: dimmer1
-    gate_pin: GPIO5
-    zero_cross_pin: GPIO12
   - platform: slow_pwm
     pin: GPIO5
     id: my_slow_pwm
@@ -1118,7 +1150,7 @@ servo:
 ttp229_lsf:
 
 ttp229_bsf:
-  sdo_pin: D0
+  sdo_pin: D2
   scl_pin: D1
 
 sim800l:
@@ -1262,4 +1294,3 @@ dsmr:
 daly_bms:
   update_interval: 20s
   uart_id: uart1
-

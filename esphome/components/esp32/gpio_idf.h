@@ -13,7 +13,6 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
   void set_inverted(bool inverted) { inverted_ = inverted; }
   void set_drive_strength(gpio_drive_cap_t drive_strength) { drive_strength_ = drive_strength; }
   void set_flags(gpio::Flags flags) { flags_ = flags; }
-
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;

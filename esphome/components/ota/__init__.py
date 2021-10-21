@@ -15,7 +15,7 @@ from esphome.core import CORE, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["socket"]
+AUTO_LOAD = ["socket", "md5"]
 
 CONF_ON_STATE_CHANGE = "on_state_change"
 CONF_ON_BEGIN = "on_begin"
@@ -35,20 +35,12 @@ OTAEndTrigger = ota_ns.class_("OTAEndTrigger", automation.Trigger.template())
 OTAErrorTrigger = ota_ns.class_("OTAErrorTrigger", automation.Trigger.template())
 
 
-def validate_password_support(value):
-    if CORE.using_arduino:
-        return value
-    if CORE.using_esp_idf:
-        raise cv.Invalid("Password support is not implemented yet for ESP-IDF")
-    raise NotImplementedError
-
-
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(OTAComponent),
         cv.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
         cv.SplitDefault(CONF_PORT, esp8266=8266, esp32=3232): cv.port,
-        cv.Optional(CONF_PASSWORD): cv.All(cv.string, validate_password_support),
+        cv.Optional(CONF_PASSWORD): cv.string,
         cv.Optional(
             CONF_REBOOT_TIMEOUT, default="5min"
         ): cv.positive_time_period_milliseconds,
@@ -101,7 +93,7 @@ async def to_code(config):
     if CORE.is_esp8266:
         cg.add_library("Update", None)
     elif CORE.is_esp32 and CORE.using_arduino:
-        cg.add_library("Hash", None)
+        cg.add_library("Update", None)
 
     use_state_callback = False
     for conf in config.get(CONF_ON_STATE_CHANGE, []):

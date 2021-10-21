@@ -86,8 +86,11 @@ void CCS811Component::setup() {
   }
 }
 void CCS811Component::update() {
-  if (!this->status_has_data_())
+  if (!this->status_has_data_()) {
+    ESP_LOGD(TAG, "Status indicates no data ready!");
     this->status_set_warning();
+    return;
+  }
 
   // page 12 - alg result data
   auto alg_data = this->read_bytes<4>(0x02);

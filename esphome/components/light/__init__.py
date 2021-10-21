@@ -5,13 +5,10 @@ from esphome.components import mqtt, power_supply
 from esphome.const import (
     CONF_COLOR_CORRECT,
     CONF_DEFAULT_TRANSITION_LENGTH,
-    CONF_DISABLED_BY_DEFAULT,
     CONF_EFFECTS,
     CONF_FLASH_TRANSITION_LENGTH,
     CONF_GAMMA_CORRECT,
     CONF_ID,
-    CONF_INTERNAL,
-    CONF_NAME,
     CONF_MQTT_ID,
     CONF_POWER_SUPPLY,
     CONF_RESTORE_MODE,
@@ -22,6 +19,7 @@ from esphome.const import (
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
 )
 from esphome.core import coroutine_with_priority
+from esphome.cpp_helpers import setup_entity
 from .automation import light_control_to_code  # noqa
 from .effects import (
     validate_effects,
@@ -54,7 +52,7 @@ RESTORE_MODES = {
     "RESTORE_INVERTED_DEFAULT_ON": LightRestoreMode.LIGHT_RESTORE_INVERTED_DEFAULT_ON,
 }
 
-LIGHT_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
+LIGHT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(LightState),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTJSONLightComponent),
@@ -126,10 +124,10 @@ def validate_color_temperature_channels(value):
 
 
 async def setup_light_core_(light_var, output_var, config):
-    cg.add(light_var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
+    await setup_entity(light_var, config)
+
     cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
-    if CONF_INTERNAL in config:
-        cg.add(light_var.set_internal(config[CONF_INTERNAL]))
+
     if CONF_DEFAULT_TRANSITION_LENGTH in config:
         cg.add(
             light_var.set_default_transition_length(
@@ -167,7 +165,7 @@ async def setup_light_core_(light_var, output_var, config):
 
 
 async def register_light(output_var, config):
-    light_var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], output_var)
+    light_var = cg.new_Pvariable(config[CONF_ID], output_var)
     cg.add(cg.App.register_light(light_var))
     await cg.register_component(light_var, config)
     await setup_light_core_(light_var, output_var, config)

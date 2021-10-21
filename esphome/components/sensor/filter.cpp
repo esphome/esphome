@@ -187,6 +187,31 @@ optional<float> ExponentialMovingAverageFilter::new_value(float value) {
 void ExponentialMovingAverageFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void ExponentialMovingAverageFilter::set_alpha(float alpha) { this->alpha_ = alpha; }
 
+// ThrottleAverageFilter
+ThrottleAverageFilter::ThrottleAverageFilter(uint32_t time_period) : time_period_(time_period) {}
+
+optional<float> ThrottleAverageFilter::new_value(float value) {
+  ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::new_value(value=%f)", this, value);
+  if (!std::isnan(value)) {
+    this->sum_ += value;
+    this->n_++;
+  }
+  return {};
+}
+void ThrottleAverageFilter::setup() {
+  this->set_interval("throttle_average", this->time_period_, [this]() {
+    ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::interval(sum=%f, n=%i)", this, this->sum_, this->n_);
+    if (this->n_ == 0) {
+      this->output(NAN);
+    } else {
+      this->output(this->sum_ / this->n_);
+      this->sum_ = 0.0f;
+      this->n_ = 0;
+    }
+  });
+}
+float ThrottleAverageFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
+
 // LambdaFilter
 LambdaFilter::LambdaFilter(lambda_filter_t lambda_filter) : lambda_filter_(std::move(lambda_filter)) {}
 const lambda_filter_t &LambdaFilter::get_lambda_filter() const { return this->lambda_filter_; }

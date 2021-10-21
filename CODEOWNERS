@@ -15,6 +15,7 @@ esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/addressable_light/* @justfalter
 esphome/components/airthings_ble/* @jeromelaban
+esphome/components/airthings_wave_mini/* @ncareau
 esphome/components/airthings_wave_plus/* @jeromelaban
 esphome/components/am43/* @buxtronix
 esphome/components/am43/cover/* @buxtronix
@@ -39,7 +40,9 @@ esphome/components/coolix/* @glmnet
 esphome/components/cover/* @esphome/core
 esphome/components/cs5460a/* @balrog-kun
 esphome/components/ct_clamp/* @jesserockz
+esphome/components/current_based/* @djwmarcx
 esphome/components/daly_bms/* @s1lvi0
+esphome/components/dashboard_import/* @esphome/core
 esphome/components/debug/* @OttoWinter
 esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
@@ -61,6 +64,7 @@ esphome/components/graph/* @synco
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
+esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/hrxl_maxsonar_wr/* @netmikey
@@ -85,6 +89,7 @@ esphome/components/mcp23x17_base/* @jesserockz
 esphome/components/mcp23xxx_base/* @jesserockz
 esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp9808/* @k7hpn
+esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
 esphome/components/midea/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
@@ -123,6 +128,8 @@ esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rgbct/* @jesserockz
 esphome/components/rtttl/* @glmnet
+esphome/components/safe_mode/* @paulmonigatti
+esphome/components/scd4x/* @sjtrny
 esphome/components/script/* @esphome/core
 esphome/components/sdm_meter/* @jesserockz @polyfaces
 esphome/components/sdp3x/* @Azimath

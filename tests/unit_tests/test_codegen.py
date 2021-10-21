@@ -59,7 +59,7 @@ from esphome import codegen as cg
         "NAN",
         "esphome_ns",
         "App",
-        "Nameable",
+        "EntityBase",
         "Component",
         "ComponentPtr",
         # from cpp_types

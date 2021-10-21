@@ -21,6 +21,7 @@ ATTENUATION_MODES = {
     "2.5db": cg.global_ns.ADC_ATTEN_DB_2_5,
     "6db": cg.global_ns.ADC_ATTEN_DB_6,
     "11db": cg.global_ns.ADC_ATTEN_DB_11,
+    "auto": "auto",
 }
 
 
@@ -35,7 +36,7 @@ def validate_adc_pin(value):
         if is_esp32c3():
             if not (0 <= value <= 4):  # ADC1
                 raise cv.Invalid("ESP32-C3: Only pins 0 though 4 support ADC.")
-        if not (32 <= value <= 39):  # ADC1
+        elif not (32 <= value <= 39):  # ADC1
             raise cv.Invalid("ESP32: Only pins 32 though 39 support ADC.")
     elif CORE.is_esp8266:
         from esphome.components.esp8266.gpio import CONF_ANALOG
@@ -92,4 +93,7 @@ async def to_code(config):
         cg.add(var.set_pin(pin))
 
     if CONF_ATTENUATION in config:
-        cg.add(var.set_attenuation(config[CONF_ATTENUATION]))
+        if config[CONF_ATTENUATION] == "auto":
+            cg.add(var.set_autorange(cg.global_ns.true))
+        else:
+            cg.add(var.set_attenuation(config[CONF_ATTENUATION]))
