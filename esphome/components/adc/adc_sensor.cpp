@@ -135,9 +135,6 @@ float ADCSensor::sample() {
     }
   }
 
-  // TODO: remove these debug statements
-  ESP_LOGV(TAG, "raw11=%u, raw6=%u, raw2=%u, raw0=%u", raw11, raw6, raw2, raw0);
-
   if (raw0 == -1 || raw2 == -1 || raw6 == -1 || raw11 == -1) {
     return NAN;
   }
@@ -150,7 +147,6 @@ float ADCSensor::sample() {
   uint32_t mv6 = esp_adc_cal_raw_to_voltage(raw6, &cal_characteristics_[(int) ADC_ATTEN_DB_6]);
   uint32_t mv2 = esp_adc_cal_raw_to_voltage(raw2, &cal_characteristics_[(int) ADC_ATTEN_DB_2_5]);
   uint32_t mv0 = esp_adc_cal_raw_to_voltage(raw0, &cal_characteristics_[(int) ADC_ATTEN_DB_0]);
-  ESP_LOGV(TAG, "mv11=%u, mv6=%u, mv2=%u, mv0=%u", mv11, mv6, mv2, mv0);
 
   // Contribution of each value, in range 0-2048
   uint32_t c11 = std::min(raw11, 2048);
@@ -159,13 +155,10 @@ float ADCSensor::sample() {
   uint32_t c0 = 2048 - std::abs(raw0 - 2048);
   // max theoretical csum value is 2048*4 = 8192
   uint32_t csum = c11 + c6 + c2 + c0;
-  ESP_LOGV(TAG, "c11=%u, c6=%u, c2=%u, c0=%u -> csum=%u", c11, c6, c2, c0, csum);
 
   // each mv is max 3900; so max value is 3900*2048*4, fits in unsigned
   uint32_t mv_scaled = (mv11 * c11) + (mv6 * c6) + (mv2 * c2) + (mv0 * c0);
-  float res =  mv_scaled / (float)(csum * 1000U);
-  ESP_LOGV(TAG, "mv_scaled=%u -> %f V", mv_scaled, res);
-  return res;
+  return  mv_scaled / (float)(csum * 1000U);
 }
 #endif
 
