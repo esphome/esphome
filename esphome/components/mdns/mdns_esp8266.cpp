@@ -17,9 +17,11 @@ void MDNSComponent::setup() {
 
   auto services = compile_services_();
   for (const auto &service : services) {
-    MDNS.addService(service.service_type.c_str(), service.proto.c_str(), service.port);
+    auto proto = service.proto.c_str();
+    while (*proto == '_') { proto++; }
+    MDNS.addService(service.service_type.c_str(), proto, service.port);
     for (const auto &record : service.txt_records) {
-      MDNS.addServiceTxt(service.service_type.c_str(), service.proto.c_str(), record.key.c_str(), record.value.c_str());
+      MDNS.addServiceTxt(service.service_type.c_str(), proto, record.key.c_str(), record.value.c_str());
     }
   }
 }

@@ -23,8 +23,8 @@ std::vector<MDNSService> MDNSComponent::compile_services_() {
 #ifdef USE_API
   if (api::global_api_server != nullptr) {
     MDNSService service{};
-    service.service_type = "esphomelib";
-    service.proto = "tcp";
+    service.service_type = "_esphomelib";
+    service.proto = "_tcp";
     service.port = api::global_api_server->get_port();
     service.txt_records.push_back({"version", ESPHOME_VERSION});
     service.txt_records.push_back({"mac", get_mac_address()});
@@ -57,8 +57,8 @@ std::vector<MDNSService> MDNSComponent::compile_services_() {
 #ifdef USE_PROMETHEUS
   {
     MDNSService service{};
-    service.service_type = "prometheus-http";
-    service.proto = "tcp";
+    service.service_type = "_prometheus-http";
+    service.proto = "_tcp";
     service.port = WEBSERVER_PORT;
     res.push_back(service);
   }
@@ -68,8 +68,8 @@ std::vector<MDNSService> MDNSComponent::compile_services_() {
     // Publish "http" service if not using native API
     // This is just to have *some* mDNS service so that .local resolution works
     MDNSService service{};
-    service.service_type = "http";
-    service.proto = "tcp";
+    service.service_type = "_http";
+    service.proto = "_tcp";
     service.port = WEBSERVER_PORT;
     service.txt_records.push_back({"version", ESPHOME_VERSION});
     res.push_back(service);
