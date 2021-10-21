@@ -166,11 +166,11 @@ def final_validate_power_esp32_ble(value):
             # Only arduino 1.0.5+ and esp-idf impacted
             cv.require_framework_version(
                 esp32_arduino=cv.Version(1, 0, 5),
+                esp_idf=cv.Version(4, 0, 0),
             )(None)
         except cv.Invalid:
             pass
         else:
-
             raise cv.Invalid(
                 f"power_save_mode NONE is incompatible with {conflicting}. "
                 f"Please remove the power save mode. See also "
