@@ -40,7 +40,8 @@ void MDNSComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "mDNS:");
   ESP_LOGCONFIG(TAG, "  Hostname: %s", compile_hostname_().c_str());
   ESP_LOGCONFIG(TAG, "  Services:");
-  for (const auto &service : this->services_) {
+  auto services = this->compile_services_();
+  for (const auto &service : services) {
     ESP_LOGCONFIG(TAG, "  - %s, %s, %d", service.service_type.c_str(), service.proto.c_str(), service.port);
     for (const auto &record : service.txt_records) {
       ESP_LOGCONFIG(TAG, "    TXT: %s = %s", record.key.c_str(), record.value.c_str());

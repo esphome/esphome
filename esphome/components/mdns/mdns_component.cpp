@@ -18,7 +18,9 @@ namespace mdns {
 #endif
 
 std::vector<MDNSService> MDNSComponent::compile_services_() {
-  this->services_.clear();
+  if (!this->services_.empty()) {
+    return this->services_;
+  }
 
 #ifdef USE_API
   if (api::global_api_server != nullptr) {
