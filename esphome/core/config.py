@@ -206,6 +206,28 @@ def include_file(path, basename):
         cg.add_global(cg.RawStatement(f'#include "{basename}"'))
 
 
+ARDUINO_GLUE_CODE = """\
+#define yield() esphome::yield()
+#define millis() esphome::millis()
+#define delay(x) esphome::delay(x)
+#define delayMicroseconds(x) esphome::delayMicroseconds(x)
+"""
+
+
+@coroutine_with_priority(-999.0)
+async def add_arduino_global_workaround():
+    # The Arduino framework defined these itself in the global
+    # namespace. For the esphome codebase that is not a problem,
+    # but when custom code
+    #   1. writes `millis()` for example AND
+    #   2. has `using namespace esphome;` like our guides suggest
+    # Then the compiler will complain that the call is ambiguous
+    # Define a hacky macro so that the call is never ambiguous
+    # and always uses the esphome namespace one.
+    for line in ARDUINO_GLUE_CODE.splitlines():
+        cg.add_global(cg.RawStatement(line))
+
+
 @coroutine_with_priority(-1000.0)
 async def add_includes(includes):
     # Add includes at the very end, so that the included files can access global variables
@@ -286,6 +308,9 @@ async def to_code(config):
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
+
+    if CORE.using_arduino:
+        CORE.add_job(add_arduino_global_workaround)
 
     if config[CONF_INCLUDES]:
         CORE.add_job(add_includes, config[CONF_INCLUDES])
