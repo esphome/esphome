@@ -224,6 +224,7 @@ async def add_arduino_global_workaround():
     # Then the compiler will complain that the call is ambiguous
     # Define a hacky macro so that the call is never ambiguous
     # and always uses the esphome namespace one.
+    # See also https://github.com/esphome/issues/issues/2510
     for line in ARDUINO_GLUE_CODE.splitlines():
         cg.add_global(cg.RawStatement(line))
 
