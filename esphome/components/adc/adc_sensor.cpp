@@ -152,7 +152,7 @@ float ADCSensor::sample() {
   uint32_t c11 = std::min(raw11, 2048);
   uint32_t c6 = 2048 - std::abs(raw6 - 2048);
   uint32_t c2 = 2048 - std::abs(raw2 - 2048);
-  uint32_t c0 = 2048 - std::abs(raw0 - 2048);
+  uint32_t c0 = std::min(4095 - raw0, 2048);
   // max theoretical csum value is 2048*4 = 8192
   uint32_t csum = c11 + c6 + c2 + c0;
 
