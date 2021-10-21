@@ -178,7 +178,7 @@ def run_external_command(
     orig_argv = sys.argv
     orig_exit = sys.exit  # mock sys.exit
     full_cmd = " ".join(shlex_quote(x) for x in cmd)
-    _LOGGER.info("Running:  %s", full_cmd)
+    _LOGGER.debug("Running:  %s", full_cmd)
 
     orig_stdout = sys.stdout
     sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
@@ -214,7 +214,7 @@ def run_external_command(
 
 def run_external_process(*cmd, **kwargs):
     full_cmd = " ".join(shlex_quote(x) for x in cmd)
-    _LOGGER.info("Running:  %s", full_cmd)
+    _LOGGER.debug("Running:  %s", full_cmd)
     filter_lines = kwargs.get("filter_lines")
 
     capture_stdout = kwargs.get("capture_stdout", False)
