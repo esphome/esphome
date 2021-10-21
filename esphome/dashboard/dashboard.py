@@ -9,6 +9,7 @@ import json
 import logging
 import multiprocessing
 import os
+from pathlib import Path
 import secrets
 import shutil
 import subprocess
@@ -26,7 +27,7 @@ import tornado.process
 import tornado.web
 import tornado.websocket
 
-from esphome import const, util
+from esphome import const, platformio_api, util
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -398,23 +399,83 @@ class DownloadBinaryRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
-        # pylint: disable=no-value-for-parameter
-        storage_path = ext_storage_path(settings.config_dir, configuration)
-        storage_json = StorageJSON.load(storage_path)
-        if storage_json is None:
-            self.send_error()
+        type = self.get_argument("type", "firmware.bin")
+
+        if type == "firmware.bin":
+            storage_path = ext_storage_path(settings.config_dir, configuration)
+            storage_json = StorageJSON.load(storage_path)
+            if storage_json is None:
+                self.send_error(404)
+                return
+            filename = f"{storage_json.name}.bin"
+            path = storage_json.firmware_bin_path
+
+        else:
+            args = ["esphome", "idedata", settings.rel_path(configuration)]
+            rc, stdout, _ = run_system_command(*args)
+
+            if rc != 0:
+                self.send_error(404 if rc == 2 else 500)
+                return
+
+            idedata = platformio_api.IDEData(json.loads(stdout))
+
+            found = False
+            for image in idedata.extra_flash_images:
+                if image.path.endswith(type):
+                    path = image.path
+                    filename = type
+                    found = True
+                    break
+
+            if not found:
+                self.send_error(404)
+                return
+
+        self.set_header("Content-Type", "application/octet-stream")
+        self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
+        if not Path(path).is_file():
+            self.send_error(404)
             return
 
-        path = storage_json.firmware_bin_path
-        self.set_header("Content-Type", "application/octet-stream")
-        filename = f"{storage_json.name}.bin"
-        self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
         with open(path, "rb") as f:
             while True:
                 data = f.read(16384)
                 if not data:
                     break
                 self.write(data)
+        self.finish()
+
+
+class ManifestRequestHandler(BaseHandler):
+    @authenticated
+    @bind_config
+    def get(self, configuration=None):
+        args = ["esphome", "idedata", settings.rel_path(configuration)]
+        rc, stdout, _ = run_system_command(*args)
+
+        if rc != 0:
+            self.send_error(404 if rc == 2 else 500)
+            return
+
+        idedata = platformio_api.IDEData(json.loads(stdout))
+
+        firmware_offset = "0x10000" if idedata.extra_flash_images else "0x0"
+        flash_images = [
+            {
+                "path": f"./download.bin?configuration={configuration}&type=firmware.bin",
+                "offset": firmware_offset,
+            }
+        ] + [
+            {
+                "path": f"./download.bin?configuration={configuration}&type={os.path.basename(image.path)}",
+                "offset": image.offset,
+            }
+            for image in idedata.extra_flash_images
+        ]
+
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps(flash_images))
         self.finish()
 
 
@@ -536,7 +597,7 @@ class MainRequestHandler(BaseHandler):
             get_template_path("index"),
             begin=begin,
             **template_args(),
-            login_enabled=settings.using_auth,
+            login_enabled=settings.using_password,
         )
 
 
@@ -862,6 +923,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}info", InfoRequestHandler),
             (f"{rel}edit", EditRequestHandler),
             (f"{rel}download.bin", DownloadBinaryRequestHandler),
+            (f"{rel}manifest.json", ManifestRequestHandler),
             (f"{rel}serial-ports", SerialPortRequestHandler),
             (f"{rel}ping", PingRequestHandler),
             (f"{rel}delete", DeleteRequestHandler),
