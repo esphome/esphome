@@ -13,7 +13,11 @@ struct MDNSTXTRecord {
 };
 
 struct MDNSService {
+  // service name _including_ underscore character prefix
+  // as defined in RFC6763 Section 7
   std::string service_type;
+  // second label indicating protocol _including_ underscore character prefix
+  // as defined in RFC6763 Section 7, like "_tcp" or "_udp"
   std::string proto;
   uint16_t port;
   std::vector<MDNSTXTRecord> txt_records;

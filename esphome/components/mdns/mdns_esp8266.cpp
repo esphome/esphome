@@ -17,9 +17,21 @@ void MDNSComponent::setup() {
 
   auto services = compile_services_();
   for (const auto &service : services) {
-    MDNS.addService(service.service_type.c_str(), service.proto.c_str(), service.port);
+    // Strip the leading underscore from the proto and service_type. While it is
+    // part of the wire protocol to have an underscore, and for example ESP-IDF
+    // expects the underscore to be there, the ESP8266 implementation always adds
+    // the underscore itself.
+    auto proto = service.proto.c_str();
+    while (*proto == '_') {
+      proto++;
+    }
+    auto service_type = service.service_type.c_str();
+    while (*service_type == '_') {
+      service_type++;
+    }
+    MDNS.addService(service_type, proto, service.port);
     for (const auto &record : service.txt_records) {
-      MDNS.addServiceTxt(service.service_type.c_str(), service.proto.c_str(), record.key.c_str(), record.value.c_str());
+      MDNS.addServiceTxt(service_type, proto, record.key.c_str(), record.value.c_str());
     }
   }
 }
