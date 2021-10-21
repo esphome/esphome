@@ -34,6 +34,7 @@ class MDNSComponent : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
  protected:
+  std::vector<MDNSService> services_{};
   std::vector<MDNSService> compile_services_();
   std::string compile_hostname_();
 };

@@ -21,8 +21,8 @@ void MDNSComponent::setup() {
   mdns_hostname_set(compile_hostname_().c_str());
   mdns_instance_name_set(compile_hostname_().c_str());
 
-  auto services = compile_services_();
-  for (const auto &service : services) {
+  this->compile_services_();
+  for (const auto &service : this->services_) {
     std::vector<mdns_txt_item_t> txt_records;
     for (const auto &record : service.txt_records) {
       mdns_txt_item_t it{};
@@ -44,6 +44,19 @@ void MDNSComponent::setup() {
       ESP_LOGW(TAG, "Failed to register mDNS service %s: %s", service.service_type.c_str(), esp_err_to_name(err));
     }
   }
+}
+
+void MDNSComponent::setup() {
+  this->compile_services_();
+  for (const auto &service : this->services_) {
+    MDNS.addService(service.service_type.c_str(), service.proto.c_str(), service.port);
+    for (const auto &record : service.txt_records) {
+      MDNS.addServiceTxt(service.service_type.c_str(), service.proto.c_str(), record.key.c_str(), record.value.c_str());
+    }
+  }
+
+  network::IPAddress addr = network::get_ip_address();
+  MDNS.begin(compile_hostname_().c_str(), (uint32_t) addr);
 }
 
 }  // namespace mdns

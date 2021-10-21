@@ -18,7 +18,7 @@ namespace mdns {
 #endif
 
 std::vector<MDNSService> MDNSComponent::compile_services_() {
-  std::vector<MDNSService> res;
+  this->services_.clear();
 
 #ifdef USE_API
   if (api::global_api_server != nullptr) {
@@ -50,7 +50,7 @@ std::vector<MDNSService> MDNSComponent::compile_services_() {
     service.txt_records.push_back({"package_import_url", dashboard_import::get_package_import_url()});
 #endif
 
-    res.push_back(service);
+    this->services_.push_back(service);
   }
 #endif  // USE_API
 
@@ -60,11 +60,11 @@ std::vector<MDNSService> MDNSComponent::compile_services_() {
     service.service_type = "_prometheus-http";
     service.proto = "_tcp";
     service.port = WEBSERVER_PORT;
-    res.push_back(service);
+    this->services_.push_back(service);
   }
 #endif
 
-  if (res.empty()) {
+  if (this->services_.empty()) {
     // Publish "http" service if not using native API
     // This is just to have *some* mDNS service so that .local resolution works
     MDNSService service{};
@@ -72,10 +72,11 @@ std::vector<MDNSService> MDNSComponent::compile_services_() {
     service.proto = "_tcp";
     service.port = WEBSERVER_PORT;
     service.txt_records.push_back({"version", ESPHOME_VERSION});
-    res.push_back(service);
+    this->services_.push_back(service);
   }
-  return res;
+  return this->services_;
 }
+
 std::string MDNSComponent::compile_hostname_() { return App.get_name(); }
 
 }  // namespace mdns
