@@ -94,7 +94,7 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
 }
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  pinMode(arg - pin, flags_to_mode(flags));  // NOLINT
+  pinMode(arg->pin, flags_to_mode(flags));  // NOLINT
 }
 
 }  // namespace esphome
