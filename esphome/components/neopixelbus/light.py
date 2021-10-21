@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import light
+from esphome.components import light, esp32
 from esphome.const import (
     CONF_CLOCK_PIN,
     CONF_DATA_PIN,
@@ -12,6 +12,11 @@ from esphome.const import (
     CONF_VARIANT,
     CONF_OUTPUT_ID,
     CONF_INVERT,
+)
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32C3,
 )
 from esphome.core import CORE
 
@@ -57,19 +62,27 @@ def validate_variant(value):
     return cv.one_of(*VARIANTS)(value)
 
 
+def available_methods():
+    if CORE.is_esp32:
+        variant = esp32.get_esp32_variant()
+        return ESP32_METHODS.get(variant) or ESP32_METHODS[VARIANT_ESP32]
+    if CORE.is_esp8266:
+        return ESP8266_METHODS
+    raise NotImplementedError
+
+
 def validate_method(value):
     if value is None:
         if CORE.is_esp32:
-            return "ESP32_I2S_1"
+            return (
+                ESP32_DEFAULT_METHOD.get(esp32.get_esp32_variant())
+                or ESP32_DEFAULT_METHOD[VARIANT_ESP32]
+            )
         if CORE.is_esp8266:
             return "ESP8266_DMA"
         raise NotImplementedError
 
-    if CORE.is_esp32:
-        return cv.one_of(*ESP32_METHODS, upper=True, space="_")(value)
-    if CORE.is_esp8266:
-        return cv.one_of(*ESP8266_METHODS, upper=True, space="_")(value)
-    raise NotImplementedError
+    return cv.one_of(*available_methods(), upper=True, space="_")(value)
 
 
 def validate_method_pin(value):
@@ -116,18 +129,40 @@ ESP8266_METHODS = {
     "ESP8266_ASYNC_UART1": "NeoEsp8266AsyncUart1{}Method",
     "BIT_BANG": "NeoEsp8266BitBang{}Method",
 }
-ESP32_METHODS = {
-    "ESP32_I2S_0": "NeoEsp32I2s0{}Method",
-    "ESP32_I2S_1": "NeoEsp32I2s1{}Method",
+
+ESP32_METHODS_ALL = {
     "ESP32_RMT_0": "NeoEsp32Rmt0{}Method",
     "ESP32_RMT_1": "NeoEsp32Rmt1{}Method",
+}
+ESP32_METHODS_RMT23 = {
     "ESP32_RMT_2": "NeoEsp32Rmt2{}Method",
     "ESP32_RMT_3": "NeoEsp32Rmt3{}Method",
+}
+ESP32_METHODS_RMT4567 = {
     "ESP32_RMT_4": "NeoEsp32Rmt4{}Method",
     "ESP32_RMT_5": "NeoEsp32Rmt5{}Method",
     "ESP32_RMT_6": "NeoEsp32Rmt6{}Method",
     "ESP32_RMT_7": "NeoEsp32Rmt7{}Method",
-    "BIT_BANG": "NeoEsp32BitBang{}Method",
+}
+ESP32_METHODS_I2S = {
+    "ESP32_I2S_0": "NeoEsp32I2s0{}Method",
+    "ESP32_I2S_1": "NeoEsp32I2s1{}Method",
+    "BIT_BANG": "NeoEsp32BitBang{}Method",  # bit-bang availability is linked with i2s
+}
+ESP32_METHODS = {
+    VARIANT_ESP32: {
+        **ESP32_METHODS_ALL,
+        **ESP32_METHODS_I2S,
+        **ESP32_METHODS_RMT23,
+        **ESP32_METHODS_RMT4567,
+    },
+    VARIANT_ESP32C3: {**ESP32_METHODS_ALL},
+    VARIANT_ESP32S2: {**ESP32_METHODS_ALL, **ESP32_METHODS_I2S, **ESP32_METHODS_RMT23},
+}
+ESP32_DEFAULT_METHOD = {
+    VARIANT_ESP32: "ESP32_I2S_1",
+    VARIANT_ESP32C3: "ESP32_RMT_1",
+    VARIANT_ESP32S2: "ESP32_RMT_1",
 }
 
 
@@ -141,10 +176,7 @@ def format_method(config):
         else:
             variant += "Inverted"
 
-    if CORE.is_esp8266:
-        return ESP8266_METHODS[method].format(variant)
-    if CORE.is_esp32:
-        return ESP32_METHODS[method].format(variant)
+    return available_methods()[method].format(variant)
     raise NotImplementedError
 
 
