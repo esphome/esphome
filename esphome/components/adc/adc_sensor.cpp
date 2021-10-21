@@ -30,13 +30,9 @@ void ADCSensor::setup() {
 
   // load characteristics for each attenuation
   for (int i = 0; i < (int) ADC_ATTEN_MAX; i++) {
-    auto cal_value = esp_adc_cal_characterize(
-      ADC_UNIT_1,
-      (adc_atten_t) i,
-      ADC_WIDTH_BIT_12,
-      1100,  // default vref
-      &cal_characteristics_[i]
-    );
+    auto cal_value = esp_adc_cal_characterize(ADC_UNIT_1, (adc_atten_t) i, ADC_WIDTH_BIT_12,
+                                              1100,  // default vref
+                                              &cal_characteristics_[i]);
     switch (cal_value) {
       case ESP_ADC_CAL_VAL_EFUSE_VREF:
         ESP_LOGV(TAG, "Using eFuse Vref for calibration");
@@ -65,7 +61,8 @@ void ADCSensor::dump_config() {
 #else
   LOG_PIN("  Pin: ", pin_);
 #endif
-#endif
+#endif  // USE_ESP8266
+
 #ifdef USE_ESP32
   LOG_PIN("  Pin: ", pin_);
   if (autorange_)
@@ -87,7 +84,7 @@ void ADCSensor::dump_config() {
       default:  // This is to satisfy the unused ADC_ATTEN_MAX
         break;
     }
-#endif
+#endif  // USE_ESP32
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -158,9 +155,9 @@ float ADCSensor::sample() {
 
   // each mv is max 3900; so max value is 3900*2048*4, fits in unsigned
   uint32_t mv_scaled = (mv11 * c11) + (mv6 * c6) + (mv2 * c2) + (mv0 * c0);
-  return  mv_scaled / (float)(csum * 1000U);
+  return mv_scaled / (float) (csum * 1000U);
 }
-#endif
+#endif  // USE_ESP32
 
 #ifdef USE_ESP8266
 std::string ADCSensor::unique_id() { return get_mac_address() + "-adc"; }
