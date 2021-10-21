@@ -280,10 +280,15 @@ async def to_code(config):
     cg.add_platformio_option("lib_ldf_mode", "off")
 
     conf = config[CONF_FRAMEWORK]
-    if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
+
+    if "://" in conf[CONF_PLATFORM_VERSION]:  # url, don't need to supply package name
+        cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
+    else:
         cg.add_platformio_option(
-            "platform", f"espressif32 @ {conf[CONF_PLATFORM_VERSION]}"
+            "platform", f"platformio/espressif32 @ {conf[CONF_PLATFORM_VERSION]}"
         )
+
+    if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_platformio_option("framework", "espidf")
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
@@ -314,9 +319,6 @@ async def to_code(config):
             )
 
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
-        cg.add_platformio_option(
-            "platform", f"espressif32 @ {conf[CONF_PLATFORM_VERSION]}"
-        )
         cg.add_platformio_option("framework", "arduino")
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")

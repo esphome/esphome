@@ -154,9 +154,13 @@ async def to_code(config):
         "platform_packages",
         [f"platformio/framework-arduinoespressif8266 @ {conf[CONF_SOURCE]}"],
     )
-    cg.add_platformio_option(
-        "platform", f"platformio/espressif8266 @ {conf[CONF_PLATFORM_VERSION]}"
-    )
+
+    if "://" in conf[CONF_PLATFORM_VERSION]:  # url, don't need to supply package name
+        cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
+    else:
+        cg.add_platformio_option(
+            "platform", f"platformio/espressif8266 @ {conf[CONF_PLATFORM_VERSION]}"
+        )
 
     # Default for platformio is LWIP2_LOW_MEMORY with:
     #  - MSS=536
