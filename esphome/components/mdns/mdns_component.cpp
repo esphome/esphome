@@ -13,15 +13,16 @@
 namespace esphome {
 namespace mdns {
 
+static const char *const TAG = "mdns";
+
 #ifndef WEBSERVER_PORT
 #define WEBSERVER_PORT 80  // NOLINT
 #endif
 
-std::vector<MDNSService> MDNSComponent::compile_services_() {
-  if (!this->services_.empty()) {
-    return this->services_;
-  }
+void MDNSComponent::compile_records_() {
+  this->hostname_ = App.get_name();
 
+  this->services_.clear();
 #ifdef USE_API
   if (api::global_api_server != nullptr) {
     MDNSService service{};
@@ -76,10 +77,19 @@ std::vector<MDNSService> MDNSComponent::compile_services_() {
     service.txt_records.push_back({"version", ESPHOME_VERSION});
     this->services_.push_back(service);
   }
-  return this->services_;
 }
 
-std::string MDNSComponent::compile_hostname_() { return App.get_name(); }
+void MDNSComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "mDNS:");
+  ESP_LOGCONFIG(TAG, "  Hostname: %s", this->hostname_.c_str());
+  ESP_LOGV(TAG, "  Services:");
+  for (const auto &service : this->services_) {
+    ESP_LOGV(TAG, "  - %s, %s, %d", service.service_type.c_str(), service.proto.c_str(), service.port);
+    for (const auto &record : service.txt_records) {
+      ESP_LOGV(TAG, "    TXT: %s = %s", record.key.c_str(), record.value.c_str());
+    }
+  }
+}
 
 }  // namespace mdns
 }  // namespace esphome

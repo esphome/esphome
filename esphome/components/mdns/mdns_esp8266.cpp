@@ -9,14 +9,13 @@
 namespace esphome {
 namespace mdns {
 
-static const char *const TAG = "mdns";
-
 void MDNSComponent::setup() {
-  network::IPAddress addr = network::get_ip_address();
-  MDNS.begin(compile_hostname_().c_str(), (uint32_t) addr);
+  this->compile_records_();
 
-  auto services = this->compile_services_();
-  for (const auto &service : services) {
+  network::IPAddress addr = network::get_ip_address();
+  MDNS.begin(this->hostname_.c_str(), (uint32_t) addr);
+
+  for (const auto &service : this->services_) {
     // Strip the leading underscore from the proto and service_type. While it is
     // part of the wire protocol to have an underscore, and for example ESP-IDF
     // expects the underscore to be there, the ESP8266 implementation always adds
@@ -32,19 +31,6 @@ void MDNSComponent::setup() {
     MDNS.addService(service_type, proto, service.port);
     for (const auto &record : service.txt_records) {
       MDNS.addServiceTxt(service_type, proto, record.key.c_str(), record.value.c_str());
-    }
-  }
-}
-
-void MDNSComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "mDNS:");
-  ESP_LOGCONFIG(TAG, "  Hostname: %s", compile_hostname_().c_str());
-  ESP_LOGCONFIG(TAG, "  Services:");
-  auto services = this->compile_services_();
-  for (const auto &service : services) {
-    ESP_LOGCONFIG(TAG, "  - %s, %s, %d", service.service_type.c_str(), service.proto.c_str(), service.port);
-    for (const auto &record : service.txt_records) {
-      ESP_LOGCONFIG(TAG, "    TXT: %s = %s", record.key.c_str(), record.value.c_str());
     }
   }
 }

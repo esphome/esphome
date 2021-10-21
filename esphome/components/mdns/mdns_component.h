@@ -35,8 +35,8 @@ class MDNSComponent : public Component {
 
  protected:
   std::vector<MDNSService> services_{};
-  std::vector<MDNSService> compile_services_();
-  std::string compile_hostname_();
+  std::string hostname_;
+  void compile_records_();
 };
 
 }  // namespace mdns

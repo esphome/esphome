@@ -11,6 +11,8 @@ namespace mdns {
 static const char *const TAG = "mdns";
 
 void MDNSComponent::setup() {
+  this->compile_records_();
+
   esp_err_t err = mdns_init();
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "mDNS init failed: %s", esp_err_to_name(err));
@@ -18,11 +20,10 @@ void MDNSComponent::setup() {
     return;
   }
 
-  mdns_hostname_set(compile_hostname_().c_str());
-  mdns_instance_name_set(compile_hostname_().c_str());
+  mdns_hostname_set(this->hostname_.c_str());
+  mdns_instance_name_set(this->hostname_.c_str());
 
-  auto services = this->compile_services_();
-  for (const auto &service : services) {
+  for (const auto &service : this->services_) {
     std::vector<mdns_txt_item_t> txt_records;
     for (const auto &record : service.txt_records) {
       mdns_txt_item_t it{};
@@ -42,19 +43,6 @@ void MDNSComponent::setup() {
 
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Failed to register mDNS service %s: %s", service.service_type.c_str(), esp_err_to_name(err));
-    }
-  }
-}
-
-void MDNSComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "mDNS:");
-  ESP_LOGCONFIG(TAG, "  Hostname: %s", compile_hostname_().c_str());
-  ESP_LOGCONFIG(TAG, "  Services:");
-  auto services = this->compile_services_();
-  for (const auto &service : services) {
-    ESP_LOGCONFIG(TAG, "  - %s, %s, %d", service.service_type.c_str(), service.proto.c_str(), service.port);
-    for (const auto &record : service.txt_records) {
-      ESP_LOGCONFIG(TAG, "    TXT: %s = %s", record.key.c_str(), record.value.c_str());
     }
   }
 }
