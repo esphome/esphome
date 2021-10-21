@@ -65,7 +65,7 @@ RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 7, 4)
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif8266
 ARDUINO_2_PLATFORM_VERSION = cv.Version(2, 6, 2)
 # for arduino 3 framework versions
-ARDUINO_3_PLATFORM_VERSION = cv.Version(3, 0, 2)
+ARDUINO_3_PLATFORM_VERSION = cv.Version(3, 2, 0)
 
 
 def _arduino_check_versions(value):
