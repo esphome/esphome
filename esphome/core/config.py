@@ -225,6 +225,8 @@ async def add_arduino_global_workaround():
     # Define a hacky macro so that the call is never ambiguous
     # and always uses the esphome namespace one.
     # See also https://github.com/esphome/issues/issues/2510
+    # Priority -999 so that it runs before adding includes, as those
+    # also might reference these symbols
     for line in ARDUINO_GLUE_CODE.splitlines():
         cg.add_global(cg.RawStatement(line))
 
