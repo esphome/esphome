@@ -98,61 +98,6 @@ def replace_file_content(text, pattern, repl):
     return content_new, count
 
 
-def migrate_src_version_0_to_1():
-    main_cpp = CORE.relative_build_path("src", "main.cpp")
-    if not os.path.isfile(main_cpp):
-        return
-
-    content = read_file(main_cpp)
-
-    if CPP_INCLUDE_BEGIN in content:
-        return
-
-    content, count = replace_file_content(content, r"\s*delay\((?:16|20)\);", "")
-    if count != 0:
-        _LOGGER.info(
-            "Migration: Removed %s occurrence of 'delay(16);' in %s", count, main_cpp
-        )
-
-    content, count = replace_file_content(content, r"using namespace esphomelib;", "")
-    if count != 0:
-        _LOGGER.info(
-            "Migration: Removed %s occurrence of 'using namespace esphomelib;' "
-            "in %s",
-            count,
-            main_cpp,
-        )
-
-    if CPP_INCLUDE_BEGIN not in content:
-        content, count = replace_file_content(
-            content,
-            r'#include "esphomelib/application.h"',
-            f"{CPP_INCLUDE_BEGIN}\n{CPP_INCLUDE_END}",
-        )
-        if count == 0:
-            _LOGGER.error(
-                "Migration failed. ESPHome 1.10.0 needs to have a new auto-generated "
-                "include section in the %s file. Please remove %s and let it be "
-                "auto-generated again.",
-                main_cpp,
-                main_cpp,
-            )
-        _LOGGER.info("Migration: Added include section to %s", main_cpp)
-
-    write_file_if_changed(main_cpp, content)
-
-
-def migrate_src_version(old, new):
-    if old == new:
-        return
-    if old > new:
-        _LOGGER.warning("The source version rolled backwards! Ignoring.")
-        return
-
-    if old == 0:
-        migrate_src_version_0_to_1()
-
-
 def storage_should_clean(old, new):  # type: (StorageJSON, StorageJSON) -> bool
     if old is None:
         return True
@@ -170,9 +115,6 @@ def update_storage_json():
     new = StorageJSON.from_esphome_core(CORE, old)
     if old == new:
         return
-
-    old_src_version = old.src_version if old is not None else 0
-    migrate_src_version(old_src_version, new.src_version)
 
     if storage_should_clean(old, new):
         _LOGGER.info("Core config or version changed, cleaning build files...")
