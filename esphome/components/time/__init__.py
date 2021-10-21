@@ -1,7 +1,6 @@
 import logging
 from importlib import resources
 from typing import Optional
-from datetime import timezone
 
 import tzlocal
 
