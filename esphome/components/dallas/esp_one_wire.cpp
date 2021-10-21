@@ -51,8 +51,8 @@ void HOT IRAM_ATTR ESPOneWire::write_bit(bool bit) {
   pin_.pin_mode(gpio::FLAG_OUTPUT);
   pin_.digital_write(false);
 
-  uint32_t delay0 = bit ? 6 : 64;
-  uint32_t delay1 = bit ? 60 : 10;
+  uint32_t delay0 = bit ? 10 : 65;
+  uint32_t delay1 = bit ? 55 : 5;
 
   // delay A/C
   delayMicroseconds(delay0);
@@ -70,17 +70,17 @@ bool HOT IRAM_ATTR ESPOneWire::read_bit() {
   // drive bus low, delay A
   pin_.pin_mode(gpio::FLAG_OUTPUT);
   pin_.digital_write(false);
-  delayMicroseconds(6);
+  delayMicroseconds(3);
 
   // release bus, delay E
   pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-  delayMicroseconds(9);
+  delayMicroseconds(10);
 
   // sample bus to read bit from peer
   bool r = pin_.digital_read();
 
   // delay F
-  delayMicroseconds(55);
+  delayMicroseconds(53);
   return r;
 }
 
