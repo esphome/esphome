@@ -1,12 +1,20 @@
+#ifdef USE_ARDUINO
+
 #include "web_server.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/util.h"
 #include "esphome/components/json/json_util.h"
+#include "esphome/components/network/util.h"
 
 #include "StreamString.h"
 
 #include <cstdlib>
+
+#ifdef USE_LIGHT
+#include "esphome/components/light/light_json_schema.h"
+#endif
 
 #ifdef USE_LOGGER
 #include <esphome/components/logger/logger.h>
@@ -21,7 +29,8 @@ namespace web_server {
 
 static const char *const TAG = "web_server";
 
-void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &klass, const std::string &action) {
+void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
+               const std::function<void(AsyncResponseStream &stream, EntityBase *obj)> &action_func = nullptr) {
   if (obj->is_internal())
     return;
   stream->print("<tr class=\"");
@@ -34,6 +43,9 @@ void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &kl
   stream->print(obj->get_name().c_str());
   stream->print("</td><td></td><td>");
   stream->print(action.c_str());
+  if (action_func) {
+    action_func(*stream, obj);
+  }
   stream->print("</td>");
   stream->print("</tr>");
 }
@@ -125,7 +137,20 @@ void WebServer::setup() {
       if (!obj->is_internal())
         client->send(this->number_json(obj, obj->state).c_str(), "state");
 #endif
+
+#ifdef USE_SELECT
+    for (auto *obj : App.get_selects())
+      if (!obj->is_internal())
+        client->send(this->select_json(obj, obj->state).c_str(), "state");
+#endif
+#ifdef USE_CLIMATE
+    for (auto *obj : App.get_climates())
+      if (!obj->is_internal())
+        client->send(this->climate_json(obj).c_str(), "state");
+#endif
   });
+
+
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr)
@@ -140,17 +165,16 @@ void WebServer::setup() {
 }
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
-  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network_get_address().c_str(), this->base_->get_port());
-  if (this->using_auth()) {
-    ESP_LOGCONFIG(TAG, "  Basic authentication enabled");
-  }
+  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->base_->get_port());
 }
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
   std::string title = App.get_name() + " Web Server";
-  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><title>"));
+  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8>"
+                  "<meta name=\"viewport\" content=\"width=device-width, "
+                  "initial-scale=1.0\"><title>"));
   stream->print(title.c_str());
   stream->print(F("</title>"));
 #ifdef WEBSERVER_CSS_INCLUDE
@@ -205,6 +229,21 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifdef USE_NUMBER
   for (auto *obj : App.get_numbers())
     write_row(stream, obj, "number", "");
+#endif
+
+#ifdef USE_SELECT
+  for (auto *obj : App.get_selects())
+    write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, EntityBase *obj) {
+      select::Select *select = (select::Select *) obj;
+      stream.print("<select>");
+      stream.print("<option></option>");
+      for (auto const &option : select->traits.get_options()) {
+        stream.print("<option>");
+        stream.print(option.c_str());
+        stream.print("</option>");
+      }
+      stream.print("</select>");
+    });
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
@@ -382,14 +421,15 @@ std::string WebServer::fan_json(fan::FanState *obj) {
     const auto traits = obj->get_traits();
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
+      // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
       switch (fan::speed_level_to_enum(obj->speed, traits.supported_speed_count())) {
-        case fan::FAN_SPEED_LOW:
+        case fan::FAN_SPEED_LOW:  // NOLINT(clang-diagnostic-deprecated-declarations)
           root["speed"] = "low";
           break;
-        case fan::FAN_SPEED_MEDIUM:
+        case fan::FAN_SPEED_MEDIUM:  // NOLINT(clang-diagnostic-deprecated-declarations)
           root["speed"] = "medium";
           break;
-        case fan::FAN_SPEED_HIGH:
+        case fan::FAN_SPEED_HIGH:  // NOLINT(clang-diagnostic-deprecated-declarations)
           root["speed"] = "high";
           break;
       }
@@ -415,7 +455,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       auto call = obj->turn_on();
       if (request->hasParam("speed")) {
         String speed = request->getParam("speed")->value();
-        call.set_speed(speed.c_str());
+        call.set_speed(speed.c_str());  // NOLINT(clang-diagnostic-deprecated-declarations)
       }
       if (request->hasParam("speed_level")) {
         String speed_level = request->getParam("speed_level")->value();
@@ -528,7 +568,7 @@ std::string WebServer::light_json(light::LightState *obj) {
   return json::build_json([obj](JsonObject &root) {
     root["id"] = "light-" + obj->get_object_id();
     root["state"] = obj->remote_values.is_on() ? "ON" : "OFF";
-    obj->dump_json(root);
+    light::LightJSONSchema::dump_json(*obj, root);
   });
 }
 #endif
@@ -605,8 +645,22 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
       continue;
     if (obj->get_object_id() != match.id)
       continue;
-    std::string data = this->number_json(obj, obj->state);
-    request->send(200, "text/json", data.c_str());
+    if (request->method() == HTTP_GET) {
+      std::string data = this->number_json(obj, obj->state);
+      request->send(200, "text/json", data.c_str());
+      return;
+    }
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+    auto call = obj->make_call();
+
+    if (request->hasParam("value")) 
+      call.set_value(request->getParam("value")->value().toFloat());
+
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
     return;
   }
   request->send(404);
@@ -621,6 +675,114 @@ std::string WebServer::number_json(number::Number *obj, float value) {
   });
 }
 #endif
+
+#ifdef USE_SELECT
+void WebServer::on_select_update(select::Select *obj, const std::string &state) {
+  this->events_.send(this->select_json(obj, state).c_str(), "state");
+}
+void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_selects()) {
+    if (obj->is_internal())
+      continue;
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->select_json(obj, obj->state);
+      request->send(200, "text/json", data.c_str());
+      return;
+    }
+
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    if (request->hasParam("option")) {
+      String option = request->getParam("option")->value();
+      call.set_option(option.c_str());  // NOLINT(clang-diagnostic-deprecated-declarations)
+    }
+
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+std::string WebServer::select_json(select::Select *obj, const std::string &value) {
+  return json::build_json([obj, value](JsonObject &root) {
+    root["id"] = "select-" + obj->get_object_id();
+    root["state"] = value;
+    root["value"] = value;
+  });
+}
+#endif
+
+
+#ifdef USE_CLIMATE
+void WebServer::on_climate_update(climate::Climate *obj) {
+  this->events_.send(this->climate_json(obj).c_str(), "state");
+}
+void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_climates()) {
+    if (obj->is_internal())
+      continue;
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->climate_json(obj);
+      request->send(200, "text/json", data.c_str());
+      return;
+    }
+
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+    if (request->hasParam("targettemperature")) {
+      String target_temp = request->getParam("targettemperature")->value();
+      call.set_target_temperature(target_temp.toInt());
+    }
+    if (request->hasParam("fanmode")) {
+      String fan_mode = request->getParam("fanmode")->value();
+      call.set_fan_mode(fan_mode.c_str());
+    }
+    if (request->hasParam("mode")) {
+      String option = request->getParam("mode")->value();
+      call.set_mode(option.c_str());
+    }
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+std::string WebServer::climate_json(climate::Climate *obj) {
+  return json::build_json([obj](JsonObject &root) {
+    root["id"] = "climate-" + obj->get_object_id();
+    root["mode"] = climate_mode_to_string_other(obj->mode);
+    if(obj->mode != climate::CLIMATE_MODE_OFF){
+      root["target_temperature"] = obj->target_temperature;
+      if(!isnan(obj->current_temperature)) 
+        root ["current_temperature"] = obj->current_temperature;
+      else
+        root ["current_temperature"] = obj->target_temperature;
+      root["fanmode"] = climate_fan_mode_to_string_other(*obj->fan_mode);
+    }else{
+      root["target_temperature"] = obj->target_temperature;
+      root ["current_temperature"] = "--";
+      root["fanmode"] = climate_fan_mode_to_string_other(*obj->fan_mode);
+    }
+  });
+}
+#endif
+
+
 
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
@@ -675,17 +837,23 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_NUMBER
-  if (request->method() == HTTP_GET && match.domain == "number")
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "number")
+    return true;
+#endif
+
+#ifdef USE_SELECT
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "select")
+    return true;
+#endif
+
+#ifdef USE_CLIMATE
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "climate")
     return true;
 #endif
 
   return false;
 }
 void WebServer::handleRequest(AsyncWebServerRequest *request) {
-  if (this->using_auth() && !request->authenticate(this->username_, this->password_)) {
-    return request->requestAuthentication();
-  }
-
   if (request->url() == "/") {
     this->handle_index_request(request);
     return;
@@ -761,9 +929,24 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     return;
   }
 #endif
+
+#ifdef USE_SELECT
+  if (match.domain == "select") {
+    this->handle_select_request(request, match);
+    return;
+  }
+#endif
+#ifdef USE_CLIMATE
+  if (match.domain == "climate") {
+    this->handle_climate_request(request, match);
+    return;
+  }
+#endif
 }
 
 bool WebServer::isRequestHandlerTrivial() { return false; }
 
 }  // namespace web_server
 }  // namespace esphome
+
+#endif  // USE_ARDUINO
