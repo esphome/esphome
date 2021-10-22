@@ -70,7 +70,7 @@ void PCA9685Output::setup() {
     this->mark_failed();
     return;
   }
-  esphome::delayMicroseconds(500);
+  delayMicroseconds(500);
 
   this->loop();
 }
