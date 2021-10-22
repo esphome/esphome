@@ -275,6 +275,12 @@ void OTAComponent::handle_() {
       }
       ESP_LOGW(TAG, "Error receiving data for update, errno: %d", errno);
       goto error;
+    } else if (read == 0) {
+      // $ man recv
+      // "When  a  stream socket peer has performed an orderly shutdown, the return value will
+      // be 0 (the traditional "end-of-file" return)."
+      ESP_LOGW(TAG, "Remote end closed connection");
+      goto error;
     }
 
     error_code = backend->write(buf, read);
@@ -361,6 +367,9 @@ bool OTAComponent::readall_(uint8_t *buf, size_t len) {
         continue;
       }
       ESP_LOGW(TAG, "Failed to read %d bytes of data, errno: %d", len, errno);
+      return false;
+    } else if (read == 0) {
+      ESP_LOGW(TAG, "Remote closed connection");
       return false;
     } else {
       at += read;
