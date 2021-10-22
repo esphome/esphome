@@ -1,6 +1,7 @@
 #include "pca9685_output.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace pca9685 {
@@ -69,7 +70,7 @@ void PCA9685Output::setup() {
     this->mark_failed();
     return;
   }
-  delayMicroseconds(500);
+  esphome::delayMicroseconds(500);
 
   this->loop();
 }
