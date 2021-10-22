@@ -17,6 +17,7 @@ class IDFOTABackend : public OTABackend {
   OTAResponseTypes write(uint8_t *data, size_t len) override;
   OTAResponseTypes end() override;
   void abort() override;
+  bool supports_compression() override { return false; }
 
  private:
   esp_ota_handle_t update_handle_{0};
