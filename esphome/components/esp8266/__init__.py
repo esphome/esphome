@@ -59,7 +59,7 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/esp8266/Arduino/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-arduinoespressif8266
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 7, 4)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 0, 2)
 # The platformio/espressif8266 version to use for arduino 2 framework versions
 #  - https://github.com/platformio/platform-espressif8266/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif8266
