@@ -678,6 +678,7 @@ bool APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
   msg.name = camera->get_name();
   msg.unique_id = get_default_unique_id("camera", camera);
   msg.disabled_by_default = camera->is_disabled_by_default();
+  msg.icon = camera->get_icon();
   return this->send_list_entities_camera_response(msg);
 }
 void APIConnection::camera_image(const CameraImageRequest &msg) {

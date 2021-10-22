@@ -2910,6 +2910,10 @@ bool ListEntitiesCameraResponse::decode_length(uint32_t field_id, ProtoLengthDel
       this->unique_id = value.as_string();
       return true;
     }
+    case 6: {
+      this->icon = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -2930,6 +2934,7 @@ void ListEntitiesCameraResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(3, this->name);
   buffer.encode_string(4, this->unique_id);
   buffer.encode_bool(5, this->disabled_by_default);
+  buffer.encode_string(6, this->icon);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesCameraResponse::dump_to(std::string &out) const {
@@ -2954,6 +2959,10 @@ void ListEntitiesCameraResponse::dump_to(std::string &out) const {
 
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
   out.append("\n");
   out.append("}");
 }
