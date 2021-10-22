@@ -192,8 +192,8 @@ def run_external_command(
         sys.argv = list(cmd)
         sys.exit = mock_exit
         return func() or 0
-    except KeyboardInterrupt:
-        return 1
+    except KeyboardInterrupt:  # pylint: disable=try-except-raise
+        raise
     except SystemExit as err:
         return err.args[0]
     except Exception as err:  # pylint: disable=broad-except
@@ -227,6 +227,8 @@ def run_external_process(*cmd, **kwargs):
 
     try:
         return subprocess.call(cmd, stdout=sub_stdout, stderr=sub_stderr)
+    except KeyboardInterrupt:  # pylint: disable=try-except-raise
+        raise
     except Exception as err:  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
         _LOGGER.error("Please try running %s locally.", full_cmd)
