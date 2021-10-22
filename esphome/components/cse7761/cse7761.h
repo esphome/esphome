@@ -15,8 +15,7 @@ struct CSE7761DataStruct {
   uint32_t active_power[2] = {0};
   uint16_t coefficient[8] = {0};
   uint8_t energy_update = 0;
-  uint8_t init = 4;
-  uint8_t ready = 0;
+  bool ready = false;
 };
 
 /// This class implements support for the CSE7761 UART power sensor.
@@ -28,7 +27,6 @@ class CSE7761Component : public PollingComponent, public uart::UARTDevice {
   void set_active_power_2_sensor(sensor::Sensor *power_sensor_2) { power_sensor_2_ = power_sensor_2; }
   void set_current_2_sensor(sensor::Sensor *current_sensor_2) { current_sensor_2_ = current_sensor_2; }
   void setup() override;
-  void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
@@ -40,13 +38,12 @@ class CSE7761Component : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *current_sensor_1_{nullptr};
   sensor::Sensor *power_sensor_2_{nullptr};
   sensor::Sensor *current_sensor_2_{nullptr};
-  int32_t last_init_ = 0;
   CSE7761DataStruct data_;
 
-  void write_(uint32_t reg, uint32_t data);
-  bool read_once_(uint32_t reg, uint32_t size, uint32_t *value);
-  uint32_t read_(uint32_t reg, uint32_t size);
-  uint32_t read_fallback_(uint32_t reg, uint32_t prev, uint32_t size);
+  void write_(uint8_t reg, uint16_t data);
+  bool read_once_(uint8_t reg, uint8_t size, uint32_t *value);
+  uint32_t read_(uint8_t reg, uint8_t size);
+  uint32_t coefficient_by_unit_(uint32_t unit);
   bool chip_init_();
   void get_data_();
 };
