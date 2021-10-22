@@ -88,9 +88,12 @@ void MQTTFanComponent::setup() {
 
   if (this->state_->get_traits().supports_speed()) {
     this->subscribe(this->get_speed_command_topic(), [this](const std::string &topic, const std::string &payload) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
       this->state_->make_call()
           .set_speed(payload.c_str())  // NOLINT(clang-diagnostic-deprecated-declarations)
           .perform();
+#pragma GCC diagnostic pop
     });
   }
 
@@ -145,6 +148,8 @@ bool MQTTFanComponent::publish_state() {
   }
   if (traits.supports_speed()) {
     const char *payload;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
     switch (fan::speed_level_to_enum(this->state_->speed, traits.supported_speed_count())) {
       case FAN_SPEED_LOW: {  // NOLINT(clang-diagnostic-deprecated-declarations)
@@ -161,6 +166,7 @@ bool MQTTFanComponent::publish_state() {
         break;
       }
     }
+#pragma GCC diagnostic pop
     bool success = this->publish(this->get_speed_state_topic(), payload);
     failed = failed || !success;
   }

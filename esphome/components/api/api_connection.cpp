@@ -78,6 +78,8 @@ void APIConnection::loop() {
     on_fatal_error();
     if (err == APIError::SOCKET_READ_FAILED && errno == ECONNRESET) {
       ESP_LOGW(TAG, "%s: Connection reset", client_info_.c_str());
+    } else if (err == APIError::CONNECTION_CLOSED) {
+      ESP_LOGW(TAG, "%s: Connection closed", client_info_.c_str());
     } else {
       ESP_LOGW(TAG, "%s: Reading failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
     }
