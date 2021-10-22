@@ -15,6 +15,7 @@ CONF_DSMR_ID = "dsmr_id"
 CONF_DECRYPTION_KEY = "decryption_key"
 CONF_CRC_CHECK = "crc_check"
 CONF_GAS_MBUS_ID = "gas_mbus_id"
+CONF_MAX_TELEGRAM_LENGTH = "max_telegram_length"
 
 # Hack to prevent compile error due to ambiguity with lib namespace
 dsmr_ns = cg.esphome_ns.namespace("esphome::dsmr")
@@ -46,6 +47,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DECRYPTION_KEY): _validate_key,
             cv.Optional(CONF_CRC_CHECK, default=True): cv.boolean,
             cv.Optional(CONF_GAS_MBUS_ID, default=1): cv.int_,
+            cv.Optional(CONF_MAX_TELEGRAM_LENGTH, default=1500): cv.int_,
         }
     ).extend(uart.UART_DEVICE_SCHEMA),
     cv.only_with_arduino,
@@ -55,6 +57,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     uart_component = await cg.get_variable(config[CONF_UART_ID])
     var = cg.new_Pvariable(config[CONF_ID], uart_component, config[CONF_CRC_CHECK])
+    cg.add(var.set_max_telegram_length(config[CONF_MAX_TELEGRAM_LENGTH]))
     if CONF_DECRYPTION_KEY in config:
         cg.add(var.set_decryption_key(config[CONF_DECRYPTION_KEY]))
     await cg.register_component(var, config)
