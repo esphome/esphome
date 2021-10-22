@@ -104,6 +104,8 @@ void OTAComponent::loop() {
   }
 }
 
+static const uint8_t FEATURE_SUPPORTS_COMPRESSION = 0x01;
+
 void OTAComponent::handle_() {
   OTAResponseTypes error_code = OTA_RESPONSE_ERROR_UNKNOWN;
   bool update_started = false;
@@ -154,6 +156,8 @@ void OTAComponent::handle_() {
   buf[1] = OTA_VERSION_1_0;
   this->writeall_(buf, 2);
 
+  backend = make_ota_backend();
+
   // Read features - 1 byte
   if (!this->readall_(buf, 1)) {
     ESP_LOGW(TAG, "Reading features failed!");
@@ -164,6 +168,10 @@ void OTAComponent::handle_() {
 
   // Acknowledge header - 1 byte
   buf[0] = OTA_RESPONSE_HEADER_OK;
+  if ((ota_features & FEATURE_SUPPORTS_COMPRESSION) != 0 && backend->supports_compression()) {
+    buf[0] = OTA_RESPONSE_SUPPORTS_COMPRESSION;
+  }
+
   this->writeall_(buf, 1);
 
 #ifdef USE_OTA_PASSWORD
@@ -241,7 +249,6 @@ void OTAComponent::handle_() {
   }
   ESP_LOGV(TAG, "OTA size is %u bytes", ota_size);
 
-  backend = make_ota_backend();
   error_code = backend->begin(ota_size);
   if (error_code != OTA_RESPONSE_OK)
     goto error;
