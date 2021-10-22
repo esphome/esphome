@@ -58,7 +58,7 @@ FILTER_PLATFORMIO_LINES = [
     r"Found: https://platformio.org/lib/show/.*",
     r"Using cache: .*",
     r"Installing dependencies",
-    r".* @ .* is already installed",
+    r"Library Manager: Already installed, built-in library",
     r"Building in .* mode",
     r"Advanced Memory Usage is available via .*",
     r"Merged .* ELF section",
