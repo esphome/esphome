@@ -4,7 +4,6 @@ from esphome.const import (
     CONF_INPUT,
     CONF_MODE,
     CONF_NUMBER,
-    CONF_OPEN_DRAIN,
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
@@ -47,7 +46,6 @@ def esp32_validate_supports(value):
     mode = value[CONF_MODE]
     is_input = mode[CONF_INPUT]
     is_output = mode[CONF_OUTPUT]
-    is_open_drain = mode[CONF_OPEN_DRAIN]
     is_pullup = mode[CONF_PULLUP]
     is_pulldown = mode[CONF_PULLDOWN]
 
@@ -58,10 +56,6 @@ def esp32_validate_supports(value):
         raise cv.Invalid(
             f"GPIO{num} (34-39) does not support output pin mode.",
             [CONF_MODE, CONF_OUTPUT],
-        )
-    if is_open_drain and not is_output:
-        raise cv.Invalid(
-            "Open-drain only works with output mode", [CONF_MODE, CONF_OPEN_DRAIN]
         )
     if is_pullup and 34 <= num <= 39:
         raise cv.Invalid(

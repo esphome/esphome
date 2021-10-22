@@ -22,6 +22,9 @@ from .const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
     VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32H2,
+    VARIANTS,
     esp32_ns,
 )
 
@@ -29,6 +32,9 @@ from .const import (
 from .gpio_esp32 import esp32_validate_gpio_pin, esp32_validate_supports
 from .gpio_esp32_s2 import esp32_s2_validate_gpio_pin, esp32_s2_validate_supports
 from .gpio_esp32_c3 import esp32_c3_validate_gpio_pin, esp32_c3_validate_supports
+from .gpio_esp32_s3 import esp32_s3_validate_gpio_pin, esp32_s3_validate_supports
+from .gpio_esp32_h2 import esp32_h2_validate_gpio_pin, esp32_h2_validate_supports
+
 
 IDFInternalGPIOPin = esp32_ns.class_("IDFInternalGPIOPin", cg.InternalGPIOPin)
 ArduinoInternalGPIOPin = esp32_ns.class_("ArduinoInternalGPIOPin", cg.InternalGPIOPin)
@@ -84,13 +90,21 @@ _esp32_validations = {
         pin_validation=esp32_c3_validate_gpio_pin,
         usage_validation=esp32_c3_validate_supports,
     ),
+    VARIANT_ESP32S3: VALIDATION_FUNCTIONS(
+        pin_validation=esp32_s3_validate_gpio_pin,
+        usage_validation=esp32_s3_validate_supports,
+    ),
+    VARIANT_ESP32H2: VALIDATION_FUNCTIONS(
+        pin_validation=esp32_h2_validate_gpio_pin,
+        usage_validation=esp32_h2_validate_supports,
+    ),
 }
 
 
 def validate_gpio_pin(value):
     value = _translate_pin(value)
     variant = CORE.data[KEY_ESP32][KEY_VARIANT]
-    if variant not in (VARIANT_ESP32, VARIANT_ESP32S2, VARIANT_ESP32C3):
+    if variant not in VARIANTS:
         raise cv.Invalid("Unsupported ESP32 variant {variant}")
 
     return _esp32_validations[variant].pin_validation(value)
@@ -104,8 +118,13 @@ def validate_supports(value):
     is_pullup = mode[CONF_PULLUP]
     is_pulldown = mode[CONF_PULLDOWN]
     variant = CORE.data[KEY_ESP32][KEY_VARIANT]
-    if variant not in (VARIANT_ESP32, VARIANT_ESP32S2, VARIANT_ESP32C3):
+    if variant not in VARIANTS:
         raise cv.Invalid("Unsupported ESP32 variant {variant}")
+
+    if is_open_drain and not is_output:
+        raise cv.Invalid(
+            "Open-drain only works with output mode", [CONF_MODE, CONF_OPEN_DRAIN]
+        )
 
     value = _esp32_validations[variant].usage_validation(value)
     if CORE.using_arduino:
