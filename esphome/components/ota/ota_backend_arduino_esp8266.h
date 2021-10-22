@@ -5,6 +5,7 @@
 
 #include "ota_component.h"
 #include "ota_backend.h"
+#include "esphome/core/macros.h"
 
 namespace esphome {
 namespace ota {
