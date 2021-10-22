@@ -279,6 +279,8 @@ async def to_code(config):
 
     cg.add_platformio_option("lib_ldf_mode", "off")
 
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+
     conf = config[CONF_FRAMEWORK]
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_platformio_option(
@@ -313,6 +315,11 @@ async def to_code(config):
                 "CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", False
             )
 
+        cg.add_build_flag(
+            "-DUSE_ESP_IDF_VERSION_CODE=VERSION_CODE"
+            f"({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
+        )
+
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         cg.add_platformio_option(
             "platform", f"espressif32 @ {conf[CONF_PLATFORM_VERSION]}"
@@ -326,6 +333,11 @@ async def to_code(config):
         )
 
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
+
+        cg.add_build_flag(
+            "-DUSE_ARDUINO_VERSION_CODE=VERSION_CODE"
+            f"({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
+        )
 
 
 ARDUINO_PARTITIONS_CSV = """\

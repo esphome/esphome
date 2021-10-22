@@ -9,4 +9,4 @@
 #include "esphome/core/macros.h"
 
 #define ESPHOME_VERSION "dev"
-#define ESPHOME_VERSION_CODE VERSION_CODE(2099, 12, 0)
+#define ESPHOME_VERSION_CODE ESPHOME_VERSION_CODE(2099, 12, 0)

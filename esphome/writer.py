@@ -270,7 +270,7 @@ VERSION_H_FORMAT = """\
 #pragma once
 #include "esphome/core/macros.h"
 #define ESPHOME_VERSION "{}"
-#define ESPHOME_VERSION_CODE VERSION_CODE({}, {}, {})
+#define ESPHOME_VERSION_CODE ESPHOME_VERSION_CODE({}, {}, {})
 """
 DEFINES_H_TARGET = "esphome/core/defines.h"
 VERSION_H_TARGET = "esphome/core/version.h"

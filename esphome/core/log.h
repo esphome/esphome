@@ -176,7 +176,7 @@ struct LogString;
 
 #include <pgmspace.h>
 
-#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 0)
+#if USE_ARDUINO_VERSION_CODE >= ESPHOME_VERSION_CODE(2, 5, 0)
 #define LOG_STR_ARG(s) ((PGM_P)(s))
 #else
 // Pre-Arduino 2.5, we can't pass a PSTR() to printf(). Emulate support by copying the message to a
