@@ -143,6 +143,7 @@ void Dsmr::receive_encrypted_() {
 }
 
 bool Dsmr::parse_telegram() {
+  auto start = millis();
   MyData data;
   ESP_LOGV(TAG, "Trying to parse");
   ::dsmr::ParseResult<void> res =
@@ -152,10 +153,14 @@ bool Dsmr::parse_telegram() {
     // Parsing error, show it
     auto err_str = res.fullError(telegram_, telegram_ + telegram_len_);
     ESP_LOGE(TAG, "%s", err_str.c_str());
+    auto end = millis();
+    ESP_LOGV(TAG, "Processing time: %d ms", (end-start));
     return false;
   } else {
     this->status_clear_warning();
     publish_sensors(data);
+    auto end = millis();
+    ESP_LOGV(TAG, "Processing time: %d ms", (end-start));
     return true;
   }
 }
