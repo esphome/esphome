@@ -58,7 +58,7 @@ static unsigned int toFrequencyKHz(uint16_t code) { return ((referenceFrequency 
 /*
  * Parse the string given as Pronto Hex, and send it a number of times given as argument.
  */
-void ProntoProtocol::sendPronto(RemoteTransmitData *dst, const uint16_t *data, unsigned int length) {
+void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const uint16_t *data, unsigned int length) {
   unsigned int timebase = (microsecondsInSeconds * data[1] + referenceFrequency / 2) / referenceFrequency;
   unsigned int khz;
   switch (data[0]) {
@@ -99,7 +99,7 @@ void ProntoProtocol::sendPronto(RemoteTransmitData *dst, const uint16_t *data, u
   }
 }
 
-void ProntoProtocol::sendPronto(RemoteTransmitData *dst, const std::string str) {
+void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string str) {
   size_t len = str.length() / (digitsInProntoNumber + 1) + 1;
   uint16_t data[len];
   const char *p = str.c_str();
@@ -114,10 +114,10 @@ void ProntoProtocol::sendPronto(RemoteTransmitData *dst, const std::string str) 
     data[i] = static_cast<uint16_t>(x); // If input is conforming, there can be no overflow!
     p = *endptr;
   }
-  sendPronto(dst, data, len);
+  send_pronto_(dst, data, len);
 }
 
-void ProntoProtocol::encode(RemoteTransmitData *dst, const ProntoData &data) { sendPronto(dst, data.data); }
+void ProntoProtocol::encode(RemoteTransmitData *dst, const ProntoData &data) { send_pronto_(dst, data.data); }
 
 optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) { return {}; }
 
