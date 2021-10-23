@@ -173,9 +173,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(NeoPixelBusLightOutputBase),
             cv.Optional(CONF_TYPE, default="GRB"): validate_type,
-            cv.Optional(CONF_VARIANT, default="800KBPS"): cv.one_of(
-                *CHIP_TYPES, lower=True
-            ),
+            cv.Required(CONF_VARIANT): cv.one_of(*CHIP_TYPES, lower=True),
             cv.Optional(CONF_METHOD): _validate_method,
             cv.Optional(CONF_INVERT, default="no"): cv.boolean,
             cv.Optional(CONF_PIN): pins.internal_gpio_output_pin_number,
