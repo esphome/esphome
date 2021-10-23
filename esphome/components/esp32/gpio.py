@@ -72,29 +72,29 @@ def _translate_pin(value):
     return _lookup_pin(value)
 
 
-class VALIDATION_FUNCTIONS:
+class Esp32ValidationFunctions:
     def __init__(self, pin_validation, usage_validation):
         self.pin_validation = pin_validation
         self.usage_validation = usage_validation
 
 
 _esp32_validations = {
-    VARIANT_ESP32: VALIDATION_FUNCTIONS(
+    VARIANT_ESP32: Esp32ValidationFunctions(
         pin_validation=esp32_validate_gpio_pin, usage_validation=esp32_validate_supports
     ),
-    VARIANT_ESP32S2: VALIDATION_FUNCTIONS(
+    VARIANT_ESP32S2: Esp32ValidationFunctions(
         pin_validation=esp32_s2_validate_gpio_pin,
         usage_validation=esp32_s2_validate_supports,
     ),
-    VARIANT_ESP32C3: VALIDATION_FUNCTIONS(
+    VARIANT_ESP32C3: Esp32ValidationFunctions(
         pin_validation=esp32_c3_validate_gpio_pin,
         usage_validation=esp32_c3_validate_supports,
     ),
-    VARIANT_ESP32S3: VALIDATION_FUNCTIONS(
+    VARIANT_ESP32S3: Esp32ValidationFunctions(
         pin_validation=esp32_s3_validate_gpio_pin,
         usage_validation=esp32_s3_validate_supports,
     ),
-    VARIANT_ESP32H2: VALIDATION_FUNCTIONS(
+    VARIANT_ESP32H2: Esp32ValidationFunctions(
         pin_validation=esp32_h2_validate_gpio_pin,
         usage_validation=esp32_h2_validate_supports,
     ),
