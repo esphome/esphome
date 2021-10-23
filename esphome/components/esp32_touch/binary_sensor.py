@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import (
-    CONF_NAME,
     CONF_PIN,
     CONF_THRESHOLD,
     CONF_ID,
@@ -55,7 +54,6 @@ async def to_code(config):
     hub = await cg.get_variable(config[CONF_ESP32_TOUCH_ID])
     var = cg.new_Pvariable(
         config[CONF_ID],
-        config[CONF_NAME],
         TOUCH_PADS[config[CONF_PIN]],
         config[CONF_THRESHOLD],
         config[CONF_WAKEUP_THRESHOLD],

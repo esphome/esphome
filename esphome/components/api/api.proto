@@ -215,6 +215,7 @@ message ListEntitiesBinarySensorResponse {
   string device_class = 5;
   bool is_status_binary_sensor = 6;
   bool disabled_by_default = 7;
+  string icon = 8;
 }
 message BinarySensorStateResponse {
   option (id) = 21;
@@ -245,6 +246,7 @@ message ListEntitiesCoverResponse {
   bool supports_tilt = 7;
   string device_class = 8;
   bool disabled_by_default = 9;
+  string icon = 10;
 }
 
 enum LegacyCoverState {
@@ -313,6 +315,7 @@ message ListEntitiesFanResponse {
   bool supports_direction = 7;
   int32 supported_speed_count = 8;
   bool disabled_by_default = 9;
+  string icon = 10;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
@@ -388,6 +391,7 @@ message ListEntitiesLightResponse {
   float max_mireds = 10;
   repeated string effects = 11;
   bool disabled_by_default = 13;
+  string icon = 14;
 }
 message LightStateResponse {
   option (id) = 24;
@@ -697,6 +701,7 @@ message ListEntitiesCameraResponse {
   string name = 3;
   string unique_id = 4;
   bool disabled_by_default = 5;
+  string icon = 6;
 }
 
 message CameraImageResponse {
@@ -790,6 +795,7 @@ message ListEntitiesClimateResponse {
   repeated ClimatePreset supported_presets = 16;
   repeated string supported_custom_presets = 17;
   bool disabled_by_default = 18;
+  string icon = 19;
 }
 message ClimateStateResponse {
   option (id) = 47;

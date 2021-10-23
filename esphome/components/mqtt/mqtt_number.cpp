@@ -33,13 +33,11 @@ void MQTTNumberComponent::dump_config() {
 }
 
 std::string MQTTNumberComponent::component_type() const { return "number"; }
+const EntityBase *MQTTNumberComponent::get_entity() const { return this->number_; }
 
-std::string MQTTNumberComponent::friendly_name() const { return this->number_->get_name(); }
 void MQTTNumberComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   const auto &traits = number_->traits;
   // https://www.home-assistant.io/integrations/number.mqtt/
-  if (!traits.get_icon().empty())
-    root["icon"] = traits.get_icon();
   root["min"] = traits.get_min_value();
   root["max"] = traits.get_max_value();
   root["step"] = traits.get_step();
@@ -53,7 +51,6 @@ bool MQTTNumberComponent::send_initial_state() {
     return true;
   }
 }
-bool MQTTNumberComponent::is_internal() { return this->number_->is_internal(); }
 bool MQTTNumberComponent::publish_state(float value) {
   char buffer[64];
   snprintf(buffer, sizeof(buffer), "%f", value);

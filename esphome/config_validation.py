@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_COMMAND_TOPIC,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
+    CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
     CONF_NAME,
@@ -902,21 +903,9 @@ def validate_bytes(value):
 
 def hostname(value):
     value = string(value)
-    warned_underscore = False
-    if len(value) > 63:
-        raise Invalid("Hostnames can only be 63 characters long")
-    for c in value:
-        if not (c.isalnum() or c in "-_"):
-            raise Invalid("Hostname can only have alphanumeric characters and -")
-        if c in "_" and not warned_underscore:
-            _LOGGER.warning(
-                "'%s': Using the '_' (underscore) character in the hostname is discouraged "
-                "as it can cause problems with some DHCP and local name services. "
-                "For more information, see https://esphome.io/guides/faq.html#why-shouldn-t-i-use-underscores-in-my-device-name",
-                value,
-            )
-            warned_underscore = True
-    return value
+    if re.match(r"^[a-z0-9-]{1,63}$", value, re.IGNORECASE) is not None:
+        return value
+    raise Invalid(f"Invalid hostname: {value}")
 
 
 def domain(value):
@@ -1476,7 +1465,7 @@ class OnlyWith(Optional):
         pass
 
 
-def _nameable_validator(config):
+def _entity_base_validator(config):
     if CONF_NAME not in config and CONF_ID not in config:
         raise Invalid("At least one of 'id:' or 'name:' is required!")
     if CONF_NAME not in config:
@@ -1587,15 +1576,16 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     }
 )
 
-NAMEABLE_SCHEMA = Schema(
+ENTITY_BASE_SCHEMA = Schema(
     {
         Optional(CONF_NAME): string,
         Optional(CONF_INTERNAL): boolean,
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
+        Optional(CONF_ICON): icon,
     }
 )
 
-NAMEABLE_SCHEMA.add_extra(_nameable_validator)
+ENTITY_BASE_SCHEMA.add_extra(_entity_base_validator)
 
 COMPONENT_SCHEMA = Schema({Optional(CONF_SETUP_PRIORITY): float_})
 

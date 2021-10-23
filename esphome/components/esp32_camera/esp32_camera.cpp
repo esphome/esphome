@@ -172,7 +172,7 @@ void ESP32Camera::framebuffer_task(void *pv) {
     esp_camera_fb_return(framebuffer);
   }
 }
-ESP32Camera::ESP32Camera(const std::string &name) : Nameable(name) {
+ESP32Camera::ESP32Camera(const std::string &name) : EntityBase(name) {
   this->config_.pin_pwdn = -1;
   this->config_.pin_reset = -1;
   this->config_.pin_xclk = -1;
@@ -185,6 +185,7 @@ ESP32Camera::ESP32Camera(const std::string &name) : Nameable(name) {
 
   global_esp32_camera = this;
 }
+ESP32Camera::ESP32Camera() : ESP32Camera("") {}
 void ESP32Camera::set_data_pins(std::array<uint8_t, 8> pins) {
   this->config_.pin_d0 = pins[0];
   this->config_.pin_d1 = pins[1];

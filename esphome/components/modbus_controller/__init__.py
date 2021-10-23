@@ -38,7 +38,7 @@ ModbusRegisterType_ns = modbus_controller_ns.namespace("ModbusRegisterType")
 ModbusRegisterType = ModbusRegisterType_ns.enum("ModbusRegisterType")
 MODBUS_REGISTER_TYPE = {
     "coil": ModbusRegisterType.COIL,
-    "discrete_input": ModbusRegisterType.DISCRETE,
+    "discrete_input": ModbusRegisterType.DISCRETE_INPUT,
     "holding": ModbusRegisterType.HOLDING,
     "read": ModbusRegisterType.READ,
 }

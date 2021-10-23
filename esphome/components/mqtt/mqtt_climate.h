@@ -16,7 +16,6 @@ class MQTTClimateComponent : public mqtt::MQTTComponent {
   MQTTClimateComponent(climate::Climate *device);
   void send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) override;
   bool send_initial_state() override;
-  bool is_internal() override;
   std::string component_type() const override;
   void setup() override;
 
@@ -38,7 +37,7 @@ class MQTTClimateComponent : public mqtt::MQTTComponent {
   MQTT_COMPONENT_CUSTOM_TOPIC(swing_mode, command)
 
  protected:
-  std::string friendly_name() const override;
+  const EntityBase *get_entity() const override;
 
   bool publish_state_();
 

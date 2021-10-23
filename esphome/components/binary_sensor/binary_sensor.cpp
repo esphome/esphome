@@ -42,7 +42,7 @@ void BinarySensor::send_state_internal(bool state, bool is_initial) {
   }
 }
 std::string BinarySensor::device_class() { return ""; }
-BinarySensor::BinarySensor(const std::string &name) : Nameable(name), state(false) {}
+BinarySensor::BinarySensor(const std::string &name) : EntityBase(name), state(false) {}
 BinarySensor::BinarySensor() : BinarySensor("") {}
 void BinarySensor::set_device_class(const std::string &device_class) { this->device_class_ = device_class; }
 std::string BinarySensor::get_device_class() {

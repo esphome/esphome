@@ -12,6 +12,7 @@ static const char *const TAG = "i2c.arduino";
 
 void ArduinoI2CBus::setup() {
   recover_();
+
 #ifdef USE_ESP32
   static uint8_t next_bus_num = 0;
   if (next_bus_num == 0)
@@ -61,33 +62,75 @@ void ArduinoI2CBus::dump_config() {
   }
 }
 ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
-  if (!initialized_)
+  // logging is only enabled with vv level, if warnings are shown the caller
+  // should log them
+  if (!initialized_) {
+    ESP_LOGVV(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
+  }
   size_t to_request = 0;
   for (size_t i = 0; i < cnt; i++)
     to_request += buffers[i].len;
   size_t ret = wire_->requestFrom((int) address, (int) to_request, 1);
   if (ret != to_request) {
+    ESP_LOGVV(TAG, "RX %u from %02X failed with error %u", to_request, address, ret);
     return ERROR_TIMEOUT;
   }
+
   for (size_t i = 0; i < cnt; i++) {
     const auto &buf = buffers[i];
     for (size_t j = 0; j < buf.len; j++)
       buf.data[j] = wire_->read();
   }
+
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+  char debug_buf[4];
+  std::string debug_hex;
+
+  for (size_t i = 0; i < cnt; i++) {
+    const auto &buf = buffers[i];
+    for (size_t j = 0; j < buf.len; j++) {
+      snprintf(debug_buf, sizeof(debug_buf), "%02X", buf.data[j]);
+      debug_hex += debug_buf;
+    }
+  }
+  ESP_LOGVV(TAG, "0x%02X RX %s", address, debug_hex.c_str());
+#endif
+
   return ERROR_OK;
 }
 ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
-  if (!initialized_)
+  // logging is only enabled with vv level, if warnings are shown the caller
+  // should log them
+  if (!initialized_) {
+    ESP_LOGVV(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
+  }
+
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+  char debug_buf[4];
+  std::string debug_hex;
+
+  for (size_t i = 0; i < cnt; i++) {
+    const auto &buf = buffers[i];
+    for (size_t j = 0; j < buf.len; j++) {
+      snprintf(debug_buf, sizeof(debug_buf), "%02X", buf.data[j]);
+      debug_hex += debug_buf;
+    }
+  }
+  ESP_LOGVV(TAG, "0x%02X TX %s", address, debug_hex.c_str());
+#endif
 
   wire_->beginTransmission(address);
+  size_t written = 0;
   for (size_t i = 0; i < cnt; i++) {
     const auto &buf = buffers[i];
     if (buf.len == 0)
       continue;
     size_t ret = wire_->write(buf.data, buf.len);
+    written += ret;
     if (ret != buf.len) {
+      ESP_LOGVV(TAG, "TX failed at %u", written);
       return ERROR_UNKNOWN;
     }
   }
@@ -96,10 +139,13 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
     return ERROR_OK;
   } else if (status == 1) {
     // transmit buffer not large enough
+    ESP_LOGVV(TAG, "TX failed: buffer not large enough");
     return ERROR_UNKNOWN;
   } else if (status == 2 || status == 3) {
+    ESP_LOGVV(TAG, "TX failed: not acknowledged");
     return ERROR_NOT_ACKNOWLEDGED;
   }
+  ESP_LOGVV(TAG, "TX failed: unknown error %u", status);
   return ERROR_UNKNOWN;
 }
 
@@ -109,11 +155,19 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
 void ArduinoI2CBus::recover_() {
   ESP_LOGI(TAG, "Performing I2C bus recovery");
 
-  // Activate the pull up resistor on the SCL pin. This should make the
-  // signal on the line HIGH. If SCL is pulled low on the I2C bus however,
-  // then some device is interfering with the SCL line. In that case,
-  // the I2C bus cannot be recovered.
-  pinMode(scl_pin_, INPUT_PULLUP);     // NOLINT
+  // For the upcoming operations, target for a 100kHz toggle frequency.
+  // This is the maximum frequency for I2C running in standard-mode.
+  // The actual frequency will be lower, because of the additional
+  // function calls that are done, but that is no problem.
+  const auto half_period_usec = 1000000 / 100000 / 2;
+
+  // Activate input and pull up resistor for the SCL pin.
+  pinMode(scl_pin_, INPUT_PULLUP);  // NOLINT
+
+  // This should make the signal on the line HIGH. If SCL is pulled low
+  // on the I2C bus however, then some device is interfering with the SCL
+  // line. In that case, the I2C bus cannot be recovered.
+  delayMicroseconds(half_period_usec);
   if (digitalRead(scl_pin_) == LOW) {  // NOLINT
     ESP_LOGE(TAG, "Recovery failed: SCL is held LOW on the I2C bus");
     recovery_result_ = RECOVERY_FAILED_SCL_LOW;
@@ -125,25 +179,13 @@ void ArduinoI2CBus::recover_() {
   //  device that held the bus LOW should release it sometime within
   //  those nine clocks."
   // We don't really have to detect if SDA is stuck low. We'll simply send
-  // nine clock pulses here, just in case SDA is stuck.
+  // nine clock pulses here, just in case SDA is stuck. Actual checks on
+  // the SDA line status will be done after the clock pulses.
 
-  // Use a 100kHz toggle frequency (i.e. the maximum frequency for I2C
-  // running in standard-mode). The resulting frequency will be lower,
-  // because of the additional function calls that are done, but that
-  // is no problem.
-  const auto half_period_usec = 1000000 / 100000 / 2;
-
-  // Make sure that switching to mode OUTPUT will make SCL low, just in
-  // case other code has setup the pin to output a HIGH signal.
+  // Make sure that switching to output mode will make SCL low, just in
+  // case other code has setup the pin for a HIGH signal.
   digitalWrite(scl_pin_, LOW);  // NOLINT
 
-  // Activate the pull up resistor for SDA, so after the clock pulse cycle
-  // we can verify if SDA is pulled high. Also make sure that switching to
-  // mode OUTPUT will make SDA low.
-  pinMode(sda_pin_, INPUT_PULLUP);  // NOLINT
-  digitalWrite(sda_pin_, LOW);      // NOLINT
-
-  ESP_LOGI(TAG, "Sending 9 clock pulses to drain any stuck device output");
   delayMicroseconds(half_period_usec);
   for (auto i = 0; i < 9; i++) {
     // Release pull up resistor and switch to output to make the signal LOW.
@@ -171,6 +213,11 @@ void ArduinoI2CBus::recover_() {
     }
   }
 
+  // Activate input and pull resistor for the SDA pin, so we can verify
+  // that SDA is pulled HIGH in the following step.
+  pinMode(sda_pin_, INPUT_PULLUP);  // NOLINT
+  digitalWrite(sda_pin_, LOW);      // NOLINT
+
   // By now, any stuck device ought to have sent all remaining bits of its
   // transation, meaning that it should have freed up the SDA line, resulting
   // in SDA being pulled up.
@@ -191,10 +238,9 @@ void ArduinoI2CBus::recover_() {
   // out of this state.
   // SCL and SDA are already high at this point, so we can generate a START
   // condition by making the SDA signal LOW.
-  ESP_LOGI(TAG, "Generate START condition to reset bus logic of I2C devices");
+  delayMicroseconds(half_period_usec);
   pinMode(sda_pin_, INPUT);   // NOLINT
   pinMode(sda_pin_, OUTPUT);  // NOLINT
-  delayMicroseconds(half_period_usec);
 
   // From the specification:
   // "A START condition immediately followed by a STOP condition (void
@@ -202,7 +248,7 @@ void ArduinoI2CBus::recover_() {
   //  operate properly under this condition."
   // Finally, we'll bring the I2C bus into a starting state by generating
   // a STOP condition.
-  ESP_LOGI(TAG, "Generate STOP condition to finalize recovery");
+  delayMicroseconds(half_period_usec);
   pinMode(sda_pin_, INPUT);         // NOLINT
   pinMode(sda_pin_, INPUT_PULLUP);  // NOLINT
 

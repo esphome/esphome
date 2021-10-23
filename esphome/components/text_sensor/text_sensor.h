@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/text_sensor/filter.h"
 
@@ -18,7 +19,7 @@ namespace text_sensor {
     } \
   }
 
-class TextSensor : public Nameable {
+class TextSensor : public EntityBase {
  public:
   explicit TextSensor();
   explicit TextSensor(const std::string &name);
@@ -29,8 +30,6 @@ class TextSensor : public Nameable {
   std::string get_raw_state() const;
 
   void publish_state(const std::string &state);
-
-  void set_icon(const std::string &icon);
 
   /// Add a filter to the filter chain. Will be appended to the back.
   void add_filter(Filter *filter);
@@ -53,10 +52,6 @@ class TextSensor : public Nameable {
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  std::string get_icon();
-
-  virtual std::string icon();
-
   virtual std::string unique_id();
 
   bool has_state();
@@ -71,7 +66,6 @@ class TextSensor : public Nameable {
 
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 
-  optional<std::string> icon_;
   bool has_state_{false};
 };
 

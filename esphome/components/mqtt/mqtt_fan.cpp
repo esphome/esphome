@@ -16,6 +16,7 @@ MQTTFanComponent::MQTTFanComponent(FanState *state) : MQTTComponent(), state_(st
 
 FanState *MQTTFanComponent::get_state() const { return this->state_; }
 std::string MQTTFanComponent::component_type() const { return "fan"; }
+const EntityBase *MQTTFanComponent::get_entity() const { return this->state_; }
 
 void MQTTFanComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
@@ -87,9 +88,12 @@ void MQTTFanComponent::setup() {
 
   if (this->state_->get_traits().supports_speed()) {
     this->subscribe(this->get_speed_command_topic(), [this](const std::string &topic, const std::string &payload) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
       this->state_->make_call()
           .set_speed(payload.c_str())  // NOLINT(clang-diagnostic-deprecated-declarations)
           .perform();
+#pragma GCC diagnostic pop
     });
   }
 
@@ -113,7 +117,7 @@ void MQTTFanComponent::dump_config() {
 }
 
 bool MQTTFanComponent::send_initial_state() { return this->publish_state(); }
-std::string MQTTFanComponent::friendly_name() const { return this->state_->get_name(); }
+
 void MQTTFanComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   if (this->state_->get_traits().supports_oscillation()) {
     root["oscillation_command_topic"] = this->get_oscillation_command_topic();
@@ -126,7 +130,6 @@ void MQTTFanComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfi
     root["speed_state_topic"] = this->get_speed_state_topic();
   }
 }
-bool MQTTFanComponent::is_internal() { return this->state_->is_internal(); }
 bool MQTTFanComponent::publish_state() {
   const char *state_s = this->state_->state ? "ON" : "OFF";
   ESP_LOGD(TAG, "'%s' Sending state %s.", this->state_->get_name().c_str(), state_s);
@@ -145,6 +148,8 @@ bool MQTTFanComponent::publish_state() {
   }
   if (traits.supports_speed()) {
     const char *payload;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
     switch (fan::speed_level_to_enum(this->state_->speed, traits.supported_speed_count())) {
       case FAN_SPEED_LOW: {  // NOLINT(clang-diagnostic-deprecated-declarations)
@@ -161,6 +166,7 @@ bool MQTTFanComponent::publish_state() {
         break;
       }
     }
+#pragma GCC diagnostic pop
     bool success = this->publish(this->get_speed_state_topic(), payload);
     failed = failed || !success;
   }
