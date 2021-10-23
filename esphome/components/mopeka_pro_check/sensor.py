@@ -14,12 +14,12 @@ from esphome.const import (
     UNIT_CELSIUS,
     STATE_CLASS_MEASUREMENT,
     CONF_BATTERY_LEVEL,
-    DEVICE_CLASS_BATTERY
+    DEVICE_CLASS_BATTERY,
 )
 
 CONF_TANK_TYPE = "tank_type"
-CONF_CUSTOM_DISTANCE_FULL = "full_distance"
-CONF_CUSTOM_DISTANCE_EMPTY = "empty_distance"
+CONF_CUSTOM_DISTANCE_FULL = "distance_full"
+CONF_CUSTOM_DISTANCE_EMPTY = "distance_empty"
 
 ICON_PROPANE_TANK = "mdi:propane-tank"
 
@@ -31,20 +31,22 @@ UNIT_MILLIMETER = "mm"
 _distance_mm = cv.float_with_unit("distance", "(mm|MM)")
 _distance_cm = cv.float_with_unit("distance", "(cm|CM)")
 
+
 def small_distance(value):
-    ''' small_distance is stored in mm'''
+    """small_distance is stored in mm"""
     try:
         return _distance_mm(value)
     except cv.Invalid:
         pass
     try:
         cm = _distance_cm(value)
-        return cm*10
+        return cm * 10
     except cv.Invalid:
         pass
 
-    meters = distance(value)
+    meters = cv.distance(value)
     return meters * 100
+
 
 #
 # Map of standard tank types to their
@@ -52,10 +54,10 @@ def small_distance(value):
 # Format is - tank name: (empty distance in mm, full distance in mm)
 #
 CONF_SUPPORTED_TANKS_MAP = {
-    TANK_TYPE_CUSTOM        : ( 0,   100),
-    "20LB_V"                : ( 20,  302),  # empty/full readings for 20lb tank
-    "30LB_V"                : ( 20,  410),
-    "40LB_V"                : ( 20,  450)
+    TANK_TYPE_CUSTOM: (0, 100),
+    "20LB_V": (20, 302),  # empty/full readings for 20lb tank
+    "30LB_V": (20, 410),
+    "40LB_V": (20, 450),
 }
 
 CODEOWNERS = ["@spbrogan"]
@@ -73,7 +75,9 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_CUSTOM_DISTANCE_FULL): small_distance,
             cv.Optional(CONF_CUSTOM_DISTANCE_EMPTY): small_distance,
-            cv.Optional(CONF_TANK_TYPE, default="20LB_V"): cv.enum(CONF_SUPPORTED_TANKS_MAP, upper=True),
+            cv.Optional(CONF_TANK_TYPE, default="20LB_V"): cv.enum(
+                CONF_SUPPORTED_TANKS_MAP, upper=True
+            ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 icon=ICON_THERMOMETER,
