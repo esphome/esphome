@@ -115,7 +115,7 @@ bool CSE7761Component::read_once_(uint8_t reg, uint8_t size, uint32_t *value) {
   }
 
   if (!rcvd) {
-    ESP_LOGD(TAG, "Rx none");
+    ESP_LOGD(TAG, "Received 0 bytes for register %hhu", reg);
     return false;
   }
 
@@ -185,7 +185,7 @@ bool CSE7761Component::chip_init_() {
     this->write_(CSE7761_REG_EMUCON2 | 0x80, 0x0FC1);
     this->write_(CSE7761_REG_PULSE1SEL | 0x80, 0x3290);
   } else {
-    ESP_LOGD(TAG, "Write failed");
+    ESP_LOGD(TAG, "Write failed at chip_init");
     return false;
   }
   return true;
