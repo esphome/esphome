@@ -1,10 +1,4 @@
 import esphome.codegen as cg
-from esphome.components.neopixelbus.const import (
-    CHIP_TYPES,
-    CONF_ASYNC,
-    CONF_BUS,
-    ONE_WIRE_CHIPS,
-)
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import light
@@ -33,6 +27,12 @@ from ._methods import (
     METHOD_ESP32_I2S,
     METHOD_ESP32_RMT,
     METHOD_ESP8266_DMA,
+)
+from .const import (
+    CHIP_TYPES,
+    CONF_ASYNC,
+    CONF_BUS,
+    ONE_WIRE_CHIPS,
 )
 
 neopixelbus_ns = cg.esphome_ns.namespace("neopixelbus")
