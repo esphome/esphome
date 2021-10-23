@@ -414,6 +414,7 @@ ruuvi_ble:
 
 xiaomi_ble:
 
+mopeka_ble:
 
 #esp32_ble_beacon:
 #  type: iBeacon
