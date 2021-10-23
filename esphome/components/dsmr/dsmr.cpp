@@ -156,12 +156,6 @@ void Dsmr::receive_encrypted_() {
       telegram_len_ = 0;
       return;
     }
-
-    if (!available()) {
-      // baud rate is 115200 for encrypted data, this means a few byte should arrive every time
-      // program runs faster than buffer loading then available() might return false in the middle
-      delay(4);  // Wait for data
-    }
   }
 }
 
