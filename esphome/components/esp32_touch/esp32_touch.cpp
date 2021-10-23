@@ -1,6 +1,6 @@
-#ifdef USE_ESP32
-
 #include "esp32_touch.h"
+#ifdef USE_ESP32_TOUCH_HAS_HARDWARE
+
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -165,4 +165,4 @@ ESP32TouchBinarySensor::ESP32TouchBinarySensor(touch_pad_t touch_pad, uint16_t t
 }  // namespace esp32_touch
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32_TOUCH_HAS_HARDWARE

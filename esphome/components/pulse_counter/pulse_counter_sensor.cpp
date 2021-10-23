@@ -8,7 +8,7 @@ static const char *const TAG = "pulse_counter";
 
 const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
 
-#ifdef USE_ESP8266
+#ifndef USE_PULSE_COUNTER_ESP32_PERIPH
 void IRAM_ATTR PulseCounterStorage::gpio_intr(PulseCounterStorage *arg) {
   const uint32_t now = micros();
   const bool discard = now - arg->last_pulse < arg->filter_us;
@@ -41,9 +41,9 @@ pulse_counter_t PulseCounterStorage::read_raw_value() {
   this->last_value = counter;
   return ret;
 }
-#endif
+#endif  // !USE_PULSE_COUNTER_ESP32_PERIPH
 
-#ifdef USE_ESP32
+#ifdef USE_PULSE_COUNTER_ESP32_PERIPH
 bool PulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   static pcnt_unit_t next_pcnt_unit = PCNT_UNIT_0;
   this->pin = pin;
@@ -134,7 +134,7 @@ pulse_counter_t PulseCounterStorage::read_raw_value() {
   this->last_value = counter;
   return ret;
 }
-#endif
+#endif  // USE_PULSE_COUNTER_ESP32_PERIPH
 
 void PulseCounterSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up pulse counter '%s'...", this->name_.c_str());

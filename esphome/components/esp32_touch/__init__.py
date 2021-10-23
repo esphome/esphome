@@ -11,6 +11,12 @@ from esphome.const import (
     CONF_VOLTAGE_ATTENUATION,
 )
 from esphome.core import TimePeriod
+from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
 
 AUTO_LOAD = ["binary_sensor"]
 DEPENDENCIES = ["esp32"]
@@ -50,30 +56,41 @@ VOLTAGE_ATTENUATION = {
     "0V": cg.global_ns.TOUCH_HVOLT_ATTEN_0V,
 }
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(ESP32TouchComponent),
-        cv.Optional(CONF_SETUP_MODE, default=False): cv.boolean,
-        cv.Optional(
-            CONF_IIR_FILTER, default="0ms"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_SLEEP_DURATION, default="27306us"): cv.All(
-            cv.positive_time_period, cv.Range(max=TimePeriod(microseconds=436906))
-        ),
-        cv.Optional(CONF_MEASUREMENT_DURATION, default="8192us"): cv.All(
-            cv.positive_time_period, cv.Range(max=TimePeriod(microseconds=8192))
-        ),
-        cv.Optional(CONF_LOW_VOLTAGE_REFERENCE, default="0.5V"): validate_voltage(
-            LOW_VOLTAGE_REFERENCE
-        ),
-        cv.Optional(CONF_HIGH_VOLTAGE_REFERENCE, default="2.7V"): validate_voltage(
-            HIGH_VOLTAGE_REFERENCE
-        ),
-        cv.Optional(CONF_VOLTAGE_ATTENUATION, default="0V"): validate_voltage(
-            VOLTAGE_ATTENUATION
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+
+def _validate_variant(value):
+    variant = get_esp32_variant()
+    if variant not in [VARIANT_ESP32, VARIANT_ESP32S2, VARIANT_ESP32S3]:
+        raise cv.Invalid(f"ESP32 variant {variant} does not support touch pads")
+    return value
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(ESP32TouchComponent),
+            cv.Optional(CONF_SETUP_MODE, default=False): cv.boolean,
+            cv.Optional(
+                CONF_IIR_FILTER, default="0ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_SLEEP_DURATION, default="27306us"): cv.All(
+                cv.positive_time_period, cv.Range(max=TimePeriod(microseconds=436906))
+            ),
+            cv.Optional(CONF_MEASUREMENT_DURATION, default="8192us"): cv.All(
+                cv.positive_time_period, cv.Range(max=TimePeriod(microseconds=8192))
+            ),
+            cv.Optional(CONF_LOW_VOLTAGE_REFERENCE, default="0.5V"): validate_voltage(
+                LOW_VOLTAGE_REFERENCE
+            ),
+            cv.Optional(CONF_HIGH_VOLTAGE_REFERENCE, default="2.7V"): validate_voltage(
+                HIGH_VOLTAGE_REFERENCE
+            ),
+            cv.Optional(CONF_VOLTAGE_ATTENUATION, default="0V"): validate_voltage(
+                VOLTAGE_ATTENUATION
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    _validate_variant,
+)
 
 
 async def to_code(config):

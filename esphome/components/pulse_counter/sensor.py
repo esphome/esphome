@@ -18,6 +18,12 @@ from esphome.const import (
     UNIT_PULSES,
 )
 from esphome.core import CORE
+from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
 
 pulse_counter_ns = cg.esphome_ns.namespace("pulse_counter")
 PulseCounterCountMode = pulse_counter_ns.enum("PulseCounterCountMode")
@@ -33,10 +39,12 @@ PulseCounterSensor = pulse_counter_ns.class_(
     "PulseCounterSensor", sensor.Sensor, cg.PollingComponent
 )
 
+ESP32_VARIANTS_WITH_PCNT = [VARIANT_ESP32, VARIANT_ESP32S2, VARIANT_ESP32S3]
+
 
 def validate_internal_filter(value):
     value = cv.positive_time_period_microseconds(value)
-    if CORE.is_esp32:
+    if CORE.is_esp32 and ESP32_VARIANTS_WITH_PCNT in get_esp32_variant():
         if value.total_microseconds > 13:
             raise cv.Invalid("Maximum internal filter value for ESP32 is 13us")
         return value

@@ -1,6 +1,10 @@
 #pragma once
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32_VARIANT_ESP32) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#define USE_ESP32_TOUCH_HAS_HARDWARE
+#endif
+
+#ifdef USE_ESP32_TOUCH_HAS_HARDWARE
 
 #include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -84,4 +88,4 @@ class ESP32TouchBinarySensor : public binary_sensor::BinarySensor {
 }  // namespace esp32_touch
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32_TOUCH_HAS_HARDWARE

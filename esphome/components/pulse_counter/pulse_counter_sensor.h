@@ -4,7 +4,11 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32_VARIANT_ESP32) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#define USE_PULSE_COUNTER_ESP32_PERIPH
+#endif
+
+#ifdef USE_PULSE_COUNTER_ESP32_PERIPH
 #include <driver/pcnt.h>
 #endif
 
@@ -17,10 +21,9 @@ enum PulseCounterCountMode {
   PULSE_COUNTER_DECREMENT,
 };
 
-#ifdef USE_ESP32
+#ifdef USE_PULSE_COUNTER_ESP32_PERIPH
 using pulse_counter_t = int16_t;
-#endif
-#ifdef USE_ESP8266
+#else
 using pulse_counter_t = int32_t;
 #endif
 
@@ -30,16 +33,15 @@ struct PulseCounterStorage {
 
   static void gpio_intr(PulseCounterStorage *arg);
 
-#ifdef USE_ESP8266
+#ifndef USE_PULSE_COUNTER_ESP32_PERIPH
   volatile pulse_counter_t counter{0};
   volatile uint32_t last_pulse{0};
 #endif
 
   InternalGPIOPin *pin;
-#ifdef USE_ESP32
+#ifdef USE_PULSE_COUNTER_ESP32_PERIPH
   pcnt_unit_t pcnt_unit;
-#endif
-#ifdef USE_ESP8266
+#else
   ISRInternalGPIOPin isr_pin;
 #endif
   PulseCounterCountMode rising_edge_mode{PULSE_COUNTER_INCREMENT};

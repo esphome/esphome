@@ -20,7 +20,7 @@ from helpers import shlex_quote, get_output, filter_grep, \
     build_all_include, temp_header_file, git_ls_files, filter_changed, load_idedata, basepath
 
 
-def clang_options(idedata):
+def clang_options(idedata, env_name: str):
     cmd = [
         # target 32-bit arch (this prevents size mismatch errors on a 64-bit host)
         '-m32',
@@ -42,31 +42,95 @@ def clang_options(idedata):
         # suppress warning about attribute cannot be applied to type
         # https://github.com/esp8266/Arduino/pull/8258
         '-Ddeprecated(x)=',
-        # pretend we're an Xtensa compiler, which gates some features in the headers
-        '-D__XTENSA__',
         # allow to condition code on the presence of clang-tidy
         '-DCLANG_TIDY',
-        # (esp-idf) Disable this header because they use asm with registers clang-tidy doesn't know
-        '-D__XTENSA_API_H__',
         # (esp-idf) Fix __once_callable in some libstdc++ headers
         '-D_GLIBCXX_HAVE_TLS',
     ]
+
+    defines = idedata["defines"]
+
+    if 'c3' not in env_name:
+        cmd += [
+            # pretend we're an Xtensa compiler, which gates some features in the headers
+            '-D__XTENSA__',
+            # (esp-idf) Disable this header because they use asm with registers clang-tidy doesn't know
+            '-D__XTENSA_API_H__',
+        ]
+    else:
+        cmd += [
+            "-D_GLIBCXX_GCC_GTHR_POSIX_H",
+            "-D__gthread_mutex_lock(a)=0",
+            "-D__gthread_recursive_mutex_unlock(a)=0",
+            "-D__gthread_recursive_mutex_trylock(a)=0",
+            "-D__gthread_recursive_mutex_destroy(a)=0",
+            "-D__gthread_recursive_mutex_lock(a)=0",
+            "-D__gthread_recursive_mutex_timedlock(a,b)=0",
+            "-D__gthread_recursive_mutex_t=int",
+            "-D__gthread_mutex_t=int",
+            "-D__GTHREAD_RECURSIVE_MUTEX_INIT_FUNCTION(a)=0",
+            "-D__GTHREAD_MUTEX_INIT_FUNCTION(a)=0",
+            "-D__gthread_mutex_destroy(a)=0",
+            "-D__gthread_mutex_trylock(a)=0",
+            "-D__gthread_mutex_unlock(a)=0",
+            "-D__gthread_mutex_timedlock(a,b)=0",
+            "-D__gthread_time_t=struct timespec",
+            "-D__gthread_once_t=int",
+            "-D__gthread_once(a,b)=0",
+            "-D__GTHREAD_ONCE_INIT=0",
+        ]
 
     # copy compiler flags, except those clang doesn't understand.
     cmd.extend(flag for flag in idedata['cxx_flags'].split(' ')
                if flag not in ('-free', '-fipa-pta', '-fstrict-volatile-bitfields',
                                '-mlongcalls', '-mtext-section-literals',
-                               '-mfix-esp32-psram-cache-issue', '-mfix-esp32-psram-cache-strategy=memw'))
+                               '-mfix-esp32-psram-cache-issue', '-mfix-esp32-psram-cache-strategy=memw',
+                               '-march=rv32imc'))
 
     # defines
-    cmd.extend(f'-D{define}' for define in idedata['defines'])
+    cmd.extend(f'-D{define}' for define in defines)
 
     # add include directories, using -isystem for dependencies to suppress their errors
-    for directory in idedata['includes']['toolchain']:
-        if 'xtensa-esp32s2-elf' not in directory:
-            cmd.extend(['-isystem', directory])
+    system_includes = idedata['includes']['toolchain']
+
+    # if esp32s2 or esp32c3 were installed on the computer at _any_ time
+    # the toolchain includes will contain the headers, even if the env
+    # is not based on those chips
+    variant_toolchains = {
+        "USE_ESP32_VARIANT_ESP32": "toolchain-xtensa32",
+        "USE_ESP32_VARIANT_ESP32S2": "toolchain-xtensa32s2",
+        "USE_ESP32_VARIANT_ESP32C3": "toolchain-riscv-esp",
+    }
+    for variant_define in variant_toolchains:
+        if variant_define not in defines:
+            continue
+        # Filter out the other toolchains
+        for var, toolchain in variant_toolchains.items():
+            if var == variant_define:
+                continue
+            # Try to match directories like
+            # ~/.platformio/packages/toolchain-xtensa32@2.50200.97/...
+            # or ~/.platformio/packages/toolchain-xtensa32/...
+            # or with windows backslash paths
+            pattern = r".*[/\\]{}[/\\@].*".format(toolchain)
+            system_includes = [
+                inc for inc in system_includes
+                if re.match(pattern, inc) is None
+            ]
+
+    for inc in system_includes:
+        cmd.extend(['-isystem', inc])
+
     for directory in sorted(set(idedata['includes']['build'])):
-        dependency = "framework-arduino" in directory or "/libdeps/" in directory
+        dependency = any(x in directory for x in [
+            "framework-arduino",
+            "framework-espidf",
+            "/libdeps/",
+            "\\libdeps\\",
+            # globally installed libs
+            "/.platformio/lib/",
+            "\\.platformio\\lib\\",
+        ]) or directory.endswith("config")
         cmd.extend(['-isystem' if dependency else '-I', directory])
 
     return cmd
@@ -155,7 +219,7 @@ def main():
         return 1
 
     idedata = load_idedata(args.environment)
-    options = clang_options(idedata)
+    options = clang_options(idedata, args.environment)
 
     files = []
     for path in git_ls_files(['*.cpp']):
