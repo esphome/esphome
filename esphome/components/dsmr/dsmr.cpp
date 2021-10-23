@@ -19,29 +19,21 @@ void Dsmr::loop() {
     this->receive_encrypted_();
 }
 
+bool Dsmr::available_within_timeout() {
+  uint8_t tries = READ_TIMEOUT_MS / 5;
+  while (tries--) {
+    delay(5);
+    if (available()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void Dsmr::receive_telegram_() {
   while (true) {
     if (!available()) {
-      // The smart meter might provide data in chunks, causing available()
-      // to return 0. When we're already reading a telegram, then don't return
-      // right away, to handle further data in an upcoming loop, but wait a
-      // little while to see if more data are incoming. By not returning here,
-      // we prevent other components from taking so much time that the UART
-      // RX buffer overflows and bytes of the telegram get lost in the process.
-      // Put differently: once a telegram is being read, try to finish it.
-      if (!header_found_) {
-        return;
-      }
-      uint8_t tries = READ_TIMEOUT_MS / 10;
-      bool can_read = false;
-      while (tries--) {
-        delay(10);
-        if (available()) {
-          can_read = true;
-          break;
-        }
-      }
-      if (!can_read) {
+      if (!header_found_ || !available_within_timeout()) {
         return;
       }
     }
@@ -96,9 +88,19 @@ void Dsmr::receive_encrypted_() {
   // Encrypted buffer
   uint8_t buffer[MAX_TELEGRAM_LENGTH];
   size_t buffer_length = 0;
-
   size_t packet_size = 0;
-  while (available()) {
+
+  while (true) {
+    if (!available()) {
+      if (!header_found_) {
+        return;
+      }
+      if (!available_within_timeout()) {
+        ESP_LOGW(TAG, "Timeout while waiting for encrypted data or invalid data received.");
+        return;
+      }
+    }
+
     const char c = read();
 
     if (!header_found_) {
@@ -160,9 +162,6 @@ void Dsmr::receive_encrypted_() {
       // program runs faster than buffer loading then available() might return false in the middle
       delay(4);  // Wait for data
     }
-  }
-  if (buffer_length > 0) {
-    ESP_LOGW(TAG, "Timeout while waiting for encrypted data or invalid data received.");
   }
 }
 

@@ -85,6 +85,17 @@ class Dsmr : public Component, public uart::UARTDevice {
   void receive_telegram_();
   void receive_encrypted_();
 
+  /// Wait for UART data to become available within the read timeout.
+  ///
+  /// The smart meter might provide data in chunks, causing available() to
+  /// return 0. When we're already reading a telegram, then we don't return
+  /// right away (to handle further data in an upcoming loop) but wait a
+  /// little while using this method to see if more data are incoming.
+  /// By not returning, we prevent other components from taking so much
+  /// time that the UART RX buffer overflows and bytes of the telegram get
+  /// lost in the process.
+  bool available_within_timeout();
+
   // Telegram buffer
   char telegram_[MAX_TELEGRAM_LENGTH];
   int telegram_len_{0};
