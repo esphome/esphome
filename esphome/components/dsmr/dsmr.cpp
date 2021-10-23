@@ -35,14 +35,14 @@ void Dsmr::receive_telegram_() {
       uint8_t tries = READ_TIMEOUT_MS / 10;
       bool can_read = false;
       while (tries--) {
-          delay(10);
-          if (available()) {
-              can_read = true;
-              break;
-          }
+        delay(10);
+        if (available()) {
+          can_read = true;
+          break;
+        }
       }
       if (!can_read) {
-          return;
+        return;
       }
     }
 
