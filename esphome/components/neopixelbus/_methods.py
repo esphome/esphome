@@ -4,6 +4,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
+    CONF_CLOCK_PIN,
+    CONF_DATA_PIN,
     CONF_METHOD,
     CONF_PIN,
     CONF_SPEED,
@@ -307,11 +309,6 @@ def _esp32_i2s_to_code(config, chip: str, inverted: bool):
     return neo_ns.NeoEsp32I2sMethodBase.template(speed, bus, inv)
 
 
-def _esp32_i2s_extra_validate(value):
-    if not (0 <= value[CONF_PIN] <= 31):
-        raise cv.Invalid("ESP32 i2s only supports pins GPIO0-GPIO31 on ESP32")
-
-
 def _spi_to_code(config, chip: str, inverted: bool):
     # https://github.com/Makuna/NeoPixelBus/blob/master/src/internal/TwoWireSpiImple.h
     spi_imple = {
@@ -336,6 +333,16 @@ def _spi_to_code(config, chip: str, inverted: bool):
         CHIP_P9813: neo_ns.P9813MethodBase,
     }[chip]
     return chip_method_base.template(spi_imple.template(spi_speed))
+
+
+def _spi_extra_validate(config):
+    if CORE.is_esp32:
+        return
+
+    if config[CONF_DATA_PIN] != 13 and config[CONF_CLOCK_PIN] != 14:
+        raise cv.Invalid(
+            "SPI only supports pins GPIO13 for data and GPIO14 for clock on ESP8266"
+        )
 
 
 @dataclass
@@ -392,7 +399,6 @@ METHODS = {
                 ): _validate_esp32_i2s_bus,
             },
         ),
-        extra_validate=_esp32_i2s_extra_validate,
         to_code=_esp32_i2s_to_code,
         supported_chips=ONE_WIRE_CHIPS,
     ),
@@ -406,6 +412,7 @@ METHODS = {
             ),
         },
         to_code=_spi_to_code,
+        extra_validate=_spi_extra_validate,
         supported_chips=TWO_WIRE_CHIPS,
     ),
 }
