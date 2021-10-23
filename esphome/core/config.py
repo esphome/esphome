@@ -237,6 +237,7 @@ def include_file(path, basename):
 ARDUINO_GLUE_CODE = """\
 #define yield() esphome::yield()
 #define millis() esphome::millis()
+#define micros() esphome::micros()
 #define delay(x) esphome::delay(x)
 #define delayMicroseconds(x) esphome::delayMicroseconds(x)
 """
