@@ -1681,10 +1681,12 @@ def version_number(value):
 
 
 def platformio_version_constraint(value):
+    # for documentation on valid version constraints:
+    # https://docs.platformio.org/en/latest/core/userguide/platforms/cmd_install.html#cmd-platform-install
+    
     value = string_strict(value)
     constraints = []
     for item in value.split(","):
-        print(item)
         # find and strip prefix operator
         op = None
         for test_op in ("^", "~", ">=", ">", "<=", "<", "!="):
