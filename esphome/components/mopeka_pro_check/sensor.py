@@ -18,8 +18,8 @@ from esphome.const import (
 )
 
 CONF_TANK_TYPE = "tank_type"
-CONF_CUSTOM_DISTANCE_FULL = "distance_full"
-CONF_CUSTOM_DISTANCE_EMPTY = "distance_empty"
+CONF_CUSTOM_DISTANCE_FULL = "custom_distance_full"
+CONF_CUSTOM_DISTANCE_EMPTY = "custom_distance_empty"
 
 ICON_PROPANE_TANK = "mdi:propane-tank"
 

@@ -35,7 +35,7 @@ bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     return false;
   }
 
-  if (this->parse_sync_button(manu_data.data)) {
+  if (this->parse_sync_button_(manu_data.data)) {
     //button pressed
     ESP_LOGI(TAG, "SENSOR FOUND: %s", device.address_str().c_str());
   }
@@ -43,7 +43,7 @@ bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 }
 
 
-bool MopekaListener::parse_sync_button(const std::vector<uint8_t> &message) {
+bool MopekaListener::parse_sync_button_(const std::vector<uint8_t> &message) {
   if (message[2] & 0x80) {
     return true;
   }

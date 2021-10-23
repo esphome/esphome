@@ -13,7 +13,7 @@ class MopekaListener : public esp32_ble_tracker::ESPBTDeviceListener {
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
 
  protected:
-  bool parse_sync_button(const std::vector<uint8_t> &message);
+  bool parse_sync_button_(const std::vector<uint8_t> &message);
 };
 
 }  // namespace mopeka_ble
