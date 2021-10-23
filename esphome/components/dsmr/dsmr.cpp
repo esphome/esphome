@@ -20,8 +20,25 @@ void Dsmr::loop() {
 }
 
 void Dsmr::receive_telegram_() {
-  int count = MAX_BYTES_PER_LOOP;
-  while (available() && count-- > 0) {
+  while (true) {
+    if (!available()) {
+      if (!header_found_) {
+        return;
+      }
+      uint8_t tries = 20;
+      bool can_read = false;
+      while (tries--) {
+          delay(10);
+          if (available()) {
+              can_read = true;
+              break;
+          }
+      }
+      if (!can_read) {
+          return;
+      }
+    }
+
     const char c = read();
 
     // Find a new telegram header, i.e. forward slash.
@@ -62,8 +79,8 @@ void Dsmr::receive_telegram_() {
     if (footer_found_ && c == '\n') {
       header_found_ = false;
       // Parse the telegram and publish sensor values.
-      if (parse_telegram())
-        return;
+      parse_telegram();
+      return;
     }
   }
 }
