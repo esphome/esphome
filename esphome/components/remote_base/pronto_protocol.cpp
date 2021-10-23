@@ -1,37 +1,37 @@
- /*
-  * @file irPronto.cpp
-  * @brief In this file, the functions IRrecv::compensateAndPrintPronto and IRsend::sendPronto are defined.
-  *
-  * See http://www.harctoolbox.org/Glossary.html#ProntoSemantics
-  * Pronto database http://www.remotecentral.com/search.htm
-  *
-  *  This file is part of Arduino-IRremote https://github.com/Arduino-IRremote/Arduino-IRremote.
-  *
-  ************************************************************************************
-  * MIT License
-  *
-  * Copyright (c) 2020 Bengt Martensson
-  *
-  * Permission is hereby granted, free of charge, to any person obtaining a copy
-  * of this software and associated documentation files (the "Software"), to deal
-  * in the Software without restriction, including without limitation the rights
-  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  * copies of the Software, and to permit persons to whom the Software is furnished
-  * to do so, subject to the following conditions:
-  *
-  * The above copyright notice and this permission notice shall be included in all
-  * copies or substantial portions of the Software.
-  *
-  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
-  * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-  * PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-  * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
-  * CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
-  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-  *
-  ************************************************************************************
-  */
-  
+/*
+ * @file irPronto.cpp
+ * @brief In this file, the functions IRrecv::compensateAndPrintPronto and IRsend::sendPronto are defined.
+ *
+ * See http://www.harctoolbox.org/Glossary.html#ProntoSemantics
+ * Pronto database http://www.remotecentral.com/search.htm
+ *
+ *  This file is part of Arduino-IRremote https://github.com/Arduino-IRremote/Arduino-IRremote.
+ *
+ ************************************************************************************
+ * MIT License
+ *
+ * Copyright (c) 2020 Bengt Martensson
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+ * PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+ * CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+ * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *
+ ************************************************************************************
+ */
+
 #include "pronto_protocol.h"
 #include "esphome/core/log.h"
 
@@ -49,13 +49,11 @@ static const unsigned int digitsInProntoNumber = 4U;
 static const unsigned int numbersInPreamble = 4U;
 static const unsigned int hexMask = 0xFU;
 static const uint32_t referenceFrequency = 4145146UL;
-static const uint16_t fallbackFrequency = 64767U; // To use with frequency = 0;
+static const uint16_t fallbackFrequency = 64767U;  // To use with frequency = 0;
 static const uint32_t microsecondsInSeconds = 1000000UL;
 static const uint16_t PRONTO_DEFAULT_GAP = 45000;
 
-static unsigned int toFrequencyKHz(uint16_t code) {
-  return ((referenceFrequency / code) + 500) / 1000;
-}
+static unsigned int toFrequencyKHz(uint16_t code) { return ((referenceFrequency / code) + 500) / 1000; }
 
 /*
  * Parse the string given as Pronto Hex, and send it a number of times given as argument.
@@ -64,14 +62,14 @@ void ProntoProtocol::sendPronto(RemoteTransmitData *dst, const uint16_t *data, u
   unsigned int timebase = (microsecondsInSeconds * data[1] + referenceFrequency / 2) / referenceFrequency;
   unsigned int khz;
   switch (data[0]) {
-    case learnedToken: // normal, "learned"
+    case learnedToken:  // normal, "learned"
       khz = toFrequencyKHz(data[1]);
       break;
-    case learnedNonModulatedToken: // non-demodulated, "learned"
+    case learnedNonModulatedToken:  // non-demodulated, "learned"
       khz = 0U;
       break;
     default:
-      return; // There are other types, but they are not handled yet.
+      return;  // There are other types, but they are not handled yet.
   }
   ESP_LOGD(TAG, "Send Pronto: frequency=%dkHz", khz);
   dst->set_carrier_frequency(khz * 1000);
@@ -90,7 +88,7 @@ void ProntoProtocol::sendPronto(RemoteTransmitData *dst, const uint16_t *data, u
    */
   dst->reserve(intros + repeats);
 
-  for (unsigned int i = 0; i < intros + repeats; i+=2) {
+  for (unsigned int i = 0; i < intros + repeats; i += 2) {
     uint32_t duration0 = ((uint32_t) data[i + 0 + numbersInPreamble]) * timebase;
     duration0 = duration0 < MICROSECONDS_T_MAX ? duration0 : MICROSECONDS_T_MAX;
 
@@ -119,17 +117,11 @@ void ProntoProtocol::sendPronto(RemoteTransmitData *dst, const std::string str) 
   sendPronto(dst, data, len);
 }
 
-void ProntoProtocol::encode(RemoteTransmitData *dst, const ProntoData &data) {
-   sendPronto(dst, data.data);
-}
+void ProntoProtocol::encode(RemoteTransmitData *dst, const ProntoData &data) { sendPronto(dst, data.data); }
 
-optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
-  return {};
-}
+optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) { return {}; }
 
-void ProntoProtocol::dump(const ProntoData &data) {
-  ESP_LOGD(TAG, "Received Pronto: data=%s", data.data.c_str());
-}
+void ProntoProtocol::dump(const ProntoData &data) { ESP_LOGD(TAG, "Received Pronto: data=%s", data.data.c_str()); }
 
 }  // namespace remote_base
 }  // namespace esphome
