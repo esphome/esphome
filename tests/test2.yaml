@@ -310,8 +310,8 @@ sensor:
   - platform: mopeka_pro_check
     mac_address: D3:75:F2:DC:16:91
     tank_type: CUSTOM
-    full_distance: 40cm
-    empty_distance: 10mm
+    distance_full: 40cm
+    distance_empty: 10mm
     temperature:
       name: "Propane test temp"
     level:
