@@ -26,7 +26,7 @@ struct RotaryEncoderSensorStore {
   RotaryEncoderResolution resolution{ROTARY_ENCODER_1_PULSE_PER_CYCLE};
   int32_t min_value{INT32_MIN};
   int32_t max_value{INT32_MAX};
-  int32_t last_read{-1};
+  int32_t last_read{0};
   uint8_t state{0};
 
   std::array<int8_t, 8> rotation_events{};
@@ -58,6 +58,7 @@ class RotaryEncoderSensor : public sensor::Sensor, public Component {
   void set_reset_pin(GPIOPin *pin_i) { this->pin_i_ = pin_i; }
   void set_min_value(int32_t min_value);
   void set_max_value(int32_t max_value);
+  void set_publish_initial_value(bool publish_initial_value) { publish_initial_value_ = publish_initial_value; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -79,6 +80,7 @@ class RotaryEncoderSensor : public sensor::Sensor, public Component {
   InternalGPIOPin *pin_a_;
   InternalGPIOPin *pin_b_;
   GPIOPin *pin_i_{nullptr};  /// Index pin, if this is not nullptr, the counter will reset to 0 once this pin is HIGH.
+  bool publish_initial_value_;
 
   RotaryEncoderSensorStore store_{};
 
