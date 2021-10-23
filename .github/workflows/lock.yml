@@ -18,10 +18,10 @@ jobs:
     steps:
       - uses: dessant/lock-threads@v3
         with:
-          pr-lock-inactive-days: "1"
+          pr-inactive-days: "1"
           pr-lock-reason: ""
           exclude-any-pr-labels: keep-open
 
-          issue-lock-inactive-days: "7"
+          issue-inactive-days: "7"
           issue-lock-reason: ""
           exclude-any-issue-labels: keep-open
