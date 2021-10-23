@@ -1680,6 +1680,23 @@ def version_number(value):
         raise Invalid("Not a version number") from e
 
 
+def platformio_version_constraint(value):
+    value = string_strict(value)
+    constraints = []
+    for item in value.split(","):
+        print(item)
+        # find and strip prefix operator
+        op = None
+        for test_op in ("^", "~", ">=", ">", "<=", "<", "!="):
+            if item.startswith(test_op):
+                op = test_op
+                item = item[len(test_op):]
+                break
+
+        constraints.append((op, version_number(item)))
+    return constraints
+
+
 def require_framework_version(
     *,
     esp_idf=None,

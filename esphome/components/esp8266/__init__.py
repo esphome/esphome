@@ -93,12 +93,12 @@ def _arduino_check_versions(value):
     platform_version = value.get(CONF_PLATFORM_VERSION)
     if platform_version is None:
         if version >= cv.Version(3, 0, 0):
-            platform_version = ARDUINO_3_PLATFORM_VERSION
+            platform_version = _parse_platform_version(str(ARDUINO_3_PLATFORM_VERSION))
         elif version >= cv.Version(2, 5, 0):
-            platform_version = ARDUINO_2_PLATFORM_VERSION
+            platform_version = _parse_platform_version(str(ARDUINO_2_PLATFORM_VERSION))
         else:
-            platform_version = cv.Version(1, 8, 0)
-    value[CONF_PLATFORM_VERSION] = str(platform_version)
+            platform_version = _parse_platform_version(str(cv.Version(1, 8, 0)))
+    value[CONF_PLATFORM_VERSION] = platform_version
 
     if version != RECOMMENDED_ARDUINO_FRAMEWORK_VERSION:
         _LOGGER.warning(
@@ -109,13 +109,22 @@ def _arduino_check_versions(value):
     return value
 
 
+def _parse_platform_version(value):
+    try:
+        # if platform version is a valid version constraint, prefix the default package
+        cv.platformio_version_constraint(value)
+        return f"platformio/espressif8266 @ {value}"
+    except cv.Invalid:
+        return value
+
+
 CONF_PLATFORM_VERSION = "platform_version"
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
             cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): cv.string_strict,
+            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
         }
     ),
     _arduino_check_versions,
@@ -150,17 +159,11 @@ async def to_code(config):
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
     cg.add_build_flag("-DUSE_ESP8266_FRAMEWORK_ARDUINO")
+    cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
     cg.add_platformio_option(
         "platform_packages",
         [f"platformio/framework-arduinoespressif8266 @ {conf[CONF_SOURCE]}"],
     )
-
-    if "://" in conf[CONF_PLATFORM_VERSION]:  # url, don't need to supply package name
-        cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
-    else:
-        cg.add_platformio_option(
-            "platform", f"platformio/espressif8266 @ {conf[CONF_PLATFORM_VERSION]}"
-        )
 
     # Default for platformio is LWIP2_LOW_MEMORY with:
     #  - MSS=536
