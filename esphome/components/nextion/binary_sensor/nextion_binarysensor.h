@@ -10,8 +10,7 @@ class NextionBinarySensor;
 
 class NextionBinarySensor : public NextionComponent,
                             public binary_sensor::BinarySensorInitiallyOff,
-                            public PollingComponent,
-                            public std::enable_shared_from_this<NextionBinarySensor> {
+                            public PollingComponent {
  public:
   NextionBinarySensor(NextionBase *nextion) { this->nextion_ = nextion; }
 

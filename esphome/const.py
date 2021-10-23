@@ -1,10 +1,13 @@
 """Constants used by esphome."""
 
-__version__ = "2021.10.0-dev"
+__version__ = "2021.11.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
-TARGET_PLATFORMS = ["esp32", "esp8266"]
+PLATFORM_ESP32 = "esp32"
+PLATFORM_ESP8266 = "esp8266"
+
+TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266]
 TARGET_FRAMEWORKS = ["arduino", "esp-idf"]
 
 # See also https://github.com/platformio/platform-espressif8266/releases
@@ -533,6 +536,7 @@ CONF_RANGE_FROM = "range_from"
 CONF_RANGE_TO = "range_to"
 CONF_RATE = "rate"
 CONF_RAW = "raw"
+CONF_RAW_DATA_ID = "raw_data_id"
 CONF_RC_CODE_1 = "rc_code_1"
 CONF_RC_CODE_2 = "rc_code_2"
 CONF_REACTIVE_POWER = "reactive_power"

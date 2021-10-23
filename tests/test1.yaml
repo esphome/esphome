@@ -343,6 +343,7 @@ sensor:
       - exponential_moving_average:
           alpha: 0.1
           send_every: 15
+      - throttle_average: 60s
       - throttle: 1s
       - heartbeat: 5s
       - debounce: 0.1s
@@ -364,8 +365,11 @@ sensor:
       then:
         - lambda: >-
             ESP_LOGD("main", "Got value range %f", x);
+        - wait_until: wifi.connected
         - wait_until:
-            binary_sensor.is_on: binary_sensor1
+            condition:
+              binary_sensor.is_on: binary_sensor1
+            timeout: 1s
     on_raw_value:
       - lambda: >-
           ESP_LOGD("main", "Got raw value %f", x);
@@ -1681,6 +1685,13 @@ climate:
     name: Toshiba Climate
   - platform: hitachi_ac344
     name: Hitachi Climate
+  - platform: heatpumpir
+    protocol: mitsubishi_heavy_zm
+    horizontal_default: left
+    vertical_default: up
+    name: HeatpumpIR Climate
+    min_temperature: 18
+    max_temperature: 30
   - platform: midea
     id: midea_unit
     uart_id: uart0
@@ -2307,6 +2318,12 @@ cover:
     tilt_lambda: !lambda 'return 0.5;'
     tilt_state_topic: tilt/state/topic
     tilt_command_topic: tilt/command/topic
+    on_open:
+      then:
+        - lambda: 'ESP_LOGD("cover", "open");'
+    on_closed:
+      then:
+        - lambda: 'ESP_LOGD("cover", "closed");'
   - platform: am43
     name: 'Test AM43'
     id: am43_test

@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_TILT_STATE_TOPIC,
     CONF_STOP,
     CONF_MQTT_ID,
+    CONF_TRIGGER_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -67,6 +68,15 @@ CoverPublishAction = cover_ns.class_("CoverPublishAction", automation.Action)
 CoverIsOpenCondition = cover_ns.class_("CoverIsOpenCondition", Condition)
 CoverIsClosedCondition = cover_ns.class_("CoverIsClosedCondition", Condition)
 
+# Triggers
+CoverOpenTrigger = cover_ns.class_("CoverOpenTrigger", automation.Trigger.template())
+CoverClosedTrigger = cover_ns.class_(
+    "CoverClosedTrigger", automation.Trigger.template()
+)
+
+CONF_ON_OPEN = "on_open"
+CONF_ON_CLOSED = "on_closed"
+
 COVER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(Cover),
@@ -84,6 +94,16 @@ COVER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).ex
         cv.Optional(CONF_TILT_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.subscribe_topic
         ),
+        cv.Optional(CONF_ON_OPEN): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverOpenTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_CLOSED): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CoverClosedTrigger),
+            }
+        ),
     }
 )
 
@@ -93,6 +113,13 @@ async def setup_cover_core_(var, config):
 
     if CONF_DEVICE_CLASS in config:
         cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
+
+    for conf in config.get(CONF_ON_OPEN, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_CLOSED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)

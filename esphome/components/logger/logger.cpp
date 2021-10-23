@@ -111,14 +111,15 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   this->set_null_terminator_();
 
   const char *msg = this->tx_buffer_ + offset;
+  if (this->baud_rate_ > 0) {
 #ifdef USE_ARDUINO
-  if (this->baud_rate_ > 0)
     this->hw_serial_->println(msg);
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
-  uart_write_bytes(uart_num_, msg, strlen(msg));
-  uart_write_bytes(uart_num_, "\n", 1);
+    uart_write_bytes(uart_num_, msg, strlen(msg));
+    uart_write_bytes(uart_num_, "\n", 1);
 #endif
+  }
 
 #ifdef USE_ESP32
   // Suppress network-logging if memory constrained, but still log to serial
@@ -152,13 +153,9 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART1:
         this->hw_serial_ = &Serial1;
         break;
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2)
       case UART_SELECTION_UART2:
-#if !CONFIG_IDF_TARGET_ESP32S2 && !CONFIG_IDF_TARGET_ESP32C3
-        // FIXME: Validate in config that UART2 can't be set for ESP32-S2 (only has
-        // UART0-UART1)
         this->hw_serial_ = &Serial2;
-#endif
         break;
 #endif
     }
@@ -172,9 +169,11 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART1:
         uart_num_ = UART_NUM_1;
         break;
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2)
       case UART_SELECTION_UART2:
         uart_num_ = UART_NUM_2;
         break;
+#endif
     }
     uart_config_t uart_config{};
     uart_config.baud_rate = (int) baud_rate_;
