@@ -36,7 +36,7 @@ void RemoteTransmitterComponent::calculate_on_off_time_(uint32_t carrier_frequen
 void RemoteTransmitterComponent::aligned_delay_microseconds_(uint32_t usec) {
   const uint32_t elapsed = micros() - this->ref_time_;
   if (usec > elapsed)
-    delay_microseconds_accurate(usec - elapsed);  // precisely aligns to "ref_time_"
+    delayMicroseconds(usec - elapsed);  // aligns delay to "ref_time_"
   this->ref_time_ += usec;
 }
 
@@ -75,25 +75,21 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   uint32_t on_time, off_time;
   this->calculate_on_off_time_(this->temp_.get_carrier_frequency(), &on_time, &off_time);
   for (uint32_t i = 0; i < send_times; i++) {
-    {
-      InterruptLock lock;
-      this->ref_time_ = micros();  // "ref_time_" is the absolute reference for each pulse train
-      for (int32_t item : this->temp_.get_data()) {
-        if (item > 0) {
-          const auto length = uint32_t(item);
-          this->mark_(on_time, off_time, length);
-        } else {
-          const auto length = uint32_t(-item);
-          this->space_(length);
-        }
-        App.feed_wdt();
+    this->ref_time_ = micros();  // "ref_time_" is the timing reference for each pulse train
+    for (int32_t item : this->temp_.get_data()) {
+      if (item > 0) {
+        const auto length = uint32_t(item);
+        this->mark_(on_time, off_time, length);
+      } else {
+        const auto length = uint32_t(-item);
+        this->space_(length);
       }
-      this->pin_->digital_write(false);
+      App.feed_wdt();
     }
+    this->pin_->digital_write(false);
 
-    if (i + 1 < send_times) {
-      delay_microseconds_accurate(send_wait);
-    }
+    if (i + 1 < send_times)
+      delayMicroseconds(send_wait);
   }
 }
 
