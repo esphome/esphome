@@ -78,7 +78,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const uint16_t *data,
   unsigned int repeats = 2 * data[3];
   ESP_LOGD(TAG, "Send Pronto: intros=%d", intros);
   ESP_LOGD(TAG, "Send Pronto: repeats=%d", repeats);
-  if (numbersInPreamble + intros + repeats != length) { // inconsistent sizes
+  if (numbersInPreamble + intros + repeats != length) {  // inconsistent sizes
     return;
   }
 
@@ -111,7 +111,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string str
       len = i;
       break;
     }
-    data[i] = static_cast<uint16_t>(x); // If input is conforming, there can be no overflow!
+    data[i] = static_cast<uint16_t>(x);  // If input is conforming, there can be no overflow!
     p = *endptr;
   }
   send_pronto_(dst, data, len);
