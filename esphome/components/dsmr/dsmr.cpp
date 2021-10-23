@@ -22,10 +22,17 @@ void Dsmr::loop() {
 void Dsmr::receive_telegram_() {
   while (true) {
     if (!available()) {
+      // The smart meter might provide data in chunks, causing available()
+      // to return 0. When we're already reading a telegram, then don't return
+      // right away, to handle further data in an upcoming loop, but wait a
+      // little while to see if more data are incoming. By not returning here,
+      // we prevent other components from taking so much time that the UART
+      // RX buffer overflows and bytes of the telegram get lost in the process.
+      // Put differently: once a telegram is being read, try to finish it.
       if (!header_found_) {
         return;
       }
-      uint8_t tries = 20;
+      uint8_t tries = READ_TIMEOUT_MS / 10;
       bool can_read = false;
       while (tries--) {
           delay(10);
