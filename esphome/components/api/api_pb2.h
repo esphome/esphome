@@ -803,6 +803,7 @@ class ListEntitiesCameraResponse : public ProtoMessage {
   std::string name{};
   std::string unique_id{};
   bool disabled_by_default{false};
+  std::string icon{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

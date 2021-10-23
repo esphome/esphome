@@ -359,6 +359,7 @@ template<typename T> T clamp(const T val, const T min, const T max) {
     return max;
   return val;
 }
+template uint8_t clamp(uint8_t, uint8_t, uint8_t);
 template float clamp(float, float, float);
 template int clamp(int, int, int);
 
