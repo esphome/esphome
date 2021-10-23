@@ -63,7 +63,7 @@ void CSE7761Component::dump_config() {
   this->check_uart_settings(38400, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
 }
 
-float CSE7761Component::get_setup_priority() const { return setup_priority::HARDWARE; }
+float CSE7761Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void CSE7761Component::update() {
   if (this->data_.ready) {
