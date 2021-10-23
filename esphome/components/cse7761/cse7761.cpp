@@ -140,10 +140,12 @@ uint32_t CSE7761Component::read_(uint8_t reg, uint8_t size) {
   bool result = false;  // Start loop
   uint8_t retry = 3;    // Retry up to three times
   uint32_t value = 0;   // Default no value
-  while (!result && retry) {
+  while (!result && retry > 0) {
     retry--;
-    result = this->read_once_(reg, size, &value);
+    if (this->read_once_(reg, size, &value))
+      return value;
   }
+  ESP_LOGE(TAG, "Reading register %hhu failed!", reg);
   return value;
 }
 
