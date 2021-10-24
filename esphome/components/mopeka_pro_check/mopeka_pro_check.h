@@ -35,7 +35,7 @@ class MopekaProCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; };
   void set_battery_level(sensor::Sensor *bat) { battery_level_ = bat; };
   void set_distance(sensor::Sensor *distance) { distance_ = distance; };
-  void set_tank_full(float full)   { full_mm_ = full; };
+  void set_tank_full(float full) { full_mm_ = full; };
   void set_tank_empty(float empty) { empty_mm_ = empty; };
 
  protected:
@@ -51,7 +51,7 @@ class MopekaProCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
   uint8_t parse_battery_level_(const std::vector<uint8_t> &message);
   uint32_t parse_distance_(const std::vector<uint8_t> &message);
   uint8_t parse_temperature_(const std::vector<uint8_t> &message);
-  SensorReadQuality parse_read_quality_(const std::vector<uint8_t> &message) ;
+  SensorReadQuality parse_read_quality_(const std::vector<uint8_t> &message);
 };
 
 }  // namespace mopeka_pro_check
