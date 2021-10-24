@@ -84,6 +84,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
         const auto length = uint32_t(-item);
         this->space_(length);
       }
+      yield();
       App.feed_wdt();
     }
     this->pin_->digital_write(false);
