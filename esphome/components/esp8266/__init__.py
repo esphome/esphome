@@ -63,7 +63,7 @@ RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 7, 4)
 # The platformio/espressif8266 version to use for arduino 2 framework versions
 #  - https://github.com/platformio/platform-espressif8266/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif8266
-ARDUINO_2_PLATFORM_VERSION = cv.Version(2, 6, 2)
+ARDUINO_2_PLATFORM_VERSION = cv.Version(2, 6, 3)
 # for arduino 3 framework versions
 ARDUINO_3_PLATFORM_VERSION = cv.Version(3, 2, 0)
 
@@ -141,6 +141,8 @@ CONFIG_SCHEMA = cv.All(
 @coroutine_with_priority(1000)
 async def to_code(config):
     cg.add(esp8266_ns.setup_preferences())
+
+    cg.add_platformio_option("lib_ldf_mode", "off")
 
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_ESP8266")
