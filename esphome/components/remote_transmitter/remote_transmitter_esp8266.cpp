@@ -77,6 +77,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   for (uint32_t i = 0; i < send_times; i++) {
     {
       InterruptLock lock;
+      App.feed_wdt();
       this->ref_time_ = micros();  // "ref_time_" is the timing reference for each pulse train
       for (int32_t item : this->temp_.get_data()) {
         if (item > 0) {
