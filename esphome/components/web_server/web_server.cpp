@@ -35,7 +35,7 @@ static const char *const TAG = "web_server";
 
 void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
                const std::function<void(AsyncResponseStream &stream, EntityBase *obj)> &action_func = nullptr) {
-  if (!WEBSERVER_INCLUDE_INTERNAL && obj->is_internal)
+  if (!WEBSERVER_INCLUDE_INTERNAL && obj->is_internal())
     return;
   stream->print("<tr class=\"");
   stream->print(klass.c_str());
