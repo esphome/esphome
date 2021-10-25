@@ -76,18 +76,20 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   this->calculate_on_off_time_(this->temp_.get_carrier_frequency(), &on_time, &off_time);
   for (uint32_t i = 0; i < send_times; i++) {
     this->ref_time_ = micros();  // "ref_time_" is the timing reference for each pulse train
-    for (int32_t item : this->temp_.get_data()) {
-      if (item > 0) {
-        const auto length = uint32_t(item);
-        this->mark_(on_time, off_time, length);
-      } else {
-        const auto length = uint32_t(-item);
-        this->space_(length);
+    {
+      InterruptLock lock;
+      for (int32_t item : this->temp_.get_data()) {
+        if (item > 0) {
+          const auto length = uint32_t(item);
+          this->mark_(on_time, off_time, length);
+        } else {
+          const auto length = uint32_t(-item);
+          this->space_(length);
+        }
+        App.feed_wdt();
       }
-      yield();
-      App.feed_wdt();
+      this->pin_->digital_write(false);
     }
-    this->pin_->digital_write(false);
 
     if (i + 1 < send_times)
       delayMicroseconds(send_wait);
