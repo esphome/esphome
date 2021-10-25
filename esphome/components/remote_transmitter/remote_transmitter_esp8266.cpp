@@ -37,8 +37,8 @@ void RemoteTransmitterComponent::aligned_delay_microseconds_(uint32_t usec) {
   const uint32_t current_time = micros();
   if (this->ref_time_ == 0)  // initialization
     this->ref_time_ = current_time;
-  if (ref_time > current_time)
-    delayMicroseconds(ref_time - current_time);  // align delay to "ref_time_"
+  if (this->ref_time_ > current_time)
+    delayMicroseconds(this->ref_time_ - current_time);  // align delay to "ref_time_"
   this->ref_time_ += usec;                       // program next delay
 }
 
