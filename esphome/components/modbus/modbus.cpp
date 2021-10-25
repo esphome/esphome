@@ -139,7 +139,9 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
                   uint8_t payload_len, const uint8_t *payload) {
   static const size_t MAX_VALUES = 128;
 
-  if (number_of_entities > MAX_VALUES) {
+  // Only check max number of registers for standard function codes
+  // Some devices use non standard codes like 0x43
+  if (number_of_entities > MAX_VALUES && function_code <= 0x10) {
     ESP_LOGE(TAG, "send too many values %d max=%zu", number_of_entities, MAX_VALUES);
     return;
   }
