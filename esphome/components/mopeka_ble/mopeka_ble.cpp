@@ -13,7 +13,7 @@ static const uint16_t MANUFACTURER_ID = 0x0059;
 /**
  * Parse all incoming BLE payloads to see if it is a Mopeka BLE advertisement.
  * Currently this supports the following products:
- * 
+ *
  *   Mopeka Pro Check.
  *    If the sync button is pressed, report the MAC so a user can add this as a sensor.
  */
@@ -36,12 +36,11 @@ bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   }
 
   if (this->parse_sync_button_(manu_data.data)) {
-    //button pressed
+    // button pressed
     ESP_LOGI(TAG, "SENSOR FOUND: %s", device.address_str().c_str());
   }
   return false;
 }
-
 
 bool MopekaListener::parse_sync_button_(const std::vector<uint8_t> &message) {
   if (message[2] & 0x80) {

@@ -9,7 +9,7 @@ namespace mopeka_pro_check {
 static const char *const TAG = "mopeka_pro_check";
 static const uint8_t MANUFACTURER_DATA_LENGTH = 10;
 static const uint16_t MANUFACTURER_ID = 0x0059;
-static const double MOPEKA_LPG_COEF[] = {0.573045, -0.002822, -0.00000535}; // Magic numbers provided by Mopeka
+static const double MOPEKA_LPG_COEF[] = {0.573045, -0.002822, -0.00000535};  // Magic numbers provided by Mopeka
 
 void MopekaProCheck::dump_config() {
   ESP_LOGCONFIG(TAG, "Mopeka Pro Check");
@@ -25,8 +25,7 @@ void MopekaProCheck::dump_config() {
  * update the sensor state data.
  */
 bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
-
-  if (device.address_uint64() != this->address_){
+  if (device.address_uint64() != this->address_) {
     return false;
   }
 
@@ -69,11 +68,11 @@ bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     uint32_t distance_value = this->parse_distance_(manu_data.data);
     SensorReadQuality quality_value = this->parse_read_quality_(manu_data.data);
     ESP_LOGD(TAG, "Distance Sensor: Quality (0x%X) Distance (%dmm)", quality_value, distance_value);
-    if ( quality_value < QUALITY_HIGH) {
+    if (quality_value < QUALITY_HIGH) {
       ESP_LOGW(TAG, "Poor read quality.");
     }
     if (quality_value < QUALITY_MED) {
-      //if really bad reading set to 0
+      // if really bad reading set to 0
       ESP_LOGW(TAG, "Setting distance to 0");
       distance_value = 0;
     }
@@ -87,7 +86,7 @@ bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     if (this->level_ != nullptr) {
       uint8_t tank_level = 0;
       if (distance_value >= this->full_mm_) {
-        tank_level = 100;  //cap at 100%
+        tank_level = 100;  // cap at 100%
       } else if (distance_value > this->empty_mm_) {
         tank_level = ((100.0f / (this->full_mm_ - this->empty_mm_)) * (distance_value - this->empty_mm_));
       }
@@ -122,16 +121,13 @@ uint32_t MopekaProCheck::parse_distance_(const std::vector<uint8_t> &message) {
   double raw_level = raw & 0x3FFF;
   double raw_t = (message[2] & 0x7F);
 
-  return (uint32_t) (raw_level *
-                     (MOPEKA_LPG_COEF[0] + MOPEKA_LPG_COEF[1] * raw_t + MOPEKA_LPG_COEF[2] * raw_t * raw_t));
+  return (uint32_t)(raw_level * (MOPEKA_LPG_COEF[0] + MOPEKA_LPG_COEF[1] * raw_t + MOPEKA_LPG_COEF[2] * raw_t * raw_t));
 }
 
-uint8_t MopekaProCheck::parse_temperature_(const std::vector<uint8_t> &message) {
-  return (message[2] & 0x7F) - 40;
-}
+uint8_t MopekaProCheck::parse_temperature_(const std::vector<uint8_t> &message) { return (message[2] & 0x7F) - 40; }
 
 SensorReadQuality MopekaProCheck::parse_read_quality_(const std::vector<uint8_t> &message) {
-   return static_cast<SensorReadQuality>(message[4] >> 6);
+  return static_cast<SensorReadQuality>(message[4] >> 6);
 }
 
 }  // namespace mopeka_pro_check
