@@ -39,7 +39,7 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
     return;
   stream->print("<tr class=\"");
   stream->print(klass.c_str());
-  if(obj->is_internal())
+  if (obj->is_internal())
     stream->print(" internal");
   stream->print("\" id=\"");
   stream->print(klass.c_str());
