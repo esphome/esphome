@@ -30,7 +30,7 @@ def esp32_s2_validate_gpio_pin(value):
     if value < 0 or value > 46:
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-46)")
 
-    if value in _ESP_32_S2_SPI_PSRAM_PINS:
+    if value in _ESP32S2_SPI_PSRAM_PINS:
         raise cv.Invalid(
             f"This pin cannot be used on ESP32-S2s and is already used by the SPI/PSRAM interface (function: {_ESP_32_S2_SPI_PSRAM_PINS[value]})"
         )
