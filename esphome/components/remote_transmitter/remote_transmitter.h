@@ -33,7 +33,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 
   void space_(uint32_t usec);
 
-  void await_target_time_(uint32_t usec);
+  void await_target_time_();
   uint32_t target_time_;
 #endif
 
