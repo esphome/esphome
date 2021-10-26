@@ -4,10 +4,9 @@ from esphome import automation
 # Base
 light_ns = cg.esphome_ns.namespace("light")
 LightState = light_ns.class_("LightState", cg.EntityBase, cg.Component)
-# Fake class for addressable lights
-AddressableLightState = light_ns.class_("LightState", LightState)
+AddressableLightState = light_ns.class_("AddressableLightState", LightState)
 LightOutput = light_ns.class_("LightOutput")
-AddressableLight = light_ns.class_("AddressableLight", cg.Component)
+AddressableLight = light_ns.class_("AddressableLight", LightOutput, cg.Component)
 AddressableLightRef = AddressableLight.operator("ref")
 
 Color = cg.esphome_ns.class_("Color")

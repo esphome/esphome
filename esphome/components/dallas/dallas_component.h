@@ -11,8 +11,7 @@ class DallasTemperatureSensor;
 
 class DallasComponent : public PollingComponent {
  public:
-  explicit DallasComponent(ESPOneWire *one_wire);
-
+  void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void register_sensor(DallasTemperatureSensor *sensor);
 
   void setup() override;
@@ -24,6 +23,7 @@ class DallasComponent : public PollingComponent {
  protected:
   friend DallasTemperatureSensor;
 
+  InternalGPIOPin *pin_;
   ESPOneWire *one_wire_;
   std::vector<DallasTemperatureSensor *> sensors_;
   std::vector<uint64_t> found_sensors_;

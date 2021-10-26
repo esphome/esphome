@@ -1150,7 +1150,7 @@ servo:
 ttp229_lsf:
 
 ttp229_bsf:
-  sdo_pin: D0
+  sdo_pin: D2
   scl_pin: D1
 
 sim800l:

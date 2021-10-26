@@ -903,21 +903,9 @@ def validate_bytes(value):
 
 def hostname(value):
     value = string(value)
-    warned_underscore = False
-    if len(value) > 63:
-        raise Invalid("Hostnames can only be 63 characters long")
-    for c in value:
-        if not (c.isalnum() or c in "-_"):
-            raise Invalid("Hostname can only have alphanumeric characters and -")
-        if c in "_" and not warned_underscore:
-            _LOGGER.warning(
-                "'%s': Using the '_' (underscore) character in the hostname is discouraged "
-                "as it can cause problems with some DHCP and local name services. "
-                "For more information, see https://esphome.io/guides/faq.html#why-shouldn-t-i-use-underscores-in-my-device-name",
-                value,
-            )
-            warned_underscore = True
-    return value
+    if re.match(r"^[a-z0-9-]{1,63}$", value, re.IGNORECASE) is not None:
+        return value
+    raise Invalid(f"Invalid hostname: {value}")
 
 
 def domain(value):
@@ -1678,6 +1666,25 @@ def version_number(value):
         return str(Version.parse(value))
     except ValueError as e:
         raise Invalid("Not a version number") from e
+
+
+def platformio_version_constraint(value):
+    # for documentation on valid version constraints:
+    # https://docs.platformio.org/en/latest/core/userguide/platforms/cmd_install.html#cmd-platform-install
+
+    value = string_strict(value)
+    constraints = []
+    for item in value.split(","):
+        # find and strip prefix operator
+        op = None
+        for test_op in ("^", "~", ">=", ">", "<=", "<", "!="):
+            if item.startswith(test_op):
+                op = test_op
+                item = item[len(test_op) :]
+                break
+
+        constraints.append((op, version_number(item)))
+    return constraints
 
 
 def require_framework_version(
