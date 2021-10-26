@@ -18,7 +18,7 @@ _ESP32C3_SPI_PSRAM_PINS = {
     17: "SPIQ",
 }
 
-_ESP_32_C3_STRAPPING_PINS = {2, 8, 9}
+_ESP32C3_STRAPPING_PINS = {2, 8, 9}
 
 _LOGGER = logging.getLogger(__name__)
 
