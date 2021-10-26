@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_ESP32
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -48,4 +48,4 @@ class CameraWebServer : public Component {
 }  // namespace esp32_camera_web_server
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_ESP32

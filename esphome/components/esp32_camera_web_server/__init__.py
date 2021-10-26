@@ -18,7 +18,6 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_PORT): cv.port,
         cv.Required(CONF_MODE): cv.enum(MODES, upper=True),
     },
-    cv.only_with_arduino,
 ).extend(cv.COMPONENT_SCHEMA)
 
 

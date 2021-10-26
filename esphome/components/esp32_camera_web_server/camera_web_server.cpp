@@ -1,4 +1,4 @@
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_ESP32
 
 #include "camera_web_server.h"
 #include "esphome/core/application.h"
@@ -212,4 +212,4 @@ esp_err_t CameraWebServer::snapshot_handler_(struct httpd_req *req) {
 }  // namespace esp32_camera_web_server
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_ESP32
