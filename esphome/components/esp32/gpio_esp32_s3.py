@@ -8,7 +8,7 @@ from esphome.const import (
 
 import esphome.config_validation as cv
 
-_ESP_32_S3_SPI_PSRAM_PINS = {
+_ESP_32S3_SPI_PSRAM_PINS = {
     26: "SPICS1",
     27: "SPIHD",
     28: "SPIWP",
@@ -26,7 +26,7 @@ _ESP_32_ESP32_S3R8_PSRAM_PINS = {
     37: "SPIDQS",
 }
 
-_ESP_32_S3_STRAPPING_PINS = {0, 3, 45, 46}
+_ESP_32S3_STRAPPING_PINS = {0, 3, 45, 46}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,9 +35,9 @@ def esp32_s3_validate_gpio_pin(value):
     if value < 0 or value > 48:
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-46)")
 
-    if value in _ESP_32_S3_SPI_PSRAM_PINS:
+    if value in _ESP_32S3_SPI_PSRAM_PINS:
         raise cv.Invalid(
-            f"This pin cannot be used on ESP32-S3s and is already used by the SPI/PSRAM interface(function: {_ESP_32_S3_SPI_PSRAM_PINS[value]})"
+            f"This pin cannot be used on ESP32-S3s and is already used by the SPI/PSRAM interface(function: {_ESP_32S3_SPI_PSRAM_PINS[value]})"
         )
     if value in _ESP_32_ESP32_S3R8_PSRAM_PINS:
         _LOGGER.warning(
@@ -45,8 +45,13 @@ def esp32_s3_validate_gpio_pin(value):
             value,
         )
 
-    if value in _ESP_32_S3_STRAPPING_PINS:
-        _LOGGER.warning("GPIO%d is a Strapping PIN and should be avoided", value)
+    if value in _ESP_32S3_STRAPPING_PINS:
+        _LOGGER.warning(
+            "GPIO%d is a Strapping PIN and should be avoided.\n"
+            "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
+            "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
+            value,
+        )
 
     if value in (22, 23, 24, 25):
         # These pins are not exposed in GPIO mux (reason unknown)

@@ -11,7 +11,7 @@ from esphome.const import (
 
 import esphome.config_validation as cv
 
-_ESP_32_S2_SPI_PSRAM_PINS = {
+_ESP32S2_SPI_PSRAM_PINS = {
     26: "SPICS1",
     27: "SPIHD",
     28: "SPIWP",
@@ -32,10 +32,15 @@ def esp32_s2_validate_gpio_pin(value):
 
     if value in _ESP32S2_SPI_PSRAM_PINS:
         raise cv.Invalid(
-            f"This pin cannot be used on ESP32-S2s and is already used by the SPI/PSRAM interface (function: {_ESP_32_S2_SPI_PSRAM_PINS[value]})"
+            f"This pin cannot be used on ESP32-S2s and is already used by the SPI/PSRAM interface (function: {_ESP32S2_SPI_PSRAM_PINS[value]})"
         )
     if value in _ESP32S2_STRAPPING_PINS:
-        _LOGGER.warning("GPIO%d is a Strapping PIN and should be avoided", value)
+        _LOGGER.warning(
+            "GPIO%d is a Strapping PIN and should be avoided.\n"
+            "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
+            "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
+            value,
+        )
 
     if value in (22, 23, 24, 25):
         # These pins are not exposed in GPIO mux (reason unknown)

@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+from typing import Any
+
 from esphome.const import (
     CONF_ID,
     CONF_INPUT,
@@ -24,7 +27,6 @@ from .const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
     VARIANT_ESP32H2,
-    VARIANTS,
     esp32_ns,
 )
 
@@ -79,22 +81,22 @@ class ESP32ValidationFunctions:
 
 
 _esp32_validations = {
-    VARIANT_ESP32: Esp32ValidationFunctions(
+    VARIANT_ESP32: ESP32ValidationFunctions(
         pin_validation=esp32_validate_gpio_pin, usage_validation=esp32_validate_supports
     ),
-    VARIANT_ESP32S2: Esp32ValidationFunctions(
+    VARIANT_ESP32S2: ESP32ValidationFunctions(
         pin_validation=esp32_s2_validate_gpio_pin,
         usage_validation=esp32_s2_validate_supports,
     ),
-    VARIANT_ESP32C3: Esp32ValidationFunctions(
+    VARIANT_ESP32C3: ESP32ValidationFunctions(
         pin_validation=esp32_c3_validate_gpio_pin,
         usage_validation=esp32_c3_validate_supports,
     ),
-    VARIANT_ESP32S3: Esp32ValidationFunctions(
+    VARIANT_ESP32S3: ESP32ValidationFunctions(
         pin_validation=esp32_s3_validate_gpio_pin,
         usage_validation=esp32_s3_validate_supports,
     ),
-    VARIANT_ESP32H2: Esp32ValidationFunctions(
+    VARIANT_ESP32H2: ESP32ValidationFunctions(
         pin_validation=esp32_h2_validate_gpio_pin,
         usage_validation=esp32_h2_validate_supports,
     ),
