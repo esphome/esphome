@@ -34,7 +34,7 @@ def esp32_s2_validate_gpio_pin(value):
         raise cv.Invalid(
             f"This pin cannot be used on ESP32-S2s and is already used by the SPI/PSRAM interface (function: {_ESP_32_S2_SPI_PSRAM_PINS[value]})"
         )
-    if value in _ESP_32_S2_STRAPPING_PINS:
+    if value in _ESP32S2_STRAPPING_PINS:
         _LOGGER.warning("GPIO%d is a Strapping PIN and should be avoided", value)
 
     if value in (22, 23, 24, 25):
