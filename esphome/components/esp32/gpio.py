@@ -72,10 +72,10 @@ def _translate_pin(value):
     return _lookup_pin(value)
 
 
-class Esp32ValidationFunctions:
-    def __init__(self, pin_validation, usage_validation):
-        self.pin_validation = pin_validation
-        self.usage_validation = usage_validation
+@dataclass
+class ESP32ValidationFunctions:
+    pin_validation: Any
+    usage_validation: Any
 
 
 _esp32_validations = {
