@@ -27,5 +27,3 @@ async def to_code(config):
     cg.add(server.set_port(config[CONF_PORT]))
     cg.add(server.set_mode(config[CONF_MODE]))
     await cg.register_component(server, config)
-
-    cg.add_library("esphome/ESPAsyncWebServer-esphome", "2.0.1")
