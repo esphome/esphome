@@ -35,15 +35,15 @@ void RemoteTransmitterComponent::calculate_on_off_time_(uint32_t carrier_frequen
 
 void RemoteTransmitterComponent::await_target_time_() {
   const uint32_t current_time = micros();
-  if (this->target_time_ > current_time)
+  if (this->target_time_ == 0)
+    this->target_time_ = current_time;
+  else if (this->target_time_ > current_time)
     delayMicroseconds(this->target_time_ - current_time);
 }
 
 void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint32_t usec) {
   this->await_target_time_();
   this->pin_->digital_write(true);
-  if (this->target_time_ == 0)  // initialize aligned to the first edge
-    this->target_time_ = micros();
 
   const uint32_t target = this->target_time_ + usec;
   if (this->carrier_duty_percent_ < 100 && (on_time > 0 || off_time > 0)) {
@@ -53,6 +53,7 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
         break;
       this->await_target_time_();
       this->pin_->digital_write(false);
+
       this->target_time_ += off_time;
       if (this->target_time_ >= target)
         break;
@@ -66,8 +67,6 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
 void RemoteTransmitterComponent::space_(uint32_t usec) {
   this->await_target_time_();
   this->pin_->digital_write(false);
-  if (this->target_time_ == 0)  // initialize aligned to the first edge
-    this->target_time_ = micros();
   this->target_time_ += usec;
 }
 
