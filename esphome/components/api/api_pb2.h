@@ -9,6 +9,11 @@ namespace api {
 
 namespace enums {
 
+enum EntityCategory : uint32_t {
+  ENTITY_CATEGORY_NONE = 0,
+  ENTITY_CATEGORY_CONFIG = 1,
+  ENTITY_CATEGORY_DIAGNOSTIC = 2,
+};
 enum LegacyCoverState : uint32_t {
   LEGACY_COVER_STATE_OPEN = 0,
   LEGACY_COVER_STATE_CLOSED = 1,
@@ -270,6 +275,7 @@ class ListEntitiesBinarySensorResponse : public ProtoMessage {
   bool is_status_binary_sensor{false};
   bool disabled_by_default{false};
   std::string icon{};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -306,6 +312,7 @@ class ListEntitiesCoverResponse : public ProtoMessage {
   std::string device_class{};
   bool disabled_by_default{false};
   std::string icon{};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -363,6 +370,7 @@ class ListEntitiesFanResponse : public ProtoMessage {
   int32_t supported_speed_count{0};
   bool disabled_by_default{false};
   std::string icon{};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -428,6 +436,7 @@ class ListEntitiesLightResponse : public ProtoMessage {
   std::vector<std::string> effects{};
   bool disabled_by_default{false};
   std::string icon{};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -516,6 +525,7 @@ class ListEntitiesSensorResponse : public ProtoMessage {
   enums::SensorStateClass state_class{};
   enums::SensorLastResetType legacy_last_reset_type{};
   bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -549,6 +559,7 @@ class ListEntitiesSwitchResponse : public ProtoMessage {
   std::string icon{};
   bool assumed_state{false};
   bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -593,6 +604,7 @@ class ListEntitiesTextSensorResponse : public ProtoMessage {
   std::string unique_id{};
   std::string icon{};
   bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -804,6 +816,7 @@ class ListEntitiesCameraResponse : public ProtoMessage {
   std::string unique_id{};
   bool disabled_by_default{false};
   std::string icon{};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -862,6 +875,7 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   std::vector<std::string> supported_custom_presets{};
   bool disabled_by_default{false};
   std::string icon{};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -941,6 +955,7 @@ class ListEntitiesNumberResponse : public ProtoMessage {
   float max_value{0.0f};
   float step{0.0f};
   bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -986,6 +1001,7 @@ class ListEntitiesSelectResponse : public ProtoMessage {
   std::string icon{};
   std::vector<std::string> options{};
   bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

@@ -41,25 +41,28 @@ NumberInRangeCondition = number_ns.class_(
 
 icon = cv.icon
 
-
-NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
-    {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
-        cv.GenerateID(): cv.declare_id(Number),
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NumberStateTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
-                cv.Optional(CONF_ABOVE): cv.float_,
-                cv.Optional(CONF_BELOW): cv.float_,
-            },
-            cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
-        ),
-    }
+NUMBER_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA)
+    .extend(cv.entity_category_schema(config=True))
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
+            cv.GenerateID(): cv.declare_id(Number),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NumberStateTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
+                    cv.Optional(CONF_ABOVE): cv.float_,
+                    cv.Optional(CONF_BELOW): cv.float_,
+                },
+                cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+            ),
+        }
+    )
 )
 
 

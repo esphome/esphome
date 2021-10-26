@@ -17,6 +17,7 @@ from esphome.const import (
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_LIGHTBULB,
     ICON_CURRENT_AC,
     STATE_CLASS_MEASUREMENT,
@@ -125,6 +126,7 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
             cv.Optional(CONF_CURRENT_PHASES, default="3"): cv.enum(

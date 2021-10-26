@@ -30,17 +30,20 @@ SelectSetAction = select_ns.class_("SelectSetAction", automation.Action)
 
 icon = cv.icon
 
-
-SELECT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
-    {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSelectComponent),
-        cv.GenerateID(): cv.declare_id(Select),
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SelectStateTrigger),
-            }
-        ),
-    }
+SELECT_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA)
+    .extend(cv.entity_category_schema(config=True))
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSelectComponent),
+            cv.GenerateID(): cv.declare_id(Select),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SelectStateTrigger),
+                }
+            ),
+        }
+    )
 )
 
 

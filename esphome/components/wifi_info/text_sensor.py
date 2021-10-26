@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_SCAN_RESULTS,
     CONF_SSID,
     CONF_MAC_ADDRESS,
+    ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
 DEPENDENCIES = ["wifi"]
@@ -33,26 +34,54 @@ CONFIG_SCHEMA = cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(IPAddressWiFiInfo),
             }
+        )
+        .extend(
+            cv.entity_category_schema(
+                default=ENTITY_CATEGORY_DIAGNOSTIC, diagnostic=True
+            )
+        )
+        .extend(
+            cv.entity_category_schema(
+                default=ENTITY_CATEGORY_DIAGNOSTIC, diagnostic=True
+            )
         ),
         cv.Optional(CONF_SCAN_RESULTS): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(ScanResultsWiFiInfo),
             }
-        ).extend(cv.polling_component_schema("60s")),
+        )
+        .extend(cv.polling_component_schema("60s"))
+        .extend(
+            cv.entity_category_schema(
+                default=ENTITY_CATEGORY_DIAGNOSTIC, diagnostic=True
+            )
+        ),
         cv.Optional(CONF_SSID): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(SSIDWiFiInfo),
             }
+        ).extend(
+            cv.entity_category_schema(
+                default=ENTITY_CATEGORY_DIAGNOSTIC, diagnostic=True
+            )
         ),
         cv.Optional(CONF_BSSID): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(BSSIDWiFiInfo),
             }
+        ).extend(
+            cv.entity_category_schema(
+                default=ENTITY_CATEGORY_DIAGNOSTIC, diagnostic=True
+            )
         ),
         cv.Optional(CONF_MAC_ADDRESS): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(MacAddressWifiInfo),
             }
+        ).extend(
+            cv.entity_category_schema(
+                default=ENTITY_CATEGORY_DIAGNOSTIC, diagnostic=True
+            )
         ),
     }
 )

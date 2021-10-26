@@ -202,6 +202,7 @@ CONF_ELSE = "else"
 CONF_ENABLE_PIN = "enable_pin"
 CONF_ENABLE_TIME = "enable_time"
 CONF_ENERGY = "energy"
+CONF_ENTITY_CATEGORY = "entity_category"
 CONF_ENTITY_ID = "entity_id"
 CONF_ESP8266_DISABLE_SSL_SUPPORT = "esp8266_disable_ssl_support"
 CONF_ESPHOME = "esphome"
@@ -917,3 +918,12 @@ KEY_CORE = "core"
 KEY_TARGET_PLATFORM = "target_platform"
 KEY_TARGET_FRAMEWORK = "target_framework"
 KEY_FRAMEWORK_VERSION = "framework_version"
+
+# Entity categories
+ENTITY_CATEGORY_NONE = ""
+
+# The entity category for configuration values/controls
+ENTITY_CATEGORY_CONFIG = "config"
+
+# The entity category for read only diagnostic values, for example RSSI, uptime or MAC Address
+ENTITY_CATEGORY_DIAGNOSTIC = "diagnostic"

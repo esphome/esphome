@@ -50,6 +50,8 @@ from esphome.const import (
     DEVICE_CLASS_UPDATE,
     DEVICE_CLASS_VIBRATION,
     DEVICE_CLASS_WINDOW,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ENTITY_CATEGORY_NONE,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.util import Registry
@@ -313,63 +315,74 @@ def validate_multi_click_timing(value):
 
 device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-BINARY_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
-    {
-        cv.GenerateID(): cv.declare_id(BinarySensor),
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
-            mqtt.MQTTBinarySensorComponent
-        ),
-        cv.Optional(CONF_DEVICE_CLASS): device_class,
-        cv.Optional(CONF_FILTERS): validate_filters,
-        cv.Optional(CONF_ON_PRESS): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PressTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_RELEASE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ReleaseTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_CLICK): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClickTrigger),
-                cv.Optional(
-                    CONF_MIN_LENGTH, default="50ms"
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_MAX_LENGTH, default="350ms"
-                ): cv.positive_time_period_milliseconds,
-            }
-        ),
-        cv.Optional(CONF_ON_DOUBLE_CLICK): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DoubleClickTrigger),
-                cv.Optional(
-                    CONF_MIN_LENGTH, default="50ms"
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_MAX_LENGTH, default="350ms"
-                ): cv.positive_time_period_milliseconds,
-            }
-        ),
-        cv.Optional(CONF_ON_MULTI_CLICK): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MultiClickTrigger),
-                cv.Required(CONF_TIMING): cv.All(
-                    [parse_multi_click_timing_str], validate_multi_click_timing
-                ),
-                cv.Optional(
-                    CONF_INVALID_COOLDOWN, default="1s"
-                ): cv.positive_time_period_milliseconds,
-            }
-        ),
-        cv.Optional(CONF_ON_STATE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
-            }
-        ),
-    }
+BINARY_SENSOR_ENTITY_CATEGORIES = {
+    ENTITY_CATEGORY_NONE: cg.EntityCategory.ENTITY_CATEGORY_NONE,
+    ENTITY_CATEGORY_DIAGNOSTIC: cg.EntityCategory.ENTITY_CATEGORY_DIAGNOSTIC,
+}
+
+entity_category = cv.enum(BINARY_SENSOR_ENTITY_CATEGORIES, lower=True)
+
+BINARY_SENSOR_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA)
+    .extend(cv.entity_category_schema(diagnostic=True))
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(BinarySensor),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt.MQTTBinarySensorComponent
+            ),
+            cv.Optional(CONF_DEVICE_CLASS): device_class,
+            cv.Optional(CONF_FILTERS): validate_filters,
+            cv.Optional(CONF_ON_PRESS): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PressTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_RELEASE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ReleaseTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_CLICK): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClickTrigger),
+                    cv.Optional(
+                        CONF_MIN_LENGTH, default="50ms"
+                    ): cv.positive_time_period_milliseconds,
+                    cv.Optional(
+                        CONF_MAX_LENGTH, default="350ms"
+                    ): cv.positive_time_period_milliseconds,
+                }
+            ),
+            cv.Optional(CONF_ON_DOUBLE_CLICK): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DoubleClickTrigger),
+                    cv.Optional(
+                        CONF_MIN_LENGTH, default="50ms"
+                    ): cv.positive_time_period_milliseconds,
+                    cv.Optional(
+                        CONF_MAX_LENGTH, default="350ms"
+                    ): cv.positive_time_period_milliseconds,
+                }
+            ),
+            cv.Optional(CONF_ON_MULTI_CLICK): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MultiClickTrigger),
+                    cv.Required(CONF_TIMING): cv.All(
+                        [parse_multi_click_timing_str], validate_multi_click_timing
+                    ),
+                    cv.Optional(
+                        CONF_INVALID_COOLDOWN, default="1s"
+                    ): cv.positive_time_period_milliseconds,
+                }
+            ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
+                }
+            ),
+        }
+    )
 )
 
 
