@@ -11,12 +11,13 @@ using value_to_data_t = std::function<float>(float);
 
 class ModbusOutput : public output::FloatOutput, public Component, public SensorItem {
  public:
-  ModbusOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type)
+  ModbusOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type, int register_count)
       : output::FloatOutput(), Component() {
     this->register_type = ModbusRegisterType::HOLDING;
     this->start_address = start_address;
     this->offset = offset;
     this->bitmask = bitmask;
+    this->register_count = register_count;
     this->sensor_value_type = value_type;
     this->skip_updates = 0;
     this->start_address += offset;
