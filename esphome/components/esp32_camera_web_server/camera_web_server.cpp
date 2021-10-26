@@ -29,7 +29,7 @@ CameraWebServer::CameraWebServer() {}
 CameraWebServer::~CameraWebServer() {}
 
 void CameraWebServer::setup() {
-  if (!esp32_camera::global_esp32_camera) {
+  if (!esp32_camera::global_esp32_camera || esp32_camera::global_esp32_camera->is_failed()) {
     this->mark_failed();
     return;
   }
@@ -79,6 +79,10 @@ void CameraWebServer::dump_config() {
     ESP_LOGCONFIG(TAG, "  Mode: stream");
   else
     ESP_LOGCONFIG(TAG, "  Mode: snapshot");
+
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, "  Setup Failed");
+  }
 }
 
 float CameraWebServer::get_setup_priority() const { return setup_priority::LATE; }
