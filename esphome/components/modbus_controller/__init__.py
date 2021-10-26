@@ -38,7 +38,7 @@ ModbusRegisterType_ns = modbus_controller_ns.namespace("ModbusRegisterType")
 ModbusRegisterType = ModbusRegisterType_ns.enum("ModbusRegisterType")
 MODBUS_REGISTER_TYPE = {
     "coil": ModbusRegisterType.COIL,
-    "discrete_input": ModbusRegisterType.DISCRETE,
+    "discrete_input": ModbusRegisterType.DISCRETE_INPUT,
     "holding": ModbusRegisterType.HOLDING,
     "read": ModbusRegisterType.READ,
 }
@@ -61,6 +61,21 @@ SENSOR_VALUE_TYPE = {
     "FP32_R": SensorValueType.FP32_R,
 }
 
+TYPE_REGISTER_MAP = {
+    "RAW": 1,
+    "U_WORD": 1,
+    "S_WORD": 1,
+    "U_DWORD": 2,
+    "U_DWORD_R": 2,
+    "S_DWORD": 2,
+    "S_DWORD_R": 2,
+    "U_QWORD": 4,
+    "U_QWORDU_R": 4,
+    "S_QWORD": 4,
+    "U_QWORD_R": 4,
+    "FP32": 2,
+    "FP32_R": 2,
+}
 
 MULTI_CONF = True
 

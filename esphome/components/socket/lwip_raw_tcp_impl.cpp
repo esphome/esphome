@@ -320,8 +320,7 @@ class LWIPRawImpl : public Socket {
       return -1;
     }
     if (rx_closed_ && rx_buf_ == nullptr) {
-      errno = ECONNRESET;
-      return -1;
+      return 0;
     }
     if (len == 0) {
       return 0;
@@ -364,6 +363,11 @@ class LWIPRawImpl : public Socket {
       buf8 += copysize;
       len -= copysize;
       read += copysize;
+    }
+
+    if (read == 0) {
+      errno = EWOULDBLOCK;
+      return -1;
     }
 
     return read;

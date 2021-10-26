@@ -701,6 +701,7 @@ message ListEntitiesCameraResponse {
   string name = 3;
   string unique_id = 4;
   bool disabled_by_default = 5;
+  string icon = 6;
 }
 
 message CameraImageResponse {

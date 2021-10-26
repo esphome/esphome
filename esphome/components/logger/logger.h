@@ -24,7 +24,7 @@ namespace logger {
 enum UARTSelection {
   UART_SELECTION_UART0 = 0,
   UART_SELECTION_UART1,
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2)
   UART_SELECTION_UART2,
 #endif
 #ifdef USE_ESP8266

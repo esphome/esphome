@@ -153,7 +153,7 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART1:
         this->hw_serial_ = &Serial1;
         break;
-#if defined(USE_ESP32) && !CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2)
       case UART_SELECTION_UART2:
         this->hw_serial_ = &Serial2;
         break;
@@ -169,7 +169,7 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART1:
         uart_num_ = UART_NUM_1;
         break;
-#if !CONFIG_IDF_TARGET_ESP32C3 && !CONFIG_IDF_TARGET_ESP32S2
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2)
       case UART_SELECTION_UART2:
         uart_num_ = UART_NUM_2;
         break;
