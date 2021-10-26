@@ -118,7 +118,7 @@ def validate_supports(value):
     is_pullup = mode[CONF_PULLUP]
     is_pulldown = mode[CONF_PULLDOWN]
     variant = CORE.data[KEY_ESP32][KEY_VARIANT]
-    if variant not in VARIANTS:
+    if variant not in _esp32_validations:
         raise cv.Invalid("Unsupported ESP32 variant {variant}")
 
     if is_open_drain and not is_output:
