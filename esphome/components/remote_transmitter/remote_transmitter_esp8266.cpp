@@ -40,7 +40,6 @@ void RemoteTransmitterComponent::await_target_time_() {
 }
 
 void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint32_t usec) {
-  this->pin_->digital_write(false);  // this call helps with timing for the first execution after boot
   this->await_target_time_();
   this->pin_->digital_write(true);
   if (this->target_time_ == 0)  // initialize aligned to the first edge
