@@ -21,7 +21,7 @@ _ESP_32_S2_SPI_PSRAM_PINS = {
     32: "SPID",
 }
 
-_ESP_32_S2_STRAPPING_PINS = {0, 45, 46}
+_ESP32S2_STRAPPING_PINS = {0, 45, 46}
 
 _LOGGER = logging.getLogger(__name__)
 
