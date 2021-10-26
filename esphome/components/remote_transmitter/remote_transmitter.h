@@ -33,8 +33,8 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
 
   void space_(uint32_t usec);
 
-  void programmed_delay_microseconds_(uint32_t usec);
-  uint32_t ref_time_;
+  void await_target_time_(uint32_t usec);
+  uint32_t target_time_;
 #endif
 
 #ifdef USE_ESP32
