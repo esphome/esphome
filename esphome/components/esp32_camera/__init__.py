@@ -62,49 +62,55 @@ CONF_TEST_PATTERN = "test_pattern"
 
 camera_range_param = cv.int_range(min=-2, max=2)
 
-CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(ESP32Camera),
-        cv.Required(CONF_DATA_PINS): cv.All(
-            [pins.internal_gpio_input_pin_number], cv.Length(min=8, max=8)
-        ),
-        cv.Required(CONF_VSYNC_PIN): pins.internal_gpio_input_pin_number,
-        cv.Required(CONF_HREF_PIN): pins.internal_gpio_input_pin_number,
-        cv.Required(CONF_PIXEL_CLOCK_PIN): pins.internal_gpio_input_pin_number,
-        cv.Required(CONF_EXTERNAL_CLOCK): cv.Schema(
-            {
-                cv.Required(CONF_PIN): pins.internal_gpio_input_pin_number,
-                cv.Optional(CONF_FREQUENCY, default="20MHz"): cv.All(
-                    cv.frequency, cv.one_of(20e6, 10e6)
-                ),
-            }
-        ),
-        cv.Required(CONF_I2C_PINS): cv.Schema(
-            {
-                cv.Required(CONF_SDA): pins.internal_gpio_output_pin_number,
-                cv.Required(CONF_SCL): pins.internal_gpio_output_pin_number,
-            }
-        ),
-        cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
-        cv.Optional(CONF_POWER_DOWN_PIN): pins.internal_gpio_output_pin_number,
-        cv.Optional(CONF_MAX_FRAMERATE, default="10 fps"): cv.All(
-            cv.framerate, cv.Range(min=0, min_included=False, max=60)
-        ),
-        cv.Optional(CONF_IDLE_FRAMERATE, default="0.1 fps"): cv.All(
-            cv.framerate, cv.Range(min=0, max=1)
-        ),
-        cv.Optional(CONF_RESOLUTION, default="640X480"): cv.enum(
-            FRAME_SIZES, upper=True
-        ),
-        cv.Optional(CONF_JPEG_QUALITY, default=10): cv.int_range(min=10, max=63),
-        cv.Optional(CONF_CONTRAST, default=0): camera_range_param,
-        cv.Optional(CONF_BRIGHTNESS, default=0): camera_range_param,
-        cv.Optional(CONF_SATURATION, default=0): camera_range_param,
-        cv.Optional(CONF_VERTICAL_FLIP, default=True): cv.boolean,
-        cv.Optional(CONF_HORIZONTAL_MIRROR, default=True): cv.boolean,
-        cv.Optional(CONF_TEST_PATTERN, default=False): cv.boolean,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(
+        cv.entity_category_schema(config=True, diagnostic=True)
+    )
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(ESP32Camera),
+            cv.Required(CONF_DATA_PINS): cv.All(
+                [pins.internal_gpio_input_pin_number], cv.Length(min=8, max=8)
+            ),
+            cv.Required(CONF_VSYNC_PIN): pins.internal_gpio_input_pin_number,
+            cv.Required(CONF_HREF_PIN): pins.internal_gpio_input_pin_number,
+            cv.Required(CONF_PIXEL_CLOCK_PIN): pins.internal_gpio_input_pin_number,
+            cv.Required(CONF_EXTERNAL_CLOCK): cv.Schema(
+                {
+                    cv.Required(CONF_PIN): pins.internal_gpio_input_pin_number,
+                    cv.Optional(CONF_FREQUENCY, default="20MHz"): cv.All(
+                        cv.frequency, cv.one_of(20e6, 10e6)
+                    ),
+                }
+            ),
+            cv.Required(CONF_I2C_PINS): cv.Schema(
+                {
+                    cv.Required(CONF_SDA): pins.internal_gpio_output_pin_number,
+                    cv.Required(CONF_SCL): pins.internal_gpio_output_pin_number,
+                }
+            ),
+            cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
+            cv.Optional(CONF_POWER_DOWN_PIN): pins.internal_gpio_output_pin_number,
+            cv.Optional(CONF_MAX_FRAMERATE, default="10 fps"): cv.All(
+                cv.framerate, cv.Range(min=0, min_included=False, max=60)
+            ),
+            cv.Optional(CONF_IDLE_FRAMERATE, default="0.1 fps"): cv.All(
+                cv.framerate, cv.Range(min=0, max=1)
+            ),
+            cv.Optional(CONF_RESOLUTION, default="640X480"): cv.enum(
+                FRAME_SIZES, upper=True
+            ),
+            cv.Optional(CONF_JPEG_QUALITY, default=10): cv.int_range(min=10, max=63),
+            cv.Optional(CONF_CONTRAST, default=0): camera_range_param,
+            cv.Optional(CONF_BRIGHTNESS, default=0): camera_range_param,
+            cv.Optional(CONF_SATURATION, default=0): camera_range_param,
+            cv.Optional(CONF_VERTICAL_FLIP, default=True): cv.boolean,
+            cv.Optional(CONF_HORIZONTAL_MIRROR, default=True): cv.boolean,
+            cv.Optional(CONF_TEST_PATTERN, default=False): cv.boolean,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 SETTERS = {
     CONF_DATA_PINS: "set_data_pins",
