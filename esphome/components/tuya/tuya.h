@@ -81,6 +81,13 @@ class Tuya : public Component, public uart::UARTDevice {
   void set_string_datapoint_value(uint8_t datapoint_id, const std::string &value);
   void set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value);
   void set_bitmask_datapoint_value(uint8_t datapoint_id, uint32_t value, uint8_t length);
+  void force_set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8_t> &value);
+  void force_set_boolean_datapoint_value(uint8_t datapoint_id, bool value);
+  void force_set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value);
+  void force_set_string_datapoint_value(uint8_t datapoint_id, const std::string &value);
+  void force_set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value);
+  void force_set_bitmask_datapoint_value(uint8_t datapoint_id, uint32_t value, uint8_t length);
+  TuyaInitState get_init_state();
 #ifdef USE_TIME
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
 #endif
@@ -100,7 +107,9 @@ class Tuya : public Component, public uart::UARTDevice {
   void send_command_(const TuyaCommand &command);
   void send_empty_command_(TuyaCommandType command);
   void set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, uint32_t value,
-                                    uint8_t length);
+                                    uint8_t length, bool forced);
+  void set_string_datapoint_value_(uint8_t datapoint_id, const std::string &value, bool forced);
+  void set_raw_datapoint_value_(uint8_t datapoint_id, const std::vector<uint8_t> &value, bool forced);
   void send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, std::vector<uint8_t> data);
   void send_wifi_status_();
 
