@@ -20,7 +20,7 @@ void TuyaCover::setup() {
   if (this->position_report_id_.has_value()) {
     report_id = *this->position_report_id_;
     has_report_id = true;
-  } else if (this->position_id_.has_value()) {
+  } else {
     // Fall back to position datapoint if no position report datapoint is set.
     report_id = *this->position_id_;
     has_report_id = true;
