@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import text_sensor
 from esphome.const import (
     CONF_BSSID,
+    CONF_ENTITY_CATEGORY,
     CONF_ID,
     CONF_IP_ADDRESS,
     CONF_SCAN_RESULTS,
@@ -33,55 +34,42 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_IP_ADDRESS): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(IPAddressWiFiInfo),
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_DIAGNOSTIC
+                ): cv.entity_category,
             }
-        )
-        .extend(
-            cv.entity_category_schema(
-                default=ENTITY_CATEGORY_DIAGNOSTIC, diagnostic=True
-            )
-        )
-        .extend(
-            cv.entity_category_schema(
-                default=ENTITY_CATEGORY_DIAGNOSTIC, diagnostic=True
-            )
         ),
         cv.Optional(CONF_SCAN_RESULTS): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(ScanResultsWiFiInfo),
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_DIAGNOSTIC
+                ): cv.entity_category,
             }
-        )
-        .extend(cv.polling_component_schema("60s"))
-        .extend(
-            cv.entity_category_schema(
-                default=ENTITY_CATEGORY_DIAGNOSTIC, diagnostic=True
-            )
-        ),
+        ).extend(cv.polling_component_schema("60s")),
         cv.Optional(CONF_SSID): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(SSIDWiFiInfo),
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_DIAGNOSTIC
+                ): cv.entity_category,
             }
-        ).extend(
-            cv.entity_category_schema(
-                default=ENTITY_CATEGORY_DIAGNOSTIC, diagnostic=True
-            )
         ),
         cv.Optional(CONF_BSSID): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(BSSIDWiFiInfo),
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_DIAGNOSTIC
+                ): cv.entity_category,
             }
-        ).extend(
-            cv.entity_category_schema(
-                default=ENTITY_CATEGORY_DIAGNOSTIC, diagnostic=True
-            )
         ),
         cv.Optional(CONF_MAC_ADDRESS): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(MacAddressWifiInfo),
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_DIAGNOSTIC
+                ): cv.entity_category,
             }
-        ).extend(
-            cv.entity_category_schema(
-                default=ENTITY_CATEGORY_DIAGNOSTIC, diagnostic=True
-            )
         ),
     }
 )

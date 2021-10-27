@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_ALPHA,
     CONF_BELOW,
+    CONF_ENTITY_CATEGORY,
     CONF_EXPIRE_AFTER,
     CONF_FILTERS,
     CONF_FROM,
@@ -178,48 +179,42 @@ validate_accuracy_decimals = cv.int_
 validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-SENSOR_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA)
-    .extend(cv.entity_category_schema(diagnostic=True))
-    .extend(
-        {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
-            cv.GenerateID(): cv.declare_id(Sensor),
-            cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
-            cv.Optional(CONF_ACCURACY_DECIMALS): validate_accuracy_decimals,
-            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-            cv.Optional(CONF_STATE_CLASS): validate_state_class,
-            cv.Optional("last_reset_type"): cv.invalid(
-                "last_reset_type has been removed since 2021.9.0. state_class: total_increasing should be used for total values."
-            ),
-            cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
-            cv.Optional(CONF_EXPIRE_AFTER): cv.All(
-                cv.requires_component("mqtt"),
-                cv.Any(None, cv.positive_time_period_milliseconds),
-            ),
-            cv.Optional(CONF_FILTERS): validate_filters,
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorStateTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        SensorRawStateTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
-                    cv.Optional(CONF_ABOVE): cv.float_,
-                    cv.Optional(CONF_BELOW): cv.float_,
-                },
-                cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
-            ),
-        }
-    )
+SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
+    {
+        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
+        cv.GenerateID(): cv.declare_id(Sensor),
+        cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
+        cv.Optional(CONF_ACCURACY_DECIMALS): validate_accuracy_decimals,
+        cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+        cv.Optional(CONF_STATE_CLASS): validate_state_class,
+        cv.Optional("last_reset_type"): cv.invalid(
+            "last_reset_type has been removed since 2021.9.0. state_class: total_increasing should be used for total values."
+        ),
+        cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
+        cv.Optional(CONF_EXPIRE_AFTER): cv.All(
+            cv.requires_component("mqtt"),
+            cv.Any(None, cv.positive_time_period_milliseconds),
+        ),
+        cv.Optional(CONF_FILTERS): validate_filters,
+        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorStateTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorRawStateTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
+                cv.Optional(CONF_ABOVE): cv.float_,
+                cv.Optional(CONF_BELOW): cv.float_,
+            },
+            cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+        ),
+    }
 )
 
 _UNDEF = object()
@@ -266,7 +261,11 @@ def sensor_schema(
         )
     if entity_category is not _UNDEF:
         schema = schema.extend(
-            cv.entity_category_schema(default=entity_category, diagnostic=True)
+            {
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=entity_category
+                ): cv.entity_category
+            }
         )
     return schema
 

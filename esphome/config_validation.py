@@ -1556,20 +1556,15 @@ def maybe_simple_value(*validators, **kwargs):
     return validate
 
 
-def entity_category_schema(
-    default=UNDEFINED, config: bool = False, diagnostic: bool = False
-):
-    categories = {ENTITY_CATEGORY_NONE: cg.EntityCategory.ENTITY_CATEGORY_NONE}
-    if config:
-        categories[ENTITY_CATEGORY_CONFIG] = cg.EntityCategory.ENTITY_CATEGORY_CONFIG
-    if diagnostic:
-        categories[
-            ENTITY_CATEGORY_DIAGNOSTIC
-        ] = cg.EntityCategory.ENTITY_CATEGORY_DIAGNOSTIC
+_ENTITY_CATEGORIES = {
+    ENTITY_CATEGORY_NONE: cg.EntityCategory.ENTITY_CATEGORY_NONE,
+    ENTITY_CATEGORY_CONFIG: cg.EntityCategory.ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_DIAGNOSTIC: cg.EntityCategory.ENTITY_CATEGORY_DIAGNOSTIC,
+}
 
-    return Schema(
-        {Optional(CONF_ENTITY_CATEGORY, default=default): enum(categories, lower=True)}
-    )
+
+def entity_category(value):
+    return enum(_ENTITY_CATEGORIES, lower=True)(value)
 
 
 MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(
@@ -1603,6 +1598,7 @@ ENTITY_BASE_SCHEMA = Schema(
         Optional(CONF_INTERNAL): boolean,
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
         Optional(CONF_ICON): icon,
+        Optional(CONF_ENTITY_CATEGORY): entity_category,
     }
 )
 

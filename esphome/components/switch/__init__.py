@@ -10,8 +10,6 @@ from esphome.const import (
     CONF_ON_TURN_ON,
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
-    ENTITY_CATEGORY_CONFIG,
-    ENTITY_CATEGORY_NONE,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -38,32 +36,22 @@ SwitchTurnOffTrigger = switch_ns.class_(
 
 icon = cv.icon
 
-SWITCH_ENTITY_CATEGORIES = {
-    ENTITY_CATEGORY_NONE: cg.EntityCategory.ENTITY_CATEGORY_NONE,
-    ENTITY_CATEGORY_CONFIG: cg.EntityCategory.ENTITY_CATEGORY_CONFIG,
-}
 
-entity_category = cv.enum(SWITCH_ENTITY_CATEGORIES, lower=True)
-
-SWITCH_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
-    .extend(cv.entity_category_schema(config=True))
-    .extend(
-        {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),
-            cv.Optional(CONF_INVERTED): cv.boolean,
-            cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOnTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOffTrigger),
-                }
-            ),
-        }
-    )
+SWITCH_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
+    {
+        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),
+        cv.Optional(CONF_INVERTED): cv.boolean,
+        cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOnTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOffTrigger),
+            }
+        ),
+    }
 )
 
 

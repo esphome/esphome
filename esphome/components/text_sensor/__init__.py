@@ -12,8 +12,6 @@ from esphome.const import (
     CONF_STATE,
     CONF_FROM,
     CONF_TO,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    ENTITY_CATEGORY_NONE,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -110,36 +108,24 @@ async def substitute_filter_to_code(config, filter_id):
 
 icon = cv.icon
 
-TEXT_SENSOR_ENTITY_CATEGORIES = {
-    ENTITY_CATEGORY_NONE: cg.EntityCategory.ENTITY_CATEGORY_NONE,
-    ENTITY_CATEGORY_DIAGNOSTIC: cg.EntityCategory.ENTITY_CATEGORY_DIAGNOSTIC,
-}
 
-entity_category = cv.enum(TEXT_SENSOR_ENTITY_CATEGORIES, lower=True)
-
-TEXT_SENSOR_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA)
-    .extend(cv.entity_category_schema(diagnostic=True))
-    .extend(
-        {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
-            cv.Optional(CONF_FILTERS): validate_filters,
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        TextSensorStateTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        TextSensorStateRawTrigger
-                    ),
-                }
-            ),
-        }
-    )
+TEXT_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
+    {
+        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
+        cv.Optional(CONF_FILTERS): validate_filters,
+        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextSensorStateTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    TextSensorStateRawTrigger
+                ),
+            }
+        ),
+    }
 )
 
 
