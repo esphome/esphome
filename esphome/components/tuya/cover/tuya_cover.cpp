@@ -80,7 +80,7 @@ void TuyaCover::loop() {
     this->init_done_ = true;
 
     // Set the direction (if configured/supported).
-    this->set_direction(this->invert_position_);
+    this->set_direction_(this->invert_position_);
 
     // Handle configured restore mode.
     switch (this->restore_mode_) {
@@ -103,7 +103,7 @@ void TuyaCover::loop() {
   }
 }
 
-void TuyaCover::set_direction(bool inverted) {
+void TuyaCover::set_direction_(bool inverted) {
   if (!this->direction_id_.has_value()) {
     return;
   }
