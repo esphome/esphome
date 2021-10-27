@@ -15,28 +15,21 @@ static const char *const TAG = "tuya.cover";
 void TuyaCover::setup() {
   this->value_range_ = this->max_value_ - this->min_value_;
 
-  uint8_t report_id = 0;
-  bool has_report_id;
+  uint8_t report_id = *this->position_id_;
   if (this->position_report_id_.has_value()) {
+    // A position report datapoint is configured; listen to that instead.
     report_id = *this->position_report_id_;
-    has_report_id = true;
-  } else {
-    // Fall back to position datapoint if no position report datapoint is set.
-    report_id = *this->position_id_;
-    has_report_id = true;
   }
 
-  if (has_report_id) {
-    this->parent_->register_listener(report_id, [this](const TuyaDatapoint &datapoint) {
-      if (datapoint.value_int == 123) {
-        ESP_LOGD(TAG, "Ignoring MCU position report - not calibrated");
-        return;
-      }
-      auto pos = float(datapoint.value_uint - this->min_value_) / this->value_range_;
-      this->position = 1.0f - pos;
-      this->publish_state();
-    });
-  }
+  this->parent_->register_listener(report_id, [this](const TuyaDatapoint &datapoint) {
+    if (datapoint.value_int == 123) {
+      ESP_LOGD(TAG, "Ignoring MCU position report - not calibrated");
+      return;
+    }
+    auto pos = float(datapoint.value_uint - this->min_value_) / this->value_range_;
+    this->position = 1.0f - pos;
+    this->publish_state();
+  });
 }
 
 void TuyaCover::control(const cover::CoverCall &call) {
