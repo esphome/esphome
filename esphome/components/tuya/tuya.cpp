@@ -584,9 +584,7 @@ void Tuya::register_listener(uint8_t datapoint_id, const std::function<void(Tuya
       func(datapoint);
 }
 
-TuyaInitState Tuya::get_init_state() {
-  return this->init_state_;
-}
+TuyaInitState Tuya::get_init_state() { return this->init_state_; }
 
 }  // namespace tuya
 }  // namespace esphome
