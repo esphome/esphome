@@ -27,6 +27,7 @@ RESOLUTIONS = {
 CONF_PIN_RESET = "pin_reset"
 CONF_ON_CLOCKWISE = "on_clockwise"
 CONF_ON_ANTICLOCKWISE = "on_anticlockwise"
+CONF_PUBLISH_INITIAL_VALUE = "publish_initial_value"
 
 RotaryEncoderSensor = rotary_encoder_ns.class_(
     "RotaryEncoderSensor", sensor.Sensor, cg.Component
@@ -70,6 +71,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESOLUTION, default=1): cv.enum(RESOLUTIONS, int=True),
             cv.Optional(CONF_MIN_VALUE): cv.int_,
             cv.Optional(CONF_MAX_VALUE): cv.int_,
+            cv.Optional(CONF_PUBLISH_INITIAL_VALUE, default=False): cv.boolean,
             cv.Optional(CONF_ON_CLOCKWISE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -99,6 +101,7 @@ async def to_code(config):
     cg.add(var.set_pin_a(pin_a))
     pin_b = await cg.gpio_pin_expression(config[CONF_PIN_B])
     cg.add(var.set_pin_b(pin_b))
+    cg.add(var.set_publish_initial_value(config[CONF_PUBLISH_INITIAL_VALUE]))
 
     if CONF_PIN_RESET in config:
         pin_i = await cg.gpio_pin_expression(config[CONF_PIN_RESET])

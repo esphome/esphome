@@ -189,9 +189,10 @@ void RotaryEncoderSensor::loop() {
     this->store_.counter = 0;
   }
   int counter = this->store_.counter;
-  if (this->store_.last_read != counter) {
+  if (this->store_.last_read != counter || this->publish_initial_value_) {
     this->store_.last_read = counter;
     this->publish_state(counter);
+    this->publish_initial_value_ = false;
   }
 }
 
