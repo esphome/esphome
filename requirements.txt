@@ -10,7 +10,7 @@ platformio==5.2.2  # When updating platformio, also update Dockerfile
 esptool==3.2
 click==8.0.3
 esphome-dashboard==20211021.1
-aioesphomeapi==10.0.3
+aioesphomeapi==10.1.0
 
 # esp-idf requires this, but doesn't bundle it by default
 # https://github.com/espressif/esp-idf/blob/220590d599e134d7a5e7f1e683cc4550349ffbf8/requirements.txt#L24
