@@ -34,7 +34,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_helpers import setup_device_registry
+from esphome.cpp_helpers import setup_device_registry_entry
 from esphome.helpers import copy_file_if_changed, walk_files
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ LoopTrigger = cg.esphome_ns.class_(
     "LoopTrigger", cg.Component, automation.Trigger.template()
 )
 
-DeviceRegistry = cg.esphome_ns.class_("DeviceRegistry")
+DeviceRegistryEntry = cg.esphome_ns.class_("DeviceRegistryEntry")
 
 VERSION_REGEX = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$")
 
@@ -142,7 +142,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_DEVICE, default={}): cv.DEVICE_REGISTRY_SCHEMA.extend(
                 {
-                    cv.GenerateID(): cv.declare_id(DeviceRegistry),
+                    cv.GenerateID(): cv.declare_id(DeviceRegistryEntry),
                 }
             ),
         }
@@ -367,5 +367,5 @@ async def to_code(config):
     # Device Registry Entry
     device_registry_config = config[CONF_DEVICE]
     device = cg.new_Pvariable(config[CONF_DEVICE][CONF_ID])
-    await setup_device_registry(device, device_registry_config)
-    cg.add(cg.App.set_device_registry(device))
+    await setup_device_registry_entry(device, device_registry_config)
+    cg.add(cg.App.set_device_registry_entry(device))

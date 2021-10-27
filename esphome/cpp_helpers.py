@@ -115,7 +115,7 @@ async def setup_entity(var, config):
         add(var.set_entity_category(config[CONF_ENTITY_CATEGORY]))
 
 
-async def setup_device_registry(var, config):
+async def setup_device_registry_entry(var, config):
     """Sets up a device registry entry"""
 
     # Defaults

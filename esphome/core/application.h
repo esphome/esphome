@@ -113,10 +113,10 @@ class Application {
   const std::string &get_name() const { return this->name_; }
 
   /// Get the device registry entry representing this device
-  const DeviceRegistry *get_device_registry() const { return this->device_registry_; }
+  const DeviceRegistryEntry *get_device_registry_entry() const { return this->device_registry_entry_; }
 
   /// Sets the device registry entry representing this device.
-  void set_device_registry(DeviceRegistry *device_registry) { this->device_registry_ = device_registry; }
+  void set_device_registry_entry(DeviceRegistryEntry *device) { this->device_registry_entry_ = device; }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
@@ -294,7 +294,7 @@ class Application {
 
   std::string name_;
   std::string compilation_time_;
-  DeviceRegistry *device_registry_{nullptr};
+  DeviceRegistryEntry *device_registry_entry_{nullptr};
   bool name_add_mac_suffix_;
   uint32_t last_loop_{0};
   uint32_t loop_interval_{16};

@@ -11,7 +11,7 @@ namespace esphome {
 // including metadata such as name, manufacturer, and model.
 //
 // Further Info: https://developers.home-assistant.io/docs/device_registry_index
-class DeviceRegistry {
+class DeviceRegistryEntry {
  public:
   // The name of this Device
   const std::string &get_name() const;
