@@ -41,7 +41,7 @@ def esp32_s3_validate_gpio_pin(value):
         )
     if value in _ESP_32_ESP32_S3R8_PSRAM_PINS:
         _LOGGER.warning(
-            "GPIO%d is by the PSRAM interface on ESP32-S3R8 / ESP32-S3R8V boad and should be avoided on these models",
+            "GPIO%d is used by the PSRAM interface on ESP32-S3R8 / ESP32-S3R8V and should be avoided on these models",
             value,
         )
 
