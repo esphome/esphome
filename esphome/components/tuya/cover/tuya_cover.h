@@ -34,7 +34,7 @@ class TuyaCover : public cover::Cover, public Component {
 
  protected:
   void control(const cover::CoverCall &call) override;
-  void set_direction(bool inverted);
+  void set_direction_(bool inverted);
   cover::CoverTraits get_traits() override;
 
   Tuya *parent_;
