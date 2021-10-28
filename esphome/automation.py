@@ -248,7 +248,7 @@ async def while_action_to_code(config, action_id, template_arg, args):
     RepeatAction,
     cv.Schema(
         {
-            cv.Required(CONF_COUNT): cv.positive_not_null_int,
+            cv.Required(CONF_COUNT): cv.templatable(cv.positive_not_null_int),
             cv.Required(CONF_THEN): validate_action_list,
         }
     ),
