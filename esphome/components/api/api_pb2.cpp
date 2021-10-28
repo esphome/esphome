@@ -397,7 +397,7 @@ bool DeviceInfoResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return true;
     }
     case 10: {
-      this->webserver_port = value.as_int32();
+      this->webserver_port = value.as_uint32();
       return true;
     }
     default:
@@ -448,7 +448,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(7, this->has_deep_sleep);
   buffer.encode_string(8, this->project_name);
   buffer.encode_string(9, this->project_version);
-  buffer.encode_int32(10, this->webserver_port);
+  buffer.encode_uint32(10, this->webserver_port);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoResponse::dump_to(std::string &out) const {
@@ -491,7 +491,7 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  webserver_port: ");
-  sprintf(buffer, "%d", this->webserver_port);
+  sprintf(buffer, "%u", this->webserver_port);
   out.append(buffer);
   out.append("\n");
   out.append("}");

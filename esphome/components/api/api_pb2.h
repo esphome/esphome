@@ -224,7 +224,7 @@ class DeviceInfoResponse : public ProtoMessage {
   bool has_deep_sleep{false};
   std::string project_name{};
   std::string project_version{};
-  int32_t webserver_port{0};
+  uint32_t webserver_port{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
