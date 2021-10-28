@@ -510,6 +510,12 @@ class DashboardEntry:
         return self.storage.address
 
     @property
+    def web_port(self):
+        if self.storage is None:
+            return None
+        return self.storage.web_port
+
+    @property
     def name(self):
         if self.storage is None:
             return self.filename.replace(".yml", "").replace(".yaml", "")
@@ -569,6 +575,7 @@ class ListDevicesHandler(BaseHandler):
                             "path": entry.path,
                             "comment": entry.comment,
                             "address": entry.address,
+                            "web_port": entry.web_port,
                             "target_platform": entry.target_platform,
                         }
                         for entry in entries
