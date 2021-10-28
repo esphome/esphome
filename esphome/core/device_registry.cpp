@@ -31,7 +31,9 @@ void DeviceRegistryEntry::set_model(const std::string &model) { this->model_ = m
 
 // Suggested Area
 const std::string &DeviceRegistryEntry::get_suggested_area() const { return this->suggested_area_; }
-void DeviceRegistryEntry::set_suggested_area(const std::string &suggested_area) { this->suggested_area_ = suggested_area; }
+void DeviceRegistryEntry::set_suggested_area(const std::string &suggested_area) {
+  this->suggested_area_ = suggested_area;
+}
 
 // Software Version
 const std::string &DeviceRegistryEntry::get_software_version() const { return this->software_version_; }
