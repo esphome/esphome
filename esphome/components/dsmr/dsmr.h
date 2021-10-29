@@ -17,7 +17,7 @@ namespace esphome {
 namespace dsmr {
 
 static constexpr uint32_t MAX_TELEGRAM_LENGTH = 1500;
-static constexpr uint32_t READ_TIMEOUT_MS = 200;
+static constexpr uint32_t READ_TIMEOUT_MS = 900;
 
 using namespace ::dsmr::fields;
 
