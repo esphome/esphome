@@ -24,10 +24,6 @@
 #include "esphome/components/fan/fan_helpers.h"
 #endif
 
-#ifndef WEBSERVER_INCLUDE_INTERNAL
-#define WEBSERVER_INCLUDE_INTERNAL false
-#endif
-
 namespace esphome {
 namespace web_server {
 

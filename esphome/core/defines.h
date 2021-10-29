@@ -71,3 +71,4 @@
 //#define USE_BSEC  // Requires a library with proprietary license.
 
 #define USE_DASHBOARD_IMPORT
+#define WEBSERVER_INCLUDE_INTERNAL false
