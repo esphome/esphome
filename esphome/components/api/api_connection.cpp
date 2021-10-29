@@ -78,6 +78,8 @@ void APIConnection::loop() {
     on_fatal_error();
     if (err == APIError::SOCKET_READ_FAILED && errno == ECONNRESET) {
       ESP_LOGW(TAG, "%s: Connection reset", client_info_.c_str());
+    } else if (err == APIError::CONNECTION_CLOSED) {
+      ESP_LOGW(TAG, "%s: Connection closed", client_info_.c_str());
     } else {
       ESP_LOGW(TAG, "%s: Reading failed: %s errno=%d", client_info_.c_str(), api_error_to_str(err), errno);
     }
@@ -678,6 +680,7 @@ bool APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
   msg.name = camera->get_name();
   msg.unique_id = get_default_unique_id("camera", camera);
   msg.disabled_by_default = camera->is_disabled_by_default();
+  msg.icon = camera->get_icon();
   return this->send_list_entities_camera_response(msg);
 }
 void APIConnection::camera_image(const CameraImageRequest &msg) {

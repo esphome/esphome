@@ -343,6 +343,7 @@ sensor:
       - exponential_moving_average:
           alpha: 0.1
           send_every: 15
+      - throttle_average: 60s
       - throttle: 1s
       - heartbeat: 5s
       - debounce: 0.1s

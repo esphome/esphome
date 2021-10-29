@@ -18,13 +18,12 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
   bool digital_read() override;
   void digital_write(bool value) override;
   std::string dump_summary() const override;
-  void detach_interrupt() const override { gpio_intr_disable(pin_); }
+  void detach_interrupt() const override;
   ISRInternalGPIOPin to_isr() const override;
   uint8_t get_pin() const override { return (uint8_t) pin_; }
   bool is_inverted() const override { return inverted_; }
 
  protected:
-  static gpio_mode_t flags_to_mode(gpio::Flags flags);
   void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
 
   gpio_num_t pin_;
