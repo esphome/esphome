@@ -83,13 +83,13 @@ void ImprovSerialComponent::loop() {
       this->cancel_timeout("wifi-connect-timeout");
       this->set_state_(improv::STATE_PROVISIONED);
 
-      std::vector<uint8_t> url = this->build_rpc_settings_response_();
+      std::vector<uint8_t> url = this->build_rpc_settings_response_(improv::WIFI_SETTINGS);
       this->send_response_(url);
     }
   }
 }
 
-std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_() {
+std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv::Command command) {
   std::string url = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
   std::vector<std::string> urls = {url};
 #ifdef USE_WEBSERVER
@@ -97,7 +97,7 @@ std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_() {
   std::string webserver_url = "http://" + ip.str() + ":" + to_string(WEBSERVER_PORT);
   urls.push_back(webserver_url);
 #endif
-  std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, urls);
+  std::vector<uint8_t> data = improv::build_rpc_response(command, urls);
   return data;
 }
 
@@ -168,7 +168,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
     case improv::GET_CURRENT_STATE:
       this->set_state_(this->state_);
       if (this->state_ == improv::STATE_PROVISIONED) {
-        std::vector<uint8_t> url = this->build_rpc_settings_response_();
+        std::vector<uint8_t> url = this->build_rpc_settings_response_(improv::GET_CURRENT_STATE);
         this->send_response_(url);
       }
       return true;
