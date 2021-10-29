@@ -217,7 +217,7 @@ void ImprovSerialComponent::send_response_(std::vector<uint8_t> &response) {
   std::vector<uint8_t> data = {'I', 'M', 'P', 'R', 'O', 'V'};
   data.resize(9);
   data[6] = IMPROV_SERIAL_VERSION;
-  data[7] = TYPE_RPC;
+  data[7] = TYPE_RPC_RESPONSE;
   data[8] = response.size();
   data.insert(data.end(), response.begin(), response.end());
   this->write_data_(data);

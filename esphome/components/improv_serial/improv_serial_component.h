@@ -20,6 +20,7 @@ enum ImprovSerialType : uint8_t {
   TYPE_CURRENT_STATE = 0x01,
   TYPE_ERROR_STATE = 0x02,
   TYPE_RPC = 0x03,
+  TYPE_RPC_RESPONSE = 0x04
 };
 
 static const uint8_t IMPROV_SERIAL_VERSION = 1;
