@@ -54,7 +54,7 @@ void Dsmr::receive_telegram_() {
     if (telegram_len_ >= MAX_TELEGRAM_LENGTH) {
       header_found_ = false;
       footer_found_ = false;
-      ESP_LOGE(TAG, "Error: Message larger than buffer");
+      ESP_LOGE(TAG, "Error: telegram larger than buffer (%d bytes)", MAX_TELEGRAM_LENGTH);
       return;
     }
 
@@ -96,7 +96,7 @@ void Dsmr::receive_encrypted_() {
         return;
       }
       if (!available_within_timeout()) {
-        ESP_LOGW(TAG, "Timeout while waiting for encrypted data or invalid data received.");
+        ESP_LOGW(TAG, "Timeout while reading data for encrypted telegram");
         return;
       }
     }
@@ -105,22 +105,16 @@ void Dsmr::receive_encrypted_() {
 
     if (!header_found_) {
       if ((uint8_t) c == 0xdb) {
-        ESP_LOGV(TAG, "Start byte 0xDB found");
+        ESP_LOGV(TAG, "Start byte 0xDB of encrypted telegram found");
         header_found_ = true;
       }
+      continue;
     }
 
-    // Sanity check
-    if (!header_found_ || buffer_length >= MAX_TELEGRAM_LENGTH) {
-      if (buffer_length == 0) {
-        ESP_LOGE(TAG, "First byte of encrypted telegram should be 0xDB, aborting.");
-      } else {
-        ESP_LOGW(TAG, "Unexpected data");
-      }
-      this->status_momentary_warning("unexpected_data");
-      this->flush();
-      while (available())
-        read();
+    // Check for buffer overflow.
+    if (buffer_length >= MAX_TELEGRAM_LENGTH) {
+      header_found_ = false;
+      ESP_LOGE(TAG, "Error: encrypted telegram larger than buffer (%d bytes)", MAX_TELEGRAM_LENGTH);
       return;
     }
 
@@ -131,7 +125,7 @@ void Dsmr::receive_encrypted_() {
       packet_size = buffer[11] << 8 | buffer[12];
     }
     if (buffer_length == packet_size + 13 && packet_size > 0) {
-      ESP_LOGV(TAG, "Encrypted data: %d bytes", buffer_length);
+      ESP_LOGV(TAG, "Encrypted telegram size: %d bytes", buffer_length);
 
       GCM<AES128> *gcmaes128{new GCM<AES128>()};
       gcmaes128->setKey(this->decryption_key_.data(), gcmaes128->keySize());
@@ -149,11 +143,13 @@ void Dsmr::receive_encrypted_() {
       delete gcmaes128;  // NOLINT(cppcoreguidelines-owning-memory)
 
       telegram_len_ = strnlen(this->telegram_, sizeof(this->telegram_));
-      ESP_LOGV(TAG, "Decrypted data length: %d", telegram_len_);
-      ESP_LOGVV(TAG, "Decrypted data %s", this->telegram_);
+      ESP_LOGV(TAG, "Decrypted telegram length: %d", telegram_len_);
+      ESP_LOGVV(TAG, "Decrypted telegram: %s", this->telegram_);
+
+      header_found_ = false;
+      telegram_len_ = 0;
 
       parse_telegram();
-      telegram_len_ = 0;
       return;
     }
   }
