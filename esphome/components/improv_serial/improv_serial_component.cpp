@@ -136,7 +136,7 @@ bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
   if (at == 8 + data_len) {
     if (type == TYPE_RPC) {
       this->set_error_(improv::ERROR_NONE);
-      auto command = improv::parse_improv_data(&raw[11], data_len);
+      auto command = improv::parse_improv_data(&raw[9], data_len);
       return this->parse_improv_payload_(command);
     }
   }
