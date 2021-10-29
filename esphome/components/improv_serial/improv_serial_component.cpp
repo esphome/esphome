@@ -185,15 +185,15 @@ void ImprovSerialComponent::set_state_(improv::State state) {
 
   std::vector<uint8_t> data = {'I', 'M', 'P', 'R', 'O', 'V'};
   data.resize(11);
-  data[8] = IMPROV_SERIAL_VERSION;
-  data[9] = TYPE_CURRENT_STATE;
-  data[10] = 1;
-  data[11] = state;
+  data[6] = IMPROV_SERIAL_VERSION;
+  data[7] = TYPE_CURRENT_STATE;
+  data[8] = 1;
+  data[9] = state;
 
   uint8_t checksum = 0x00;
   for (uint8_t d : data)
     checksum += d;
-  data[12] = checksum;
+  data[10] = checksum;
 
   this->write_data_(data);
 }
@@ -201,24 +201,24 @@ void ImprovSerialComponent::set_state_(improv::State state) {
 void ImprovSerialComponent::set_error_(improv::Error error) {
   std::vector<uint8_t> data = {'I', 'M', 'P', 'R', 'O', 'V'};
   data.resize(11);
-  data[8] = IMPROV_SERIAL_VERSION;
-  data[9] = TYPE_ERROR_STATE;
-  data[10] = 1;
-  data[11] = error;
+  data[6] = IMPROV_SERIAL_VERSION;
+  data[7] = TYPE_ERROR_STATE;
+  data[8] = 1;
+  data[9] = error;
 
   uint8_t checksum = 0x00;
   for (uint8_t d : data)
     checksum += d;
-  data[12] = checksum;
+  data[10] = checksum;
   this->write_data_(data);
 }
 
 void ImprovSerialComponent::send_response_(std::vector<uint8_t> &response) {
   std::vector<uint8_t> data = {'I', 'M', 'P', 'R', 'O', 'V'};
   data.resize(9);
-  data[8] = IMPROV_SERIAL_VERSION;
-  data[9] = TYPE_RPC;
-  data[10] = response.size();
+  data[6] = IMPROV_SERIAL_VERSION;
+  data[7] = TYPE_RPC;
+  data[8] = response.size();
   data.insert(data.end(), response.begin(), response.end());
   this->write_data_(data);
 }
