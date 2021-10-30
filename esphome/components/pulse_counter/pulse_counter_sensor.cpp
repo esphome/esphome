@@ -154,11 +154,13 @@ void PulseCounterSensor::dump_config() {
 }
 
 void PulseCounterSensor::update() {
+  bool first = this->last_value == 0;
   pulse_counter_t raw = this->storage_.read_raw_value();
-  float value = (60000.0f * raw) / float(this->get_update_interval());  // per minute
-
-  ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
-  this->publish_state(value);
+  if(!first) {
+    float value = (60000.0f * raw) / float(this->get_update_interval());  // per minute
+    ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
+    this->publish_state(value);
+  }
 
   if (this->total_sensor_ != nullptr) {
     current_total_ += raw;
