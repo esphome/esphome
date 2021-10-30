@@ -60,8 +60,11 @@ def validate_hostname(config):
     if config[CONF_NAME_ADD_MAC_SUFFIX]:
         max_length -= 7  # "-AABBCC" is appended when add mac suffix option is used
     if len(config[CONF_NAME]) > max_length:
-        raise cv.Invalid(
-            f"Hostnames can only be {max_length} characters long", path=[CONF_NAME]
+        _LOGGER.warning(
+            "Hostnames greater than {max_length} are discouraged "
+            "as it can cause problems with some DHCP and local name services. "
+            "For more information, see https://esphome.io/guides/faq.html",
+            config[CONF_NAME],
         )
     if "_" in config[CONF_NAME]:
         _LOGGER.warning(
