@@ -19,7 +19,7 @@ void Dsmr::loop() {
     this->receive_encrypted_();
 }
 
-bool Dsmr::available_within_timeout() {
+bool Dsmr::available_within_timeout_() {
   uint8_t tries = READ_TIMEOUT_MS / 5;
   while (tries--) {
     delay(5);
@@ -33,7 +33,7 @@ bool Dsmr::available_within_timeout() {
 void Dsmr::receive_telegram_() {
   while (true) {
     if (!available()) {
-      if (!header_found_ || !available_within_timeout()) {
+      if (!header_found_ || !available_within_timeout_()) {
         return;
       }
     }
@@ -95,7 +95,7 @@ void Dsmr::receive_encrypted_() {
       if (!header_found_) {
         return;
       }
-      if (!available_within_timeout()) {
+      if (!available_within_timeout_()) {
         ESP_LOGW(TAG, "Timeout while reading data for encrypted telegram");
         return;
       }

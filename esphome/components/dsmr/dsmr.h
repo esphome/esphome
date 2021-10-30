@@ -94,7 +94,7 @@ class Dsmr : public Component, public uart::UARTDevice {
   /// By not returning, we prevent other components from taking so much
   /// time that the UART RX buffer overflows and bytes of the telegram get
   /// lost in the process.
-  bool available_within_timeout();
+  bool available_within_timeout_();
 
   // Telegram buffer
   char telegram_[MAX_TELEGRAM_LENGTH];
