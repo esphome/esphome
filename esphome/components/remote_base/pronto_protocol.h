@@ -15,7 +15,7 @@ struct ProntoData {
 class ProntoProtocol : public RemoteProtocol<ProntoData> {
  private:
   void send_pronto_(RemoteTransmitData *dst, const uint16_t *data, unsigned int length);
-  void send_pronto_(RemoteTransmitData *dst, const std::string& str);
+  void send_pronto_(RemoteTransmitData *dst, const std::string &str);
 
  public:
   void encode(RemoteTransmitData *dst, const ProntoData &data) override;
