@@ -66,9 +66,6 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const uint16_t *data,
   unsigned int timebase = (MICROSECONDS_IN_SECONDS * data[1] + REFERENCE_FREQUENCY / 2) / REFERENCE_FREQUENCY;
   unsigned int khz;
 
-  if (length < 3)
-    return;
-
   switch (data[0]) {
     case LEARNED_TOKEN:  // normal, "learned"
       khz = to_frequency_k_hz(data[1]);
@@ -125,6 +122,10 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &st
     data[i] = static_cast<uint16_t>(x);  // If input is conforming, there can be no overflow!
     p = *endptr;
   }
+
+  if (len < 3)
+    return;
+
   send_pronto_(dst, data, len);
 }
 
