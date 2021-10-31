@@ -54,7 +54,8 @@ static const uint32_t MICROSECONDS_IN_SECONDS = 1000000UL;
 static const uint16_t PRONTO_DEFAULT_GAP = 45000;
 
 static unsigned int to_frequency_k_hz(uint16_t code) {
-  if (code == 0) return 0;
+  if (code == 0)
+    return 0;
   return ((REFERENCE_FREQUENCY / code) + 500) / 1000;
 }
 
@@ -64,6 +65,10 @@ static unsigned int to_frequency_k_hz(uint16_t code) {
 void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const uint16_t *data, unsigned int length) {
   unsigned int timebase = (MICROSECONDS_IN_SECONDS * data[1] + REFERENCE_FREQUENCY / 2) / REFERENCE_FREQUENCY;
   unsigned int khz;
+  
+  if (length < 3)
+    return;
+
   switch (data[0]) {
     case LEARNED_TOKEN:  // normal, "learned"
       khz = to_frequency_k_hz(data[1]);
@@ -107,10 +112,11 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &st
   uint16_t data[len];
   const char *p = str.c_str();
   char *endptr[1];
-  for (unsigned int i = 0; i < len; i++) { data[i] = 0; }
+  for (unsigned int i = 0; i < len; i++)
+    data[i] = 0;
 
   for (unsigned int i = 0; i < len; i++) {
-    long x = strtol(p, endptr, 16);
+    int32 x = strtol(p, endptr, 16);
     if (x == 0 && i >= NUMBERS_IN_PREAMBLE) {
       // Alignment error?, bail immediately (often right result).
       len = i;
