@@ -117,7 +117,6 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &st
     uint16_t x = strtol(p, endptr, 16);
     if (x == 0 && i >= NUMBERS_IN_PREAMBLE) {
       // Alignment error?, bail immediately (often right result).
-      len = i;
       break;
     }
     data.push_back(x);  // If input is conforming, there can be no overflow!
