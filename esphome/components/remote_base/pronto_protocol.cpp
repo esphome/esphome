@@ -64,7 +64,7 @@ static unsigned int to_frequency_k_hz(uint16_t code) {
  * Parse the string given as Pronto Hex, and send it a number of times given as argument.
  */
 void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::vector<uint16_t> &data) {
-  if (data.size() < 3)
+  if (data.size() < 4)
     return;
 
   unsigned int timebase = (MICROSECONDS_IN_SECONDS * data[1] + REFERENCE_FREQUENCY / 2) / REFERENCE_FREQUENCY;
