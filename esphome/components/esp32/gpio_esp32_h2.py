@@ -1,7 +1,3 @@
-from esphome.const import (
-    CONF_NUMBER,
-)
-
 import esphome.config_validation as cv
 
 
