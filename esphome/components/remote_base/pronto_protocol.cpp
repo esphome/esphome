@@ -99,7 +99,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const uint16_t *data,
   }
 }
 
-void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string& str) {
+void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &str) {
   size_t len = str.length() / (DIGITS_IN_PRONTO_NUMBER + 1) + 1;
   uint16_t data[len];
   const char *p = str.c_str();
