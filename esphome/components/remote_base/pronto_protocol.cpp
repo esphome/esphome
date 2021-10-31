@@ -42,30 +42,30 @@ static const char *const TAG = "remote.pronto";
 
 // DO NOT EXPORT from this file
 static const uint16_t MICROSECONDS_T_MAX = 0xFFFFU;
-static const uint16_t learnedToken = 0x0000U;
-static const uint16_t learnedNonModulatedToken = 0x0100U;
-static const unsigned int bitsInHexadecimal = 4U;
-static const unsigned int digitsInProntoNumber = 4U;
-static const unsigned int numbersInPreamble = 4U;
-static const unsigned int hexMask = 0xFU;
-static const uint32_t referenceFrequency = 4145146UL;
-static const uint16_t fallbackFrequency = 64767U;  // To use with frequency = 0;
-static const uint32_t microsecondsInSeconds = 1000000UL;
+static const uint16_t LEARNED_TOKEN = 0x0000U;
+static const uint16_t LEARNED_NON_MODULATED_TOKEN = 0x0100U;
+static const unsigned int BITS_IN_HEXADECIMAL = 4U;
+static const unsigned int DIGITS_IN_PRONTO_NUMBER = 4U;
+static const unsigned int NUMBERS_IN_PREAMBLE = 4U;
+static const unsigned int HEX_MASK = 0xFU;
+static const uint32_t REFERENCE_FREQUENCY = 4145146UL;
+static const uint16_t FALLBACK_FREQUENCY = 64767U;  // To use with frequency = 0;
+static const uint32_t MICROSECONDS_IN_SECONDS = 1000000UL;
 static const uint16_t PRONTO_DEFAULT_GAP = 45000;
 
-static unsigned int toFrequencyKHz(uint16_t code) { return ((referenceFrequency / code) + 500) / 1000; }
+static unsigned int to_frequency_k_hz(uint16_t code) { return ((REFERENCE_FREQUENCY / code) + 500) / 1000; }
 
 /*
  * Parse the string given as Pronto Hex, and send it a number of times given as argument.
  */
 void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const uint16_t *data, unsigned int length) {
-  unsigned int timebase = (microsecondsInSeconds * data[1] + referenceFrequency / 2) / referenceFrequency;
+  unsigned int timebase = (MICROSECONDS_IN_SECONDS * data[1] + REFERENCE_FREQUENCY / 2) / REFERENCE_FREQUENCY;
   unsigned int khz;
   switch (data[0]) {
-    case learnedToken:  // normal, "learned"
-      khz = toFrequencyKHz(data[1]);
+    case LEARNED_TOKEN:  // normal, "learned"
+      khz = to_frequency_k_hz(data[1]);
       break;
-    case learnedNonModulatedToken:  // non-demodulated, "learned"
+    case LEARNED_NON_MODULATED_TOKEN:  // non-demodulated, "learned"
       khz = 0U;
       break;
     default:
@@ -78,7 +78,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const uint16_t *data,
   unsigned int repeats = 2 * data[3];
   ESP_LOGD(TAG, "Send Pronto: intros=%d", intros);
   ESP_LOGD(TAG, "Send Pronto: repeats=%d", repeats);
-  if (numbersInPreamble + intros + repeats != length) {  // inconsistent sizes
+  if (NUMBERS_IN_PREAMBLE + intros + repeats != length) {  // inconsistent sizes
     return;
   }
 
@@ -89,24 +89,24 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const uint16_t *data,
   dst->reserve(intros + repeats);
 
   for (unsigned int i = 0; i < intros + repeats; i += 2) {
-    uint32_t duration0 = ((uint32_t) data[i + 0 + numbersInPreamble]) * timebase;
+    uint32_t duration0 = ((uint32_t) data[i + 0 + NUMBERS_IN_PREAMBLE]) * timebase;
     duration0 = duration0 < MICROSECONDS_T_MAX ? duration0 : MICROSECONDS_T_MAX;
 
-    uint32_t duration1 = ((uint32_t) data[i + 1 + numbersInPreamble]) * timebase;
+    uint32_t duration1 = ((uint32_t) data[i + 1 + NUMBERS_IN_PREAMBLE]) * timebase;
     duration1 = duration1 < MICROSECONDS_T_MAX ? duration1 : MICROSECONDS_T_MAX;
 
     dst->item(duration0, duration1);
   }
 }
 
-void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string str) {
-  size_t len = str.length() / (digitsInProntoNumber + 1) + 1;
+void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string& str) {
+  size_t len = str.length() / (DIGITS_IN_PRONTO_NUMBER + 1) + 1;
   uint16_t data[len];
   const char *p = str.c_str();
   char *endptr[1];
   for (unsigned int i = 0; i < len; i++) {
     long x = strtol(p, endptr, 16);
-    if (x == 0 && i >= numbersInPreamble) {
+    if (x == 0 && i >= NUMBERS_IN_PREAMBLE) {
       // Alignment error?, bail immediately (often right result).
       len = i;
       break;
