@@ -56,16 +56,19 @@ static const uint16_t PRONTO_DEFAULT_GAP = 45000;
 static unsigned int to_frequency_k_hz(uint16_t code) {
   if (code == 0)
     return 0;
+
   return ((REFERENCE_FREQUENCY / code) + 500) / 1000;
 }
 
 /*
  * Parse the string given as Pronto Hex, and send it a number of times given as argument.
  */
-void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const uint16_t *data, unsigned int length) {
+void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::vector<uint16_t> &data) {
+  if (data.size() < 3)
+    return;
+
   unsigned int timebase = (MICROSECONDS_IN_SECONDS * data[1] + REFERENCE_FREQUENCY / 2) / REFERENCE_FREQUENCY;
   unsigned int khz;
-
   switch (data[0]) {
     case LEARNED_TOKEN:  // normal, "learned"
       khz = to_frequency_k_hz(data[1]);
@@ -83,7 +86,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const uint16_t *data,
   unsigned int repeats = 2 * data[3];
   ESP_LOGD(TAG, "Send Pronto: intros=%d", intros);
   ESP_LOGD(TAG, "Send Pronto: repeats=%d", repeats);
-  if (NUMBERS_IN_PREAMBLE + intros + repeats != length) {  // inconsistent sizes
+  if (NUMBERS_IN_PREAMBLE + intros + repeats != data.size()) {  // inconsistent sizes
     return;
   }
 
@@ -106,27 +109,21 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const uint16_t *data,
 
 void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &str) {
   size_t len = str.length() / (DIGITS_IN_PRONTO_NUMBER + 1) + 1;
-  uint16_t data[len];
+  std::vector<uint16_t> data;
   const char *p = str.c_str();
   char *endptr[1];
-  for (unsigned int i = 0; i < len; i++)
-    data[i] = 0;
 
   for (unsigned int i = 0; i < len; i++) {
-    unsigned int x = strtol(p, endptr, 16);
+    uint16_t x = strtol(p, endptr, 16);
     if (x == 0 && i >= NUMBERS_IN_PREAMBLE) {
       // Alignment error?, bail immediately (often right result).
       len = i;
       break;
     }
-    data[i] = static_cast<uint16_t>(x);  // If input is conforming, there can be no overflow!
+    data.push_back(x);  // If input is conforming, there can be no overflow!
     p = *endptr;
   }
-
-  if (len < 3)
-    return;
-
-  send_pronto_(dst, data, len);
+  send_pronto_(dst, data);
 }
 
 void ProntoProtocol::encode(RemoteTransmitData *dst, const ProntoData &data) { send_pronto_(dst, data.data); }
