@@ -53,7 +53,10 @@ static const uint16_t FALLBACK_FREQUENCY = 64767U;  // To use with frequency = 0
 static const uint32_t MICROSECONDS_IN_SECONDS = 1000000UL;
 static const uint16_t PRONTO_DEFAULT_GAP = 45000;
 
-static unsigned int to_frequency_k_hz(uint16_t code) { return ((REFERENCE_FREQUENCY / code) + 500) / 1000; }
+static unsigned int to_frequency_k_hz(uint16_t code) {
+  if (code == 0) return 0;
+  return ((REFERENCE_FREQUENCY / code) + 500) / 1000;
+}
 
 /*
  * Parse the string given as Pronto Hex, and send it a number of times given as argument.
@@ -104,6 +107,8 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &st
   uint16_t data[len];
   const char *p = str.c_str();
   char *endptr[1];
+  for (unsigned int i = 0; i < len; i++) { data[i] = 0; }
+
   for (unsigned int i = 0; i < len; i++) {
     long x = strtol(p, endptr, 16);
     if (x == 0 && i >= NUMBERS_IN_PREAMBLE) {
