@@ -440,9 +440,13 @@ async def pioneer_action(var, config, args):
 
 
 # Pronto
-ProntoData, ProntoBinarySensor, ProntoTrigger, ProntoAction, ProntoDumper = declare_protocol(
-    "Pronto"
-)
+(
+    ProntoData,
+    ProntoBinarySensor,
+    ProntoTrigger,
+    ProntoAction,
+    ProntoDumper,
+) = declare_protocol("Pronto")
 PRONTO_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATA): cv.string,
