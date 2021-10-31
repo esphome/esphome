@@ -65,7 +65,7 @@ static unsigned int to_frequency_k_hz(uint16_t code) {
 void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const uint16_t *data, unsigned int length) {
   unsigned int timebase = (MICROSECONDS_IN_SECONDS * data[1] + REFERENCE_FREQUENCY / 2) / REFERENCE_FREQUENCY;
   unsigned int khz;
-  
+
   if (length < 3)
     return;
 
@@ -116,7 +116,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &st
     data[i] = 0;
 
   for (unsigned int i = 0; i < len; i++) {
-    int32 x = strtol(p, endptr, 16);
+    unsigned int x = strtol(p, endptr, 16);
     if (x == 0 && i >= NUMBERS_IN_PREAMBLE) {
       // Alignment error?, bail immediately (often right result).
       len = i;
