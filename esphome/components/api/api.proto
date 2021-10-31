@@ -182,6 +182,8 @@ message DeviceInfoResponse {
   // The esphome project details if set
   string project_name = 8;
   string project_version = 9;
+
+  uint32 webserver_port = 10;
 }
 
 message ListEntitiesRequest {

@@ -760,6 +760,9 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.project_name = ESPHOME_PROJECT_NAME;
   resp.project_version = ESPHOME_PROJECT_VERSION;
 #endif
+#ifdef USE_WEBSERVER
+  resp.webserver_port = WEBSERVER_PORT;
+#endif
   return resp;
 }
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
