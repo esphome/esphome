@@ -226,6 +226,8 @@ def upload_using_esptool(config, port):
             mcu,
             "write_flash",
             "-z",
+            "--flash_size",
+            "detect",
         ]
         for img in flash_images:
             cmd += [img.offset, img.path]

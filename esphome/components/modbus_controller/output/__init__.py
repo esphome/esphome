@@ -13,11 +13,13 @@ from .. import (
     SensorItem,
     modbus_controller_ns,
     ModbusController,
+    TYPE_REGISTER_MAP,
 )
 
 from ..const import (
     CONF_BYTE_OFFSET,
     CONF_MODBUS_CONTROLLER_ID,
+    CONF_REGISTER_COUNT,
     CONF_VALUE_TYPE,
     CONF_WRITE_LAMBDA,
 )
@@ -40,6 +42,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_OFFSET, default=0): cv.positive_int,
             cv.Optional(CONF_BYTE_OFFSET): cv.positive_int,
             cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
+            cv.Optional(CONF_REGISTER_COUNT, default=0): cv.positive_int,
             cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
         }
@@ -54,8 +57,16 @@ async def to_code(config):
     # A CONF_BYTE_OFFSET setting overrides CONF_OFFSET
     if CONF_BYTE_OFFSET in config:
         byte_offset = config[CONF_BYTE_OFFSET]
+    value_type = config[CONF_VALUE_TYPE]
+    reg_count = config[CONF_REGISTER_COUNT]
+    if reg_count == 0:
+        reg_count = TYPE_REGISTER_MAP[value_type]
     var = cg.new_Pvariable(
-        config[CONF_ID], config[CONF_ADDRESS], byte_offset, config[CONF_VALUE_TYPE]
+        config[CONF_ID],
+        config[CONF_ADDRESS],
+        byte_offset,
+        value_type,
+        reg_count,
     )
     await output.register_output(var, config)
     cg.add(var.set_write_multiply(config[CONF_MULTIPLY]))

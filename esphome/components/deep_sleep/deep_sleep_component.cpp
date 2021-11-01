@@ -78,8 +78,9 @@ void DeepSleepComponent::begin_sleep(bool manual) {
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
   if (this->wakeup_pin_ != nullptr) {
     bool level = this->wakeup_pin_->is_inverted();
-    if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && this->wakeup_pin_->digital_read())
+    if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && !this->wakeup_pin_->digital_read()) {
       level = !level;
+    }
     esp_sleep_enable_ext0_wakeup(gpio_num_t(this->wakeup_pin_->get_pin()), level);
   }
   if (this->ext1_wakeup_.has_value()) {

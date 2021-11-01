@@ -94,6 +94,7 @@ mqtt:
   username: 'debug'
   password: 'debug'
   client_id: someclient
+  use_abbreviations: false
   discovery: True
   discovery_retain: False
   discovery_prefix: discovery
