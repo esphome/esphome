@@ -337,7 +337,7 @@ def load_yaml(fname):
     return _load_yaml_internal(fname)
 
 
-def _load_yaml_internal(fname, force = True):
+def _load_yaml_internal(fname, force=True):
     if not force and not os.path.exists(fname):
         return OrderedDict()
 
