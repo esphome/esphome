@@ -28,6 +28,7 @@ _LOGGER = logging.getLogger(__name__)
 # let's not reinvent the wheel here
 
 SECRET_YAML = "secrets.yaml"
+DOTSECRET_YAML = ".secrets.yaml"
 _SECRET_CACHE = {}
 _SECRET_VALUES = {}
 
@@ -240,12 +241,13 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_secret(self, node):
-        secrets = _load_yaml_internal(self._rel_path(SECRET_YAML))
-        if node.value not in secrets:
+        secrets = _load_yaml_internal(self._rel_path(SECRET_YAML), False)
+        dotsecrets = _load_yaml_internal(self._rel_path(DOTSECRET_YAML), False)
+        if node.value not in secrets and node.value not in dotsecrets:
             raise yaml.MarkedYAMLError(
                 f"Secret '{node.value}' not defined", node.start_mark
             )
-        val = secrets[node.value]
+        val = secrets.get(node.value, dotsecrets.get(node.value))
         _SECRET_VALUES[str(val)] = node.value
         return val
 
@@ -335,7 +337,10 @@ def load_yaml(fname):
     return _load_yaml_internal(fname)
 
 
-def _load_yaml_internal(fname):
+def _load_yaml_internal(fname, force = True):
+    if not force and not os.path.exists(fname):
+        return OrderedDict()
+
     content = read_config_file(fname)
     loader = ESPHomeLoader(content)
     loader.name = fname
