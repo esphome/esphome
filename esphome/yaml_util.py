@@ -247,12 +247,11 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                 raise yaml.MarkedYAMLError(
                     f"Secret '{node.value}' not defined", node.start_mark
                 )
-            else:
-                secrets = _load_yaml_internal(self._rel_path(SECRET_YAML))
-                if node.value not in secrets:
-                    raise yaml.MarkedYAMLError(
-                        f"Secret '{node.value}' not defined", node.start_mark
-                    )
+            secrets = _load_yaml_internal(self._rel_path(SECRET_YAML))
+            if node.value not in secrets:
+                raise yaml.MarkedYAMLError(
+                    f"Secret '{node.value}' not defined", node.start_mark
+                )
         val = secrets[node.value]
         _SECRET_VALUES[str(val)] = node.value
         return val
