@@ -27,8 +27,8 @@ _LOGGER = logging.getLogger(__name__)
 # Mostly copied from Home Assistant because that code works fine and
 # let's not reinvent the wheel here
 
-SECRET_YAML = "secrets.yaml"
 DOTSECRET_YAML = ".secrets.yaml"
+SECRET_YAML = "secrets.yaml"
 _SECRET_CACHE = {}
 _SECRET_VALUES = {}
 
@@ -241,13 +241,19 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_secret(self, node):
-        secrets = _load_yaml_internal(self._rel_path(SECRET_YAML), False)
-        dotsecrets = _load_yaml_internal(self._rel_path(DOTSECRET_YAML), False)
-        if node.value not in secrets and node.value not in dotsecrets:
-            raise yaml.MarkedYAMLError(
-                f"Secret '{node.value}' not defined", node.start_mark
-            )
-        val = secrets.get(node.value, dotsecrets.get(node.value))
+        secrets = _load_yaml_internal(self._rel_path(DOTSECRET_YAML), False)
+        if node.value not in secrets:
+            if len(secrets) > 0:
+                raise yaml.MarkedYAMLError(
+                    f"Secret '{node.value}' not defined", node.start_mark
+                )
+            else:
+                secrets = _load_yaml_internal(self._rel_path(SECRET_YAML))
+                if node.value not in secrets:
+                    raise yaml.MarkedYAMLError(
+                        f"Secret '{node.value}' not defined", node.start_mark
+                    )
+        val = secrets[node.value]
         _SECRET_VALUES[str(val)] = node.value
         return val
 
