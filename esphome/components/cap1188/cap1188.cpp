@@ -21,17 +21,13 @@ void CAP1188Component::setup() {
   delay(100);  // NOLINT
 
   // Check if CAP1188 is actually connected
-  uint8_t cap1188_product_id;
-  uint8_t cap1188_manufacture_id;
-  uint8_t cap1188_revision;
+  uint8_t cap1188_product_id = 0;
+  uint8_t cap1188_manufacture_id = 0;
+  uint8_t cap1188_revision = 0;
 
   this->read_byte(CAP1188_PRODID, &cap1188_product_id);
   this->read_byte(CAP1188_MANUID, &cap1188_manufacture_id);
   this->read_byte(CAP1188_REV, &cap1188_revision);
-
-  ESP_LOGD(TAG, "  Product ID: %02x", (int) cap1188_product_id);
-  ESP_LOGD(TAG, "  Manufacture ID: %02x", (int) cap1188_manufacture_id);
-  ESP_LOGD(TAG, "  Revision: %02x", (int) cap1188_revision);
 
   if ((cap1188_product_id != 0x50) || (cap1188_manufacture_id != 0x5D) || (cap1188_revision != 0x83)) {
     this->error_code_ = COMMUNICATION_FAILED;
