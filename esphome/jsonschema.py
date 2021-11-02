@@ -1,7 +1,7 @@
 """Helpers to retrieve schema from voluptuous validators.
 
 These are a helper decorators to help get schema from some
-components which uses volutuous in a way where validation
+components which uses voluptuous in a way where validation
 is hidden in local functions
 These decorators should not modify at all what the functions
 originally do.
