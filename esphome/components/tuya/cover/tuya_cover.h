@@ -7,10 +7,6 @@
 namespace esphome {
 namespace tuya {
 
-const extern uint8_t COMMAND_OPEN;
-const extern uint8_t COMMAND_CLOSE;
-const extern uint8_t COMMAND_STOP;
-
 enum TuyaCoverRestoreMode {
   COVER_NO_RESTORE,
   COVER_RESTORE,
