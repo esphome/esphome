@@ -8,7 +8,7 @@ static const char *const TAG = "mlx90393";
 
 void MLX90393::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MLX90393...");
-  if(!mlx.begin_I2C()) {
+  if(!mlx.begin_I2C(this->address_)) {
     this->mark_failed();
     return;
   }
@@ -20,7 +20,7 @@ void MLX90393::setup() {
 
   mlx.setOversampling(MLX90393_OSR_2);
 
-  mlx.setFilter(MLX90393_FILTER);
+  mlx.setFilter(MLX90393_FILTER_6);
 }
 
 void MLX90393::dump_config() {
@@ -36,29 +36,26 @@ void MLX90393::dump_config() {
   LOG_SENSOR("  ", "X Axis", this->x_sensor_);
   LOG_SENSOR("  ", "Y Axis", this->y_sensor_);
   LOG_SENSOR("  ", "Z Axis", this->z_sensor_);
-  LOG_SENSOR("  ", "Total", this->t_sensor_);
 }
 
 float MLX90393::get_setup_priority() const { return setup_priority::DATA; }
 
 void MLX90393::update() {
-  txyz data = {0};
-  if (mlx.readData(&data)) {
+  float x,y,z=0;
+  if (mlx.readData(&x, &y, &z)) {
+    ESP_LOGD(TAG, "received %f %f %f", x, y, z);
     if(this->x_sensor_!= nullptr) {
-      this->x_sensor_->publish_state(data.x);
+      this->x_sensor_->publish_state(x);
     }
     if(this->y_sensor_!= nullptr) {
-      this->y_sensor_->publish_state(data.y);
+      this->y_sensor_->publish_state(y);
     }
     if(this->z_sensor_!= nullptr) {
-      this->z_sensor_->publish_state(data.z);
-    }
-    if(this->t_sensor_!= nullptr) {
-      this->t_sensor_->publish_state(data.t);
+      this->z_sensor_->publish_state(z);
     }
     this->status_clear_warning();
   } else {
-    LOG_E(TAG, "failed to read data");
+    ESP_LOGE(TAG, "failed to read data");
     this->status_set_warning();
   }
 }

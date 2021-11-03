@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_ID,
     UNIT_MICROTESLA,
     STATE_CLASS_MEASUREMENT,
-    CONF_TOTAL,
     ICON_MAGNET,
     CONF_GAIN,
 )
@@ -39,27 +38,21 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_GAIN, default="GAIN_2_5X"): cv.enum(
                 GAIN, upper=True, space="_"
             ),
-            cv.Optional(CONF_TOTAL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROTESLA,
-                accuracy_decimals=2,
-                icon=ICON_MAGNET,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
             cv.Optional(CONF_X_AXIS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROTESLA,
-                accuracy_decimals=2,
+                accuracy_decimals=0,
                 icon=ICON_MAGNET,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_Y_AXIS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROTESLA,
-                accuracy_decimals=2,
+                accuracy_decimals=0,
                 icon=ICON_MAGNET,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_Z_AXIS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROTESLA,
-                accuracy_decimals=2,
+                accuracy_decimals=0,
                 icon=ICON_MAGNET,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
@@ -84,9 +77,6 @@ async def to_code(config):
     if CONF_Z_AXIS in config:
         sens = await sensor.new_sensor(config[CONF_Z_AXIS])
         cg.add(var.set_z_sensor(sens))
-    if CONF_TOTAL in config:
-        sens = await sensor.new_sensor(config[CONF_TOTAL])
-        cg.add(var.set_t_sensor(sens))
 
 
 cg.add_library("adafruit/Adafruit MLX90393", "^2.0.2")
