@@ -23,9 +23,6 @@
 
 namespace esphome {
 
-/// The characters that are allowed in a hostname.
-extern const char *const HOSTNAME_CHARACTER_ALLOWLIST;
-
 /// Read the raw MAC address into the provided byte array (6 bytes).
 void get_mac_address_raw(uint8_t *mac);
 
@@ -55,14 +52,6 @@ optional<float> parse_float(const std::string &str);
 optional<int> parse_int(const std::string &str);
 optional<int> parse_hex(const std::string &str, size_t start, size_t length);
 optional<int> parse_hex(char chr);
-/// Sanitize the hostname by removing characters that are not in the allowlist and truncating it to 63 chars.
-std::string sanitize_hostname(const std::string &hostname);
-
-/// Truncate a string to a specific length
-std::string truncate_string(const std::string &s, size_t length);
-
-/// Convert the string to lowercase_underscore.
-std::string to_lowercase_underscore(std::string s);
 
 /// Compare string a to string b (ignoring case) and return whether they are equal.
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
@@ -144,9 +133,6 @@ std::string uint64_to_string(uint64_t num);
 
 /// Convert a uint32_t to a hex string
 std::string uint32_to_string(uint32_t num);
-
-/// Sanitizes the input string with the allowlist.
-std::string sanitize_string_allowlist(const std::string &s, const std::string &allowlist);
 
 uint8_t reverse_bits_8(uint8_t x);
 uint16_t reverse_bits_16(uint16_t x);
@@ -303,5 +289,19 @@ template<typename T> T *new_buffer(size_t length) {
 
   return buffer;
 }
+
+/// @name Strings
+///@{
+
+/// Truncate a string to a specific length.
+std::string str_truncate(const std::string &str, size_t length);
+
+/// Convert the string to snake case (lowercase with underscores).
+std::string str_snake_case(const std::string &str);
+
+/// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
+std::string str_sanitize(const std::string &str);
+
+///@}
 
 }  // namespace esphome

@@ -17,7 +17,7 @@ static const char *const TAG = "mqtt.component";
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
-  std::string sanitized_name = sanitize_string_allowlist(App.get_name(), HOSTNAME_CHARACTER_ALLOWLIST);
+  std::string sanitized_name = str_sanitize(App.get_name());
   return discovery_info.prefix + "/" + this->component_type() + "/" + sanitized_name + "/" +
          this->get_default_object_id_() + "/config";
 }
@@ -125,7 +125,7 @@ bool MQTTComponent::is_discovery_enabled() const {
 }
 
 std::string MQTTComponent::get_default_object_id_() const {
-  return sanitize_string_allowlist(to_lowercase_underscore(this->friendly_name()), HOSTNAME_CHARACTER_ALLOWLIST);
+  return str_sanitize(str_snake_case(this->friendly_name()));
 }
 
 void MQTTComponent::subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos) {
