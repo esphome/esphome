@@ -304,4 +304,17 @@ template<typename T> T *new_buffer(size_t length) {
   return buffer;
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+
+/// @name STL backports
+///@{
+
+// std::byteswap is from C++23 and technically should be a template, but this will do for now.
+constexpr uint8_t  byteswap(uint8_t  n) { return n; }
+constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
+constexpr uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
+constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+
+///@}
+
 }  // namespace esphome
