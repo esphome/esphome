@@ -317,4 +317,19 @@ constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
 
 ///@}
 
+/// @name Bit manipulation
+///@{
+
+/// Convert a value between host byte order and big endian (most significant byte first) order.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+constexpr T convert_big_endian(T val) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  return byteswap(val);
+#else
+  return val;
+#endif
+}
+
+///@}
+
 }  // namespace esphome
