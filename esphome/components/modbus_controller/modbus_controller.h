@@ -260,35 +260,11 @@ struct SensorItem {
   virtual void parse_and_publish(const std::vector<uint8_t> &data) = 0;
 
   uint64_t getkey() const { return calc_key(register_type, start_address, offset, bitmask); }
-
   size_t virtual get_register_size() const {
-    size_t size = 0;
-    switch (sensor_value_type) {
-      case SensorValueType::BIT:
-        size = 1;
-        break;
-      case SensorValueType::U_WORD:
-      case SensorValueType::S_WORD:
-        size = 2;
-        break;
-      case SensorValueType::U_DWORD:
-      case SensorValueType::S_DWORD:
-      case SensorValueType::U_DWORD_R:
-      case SensorValueType::S_DWORD_R:
-      case SensorValueType::FP32:
-      case SensorValueType::FP32_R:
-        size = 4;
-        break;
-      case SensorValueType::U_QWORD:
-      case SensorValueType::U_QWORD_R:
-      case SensorValueType::S_QWORD:
-      case SensorValueType::S_QWORD_R:
-        size = 8;
-        break;
-      case SensorValueType::RAW:
-        size = this->register_count * 2;
-    }
-    return size;
+    if (register_type == ModbusRegisterType::COIL || register_type == ModbusRegisterType::DISCRETE_INPUT)
+      return 1;
+    else
+      return register_count * 2;
   }
 };
 
