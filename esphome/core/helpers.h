@@ -53,8 +53,6 @@ std::string to_string(unsigned long long val);  // NOLINT
 std::string to_string(float val);
 std::string to_string(double val);
 std::string to_string(long double val);
-optional<float> parse_float(const std::string &str);
-optional<int> parse_int(const std::string &str);
 optional<int> parse_hex(const std::string &str, size_t start, size_t length);
 optional<int> parse_hex(char chr);
 /// Sanitize the hostname by removing characters that are not in the allowlist and truncating it to 63 chars.

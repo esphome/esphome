@@ -272,20 +272,6 @@ std::string to_string(long double val) {
   sprintf(buf, "%Lf", val);
   return buf;
 }
-optional<float> parse_float(const std::string &str) {
-  char *end;
-  float value = ::strtof(str.c_str(), &end);
-  if (end == nullptr || end != str.end().base())
-    return {};
-  return value;
-}
-optional<int> parse_int(const std::string &str) {
-  char *end;
-  int value = ::strtol(str.c_str(), &end, 10);
-  if (end == nullptr || end != str.end().base())
-    return {};
-  return value;
-}
 
 optional<int> parse_hex(const char chr) {
   int out = chr;
