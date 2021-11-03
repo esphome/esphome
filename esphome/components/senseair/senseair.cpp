@@ -141,8 +141,11 @@ void SenseAirComponent::abc_get_period() {
 }
 
 bool SenseAirComponent::senseair_write_command_(const uint8_t *command, uint8_t *response, uint8_t response_length) {
+  int retry = 0;
   this->flush();
-  this->write_array(command, SENSEAIR_REQUEST_LENGTH);
+
+  while (!this->available()) {
+  }
 
   if (response == nullptr)
     return true;
