@@ -17,7 +17,6 @@ class TuyaCover : public cover::Cover, public Component {
  public:
   void setup() override;
   void dump_config() override;
-  void loop() override;
   void set_control_id(uint8_t control_id) { this->control_id_ = control_id; }
   void set_direction_id(uint8_t direction_id) { this->direction_id_ = direction_id; }
   void set_position_id(uint8_t position_id) { this->position_id_ = position_id; }
@@ -43,7 +42,6 @@ class TuyaCover : public cover::Cover, public Component {
   uint32_t max_value_;
   uint32_t value_range_;
   bool invert_position_;
-  bool init_done_{false};
 };
 
 }  // namespace tuya

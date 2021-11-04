@@ -15,6 +15,30 @@ static const char *const TAG = "tuya.cover";
 void TuyaCover::setup() {
   this->value_range_ = this->max_value_ - this->min_value_;
 
+  this->parent_->add_on_initialized_callback([this]() {
+    // Set the direction (if configured/supported).
+    this->set_direction_(this->invert_position_);
+
+    // Handle configured restore mode.
+    switch (this->restore_mode_) {
+      case COVER_NO_RESTORE:
+        break;
+      case COVER_RESTORE: {
+        auto restore = this->restore_state_();
+        if (restore.has_value())
+          restore->apply(this);
+        break;
+      }
+      case COVER_RESTORE_AND_CALL: {
+        auto restore = this->restore_state_();
+        if (restore.has_value()) {
+          restore->to_call(this).perform();
+        }
+        break;
+      }
+    }
+  });
+
   uint8_t report_id = *this->position_id_;
   if (this->position_report_id_.has_value()) {
     // A position report datapoint is configured; listen to that instead.
@@ -63,37 +87,6 @@ void TuyaCover::control(const cover::CoverCall &call) {
   }
 
   this->publish_state();
-}
-
-void TuyaCover::loop() {
-  // Wait until the Tuya component reports state INIT_DONE before attempting
-  // to set the direction of travel or restore the state (if applicable), as
-  // these won't work if the Tuya MCU isn't ready yet.
-  if (!this->init_done_ && this->parent_->get_init_state() == TuyaInitState::INIT_DONE) {
-    this->init_done_ = true;
-
-    // Set the direction (if configured/supported).
-    this->set_direction_(this->invert_position_);
-
-    // Handle configured restore mode.
-    switch (this->restore_mode_) {
-      case COVER_NO_RESTORE:
-        break;
-      case COVER_RESTORE: {
-        auto restore = this->restore_state_();
-        if (restore.has_value())
-          restore->apply(this);
-        break;
-      }
-      case COVER_RESTORE_AND_CALL: {
-        auto restore = this->restore_state_();
-        if (restore.has_value()) {
-          restore->to_call(this).perform();
-        }
-        break;
-      }
-    }
-  }
 }
 
 void TuyaCover::set_direction_(bool inverted) {
