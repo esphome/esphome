@@ -163,7 +163,7 @@ async def to_code(config):
     if CONF_ATTENUATION in config:
         if config[CONF_ATTENUATION] == "auto":
             if CONF_RAW in config and config[CONF_RAW] == True:
-                return  // TO-DO: Notify user that "attenuation: auto" cannot be used with "raw: true"
+                return  # TO-DO: Notify user that "attenuation: auto" cannot be used with "raw: true"
             cg.add(var.set_autorange(cg.global_ns.true))
         else:
             cg.add(var.set_attenuation(config[CONF_ATTENUATION]))
