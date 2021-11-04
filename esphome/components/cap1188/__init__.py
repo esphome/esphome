@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import i2c, output
+from esphome.components import i2c
 from esphome.const import CONF_ID, CONF_RESET_PIN
 from esphome import pins
 
@@ -13,22 +13,18 @@ CODEOWNERS = ["@MrEditor97"]
 
 cap1188_ns = cg.esphome_ns.namespace("cap1188")
 CONF_CAP1188_ID = "cap1188_id"
-CAP1188Component = cap1188_ns.class_(
-    "CAP1188Component", cg.Component, i2c.I2CDevice, output.BinaryOutput
-)
+CAP1188Component = cap1188_ns.class_("CAP1188Component", cg.Component, i2c.I2CDevice)
 
 MULTI_CONF = True
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(CAP1188Component),
-            cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_TOUCH_THRESHOLD, default=0x20): cv.int_range(
                 min=0x01, max=0x80
             ),
-            cv.Optional(CONF_ALLOW_MULTIPLE_TOUCHES, default=0x80): cv.one_of(
-                0x80, 0x41
-            ),
+            cv.Optional(CONF_ALLOW_MULTIPLE_TOUCHES, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -40,9 +36,10 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_touch_threshold(config[CONF_TOUCH_THRESHOLD]))
     cg.add(var.set_allow_multiple_touches(config[CONF_ALLOW_MULTIPLE_TOUCHES]))
-    await output.register_output(var, config)
+
+    if CONF_RESET_PIN in config:
+        pin = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
+        cg.add(var.set_reset_pin(pin))
+
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-
-    pin = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-    cg.add(var.set_pin(pin))
