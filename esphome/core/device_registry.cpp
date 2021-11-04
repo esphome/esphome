@@ -35,6 +35,12 @@ void DeviceRegistryEntry::set_suggested_area(const std::string &suggested_area) 
   this->suggested_area_ = suggested_area;
 }
 
+// Configuration URL
+const std::string &DeviceRegistryEntry::get_configuration_url() const { return this->configuration_url_; }
+void DeviceRegistryEntry::set_configuration_url(const std::string &configuration_url) {
+  this->configuration_url_ = configuration_url;
+}
+
 // Software Version
 const std::string &DeviceRegistryEntry::get_software_version() const { return this->software_version_; }
 void DeviceRegistryEntry::set_software_version(const std::string &software_version) {

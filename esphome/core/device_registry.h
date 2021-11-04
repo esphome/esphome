@@ -37,6 +37,10 @@ class DeviceRegistryEntry {
   const std::string &get_suggested_area() const;
   void set_suggested_area(const std::string &suggested_area);
 
+  // Configuration URL
+  const std::string &get_configuration_url() const;
+  void set_configuration_url(const std::string &configuration_url);
+
   // Software Version
   const std::string &get_software_version() const;
   void set_software_version(const std::string &software_version);
@@ -52,6 +56,7 @@ class DeviceRegistryEntry {
   std::string manufacturer_;
   std::string model_;
   std::string suggested_area_;
+  std::string configuration_url_;
   std::string software_version_;
   std::string via_device_;
 };
