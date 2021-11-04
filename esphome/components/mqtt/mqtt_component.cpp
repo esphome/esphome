@@ -2,6 +2,8 @@
 
 #ifdef USE_MQTT
 
+#include <map>
+
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/device_registry.h"
@@ -111,16 +113,21 @@ bool MQTTComponent::send_discovery_() {
         }
 
         // Device Registry entry
-        const DeviceRegistry *device = App.get_device_registry();
+        std::map<std::string, std::function<const std::string &(const DeviceRegistryEntry *)>> property_map = {
+            {MQTT_DEVICE_NAME, &DeviceRegistryEntry::get_name},
+            {MQTT_DEVICE_MANUFACTURER, &DeviceRegistryEntry::get_manufacturer},
+            {MQTT_DEVICE_MODEL, &DeviceRegistryEntry::get_model},
+            {MQTT_DEVICE_SW_VERSION, &DeviceRegistryEntry::get_software_version},
+            {MQTT_DEVICE_SUGGESTED_AREA, &DeviceRegistryEntry::get_suggested_area},
+            {MQTT_DEVICE_VIA_DEVICE, &DeviceRegistryEntry::get_via_device},
+            {MQTT_CONFIGURATION_URL, &DeviceRegistryEntry::get_configuration_url}};
+
+        const DeviceRegistryEntry *device = App.get_device_registry_entry();
         JsonObject &device_info = root.createNestedObject(MQTT_DEVICE);
-        device_info[MQTT_DEVICE_NAME] = device->get_name();
-        device_info[MQTT_DEVICE_MANUFACTURER] = device->get_manufacturer();
-        device_info[MQTT_DEVICE_MODEL] = device->get_model();
-        device_info[MQTT_DEVICE_SW_VERSION] = device->get_software_version();
-        if (!device->get_suggested_area().empty())
-          device_info[MQTT_DEVICE_SUGGESTED_AREA] = device->get_suggested_area();
-        if (!device->get_via_device().empty())
-          device_info["via_device"] = device->get_via_device();
+        for (const auto &p : property_map) {
+          if (!p.second(device).empty())
+            device_info[p.first] = p.second(device);
+        }
 
         std::vector<std::string> identifiers = device->get_identifiers();
         if (identifiers.size() == 1) {
