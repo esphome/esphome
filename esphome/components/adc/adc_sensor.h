@@ -21,6 +21,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   void set_attenuation(adc_atten_t attenuation) { attenuation_ = attenuation; }
   void set_channel(adc1_channel_t channel) { channel_ = channel; }
   void set_autorange(bool autorange) { autorange_ = autorange; }
+  void set_raw(bool output_raw) { output_raw_ = output_raw; }
 #endif
 
   /// Update adc values.
@@ -39,8 +40,6 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
 
  protected:
   InternalGPIOPin *pin_;
-  uint16_t read_raw_();
-  uint32_t raw_to_microvolts_(uint16_t raw);
 
 #ifdef USE_ESP32
   adc_atten_t attenuation_{ADC_ATTEN_DB_0};
