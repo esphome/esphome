@@ -21,7 +21,6 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   void set_attenuation(adc_atten_t attenuation) { attenuation_ = attenuation; }
   void set_channel(adc1_channel_t channel) { channel_ = channel; }
   void set_autorange(bool autorange) { autorange_ = autorange; }
-  void set_raw(bool output_raw) { output_raw_ = output_raw; }
 #endif
 
   /// Update adc values.
@@ -32,6 +31,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   /// `HARDWARE_LATE` setup priority.
   float get_setup_priority() const override;
   void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
+  void set_raw(bool output_raw) { output_raw_ = output_raw; }
   float sample() override;
 
 #ifdef USE_ESP8266
