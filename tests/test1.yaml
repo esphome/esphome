@@ -2214,6 +2214,31 @@ display:
     row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: ili9341
+    model: "TFT 2.4"
+    cs_pin: GPIO5
+    dc_pin: GPIO4
+    reset_pin: GPIO22
+    led_pin:
+      number: GPIO15
+      inverted: true
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: ili9341
+    model: "TFT 2.4"
+    cs_pin: GPIO5
+    dc_pin: GPIO4
+    reset_pin: GPIO22
+    led_pin:
+      number: GPIO15
+      inverted: true
+    auto_clear_enabled: false
+    rotation: 90
+    lambda: |-
+      if (!id(glob_bool_processed)) {
+        it.fill(Color::WHITE);
+        id(glob_bool_processed) = true;
+      }
 
 tm1651:
   id: tm1651_battery
@@ -2393,6 +2418,10 @@ globals:
     type: std::string
     restore_value: no
     # initial_value: ""
+  - id: glob_bool_processed
+    type: bool
+    restore_value: no
+    initial_value: 'false'
 
 text_sensor:
   - platform: mqtt_subscribe
