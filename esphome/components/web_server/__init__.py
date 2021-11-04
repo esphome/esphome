@@ -42,7 +42,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
             web_server_base.WebServerBase
         ),
-        cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
+        cv.Optional(CONF_INCLUDE_INTERNAL): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -58,7 +58,6 @@ async def to_code(config):
     cg.add_define("WEBSERVER_PORT", config[CONF_PORT])
     cg.add(var.set_css_url(config[CONF_CSS_URL]))
     cg.add(var.set_js_url(config[CONF_JS_URL]))
-    cg.add_define("WEBSERVER_INCLUDE_INTERNAL", config[CONF_INCLUDE_INTERNAL])
     if CONF_AUTH in config:
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
@@ -72,3 +71,5 @@ async def to_code(config):
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
         with open(file=path, mode="r", encoding="utf-8") as myfile:
             cg.add(var.set_js_include(myfile.read()))
+    if CONF_INCLUDE_INTERNAL in config:
+        cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
