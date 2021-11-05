@@ -147,8 +147,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     )
-    .extend(cv.polling_component_schema("60s"))
-), validate_config)
+    .extend(cv.polling_component_schema("60s")), validate_config)
 
 
 async def to_code(config):
