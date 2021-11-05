@@ -119,10 +119,12 @@ def validate_adc_pin(value):
 
     raise NotImplementedError
 
+
 def validate_config(config):
     if config[CONF_ATTENUATION] == "auto" and config[CONF_RAW] is True:
         raise cv.Invalid("Automatic attenuation cannot be used when raw output is set.")
     return config
+
 
 adc_ns = cg.esphome_ns.namespace("adc")
 ADCSensor = adc_ns.class_(
