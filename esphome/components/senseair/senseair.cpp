@@ -144,13 +144,14 @@ bool SenseAirComponent::senseair_write_command_(const uint8_t *command, uint8_t 
   int retry = 0;
   this->flush();
 
-  while (!this->available()) {
-    retry ++;
+  do {
     this->write_array(command, SENSEAIR_REQUEST_LENGTH);
     delay(20); // NOLINT
+    retry ++;
     if (retry > 10)
       break;
   }
+  while (!this->available());
 
   if (response == nullptr)
     return true;
