@@ -119,13 +119,18 @@ def validate_adc_pin(value):
 
     raise NotImplementedError
 
+def validate_config(config):
+    if config[CONF_ATTENUATION] == "auto" and config[CONF_RAW] is True:
+        raise cv.Invalid("Automatic attenuation cannot be used when raw output is set.")
+    config.setdefault(CONF_SCAN_INTERVAL, cv.update_interval("never"))
+    return config
 
 adc_ns = cg.esphome_ns.namespace("adc")
 ADCSensor = adc_ns.class_(
     "ADCSensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
 )
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=2,
@@ -143,7 +148,7 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("60s"))
-)
+), validate_config)
 
 
 async def to_code(config):
@@ -162,8 +167,6 @@ async def to_code(config):
 
     if CONF_ATTENUATION in config:
         if config[CONF_ATTENUATION] == "auto":
-            if CONF_RAW in config and config[CONF_RAW] is True:
-                return  # TO-DO: Notify user that "attenuation: auto" cannot be used with "raw: true"
             cg.add(var.set_autorange(cg.global_ns.true))
         else:
             cg.add(var.set_attenuation(config[CONF_ATTENUATION]))
