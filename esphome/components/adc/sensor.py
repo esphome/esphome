@@ -122,7 +122,6 @@ def validate_adc_pin(value):
 def validate_config(config):
     if config[CONF_ATTENUATION] == "auto" and config[CONF_RAW] is True:
         raise cv.Invalid("Automatic attenuation cannot be used when raw output is set.")
-    config.setdefault(CONF_SCAN_INTERVAL, cv.update_interval("never"))
     return config
 
 adc_ns = cg.esphome_ns.namespace("adc")
