@@ -22,15 +22,11 @@ void CAP1188Component::setup() {
   }
 
   // Check if CAP1188 is actually connected
-  uint8_t cap1188_product_id = 0;
-  uint8_t cap1188_manufacture_id = 0;
-  uint8_t cap1188_revision = 0;
+  this->read_byte(CAP1188_PRODUCT_ID, &this->cap1188_product_id_);
+  this->read_byte(CAP1188_MANUFACTURE_ID, &this->cap1188_manufacture_id_);
+  this->read_byte(CAP1188_REVISION, &this->cap1188_revision_);
 
-  this->read_byte(CAP1188_PRODUCT_ID, &cap1188_product_id);
-  this->read_byte(CAP1188_MANUFACTURE_ID, &cap1188_manufacture_id);
-  this->read_byte(CAP1188_REVISION, &cap1188_revision);
-
-  if ((cap1188_product_id != 0x50) || (cap1188_manufacture_id != 0x5D) || (cap1188_revision != 0x83)) {
+  if ((this->cap1188_product_id_ != 0x50) || (this->cap1188_manufacture_id_ != 0x5D)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
@@ -40,10 +36,10 @@ void CAP1188Component::setup() {
   uint8_t sensitivity = 0;
   this->read_byte(CAP1188_SENSITVITY, &sensitivity);
   sensitivity = sensitivity & 0x0f;
-  this->write_byte(CAP1188_SENSITVITY, sensitivity | touch_threshold_);
+  this->write_byte(CAP1188_SENSITVITY, sensitivity | this->touch_threshold_);
 
   // Allow multiple touches
-  this->write_byte(CAP1188_MULTI_TOUCH, allow_multiple_touches_);
+  this->write_byte(CAP1188_MULTI_TOUCH, this->allow_multiple_touches_);
 
   // Have LEDs follow touches
   this->write_byte(CAP1188_LED_LINK, 0xFF);
@@ -56,9 +52,13 @@ void CAP1188Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CAP1188:");
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  ESP_LOGCONFIG(TAG, "  Product ID: 0x%x", this->cap1188_product_id_);
+  ESP_LOGCONFIG(TAG, "  Manufacture ID: 0x%x", this->cap1188_manufacture_id_);
+  ESP_LOGCONFIG(TAG, "  Revision ID: 0x%x", this->cap1188_revision_);
+
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "Communication with CAP1188 failed!");
+      ESP_LOGE(TAG, "Product ID or Manufacture ID of the connected device does not match a known CAP1188.");
       break;
     case NONE:
     default:

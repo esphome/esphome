@@ -53,6 +53,11 @@ class CAP1188Component : public Component, public i2c::I2CDevice {
   uint8_t allow_multiple_touches_{0x80};
 
   GPIOPin *reset_pin_{nullptr};
+
+  uint8_t cap1188_product_id_{0};
+  uint8_t cap1188_manufacture_id_{0};
+  uint8_t cap1188_revision_{0};
+
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,
