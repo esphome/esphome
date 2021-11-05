@@ -121,7 +121,12 @@ def validate_adc_pin(value):
 
 
 def validate_config(config):
-    if config[CONF_ATTENUATION] == "auto" and config[CONF_RAW] is True:
+    if (
+        CONF_RAW in config
+        and config[CONF_RAW] is True
+        and CONF_ATTENUATION in config
+        and config[CONF_ATTENUATION] == "auto"
+    ):
         raise cv.Invalid("Automatic attenuation cannot be used when raw output is set.")
     return config
 
@@ -148,7 +153,9 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     )
-    .extend(cv.polling_component_schema("60s")), validate_config)
+    .extend(cv.polling_component_schema("60s")),
+    validate_config,
+)
 
 
 async def to_code(config):
