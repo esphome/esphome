@@ -125,6 +125,22 @@ void IRAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore 
 
 void RotaryEncoderSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Rotary Encoder '%s'...", this->name_.c_str());
+
+  int32_t initial_value = 0;
+  switch (this->restore_mode_) {
+    case ROTARY_ENCODER_RESTORE_DEFAULT_ZERO:
+      this->rtc_ = global_preferences->make_preference<int32_t>(this->get_object_id_hash());
+      if (!this->rtc_.load(&initial_value)) {
+        initial_value = 0;
+      }
+      break;
+    case ROTARY_ENCODER_ALWAYS_ZERO:
+      initial_value = 0;
+      break;
+  }
+  this->store_.counter = initial_value;
+  this->store_.last_read = initial_value;
+
   this->pin_a_->setup();
   this->store_.pin_a = this->pin_a_->to_isr();
   this->pin_b_->setup();
@@ -142,6 +158,18 @@ void RotaryEncoderSensor::dump_config() {
   LOG_PIN("  Pin A: ", this->pin_a_);
   LOG_PIN("  Pin B: ", this->pin_b_);
   LOG_PIN("  Pin I: ", this->pin_i_);
+
+  const LogString *restore_mode = LOG_STR("");
+  switch (this->restore_mode_) {
+    case ROTARY_ENCODER_RESTORE_DEFAULT_ZERO:
+      restore_mode = LOG_STR("Restore (Defaults to zero)");
+      break;
+    case ROTARY_ENCODER_ALWAYS_ZERO:
+      restore_mode = LOG_STR("Always zero");
+      break;
+  }
+  ESP_LOGCONFIG(TAG, "  Restore Mode: %s", LOG_STR_ARG(restore_mode));
+
   switch (this->store_.resolution) {
     case ROTARY_ENCODER_1_PULSE_PER_CYCLE:
       ESP_LOGCONFIG(TAG, "  Resolution: 1 Pulse Per Cycle");
@@ -190,6 +218,9 @@ void RotaryEncoderSensor::loop() {
   }
   int counter = this->store_.counter;
   if (this->store_.last_read != counter || this->publish_initial_value_) {
+    if (this->restore_mode_ == ROTARY_ENCODER_RESTORE_DEFAULT_ZERO) {
+      this->rtc_.save(&counter);
+    }
     this->store_.last_read = counter;
     this->publish_state(counter);
     this->publish_initial_value_ = false;
@@ -197,6 +228,9 @@ void RotaryEncoderSensor::loop() {
 }
 
 float RotaryEncoderSensor::get_setup_priority() const { return setup_priority::DATA; }
+void RotaryEncoderSensor::set_restore_mode(RotaryEncoderRestoreMode restore_mode) {
+  this->restore_mode_ = restore_mode;
+}
 void RotaryEncoderSensor::set_resolution(RotaryEncoderResolution mode) { this->store_.resolution = mode; }
 void RotaryEncoderSensor::set_min_value(int32_t min_value) { this->store_.min_value = min_value; }
 void RotaryEncoderSensor::set_max_value(int32_t max_value) { this->store_.max_value = max_value; }
