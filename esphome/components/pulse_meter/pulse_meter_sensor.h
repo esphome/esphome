@@ -38,6 +38,7 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   volatile uint32_t last_valid_edge_us_ = 0;
   volatile uint32_t pulse_width_us_ = 0;
   volatile uint32_t total_pulses_ = 0;
+  volatile uint32_t busy = 0;
 };
 
 }  // namespace pulse_meter
