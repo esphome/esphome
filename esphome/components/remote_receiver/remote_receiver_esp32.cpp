@@ -72,12 +72,14 @@ void RemoteReceiverComponent::loop() {
   size_t len = 0;
   auto *item = (rmt_item32_t *) xRingbufferReceive(this->ringbuf_, &len, 0);
   if (item != nullptr) {
+    len /= 4;  // each RMT item is 4 bytes
     this->decode_rmt_(item, len);
     vRingbufferReturnItem(this->ringbuf_, item);
 
     if (this->temp_.empty())
       return;
 
+    this->temp_.push_back(-this->idle_us_);
     this->call_listeners_dumpers_();
   }
 }
@@ -102,7 +104,7 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
   }
   ESP_LOGVV(TAG, "\n");
 
-  this->temp_.reserve(len / 4);
+  this->temp_.reserve(len * 2);  // each RMT item has 2 pulses
   for (size_t i = 0; i < len; i++) {
     if (item[i].duration0 == 0u) {
       // Do nothing
@@ -120,10 +122,6 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
       prev_length = item[i].duration0;
     }
 
-    if (this->to_microseconds_(prev_length) > this->idle_us_) {
-      break;
-    }
-
     if (item[i].duration1 == 0u) {
       // Do nothing
     } else if (bool(item[i].level1) == prev_level) {
@@ -138,10 +136,6 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
       }
       prev_level = bool(item[i].level1);
       prev_length = item[i].duration1;
-    }
-
-    if (this->to_microseconds_(prev_length) > this->idle_us_) {
-      break;
     }
   }
   if (prev_length > 0) {
