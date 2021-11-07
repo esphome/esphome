@@ -22,7 +22,6 @@ void PulseMeterSensor::loop() {
   if (this->busy_ > 0)
     return;
 
-
   // If we've exceeded our timeout interval without receiving any pulses, assume 0 pulses/min until
   // we get at least two valid pulses.
   const uint32_t time_since_valid_edge_us = now - this->last_valid_edge_us_;
