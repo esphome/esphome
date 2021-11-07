@@ -5,7 +5,7 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/output/binary_output.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <esp_gattc_api.h>
 namespace esphome {
 namespace ble_client {
