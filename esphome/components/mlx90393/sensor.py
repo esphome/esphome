@@ -8,13 +8,14 @@ from esphome.const import (
     ICON_MAGNET,
     CONF_GAIN,
 )
+from esphome import pins
 
 CODEOWNERS = ["@functionpointer"]
 DEPENDENCIES = ["i2c"]
 
 mlx90393_ns = cg.esphome_ns.namespace("mlx90393")
 
-MLX90393 = mlx90393_ns.class_("MLX90393", cg.PollingComponent, i2c.I2CDevice)
+MLX90393 = mlx90393_ns.class_("MLX90393_cls", cg.PollingComponent, i2c.I2CDevice)
 
 GAINEnum = mlx90393_ns.enum("GAIN")
 GAIN = {
@@ -31,6 +32,7 @@ GAIN = {
 CONF_X_AXIS = "x-axis"
 CONF_Y_AXIS = "y-axis"
 CONF_Z_AXIS = "z-axis"
+CONF_DRDY_PIN = "drdy_pin"
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -38,6 +40,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_GAIN, default="GAIN_2_5X"): cv.enum(
                 GAIN, upper=True, space="_"
             ),
+            cv.Optional(CONF_DRDY_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_X_AXIS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROTESLA,
                 accuracy_decimals=0,
@@ -77,6 +80,8 @@ async def to_code(config):
     if CONF_Z_AXIS in config:
         sens = await sensor.new_sensor(config[CONF_Z_AXIS])
         cg.add(var.set_z_sensor(sens))
+    if CONF_DRDY_PIN in config:
+        cg.add(var.set_pin(pin))
 
 
-cg.add_library("adafruit/Adafruit MLX90393", "^2.0.2")
+cg.add_library("functionpointer/arduino-MLX90393", "^0.0.4")

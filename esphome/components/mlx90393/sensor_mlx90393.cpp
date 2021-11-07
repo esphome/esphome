@@ -1,4 +1,4 @@
-#include "mlx90393.h"
+#include "sensor_mlx90393.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -6,11 +6,12 @@ namespace mlx90393 {
 
 static const char *const TAG = "mlx90393";
 
-void MLX90393::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MLX90393...");
-  if(!mlx.begin_I2C(this->address_)) {
-    this->mark_failed();
-    return;
+void MLX90393_cls::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up MLX90393_cls...");
+  if(this->drdy_pin_== nullptr) {
+    mlx.begin(0,0);
+  } else {
+    //mlx.begin(0,0, this->drdy_pin_);
   }
   mlx.setGain(gain_);
 
@@ -23,12 +24,12 @@ void MLX90393::setup() {
   mlx.setFilter(MLX90393_FILTER_6);
 }
 
-void MLX90393::dump_config() {
-  ESP_LOGCONFIG(TAG, "MLX90393:");
+void MLX90393_cls::dump_config() {
+  ESP_LOGCONFIG(TAG, "MLX90393_cls:");
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MLX90393 failed!");
+    ESP_LOGE(TAG, "Communication with MLX90393_cls failed!");
     return;
   }
   LOG_UPDATE_INTERVAL(this);
@@ -38,9 +39,9 @@ void MLX90393::dump_config() {
   LOG_SENSOR("  ", "Z Axis", this->z_sensor_);
 }
 
-float MLX90393::get_setup_priority() const { return setup_priority::DATA; }
+float MLX90393_cls::get_setup_priority() const { return setup_priority::DATA; }
 
-void MLX90393::update() {
+void MLX90393_cls::update() {
   float x,y,z=0;
   if (mlx.readData(&x, &y, &z)) {
     ESP_LOGD(TAG, "received %f %f %f", x, y, z);
