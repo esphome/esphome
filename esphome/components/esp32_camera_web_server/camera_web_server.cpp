@@ -203,14 +203,6 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
 esp_err_t CameraWebServer::snapshot_handler_(struct httpd_req *req) {
   esp_err_t res = ESP_OK;
 
-  res = httpd_resp_set_type(req, CONTENT_TYPE);
-  if (res != ESP_OK) {
-    ESP_LOGW(TAG, "SNAPSHOT: failed to set HTTP response type");
-    return res;
-  }
-
-  httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
-
   if (esp32_camera::global_esp32_camera != nullptr) {
     esp32_camera::global_esp32_camera->request_image();
   }
@@ -221,7 +213,17 @@ esp_err_t CameraWebServer::snapshot_handler_(struct httpd_req *req) {
     ESP_LOGW(TAG, "SNAPSHOT: failed to acquire frame");
     httpd_resp_send_500(req);
     res = ESP_FAIL;
+    return res;
   }
+
+  res = httpd_resp_set_type(req, CONTENT_TYPE);
+  if (res != ESP_OK) {
+    ESP_LOGW(TAG, "SNAPSHOT: failed to set HTTP response type");
+    return res;
+  }
+
+  httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
+
   if (res == ESP_OK) {
     res = httpd_resp_set_hdr(req, CONTENT_LENGTH, esphome::to_string(image->get_data_length()).c_str());
   }
