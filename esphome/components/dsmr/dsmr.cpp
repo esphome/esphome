@@ -5,6 +5,8 @@
 #include "Crypto.h"
 #include "GCM.h"
 
+#include <sstream>
+
 namespace esphome {
 namespace dsmr {
 
@@ -106,8 +108,8 @@ void Dsmr::receive_encrypted_() {
       if ((uint8_t) c == 0xDB) {
         ESP_LOGV(TAG, "Start byte 0xDB of encrypted telegram found");
         header_found_ = true;
-      }
-      continue;
+      } else
+        continue;
     }
 
     // Check for buffer overflow.
@@ -143,12 +145,9 @@ void Dsmr::receive_encrypted_() {
 
       telegram_len_ = strnlen(this->telegram_, sizeof(this->telegram_));
       ESP_LOGV(TAG, "Decrypted telegram size: %d bytes", telegram_len_);
-      ESP_LOGVV(TAG, "Decrypted telegram: %s", this->telegram_);
-
       header_found_ = false;
-      telegram_len_ = 0;
-
       parse_telegram();
+      telegram_len_ = 0;
       return;
     }
   }
@@ -156,7 +155,17 @@ void Dsmr::receive_encrypted_() {
 
 bool Dsmr::parse_telegram() {
   MyData data;
-  ESP_LOGV(TAG, "Trying to parse telegram");
+  ESP_LOGV(TAG, "Trying to parse telegram, length is %d", telegram_len_);
+
+#ifdef ESP_LOGVV
+  std::string debug_str(telegram_, telegram_len_);
+  std::istringstream debug_stream(debug_str);
+  std::string debug_line;
+  while (std::getline(debug_stream, debug_line)) {
+    ESP_LOGVV(TAG, "  %s", debug_line.c_str());
+  }
+#endif
+
   ::dsmr::ParseResult<void> res =
       ::dsmr::P1Parser::parse(&data, telegram_, telegram_len_, false,
                               this->crc_check_);  // Parse telegram according to data definition. Ignore unknown values.
