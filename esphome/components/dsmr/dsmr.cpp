@@ -76,9 +76,10 @@ void Dsmr::receive_telegram_() {
     }
     // Check for the end of the hex checksum, i.e. a newline.
     if (footer_found_ && c == '\n') {
-      header_found_ = false;
       // Parse the telegram and publish sensor values.
       parse_telegram();
+
+      header_found_ = false;
       return;
     }
   }
@@ -105,11 +106,11 @@ void Dsmr::receive_encrypted_() {
 
     // Find a new telegram start byte.
     if (!header_found_) {
-      if ((uint8_t) c == 0xDB) {
-        ESP_LOGV(TAG, "Start byte 0xDB of encrypted telegram found");
-        header_found_ = true;
+      if ((uint8_t) c != 0xDB) {
+        continue;
       }
-      continue;
+      ESP_LOGV(TAG, "Start byte 0xDB of encrypted telegram found");
+      header_found_ = true;
     }
 
     // Check for buffer overflow.
@@ -147,10 +148,10 @@ void Dsmr::receive_encrypted_() {
       ESP_LOGV(TAG, "Decrypted telegram size: %d bytes", telegram_len_);
       ESP_LOGVV(TAG, "Decrypted telegram: %s", this->telegram_);
 
+      parse_telegram();
+
       header_found_ = false;
       telegram_len_ = 0;
-
-      parse_telegram();
       return;
     }
   }
