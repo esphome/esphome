@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -9,9 +7,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/defines.h"
 
-// don't include <dsmr.h> because it puts everything in global namespace
-#include <dsmr/parser.h>
-#include <dsmr/fields.h>
+#include "parser.h"
+#include "fields.h"
 
 namespace esphome {
 namespace dsmr {
@@ -116,5 +113,3 @@ class Dsmr : public Component, public uart::UARTDevice {
 };
 }  // namespace dsmr
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

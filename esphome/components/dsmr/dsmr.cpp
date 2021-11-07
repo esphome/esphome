@@ -1,11 +1,9 @@
-#ifdef USE_ARDUINO
-
 #include "dsmr.h"
 #include "esphome/core/log.h"
 
-// #include <AES.h>
-// #include <Crypto.h>
-// #include <GCM.h>
+#include "AES.h"
+#include "Crypto.h"
+#include "GCM.h"
 
 namespace esphome {
 namespace dsmr {
@@ -126,10 +124,8 @@ void Dsmr::receive_encrypted_() {
       packet_size = 13 + (buffer[11] << 8 | buffer[12]);
       ESP_LOGV(TAG, "Encrypted telegram size: %d bytes", packet_size);
     }
-
     if (buffer_length == packet_size && packet_size > 0) {
       ESP_LOGV(TAG, "End of encrypted telegram found");
-      /*
       GCM<AES128> *gcmaes128{new GCM<AES128>()};
       gcmaes128->setKey(this->decryption_key_.data(), gcmaes128->keySize());
       // the iv is 8 bytes of the system title + 4 bytes frame counter
@@ -152,7 +148,7 @@ void Dsmr::receive_encrypted_() {
       header_found_ = false;
       telegram_len_ = 0;
 
-      parse_telegram();*/
+      parse_telegram();
       return;
     }
   }
@@ -212,5 +208,3 @@ void Dsmr::set_decryption_key(const std::string &decryption_key) {
 
 }  // namespace dsmr
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

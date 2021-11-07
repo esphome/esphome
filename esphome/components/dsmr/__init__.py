@@ -48,7 +48,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_GAS_MBUS_ID, default=1): cv.int_,
         }
     ).extend(uart.UART_DEVICE_SCHEMA),
-    cv.only_with_arduino,
 )
 
 
@@ -60,9 +59,3 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add_define("DSMR_GAS_MBUS_ID", config[CONF_GAS_MBUS_ID])
-
-    # # DSMR Parser
-    # cg.add_library("glmnet/Dsmr", "0.5")
-
-    # # Crypto
-    # cg.add_library("rweather/Crypto", "0.2.0")
