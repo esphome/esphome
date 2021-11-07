@@ -196,8 +196,8 @@ void Dsmr::set_decryption_key(const std::string &decryption_key) {
     ESP_LOGI(TAG, "Disabling decryption");
     decryption_key_.clear();
     if (encrypted_telegram_ != nullptr) {
-        delete encrypted_telegram_;
-        encrypted_telegram_ = nullptr;
+      delete encrypted_telegram_;
+      encrypted_telegram_ = nullptr;
     }
     return;
   }
@@ -223,9 +223,7 @@ void Dsmr::set_decryption_key(const std::string &decryption_key) {
   }
 }
 
-void Dsmr::set_max_telegram_length(size_t length) {
-  max_telegram_len_ = length;
-}
+void Dsmr::set_max_telegram_length(size_t length) { max_telegram_len_ = length; }
 
 }  // namespace dsmr
 }  // namespace esphome
