@@ -13,9 +13,9 @@ namespace dsmr {
 static const char *const TAG = "dsmr";
 
 void Dsmr::setup() {
-  telegram_ = new char[max_telegram_len_];
+  telegram_ = new char[max_telegram_len_];  // NOLINT
   if (!decryption_key_.empty()) {
-    encrypted_telegram_ = new uint8_t[max_telegram_len_];
+    encrypted_telegram_ = new uint8_t[max_telegram_len_];  // NOLINT
   }
 }
 
@@ -219,7 +219,7 @@ void Dsmr::set_decryption_key(const std::string &decryption_key) {
   }
 
   if (encrypted_telegram_ == nullptr) {
-    encrypted_telegram_ = new uint8_t[max_telegram_len_];
+    encrypted_telegram_ = new uint8_t[max_telegram_len_];  // NOLINT
   }
 }
 
