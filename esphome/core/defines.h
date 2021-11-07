@@ -39,7 +39,7 @@
 #define USE_WEBSERVER
 #define USE_WIFI
 
-#define WEBSERVER_PORT 80
+#define WEBSERVER_PORT 80  // NOLINT
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO

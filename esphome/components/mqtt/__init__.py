@@ -34,6 +34,7 @@ from esphome.const import (
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
     CONF_TRIGGER_ID,
+    CONF_USE_ABBREVIATIONS,
     CONF_USERNAME,
     CONF_WILL_MESSAGE,
 )
@@ -152,6 +153,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_DISCOVERY_PREFIX, default="homeassistant"
             ): cv.publish_topic,
+            cv.Optional(CONF_USE_ABBREVIATIONS, default=True): cv.boolean,
             cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
@@ -238,6 +240,9 @@ async def to_code(config):
         cg.add(var.set_discovery_info(discovery_prefix, discovery_retain))
 
     cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
+
+    if config[CONF_USE_ABBREVIATIONS]:
+        cg.add_define("USE_MQTT_ABBREVIATIONS")
 
     birth_message = config[CONF_BIRTH_MESSAGE]
     if not birth_message:

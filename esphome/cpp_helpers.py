@@ -2,6 +2,7 @@ import logging
 
 from esphome.const import (
     CONF_DISABLED_BY_DEFAULT,
+    CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_INTERNAL,
     CONF_NAME,
@@ -102,6 +103,8 @@ async def setup_entity(var, config):
         add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_ICON in config:
         add(var.set_icon(config[CONF_ICON]))
+    if CONF_ENTITY_CATEGORY in config:
+        add(var.set_entity_category(config[CONF_ENTITY_CATEGORY]))
 
 
 def extract_registry_entry_config(registry, full_config):

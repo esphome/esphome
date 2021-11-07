@@ -41,7 +41,6 @@ NumberInRangeCondition = number_ns.class_(
 
 icon = cv.icon
 
-
 NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),

@@ -30,7 +30,7 @@ class DutyCycleSensor : public sensor::Sensor, public PollingComponent {
   InternalGPIOPin *pin_;
 
   DutyCycleSensorStore store_{};
-  uint32_t last_update_;
+  uint32_t last_update_{0};
 };
 
 }  // namespace duty_cycle
