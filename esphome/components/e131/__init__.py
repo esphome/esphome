@@ -4,6 +4,8 @@ from esphome.components.light.types import AddressableLightEffect
 from esphome.components.light.effects import register_addressable_effect
 from esphome.const import CONF_ID, CONF_NAME, CONF_METHOD, CONF_CHANNELS
 
+DEPENDENCIES = ["network"]
+
 e131_ns = cg.esphome_ns.namespace("e131")
 E131AddressableLightEffect = e131_ns.class_(
     "E131AddressableLightEffect", AddressableLightEffect
@@ -21,17 +23,22 @@ CHANNELS = {
 CONF_UNIVERSE = "universe"
 CONF_E131_ID = "e131_id"
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(E131Component),
-        cv.Optional(CONF_METHOD, default="MULTICAST"): cv.one_of(*METHODS, upper=True),
-    }
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(E131Component),
+            cv.Optional(CONF_METHOD, default="MULTICAST"): cv.one_of(
+                *METHODS, upper=True
+            ),
+        }
+    ),
+    cv.only_with_arduino,
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
     cg.add(var.set_method(METHODS[config[CONF_METHOD]]))
 
 
@@ -45,11 +52,11 @@ def to_code(config):
         cv.Optional(CONF_CHANNELS, default="RGB"): cv.one_of(*CHANNELS, upper=True),
     },
 )
-def e131_light_effect_to_code(config, effect_id):
-    parent = yield cg.get_variable(config[CONF_E131_ID])
+async def e131_light_effect_to_code(config, effect_id):
+    parent = await cg.get_variable(config[CONF_E131_ID])
 
     effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(effect.set_first_universe(config[CONF_UNIVERSE]))
     cg.add(effect.set_channels(CHANNELS[config[CONF_CHANNELS]]))
     cg.add(effect.set_e131(parent))
-    yield effect
+    return effect

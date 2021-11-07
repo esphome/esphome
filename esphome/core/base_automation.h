@@ -228,6 +228,8 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
  public:
   WaitUntilAction(Condition<Ts...> *condition) : condition_(condition) {}
 
+  TEMPLATABLE_VALUE(uint32_t, timeout_value)
+
   void play_complex(Ts... x) override {
     this->num_running_++;
     // Check if we can continue immediately.
@@ -238,6 +240,12 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
       return;
     }
     this->var_ = std::make_tuple(x...);
+
+    if (this->timeout_value_.has_value()) {
+      auto f = std::bind(&WaitUntilAction<Ts...>::play_next_, this, x...);
+      this->set_timeout("timeout", this->timeout_value_.value(x...), f);
+    }
+
     this->loop();
   }
 
@@ -249,6 +257,8 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
       return;
     }
 
+    this->cancel_timeout("timeout");
+
     this->play_next_tuple_(this->var_);
   }
 
@@ -256,6 +266,8 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 
   void play(Ts... x) override { /* ignore - see play_complex */
   }
+
+  void stop() override { this->cancel_timeout("timeout"); }
 
  protected:
   Condition<Ts...> *condition_;
@@ -266,7 +278,11 @@ template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
  public:
   UpdateComponentAction(PollingComponent *component) : component_(component) {}
 
-  void play(Ts... x) override { this->component_->update(); }
+  void play(Ts... x) override {
+    if (this->component_->is_failed())
+      return;
+    this->component_->update();
+  }
 
  protected:
   PollingComponent *component_;

@@ -2,9 +2,9 @@ from esphome import pins
 from esphome.components import output
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ID, CONF_NUMBER, CONF_PIN, ESP_PLATFORM_ESP32
+from esphome.const import CONF_ID, CONF_NUMBER, CONF_PIN
 
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+DEPENDENCIES = ["esp32"]
 
 
 def valid_dac_pin(value):
@@ -26,10 +26,10 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield output.register_output(var, config)
+    await cg.register_component(var, config)
+    await output.register_output(var, config)
 
-    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
+    pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))

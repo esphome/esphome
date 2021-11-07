@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
-from esphome.const import CONF_ID, CONF_NUMBER, CONF_NAME
+from esphome.const import CONF_ID, CONF_NUMBER
 from . import mcp3008_ns, MCP3008
 
 AUTO_LOAD = ["voltage_sampler"]
@@ -24,14 +24,13 @@ CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
 ).extend(cv.polling_component_schema("1s"))
 
 
-def to_code(config):
-    parent = yield cg.get_variable(config[CONF_MCP3008_ID])
+async def to_code(config):
+    parent = await cg.get_variable(config[CONF_MCP3008_ID])
     var = cg.new_Pvariable(
         config[CONF_ID],
         parent,
-        config[CONF_NAME],
         config[CONF_NUMBER],
         config[CONF_REFERENCE_VOLTAGE],
     )
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)

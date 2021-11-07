@@ -21,8 +21,8 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def to_code(config):
-    template_ = yield cg.process_lambda(
+async def to_code(config):
+    template_ = await cg.process_lambda(
         config[CONF_LAMBDA],
         [],
         return_type=cg.std_vector.template(text_sensor.TextSensorPtr),
@@ -33,4 +33,4 @@ def to_code(config):
 
     for i, conf in enumerate(config[CONF_TEXT_SENSORS]):
         text = cg.Pvariable(conf[CONF_ID], var.get_text_sensor(i))
-        yield text_sensor.register_text_sensor(text, conf)
+        await text_sensor.register_text_sensor(text, conf)

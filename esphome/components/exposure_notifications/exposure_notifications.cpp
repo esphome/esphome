@@ -2,14 +2,14 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace exposure_notifications {
 
 using namespace esp32_ble_tracker;
 
-static const char *TAG = "exposure_notifications";
+static const char *const TAG = "exposure_notifications";
 
 bool ExposureNotificationTrigger::parse_device(const ESPBTDevice &device) {
   // See also https://blog.google/documents/70/Exposure_Notification_-_Bluetooth_Specification_v1.2.2.pdf

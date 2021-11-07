@@ -1,14 +1,17 @@
-voluptuous==0.12.1
-PyYAML==5.4.1
-paho-mqtt==1.5.1
+voluptuous==0.12.2
+PyYAML==6.0
+paho-mqtt==1.6.1
 colorama==0.4.4
-colorlog==4.7.2
 tornado==6.1
-protobuf==3.15.6
-tzlocal==2.1
-pytz==2021.1
+tzlocal==4.1    # from time
+tzdata>=2021.1  # from time
 pyserial==3.5
-ifaddr==0.1.7
-platformio==5.1.1
-esptool==2.8
-click==7.1.2
+platformio==5.2.2  # When updating platformio, also update Dockerfile
+esptool==3.2
+click==8.0.3
+esphome-dashboard==20211021.1
+aioesphomeapi==10.2.0
+
+# esp-idf requires this, but doesn't bundle it by default
+# https://github.com/espressif/esp-idf/blob/220590d599e134d7a5e7f1e683cc4550349ffbf8/requirements.txt#L24
+kconfiglib==13.7.1

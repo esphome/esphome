@@ -18,8 +18,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 )
 
 
-def to_code(config):
-    paren = yield cg.get_variable(config[CONF_PCA9685_ID])
-    rhs = paren.create_channel(config[CONF_CHANNEL])
-    var = cg.Pvariable(config[CONF_ID], rhs)
-    yield output.register_output(var, config)
+async def to_code(config):
+    paren = await cg.get_variable(config[CONF_PCA9685_ID])
+    var = cg.new_Pvariable(config[CONF_ID])
+    cg.add(var.set_channel(config[CONF_CHANNEL]))
+    cg.add(paren.register_channel(var))
+    await output.register_output(var, config)

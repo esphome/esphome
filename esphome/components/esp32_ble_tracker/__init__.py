@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import (
     CONF_ID,
-    ESP_PLATFORM_ESP32,
     CONF_INTERVAL,
     CONF_DURATION,
     CONF_TRIGGER_ID,
@@ -15,10 +14,10 @@ from esphome.const import (
     CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
     CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
 )
-from esphome.core import coroutine
+from esphome.core import CORE
+from esphome.components.esp32 import add_idf_sdkconfig_option
 
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
-AUTO_LOAD = ["xiaomi_ble", "ruuvi_ble"]
+DEPENDENCIES = ["esp32"]
 
 CONF_ESP32_BLE_ID = "esp32_ble_id"
 CONF_SCAN_PARAMETERS = "scan_parameters"
@@ -26,6 +25,7 @@ CONF_WINDOW = "window"
 CONF_ACTIVE = "active"
 esp32_ble_tracker_ns = cg.esphome_ns.namespace("esp32_ble_tracker")
 ESP32BLETracker = esp32_ble_tracker_ns.class_("ESP32BLETracker", cg.Component)
+ESPBTClient = esp32_ble_tracker_ns.class_("ESPBTClient")
 ESPBTDeviceListener = esp32_ble_tracker_ns.class_("ESPBTDeviceListener")
 ESPBTDevice = esp32_ble_tracker_ns.class_("ESPBTDevice")
 ESPBTDeviceConstRef = ESPBTDevice.operator("ref").operator("const")
@@ -51,8 +51,7 @@ def validate_scan_parameters(config):
 
     if window > interval:
         raise cv.Invalid(
-            "Scan window ({}) needs to be smaller than scan interval ({})"
-            "".format(window, interval)
+            f"Scan window ({window}) needs to be smaller than scan interval ({interval})"
         )
 
     if interval.total_milliseconds * 3 > duration.total_milliseconds:
@@ -97,9 +96,7 @@ def bt_uuid(value):
             )
         return value
     raise cv.Invalid(
-        "Service UUID must be in 16 bit '{}', 32 bit '{}', or 128 bit '{}' format".format(
-            bt_uuid16_format, bt_uuid32_format, bt_uuid128_format
-        )
+        f"Service UUID must be in 16 bit '{bt_uuid16_format}', 32 bit '{bt_uuid32_format}', or 128 bit '{bt_uuid128_format}' format"
     )
 
 
@@ -112,8 +109,16 @@ def as_hex_array(value):
     cpp_array = [
         f"0x{part}" for part in [value[i : i + 2] for i in range(0, len(value), 2)]
     ]
+    return cg.RawExpression(f"(uint8_t*)(const uint8_t[16]){{{','.join(cpp_array)}}}")
+
+
+def as_reversed_hex_array(value):
+    value = value.replace("-", "")
+    cpp_array = [
+        f"0x{part}" for part in [value[i : i + 2] for i in range(0, len(value), 2)]
+    ]
     return cg.RawExpression(
-        "(uint8_t*)(const uint8_t[16]){{{}}}".format(",".join(reversed(cpp_array)))
+        f"(uint8_t*)(const uint8_t[16]){{{','.join(reversed(cpp_array))}}}"
     )
 
 
@@ -163,9 +168,6 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.Required(CONF_MANUFACTURER_ID): bt_uuid,
             }
         ),
-        cv.Optional("scan_interval"): cv.invalid(
-            "This option has been removed in 1.14 (Reason: " "it never had an effect)"
-        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -176,9 +178,9 @@ ESP_BLE_DEVICE_SCHEMA = cv.Schema(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
     params = config[CONF_SCAN_PARAMETERS]
     cg.add(var.set_scan_duration(params[CONF_DURATION]))
     cg.add(var.set_scan_interval(int(params[CONF_INTERVAL].total_milliseconds / 0.625)))
@@ -188,7 +190,7 @@ def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if CONF_MAC_ADDRESS in conf:
             cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
-        yield automation.build_automation(trigger, [(ESPBTDeviceConstRef, "x")], conf)
+        await automation.build_automation(trigger, [(ESPBTDeviceConstRef, "x")], conf)
     for conf in config.get(CONF_ON_BLE_SERVICE_DATA_ADVERTISE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if len(conf[CONF_SERVICE_UUID]) == len(bt_uuid16_format):
@@ -196,11 +198,11 @@ def to_code(config):
         elif len(conf[CONF_SERVICE_UUID]) == len(bt_uuid32_format):
             cg.add(trigger.set_service_uuid32(as_hex(conf[CONF_SERVICE_UUID])))
         elif len(conf[CONF_SERVICE_UUID]) == len(bt_uuid128_format):
-            uuid128 = as_hex_array(conf[CONF_SERVICE_UUID])
+            uuid128 = as_reversed_hex_array(conf[CONF_SERVICE_UUID])
             cg.add(trigger.set_service_uuid128(uuid128))
         if CONF_MAC_ADDRESS in conf:
             cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
-        yield automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
+        await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
     for conf in config.get(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if len(conf[CONF_MANUFACTURER_ID]) == len(bt_uuid16_format):
@@ -208,15 +210,23 @@ def to_code(config):
         elif len(conf[CONF_MANUFACTURER_ID]) == len(bt_uuid32_format):
             cg.add(trigger.set_manufacturer_uuid32(as_hex(conf[CONF_MANUFACTURER_ID])))
         elif len(conf[CONF_MANUFACTURER_ID]) == len(bt_uuid128_format):
-            uuid128 = as_hex_array(conf[CONF_MANUFACTURER_ID])
+            uuid128 = as_reversed_hex_array(conf[CONF_MANUFACTURER_ID])
             cg.add(trigger.set_manufacturer_uuid128(uuid128))
         if CONF_MAC_ADDRESS in conf:
             cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
-        yield automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
+        await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
+
+    if CORE.using_esp_idf:
+        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
 
 
-@coroutine
-def register_ble_device(var, config):
-    paren = yield cg.get_variable(config[CONF_ESP32_BLE_ID])
+async def register_ble_device(var, config):
+    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_listener(var))
-    yield var
+    return var
+
+
+async def register_client(var, config):
+    paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
+    cg.add(paren.register_client(var))
+    return var

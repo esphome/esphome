@@ -1,10 +1,11 @@
 #include "rtttl.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace rtttl {
 
-static const char* TAG = "rtttl";
+static const char *const TAG = "rtttl";
 
 static const uint32_t DOUBLE_NOTE_GAP_MS = 10;
 

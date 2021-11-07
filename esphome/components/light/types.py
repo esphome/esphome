@@ -3,15 +3,28 @@ from esphome import automation
 
 # Base
 light_ns = cg.esphome_ns.namespace("light")
-LightState = light_ns.class_("LightState", cg.Nameable, cg.Component)
-# Fake class for addressable lights
-AddressableLightState = light_ns.class_("LightState", LightState)
+LightState = light_ns.class_("LightState", cg.EntityBase, cg.Component)
+AddressableLightState = light_ns.class_("AddressableLightState", LightState)
 LightOutput = light_ns.class_("LightOutput")
-AddressableLight = light_ns.class_("AddressableLight", cg.Component)
+AddressableLight = light_ns.class_("AddressableLight", LightOutput, cg.Component)
 AddressableLightRef = AddressableLight.operator("ref")
 
 Color = cg.esphome_ns.class_("Color")
 LightColorValues = light_ns.class_("LightColorValues")
+
+# Color modes
+ColorMode = light_ns.enum("ColorMode", is_class=True)
+COLOR_MODES = {
+    "ON_OFF": ColorMode.ON_OFF,
+    "BRIGHTNESS": ColorMode.BRIGHTNESS,
+    "WHITE": ColorMode.WHITE,
+    "COLOR_TEMPERATURE": ColorMode.COLOR_TEMPERATURE,
+    "COLD_WARM_WHITE": ColorMode.COLD_WARM_WHITE,
+    "RGB": ColorMode.RGB,
+    "RGB_WHITE": ColorMode.RGB_WHITE,
+    "RGB_COLOR_TEMPERATURE": ColorMode.RGB_COLOR_TEMPERATURE,
+    "RGB_COLD_WARM_WHITE": ColorMode.RGB_COLD_WARM_WHITE,
+}
 
 # Actions
 ToggleAction = light_ns.class_("ToggleAction", automation.Action)
@@ -31,6 +44,7 @@ LightTurnOffTrigger = light_ns.class_(
 
 # Effects
 LightEffect = light_ns.class_("LightEffect")
+PulseLightEffect = light_ns.class_("PulseLightEffect", LightEffect)
 RandomLightEffect = light_ns.class_("RandomLightEffect", LightEffect)
 LambdaLightEffect = light_ns.class_("LambdaLightEffect", LightEffect)
 AutomationLightEffect = light_ns.class_("AutomationLightEffect", LightEffect)

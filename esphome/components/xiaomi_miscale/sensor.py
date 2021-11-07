@@ -5,9 +5,12 @@ from esphome.const import (
     CONF_MAC_ADDRESS,
     CONF_ID,
     CONF_WEIGHT,
+    STATE_CLASS_MEASUREMENT,
     UNIT_KILOGRAM,
     ICON_SCALE_BATHROOM,
-    DEVICE_CLASS_EMPTY,
+    UNIT_OHM,
+    CONF_IMPEDANCE,
+    ICON_OMEGA,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -23,7 +26,16 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(XiaomiMiscale),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_WEIGHT): sensor.sensor_schema(
-                UNIT_KILOGRAM, ICON_SCALE_BATHROOM, 2, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_KILOGRAM,
+                icon=ICON_SCALE_BATHROOM,
+                accuracy_decimals=2,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_IMPEDANCE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_OHM,
+                icon=ICON_OMEGA,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )
@@ -32,13 +44,16 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield esp32_ble_tracker.register_ble_device(var, config)
+    await cg.register_component(var, config)
+    await esp32_ble_tracker.register_ble_device(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
     if CONF_WEIGHT in config:
-        sens = yield sensor.new_sensor(config[CONF_WEIGHT])
+        sens = await sensor.new_sensor(config[CONF_WEIGHT])
         cg.add(var.set_weight(sens))
+    if CONF_IMPEDANCE in config:
+        sens = await sensor.new_sensor(config[CONF_IMPEDANCE])
+        cg.add(var.set_impedance(sens))

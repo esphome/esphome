@@ -14,6 +14,7 @@ from esphome.core import coroutine_with_priority
 CODEOWNERS = ["@esphome/core"]
 globals_ns = cg.esphome_ns.namespace("globals")
 GlobalsComponent = globals_ns.class_("GlobalsComponent", cg.Component)
+RestoringGlobalsComponent = globals_ns.class_("RestoringGlobalsComponent", cg.Component)
 GlobalVarSetAction = globals_ns.class_("GlobalVarSetAction", automation.Action)
 
 MULTI_CONF = True
@@ -29,25 +30,28 @@ CONFIG_SCHEMA = cv.Schema(
 
 # Run with low priority so that namespaces are registered first
 @coroutine_with_priority(-100.0)
-def to_code(config):
+async def to_code(config):
     type_ = cg.RawExpression(config[CONF_TYPE])
     template_args = cg.TemplateArguments(type_)
-    res_type = GlobalsComponent.template(template_args)
+    restore = config[CONF_RESTORE_VALUE]
+
+    type = RestoringGlobalsComponent if restore else GlobalsComponent
+    res_type = type.template(template_args)
 
     initial_value = None
     if CONF_INITIAL_VALUE in config:
         initial_value = cg.RawExpression(config[CONF_INITIAL_VALUE])
 
-    rhs = GlobalsComponent.new(template_args, initial_value)
+    rhs = type.new(template_args, initial_value)
     glob = cg.Pvariable(config[CONF_ID], rhs, res_type)
-    yield cg.register_component(glob, config)
+    await cg.register_component(glob, config)
 
-    if config[CONF_RESTORE_VALUE]:
+    if restore:
         value = config[CONF_ID].id
         if isinstance(value, str):
             value = value.encode()
         hash_ = int(hashlib.md5(value).hexdigest()[:8], 16)
-        cg.add(glob.set_restore_value(hash_))
+        cg.add(glob.set_name_hash(hash_))
 
 
 @automation.register_action(
@@ -60,12 +64,12 @@ def to_code(config):
         }
     ),
 )
-def globals_set_to_code(config, action_id, template_arg, args):
-    full_id, paren = yield cg.get_variable_with_full_id(config[CONF_ID])
+async def globals_set_to_code(config, action_id, template_arg, args):
+    full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
     template_arg = cg.TemplateArguments(full_id.type, *template_arg)
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    templ = yield cg.templatable(
+    templ = await cg.templatable(
         config[CONF_VALUE], args, None, to_exp=cg.RawExpression
     )
     cg.add(var.set_value(templ))
-    yield var
+    return var

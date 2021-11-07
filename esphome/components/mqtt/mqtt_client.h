@@ -1,10 +1,14 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+
+#ifdef USE_MQTT
+
+#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/log.h"
 #include "esphome/components/json/json_util.h"
+#include "esphome/components/network/ip_address.h"
 #include <AsyncMqttClient.h>
 #include "lwip/ip_addr.h"
 
@@ -157,7 +161,16 @@ class MQTTClientComponent : public Component {
    * received.
    * @param qos The QoS of this subscription.
    */
-  void subscribe_json(const std::string &topic, mqtt_json_callback_t callback, uint8_t qos = 0);
+  void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
+
+  /** Unsubscribe from an MQTT topic.
+   *
+   * If multiple existing subscriptions to the same topic exist, all of them will be removed.
+   *
+   * @param topic The topic to unsubscribe from.
+   * Must match the topic in the original subscribe or subscribe_json call exactly.
+   */
+  void unsubscribe(const std::string &topic);
 
   /** Publish a MQTTMessage
    *
@@ -217,7 +230,7 @@ class MQTTClientComponent : public Component {
   void start_connect_();
   void start_dnslookup_();
   void check_dnslookup_();
-#if defined(ARDUINO_ARCH_ESP8266) && LWIP_VERSION_MAJOR == 1
+#if defined(USE_ESP8266) && LWIP_VERSION_MAJOR == 1
   static void dns_found_callback(const char *name, ip_addr_t *ipaddr, void *callback_arg);
 #else
   static void dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
@@ -250,12 +263,13 @@ class MQTTClientComponent : public Component {
   };
   std::string topic_prefix_{};
   MQTTMessage log_message_;
+  std::string payload_buffer_;
   int log_level_{ESPHOME_LOG_LEVEL};
 
   std::vector<MQTTSubscription> subscriptions_;
   AsyncMqttClient mqtt_client_;
   MQTTClientState state_{MQTT_CLIENT_DISCONNECTED};
-  IPAddress ip_;
+  network::IPAddress ip_;
   bool dns_resolved_{false};
   bool dns_resolve_error_{false};
   std::vector<MQTTComponent *> children_;
@@ -265,11 +279,11 @@ class MQTTClientComponent : public Component {
   optional<AsyncMqttClientDisconnectReason> disconnect_reason_{};
 };
 
-extern MQTTClientComponent *global_mqtt_client;
+extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 class MQTTMessageTrigger : public Trigger<std::string>, public Component {
  public:
-  explicit MQTTMessageTrigger(const std::string &topic);
+  explicit MQTTMessageTrigger(std::string topic);
 
   void set_qos(uint8_t qos);
   void set_payload(const std::string &payload);
@@ -342,3 +356,5 @@ template<typename... Ts> class MQTTConnectedCondition : public Condition<Ts...> 
 
 }  // namespace mqtt
 }  // namespace esphome
+
+#endif  // USE_MQTT

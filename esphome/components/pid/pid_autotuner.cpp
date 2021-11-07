@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pid {
 
-static const char *TAG = "pid.autotune";
+static const char *const TAG = "pid.autotune";
 
 /*
  * # PID Autotuner
@@ -72,7 +72,7 @@ PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float proce
     return res;
   }
 
-  if (!isnan(this->setpoint_) && this->setpoint_ != setpoint) {
+  if (!std::isnan(this->setpoint_) && this->setpoint_ != setpoint) {
     ESP_LOGW(TAG, "Setpoint changed during autotune! The result will not be accurate!");
   }
   this->setpoint_ = setpoint;

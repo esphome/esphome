@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/i2c/i2c.h"
 
@@ -21,14 +22,15 @@ extern const uint8_t TLC59208F_MODE2_WDT_35MS;
 
 class TLC59208FOutput;
 
-class TLC59208FChannel : public output::FloatOutput {
+class TLC59208FChannel : public output::FloatOutput, public Parented<TLC59208FOutput> {
  public:
-  TLC59208FChannel(TLC59208FOutput *parent, uint8_t channel) : parent_(parent), channel_(channel) {}
+  void set_channel(uint8_t channel) { channel_ = channel; }
 
  protected:
+  friend class TLC59208FOutput;
+
   void write_state(float state) override;
 
-  TLC59208FOutput *parent_;
   uint8_t channel_;
 };
 
@@ -37,7 +39,7 @@ class TLC59208FOutput : public Component, public i2c::I2CDevice {
  public:
   TLC59208FOutput(uint8_t mode = TLC59208F_MODE2_OCH) : mode_(mode) {}
 
-  TLC59208FChannel *create_channel(uint8_t channel);
+  void register_channel(TLC59208FChannel *channel);
 
   void setup() override;
   void dump_config() override;

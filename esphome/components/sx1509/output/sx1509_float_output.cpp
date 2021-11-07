@@ -5,7 +5,7 @@
 namespace esphome {
 namespace sx1509 {
 
-static const char *TAG = "sx1509_float_channel";
+static const char *const TAG = "sx1509_float_channel";
 
 void SX1509FloatOutputChannel::write_state(float state) {
   const uint16_t max_duty = 255;
@@ -16,7 +16,8 @@ void SX1509FloatOutputChannel::write_state(float state) {
 
 void SX1509FloatOutputChannel::setup() {
   ESP_LOGD(TAG, "setup pin %d", this->pin_);
-  this->parent_->pin_mode(this->pin_, SX1509_ANALOG_OUTPUT);
+  this->parent_->pin_mode(this->pin_, gpio::FLAG_OUTPUT);
+  this->parent_->setup_led_driver(this->pin_);
   this->turn_off();
 }
 

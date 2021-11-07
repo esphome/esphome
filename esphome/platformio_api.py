@@ -1,12 +1,15 @@
+from dataclasses import dataclass
 import json
-from typing import Union
+from typing import List, Union
+from pathlib import Path
 
 import logging
 import os
 import re
 import subprocess
 
-from esphome.core import CORE
+from esphome.const import KEY_CORE
+from esphome.core import CORE, EsphomeError
 from esphome.util import run_external_command, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
@@ -39,40 +42,43 @@ def patch_structhash():
     command.clean_build_dir = patched_clean_build_dir
 
 
-IGNORE_LIB_WARNINGS = r"(?:" + "|".join(["Hash", "Update"]) + r")"
+IGNORE_LIB_WARNINGS = f"(?:{'|'.join(['Hash', 'Update'])})"
 FILTER_PLATFORMIO_LINES = [
     r"Verbose mode can be enabled via `-v, --verbose` option.*",
     r"CONFIGURATION: https://docs.platformio.org/.*",
-    r"PLATFORM: .*",
     r"DEBUG: Current.*",
-    r"PACKAGES: .*",
+    r"LDF Modes:.*",
     r"LDF: Library Dependency Finder -> http://bit.ly/configure-pio-ldf.*",
-    r"LDF Modes: Finder ~ chain, Compatibility ~ soft.*",
-    r"Looking for " + IGNORE_LIB_WARNINGS + r" library in registry",
-    r"Warning! Library `.*'"
-    + IGNORE_LIB_WARNINGS
-    + r".*` has not been found in PlatformIO Registry.",
-    r"You can ignore this message, if `.*"
-    + IGNORE_LIB_WARNINGS
-    + r".*` is a built-in library.*",
+    f"Looking for {IGNORE_LIB_WARNINGS} library in registry",
+    f"Warning! Library `.*'{IGNORE_LIB_WARNINGS}.*` has not been found in PlatformIO Registry.",
+    f"You can ignore this message, if `.*{IGNORE_LIB_WARNINGS}.*` is a built-in library.*",
     r"Scanning dependencies...",
     r"Found \d+ compatible libraries",
     r"Memory Usage -> http://bit.ly/pio-memory-usage",
-    r"esptool.py v.*",
     r"Found: https://platformio.org/lib/show/.*",
     r"Using cache: .*",
     r"Installing dependencies",
-    r".* @ .* is already installed",
+    r"Library Manager: Already installed, built-in library",
     r"Building in .* mode",
     r"Advanced Memory Usage is available via .*",
+    r"Merged .* ELF section",
+    r"esptool.py v.*",
+    r"Checking size .*",
+    r"Retrieving maximum program size .*",
+    r"PLATFORM: .*",
+    r"PACKAGES:.*",
+    r" - framework-arduinoespressif.* \(.*\)",
+    r" - tool-esptool.* \(.*\)",
+    r" - toolchain-.* \(.*\)",
+    r"Creating BIN file .*",
 ]
 
 
 def run_platformio_cli(*args, **kwargs) -> Union[str, int]:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
-    os.environ["PLATFORMIO_LIBDEPS_DIR"] = os.path.abspath(
-        CORE.relative_piolibdeps_path()
+    os.environ.setdefault(
+        "PLATFORMIO_LIBDEPS_DIR", os.path.abspath(CORE.relative_piolibdeps_path())
     )
     cmd = ["platformio"] + list(args)
 
@@ -100,36 +106,56 @@ def run_compile(config, verbose):
     return run_platformio_cli_run(config, verbose)
 
 
-def run_upload(config, verbose, port):
-    return run_platformio_cli_run(
-        config, verbose, "-t", "upload", "--upload-port", port
-    )
-
-
-def run_idedata(config):
+def _run_idedata(config):
     args = ["-t", "idedata"]
     stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True)
     match = re.search(r'{\s*".*}', stdout)
     if match is None:
-        _LOGGER.debug("Could not match IDEData for %s", stdout)
-        return IDEData(None)
+        _LOGGER.error("Could not match idedata, please report this error")
+        _LOGGER.error("Stdout: %s", stdout)
+        raise EsphomeError
+
     try:
-        return IDEData(json.loads(match.group()))
+        return json.loads(match.group())
     except ValueError:
-        _LOGGER.debug("Could not load IDEData for %s", stdout, exc_info=1)
-        return IDEData(None)
+        _LOGGER.error("Could not parse idedata", exc_info=True)
+        _LOGGER.error("Stdout: %s", stdout)
+        raise
 
 
-IDE_DATA = None
+def _load_idedata(config):
+    platformio_ini = Path(CORE.relative_build_path("platformio.ini"))
+    temp_idedata = Path(CORE.relative_internal_path("idedata", f"{CORE.name}.json"))
+
+    changed = False
+    if not platformio_ini.is_file() or not temp_idedata.is_file():
+        changed = True
+    elif platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime:
+        changed = True
+
+    if not changed:
+        try:
+            return json.loads(temp_idedata.read_text(encoding="utf-8"))
+        except ValueError:
+            pass
+
+    temp_idedata.parent.mkdir(exist_ok=True, parents=True)
+
+    data = _run_idedata(config)
+
+    temp_idedata.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return data
 
 
-def get_idedata(config):
-    global IDE_DATA
+KEY_IDEDATA = "idedata"
 
-    if IDE_DATA is None:
-        _LOGGER.info("Need to fetch platformio IDE-data, please stand by")
-        IDE_DATA = run_idedata(config)
-    return IDE_DATA
+
+def get_idedata(config) -> "IDEData":
+    if KEY_IDEDATA in CORE.data[KEY_CORE]:
+        return CORE.data[KEY_CORE][KEY_IDEDATA]
+    idedata = IDEData(_load_idedata(config))
+    CORE.data[KEY_CORE][KEY_IDEDATA] = idedata
+    return idedata
 
 
 # ESP logs stack trace decoder, based on https://github.com/me-no-dev/EspExceptionDecoder
@@ -200,13 +226,15 @@ def _parse_register(config, regex, line):
 STACKTRACE_ESP8266_EXCEPTION_TYPE_RE = re.compile(r"[eE]xception \((\d+)\):")
 STACKTRACE_ESP8266_PC_RE = re.compile(r"epc1=0x(4[0-9a-fA-F]{7})")
 STACKTRACE_ESP8266_EXCVADDR_RE = re.compile(r"excvaddr=0x(4[0-9a-fA-F]{7})")
-STACKTRACE_ESP32_PC_RE = re.compile(r"PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_PC_RE = re.compile(r".*PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7}).*")
 STACKTRACE_ESP32_EXCVADDR_RE = re.compile(r"EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_C3_PC_RE = re.compile(r"MEPC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_C3_RA_RE = re.compile(r"RA\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
 STACKTRACE_BAD_ALLOC_RE = re.compile(
     r"^last failed alloc call: (4[0-9a-fA-F]{7})\((\d+)\)$"
 )
 STACKTRACE_ESP32_BACKTRACE_RE = re.compile(
-    r"Backtrace:(?:\s+0x[0-9a-fA-F]{8}:0x[0-9a-fA-F]{8})+"
+    r"Backtrace:(?:\s*0x[0-9a-fA-F]{8}:0x[0-9a-fA-F]{8})+"
 )
 STACKTRACE_ESP32_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
 STACKTRACE_ESP8266_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
@@ -228,6 +256,9 @@ def process_stacktrace(config, line, backtrace_state):
     # ESP32 PC/EXCVADDR
     _parse_register(config, STACKTRACE_ESP32_PC_RE, line)
     _parse_register(config, STACKTRACE_ESP32_EXCVADDR_RE, line)
+    # ESP32-C3 PC/RA
+    _parse_register(config, STACKTRACE_ESP32_C3_PC_RE, line)
+    _parse_register(config, STACKTRACE_ESP32_C3_RA_RE, line)
 
     # bad alloc
     match = re.match(STACKTRACE_BAD_ALLOC_RE, line)
@@ -260,37 +291,42 @@ def process_stacktrace(config, line, backtrace_state):
     return backtrace_state
 
 
+@dataclass
+class FlashImage:
+    path: str
+    offset: str
+
+
 class IDEData:
     def __init__(self, raw):
-        if not isinstance(raw, dict):
-            self.raw = {}
-        else:
-            self.raw = raw
+        self.raw = raw
 
     @property
     def firmware_elf_path(self):
-        return self.raw.get("prog_path")
+        return self.raw["prog_path"]
 
     @property
-    def flash_extra_images(self):
+    def firmware_bin_path(self) -> str:
+        return str(Path(self.firmware_elf_path).with_suffix(".bin"))
+
+    @property
+    def extra_flash_images(self) -> List[FlashImage]:
         return [
-            (x["path"], x["offset"]) for x in self.raw.get("flash_extra_images", [])
+            FlashImage(path=entry["path"], offset=entry["offset"])
+            for entry in self.raw["extra"]["flash_images"]
         ]
 
     @property
-    def cc_path(self):
+    def cc_path(self) -> str:
         # For example /Users/<USER>/.platformio/packages/toolchain-xtensa32/bin/xtensa-esp32-elf-gcc
-        return self.raw.get("cc_path")
+        return self.raw["cc_path"]
 
     @property
-    def addr2line_path(self):
-        cc_path = self.cc_path
-        if cc_path is None:
-            return None
+    def addr2line_path(self) -> str:
         # replace gcc at end with addr2line
 
         # Windows
-        if cc_path.endswith(".exe"):
-            return cc_path[:-7] + "addr2line.exe"
+        if self.cc_path.endswith(".exe"):
+            return f"{self.cc_path[:-7]}addr2line.exe"
 
-        return cc_path[:-3] + "addr2line"
+        return f"{self.cc_path[:-3]}addr2line"

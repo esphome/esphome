@@ -1,10 +1,7 @@
-import bisect
-import datetime
 import logging
-import math
-import string
+from importlib import resources
+from typing import Optional
 
-import pytz
 import tzlocal
 
 import esphome.codegen as cg
@@ -28,7 +25,7 @@ from esphome.const import (
     CONF_HOUR,
     CONF_MINUTE,
 )
-from esphome.core import coroutine, coroutine_with_priority
+from esphome.core import coroutine_with_priority
 from esphome.automation import Condition
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,118 +41,44 @@ ESPTime = time_ns.struct("ESPTime")
 TimeHasTimeCondition = time_ns.class_("TimeHasTimeCondition", Condition)
 
 
-def _tz_timedelta(td):
-    offset_hour = int(td.total_seconds() / (60 * 60))
-    offset_minute = int(abs(td.total_seconds() / 60)) % 60
-    offset_second = int(abs(td.total_seconds())) % 60
-    if offset_hour == 0 and offset_minute == 0 and offset_second == 0:
-        return "0"
-    if offset_minute == 0 and offset_second == 0:
-        return f"{offset_hour}"
-    if offset_second == 0:
-        return f"{offset_hour}:{offset_minute}"
-    return f"{offset_hour}:{offset_minute}:{offset_second}"
-
-
-# https://stackoverflow.com/a/16804556/8924614
-def _week_of_month(dt):
-    first_day = dt.replace(day=1)
-    dom = dt.day
-    adjusted_dom = dom + first_day.weekday()
-    return int(math.ceil(adjusted_dom / 7.0))
-
-
-def _tz_dst_str(dt):
-    td = datetime.timedelta(hours=dt.hour, minutes=dt.minute, seconds=dt.second)
-    return "M{}.{}.{}/{}".format(
-        dt.month, _week_of_month(dt), dt.isoweekday() % 7, _tz_timedelta(td)
-    )
-
-
-def _safe_tzname(tz, dt):
-    tzname = tz.tzname(dt)
-    # pytz does not always return valid tznames
-    # For example: 'Europe/Saratov' returns '+04'
-    # Work around it by using a generic name for the timezone
-    if not all(c in string.ascii_letters for c in tzname):
-        return "TZ"
-    return tzname
-
-
-def _non_dst_tz(tz, dt):
-    tzname = _safe_tzname(tz, dt)
-    utcoffset = tz.utcoffset(dt)
-    _LOGGER.info(
-        "Detected timezone '%s' with UTC offset %s", tzname, _tz_timedelta(utcoffset)
-    )
-    tzbase = "{}{}".format(tzname, _tz_timedelta(-1 * utcoffset))
-    return tzbase
-
-
-def convert_tz(pytz_obj):
-    tz = pytz_obj
-
-    now = datetime.datetime.now()
-    first_january = datetime.datetime(year=now.year, month=1, day=1)
-
-    if not isinstance(tz, pytz.tzinfo.DstTzInfo):
-        return _non_dst_tz(tz, first_january)
-
-    # pylint: disable=protected-access
-    transition_times = tz._utc_transition_times
-    transition_info = tz._transition_info
-    idx = max(0, bisect.bisect_right(transition_times, now))
-    if idx >= len(transition_times):
-        return _non_dst_tz(tz, now)
-
-    idx1, idx2 = idx, idx + 1
-    dstoffset1 = transition_info[idx1][1]
-    if dstoffset1 == datetime.timedelta(seconds=0):
-        # Normalize to 1 being DST on
-        idx1, idx2 = idx + 1, idx + 2
-
-    if idx2 >= len(transition_times):
-        return _non_dst_tz(tz, now)
-
-    if transition_times[idx2].year > now.year + 1:
-        # Next transition is scheduled after this year
-        # Probably a scheduler timezone change.
-        return _non_dst_tz(tz, now)
-
-    utcoffset_on, _, tzname_on = transition_info[idx1]
-    utcoffset_off, _, tzname_off = transition_info[idx2]
-    dst_begins_utc = transition_times[idx1]
-    dst_begins_local = dst_begins_utc + utcoffset_off
-    dst_ends_utc = transition_times[idx2]
-    dst_ends_local = dst_ends_utc + utcoffset_on
-
-    tzbase = "{}{}".format(tzname_off, _tz_timedelta(-1 * utcoffset_off))
-
-    tzext = "{}{},{},{}".format(
-        tzname_on,
-        _tz_timedelta(-1 * utcoffset_on),
-        _tz_dst_str(dst_begins_local),
-        _tz_dst_str(dst_ends_local),
-    )
-    _LOGGER.info(
-        "Detected timezone '%s' with UTC offset %s and daylight savings time from "
-        "%s to %s",
-        tzname_off,
-        _tz_timedelta(utcoffset_off),
-        dst_begins_local.strftime("%d %B %X"),
-        dst_ends_local.strftime("%d %B %X"),
-    )
-    return tzbase + tzext
-
-
-def detect_tz():
+def _load_tzdata(iana_key: str) -> Optional[bytes]:
+    # From https://tzdata.readthedocs.io/en/latest/#examples
     try:
-        tz = tzlocal.get_localzone()
-    except pytz.exceptions.UnknownTimeZoneError:
-        _LOGGER.warning("Could not auto-detect timezone. Using UTC...")
-        return "UTC"
+        package_loc, resource = iana_key.rsplit("/", 1)
+    except ValueError:
+        return None
+    package = "tzdata.zoneinfo." + package_loc.replace("/", ".")
 
-    return convert_tz(tz)
+    try:
+        return resources.read_binary(package, resource)
+    except (FileNotFoundError, ModuleNotFoundError):
+        return None
+
+
+def _extract_tz_string(tzfile: bytes) -> str:
+    try:
+        return tzfile.split(b"\n")[-2].decode()
+    except (IndexError, UnicodeDecodeError):
+        _LOGGER.error("Could not determine TZ string. Please report this issue.")
+        _LOGGER.error("tzfile contents: %s", tzfile, exc_info=True)
+        raise
+
+
+def detect_tz() -> str:
+    iana_key = tzlocal.get_localzone_name()
+    if iana_key is None:
+        raise cv.Invalid(
+            "Could not automatically determine timezone, please set timezone manually."
+        )
+    _LOGGER.info("Detected timezone '%s'", iana_key)
+    tzfile = _load_tzdata(iana_key)
+    if tzfile is None:
+        raise cv.Invalid(
+            "Could not automatically determine timezone, please set timezone manually."
+        )
+    ret = _extract_tz_string(tzfile)
+    _LOGGER.debug(" -> TZ string %s", ret)
+    return ret
 
 
 def _parse_cron_int(value, special_mapping, message):
@@ -176,9 +99,7 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         data = part.split("/")
         if len(data) > 2:
             raise cv.Invalid(
-                "Can't have more than two '/' in one time expression, got {}".format(
-                    part
-                )
+                f"Can't have more than two '/' in one time expression, got {part}"
             )
         offset, repeat = data
         offset_n = 0
@@ -194,18 +115,14 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         except ValueError:
             # pylint: disable=raise-missing-from
             raise cv.Invalid(
-                "Repeat for '/' time expression must be an integer, got {}".format(
-                    repeat
-                )
+                f"Repeat for '/' time expression must be an integer, got {repeat}"
             )
         return set(range(offset_n, max_value + 1, repeat_n))
     if "-" in part:
         data = part.split("-")
         if len(data) > 2:
             raise cv.Invalid(
-                "Can't have more than two '-' in range time expression '{}'".format(
-                    part
-                )
+                f"Can't have more than two '-' in range time expression '{part}'"
             )
         begin, end = data
         begin_n = _parse_cron_int(
@@ -233,13 +150,11 @@ def cron_expression_validator(name, min_value, max_value, special_mapping=None):
             for v in value:
                 if not isinstance(v, int):
                     raise cv.Invalid(
-                        "Expected integer for {} '{}', got {}".format(v, name, type(v))
+                        f"Expected integer for {v} '{name}', got {type(v)}"
                     )
                 if v < min_value or v > max_value:
                     raise cv.Invalid(
-                        "{} {} is out of range (min={} max={}).".format(
-                            name, v, min_value, max_value
-                        )
+                        f"{name} {v} is out of range (min={min_value} max={max_value})."
                     )
             return list(sorted(value))
         value = cv.string(value)
@@ -295,8 +210,7 @@ def validate_cron_raw(value):
     value = value.split(" ")
     if len(value) != 6:
         raise cv.Invalid(
-            "Cron expression must consist of exactly 6 space-separated parts, "
-            "not {}".format(len(value))
+            f"Cron expression must consist of exactly 6 space-separated parts, not {len(value)}"
         )
     seconds, minutes, hours, days_of_month, months, days_of_week = value
     return {
@@ -343,15 +257,15 @@ def validate_cron_keys(value):
     return cv.has_at_least_one_key(*CRON_KEYS)(value)
 
 
-def validate_tz(value):
+def validate_tz(value: str) -> str:
     value = cv.string_strict(value)
 
-    try:
-        pytz_obj = pytz.timezone(value)
-    except pytz.UnknownTimeZoneError:  # pylint: disable=broad-except
+    tzfile = _load_tzdata(value)
+    if tzfile is None:
+        # Not a IANA key, probably a TZ string
         return value
 
-    return convert_tz(pytz_obj)
+    return _extract_tz_string(tzfile)
 
 
 TIME_SCHEMA = cv.Schema(
@@ -380,8 +294,7 @@ TIME_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("15min"))
 
 
-@coroutine
-def setup_time_core_(time_var, config):
+async def setup_time_core_(time_var, config):
     cg.add(time_var.set_timezone(config[CONF_TIMEZONE]))
 
     for conf in config.get(CONF_ON_TIME, []):
@@ -400,23 +313,22 @@ def setup_time_core_(time_var, config):
         days_of_week = conf.get(CONF_DAYS_OF_WEEK, list(range(1, 8)))
         cg.add(trigger.add_days_of_week(days_of_week))
 
-        yield cg.register_component(trigger, conf)
-        yield automation.build_automation(trigger, [], conf)
+        await cg.register_component(trigger, conf)
+        await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_TIME_SYNC, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
 
-        yield cg.register_component(trigger, conf)
-        yield automation.build_automation(trigger, [], conf)
+        await cg.register_component(trigger, conf)
+        await automation.build_automation(trigger, [], conf)
 
 
-@coroutine
-def register_time(time_var, config):
-    yield setup_time_core_(time_var, config)
+async def register_time(time_var, config):
+    await setup_time_core_(time_var, config)
 
 
 @coroutine_with_priority(100.0)
-def to_code(config):
+async def to_code(config):
     cg.add_define("USE_TIME")
     cg.add_global(time_ns.using)
 
@@ -430,6 +342,6 @@ def to_code(config):
         }
     ),
 )
-def time_has_time_to_code(config, condition_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(condition_id, template_arg, paren)
+async def time_has_time_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)

@@ -20,6 +20,12 @@ class ATM90E32Component : public PollingComponent,
   void set_current_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].current_sensor_ = obj; }
   void set_power_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].power_sensor_ = obj; }
   void set_reactive_power_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].reactive_power_sensor_ = obj; }
+  void set_forward_active_energy_sensor(int phase, sensor::Sensor *obj) {
+    this->phase_[phase].forward_active_energy_sensor_ = obj;
+  }
+  void set_reverse_active_energy_sensor(int phase, sensor::Sensor *obj) {
+    this->phase_[phase].reverse_active_energy_sensor_ = obj;
+  }
   void set_power_factor_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].power_factor_sensor_ = obj; }
   void set_volt_gain(int phase, uint16_t gain) { this->phase_[phase].volt_gain_ = gain; }
   void set_ct_gain(int phase, uint16_t gain) { this->phase_[phase].ct_gain_ = gain; }
@@ -52,6 +58,12 @@ class ATM90E32Component : public PollingComponent,
   float get_power_factor_a_();
   float get_power_factor_b_();
   float get_power_factor_c_();
+  float get_forward_active_energy_a_();
+  float get_forward_active_energy_b_();
+  float get_forward_active_energy_c_();
+  float get_reverse_active_energy_a_();
+  float get_reverse_active_energy_b_();
+  float get_reverse_active_energy_c_();
   float get_frequency_();
   float get_chip_temperature_();
 
@@ -63,6 +75,10 @@ class ATM90E32Component : public PollingComponent,
     sensor::Sensor *power_sensor_{nullptr};
     sensor::Sensor *reactive_power_sensor_{nullptr};
     sensor::Sensor *power_factor_sensor_{nullptr};
+    sensor::Sensor *forward_active_energy_sensor_{nullptr};
+    sensor::Sensor *reverse_active_energy_sensor_{nullptr};
+    uint32_t cumulative_forward_active_energy_{0};
+    uint32_t cumulative_reverse_active_energy_{0};
   } phase_[3];
   sensor::Sensor *freq_sensor_{nullptr};
   sensor::Sensor *chip_temperature_sensor_{nullptr};

@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
+#include <cstring>
 
 namespace esphome {
 namespace globals {
@@ -17,36 +18,45 @@ template<typename T> class GlobalsComponent : public Component {
   }
 
   T &value() { return this->value_; }
+  void setup() override {}
+
+ protected:
+  T value_{};
+};
+
+template<typename T> class RestoringGlobalsComponent : public Component {
+ public:
+  using value_type = T;
+  explicit RestoringGlobalsComponent() = default;
+  explicit RestoringGlobalsComponent(T initial_value) : value_(initial_value) {}
+  explicit RestoringGlobalsComponent(
+      std::array<typename std::remove_extent<T>::type, std::extent<T>::value> initial_value) {
+    memcpy(this->value_, initial_value.data(), sizeof(T));
+  }
+
+  T &value() { return this->value_; }
 
   void setup() override {
-    if (this->restore_value_) {
-      this->rtc_ = global_preferences.make_preference<T>(1944399030U ^ this->name_hash_);
-      this->rtc_.load(&this->value_);
-    }
+    this->rtc_ = global_preferences->make_preference<T>(1944399030U ^ this->name_hash_);
+    this->rtc_.load(&this->value_);
     memcpy(&this->prev_value_, &this->value_, sizeof(T));
   }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void loop() override {
-    if (this->restore_value_) {
-      int diff = memcmp(&this->value_, &this->prev_value_, sizeof(T));
-      if (diff != 0) {
-        this->rtc_.save(&this->value_);
-        memcpy(&this->prev_value_, &this->value_, sizeof(T));
-      }
+    int diff = memcmp(&this->value_, &this->prev_value_, sizeof(T));
+    if (diff != 0) {
+      this->rtc_.save(&this->value_);
+      memcpy(&this->prev_value_, &this->value_, sizeof(T));
     }
   }
 
-  void set_restore_value(uint32_t name_hash) {
-    this->restore_value_ = true;
-    this->name_hash_ = name_hash;
-  }
+  void set_name_hash(uint32_t name_hash) { this->name_hash_ = name_hash; }
 
  protected:
   T value_{};
   T prev_value_{};
-  bool restore_value_{false};
   uint32_t name_hash_{};
   ESPPreferenceObject rtc_;
 };
@@ -66,6 +76,7 @@ template<class C, typename... Ts> class GlobalVarSetAction : public Action<Ts...
 };
 
 template<typename T> T &id(GlobalsComponent<T> *value) { return value->value(); }
+template<typename T> T &id(RestoringGlobalsComponent<T> *value) { return value->value(); }
 
 }  // namespace globals
 }  // namespace esphome

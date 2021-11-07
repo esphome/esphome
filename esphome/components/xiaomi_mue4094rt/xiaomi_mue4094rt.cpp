@@ -1,12 +1,12 @@
 #include "xiaomi_mue4094rt.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace xiaomi_mue4094rt {
 
-static const char *TAG = "xiaomi_mue4094rt";
+static const char *const TAG = "xiaomi_mue4094rt";
 
 void XiaomiMUE4094RT::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi MUE4094RT");
@@ -46,11 +46,7 @@ bool XiaomiMUE4094RT::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 }  // namespace xiaomi_mue4094rt

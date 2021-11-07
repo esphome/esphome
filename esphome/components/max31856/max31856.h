@@ -82,8 +82,8 @@ class MAX31856Sensor : public sensor::Sensor,
  protected:
   MAX31856ConfigFilter filter_;
 
-  const uint8_t read_register_(uint8_t reg);
-  const uint32_t read_register24_(uint8_t reg);
+  uint8_t read_register_(uint8_t reg);
+  uint32_t read_register24_(uint8_t reg);
   void write_register_(uint8_t reg, uint8_t value);
 
   void one_shot_temperature_();

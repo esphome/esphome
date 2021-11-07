@@ -3,12 +3,16 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
-    DEVICE_CLASS_EMPTY,
+    CONF_BASELINE,
+    CONF_ECO2,
+    CONF_TVOC,
     ICON_RADIATOR,
+    DEVICE_CLASS_CARBON_DIOXIDE,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
     UNIT_PARTS_PER_BILLION,
     ICON_MOLECULE_CO2,
-    CONF_TVOC,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -16,10 +20,9 @@ DEPENDENCIES = ["i2c"]
 sgp30_ns = cg.esphome_ns.namespace("sgp30")
 SGP30Component = sgp30_ns.class_("SGP30Component", cg.PollingComponent, i2c.I2CDevice)
 
-CONF_ECO2 = "eco2"
-CONF_BASELINE = "baseline"
 CONF_ECO2_BASELINE = "eco2_baseline"
 CONF_TVOC_BASELINE = "tvoc_baseline"
+CONF_STORE_BASELINE = "store_baseline"
 CONF_UPTIME = "uptime"
 CONF_COMPENSATION = "compensation"
 CONF_HUMIDITY_SOURCE = "humidity_source"
@@ -30,11 +33,28 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SGP30Component),
             cv.Required(CONF_ECO2): sensor.sensor_schema(
-                UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_PARTS_PER_MILLION,
+                icon=ICON_MOLECULE_CO2,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Required(CONF_TVOC): sensor.sensor_schema(
-                UNIT_PARTS_PER_BILLION, ICON_RADIATOR, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_PARTS_PER_BILLION,
+                icon=ICON_RADIATOR,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_ECO2_BASELINE): sensor.sensor_schema(
+                icon=ICON_MOLECULE_CO2,
+                accuracy_decimals=0,
+            ),
+            cv.Optional(CONF_TVOC_BASELINE): sensor.sensor_schema(
+                icon=ICON_RADIATOR,
+                accuracy_decimals=0,
+            ),
+            cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
             cv.Optional(CONF_BASELINE): cv.Schema(
                 {
                     cv.Required(CONF_ECO2_BASELINE): cv.hex_uint16_t,
@@ -49,23 +69,34 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(cv.polling_component_schema("60s"))
+    .extend(cv.polling_component_schema("1s"))
     .extend(i2c.i2c_device_schema(0x58))
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     if CONF_ECO2 in config:
-        sens = yield sensor.new_sensor(config[CONF_ECO2])
+        sens = await sensor.new_sensor(config[CONF_ECO2])
         cg.add(var.set_eco2_sensor(sens))
 
     if CONF_TVOC in config:
-        sens = yield sensor.new_sensor(config[CONF_TVOC])
+        sens = await sensor.new_sensor(config[CONF_TVOC])
         cg.add(var.set_tvoc_sensor(sens))
+
+    if CONF_ECO2_BASELINE in config:
+        sens = await sensor.new_sensor(config[CONF_ECO2_BASELINE])
+        cg.add(var.set_eco2_baseline_sensor(sens))
+
+    if CONF_TVOC_BASELINE in config:
+        sens = await sensor.new_sensor(config[CONF_TVOC_BASELINE])
+        cg.add(var.set_tvoc_baseline_sensor(sens))
+
+    if CONF_STORE_BASELINE in config:
+        cg.add(var.set_store_baseline(config[CONF_STORE_BASELINE]))
 
     if CONF_BASELINE in config:
         baseline_config = config[CONF_BASELINE]
@@ -74,7 +105,7 @@ def to_code(config):
 
     if CONF_COMPENSATION in config:
         compensation_config = config[CONF_COMPENSATION]
-        sens = yield cg.get_variable(compensation_config[CONF_HUMIDITY_SOURCE])
+        sens = await cg.get_variable(compensation_config[CONF_HUMIDITY_SOURCE])
         cg.add(var.set_humidity_sensor(sens))
-        sens = yield cg.get_variable(compensation_config[CONF_TEMPERATURE_SOURCE])
+        sens = await cg.get_variable(compensation_config[CONF_TEMPERATURE_SOURCE])
         cg.add(var.set_temperature_sensor(sens))

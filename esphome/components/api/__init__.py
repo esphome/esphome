@@ -1,3 +1,5 @@
+import base64
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -6,6 +8,7 @@ from esphome.const import (
     CONF_DATA,
     CONF_DATA_TEMPLATE,
     CONF_ID,
+    CONF_KEY,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_REBOOT_TIMEOUT,
@@ -19,7 +22,7 @@ from esphome.const import (
 from esphome.core import coroutine_with_priority
 
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["async_tcp"]
+AUTO_LOAD = ["socket"]
 CODEOWNERS = ["@OttoWinter"]
 
 api_ns = cg.esphome_ns.namespace("api")
@@ -41,6 +44,22 @@ SERVICE_ARG_NATIVE_TYPES = {
     "float[]": cg.std_vector.template(float),
     "string[]": cg.std_vector.template(cg.std_string),
 }
+CONF_ENCRYPTION = "encryption"
+
+
+def validate_encryption_key(value):
+    value = cv.string_strict(value)
+    try:
+        decoded = base64.b64decode(value, validate=True)
+    except ValueError as err:
+        raise cv.Invalid("Invalid key format, please check it's using base64") from err
+
+    if len(decoded) != 32:
+        raise cv.Invalid("Encryption key must be base64 and 32 bytes long")
+
+    # Return original data for roundtrip conversion
+    return value
+
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -63,14 +82,19 @@ CONFIG_SCHEMA = cv.Schema(
                 ),
             }
         ),
+        cv.Optional(CONF_ENCRYPTION): cv.Schema(
+            {
+                cv.Required(CONF_KEY): validate_encryption_key,
+            }
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
 @coroutine_with_priority(40.0)
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
@@ -90,7 +114,16 @@ def to_code(config):
             conf[CONF_TRIGGER_ID], templ, conf[CONF_SERVICE], service_arg_names
         )
         cg.add(var.register_user_service(trigger))
-        yield automation.build_automation(trigger, func_args, conf)
+        await automation.build_automation(trigger, func_args, conf)
+
+    if CONF_ENCRYPTION in config:
+        conf = config[CONF_ENCRYPTION]
+        decoded = base64.b64decode(conf[CONF_KEY])
+        cg.add(var.set_noise_psk(list(decoded)))
+        cg.add_define("USE_API_NOISE")
+        cg.add_library("esphome/noise-c", "0.1.4")
+    else:
+        cg.add_define("USE_API_PLAINTEXT")
 
     cg.add_define("USE_API")
     cg.add_global(api_ns.using)
@@ -116,21 +149,21 @@ HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema(
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_SERVICE_ACTION_SCHEMA,
 )
-def homeassistant_service_to_code(config, action_id, template_arg, args):
-    serv = yield cg.get_variable(config[CONF_ID])
+async def homeassistant_service_to_code(config, action_id, template_arg, args):
+    serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
-    templ = yield cg.templatable(config[CONF_SERVICE], args, None)
+    templ = await cg.templatable(config[CONF_SERVICE], args, None)
     cg.add(var.set_service(templ))
     for key, value in config[CONF_DATA].items():
-        templ = yield cg.templatable(value, args, None)
+        templ = await cg.templatable(value, args, None)
         cg.add(var.add_data(key, templ))
     for key, value in config[CONF_DATA_TEMPLATE].items():
-        templ = yield cg.templatable(value, args, None)
+        templ = await cg.templatable(value, args, None)
         cg.add(var.add_data_template(key, templ))
     for key, value in config[CONF_VARIABLES].items():
-        templ = yield cg.templatable(value, args, None)
+        templ = await cg.templatable(value, args, None)
         cg.add(var.add_variable(key, templ))
-    yield var
+    return var
 
 
 def validate_homeassistant_event(value):
@@ -159,21 +192,21 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_EVENT_ACTION_SCHEMA,
 )
-def homeassistant_event_to_code(config, action_id, template_arg, args):
-    serv = yield cg.get_variable(config[CONF_ID])
+async def homeassistant_event_to_code(config, action_id, template_arg, args):
+    serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
-    templ = yield cg.templatable(config[CONF_EVENT], args, None)
+    templ = await cg.templatable(config[CONF_EVENT], args, None)
     cg.add(var.set_service(templ))
     for key, value in config[CONF_DATA].items():
-        templ = yield cg.templatable(value, args, None)
+        templ = await cg.templatable(value, args, None)
         cg.add(var.add_data(key, templ))
     for key, value in config[CONF_DATA_TEMPLATE].items():
-        templ = yield cg.templatable(value, args, None)
+        templ = await cg.templatable(value, args, None)
         cg.add(var.add_data_template(key, templ))
     for key, value in config[CONF_VARIABLES].items():
-        templ = yield cg.templatable(value, args, None)
+        templ = await cg.templatable(value, args, None)
         cg.add(var.add_variable(key, templ))
-    yield var
+    return var
 
 
 HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
@@ -190,15 +223,15 @@ HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA,
 )
-def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
-    serv = yield cg.get_variable(config[CONF_ID])
+async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
+    serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
     cg.add(var.set_service("esphome.tag_scanned"))
-    templ = yield cg.templatable(config[CONF_TAG], args, cg.std_string)
+    templ = await cg.templatable(config[CONF_TAG], args, cg.std_string)
     cg.add(var.add_data("tag_id", templ))
-    yield var
+    return var
 
 
 @automation.register_condition("api.connected", APIConnectedCondition, {})
-def api_connected_to_code(config, condition_id, template_arg, args):
-    yield cg.new_Pvariable(condition_id, template_arg)
+async def api_connected_to_code(config, condition_id, template_arg, args):
+    return cg.new_Pvariable(condition_id, template_arg)
