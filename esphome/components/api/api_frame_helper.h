@@ -53,6 +53,7 @@ enum class APIError : int {
   HANDSHAKESTATE_SETUP_FAILED = 1019,
   HANDSHAKESTATE_SPLIT_FAILED = 1020,
   BAD_HANDSHAKE_ERROR_BYTE = 1021,
+  CONNECTION_CLOSED = 1022,
 };
 
 const char *api_error_to_str(APIError err);

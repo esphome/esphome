@@ -59,6 +59,10 @@ tuya:
 pipsolar:
     id: inverter0
 
+sx1509:
+  - id: sx1509_hub
+    address: 0x3E
+
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
@@ -209,6 +213,7 @@ sensor:
       - or:
         - throttle: "20min"
         - delta: 0.02
+
 #
 # platform sensor.apds9960 requires component apds9960
 #
@@ -308,6 +313,11 @@ binary_sensor:
     y_max: 212
     on_state:
       - lambda: 'ESP_LOGI("main", "key0: %s", (x ? "touch" : "release"));'
+  - platform: gpio
+    name: GPIO SX1509 test
+    pin:
+      sx1509: sx1509_hub
+      number: 3
 
 climate:
   - platform: tuya
@@ -357,6 +367,11 @@ light:
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
     gamma_correct: 1
+
+cover:
+  - platform: tuya
+    id: tuya_cover
+    position_datapoint: 2
 
 display:
   - platform: addressable_light

@@ -3,6 +3,7 @@
 #include "web_server.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/util.h"
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
@@ -28,8 +29,8 @@ namespace web_server {
 
 static const char *const TAG = "web_server";
 
-void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &klass, const std::string &action,
-               const std::function<void(AsyncResponseStream &stream, Nameable *obj)> &action_func = nullptr) {
+void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
+               const std::function<void(AsyncResponseStream &stream, EntityBase *obj)> &action_func = nullptr) {
   if (obj->is_internal())
     return;
   stream->print("<tr class=\"");
@@ -158,16 +159,15 @@ void WebServer::setup() {
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
   ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->base_->get_port());
-  if (this->using_auth()) {
-    ESP_LOGCONFIG(TAG, "  Basic authentication enabled");
-  }
 }
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
   std::string title = App.get_name() + " Web Server";
-  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><title>"));
+  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8>"
+                  "<meta name=\"viewport\" content=\"width=device-width, "
+                  "initial-scale=1.0\"><title>"));
   stream->print(title.c_str());
   stream->print(F("</title>"));
 #ifdef WEBSERVER_CSS_INCLUDE
@@ -226,7 +226,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_SELECT
   for (auto *obj : App.get_selects())
-    write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, Nameable *obj) {
+    write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, EntityBase *obj) {
       select::Select *select = (select::Select *) obj;
       stream.print("<select>");
       stream.print("<option></option>");
@@ -414,6 +414,8 @@ std::string WebServer::fan_json(fan::FanState *obj) {
     const auto traits = obj->get_traits();
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
       // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
       switch (fan::speed_level_to_enum(obj->speed, traits.supported_speed_count())) {
         case fan::FAN_SPEED_LOW:  // NOLINT(clang-diagnostic-deprecated-declarations)
@@ -426,6 +428,7 @@ std::string WebServer::fan_json(fan::FanState *obj) {
           root["speed"] = "high";
           break;
       }
+#pragma GCC diagnostic pop
     }
     if (obj->get_traits().supports_oscillation())
       root["oscillation"] = obj->oscillating;
@@ -448,7 +451,10 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       auto call = obj->turn_on();
       if (request->hasParam("speed")) {
         String speed = request->getParam("speed")->value();
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         call.set_speed(speed.c_str());  // NOLINT(clang-diagnostic-deprecated-declarations)
+#pragma GCC diagnostic pop
       }
       if (request->hasParam("speed_level")) {
         String speed_level = request->getParam("speed_level")->value();
@@ -764,10 +770,6 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
   return false;
 }
 void WebServer::handleRequest(AsyncWebServerRequest *request) {
-  if (this->using_auth() && !request->authenticate(this->username_, this->password_)) {
-    return request->requestAuthentication();
-  }
-
   if (request->url() == "/") {
     this->handle_index_request(request);
     return;

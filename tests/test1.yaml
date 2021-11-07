@@ -94,6 +94,7 @@ mqtt:
   username: 'debug'
   password: 'debug'
   client_id: someclient
+  use_abbreviations: false
   discovery: True
   discovery_retain: False
   discovery_prefix: discovery
@@ -343,6 +344,7 @@ sensor:
       - exponential_moving_average:
           alpha: 0.1
           send_every: 15
+      - throttle_average: 60s
       - throttle: 1s
       - heartbeat: 5s
       - debounce: 0.1s
@@ -364,8 +366,11 @@ sensor:
       then:
         - lambda: >-
             ESP_LOGD("main", "Got value range %f", x);
+        - wait_until: wifi.connected
         - wait_until:
-            binary_sensor.is_on: binary_sensor1
+            condition:
+              binary_sensor.is_on: binary_sensor1
+            timeout: 1s
     on_raw_value:
       - lambda: >-
           ESP_LOGD("main", "Got raw value %f", x);
@@ -805,6 +810,19 @@ sensor:
     humidity:
       name: 'Living Room Humidity 9'
     address: 0x61
+    update_interval: 15s
+    automatic_self_calibration: true
+    altitude_compensation: 10m
+    ambient_pressure_compensation: 961mBar
+    temperature_offset: 4.2C
+    i2c_id: i2c_bus
+  - platform: scd4x
+    co2:
+      name: "SCD4X CO2"
+    temperature:
+      name: "SCD4X Temperature"
+    humidity:
+      name: "SCD4X Humidity"
     update_interval: 15s
     automatic_self_calibration: true
     altitude_compensation: 10m
@@ -1629,6 +1647,22 @@ climate:
     sensor: ${sensorname}_sensor
   - platform: tcl112
     name: TCL112 Climate
+    action_state_topic: action/state/topic
+    away_command_topic: away/command/topic
+    away_state_topic: away/state/topic
+    current_temperature_state_topic: current/temperature/state/topic
+    fan_mode_command_topic: fan_mode/mode/command/topic
+    fan_mode_state_topic:  fan_mode/mode/state/topic
+    mode_command_topic: mode/command/topic
+    mode_state_topic: mode/state/topic
+    swing_mode_command_topic: swing_mode/command/topic
+    swing_mode_state_topic: swing_mode/state/topic
+    target_temperature_command_topic: target/temperature/command/topic
+    target_temperature_high_command_topic: target/temperature/high/command/topic
+    target_temperature_high_state_topic: target/temperature/high/state/topic
+    target_temperature_low_command_topic: target/temperature/low/command/topic
+    target_temperature_low_state_topic: target/temperature/low/state/topic
+    target_temperature_state_topic: target/temperature/state/topic
   - platform: coolix
     name: Coolix Climate With Sensor
     supports_heat: True
@@ -1652,6 +1686,13 @@ climate:
     name: Toshiba Climate
   - platform: hitachi_ac344
     name: Hitachi Climate
+  - platform: heatpumpir
+    protocol: mitsubishi_heavy_zm
+    horizontal_default: left
+    vertical_default: up
+    name: HeatpumpIR Climate
+    min_temperature: 18
+    max_temperature: 30
   - platform: midea
     id: midea_unit
     uart_id: uart0
@@ -1695,6 +1736,7 @@ climate:
     name: Anova cooker
     ble_client_id: ble_blah
     unit_of_measurement: c
+    icon: mdi:stove
 
 script:
   - id: climate_custom
@@ -1892,6 +1934,8 @@ switch:
           state: yes
   - platform: restart
     name: 'Living Room Restart'
+  - platform: safe_mode
+    name: 'Living Room Restart (Safe Mode)'
   - platform: shutdown
     name: 'Living Room Shutdown'
   - platform: output
@@ -1971,6 +2015,7 @@ fan:
     direction_output: gpio_26
   - platform: speed
     id: fan_speed
+    icon: mdi:weather-windy
     output: pca_6
     speed_count: 10
     name: 'Living Room Fan 2'
@@ -2169,6 +2214,31 @@ display:
     row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: ili9341
+    model: "TFT 2.4"
+    cs_pin: GPIO5
+    dc_pin: GPIO4
+    reset_pin: GPIO22
+    led_pin:
+      number: GPIO15
+      inverted: true
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: ili9341
+    model: "TFT 2.4"
+    cs_pin: GPIO5
+    dc_pin: GPIO4
+    reset_pin: GPIO22
+    led_pin:
+      number: GPIO15
+      inverted: true
+    auto_clear_enabled: false
+    rotation: 90
+    lambda: |-
+      if (!id(glob_bool_processed)) {
+        it.fill(Color::WHITE);
+        id(glob_bool_processed) = true;
+      }
 
 tm1651:
   id: tm1651_battery
@@ -2268,10 +2338,23 @@ cover:
           id: template_cover
           state: CLOSED
     assumed_state: no
+    has_position: yes
+    position_state_topic: position/state/topic
+    position_command_topic: position/command/topic
+    tilt_lambda: !lambda 'return 0.5;'
+    tilt_state_topic: tilt/state/topic
+    tilt_command_topic: tilt/command/topic
+    on_open:
+      then:
+        - lambda: 'ESP_LOGD("cover", "open");'
+    on_closed:
+      then:
+        - lambda: 'ESP_LOGD("cover", "closed");'
   - platform: am43
     name: 'Test AM43'
     id: am43_test
     ble_client_id: ble_foo
+    icon: mdi:blinds
 
 debug:
 
@@ -2335,6 +2418,10 @@ globals:
     type: std::string
     restore_value: no
     # initial_value: ""
+  - id: glob_bool_processed
+    type: bool
+    restore_value: no
+    initial_value: 'false'
 
 text_sensor:
   - platform: mqtt_subscribe

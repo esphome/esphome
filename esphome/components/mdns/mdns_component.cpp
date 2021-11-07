@@ -2,25 +2,32 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/version.h"
 #include "esphome/core/application.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_API
 #include "esphome/components/api/api_server.h"
+#endif
+#ifdef USE_DASHBOARD_IMPORT
+#include "esphome/components/dashboard_import/dashboard_import.h"
 #endif
 
 namespace esphome {
 namespace mdns {
 
+static const char *const TAG = "mdns";
+
 #ifndef WEBSERVER_PORT
 #define WEBSERVER_PORT 80  // NOLINT
 #endif
 
-std::vector<MDNSService> MDNSComponent::compile_services_() {
-  std::vector<MDNSService> res;
+void MDNSComponent::compile_records_() {
+  this->hostname_ = App.get_name();
 
+  this->services_.clear();
 #ifdef USE_API
   if (api::global_api_server != nullptr) {
     MDNSService service{};
-    service.service_type = "esphomelib";
+    service.service_type = "_esphomelib";
     service.proto = "_tcp";
     service.port = api::global_api_server->get_port();
     service.txt_records.push_back({"version", ESPHOME_VERSION});
@@ -42,33 +49,48 @@ std::vector<MDNSService> MDNSComponent::compile_services_() {
     service.txt_records.push_back({"project_name", ESPHOME_PROJECT_NAME});
     service.txt_records.push_back({"project_version", ESPHOME_PROJECT_VERSION});
 #endif  // ESPHOME_PROJECT_NAME
-    res.push_back(service);
+
+#ifdef USE_DASHBOARD_IMPORT
+    service.txt_records.push_back({"package_import_url", dashboard_import::get_package_import_url()});
+#endif
+
+    this->services_.push_back(service);
   }
 #endif  // USE_API
 
 #ifdef USE_PROMETHEUS
   {
     MDNSService service{};
-    service.service_type = "prometheus-http";
+    service.service_type = "_prometheus-http";
     service.proto = "_tcp";
     service.port = WEBSERVER_PORT;
-    res.push_back(service);
+    this->services_.push_back(service);
   }
 #endif
 
-  if (res.empty()) {
+  if (this->services_.empty()) {
     // Publish "http" service if not using native API
     // This is just to have *some* mDNS service so that .local resolution works
     MDNSService service{};
-    service.service_type = "http";
+    service.service_type = "_http";
     service.proto = "_tcp";
     service.port = WEBSERVER_PORT;
     service.txt_records.push_back({"version", ESPHOME_VERSION});
-    res.push_back(service);
+    this->services_.push_back(service);
   }
-  return res;
 }
-std::string MDNSComponent::compile_hostname_() { return App.get_name(); }
+
+void MDNSComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "mDNS:");
+  ESP_LOGCONFIG(TAG, "  Hostname: %s", this->hostname_.c_str());
+  ESP_LOGV(TAG, "  Services:");
+  for (const auto &service : this->services_) {
+    ESP_LOGV(TAG, "  - %s, %s, %d", service.service_type.c_str(), service.proto.c_str(), service.port);
+    for (const auto &record : service.txt_records) {
+      ESP_LOGV(TAG, "    TXT: %s = %s", record.key.c_str(), record.value.c_str());
+    }
+  }
+}
 
 }  // namespace mdns
 }  // namespace esphome

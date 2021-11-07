@@ -49,8 +49,10 @@ def color(col: str, msg: str, reset: bool = True) -> bool:
 
 
 class ESPHomeLogFormatter(logging.Formatter):
-    def __init__(self):
-        super().__init__(fmt="%(levelname)s %(message)s", datefmt="%H:%M:%S", style="%")
+    def __init__(self, *, include_timestamp: bool):
+        fmt = "%(asctime)s " if include_timestamp else ""
+        fmt += "%(levelname)s %(message)s"
+        super().__init__(fmt=fmt, style="%")
 
     def format(self, record):
         formatted = super().format(record)
@@ -64,7 +66,9 @@ class ESPHomeLogFormatter(logging.Formatter):
         return f"{prefix}{formatted}{Style.RESET_ALL}"
 
 
-def setup_log(debug=False, quiet=False):
+def setup_log(
+    debug: bool = False, quiet: bool = False, include_timestamp: bool = False
+) -> None:
     import colorama
 
     if debug:
@@ -79,4 +83,6 @@ def setup_log(debug=False, quiet=False):
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
     colorama.init()
-    logging.getLogger().handlers[0].setFormatter(ESPHomeLogFormatter())
+    logging.getLogger().handlers[0].setFormatter(
+        ESPHomeLogFormatter(include_timestamp=include_timestamp)
+    )

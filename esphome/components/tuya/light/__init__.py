@@ -22,6 +22,7 @@ CONF_COLOR_TEMPERATURE_DATAPOINT = "color_temperature_datapoint"
 CONF_COLOR_TEMPERATURE_INVERT = "color_temperature_invert"
 CONF_COLOR_TEMPERATURE_MAX_VALUE = "color_temperature_max_value"
 CONF_RGB_DATAPOINT = "rgb_datapoint"
+CONF_HSV_DATAPOINT = "hsv_datapoint"
 
 TuyaLight = tuya_ns.class_("TuyaLight", light.LightOutput, cg.Component)
 
@@ -33,7 +34,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DIMMER_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_MIN_VALUE_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
-            cv.Optional(CONF_RGB_DATAPOINT): cv.uint8_t,
+            cv.Exclusive(CONF_RGB_DATAPOINT, "color"): cv.uint8_t,
+            cv.Exclusive(CONF_HSV_DATAPOINT, "color"): cv.uint8_t,
             cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
             cv.Inclusive(
                 CONF_COLOR_TEMPERATURE_DATAPOINT, "color_temperature"
@@ -57,7 +59,10 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(
-        CONF_DIMMER_DATAPOINT, CONF_SWITCH_DATAPOINT, CONF_RGB_DATAPOINT
+        CONF_DIMMER_DATAPOINT,
+        CONF_SWITCH_DATAPOINT,
+        CONF_RGB_DATAPOINT,
+        CONF_HSV_DATAPOINT,
     ),
 )
 
@@ -75,6 +80,8 @@ async def to_code(config):
         cg.add(var.set_switch_id(config[CONF_SWITCH_DATAPOINT]))
     if CONF_RGB_DATAPOINT in config:
         cg.add(var.set_rgb_id(config[CONF_RGB_DATAPOINT]))
+    elif CONF_HSV_DATAPOINT in config:
+        cg.add(var.set_hsv_id(config[CONF_HSV_DATAPOINT]))
     if CONF_COLOR_TEMPERATURE_DATAPOINT in config:
         cg.add(var.set_color_temperature_id(config[CONF_COLOR_TEMPERATURE_DATAPOINT]))
         cg.add(var.set_color_temperature_invert(config[CONF_COLOR_TEMPERATURE_INVERT]))

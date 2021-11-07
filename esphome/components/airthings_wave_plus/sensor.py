@@ -82,10 +82,8 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     )
-    .extend(cv.polling_component_schema("5mins"))
+    .extend(cv.polling_component_schema("5min"))
     .extend(ble_client.BLE_CLIENT_SCHEMA),
-    # Until BLEUUID reference removed
-    cv.only_with_arduino,
 )
 
 

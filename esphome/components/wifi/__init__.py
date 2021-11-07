@@ -159,8 +159,15 @@ def final_validate_power_esp32_ble(value):
         "esp32_ble_server",
         "esp32_ble_tracker",
     ]:
+        if conflicting not in fv.full_config.get():
+            continue
+
         try:
-            cv.require_framework_version(esp32_arduino=cv.Version(1, 0, 5))(None)
+            # Only arduino 1.0.5+ and esp-idf impacted
+            cv.require_framework_version(
+                esp32_arduino=cv.Version(1, 0, 5),
+                esp_idf=cv.Version(4, 0, 0),
+            )(None)
         except cv.Invalid:
             pass
         else:
@@ -342,6 +349,8 @@ async def to_code(config):
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
+    elif CORE.is_esp32 and CORE.using_arduino:
+        cg.add_library("WiFi", None)
 
     cg.add_define("USE_WIFI")
 

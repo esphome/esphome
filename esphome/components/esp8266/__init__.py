@@ -4,6 +4,7 @@ from esphome.const import (
     CONF_BOARD,
     CONF_BOARD_FLASH_MODE,
     CONF_FRAMEWORK,
+    CONF_SOURCE,
     CONF_VERSION,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
@@ -31,7 +32,7 @@ def set_core_data(config):
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "esp8266"
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
-        config[CONF_FRAMEWORK][CONF_VERSION_HINT]
+        config[CONF_FRAMEWORK][CONF_VERSION]
     )
     CORE.data[KEY_ESP8266][KEY_BOARD] = config[CONF_BOARD]
     return config
@@ -62,75 +63,68 @@ RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 7, 4)
 # The platformio/espressif8266 version to use for arduino 2 framework versions
 #  - https://github.com/platformio/platform-espressif8266/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif8266
-ARDUINO_2_PLATFORM_VERSION = cv.Version(2, 6, 2)
+ARDUINO_2_PLATFORM_VERSION = cv.Version(2, 6, 3)
 # for arduino 3 framework versions
-ARDUINO_3_PLATFORM_VERSION = cv.Version(3, 0, 2)
+ARDUINO_3_PLATFORM_VERSION = cv.Version(3, 2, 0)
 
 
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": ("https://github.com/esp8266/Arduino.git", cv.Version(3, 0, 2)),
-        "latest": ("", cv.Version(3, 0, 2)),
-        "recommended": (
-            _format_framework_arduino_version(RECOMMENDED_ARDUINO_FRAMEWORK_VERSION),
-            RECOMMENDED_ARDUINO_FRAMEWORK_VERSION,
-        ),
+        "dev": (cv.Version(3, 0, 2), "https://github.com/esp8266/Arduino.git"),
+        "latest": (cv.Version(3, 0, 2), None),
+        "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
-    ver_value = value[CONF_VERSION]
-    default_ver_hint = None
-    if ver_value.lower() in lookups:
-        default_ver_hint = str(lookups[ver_value.lower()][1])
-        ver_value = lookups[ver_value.lower()][0]
+
+    if value[CONF_VERSION] in lookups:
+        if CONF_SOURCE in value:
+            raise cv.Invalid(
+                "Framework version needs to be explicitly specified when custom source is used."
+            )
+
+        version, source = lookups[value[CONF_VERSION]]
     else:
-        with cv.suppress_invalid():
-            ver = cv.Version.parse(cv.version_number(value))
-            if ver <= cv.Version(2, 4, 1):
-                ver_value = f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
-            elif ver <= cv.Version(2, 6, 2):
-                ver_value = f"~2.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
-            else:
-                ver_value = f"~3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
-            default_ver_hint = str(ver)
+        version = cv.Version.parse(cv.version_number(value[CONF_VERSION]))
+        source = value.get(CONF_SOURCE, None)
 
-    value[CONF_VERSION] = ver_value
+    value[CONF_VERSION] = str(version)
+    value[CONF_SOURCE] = source or _format_framework_arduino_version(version)
 
-    if CONF_VERSION_HINT not in value and default_ver_hint is None:
-        raise cv.Invalid("Needs a version hint to understand the framework version")
-
-    ver_hint_s = value.get(CONF_VERSION_HINT, default_ver_hint)
-    value[CONF_VERSION_HINT] = ver_hint_s
-    plat_ver = value.get(CONF_PLATFORM_VERSION)
-
-    if plat_ver is None:
-        ver_hint = cv.Version.parse(ver_hint_s)
-        if ver_hint >= cv.Version(3, 0, 0):
-            plat_ver = ARDUINO_3_PLATFORM_VERSION
-        elif ver_hint >= cv.Version(2, 5, 0):
-            plat_ver = ARDUINO_2_PLATFORM_VERSION
+    platform_version = value.get(CONF_PLATFORM_VERSION)
+    if platform_version is None:
+        if version >= cv.Version(3, 0, 0):
+            platform_version = _parse_platform_version(str(ARDUINO_3_PLATFORM_VERSION))
+        elif version >= cv.Version(2, 5, 0):
+            platform_version = _parse_platform_version(str(ARDUINO_2_PLATFORM_VERSION))
         else:
-            plat_ver = cv.Version(1, 8, 0)
-    value[CONF_PLATFORM_VERSION] = str(plat_ver)
+            platform_version = _parse_platform_version(str(cv.Version(1, 8, 0)))
+    value[CONF_PLATFORM_VERSION] = platform_version
 
-    if cv.Version.parse(ver_hint_s) != RECOMMENDED_ARDUINO_FRAMEWORK_VERSION:
+    if version != RECOMMENDED_ARDUINO_FRAMEWORK_VERSION:
         _LOGGER.warning(
-            "The selected arduino framework version is not the recommended one"
-        )
-        _LOGGER.warning(
-            "If there are connectivity or build issues please remove the manual version"
+            "The selected Arduino framework version is not the recommended one. "
+            "If there are connectivity or build issues please remove the manual version."
         )
 
     return value
 
 
-CONF_VERSION_HINT = "version_hint"
+def _parse_platform_version(value):
+    try:
+        # if platform version is a valid version constraint, prefix the default package
+        cv.platformio_version_constraint(value)
+        return f"platformio/espressif8266 @ {value}"
+    except cv.Invalid:
+        return value
+
+
 CONF_PLATFORM_VERSION = "platform_version"
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-            cv.Optional(CONF_VERSION_HINT): cv.version_number,
-            cv.Optional(CONF_PLATFORM_VERSION): cv.string_strict,
+            cv.Optional(CONF_SOURCE): cv.string_strict,
+            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
         }
     ),
     _arduino_check_versions,
@@ -157,6 +151,8 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     cg.add(esp8266_ns.setup_preferences())
 
+    cg.add_platformio_option("lib_ldf_mode", "off")
+
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_ESP8266")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -165,12 +161,10 @@ async def to_code(config):
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
     cg.add_build_flag("-DUSE_ESP8266_FRAMEWORK_ARDUINO")
+    cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
     cg.add_platformio_option(
         "platform_packages",
-        [f"platformio/framework-arduinoespressif8266 @ {conf[CONF_VERSION]}"],
-    )
-    cg.add_platformio_option(
-        "platform", f"platformio/espressif8266 @ {conf[CONF_PLATFORM_VERSION]}"
+        [f"platformio/framework-arduinoespressif8266 @ {conf[CONF_SOURCE]}"],
     )
 
     # Default for platformio is LWIP2_LOW_MEMORY with:

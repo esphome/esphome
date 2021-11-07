@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 from esphome.const import CONF_ID
-from esphome.core import coroutine_with_priority
+from esphome.core import coroutine_with_priority, CORE
 
 AUTO_LOAD = ["web_server_base"]
 DEPENDENCIES = ["wifi"]
@@ -32,3 +32,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
     cg.add_define("USE_CAPTIVE_PORTAL")
+
+    if CORE.is_esp32:
+        cg.add_library("DNSServer", None)
+        cg.add_library("WiFi", None)
+    if CORE.is_esp8266:
+        cg.add_library("DNSServer", None)
