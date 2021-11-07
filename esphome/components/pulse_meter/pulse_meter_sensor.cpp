@@ -20,7 +20,7 @@ void PulseMeterSensor::loop() {
 
   // Dont run this function if Interrupt is in progress
   if (this->busy_ > 0)
-     return;
+    return;
 
 
   // If we've exceeded our timeout interval without receiving any pulses, assume 0 pulses/min until
@@ -63,7 +63,7 @@ void PulseMeterSensor::dump_config() {
 
 void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
   // This is an interrupt handler - we can't call any virtual method from this method
-   sensor->busy_ = 1;
+  sensor->busy_ = 1;
 
   // Get the current time before we do anything else so the measurements are consistent
   const uint32_t now = micros();
