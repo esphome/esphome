@@ -63,14 +63,14 @@ void PulseMeterSensor::dump_config() {
 
 void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
   // This is an interrupt handler - we can't call any virtual method from this method
-   sensor->busy_=1;
+   sensor->busy_ = 1;
 
   // Get the current time before we do anything else so the measurements are consistent
   const uint32_t now = micros();
 
   // We only look at rising edges
   if (!sensor->isr_pin_.digital_read()) {
-    sensor->busy_=0;
+    sensor->busy_ = 0;
     return;
   }
 
@@ -86,7 +86,7 @@ void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
   }
 
   sensor->last_detected_edge_us_ = now;
-  sensor->busy_=0;
+  sensor->busy_ = 0;
 }
 
 }  // namespace pulse_meter
