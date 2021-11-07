@@ -76,6 +76,16 @@ bool MQTTComponent::send_discovery_() {
           root[MQTT_ENABLED_BY_DEFAULT] = false;
         if (!this->get_icon().empty())
           root[MQTT_ICON] = this->get_icon();
+        
+        switch (this->get_entity()->get_entity_category()) {
+          case ENTITY_CATEGORY_CONFIG:
+            root[MQTT_ENTITY_CATEGORY] = "config";
+            break;
+          case ENTITY_CATEGORY_DIAGNOSTIC:
+            root[MQTT_ENTITY_CATEGORY] = "diagnostic";
+            break;
+        }
+        
 
         if (config.state_topic)
           root[MQTT_STATE_TOPIC] = this->get_state_topic_();
