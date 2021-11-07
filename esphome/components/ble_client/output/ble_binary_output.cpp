@@ -61,9 +61,9 @@ void BLEBinaryOutput::write_state(bool state) {
     return;
   }
 
-  uint8_t stateAsUint = (uint8_t) state;
-  ESP_LOGV(TAG, "[%s] Write State: %d", this->char_uuid_.to_string().c_str(), stateAsUint);
-  chr->write_value(&stateAsUint, sizeof(stateAsUint));
+  uint8_t state_as_uint = (uint8_t) state;
+  ESP_LOGV(TAG, "[%s] Write State: %d", this->char_uuid_.to_string().c_str(), state_as_uint);
+  chr->write_value(&state_as_uint, sizeof(state_as_uint));
 }
 
 }  // namespace ble_client
