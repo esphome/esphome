@@ -62,8 +62,10 @@ async def to_code(config):
         var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)
     )
 
-    if CORE.is_esp32:
-        # Although this component does not use SPI, the BSEC library requires the SPI library
+    # Although this component does not use SPI, the BSEC library requires the SPI library
+    if CORE.is_esp32 and CORE.using_arduino:
+        cg.add_library("SPI", None)
+    if CORE.is_esp8266:
         cg.add_library("SPI", None)
 
     cg.add_define("USE_BSEC")
