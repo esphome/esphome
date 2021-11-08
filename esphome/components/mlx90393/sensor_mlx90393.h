@@ -23,8 +23,11 @@ class MLX90393_cls : public PollingComponent, public i2c::I2CDevice {
   void set_z_sensor(sensor::Sensor *z_sensor) { z_sensor_ = z_sensor; }
   void set_t_sensor(sensor::Sensor *t_sensor) { t_sensor_ = t_sensor; }
 
-  using GAIN = mlx90393_gain;
-  void set_gain(GAIN gain) { gain_ = gain; }
+  void set_oversampling(uint8_t osr) { osr_ = osr; }
+  void set_resolution(uint8_t xyz, uint8_t res) { resolutions_[xyz] = res; }
+  void set_filter(uint8_t filter) { filter_ = filter; }
+
+  void set_gain(uint8_t gain_sel) { gain_ = gain_sel; }
 
  protected:
   MLX90393 mlx;
@@ -32,7 +35,10 @@ class MLX90393_cls : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *y_sensor_{nullptr};
   sensor::Sensor *z_sensor_{nullptr};
   sensor::Sensor *t_sensor_{nullptr};
-  GAIN gain_ = MLX90393_GAIN_2_5X;
+  uint8_t gain_ = 0;
+  uint8_t osr_ = 0;
+  uint8_t filter_ = 0;
+  uint8_t resolutions_[3] = {0};
   GPIOPin *drdy_pin_ = nullptr;
 
 };

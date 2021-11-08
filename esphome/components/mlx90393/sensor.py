@@ -7,6 +7,9 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     ICON_MAGNET,
     CONF_GAIN,
+    CONF_RESOLUTION,
+    CONF_OVERSAMPLING,
+    CONF_FILTER,
 )
 from esphome import pins
 
@@ -17,22 +20,33 @@ mlx90393_ns = cg.esphome_ns.namespace("mlx90393")
 
 MLX90393 = mlx90393_ns.class_("MLX90393_cls", cg.PollingComponent, i2c.I2CDevice)
 
-GAINEnum = mlx90393_ns.enum("GAIN")
 GAIN = {
-    "GAIN_1X": GAINEnum.GAIN_1X,
-    "GAIN_1_33X": GAINEnum.GAIN_1_33X,
-    "GAIN_1_67X": GAINEnum.GAIN_1_67X,
-    "GAIN_2X": GAINEnum.GAIN_2X,
-    "GAIN_2_5X": GAINEnum.GAIN_2_5X,
-    "GAIN_3X": GAINEnum.GAIN_3X,
-    "GAIN_4X": GAINEnum.GAIN_4X,
-    "GAIN_5X": GAINEnum.GAIN_5X,
+    "GAIN_1X": 7,
+    "GAIN_1_33X": 6,
+    "GAIN_1_67X": 5,
+    "GAIN_2X": 4,
+    "GAIN_2_5X": 3,
+    "GAIN_3X": 2,
+    "GAIN_4X": 1,
+    "GAIN_5X": 0,
 }
+
+RESOLUTION = {
+    "RESOLUTION_16BIT": 0,
+    "RESOLUTION_17BIT": 1,
+    "RESOLUTION_18BIT": 2,
+    "RESOLUTION_19BIT": 3,
+}
+
+OVERSAMPLING = {f"OVERSAMPLING_{i}": i for i in range(4)}
+
+FILTER = {f"FILTER_{i}": i for i in range(8)}
 
 CONF_X_AXIS = "x-axis"
 CONF_Y_AXIS = "y-axis"
 CONF_Z_AXIS = "z-axis"
 CONF_DRDY_PIN = "drdy_pin"
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -40,24 +54,50 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_GAIN, default="GAIN_2_5X"): cv.enum(
                 GAIN, upper=True, space="_"
             ),
-            cv.Optional(CONF_DRDY_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_DRDY_PIN): pins.gpio_input_pin_schema,
+            cv.Optional(CONF_OVERSAMPLING, default="OVERSAMPLING_2"): cv.enum(OVERSAMPLING, upper=True, space="_"),
+            cv.Optional(CONF_FILTER, default="FILTER_6"): cv.enum(FILTER, upper=True, space="_"),
             cv.Optional(CONF_X_AXIS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROTESLA,
                 accuracy_decimals=0,
                 icon=ICON_MAGNET,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                cv.Schema(
+                    {
+                        cv.Optional(
+                            CONF_RESOLUTION, default="RESOLUTION_19bit"
+                        ): cv.enum(RESOLUTION, upper=True, space="_")
+                    }
+                )
             ),
             cv.Optional(CONF_Y_AXIS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROTESLA,
                 accuracy_decimals=0,
                 icon=ICON_MAGNET,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                cv.Schema(
+                    {
+                        cv.Optional(
+                            CONF_RESOLUTION, default="RESOLUTION_19bit"
+                        ): cv.enum(RESOLUTION, upper=True, space="_")
+                    }
+                )
             ),
             cv.Optional(CONF_Z_AXIS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROTESLA,
                 accuracy_decimals=0,
                 icon=ICON_MAGNET,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                cv.Schema(
+                    {
+                        cv.Optional(
+                            CONF_RESOLUTION, default="RESOLUTION_16bit"
+                        ): cv.enum(RESOLUTION, upper=True, space="_")
+                    }
+                )
             ),
         },
     )
@@ -71,17 +111,27 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
+    if CONF_GAIN in config:
+        cg.add(var.set_gain(GAIN[config[CONF_GAIN]]))
+    if CONF_OVERSAMPLING in config:
+        cg.add(var.set_oversampling(OVERSAMPLING[config[CONF_OVERSAMPLING]]))
+    if CONF_FILTER in config:
+        cg.add(var.set_filter(FILTER[config[CONF_FILTER]]))
+
     if CONF_X_AXIS in config:
         sens = await sensor.new_sensor(config[CONF_X_AXIS])
         cg.add(var.set_x_sensor(sens))
+        cg.add(var.set_resolution(0, RESOLUTION[config[CONF_X_AXIS][CONF_RESOLUTION]]))
     if CONF_Y_AXIS in config:
         sens = await sensor.new_sensor(config[CONF_Y_AXIS])
         cg.add(var.set_y_sensor(sens))
+        cg.add(var.set_resolution(1, RESOLUTION[config[CONF_Y_AXIS][CONF_RESOLUTION]]))
     if CONF_Z_AXIS in config:
         sens = await sensor.new_sensor(config[CONF_Z_AXIS])
         cg.add(var.set_z_sensor(sens))
+        cg.add(var.set_resolution(2, RESOLUTION[config[CONF_Z_AXIS][CONF_RESOLUTION]]))
     if CONF_DRDY_PIN in config:
-        cg.add(var.set_pin(pin))
-
+        pin = await cg.gpio_pin_expression(config[CONF_DRDY_PIN])
+        cg.add(var.set_drdy_pin(pin))
 
 cg.add_library("functionpointer/arduino-MLX90393", "^0.0.4")

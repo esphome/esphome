@@ -12,16 +12,15 @@ void MLX90393_cls::setup() {
     mlx.begin(0,0);
   } else {
     //mlx.begin(0,0, this->drdy_pin_);
+    mlx.begin(0,0);
   }
-  mlx.setGain(gain_);
+  mlx.setGainSel(gain_);
 
-  mlx.setResolution(MLX90393_X, MLX90393_RES_19);
-  mlx.setResolution(MLX90393_Y, MLX90393_RES_19);
-  mlx.setResolution(MLX90393_Z, MLX90393_RES_16);
+  mlx.setResolution(resolutions_[0], resolutions_[1], resolutions_[2]);
 
-  mlx.setOversampling(MLX90393_OSR_2);
+  mlx.setOverSampling(osr_);
 
-  mlx.setFilter(MLX90393_FILTER_6);
+  mlx.setDigitalFiltering(filter_);
 }
 
 void MLX90393_cls::dump_config() {
@@ -42,17 +41,18 @@ void MLX90393_cls::dump_config() {
 float MLX90393_cls::get_setup_priority() const { return setup_priority::DATA; }
 
 void MLX90393_cls::update() {
-  float x,y,z=0;
-  if (mlx.readData(&x, &y, &z)) {
-    ESP_LOGD(TAG, "received %f %f %f", x, y, z);
+  MLX90393::txyz data;
+
+  if (mlx.readData(data) == MLX90393::STATUS_OK) {
+    ESP_LOGD(TAG, "received %f %f %f", data.x, data.y, data.z);
     if(this->x_sensor_!= nullptr) {
-      this->x_sensor_->publish_state(x);
+      this->x_sensor_->publish_state(data.x);
     }
     if(this->y_sensor_!= nullptr) {
-      this->y_sensor_->publish_state(y);
+      this->y_sensor_->publish_state(data.y);
     }
     if(this->z_sensor_!= nullptr) {
-      this->z_sensor_->publish_state(z);
+      this->z_sensor_->publish_state(data.z);
     }
     this->status_clear_warning();
   } else {
