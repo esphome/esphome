@@ -25,27 +25,30 @@
 
 #include <inttypes.h>
 #include <stddef.h>
+namespace esphome {
+namespace dsmr {
 
-class GHASH
-{
-public:
-    GHASH();
-    ~GHASH();
+class GHASH {
+ public:
+  GHASH();
+  ~GHASH();
 
-    void reset(const void *key);
-    void update(const void *data, size_t len);
-    void finalize(void *token, size_t len);
+  void reset(const void *key);
+  void update(const void *data, size_t len);
+  void finalize(void *token, size_t len);
 
-    void pad();
+  void pad();
 
-    void clear();
+  void clear();
 
-private:
-    struct {
-        uint32_t H[4];
-        uint32_t Y[4];
-        uint8_t posn;
-    } state;
+ private:
+  struct {
+    uint32_t H[4];
+    uint32_t Y[4];
+    uint8_t posn;
+  } state;
 };
 
+}  // namespace dsmr
+}  // namespace esphome
 #endif

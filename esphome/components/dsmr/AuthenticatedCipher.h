@@ -24,19 +24,20 @@
 #define CRYPTO_AUTHENTICATEDCIPHER_h
 
 #include "Cipher.h"
+namespace esphome {
+namespace dsmr {
+class AuthenticatedCipher : public Cipher {
+ public:
+  AuthenticatedCipher();
+  virtual ~AuthenticatedCipher();
 
-class AuthenticatedCipher : public Cipher
-{
-public:
-    AuthenticatedCipher();
-    virtual ~AuthenticatedCipher();
+  virtual size_t tagSize() const = 0;
 
-    virtual size_t tagSize() const = 0;
+  virtual void addAuthData(const void *data, size_t len) = 0;
 
-    virtual void addAuthData(const void *data, size_t len) = 0;
-
-    virtual void computeTag(void *tag, size_t len) = 0;
-    virtual bool checkTag(const void *tag, size_t len) = 0;
+  virtual void computeTag(void *tag, size_t len) = 0;
+  virtual bool checkTag(const void *tag, size_t len) = 0;
 };
-
+}  // namespace dsmr
+}  // namespace esphome
 #endif

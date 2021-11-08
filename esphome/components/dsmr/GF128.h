@@ -24,19 +24,22 @@
 #define CRYPTO_GF128_h
 
 #include <inttypes.h>
+namespace esphome {
+namespace dsmr {
 
-class GF128
-{
-private:
-    GF128() {}
-    ~GF128() {}
+class GF128 {
+ private:
+  GF128() {}
+  ~GF128() {}
 
-public:
-    static void mulInit(uint32_t H[4], const void *key);
-    static void mul(uint32_t Y[4], const uint32_t H[4]);
-    static void dbl(uint32_t V[4]);
-    static void dblEAX(uint32_t V[4]);
-    static void dblXTS(uint32_t V[4]);
+ public:
+  static void mulInit(uint32_t H[4], const void *key);
+  static void mul(uint32_t Y[4], const uint32_t H[4]);
+  static void dbl(uint32_t V[4]);
+  static void dblEAX(uint32_t V[4]);
+  static void dblXTS(uint32_t V[4]);
 };
 
+}  // namespace dsmr
+}  // namespace esphome
 #endif

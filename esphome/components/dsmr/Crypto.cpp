@@ -21,6 +21,8 @@
  */
 
 #include "Crypto.h"
+namespace esphome {
+namespace dsmr {
 
 /**
  * \brief Cleans a block of bytes.
@@ -31,16 +33,15 @@
  * Unlike memset(), this function attempts to prevent the compiler
  * from optimizing away the clear on a memory buffer.
  */
-void clean(void *dest, size_t size)
-{
-    // Force the use of volatile so that we actually clear the memory.
-    // Otherwise the compiler might optimise the entire contents of this
-    // function away, which will not be secure.
-    volatile uint8_t *d = (volatile uint8_t *)dest;
-    while (size > 0) {
-        *d++ = 0;
-        --size;
-    }
+void clean(void *dest, size_t size) {
+  // Force the use of volatile so that we actually clear the memory.
+  // Otherwise the compiler might optimise the entire contents of this
+  // function away, which will not be secure.
+  volatile uint8_t *d = (volatile uint8_t *) dest;
+  while (size > 0) {
+    *d++ = 0;
+    --size;
+  }
 }
 
 /**
@@ -66,16 +67,15 @@ void clean(void *dest, size_t size)
  * In particular, this function will not stop early if a byte is different.
  * It will instead continue onto the end of the array.
  */
-bool secure_compare(const void *data1, const void *data2, size_t len)
-{
-    uint8_t result = 0;
-    const uint8_t *d1 = (const uint8_t *)data1;
-    const uint8_t *d2 = (const uint8_t *)data2;
-    while (len > 0) {
-        result |= (*d1++ ^ *d2++);
-        --len;
-    }
-    return (bool)((((uint16_t)0x0100) - result) >> 8);
+bool secure_compare(const void *data1, const void *data2, size_t len) {
+  uint8_t result = 0;
+  const uint8_t *d1 = (const uint8_t *) data1;
+  const uint8_t *d2 = (const uint8_t *) data2;
+  while (len > 0) {
+    result |= (*d1++ ^ *d2++);
+    --len;
+  }
+  return (bool) ((((uint16_t) 0x0100) - result) >> 8);
 }
 
 /**
@@ -93,22 +93,23 @@ bool secure_compare(const void *data1, const void *data2, size_t len)
  *
  * Reference: http://www.sunshine2k.de/articles/coding/crc/understanding_crc.html#ch4
  */
-uint8_t crypto_crc8(uint8_t tag, const void *data, unsigned size)
-{
-    const uint8_t *d = (const uint8_t *)data;
-    uint8_t crc = 0xFF ^ tag;
-    uint8_t bit;
-    while (size > 0) {
-        crc ^= *d++;
-        for (bit = 0; bit < 8; ++bit) {
-            // if (crc & 0x80)
-            //     crc = (crc << 1) ^ 0x1D;
-            // else
-            //     crc = (crc << 1);
-            uint8_t generator = (uint8_t)((((int8_t)crc) >> 7) & 0x1D);
-            crc = (crc << 1) ^ generator;
-        }
-        --size;
+uint8_t crypto_crc8(uint8_t tag, const void *data, unsigned size) {
+  const uint8_t *d = (const uint8_t *) data;
+  uint8_t crc = 0xFF ^ tag;
+  uint8_t bit;
+  while (size > 0) {
+    crc ^= *d++;
+    for (bit = 0; bit < 8; ++bit) {
+      // if (crc & 0x80)
+      //     crc = (crc << 1) ^ 0x1D;
+      // else
+      //     crc = (crc << 1);
+      uint8_t generator = (uint8_t)((((int8_t) crc) >> 7) & 0x1D);
+      crc = (crc << 1) ^ generator;
     }
-    return crc;
+    --size;
+  }
+  return crc;
 }
+}  // namespace dsmr
+}  // namespace esphome

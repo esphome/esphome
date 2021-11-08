@@ -21,7 +21,8 @@
  */
 
 #include "Cipher.h"
-
+namespace esphome {
+namespace dsmr {
 /**
  * \class Cipher Cipher.h <Cipher.h>
  * \brief Abstract base class for stream ciphers.
@@ -38,9 +39,7 @@
 /**
  * \brief Constructs a new cipher object.
  */
-Cipher::Cipher()
-{
-}
+Cipher::Cipher() {}
 
 /**
  * \brief Destroys this cipher object.
@@ -50,9 +49,7 @@ Cipher::Cipher()
  *
  * \sa clear()
  */
-Cipher::~Cipher()
-{
-}
+Cipher::~Cipher() {}
 
 /**
  * \fn size_t Cipher::keySize() const
@@ -152,3 +149,5 @@ Cipher::~Cipher()
  * vectors, and any temporary state that is used by encrypt() or decrypt()
  * which is stored in the cipher itself.
  */
+}  // namespace dsmr
+}  // namespace esphome

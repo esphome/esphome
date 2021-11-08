@@ -34,6 +34,7 @@
 #include <cstring>
 #include <string>
 
+namespace esphome {
 namespace dsmr {
 
 /**
@@ -161,3 +162,4 @@ struct ObisId {
 };
 
 }  // namespace dsmr
+}  // namespace esphome

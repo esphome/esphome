@@ -21,7 +21,8 @@
  */
 
 #include "BlockCipher.h"
-
+namespace esphome {
+namespace dsmr {
 /**
  * \class BlockCipher BlockCipher.h <BlockCipher.h>
  * \brief Abstract base class for block ciphers.
@@ -37,9 +38,7 @@
 /**
  * \brief Constructs a block cipher.
  */
-BlockCipher::BlockCipher()
-{
-}
+BlockCipher::BlockCipher() {}
 
 /**
  * \brief Destroys this block cipher object.
@@ -49,9 +48,7 @@ BlockCipher::BlockCipher()
  *
  * \sa clear()
  */
-BlockCipher::~BlockCipher()
-{
-}
+BlockCipher::~BlockCipher() {}
 
 /**
  * \fn size_t BlockCipher::blockSize() const
@@ -122,3 +119,5 @@ BlockCipher::~BlockCipher()
  *
  * \sa setKey(), encryptBlock(), decryptBlock()
  */
+}  // namespace dsmr
+}  // namespace esphome

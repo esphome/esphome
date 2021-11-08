@@ -33,7 +33,9 @@
 #include "crc16.h"
 #include "util.h"
 #include <string>
+#include <stdlib.h> /* strtoul */
 
+namespace esphome {
 namespace dsmr {
 
 /**
@@ -415,3 +417,4 @@ struct P1Parser {
 };
 
 }  // namespace dsmr
+}  // namespace esphome

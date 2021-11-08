@@ -23,6 +23,8 @@
 #include "AES.h"
 #include "Crypto.h"
 #include <cstring>
+namespace esphome {
+namespace dsmr {
 
 // AES implementation for ESP32 using the hardware crypto module.
 
@@ -58,3 +60,5 @@ AES192::~AES192() {}
 AES256::~AES256() {}
 
 #endif  // CRYPTO_AES_ESP32
+}  // namespace dsmr
+}  // namespace esphome

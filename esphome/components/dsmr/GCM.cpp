@@ -24,6 +24,8 @@
 #include "Crypto.h"
 #include "EndianUtil.h"
 #include <cstring>
+namespace esphome {
+namespace dsmr {
 
 /**
  * \class GCMCommon GCM.h <GCM.h>
@@ -309,3 +311,5 @@ void GCMCommon::clear() {
  * \fn GCM::GCM()
  * \brief Constructs a new GCM object for the block cipher T.
  */
+}  // namespace dsmr
+}  // namespace esphome

@@ -26,6 +26,9 @@
 
 #if defined(CRYPTO_AES_DEFAULT) || defined(CRYPTO_DOC)
 
+namespace esphome {
+namespace dsmr {
+
 /**
  * \class AES128 AES.h <AES.h>
  * \brief AES block cipher with 128-bit keys.
@@ -319,5 +322,6 @@ void AESSmall128::clear() {
   clean(reverse);
   AESTiny128::clear();
 }
-
+}  // namespace dsmr
+}  // namespace esphome
 #endif  // CRYPTO_AES_DEFAULT

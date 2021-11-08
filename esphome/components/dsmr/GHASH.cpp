@@ -24,6 +24,8 @@
 #include "GF128.h"
 #include "Crypto.h"
 #include <cstring>
+namespace esphome {
+namespace dsmr {
 
 /**
  * \class GHASH GHASH.h <GHASH.h>
@@ -138,3 +140,6 @@ void GHASH::pad() {
  * \brief Clears the authenticator's state, removing all sensitive data.
  */
 void GHASH::clear() { clean(state); }
+
+}  // namespace dsmr
+}  // namespace esphome

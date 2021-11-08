@@ -48,19 +48,19 @@
  * \sa Cipher
  */
 
+namespace esphome {
+
+namespace dsmr {
+
 /**
  * \brief Constructs a new authenticated cipher.
  */
-AuthenticatedCipher::AuthenticatedCipher()
-{
-}
+AuthenticatedCipher::AuthenticatedCipher() {}
 
 /**
  * \brief Destroys this authenticated cipher.
  */
-AuthenticatedCipher::~AuthenticatedCipher()
-{
-}
+AuthenticatedCipher::~AuthenticatedCipher() {}
 
 /**
  * \fn size_t AuthenticatedCipher::tagSize() const
@@ -128,3 +128,5 @@ AuthenticatedCipher::~AuthenticatedCipher()
  *
  * \sa computeTag()
  */
+}  // namespace dsmr
+}  // namespace esphome

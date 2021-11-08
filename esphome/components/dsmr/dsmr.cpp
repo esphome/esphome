@@ -169,9 +169,9 @@ bool Dsmr::parse_telegram() {
   }
 #endif
 
-  ::dsmr::ParseResult<void> res =
-      ::dsmr::P1Parser::parse(&data, telegram_, telegram_len_, false,
-                              this->crc_check_);  // Parse telegram according to data definition. Ignore unknown values.
+  ParseResult<void> res =
+      P1Parser::parse(&data, telegram_, telegram_len_, false,
+                      this->crc_check_);  // Parse telegram according to data definition. Ignore unknown values.
   if (res.err) {
     // Parsing error, show it
     auto err_str = res.fullError(telegram_, telegram_ + telegram_len_);

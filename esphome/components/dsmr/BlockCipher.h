@@ -25,22 +25,24 @@
 
 #include <inttypes.h>
 #include <stddef.h>
+namespace esphome {
+namespace dsmr {
+class BlockCipher {
+ public:
+  BlockCipher();
+  virtual ~BlockCipher();
 
-class BlockCipher
-{
-public:
-    BlockCipher();
-    virtual ~BlockCipher();
+  virtual size_t blockSize() const = 0;
+  virtual size_t keySize() const = 0;
 
-    virtual size_t blockSize() const = 0;
-    virtual size_t keySize() const = 0;
+  virtual bool setKey(const uint8_t *key, size_t len) = 0;
 
-    virtual bool setKey(const uint8_t *key, size_t len) = 0;
+  virtual void encryptBlock(uint8_t *output, const uint8_t *input) = 0;
+  virtual void decryptBlock(uint8_t *output, const uint8_t *input) = 0;
 
-    virtual void encryptBlock(uint8_t *output, const uint8_t *input) = 0;
-    virtual void decryptBlock(uint8_t *output, const uint8_t *input) = 0;
-
-    virtual void clear() = 0;
+  virtual void clear() = 0;
 };
 
+}  // namespace dsmr
+}  // namespace esphome
 #endif

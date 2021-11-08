@@ -26,6 +26,8 @@
 #include "AuthenticatedCipher.h"
 #include "BlockCipher.h"
 #include "GHASH.h"
+namespace esphome {
+namespace dsmr {
 
 class GCMCommon : public AuthenticatedCipher {
  public:
@@ -73,5 +75,6 @@ template<typename T> class GCM : public GCMCommon {
  private:
   T cipher;
 };
-
+}  // namespace dsmr
+}  // namespace esphome
 #endif

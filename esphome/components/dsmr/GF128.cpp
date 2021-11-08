@@ -23,6 +23,8 @@
 #include "GF128.h"
 #include "EndianUtil.h"
 #include <cstring>
+namespace esphome {
+namespace dsmr {
 
 /**
  * \class GF128 GF128.h <GF128.h>
@@ -559,3 +561,5 @@ void GF128::dblXTS(uint32_t V[4]) {
   V[3] = htole32(V3);
 #endif
 }
+}  // namespace dsmr
+}  // namespace esphome

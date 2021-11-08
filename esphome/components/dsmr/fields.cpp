@@ -30,8 +30,10 @@
 
 #include "fields.h"
 
-using namespace dsmr;
-using namespace dsmr::fields;
+namespace esphome {
+namespace dsmr {
+
+using namespace fields;
 
 // Since C++11 it is possible to define the initial values for static
 // const members in the class declaration, but if their address is
@@ -268,3 +270,6 @@ constexpr char sub_valve_position::name[];
 
 constexpr ObisId sub_delivered::id;
 constexpr char sub_delivered::name[];
+
+}  // namespace dsmr
+}  // namespace esphome

@@ -45,7 +45,7 @@
 #ifndef DSMR_SUB_MBUS_ID
 #define DSMR_SUB_MBUS_ID 4
 #endif
-
+namespace esphome {
 namespace dsmr {
 
 /**
@@ -397,3 +397,4 @@ DEFINE_FIELD(sub_delivered, TimestampedFixedValue, ObisId(0, SUB_MBUS_ID, 24, 2,
 }  // namespace fields
 
 }  // namespace dsmr
+}  // namespace esphome
