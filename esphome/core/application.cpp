@@ -91,7 +91,7 @@ void Application::loop() {
     next_schedule = std::max(next_schedule, delay_time / 2);
     delay_time = std::min(next_schedule, delay_time);
     delay(delay_time/1000);
-    if (micros() % 1000 == 0)  // Quick test to print some random samples...
+    if (micros() % 100 == 0)  // Quick test to print some random samples...
       ESP_LOGI(TAG, "%i", delay_time/1000);
   }
   this->last_loop_ = now;
