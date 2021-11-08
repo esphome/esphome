@@ -28,7 +28,7 @@ namespace dsmr {
 
 // AES implementation for ESP32 using the hardware crypto module.
 
-#if defined(CRYPTO_AES_ESP32)
+#if defined(DSMR_CRYPTO_AES_ESP32)
 
 AESCommon::AESCommon(uint8_t keySize) { ctx.key_bytes = keySize; }
 
@@ -59,6 +59,6 @@ AES192::~AES192() {}
 
 AES256::~AES256() {}
 
-#endif  // CRYPTO_AES_ESP32
+#endif  // DSMR_CRYPTO_AES_ESP32
 }  // namespace dsmr
 }  // namespace esphome

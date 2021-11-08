@@ -24,7 +24,7 @@
 #include "Crypto.h"
 namespace esphome {
 namespace dsmr {
-#if defined(CRYPTO_AES_DEFAULT) || defined(CRYPTO_DOC)
+#if defined(DSMR_CRYPTO_AES_DEFAULT)
 
 /**
  * \class AESCommon AES.h <AES.h>
@@ -301,6 +301,6 @@ void AESCommon::applySbox(uint8_t *output, const uint8_t *input) {
 
 /** @endcond */
 
-#endif  // CRYPTO_AES_DEFAULT
+#endif  // DSMR_CRYPTO_AES_DEFAULT
 }  // namespace dsmr
 }  // namespace esphome

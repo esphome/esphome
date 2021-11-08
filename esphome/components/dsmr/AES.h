@@ -26,19 +26,14 @@
 
 // Determine which AES implementation to export to applications.
 #if defined(ESP32)
-#define CRYPTO_AES_ESP32 1
+#define DSMR_CRYPTO_AES_ESP32 1
 #else
-#define CRYPTO_AES_DEFAULT 1
+#define DSMR_CRYPTO_AES_DEFAULT 1
 #endif
 
 namespace esphome {
 namespace dsmr {
-#if defined(CRYPTO_AES_DEFAULT) || defined(CRYPTO_DOC)
-
-class AESTiny128;
-class AESTiny256;
-class AESSmall128;
-class AESSmall256;
+#if defined(DSMR_CRYPTO_AES_DEFAULT)
 
 class AESCommon : public BlockCipher {
  public:
@@ -65,11 +60,6 @@ class AESCommon : public BlockCipher {
   static void keyScheduleCore(uint8_t *output, const uint8_t *input, uint8_t iteration);
   static void applySbox(uint8_t *output, const uint8_t *input);
   /** @endcond */
-
-  friend class AESTiny128;
-  friend class AESTiny256;
-  friend class AESSmall128;
-  friend class AESSmall256;
 };
 
 class AES128 : public AESCommon {
@@ -85,113 +75,16 @@ class AES128 : public AESCommon {
   uint8_t sched[176];
 };
 
-class AES192 : public AESCommon {
- public:
-  AES192();
-  virtual ~AES192();
+#endif  // DSMR_CRYPTO_AES_DEFAULT
 
-  size_t keySize() const;
-
-  bool setKey(const uint8_t *key, size_t len);
-
- private:
-  uint8_t sched[208];
-};
-
-class AES256 : public AESCommon {
- public:
-  AES256();
-  virtual ~AES256();
-
-  size_t keySize() const;
-
-  bool setKey(const uint8_t *key, size_t len);
-
- private:
-  uint8_t sched[240];
-};
-
-class AESTiny256 : public BlockCipher {
- public:
-  AESTiny256();
-  virtual ~AESTiny256();
-
-  size_t blockSize() const;
-  size_t keySize() const;
-
-  bool setKey(const uint8_t *key, size_t len);
-
-  void encryptBlock(uint8_t *output, const uint8_t *input);
-  void decryptBlock(uint8_t *output, const uint8_t *input);
-
-  void clear();
-
- private:
-  uint8_t schedule[32];
-};
-
-class AESSmall256 : public AESTiny256 {
- public:
-  AESSmall256();
-  virtual ~AESSmall256();
-
-  bool setKey(const uint8_t *key, size_t len);
-
-  void decryptBlock(uint8_t *output, const uint8_t *input);
-
-  void clear();
-
- private:
-  uint8_t reverse[32];
-};
-
-class AESTiny128 : public BlockCipher {
- public:
-  AESTiny128();
-  virtual ~AESTiny128();
-
-  size_t blockSize() const;
-  size_t keySize() const;
-
-  bool setKey(const uint8_t *key, size_t len);
-
-  void encryptBlock(uint8_t *output, const uint8_t *input);
-  void decryptBlock(uint8_t *output, const uint8_t *input);
-
-  void clear();
-
- private:
-  uint8_t schedule[16];
-};
-
-class AESSmall128 : public AESTiny128 {
- public:
-  AESSmall128();
-  virtual ~AESSmall128();
-
-  bool setKey(const uint8_t *key, size_t len);
-
-  void decryptBlock(uint8_t *output, const uint8_t *input);
-
-  void clear();
-
- private:
-  uint8_t reverse[16];
-};
-#endif  // CRYPTO_AES_DEFAULT
-
-#if defined(CRYPTO_AES_ESP32)
+#if defined(DSMR_CRYPTO_AES_ESP32)
 // "hwcrypto/aes.h" includes "rom/aes.h" which defines global enums for
 // AES128, AES192, and AES256.  The enum definitions interfere with the
 // definition of the same-named classes below.  The #define's and #undef's
 // here work around the problem by defining the enums to different names.
 #define AES128 AES128_enum
-#define AES192 AES192_enum
-#define AES256 AES256_enum
 #include "hwcrypto/aes.h"
 #undef AES128
-#undef AES192
-#undef AES256
 
 class AESCommon : public BlockCipher {
  public:
@@ -220,23 +113,8 @@ class AES128 : public AESCommon {
   virtual ~AES128();
 };
 
-class AES192 : public AESCommon {
- public:
-  AES192() : AESCommon(24) {}
-  virtual ~AES192();
-};
-
-class AES256 : public AESCommon {
- public:
-  AES256() : AESCommon(32) {}
-  virtual ~AES256();
-};
-
 // The ESP32 AES context is so small that it already qualifies as "tiny".
 typedef AES128 AESTiny128;
-typedef AES256 AESTiny256;
-typedef AES128 AESSmall128;
-typedef AES256 AESSmall256;
-#endif  // CRYPTO_AES_ESP32
+#endif  // DSMR_CRYPTO_AES_ESP32
 }  // namespace dsmr
 }  // namespace esphome
