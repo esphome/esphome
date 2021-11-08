@@ -55,8 +55,12 @@ CONFIG_SCHEMA = (
                 GAIN, upper=True, space="_"
             ),
             cv.Optional(CONF_DRDY_PIN): pins.gpio_input_pin_schema,
-            cv.Optional(CONF_OVERSAMPLING, default="OVERSAMPLING_2"): cv.enum(OVERSAMPLING, upper=True, space="_"),
-            cv.Optional(CONF_FILTER, default="FILTER_6"): cv.enum(FILTER, upper=True, space="_"),
+            cv.Optional(CONF_OVERSAMPLING, default="OVERSAMPLING_2"): cv.enum(
+                OVERSAMPLING, upper=True, space="_"
+            ),
+            cv.Optional(CONF_FILTER, default="FILTER_6"): cv.enum(
+                FILTER, upper=True, space="_"
+            ),
             cv.Optional(CONF_X_AXIS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROTESLA,
                 accuracy_decimals=0,
@@ -134,4 +138,5 @@ async def to_code(config):
         pin = await cg.gpio_pin_expression(config[CONF_DRDY_PIN])
         cg.add(var.set_drdy_pin(pin))
 
-cg.add_library("functionpointer/arduino-MLX90393", "^0.0.4")
+
+cg.add_library("functionpointer/arduino-MLX90393", "^0.0.5")
