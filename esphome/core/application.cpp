@@ -90,9 +90,9 @@ void Application::loop() {
     // otherwise interval=0 schedules result in constant looping with almost no sleep
     next_schedule = std::max(next_schedule, delay_time / 2);
     delay_time = std::min(next_schedule, delay_time);
-    delay(delay_time);
+    delay(delay_time/1000);
     if (micros() % 1000 == 0)  // Quick test to print some random samples...
-      ESP_LOGI(TAG, "%i", delay_time);
+      ESP_LOGI(TAG, "%i", delay_time/1000);
   }
   this->last_loop_ = now;
 
