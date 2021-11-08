@@ -20,8 +20,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CRYPTO_BLOCKCIPHER_h
-#define CRYPTO_BLOCKCIPHER_h
+#pragma once
 
 #include <inttypes.h>
 #include <stddef.h>
@@ -45,4 +44,3 @@ class BlockCipher {
 
 }  // namespace dsmr
 }  // namespace esphome
-#endif

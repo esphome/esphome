@@ -20,8 +20,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CRYPTO_AES_h
-#define CRYPTO_AES_h
+#pragma once
 
 #include "BlockCipher.h"
 
@@ -241,5 +240,3 @@ typedef AES256 AESSmall256;
 #endif  // CRYPTO_AES_ESP32
 }  // namespace dsmr
 }  // namespace esphome
-
-#endif

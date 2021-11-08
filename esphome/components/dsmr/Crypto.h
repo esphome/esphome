@@ -20,8 +20,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CRYPTO_h
-#define CRYPTO_h
+#pragma once
 
 #include <inttypes.h>
 #include <stddef.h>
@@ -44,6 +43,5 @@ extern "C" void system_soft_wdt_feed(void);
   } while (0)
 #endif
 
-#endif
-}
-}
+}  // namespace dsmr
+}  // namespace esphome

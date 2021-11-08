@@ -20,8 +20,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CRYPTO_CIPHER_h
-#define CRYPTO_CIPHER_h
+#pragma once
 
 #include <inttypes.h>
 #include <stddef.h>
@@ -46,4 +45,3 @@ class Cipher {
 
 }  // namespace dsmr
 }  // namespace esphome
-#endif

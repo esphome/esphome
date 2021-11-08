@@ -20,8 +20,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CRYPTO_GCM_h
-#define CRYPTO_GCM_h
+#pragma once
 
 #include "AuthenticatedCipher.h"
 #include "BlockCipher.h"
@@ -77,4 +76,3 @@ template<typename T> class GCM : public GCMCommon {
 };
 }  // namespace dsmr
 }  // namespace esphome
-#endif

@@ -20,8 +20,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CRYPTO_ENDIANUTIL_H
-#define CRYPTO_ENDIANUTIL_H
+#pragma once
 
 #include <inttypes.h>
 namespace esphome {
@@ -74,4 +73,3 @@ namespace dsmr {
 #endif  // HOST_BUILD
 }  // namespace dsmr
 }  // namespace esphome
-#endif

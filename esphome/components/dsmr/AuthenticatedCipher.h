@@ -20,8 +20,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CRYPTO_AUTHENTICATEDCIPHER_h
-#define CRYPTO_AUTHENTICATEDCIPHER_h
+#pragma once
 
 #include "Cipher.h"
 namespace esphome {
@@ -40,4 +39,3 @@ class AuthenticatedCipher : public Cipher {
 };
 }  // namespace dsmr
 }  // namespace esphome
-#endif

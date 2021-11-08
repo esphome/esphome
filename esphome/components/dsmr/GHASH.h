@@ -20,8 +20,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CRYPTO_GHASH_h
-#define CRYPTO_GHASH_h
+#pragma once
 
 #include <inttypes.h>
 #include <stddef.h>
@@ -51,4 +50,3 @@ class GHASH {
 
 }  // namespace dsmr
 }  // namespace esphome
-#endif

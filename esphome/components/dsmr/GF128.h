@@ -20,8 +20,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef CRYPTO_GF128_h
-#define CRYPTO_GF128_h
+#pragma once
 
 #include <inttypes.h>
 namespace esphome {
@@ -42,4 +41,3 @@ class GF128 {
 
 }  // namespace dsmr
 }  // namespace esphome
-#endif
