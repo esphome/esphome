@@ -44,16 +44,16 @@ static const char *const TAG = "remote.pronto";
 static const uint16_t MICROSECONDS_T_MAX = 0xFFFFU;
 static const uint16_t LEARNED_TOKEN = 0x0000U;
 static const uint16_t LEARNED_NON_MODULATED_TOKEN = 0x0100U;
-static const unsigned int BITS_IN_HEXADECIMAL = 4U;
-static const unsigned int DIGITS_IN_PRONTO_NUMBER = 4U;
-static const unsigned int NUMBERS_IN_PREAMBLE = 4U;
-static const unsigned int HEX_MASK = 0xFU;
+static const uint16_t BITS_IN_HEXADECIMAL = 4U;
+static const uint16_t DIGITS_IN_PRONTO_NUMBER = 4U;
+static const uint16_t NUMBERS_IN_PREAMBLE = 4U;
+static const uint16_t HEX_MASK = 0xFU;
 static const uint32_t REFERENCE_FREQUENCY = 4145146UL;
 static const uint16_t FALLBACK_FREQUENCY = 64767U;  // To use with frequency = 0;
 static const uint32_t MICROSECONDS_IN_SECONDS = 1000000UL;
 static const uint16_t PRONTO_DEFAULT_GAP = 45000;
 
-static unsigned int to_frequency_k_hz(uint16_t code) {
+static uint16_t to_frequency_k_hz(uint16_t code) {
   if (code == 0)
     return 0;
 
@@ -67,8 +67,8 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::vector<uin
   if (data.size() < 4)
     return;
 
-  unsigned int timebase = (MICROSECONDS_IN_SECONDS * data[1] + REFERENCE_FREQUENCY / 2) / REFERENCE_FREQUENCY;
-  unsigned int khz;
+  uint16_t timebase = (MICROSECONDS_IN_SECONDS * data[1] + REFERENCE_FREQUENCY / 2) / REFERENCE_FREQUENCY;
+  uint16_t khz;
   switch (data[0]) {
     case LEARNED_TOKEN:  // normal, "learned"
       khz = to_frequency_k_hz(data[1]);
@@ -82,8 +82,8 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::vector<uin
   ESP_LOGD(TAG, "Send Pronto: frequency=%dkHz", khz);
   dst->set_carrier_frequency(khz * 1000);
 
-  unsigned int intros = 2 * data[2];
-  unsigned int repeats = 2 * data[3];
+  uint16_t intros = 2 * data[2];
+  uint16_t repeats = 2 * data[3];
   ESP_LOGD(TAG, "Send Pronto: intros=%d", intros);
   ESP_LOGD(TAG, "Send Pronto: repeats=%d", repeats);
   if (NUMBERS_IN_PREAMBLE + intros + repeats != data.size()) {  // inconsistent sizes
@@ -96,7 +96,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::vector<uin
    */
   dst->reserve(intros + repeats);
 
-  for (unsigned int i = 0; i < intros + repeats; i += 2) {
+  for (uint16_t i = 0; i < intros + repeats; i += 2) {
     uint32_t duration0 = ((uint32_t) data[i + 0 + NUMBERS_IN_PREAMBLE]) * timebase;
     duration0 = duration0 < MICROSECONDS_T_MAX ? duration0 : MICROSECONDS_T_MAX;
 
@@ -113,7 +113,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &st
   const char *p = str.c_str();
   char *endptr[1];
 
-  for (unsigned int i = 0; i < len; i++) {
+  for (uint16_t i = 0; i < len; i++) {
     uint16_t x = strtol(p, endptr, 16);
     if (x == 0 && i >= NUMBERS_IN_PREAMBLE) {
       // Alignment error?, bail immediately (often right result).
@@ -133,3 +133,4 @@ void ProntoProtocol::dump(const ProntoData &data) { ESP_LOGD(TAG, "Received Pron
 
 }  // namespace remote_base
 }  // namespace esphome
+
