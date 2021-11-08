@@ -133,4 +133,3 @@ void ProntoProtocol::dump(const ProntoData &data) { ESP_LOGD(TAG, "Received Pron
 
 }  // namespace remote_base
 }  // namespace esphome
-
