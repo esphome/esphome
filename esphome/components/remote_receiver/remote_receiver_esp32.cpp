@@ -72,7 +72,6 @@ void RemoteReceiverComponent::loop() {
   size_t len = 0;
   auto *item = (rmt_item32_t *) xRingbufferReceive(this->ringbuf_, &len, 0);
   if (item != nullptr) {
-    len /= 4;  // each RMT item is 4 bytes
     this->decode_rmt_(item, len);
     vRingbufferReturnItem(this->ringbuf_, item);
 
@@ -88,9 +87,10 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
   uint32_t prev_length = 0;
   this->temp_.clear();
   int32_t multiplier = this->pin_->is_inverted() ? -1 : 1;
+  size_t item_count = len / sizeof(rmt_item32_t);
 
   ESP_LOGVV(TAG, "START:");
-  for (size_t i = 0; i < len; i++) {
+  for (size_t i = 0; i < item_count; i++) {
     if (item[i].level0) {
       ESP_LOGVV(TAG, "%u A: ON %uus (%u ticks)", i, this->to_microseconds_(item[i].duration0), item[i].duration0);
     } else {
@@ -104,8 +104,8 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
   }
   ESP_LOGVV(TAG, "\n");
 
-  this->temp_.reserve(len * 2);  // each RMT item has 2 pulses
-  for (size_t i = 0; i < len; i++) {
+  this->temp_.reserve(item_count * 2);  // each RMT item has 2 pulses
+  for (size_t i = 0; i < item_count; i++) {
     if (item[i].duration0 == 0u) {
       // Do nothing
     } else if (bool(item[i].level0) == prev_level) {
