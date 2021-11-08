@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_ALPHA,
     CONF_BELOW,
+    CONF_ENTITY_CATEGORY,
     CONF_EXPIRE_AFTER,
     CONF_FILTERS,
     CONF_FROM,
@@ -133,7 +134,6 @@ def validate_datapoint(value):
 
 
 # Base
-sensor_ns = cg.esphome_ns.namespace("sensor")
 Sensor = sensor_ns.class_("Sensor", cg.EntityBase)
 SensorPtr = Sensor.operator("ptr")
 
@@ -226,6 +226,7 @@ def sensor_schema(
     accuracy_decimals: int = _UNDEF,
     device_class: str = _UNDEF,
     state_class: str = _UNDEF,
+    entity_category: str = _UNDEF,
 ) -> cv.Schema:
     schema = SENSOR_SCHEMA
     if unit_of_measurement is not _UNDEF:
@@ -257,6 +258,14 @@ def sensor_schema(
     if state_class is not _UNDEF:
         schema = schema.extend(
             {cv.Optional(CONF_STATE_CLASS, default=state_class): validate_state_class}
+        )
+    if entity_category is not _UNDEF:
+        schema = schema.extend(
+            {
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=entity_category
+                ): cv.entity_category
+            }
         )
     return schema
 

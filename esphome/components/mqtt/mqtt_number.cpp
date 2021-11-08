@@ -1,6 +1,8 @@
 #include "mqtt_number.h"
 #include "esphome/core/log.h"
 
+#include "mqtt_const.h"
+
 #ifdef USE_MQTT
 #ifdef USE_NUMBER
 
@@ -38,9 +40,9 @@ const EntityBase *MQTTNumberComponent::get_entity() const { return this->number_
 void MQTTNumberComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   const auto &traits = number_->traits;
   // https://www.home-assistant.io/integrations/number.mqtt/
-  root["min"] = traits.get_min_value();
-  root["max"] = traits.get_max_value();
-  root["step"] = traits.get_step();
+  root[MQTT_MIN] = traits.get_min_value();
+  root[MQTT_MAX] = traits.get_max_value();
+  root[MQTT_STEP] = traits.get_step();
 
   config.command_topic = true;
 }

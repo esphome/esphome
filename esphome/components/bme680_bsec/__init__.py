@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
 from esphome.const import CONF_ID
-from esphome.core import CORE
 
 CODEOWNERS = ["@trvrnrth"]
 DEPENDENCIES = ["i2c"]
@@ -62,9 +61,8 @@ async def to_code(config):
         var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)
     )
 
-    if CORE.is_esp32:
-        # Although this component does not use SPI, the BSEC library requires the SPI library
-        cg.add_library("SPI", None)
+    # Although this component does not use SPI, the BSEC library requires the SPI library
+    cg.add_library("SPI", None)
 
     cg.add_define("USE_BSEC")
     cg.add_library("boschsensortec/BSEC Software Library", "1.6.1480")

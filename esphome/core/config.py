@@ -165,7 +165,7 @@ def preload_core_config(config, result):
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
-        conf[CONF_BUILD_PATH] = CORE.name
+        conf[CONF_BUILD_PATH] = f".esphome/build/{CORE.name}"
     CORE.build_path = CORE.relative_config_path(conf[CONF_BUILD_PATH])
 
     has_oldstyle = CONF_PLATFORM in conf
@@ -237,6 +237,7 @@ def include_file(path, basename):
 ARDUINO_GLUE_CODE = """\
 #define yield() esphome::yield()
 #define millis() esphome::millis()
+#define micros() esphome::micros()
 #define delay(x) esphome::delay(x)
 #define delayMicroseconds(x) esphome::delayMicroseconds(x)
 """

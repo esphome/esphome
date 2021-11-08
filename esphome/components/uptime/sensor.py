@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import (
     CONF_ID,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_SECOND,
     ICON_TIMER,
@@ -17,6 +18,7 @@ CONFIG_SCHEMA = (
         icon=ICON_TIMER,
         accuracy_decimals=0,
         state_class=STATE_CLASS_TOTAL_INCREASING,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     )
     .extend(
         {

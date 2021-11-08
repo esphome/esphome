@@ -9,6 +9,7 @@ from .. import (
     ModbusController,
     MODBUS_REGISTER_TYPE,
     SENSOR_VALUE_TYPE,
+    TYPE_REGISTER_MAP,
 )
 from ..const import (
     CONF_BITMASK,
@@ -28,23 +29,6 @@ CODEOWNERS = ["@martgras"]
 ModbusSensor = modbus_controller_ns.class_(
     "ModbusSensor", cg.Component, sensor.Sensor, SensorItem
 )
-
-TYPE_REGISTER_MAP = {
-    "RAW": 1,
-    "U_WORD": 1,
-    "S_WORD": 1,
-    "U_DWORD": 2,
-    "U_DWORD_R": 2,
-    "S_DWORD": 2,
-    "S_DWORD_R": 2,
-    "U_QWORD": 4,
-    "U_QWORDU_R": 4,
-    "S_QWORD": 4,
-    "U_QWORD_R": 4,
-    "FP32": 2,
-    "FP32_R": 2,
-}
-
 
 CONFIG_SCHEMA = cv.All(
     sensor.SENSOR_SCHEMA.extend(
