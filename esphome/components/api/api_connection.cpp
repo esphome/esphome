@@ -184,6 +184,7 @@ bool APIConnection::send_binary_sensor_info(binary_sensor::BinarySensor *binary_
   msg.is_status_binary_sensor = binary_sensor->is_status_binary_sensor();
   msg.disabled_by_default = binary_sensor->is_disabled_by_default();
   msg.icon = binary_sensor->get_icon();
+  msg.entity_category = static_cast<enums::EntityCategory>(binary_sensor->get_entity_category());
   return this->send_list_entities_binary_sensor_response(msg);
 }
 #endif
@@ -217,6 +218,7 @@ bool APIConnection::send_cover_info(cover::Cover *cover) {
   msg.device_class = cover->get_device_class();
   msg.disabled_by_default = cover->is_disabled_by_default();
   msg.icon = cover->get_icon();
+  msg.entity_category = static_cast<enums::EntityCategory>(cover->get_entity_category());
   return this->send_list_entities_cover_response(msg);
 }
 void APIConnection::cover_command(const CoverCommandRequest &msg) {
@@ -283,6 +285,7 @@ bool APIConnection::send_fan_info(fan::FanState *fan) {
   msg.supported_speed_count = traits.supported_speed_count();
   msg.disabled_by_default = fan->is_disabled_by_default();
   msg.icon = fan->get_icon();
+  msg.entity_category = static_cast<enums::EntityCategory>(fan->get_entity_category());
   return this->send_list_entities_fan_response(msg);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
@@ -346,6 +349,7 @@ bool APIConnection::send_light_info(light::LightState *light) {
 
   msg.disabled_by_default = light->is_disabled_by_default();
   msg.icon = light->get_icon();
+  msg.entity_category = static_cast<enums::EntityCategory>(light->get_entity_category());
 
   for (auto mode : traits.get_supported_color_modes())
     msg.supported_color_modes.push_back(static_cast<enums::ColorMode>(mode));
@@ -432,7 +436,7 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   msg.device_class = sensor->get_device_class();
   msg.state_class = static_cast<enums::SensorStateClass>(sensor->get_state_class());
   msg.disabled_by_default = sensor->is_disabled_by_default();
-
+  msg.entity_category = static_cast<enums::EntityCategory>(sensor->get_entity_category());
   return this->send_list_entities_sensor_response(msg);
 }
 #endif
@@ -456,6 +460,7 @@ bool APIConnection::send_switch_info(switch_::Switch *a_switch) {
   msg.icon = a_switch->get_icon();
   msg.assumed_state = a_switch->assumed_state();
   msg.disabled_by_default = a_switch->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(a_switch->get_entity_category());
   return this->send_list_entities_switch_response(msg);
 }
 void APIConnection::switch_command(const SwitchCommandRequest &msg) {
@@ -491,6 +496,7 @@ bool APIConnection::send_text_sensor_info(text_sensor::TextSensor *text_sensor) 
     msg.unique_id = get_default_unique_id("text_sensor", text_sensor);
   msg.icon = text_sensor->get_icon();
   msg.disabled_by_default = text_sensor->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(text_sensor->get_entity_category());
   return this->send_list_entities_text_sensor_response(msg);
 }
 #endif
@@ -537,6 +543,7 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
 
   msg.disabled_by_default = climate->is_disabled_by_default();
   msg.icon = climate->get_icon();
+  msg.entity_category = static_cast<enums::EntityCategory>(climate->get_entity_category());
 
   msg.supports_current_temperature = traits.get_supports_current_temperature();
   msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
@@ -611,6 +618,7 @@ bool APIConnection::send_number_info(number::Number *number) {
   msg.unique_id = get_default_unique_id("number", number);
   msg.icon = number->get_icon();
   msg.disabled_by_default = number->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(number->get_entity_category());
 
   msg.min_value = number->traits.get_min_value();
   msg.max_value = number->traits.get_max_value();
@@ -648,6 +656,7 @@ bool APIConnection::send_select_info(select::Select *select) {
   msg.unique_id = get_default_unique_id("select", select);
   msg.icon = select->get_icon();
   msg.disabled_by_default = select->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(select->get_entity_category());
 
   for (const auto &option : select->traits.get_options())
     msg.options.push_back(option);
@@ -681,6 +690,7 @@ bool APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
   msg.unique_id = get_default_unique_id("camera", camera);
   msg.disabled_by_default = camera->is_disabled_by_default();
   msg.icon = camera->get_icon();
+  msg.entity_category = static_cast<enums::EntityCategory>(camera->get_entity_category());
   return this->send_list_entities_camera_response(msg);
 }
 void APIConnection::camera_image(const CameraImageRequest &msg) {
