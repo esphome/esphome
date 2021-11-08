@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include "esphome/core/defines.h"
 #include "util.h"
 #include "parser.h"
 
