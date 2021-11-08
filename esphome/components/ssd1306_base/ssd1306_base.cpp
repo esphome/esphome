@@ -230,7 +230,7 @@ int SSD1306::get_width_internal() {
     case SH1106_MODEL_96_16:
       return 96;
     case SSD1306_MODEL_64_48:
-	case SSD1306_MODEL_64_32:
+    case SSD1306_MODEL_64_32:
     case SH1106_MODEL_64_48:
       return 64;
     default:
