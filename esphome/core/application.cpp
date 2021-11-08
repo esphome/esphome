@@ -76,7 +76,7 @@ void Application::loop() {
   }
   this->app_state_ = new_app_state;
 
-  const uint32_t now = millis();
+  const uint32_t now = micros();
 
   if (HighFrequencyLoopRequester::is_high_frequency()) {
     yield();
@@ -85,17 +85,20 @@ void Application::loop() {
     if (now - this->last_loop_ < this->loop_interval_)
       delay_time = this->loop_interval_ - (now - this->last_loop_);
 
-    uint32_t next_schedule = this->scheduler.next_schedule_in().value_or(delay_time);
+    uint32_t next_schedule = this->scheduler.next_schedule_in().value_or(delay_time/1000)*1000;
     // next_schedule is max 0.5*delay_time
     // otherwise interval=0 schedules result in constant looping with almost no sleep
     next_schedule = std::max(next_schedule, delay_time / 2);
     delay_time = std::min(next_schedule, delay_time);
     delay(delay_time);
+    if (micros() % 1000 == 0)  // Quick test to print some random samples...
+      ESP_LOGI(TAG, "%i", delay_time);
   }
   this->last_loop_ = now;
 
   if (this->dump_config_at_ >= 0 && this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
+      
       ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
 #ifdef ESPHOME_PROJECT_NAME
       ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
