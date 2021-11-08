@@ -39,6 +39,7 @@ enum Command : uint8_t {
   WIFI_SETTINGS = 0x01,
   IDENTIFY = 0x02,
   GET_CURRENT_STATE = 0x02,
+  GET_DEVICE_INFO = 0x03,
   BAD_CHECKSUM = 0xFF,
 };
 

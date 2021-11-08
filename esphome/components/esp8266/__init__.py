@@ -156,6 +156,7 @@ async def to_code(config):
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_ESP8266")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
+    cg.add_define("ESPHOME_VARIANT", "ESP8266")
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")

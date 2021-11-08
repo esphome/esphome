@@ -43,6 +43,8 @@ class ImprovSerialComponent : public Component {
   void on_wifi_connect_timeout_();
 
   std::vector<uint8_t> build_rpc_settings_response_(improv::Command command);
+  std::vector<uint8_t> build_version_info_();
+
   int available_();
   uint8_t read_byte_();
   void write_data_(std::vector<uint8_t> &data);

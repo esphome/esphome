@@ -1,8 +1,10 @@
 #include "improv_serial_component.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/version.h"
 
 #include "esphome/components/logger/logger.h"
 
@@ -101,6 +103,12 @@ std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv:
   return data;
 }
 
+std::vector<uint8_t> ImprovSerialComponent::build_version_info_() {
+  std::vector<std::string> infos = {"ESPHome", ESPHOME_VERSION, ESPHOME_VARIANT, App.get_name()};
+  std::vector<uint8_t> data = improv::build_rpc_response(improv::GET_DEVICE_INFO, infos);
+  return data;
+};
+
 bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
   size_t at = this->rx_buffer_.size();
   this->rx_buffer_.push_back(byte);
@@ -172,6 +180,11 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
         this->send_response_(url);
       }
       return true;
+    case improv::GET_DEVICE_INFO: {
+      std::vector<uint8_t> info = this->build_version_info_();
+      this->send_response_(info);
+      return true;
+    }
     default: {
       ESP_LOGW(TAG, "Unknown Improv payload");
       this->set_error_(improv::ERROR_UNKNOWN_RPC);
