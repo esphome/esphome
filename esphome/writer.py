@@ -350,6 +350,7 @@ GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
 # You can modify this file to suit your needs.
 /.esphome/
 /secrets.yaml
+/.secrets.yaml
 """
 
 
