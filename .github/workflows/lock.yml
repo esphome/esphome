@@ -9,13 +9,19 @@ permissions:
   issues: write
   pull-requests: write
 
+concurrency:
+  group: lock
+
 jobs:
   lock:
     runs-on: ubuntu-latest
     steps:
-      - uses: dessant/lock-threads@v2
+      - uses: dessant/lock-threads@v3
         with:
-          github-token: ${{ github.token }}
-          pr-lock-inactive-days: "1"
+          pr-inactive-days: "1"
           pr-lock-reason: ""
-          process-only: prs
+          exclude-any-pr-labels: keep-open
+
+          issue-inactive-days: "7"
+          issue-lock-reason: ""
+          exclude-any-issue-labels: keep-open

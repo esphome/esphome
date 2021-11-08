@@ -10,38 +10,7 @@ static const char *const TAG = "esp32";
 
 bool IDFInternalGPIOPin::isr_service_installed = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-struct ISRPinArg {
-  gpio_num_t pin;
-  bool inverted;
-};
-
-ISRInternalGPIOPin IDFInternalGPIOPin::to_isr() const {
-  auto *arg = new ISRPinArg{};  // NOLINT(cppcoreguidelines-owning-memory)
-  arg->pin = pin_;
-  arg->inverted = inverted_;
-  return ISRInternalGPIOPin((void *) arg);
-}
-
-void IDFInternalGPIOPin::setup() {
-  pin_mode(flags_);
-  gpio_set_drive_capability(pin_, drive_strength_);
-}
-
-void IDFInternalGPIOPin::pin_mode(gpio::Flags flags) {
-  gpio_config_t conf{};
-  conf.pin_bit_mask = 1ULL << static_cast<uint32_t>(pin_);
-  conf.mode = flags_to_mode(flags);
-  conf.pull_up_en = flags & gpio::FLAG_PULLUP ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE;
-  conf.pull_down_en = flags & gpio::FLAG_PULLDOWN ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE;
-  conf.intr_type = GPIO_INTR_DISABLE;
-  gpio_config(&conf);
-}
-
-bool IDFInternalGPIOPin::digital_read() { return bool(gpio_get_level(pin_)) != inverted_; }
-
-void IDFInternalGPIOPin::digital_write(bool value) { gpio_set_level(pin_, value != inverted_ ? 1 : 0); }
-
-gpio_mode_t IDFInternalGPIOPin::flags_to_mode(gpio::Flags flags) {
+static gpio_mode_t IRAM_ATTR flags_to_mode(gpio::Flags flags) {
   flags = (gpio::Flags)(flags & ~(gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN));
   if (flags == gpio::FLAG_NONE) {
     return GPIO_MODE_DISABLE;
@@ -59,6 +28,18 @@ gpio_mode_t IDFInternalGPIOPin::flags_to_mode(gpio::Flags flags) {
     // unsupported
     return GPIO_MODE_DISABLE;
   }
+}
+
+struct ISRPinArg {
+  gpio_num_t pin;
+  bool inverted;
+};
+
+ISRInternalGPIOPin IDFInternalGPIOPin::to_isr() const {
+  auto *arg = new ISRPinArg{};  // NOLINT(cppcoreguidelines-owning-memory)
+  arg->pin = pin_;
+  arg->inverted = inverted_;
+  return ISRInternalGPIOPin((void *) arg);
 }
 
 void IDFInternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
@@ -99,6 +80,35 @@ std::string IDFInternalGPIOPin::dump_summary() const {
   return buffer;
 }
 
+void IDFInternalGPIOPin::setup() {
+  gpio_config_t conf{};
+  conf.pin_bit_mask = 1ULL << static_cast<uint32_t>(pin_);
+  conf.mode = flags_to_mode(flags_);
+  conf.pull_up_en = flags_ & gpio::FLAG_PULLUP ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE;
+  conf.pull_down_en = flags_ & gpio::FLAG_PULLDOWN ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE;
+  conf.intr_type = GPIO_INTR_DISABLE;
+  gpio_config(&conf);
+  gpio_set_drive_capability(pin_, drive_strength_);
+}
+
+void IDFInternalGPIOPin::pin_mode(gpio::Flags flags) {
+  // can't call gpio_config here because that logs in esp-idf which may cause issues
+  gpio_set_direction(pin_, flags_to_mode(flags));
+  gpio_pull_mode_t pull_mode = GPIO_FLOATING;
+  if (flags & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN)) {
+    pull_mode = GPIO_PULLUP_PULLDOWN;
+  } else if (flags & gpio::FLAG_PULLUP) {
+    pull_mode = GPIO_PULLUP_ONLY;
+  } else if (flags & gpio::FLAG_PULLDOWN) {
+    pull_mode = GPIO_PULLDOWN_ONLY;
+  }
+  gpio_set_pull_mode(pin_, pull_mode);
+}
+
+bool IDFInternalGPIOPin::digital_read() { return bool(gpio_get_level(pin_)) != inverted_; }
+void IDFInternalGPIOPin::digital_write(bool value) { gpio_set_level(pin_, value != inverted_ ? 1 : 0); }
+void IDFInternalGPIOPin::detach_interrupt() const { gpio_intr_disable(pin_); }
+
 }  // namespace esp32
 
 using namespace esp32;
@@ -113,6 +123,19 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
 }
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   // not supported
+}
+void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
+  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
+  gpio_set_direction(arg->pin, flags_to_mode(flags));
+  gpio_pull_mode_t pull_mode = GPIO_FLOATING;
+  if (flags & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN)) {
+    pull_mode = GPIO_PULLUP_PULLDOWN;
+  } else if (flags & gpio::FLAG_PULLUP) {
+    pull_mode = GPIO_PULLUP_ONLY;
+  } else if (flags & gpio::FLAG_PULLDOWN) {
+    pull_mode = GPIO_PULLDOWN_ONLY;
+  }
+  gpio_set_pull_mode(arg->pin, pull_mode);
 }
 
 }  // namespace esphome

@@ -22,6 +22,12 @@ using ESPColor ESPDEPRECATED("esphome::light::ESPColor is deprecated, use esphom
 /// Convert the color information from a `LightColorValues` object to a `Color` object (does not apply brightness).
 Color color_from_light_color_values(LightColorValues val);
 
+/// Use a custom state class for addressable lights, to allow type system to discriminate between addressable and
+/// non-addressable lights.
+class AddressableLightState : public LightState {
+  using LightState::LightState;
+};
+
 class AddressableLight : public LightOutput, public Component {
  public:
   virtual int32_t size() const = 0;

@@ -54,6 +54,7 @@ enum ESP32CameraFrameSize {
 class ESP32Camera : public Component, public EntityBase {
  public:
   ESP32Camera(const std::string &name);
+  ESP32Camera();
   void set_data_pins(std::array<uint8_t, 8> pins);
   void set_vsync_pin(uint8_t pin);
   void set_href_pin(uint8_t pin);

@@ -27,13 +27,10 @@ from .const import (  # noqa
     KEY_ESP32,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
-    VARIANT_ESP32,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
     VARIANT_ESP32C3,
-    VARIANT_ESP32H2,
     VARIANTS,
 )
+from .boards import BOARD_TO_VARIANT
 
 # force import gpio to register pin schema
 from .gpio import esp32_pin_to_code  # noqa
@@ -150,8 +147,9 @@ def _arduino_check_versions(value):
     value[CONF_VERSION] = str(version)
     value[CONF_SOURCE] = source or _format_framework_arduino_version(version)
 
-    platform_version = value.get(CONF_PLATFORM_VERSION, ARDUINO_PLATFORM_VERSION)
-    value[CONF_PLATFORM_VERSION] = str(platform_version)
+    value[CONF_PLATFORM_VERSION] = value.get(
+        CONF_PLATFORM_VERSION, _parse_platform_version(str(ARDUINO_PLATFORM_VERSION))
+    )
 
     if version != RECOMMENDED_ARDUINO_FRAMEWORK_VERSION:
         _LOGGER.warning(
@@ -187,14 +185,39 @@ def _esp_idf_check_versions(value):
     value[CONF_VERSION] = str(version)
     value[CONF_SOURCE] = source or _format_framework_espidf_version(version)
 
-    platform_version = value.get(CONF_PLATFORM_VERSION, ESP_IDF_PLATFORM_VERSION)
-    value[CONF_PLATFORM_VERSION] = str(platform_version)
+    value[CONF_PLATFORM_VERSION] = value.get(
+        CONF_PLATFORM_VERSION, _parse_platform_version(str(ESP_IDF_PLATFORM_VERSION))
+    )
 
-    if version != RECOMMENDED_ARDUINO_FRAMEWORK_VERSION:
+    if version != RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION:
         _LOGGER.warning(
             "The selected ESP-IDF framework version is not the recommended one. "
             "If there are connectivity or build issues please remove the manual version."
         )
+
+    return value
+
+
+def _parse_platform_version(value):
+    try:
+        # if platform version is a valid version constraint, prefix the default package
+        cv.platformio_version_constraint(value)
+        return f"platformio/espressif32 @ {value}"
+    except cv.Invalid:
+        return value
+
+
+def _detect_variant(value):
+    if CONF_VARIANT not in value:
+        board = value[CONF_BOARD]
+        if board not in BOARD_TO_VARIANT:
+            raise cv.Invalid(
+                "This board is unknown, please set the variant manually",
+                path=[CONF_BOARD],
+            )
+
+        value = value.copy()
+        value[CONF_VARIANT] = BOARD_TO_VARIANT[board]
 
     return value
 
@@ -206,7 +229,7 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
             cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): cv.string_strict,
+            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
         }
     ),
     _arduino_check_versions,
@@ -218,7 +241,7 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
             cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): cv.string_strict,
+            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
             cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
                 cv.string_strict: cv.string_strict
             },
@@ -250,12 +273,11 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_BOARD): cv.string_strict,
-            cv.Optional(CONF_VARIANT, default="ESP32"): cv.one_of(
-                *VARIANTS, upper=True
-            ),
+            cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
         }
     ),
+    _detect_variant,
     set_core_data,
 )
 
@@ -269,10 +291,9 @@ async def to_code(config):
     cg.add_platformio_option("lib_ldf_mode", "off")
 
     conf = config[CONF_FRAMEWORK]
+    cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
-        cg.add_platformio_option(
-            "platform", f"espressif32 @ {conf[CONF_PLATFORM_VERSION]}"
-        )
         cg.add_platformio_option("framework", "espidf")
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
@@ -303,9 +324,6 @@ async def to_code(config):
             )
 
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
-        cg.add_platformio_option(
-            "platform", f"espressif32 @ {conf[CONF_PLATFORM_VERSION]}"
-        )
         cg.add_platformio_option("framework", "arduino")
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")

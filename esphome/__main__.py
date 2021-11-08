@@ -180,7 +180,11 @@ def compile_program(args, config):
     from esphome import platformio_api
 
     _LOGGER.info("Compiling app...")
-    return platformio_api.run_compile(config, CORE.verbose)
+    rc = platformio_api.run_compile(config, CORE.verbose)
+    if rc != 0:
+        return rc
+    idedata = platformio_api.get_idedata(config)
+    return 0 if idedata is not None else 1
 
 
 def upload_using_esptool(config, port):
@@ -222,6 +226,8 @@ def upload_using_esptool(config, port):
             mcu,
             "write_flash",
             "-z",
+            "--flash_size",
+            "detect",
         ]
         for img in flash_images:
             cmd += [img.offset, img.path]
@@ -458,6 +464,21 @@ def command_update_all(args):
     return failed
 
 
+def command_idedata(args, config):
+    from esphome import platformio_api
+    import json
+
+    logging.disable(logging.INFO)
+    logging.disable(logging.WARNING)
+
+    idedata = platformio_api.get_idedata(config)
+    if idedata is None:
+        return 1
+
+    print(json.dumps(idedata.raw, indent=2) + "\n")
+    return 0
+
+
 PRE_CONFIG_ACTIONS = {
     "wizard": command_wizard,
     "version": command_version,
@@ -475,6 +496,7 @@ POST_CONFIG_ACTIONS = {
     "clean-mqtt": command_clean_mqtt,
     "mqtt-fingerprint": command_mqtt_fingerprint,
     "clean": command_clean,
+    "idedata": command_idedata,
 }
 
 
@@ -650,6 +672,11 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file directories.", nargs="+"
     )
 
+    parser_idedata = subparsers.add_parser("idedata")
+    parser_idedata.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs=1
+    )
+
     # Keep backward compatibility with the old command line format of
     # esphome <config> <command>.
     #
@@ -733,7 +760,12 @@ def run_esphome(argv):
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
 
-    setup_log(args.verbose, args.quiet)
+    setup_log(
+        args.verbose,
+        args.quiet,
+        # Show timestamp for dashboard access logs
+        args.command == "dashboard",
+    )
     if args.deprecated_argv_suggestion is not None and args.command != "vscode":
         _LOGGER.warning(
             "Calling ESPHome with the configuration before the command is deprecated "
@@ -762,7 +794,7 @@ def run_esphome(argv):
 
         config = read_config(dict(args.substitution) if args.substitution else {})
         if config is None:
-            return 1
+            return 2
         CORE.config = config
 
         if args.command not in POST_CONFIG_ACTIONS:

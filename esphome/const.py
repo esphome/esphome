@@ -4,7 +4,10 @@ __version__ = "2021.11.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
-TARGET_PLATFORMS = ["esp32", "esp8266"]
+PLATFORM_ESP32 = "esp32"
+PLATFORM_ESP8266 = "esp8266"
+
+TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266]
 TARGET_FRAMEWORKS = ["arduino", "esp-idf"]
 
 # See also https://github.com/platformio/platform-espressif8266/releases
@@ -56,6 +59,7 @@ CONF_AT = "at"
 CONF_ATTENUATION = "attenuation"
 CONF_ATTRIBUTE = "attribute"
 CONF_AUTH = "auth"
+CONF_AUTO_CLEAR_ENABLED = "auto_clear_enabled"
 CONF_AUTO_MODE = "auto_mode"
 CONF_AUTOCONF = "autoconf"
 CONF_AUTOMATION_ID = "automation_id"
@@ -199,6 +203,7 @@ CONF_ELSE = "else"
 CONF_ENABLE_PIN = "enable_pin"
 CONF_ENABLE_TIME = "enable_time"
 CONF_ENERGY = "energy"
+CONF_ENTITY_CATEGORY = "entity_category"
 CONF_ENTITY_ID = "entity_id"
 CONF_ESP8266_DISABLE_SSL_SUPPORT = "esp8266_disable_ssl_support"
 CONF_ESPHOME = "esphome"
@@ -706,6 +711,7 @@ CONF_UNIT_OF_MEASUREMENT = "unit_of_measurement"
 CONF_UPDATE_INTERVAL = "update_interval"
 CONF_UPDATE_ON_BOOT = "update_on_boot"
 CONF_URL = "url"
+CONF_USE_ABBREVIATIONS = "use_abbreviations"
 CONF_USE_ADDRESS = "use_address"
 CONF_USERNAME = "username"
 CONF_UUID = "uuid"
@@ -914,3 +920,12 @@ KEY_CORE = "core"
 KEY_TARGET_PLATFORM = "target_platform"
 KEY_TARGET_FRAMEWORK = "target_framework"
 KEY_FRAMEWORK_VERSION = "framework_version"
+
+# Entity categories
+ENTITY_CATEGORY_NONE = ""
+
+# The entity category for configuration values/controls
+ENTITY_CATEGORY_CONFIG = "config"
+
+# The entity category for read only diagnostic values, for example RSSI, uptime or MAC Address
+ENTITY_CATEGORY_DIAGNOSTIC = "diagnostic"
