@@ -14,9 +14,17 @@ from esphome.const import (
     CONF_PIN_A,
     CONF_PIN_B,
     CONF_TRIGGER_ID,
+    CONF_RESTORE_MODE,
 )
 
 rotary_encoder_ns = cg.esphome_ns.namespace("rotary_encoder")
+
+RotaryEncoderRestoreMode = rotary_encoder_ns.enum("RotaryEncoderRestoreMode")
+RESTORE_MODES = {
+    "RESTORE_DEFAULT_ZERO": RotaryEncoderRestoreMode.ROTARY_ENCODER_RESTORE_DEFAULT_ZERO,
+    "ALWAYS_ZERO": RotaryEncoderRestoreMode.ROTARY_ENCODER_ALWAYS_ZERO,
+}
+
 RotaryEncoderResolution = rotary_encoder_ns.enum("RotaryEncoderResolution")
 RESOLUTIONS = {
     1: RotaryEncoderResolution.ROTARY_ENCODER_1_PULSE_PER_CYCLE,
@@ -72,6 +80,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MIN_VALUE): cv.int_,
             cv.Optional(CONF_MAX_VALUE): cv.int_,
             cv.Optional(CONF_PUBLISH_INITIAL_VALUE, default=False): cv.boolean,
+            cv.Optional(CONF_RESTORE_MODE, default="RESTORE_DEFAULT_ZERO"): cv.enum(
+                RESTORE_MODES, upper=True, space="_"
+            ),
             cv.Optional(CONF_ON_CLOCKWISE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -102,6 +113,7 @@ async def to_code(config):
     pin_b = await cg.gpio_pin_expression(config[CONF_PIN_B])
     cg.add(var.set_pin_b(pin_b))
     cg.add(var.set_publish_initial_value(config[CONF_PUBLISH_INITIAL_VALUE]))
+    cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
     if CONF_PIN_RESET in config:
         pin_i = await cg.gpio_pin_expression(config[CONF_PIN_RESET])
