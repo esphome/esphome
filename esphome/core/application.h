@@ -289,7 +289,7 @@ class Application {
   std::string compilation_time_;
   bool name_add_mac_suffix_;
   uint32_t last_loop_{0};
-  uint32_t loop_interval_{16};
+  uint32_t loop_interval_{16000};
   int dump_config_at_{-1};
   uint32_t app_state_{0};
 };
