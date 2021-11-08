@@ -30,7 +30,6 @@ SelectSetAction = select_ns.class_("SelectSetAction", automation.Action)
 
 icon = cv.icon
 
-
 SELECT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSelectComponent),

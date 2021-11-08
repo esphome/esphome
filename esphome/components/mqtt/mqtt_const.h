@@ -512,6 +512,9 @@ constexpr const char *const MQTT_DEVICE_SW_VERSION = "sw_version";
 constexpr const char *const MQTT_DEVICE_SUGGESTED_AREA = "suggested_area";
 #endif
 
+// Additional MQTT fields where no abbreviation is defined in HA source
+constexpr const char *const MQTT_ENTITY_CATEGORY = "entity_category";
+
 }  // namespace mqtt
 }  // namespace esphome
 

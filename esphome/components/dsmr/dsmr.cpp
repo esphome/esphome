@@ -76,7 +76,6 @@ void Dsmr::receive_telegram_() {
     }
     // Check for the end of the hex checksum, i.e. a newline.
     if (footer_found_ && c == '\n') {
-      header_found_ = false;
       // Parse the telegram and publish sensor values.
       parse_telegram();
 
@@ -146,6 +145,8 @@ void Dsmr::receive_encrypted_() {
 
       telegram_len_ = packet_size - 30;
       ESP_LOGV(TAG, "Decrypted telegram size: %d bytes", telegram_len_);
+
+      parse_telegram();
 
       parse_telegram();
 

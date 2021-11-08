@@ -6,6 +6,18 @@
 namespace esphome {
 namespace api {
 
+template<> const char *proto_enum_to_string<enums::EntityCategory>(enums::EntityCategory value) {
+  switch (value) {
+    case enums::ENTITY_CATEGORY_NONE:
+      return "ENTITY_CATEGORY_NONE";
+    case enums::ENTITY_CATEGORY_CONFIG:
+      return "ENTITY_CATEGORY_CONFIG";
+    case enums::ENTITY_CATEGORY_DIAGNOSTIC:
+      return "ENTITY_CATEGORY_DIAGNOSTIC";
+    default:
+      return "UNKNOWN";
+  }
+}
 template<> const char *proto_enum_to_string<enums::LegacyCoverState>(enums::LegacyCoverState value) {
   switch (value) {
     case enums::LEGACY_COVER_STATE_OPEN:
@@ -519,6 +531,10 @@ bool ListEntitiesBinarySensorResponse::decode_varint(uint32_t field_id, ProtoVar
       this->disabled_by_default = value.as_bool();
       return true;
     }
+    case 9: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
     default:
       return false;
   }
@@ -568,6 +584,7 @@ void ListEntitiesBinarySensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(6, this->is_status_binary_sensor);
   buffer.encode_bool(7, this->disabled_by_default);
   buffer.encode_string(8, this->icon);
+  buffer.encode_enum<enums::EntityCategory>(9, this->entity_category);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
@@ -604,6 +621,10 @@ void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
 
   out.append("  icon: ");
   out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
   out.append("}");
 }
@@ -674,6 +695,10 @@ bool ListEntitiesCoverResponse::decode_varint(uint32_t field_id, ProtoVarInt val
       this->disabled_by_default = value.as_bool();
       return true;
     }
+    case 11: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
     default:
       return false;
   }
@@ -725,6 +750,7 @@ void ListEntitiesCoverResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(8, this->device_class);
   buffer.encode_bool(9, this->disabled_by_default);
   buffer.encode_string(10, this->icon);
+  buffer.encode_enum<enums::EntityCategory>(11, this->entity_category);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesCoverResponse::dump_to(std::string &out) const {
@@ -769,6 +795,10 @@ void ListEntitiesCoverResponse::dump_to(std::string &out) const {
 
   out.append("  icon: ");
   out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
   out.append("}");
 }
@@ -958,6 +988,10 @@ bool ListEntitiesFanResponse::decode_varint(uint32_t field_id, ProtoVarInt value
       this->disabled_by_default = value.as_bool();
       return true;
     }
+    case 11: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
     default:
       return false;
   }
@@ -1005,6 +1039,7 @@ void ListEntitiesFanResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_int32(8, this->supported_speed_count);
   buffer.encode_bool(9, this->disabled_by_default);
   buffer.encode_string(10, this->icon);
+  buffer.encode_enum<enums::EntityCategory>(11, this->entity_category);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesFanResponse::dump_to(std::string &out) const {
@@ -1050,6 +1085,10 @@ void ListEntitiesFanResponse::dump_to(std::string &out) const {
 
   out.append("  icon: ");
   out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
   out.append("}");
 }
@@ -1277,6 +1316,10 @@ bool ListEntitiesLightResponse::decode_varint(uint32_t field_id, ProtoVarInt val
       this->disabled_by_default = value.as_bool();
       return true;
     }
+    case 15: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
     default:
       return false;
   }
@@ -1344,6 +1387,7 @@ void ListEntitiesLightResponse::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_bool(13, this->disabled_by_default);
   buffer.encode_string(14, this->icon);
+  buffer.encode_enum<enums::EntityCategory>(15, this->entity_category);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesLightResponse::dump_to(std::string &out) const {
@@ -1410,6 +1454,10 @@ void ListEntitiesLightResponse::dump_to(std::string &out) const {
 
   out.append("  icon: ");
   out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
   out.append("}");
 }
@@ -1870,6 +1918,10 @@ bool ListEntitiesSensorResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       this->disabled_by_default = value.as_bool();
       return true;
     }
+    case 13: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
     default:
       return false;
   }
@@ -1927,6 +1979,7 @@ void ListEntitiesSensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::SensorStateClass>(10, this->state_class);
   buffer.encode_enum<enums::SensorLastResetType>(11, this->legacy_last_reset_type);
   buffer.encode_bool(12, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(13, this->entity_category);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesSensorResponse::dump_to(std::string &out) const {
@@ -1980,6 +2033,10 @@ void ListEntitiesSensorResponse::dump_to(std::string &out) const {
 
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
   out.append("}");
 }
@@ -2043,6 +2100,10 @@ bool ListEntitiesSwitchResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       this->disabled_by_default = value.as_bool();
       return true;
     }
+    case 8: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
     default:
       return false;
   }
@@ -2087,6 +2148,7 @@ void ListEntitiesSwitchResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(5, this->icon);
   buffer.encode_bool(6, this->assumed_state);
   buffer.encode_bool(7, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(8, this->entity_category);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesSwitchResponse::dump_to(std::string &out) const {
@@ -2119,6 +2181,10 @@ void ListEntitiesSwitchResponse::dump_to(std::string &out) const {
 
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
   out.append("}");
 }
@@ -2207,6 +2273,10 @@ bool ListEntitiesTextSensorResponse::decode_varint(uint32_t field_id, ProtoVarIn
       this->disabled_by_default = value.as_bool();
       return true;
     }
+    case 7: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
     default:
       return false;
   }
@@ -2250,6 +2320,7 @@ void ListEntitiesTextSensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(4, this->unique_id);
   buffer.encode_string(5, this->icon);
   buffer.encode_bool(6, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(7, this->entity_category);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
@@ -2278,6 +2349,10 @@ void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
 
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
   out.append("}");
 }
@@ -2902,6 +2977,10 @@ bool ListEntitiesCameraResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       this->disabled_by_default = value.as_bool();
       return true;
     }
+    case 7: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
     default:
       return false;
   }
@@ -2945,6 +3024,7 @@ void ListEntitiesCameraResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(4, this->unique_id);
   buffer.encode_bool(5, this->disabled_by_default);
   buffer.encode_string(6, this->icon);
+  buffer.encode_enum<enums::EntityCategory>(7, this->entity_category);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesCameraResponse::dump_to(std::string &out) const {
@@ -2973,6 +3053,10 @@ void ListEntitiesCameraResponse::dump_to(std::string &out) const {
 
   out.append("  icon: ");
   out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
   out.append("}");
 }
@@ -3101,6 +3185,10 @@ bool ListEntitiesClimateResponse::decode_varint(uint32_t field_id, ProtoVarInt v
       this->disabled_by_default = value.as_bool();
       return true;
     }
+    case 20: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
     default:
       return false;
   }
@@ -3189,6 +3277,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_bool(18, this->disabled_by_default);
   buffer.encode_string(19, this->icon);
+  buffer.encode_enum<enums::EntityCategory>(20, this->entity_category);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
@@ -3284,6 +3373,10 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
 
   out.append("  icon: ");
   out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
   out.append("}");
 }
@@ -3661,6 +3754,10 @@ bool ListEntitiesNumberResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       this->disabled_by_default = value.as_bool();
       return true;
     }
+    case 10: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
     default:
       return false;
   }
@@ -3719,6 +3816,7 @@ void ListEntitiesNumberResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(7, this->max_value);
   buffer.encode_float(8, this->step);
   buffer.encode_bool(9, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesNumberResponse::dump_to(std::string &out) const {
@@ -3762,6 +3860,10 @@ void ListEntitiesNumberResponse::dump_to(std::string &out) const {
 
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
   out.append("}");
 }
@@ -3855,6 +3957,10 @@ bool ListEntitiesSelectResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       this->disabled_by_default = value.as_bool();
       return true;
     }
+    case 8: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
     default:
       return false;
   }
@@ -3905,6 +4011,7 @@ void ListEntitiesSelectResponse::encode(ProtoWriteBuffer buffer) const {
     buffer.encode_string(6, it, true);
   }
   buffer.encode_bool(7, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(8, this->entity_category);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesSelectResponse::dump_to(std::string &out) const {
@@ -3939,6 +4046,10 @@ void ListEntitiesSelectResponse::dump_to(std::string &out) const {
 
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
   out.append("}");
 }
