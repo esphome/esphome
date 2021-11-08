@@ -78,13 +78,6 @@ class AES128 : public AESCommon {
 #endif  // DSMR_CRYPTO_AES_DEFAULT
 
 #if defined(DSMR_CRYPTO_AES_ESP32)
-// "hwcrypto/aes.h" includes "rom/aes.h" which defines global enums for
-// AES128, AES192, and AES256.  The enum definitions interfere with the
-// definition of the same-named classes below.  The #define's and #undef's
-// here work around the problem by defining the enums to different names.
-#define AES128 AES128_enum
-#include "hwcrypto/aes.h"
-#undef AES128
 
 class AESCommon : public BlockCipher {
  public:
@@ -113,8 +106,6 @@ class AES128 : public AESCommon {
   virtual ~AES128();
 };
 
-// The ESP32 AES context is so small that it already qualifies as "tiny".
-typedef AES128 AESTiny128;
 #endif  // DSMR_CRYPTO_AES_ESP32
 }  // namespace dsmr
 }  // namespace esphome

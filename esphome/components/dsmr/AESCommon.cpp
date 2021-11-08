@@ -127,13 +127,13 @@ static uint8_t const K[8] = {0x00,
 // However, we don't want to use runtime conditionals if we can help it
 // to avoid leaking timing information from the implementation.
 // In this case, multiplication is slightly faster than table lookup on AVR.
-#define gmul2(x) (t = ((uint16_t)(x)) << 1, ((uint8_t) t) ^ (uint8_t)(0x1B * ((uint8_t)(t >> 8))))
+#define DSMR_GMUL2(x) (t = ((uint16_t)(x)) << 1, ((uint8_t) t) ^ (uint8_t)(0x1B * ((uint8_t)(t >> 8))))
 
 // Multiply x by 4 in the Galois field.
-#define gmul4(x) (t = ((uint16_t)(x)) << 2, ((uint8_t) t) ^ K[t >> 8])
+#define DSMR_GMUL4(x) (t = ((uint16_t)(x)) << 2, ((uint8_t) t) ^ K[t >> 8])
 
 // Multiply x by 8 in the Galois field.
-#define gmul8(x) (t = ((uint16_t)(x)) << 3, ((uint8_t) t) ^ K[t >> 8])
+#define DSMR_GMUL8(x) (t = ((uint16_t)(x)) << 3, ((uint8_t) t) ^ K[t >> 8])
 
 /** @cond aes_funcs */
 
@@ -176,15 +176,15 @@ void AESCommon::inverseShiftRowsAndSubBytes(uint8_t *output, const uint8_t *inpu
 }
 
 void AESCommon::mixColumn(uint8_t *output, uint8_t *input) {
-  uint16_t t;  // Needed by the gmul2 macro.
+  uint16_t t;  // Needed by the DSMR_GMUL2 macro.
   uint8_t a = input[0];
   uint8_t b = input[1];
   uint8_t c = input[2];
   uint8_t d = input[3];
-  uint8_t a2 = gmul2(a);
-  uint8_t b2 = gmul2(b);
-  uint8_t c2 = gmul2(c);
-  uint8_t d2 = gmul2(d);
+  uint8_t a2 = DSMR_GMUL2(a);
+  uint8_t b2 = DSMR_GMUL2(b);
+  uint8_t c2 = DSMR_GMUL2(c);
+  uint8_t d2 = DSMR_GMUL2(d);
   output[0] = a2 ^ b2 ^ b ^ c ^ d;
   output[1] = a ^ b2 ^ c2 ^ c ^ d;
   output[2] = a ^ b ^ c2 ^ d2 ^ d;
@@ -192,23 +192,23 @@ void AESCommon::mixColumn(uint8_t *output, uint8_t *input) {
 }
 
 void AESCommon::inverseMixColumn(uint8_t *output, const uint8_t *input) {
-  uint16_t t;  // Needed by the gmul2, gmul4, and gmul8 macros.
+  uint16_t t;  // Needed by the DSMR_GMUL2, DSMR_GMUL4, and DSMR_GMUL8 macros.
   uint8_t a = input[0];
   uint8_t b = input[1];
   uint8_t c = input[2];
   uint8_t d = input[3];
-  uint8_t a2 = gmul2(a);
-  uint8_t b2 = gmul2(b);
-  uint8_t c2 = gmul2(c);
-  uint8_t d2 = gmul2(d);
-  uint8_t a4 = gmul4(a);
-  uint8_t b4 = gmul4(b);
-  uint8_t c4 = gmul4(c);
-  uint8_t d4 = gmul4(d);
-  uint8_t a8 = gmul8(a);
-  uint8_t b8 = gmul8(b);
-  uint8_t c8 = gmul8(c);
-  uint8_t d8 = gmul8(d);
+  uint8_t a2 = DSMR_GMUL2(a);
+  uint8_t b2 = DSMR_GMUL2(b);
+  uint8_t c2 = DSMR_GMUL2(c);
+  uint8_t d2 = DSMR_GMUL2(d);
+  uint8_t a4 = DSMR_GMUL4(a);
+  uint8_t b4 = DSMR_GMUL4(b);
+  uint8_t c4 = DSMR_GMUL4(c);
+  uint8_t d4 = DSMR_GMUL4(d);
+  uint8_t a8 = DSMR_GMUL8(a);
+  uint8_t b8 = DSMR_GMUL8(b);
+  uint8_t c8 = DSMR_GMUL8(c);
+  uint8_t d8 = DSMR_GMUL8(d);
   output[0] = a8 ^ a4 ^ a2 ^ b8 ^ b2 ^ b ^ c8 ^ c4 ^ c ^ d8 ^ d;
   output[1] = a8 ^ a ^ b8 ^ b4 ^ b2 ^ c8 ^ c2 ^ c ^ d8 ^ d4 ^ d;
   output[2] = a8 ^ a4 ^ a ^ b8 ^ b ^ c8 ^ c4 ^ c2 ^ d8 ^ d2 ^ d;

@@ -23,8 +23,6 @@
 #pragma once
 
 #include <inttypes.h>
-namespace esphome {
-namespace dsmr {
 
 #if !defined(HOST_BUILD)
 
@@ -71,5 +69,3 @@ namespace dsmr {
 #endif
 
 #endif  // HOST_BUILD
-}  // namespace dsmr
-}  // namespace esphome

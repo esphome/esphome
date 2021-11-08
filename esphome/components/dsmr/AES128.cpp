@@ -94,50 +94,6 @@ bool AES128::setKey(const uint8_t *key, size_t len) {
   return true;
 }
 
-/**
- * \class AESTiny128 AES.h <AES.h>
- * \brief AES block cipher with 128-bit keys and tiny memory usage.
- *
- * This class differs from the AES128 class in the following ways:
- *
- * \li RAM requirements are vastly reduced.  The key is stored directly
- * and then expanded to the full key schedule round by round.  The setKey()
- * method is very fast because of this.
- * \li Performance of encryptBlock() is slower than for AES128 due to
- * expanding the key on the fly rather than ahead of time.
- * \li The decryptBlock() function is not supported, which means that CBC
- * mode cannot be used but the CTR, CFB, OFB, EAX, and GCM modes can be used.
- *
- * This class is useful when RAM is at a premium, CBC mode is not required,
- * and reduced encryption performance is not a hindrance to the application.
- *
- * The companion AESSmall128 class supports decryptBlock() at the cost of
- * some additional memory and slower setKey() times.
- *
- * \sa AESSmall128, AES128
- */
-
-/** @cond */
-
-// Helper macros.
-#define KCORE(n) \
-  do { \
-    AESCommon::keyScheduleCore(temp, schedule + 12, (n)); \
-    schedule[0] ^= temp[0]; \
-    schedule[1] ^= temp[1]; \
-    schedule[2] ^= temp[2]; \
-    schedule[3] ^= temp[3]; \
-  } while (0)
-#define KXOR(a, b) \
-  do { \
-    schedule[(a) *4] ^= schedule[(b) *4]; \
-    schedule[(a) *4 + 1] ^= schedule[(b) *4 + 1]; \
-    schedule[(a) *4 + 2] ^= schedule[(b) *4 + 2]; \
-    schedule[(a) *4 + 3] ^= schedule[(b) *4 + 3]; \
-  } while (0)
-
-/** @endcond */
-
 }  // namespace dsmr
 }  // namespace esphome
 

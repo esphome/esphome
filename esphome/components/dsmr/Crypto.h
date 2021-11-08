@@ -33,15 +33,5 @@ template<typename T> inline void clean(T &var) { clean(&var, sizeof(T)); }
 
 bool secure_compare(const void *data1, const void *data2, size_t len);
 
-#if defined(ESP8266)
-extern "C" void system_soft_wdt_feed(void);
-#define crypto_feed_watchdog() system_soft_wdt_feed()
-#else
-#define crypto_feed_watchdog() \
-  do { \
-    ; \
-  } while (0)
-#endif
-
 }  // namespace dsmr
 }  // namespace esphome

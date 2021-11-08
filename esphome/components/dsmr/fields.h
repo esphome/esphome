@@ -183,7 +183,7 @@ const uint8_t WATER_MBUS_ID = DSMR_WATER_MBUS_ID;
 const uint8_t THERMAL_MBUS_ID = DSMR_THERMAL_MBUS_ID;
 const uint8_t SUB_MBUS_ID = DSMR_SUB_MBUS_ID;
 
-#define DEFINE_FIELD(fieldname, value_t, obis, field_t, field_args...) \
+#define DSMR_DEFINE_FIELD(fieldname, value_t, obis, field_t, field_args...) \
   struct fieldname : field_t<fieldname, ##field_args> { \
     value_t fieldname; \
     bool fieldname##_present = false; \
@@ -195,204 +195,207 @@ const uint8_t SUB_MBUS_ID = DSMR_SUB_MBUS_ID;
 
 /* Meter identification. This is not a normal field, but a
  * specially-formatted first line of the message */
-DEFINE_FIELD(identification, std::string, ObisId(255, 255, 255, 255, 255, 255), RawField);
+DSMR_DEFINE_FIELD(identification, std::string, ObisId(255, 255, 255, 255, 255, 255), RawField);
 
 /* Version information for P1 output */
-DEFINE_FIELD(p1_version, std::string, ObisId(1, 3, 0, 2, 8), StringField, 2, 2);
-DEFINE_FIELD(p1_version_be, std::string, ObisId(0, 0, 96, 1, 4), StringField, 2, 5);
+DSMR_DEFINE_FIELD(p1_version, std::string, ObisId(1, 3, 0, 2, 8), StringField, 2, 2);
+DSMR_DEFINE_FIELD(p1_version_be, std::string, ObisId(0, 0, 96, 1, 4), StringField, 2, 5);
 
 /* Date-time stamp of the P1 message */
-DEFINE_FIELD(timestamp, std::string, ObisId(0, 0, 1, 0, 0), TimestampField);
+DSMR_DEFINE_FIELD(timestamp, std::string, ObisId(0, 0, 1, 0, 0), TimestampField);
 
 /* Equipment identifier */
-DEFINE_FIELD(equipment_id, std::string, ObisId(0, 0, 96, 1, 1), StringField, 0, 96);
+DSMR_DEFINE_FIELD(equipment_id, std::string, ObisId(0, 0, 96, 1, 1), StringField, 0, 96);
 
 /* Meter Reading electricity delivered to client (Special for Lux) in 0,001 kWh */
-DEFINE_FIELD(energy_delivered_lux, FixedValue, ObisId(1, 0, 1, 8, 0), FixedField, units::kWh, units::Wh);
+DSMR_DEFINE_FIELD(energy_delivered_lux, FixedValue, ObisId(1, 0, 1, 8, 0), FixedField, units::kWh, units::Wh);
 /* Meter Reading electricity delivered to client (Tariff 1) in 0,001 kWh */
-DEFINE_FIELD(energy_delivered_tariff1, FixedValue, ObisId(1, 0, 1, 8, 1), FixedField, units::kWh, units::Wh);
+DSMR_DEFINE_FIELD(energy_delivered_tariff1, FixedValue, ObisId(1, 0, 1, 8, 1), FixedField, units::kWh, units::Wh);
 /* Meter Reading electricity delivered to client (Tariff 2) in 0,001 kWh */
-DEFINE_FIELD(energy_delivered_tariff2, FixedValue, ObisId(1, 0, 1, 8, 2), FixedField, units::kWh, units::Wh);
+DSMR_DEFINE_FIELD(energy_delivered_tariff2, FixedValue, ObisId(1, 0, 1, 8, 2), FixedField, units::kWh, units::Wh);
 /* Meter Reading electricity delivered by client (Special for Lux) in 0,001 kWh */
-DEFINE_FIELD(energy_returned_lux, FixedValue, ObisId(1, 0, 2, 8, 0), FixedField, units::kWh, units::Wh);
+DSMR_DEFINE_FIELD(energy_returned_lux, FixedValue, ObisId(1, 0, 2, 8, 0), FixedField, units::kWh, units::Wh);
 /* Meter Reading electricity delivered by client (Tariff 1) in 0,001 kWh */
-DEFINE_FIELD(energy_returned_tariff1, FixedValue, ObisId(1, 0, 2, 8, 1), FixedField, units::kWh, units::Wh);
+DSMR_DEFINE_FIELD(energy_returned_tariff1, FixedValue, ObisId(1, 0, 2, 8, 1), FixedField, units::kWh, units::Wh);
 /* Meter Reading electricity delivered by client (Tariff 2) in 0,001 kWh */
-DEFINE_FIELD(energy_returned_tariff2, FixedValue, ObisId(1, 0, 2, 8, 2), FixedField, units::kWh, units::Wh);
+DSMR_DEFINE_FIELD(energy_returned_tariff2, FixedValue, ObisId(1, 0, 2, 8, 2), FixedField, units::kWh, units::Wh);
 
 /*
  * Extra fields used for Luxembourg
  */
-DEFINE_FIELD(total_imported_energy, FixedValue, ObisId(1, 0, 3, 8, 0), FixedField, units::kvarh, units::kvarh);
-DEFINE_FIELD(total_exported_energy, FixedValue, ObisId(1, 0, 4, 8, 0), FixedField, units::kvarh, units::kvarh);
+DSMR_DEFINE_FIELD(total_imported_energy, FixedValue, ObisId(1, 0, 3, 8, 0), FixedField, units::kvarh, units::kvarh);
+DSMR_DEFINE_FIELD(total_exported_energy, FixedValue, ObisId(1, 0, 4, 8, 0), FixedField, units::kvarh, units::kvarh);
 
 /* Tariff indicator electricity. The tariff indicator can also be used
  * to switch tariff dependent loads e.g boilers. This is the
  * responsibility of the P1 user */
-DEFINE_FIELD(electricity_tariff, std::string, ObisId(0, 0, 96, 14, 0), StringField, 4, 4);
+DSMR_DEFINE_FIELD(electricity_tariff, std::string, ObisId(0, 0, 96, 14, 0), StringField, 4, 4);
 
 /* Actual electricity power delivered (+P) in 1 Watt resolution */
-DEFINE_FIELD(power_delivered, FixedValue, ObisId(1, 0, 1, 7, 0), FixedField, units::kW, units::W);
+DSMR_DEFINE_FIELD(power_delivered, FixedValue, ObisId(1, 0, 1, 7, 0), FixedField, units::kW, units::W);
 /* Actual electricity power received (-P) in 1 Watt resolution */
-DEFINE_FIELD(power_returned, FixedValue, ObisId(1, 0, 2, 7, 0), FixedField, units::kW, units::W);
+DSMR_DEFINE_FIELD(power_returned, FixedValue, ObisId(1, 0, 2, 7, 0), FixedField, units::kW, units::W);
 
 /*
  * Extra fields used for Luxembourg
  */
-DEFINE_FIELD(reactive_power_delivered, FixedValue, ObisId(1, 0, 3, 7, 0), FixedField, units::kvar, units::kvar);
-DEFINE_FIELD(reactive_power_returned, FixedValue, ObisId(1, 0, 4, 7, 0), FixedField, units::kvar, units::kvar);
+DSMR_DEFINE_FIELD(reactive_power_delivered, FixedValue, ObisId(1, 0, 3, 7, 0), FixedField, units::kvar, units::kvar);
+DSMR_DEFINE_FIELD(reactive_power_returned, FixedValue, ObisId(1, 0, 4, 7, 0), FixedField, units::kvar, units::kvar);
 
 /* The actual threshold Electricity in kW. Removed in 4.0.7 / 4.2.2 / 5.0 */
-DEFINE_FIELD(electricity_threshold, FixedValue, ObisId(0, 0, 17, 0, 0), FixedField, units::kW, units::W);
+DSMR_DEFINE_FIELD(electricity_threshold, FixedValue, ObisId(0, 0, 17, 0, 0), FixedField, units::kW, units::W);
 
 /* Switch position Electricity (in/out/enabled). Removed in 4.0.7 / 4.2.2 / 5.0 */
-DEFINE_FIELD(electricity_switch_position, uint8_t, ObisId(0, 0, 96, 3, 10), IntField, units::none);
+DSMR_DEFINE_FIELD(electricity_switch_position, uint8_t, ObisId(0, 0, 96, 3, 10), IntField, units::none);
 
 /* Number of power failures in any phase */
-DEFINE_FIELD(electricity_failures, uint32_t, ObisId(0, 0, 96, 7, 21), IntField, units::none);
+DSMR_DEFINE_FIELD(electricity_failures, uint32_t, ObisId(0, 0, 96, 7, 21), IntField, units::none);
 /* Number of long power failures in any phase */
-DEFINE_FIELD(electricity_long_failures, uint32_t, ObisId(0, 0, 96, 7, 9), IntField, units::none);
+DSMR_DEFINE_FIELD(electricity_long_failures, uint32_t, ObisId(0, 0, 96, 7, 9), IntField, units::none);
 
 /* Power Failure Event Log (long power failures) */
-DEFINE_FIELD(electricity_failure_log, std::string, ObisId(1, 0, 99, 97, 0), RawField);
+DSMR_DEFINE_FIELD(electricity_failure_log, std::string, ObisId(1, 0, 99, 97, 0), RawField);
 
 /* Number of voltage sags in phase L1 */
-DEFINE_FIELD(electricity_sags_l1, uint32_t, ObisId(1, 0, 32, 32, 0), IntField, units::none);
+DSMR_DEFINE_FIELD(electricity_sags_l1, uint32_t, ObisId(1, 0, 32, 32, 0), IntField, units::none);
 /* Number of voltage sags in phase L2 (polyphase meters only) */
-DEFINE_FIELD(electricity_sags_l2, uint32_t, ObisId(1, 0, 52, 32, 0), IntField, units::none);
+DSMR_DEFINE_FIELD(electricity_sags_l2, uint32_t, ObisId(1, 0, 52, 32, 0), IntField, units::none);
 /* Number of voltage sags in phase L3 (polyphase meters only) */
-DEFINE_FIELD(electricity_sags_l3, uint32_t, ObisId(1, 0, 72, 32, 0), IntField, units::none);
+DSMR_DEFINE_FIELD(electricity_sags_l3, uint32_t, ObisId(1, 0, 72, 32, 0), IntField, units::none);
 
 /* Number of voltage swells in phase L1 */
-DEFINE_FIELD(electricity_swells_l1, uint32_t, ObisId(1, 0, 32, 36, 0), IntField, units::none);
+DSMR_DEFINE_FIELD(electricity_swells_l1, uint32_t, ObisId(1, 0, 32, 36, 0), IntField, units::none);
 /* Number of voltage swells in phase L2 (polyphase meters only) */
-DEFINE_FIELD(electricity_swells_l2, uint32_t, ObisId(1, 0, 52, 36, 0), IntField, units::none);
+DSMR_DEFINE_FIELD(electricity_swells_l2, uint32_t, ObisId(1, 0, 52, 36, 0), IntField, units::none);
 /* Number of voltage swells in phase L3 (polyphase meters only) */
-DEFINE_FIELD(electricity_swells_l3, uint32_t, ObisId(1, 0, 72, 36, 0), IntField, units::none);
+DSMR_DEFINE_FIELD(electricity_swells_l3, uint32_t, ObisId(1, 0, 72, 36, 0), IntField, units::none);
 
 /* Text message codes: numeric 8 digits (Note: Missing from 5.0 spec)
  * */
-DEFINE_FIELD(message_short, std::string, ObisId(0, 0, 96, 13, 1), StringField, 0, 16);
+DSMR_DEFINE_FIELD(message_short, std::string, ObisId(0, 0, 96, 13, 1), StringField, 0, 16);
 /* Text message max 2048 characters (Note: Spec says 1024 in comment and
  * 2048 in format spec, so we stick to 2048). */
-DEFINE_FIELD(message_long, std::string, ObisId(0, 0, 96, 13, 0), StringField, 0, 2048);
+DSMR_DEFINE_FIELD(message_long, std::string, ObisId(0, 0, 96, 13, 0), StringField, 0, 2048);
 
 /* Instantaneous voltage L1 in 0.1V resolution (Note: Spec says V
  * resolution in comment, but 0.1V resolution in format spec. Added in
  * 5.0) */
-DEFINE_FIELD(voltage_l1, FixedValue, ObisId(1, 0, 32, 7, 0), FixedField, units::V, units::mV);
+DSMR_DEFINE_FIELD(voltage_l1, FixedValue, ObisId(1, 0, 32, 7, 0), FixedField, units::V, units::mV);
 /* Instantaneous voltage L2 in 0.1V resolution (Note: Spec says V
  * resolution in comment, but 0.1V resolution in format spec. Added in
  * 5.0) */
-DEFINE_FIELD(voltage_l2, FixedValue, ObisId(1, 0, 52, 7, 0), FixedField, units::V, units::mV);
+DSMR_DEFINE_FIELD(voltage_l2, FixedValue, ObisId(1, 0, 52, 7, 0), FixedField, units::V, units::mV);
 /* Instantaneous voltage L3 in 0.1V resolution (Note: Spec says V
  * resolution in comment, but 0.1V resolution in format spec. Added in
  * 5.0) */
-DEFINE_FIELD(voltage_l3, FixedValue, ObisId(1, 0, 72, 7, 0), FixedField, units::V, units::mV);
+DSMR_DEFINE_FIELD(voltage_l3, FixedValue, ObisId(1, 0, 72, 7, 0), FixedField, units::V, units::mV);
 
 /* Instantaneous current L1 in A resolution */
-DEFINE_FIELD(current_l1, FixedValue, ObisId(1, 0, 31, 7, 0), FixedField, units::A, units::mA);
+DSMR_DEFINE_FIELD(current_l1, FixedValue, ObisId(1, 0, 31, 7, 0), FixedField, units::A, units::mA);
 /* Instantaneous current L2 in A resolution */
-DEFINE_FIELD(current_l2, FixedValue, ObisId(1, 0, 51, 7, 0), FixedField, units::A, units::mA);
+DSMR_DEFINE_FIELD(current_l2, FixedValue, ObisId(1, 0, 51, 7, 0), FixedField, units::A, units::mA);
 /* Instantaneous current L3 in A resolution */
-DEFINE_FIELD(current_l3, FixedValue, ObisId(1, 0, 71, 7, 0), FixedField, units::A, units::mA);
+DSMR_DEFINE_FIELD(current_l3, FixedValue, ObisId(1, 0, 71, 7, 0), FixedField, units::A, units::mA);
 
 /* Instantaneous active power L1 (+P) in W resolution */
-DEFINE_FIELD(power_delivered_l1, FixedValue, ObisId(1, 0, 21, 7, 0), FixedField, units::kW, units::W);
+DSMR_DEFINE_FIELD(power_delivered_l1, FixedValue, ObisId(1, 0, 21, 7, 0), FixedField, units::kW, units::W);
 /* Instantaneous active power L2 (+P) in W resolution */
-DEFINE_FIELD(power_delivered_l2, FixedValue, ObisId(1, 0, 41, 7, 0), FixedField, units::kW, units::W);
+DSMR_DEFINE_FIELD(power_delivered_l2, FixedValue, ObisId(1, 0, 41, 7, 0), FixedField, units::kW, units::W);
 /* Instantaneous active power L3 (+P) in W resolution */
-DEFINE_FIELD(power_delivered_l3, FixedValue, ObisId(1, 0, 61, 7, 0), FixedField, units::kW, units::W);
+DSMR_DEFINE_FIELD(power_delivered_l3, FixedValue, ObisId(1, 0, 61, 7, 0), FixedField, units::kW, units::W);
 
 /* Instantaneous active power L1 (-P) in W resolution */
-DEFINE_FIELD(power_returned_l1, FixedValue, ObisId(1, 0, 22, 7, 0), FixedField, units::kW, units::W);
+DSMR_DEFINE_FIELD(power_returned_l1, FixedValue, ObisId(1, 0, 22, 7, 0), FixedField, units::kW, units::W);
 /* Instantaneous active power L2 (-P) in W resolution */
-DEFINE_FIELD(power_returned_l2, FixedValue, ObisId(1, 0, 42, 7, 0), FixedField, units::kW, units::W);
+DSMR_DEFINE_FIELD(power_returned_l2, FixedValue, ObisId(1, 0, 42, 7, 0), FixedField, units::kW, units::W);
 /* Instantaneous active power L3 (-P) in W resolution */
-DEFINE_FIELD(power_returned_l3, FixedValue, ObisId(1, 0, 62, 7, 0), FixedField, units::kW, units::W);
+DSMR_DEFINE_FIELD(power_returned_l3, FixedValue, ObisId(1, 0, 62, 7, 0), FixedField, units::kW, units::W);
 
 /*
  * LUX
  */
 /* Instantaneous reactive power L1 (+Q) in W resolution */
-DEFINE_FIELD(reactive_power_delivered_l1, FixedValue, ObisId(1, 0, 23, 7, 0), FixedField, units::none, units::none);
+DSMR_DEFINE_FIELD(reactive_power_delivered_l1, FixedValue, ObisId(1, 0, 23, 7, 0), FixedField, units::none,
+                  units::none);
 /* Instantaneous reactive power L2 (+Q) in W resolution */
-DEFINE_FIELD(reactive_power_delivered_l2, FixedValue, ObisId(1, 0, 43, 7, 0), FixedField, units::none, units::none);
+DSMR_DEFINE_FIELD(reactive_power_delivered_l2, FixedValue, ObisId(1, 0, 43, 7, 0), FixedField, units::none,
+                  units::none);
 /* Instantaneous reactive power L3 (+Q) in W resolution */
-DEFINE_FIELD(reactive_power_delivered_l3, FixedValue, ObisId(1, 0, 63, 7, 0), FixedField, units::none, units::none);
+DSMR_DEFINE_FIELD(reactive_power_delivered_l3, FixedValue, ObisId(1, 0, 63, 7, 0), FixedField, units::none,
+                  units::none);
 
 /*
  * LUX
  */
 /* Instantaneous reactive power L1 (-Q) in W resolution */
-DEFINE_FIELD(reactive_power_returned_l1, FixedValue, ObisId(1, 0, 24, 7, 0), FixedField, units::none, units::none);
+DSMR_DEFINE_FIELD(reactive_power_returned_l1, FixedValue, ObisId(1, 0, 24, 7, 0), FixedField, units::none, units::none);
 /* Instantaneous reactive power L2 (-Q) in W resolution */
-DEFINE_FIELD(reactive_power_returned_l2, FixedValue, ObisId(1, 0, 44, 7, 0), FixedField, units::none, units::none);
+DSMR_DEFINE_FIELD(reactive_power_returned_l2, FixedValue, ObisId(1, 0, 44, 7, 0), FixedField, units::none, units::none);
 /* Instantaneous reactive power L3 (-Q) in W resolution */
-DEFINE_FIELD(reactive_power_returned_l3, FixedValue, ObisId(1, 0, 64, 7, 0), FixedField, units::none, units::none);
+DSMR_DEFINE_FIELD(reactive_power_returned_l3, FixedValue, ObisId(1, 0, 64, 7, 0), FixedField, units::none, units::none);
 
 /* Device-Type */
-DEFINE_FIELD(gas_device_type, uint16_t, ObisId(0, GAS_MBUS_ID, 24, 1, 0), IntField, units::none);
+DSMR_DEFINE_FIELD(gas_device_type, uint16_t, ObisId(0, GAS_MBUS_ID, 24, 1, 0), IntField, units::none);
 
 /* Equipment identifier (Gas) */
-DEFINE_FIELD(gas_equipment_id, std::string, ObisId(0, GAS_MBUS_ID, 96, 1, 0), StringField, 0, 96);
+DSMR_DEFINE_FIELD(gas_equipment_id, std::string, ObisId(0, GAS_MBUS_ID, 96, 1, 0), StringField, 0, 96);
 /* Equipment identifier (Gas) BE */
-DEFINE_FIELD(gas_equipment_id_be, std::string, ObisId(0, GAS_MBUS_ID, 96, 1, 1), StringField, 0, 96);
+DSMR_DEFINE_FIELD(gas_equipment_id_be, std::string, ObisId(0, GAS_MBUS_ID, 96, 1, 1), StringField, 0, 96);
 
 /* Valve position Gas (on/off/released) (Note: Removed in 4.0.7 / 4.2.2 / 5.0). */
-DEFINE_FIELD(gas_valve_position, uint8_t, ObisId(0, GAS_MBUS_ID, 24, 4, 0), IntField, units::none);
+DSMR_DEFINE_FIELD(gas_valve_position, uint8_t, ObisId(0, GAS_MBUS_ID, 24, 4, 0), IntField, units::none);
 
 /* Last 5-minute value (temperature converted), gas delivered to client
  * in m3, including decimal values and capture time (Note: 4.x spec has
  * "hourly value") */
-DEFINE_FIELD(gas_delivered, TimestampedFixedValue, ObisId(0, GAS_MBUS_ID, 24, 2, 1), TimestampedFixedField, units::m3,
-             units::dm3);
+DSMR_DEFINE_FIELD(gas_delivered, TimestampedFixedValue, ObisId(0, GAS_MBUS_ID, 24, 2, 1), TimestampedFixedField,
+                  units::m3, units::dm3);
 /* _BE */
-DEFINE_FIELD(gas_delivered_be, TimestampedFixedValue, ObisId(0, GAS_MBUS_ID, 24, 2, 3), TimestampedFixedField,
-             units::m3, units::dm3);
-DEFINE_FIELD(gas_delivered_text, std::string, ObisId(0, GAS_MBUS_ID, 24, 3, 0), RawField);
+DSMR_DEFINE_FIELD(gas_delivered_be, TimestampedFixedValue, ObisId(0, GAS_MBUS_ID, 24, 2, 3), TimestampedFixedField,
+                  units::m3, units::dm3);
+DSMR_DEFINE_FIELD(gas_delivered_text, std::string, ObisId(0, GAS_MBUS_ID, 24, 3, 0), RawField);
 
 /* Device-Type */
-DEFINE_FIELD(thermal_device_type, uint16_t, ObisId(0, THERMAL_MBUS_ID, 24, 1, 0), IntField, units::none);
+DSMR_DEFINE_FIELD(thermal_device_type, uint16_t, ObisId(0, THERMAL_MBUS_ID, 24, 1, 0), IntField, units::none);
 
 /* Equipment identifier (Thermal: heat or cold) */
-DEFINE_FIELD(thermal_equipment_id, std::string, ObisId(0, THERMAL_MBUS_ID, 96, 1, 0), StringField, 0, 96);
+DSMR_DEFINE_FIELD(thermal_equipment_id, std::string, ObisId(0, THERMAL_MBUS_ID, 96, 1, 0), StringField, 0, 96);
 
 /* Valve position (on/off/released) (Note: Removed in 4.0.7 / 4.2.2 / 5.0). */
-DEFINE_FIELD(thermal_valve_position, uint8_t, ObisId(0, THERMAL_MBUS_ID, 24, 4, 0), IntField, units::none);
+DSMR_DEFINE_FIELD(thermal_valve_position, uint8_t, ObisId(0, THERMAL_MBUS_ID, 24, 4, 0), IntField, units::none);
 
 /* Last 5-minute Meter reading Heat or Cold in 0,01 GJ and capture time
  * (Note: 4.x spec has "hourly meter reading") */
-DEFINE_FIELD(thermal_delivered, TimestampedFixedValue, ObisId(0, THERMAL_MBUS_ID, 24, 2, 1), TimestampedFixedField,
-             units::GJ, units::MJ);
+DSMR_DEFINE_FIELD(thermal_delivered, TimestampedFixedValue, ObisId(0, THERMAL_MBUS_ID, 24, 2, 1), TimestampedFixedField,
+                  units::GJ, units::MJ);
 
 /* Device-Type */
-DEFINE_FIELD(water_device_type, uint16_t, ObisId(0, WATER_MBUS_ID, 24, 1, 0), IntField, units::none);
+DSMR_DEFINE_FIELD(water_device_type, uint16_t, ObisId(0, WATER_MBUS_ID, 24, 1, 0), IntField, units::none);
 
 /* Equipment identifier (Thermal: heat or cold) */
-DEFINE_FIELD(water_equipment_id, std::string, ObisId(0, WATER_MBUS_ID, 96, 1, 0), StringField, 0, 96);
+DSMR_DEFINE_FIELD(water_equipment_id, std::string, ObisId(0, WATER_MBUS_ID, 96, 1, 0), StringField, 0, 96);
 
 /* Valve position (on/off/released) (Note: Removed in 4.0.7 / 4.2.2 / 5.0). */
-DEFINE_FIELD(water_valve_position, uint8_t, ObisId(0, WATER_MBUS_ID, 24, 4, 0), IntField, units::none);
+DSMR_DEFINE_FIELD(water_valve_position, uint8_t, ObisId(0, WATER_MBUS_ID, 24, 4, 0), IntField, units::none);
 
 /* Last 5-minute Meter reading in 0,001 m3 and capture time
  * (Note: 4.x spec has "hourly meter reading") */
-DEFINE_FIELD(water_delivered, TimestampedFixedValue, ObisId(0, WATER_MBUS_ID, 24, 2, 1), TimestampedFixedField,
-             units::m3, units::dm3);
+DSMR_DEFINE_FIELD(water_delivered, TimestampedFixedValue, ObisId(0, WATER_MBUS_ID, 24, 2, 1), TimestampedFixedField,
+                  units::m3, units::dm3);
 
 /* Device-Type */
-DEFINE_FIELD(sub_device_type, uint16_t, ObisId(0, SUB_MBUS_ID, 24, 1, 0), IntField, units::none);
+DSMR_DEFINE_FIELD(sub_device_type, uint16_t, ObisId(0, SUB_MBUS_ID, 24, 1, 0), IntField, units::none);
 
 /* Equipment identifier (Thermal: heat or cold) */
-DEFINE_FIELD(sub_equipment_id, std::string, ObisId(0, SUB_MBUS_ID, 96, 1, 0), StringField, 0, 96);
+DSMR_DEFINE_FIELD(sub_equipment_id, std::string, ObisId(0, SUB_MBUS_ID, 96, 1, 0), StringField, 0, 96);
 
 /* Valve position (on/off/released) (Note: Removed in 4.0.7 / 4.2.2 / 5.0). */
-DEFINE_FIELD(sub_valve_position, uint8_t, ObisId(0, SUB_MBUS_ID, 24, 4, 0), IntField, units::none);
+DSMR_DEFINE_FIELD(sub_valve_position, uint8_t, ObisId(0, SUB_MBUS_ID, 24, 4, 0), IntField, units::none);
 
 /* Last 5-minute Meter reading Heat or Cold and capture time (e.g. sub
  * E meter) (Note: 4.x spec has "hourly meter reading") */
-DEFINE_FIELD(sub_delivered, TimestampedFixedValue, ObisId(0, SUB_MBUS_ID, 24, 2, 1), TimestampedFixedField, units::m3,
-             units::dm3);
+DSMR_DEFINE_FIELD(sub_delivered, TimestampedFixedValue, ObisId(0, SUB_MBUS_ID, 24, 2, 1), TimestampedFixedField,
+                  units::m3, units::dm3);
 
 }  // namespace fields
 
