@@ -18,6 +18,7 @@ from ..const import (
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_TYPE,
+    CONF_WRITE_LAMBDA,
 )
 
 DEPENDENCIES = ["modbus_controller"]
@@ -56,6 +57,17 @@ async def to_code(config):
     await switch.register_switch(var, config)
 
     paren = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
-    cg.add(paren.add_sensor_item(var))
     cg.add(var.set_parent(paren))
+    cg.add(paren.add_sensor_item(var))
+    if CONF_WRITE_LAMBDA in config:
+        template_ = await cg.process_lambda(
+            config[CONF_WRITE_LAMBDA],
+            [
+                (ModbusSwitch.operator("ptr"), "item"),
+                (cg.bool_, "x"),
+                (cg.std_vector.template(cg.uint8).operator("ref"), "payload"),
+            ],
+            return_type=cg.optional.template(bool),
+        )
+        cg.add(var.set_write_template(template_))
     await add_modbus_base_properties(var, config, ModbusSwitch, bool, bool)
