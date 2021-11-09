@@ -1,6 +1,8 @@
 #include "mqtt_switch.h"
 #include "esphome/core/log.h"
 
+#include "mqtt_const.h"
+
 #ifdef USE_MQTT
 #ifdef USE_SWITCH
 
@@ -44,7 +46,7 @@ std::string MQTTSwitchComponent::component_type() const { return "switch"; }
 const EntityBase *MQTTSwitchComponent::get_entity() const { return this->switch_; }
 void MQTTSwitchComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   if (this->switch_->assumed_state())
-    root["optimistic"] = true;
+    root[MQTT_OPTIMISTIC] = true;
 }
 bool MQTTSwitchComponent::send_initial_state() { return this->publish_state(this->switch_->state); }
 
