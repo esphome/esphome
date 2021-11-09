@@ -28,7 +28,10 @@ bool ModbusController::send_next_command_() {
              command->register_address, command->register_count);
     command->send();
     this->last_command_timestamp_ = millis();
-    if (!command->on_data_func) {  // No handler remove from queue directly after sending
+    // remove from queue if no handler is defined or command was sent too often
+    if (!command->on_data_func || command->send_countdown < 1) {
+      ESP_LOGD(TAG, "Modbus command to device=%d register=0x%02X countdown=%d removed from queue after send",
+               this->address_, command->register_address, command->send_countdown);
       command_queue_.pop_front();
     }
   }
@@ -442,6 +445,7 @@ bool ModbusCommandItem::send() {
     modbusdevice->send_raw(this->payload);
   }
   ESP_LOGV(TAG, "Command sent %d 0x%X %d", uint8_t(this->function_code), this->register_address, this->register_count);
+  send_countdown--;
   return true;
 }
 

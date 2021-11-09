@@ -271,8 +271,10 @@ class SensorItem {
   bool force_new_range{false};
 };
 
-struct ModbusCommandItem {
+class ModbusCommandItem {
+ public:
   static const size_t MAX_PAYLOAD_BYTES = 240;
+  static const uint8_t MAX_SEND_REPEATS = 5;
   ModbusController *modbusdevice;
   uint16_t register_address;
   uint16_t register_count;
@@ -282,7 +284,9 @@ struct ModbusCommandItem {
       on_data_func;
   std::vector<uint8_t> payload = {};
   bool send();
-
+  // wrong commands (esp. custom commands) can block the send queue
+  // limit the number of repeats
+  uint8_t send_countdown{MAX_SEND_REPEATS};
   /// factory methods
   /** Create modbus read command
    *  Function code 02-04
