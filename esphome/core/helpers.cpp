@@ -6,7 +6,9 @@
 #include <cstring>
 
 #if defined(USE_ESP8266)
+#ifdef USE_WIFI
 #include <ESP8266WiFi.h>
+#endif
 #include <osapi.h>
 #elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
 #include <Esp.h>
@@ -39,7 +41,7 @@ void get_mac_address_raw(uint8_t *mac) {
   esp_efuse_mac_get_default(mac);
 #endif
 #endif
-#ifdef USE_ESP8266
+#if (defined USE_ESP8266 && defined USE_WIFI)
   WiFi.macAddress(mac);
 #endif
 }
@@ -48,7 +50,11 @@ std::string get_mac_address() {
   char tmp[20];
   uint8_t mac[6];
   get_mac_address_raw(mac);
+#ifdef USE_WIFI
   sprintf(tmp, "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+#else
+  return "";
+#endif
   return std::string(tmp);
 }
 
@@ -475,8 +481,13 @@ void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green
 }
 
 #ifdef USE_ESP8266
+#ifdef USE_WIFI
 IRAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
 IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
+#else
+IRAM_ATTR InterruptLock::InterruptLock() {}
+IRAM_ATTR InterruptLock::~InterruptLock() {}
+#endif
 #endif
 #ifdef USE_ESP32
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }

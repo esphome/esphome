@@ -93,13 +93,12 @@ PV_SENSORS = {
     CONF_VOLTAGE_SAMPLED_BY_SECONDARY_CPU: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=0,
-        device_class=DEVICE_CLASS_POWER,
+        device_class=DEVICE_CLASS_VOLTAGE,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_INSULATION_OF_P_TO_GROUND: sensor.sensor_schema(
         unit_of_measurement=UNIT_KOHM,
         accuracy_decimals=0,
-        device_class=DEVICE_CLASS_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
 }
@@ -135,7 +134,6 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_REACTIVE_POWER): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ENERGY_PRODUCTION_DAY): sensor.sensor_schema(
