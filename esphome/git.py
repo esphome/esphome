@@ -40,7 +40,7 @@ def clone_or_update(
 ) -> Path:
     key = f"{url}@{ref}"
     repo_dir = _compute_destination_path(key, domain)
-    fetch_pr_branch = ref.startswith("pull/")
+    fetch_pr_branch = ref is not None and ref.startswith("pull/")
     if not repo_dir.is_dir():
         _LOGGER.info("Cloning %s", key)
         _LOGGER.debug("Location: %s", repo_dir)
