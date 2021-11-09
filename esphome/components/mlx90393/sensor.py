@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_RESOLUTION,
     CONF_OVERSAMPLING,
     CONF_FILTER,
+    CONF_TEMPERATURE,
 )
 from esphome import pins
 
@@ -21,21 +22,21 @@ mlx90393_ns = cg.esphome_ns.namespace("mlx90393")
 MLX90393 = mlx90393_ns.class_("MLX90393_cls", cg.PollingComponent, i2c.I2CDevice)
 
 GAIN = {
-    "GAIN_1X": 7,
-    "GAIN_1_33X": 6,
-    "GAIN_1_67X": 5,
-    "GAIN_2X": 4,
-    "GAIN_2_5X": 3,
-    "GAIN_3X": 2,
-    "GAIN_4X": 1,
-    "GAIN_5X": 0,
+    "1X": 7,
+    "1_33X": 6,
+    "1_67X": 5,
+    "2X": 4,
+    "2_5X": 3,
+    "3X": 2,
+    "4X": 1,
+    "5X": 0,
 }
 
 RESOLUTION = {
-    "RESOLUTION_16BIT": 0,
-    "RESOLUTION_17BIT": 1,
-    "RESOLUTION_18BIT": 2,
-    "RESOLUTION_19BIT": 3,
+    "16BIT": 0,
+    "17BIT": 1,
+    "18BIT": 2,
+    "19BIT": 3,
 }
 
 OVERSAMPLING = {f"OVERSAMPLING_{i}": i for i in range(4)}
@@ -51,7 +52,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(MLX90393),
-            cv.Optional(CONF_GAIN, default="GAIN_2_5X"): cv.enum(
+            cv.Optional(CONF_GAIN, default="2_5X"): cv.enum(
                 GAIN, upper=True, space="_"
             ),
             cv.Optional(CONF_DRDY_PIN): pins.gpio_input_pin_schema,
@@ -70,7 +71,7 @@ CONFIG_SCHEMA = (
                 cv.Schema(
                     {
                         cv.Optional(
-                            CONF_RESOLUTION, default="RESOLUTION_19bit"
+                            CONF_RESOLUTION, default="19BIT"
                         ): cv.enum(RESOLUTION, upper=True, space="_")
                     }
                 )
@@ -84,7 +85,7 @@ CONFIG_SCHEMA = (
                 cv.Schema(
                     {
                         cv.Optional(
-                            CONF_RESOLUTION, default="RESOLUTION_19bit"
+                            CONF_RESOLUTION, default="19BIT"
                         ): cv.enum(RESOLUTION, upper=True, space="_")
                     }
                 )
@@ -98,7 +99,21 @@ CONFIG_SCHEMA = (
                 cv.Schema(
                     {
                         cv.Optional(
-                            CONF_RESOLUTION, default="RESOLUTION_16bit"
+                            CONF_RESOLUTION, default="16BIT"
+                        ): cv.enum(RESOLUTION, upper=True, space="_")
+                    }
+                )
+            ),
+            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROTESLA,
+                accuracy_decimals=0,
+                icon=ICON_MAGNET,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                cv.Schema(
+                    {
+                        cv.Optional(
+                            CONF_RESOLUTION, default="16bit"
                         ): cv.enum(RESOLUTION, upper=True, space="_")
                     }
                 )
