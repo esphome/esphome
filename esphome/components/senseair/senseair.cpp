@@ -141,20 +141,16 @@ void SenseAirComponent::abc_get_period() {
 }
 
 bool SenseAirComponent::senseair_write_command_(const uint8_t *command, uint8_t *response, uint8_t response_length) {
-  int retry = 0;
-  this->flush();
-
-  do {
-    this->write_array(command, SENSEAIR_REQUEST_LENGTH);
-    delay(20); // NOLINT
-    retry ++;
-    if (retry > 10)
-      break;
+  // Verify we have somewhere to store the response
+  if (response == nullptr) {
+    return false;
   }
-  while (!this->available());
-
-  if (response == nullptr)
-    return true;
+  
+  this->flush();
+  // Write wake up byte required by some S8 sensor model
+  this->write_byte(0);
+  delay(5); // NOLINT
+  this->write_array(command, SENSEAIR_REQUEST_LENGTH);
 
   bool ret = this->read_array(response, response_length);
   this->flush();
