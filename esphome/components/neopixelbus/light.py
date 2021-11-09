@@ -106,6 +106,7 @@ VARIANTS = {
     "SK6812": "Sk6812",
     "800KBPS": "800Kbps",
     "400KBPS": "400Kbps",
+    "TM1829": "Tm1829",
 }
 
 ESP8266_METHODS = {
