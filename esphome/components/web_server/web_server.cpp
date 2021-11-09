@@ -245,10 +245,10 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
                   "REST API documentation.</p>"));
-  #ifdef USE_WEB_OTA
-    stream->print(F("<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
-                  "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"));
-  #endif
+#ifdef USE_WEB_OTA
+  stream->print(F("<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
+                "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"));
+#endif
   stream->print(F("<h2>Debug Log</h2><pre id=\"log\"></pre>"));
 
 #ifdef WEBSERVER_JS_INCLUDE
