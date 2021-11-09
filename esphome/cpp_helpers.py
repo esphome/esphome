@@ -1,7 +1,6 @@
 import logging
 
 from esphome.const import (
-    CONF_CONNECTIONS,
     CONF_DISABLED_BY_DEFAULT,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
@@ -13,10 +12,8 @@ from esphome.const import (
     CONF_SETUP_PRIORITY,
     CONF_SOFTWARE_VERSION,
     CONF_SUGGESTED_AREA,
-    CONF_TYPE,
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
-    CONF_VALUE,
 )
 
 # pylint: disable=unused-import
@@ -149,10 +146,6 @@ async def setup_device_registry_entry(var, config):
                     add(func(list_item))
             else:
                 add(func(config[property]))
-
-    if CONF_CONNECTIONS in config:
-        for connection in config[CONF_CONNECTIONS]:
-            add(var.add_connection(connection[CONF_TYPE], connection[CONF_VALUE]))
 
 
 def extract_registry_entry_config(registry, full_config):

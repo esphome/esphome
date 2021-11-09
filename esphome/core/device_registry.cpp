@@ -13,14 +13,6 @@ void DeviceRegistryEntry::set_name(const std::string &name) { this->name_ = name
 const std::vector<std::string> &DeviceRegistryEntry::get_identifiers() const { return this->identifiers_; }
 void DeviceRegistryEntry::add_identifier(const std::string &identifier) { this->identifiers_.push_back(identifier); }
 
-// Connections
-const std::vector<std::tuple<std::string, std::string>> &DeviceRegistryEntry::get_connections() const {
-  return this->connections_;
-}
-void DeviceRegistryEntry::add_connection(const std::string &connection_type, const std::string &connection_identifier) {
-  this->connections_.emplace_back(connection_type, connection_identifier);
-}
-
 // Device Manufacturer
 const std::string &DeviceRegistryEntry::get_manufacturer() const { return this->manufacturer_; }
 void DeviceRegistryEntry::set_manufacturer(const std::string &manufacturer) { this->manufacturer_ = manufacturer; }

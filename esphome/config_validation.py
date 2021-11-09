@@ -17,7 +17,6 @@ from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
     CONF_COMMAND_TOPIC,
-    CONF_CONNECTIONS,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ENTITY_CATEGORY,
@@ -1615,14 +1614,6 @@ DEVICE_REGISTRY_SCHEMA = Schema(
     {
         Optional(CONF_NAME): string,
         Optional(CONF_IDENTIFIERS): ensure_list(string),
-        Optional(CONF_CONNECTIONS): ensure_list(
-            Schema(
-                {
-                    Required(CONF_TYPE): string,
-                    Required(CONF_VALUE): string,
-                }
-            )
-        ),
         Optional(CONF_MANUFACTURER, default="espressif"): string,
         Optional(CONF_MODEL): string,
         Optional(CONF_SOFTWARE_VERSION): string,

@@ -129,25 +129,17 @@ bool MQTTComponent::send_discovery_() {
             device_info[p.first] = p.second(device);
         }
 
-        std::vector<std::string> identifiers = device->get_identifiers();
-        if (identifiers.size() == 1) {
-          device_info[MQTT_DEVICE_IDENTIFIERS] = identifiers.front();
-        } else if (identifiers.size() > 1) {
+        if (!device->get_identifiers().empty()) {
           JsonArray &json_identifiers = device_info.createNestedArray(MQTT_DEVICE_IDENTIFIERS);
-          for (const auto &identifier : identifiers) {
+          for (const auto &identifier : device->get_identifiers()) {
             json_identifiers.add(identifier);
           }
         }
 
-        std::vector<std::tuple<std::string, std::string>> connections = device->get_connections();
-        if (!connections.empty()) {
-          JsonArray &json_connections = device_info.createNestedArray(MQTT_DEVICE_CONNECTIONS);
-          for (std::tuple<std::string, std::string> &connection : connections) {
-            JsonArray &json_connection = json_connections.createNestedArray();
-            json_connection.add(std::get<0>(connection));
-            json_connection.add(std::get<1>(connection));
-          }
-        }
+        JsonArray &json_connections = device_info.createNestedArray(MQTT_DEVICE_CONNECTIONS);
+        JsonArray &json_connection = json_connections.createNestedArray();
+        json_connection.add("mac");
+        json_connection.add(get_mac_address());
 
         std::string unique_id = this->unique_id();
         if (!unique_id.empty()) {

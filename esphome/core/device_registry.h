@@ -21,10 +21,6 @@ class DeviceRegistryEntry {
   const std::vector<std::string> &get_identifiers() const;
   void add_identifier(const std::string &identifier);
 
-  // Connections
-  const std::vector<std::tuple<std::string, std::string>> &get_connections() const;
-  void add_connection(const std::string &connection_type, const std::string &connection_identifier);
-
   // Device Manufacturer
   const std::string &get_manufacturer() const;
   void set_manufacturer(const std::string &manufacturer);
@@ -51,7 +47,6 @@ class DeviceRegistryEntry {
 
  protected:
   std::string name_;
-  std::vector<std::tuple<std::string, std::string>> connections_;
   std::vector<std::string> identifiers_;
   std::string manufacturer_;
   std::string model_;
