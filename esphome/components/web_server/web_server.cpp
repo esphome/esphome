@@ -150,9 +150,13 @@ void WebServer::setup() {
     logger::global_logger->add_on_log_callback(
         [this](int level, const char *tag, const char *message) { this->events_.send(message, "log", millis()); });
 #endif
+
   this->base_->add_handler(&this->events_);
   this->base_->add_handler(this);
+
+#ifdef USE_WEB_OTA
   this->base_->add_ota_handler();
+#endif
 
   this->set_interval(10000, [this]() { this->events_.send("", "ping", millis(), 30000); });
 }
@@ -240,10 +244,13 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
-                  "REST API documentation.</p>"
-                  "<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
-                  "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"
-                  "<h2>Debug Log</h2><pre id=\"log\"></pre>"));
+                  "REST API documentation.</p>"));
+  #ifdef USE_WEB_OTA
+    stream->print(F("<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
+                  "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"));
+  #endif
+  stream->print(F("<h2>Debug Log</h2><pre id=\"log\"></pre>"));
+
 #ifdef WEBSERVER_JS_INCLUDE
   if (this->js_include_ != nullptr) {
     stream->print(F("<script src=\"/0.js\"></script>"));

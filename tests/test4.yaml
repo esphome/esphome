@@ -45,6 +45,7 @@ logger:
   level: DEBUG
 
 web_server:
+  ota: false
   auth:
     username: admin
     password: admin

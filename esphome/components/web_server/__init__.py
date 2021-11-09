@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_AUTH,
     CONF_USERNAME,
     CONF_PASSWORD,
+    CONF_OTA,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -41,6 +42,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
             web_server_base.WebServerBase
         ),
+        cv.Optional(CONF_OTA, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -57,6 +59,8 @@ async def to_code(config):
     cg.add_define("USE_WEBSERVER")
     cg.add(var.set_css_url(config[CONF_CSS_URL]))
     cg.add(var.set_js_url(config[CONF_JS_URL]))
+    if config[CONF_OTA]:
+        cg.add_define("USE_WEB_OTA")
     if CONF_AUTH in config:
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
