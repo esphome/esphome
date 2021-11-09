@@ -247,7 +247,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
                   "REST API documentation.</p>"));
 #ifdef USE_WEB_OTA
   stream->print(F("<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
-                "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"));
+                  "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"));
 #endif
   stream->print(F("<h2>Debug Log</h2><pre id=\"log\"></pre>"));
 
