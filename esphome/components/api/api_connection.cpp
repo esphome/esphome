@@ -782,7 +782,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.suggested_area = device->get_suggested_area();
   resp.configuration_url = device->get_configuration_url();
   resp.user_software_version = device->get_software_version();
-  resp.via_device = device->get_software_version();
+  resp.via_device = device->get_via_device();
 
   return resp;
 }
