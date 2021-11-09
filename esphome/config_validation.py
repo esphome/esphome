@@ -17,6 +17,7 @@ from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
     CONF_COMMAND_TOPIC,
+    CONF_CONFIGURATION_URL,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ENTITY_CATEGORY,
@@ -1609,18 +1610,6 @@ ENTITY_BASE_SCHEMA = Schema(
 
 ENTITY_BASE_SCHEMA.add_extra(_entity_base_validator)
 
-# See https://developers.home-assistant.io/docs/device_registry_index
-DEVICE_REGISTRY_SCHEMA = Schema(
-    {
-        Optional(CONF_NAME): string,
-        Optional(CONF_IDENTIFIERS): ensure_list(string),
-        Optional(CONF_MANUFACTURER, default="espressif"): string,
-        Optional(CONF_MODEL): string,
-        Optional(CONF_SOFTWARE_VERSION): string,
-        Optional(CONF_SUGGESTED_AREA): string,
-    }
-)
-
 COMPONENT_SCHEMA = Schema({Optional(CONF_SETUP_PRIORITY): float_})
 
 
@@ -1658,6 +1647,20 @@ def url(value):
     if not parsed.scheme or not parsed.netloc:
         raise Invalid("Expected a URL scheme and host")
     return parsed.geturl()
+
+
+# See https://developers.home-assistant.io/docs/device_registry_index
+DEVICE_REGISTRY_SCHEMA = Schema(
+    {
+        Optional(CONF_NAME): string,
+        Optional(CONF_IDENTIFIERS): ensure_list(string),
+        Optional(CONF_MANUFACTURER, default="espressif"): string,
+        Optional(CONF_MODEL): string,
+        Optional(CONF_SOFTWARE_VERSION): string,
+        Optional(CONF_SUGGESTED_AREA): string,
+        Optional(CONF_CONFIGURATION_URL): url,
+    }
+)
 
 
 def git_ref(value):

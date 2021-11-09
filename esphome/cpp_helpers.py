@@ -1,6 +1,7 @@
 import logging
 
 from esphome.const import (
+    CONF_CONFIGURATION_URL,
     CONF_DISABLED_BY_DEFAULT,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
@@ -137,6 +138,7 @@ async def setup_device_registry_entry(var, config):
         CONF_MODEL: var.set_model,
         CONF_SOFTWARE_VERSION: var.set_software_version,
         CONF_SUGGESTED_AREA: var.set_suggested_area,
+        CONF_CONFIGURATION_URL: var.set_configuration_url,
     }
 
     for property, func in property_map.items():
