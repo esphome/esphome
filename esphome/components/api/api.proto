@@ -184,6 +184,25 @@ message DeviceInfoResponse {
   string project_version = 9;
 
   uint32 webserver_port = 10;
+
+  // The manufacturer and model of the device
+  string manufacturer = 11;
+  string user_model = 12;
+
+  // Unique identifiers for this device, e.g. serial number, MAC address
+  repeated string identifiers = 13;
+
+  // Suggested area for the device
+  string suggested_area = 14;
+
+  // Configuration URL
+  string configuration_url = 15;
+
+  // User-defined software version running on this device
+  string user_software_version = 16;
+
+  // Via device, if this device communicates via an intermediary
+  string via_device = 17;
 }
 
 message ListEntitiesRequest {

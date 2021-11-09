@@ -758,7 +758,6 @@ ConnectResponse APIConnection::connect(const ConnectRequest &msg) {
 DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   DeviceInfoResponse resp{};
   resp.uses_password = this->parent_->uses_password();
-  resp.name = App.get_name();
   resp.mac_address = get_mac_address_pretty();
   resp.esphome_version = ESPHOME_VERSION;
   resp.compilation_time = App.get_compilation_time();
@@ -773,6 +772,18 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
 #ifdef USE_WEBSERVER
   resp.webserver_port = WEBSERVER_PORT;
 #endif
+
+  // Device Registry Entry
+  const DeviceRegistryEntry *device = App.get_device_registry_entry();
+  resp.name = device->get_name();
+  resp.manufacturer = device->get_manufacturer();
+  resp.user_model = device->get_model();
+  resp.identifiers = device->get_identifiers();
+  resp.suggested_area = device->get_suggested_area();
+  resp.configuration_url = device->get_configuration_url();
+  resp.user_software_version = device->get_software_version();
+  resp.via_device = device->get_software_version();
+
   return resp;
 }
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {

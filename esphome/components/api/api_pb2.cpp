@@ -446,6 +446,34 @@ bool DeviceInfoResponse::decode_length(uint32_t field_id, ProtoLengthDelimited v
       this->project_version = value.as_string();
       return true;
     }
+    case 11: {
+      this->manufacturer = value.as_string();
+      return true;
+    }
+    case 12: {
+      this->user_model = value.as_string();
+      return true;
+    }
+    case 13: {
+      this->identifiers.push_back(value.as_string());
+      return true;
+    }
+    case 14: {
+      this->suggested_area = value.as_string();
+      return true;
+    }
+    case 15: {
+      this->configuration_url = value.as_string();
+      return true;
+    }
+    case 16: {
+      this->user_software_version = value.as_string();
+      return true;
+    }
+    case 17: {
+      this->via_device = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -461,6 +489,15 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(8, this->project_name);
   buffer.encode_string(9, this->project_version);
   buffer.encode_uint32(10, this->webserver_port);
+  buffer.encode_string(11, this->manufacturer);
+  buffer.encode_string(12, this->user_model);
+  for (auto &it : this->identifiers) {
+    buffer.encode_string(13, it, true);
+  }
+  buffer.encode_string(14, this->suggested_area);
+  buffer.encode_string(15, this->configuration_url);
+  buffer.encode_string(16, this->user_software_version);
+  buffer.encode_string(17, this->via_device);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoResponse::dump_to(std::string &out) const {
@@ -505,6 +542,36 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
   out.append("  webserver_port: ");
   sprintf(buffer, "%u", this->webserver_port);
   out.append(buffer);
+  out.append("\n");
+
+  out.append("  manufacturer: ");
+  out.append("'").append(this->manufacturer).append("'");
+  out.append("\n");
+
+  out.append("  user_model: ");
+  out.append("'").append(this->user_model).append("'");
+  out.append("\n");
+
+  for (const auto &it : this->identifiers) {
+    out.append("  identifiers: ");
+    out.append("'").append(it).append("'");
+    out.append("\n");
+  }
+
+  out.append("  suggested_area: ");
+  out.append("'").append(this->suggested_area).append("'");
+  out.append("\n");
+
+  out.append("  configuration_url: ");
+  out.append("'").append(this->configuration_url).append("'");
+  out.append("\n");
+
+  out.append("  user_software_version: ");
+  out.append("'").append(this->user_software_version).append("'");
+  out.append("\n");
+
+  out.append("  via_device: ");
+  out.append("'").append(this->via_device).append("'");
   out.append("\n");
   out.append("}");
 }

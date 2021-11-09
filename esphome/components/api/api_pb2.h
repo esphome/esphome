@@ -230,6 +230,13 @@ class DeviceInfoResponse : public ProtoMessage {
   std::string project_name{};
   std::string project_version{};
   uint32_t webserver_port{0};
+  std::string manufacturer{};
+  std::string user_model{};
+  std::vector<std::string> identifiers{};
+  std::string suggested_area{};
+  std::string configuration_url{};
+  std::string user_software_version{};
+  std::string via_device{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
