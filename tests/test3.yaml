@@ -268,6 +268,8 @@ logger:
   level: DEBUG
   esp8266_store_log_strings_in_flash: true
 
+improv_serial:
+
 deep_sleep:
   run_duration: 20s
   sleep_duration: 50s
