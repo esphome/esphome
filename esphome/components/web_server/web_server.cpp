@@ -45,7 +45,7 @@ void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &kl
   stream->print(action.c_str());
   if (action_func) {
     action_func(*stream, obj);
-  }  
+  }
   stream->print("</td>");
   stream->print("</tr>");
 }
@@ -265,7 +265,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     stream->print(this->js_url_);
     stream->print(F("\"></script>"));
   }
-  #if WEBSERVER_VERSION == 2
+  #if WEBSERVER_VERSION == 1
     stream->print(F("</article></body></html>"));
   #else
     stream->print(F("</body></html>"));
