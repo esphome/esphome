@@ -121,10 +121,8 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     } else {
       this->status_clear_warning();
     }
-    if (i + 1 < send_times) {
-      delay(send_wait / 1000UL);
-      delayMicroseconds(send_wait % 1000UL);
-    }
+    if (i + 1 < send_times)
+      delayMicroseconds(send_wait);
   }
 }
 

@@ -239,8 +239,6 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
   sta.set_ssid(ssid);
   sta.set_password(password);
   this->set_sta(sta);
-
-  this->start_scanning();
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {

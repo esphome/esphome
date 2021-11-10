@@ -656,7 +656,7 @@ void Pipsolar::loop() {
             case 32:
               fc = tmp[i];
               fc += tmp[i + 1];
-              this->value_fault_code_ = strtol(fc.c_str(), nullptr, 10);
+              this->value_fault_code_ = parse_number<int>(fc).value_or(0);
               break;
             case 34:
               this->value_warnung_low_pv_energy_ = enabled;

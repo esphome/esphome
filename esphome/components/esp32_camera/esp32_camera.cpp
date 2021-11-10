@@ -45,6 +45,7 @@ void ESP32Camera::dump_config() {
   auto conf = this->config_;
   ESP_LOGCONFIG(TAG, "ESP32 Camera:");
   ESP_LOGCONFIG(TAG, "  Name: %s", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "  Internal: %s", YESNO(this->internal_));
 #ifdef USE_ARDUINO
   ESP_LOGCONFIG(TAG, "  Board Has PSRAM: %s", YESNO(psramFound()));
 #endif  // USE_ARDUINO
@@ -185,6 +186,7 @@ ESP32Camera::ESP32Camera(const std::string &name) : EntityBase(name) {
 
   global_esp32_camera = this;
 }
+ESP32Camera::ESP32Camera() : ESP32Camera("") {}
 void ESP32Camera::set_data_pins(std::array<uint8_t, 8> pins) {
   this->config_.pin_d0 = pins[0];
   this->config_.pin_d1 = pins[1];

@@ -28,6 +28,7 @@ from .const import (  # noqa
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
     VARIANT_ESP32C3,
+    VARIANT_FRIENDLY,
     VARIANTS,
 )
 from .boards import BOARD_TO_VARIANT
@@ -147,8 +148,9 @@ def _arduino_check_versions(value):
     value[CONF_VERSION] = str(version)
     value[CONF_SOURCE] = source or _format_framework_arduino_version(version)
 
-    platform_version = value.get(CONF_PLATFORM_VERSION, ARDUINO_PLATFORM_VERSION)
-    value[CONF_PLATFORM_VERSION] = str(platform_version)
+    value[CONF_PLATFORM_VERSION] = value.get(
+        CONF_PLATFORM_VERSION, _parse_platform_version(str(ARDUINO_PLATFORM_VERSION))
+    )
 
     if version != RECOMMENDED_ARDUINO_FRAMEWORK_VERSION:
         _LOGGER.warning(
@@ -184,8 +186,9 @@ def _esp_idf_check_versions(value):
     value[CONF_VERSION] = str(version)
     value[CONF_SOURCE] = source or _format_framework_espidf_version(version)
 
-    platform_version = value.get(CONF_PLATFORM_VERSION, ESP_IDF_PLATFORM_VERSION)
-    value[CONF_PLATFORM_VERSION] = str(platform_version)
+    value[CONF_PLATFORM_VERSION] = value.get(
+        CONF_PLATFORM_VERSION, _parse_platform_version(str(ESP_IDF_PLATFORM_VERSION))
+    )
 
     if version != RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION:
         _LOGGER.warning(
@@ -194,6 +197,15 @@ def _esp_idf_check_versions(value):
         )
 
     return value
+
+
+def _parse_platform_version(value):
+    try:
+        # if platform version is a valid version constraint, prefix the default package
+        cv.platformio_version_constraint(value)
+        return f"platformio/espressif32 @ {value}"
+    except cv.Invalid:
+        return value
 
 
 def _detect_variant(value):
@@ -218,7 +230,7 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
             cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): cv.string_strict,
+            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
         }
     ),
     _arduino_check_versions,
@@ -230,7 +242,7 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
             cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): cv.string_strict,
+            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
             cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
                 cv.string_strict: cv.string_strict
             },
@@ -276,14 +288,14 @@ async def to_code(config):
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{config[CONF_VARIANT]}")
+    cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[config[CONF_VARIANT]])
 
     cg.add_platformio_option("lib_ldf_mode", "off")
 
     conf = config[CONF_FRAMEWORK]
+    cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
-        cg.add_platformio_option(
-            "platform", f"espressif32 @ {conf[CONF_PLATFORM_VERSION]}"
-        )
         cg.add_platformio_option("framework", "espidf")
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
@@ -299,6 +311,8 @@ async def to_code(config):
         )
         add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
         add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_SIZE", True)
+        # Increase freertos tick speed from 100Hz to 1kHz so that delay() resolution is 1ms
+        add_idf_sdkconfig_option("CONFIG_FREERTOS_HZ", 1000)
 
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
 
@@ -312,9 +326,6 @@ async def to_code(config):
             )
 
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
-        cg.add_platformio_option(
-            "platform", f"espressif32 @ {conf[CONF_PLATFORM_VERSION]}"
-        )
         cg.add_platformio_option("framework", "arduino")
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
