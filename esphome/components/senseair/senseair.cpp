@@ -146,9 +146,9 @@ bool SenseAirComponent::senseair_write_command_(const uint8_t *command, uint8_t 
     return false;
   }
   
-  this->flush();
-  // Write wake up byte required by some S8 sensor model
+  // Write wake up byte required by some S8 sensor models
   this->write_byte(0);
+  this->flush();
   delay(5); // NOLINT
   this->write_array(command, SENSEAIR_REQUEST_LENGTH);
 
