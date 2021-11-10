@@ -170,7 +170,7 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
-  const std::string& title = App.get_name();
+  const std::string &title = App.get_name();
   // All content is controlled and created by user - so allowing all origins is fine here.
   stream->addHeader("Access-Control-Allow-Origin", "*");
   stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><link rel=icon href=data:><meta "
@@ -302,16 +302,12 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
   (root)["id"] = sensor; \
   (root)["name"] = (obj)->get_name();
 
-#define set_json_value(root, obj, sensor, value) \
-  set_json_id((root), (obj), sensor ) \
-  (root)["value"] = value;  
+#define set_json_value(root, obj, sensor, value) set_json_id((root), (obj), sensor)(root)["value"] = value;  
 
-#define set_json_state_value(root, obj, sensor, state, value) \
-  set_json_value((root), (obj), sensor, value ) \
-  (root)["state"] = state; 
+#define set_json_value((root), (obj), sensor, value)(root)["state"] = state;
 
 #define set_json_icon_state_value(root, obj, sensor, state, value) \
-  set_json_value((root), (obj), sensor, value ) (root)["icon"] = (obj)->get_icon(); \
+  set_json_value((root), (obj), sensor, value )(root)["icon"] = (obj)->get_icon(); \
   (root)["state"] = state;
 
 #ifdef USE_SENSOR
