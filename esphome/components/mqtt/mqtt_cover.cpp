@@ -24,7 +24,7 @@ void MQTTCoverComponent::setup() {
   });
   if (traits.get_supports_position()) {
     this->subscribe(this->get_position_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto value = parse_float(payload);
+      auto value = parse_number<float>(payload);
       if (!value.has_value()) {
         ESP_LOGW(TAG, "Invalid position value: '%s'", payload.c_str());
         return;
@@ -36,7 +36,7 @@ void MQTTCoverComponent::setup() {
   }
   if (traits.get_supports_tilt()) {
     this->subscribe(this->get_tilt_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto value = parse_float(payload);
+      auto value = parse_number<float>(payload);
       if (!value.has_value()) {
         ESP_LOGW(TAG, "Invalid tilt value: '%s'", payload.c_str());
         return;
