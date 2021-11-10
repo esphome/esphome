@@ -203,6 +203,14 @@ message SubscribeStatesRequest {
   // Empty
 }
 
+// ==================== COMMON =====================
+
+enum EntityCategory {
+  ENTITY_CATEGORY_NONE = 0;
+  ENTITY_CATEGORY_CONFIG = 1;
+  ENTITY_CATEGORY_DIAGNOSTIC = 2;
+}
+
 // ==================== BINARY SENSOR ====================
 message ListEntitiesBinarySensorResponse {
   option (id) = 12;
@@ -218,6 +226,7 @@ message ListEntitiesBinarySensorResponse {
   bool is_status_binary_sensor = 6;
   bool disabled_by_default = 7;
   string icon = 8;
+  EntityCategory entity_category = 9;
 }
 message BinarySensorStateResponse {
   option (id) = 21;
@@ -249,6 +258,7 @@ message ListEntitiesCoverResponse {
   string device_class = 8;
   bool disabled_by_default = 9;
   string icon = 10;
+  EntityCategory entity_category = 11;
 }
 
 enum LegacyCoverState {
@@ -318,6 +328,7 @@ message ListEntitiesFanResponse {
   int32 supported_speed_count = 8;
   bool disabled_by_default = 9;
   string icon = 10;
+  EntityCategory entity_category = 11;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
@@ -394,6 +405,7 @@ message ListEntitiesLightResponse {
   repeated string effects = 11;
   bool disabled_by_default = 13;
   string icon = 14;
+  EntityCategory entity_category = 15;
 }
 message LightStateResponse {
   option (id) = 24;
@@ -482,6 +494,7 @@ message ListEntitiesSensorResponse {
   // Last reset type removed in 2021.9.0
   SensorLastResetType legacy_last_reset_type = 11;
   bool disabled_by_default = 12;
+  EntityCategory entity_category = 13;
 }
 message SensorStateResponse {
   option (id) = 25;
@@ -510,6 +523,7 @@ message ListEntitiesSwitchResponse {
   string icon = 5;
   bool assumed_state = 6;
   bool disabled_by_default = 7;
+  EntityCategory entity_category = 8;
 }
 message SwitchStateResponse {
   option (id) = 26;
@@ -543,6 +557,7 @@ message ListEntitiesTextSensorResponse {
 
   string icon = 5;
   bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
 }
 message TextSensorStateResponse {
   option (id) = 27;
@@ -704,6 +719,7 @@ message ListEntitiesCameraResponse {
   string unique_id = 4;
   bool disabled_by_default = 5;
   string icon = 6;
+  EntityCategory entity_category = 7;
 }
 
 message CameraImageResponse {
@@ -798,6 +814,7 @@ message ListEntitiesClimateResponse {
   repeated string supported_custom_presets = 17;
   bool disabled_by_default = 18;
   string icon = 19;
+  EntityCategory entity_category = 20;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -866,6 +883,7 @@ message ListEntitiesNumberResponse {
   float max_value = 7;
   float step = 8;
   bool disabled_by_default = 9;
+  EntityCategory entity_category = 10;
 }
 message NumberStateResponse {
   option (id) = 50;
@@ -903,6 +921,7 @@ message ListEntitiesSelectResponse {
   string icon = 5;
   repeated string options = 6;
   bool disabled_by_default = 7;
+  EntityCategory entity_category = 8;
 }
 message SelectStateResponse {
   option (id) = 53;

@@ -74,7 +74,7 @@ void EZOSensor::loop() {
   if (buf[0] != 1)
     return;
 
-  float val = strtof((char *) &buf[1], nullptr);
+  float val = parse_number<float>((char *) &buf[1], sizeof(buf) - 1).value_or(0);
   this->publish_state(val);
 }
 

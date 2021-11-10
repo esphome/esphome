@@ -6,7 +6,9 @@
 #include <cstring>
 
 #if defined(USE_ESP8266)
+#ifdef USE_WIFI
 #include <ESP8266WiFi.h>
+#endif
 #include <osapi.h>
 #elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
 #include <Esp.h>
@@ -39,7 +41,7 @@ void get_mac_address_raw(uint8_t *mac) {
   esp_efuse_mac_get_default(mac);
 #endif
 #endif
-#ifdef USE_ESP8266
+#if (defined USE_ESP8266 && defined USE_WIFI)
   WiFi.macAddress(mac);
 #endif
 }
@@ -48,7 +50,11 @@ std::string get_mac_address() {
   char tmp[20];
   uint8_t mac[6];
   get_mac_address_raw(mac);
+#ifdef USE_WIFI
   sprintf(tmp, "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+#else
+  return "";
+#endif
   return std::string(tmp);
 }
 
@@ -203,17 +209,18 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
   return crc;
 }
 
-void delay_microseconds_accurate(uint32_t usec) {
-  if (usec == 0)
-    return;
-  if (usec < 5000UL) {
-    delayMicroseconds(usec);
-    return;
+void delay_microseconds_safe(uint32_t us) {  // avoids CPU locks that could trigger WDT or affect WiFi/BT stability
+  auto start = micros();
+  const uint32_t lag = 5000;  // microseconds, specifies the maximum time for a CPU busy-loop.
+                              // it must be larger than the worst-case duration of a delay(1) call (hardware tasks)
+                              // 5ms is conservative, it could be reduced when exact BT/WiFi stack delays are known
+  if (us > lag) {
+    delay((us - lag) / 1000UL);  // note: in disabled-interrupt contexts delay() won't actually sleep
+    while (micros() - start < us - lag)
+      delay(1);  // in those cases, this loop allows to yield for BT/WiFi stack tasks
   }
-  uint32_t start = micros();
-  while (micros() - start < usec) {
-    delay(0);
-  }
+  while (micros() - start < us)  // fine delay the remaining usecs
+    ;
 }
 
 uint8_t reverse_bits_8(uint8_t x) {
@@ -271,20 +278,6 @@ std::string to_string(long double val) {
   char buf[64];
   sprintf(buf, "%Lf", val);
   return buf;
-}
-optional<float> parse_float(const std::string &str) {
-  char *end;
-  float value = ::strtof(str.c_str(), &end);
-  if (end == nullptr || end != str.end().base())
-    return {};
-  return value;
-}
-optional<int> parse_int(const std::string &str) {
-  char *end;
-  int value = ::strtol(str.c_str(), &end, 10);
-  if (end == nullptr || end != str.end().base())
-    return {};
-  return value;
 }
 
 optional<int> parse_hex(const char chr) {
@@ -464,8 +457,13 @@ void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green
 }
 
 #ifdef USE_ESP8266
+#ifdef USE_WIFI
 IRAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
 IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
+#else
+IRAM_ATTR InterruptLock::InterruptLock() {}
+IRAM_ATTR InterruptLock::~InterruptLock() {}
+#endif
 #endif
 #ifdef USE_ESP32
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
