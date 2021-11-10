@@ -26,6 +26,7 @@ MODELS = {
     "SSD1306_128X64": SSD1306Model.SSD1306_MODEL_128_64,
     "SSD1306_96X16": SSD1306Model.SSD1306_MODEL_96_16,
     "SSD1306_64X48": SSD1306Model.SSD1306_MODEL_64_48,
+    "SSD1306_64X32": SSD1306Model.SSD1306_MODEL_64_32,
     "SH1106_128X32": SSD1306Model.SH1106_MODEL_128_32,
     "SH1106_128X64": SSD1306Model.SH1106_MODEL_128_64,
     "SH1106_96X16": SSD1306Model.SH1106_MODEL_96_16,
@@ -84,7 +85,7 @@ async def setup_ssd1306(var, config):
     if CONF_FLIP_X in config:
         cg.add(var.init_flip_x(config[CONF_FLIP_X]))
     if CONF_FLIP_Y in config:
-        cg.add(var.init_flip_y(config[CONF_FLIP_X]))
+        cg.add(var.init_flip_y(config[CONF_FLIP_Y]))
     if CONF_OFFSET_X in config:
         cg.add(var.init_offset_x(config[CONF_OFFSET_X]))
     if CONF_OFFSET_Y in config:

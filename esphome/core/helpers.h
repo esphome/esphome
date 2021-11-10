@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 #include <string>
 #include <functional>
 #include <vector>
@@ -48,8 +50,6 @@ std::string to_string(unsigned long long val);  // NOLINT
 std::string to_string(float val);
 std::string to_string(double val);
 std::string to_string(long double val);
-optional<float> parse_float(const std::string &str);
-optional<int> parse_int(const std::string &str);
 optional<int> parse_hex(const std::string &str, size_t start, size_t length);
 optional<int> parse_hex(char chr);
 
@@ -241,7 +241,7 @@ struct is_callable  // NOLINT
   static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
 };
 
-void delay_microseconds_accurate(uint32_t usec);
+void delay_microseconds_safe(uint32_t us);
 
 template<typename T> class Deduplicator {
  public:
@@ -290,6 +290,8 @@ template<typename T> T *new_buffer(size_t length) {
   return buffer;
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+
 /// @name Strings
 ///@{
 
@@ -301,6 +303,53 @@ std::string str_snake_case(const std::string &str);
 
 /// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
 std::string str_sanitize(const std::string &str);
+
+///@}
+
+
+/// @name Parsing & formatting
+///@{
+
+/// Parse a unsigned decimal number.
+template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_unsigned<T>::value), int> = 0>
+optional<T> parse_number(const char *str, size_t len) {
+  char *end = nullptr;
+  unsigned long value = ::strtoul(str, &end, 10);  // NOLINT(google-runtime-int)
+  if (end == nullptr || end != str + len || value > std::numeric_limits<T>::max())
+    return {};
+  return value;
+}
+template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_unsigned<T>::value), int> = 0>
+optional<T> parse_number(const std::string &str) {
+  return parse_number<T>(str.c_str(), str.length());
+}
+/// Parse a signed decimal number.
+template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T>::value), int> = 0>
+optional<T> parse_number(const char *str, size_t len) {
+  char *end = nullptr;
+  signed long value = ::strtol(str, &end, 10);  // NOLINT(google-runtime-int)
+  if (end == nullptr || end != str + len || value < std::numeric_limits<T>::min() ||
+      value > std::numeric_limits<T>::max())
+    return {};
+  return value;
+}
+template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T>::value), int> = 0>
+optional<T> parse_number(const std::string &str) {
+  return parse_number<T>(str.c_str(), str.length());
+}
+/// Parse a decimal floating-point number.
+template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0>
+optional<T> parse_number(const char *str, size_t len) {
+  char *end = nullptr;
+  float value = ::strtof(str, &end);
+  if (end == nullptr || end != str + len || value == HUGE_VALF)
+    return {};
+  return value;
+}
+template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0>
+optional<T> parse_number(const std::string &str) {
+  return parse_number<T>(str.c_str(), str.length());
+}
 
 ///@}
 

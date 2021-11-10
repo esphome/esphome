@@ -26,6 +26,10 @@ void EntityBase::set_disabled_by_default(bool disabled_by_default) { this->disab
 const std::string &EntityBase::get_icon() const { return this->icon_; }
 void EntityBase::set_icon(const std::string &name) { this->icon_ = name; }
 
+// Entity Category
+EntityCategory EntityBase::get_entity_category() const { return this->entity_category_; }
+void EntityBase::set_entity_category(EntityCategory entity_category) { this->entity_category_ = entity_category; }
+
 // Entity Object ID
 const std::string &EntityBase::get_object_id() { return this->object_id_; }
 

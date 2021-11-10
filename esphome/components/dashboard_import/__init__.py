@@ -29,6 +29,14 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+WIFI_MESSAGE = """
+
+# Do not forget to add your own wifi configuration before installing this configuration
+# wifi:
+#   ssid: !secret wifi_ssid
+#   password: !secret wifi_password
+"""
+
 
 async def to_code(config):
     cg.add_define("USE_DASHBOARD_IMPORT")
@@ -41,5 +49,12 @@ def import_config(path: str, name: str, project_name: str, import_url: str) -> N
     if p.exists():
         raise FileExistsError
 
-    config = {"substitutions": {"name": name}, "packages": {project_name: import_url}}
-    p.write_text(dump(config), encoding="utf8")
+    config = {
+        "substitutions": {"name": name},
+        "packages": {project_name: import_url},
+        "esphome": {"name_add_mac_suffix": False},
+    }
+    p.write_text(
+        dump(config) + WIFI_MESSAGE,
+        encoding="utf8",
+    )

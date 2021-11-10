@@ -458,7 +458,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       }
       if (request->hasParam("speed_level")) {
         String speed_level = request->getParam("speed_level")->value();
-        auto val = parse_int(speed_level.c_str());
+        auto val = parse_number<int>(speed_level.c_str());
         if (!val.has_value()) {
           ESP_LOGW(TAG, "Can't convert '%s' to number!", speed_level.c_str());
           return;
