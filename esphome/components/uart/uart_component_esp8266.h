@@ -45,6 +45,8 @@ class ESP8266SoftwareSerial {
   ISRInternalGPIOPin tx_pin_;
   InternalGPIOPin *gpio_rx_pin_{nullptr};
   ISRInternalGPIOPin rx_pin_;
+  bool tx_invert_{false};
+  bool rx_invert_{false};
 };
 
 class ESP8266UartComponent : public UARTComponent, public Component {

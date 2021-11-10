@@ -45,6 +45,11 @@ uint32_t ESP8266UartComponent::get_config() {
   else
     config |= UART_NB_STOP_BIT_2;
 
+  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted())
+    config |= BIT(22);
+  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted())
+    config |= BIT(19);
+
   return config;
 }
 
@@ -80,7 +85,7 @@ void ESP8266UartComponent::setup() {
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
     ESP8266UartComponent::serial0_in_use = true;
-  } else if ((tx_pin_ == nullptr || tx_pin_->get_pin() == 2) && (rx_pin_ == nullptr || rx_pin_->get_pin() == 8)) {
+  } else if ((tx_pin_ == nullptr || tx_pin_->get_pin() == 2) && rx_pin_ == nullptr) {
     this->hw_serial_ = &Serial1;
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
@@ -189,14 +194,20 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
     gpio_tx_pin_ = tx_pin;
     gpio_tx_pin_->setup();
     tx_pin_ = gpio_tx_pin_->to_isr();
-    tx_pin_.digital_write(true);
+    tx_invert_ = gpio_tx_pin_->is_inverted();
+    tx_pin_.digital_write(!tx_invert_);
   }
   if (rx_pin != nullptr) {
     gpio_rx_pin_ = rx_pin;
     gpio_rx_pin_->setup();
     rx_pin_ = gpio_rx_pin_->to_isr();
+    rx_invert_ = gpio_rx_pin_->is_inverted();
     rx_buffer_ = new uint8_t[this->rx_buffer_size_];  // NOLINT
-    gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    if (rx_invert_) {
+      gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
+    } else {
+      gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    }
   }
 }
 void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
@@ -265,10 +276,10 @@ void IRAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &star
 }
 bool IRAM_ATTR ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint32_t &start) {
   this->wait_(wait, start);
-  return this->rx_pin_.digital_read();
+  return this->rx_pin_.digital_read() ^ this->rx_invert_;
 }
 void IRAM_ATTR ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const uint32_t &start) {
-  this->tx_pin_.digital_write(bit);
+  this->tx_pin_.digital_write(bit ^ this->tx_invert_);
   this->wait_(wait, start);
 }
 uint8_t ESP8266SoftwareSerial::read_byte() {
