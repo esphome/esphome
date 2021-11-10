@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
@@ -63,7 +64,6 @@ class IntegrationSensor : public sensor::Sensor, public Component {
     this->rtc_.save(&result_f);
   }
   std::string unit_of_measurement() override;
-  std::string icon() override { return this->sensor_->get_icon(); }
   int8_t accuracy_decimals() override { return this->sensor_->get_accuracy_decimals() + 2; }
 
   sensor::Sensor *sensor_;

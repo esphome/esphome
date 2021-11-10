@@ -1,5 +1,6 @@
 #include "mcp23016.h"
 #include "esphome/core/log.h"
+#include <cstdio>
 
 namespace esphome {
 namespace mcp23016 {
@@ -29,17 +30,12 @@ void MCP23016::digital_write(uint8_t pin, bool value) {
   uint8_t reg_addr = pin < 8 ? MCP23016_OLAT0 : MCP23016_OLAT1;
   this->update_reg_(pin, value, reg_addr);
 }
-void MCP23016::pin_mode(uint8_t pin, uint8_t mode) {
+void MCP23016::pin_mode(uint8_t pin, gpio::Flags flags) {
   uint8_t iodir = pin < 8 ? MCP23016_IODIR0 : MCP23016_IODIR1;
-  switch (mode) {
-    case MCP23016_INPUT:
-      this->update_reg_(pin, true, iodir);
-      break;
-    case MCP23016_OUTPUT:
-      this->update_reg_(pin, false, iodir);
-      break;
-    default:
-      break;
+  if (flags == gpio::FLAG_INPUT) {
+    this->update_reg_(pin, true, iodir);
+  } else if (flags == gpio::FLAG_OUTPUT) {
+    this->update_reg_(pin, false, iodir);
   }
 }
 float MCP23016::get_setup_priority() const { return setup_priority::HARDWARE; }
@@ -80,12 +76,15 @@ void MCP23016::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   }
 }
 
-MCP23016GPIOPin::MCP23016GPIOPin(MCP23016 *parent, uint8_t pin, uint8_t mode, bool inverted)
-    : GPIOPin(pin, mode, inverted), parent_(parent) {}
-void MCP23016GPIOPin::setup() { this->pin_mode(this->mode_); }
-void MCP23016GPIOPin::pin_mode(uint8_t mode) { this->parent_->pin_mode(this->pin_, mode); }
+void MCP23016GPIOPin::setup() { pin_mode(flags_); }
+void MCP23016GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool MCP23016GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void MCP23016GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
+std::string MCP23016GPIOPin::dump_summary() const {
+  char buffer[32];
+  snprintf(buffer, sizeof(buffer), "%u via MCP23016", pin_);
+  return buffer;
+}
 
 }  // namespace mcp23016
 }  // namespace esphome

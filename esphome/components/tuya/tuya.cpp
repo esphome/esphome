@@ -1,7 +1,8 @@
 #include "tuya.h"
 #include "esphome/core/log.h"
-#include "esphome/core/util.h"
+#include "esphome/components/network/util.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/util.h"
 
 namespace esphome {
 namespace tuya {
@@ -240,8 +241,10 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   size_t data_size = (buffer[2] << 8) + buffer[3];
   const uint8_t *data = buffer + 4;
   size_t data_len = len - 4;
-  if (data_size != data_len) {
-    ESP_LOGW(TAG, "Datapoint %u is not expected size (%zu != %zu)", datapoint.id, data_size, data_len);
+  if (data_size > data_len) {
+    ESP_LOGW(TAG, "Datapoint %u has extra bytes that will be ignored (%zu > %zu)", datapoint.id, data_size, data_len);
+  } else if (data_size < data_len) {
+    ESP_LOGW(TAG, "Datapoint %u is truncated and cannot be parsed (%zu < %zu)", datapoint.id, data_size, data_len);
     return;
   }
   datapoint.len = data_len;
@@ -297,7 +300,7 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
       ESP_LOGD(TAG, "Datapoint %u update to %#08X", datapoint.id, datapoint.value_bitmask);
       break;
     default:
-      ESP_LOGW(TAG, "Datapoint %u has unknown type %#02hhX", datapoint.id, datapoint.type);
+      ESP_LOGW(TAG, "Datapoint %u has unknown type %#02hhX", datapoint.id, static_cast<uint8_t>(datapoint.type));
       return;
   }
 
@@ -389,7 +392,7 @@ void Tuya::send_empty_command_(TuyaCommandType command) {
 
 void Tuya::send_wifi_status_() {
   uint8_t status = 0x02;
-  if (network_is_connected()) {
+  if (network::is_connected()) {
     status = 0x03;
 
     // Protocol version 3 also supports specifying when connected to "the cloud"
@@ -476,7 +479,7 @@ void Tuya::set_string_datapoint_value(uint8_t datapoint_id, const std::string &v
   for (char const &c : value) {
     data.push_back(c);
   }
-  this->send_datapoint_command_(datapoint->id, datapoint->type, data);
+  this->send_datapoint_command_(datapoint_id, TuyaDatapointType::STRING, data);
 }
 
 void Tuya::set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value) {

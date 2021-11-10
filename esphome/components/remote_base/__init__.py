@@ -439,6 +439,49 @@ async def pioneer_action(var, config, args):
     cg.add(var.set_rc_code_2(template_))
 
 
+# Pronto
+(
+    ProntoData,
+    ProntoBinarySensor,
+    ProntoTrigger,
+    ProntoAction,
+    ProntoDumper,
+) = declare_protocol("Pronto")
+PRONTO_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_DATA): cv.string,
+    }
+)
+
+
+@register_binary_sensor("pronto", ProntoBinarySensor, PRONTO_SCHEMA)
+def pronto_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                ProntoData,
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("pronto", ProntoTrigger, ProntoData)
+def pronto_trigger(var, config):
+    pass
+
+
+@register_dumper("pronto", ProntoDumper)
+def pronto_dumper(var, config):
+    pass
+
+
+@register_action("pronto", ProntoAction, PRONTO_SCHEMA)
+async def pronto_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.std_string)
+    cg.add(var.set_data(template_))
+
+
 # Sony
 SonyData, SonyBinarySensor, SonyTrigger, SonyAction, SonyDumper = declare_protocol(
     "Sony"
@@ -491,8 +534,7 @@ def validate_raw_alternating(value):
         if i != 0:
             if this_negative == last_negative:
                 raise cv.Invalid(
-                    "Values must alternate between being positive and negative, "
-                    "please see index {} and {}".format(i, i + 1),
+                    f"Values must alternate between being positive and negative, please see index {i} and {i + 1}",
                     [i],
                 )
         last_negative = this_negative
@@ -619,13 +661,11 @@ def validate_rc_switch_code(value):
     for c in value:
         if c not in ("0", "1"):
             raise cv.Invalid(
-                "Invalid RCSwitch code character '{}'. Only '0' and '1' are allowed"
-                "".format(c)
+                f"Invalid RCSwitch code character '{c}'. Only '0' and '1' are allowed"
             )
     if len(value) > 64:
         raise cv.Invalid(
-            "Maximum length for RCSwitch codes is 64, code '{}' has length {}"
-            "".format(value, len(value))
+            f"Maximum length for RCSwitch codes is 64, code '{value}' has length {len(value)}"
         )
     if not value:
         raise cv.Invalid("RCSwitch code must not be empty")
@@ -638,14 +678,11 @@ def validate_rc_switch_raw_code(value):
     for c in value:
         if c not in ("0", "1", "x"):
             raise cv.Invalid(
-                "Invalid RCSwitch raw code character '{}'.Only '0', '1' and 'x' are allowed".format(
-                    c
-                )
+                f"Invalid RCSwitch raw code character '{c}'.Only '0', '1' and 'x' are allowed"
             )
     if len(value) > 64:
         raise cv.Invalid(
-            "Maximum length for RCSwitch raw codes is 64, code '{}' has length {}"
-            "".format(value, len(value))
+            f"Maximum length for RCSwitch raw codes is 64, code '{value}' has length {len(value)}"
         )
     if not value:
         raise cv.Invalid("RCSwitch raw code must not be empty")
@@ -1085,3 +1122,42 @@ async def panasonic_action(var, config, args):
     cg.add(var.set_address(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint32)
     cg.add(var.set_command(template_))
+
+
+# Midea
+MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_protocol(
+    "Midea"
+)
+MideaAction = ns.class_("MideaAction", RemoteTransmitterActionBase)
+MIDEA_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.All(
+            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
+            cv.Length(min=5, max=5),
+        ),
+    }
+)
+
+
+@register_binary_sensor("midea", MideaBinarySensor, MIDEA_SCHEMA)
+def midea_binary_sensor(var, config):
+    cg.add(var.set_code(config[CONF_CODE]))
+
+
+@register_trigger("midea", MideaTrigger, MideaData)
+def midea_trigger(var, config):
+    pass
+
+
+@register_dumper("midea", MideaDumper)
+def midea_dumper(var, config):
+    pass
+
+
+@register_action(
+    "midea",
+    MideaAction,
+    MIDEA_SCHEMA,
+)
+async def midea_action(var, config, args):
+    cg.add(var.set_code(config[CONF_CODE]))

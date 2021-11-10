@@ -1,6 +1,7 @@
 #include "filter.h"
 #include "sensor.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace sensor {
@@ -8,7 +9,6 @@ namespace sensor {
 static const char *const TAG = "sensor.filter";
 
 // Filter
-uint32_t Filter::expected_interval(uint32_t input) { return input; }
 void Filter::input(float value) {
   ESP_LOGVV(TAG, "Filter(%p)::input(%f)", this, value);
   optional<float> out = this->new_value(value);
@@ -29,15 +29,6 @@ void Filter::initialize(Sensor *parent, Filter *next) {
   this->parent_ = parent;
   this->next_ = next;
 }
-uint32_t Filter::calculate_remaining_interval(uint32_t input) {
-  uint32_t this_interval = this->expected_interval(input);
-  ESP_LOGVV(TAG, "Filter(%p)::calculate_remaining_interval(%u) -> %u", this, input, this_interval);
-  if (this->next_ == nullptr) {
-    return this_interval;
-  } else {
-    return this->next_->calculate_remaining_interval(this_interval);
-  }
-}
 
 // MedianFilter
 MedianFilter::MedianFilter(size_t window_size, size_t send_every, size_t send_first_at)
@@ -45,7 +36,7 @@ MedianFilter::MedianFilter(size_t window_size, size_t send_every, size_t send_fi
 void MedianFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void MedianFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
 optional<float> MedianFilter::new_value(float value) {
-  if (!isnan(value)) {
+  if (!std::isnan(value)) {
     while (this->queue_.size() >= this->window_size_) {
       this->queue_.pop_front();
     }
@@ -75,15 +66,13 @@ optional<float> MedianFilter::new_value(float value) {
   return {};
 }
 
-uint32_t MedianFilter::expected_interval(uint32_t input) { return input * this->send_every_; }
-
 // MinFilter
 MinFilter::MinFilter(size_t window_size, size_t send_every, size_t send_first_at)
     : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size) {}
 void MinFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void MinFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
 optional<float> MinFilter::new_value(float value) {
-  if (!isnan(value)) {
+  if (!std::isnan(value)) {
     while (this->queue_.size() >= this->window_size_) {
       this->queue_.pop_front();
     }
@@ -106,15 +95,13 @@ optional<float> MinFilter::new_value(float value) {
   return {};
 }
 
-uint32_t MinFilter::expected_interval(uint32_t input) { return input * this->send_every_; }
-
 // MaxFilter
 MaxFilter::MaxFilter(size_t window_size, size_t send_every, size_t send_first_at)
     : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size) {}
 void MaxFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void MaxFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
 optional<float> MaxFilter::new_value(float value) {
-  if (!isnan(value)) {
+  if (!std::isnan(value)) {
     while (this->queue_.size() >= this->window_size_) {
       this->queue_.pop_front();
     }
@@ -137,8 +124,6 @@ optional<float> MaxFilter::new_value(float value) {
   return {};
 }
 
-uint32_t MaxFilter::expected_interval(uint32_t input) { return input * this->send_every_; }
-
 // SlidingWindowMovingAverageFilter
 SlidingWindowMovingAverageFilter::SlidingWindowMovingAverageFilter(size_t window_size, size_t send_every,
                                                                    size_t send_first_at)
@@ -146,7 +131,7 @@ SlidingWindowMovingAverageFilter::SlidingWindowMovingAverageFilter(size_t window
 void SlidingWindowMovingAverageFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void SlidingWindowMovingAverageFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
 optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
-  if (!isnan(value)) {
+  if (!std::isnan(value)) {
     if (this->queue_.size() == this->window_size_) {
       this->sum_ -= this->queue_[0];
       this->queue_.pop_front();
@@ -177,13 +162,11 @@ optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
   return {};
 }
 
-uint32_t SlidingWindowMovingAverageFilter::expected_interval(uint32_t input) { return input * this->send_every_; }
-
 // ExponentialMovingAverageFilter
 ExponentialMovingAverageFilter::ExponentialMovingAverageFilter(float alpha, size_t send_every)
     : send_every_(send_every), send_at_(send_every - 1), alpha_(alpha) {}
 optional<float> ExponentialMovingAverageFilter::new_value(float value) {
-  if (!isnan(value)) {
+  if (!std::isnan(value)) {
     if (this->first_value_)
       this->accumulator_ = value;
     else
@@ -203,7 +186,31 @@ optional<float> ExponentialMovingAverageFilter::new_value(float value) {
 }
 void ExponentialMovingAverageFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void ExponentialMovingAverageFilter::set_alpha(float alpha) { this->alpha_ = alpha; }
-uint32_t ExponentialMovingAverageFilter::expected_interval(uint32_t input) { return input * this->send_every_; }
+
+// ThrottleAverageFilter
+ThrottleAverageFilter::ThrottleAverageFilter(uint32_t time_period) : time_period_(time_period) {}
+
+optional<float> ThrottleAverageFilter::new_value(float value) {
+  ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::new_value(value=%f)", this, value);
+  if (!std::isnan(value)) {
+    this->sum_ += value;
+    this->n_++;
+  }
+  return {};
+}
+void ThrottleAverageFilter::setup() {
+  this->set_interval("throttle_average", this->time_period_, [this]() {
+    ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::interval(sum=%f, n=%i)", this, this->sum_, this->n_);
+    if (this->n_ == 0) {
+      this->output(NAN);
+    } else {
+      this->output(this->sum_ / this->n_);
+      this->sum_ = 0.0f;
+      this->n_ = 0;
+    }
+  });
+}
+float ThrottleAverageFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 // LambdaFilter
 LambdaFilter::LambdaFilter(lambda_filter_t lambda_filter) : lambda_filter_(std::move(lambda_filter)) {}
@@ -230,8 +237,8 @@ optional<float> MultiplyFilter::new_value(float value) { return value * this->mu
 FilterOutValueFilter::FilterOutValueFilter(float value_to_filter_out) : value_to_filter_out_(value_to_filter_out) {}
 
 optional<float> FilterOutValueFilter::new_value(float value) {
-  if (isnan(this->value_to_filter_out_)) {
-    if (isnan(value))
+  if (std::isnan(this->value_to_filter_out_)) {
+    if (std::isnan(value))
       return {};
     else
       return value;
@@ -262,9 +269,9 @@ optional<float> ThrottleFilter::new_value(float value) {
 // DeltaFilter
 DeltaFilter::DeltaFilter(float min_delta) : min_delta_(min_delta), last_value_(NAN) {}
 optional<float> DeltaFilter::new_value(float value) {
-  if (isnan(value))
+  if (std::isnan(value))
     return {};
-  if (isnan(this->last_value_)) {
+  if (std::isnan(this->last_value_)) {
     return this->last_value_ = value;
   }
   if (fabsf(value - this->last_value_) >= this->min_delta_) {
@@ -296,14 +303,6 @@ void OrFilter::initialize(Sensor *parent, Filter *next) {
   this->phi_.initialize(parent, nullptr);
 }
 
-uint32_t OrFilter::expected_interval(uint32_t input) {
-  uint32_t min_interval = UINT32_MAX;
-  for (Filter *filter : this->filters_) {
-    min_interval = std::min(min_interval, filter->calculate_remaining_interval(input));
-  }
-
-  return min_interval;
-}
 // DebounceFilter
 optional<float> DebounceFilter::new_value(float value) {
   this->set_timeout("debounce", this->time_period_, [this, value]() { this->output(value); });
@@ -324,7 +323,6 @@ optional<float> HeartbeatFilter::new_value(float value) {
 
   return {};
 }
-uint32_t HeartbeatFilter::expected_interval(uint32_t input) { return this->time_period_; }
 void HeartbeatFilter::setup() {
   this->set_interval("heartbeat", this->time_period_, [this]() {
     ESP_LOGVV(TAG, "HeartbeatFilter(%p)::interval(has_value=%s, last_input=%f)", this, YESNO(this->has_value_),

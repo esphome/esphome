@@ -1,0 +1,48 @@
+name: Stale
+
+on:
+  schedule:
+    - cron: '30 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: lock
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v4
+        with:
+          days-before-pr-stale: 90
+          days-before-pr-close: 7
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
+          remove-stale-when-updated: true
+          stale-pr-label: "stale"
+          exempt-pr-labels: "no-stale"
+          stale-pr-message: >
+            There hasn't been any activity on this pull request recently. This
+            pull request has been automatically marked as stale because of that
+            and will be closed if no further activity occurs within 7 days.
+            Thank you for your contributions.
+
+  # Use stale to automatically close issues with a reference to the issue tracker
+  close-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v4
+        with:
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
+          days-before-issue-stale: 1
+          days-before-issue-close: 1
+          remove-stale-when-updated: true
+          stale-issue-label: "stale"
+          exempt-issue-labels: "not-stale"
+          stale-issue-message: >
+            https://github.com/esphome/esphome/issues/430

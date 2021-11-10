@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -15,7 +17,7 @@ namespace esphome {
 namespace dsmr {
 
 static constexpr uint32_t MAX_TELEGRAM_LENGTH = 1500;
-static constexpr uint32_t POLL_TIMEOUT = 1000;
+static constexpr uint32_t READ_TIMEOUT_MS = 200;
 
 using namespace ::dsmr::fields;
 
@@ -48,7 +50,7 @@ using MyData = ::dsmr::ParsedData<DSMR_TEXT_SENSOR_LIST(DSMR_DATA_SENSOR, DSMR_C
 
 class Dsmr : public Component, public uart::UARTDevice {
  public:
-  Dsmr(uart::UARTComponent *uart) : uart::UARTDevice(uart) {}
+  Dsmr(uart::UARTComponent *uart, bool crc_check) : uart::UARTDevice(uart), crc_check_(crc_check) {}
 
   void loop() override;
 
@@ -83,6 +85,17 @@ class Dsmr : public Component, public uart::UARTDevice {
   void receive_telegram_();
   void receive_encrypted_();
 
+  /// Wait for UART data to become available within the read timeout.
+  ///
+  /// The smart meter might provide data in chunks, causing available() to
+  /// return 0. When we're already reading a telegram, then we don't return
+  /// right away (to handle further data in an upcoming loop) but wait a
+  /// little while using this method to see if more data are incoming.
+  /// By not returning, we prevent other components from taking so much
+  /// time that the UART RX buffer overflows and bytes of the telegram get
+  /// lost in the process.
+  bool available_within_timeout_();
+
   // Telegram buffer
   char telegram_[MAX_TELEGRAM_LENGTH];
   int telegram_len_{0};
@@ -99,6 +112,9 @@ class Dsmr : public Component, public uart::UARTDevice {
   DSMR_TEXT_SENSOR_LIST(DSMR_DECLARE_TEXT_SENSOR, )
 
   std::vector<uint8_t> decryption_key_{};
+  bool crc_check_;
 };
 }  // namespace dsmr
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

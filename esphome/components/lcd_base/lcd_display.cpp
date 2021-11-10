@@ -1,6 +1,7 @@
 #include "lcd_display.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace lcd_base {
@@ -29,7 +30,7 @@ static const uint8_t LCD_DISPLAY_FUNCTION_2_LINE = 0x08;
 static const uint8_t LCD_DISPLAY_FUNCTION_5X10_DOTS = 0x04;
 
 void LCDDisplay::setup() {
-  this->buffer_ = new uint8_t[this->rows_ * this->columns_];
+  this->buffer_ = new uint8_t[this->rows_ * this->columns_];  // NOLINT
   for (uint8_t i = 0; i < this->rows_ * this->columns_; i++)
     this->buffer_[i] = ' ';
 

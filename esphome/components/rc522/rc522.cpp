@@ -43,14 +43,14 @@ void RC522::setup() {
 
   // First set the resetPowerDownPin as digital input, to check the MFRC522 power down mode.
   if (reset_pin_ != nullptr) {
-    reset_pin_->pin_mode(INPUT);
+    reset_pin_->pin_mode(gpio::FLAG_INPUT);
 
-    if (reset_pin_->digital_read() == LOW) {  // The MFRC522 chip is in power down mode.
+    if (!reset_pin_->digital_read()) {  // The MFRC522 chip is in power down mode.
       ESP_LOGV(TAG, "Power down mode detected. Hard resetting...");
-      reset_pin_->pin_mode(OUTPUT);     // Now set the resetPowerDownPin as digital output.
-      reset_pin_->digital_write(LOW);   // Make sure we have a clean LOW state.
+      reset_pin_->pin_mode(gpio::FLAG_OUTPUT);  // Now set the resetPowerDownPin as digital output.
+      reset_pin_->digital_write(false);         // Make sure we have a clean LOW state.
       delayMicroseconds(2);             // 8.8.1 Reset timing requirements says about 100ns. Let us be generous: 2μsl
-      reset_pin_->digital_write(HIGH);  // Exit power down mode. This triggers a hard reset.
+      reset_pin_->digital_write(true);  // Exit power down mode. This triggers a hard reset.
       // Section 8.8.2 in the datasheet says the oscillator start-up time is the start up time of the crystal + 37,74μs.
       // Let us be generous: 50ms.
       reset_timeout_ = millis();

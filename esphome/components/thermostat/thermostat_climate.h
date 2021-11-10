@@ -136,8 +136,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool fan_mode_change_delayed();
   /// Returns the climate action that is being delayed (check climate_action_change_delayed(), first!)
   climate::ClimateAction delayed_climate_action();
-  /// Returns the fan mode that is being delayed (check fan_mode_change_delayed(), first!)
-  climate::ClimateFanMode delayed_fan_mode();
+  /// Returns the fan mode that is locked in (check fan_mode_change_delayed(), first!)
+  climate::ClimateFanMode locked_fan_mode();
   /// Set point and hysteresis validation
   bool hysteresis_valid();  // returns true if valid
   void validate_target_temperature();
@@ -160,18 +160,18 @@ class ThermostatClimate : public climate::Climate, public Component {
   climate::ClimateAction compute_supplemental_action_();
 
   /// Switch the climate device to the given climate action.
-  void switch_to_action_(climate::ClimateAction action);
+  void switch_to_action_(climate::ClimateAction action, bool publish_state = true);
   void switch_to_supplemental_action_(climate::ClimateAction action);
   void trigger_supplemental_action_();
 
   /// Switch the climate device to the given climate fan mode.
-  void switch_to_fan_mode_(climate::ClimateFanMode fan_mode);
+  void switch_to_fan_mode_(climate::ClimateFanMode fan_mode, bool publish_state = true);
 
   /// Switch the climate device to the given climate mode.
-  void switch_to_mode_(climate::ClimateMode mode);
+  void switch_to_mode_(climate::ClimateMode mode, bool publish_state = true);
 
   /// Switch the climate device to the given climate swing mode.
-  void switch_to_swing_mode_(climate::ClimateSwingMode swing_mode);
+  void switch_to_swing_mode_(climate::ClimateSwingMode swing_mode, bool publish_state = true);
 
   /// Check if the temperature change trigger should be called.
   void check_temperature_change_trigger_();
@@ -376,9 +376,6 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *prev_fan_mode_trigger_{nullptr};
   Trigger<> *prev_mode_trigger_{nullptr};
   Trigger<> *prev_swing_mode_trigger_{nullptr};
-
-  /// Desired fan_mode -- used to store desired mode for callback when switching is delayed
-  climate::ClimateFanMode desired_fan_mode_{climate::CLIMATE_FAN_ON};
 
   /// Store previously-known states
   ///

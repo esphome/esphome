@@ -4,12 +4,12 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace inkbird_ibsth1_mini {
 
-class InkbirdIBSTH1_MINI : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class InkbirdIbstH1Mini : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; }
 

@@ -266,9 +266,9 @@ bool Nextion::remove_from_q_(bool report_empty) {
     if (component->get_variable_name() == "sleep_wake") {
       this->is_sleeping_ = false;
     }
-    delete component;
+    delete component;  // NOLINT(cppcoreguidelines-owning-memory)
   }
-  delete nb;
+  delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
   this->nextion_queue_.pop_front();
   return true;
 }
@@ -369,8 +369,8 @@ void Nextion::process_nextion_commands_() {
 
               found = index;
 
-              delete component;
-              delete nb;
+              delete component;  // NOLINT(cppcoreguidelines-owning-memory)
+              delete nb;         // NOLINT(cppcoreguidelines-owning-memory)
 
               break;
             }
@@ -480,7 +480,7 @@ void Nextion::process_nextion_commands_() {
           component->set_state_from_string(to_process, true, false);
         }
 
-        delete nb;
+        delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
         this->nextion_queue_.pop_front();
 
         break;
@@ -526,7 +526,7 @@ void Nextion::process_nextion_commands_() {
           component->set_state_from_int(value, true, false);
         }
 
-        delete nb;
+        delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
         this->nextion_queue_.pop_front();
 
         break;
@@ -543,6 +543,7 @@ void Nextion::process_nextion_commands_() {
         ESP_LOGVV(TAG, "Received Nextion leaves sleep automatically");
         this->is_sleeping_ = false;
         this->wake_callback_.call();
+        this->all_components_send_state_(false);
         break;
       }
       case 0x88:  // system successful start up
@@ -706,8 +707,8 @@ void Nextion::process_nextion_commands_() {
                                                  component->get_wave_buffer().begin() + buffer_to_send);
             }
             found = index;
-            delete component;
-            delete nb;
+            delete component;  // NOLINT(cppcoreguidelines-owning-memory)
+            delete nb;         // NOLINT(cppcoreguidelines-owning-memory)
             break;
           }
           ++index;
@@ -753,12 +754,13 @@ void Nextion::process_nextion_commands_() {
           if (component->get_variable_name() == "sleep_wake") {
             this->is_sleeping_ = false;
           }
-          delete component;
+          delete component;  // NOLINT(cppcoreguidelines-owning-memory)
         }
 
-        delete this->nextion_queue_[i];
+        delete this->nextion_queue_[i];  // NOLINT(cppcoreguidelines-owning-memory)
 
         this->nextion_queue_.erase(this->nextion_queue_.begin() + i);
+        i--;
 
       } else {
         break;
@@ -910,8 +912,10 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
  * @param variable_name Name for the queue
  */
 void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   nextion::NextionQueue *nextion_queue = new nextion::NextionQueue;
 
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   nextion_queue->component = new nextion::NextionComponentBase;
   nextion_queue->component->set_variable_name(variable_name);
 
@@ -1042,6 +1046,7 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   if ((!this->is_setup() && !this->ignore_is_setup_))
     return;
 
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   nextion::NextionQueue *nextion_queue = new nextion::NextionQueue;
 
   nextion_queue->component = component;
@@ -1069,8 +1074,10 @@ void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
   if ((!this->is_setup() && !this->ignore_is_setup_) || this->is_sleeping())
     return;
 
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   nextion::NextionQueue *nextion_queue = new nextion::NextionQueue;
 
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   nextion_queue->component = new nextion::NextionComponentBase;
   nextion_queue->queue_time = millis();
 

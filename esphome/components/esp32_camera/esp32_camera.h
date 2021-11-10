@@ -1,10 +1,13 @@
 #pragma once
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include <esp_camera.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 
 namespace esphome {
 namespace esp32_camera {
@@ -48,9 +51,10 @@ enum ESP32CameraFrameSize {
   ESP32_CAMERA_SIZE_1600X1200,  // UXGA
 };
 
-class ESP32Camera : public Component, public Nameable {
+class ESP32Camera : public Component, public EntityBase {
  public:
   ESP32Camera(const std::string &name);
+  ESP32Camera();
   void set_data_pins(std::array<uint8_t, 8> pins);
   void set_vsync_pin(uint8_t pin);
   void set_href_pin(uint8_t pin);
@@ -104,6 +108,7 @@ class ESP32Camera : public Component, public Nameable {
   uint32_t last_update_{0};
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32Camera *global_esp32_camera;
 
 }  // namespace esp32_camera

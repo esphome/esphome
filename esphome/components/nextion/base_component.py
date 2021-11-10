@@ -30,16 +30,14 @@ CONF_FONT_ID = "font_id"
 
 
 def NextionName(value):
-    valid_chars = ascii_letters + digits + "."
+    valid_chars = f"{ascii_letters + digits}."
     if not isinstance(value, str) or len(value) > 29:
         raise cv.Invalid("Must be a string less than 29 characters")
 
     for char in value:
         if char not in valid_chars:
             raise cv.Invalid(
-                "Must only consist of upper/lowercase characters, numbers and the period '.'. The character '{}' cannot be used.".format(
-                    char
-                )
+                f"Must only consist of upper/lowercase characters, numbers and the period '.'. The character '{char}' cannot be used."
             )
 
     return value

@@ -1,4 +1,5 @@
 #include "restart_switch.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 

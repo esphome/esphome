@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_USERNAME,
     CONF_PASSWORD,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 
 AUTO_LOAD = ["json", "web_server_base"]
 
@@ -34,8 +34,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_JS_INCLUDE): cv.file_,
         cv.Optional(CONF_AUTH): cv.Schema(
             {
-                cv.Required(CONF_USERNAME): cv.string_strict,
-                cv.Required(CONF_PASSWORD): cv.string_strict,
+                cv.Required(CONF_USERNAME): cv.All(cv.string_strict, cv.Length(min=1)),
+                cv.Required(CONF_PASSWORD): cv.All(cv.string_strict, cv.Length(min=1)),
             }
         ),
         cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
@@ -54,16 +54,19 @@ async def to_code(config):
 
     cg.add(paren.set_port(config[CONF_PORT]))
     cg.add_define("WEBSERVER_PORT", config[CONF_PORT])
+    cg.add_define("USE_WEBSERVER")
     cg.add(var.set_css_url(config[CONF_CSS_URL]))
     cg.add(var.set_js_url(config[CONF_JS_URL]))
     if CONF_AUTH in config:
-        cg.add(var.set_username(config[CONF_AUTH][CONF_USERNAME]))
-        cg.add(var.set_password(config[CONF_AUTH][CONF_PASSWORD]))
+        cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
+        cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
     if CONF_CSS_INCLUDE in config:
         cg.add_define("WEBSERVER_CSS_INCLUDE")
-        with open(config[CONF_CSS_INCLUDE], "r") as myfile:
+        path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
+        with open(file=path, mode="r", encoding="utf-8") as myfile:
             cg.add(var.set_css_include(myfile.read()))
     if CONF_JS_INCLUDE in config:
         cg.add_define("WEBSERVER_JS_INCLUDE")
-        with open(config[CONF_JS_INCLUDE], "r") as myfile:
+        path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
+        with open(file=path, mode="r", encoding="utf-8") as myfile:
             cg.add(var.set_js_include(myfile.read()))

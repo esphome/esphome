@@ -178,7 +178,7 @@ def run_external_command(
     orig_argv = sys.argv
     orig_exit = sys.exit  # mock sys.exit
     full_cmd = " ".join(shlex_quote(x) for x in cmd)
-    _LOGGER.info("Running:  %s", full_cmd)
+    _LOGGER.debug("Running:  %s", full_cmd)
 
     orig_stdout = sys.stdout
     sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
@@ -192,8 +192,8 @@ def run_external_command(
         sys.argv = list(cmd)
         sys.exit = mock_exit
         return func() or 0
-    except KeyboardInterrupt:
-        return 1
+    except KeyboardInterrupt:  # pylint: disable=try-except-raise
+        raise
     except SystemExit as err:
         return err.args[0]
     except Exception as err:  # pylint: disable=broad-except
@@ -214,7 +214,7 @@ def run_external_command(
 
 def run_external_process(*cmd, **kwargs):
     full_cmd = " ".join(shlex_quote(x) for x in cmd)
-    _LOGGER.info("Running:  %s", full_cmd)
+    _LOGGER.debug("Running:  %s", full_cmd)
     filter_lines = kwargs.get("filter_lines")
 
     capture_stdout = kwargs.get("capture_stdout", False)
@@ -227,6 +227,8 @@ def run_external_process(*cmd, **kwargs):
 
     try:
         return subprocess.call(cmd, stdout=sub_stdout, stderr=sub_stderr)
+    except KeyboardInterrupt:  # pylint: disable=try-except-raise
+        raise
     except Exception as err:  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
         _LOGGER.error("Please try running %s locally.", full_cmd)
@@ -247,17 +249,24 @@ class OrderedDict(collections.OrderedDict):
         return dict(self).__repr__()
 
 
-def list_yaml_files(folder):
-    files = filter_yaml_files([os.path.join(folder, p) for p in os.listdir(folder)])
+def list_yaml_files(folders):
+    files = filter_yaml_files(
+        [os.path.join(folder, p) for folder in folders for p in os.listdir(folder)]
+    )
     files.sort()
     return files
 
 
 def filter_yaml_files(files):
-    files = [f for f in files if os.path.splitext(f)[1] == ".yaml"]
-    files = [f for f in files if os.path.basename(f) != "secrets.yaml"]
-    files = [f for f in files if not os.path.basename(f).startswith(".")]
-    return files
+    return [
+        f
+        for f in files
+        if (
+            os.path.splitext(f)[1] in (".yaml", ".yml")
+            and os.path.basename(f) not in ("secrets.yaml", "secrets.yml")
+            and not os.path.basename(f).startswith(".")
+        )
+    ]
 
 
 class SerialPort:

@@ -9,6 +9,11 @@ namespace api {
 
 namespace enums {
 
+enum EntityCategory : uint32_t {
+  ENTITY_CATEGORY_NONE = 0,
+  ENTITY_CATEGORY_CONFIG = 1,
+  ENTITY_CATEGORY_DIAGNOSTIC = 2,
+};
 enum LegacyCoverState : uint32_t {
   LEGACY_COVER_STATE_OPEN = 0,
   LEGACY_COVER_STATE_CLOSED = 1,
@@ -47,6 +52,7 @@ enum ColorMode : uint32_t {
 enum SensorStateClass : uint32_t {
   STATE_CLASS_NONE = 0,
   STATE_CLASS_MEASUREMENT = 1,
+  STATE_CLASS_TOTAL_INCREASING = 2,
 };
 enum SensorLastResetType : uint32_t {
   LAST_RESET_NONE = 0,
@@ -58,9 +64,10 @@ enum LogLevel : uint32_t {
   LOG_LEVEL_ERROR = 1,
   LOG_LEVEL_WARN = 2,
   LOG_LEVEL_INFO = 3,
-  LOG_LEVEL_DEBUG = 4,
-  LOG_LEVEL_VERBOSE = 5,
-  LOG_LEVEL_VERY_VERBOSE = 6,
+  LOG_LEVEL_CONFIG = 4,
+  LOG_LEVEL_DEBUG = 5,
+  LOG_LEVEL_VERBOSE = 6,
+  LOG_LEVEL_VERY_VERBOSE = 7,
 };
 enum ServiceArgType : uint32_t {
   SERVICE_ARG_TYPE_BOOL = 0,
@@ -222,6 +229,7 @@ class DeviceInfoResponse : public ProtoMessage {
   bool has_deep_sleep{false};
   std::string project_name{};
   std::string project_version{};
+  uint32_t webserver_port{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -267,6 +275,8 @@ class ListEntitiesBinarySensorResponse : public ProtoMessage {
   std::string device_class{};
   bool is_status_binary_sensor{false};
   bool disabled_by_default{false};
+  std::string icon{};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -302,6 +312,8 @@ class ListEntitiesCoverResponse : public ProtoMessage {
   bool supports_tilt{false};
   std::string device_class{};
   bool disabled_by_default{false};
+  std::string icon{};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -358,6 +370,8 @@ class ListEntitiesFanResponse : public ProtoMessage {
   bool supports_direction{false};
   int32_t supported_speed_count{0};
   bool disabled_by_default{false};
+  std::string icon{};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -422,6 +436,8 @@ class ListEntitiesLightResponse : public ProtoMessage {
   float max_mireds{0.0f};
   std::vector<std::string> effects{};
   bool disabled_by_default{false};
+  std::string icon{};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -508,8 +524,9 @@ class ListEntitiesSensorResponse : public ProtoMessage {
   bool force_update{false};
   std::string device_class{};
   enums::SensorStateClass state_class{};
-  enums::SensorLastResetType last_reset_type{};
+  enums::SensorLastResetType legacy_last_reset_type{};
   bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -543,6 +560,7 @@ class ListEntitiesSwitchResponse : public ProtoMessage {
   std::string icon{};
   bool assumed_state{false};
   bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -587,6 +605,7 @@ class ListEntitiesTextSensorResponse : public ProtoMessage {
   std::string unique_id{};
   std::string icon{};
   bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -627,7 +646,6 @@ class SubscribeLogsRequest : public ProtoMessage {
 class SubscribeLogsResponse : public ProtoMessage {
  public:
   enums::LogLevel level{};
-  std::string tag{};
   std::string message{};
   bool send_failed{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -798,6 +816,8 @@ class ListEntitiesCameraResponse : public ProtoMessage {
   std::string name{};
   std::string unique_id{};
   bool disabled_by_default{false};
+  std::string icon{};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -855,6 +875,8 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   std::vector<enums::ClimatePreset> supported_presets{};
   std::vector<std::string> supported_custom_presets{};
   bool disabled_by_default{false};
+  std::string icon{};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -934,6 +956,7 @@ class ListEntitiesNumberResponse : public ProtoMessage {
   float max_value{0.0f};
   float step{0.0f};
   bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -979,6 +1002,7 @@ class ListEntitiesSelectResponse : public ProtoMessage {
   std::string icon{};
   std::vector<std::string> options{};
   bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

@@ -1,6 +1,9 @@
 #include "mqtt_fan.h"
 #include "esphome/core/log.h"
 
+#include "mqtt_const.h"
+
+#ifdef USE_MQTT
 #ifdef USE_FAN
 #include "esphome/components/fan/fan_helpers.h"
 
@@ -15,6 +18,8 @@ MQTTFanComponent::MQTTFanComponent(FanState *state) : MQTTComponent(), state_(st
 
 FanState *MQTTFanComponent::get_state() const { return this->state_; }
 std::string MQTTFanComponent::component_type() const { return "fan"; }
+const EntityBase *MQTTFanComponent::get_entity() const { return this->state_; }
+
 void MQTTFanComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
     auto val = parse_on_off(payload.c_str());
@@ -64,27 +69,69 @@ void MQTTFanComponent::setup() {
   }
 
   if (this->state_->get_traits().supports_speed()) {
+    this->subscribe(this->get_speed_level_command_topic(),
+                    [this](const std::string &topic, const std::string &payload) {
+                      optional<int> speed_level_opt = parse_int(payload);
+                      if (speed_level_opt.has_value()) {
+                        const int speed_level = speed_level_opt.value();
+                        if (speed_level >= 0 && speed_level <= this->state_->get_traits().supported_speed_count()) {
+                          ESP_LOGD(TAG, "New speed level %d", speed_level);
+                          this->state_->make_call().set_speed(speed_level).perform();
+                        } else {
+                          ESP_LOGW(TAG, "Invalid speed level %d", speed_level);
+                          this->status_momentary_warning("speed", 5000);
+                        }
+                      } else {
+                        ESP_LOGW(TAG, "Invalid speed level %s (int expected)", payload.c_str());
+                        this->status_momentary_warning("speed", 5000);
+                      }
+                    });
+  }
+
+  if (this->state_->get_traits().supports_speed()) {
     this->subscribe(this->get_speed_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      this->state_->make_call().set_speed(payload.c_str()).perform();
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+      this->state_->make_call()
+          .set_speed(payload.c_str())  // NOLINT(clang-diagnostic-deprecated-declarations)
+          .perform();
+#pragma GCC diagnostic pop
     });
   }
 
   auto f = std::bind(&MQTTFanComponent::publish_state, this);
   this->state_->add_on_state_callback([this, f]() { this->defer("send", f); });
 }
-bool MQTTFanComponent::send_initial_state() { return this->publish_state(); }
-std::string MQTTFanComponent::friendly_name() const { return this->state_->get_name(); }
-void MQTTFanComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+
+void MQTTFanComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "MQTT Fan '%s': ", this->state_->get_name().c_str());
+  LOG_MQTT_COMPONENT(true, true);
   if (this->state_->get_traits().supports_oscillation()) {
-    root["oscillation_command_topic"] = this->get_oscillation_command_topic();
-    root["oscillation_state_topic"] = this->get_oscillation_state_topic();
+    ESP_LOGCONFIG(TAG, "  Oscillation State Topic: '%s'", this->get_oscillation_state_topic().c_str());
+    ESP_LOGCONFIG(TAG, "  Oscillation Command Topic: '%s'", this->get_oscillation_command_topic().c_str());
   }
   if (this->state_->get_traits().supports_speed()) {
-    root["speed_command_topic"] = this->get_speed_command_topic();
-    root["speed_state_topic"] = this->get_speed_state_topic();
+    ESP_LOGCONFIG(TAG, "  Speed Level State Topic: '%s'", this->get_speed_level_state_topic().c_str());
+    ESP_LOGCONFIG(TAG, "  Speed Level Command Topic: '%s'", this->get_speed_level_command_topic().c_str());
+    ESP_LOGCONFIG(TAG, "  Speed State Topic: '%s'", this->get_speed_state_topic().c_str());
+    ESP_LOGCONFIG(TAG, "  Speed Command Topic: '%s'", this->get_speed_command_topic().c_str());
   }
 }
-bool MQTTFanComponent::is_internal() { return this->state_->is_internal(); }
+
+bool MQTTFanComponent::send_initial_state() { return this->publish_state(); }
+
+void MQTTFanComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+  if (this->state_->get_traits().supports_oscillation()) {
+    root[MQTT_OSCILLATION_COMMAND_TOPIC] = this->get_oscillation_command_topic();
+    root[MQTT_OSCILLATION_STATE_TOPIC] = this->get_oscillation_state_topic();
+  }
+  if (this->state_->get_traits().supports_speed()) {
+    root["speed_level_command_topic"] = this->get_speed_level_command_topic();
+    root["speed_level_state_topic"] = this->get_speed_level_state_topic();
+    root[MQTT_SPEED_COMMAND_TOPIC] = this->get_speed_command_topic();
+    root[MQTT_SPEED_STATE_TOPIC] = this->get_speed_state_topic();
+  }
+}
 bool MQTTFanComponent::publish_state() {
   const char *state_s = this->state_->state ? "ON" : "OFF";
   ESP_LOGD(TAG, "'%s' Sending state %s.", this->state_->get_name().c_str(), state_s);
@@ -97,22 +144,31 @@ bool MQTTFanComponent::publish_state() {
   }
   auto traits = this->state_->get_traits();
   if (traits.supports_speed()) {
+    std::string payload = to_string(this->state_->speed);
+    bool success = this->publish(this->get_speed_level_state_topic(), payload);
+    failed = failed || !success;
+  }
+  if (traits.supports_speed()) {
     const char *payload;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
     switch (fan::speed_level_to_enum(this->state_->speed, traits.supported_speed_count())) {
-      case FAN_SPEED_LOW: {
+      case FAN_SPEED_LOW: {  // NOLINT(clang-diagnostic-deprecated-declarations)
         payload = "low";
         break;
       }
-      case FAN_SPEED_MEDIUM: {
+      case FAN_SPEED_MEDIUM: {  // NOLINT(clang-diagnostic-deprecated-declarations)
         payload = "medium";
         break;
       }
       default:
-      case FAN_SPEED_HIGH: {
+      case FAN_SPEED_HIGH: {  // NOLINT(clang-diagnostic-deprecated-declarations)
         payload = "high";
         break;
       }
     }
+#pragma GCC diagnostic pop
     bool success = this->publish(this->get_speed_state_topic(), payload);
     failed = failed || !success;
   }
@@ -124,3 +180,4 @@ bool MQTTFanComponent::publish_state() {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

@@ -1080,5 +1080,232 @@ void WaveshareEPaper7P5InV2::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
+
+/* 7.50in-bc */
+void WaveshareEPaper7P5InBC::initialize() {
+  /* The command sequence is similar to the 7P5In display but differs in subtle ways
+  to allow for faster updates. */
+  // COMMAND POWER SETTING
+  this->command(0x01);
+  this->data(0x37);
+  this->data(0x00);
+
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  this->data(0xCF);
+  this->data(0x08);
+
+  // COMMAND PLL CONTROL
+  this->command(0x30);
+  this->data(0x3A);
+
+  // COMMAND VCM_DC_SETTING: all temperature range
+  this->command(0x82);
+  this->data(0x28);
+
+  // COMMAND BOOSTER SOFT START
+  this->command(0x06);
+  this->data(0xC7);
+  this->data(0xCC);
+  this->data(0x15);
+
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0x77);
+
+  // COMMAND TCON SETTING
+  this->command(0x60);
+  this->data(0x22);
+
+  // COMMAND FLASH CONTROL
+  this->command(0x65);
+  this->data(0x00);
+
+  // COMMAND RESOLUTION SETTING
+  this->command(0x61);
+  this->data(0x02);  // 640 >> 8
+  this->data(0x80);
+  this->data(0x01);  // 384 >> 8
+  this->data(0x80);
+
+  // COMMAND FLASH MODE
+  this->command(0xE5);
+  this->data(0x03);
+}
+
+void HOT WaveshareEPaper7P5InBC::display() {
+  // COMMAND DATA START TRANSMISSION 1
+  this->command(0x10);
+  this->start_data_();
+
+  for (size_t i = 0; i < this->get_buffer_length_(); i++) {
+    // A line of eight source pixels (each a bit in this byte)
+    uint8_t eight_pixels = this->buffer_[i];
+
+    for (uint8_t j = 0; j < 8; j += 2) {
+      /* For bichromatic displays, each byte represents two pixels. Each nibble encodes a pixel: 0=white, 3=black,
+      4=color. Therefore, e.g. 0x44 = two adjacent color pixels, 0x33 is two adjacent black pixels, etc. If you want
+      to draw using the color pixels, change '0x30' with '0x40' and '0x03' with '0x04' below. */
+      uint8_t left_nibble = (eight_pixels & 0x80) ? 0x30 : 0x00;
+      eight_pixels <<= 1;
+      uint8_t right_nibble = (eight_pixels & 0x80) ? 0x03 : 0x00;
+      eight_pixels <<= 1;
+      this->write_byte(left_nibble | right_nibble);
+    }
+    App.feed_wdt();
+  }
+  this->end_data_();
+
+  // Unlike the 7P5In display, we send the "power on" command here rather than during initialization
+  // COMMAND POWER ON
+  this->command(0x04);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+}
+
+int WaveshareEPaper7P5InBC::get_width_internal() { return 640; }
+
+int WaveshareEPaper7P5InBC::get_height_internal() { return 384; }
+
+void WaveshareEPaper7P5InBC::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.5in-bc");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+static const uint8_t LUT_SIZE_TTGO_DKE_PART = 153;
+
+static const uint8_t PART_UPDATE_LUT_TTGO_DKE[LUT_SIZE_TTGO_DKE_PART] = {
+    0x0, 0x40, 0x0, 0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x80, 0x80, 0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
+    0x0, 0x0,  0x0, 0x0, 0x40, 0x40, 0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x80, 0x0, 0x0,
+    0x0, 0x0,  0x0, 0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
+    0xF, 0x0,  0x0, 0x0, 0x0,  0x0,  0x0,  0x1,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
+    0x0, 0x0,  0x0, 0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
+    0x0, 0x0,  0x0, 0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
+    0x0, 0x0,  0x1, 0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x1,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
+    0x0, 0x0,  0x0, 0x0, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x0, 0x0, 0x0,
+    // 0x22,   0x17,   0x41,   0x0,    0x32,   0x32
+};
+
+void WaveshareEPaper2P13InDKE::initialize() {}
+void HOT WaveshareEPaper2P13InDKE::display() {
+  bool partial = this->at_update_ != 0;
+  this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+
+  if (partial)
+    ESP_LOGI(TAG, "Performing partial e-paper update.");
+  else
+    ESP_LOGI(TAG, "Performing full e-paper update.");
+
+  // start and set up data format
+  this->command(0x12);
+  this->wait_until_idle_();
+
+  this->command(0x11);
+  this->data(0x03);
+  this->command(0x44);
+  this->data(1);
+  this->data(this->get_width_internal() / 8);
+  this->command(0x45);
+  this->data(0);
+  this->data(0);
+  this->data(this->get_height_internal());
+  this->data(0);
+  this->command(0x4e);
+  this->data(1);
+  this->command(0x4f);
+  this->data(0);
+  this->data(0);
+
+  if (!partial) {
+    // send data
+    this->command(0x24);
+    this->start_data_();
+    this->write_array(this->buffer_, this->get_buffer_length_());
+    this->end_data_();
+
+    // commit
+    this->command(0x20);
+    this->wait_until_idle_();
+  } else {
+    // set up partial update
+    this->command(0x32);
+    for (uint8_t v : PART_UPDATE_LUT_TTGO_DKE)
+      this->data(v);
+    this->command(0x3F);
+    this->data(0x22);
+
+    this->command(0x03);
+    this->data(0x17);
+    this->command(0x04);
+    this->data(0x41);
+    this->data(0x00);
+    this->data(0x32);
+    this->command(0x2C);
+    this->data(0x32);
+
+    this->command(0x37);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x40);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+
+    this->command(0x3C);
+    this->data(0x80);
+    this->command(0x22);
+    this->data(0xC0);
+    this->command(0x20);
+    this->wait_until_idle_();
+
+    // send data
+    this->command(0x24);
+    this->start_data_();
+    this->write_array(this->buffer_, this->get_buffer_length_());
+    this->end_data_();
+
+    // commit as partial
+    this->command(0x22);
+    this->data(0xCF);
+    this->command(0x20);
+    this->wait_until_idle_();
+
+    // data must be sent again on partial update
+    delay(300);  // NOLINT
+    this->command(0x24);
+    this->start_data_();
+    this->write_array(this->buffer_, this->get_buffer_length_());
+    this->end_data_();
+    delay(300);  // NOLINT
+  }
+
+  ESP_LOGI(TAG, "Completed e-paper update.");
+}
+
+int WaveshareEPaper2P13InDKE::get_width_internal() { return 128; }
+int WaveshareEPaper2P13InDKE::get_height_internal() { return 250; }
+int WaveshareEPaper2P13InDKE::idle_timeout_() { return 5000; }
+void WaveshareEPaper2P13InDKE::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.13inDKE");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+void WaveshareEPaper2P13InDKE::set_full_update_every(uint32_t full_update_every) {
+  this->full_update_every_ = full_update_every;
+}
+
 }  // namespace waveshare_epaper
 }  // namespace esphome

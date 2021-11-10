@@ -11,8 +11,9 @@
 #include "esphome/core/preferences.h"
 
 #include <map>
+#include <memory>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <esp_gap_ble_api.h>
 #include <esp_gatts_api.h>
@@ -43,10 +44,11 @@ class BLEServer : public Component {
   void set_manufacturer(const std::string &manufacturer) { this->manufacturer_ = manufacturer; }
   void set_model(const std::string &model) { this->model_ = model; }
 
-  BLEService *create_service(const uint8_t *uuid, bool advertise = false);
-  BLEService *create_service(uint16_t uuid, bool advertise = false);
-  BLEService *create_service(const std::string &uuid, bool advertise = false);
-  BLEService *create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15, uint8_t inst_id = 0);
+  std::shared_ptr<BLEService> create_service(const uint8_t *uuid, bool advertise = false);
+  std::shared_ptr<BLEService> create_service(uint16_t uuid, bool advertise = false);
+  std::shared_ptr<BLEService> create_service(const std::string &uuid, bool advertise = false);
+  std::shared_ptr<BLEService> create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15,
+                                             uint8_t inst_id = 0);
 
   esp_gatt_if_t get_gatts_if() { return this->gatts_if_; }
   uint32_t get_connected_client_count() { return this->connected_clients_; }
@@ -74,8 +76,8 @@ class BLEServer : public Component {
   uint32_t connected_clients_{0};
   std::map<uint16_t, void *> clients_;
 
-  std::vector<BLEService *> services_;
-  BLEService *device_information_service_;
+  std::vector<std::shared_ptr<BLEService>> services_;
+  std::shared_ptr<BLEService> device_information_service_;
 
   std::vector<BLEServiceComponent *> service_components_;
 
@@ -87,6 +89,7 @@ class BLEServer : public Component {
   } state_{INIT};
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern BLEServer *global_ble_server;
 
 }  // namespace esp32_ble_server

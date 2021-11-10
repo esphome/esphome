@@ -1,5 +1,5 @@
 #include "climate_traits.h"
-#include "esphome/core/log.h"
+#include <cstdio>
 
 namespace esphome {
 namespace climate {
