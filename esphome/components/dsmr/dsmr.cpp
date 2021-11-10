@@ -146,7 +146,7 @@ void Dsmr::receive_encrypted_() {
                          encrypted_telegram_len_ - 17);
       delete gcmaes128;  // NOLINT(cppcoreguidelines-owning-memory)
 
-      telegram_len_ = strnlen(telegram_, sizeof(telegram_));
+      telegram_len_ = strnlen(telegram_, max_telegram_len_);
       ESP_LOGV(TAG, "Decrypted telegram size: %d bytes", telegram_len_);
       ESP_LOGVV(TAG, "Decrypted telegram: %s", telegram_);
 
