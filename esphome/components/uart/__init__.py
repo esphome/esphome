@@ -14,6 +14,16 @@ from esphome.const import (
     CONF_DATA,
     CONF_RX_BUFFER_SIZE,
     CONF_INVERT,
+    CONF_TRIGGER_ID,
+    CONF_SEQUENCE,
+    CONF_TIMEOUT,
+    CONF_DEBUG,
+    CONF_DIRECTION,
+    CONF_AFTER,
+    CONF_BYTES,
+    CONF_DELIMITER,
+    CONF_DUMMY_RECEIVER,
+    CONF_DUMMY_RECEIVER_ID,
 )
 from esphome.core import CORE
 
@@ -31,6 +41,8 @@ ESP8266UartComponent = uart_ns.class_(
 
 UARTDevice = uart_ns.class_("UARTDevice")
 UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
+UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
+UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
 
 
@@ -75,6 +87,34 @@ CONF_STOP_BITS = "stop_bits"
 CONF_DATA_BITS = "data_bits"
 CONF_PARITY = "parity"
 
+UARTDirection = uart_ns.enum("UARTDirection")
+UART_DIRECTIONS = {
+    "RX": UARTDirection.UART_DIRECTION_RX,
+    "TX": UARTDirection.UART_DIRECTION_TX,
+    "BOTH": UARTDirection.UART_DIRECTION_BOTH,
+}
+
+DEBUG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UARTDebugger),
+        cv.Optional(CONF_DIRECTION, default="BOTH"): cv.enum(
+            UART_DIRECTIONS, upper=True
+        ),
+        cv.Optional(CONF_AFTER): cv.Schema(
+            {
+                cv.Optional(CONF_BYTES, default=256): cv.validate_bytes,
+                cv.Optional(
+                    CONF_TIMEOUT, default="100ms"
+                ): cv.positive_time_period_milliseconds,
+                cv.Optional(CONF_DELIMITER): cv.templatable(validate_raw_data),
+            }
+        ),
+        cv.Required(CONF_SEQUENCE): automation.validate_automation(),
+        cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
+        cv.GenerateID(CONF_DUMMY_RECEIVER_ID): cv.declare_id(UARTDummyReceiver),
+    }
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -91,10 +131,36 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INVERT): cv.invalid(
                 "This option has been removed. Please instead use invert in the tx/rx pin schemas."
             ),
+            cv.Optional(CONF_DEBUG): DEBUG_SCHEMA,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN),
 )
+
+
+async def debug_to_code(config, parent):
+    trigger = cg.new_Pvariable(config[CONF_TRIGGER_ID], parent)
+    await cg.register_component(trigger, config)
+    for action in config[CONF_SEQUENCE]:
+        await automation.build_automation(
+            trigger,
+            [(UARTDirection, "direction"), (cg.std_vector.template(cg.uint8), "bytes")],
+            action,
+        )
+    cg.add(trigger.set_direction(config[CONF_DIRECTION]))
+    after = config[CONF_AFTER]
+    cg.add(trigger.set_after_bytes(after[CONF_BYTES]))
+    cg.add(trigger.set_after_timeout(after[CONF_TIMEOUT]))
+    if CONF_DELIMITER in after:
+        data = after[CONF_DELIMITER]
+        if isinstance(data, bytes):
+            data = list(data)
+        for byte in after[CONF_DELIMITER]:
+            cg.add(trigger.add_delimiter_byte(byte))
+    if config[CONF_DUMMY_RECEIVER]:
+        dummy = cg.new_Pvariable(config[CONF_DUMMY_RECEIVER_ID], parent)
+        await cg.register_component(dummy, {})
+    cg.add_define("USE_UART_DEBUGGER")
 
 
 async def to_code(config):
@@ -114,6 +180,9 @@ async def to_code(config):
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))
+
+    if CONF_DEBUG in config:
+        await debug_to_code(config[CONF_DEBUG], var)
 
 
 # A schema to use for all UART devices, all UART integrations must extend this!
