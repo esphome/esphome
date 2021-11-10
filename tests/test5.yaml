@@ -173,3 +173,11 @@ sensor:
     uart_id: uart2
     co2:
       name: CO2 Sensor
+
+script:
+  - id: automation_test
+    then:
+      - repeat:
+          count: 5
+          then:
+            - logger.log: "looping!"
