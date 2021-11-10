@@ -313,7 +313,7 @@ async def to_code(config):
         # Increase freertos tick speed from 100Hz to 1kHz so that delay() resolution is 1ms
         add_idf_sdkconfig_option("CONFIG_FREERTOS_HZ", 1000)
 
-        # Auto-reboot upon WDT exception
+        # Auto-reboot upon watchdog timeout
         add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
 
         # Reduce power consumption with auto-sleep during delay() calls
