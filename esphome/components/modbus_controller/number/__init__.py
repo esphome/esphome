@@ -17,6 +17,7 @@ from .. import (
     ModbusController,
     SENSOR_VALUE_TYPE,
     SensorItem,
+    TYPE_REGISTER_MAP,
 )
 
 
@@ -38,22 +39,6 @@ CODEOWNERS = ["@martgras"]
 ModbusNumber = modbus_controller_ns.class_(
     "ModbusNumber", cg.Component, number.Number, SensorItem
 )
-
-TYPE_REGISTER_MAP = {
-    "RAW": 1,
-    "U_WORD": 1,
-    "S_WORD": 1,
-    "U_DWORD": 2,
-    "U_DWORD_R": 2,
-    "S_DWORD": 2,
-    "S_DWORD_R": 2,
-    "U_QWORD": 4,
-    "U_QWORDU_R": 4,
-    "S_QWORD": 4,
-    "U_QWORD_R": 4,
-    "FP32": 2,
-    "FP32_R": 2,
-}
 
 
 def validate_min_max(config):

@@ -12,7 +12,7 @@ class OutputSwitch : public switch_::Switch, public Component {
   void set_output(BinaryOutput *output) { output_ = output; }
 
   void setup() override;
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  float get_setup_priority() const override { return setup_priority::HARDWARE - 1.0f; }
   void dump_config() override;
 
  protected:

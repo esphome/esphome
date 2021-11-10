@@ -6,7 +6,9 @@
 #include <cstring>
 
 #if defined(USE_ESP8266)
+#ifdef USE_WIFI
 #include <ESP8266WiFi.h>
+#endif
 #include <osapi.h>
 #elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
 #include <Esp.h>
@@ -39,7 +41,7 @@ void get_mac_address_raw(uint8_t *mac) {
   esp_efuse_mac_get_default(mac);
 #endif
 #endif
-#ifdef USE_ESP8266
+#if (defined USE_ESP8266 && defined USE_WIFI)
   WiFi.macAddress(mac);
 #endif
 }
@@ -48,7 +50,11 @@ std::string get_mac_address() {
   char tmp[20];
   uint8_t mac[6];
   get_mac_address_raw(mac);
+#ifdef USE_WIFI
   sprintf(tmp, "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+#else
+  return "";
+#endif
   return std::string(tmp);
 }
 
@@ -122,31 +128,6 @@ float gamma_uncorrect(float value, float gamma) {
   return powf(value, 1 / gamma);
 }
 
-std::string to_lowercase_underscore(std::string s) {
-  std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-  std::replace(s.begin(), s.end(), ' ', '_');
-  return s;
-}
-
-std::string sanitize_string_allowlist(const std::string &s, const std::string &allowlist) {
-  std::string out(s);
-  out.erase(std::remove_if(out.begin(), out.end(),
-                           [&allowlist](const char &c) { return allowlist.find(c) == std::string::npos; }),
-            out.end());
-  return out;
-}
-
-std::string sanitize_hostname(const std::string &hostname) {
-  std::string s = sanitize_string_allowlist(hostname, HOSTNAME_CHARACTER_ALLOWLIST);
-  return truncate_string(s, 63);
-}
-
-std::string truncate_string(const std::string &s, size_t length) {
-  if (s.length() > length)
-    return s.substr(0, length);
-  return s;
-}
-
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
   if (accuracy_decimals < 0) {
     auto multiplier = powf(10.0f, accuracy_decimals);
@@ -185,8 +166,6 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   return PARSE_NONE;
 }
 
-const char *const HOSTNAME_CHARACTER_ALLOWLIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
-
 uint8_t crc8(uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
 
@@ -203,17 +182,18 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
   return crc;
 }
 
-void delay_microseconds_accurate(uint32_t usec) {
-  if (usec == 0)
-    return;
-  if (usec < 5000UL) {
-    delayMicroseconds(usec);
-    return;
+void delay_microseconds_safe(uint32_t us) {  // avoids CPU locks that could trigger WDT or affect WiFi/BT stability
+  auto start = micros();
+  const uint32_t lag = 5000;  // microseconds, specifies the maximum time for a CPU busy-loop.
+                              // it must be larger than the worst-case duration of a delay(1) call (hardware tasks)
+                              // 5ms is conservative, it could be reduced when exact BT/WiFi stack delays are known
+  if (us > lag) {
+    delay((us - lag) / 1000UL);  // note: in disabled-interrupt contexts delay() won't actually sleep
+    while (micros() - start < us - lag)
+      delay(1);  // in those cases, this loop allows to yield for BT/WiFi stack tasks
   }
-  uint32_t start = micros();
-  while (micros() - start < usec) {
-    delay(0);
-  }
+  while (micros() - start < us)  // fine delay the remaining usecs
+    ;
 }
 
 uint8_t reverse_bits_8(uint8_t x) {
@@ -271,20 +251,6 @@ std::string to_string(long double val) {
   char buf[64];
   sprintf(buf, "%Lf", val);
   return buf;
-}
-optional<float> parse_float(const std::string &str) {
-  char *end;
-  float value = ::strtof(str.c_str(), &end);
-  if (end == nullptr || end != str.end().base())
-    return {};
-  return value;
-}
-optional<int> parse_int(const std::string &str) {
-  char *end;
-  int value = ::strtol(str.c_str(), &end, 10);
-  if (end == nullptr || end != str.end().base())
-    return {};
-  return value;
 }
 
 optional<int> parse_hex(const char chr) {
@@ -358,6 +324,7 @@ template<typename T> T clamp(const T val, const T min, const T max) {
     return max;
   return val;
 }
+template uint8_t clamp(uint8_t, uint8_t, uint8_t);
 template float clamp(float, float, float);
 template int clamp(int, int, int);
 
@@ -381,17 +348,6 @@ std::string str_sprintf(const char *fmt, ...) {
   va_end(args);
 
   return str;
-}
-
-uint16_t encode_uint16(uint8_t msb, uint8_t lsb) { return (uint16_t(msb) << 8) | uint16_t(lsb); }
-std::array<uint8_t, 2> decode_uint16(uint16_t value) {
-  uint8_t msb = (value >> 8) & 0xFF;
-  uint8_t lsb = (value >> 0) & 0xFF;
-  return {msb, lsb};
-}
-
-uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb) {
-  return (uint32_t(msb) << 24) | (uint32_t(byte2) << 16) | (uint32_t(byte3) << 8) | uint32_t(lsb);
 }
 
 std::string hexencode(const uint8_t *data, uint32_t len) {
@@ -474,12 +430,37 @@ void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green
 }
 
 #ifdef USE_ESP8266
+#ifdef USE_WIFI
 IRAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
 IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
+#else
+IRAM_ATTR InterruptLock::InterruptLock() {}
+IRAM_ATTR InterruptLock::~InterruptLock() {}
+#endif
 #endif
 #ifdef USE_ESP32
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 #endif
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+std::string str_truncate(const std::string &str, size_t length) {
+  return str.length() > length ? str.substr(0, length) : str;
+}
+std::string str_snake_case(const std::string &str) {
+  std::string result;
+  result.resize(str.length());
+  std::transform(str.begin(), str.end(), result.begin(), ::tolower);
+  std::replace(result.begin(), result.end(), ' ', '_');
+  return result;
+}
+std::string str_sanitize(const std::string &str) {
+  std::string out;
+  std::copy_if(str.begin(), str.end(), std::back_inserter(out), [](const char &c) {
+    return c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+  });
+  return out;
+}
 
 }  // namespace esphome

@@ -263,7 +263,11 @@ def highlight(s):
 @lint_re_check(
     r"^#define\s+([a-zA-Z0-9_]+)\s+([0-9bx]+)" + CPP_RE_EOL,
     include=cpp_include,
-    exclude=["esphome/core/log.h", "esphome/components/socket/headers.h"],
+    exclude=[
+        "esphome/core/log.h",
+        "esphome/components/socket/headers.h",
+        "esphome/core/defines.h",
+    ],
 )
 def lint_no_defines(fname, match):
     s = highlight(

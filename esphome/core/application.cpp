@@ -109,8 +109,8 @@ void Application::loop() {
 
 void IRAM_ATTR HOT Application::feed_wdt() {
   static uint32_t last_feed = 0;
-  uint32_t now = millis();
-  if (now - last_feed > 3) {
+  uint32_t now = micros();
+  if (now - last_feed > 3000) {
     arch_feed_wdt();
     last_feed = now;
 #ifdef USE_STATUS_LED

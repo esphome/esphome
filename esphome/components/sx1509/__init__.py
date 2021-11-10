@@ -80,8 +80,8 @@ def validate_mode(value):
 CONF_SX1509 = "sx1509"
 SX1509_PIN_SCHEMA = cv.All(
     {
-        cv.GenerateID(): cv.declare_id(SX1509Component),
-        cv.Required(CONF_SX1509): cv.use_id(SX1509GPIOPin),
+        cv.GenerateID(): cv.declare_id(SX1509GPIOPin),
+        cv.Required(CONF_SX1509): cv.use_id(SX1509Component),
         cv.Required(CONF_NUMBER): cv.int_range(min=0, max=15),
         cv.Optional(CONF_MODE, default={}): cv.All(
             {

@@ -140,7 +140,8 @@ def final_validate(config):
     has_sta = bool(config.get(CONF_NETWORKS, True))
     has_ap = CONF_AP in config
     has_improv = "esp32_improv" in fv.full_config.get()
-    if (not has_sta) and (not has_ap) and (not has_improv):
+    has_improv_serial = "improv_serial" in fv.full_config.get()
+    if not (has_sta or has_ap or has_improv or has_improv_serial):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create."
         )
@@ -159,8 +160,15 @@ def final_validate_power_esp32_ble(value):
         "esp32_ble_server",
         "esp32_ble_tracker",
     ]:
+        if conflicting not in fv.full_config.get():
+            continue
+
         try:
-            cv.require_framework_version(esp32_arduino=cv.Version(1, 0, 5))(None)
+            # Only arduino 1.0.5+ and esp-idf impacted
+            cv.require_framework_version(
+                esp32_arduino=cv.Version(1, 0, 5),
+                esp_idf=cv.Version(4, 0, 0),
+            )(None)
         except cv.Invalid:
             pass
         else:
