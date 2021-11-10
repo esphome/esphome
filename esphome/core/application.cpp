@@ -90,6 +90,7 @@ void Application::loop() {
     // otherwise interval=0 schedules result in constant looping with almost no sleep
     next_schedule = std::max(next_schedule, delay_time / 2);
     delay_time = std::min(next_schedule, delay_time);
+    delay(delay_time);
   }
   this->last_loop_ = now;
 
