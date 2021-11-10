@@ -170,7 +170,7 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
-  const std::string title = App.get_name();
+  const std::string& title = App.get_name();
   // All content is controlled and created by user - so allowing all origins is fine here.
   stream->addHeader("Access-Control-Allow-Origin", "*");
   stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><link rel=icon href=data:><meta "
@@ -184,7 +184,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     stream->print(F("<link rel=\"stylesheet\" href=\""));
     stream->print(this->css_url_);
     stream->print(F("\">"));
-  } 
+  }
   stream->print(F("</head><body>"));  
 #if WEBSERVER_VERSION == 1
   stream->print(F("<article class=\"markdown-body\"><h1>"));
@@ -298,21 +298,20 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 }
 #endif
 
-#define set_json_id(root, obj, sensor ) \
+#define set_json_id(root, obj, sensor) \
   (root)["id"] = sensor; \
   (root)["name"] = (obj)->get_name();
 
-#define set_json_value(root, obj, sensor, value ) \
+#define set_json_value(root, obj, sensor, value) \
   set_json_id((root), (obj), sensor ) \
   (root)["value"] = value;  
 
-#define set_json_state_value(root, obj, sensor, state, value ) \
+#define set_json_state_value(root, obj, sensor, state, value) \
   set_json_value((root), (obj), sensor, value ) \
   (root)["state"] = state; 
 
-#define set_json_icon_state_value(root, obj, sensor, state, value ) \
-  set_json_value((root), (obj), sensor, value ) \
-  (root)["icon"] = (obj)->get_icon(); \
+#define set_json_icon_state_value(root, obj, sensor, state, value) \
+  set_json_value((root), (obj), sensor, value ) (root)["icon"] = (obj)->get_icon(); \
   (root)["state"] = state;
 
 #ifdef USE_SENSOR
@@ -334,7 +333,6 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
 
 std::string WebServer::sensor_json(sensor::Sensor *obj, float value) {
   return json::build_json([obj, value](JsonObject &root) {
-    
     std::string state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
     if (!obj->get_unit_of_measurement().empty())
       state += " " + obj->get_unit_of_measurement();
@@ -650,7 +648,8 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
 }
 std::string WebServer::cover_json(cover::Cover *obj) {
   return json::build_json([obj](JsonObject &root) {
-    set_json_state_value(root, obj, "cover-" + obj->get_object_id(), obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position);
+    set_json_state_value(root, obj, "cover-" + obj->get_object_id(), obj->is_fully_closed() ? "CLOSED" : "OPEN",
+                         obj->position);
     root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
 
     if (obj->get_traits().get_supports_tilt())

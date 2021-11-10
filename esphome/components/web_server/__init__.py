@@ -43,14 +43,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
             web_server_base.WebServerBase
         )
-    },
-    # Need to apply Post defaults if not set
-    # if V1
-    # CONF_CSS_URL, default="https://esphome.io/_static/webserver-v1.min.css"
-    # CONF_JS_URL, default="https://esphome.io/_static/webserver-v1.min.js"
-    # if V2
-    # CONF_JS_URL, default="https://esphome.io/_static/v2/www.js"
-    # which version to default ? Do we force 2 on everyone or opt in?
+    }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
