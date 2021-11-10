@@ -209,17 +209,18 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
   return crc;
 }
 
-void delay_microseconds_accurate(uint32_t usec) {
-  if (usec == 0)
-    return;
-  if (usec < 5000UL) {
-    delayMicroseconds(usec);
-    return;
+void delay_microseconds_safe(uint32_t us) {  // avoids CPU locks that could trigger WDT or affect WiFi/BT stability
+  auto start = micros();
+  const uint32_t lag = 5000;  // microseconds, specifies the maximum time for a CPU busy-loop.
+                              // it must be larger than the worst-case duration of a delay(1) call (hardware tasks)
+                              // 5ms is conservative, it could be reduced when exact BT/WiFi stack delays are known
+  if (us > lag) {
+    delay((us - lag) / 1000UL);  // note: in disabled-interrupt contexts delay() won't actually sleep
+    while (micros() - start < us - lag)
+      delay(1);  // in those cases, this loop allows to yield for BT/WiFi stack tasks
   }
-  uint32_t start = micros();
-  while (micros() - start < usec) {
-    delay(0);
-  }
+  while (micros() - start < us)  // fine delay the remaining usecs
+    ;
 }
 
 uint8_t reverse_bits_8(uint8_t x) {
