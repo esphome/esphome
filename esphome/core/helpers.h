@@ -138,13 +138,6 @@ uint8_t reverse_bits_8(uint8_t x);
 uint16_t reverse_bits_16(uint16_t x);
 uint32_t reverse_bits_32(uint32_t x);
 
-/// Encode a 16-bit unsigned integer given a most and least-significant byte.
-uint16_t encode_uint16(uint8_t msb, uint8_t lsb);
-/// Decode a 16-bit unsigned integer into an array of two values: most significant byte, least significant byte.
-std::array<uint8_t, 2> decode_uint16(uint16_t value);
-/// Encode a 32-bit unsigned integer given four bytes in MSB -> LSB order
-uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb);
-
 /// Convert RGB floats (0-1) to hue (0-360) & saturation/value percentage (0-1)
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
 /// Convert hue (0-360) & saturation/value percentage (0-1) to RGB floats (0-1)
@@ -305,6 +298,41 @@ constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
 
 /// @name Bit manipulation
 ///@{
+
+/// Encode a 16-bit value given the most and least significant byte.
+constexpr uint16_t encode_uint16(uint8_t msb, uint8_t lsb) {
+  return (static_cast<uint16_t>(msb) << 8) | (static_cast<uint16_t>(lsb));
+}
+/// Encode a 32-bit value given four bytes in most to least significant byte order.
+constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, uint8_t byte4) {
+  return (static_cast<uint32_t>(byte1) << 24) | (static_cast<uint32_t>(byte2) << 16) |
+         (static_cast<uint32_t>(byte3) << 8) | (static_cast<uint32_t>(byte4));
+}
+
+/// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> inline T encode_value(const uint8_t *bytes) {
+  T val = 0;
+  for (size_t i = 0; i < sizeof(T); i++) {
+    val <<= 8;
+    val |= bytes[i];
+  }
+  return val;
+}
+/// Encode a value from its constituent bytes (from most to least significant) in an std::array with length sizeof(T).
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
+  return encode_value<T>(bytes.data());
+}
+/// Decode a value into its constituent bytes (from most to least significant).
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline std::array<uint8_t, sizeof(T)> decode_value(T val) {
+  std::array<uint8_t, sizeof(T)> ret{};
+  for (size_t i = sizeof(T); i > 0; i--) {
+    ret[i - 1] = val & 0xFF;
+    val >>= 8;
+  }
+  return ret;
+}
 
 /// Convert a value between host byte order and big endian (most significant byte first) order.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr T convert_big_endian(T val) {
