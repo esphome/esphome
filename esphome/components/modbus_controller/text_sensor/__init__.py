@@ -8,7 +8,7 @@ from .. import (
     add_modbus_base_properties,
     modbus_controller_ns,
     modbus_calc_properties,
-    validate_register_type,
+    validate_modbus_register,
     ModbusItemBaseSchema,
     SensorItem,
     MODBUS_REGISTER_TYPE,
@@ -40,18 +40,18 @@ RAW_ENCODING = {
 }
 
 CONFIG_SCHEMA = cv.All(
-    text_sensor.TEXT_SENSOR_SCHEMA.extend(
-        ModbusItemBaseSchema.extend(
-            {
-                cv.GenerateID(): cv.declare_id(ModbusTextSensor),
-                cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
-                cv.Optional(CONF_REGISTER_COUNT, default=0): cv.positive_int,
-                cv.Optional(CONF_RESPONSE_SIZE, default=2): cv.positive_int,
-                cv.Optional(CONF_RAW_ENCODE, default="NONE"): cv.enum(RAW_ENCODING),
-            }
-        )
-    ).extend(cv.COMPONENT_SCHEMA),
-    validate_register_type,
+    text_sensor.TEXT_SENSOR_SCHEMA.extend(cv.COMPONENT_SCHEMA)
+    .extend(ModbusItemBaseSchema)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(ModbusTextSensor),
+            cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
+            cv.Optional(CONF_REGISTER_COUNT, default=0): cv.positive_int,
+            cv.Optional(CONF_RESPONSE_SIZE, default=2): cv.positive_int,
+            cv.Optional(CONF_RAW_ENCODE, default="NONE"): cv.enum(RAW_ENCODING),
+        }
+    ),
+    validate_modbus_register,
 )
 
 

@@ -8,7 +8,7 @@ from .. import (
     add_modbus_base_properties,
     modbus_controller_ns,
     modbus_calc_properties,
-    validate_register_type,
+    validate_modbus_register,
     ModbusItemBaseSchema,
     SensorItem,
     MODBUS_REGISTER_TYPE,
@@ -32,14 +32,14 @@ ModbusSwitch = modbus_controller_ns.class_(
 
 CONFIG_SCHEMA = cv.All(
     switch.SWITCH_SCHEMA.extend(
-        ModbusItemBaseSchema.extend(
+        cv.COMPONENT_SCHEMA.extend(ModbusItemBaseSchema).extend(
             {
                 cv.GenerateID(): cv.declare_id(ModbusSwitch),
                 cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
             }
         )
-    ).extend(cv.COMPONENT_SCHEMA),
-    validate_register_type,
+    ),
+    validate_modbus_register,
 )
 
 

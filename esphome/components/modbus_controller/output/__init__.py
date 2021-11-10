@@ -11,6 +11,7 @@ from esphome.const import (
 from .. import (
     modbus_controller_ns,
     modbus_calc_properties,
+    validate_modbus_register,
     ModbusItemBaseSchema,
     SensorItem,
 )
@@ -30,15 +31,14 @@ ModbusOutput = modbus_controller_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    output.FLOAT_OUTPUT_SCHEMA.extend(
-        ModbusItemBaseSchema.extend(
-            {
-                cv.GenerateID(): cv.declare_id(ModbusOutput),
-                cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
-                cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
-            }
-        )
+    output.FLOAT_OUTPUT_SCHEMA.extend(ModbusItemBaseSchema).extend(
+        {
+            cv.GenerateID(): cv.declare_id(ModbusOutput),
+            cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
+        }
     ),
+    validate_modbus_register,
 )
 
 

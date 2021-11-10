@@ -109,16 +109,8 @@ CONFIG_SCHEMA = cv.All(
 ModbusItemBaseSchema = cv.Schema(
     {
         cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
-        cv.Exclusive(
-            CONF_ADDRESS,
-            "use_custom",
-            f"can't use '{CONF_ADDRESS}:' together with '{CONF_CUSTOM_COMMAND}:'",
-        ): cv.positive_int,
-        cv.Exclusive(
-            CONF_CUSTOM_COMMAND,
-            "use_custom",
-            f"can't use '{CONF_ADDRESS}:' together with '{CONF_CUSTOM_COMMAND}:'",
-        ): cv.ensure_list(cv.hex_uint8_t),
+        cv.Optional(CONF_ADDRESS): cv.positive_int,
+        cv.Optional(CONF_CUSTOM_COMMAND): cv.ensure_list(cv.hex_uint8_t),
         cv.Optional(CONF_OFFSET, default=0): cv.positive_int,
         cv.Optional(CONF_BYTE_OFFSET): cv.positive_int,
         cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
@@ -129,8 +121,11 @@ ModbusItemBaseSchema = cv.Schema(
 )
 
 
-# workaround for missing schema groups
-def validate_register_type(config):
+def validate_modbus_register(config):
+    if CONF_CUSTOM_COMMAND not in config and CONF_ADDRESS not in config:
+        raise cv.Invalid(
+            f" {CONF_ADDRESS} is a required property if '{CONF_CUSTOM_COMMAND}:' isn't used"
+        )
     if CONF_CUSTOM_COMMAND in config and CONF_REGISTER_TYPE in config:
         raise cv.Invalid(
             f"can't use '{CONF_REGISTER_TYPE}:' together with '{CONF_CUSTOM_COMMAND}:'",
@@ -158,14 +153,15 @@ def modbus_calc_properties(config):
         if reg_count == 0:
             reg_count = TYPE_REGISTER_MAP[value_type]
     if CONF_CUSTOM_COMMAND in config:
-        # generate a unique modbus address using the hash of the name
-        # CONF_NAME set even if only CONF_ID is used.
-        # a modbus register address is required to add the item to sensormap
-        value = config[CONF_NAME]
-        if isinstance(value, str):
-            value = value.encode()
-        hash_ = int(hashlib.md5(value).hexdigest()[:4], 16)
-        config[CONF_ADDRESS] = hash_
+        if [CONF_ADDRESS] not in config:
+            # generate a unique modbus address using the hash of the name
+            # CONF_NAME set even if only CONF_ID is used.
+            # a modbus register address is required to add the item to sensormap
+            value = config[CONF_NAME]
+            if isinstance(value, str):
+                value = value.encode()
+            hash_ = int(hashlib.md5(value).hexdigest()[:4], 16)
+            config[CONF_ADDRESS] = hash_
         config[CONF_REGISTER_TYPE] = ModbusRegisterType.CUSTOM
         config[CONF_FORCE_NEW_RANGE] = True
     return byte_offset, reg_count
