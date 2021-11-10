@@ -304,8 +304,8 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 
 #define set_json_value(root, obj, sensor, value) set_json_id((root), (obj), sensor)(root)["value"] = value;  
 
-#define set_json_state_value(root, obj, sensor, state, value) set_json_value((root), (obj), sensor, value) \
-  (root)["state"] = state; 
+#define set_json_state_value(root, obj, sensor, state, value) \
+  set_json_value((root), (obj), sensor, value)(root)["state"] = state;
   
 #define set_json_icon_state_value(root, obj, sensor, state, value) \
   set_json_value((root), (obj), sensor, value)(root)["icon"] = (obj)->get_icon(); \
