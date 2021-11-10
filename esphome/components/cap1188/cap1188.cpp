@@ -12,7 +12,7 @@ void CAP1188Component::setup() {
 
   // Reset device using the reset pin
   if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->pin_mode(esphome::gpio::FLAG_OUTPUT);
+    this->reset_pin_->setup();
     this->reset_pin_->digital_write(false);
     delay(100);  // NOLINT
     this->reset_pin_->digital_write(true);
