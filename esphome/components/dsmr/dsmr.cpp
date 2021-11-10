@@ -14,9 +14,6 @@ static const char *const TAG = "dsmr";
 
 void Dsmr::setup() {
   telegram_ = new char[max_telegram_len_];  // NOLINT
-  if (!decryption_key_.empty()) {
-    encrypted_telegram_ = new uint8_t[max_telegram_len_];  // NOLINT
-  }
 }
 
 void Dsmr::loop() {
