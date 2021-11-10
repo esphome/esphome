@@ -328,7 +328,9 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr
   return val;
 #endif
 }
-  
+
+///@}
+
 /// @name Parsing & formatting
 ///@{
 
