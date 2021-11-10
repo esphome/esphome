@@ -29,8 +29,8 @@ namespace web_server {
 
 static const char *const TAG = "web_server";
 
-void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
-               const std::function<void(AsyncResponseStream &stream, EntityBase *obj)> &action_func = nullptr) {
+#if WEBSERVER_VERSION == 1
+void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &klass, const std::string &action) {
   if (obj->is_internal())
     return;
   stream->print("<tr class=\"");
@@ -45,10 +45,11 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
   stream->print(action.c_str());
   if (action_func) {
     action_func(*stream, obj);
-  }
+  }  
   stream->print("</td>");
   stream->print("</tr>");
 }
+#endif
 
 UrlMatch match_url(const std::string &url, bool only_domain = false) {
   UrlMatch match;
@@ -145,6 +146,10 @@ void WebServer::setup() {
 #endif
   });
 
+#ifdef USE_CLIMATE
+// To DO
+#endif
+
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr)
     logger::global_logger->add_on_log_callback(
@@ -160,14 +165,15 @@ void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
   ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->base_->get_port());
 }
+}
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
-  std::string title = App.get_name() + " Web Server";
-  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8>"
-                  "<meta name=\"viewport\" content=\"width=device-width, "
-                  "initial-scale=1.0\"><title>"));
+  std::string title = App.get_name();
+  // All content is controlled and created by user - so allowing all origins is fine here.
+  stream->addHeader("Access-Control-Allow-Origin", "*");
+  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><link rel=icon href=data:><meta name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));
   stream->print(title.c_str());
   stream->print(F("</title>"));
 #ifdef WEBSERVER_CSS_INCLUDE
@@ -178,11 +184,12 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     stream->print(this->css_url_);
     stream->print(F("\">"));
   }
-  stream->print(F("</head><body><article class=\"markdown-body\"><h1>"));
+  stream->print(F("</head><body>"));  
+#if WEBSERVER_VERSION == 1
+  stream->print(F("<article class=\"markdown-body\"><h1>"));
   stream->print(title.c_str());
-  stream->print(F("</h1><h2>States</h2><table id=\"states\"><thead><tr><th>Name<th>State<th>Actions<tbody>"));
-  // All content is controlled and created by user - so allowing all origins is fine here.
-  stream->addHeader("Access-Control-Allow-Origin", "*");
+  stream->print(F("</h1>"));
+  stream->print(F("<h2>States</h2><table id=\"states\"><thead><tr><th>Name<th>State<th>Actions<tbody>"));
 
 #ifdef USE_SENSOR
   for (auto *obj : App.get_sensors())
@@ -244,17 +251,25 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
                   "<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
                   "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"
                   "<h2>Debug Log</h2><pre id=\"log\"></pre>"));
+#endif                  
 #ifdef WEBSERVER_JS_INCLUDE
   if (this->js_include_ != nullptr) {
-    stream->print(F("<script src=\"/0.js\"></script>"));
+    stream->print(F("<script type=\"module\" src=\"/0.js\"></script>"));
   }
+#endif
+#if WEBSERVER_VERSION == 2
+  stream->print(F("<esp-app></esp-app>"));
 #endif
   if (strlen(this->js_url_) > 0) {
     stream->print(F("<script src=\""));
     stream->print(this->js_url_);
     stream->print(F("\"></script>"));
   }
-  stream->print(F("</article></body></html>"));
+  #if WEBSERVER_VERSION == 2
+    stream->print(F("</article></body></html>"));
+  #else
+    stream->print(F("</body></html>"));
+  #endif
 
   request->send(stream);
 }
@@ -274,12 +289,30 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
 void WebServer::handle_js_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/javascript");
   if (this->js_include_ != nullptr) {
+    stream->addHeader("Access-Control-Allow-Origin", "*");
     stream->print(this->js_include_);
   }
 
   request->send(stream);
 }
 #endif
+
+#define set_json_id(root, obj, sensor ) \
+  root["id"] = sensor; \
+  root["name"] = obj->get_name();
+
+#define set_json_value(root, obj, sensor, value ) \
+  set_json_id(root, obj, sensor ) \
+  root["value"] = value;  
+
+#define set_json_state_value(root, obj, sensor, state, value ) \
+  set_json_value(root, obj, sensor, value ) \
+  root["state"] = state; 
+
+#define set_json_icon_state_value(root, obj, sensor, state, value ) \
+  set_json_value(root, obj, sensor, value ) \
+  root["icon"] = obj->get_icon(); \
+  root["state"] = state;
 
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
@@ -297,14 +330,14 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
   }
   request->send(404);
 }
+
 std::string WebServer::sensor_json(sensor::Sensor *obj, float value) {
   return json::build_json([obj, value](JsonObject &root) {
-    root["id"] = "sensor-" + obj->get_object_id();
+    
     std::string state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
     if (!obj->get_unit_of_measurement().empty())
       state += " " + obj->get_unit_of_measurement();
-    root["state"] = state;
-    root["value"] = value;
+    set_json_icon_state_value(root, obj, "sensor-" + obj->get_object_id(), state, value);
   });
 }
 #endif
@@ -327,9 +360,7 @@ void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const
 }
 std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std::string &value) {
   return json::build_json([obj, value](JsonObject &root) {
-    root["id"] = "text_sensor-" + obj->get_object_id();
-    root["state"] = value;
-    root["value"] = value;
+    set_json_icon_state_value(root, obj, "text_sensor-" + obj->get_object_id(), value, value);
   });
 }
 #endif
@@ -340,9 +371,7 @@ void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
 }
 std::string WebServer::switch_json(switch_::Switch *obj, bool value) {
   return json::build_json([obj, value](JsonObject &root) {
-    root["id"] = "switch-" + obj->get_object_id();
-    root["state"] = value ? "ON" : "OFF";
-    root["value"] = value;
+    set_json_icon_state_value(root, obj, "switch-" + obj->get_object_id(), value ? "ON" : "OFF", value);
   });
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -381,9 +410,7 @@ void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool s
 }
 std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value) {
   return json::build_json([obj, value](JsonObject &root) {
-    root["id"] = "binary_sensor-" + obj->get_object_id();
-    root["state"] = value ? "ON" : "OFF";
-    root["value"] = value;
+    set_json_state_value(root, obj, "binary_sensor-" + obj->get_object_id(), value ? "ON" : "OFF", value);
   });
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -408,9 +435,7 @@ void WebServer::on_fan_update(fan::FanState *obj) {
 }
 std::string WebServer::fan_json(fan::FanState *obj) {
   return json::build_json([obj](JsonObject &root) {
-    root["id"] = "fan-" + obj->get_object_id();
-    root["state"] = obj->state ? "ON" : "OFF";
-    root["value"] = obj->state;
+    set_json_state_value(root, obj, "fan-" + obj->get_object_id(),obj->state ? "ON" : "OFF", obj->state);
     const auto traits = obj->get_traits();
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
@@ -565,8 +590,9 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
 }
 std::string WebServer::light_json(light::LightState *obj) {
   return json::build_json([obj](JsonObject &root) {
-    root["id"] = "light-" + obj->get_object_id();
+    set_json_id(root, obj, "light-" + obj->get_object_id());
     root["state"] = obj->remote_values.is_on() ? "ON" : "OFF";
+    
     light::LightJSONSchema::dump_json(*obj, root);
   });
 }
@@ -623,9 +649,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
 }
 std::string WebServer::cover_json(cover::Cover *obj) {
   return json::build_json([obj](JsonObject &root) {
-    root["id"] = "cover-" + obj->get_object_id();
-    root["state"] = obj->is_fully_closed() ? "CLOSED" : "OPEN";
-    root["value"] = obj->position;
+    set_json_state_value(root, obj, "cover-" + obj->get_object_id(),obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position);
     root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
 
     if (obj->get_traits().get_supports_tilt())
@@ -652,11 +676,14 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
 }
 std::string WebServer::number_json(number::Number *obj, float value) {
   return json::build_json([obj, value](JsonObject &root) {
-    root["id"] = "number-" + obj->get_object_id();
+    set_json_id(root, obj, "number-" + obj->get_object_id());
     char buffer[64];
     snprintf(buffer, sizeof(buffer), "%f", value);
     root["state"] = buffer;
-    root["value"] = value;
+    if ( isnan(value) )
+      root["value"] = "\"NaN\"";
+    else
+      root["value"] = value;
   });
 }
 #endif
@@ -698,9 +725,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
 }
 std::string WebServer::select_json(select::Select *obj, const std::string &value) {
   return json::build_json([obj, value](JsonObject &root) {
-    root["id"] = "select-" + obj->get_object_id();
-    root["state"] = value;
-    root["value"] = value;
+    set_json_state_value(root, obj, "select-" + obj->get_object_id(), value, value);
   });
 }
 #endif
