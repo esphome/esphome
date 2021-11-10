@@ -1399,7 +1399,7 @@ def typed_schema(schemas, **kwargs):
         if schema_option is None:
             raise Invalid(f"{key} not specified!")
         key_v = key_validator(schema_option)
-        value = schemas[key_v](value)
+        value = Schema(schemas[key_v])(value)
         value[key] = key_v
         return value
 

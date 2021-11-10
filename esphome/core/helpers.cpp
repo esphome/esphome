@@ -128,31 +128,6 @@ float gamma_uncorrect(float value, float gamma) {
   return powf(value, 1 / gamma);
 }
 
-std::string to_lowercase_underscore(std::string s) {
-  std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-  std::replace(s.begin(), s.end(), ' ', '_');
-  return s;
-}
-
-std::string sanitize_string_allowlist(const std::string &s, const std::string &allowlist) {
-  std::string out(s);
-  out.erase(std::remove_if(out.begin(), out.end(),
-                           [&allowlist](const char &c) { return allowlist.find(c) == std::string::npos; }),
-            out.end());
-  return out;
-}
-
-std::string sanitize_hostname(const std::string &hostname) {
-  std::string s = sanitize_string_allowlist(hostname, HOSTNAME_CHARACTER_ALLOWLIST);
-  return truncate_string(s, 63);
-}
-
-std::string truncate_string(const std::string &s, size_t length) {
-  if (s.length() > length)
-    return s.substr(0, length);
-  return s;
-}
-
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
   if (accuracy_decimals < 0) {
     auto multiplier = powf(10.0f, accuracy_decimals);
@@ -190,8 +165,6 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
 
   return PARSE_NONE;
 }
-
-const char *const HOSTNAME_CHARACTER_ALLOWLIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
 
 uint8_t crc8(uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
@@ -469,5 +442,25 @@ IRAM_ATTR InterruptLock::~InterruptLock() {}
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 #endif
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+std::string str_truncate(const std::string &str, size_t length) {
+  return str.length() > length ? str.substr(0, length) : str;
+}
+std::string str_snake_case(const std::string &str) {
+  std::string result;
+  result.resize(str.length());
+  std::transform(str.begin(), str.end(), result.begin(), ::tolower);
+  std::replace(result.begin(), result.end(), ' ', '_');
+  return result;
+}
+std::string str_sanitize(const std::string &str) {
+  std::string out;
+  std::copy_if(str.begin(), str.end(), std::back_inserter(out), [](const char &c) {
+    return c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+  });
+  return out;
+}
 
 }  // namespace esphome
