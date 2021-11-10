@@ -12,7 +12,7 @@ from esphome.const import (
     CONF_AUTH,
     CONF_USERNAME,
     CONF_PASSWORD,
-    CONF_VERSION 
+    CONF_VERSION
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -25,7 +25,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(WebServer),
         cv.Optional(CONF_PORT, default=80): cv.port,
-        cv.Optional(CONF_VERSION, default=1): cv.one_of(1,2),
+        cv.Optional(CONF_VERSION, default=1): cv.one_of(1, 2),
         cv.Optional(
             CONF_CSS_URL, default="https://esphome.io/_static/webserver-v1.min.css"
         ): cv.string,
@@ -45,7 +45,7 @@ CONFIG_SCHEMA = cv.Schema(
         )
     },
     # Need to apply Post defaults if not set
-    # if V1 
+    # if V1
     # CONF_CSS_URL, default="https://esphome.io/_static/webserver-v1.min.css"
     # CONF_JS_URL, default="https://esphome.io/_static/webserver-v1.min.js"
     # if V2

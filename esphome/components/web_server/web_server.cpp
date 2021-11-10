@@ -680,7 +680,7 @@ std::string WebServer::number_json(number::Number *obj, float value) {
     char buffer[64];
     snprintf(buffer, sizeof(buffer), "%f", value);
     root["state"] = buffer;
-    if ( isnan(value) )
+    if (isnan(value))
       root["value"] = "\"NaN\"";
     else
       root["value"] = value;
