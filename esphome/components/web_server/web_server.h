@@ -58,6 +58,12 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    */
   void set_js_include(const char *js_include);
 
+  /** Set whether or not the webserver should expose the OTA form and handler.
+   *
+   * @param allow_ota.
+   */
+  void set_allow_ota(bool allow_ota) { this->allow_ota_ = allow_ota; }
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup the internal web server and register handlers.
@@ -182,6 +188,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   const char *css_include_{nullptr};
   const char *js_url_{nullptr};
   const char *js_include_{nullptr};
+  bool allow_ota_{true};
 };
 
 }  // namespace web_server
