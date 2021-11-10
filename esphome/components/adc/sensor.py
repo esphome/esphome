@@ -4,6 +4,7 @@ from esphome import pins
 from esphome.components import sensor, voltage_sampler
 from esphome.const import (
     CONF_ATTENUATION,
+    CONF_RAW,
     CONF_ID,
     CONF_INPUT,
     CONF_NUMBER,
@@ -119,12 +120,18 @@ def validate_adc_pin(value):
     raise NotImplementedError
 
 
+def validate_config(config):
+    if config[CONF_RAW] and config.get(CONF_ATTENUATION, None) == "auto":
+        raise cv.Invalid("Automatic attenuation cannot be used when raw output is set.")
+    return config
+
+
 adc_ns = cg.esphome_ns.namespace("adc")
 ADCSensor = adc_ns.class_(
     "ADCSensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
 )
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=2,
@@ -135,12 +142,14 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(ADCSensor),
             cv.Required(CONF_PIN): validate_adc_pin,
+            cv.Optional(CONF_RAW, default=False): cv.boolean,
             cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(
                 cv.only_on_esp32, cv.enum(ATTENUATION_MODES, lower=True)
             ),
         }
     )
-    .extend(cv.polling_component_schema("60s"))
+    .extend(cv.polling_component_schema("60s")),
+    validate_config,
 )
 
 
@@ -154,6 +163,9 @@ async def to_code(config):
     else:
         pin = await cg.gpio_pin_expression(config[CONF_PIN])
         cg.add(var.set_pin(pin))
+
+    if CONF_RAW in config:
+        cg.add(var.set_output_raw(config[CONF_RAW]))
 
     if CONF_ATTENUATION in config:
         if config[CONF_ATTENUATION] == "auto":

@@ -91,17 +91,21 @@ void ADCSensor::dump_config() {
 float ADCSensor::get_setup_priority() const { return setup_priority::DATA; }
 void ADCSensor::update() {
   float value_v = this->sample();
-  ESP_LOGD(TAG, "'%s': Got voltage=%.2fV", this->get_name().c_str(), value_v);
+  ESP_LOGD(TAG, "'%s': Got voltage=%.4fV", this->get_name().c_str(), value_v);
   this->publish_state(value_v);
 }
 
 #ifdef USE_ESP8266
 float ADCSensor::sample() {
 #ifdef USE_ADC_SENSOR_VCC
-  return ESP.getVcc() / 1024.0f;  // NOLINT(readability-static-accessed-through-instance)
+  int raw = ESP.getVcc();  // NOLINT(readability-static-accessed-through-instance)
 #else
-  return analogRead(this->pin_->get_pin()) / 1024.0f;  // NOLINT
+  int raw = analogRead(this->pin_->get_pin());  // NOLINT
 #endif
+  if (output_raw_) {
+    return raw;
+  }
+  return raw / 1024.0f;
 }
 #endif
 
@@ -111,6 +115,9 @@ float ADCSensor::sample() {
     int raw = adc1_get_raw(channel_);
     if (raw == -1) {
       return NAN;
+    }
+    if (output_raw_) {
+      return raw;
     }
     uint32_t mv = esp_adc_cal_raw_to_voltage(raw, &cal_characteristics_[(int) attenuation_]);
     return mv / 1000.0f;
@@ -134,10 +141,6 @@ float ADCSensor::sample() {
 
   if (raw0 == -1 || raw2 == -1 || raw6 == -1 || raw11 == -1) {
     return NAN;
-  }
-  // prevent divide by zero
-  if (raw0 == 0 && raw2 == 0 && raw6 == 0 && raw11 == 0) {
-    return 0;
   }
 
   uint32_t mv11 = esp_adc_cal_raw_to_voltage(raw11, &cal_characteristics_[(int) ADC_ATTEN_DB_11]);
