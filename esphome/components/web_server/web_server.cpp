@@ -187,7 +187,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     stream->print(this->css_url_);
     stream->print(F("\">"));
   }
-  stream->print(F("</head><body>"));  
+  stream->print(F("</head><body>"));
 #if WEBSERVER_VERSION == 1
   stream->print(F("<article class=\"markdown-body\"><h1>"));
   stream->print(title.c_str());
@@ -307,11 +307,11 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
   (root)["id"] = sensor; \
   (root)["name"] = (obj)->get_name();
 
-#define set_json_value(root, obj, sensor, value) set_json_id((root), (obj), sensor)(root)["value"] = value;  
+#define set_json_value(root, obj, sensor, value) set_json_id((root), (obj), sensor)(root)["value"] = value;
 
 #define set_json_state_value(root, obj, sensor, state, value) \
   set_json_value((root), (obj), sensor, value)(root)["state"] = state;
-  
+
 #define set_json_icon_state_value(root, obj, sensor, state, value) \
   set_json_value((root), (obj), sensor, value)(root)["icon"] = (obj)->get_icon(); \
   (root)["state"] = state;
