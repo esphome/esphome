@@ -69,7 +69,7 @@ void loop_task(void *pv_params) {
 
 extern "C" void app_main() {
   esp32::setup_preferences();
-  esp_pm_config_esp32s2_t pm_config = {
+  esp_pm_config_esp32_t pm_config = {
     .max_freq_mhz = 240,
     .min_freq_mhz = 80,
     .light_sleep_enable = true
