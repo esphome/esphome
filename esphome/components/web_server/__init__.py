@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_USERNAME,
     CONF_PASSWORD,
     CONF_OTA,
+    CONF_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -25,6 +26,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(WebServer),
         cv.Optional(CONF_PORT, default=80): cv.port,
+        cv.Optional(CONF_VERSION, default=1): cv.one_of(1, 2),
         cv.Optional(
             CONF_CSS_URL, default="https://esphome.io/_static/webserver-v1.min.css"
         ): cv.string,
@@ -44,6 +46,14 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_OTA, default=True): cv.boolean,
     }
+    # Need to apply Post defaults if not set
+    # if V1
+    # CONF_CSS_URL, default="https://esphome.io/_static/webserver-v1.min.css"
+    # CONF_JS_URL, default="https://esphome.io/_static/webserver-v1.min.js"
+    # if V2
+    # CONF_CSS_URL, default=""
+    # CONF_JS_URL, default="https://esphome.io/_static/v2/www.js"
+    # which version to default ? Do we force 2 on everyone or opt in?
 ).extend(cv.COMPONENT_SCHEMA)
 
 
@@ -58,7 +68,7 @@ async def to_code(config):
 
     cg.add(paren.set_port(config[CONF_PORT]))
     cg.add_define("WEBSERVER_PORT", config[CONF_PORT])
-    cg.add_define("USE_WEBSERVER")
+    cg.add_define("WEBSERVER_VERSION", config[CONF_VERSION])
     cg.add(var.set_css_url(config[CONF_CSS_URL]))
     cg.add(var.set_js_url(config[CONF_JS_URL]))
     cg.add(var.set_allow_ota(config[CONF_OTA]))
