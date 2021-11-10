@@ -158,7 +158,9 @@ void WebServer::setup() {
 #endif
   this->base_->add_handler(&this->events_);
   this->base_->add_handler(this);
-  this->base_->add_ota_handler();
+
+  if (this->allow_ota_)
+    this->base_->add_ota_handler();
 
   this->set_interval(10000, [this]() { this->events_.send("", "ping", millis(), 30000); });
 }
@@ -248,11 +250,14 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
-                  "REST API documentation.</p>"
-                  "<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
-                  "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"
-                  "<h2>Debug Log</h2><pre id=\"log\"></pre>"));
-#endif                  
+                  "REST API documentation.</p>"));
+  if (this->allow_ota_) {
+    stream->print(
+        F("<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
+          "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"));
+  }
+  stream->print(F("<h2>Debug Log</h2><pre id=\"log\"></pre>"));
+#endif
 #ifdef WEBSERVER_JS_INCLUDE
   if (this->js_include_ != nullptr) {
     stream->print(F("<script type=\"module\" src=\"/0.js\"></script>"));
@@ -479,7 +484,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       }
       if (request->hasParam("speed_level")) {
         String speed_level = request->getParam("speed_level")->value();
-        auto val = parse_int(speed_level.c_str());
+        auto val = parse_number<int>(speed_level.c_str());
         if (!val.has_value()) {
           ESP_LOGW(TAG, "Can't convert '%s' to number!", speed_level.c_str());
           return;

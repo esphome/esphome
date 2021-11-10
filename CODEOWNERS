@@ -31,6 +31,7 @@ esphome/components/binary_sensor/* @esphome/core
 esphome/components/ble_client/* @buxtronix
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/canbus/* @danielschramm @mvturnho
+esphome/components/cap1188/* @MrEditor97
 esphome/components/captive_portal/* @OttoWinter
 esphome/components/ccs811/* @habbie
 esphome/components/climate/* @esphome/core
@@ -52,6 +53,7 @@ esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @jesserockz
 esphome/components/esp32_ble_server/* @jesserockz
+esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_improv/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/exposure_notifications/* @OttoWinter
@@ -71,6 +73,7 @@ esphome/components/homeassistant/* @OttoWinter
 esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/i2c/* @esphome/core
 esphome/components/improv/* @jesserockz
+esphome/components/improv_serial/* @esphome/core
 esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter

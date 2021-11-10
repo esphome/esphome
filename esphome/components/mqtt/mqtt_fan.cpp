@@ -71,7 +71,7 @@ void MQTTFanComponent::setup() {
   if (this->state_->get_traits().supports_speed()) {
     this->subscribe(this->get_speed_level_command_topic(),
                     [this](const std::string &topic, const std::string &payload) {
-                      optional<int> speed_level_opt = parse_int(payload);
+                      optional<int> speed_level_opt = parse_number<int>(payload);
                       if (speed_level_opt.has_value()) {
                         const int speed_level = speed_level_opt.value();
                         if (speed_level >= 0 && speed_level <= this->state_->get_traits().supported_speed_count()) {

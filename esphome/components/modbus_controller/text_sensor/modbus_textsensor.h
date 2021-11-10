@@ -25,13 +25,6 @@ class ModbusTextSensor : public Component, public text_sensor::TextSensor, publi
     this->sensor_value_type = SensorValueType::RAW;
     this->force_new_range = force_new_range;
   }
-  size_t get_register_size() const override {
-    if (sensor_value_type == SensorValueType::RAW) {
-      return this->response_bytes_;
-    } else {
-      return SensorItem::get_register_size();
-    }
-  }
 
   void dump_config() override;
 

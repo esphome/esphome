@@ -7,11 +7,13 @@ ImprovCommand parse_improv_data(const std::vector<uint8_t> &data) {
 }
 
 ImprovCommand parse_improv_data(const uint8_t *data, size_t length) {
+  ImprovCommand improv_command;
   Command command = (Command) data[0];
   uint8_t data_length = data[1];
 
   if (data_length != length - 3) {
-    return {.command = UNKNOWN};
+    improv_command.command = UNKNOWN;
+    return improv_command;
   }
 
   uint8_t checksum = data[length - 1];
@@ -22,7 +24,8 @@ ImprovCommand parse_improv_data(const uint8_t *data, size_t length) {
   }
 
   if ((uint8_t) calculated_checksum != checksum) {
-    return {.command = BAD_CHECKSUM};
+    improv_command.command = BAD_CHECKSUM;
+    return improv_command;
   }
 
   if (command == WIFI_SETTINGS) {
@@ -39,9 +42,8 @@ ImprovCommand parse_improv_data(const uint8_t *data, size_t length) {
     return {.command = command, .ssid = ssid, .password = password};
   }
 
-  return {
-      .command = command,
-  };
+  improv_command.command = command;
+  return improv_command;
 }
 
 std::vector<uint8_t> build_rpc_response(Command command, const std::vector<std::string> &datum) {
