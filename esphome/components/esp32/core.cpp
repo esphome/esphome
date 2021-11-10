@@ -9,6 +9,7 @@
 #include <soc/rtc.h>
 #include <soc/timer_group_struct.h>
 #include <soc/timer_group_reg.h>
+#include "esp_pm.h"
 
 #if ESP_IDF_VERSION_MAJOR >= 4
 #include <hal/cpu_hal.h>
