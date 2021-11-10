@@ -31,7 +31,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   /// `HARDWARE_LATE` setup priority.
   float get_setup_priority() const override;
   void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
-  void set_raw(bool output_raw) { output_raw_ = output_raw; }
+  void set_output_raw(bool output_raw) { output_raw_ = output_raw; }
   float sample() override;
 
 #ifdef USE_ESP8266

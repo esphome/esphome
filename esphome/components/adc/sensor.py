@@ -121,12 +121,7 @@ def validate_adc_pin(value):
 
 
 def validate_config(config):
-    if (
-        CONF_RAW in config
-        and config[CONF_RAW] is True
-        and CONF_ATTENUATION in config
-        and config[CONF_ATTENUATION] == "auto"
-    ):
+    if config[CONF_RAW] and config.get(CONF_ATTENUATION, None) == "auto":
         raise cv.Invalid("Automatic attenuation cannot be used when raw output is set.")
     return config
 
@@ -170,7 +165,7 @@ async def to_code(config):
         cg.add(var.set_pin(pin))
 
     if CONF_RAW in config:
-        cg.add(var.set_raw(config[CONF_RAW]))
+        cg.add(var.set_output_raw(config[CONF_RAW]))
 
     if CONF_ATTENUATION in config:
         if config[CONF_ATTENUATION] == "auto":
