@@ -309,8 +309,17 @@ async def to_code(config):
         )
         add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
         add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_SIZE", True)
+
         # Increase freertos tick speed from 100Hz to 1kHz so that delay() resolution is 1ms
         add_idf_sdkconfig_option("CONFIG_FREERTOS_HZ", 1000)
+
+        # Auto-reboot upon WDT exception
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
+
+        # Reduce power consumption with auto-sleep during delay() calls
+        add_idf_sdkconfig_option("CONFIG_PM_ENABLE", True)
+        add_idf_sdkconfig_option("CONFIG_PM_DFS_INIT_AUTO", True)
+        add_idf_sdkconfig_option("CONFIG_FREERTOS_USE_TICKLESS_IDLE", True)
 
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
 
