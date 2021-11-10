@@ -335,7 +335,8 @@ inline std::array<uint8_t, sizeof(T)> decode_value(T val) {
     val >>= 8;
   }
   return ret;
-  
+  }
+
 /// @name Parsing & formatting
 ///@{
 
