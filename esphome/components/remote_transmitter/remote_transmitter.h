@@ -32,6 +32,9 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   void mark_(uint32_t on_time, uint32_t off_time, uint32_t usec);
 
   void space_(uint32_t usec);
+
+  void await_target_time_();
+  uint32_t target_time_;
 #endif
 
 #ifdef USE_ESP32
