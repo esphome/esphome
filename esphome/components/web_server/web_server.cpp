@@ -165,7 +165,6 @@ void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
   ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->base_->get_port());
 }
-}
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
@@ -298,21 +297,21 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 #endif
 
 #define set_json_id(root, obj, sensor ) \
-  root["id"] = sensor; \
-  root["name"] = obj->get_name();
+  (root)["id"] = sensor; \
+  (root)["name"] = (obj)->get_name();
 
 #define set_json_value(root, obj, sensor, value ) \
-  set_json_id(root, obj, sensor ) \
-  root["value"] = value;  
+  set_json_id((root), (obj), sensor ) \
+  (root)["value"] = value;  
 
 #define set_json_state_value(root, obj, sensor, state, value ) \
-  set_json_value(root, obj, sensor, value ) \
-  root["state"] = state; 
+  set_json_value((root), (obj), sensor, value ) \
+  (root)["state"] = state; 
 
 #define set_json_icon_state_value(root, obj, sensor, state, value ) \
-  set_json_value(root, obj, sensor, value ) \
-  root["icon"] = obj->get_icon(); \
-  root["state"] = state;
+  set_json_value((root), (obj), sensor, value ) \
+  (root)["icon"] = (obj)->get_icon(); \
+  (root)["state"] = state;
 
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
