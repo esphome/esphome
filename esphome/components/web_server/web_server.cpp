@@ -30,7 +30,8 @@ namespace web_server {
 static const char *const TAG = "web_server";
 
 #if WEBSERVER_VERSION == 1
-void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &klass, const std::string &action) {
+void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
+               const std::function<void(AsyncResponseStream &stream, EntityBase *obj)> &action_func = nullptr) {
   if (obj->is_internal())
     return;
   stream->print("<tr class=\"");
@@ -169,10 +170,11 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
-  std::string title = App.get_name();
+  const std::string title = App.get_name();
   // All content is controlled and created by user - so allowing all origins is fine here.
   stream->addHeader("Access-Control-Allow-Origin", "*");
-  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><link rel=icon href=data:><meta name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));
+  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><link rel=icon href=data:><meta "
+                  "name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));
   stream->print(title.c_str());
   stream->print(F("</title>"));
 #ifdef WEBSERVER_CSS_INCLUDE
@@ -182,7 +184,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     stream->print(F("<link rel=\"stylesheet\" href=\""));
     stream->print(this->css_url_);
     stream->print(F("\">"));
-  }
+  } 
   stream->print(F("</head><body>"));  
 #if WEBSERVER_VERSION == 1
   stream->print(F("<article class=\"markdown-body\"><h1>"));
@@ -264,11 +266,11 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     stream->print(this->js_url_);
     stream->print(F("\"></script>"));
   }
-  #if WEBSERVER_VERSION == 1
-    stream->print(F("</article></body></html>"));
-  #else
-    stream->print(F("</body></html>"));
-  #endif
+#if WEBSERVER_VERSION == 1
+  stream->print(F("</article></body></html>"));
+#else
+  stream->print(F("</body></html>"));
+#endif
 
   request->send(stream);
 }
@@ -434,7 +436,7 @@ void WebServer::on_fan_update(fan::FanState *obj) {
 }
 std::string WebServer::fan_json(fan::FanState *obj) {
   return json::build_json([obj](JsonObject &root) {
-    set_json_state_value(root, obj, "fan-" + obj->get_object_id(),obj->state ? "ON" : "OFF", obj->state);
+    set_json_state_value(root, obj, "fan-" + obj->get_object_id(), obj->state ? "ON" : "OFF", obj->state);
     const auto traits = obj->get_traits();
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
@@ -591,7 +593,7 @@ std::string WebServer::light_json(light::LightState *obj) {
   return json::build_json([obj](JsonObject &root) {
     set_json_id(root, obj, "light-" + obj->get_object_id());
     root["state"] = obj->remote_values.is_on() ? "ON" : "OFF";
-    
+
     light::LightJSONSchema::dump_json(*obj, root);
   });
 }
@@ -648,7 +650,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
 }
 std::string WebServer::cover_json(cover::Cover *obj) {
   return json::build_json([obj](JsonObject &root) {
-    set_json_state_value(root, obj, "cover-" + obj->get_object_id(),obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position);
+    set_json_state_value(root, obj, "cover-" + obj->get_object_id(), obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position);
     root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
 
     if (obj->get_traits().get_supports_tilt())
