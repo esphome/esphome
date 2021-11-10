@@ -130,9 +130,11 @@ void ESP8266UartComponent::write_array(const uint8_t *data, size_t len) {
     for (size_t i = 0; i < len; i++)
       this->sw_serial_->write_byte(data[i]);
   }
+#ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    ESP_LOGVV(TAG, "    Wrote 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
+    this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
   }
+#endif
 }
 bool ESP8266UartComponent::peek_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
@@ -153,10 +155,11 @@ bool ESP8266UartComponent::read_array(uint8_t *data, size_t len) {
     for (size_t i = 0; i < len; i++)
       data[i] = this->sw_serial_->read_byte();
   }
+#ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    ESP_LOGVV(TAG, "    Read 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
+    this->debug_callback_.call(UART_DIRECTION_RX, data[i]);
   }
-
+#endif
   return true;
 }
 int ESP8266UartComponent::available() {
