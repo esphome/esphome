@@ -36,7 +36,7 @@ void RemoteTransmitterComponent::calculate_on_off_time_(uint32_t carrier_frequen
 void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint32_t usec) {
   if (this->carrier_duty_percent_ == 100 || (on_time == 0 && off_time == 0)) {
     this->pin_->digital_write(true);
-    delay_microseconds_accurate(usec);
+    delayMicroseconds(usec);
     this->pin_->digital_write(false);
     return;
   }
@@ -48,19 +48,19 @@ void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint
     const uint32_t elapsed = current_time - start_time;
     this->pin_->digital_write(true);
 
-    delay_microseconds_accurate(std::min(on_time, usec - elapsed));
+    delayMicroseconds(std::min(on_time, usec - elapsed));
     this->pin_->digital_write(false);
     if (elapsed + on_time >= usec)
       return;
 
-    delay_microseconds_accurate(std::min(usec - elapsed - on_time, off_time));
+    delayMicroseconds(std::min(usec - elapsed - on_time, off_time));
 
     current_time = micros();
   }
 }
 void RemoteTransmitterComponent::space_(uint32_t usec) {
   this->pin_->digital_write(false);
-  delay_microseconds_accurate(usec);
+  delayMicroseconds(usec);
 }
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   ESP_LOGD(TAG, "Sending remote code...");
@@ -81,9 +81,8 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
       }
     }
 
-    if (i + 1 < send_times) {
-      delay_microseconds_accurate(send_wait);
-    }
+    if (i + 1 < send_times)
+      delayMicroseconds(send_wait);
   }
 }
 
