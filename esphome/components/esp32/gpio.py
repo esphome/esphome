@@ -1,4 +1,5 @@
-import logging
+from dataclasses import dataclass
+from typing import Any
 
 from esphome.const import (
     CONF_ID,
@@ -17,10 +18,24 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 
 from . import boards
-from .const import KEY_BOARD, KEY_ESP32, esp32_ns
+from .const import (
+    KEY_BOARD,
+    KEY_ESP32,
+    KEY_VARIANT,
+    VARIANT_ESP32,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32H2,
+    esp32_ns,
+)
 
 
-_LOGGER = logging.getLogger(__name__)
+from .gpio_esp32 import esp32_validate_gpio_pin, esp32_validate_supports
+from .gpio_esp32_s2 import esp32_s2_validate_gpio_pin, esp32_s2_validate_supports
+from .gpio_esp32_c3 import esp32_c3_validate_gpio_pin, esp32_c3_validate_supports
+from .gpio_esp32_s3 import esp32_s3_validate_gpio_pin, esp32_s3_validate_supports
+from .gpio_esp32_h2 import esp32_h2_validate_gpio_pin, esp32_h2_validate_supports
 
 
 IDFInternalGPIOPin = esp32_ns.class_("IDFInternalGPIOPin", cg.InternalGPIOPin)
@@ -59,65 +74,61 @@ def _translate_pin(value):
     return _lookup_pin(value)
 
 
-_ESP_SDIO_PINS = {
-    6: "Flash Clock",
-    7: "Flash Data 0",
-    8: "Flash Data 1",
-    11: "Flash Command",
+@dataclass
+class ESP32ValidationFunctions:
+    pin_validation: Any
+    usage_validation: Any
+
+
+_esp32_validations = {
+    VARIANT_ESP32: ESP32ValidationFunctions(
+        pin_validation=esp32_validate_gpio_pin, usage_validation=esp32_validate_supports
+    ),
+    VARIANT_ESP32S2: ESP32ValidationFunctions(
+        pin_validation=esp32_s2_validate_gpio_pin,
+        usage_validation=esp32_s2_validate_supports,
+    ),
+    VARIANT_ESP32C3: ESP32ValidationFunctions(
+        pin_validation=esp32_c3_validate_gpio_pin,
+        usage_validation=esp32_c3_validate_supports,
+    ),
+    VARIANT_ESP32S3: ESP32ValidationFunctions(
+        pin_validation=esp32_s3_validate_gpio_pin,
+        usage_validation=esp32_s3_validate_supports,
+    ),
+    VARIANT_ESP32H2: ESP32ValidationFunctions(
+        pin_validation=esp32_h2_validate_gpio_pin,
+        usage_validation=esp32_h2_validate_supports,
+    ),
 }
 
 
 def validate_gpio_pin(value):
     value = _translate_pin(value)
-    if value < 0 or value > 39:
-        raise cv.Invalid(f"Invalid pin number: {value} (must be 0-39)")
-    if value in _ESP_SDIO_PINS:
-        raise cv.Invalid(
-            f"This pin cannot be used on ESP32s and is already used by the flash interface (function: {_ESP_SDIO_PINS[value]})"
-        )
-    if 9 <= value <= 10:
-        _LOGGER.warning(
-            "Pin %s (9-10) might already be used by the "
-            "flash interface in QUAD IO flash mode.",
-            value,
-        )
-    if value in (20, 24, 28, 29, 30, 31):
-        # These pins are not exposed in GPIO mux (reason unknown)
-        # but they're missing from IO_MUX list in datasheet
-        raise cv.Invalid(f"The pin GPIO{value} is not usable on ESP32s.")
-    return value
+    variant = CORE.data[KEY_ESP32][KEY_VARIANT]
+    if variant not in _esp32_validations:
+        raise cv.Invalid("Unsupported ESP32 variant {variant}")
+
+    return _esp32_validations[variant].pin_validation(value)
 
 
 def validate_supports(value):
-    num = value[CONF_NUMBER]
     mode = value[CONF_MODE]
     is_input = mode[CONF_INPUT]
     is_output = mode[CONF_OUTPUT]
     is_open_drain = mode[CONF_OPEN_DRAIN]
     is_pullup = mode[CONF_PULLUP]
     is_pulldown = mode[CONF_PULLDOWN]
+    variant = CORE.data[KEY_ESP32][KEY_VARIANT]
+    if variant not in _esp32_validations:
+        raise cv.Invalid("Unsupported ESP32 variant {variant}")
 
-    if is_input:
-        # All ESP32 pins support input mode
-        pass
-    if is_output and 34 <= num <= 39:
-        raise cv.Invalid(
-            f"GPIO{num} (34-39) does not support output pin mode.",
-            [CONF_MODE, CONF_OUTPUT],
-        )
     if is_open_drain and not is_output:
         raise cv.Invalid(
             "Open-drain only works with output mode", [CONF_MODE, CONF_OPEN_DRAIN]
         )
-    if is_pullup and 34 <= num <= 39:
-        raise cv.Invalid(
-            f"GPIO{num} (34-39) does not support pullups.", [CONF_MODE, CONF_PULLUP]
-        )
-    if is_pulldown and 34 <= num <= 39:
-        raise cv.Invalid(
-            f"GPIO{num} (34-39) does not support pulldowns.", [CONF_MODE, CONF_PULLDOWN]
-        )
 
+    value = _esp32_validations[variant].usage_validation(value)
     if CORE.using_arduino:
         # (input, output, open_drain, pullup, pulldown)
         supported_modes = {
@@ -138,7 +149,6 @@ def validate_supports(value):
                 "This pin mode is not supported on ESP32 for arduino frameworks",
                 [CONF_MODE],
             )
-
     return value
 
 

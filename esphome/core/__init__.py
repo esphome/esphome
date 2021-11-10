@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_USE_ADDRESS,
     CONF_ETHERNET,
     CONF_WIFI,
+    CONF_PORT,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
@@ -516,6 +517,19 @@ class EsphomeCore:
 
         if CONF_ETHERNET in self.config:
             return self.config[CONF_ETHERNET][CONF_USE_ADDRESS]
+
+        return None
+
+    @property
+    def web_port(self) -> Optional[int]:
+        if self.config is None:
+            raise ValueError("Config has not been loaded yet")
+
+        if "web_server" in self.config:
+            try:
+                return self.config["web_server"][CONF_PORT]
+            except KeyError:
+                return 80
 
         return None
 

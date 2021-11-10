@@ -12,12 +12,14 @@ from string import ascii_letters, digits
 import voluptuous as vol
 
 from esphome import core
+import esphome.codegen as cg
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
     CONF_COMMAND_TOPIC,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
+    CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
@@ -35,6 +37,9 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
     CONF_TYPE,
+    ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ENTITY_CATEGORY_NONE,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
@@ -1394,7 +1399,7 @@ def typed_schema(schemas, **kwargs):
         if schema_option is None:
             raise Invalid(f"{key} not specified!")
         key_v = key_validator(schema_option)
-        value = schemas[key_v](value)
+        value = Schema(schemas[key_v])(value)
         value[key] = key_v
         return value
 
@@ -1551,6 +1556,17 @@ def maybe_simple_value(*validators, **kwargs):
     return validate
 
 
+_ENTITY_CATEGORIES = {
+    ENTITY_CATEGORY_NONE: cg.EntityCategory.ENTITY_CATEGORY_NONE,
+    ENTITY_CATEGORY_CONFIG: cg.EntityCategory.ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_DIAGNOSTIC: cg.EntityCategory.ENTITY_CATEGORY_DIAGNOSTIC,
+}
+
+
+def entity_category(value):
+    return enum(_ENTITY_CATEGORIES, lower=True)(value)
+
+
 MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(
     {
         Required(CONF_TOPIC): subscribe_topic,
@@ -1582,6 +1598,7 @@ ENTITY_BASE_SCHEMA = Schema(
         Optional(CONF_INTERNAL): boolean,
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
         Optional(CONF_ICON): icon,
+        Optional(CONF_ENTITY_CATEGORY): entity_category,
     }
 )
 
@@ -1666,6 +1683,25 @@ def version_number(value):
         return str(Version.parse(value))
     except ValueError as e:
         raise Invalid("Not a version number") from e
+
+
+def platformio_version_constraint(value):
+    # for documentation on valid version constraints:
+    # https://docs.platformio.org/en/latest/core/userguide/platforms/cmd_install.html#cmd-platform-install
+
+    value = string_strict(value)
+    constraints = []
+    for item in value.split(","):
+        # find and strip prefix operator
+        op = None
+        for test_op in ("^", "~", ">=", ">", "<=", "<", "!="):
+            if item.startswith(test_op):
+                op = test_op
+                item = item[len(test_op) :]
+                break
+
+        constraints.append((op, version_number(item)))
+    return constraints
 
 
 def require_framework_version(

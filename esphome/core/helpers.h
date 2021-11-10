@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 #include <string>
 #include <functional>
 #include <vector>
@@ -22,9 +24,6 @@
   xSemaphoreGive(semaphore);
 
 namespace esphome {
-
-/// The characters that are allowed in a hostname.
-extern const char *const HOSTNAME_CHARACTER_ALLOWLIST;
 
 /// Read the raw MAC address into the provided byte array (6 bytes).
 void get_mac_address_raw(uint8_t *mac);
@@ -51,18 +50,8 @@ std::string to_string(unsigned long long val);  // NOLINT
 std::string to_string(float val);
 std::string to_string(double val);
 std::string to_string(long double val);
-optional<float> parse_float(const std::string &str);
-optional<int> parse_int(const std::string &str);
 optional<int> parse_hex(const std::string &str, size_t start, size_t length);
 optional<int> parse_hex(char chr);
-/// Sanitize the hostname by removing characters that are not in the allowlist and truncating it to 63 chars.
-std::string sanitize_hostname(const std::string &hostname);
-
-/// Truncate a string to a specific length
-std::string truncate_string(const std::string &s, size_t length);
-
-/// Convert the string to lowercase_underscore.
-std::string to_lowercase_underscore(std::string s);
 
 /// Compare string a to string b (ignoring case) and return whether they are equal.
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
@@ -145,19 +134,9 @@ std::string uint64_to_string(uint64_t num);
 /// Convert a uint32_t to a hex string
 std::string uint32_to_string(uint32_t num);
 
-/// Sanitizes the input string with the allowlist.
-std::string sanitize_string_allowlist(const std::string &s, const std::string &allowlist);
-
 uint8_t reverse_bits_8(uint8_t x);
 uint16_t reverse_bits_16(uint16_t x);
 uint32_t reverse_bits_32(uint32_t x);
-
-/// Encode a 16-bit unsigned integer given a most and least-significant byte.
-uint16_t encode_uint16(uint8_t msb, uint8_t lsb);
-/// Decode a 16-bit unsigned integer into an array of two values: most significant byte, least significant byte.
-std::array<uint8_t, 2> decode_uint16(uint16_t value);
-/// Encode a 32-bit unsigned integer given four bytes in MSB -> LSB order
-uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb);
 
 /// Convert RGB floats (0-1) to hue (0-360) & saturation/value percentage (0-1)
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
@@ -255,7 +234,7 @@ struct is_callable  // NOLINT
   static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
 };
 
-void delay_microseconds_accurate(uint32_t usec);
+void delay_microseconds_safe(uint32_t us);
 
 template<typename T> class Deduplicator {
  public:
@@ -303,5 +282,127 @@ template<typename T> T *new_buffer(size_t length) {
 
   return buffer;
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+/// @name STL backports
+///@{
+
+// std::byteswap is from C++23 and technically should be a template, but this will do for now.
+constexpr uint8_t byteswap(uint8_t n) { return n; }
+constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
+constexpr uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
+constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+
+///@}
+
+/// @name Bit manipulation
+///@{
+
+/// Encode a 16-bit value given the most and least significant byte.
+constexpr uint16_t encode_uint16(uint8_t msb, uint8_t lsb) {
+  return (static_cast<uint16_t>(msb) << 8) | (static_cast<uint16_t>(lsb));
+}
+/// Encode a 32-bit value given four bytes in most to least significant byte order.
+constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, uint8_t byte4) {
+  return (static_cast<uint32_t>(byte1) << 24) | (static_cast<uint32_t>(byte2) << 16) |
+         (static_cast<uint32_t>(byte3) << 8) | (static_cast<uint32_t>(byte4));
+}
+
+/// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> inline T encode_value(const uint8_t *bytes) {
+  T val = 0;
+  for (size_t i = 0; i < sizeof(T); i++) {
+    val <<= 8;
+    val |= bytes[i];
+  }
+  return val;
+}
+/// Encode a value from its constituent bytes (from most to least significant) in an std::array with length sizeof(T).
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
+  return encode_value<T>(bytes.data());
+}
+/// Decode a value into its constituent bytes (from most to least significant).
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline std::array<uint8_t, sizeof(T)> decode_value(T val) {
+  std::array<uint8_t, sizeof(T)> ret{};
+  for (size_t i = sizeof(T); i > 0; i--) {
+    ret[i - 1] = val & 0xFF;
+    val >>= 8;
+  }
+  return ret;
+}
+
+/// Convert a value between host byte order and big endian (most significant byte first) order.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr T convert_big_endian(T val) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  return byteswap(val);
+#else
+  return val;
+#endif
+}
+
+///@}
+
+/// @name Strings
+///@{
+
+/// Truncate a string to a specific length.
+std::string str_truncate(const std::string &str, size_t length);
+
+/// Convert the string to snake case (lowercase with underscores).
+std::string str_snake_case(const std::string &str);
+
+/// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
+std::string str_sanitize(const std::string &str);
+
+///@}
+
+/// @name Parsing & formatting
+///@{
+
+/// Parse a unsigned decimal number.
+template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_unsigned<T>::value), int> = 0>
+optional<T> parse_number(const char *str, size_t len) {
+  char *end = nullptr;
+  unsigned long value = ::strtoul(str, &end, 10);  // NOLINT(google-runtime-int)
+  if (end == nullptr || end != str + len || value > std::numeric_limits<T>::max())
+    return {};
+  return value;
+}
+template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_unsigned<T>::value), int> = 0>
+optional<T> parse_number(const std::string &str) {
+  return parse_number<T>(str.c_str(), str.length());
+}
+/// Parse a signed decimal number.
+template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T>::value), int> = 0>
+optional<T> parse_number(const char *str, size_t len) {
+  char *end = nullptr;
+  signed long value = ::strtol(str, &end, 10);  // NOLINT(google-runtime-int)
+  if (end == nullptr || end != str + len || value < std::numeric_limits<T>::min() ||
+      value > std::numeric_limits<T>::max())
+    return {};
+  return value;
+}
+template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T>::value), int> = 0>
+optional<T> parse_number(const std::string &str) {
+  return parse_number<T>(str.c_str(), str.length());
+}
+/// Parse a decimal floating-point number.
+template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0>
+optional<T> parse_number(const char *str, size_t len) {
+  char *end = nullptr;
+  float value = ::strtof(str, &end);
+  if (end == nullptr || end != str + len || value == HUGE_VALF)
+    return {};
+  return value;
+}
+template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0>
+optional<T> parse_number(const std::string &str) {
+  return parse_number<T>(str.c_str(), str.length());
+}
+
+///@}
 
 }  // namespace esphome
