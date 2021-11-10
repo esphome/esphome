@@ -17,7 +17,7 @@ from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.cpp_helpers import setup_entity
 
-DEPENDENCIES = ["esp32", "api"]
+DEPENDENCIES = ["esp32"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)

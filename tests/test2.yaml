@@ -504,3 +504,9 @@ interval:
 
 display:
 
+cap1188:
+  id: cap1188_component
+  address: 0x29
+  touch_threshold: 0x20
+  allow_multiple_touches: true
+  reset_pin: 14

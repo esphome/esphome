@@ -73,7 +73,7 @@ void AHT10Component::update() {
   bool success = false;
   for (int i = 0; i < AHT10_ATTEMPTS; ++i) {
     ESP_LOGVV(TAG, "Attempt %d at %6u", i, millis());
-    delay_microseconds_accurate(4);
+    delayMicroseconds(4);
 
     uint8_t reg = 0;
     if (this->write(&reg, 1) != i2c::ERROR_OK) {
