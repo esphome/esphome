@@ -254,6 +254,10 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 38400
+  - id: uart8
+    tx_pin: GPIO1
+    rx_pin: GPIO3
+    baud_rate: 31250
 
 modbus:
   uart_id: uart1
@@ -1312,3 +1316,30 @@ dsmr:
 daly_bms:
   update_interval: 20s
   uart_id: uart1
+
+midi_in:
+  - uart_id: uart8
+    on_voice_message:
+      - logger.log:
+          format: "%i: %#04x (%#04x %#04x)"
+          args: [ 'x.channel', 'x.command', 'x.param1', 'x.param2' ]
+      - lambda: |-
+          if (x.command == midi::MidiCommand::PATCH_CHANGE) {
+            ESP_LOGD("midi_in", "PATCH CHANGE: %#02x (channel %i)", x.param1, x.channel);
+          }
+    on_system_message:
+      - lambda: |-
+          if (x.command == midi::MidiCommand::SYSTEM_RESET) {
+            ESP_LOGD("midi_in", "RESET");
+          }
+    connected:
+      name: "MIDI Keyboard Connected"
+      device_class: connectivity
+      filters:
+        - delayed_off: 5s
+    playback:
+      name: "MIDI Keyboard Playback"
+      device_class: occupancy
+      icon: mdi:piano
+      filters:
+        - delayed_off: 60s
