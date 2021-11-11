@@ -17,7 +17,7 @@ namespace esphome
         parent->add_on_voice_message_callback(
             [this](MidiVoiceMessage msg)
             {
-              this->trigger(std::move(msg));
+              this->trigger(msg);
             });
       }
     };
@@ -30,7 +30,7 @@ namespace esphome
         parent->add_on_system_message_callback(
             [this](MidiSystemMessage msg)
             {
-              this->trigger(std::move(msg));
+              this->trigger(msg);
             });
       }
     };
