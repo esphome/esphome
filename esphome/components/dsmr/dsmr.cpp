@@ -58,6 +58,22 @@ bool Dsmr::request_interval_reached_() {
 }
 
 bool Dsmr::available_within_timeout_() {
+  // Data are available for reading on the UART bus?
+  // Then we can start reading right away.
+  if (available()) {
+    return true;
+  }
+  // When we're not in the process of reading a telegram, then there is
+  // no need to actively wait for new data to come in.
+  if (!header_found_) {
+    return false;
+  }
+  // A telegram is being read. The smart meter might not deliver a telegram
+  // in one go, but instead send it in chunks with small pauses in between.
+  // To make sure that the UART read buffer does not overflow during work
+  // done by other component loops (causing broken telegrams), we wait a
+  // little while for new data to come in instead of returning control to
+  // the main loop..
   uint8_t tries = READ_TIMEOUT_MS / 5;
   while (tries--) {
     delay(5);
@@ -65,6 +81,10 @@ bool Dsmr::available_within_timeout_() {
       return true;
     }
   }
+  // No new data has come in during the read timeout. Stop reading the
+  // telegram and start waiting for the next one to arrive.
+  ESP_LOGW(TAG, "Timeout while reading data for telegram");
+  reset_telegram_();
   return false;
 }
 
@@ -105,21 +125,30 @@ void Dsmr::receive_telegram_() {
     }
 
     const char c = this->read();
+=======
+void Dsmr::reset_telegram_() {
+  header_found_ = false;
+  footer_found_ = false;
+  telegram_len_ = 0;
+  encrypted_telegram_len_ = 0;
+}
+
+void Dsmr::receive_telegram_() {
+  while (available_within_timeout_()) {
+    const char c = this->read();
 
     // Find a new telegram header, i.e. forward slash.
     if (c == '/') {
       ESP_LOGV(TAG, "Header of telegram found");
+      this->reset_telegram_();
       this->header_found_ = true;
-      this->footer_found_ = false;
-      this->telegram_len_ = 0;
     }
     if (!this->header_found_)
       continue;
 
     // Check for buffer overflow.
     if (this->telegram_len_ >= this->max_telegram_len_) {
-      this->header_found_ = false;
-      this->footer_found_ = false;
+      this->reset_telegram_();
       ESP_LOGE(TAG, "Error: telegram larger than buffer (%d bytes)", this->max_telegram_len_);
       return;
     }
@@ -152,29 +181,18 @@ void Dsmr::receive_telegram_() {
     if (this->footer_found_ && c == '\n') {
       // Parse the telegram and publish sensor values.
       this->parse_telegram();
-
-      this->header_found_ = false;
+      this->reset_telegram_();
       return;
     }
   }
 }
 
 void Dsmr::receive_encrypted_() {
-  this->encrypted_telegram_len_ = 0;
+  this->reset_telegram_();
   size_t packet_size = 0;
 
-  while (true) {
-    if (!this->available()) {
-      if (!this->header_found_) {
-        return;
-      }
-      if (!this->available_within_timeout_()) {
-        ESP_LOGW(TAG, "Timeout while reading data for encrypted telegram");
-        return;
-      }
-    }
-
-    const char c = this->read();
+  while (available_within_timeout_()) {
+    const char c = read();
 
     // Find a new telegram start byte.
     if (!this->header_found_) {
@@ -187,7 +205,7 @@ void Dsmr::receive_encrypted_() {
 
     // Check for buffer overflow.
     if (this->encrypted_telegram_len_ >= this->max_telegram_len_) {
-      this->header_found_ = false;
+      reset_telegram_();
       ESP_LOGE(TAG, "Error: encrypted telegram larger than buffer (%d bytes)", this->max_telegram_len_);
       return;
     }
@@ -220,10 +238,9 @@ void Dsmr::receive_encrypted_() {
       ESP_LOGV(TAG, "Decrypted telegram size: %d bytes", this->telegram_len_);
       ESP_LOGVV(TAG, "Decrypted telegram: %s", this->telegram_);
 
+      // Parse the telegram and publish sensor values.
       this->parse_telegram();
-
-      this->header_found_ = false;
-      this->telegram_len_ = 0;
+      this->reset_telegram_();
       return;
     }
   }

@@ -89,6 +89,7 @@ class Dsmr : public Component, public uart::UARTDevice {
  protected:
   void receive_telegram_();
   void receive_encrypted_();
+  void reset_telegram_();
 
   /// Wait for UART data to become available within the read timeout.
   ///
