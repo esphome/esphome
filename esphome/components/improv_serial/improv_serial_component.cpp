@@ -92,8 +92,7 @@ void ImprovSerialComponent::loop() {
 }
 
 std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv::Command command) {
-  std::string url = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
-  std::vector<std::string> urls = {url};
+  std::vector<std::string> urls;
 #ifdef USE_WEBSERVER
   auto ip = wifi::global_wifi_component->wifi_sta_ip();
   std::string webserver_url = "http://" + ip.str() + ":" + to_string(WEBSERVER_PORT);
