@@ -30,6 +30,7 @@ PROTOCOLS = {
     "gree": Protocol.PROTOCOL_GREE,
     "greeya": Protocol.PROTOCOL_GREEYAA,
     "greeyan": Protocol.PROTOCOL_GREEYAN,
+    "greeyac": Protocol.PROTOCOL_GREEYAC,
     "hisense_aud": Protocol.PROTOCOL_HISENSE_AUD,
     "hitachi": Protocol.PROTOCOL_HITACHI,
     "hyundai": Protocol.PROTOCOL_HYUNDAI,
@@ -111,4 +112,4 @@ def to_code(config):
     cg.add(var.set_max_temperature(config[CONF_MIN_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MAX_TEMPERATURE]))
 
-    cg.add_library("tonia/HeatpumpIR", "1.0.15")
+    cg.add_library("", "", "https://github.com/ToniA/arduino-heatpumpir.git#1.0.18")
