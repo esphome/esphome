@@ -124,8 +124,13 @@ void ESP32ImprovComponent::loop() {
         this->cancel_timeout("wifi-connect-timeout");
         this->set_state_(improv::STATE_PROVISIONED);
 
-        std::string url = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
-        std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, {url});
+        std::vector<std::string> urls;
+#ifdef USE_WEBSERVER
+        auto ip = wifi::global_wifi_component->wifi_sta_ip();
+        std::string webserver_url = "http://" + ip.str() + ":" + to_string(WEBSERVER_PORT);
+        urls.push_back(webserver_url);
+#endif
+        std::vector<uint8_t> data = improv::build_rpc_response(command, urls);
         this->send_response_(data);
         this->set_timeout("end-service", 1000, [this] {
           this->service_->stop();
