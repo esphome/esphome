@@ -8,7 +8,7 @@ CODEOWNERS = ["@muxa"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["binary_sensor"]
 
-midi_ns = cg.esphome_ns.namespace("midi")
+midi_ns = cg.esphome_ns.namespace("midi_in")
 
 MidiInComponent = midi_ns.class_("MidiInComponent", cg.Component, uart.UARTDevice)
 

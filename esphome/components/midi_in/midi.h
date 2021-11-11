@@ -6,7 +6,7 @@
 #include "esphome/core/helpers.h"
 namespace esphome
 {
-  namespace midi
+  namespace midi_in
   {
 
     const uint8_t MASK_COMMAND = 0xF0;
@@ -44,5 +44,5 @@ namespace esphome
     {
       MidiCommand command;
     };
-  } // namespace midi
+  } // namespace midi_in
 } // namespace esphome

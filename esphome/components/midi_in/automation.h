@@ -6,7 +6,7 @@
 
 namespace esphome
 {
-  namespace midi
+  namespace midi_in
   {
 
     class MidiInOnVoiceMessageTrigger : public Trigger<MidiVoiceMessage>
@@ -35,5 +35,5 @@ namespace esphome
       }
     };
 
-  } // namespace midi
+  } // namespace midi_in
 } // namespace esphome

@@ -3,7 +3,7 @@
 
 namespace esphome
 {
-  namespace midi
+  namespace midi_in
   {
 
     static const char *const TAG = "midi_in";
@@ -39,7 +39,7 @@ namespace esphome
 
           auto msg = MidiVoiceMessage{
               .command = static_cast<MidiCommand>(byte1 & MASK_COMMAND),
-              .channel = byte1 & MASK_CHANNEL};
+              .channel = static_cast<uint8_t>(byte1 & MASK_CHANNEL)};
 
           switch (msg.command)
           {
@@ -102,8 +102,8 @@ namespace esphome
             this->voice_message_callback_.call(msg);
             break;
           case MidiCommand::PITCH_BEND:
-            // parameters	param 1	      param 2
-            // 2	        lsb (7 bits)	msb (7 bits)
+            // parametersparam 1      param 2
+            // 2        lsb (7 bits)msb (7 bits)
             msg.param1 = read();
             msg.param2 = read();
             //ESP_LOGD(TAG, "PITCH BEND: %#04x %#04x (channel: %i)", msg.param1, msg.param2, msg.channel);
@@ -120,14 +120,14 @@ namespace esphome
       this->update_playback_binary_sensor_();
     }
 
-    void MidiInComponent::process_system_message_(const uint8_t command)
+    void MidiInComponent::process_system_message_(uint8_t command)
     {
       uint8_t data;
       switch (command)
       {
       case MidiCommand::SYSTEM_EXCLUSIVE:
         // The MIDI system exclusive message consists of virtually unlimited bytes of data.
-        data = read(); // manufacturer id
+        read(); // manufacturer id
         if (available())
         {
           do
@@ -174,34 +174,34 @@ namespace esphome
       switch (msg.param1)
       {
       case 0x00:
-        // Bank select (coarse)	0-127	GM2
+        // Bank select (coarse)0-127GM2
         ESP_LOGD(TAG, "Bank select (coarse): %#04x (channel %i)", msg.param2, msg.channel);
         break;
       case 0x07:
-        // Channel volume (coarse) (formerly main volume)	0-127	GM1, GM2
+        // Channel volume (coarse) (formerly main volume)0-127GM1, GM2
         ESP_LOGD(TAG, "Main volume: %#04x (channel %i)", msg.param2, msg.channel);
         break;
       case 0x20:
-        // Bank select (fine)	0-127	GM2
+        // Bank select (fine)0-127GM2
         ESP_LOGD(TAG, "Bank select (fine): %#04x (channel %i)", msg.param2, msg.channel);
         break;
       case 0x40:
-        // sustain pedal Hold (damper, sustain) pedal 1 (on/off)	= 64 is on
+        // sustain pedal Hold (damper, sustain) pedal 1 (on/off)= 64 is on
         //ESP_LOGD(TAG, "Sustain pedal: %#04x (channel %i)", msg.param2, msg.channel);
         this->sustain_pedal = msg.param2;
         break;
       case 0x42:
-        // mid pedal (Sostenuto pedal (on/off)	= 64 is on)
+        // mid pedal (Sostenuto pedal (on/off)= 64 is on)
         //ESP_LOGD(TAG, "Mid pedal: %#04x (channel %i)", msg.param2, msg.channel);
         this->mid_pedal = msg.param2;
         break;
       case 0x43:
-        // Soft pedal (on/off)	= 64 is on
+        // Soft pedal (on/off)= 64 is on
         //ESP_LOGD(TAG, "Soft pedal: %#04x (channel %i)", msg.param2, msg.channel);
         this->soft_pedal = msg.param2;
         break;
       case 0x7B:
-        // All notes off	0	GM1, GM2
+        // All notes off0GM1, GM2
         this->keys_on_ = 0;
         ESP_LOGD(TAG, "All notes off (channel %i)", msg.channel);
         std::fill(this->note_velocities.begin(), this->note_velocities.end(), 0);
@@ -273,5 +273,5 @@ namespace esphome
       }
     }
 
-  } // namespace state_machine
+  } // namespace midi_in
 } // namespace esphome

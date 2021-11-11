@@ -7,12 +7,12 @@
 #include "midi.h"
 namespace esphome
 {
-  namespace midi
+  namespace midi_in
   {
     class MidiInComponent : public Component, public uart::UARTDevice
     {
     public:
-      MidiInComponent(uart::UARTComponent *parent);
+      MidiInComponent(uart::UARTComponent *uart);
 
       void set_connected_binary_sensor(binary_sensor::BinarySensor *connected_binary_sensor)
       {
@@ -48,11 +48,11 @@ namespace esphome
       CallbackManager<void(MidiSystemMessage)> system_message_callback_{};
 
     private:
-      void process_system_message_(const uint8_t command);
+      void process_system_message_(uint8_t command);
       void process_controller_message_(const MidiVoiceMessage &msg);
       void update_connected_binary_sensor_();
       void update_playback_binary_sensor_();
     };
 
-  } // namespace midi
+  } // namespace midi_in
 } // namespace esphome
