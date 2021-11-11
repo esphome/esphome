@@ -31,6 +31,24 @@ enum MidiCommand : uint8_t {
   SYSTEM_RESET = 0xFF,
 };
 
+enum MidiController : uint8_t {
+  // Value: 0-127 (GM2)
+  BANK_SELECT = 0x00,
+  // Channel volume (coarse) (formerly main volume). Value:  0-127
+  CHANNEL_VOLUME = 0x07,
+  // Value: 0-127 (GM2)
+  BANK_SELECT_FINE = 0x20,
+  // Value: (on/off) = 64 is on
+  SUSTAIN = 0x40,
+  // Value: (on/off) = 64 is on
+  SUSTENUTO = 0x42,
+  // Value: (on/off) = 64 is on
+  SOFT_PEDAL = 0x43,
+  ALL_NOTES_OFF = 0x7B,
+  // Poly operation and all notes off
+  POLY_MODE_ON = 0x7F
+};
+
 struct MidiVoiceMessage {
   MidiCommand command;
   uint8_t channel;

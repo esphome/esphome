@@ -146,40 +146,33 @@ void MidiInComponent::process_system_message_(uint8_t command) {
 
 void MidiInComponent::process_controller_message_(const MidiVoiceMessage &msg) {
   switch (msg.param1) {
-    case 0x00:
-      // Bank select (coarse)0-127GM2
+    case MidiController::BANK_SELECT:
       ESP_LOGD(TAG, "Bank select (coarse): %#04x (channel %i)", msg.param2, msg.channel);
       break;
-    case 0x07:
-      // Channel volume (coarse) (formerly main volume)0-127GM1, GM2
+    case MidiController::CHANNEL_VOLUME:
       ESP_LOGD(TAG, "Main volume: %#04x (channel %i)", msg.param2, msg.channel);
       break;
-    case 0x20:
-      // Bank select (fine)0-127GM2
+    case MidiController::BANK_SELECT_FINE:
       ESP_LOGD(TAG, "Bank select (fine): %#04x (channel %i)", msg.param2, msg.channel);
       break;
-    case 0x40:
-      // sustain pedal Hold (damper, sustain) pedal 1 (on/off)= 64 is on
+    case MidiController::SUSTAIN:
       // ESP_LOGD(TAG, "Sustain pedal: %#04x (channel %i)", msg.param2, msg.channel);
       this->sustain_pedal = msg.param2;
       break;
-    case 0x42:
-      // mid pedal (Sostenuto pedal (on/off)= 64 is on)
+    case MidiController::SUSTENUTO:
       // ESP_LOGD(TAG, "Mid pedal: %#04x (channel %i)", msg.param2, msg.channel);
       this->mid_pedal = msg.param2;
       break;
-    case 0x43:
-      // Soft pedal (on/off)= 64 is on
+    case MidiController::SOFT_PEDAL:
       // ESP_LOGD(TAG, "Soft pedal: %#04x (channel %i)", msg.param2, msg.channel);
       this->soft_pedal = msg.param2;
       break;
-    case 0x7B:
-      // All notes off0GM1, GM2
+    case MidiController::ALL_NOTES_OFF:
       this->keys_on_ = 0;
       ESP_LOGD(TAG, "All notes off (channel %i)", msg.channel);
       std::fill(this->note_velocities.begin(), this->note_velocities.end(), 0);
       break;
-    case 0x7F:
+    case MidiController::POLY_MODE_ON:
       // Poly operation and all notes off
       this->keys_on_ = 0;
       ESP_LOGD(TAG, "Poly operation and all notes off (channel %i)", msg.channel);
