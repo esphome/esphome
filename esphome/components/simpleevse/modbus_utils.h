@@ -68,7 +68,7 @@ class BufferStreamWriter {
   }
 
   BufferStreamWriter &operator<<(uint16_t value) {
-    auto decoded = decode_uint16(value);
+    auto decoded = decode_value(value);
     this->inserter_ = decoded[0];
     this->inserter_ = decoded[1];
     return *this;
