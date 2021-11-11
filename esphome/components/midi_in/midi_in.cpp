@@ -206,10 +206,8 @@ void MidiInComponent::update_connected_binary_sensor_() {
     uint32_t millis_since_last_active_sense = millis() - this->last_activity_time_;
     if (millis_since_last_active_sense >= 500) {  // normal active sense interval is 300ms
       // disconnected
-      // this->soft_pedal = 0;
-      // this->mid_pedal = 0;
-      // this->sustain_pedal = 0;
-      // this->keys_on_ = 0;
+      this->reset_controllers_();
+      this->all_notes_off_();
       if (this->connected_binary_sensor_->state) {
         this->connected_binary_sensor_->publish_state(false);
         this->connected_binary_sensor_->state =
