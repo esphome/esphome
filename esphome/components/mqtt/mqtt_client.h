@@ -63,6 +63,7 @@ struct MQTTDiscoveryInfo {
   std::string prefix;  ///< The Home Assistant discovery prefix. Empty means disabled.
   bool retain;         ///< Whether to retain discovery messages.
   bool clean;
+  std::string unique_id_generator;
 };
 
 enum MQTTClientState {
@@ -98,9 +99,10 @@ class MQTTClientComponent : public Component {
    *
    * See <a href="https://www.home-assistant.io/docs/mqtt/discovery/">MQTT Discovery</a>.
    * @param prefix The Home Assistant discovery prefix.
+   * @param unique_id_generator Controls how UniqueId is generated.
    * @param retain Whether to retain discovery messages.
    */
-  void set_discovery_info(std::string &&prefix, bool retain, bool clean = false);
+  void set_discovery_info(std::string &&prefix, std::string &&unique_id_generator, bool retain, bool clean = false);
   /// Get Home Assistant discovery info.
   const MQTTDiscoveryInfo &get_discovery_info() const;
   /// Globally disable Home Assistant discovery.
