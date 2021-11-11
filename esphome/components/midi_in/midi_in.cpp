@@ -171,6 +171,10 @@ void MidiInComponent::process_controller_message_(const MidiVoiceMessage &msg) {
       ESP_LOGD(TAG, "All sounds off (channel %i)", msg.channel);
       this->all_notes_off_();
       break;
+    case MidiController::RESET_ALL_CONTROLLERS:
+      ESP_LOGD(TAG, "Reset all controllers (channel %i)", msg.channel);
+      this->reset_controllers_();
+      break;
     case MidiController::ALL_NOTES_OFF:
       ESP_LOGD(TAG, "All notes off (channel %i)", msg.channel);
       this->all_notes_off_();
@@ -189,6 +193,12 @@ void MidiInComponent::process_controller_message_(const MidiVoiceMessage &msg) {
 void MidiInComponent::all_notes_off_() {
   this->keys_on_ = 0;
   std::fill(this->note_velocities.begin(), this->note_velocities.end(), 0);
+}
+
+void MidiInComponent::reset_controllers_() {
+  this->soft_pedal = 0;
+  this->mid_pedal = 0;
+  this->sustain_pedal = 0;
 }
 
 void MidiInComponent::update_connected_binary_sensor_() {

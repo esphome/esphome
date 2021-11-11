@@ -45,6 +45,7 @@ enum MidiController : uint8_t {
   // Value: (on/off) = 64 is on
   SOFT_PEDAL = 0x43,
   ALL_SOUND_OFF = 0x78,
+  RESET_ALL_CONTROLLERS = 0x79,
   ALL_NOTES_OFF = 0x7B,
   // Poly operation and all notes off
   POLY_MODE_ON = 0x7F
