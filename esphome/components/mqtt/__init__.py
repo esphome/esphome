@@ -96,6 +96,12 @@ MQTTTextSensor = mqtt_ns.class_("MQTTTextSensor", MQTTComponent)
 MQTTNumberComponent = mqtt_ns.class_("MQTTNumberComponent", MQTTComponent)
 MQTTSelectComponent = mqtt_ns.class_("MQTTSelectComponent", MQTTComponent)
 
+MQTTDiscoveryUniqueIdGenerator = mqtt_ns.enum("MQTTDiscoveryUniqueIdGenerator")
+MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS = {
+    "legacy": MQTTDiscoveryUniqueIdGenerator.MQTT_LEGACY_UNIQUE_ID_GENERATOR,
+    "mac": MQTTDiscoveryUniqueIdGenerator.MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR,
+}
+
 
 def validate_config(value):
     # Populate default fields
@@ -154,9 +160,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_DISCOVERY_PREFIX, default="homeassistant"
             ): cv.publish_topic,
-            cv.Optional(
-                CONF_DISCOVERY_UNIQUE_ID_GENERATOR, default="legacy"
-            ): cv.one_of("legacy", "mac", string=True),
+            cv.Optional(CONF_DISCOVERY_UNIQUE_ID_GENERATOR, default="legacy"): cv.enum(
+                MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS
+            ),
             cv.Optional(CONF_USE_ABBREVIATIONS, default=True): cv.boolean,
             cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,

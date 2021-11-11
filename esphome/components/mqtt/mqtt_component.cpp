@@ -115,7 +115,7 @@ bool MQTTComponent::send_discovery_() {
           root[MQTT_UNIQUE_ID] = unique_id;
         } else {
           const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
-          if (discovery_info.unique_id_generator == "mac") {
+          if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
             root[MQTT_UNIQUE_ID] =
                 get_mac_address() + "-" + this->component_type() + "-" + this->get_default_object_id_();
           } else {

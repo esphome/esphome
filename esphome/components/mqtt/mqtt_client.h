@@ -55,6 +55,12 @@ struct Availability {
   std::string payload_not_available;
 };
 
+/// available discovery unique_id generators
+enum MQTTDiscoveryUniqueIdGenerator {
+  MQTT_LEGACY_UNIQUE_ID_GENERATOR = 0,
+  MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR,
+};
+
 /** Internal struct for MQTT Home Assistant discovery
  *
  * See <a href="https://www.home-assistant.io/docs/mqtt/discovery/">MQTT Discovery</a>.
@@ -63,7 +69,7 @@ struct MQTTDiscoveryInfo {
   std::string prefix;  ///< The Home Assistant discovery prefix. Empty means disabled.
   bool retain;         ///< Whether to retain discovery messages.
   bool clean;
-  std::string unique_id_generator;
+  MQTTDiscoveryUniqueIdGenerator unique_id_generator;
 };
 
 enum MQTTClientState {
@@ -102,7 +108,8 @@ class MQTTClientComponent : public Component {
    * @param unique_id_generator Controls how UniqueId is generated.
    * @param retain Whether to retain discovery messages.
    */
-  void set_discovery_info(std::string &&prefix, std::string &&unique_id_generator, bool retain, bool clean = false);
+  void set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator &&unique_id_generator, bool retain,
+                          bool clean = false);
   /// Get Home Assistant discovery info.
   const MQTTDiscoveryInfo &get_discovery_info() const;
   /// Globally disable Home Assistant discovery.
