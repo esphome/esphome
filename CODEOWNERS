@@ -108,6 +108,7 @@ esphome/components/nextion/sensor/* @senexcrenshaw
 esphome/components/nextion/switch/* @senexcrenshaw
 esphome/components/nextion/text_sensor/* @senexcrenshaw
 esphome/components/nfc/* @jesserockz
+esphome/components/nspanel/* @jesserockz
 esphome/components/number/* @esphome/core
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
