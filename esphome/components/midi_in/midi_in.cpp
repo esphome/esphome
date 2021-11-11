@@ -168,20 +168,23 @@ void MidiInComponent::process_controller_message_(const MidiVoiceMessage &msg) {
       this->soft_pedal = msg.param2;
       break;
     case MidiController::ALL_NOTES_OFF:
-      this->keys_on_ = 0;
       ESP_LOGD(TAG, "All notes off (channel %i)", msg.channel);
-      std::fill(this->note_velocities.begin(), this->note_velocities.end(), 0);
+      this->all_notes_off_();
       break;
     case MidiController::POLY_MODE_ON:
-      // Poly operation and all notes off
-      this->keys_on_ = 0;
+      // Poly operation and all notes off      
       ESP_LOGD(TAG, "Poly operation and all notes off (channel %i)", msg.channel);
-      std::fill(this->note_velocities.begin(), this->note_velocities.end(), 0);
+      this->all_notes_off_();
       break;
     default:
       ESP_LOGD(TAG, "Unknown continuous controller: %#04x %#04x (channel %i)", msg.param1, msg.param2, msg.channel);
       break;
   }
+}
+
+void MidiInComponent::all_notes_off_() {
+  this->keys_on_ = 0;
+  std::fill(this->note_velocities.begin(), this->note_velocities.end(), 0);
 }
 
 void MidiInComponent::update_connected_binary_sensor_() {

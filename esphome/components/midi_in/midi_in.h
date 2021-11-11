@@ -49,6 +49,9 @@ class MidiInComponent : public Component, public uart::UARTDevice {
  private:
   void process_system_message_(uint8_t command);
   void process_controller_message_(const MidiVoiceMessage &msg);
+
+  void all_notes_off_();
+  
   void update_connected_binary_sensor_();
   void update_playback_binary_sensor_();
 };
