@@ -180,7 +180,7 @@ void MidiInComponent::process_controller_message_(const MidiVoiceMessage &msg) {
       this->all_notes_off_();
       break;
     case MidiController::POLY_MODE_ON:
-      // Poly operation and all notes off      
+      // Poly operation and all notes off
       ESP_LOGD(TAG, "Poly operation and all notes off (channel %i)", msg.channel);
       this->all_notes_off_();
       break;
