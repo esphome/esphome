@@ -1,5 +1,7 @@
 #include "nspanel.h"
 
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -280,3 +282,5 @@ uint16_t NSPanel::crc16_(const uint8_t *data, uint16_t len) {
 
 }  // namespace nspanel
 }  // namespace esphome
+
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

@@ -101,7 +101,7 @@ WIDGET_SCHEMA = cv.typed_schema(
 )
 
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(NSPanel),
@@ -118,7 +118,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    cv.only_with_arduino,
 )
 
 

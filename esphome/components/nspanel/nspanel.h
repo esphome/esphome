@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/switch/switch.h"
@@ -145,3 +147,5 @@ class NSPanel : public Component, public uart::UARTDevice {
 
 }  // namespace nspanel
 }  // namespace esphome
+
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO
