@@ -75,7 +75,7 @@ bool NSPanel::process_data_() {
     return true;
 
   uint16_t crc16 = encode_uint16(data[5 + length + 1], data[5 + length]);
-  uint16_t calculated_crc16 = crc16_(data, 5 + length);
+  uint16_t calculated_crc16 = NSPanel::crc16(data, 5 + length);
 
   if (crc16 != calculated_crc16) {
     ESP_LOGW(TAG, "Received invalid message checksum %02X!=%02X", crc16, calculated_crc16);
@@ -258,13 +258,13 @@ void NSPanel::send_json_command_(uint8_t type, const std::string &command) {
   data.push_back(command.length() & 0xFF);
   data.push_back((command.length() >> 8) & 0xFF);
   data.insert(data.end(), command.begin(), command.end());
-  auto crc = crc16_(data.data(), data.size());
+  auto crc = NSPanel::crc16(data.data(), data.size());
   data.push_back(crc & 0xFF);
   data.push_back((crc >> 8) & 0xFF);
   this->write_array(data);
 }
 
-uint16_t NSPanel::crc16_(const uint8_t *data, uint16_t len) {
+uint16_t NSPanel::crc16(const uint8_t *data, uint16_t len) {
   uint16_t crc = 0xFFFF;
   while (len--) {
     crc ^= *data++;
