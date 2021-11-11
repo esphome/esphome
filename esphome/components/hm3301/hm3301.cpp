@@ -66,9 +66,9 @@ void HM3301Component::update() {
   }
 
   int8_t aqi_value = -1;
-  if (this->aqi_sensor_ != nullptr && pm_2_5_value != -1 && pm_10_0_value != -1) {
+  if (this->aqi_sensor_ != nullptr && pm_10_0_value != -1) {
     AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
-    aqi_value = calculator->get_aqi(pm_2_5_value, pm_10_0_value);
+    aqi_value = calculator->get_aqi(pm_10_0_value);
   }
 
   if (pm_1_0_value != -1) {
