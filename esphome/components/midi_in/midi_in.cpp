@@ -167,6 +167,10 @@ void MidiInComponent::process_controller_message_(const MidiVoiceMessage &msg) {
       // ESP_LOGD(TAG, "Soft pedal: %#04x (channel %i)", msg.param2, msg.channel);
       this->soft_pedal = msg.param2;
       break;
+    case MidiController::ALL_SOUND_OFF:
+      ESP_LOGD(TAG, "All sounds off (channel %i)", msg.channel);
+      this->all_notes_off_();
+      break;
     case MidiController::ALL_NOTES_OFF:
       ESP_LOGD(TAG, "All notes off (channel %i)", msg.channel);
       this->all_notes_off_();
