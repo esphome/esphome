@@ -28,8 +28,8 @@ MULTI_CONF = True
 
 CONF_ON_VOICE_MESSAGE = "on_voice_message"
 CONF_ON_SYSTEM_MESSAGE = "on_system_message"
-CONF_CONNECTED_SENSOR = "connected"
-CONF_PLAYBACK_SENSOR = "playback"
+CONF_CONNECTED = "connected"
+CONF_PLAYBACK = "playback"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -49,16 +49,12 @@ CONFIG_SCHEMA = cv.All(
                     ),
                 }
             ),
-            cv.Optional(
-                CONF_CONNECTED_SENSOR
-            ): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+            cv.Optional(CONF_CONNECTED): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
                 {
                     cv.GenerateID(): cv.declare_id(binary_sensor.BinarySensor),
                 }
             ),
-            cv.Optional(
-                CONF_PLAYBACK_SENSOR
-            ): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+            cv.Optional(CONF_PLAYBACK): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
                 {
                     cv.GenerateID(): cv.declare_id(binary_sensor.BinarySensor),
                 }
@@ -100,14 +96,14 @@ async def to_code(config):
 
     await cg.register_component(var, config)
 
-    if CONF_CONNECTED_SENSOR in config:
-        conf = config[CONF_CONNECTED_SENSOR]
+    if CONF_CONNECTED in config:
+        conf = config[CONF_CONNECTED]
         sens = cg.new_Pvariable(conf[CONF_ID])
         await binary_sensor.register_binary_sensor(sens, conf)
         cg.add(getattr(var, "set_connected_binary_sensor")(sens))
 
-    if CONF_PLAYBACK_SENSOR in config:
-        conf = config[CONF_PLAYBACK_SENSOR]
+    if CONF_PLAYBACK in config:
+        conf = config[CONF_PLAYBACK]
         sens = cg.new_Pvariable(conf[CONF_ID])
         await binary_sensor.register_binary_sensor(sens, conf)
         cg.add(getattr(var, "set_playback_binary_sensor")(sens))
