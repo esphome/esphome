@@ -240,10 +240,10 @@ async def to_code(config):
         cg.add(var.disable_discovery())
     elif discovery == "CLEAN":
         cg.add(var.set_discovery_info(discovery_prefix, discovery_unique_id_generator,
-            discovery_retain, True))
+                                      discovery_retain, True))
     elif CONF_DISCOVERY_RETAIN in config or CONF_DISCOVERY_PREFIX in config:
         cg.add(var.set_discovery_info(discovery_prefix, discovery_unique_id_generator,
-            discovery_retain))
+                                      discovery_retain))
 
     cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
 
