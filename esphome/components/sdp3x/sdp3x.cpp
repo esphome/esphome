@@ -1,5 +1,6 @@
 #include "sdp3x.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -25,7 +26,7 @@ void SDP3XComponent::setup() {
     ESP_LOGW(TAG, "Soft Reset SDP3X failed!");  // This sometimes fails for no good reason
   }
 
-  delay_microseconds_accurate(20000);
+  delayMicroseconds(20000);
 
   if (this->write(SDP3X_READ_ID1, 2) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Read ID1 SDP3X failed!");

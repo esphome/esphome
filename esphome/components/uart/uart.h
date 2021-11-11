@@ -45,17 +45,17 @@ class UARTDevice {
   // Compat APIs
   int read() {
     uint8_t data;
-    if (!read_byte(&data))
+    if (!this->read_byte(&data))
       return -1;
     return data;
   }
   size_t write(uint8_t data) {
-    write_byte(data);
+    this->write_byte(data);
     return 1;
   }
   int peek() {
     uint8_t data;
-    if (!peek_byte(&data))
+    if (!this->peek_byte(&data))
       return -1;
     return data;
   }

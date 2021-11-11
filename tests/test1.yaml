@@ -193,6 +193,18 @@ uart:
     data_bits: 8
     stop_bits: 1
     rx_buffer_size: 512
+    debug:
+      dummy_receiver: true
+      direction: both
+      after:
+        bytes: 50
+        timeout: 500ms
+        delimiter: "\r\n"
+      sequence:
+        - lambda: UARTDebug::log_hex(direction, bytes, ':');
+        - lambda: UARTDebug::log_string(direction, bytes);
+        - lambda: UARTDebug::log_int(direction, bytes, ',');
+        - lambda: UARTDebug::log_binary(direction, bytes, ';');
 
   - id: adalight_uart
     tx_pin: GPIO25
@@ -234,6 +246,7 @@ logger:
 
 web_server:
   port: 8080
+  ota: true
   css_url: https://esphome.io/_static/webserver-v1.min.css
   js_url: https://esphome.io/_static/webserver-v1.min.js
 
