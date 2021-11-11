@@ -30,7 +30,6 @@ CONF_ON_VOICE_MESSAGE = "on_voice_message"
 CONF_ON_SYSTEM_MESSAGE = "on_system_message"
 CONF_CONNECTED_SENSOR = "connected"
 CONF_PLAYBACK_SENSOR = "playback"
-# TODO: CONF_CHANNEL = "channel"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(

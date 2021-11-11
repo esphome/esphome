@@ -38,7 +38,6 @@ namespace esphome
       std::vector<uint8_t> note_velocities = std::vector<uint8_t>(128, 0);
 
     protected:
-      uint32_t last_active_sense_time_;
       uint32_t last_activity_time_;
       uint32_t keys_on_; // to track number of pressed keys to playback detection
 
