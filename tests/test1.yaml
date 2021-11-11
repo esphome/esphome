@@ -98,6 +98,7 @@ mqtt:
   discovery: True
   discovery_retain: False
   discovery_prefix: discovery
+  discovery_unique_id_generator: legacy
   topic_prefix: helloworld
   log_topic:
     topic: helloworld/hi
