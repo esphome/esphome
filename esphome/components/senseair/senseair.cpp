@@ -145,7 +145,6 @@ bool SenseAirComponent::senseair_write_command_(const uint8_t *command, uint8_t 
   if (response == nullptr) {
     return false;
   }
-  
   // Write wake up byte required by some S8 sensor models
   this->write_byte(0);
   this->flush();
