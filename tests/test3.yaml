@@ -1324,12 +1324,12 @@ midi_in:
           format: "%i: %#04x (%#04x %#04x)"
           args: [ 'x.channel', 'x.command', 'x.param1', 'x.param2' ]
       - lambda: |-
-          if (x.command == midi::MidiCommand::PATCH_CHANGE) {
+          if (x.command == midi_in::MidiCommand::PATCH_CHANGE) {
             ESP_LOGD("midi_in", "PATCH CHANGE: %#02x (channel %i)", x.param1, x.channel);
           }
     on_system_message:
       - lambda: |-
-          if (x.command == midi::MidiCommand::SYSTEM_RESET) {
+          if (x.command == midi_in::MidiCommand::SYSTEM_RESET) {
             ESP_LOGD("midi_in", "RESET");
           }
     connected:
