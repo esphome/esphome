@@ -19,6 +19,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
 )
+
 DEPENDENCIES = ["i2c"]
 max9611_ns = cg.esphome_ns.namespace("max9611")
 max9611Gain = max9611_ns.enum("MAX9611Multiplexer")
