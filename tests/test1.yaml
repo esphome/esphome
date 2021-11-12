@@ -460,6 +460,7 @@ sensor:
     retain: False
     availability:
     state_topic: livingroom/custom_state_topic
+    command_topic: livingroom/custom_command_topic
     measurement_duration: 31
     i2c_id: i2c_bus
   - platform: bme280
