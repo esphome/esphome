@@ -108,7 +108,7 @@ class MQTTClientComponent : public Component {
    * @param unique_id_generator Controls how UniqueId is generated.
    * @param retain Whether to retain discovery messages.
    */
-  void set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator &&unique_id_generator, bool retain,
+  void set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator, bool retain,
                           bool clean = false);
   /// Get Home Assistant discovery info.
   const MQTTDiscoveryInfo &get_discovery_info() const;
