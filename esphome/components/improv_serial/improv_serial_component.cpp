@@ -140,22 +140,33 @@ bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
   if (at < 8 + data_len)
     return true;
 
-  if (at == 8 + data_len) {
+  if (at == 8 + data_len)
+    return true;
+
+  if (at == 8 + data_len + 1) {
+    uint8_t checksum = 0x00;
+    for (uint8_t i = 0; i < at; i++)
+      checksum += raw[i];
+
+    if (checksum != byte) {
+      ESP_LOGW(TAG, "Error decoding Improv payload");
+      this->set_error_(improv::ERROR_INVALID_RPC);
+      return false;
+    }
+
     if (type == TYPE_RPC) {
       this->set_error_(improv::ERROR_NONE);
       auto command = improv::parse_improv_data(&raw[9], data_len, false);
       return this->parse_improv_payload_(command);
     }
   }
-  return true;
+
+  // If we got here then the command coming is is improv, but not an RPC command
+  return false;
 }
 
 bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command) {
   switch (command.command) {
-    case improv::BAD_CHECKSUM:
-      ESP_LOGW(TAG, "Error decoding Improv payload");
-      this->set_error_(improv::ERROR_INVALID_RPC);
-      return false;
     case improv::WIFI_SETTINGS: {
       wifi::WiFiAP sta{};
       sta.set_ssid(command.ssid);
