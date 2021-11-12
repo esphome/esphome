@@ -11,7 +11,7 @@ ImprovCommand parse_improv_data(const uint8_t *data, size_t length, bool check_c
   Command command = (Command) data[0];
   uint8_t data_length = data[1];
 
-  if (data_length != length - 3) {
+  if (data_length != length - 2 - check_checksum) {
     improv_command.command = UNKNOWN;
     return improv_command;
   }
