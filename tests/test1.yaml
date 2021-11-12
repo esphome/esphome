@@ -1694,6 +1694,8 @@ climate:
     min_temperature: 18
     max_temperature: 30
   - platform: midea
+    on_state:
+      logger.log: "State changed!"
     id: midea_unit
     uart_id: uart0
     name: Midea Climate
