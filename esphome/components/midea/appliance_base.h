@@ -46,8 +46,7 @@ class UARTStream : public Stream {
   uart::UARTComponent *uart_;
 };
 
-template<typename T>
-class ApplianceBase : public Component {
+template<typename T> class ApplianceBase : public Component {
   static_assert(std::is_base_of<dudanov::midea::ApplianceBase, T>::value,
                 "T must derive from dudanov::midea::ApplianceBase class");
 
@@ -62,9 +61,7 @@ class ApplianceBase : public Component {
   }
 
 #ifdef USE_REMOTE_TRANSMITTER
-  void set_transmitter(RemoteTransmitterBase *transmitter) {
-    this->transmitter_.set_transmitter(transmitter);
-  }
+  void set_transmitter(RemoteTransmitterBase *transmitter) { this->transmitter_.set_transmitter(transmitter); }
 #endif
 
   /* UART communication */

@@ -41,15 +41,14 @@ class IrSpecialData : public IrData {
 
 class IrTransmitter {
  public:
-  void set_transmitter(RemoteTransmitterBase *transmitter) {
-    this->transmitter_ = transmitter;
-  }
+  void set_transmitter(RemoteTransmitterBase *transmitter) { this->transmitter_ = transmitter; }
   void transmit(IrData &data) {
     data.finalize();
     auto transmit = this->transmitter_->transmit();
     remote_base::MideaProtocol().encode(transmit.get_data(), data);
     transmit.perform();
   }
+
  protected:
   RemoteTransmitterBase *transmitter_{nullptr};
 };
