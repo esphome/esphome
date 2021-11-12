@@ -5,30 +5,22 @@ from esphome.const import (
     CONF_ID,
     CONF_SHUNT_RESISTANCE,
     CONF_GAIN,
-    CONF_MULTIPLY,
     CONF_VOLTAGE,
     CONF_CURRENT,
     CONF_POWER,
     CONF_TEMPERATURE,
-    
     UNIT_VOLT,
     UNIT_AMPERE,
     UNIT_WATT,
     UNIT_CELSIUS,
-    
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_TEMPERATURE,
-    
     STATE_CLASS_MEASUREMENT,
 )
-
 DEPENDENCIES = ["i2c"]
-
-
 max9611_ns = cg.esphome_ns.namespace("max9611")
-
 max9611Gain = max9611_ns.enum("MAX9611Multiplexer")
 MAX9611_GAIN = {
     "8X": max9611Gain.MAX9611_MULTIPLEXER_CSA_GAIN8,
@@ -38,7 +30,6 @@ MAX9611_GAIN = {
 MAX9611Component = max9611_ns.class_(
     "MAX9611Component", cg.PollingComponent, i2c.I2CDevice
 )
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -60,7 +51,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_POWER): sensor.sensor_schema(
                 unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=1,
+                accuracy_decimals=2,
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
@@ -76,17 +67,12 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x70))
 )
-
-
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    
-    
     cg.add(var.set_current_resistor(config[CONF_SHUNT_RESISTANCE]))
     cg.add(var.set_gain(config[CONF_GAIN]))
-    
     if CONF_VOLTAGE in config:
         conf = config[CONF_VOLTAGE]
         sens = await sensor.new_sensor(conf)
@@ -103,4 +89,3 @@ async def to_code(config):
         conf = config[CONF_TEMPERATURE]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_temp_sensor(sens))
-        

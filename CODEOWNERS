@@ -84,6 +84,7 @@ esphome/components/light/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/ltr390/* @sjtrny
 esphome/components/max7219digit/* @rspaargaren
+esphome/components/max9611/* @mckaymatthew
 esphome/components/mcp23008/* @jesserockz
 esphome/components/mcp23017/* @jesserockz
 esphome/components/mcp23s08/* @SenexCrenshaw @jesserockz
