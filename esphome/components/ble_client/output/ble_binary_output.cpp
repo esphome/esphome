@@ -20,12 +20,12 @@ void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
                                           esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_OPEN_EVT:
-      this->client_state_ = espbt::ClientState::Established;
+      this->client_state_ = espbt::ClientState::ESTABLISHED;
       ESP_LOGW(TAG, "[%s] Connected successfully!", this->char_uuid_.to_string().c_str());
       break;
     case ESP_GATTC_DISCONNECT_EVT:
       ESP_LOGW(TAG, "[%s] Disconnected", this->char_uuid_.to_string().c_str());
-      this->client_state_ = espbt::ClientState::Idle;
+      this->client_state_ = espbt::ClientState::IDLE;
       break;
     case ESP_GATTC_WRITE_CHAR_EVT: {
       if (param->write.status == 0) {
@@ -48,7 +48,7 @@ void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
 }
 
 void BLEBinaryOutput::write_state(bool state) {
-  if (this->client_state_ != espbt::ClientState::Established) {
+  if (this->client_state_ != espbt::ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "[%s] Not connected to BLE client.  State update can not be written.",
              this->char_uuid_.to_string().c_str());
     return;
