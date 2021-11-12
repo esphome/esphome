@@ -36,7 +36,6 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(MAX9611Component),
             cv.Required(CONF_SHUNT_RESISTANCE): cv.resistance,
             cv.Required(CONF_GAIN): cv.enum(MAX9611_GAIN, upper=True),
-            
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=2,
@@ -55,7 +54,6 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=2,
@@ -67,6 +65,8 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x70))
 )
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
