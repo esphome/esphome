@@ -7,6 +7,7 @@
 namespace esphome {
 namespace midea {
 
+using remote_base::RemoteTransmitterBase;
 using IrData = remote_base::MideaData;
 
 class IrFollowMeData : public IrData {
@@ -36,6 +37,21 @@ class IrFollowMeData : public IrData {
 class IrSpecialData : public IrData {
  public:
   IrSpecialData(uint8_t code) : IrData({MIDEA_TYPE_SPECIAL, code, 0xFF, 0xFF, 0xFF}) {}
+};
+
+class IrTransmitter {
+ public:
+  void set_transmitter(RemoteTransmitterBase *transmitter) {
+    this->transmitter_ = transmitter;
+  }
+  void transmit(IrData &data) {
+    data.finalize();
+    auto transmit = this->transmitter_->transmit();
+    remote_base::MideaProtocol().encode(transmit.get_data(), data);
+    transmit.perform();
+  }
+ protected:
+  RemoteTransmitterBase *transmitter_{nullptr};
 };
 
 }  // namespace midea
