@@ -782,14 +782,15 @@ def run_esphome(argv):
         )
         return 1
 
-    for secret in CONF_SECRETS:
-        if secret.casefold() in (config.casefold() for config in args.configuration):
-            _LOGGER.warning("%s was specified on the command line. Skipping...", secret)
-            args.configuration[:] = [
-                conf
-                for conf in args.configuration
-                if conf.casefold() != secret.casefold()
-            ]
+    if hasattr(args, 'configuration'):
+        for secret in CONF_SECRETS:
+            if secret.casefold() in (config.casefold() for config in args.configuration):
+                _LOGGER.warning("%s was specified on the command line. Skipping...", secret)
+                args.configuration[:] = [
+                    conf
+                    for conf in args.configuration
+                    if conf.casefold() != secret.casefold()
+                ]
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:
