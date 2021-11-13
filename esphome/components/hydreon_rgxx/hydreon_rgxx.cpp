@@ -117,9 +117,7 @@ bool HydreonRGxxComponent::buffer_starts_with_(const std::string &prefix) {
   return this->buffer_starts_with_(prefix.c_str());
 }
 
-bool HydreonRGxxComponent::buffer_starts_with_(const char *prefix) {
-  return buffer_.rfind(prefix, 0) == 0;
-}
+bool HydreonRGxxComponent::buffer_starts_with_(const char *prefix) { return buffer_.rfind(prefix, 0) == 0; }
 
 void HydreonRGxxComponent::process_line_() {
   ESP_LOGV(TAG, "Read from serial: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
@@ -180,9 +178,7 @@ void HydreonRGxxComponent::process_line_() {
   }
 }
 
-float HydreonRGxxComponent::get_setup_priority() const {
-  return setup_priority::DATA;
-}
+float HydreonRGxxComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace hydreon_rgxx
 }  // namespace esphome

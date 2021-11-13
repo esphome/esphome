@@ -19,8 +19,8 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   void set_sensor(sensor::Sensor *sensor, const std::string &protocolname, int index) {
     this->sensors_[index] = sensor;
     this->sensors_names_[index] = protocolname;
-    if(index+1>this->num_sensors_) {
-      this->num_sensors_ = index+1;
+    if (index + 1 > this->num_sensors_) {
+      this->num_sensors_ = index + 1;
     }
   }
   void set_model(RGModel model) { model_ = model; }
