@@ -784,7 +784,7 @@ def run_esphome(argv):
 
     for secret in CONF_SECRETS:
         if secret.casefold() in (config.casefold() for config in args.configuration):
-            _LOGGER.warning(f"{secret} was specified on the command line. Skipping...")
+            _LOGGER.warning("%s was specified on the command line. Skipping...", secret)
             args.configuration[:] = [
                 conf
                 for conf in args.configuration
