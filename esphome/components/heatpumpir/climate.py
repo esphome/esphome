@@ -112,4 +112,6 @@ def to_code(config):
     cg.add(var.set_max_temperature(config[CONF_MIN_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MAX_TEMPERATURE]))
 
+    # PIO isn't updating releases, so referencing the release tag directly. See:
+    # https://github.com/ToniA/arduino-heatpumpir/commit/0948c619d86407a4e50e8db2f3c193e0576c86fd
     cg.add_library("", "", "https://github.com/ToniA/arduino-heatpumpir.git#1.0.18")
