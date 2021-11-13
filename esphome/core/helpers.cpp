@@ -8,6 +8,8 @@
 #if defined(USE_ESP8266)
 #include <osapi.h>
 #include <user_interface.h>
+// for xt_rsil()/xt_wsr_ps()
+#include <Arduino.h>
 #elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
 #include <Esp.h>
 #elif defined(USE_ESP_IDF)
