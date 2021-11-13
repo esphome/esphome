@@ -116,8 +116,10 @@ bool MQTTComponent::send_discovery_() {
         } else {
           const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
           if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
-            root[MQTT_UNIQUE_ID] =
-                get_mac_address() + "-" + this->component_type() + "-" + this->get_default_object_id_();
+            char object_id_hash[9];
+            sprintf(object_id_hash, "%08x", fnv1_hash(this->get_default_object_id_()));
+            object_id_hash[8] = 0;  // ensure the hash-string ends with null
+            root[MQTT_UNIQUE_ID] = get_mac_address() + "-" + this->component_type() + "-" + object_id_hash;
           } else {
             // default to almost-unique ID. It's a hack but the only way to get that
             // gorgeous device registry view.
