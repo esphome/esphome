@@ -48,6 +48,7 @@ HydreonRGxxComponent = hydreon_rgxx_ns.class_(
     "HydreonRGxxComponent", cg.PollingComponent, uart.UARTDevice
 )
 
+
 def _validate(config):
     for conf, models in SUPPORTED_SENSORS.items():
         if conf in config:
@@ -56,6 +57,7 @@ def _validate(config):
                     f"{conf} is only available on {' and '.join(models)}, not {config[CONF_MODEL]}"
                 )
     return config
+
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -100,7 +102,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("1s"))
     .extend(uart.UART_DEVICE_SCHEMA),
-    _validate
+    _validate,
 )
 
 
