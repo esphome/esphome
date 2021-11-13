@@ -201,8 +201,7 @@ def upload_using_esptool(config, port):
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
         flash_images = [
             platformio_api.FlashImage(
-                path=idedata.firmware_bin_path,
-                offset=firmware_offset,
+                path=idedata.firmware_bin_path, offset=firmware_offset
             ),
             *idedata.extra_flash_images,
         ]
@@ -608,10 +607,7 @@ def parse_args(argv):
         "wizard",
         help="A helpful setup wizard that will guide you through setting up ESPHome.",
     )
-    parser_wizard.add_argument(
-        "configuration",
-        help="Your YAML configuration file.",
-    )
+    parser_wizard.add_argument("configuration", help="Your YAML configuration file.")
 
     parser_fingerprint = subparsers.add_parser(
         "mqtt-fingerprint", help="Get the SSL fingerprint from a MQTT broker."
@@ -633,8 +629,7 @@ def parse_args(argv):
         "dashboard", help="Create a simple web server for a dashboard."
     )
     parser_dashboard.add_argument(
-        "configuration",
-        help="Your YAML configuration file directory.",
+        "configuration", help="Your YAML configuration file directory."
     )
     parser_dashboard.add_argument(
         "--port",
@@ -782,10 +777,14 @@ def run_esphome(argv):
         )
         return 1
 
-    if hasattr(args, 'configuration'):
+    if hasattr(args, "configuration"):
         for secret in CONF_SECRETS:
-            if secret.casefold() in (config.casefold() for config in args.configuration):
-                _LOGGER.warning("%s was specified on the command line. Skipping...", secret)
+            if secret.casefold() in (
+                config.casefold() for config in args.configuration
+            ):
+                _LOGGER.warning(
+                    "%s was specified on the command line. Skipping...", secret
+                )
                 args.configuration[:] = [
                     conf
                     for conf in args.configuration
