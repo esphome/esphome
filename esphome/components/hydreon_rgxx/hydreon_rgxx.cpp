@@ -139,13 +139,13 @@ void HydreonRGxxComponent::process_line_() {
     return;
   }
   if (this->buffer_starts_with_("SW")) {
-    std::string::size_type majend = this->buffer_.find(".");
-    std::string::size_type endversion = this->buffer_.find(" ", 3);
+    std::string::size_type majend = this->buffer_.find('.');
+    std::string::size_type endversion = this->buffer_.find(' ', 3);
     if (majend == std::string::npos || endversion == std::string::npos || majend > endversion) {
       ESP_LOGW(TAG, "invalid version string: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
     }
-    int major = strtol(this->buffer_.substr(3, majend - 3).c_str(), NULL, 10);
-    int minor = strtol(this->buffer_.substr(majend + 1, endversion - (majend + 1)).c_str(), NULL, 10);
+    int major = strtol(this->buffer_.substr(3, majend - 3).c_str(), nullptr, 10);
+    int minor = strtol(this->buffer_.substr(majend + 1, endversion - (majend + 1)).c_str(), nullptr, 10);
 
     if (major > 10 || minor >= 1000 || minor < 0 || major < 0) {
       ESP_LOGW(TAG, "invalid version: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
