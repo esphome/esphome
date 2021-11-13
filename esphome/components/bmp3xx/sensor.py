@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
-    CONF_IDLE_TIME,
     CONF_IIR_FILTER,
     CONF_OVERSAMPLING,
     CONF_PRESSURE,
@@ -41,29 +40,6 @@ IIR_FILTER_OPTIONS = {
     "128X": IIRFilter.IIR_FILTER_128,
 }
 
-TimeStandby = bmp3xx_ns.enum("TimeStandby")
-TIMESTANDBY_OPTIONS = {
-    0: TimeStandby.TIME_STANDBY_OFF,  # signal forced mode
-    5: TimeStandby.TIME_STANDBY_5MS,
-    10: TimeStandby.TIME_STANDBY_10MS,
-    20: TimeStandby.TIME_STANDBY_20MS,
-    40: TimeStandby.TIME_STANDBY_40MS,
-    80: TimeStandby.TIME_STANDBY_80MS,
-    160: TimeStandby.TIME_STANDBY_160MS,
-    320: TimeStandby.TIME_STANDBY_320MS,
-    640: TimeStandby.TIME_STANDBY_640MS,
-    1280: TimeStandby.TIME_STANDBY_1280MS,
-    2560: TimeStandby.TIME_STANDBY_2560MS,
-    5120: TimeStandby.TIME_STANDBY_5120MS,
-    10240: TimeStandby.TIME_STANDBY_10240MS,
-    20480: TimeStandby.TIME_STANDBY_20480MS,
-    40960: TimeStandby.TIME_STANDBY_40960MS,
-    81920: TimeStandby.TIME_STANDBY_81920MS,
-    163840: TimeStandby.TIME_STANDBY_163840MS,
-    327680: TimeStandby.TIME_STANDBY_327680MS,
-    655360: TimeStandby.TIME_STANDBY_655360MS,
-}
-
 BMP3XXComponent = bmp3xx_ns.class_(
     "BMP3XXComponent", cg.PollingComponent, i2c.I2CDevice
 )
@@ -99,7 +75,6 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_IIR_FILTER, default="OFF"): cv.enum(
                 IIR_FILTER_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_IDLE_TIME, default=0): cv.enum(TIMESTANDBY_OPTIONS),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -112,7 +87,6 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
     cg.add(var.set_iir_filter_config(config[CONF_IIR_FILTER]))
-    cg.add(var.set_standby_time_config(config[CONF_IDLE_TIME]))
     if CONF_TEMPERATURE in config:
         conf = config[CONF_TEMPERATURE]
         sens = await sensor.new_sensor(conf)

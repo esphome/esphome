@@ -124,14 +124,6 @@ void BMP3XXComponent::setup() {
     return;
   }
 
-  // Initialise the BMP388 standby time register
-  if (!set_time_standby(this->time_standby_)) {
-    ESP_LOGE(TAG, "Failed to set time standby register");
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
-    return;
-  }
-
   // Set power control registers
   pwr_ctrl_.bit.press_en = 1;
   pwr_ctrl_.bit.temp_en = 1;
@@ -151,18 +143,6 @@ void BMP3XXComponent::setup() {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
-  }
-
-  // Set the BMP388 mode
-  if (operation_mode_ == NORMAL_MODE) {
-    // time between measurements
-    set_time_standby(time_standby_);
-    if (!start_normal_conversion()) {
-      ESP_LOGE(TAG, "Failed to set operation mode");
-      this->error_code_ = COMMUNICATION_FAILED;
-      this->mark_failed();
-      return;
-    }
   }
 }
 
@@ -207,23 +187,22 @@ inline uint8_t oversampling_to_time(Oversampling over_sampling) { return (1 << u
 void BMP3XXComponent::update() {
   // Enable sensor
   ESP_LOGV(TAG, "Sending conversion request...");
-  float meas_time = 1.0f;
   static bool first_update = true;
-  if (operation_mode_ == FORCED_MODE) {
-    meas_time += 2.03f * oversampling_to_time(this->temperature_oversampling_) + 0.163f;
-    meas_time += 2.03f * oversampling_to_time(this->pressure_oversampling_) + 0.392f;
-    meas_time += 15.234f;
-    if (first_update) {
-      // needs more time after startup
-      meas_time += 500;
-      first_update = false;
-    }
-    if (!set_mode(FORCED_MODE)) {
-      ESP_LOGE(TAG, "Failed start forced mode");
-      this->mark_failed();
-      return;
-    }
+  float meas_time = 1.0f;
+  meas_time += 2.03f * oversampling_to_time(this->temperature_oversampling_) + 0.163f;
+  meas_time += 2.03f * oversampling_to_time(this->pressure_oversampling_) + 0.392f;
+  meas_time += 15.234f;
+  if (first_update) {
+    // needs more time after startup
+    meas_time += 500;
+    first_update = false;
   }
+  if (!set_mode(FORCED_MODE)) {
+    ESP_LOGE(TAG, "Failed start forced mode");
+    this->mark_failed();
+    return;
+  }
+
   ESP_LOGVV(TAG, "measurement time %d", uint32_t(ceilf(meas_time)));
   this->set_timeout("data", uint32_t(ceilf(meas_time)), [this]() {
     float temperature = 0.0f;
@@ -249,9 +228,7 @@ void BMP3XXComponent::update() {
     if (this->pressure_sensor_ != nullptr)
       this->pressure_sensor_->publish_state(pressure);
     this->status_clear_warning();
-    if (operation_mode_ == FORCED_MODE) {
-      set_mode(SLEEP_MODE);
-    }
+    set_mode(SLEEP_MODE);
   });
 }
 
@@ -263,10 +240,6 @@ uint8_t BMP3XXComponent::reset() {
   this->read_byte(BMP388_EVENT, &event_.reg);  // Read the BMP388's event register
   return event_.bit.por_detected;              // Return if device reset is complete
 }
-
-bool BMP3XXComponent::start_normal_conversion() {
-  return set_mode(NORMAL_MODE);
-}  // Start continuous measurement in NORMAL_MODE
 
 // Start a one shot measurement in FORCED_MODE
 bool BMP3XXComponent::start_forced_conversion() {
@@ -296,16 +269,6 @@ bool BMP3XXComponent::set_temperature_oversampling(Oversampling oversampling) {
 bool BMP3XXComponent::set_iir_filter(IIRFilter iir_filter) {
   config_.bit.iir_filter = iir_filter;
   return this->write_byte(BMP388_CONFIG, config_.reg);
-}
-
-// Set the time standby measurement interval
-bool BMP3XXComponent::set_time_standby(TimeStandby time_standby) {
-  if (time_standby == TIME_STANDBY_OFF) {
-    ESP_LOGE(TAG, "TIME_STANDBY_OFF is not a valid option for NORMAL_MODE");
-    return false;
-  }
-  odr_.bit.odr_sel = time_standby;
-  return this->write_byte(BMP388_ODR, odr_.reg);
 }
 
 // Get temperature

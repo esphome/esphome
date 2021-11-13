@@ -68,29 +68,6 @@ enum IIRFilter {
   IIR_FILTER_128 = 0x07
 };
 
-/// Time standby bit field in the Output Data Rate (ODR) register
-enum TimeStandby {
-  TIME_STANDBY_5MS = 0x00,
-  TIME_STANDBY_10MS = 0x01,
-  TIME_STANDBY_20MS = 0x02,
-  TIME_STANDBY_40MS = 0x03,
-  TIME_STANDBY_80MS = 0x04,
-  TIME_STANDBY_160MS = 0x05,
-  TIME_STANDBY_320MS = 0x06,
-  TIME_STANDBY_640MS = 0x07,
-  TIME_STANDBY_1280MS = 0x08,
-  TIME_STANDBY_2560MS = 0x09,
-  TIME_STANDBY_5120MS = 0x0A,
-  TIME_STANDBY_10240MS = 0x0B,
-  TIME_STANDBY_20480MS = 0x0C,
-  TIME_STANDBY_40960MS = 0x0D,
-  TIME_STANDBY_81920MS = 0x0E,
-  TIME_STANDBY_163840MS = 0x0F,
-  TIME_STANDBY_327680MS = 0x10,
-  TIME_STANDBY_655360MS = 0x11,
-  TIME_STANDBY_OFF = 0xFF,
-};
-
 /// This class implements support for the BMP3XX Temperature+Pressure i2c sensor.
 class BMP3XXComponent : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -113,16 +90,6 @@ class BMP3XXComponent : public PollingComponent, public i2c::I2CDevice {
   /// Set the IIR Filter used to increase accuracy, defaults to no IIR Filter.
   void set_iir_filter_config(IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 
-  ///  Set delay between measurements in normal mode.
-  ///  TIME_STANDBY_OFF enables FORCED mode
-  void set_standby_time_config(TimeStandby time_standby) {
-    if (time_standby == TIME_STANDBY_OFF) {
-      operation_mode_ = FORCED_MODE;
-    } else {
-      operation_mode_ = NORMAL_MODE;
-      this->time_standby_ = time_standby;
-    }
-  }
   /// Soft reset the sensor
   uint8_t reset();
   /// Start continuous measurement in NORMAL_MODE
@@ -137,8 +104,6 @@ class BMP3XXComponent : public PollingComponent, public i2c::I2CDevice {
   bool set_temperature_oversampling(Oversampling temperature_oversampling);
   /// Set the IIR filter setting: OFF, 2, 3, 8, 16, 32
   bool set_iir_filter(IIRFilter iir_filter);
-  /// Set the time standby measurement interval: 5, 62, 125, 250, 500ms, 1s, 2s, 4s
-  bool set_time_standby(TimeStandby time_standby);
   /// Get a temperature measurement
   bool get_temperature(volatile float &temperature);
   /// Get a pressure measurement
@@ -167,7 +132,6 @@ class BMP3XXComponent : public PollingComponent, public i2c::I2CDevice {
   Oversampling pressure_oversampling_{OVERSAMPLING_X16};
   IIRFilter iir_filter_{IIR_FILTER_OFF};
   OperationMode operation_mode_{FORCED_MODE};
-  TimeStandby time_standby_{TIME_STANDBY_5MS};
   sensor::Sensor *temperature_sensor_;
   sensor::Sensor *pressure_sensor_;
   enum ErrorCode {
