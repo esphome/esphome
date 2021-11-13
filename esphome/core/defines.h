@@ -19,7 +19,6 @@
 #define USE_CLIMATE
 #define USE_COVER
 #define USE_DEEP_SLEEP
-#define USE_ESP8266_PREFERENCES_FLASH
 #define USE_FAN
 #define USE_GRAPH
 #define USE_HOMEASSISTANT_TIME
@@ -30,7 +29,6 @@
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_CALLBACK
 #define USE_POWER_SUPPLY
-#define USE_PROMETHEUS
 #define USE_SELECT
 #define USE_SENSOR
 #define USE_STATUS_LED
@@ -38,10 +36,7 @@
 #define USE_TEXT_SENSOR
 #define USE_TIME
 #define USE_UART_DEBUGGER
-#define USE_WEBSERVER
 #define USE_WIFI
-
-#define WEBSERVER_PORT 80  // NOLINT
 
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
@@ -49,7 +44,10 @@
 #define USE_JSON
 #define USE_NEXTION_TFT_UPLOAD
 #define USE_MQTT
+#define USE_PROMETHEUS
+#define USE_WEBSERVER
 #define USE_WIFI_WPA2_EAP
+#define WEBSERVER_PORT 80  // NOLINT
 #endif
 
 // ESP32-specific feature flags
@@ -68,6 +66,7 @@
 // ESP8266-specific feature flags
 #ifdef USE_ESP8266
 #define USE_ADC_SENSOR_VCC
+#define USE_ESP8266_PREFERENCES_FLASH
 #define USE_HTTP_REQUEST_ESP8266_HTTPS
 #define USE_SOCKET_IMPL_LWIP_TCP
 #endif
