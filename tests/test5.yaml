@@ -86,8 +86,6 @@ number:
     name: My template number
     id: template_number_id
     optimistic: true
-    state_topic: livingroom/custom_state_topic
-    command_topic: livingroom/custom_command_topic
     on_value:
       - logger.log:
           format: "Number changed to %f"
@@ -107,8 +105,6 @@ select:
     optimistic: true
     initial_option: two
     restore_value: true
-    state_topic: livingroom/custom_state_topic
-    command_topic: livingroom/custom_command_topic
     on_value:
       - logger.log:
           format: "Select changed to %s"
