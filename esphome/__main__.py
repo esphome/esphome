@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_PORT,
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
+    CONF_SECRETS,
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.helpers import indent
@@ -780,6 +781,15 @@ def run_esphome(argv):
             "with this Python version. Please reinstall ESPHome with Python 3.7+"
         )
         return 1
+
+    for secret in CONF_SECRETS:
+        if secret.casefold() in (config.casefold() for config in args.configuration):
+            _LOGGER.warning(f"{secret} was specified on the command line. Skipping...")
+            args.configuration[:] = [
+                conf
+                for conf in args.configuration
+                if conf.casefold() != secret.casefold()
+            ]
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:
