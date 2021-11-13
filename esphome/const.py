@@ -591,6 +591,7 @@ CONF_SDA = "sda"
 CONF_SDO_PIN = "sdo_pin"
 CONF_SECOND = "second"
 CONF_SECONDS = "seconds"
+CONF_SECRETS = ["secrets.yaml", "secrets.yml"]
 CONF_SECURITY_LEVEL = "security_level"
 CONF_SEGMENTS = "segments"
 CONF_SEL_PIN = "sel_pin"
