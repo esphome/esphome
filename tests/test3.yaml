@@ -354,16 +354,16 @@ sensor:
       unit_of_measurement: "intensity"
       expire_after: 30s
   - platform: hydreon_rgxx
-      model: "RG 15"
-      uart_id: uart6
-      acc:
-        name: "hydreon-acc"
-      event_acc:
-        name: "hydreon-event-acc"
-      total_acc:
-        name: "hydreon-total-acc"
-      r_int:
-        name: "hydreon-r-int"
+    model: "RG_15"
+    uart_id: uart6
+    acc:
+      name: "hydreon-acc"
+    event_acc:
+      name: "hydreon-event-acc"
+    total_acc:
+      name: "hydreon-total-acc"
+    r_int:
+      name: "hydreon-r-int"
   - platform: adc
     pin: VCC
     id: my_sensor
