@@ -6,7 +6,7 @@ namespace esphome {
 namespace hydreon_rgxx {
 
 static const char *const TAG = "hydreon_rgxx.sensor";
-#define MAX_DATA_LENGTH_BYTES 80
+static const int MAX_DATA_LENGTH_BYTES = 80;
 static const uint8_t ASCII_LF = 0x0A;
 
 template<size_t num_sensors_>
