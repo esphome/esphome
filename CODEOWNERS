@@ -71,6 +71,7 @@ esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/hrxl_maxsonar_wr/* @netmikey
+esphome/components/hydreon_rgxx/* @functionpointer
 esphome/components/i2c/* @esphome/core
 esphome/components/improv/* @jesserockz
 esphome/components/improv_serial/* @esphome/core

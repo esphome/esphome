@@ -19,7 +19,6 @@ CONF_TOTAL_ACC = "totalacc"
 CONF_RINT = "rint"
 
 DEPENDENCIES = ["uart"]
-CODEOWNERS = ["@functionpointer"]
 
 hydreon_rgxx_ns = cg.esphome_ns.namespace("hydreon_rgxx")
 RGModel = hydreon_rgxx_ns.enum("RGModel")
