@@ -351,7 +351,6 @@ sensor:
     moisture:
       name: "hydreon_rain"
       id: hydreon_rain
-      expire_after: 30s
   - platform: hydreon_rgxx
     model: "RG_15"
     uart_id: uart6
