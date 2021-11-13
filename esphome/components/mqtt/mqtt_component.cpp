@@ -117,7 +117,7 @@ bool MQTTComponent::send_discovery_() {
           const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
           if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
             char object_id_hash[9];
-            sprintf(object_id_hash, "%08x", fnv1_hash(this->get_default_object_id_()));
+            sprintf(object_id_hash, "%08x", fnv1_hash(this->friendly_name()));
             object_id_hash[8] = 0;  // ensure the hash-string ends with null
             root[MQTT_UNIQUE_ID] = get_mac_address() + "-" + this->component_type() + "-" + object_id_hash;
           } else {
