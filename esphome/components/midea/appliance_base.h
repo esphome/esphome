@@ -40,6 +40,10 @@ class UARTStream : public Stream {
     this->uart_->write_byte(data);
     return 1;
   }
+  size_t write(const uint8_t *data, size_t size) override {
+    this->uart_->write_array(data, size);
+    return size;
+  }
   void flush() override { this->uart_->flush(); }
 
  protected:
