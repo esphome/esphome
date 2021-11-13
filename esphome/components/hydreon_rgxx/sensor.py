@@ -115,7 +115,7 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     i = 0
-    for conf, models in SUPPORTED_SENSORS.items():
+    for conf, _ in SUPPORTED_SENSORS.items():
         if conf in config:
             sens = await sensor.new_sensor(config[conf])
             cg.add(var.set_sensor(sens, PROTOCOL_NAMES[conf], i))
