@@ -27,10 +27,10 @@ template<size_t num_sensors_> void HydreonRGxxComponent<num_sensors_>::setup() {
   while (this->available() != 0) {
     this->read();
   }
-  this->schedule_reboot();
+  this->schedule_reboot_();
 }
 
-template<size_t num_sensors_> bool HydreonRGxxComponent<num_sensors_>::sensor_missing() {
+template<size_t num_sensors_> bool HydreonRGxxComponent<num_sensors_>::sensor_missing_() {
   if (this->sensors_received_ == -1) {
     // no request sent yet, don't check
     return false;
@@ -51,7 +51,7 @@ template<size_t num_sensors_> bool HydreonRGxxComponent<num_sensors_>::sensor_mi
 
 template<size_t num_sensors_> void HydreonRGxxComponent<num_sensors_>::update() {
   if (this->boot_count_ > 0) {
-    if (this->sensor_missing()) {
+    if (this->sensor_missing_()) {
       this->no_response_count_++;
       ESP_LOGE(TAG, "data missing %d times", this->no_response_count_);
       if (this->no_response_count_ > 15) {
@@ -59,7 +59,7 @@ template<size_t num_sensors_> void HydreonRGxxComponent<num_sensors_>::update() 
         for (int i = 0; i < num_sensors_; i++) {
           this->sensors_[i]->publish_state(NAN);
         }
-        this->schedule_reboot();
+        this->schedule_reboot_();
         return;
       }
     } else {
@@ -77,7 +77,7 @@ template<size_t num_sensors_> void HydreonRGxxComponent<num_sensors_>::loop() {
       buffer_ += (char) data;
       if (this->buffer_.back() == static_cast<char>(ASCII_LF) || this->buffer_.length() >= MAX_DATA_LENGTH_BYTES) {
         // complete line received
-        this->process_line();
+        this->process_line_();
         this->buffer_.clear();
       }
     }
@@ -96,7 +96,7 @@ template<size_t num_sensors_> void HydreonRGxxComponent<num_sensors_>::loop() {
  * If no answer is received, the timeout expires and we try to recover the
  * connection by rebooting the sensor. If that fails as well we give up.
  */
-template<size_t num_sensors_> void HydreonRGxxComponent<num_sensors_>::schedule_reboot() {
+template<size_t num_sensors_> void HydreonRGxxComponent<num_sensors_>::schedule_reboot_() {
   this->boot_count_ = 0;
   this->set_interval("reboot", 5000, [this]() {
     if (this->boot_count_ < 0) {
@@ -114,22 +114,22 @@ template<size_t num_sensors_> void HydreonRGxxComponent<num_sensors_>::schedule_
   });
 }
 
-template<size_t num_sensors_> bool HydreonRGxxComponent<num_sensors_>::buffer_starts_with(const std::string &prefix) {
-  return buffer_starts_with(prefix.c_str());
+template<size_t num_sensors_> bool HydreonRGxxComponent<num_sensors_>::buffer_starts_with_(const std::string &prefix) {
+  return this->buffer_starts_with_(prefix.c_str());
 }
 
-template<size_t num_sensors_> bool HydreonRGxxComponent<num_sensors_>::buffer_starts_with(const char *prefix) {
+template<size_t num_sensors_> bool HydreonRGxxComponent<num_sensors_>::buffer_starts_with_(const char *prefix) {
   return buffer_.rfind(prefix, 0) == 0;
 }
 
-template<size_t num_sensors_> void HydreonRGxxComponent<num_sensors_>::process_line() {
+template<size_t num_sensors_> void HydreonRGxxComponent<num_sensors_>::process_line_() {
   ESP_LOGV(TAG, "Read from serial: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
 
   if (buffer_[0] == ';') {
     ESP_LOGI(TAG, "Comment: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
     return;
   }
-  if (buffer_starts_with("PwrDays")) {
+  if (this->buffer_starts_with_("PwrDays")) {
     if (this->boot_count_ <= 0) {
       this->boot_count_ = 1;
     } else {
@@ -141,7 +141,7 @@ template<size_t num_sensors_> void HydreonRGxxComponent<num_sensors_>::process_l
     this->write_str("P\nH\nM\n");  // set sensor to polling mode, high res mode, metric mode
     return;
   }
-  if (buffer_starts_with("SW")) {
+  if (this->buffer_starts_with_("SW")) {
     std::string::size_type majend = this->buffer_.find(".");
     std::string::size_type endversion = this->buffer_.find(" ", 3);
     if (majend == std::string::npos || endversion == std::string::npos || majend > endversion) {
@@ -159,7 +159,7 @@ template<size_t num_sensors_> void HydreonRGxxComponent<num_sensors_>::process_l
   }
   bool is_data_line = false;
   for (int i = 0; i < num_sensors_; i++) {
-    if (buffer_starts_with(this->sensors_names_[i])) {
+    if (this->buffer_starts_with_(this->sensors_names_[i])) {
       is_data_line = true;
       break;
     }

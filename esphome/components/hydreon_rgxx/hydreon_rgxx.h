@@ -31,12 +31,11 @@ template<size_t num_sensors_> class HydreonRGxxComponent : public PollingCompone
   float get_setup_priority() const override;
 
  protected:
-  void process_line();
-  void schedule_fail();
-  void schedule_reboot();
-  bool buffer_starts_with(const std::string &prefix);
-  bool buffer_starts_with(const char *prefix);
-  bool sensor_missing();
+  void process_line_();
+  void schedule_reboot_();
+  bool buffer_starts_with_(const std::string &prefix);
+  bool buffer_starts_with_(const char *prefix);
+  bool sensor_missing_();
 
   sensor::Sensor *sensors_[num_sensors_] = {nullptr};
   std::string sensors_names_[num_sensors_];
