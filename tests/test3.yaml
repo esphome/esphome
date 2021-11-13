@@ -350,7 +350,7 @@ sensor:
     uart_id: uart6
     moisture:
       name: "hydreon_rain"
-      id: hydreon-rain
+      id: hydreon_rain
       unit_of_measurement: "intensity"
       expire_after: 30s
   - platform: hydreon_rgxx
