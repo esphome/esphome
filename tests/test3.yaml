@@ -349,7 +349,7 @@ sensor:
     model: "RG 9"
     uart_id: uart6
     moisture:
-      name: "hydreon-rain"
+      name: "hydreon_rain"
       id: hydreon-rain
       unit_of_measurement: "intensity"
       expire_after: 30s
@@ -357,13 +357,13 @@ sensor:
     model: "RG_15"
     uart_id: uart6
     acc:
-      name: "hydreon-acc"
+      name: "hydreon_acc"
     event_acc:
-      name: "hydreon-event-acc"
+      name: "hydreon_event_acc"
     total_acc:
-      name: "hydreon-total-acc"
+      name: "hydreon_total_acc"
     r_int:
-      name: "hydreon-r-int"
+      name: "hydreon_r_int"
   - platform: adc
     pin: VCC
     id: my_sensor
