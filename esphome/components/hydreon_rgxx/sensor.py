@@ -14,9 +14,9 @@ UNIT_MILLIMETERS = "mm"
 UNIT_MILLIMETERS_PER_HOUR = "mm/h"
 
 CONF_ACC = "acc"
-CONF_EVENT_ACC = "eventacc"
-CONF_TOTAL_ACC = "totalacc"
-CONF_RINT = "rint"
+CONF_EVENT_ACC = "event_acc"
+CONF_TOTAL_ACC = "total_acc"
+CONF_R_INT = "r_int"
 
 DEPENDENCIES = ["uart"]
 
@@ -33,13 +33,13 @@ SUPPORTED_SENSORS = {
     CONF_ACC: ["RG_15"],
     CONF_EVENT_ACC: ["RG_15"],
     CONF_TOTAL_ACC: ["RG_15"],
-    CONF_RINT: ["RG_15"],
+    CONF_R_INT: ["RG_15"],
     CONF_MOISTURE: ["RG_9"],
 }
 PROTOCOL_NAMES = {
     CONF_MOISTURE: "R",
     CONF_ACC: "Acc",
-    CONF_RINT: "Rint",
+    CONF_R_INT: "Rint",
     CONF_EVENT_ACC: "EventAcc",
     CONF_TOTAL_ACC: "TotalAcc",
 }
@@ -86,7 +86,7 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_RINT): sensor.sensor_schema(
+            cv.Optional(CONF_R_INT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETERS_PER_HOUR,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_HUMIDITY,
