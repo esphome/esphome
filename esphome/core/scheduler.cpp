@@ -73,33 +73,33 @@ bool HOT Scheduler::cancel_interval(Component *component, const std::string &nam
   return this->cancel_item_(component, name, SchedulerItem::INTERVAL);
 }
 
-void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t inital_wait_time,
+void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
                               uint8_t max_retries, std::function<RetryResult()> &&func, float backoff_increase_factor) {
   const uint32_t now = this->millis_();
 
   if (!name.empty())
     this->cancel_interval(component, name);
 
-  if (inital_wait_time == SCHEDULER_DONT_RUN)
+  if (initial_wait_time == SCHEDULER_DONT_RUN)
     return;
 
   // only put offset in lower half
   uint32_t offset = 0;
-  if (inital_wait_time != 0)
-    offset = (random_uint32() % inital_wait_time) / 2;
+  if (initial_wait_time != 0)
+    offset = (random_uint32() % initial_wait_time) / 2;
 
-  ESP_LOGVV(TAG, "set_retry(name='%s', inital_wait_time=%u,max_retries=%u, backoff_factor=%0.1f offset=%u)",
-            name.c_str(), inital_wait_time, max_retries, backoff_increase_factor, offset);
+  ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%u,max_retries=%u, backoff_factor=%0.1f offset=%u)",
+            name.c_str(), initial_wait_time, max_retries, backoff_increase_factor, offset);
 
   auto item = make_unique<SchedulerItem>();
   item->component = component;
   item->name = name;
   item->type = SchedulerItem::RETRY;
-  item->interval = inital_wait_time;
+  item->interval = initial_wait_time;
   item->retry_countdown = max_retries;
   item->backoff_multiplier = backoff_increase_factor;
   item->retry_result = RetryResult::RETRY;
-  item->last_execution = now - offset - inital_wait_time;
+  item->last_execution = now - offset - initial_wait_time;
   item->last_execution_major = this->millis_major_;
   if (item->last_execution > now)
     item->last_execution_major--;

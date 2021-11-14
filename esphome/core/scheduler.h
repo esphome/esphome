@@ -15,7 +15,7 @@ class Scheduler {
   void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> &&func);
   bool cancel_interval(Component *component, const std::string &name);
 
-  void set_retry(Component *component, const std::string &name, uint32_t inital_wait_time, uint8_t max_retries,
+  void set_retry(Component *component, const std::string &name, uint32_t initial_wait_time, uint8_t max_retries,
                  std::function<RetryResult()> &&func, float backoff_increase_factor = 2.0f);
   bool cancel_retry(Component *component, const std::string &name);
 

@@ -177,7 +177,7 @@ class Component {
 
   /** Set an retry function with a unique name. Empty name means no cancelling possible.
    *
-   * This will call f. If f returns RetryResult::RETRY f is called again after inital_wait_time ms.
+   * This will call f. If f returns RetryResult::RETRY f is called again after initial_wait_time ms.
    * f should return RetryResult::DONE if no repeat is required. The initial wait time will be increased
    * by backoff_increase_factor for each iteration. Default is doubling the time between iterations
    * Can be cancelled via cancel_retry().
@@ -186,16 +186,16 @@ class Component {
    * loop() and therefore can be significantly delayed.
    *
    * @param name The identifier for this retry function.
-   * @param inital_wait_time The time in ms before f is called again
+   * @param initial_wait_time The time in ms before f is called again
    * @param max_retries The maximum number of retries
    * @param f The function (or lambda) that should be called
    * @param backoff_increase_factor time between retries is increased by this factor on every retry
    * @see cancel_retry()
    */
-  void set_retry(const std::string &name, uint32_t inital_wait_time, uint8_t max_retries,
+  void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_retries,
                  std::function<RetryResult()> &&f, float backoff_increase_factor = 2.0f);  // NOLINT
 
-  void set_retry(uint32_t inital_wait_time, uint8_t max_retries, std::function<RetryResult()> &&f,
+  void set_retry(uint32_t initial_wait_time, uint8_t max_retries, std::function<RetryResult()> &&f,
                  float backoff_increase_factor = 2.0f);  // NOLINT
 
   /** Cancel a retry function.

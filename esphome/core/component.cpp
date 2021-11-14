@@ -55,9 +55,9 @@ bool Component::cancel_interval(const std::string &name) {  // NOLINT
   return App.scheduler.cancel_interval(this, name);
 }
 
-void Component::set_retry(const std::string &name, uint32_t inital_wait_time, uint8_t max_retries,
+void Component::set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_retries,
                           std::function<RetryResult()> &&f, float backoff_increase_factor) {  // NOLINT
-  App.scheduler.set_retry(this, name, inital_wait_time, max_retries, std::move(f), backoff_increase_factor);
+  App.scheduler.set_retry(this, name, initial_wait_time, max_retries, std::move(f), backoff_increase_factor);
 }
 
 bool Component::cancel_retry(const std::string &name) {  // NOLINT
@@ -129,9 +129,9 @@ void Component::set_timeout(uint32_t timeout, std::function<void()> &&f) {  // N
 void Component::set_interval(uint32_t interval, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_interval(this, "", interval, std::move(f));
 }
-void Component::set_retry(uint32_t inital_wait_time, uint8_t max_retries, std::function<RetryResult()> &&f,
+void Component::set_retry(uint32_t initial_wait_time, uint8_t max_retries, std::function<RetryResult()> &&f,
                           float backoff_increase_factor) {  // NOLINT
-  App.scheduler.set_retry(this, "", inital_wait_time, max_retries, std::move(f), backoff_increase_factor);
+  App.scheduler.set_retry(this, "", initial_wait_time, max_retries, std::move(f), backoff_increase_factor);
 }
 bool Component::is_failed() { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
 bool Component::can_proceed() { return true; }
