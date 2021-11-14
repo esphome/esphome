@@ -147,9 +147,9 @@ RUN \
         /var/{cache,log}/* \
         /var/lib/apt/lists/*
 
-COPY requirements.txt requirements_optional.txt docker/platformio_install_deps.py platformio.ini /
+COPY requirements.txt requirements_optional.txt requirements_test.txt docker/platformio_install_deps.py platformio.ini /
 RUN \
-    pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
+    pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt -r /requirements_test.txt \
     && /platformio_install_deps.py /platformio.ini
 
 VOLUME ["/esphome"]
