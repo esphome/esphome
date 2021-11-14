@@ -111,9 +111,15 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    i = 0
-    for conf, _ in SUPPORTED_SENSORS.items():
+    cg.add_define(
+        "HYDREON_PROTOCOL_LIST(F, sep)",
+        cg.RawExpression(
+            " sep ".join([f'F("{name}")' for name in PROTOCOL_NAMES.values()])
+        ),
+    )
+    cg.add_define("HYDREON_NUM_SENSORS", len(PROTOCOL_NAMES))
+
+    for i, conf in enumerate(PROTOCOL_NAMES):
         if conf in config:
             sens = await sensor.new_sensor(config[conf])
-            cg.add(var.set_sensor(sens, PROTOCOL_NAMES[conf], i))
-            i += 1
+            cg.add(var.set_sensor(sens, i))

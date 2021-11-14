@@ -7,6 +7,8 @@ namespace hydreon_rgxx {
 static const char *const TAG = "hydreon_rgxx.sensor";
 static const int MAX_DATA_LENGTH_BYTES = 80;
 static const uint8_t ASCII_LF = 0x0A;
+#define COMMA ,
+static const char *PROTOCOL_NAMES[] = {HYDREON_PROTOCOL_LIST(, COMMA)};
 
 void HydreonRGxxComponent::dump_config() {
   this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
@@ -16,9 +18,12 @@ void HydreonRGxxComponent::dump_config() {
   }
   LOG_UPDATE_INTERVAL(this);
 
-  for (int i = 0; i < this->num_sensors_; i++) {
-    LOG_SENSOR("  ", this->sensors_names_[i].c_str(), this->sensors_[i]);
+  int i = 0;
+#define HYDREON_RGXX_LOG_SENSOR(s) \
+  if (this->sensors_[i++] != nullptr) { \
+    LOG_SENSOR("  ", #s, this->sensors_[i - 1]); \
   }
+  HYDREON_PROTOCOL_LIST(HYDREON_RGXX_LOG_SENSOR, );
 }
 
 void HydreonRGxxComponent::setup() {
@@ -38,9 +43,12 @@ bool HydreonRGxxComponent::sensor_missing_() {
       ESP_LOGW(TAG, "No data at all");
       return true;
     }
-    for (int i = 0; i < this->num_sensors_; i++) {
+    for (int i = 0; i < HYDREON_NUM_SENSORS; i++) {
+      if (this->sensors_[i] == nullptr) {
+        continue;
+      }
       if ((this->sensors_received_ >> i & 1) == 0) {
-        ESP_LOGW(TAG, "Missing %s", this->sensors_names_[i].c_str());
+        ESP_LOGW(TAG, "Missing %s", PROTOCOL_NAMES[i]);
         return true;
       }
     }
@@ -55,7 +63,7 @@ void HydreonRGxxComponent::update() {
       ESP_LOGE(TAG, "data missing %d times", this->no_response_count_);
       if (this->no_response_count_ > 15) {
         ESP_LOGE(TAG, "asking sensor to reboot");
-        for (int i = 0; i < this->num_sensors_; i++) {
+        for (int i = 0; i < HYDREON_NUM_SENSORS; i++) {
           this->sensors_[i]->publish_state(NAN);
         }
         this->schedule_reboot_();
@@ -105,7 +113,7 @@ void HydreonRGxxComponent::schedule_reboot_() {
     this->write_str("K\n");
     if (this->boot_count_ < -5) {
       ESP_LOGE(TAG, "hydreon_rgxx can't boot, giving up");
-      for (int i = 0; i < this->num_sensors_; i++) {
+      for (int i = 0; i < HYDREON_NUM_SENSORS; i++) {
         this->sensors_[i]->publish_state(NAN);
       }
       this->mark_failed();
@@ -155,22 +163,25 @@ void HydreonRGxxComponent::process_line_() {
     return;
   }
   bool is_data_line = false;
-  for (int i = 0; i < this->num_sensors_; i++) {
-    if (this->buffer_starts_with_(this->sensors_names_[i])) {
+  for (int i = 0; i < HYDREON_NUM_SENSORS; i++) {
+    if (this->sensors_[i] != nullptr && this->buffer_starts_with_(PROTOCOL_NAMES[i])) {
       is_data_line = true;
       break;
     }
   }
   if (is_data_line) {
-    for (int i = 0; i < this->num_sensors_; i++) {
-      std::string::size_type n = this->buffer_.find(this->sensors_names_[i]);
+    for (int i = 0; i < HYDREON_NUM_SENSORS; i++) {
+      if (this->sensors_[i] == nullptr) {
+        continue;
+      }
+      std::string::size_type n = this->buffer_.find(PROTOCOL_NAMES[i]);
       if (n == std::string::npos) {
         continue;
       }
-      int data = strtol(this->buffer_.substr(n + strlen(this->sensors_names_[i].c_str())).c_str(), nullptr, 10);
+      int data = strtol(this->buffer_.substr(n + strlen(PROTOCOL_NAMES[i])).c_str(), nullptr, 10);
       // todo: parse TooCold
       this->sensors_[i]->publish_state(data);
-      ESP_LOGD(TAG, "Received %s: %f", this->sensors_names_[i].c_str(), this->sensors_[i]->get_raw_state());
+      ESP_LOGD(TAG, "Received %s: %f", PROTOCOL_NAMES[i], this->sensors_[i]->get_raw_state());
       this->sensors_received_ |= (1 << i);
     }
   } else {

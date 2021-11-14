@@ -12,17 +12,9 @@ enum RGModel {
   RG15 = 2,
 };
 
-static const size_t MAX_NUM_SENSORS = 4;
-
 class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
  public:
-  void set_sensor(sensor::Sensor *sensor, const std::string &protocolname, int index) {
-    this->sensors_[index] = sensor;
-    this->sensors_names_[index] = protocolname;
-    if (index + 1 > this->num_sensors_) {
-      this->num_sensors_ = index + 1;
-    }
-  }
+  void set_sensor(sensor::Sensor *sensor, int index) { this->sensors_[index] = sensor; }
   void set_model(RGModel model) { model_ = model; }
 
   /// Schedule data readings.
@@ -42,9 +34,7 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   bool buffer_starts_with_(const char *prefix);
   bool sensor_missing_();
 
-  size_t num_sensors_ = 0;
-  sensor::Sensor *sensors_[MAX_NUM_SENSORS] = {nullptr};
-  std::string sensors_names_[MAX_NUM_SENSORS];
+  sensor::Sensor *sensors_[HYDREON_NUM_SENSORS] = {nullptr};
 
   int16_t boot_count_ = 0;
   int16_t no_response_count_ = 0;
