@@ -18,7 +18,7 @@ from esphome.const import (
     CONF_PORT,
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
-    CONF_SECRETS,
+    SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.helpers import indent
@@ -777,20 +777,6 @@ def run_esphome(argv):
         )
         return 1
 
-    if hasattr(args, "configuration"):
-        for secret in CONF_SECRETS:
-            if secret.casefold() in (
-                config.casefold() for config in args.configuration
-            ):
-                _LOGGER.warning(
-                    "%s was specified on the command line. Skipping...", secret
-                )
-                args.configuration[:] = [
-                    conf
-                    for conf in args.configuration
-                    if conf.casefold() != secret.casefold()
-                ]
-
     if args.command in PRE_CONFIG_ACTIONS:
         try:
             return PRE_CONFIG_ACTIONS[args.command](args)
@@ -799,6 +785,10 @@ def run_esphome(argv):
             return 1
 
     for conf_path in args.configuration:
+        if any(os.path.basename(conf_path) == x for x in SECRETS_FILES):
+            _LOGGER.warning("Skipping secrets file %s", conf_path)
+            continue
+
         CORE.config_path = conf_path
         CORE.dashboard = args.dashboard
 
