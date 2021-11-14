@@ -33,6 +33,7 @@ ARDUINO_VERSION_ESP8266 = {
 }
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
+SECRETS_FILES = {"secrets.yaml", "secrets.yml" }
 
 
 CONF_ABOVE = "above"
@@ -591,7 +592,6 @@ CONF_SDA = "sda"
 CONF_SDO_PIN = "sdo_pin"
 CONF_SECOND = "second"
 CONF_SECONDS = "seconds"
-CONF_SECRETS = ["secrets.yaml", "secrets.yml"]
 CONF_SECURITY_LEVEL = "security_level"
 CONF_SEGMENTS = "segments"
 CONF_SEL_PIN = "sel_pin"
