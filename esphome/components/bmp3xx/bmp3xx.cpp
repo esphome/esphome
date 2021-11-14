@@ -188,7 +188,7 @@ void BMP3XXComponent::update() {
   // Enable sensor
   ESP_LOGV(TAG, "Sending conversion request...");
   float meas_time = 1.0f;
-  // Ref: file:///C:/Users/martin/Downloads/bst-bmp390-ds002.pdf 3.9.2
+  // Ref: https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmp390-ds002.pdf 3.9.2
   meas_time += 2.02f * oversampling_to_time(this->temperature_oversampling_) + 0.163f;
   meas_time += 2.02f * oversampling_to_time(this->pressure_oversampling_) + 0.392f;
   meas_time += 0.234f;
