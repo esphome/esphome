@@ -193,7 +193,7 @@ void Dsmr::set_decryption_key(const std::string &decryption_key) {
     ESP_LOGI(TAG, "Disabling decryption");
     decryption_key_.clear();
     if (encrypted_telegram_ != nullptr) {
-      delete encrypted_telegram_;
+      delete[] encrypted_telegram_;
       encrypted_telegram_ = nullptr;
     }
     return;
