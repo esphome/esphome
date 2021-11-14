@@ -8,7 +8,7 @@ static const char *const TAG = "hydreon_rgxx.sensor";
 static const int MAX_DATA_LENGTH_BYTES = 80;
 static const uint8_t ASCII_LF = 0x0A;
 #define COMMA ,
-static const char *PROTOCOL_NAMES[] = {HYDREON_PROTOCOL_LIST(, COMMA)};
+static const char *PROTOCOL_NAMES[] = {HYDREON_RGXX_PROTOCOL_LIST(, COMMA)};
 
 void HydreonRGxxComponent::dump_config() {
   this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
@@ -23,7 +23,7 @@ void HydreonRGxxComponent::dump_config() {
   if (this->sensors_[i++] != nullptr) { \
     LOG_SENSOR("  ", #s, this->sensors_[i - 1]); \
   }
-  HYDREON_PROTOCOL_LIST(HYDREON_RGXX_LOG_SENSOR, );
+  HYDREON_RGXX_PROTOCOL_LIST(HYDREON_RGXX_LOG_SENSOR, );
 }
 
 void HydreonRGxxComponent::setup() {
@@ -43,7 +43,7 @@ bool HydreonRGxxComponent::sensor_missing_() {
       ESP_LOGW(TAG, "No data at all");
       return true;
     }
-    for (int i = 0; i < HYDREON_NUM_SENSORS; i++) {
+    for (int i = 0; i < HYDREON_RGXX_NUM_SENSORS; i++) {
       if (this->sensors_[i] == nullptr) {
         continue;
       }
@@ -63,7 +63,7 @@ void HydreonRGxxComponent::update() {
       ESP_LOGE(TAG, "data missing %d times", this->no_response_count_);
       if (this->no_response_count_ > 15) {
         ESP_LOGE(TAG, "asking sensor to reboot");
-        for (int i = 0; i < HYDREON_NUM_SENSORS; i++) {
+        for (int i = 0; i < HYDREON_RGXX_NUM_SENSORS; i++) {
           this->sensors_[i]->publish_state(NAN);
         }
         this->schedule_reboot_();
@@ -113,7 +113,7 @@ void HydreonRGxxComponent::schedule_reboot_() {
     this->write_str("K\n");
     if (this->boot_count_ < -5) {
       ESP_LOGE(TAG, "hydreon_rgxx can't boot, giving up");
-      for (int i = 0; i < HYDREON_NUM_SENSORS; i++) {
+      for (int i = 0; i < HYDREON_RGXX_NUM_SENSORS; i++) {
         this->sensors_[i]->publish_state(NAN);
       }
       this->mark_failed();
@@ -163,14 +163,14 @@ void HydreonRGxxComponent::process_line_() {
     return;
   }
   bool is_data_line = false;
-  for (int i = 0; i < HYDREON_NUM_SENSORS; i++) {
+  for (int i = 0; i < HYDREON_RGXX_NUM_SENSORS; i++) {
     if (this->sensors_[i] != nullptr && this->buffer_starts_with_(PROTOCOL_NAMES[i])) {
       is_data_line = true;
       break;
     }
   }
   if (is_data_line) {
-    for (int i = 0; i < HYDREON_NUM_SENSORS; i++) {
+    for (int i = 0; i < HYDREON_RGXX_NUM_SENSORS; i++) {
       if (this->sensors_[i] == nullptr) {
         continue;
       }

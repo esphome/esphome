@@ -112,12 +112,12 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     cg.add_define(
-        "HYDREON_PROTOCOL_LIST(F, sep)",
+        "HYDREON_RGXX_PROTOCOL_LIST(F, sep)",
         cg.RawExpression(
             " sep ".join([f'F("{name}")' for name in PROTOCOL_NAMES.values()])
         ),
     )
-    cg.add_define("HYDREON_NUM_SENSORS", len(PROTOCOL_NAMES))
+    cg.add_define("HYDREON_RGXX_NUM_SENSORS", len(PROTOCOL_NAMES))
 
     for i, conf in enumerate(PROTOCOL_NAMES):
         if conf in config:

@@ -34,7 +34,7 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   bool buffer_starts_with_(const char *prefix);
   bool sensor_missing_();
 
-  sensor::Sensor *sensors_[HYDREON_NUM_SENSORS] = {nullptr};
+  sensor::Sensor *sensors_[HYDREON_RGXX_NUM_SENSORS] = {nullptr};
 
   int16_t boot_count_ = 0;
   int16_t no_response_count_ = 0;
