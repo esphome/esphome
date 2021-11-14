@@ -1,6 +1,7 @@
 #ifdef USE_ESP32
 
 #include "esp32_touch.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -125,6 +126,8 @@ void ESP32TouchComponent::loop() {
     if (should_print) {
       ESP_LOGD(TAG, "Touch Pad '%s' (T%u): %u", child->get_name().c_str(), child->get_touch_pad(), value);
     }
+
+    App.feed_wdt();
   }
 
   if (should_print) {
