@@ -125,6 +125,8 @@ void ESP32TouchComponent::loop() {
     if (should_print) {
       ESP_LOGD(TAG, "Touch Pad '%s' (T%u): %u", child->get_name().c_str(), child->get_touch_pad(), value);
     }
+
+    App.feed_wdt();
   }
 
   if (should_print) {
