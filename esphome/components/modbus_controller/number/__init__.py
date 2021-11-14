@@ -129,14 +129,14 @@ async def to_code(config):
             return_type=cg.optional.template(float),
         )
         cg.add(var.set_template(template_))
-        if CONF_WRITE_LAMBDA in config:
-            template_ = await cg.process_lambda(
-                config[CONF_WRITE_LAMBDA],
-                [
-                    (ModbusNumber.operator("ptr"), "item"),
-                    (cg.float_, "x"),
-                    (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
-                ],
-                return_type=cg.optional.template(float),
-            )
-            cg.add(var.set_write_template(template_))
+    if CONF_WRITE_LAMBDA in config:
+        template_ = await cg.process_lambda(
+            config[CONF_WRITE_LAMBDA],
+            [
+                (ModbusNumber.operator("ptr"), "item"),
+                (cg.float_, "x"),
+                (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
+            ],
+            return_type=cg.optional.template(float),
+        )
+        cg.add(var.set_write_template(template_))
