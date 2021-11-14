@@ -182,21 +182,16 @@ void BMP3XXComponent::dump_config() {
 }
 float BMP3XXComponent::get_setup_priority() const { return setup_priority::DATA; }
 
-inline uint8_t oversampling_to_time(Oversampling over_sampling) { return (1 << uint8_t(over_sampling)) >> 1; }
+inline uint8_t oversampling_to_time(Oversampling over_sampling) { return (1 << uint8_t(over_sampling)); }
 
 void BMP3XXComponent::update() {
   // Enable sensor
   ESP_LOGV(TAG, "Sending conversion request...");
-  static bool first_update = true;
   float meas_time = 1.0f;
-  meas_time += 2.03f * oversampling_to_time(this->temperature_oversampling_) + 0.163f;
-  meas_time += 2.03f * oversampling_to_time(this->pressure_oversampling_) + 0.392f;
-  meas_time += 15.234f;
-  if (first_update) {
-    // needs more time after startup
-    meas_time += 500;
-    first_update = false;
-  }
+  // Ref: file:///C:/Users/martin/Downloads/bst-bmp390-ds002.pdf 3.9.2
+  meas_time += 2.02f * oversampling_to_time(this->temperature_oversampling_) + 0.163f;
+  meas_time += 2.02f * oversampling_to_time(this->pressure_oversampling_) + 0.392f;
+  meas_time += 0.234f;
   if (!set_mode(FORCED_MODE)) {
     ESP_LOGE(TAG, "Failed start forced mode");
     this->mark_failed();
@@ -235,8 +230,8 @@ void BMP3XXComponent::update() {
 // Reset the BMP3XX
 uint8_t BMP3XXComponent::reset() {
   write_byte(BMP388_CMD, RESET_CODE);  // Write the reset code to the command register
-  // Wait for 20ms
-  delay(20);                                   // reset is only called from setup so not blocking the loop
+  // Wait for 10ms
+  delay(10);                                   // reset is only called from setup so not blocking the loop
   this->read_byte(BMP388_EVENT, &event_.reg);  // Read the BMP388's event register
   return event_.bit.por_detected;              // Return if device reset is complete
 }
