@@ -94,7 +94,6 @@ void ESP32TouchComponent::dump_config() {
 
   if (this->iir_filter_enabled_()) {
     ESP_LOGCONFIG(TAG, "    IIR Filter: %ums", this->iir_filter_);
-    touch_pad_filter_start(this->iir_filter_);
   } else {
     ESP_LOGCONFIG(TAG, "  IIR Filter DISABLED");
   }
