@@ -96,12 +96,14 @@ void HydreonRGxxComponent::loop() {
  * We send requests and let esphome continue doing its thing.
  * Once we have received a complete line, we process it.
  *
- * To catch communication failures, we need a timeout.
- * This method implements that. Whenever we expect an answer,
- * this method is called. When an answer is received, the timeout gets cancelled.
+ * Catching communication failures is done in two layers:
  *
- * If no answer is received, the timeout expires and we try to recover the
- * connection by rebooting the sensor. If that fails as well we give up.
+ * 1. We check if all requested data has been received
+ *    before we send out the next request. If data keeps
+ *    missing, we escalate.
+ * 2. Request the sensor to reboot. We retry based on
+ *    a timeout. If the sensor does not respond after
+ *    several boot attempts, we give up.
  */
 void HydreonRGxxComponent::schedule_reboot_() {
   this->boot_count_ = 0;
