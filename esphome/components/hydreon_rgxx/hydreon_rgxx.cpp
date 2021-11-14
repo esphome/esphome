@@ -8,7 +8,7 @@ static const char *const TAG = "hydreon_rgxx.sensor";
 static const int MAX_DATA_LENGTH_BYTES = 80;
 static const uint8_t ASCII_LF = 0x0A;
 #define HYDREON_RGXX_COMMA ,
-static const char *PROTOCOL_NAMES[] = {HYDREON_RGXX_PROTOCOL_LIST(, HYDREON_RGXX_COMMA)};
+static const char *const PROTOCOL_NAMES[] = {HYDREON_RGXX_PROTOCOL_LIST(, HYDREON_RGXX_COMMA)};
 
 void HydreonRGxxComponent::dump_config() {
   this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
@@ -63,9 +63,9 @@ void HydreonRGxxComponent::update() {
       ESP_LOGE(TAG, "data missing %d times", this->no_response_count_);
       if (this->no_response_count_ > 15) {
         ESP_LOGE(TAG, "asking sensor to reboot");
-        for (int i = 0; i < NUM_SENSORS; i++) {
-          if(this->sensors_[i] != nullptr) {
-            this->sensors_[i]->publish_state(NAN);
+        for (auto &sensor : this->sensors_) {
+          if (sensor != nullptr) {
+            sensor->publish_state(NAN);
           }
         }
         this->schedule_reboot_();
@@ -117,9 +117,9 @@ void HydreonRGxxComponent::schedule_reboot_() {
     this->write_str("K\n");
     if (this->boot_count_ < -5) {
       ESP_LOGE(TAG, "hydreon_rgxx can't boot, giving up");
-      for (int i = 0; i < NUM_SENSORS; i++) {
-        if(this->sensors_!= nullptr) {
-          this->sensors_[i]->publish_state(NAN);
+      for (auto &sensor : this->sensors_) {
+        if (sensor != nullptr) {
+          sensor->publish_state(NAN);
         }
       }
       this->mark_failed();
