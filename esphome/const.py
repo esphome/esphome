@@ -8,29 +8,7 @@ PLATFORM_ESP32 = "esp32"
 PLATFORM_ESP8266 = "esp8266"
 
 TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266]
-TARGET_FRAMEWORKS = ["arduino", "esp-idf"]
 
-# See also https://github.com/platformio/platform-espressif8266/releases
-ARDUINO_VERSION_ESP8266 = {
-    "dev": "https://github.com/platformio/platform-espressif8266.git",
-    "3.0.1": "platformio/espressif8266@3.1.0",
-    "3.0.0": "platformio/espressif8266@3.0.0",
-    "2.7.4": "platformio/espressif8266@2.6.2",
-    "2.7.3": "platformio/espressif8266@2.6.1",
-    "2.7.2": "platformio/espressif8266@2.6.0",
-    "2.7.1": "platformio/espressif8266@2.5.3",
-    "2.7.0": "platformio/espressif8266@2.5.0",
-    "2.6.3": "platformio/espressif8266@2.4.0",
-    "2.6.2": "platformio/espressif8266@2.3.1",
-    "2.6.1": "platformio/espressif8266@2.3.0",
-    "2.5.2": "platformio/espressif8266@2.2.3",
-    "2.5.1": "platformio/espressif8266@2.1.1",
-    "2.5.0": "platformio/espressif8266@2.0.4",
-    "2.4.2": "platformio/espressif8266@1.8.0",
-    "2.4.1": "platformio/espressif8266@1.7.3",
-    "2.4.0": "platformio/espressif8266@1.6.0",
-    "2.3.0": "platformio/espressif8266@1.5.0",
-}
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
 
