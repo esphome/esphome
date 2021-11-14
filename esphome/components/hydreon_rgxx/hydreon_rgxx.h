@@ -12,6 +12,14 @@ enum RGModel {
   RG15 = 2,
 };
 
+#ifndef HYDREON_RGXX_NUM_SENSORS
+#define HYDREON_RGXX_NUM_SENSORS 0
+#endif
+
+#ifndef HYDREON_RGXX_PROTOCOL_LIST
+#define HYDREON_RGXX_PROTOCOL_LIST(F, SEP) F("")
+#endif
+
 class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
  public:
   void set_sensor(sensor::Sensor *sensor, int index) { this->sensors_[index] = sensor; }

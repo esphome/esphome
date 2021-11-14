@@ -7,8 +7,8 @@ namespace hydreon_rgxx {
 static const char *const TAG = "hydreon_rgxx.sensor";
 static const int MAX_DATA_LENGTH_BYTES = 80;
 static const uint8_t ASCII_LF = 0x0A;
-#define COMMA ,
-static const char *PROTOCOL_NAMES[] = {HYDREON_RGXX_PROTOCOL_LIST(, COMMA)};
+#define HYDREON_RGXX_COMMA ,
+static const char *PROTOCOL_NAMES[] = {HYDREON_RGXX_PROTOCOL_LIST(, HYDREON_RGXX_COMMA)};
 
 void HydreonRGxxComponent::dump_config() {
   this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
