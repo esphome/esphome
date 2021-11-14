@@ -61,6 +61,8 @@ extern const uint32_t STATUS_LED_OK;
 extern const uint32_t STATUS_LED_WARNING;
 extern const uint32_t STATUS_LED_ERROR;
 
+enum  RetryResult { DONE, RETRY };
+
 class Component {
  public:
   /** Where the component's initialization should happen.
@@ -147,13 +149,6 @@ class Component {
    */
   const char *get_component_source() const;
 
- protected:
-  friend class Application;
-
-  virtual void call_loop();
-  virtual void call_setup();
-  virtual void call_dump_config();
-
   /** Set an interval function with a unique name. Empty name means no cancelling possible.
    *
    * This will call f every interval ms. Can be cancelled via CancelInterval().
@@ -180,7 +175,35 @@ class Component {
    */
   bool cancel_interval(const std::string &name);  // NOLINT
 
-  void set_timeout(uint32_t timeout, std::function<void()> &&f);  // NOLINT
+  /** Set an retry function with a unique name. Empty name means no cancelling possible.
+   *
+   * This will call f. If f returns RetryResult::RETRY f is called again after inital_wait_time ms.
+   * f should return RetryResult::DONE if no repeat is required. The inial wait time will be increased
+   * by backoff_increase_factor for each iteration. Default is doubling the time between iterations
+   * Can be cancelled via cancel_retry().
+   *
+   * IMPORTANT: Do not rely on this having correct timing. This is only called from
+   * loop() and therefore can be significantly delay.
+   *
+   * @param name The identifier for this retry function.
+   * @param inital_wait_time The time in ms before f is called again
+   * @param max_retries The maximum number of retries
+   * @param f The function (or lambda) that should be called
+   * @param backoff_increase_factor time between retries is increased by this factor on every retry
+   * @see cancel_retry()
+   */
+  void set_retry(const std::string &name, uint32_t inital_wait_time, uint8_t max_retries,
+                 std::function<RetryResult()> &&f, float backoff_increase_factor = 2.0f);  // NOLINT
+
+  void set_retry(uint32_t inital_wait_time, uint8_t max_retries, std::function<RetryResult()> &&f,
+                 float backoff_increase_factor = 2.0f);  // NOLINT
+
+  /** Cancel a retry function.
+   *
+   * @param name The identifier for this retry function.
+   * @return Whether an retry functions was deleted.
+   */
+  bool cancel_retry(const std::string &name);  // NOLINT
 
   /** Set a timeout function with a unique name.
    *
@@ -198,12 +221,21 @@ class Component {
    */
   void set_timeout(const std::string &name, uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
+  void set_timeout(uint32_t timeout, std::function<void()> &&f);  // NOLINT
+
   /** Cancel a timeout function.
    *
    * @param name The identifier for this timeout function.
    * @return Whether a timeout functions was deleted.
    */
   bool cancel_timeout(const std::string &name);  // NOLINT
+
+ protected:
+  friend class Application;
+
+  virtual void call_loop();
+  virtual void call_setup();
+  virtual void call_dump_config();
 
   /** Defer a callback to the next loop() call.
    *

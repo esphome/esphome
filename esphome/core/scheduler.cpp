@@ -72,6 +72,46 @@ void HOT Scheduler::set_interval(Component *component, const std::string &name, 
 bool HOT Scheduler::cancel_interval(Component *component, const std::string &name) {
   return this->cancel_item_(component, name, SchedulerItem::INTERVAL);
 }
+
+void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t inital_wait_time,
+                              uint8_t max_retries, std::function<RetryResult()> &&func, float backoff_increase_factor) {
+  const uint32_t now = this->millis_();
+
+  if (!name.empty())
+    this->cancel_interval(component, name);
+
+  if (inital_wait_time == SCHEDULER_DONT_RUN)
+    return;
+
+  // only put offset in lower half
+  uint32_t offset = 0;
+  if (inital_wait_time != 0)
+    offset = (random_uint32() % inital_wait_time) / 2;
+
+  ESP_LOGVV(TAG, "set_retry(name='%s', inital_wait_time=%u,max_retries=%u, backoff_factor=%0.1f offset=%u)",
+            name.c_str(), inital_wait_time, max_retries, backoff_increase_factor, offset);
+
+  auto item = make_unique<SchedulerItem>();
+  item->component = component;
+  item->name = name;
+  item->type = SchedulerItem::RETRY;
+  item->interval = inital_wait_time;
+  item->retry_countdown = max_retries;
+  item->backoff_multiplier = backoff_increase_factor;
+  item->retry_result = RetryResult::RETRY;
+  item->last_execution = now - offset - inital_wait_time;
+  item->last_execution_major = this->millis_major_;
+  if (item->last_execution > now)
+    item->last_execution_major--;
+  item->retry_f = std::move(func);
+  item->f = std::bind(&Scheduler::SchedulerItem::retry_wrapper, item.get());
+  item->remove = false;
+  this->push_(std::move(item));
+}
+bool HOT Scheduler::cancel_retry(Component *component, const std::string &name) {
+  return this->cancel_item_(component, name, SchedulerItem::RETRY);
+}
+
 optional<uint32_t> HOT Scheduler::next_schedule_in() {
   if (this->empty_())
     return {};
@@ -95,7 +135,19 @@ void IRAM_ATTR HOT Scheduler::call() {
     ESP_LOGVV(TAG, "Items: count=%u, now=%u", this->items_.size(), now);
     while (!this->empty_()) {
       auto item = std::move(this->items_[0]);
-      const char *type = item->type == SchedulerItem::INTERVAL ? "interval" : "timeout";
+      const char *type = "";
+      const char **type_ptr = &type;
+      switch (item->type) {
+        case SchedulerItem::INTERVAL:
+          *type_ptr = "interval";
+          break;
+        case SchedulerItem::RETRY:
+          *type_ptr = "retry";
+          break;
+        case SchedulerItem::TIMEOUT:
+          *type_ptr = "timeout";
+          break;
+      }
       ESP_LOGVV(TAG, "  %s '%s' interval=%u last_execution=%u (%u) next=%u (%u)", type, item->name.c_str(),
                 item->interval, item->last_execution, item->last_execution_major, item->next_execution(),
                 item->next_execution_major());
@@ -147,7 +199,19 @@ void IRAM_ATTR HOT Scheduler::call() {
       }
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-      const char *type = item->type == SchedulerItem::INTERVAL ? "interval" : "timeout";
+      const char *type = "";
+      const char **type_ptr = &type;
+      switch (item->type) {
+        case SchedulerItem::INTERVAL:
+          *type_ptr = "interval";
+          break;
+        case SchedulerItem::RETRY:
+          *type_ptr = "retry";
+          break;
+        case SchedulerItem::TIMEOUT:
+          *type_ptr = "timeout";
+          break;
+      }
       ESP_LOGVV(TAG, "Running %s '%s' with interval=%u last_execution=%u (now=%u)", type, item->name.c_str(),
                 item->interval, item->last_execution, now);
 #endif
@@ -184,6 +248,20 @@ void IRAM_ATTR HOT Scheduler::call() {
             item->last_execution_major++;
         }
         this->push_(std::move(item));
+      } else {
+        if (item->type == SchedulerItem::RETRY)
+          if (--item->retry_countdown > 0 && item->retry_result != RetryResult::DONE) {
+            if (item->interval != 0) {
+              const uint32_t before = item->last_execution;
+              const uint32_t amount = (now - item->last_execution) / item->interval;
+              item->last_execution += amount * item->interval;
+              // Increase the interval by backoff factor
+              item->interval *= item->backoff_multiplier;
+              if (item->last_execution < before)
+                item->last_execution_major++;
+            }
+            this->push_(std::move(item));
+          }
       }
     }
   }
@@ -241,6 +319,9 @@ uint32_t Scheduler::millis_() {
   this->last_millis_ = now;
   return now;
 }
+
+// call the the retry function and store the result
+void HOT Scheduler::SchedulerItem::retry_wrapper() { retry_result = retry_f(); }
 
 bool HOT Scheduler::SchedulerItem::cmp(const std::unique_ptr<SchedulerItem> &a,
                                        const std::unique_ptr<SchedulerItem> &b) {
