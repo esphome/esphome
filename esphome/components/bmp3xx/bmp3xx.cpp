@@ -274,7 +274,10 @@ bool BMP3XXComponent::get_temperature(volatile float &temperature) {
   }
   uint8_t data[3];
   // Read the temperature
-  read_bytes(BMP388_DATA_3, &data[0], 3);
+  if (!this->read_bytes(BMP388_DATA_3, &data[0], 3)) {
+    ESP_LOGE(TAG, "Failed to read temperature");
+    return false;
+  }
   // Copy the temperature data into the adc variables
   int32_t adc_temp = (int32_t) data[2] << 16 | (int32_t) data[1] << 8 | (int32_t) data[0];
   // Temperature compensation (function from BMP388 datasheet)
@@ -298,7 +301,10 @@ bool BMP3XXComponent::get_measurements(volatile float &temperature, volatile flo
 
   uint8_t data[6];
   // Read the temperature and pressure data
-  this->read_bytes(BMP388_DATA_0, &data[0], 6);
+  if (!this->read_bytes(BMP388_DATA_0, &data[0], 6)) {
+    ESP_LOGE(TAG, "Failed to read measurements");
+    return false;
+  }
   // Copy the temperature and pressure data into the adc variables
   int32_t adc_pres = (int32_t) data[2] << 16 | (int32_t) data[1] << 8 | (int32_t) data[0];
   int32_t adc_temp = (int32_t) data[5] << 16 | (int32_t) data[4] << 8 | (int32_t) data[3];
@@ -310,30 +316,6 @@ bool BMP3XXComponent::get_measurements(volatile float &temperature, volatile flo
   // Calculate the pressure in millibar/hPa
   pressure /= 100.0f;
   return true;
-}
-
-// Get the sensor time
-uint32_t BMP3XXComponent::get_sensor_time() {
-  uint32_t sensor_time;
-  if (!this->read_bytes(BMP388_SENSORTIME_0, (uint8_t *) &sensor_time, sizeof(sensor_time - 1))) {
-    ESP_LOGW(TAG, "Failed to read BME3xx sensor time");
-    return 0;
-  }
-  return sensor_time & 0x00FFFFFF;
-}
-
-// Read the error register
-uint8_t BMP3XXComponent::get_error_register() {
-  uint8_t error_reg;
-  this->read_byte(BMP388_ERR_REG, &error_reg);
-  return error_reg;
-}
-
-// Read the status register
-uint8_t BMP3XXComponent::get_status_register() {
-  uint8_t status_reg;
-  this->read_byte(BMP388_STATUS, &status_reg);
-  return status_reg;
 }
 
 // Set the BMP388's mode in the power control register
@@ -358,7 +340,10 @@ bool BMP3XXComponent::data_ready() {
   }
   // Read the interrupt status register
   uint8_t status;
-  read_byte(BMP388_INT_STATUS, &status);
+  if (!this->read_byte(BMP388_INT_STATUS, &status)) {
+    ESP_LOGE(TAG, "Failed to read status register");
+    return false;
+  }
   int_status_.reg = status;
   ESP_LOGVV(TAG, "data ready status %d", status);
   // If we're in FORCED_MODE switch back to SLEEP_MODE

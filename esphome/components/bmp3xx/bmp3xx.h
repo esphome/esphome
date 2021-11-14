@@ -113,13 +113,6 @@ class BMP3XXComponent : public PollingComponent, public i2c::I2CDevice {
   // Get the BMP388 sensor time
   /// Get a temperature and pressure measurement
   bool get_measurement();
-
-  uint32_t get_sensor_time();
-  /// Read the error register
-  uint8_t get_error_register();
-  /// Read the status register
-  uint8_t get_status_register();
-
   /// Set the barometer mode
   bool set_mode(OperationMode mode);
   /// Set the BMP388 oversampling register
