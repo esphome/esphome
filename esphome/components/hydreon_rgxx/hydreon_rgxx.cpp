@@ -43,7 +43,7 @@ bool HydreonRGxxComponent::sensor_missing_() {
       ESP_LOGW(TAG, "No data at all");
       return true;
     }
-    for (int i = 0; i < HYDREON_RGXX_NUM_SENSORS; i++) {
+    for (int i = 0; i < NUM_SENSORS; i++) {
       if (this->sensors_[i] == nullptr) {
         continue;
       }
@@ -63,7 +63,7 @@ void HydreonRGxxComponent::update() {
       ESP_LOGE(TAG, "data missing %d times", this->no_response_count_);
       if (this->no_response_count_ > 15) {
         ESP_LOGE(TAG, "asking sensor to reboot");
-        for (int i = 0; i < HYDREON_RGXX_NUM_SENSORS; i++) {
+        for (int i = 0; i < NUM_SENSORS; i++) {
           this->sensors_[i]->publish_state(NAN);
         }
         this->schedule_reboot_();
@@ -113,7 +113,7 @@ void HydreonRGxxComponent::schedule_reboot_() {
     this->write_str("K\n");
     if (this->boot_count_ < -5) {
       ESP_LOGE(TAG, "hydreon_rgxx can't boot, giving up");
-      for (int i = 0; i < HYDREON_RGXX_NUM_SENSORS; i++) {
+      for (int i = 0; i < NUM_SENSORS; i++) {
         this->sensors_[i]->publish_state(NAN);
       }
       this->mark_failed();
@@ -163,14 +163,14 @@ void HydreonRGxxComponent::process_line_() {
     return;
   }
   bool is_data_line = false;
-  for (int i = 0; i < HYDREON_RGXX_NUM_SENSORS; i++) {
+  for (int i = 0; i < NUM_SENSORS; i++) {
     if (this->sensors_[i] != nullptr && this->buffer_starts_with_(PROTOCOL_NAMES[i])) {
       is_data_line = true;
       break;
     }
   }
   if (is_data_line) {
-    for (int i = 0; i < HYDREON_RGXX_NUM_SENSORS; i++) {
+    for (int i = 0; i < NUM_SENSORS; i++) {
       if (this->sensors_[i] == nullptr) {
         continue;
       }

@@ -12,8 +12,10 @@ enum RGModel {
   RG15 = 2,
 };
 
-#ifndef HYDREON_RGXX_NUM_SENSORS
-#define HYDREON_RGXX_NUM_SENSORS 0
+#ifdef HYDREON_RGXX_NUM_SENSORS
+static const uint8_t NUM_SENSORS = HYDREON_RGXX_NUM_SENSORS;
+#else
+static const uint8_t NUM_SENSORS = 1;
 #endif
 
 #ifndef HYDREON_RGXX_PROTOCOL_LIST
@@ -42,7 +44,7 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   bool buffer_starts_with_(const char *prefix);
   bool sensor_missing_();
 
-  sensor::Sensor *sensors_[HYDREON_RGXX_NUM_SENSORS] = {nullptr};
+  sensor::Sensor *sensors_[NUM_SENSORS] = {nullptr};
 
   int16_t boot_count_ = 0;
   int16_t no_response_count_ = 0;
