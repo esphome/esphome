@@ -64,7 +64,9 @@ void HydreonRGxxComponent::update() {
       if (this->no_response_count_ > 15) {
         ESP_LOGE(TAG, "asking sensor to reboot");
         for (int i = 0; i < NUM_SENSORS; i++) {
-          this->sensors_[i]->publish_state(NAN);
+          if(this->sensors_[i] != nullptr) {
+            this->sensors_[i]->publish_state(NAN);
+          }
         }
         this->schedule_reboot_();
         return;
@@ -116,7 +118,9 @@ void HydreonRGxxComponent::schedule_reboot_() {
     if (this->boot_count_ < -5) {
       ESP_LOGE(TAG, "hydreon_rgxx can't boot, giving up");
       for (int i = 0; i < NUM_SENSORS; i++) {
-        this->sensors_[i]->publish_state(NAN);
+        if(this->sensors_!= nullptr) {
+          this->sensors_[i]->publish_state(NAN);
+        }
       }
       this->mark_failed();
     }
