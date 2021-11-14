@@ -9,6 +9,7 @@
 #ifdef USE_WIFI
 #include <ESP8266WiFi.h>
 #endif
+#include <Arduino.h>
 #include <osapi.h>
 #elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
 #include <Esp.h>
@@ -430,13 +431,8 @@ void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green
 }
 
 #ifdef USE_ESP8266
-#ifdef USE_WIFI
 IRAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
 IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
-#else
-IRAM_ATTR InterruptLock::InterruptLock() {}
-IRAM_ATTR InterruptLock::~InterruptLock() {}
-#endif
 #endif
 #ifdef USE_ESP32
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
