@@ -51,12 +51,13 @@ struct ImprovCommand {
   std::string password;
 };
 
-ImprovCommand parse_improv_data(const std::vector<uint8_t> &data);
-ImprovCommand parse_improv_data(const uint8_t *data, size_t length);
+ImprovCommand parse_improv_data(const std::vector<uint8_t> &data, bool check_checksum = true);
+ImprovCommand parse_improv_data(const uint8_t *data, size_t length, bool check_checksum = true);
 
-std::vector<uint8_t> build_rpc_response(Command command, const std::vector<std::string> &datum);
+std::vector<uint8_t> build_rpc_response(Command command, const std::vector<std::string> &datum,
+                                        bool add_checksum = true);
 #ifdef ARDUINO
-std::vector<uint8_t> build_rpc_response(Command command, const std::vector<String> &datum);
+std::vector<uint8_t> build_rpc_response(Command command, const std::vector<String> &datum, bool add_checksum = true);
 #endif  // ARDUINO
 
 }  // namespace improv
