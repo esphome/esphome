@@ -298,6 +298,9 @@ sensor:
       name: "Wave Mini Pressure"
     tvoc:
       name: "Wave Mini VOC"
+  - platform: af4991
+    af4991_id: af4991_component
+    name: Rotary Encoder
 
 time:
   - platform: homeassistant
@@ -371,7 +374,10 @@ binary_sensor:
       name: 'CGPR1 Idle Time'
     illuminance:
       name: 'CGPR1 Illuminance'
-
+  - platform: af4991
+    af4991_id: af4991_component
+    name: Encoder Switch
+    
 esp32_ble_tracker:
   on_ble_advertise:
     - mac_address: AC:37:43:77:5F:4C
@@ -510,3 +516,7 @@ cap1188:
   touch_threshold: 0x20
   allow_multiple_touches: true
   reset_pin: 14
+
+af4991:
+  id: af4991_component
+  address: 0x36
