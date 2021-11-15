@@ -14,7 +14,7 @@ void AF4991::setup() {
   this->write_8((uint16_t) adafruit_seesaw::SEESAW_STATUS_BASE << 8 | adafruit_seesaw::SEESAW_STATUS_SWRST,
                 (uint8_t) 0xFF);
 
-  delay(100);  // NO LINT
+  delay(100);  // NOLINT
 
   // Check connected device matches the expected device
   this->read_32((uint16_t) adafruit_seesaw::SEESAW_STATUS_BASE << 8 | adafruit_seesaw::SEESAW_STATUS_VERSION,
