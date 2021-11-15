@@ -78,7 +78,7 @@ void HOT Scheduler::set_retry(Component *component, const std::string &name, uin
   const uint32_t now = this->millis_();
 
   if (!name.empty())
-    this->cancel_interval(component, name);
+    this->cancel_retry(component, name);
 
   if (initial_wait_time == SCHEDULER_DONT_RUN)
     return;
@@ -248,8 +248,7 @@ void IRAM_ATTR HOT Scheduler::call() {
             item->last_execution_major++;
         }
         this->push_(std::move(item));
-      } else {
-        if (item->type == SchedulerItem::RETRY)
+      } else if (item->type == SchedulerItem::RETRY) {
           if (--item->retry_countdown > 0 && item->retry_result != RetryResult::DONE) {
             if (item->interval != 0) {
               const uint32_t before = item->last_execution;

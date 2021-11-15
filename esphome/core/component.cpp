@@ -61,7 +61,7 @@ void Component::set_retry(const std::string &name, uint32_t initial_wait_time, u
 }
 
 bool Component::cancel_retry(const std::string &name) {  // NOLINT
-  return App.scheduler.cancel_interval(this, name);
+  return App.scheduler.cancel_retry(this, name);
 }
 
 void Component::set_timeout(const std::string &name, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
