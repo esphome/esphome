@@ -109,7 +109,7 @@ uint32_t AdafruitSeesaw::digital_read_bulk_b(uint32_t pins) {
   uint32_t result =
       ((uint32_t) buffer << 24 | ((uint32_t) buffer << 16) | ((uint32_t) buffer << 8) | ((uint32_t) buffer));
 
-  return buffer & pins;
+  return result & pins;
 }
 
 /**

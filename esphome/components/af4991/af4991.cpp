@@ -22,7 +22,7 @@ void AF4991::setup() {
   product_version_ = (product_version_ >> 16 & 0xFFFF);
 
   if (product_version_ != 4991) {
-    this->error_code_ = this->INCORRECT_FIRMWARE_DETECTED;
+    this->error_code_ = INCORRECT_FIRMWARE_DETECTED;
     this->mark_failed();
     return;
   }
@@ -34,10 +34,10 @@ void AF4991::dump_config() {
   ESP_LOGCONFIG(TAG, "  Product ID: %d", product_version_);
 
   switch (this->error_code_) {
-    case this->INCORRECT_FIRMWARE_DETECTED:
+    case INCORRECT_FIRMWARE_DETECTED:
       ESP_LOGE(TAG, "The expected firmware for the Adafruit 4991 I2C Encoder board is: 4991, but got: %d",
                product_version_);
-    case this->NONE:
+    case NONE:
     default:
       break;
   }
