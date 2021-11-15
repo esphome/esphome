@@ -11,7 +11,9 @@ class AF4991 : public Component, public adafruit_seesaw::AdafruitSeesaw {
  public:
   void setup() override;
   void dump_config() override;
-
+  
+  float get_setup_priority() const override { return setup_priority::DATA; }
+  
  protected:
   uint32_t product_version_ = 0;
   enum ErrorCode {
