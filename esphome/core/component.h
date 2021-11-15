@@ -200,10 +200,10 @@ class Component {
    * @see cancel_retry()
    */
   void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_retries,  // NOLINT
-                 std::function<RetryResult()> &&f, float backoff_increase_factor = 2.0f);   // NOLINT
+                 std::function<RetryResult()> &&f, float backoff_increase_factor = 1.0f);   // NOLINT
 
   void set_retry(uint32_t initial_wait_time, uint8_t max_retries, std::function<RetryResult()> &&f,  // NOLINT
-                 float backoff_increase_factor = 2.0f);                                              // NOLINT
+                 float backoff_increase_factor = 1.0f);                                              // NOLINT
 
   /** Cancel a retry function.
    *
