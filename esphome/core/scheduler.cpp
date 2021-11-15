@@ -208,7 +208,7 @@ while (!this->empty_()) {
       continue;
     }
 
-    if (item->type == SchedulerItem::INTERVAL || item->type == SchedulerItem::RETRY) {
+    if (item->type == SchedulerItem::INTERVAL) {
       if (item->interval != 0) {
         const uint32_t before = item->last_execution;
         const uint32_t amount = (now - item->last_execution) / item->interval;
@@ -216,11 +216,20 @@ while (!this->empty_()) {
         if (item->last_execution < before)
           item->last_execution_major++;
       }
-      if (item->type == SchedulerItem::RETRY && --item->retry_countdown > 0) {
-        item->interval *= item->backoff_multiplier;
-      }
-      if (retry_result != RetryResult::DONE)
+      this->push_(std::move(item));
+    } else if (item->type == SchedulerItem::RETRY) {
+      if (--item->retry_countdown > 0 && retry_result != RetryResult::DONE) {
+        if (item->interval != 0) {
+          const uint32_t before = item->last_execution;
+          const uint32_t amount = (now - item->last_execution) / item->interval;
+          item->last_execution += amount * item->interval;
+          // Increase the interval by backoff factor
+          item->interval *= item->backoff_multiplier;
+          if (item->last_execution < before)
+            item->last_execution_major++;
+        }
         this->push_(std::move(item));
+      }
     }
   }
 }
