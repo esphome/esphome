@@ -11,6 +11,7 @@ TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266]
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
+SECRETS_FILES = {"secrets.yaml", "secrets.yml"}
 
 
 CONF_ABOVE = "above"
