@@ -35,10 +35,12 @@ class Scheduler {
       uint32_t timeout;
     };
     uint32_t last_execution;
-    std::function<void()> f;
-    std::function<RetryResult()> retry_f;
-    void retry_wrapper();
-    RetryResult retry_result{};
+    // Ideally this should be a union or std::variant
+    // but unions don't work with object like std::function
+    //  union CallBack_{
+    std::function<void()> void_callback;
+    std::function<RetryResult()> retry_callback;
+    //  };
     uint8_t retry_countdown{3};
     float backoff_multiplier{1.0f};
     bool remove;
@@ -54,6 +56,18 @@ class Scheduler {
     }
 
     static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
+    const char *get_type_str() {
+      switch (this->type) {
+        case SchedulerItem::INTERVAL:
+          return "interval";
+        case SchedulerItem::RETRY:
+          return "retry";
+        case SchedulerItem::TIMEOUT:
+          return "timeout";
+        default:
+          return "INVALID TYPE!";
+      }
+    }
   };
 
   uint32_t millis_();
