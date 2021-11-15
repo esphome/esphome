@@ -70,20 +70,24 @@ void ModbusSwitch::write_state(bool state) {
   } else {
     ESP_LOGV(TAG, "write_state '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
              ONOFF(state), (int) this->register_type, this->start_address, this->offset);
-    switch (this->register_type) {
-      case ModbusRegisterType::COIL:
-        // offset for coil and discrete inputs is the coil/register number not bytes
+    if (this->register_type == ModbusRegisterType::COIL) {
+      // offset for coil and discrete inputs is the coil/register number not bytes
+      if (this->use_write_multiple_) {
+        std::vector<bool> states{state};
+        cmd = ModbusCommandItem::create_write_multiple_coils(parent_, this->start_address + this->offset, states);
+      } else {
         cmd = ModbusCommandItem::create_write_single_coil(parent_, this->start_address + this->offset, state);
-        break;
-      case ModbusRegisterType::DISCRETE_INPUT:
-        cmd = ModbusCommandItem::create_write_single_command(parent_, this->start_address + this->offset, state);
-        break;
-
-      default:
-        // since offset is in bytes and a register is 16 bits we get the start by adding offset/2
+      }
+    } else {
+      // since offset is in bytes and a register is 16 bits we get the start by adding offset/2
+      if (this->use_write_multiple_) {
+        std::vector<uint16_t> bool_states(1, state ? (0xFFFF & this->bitmask) : 0);
+        cmd = ModbusCommandItem::create_write_multiple_command(parent_, this->start_address + this->offset / 2, 1,
+                                                               bool_states);
+      } else {
         cmd = ModbusCommandItem::create_write_single_command(parent_, this->start_address + this->offset / 2,
-                                                             state ? 0xFFFF & this->bitmask : 0);
-        break;
+                                                             state ? 0xFFFF & this->bitmask : 0u);
+      }
     }
   }
   this->parent_->queue_command(cmd);

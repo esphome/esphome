@@ -21,6 +21,7 @@ from ..const import (
     CONF_WRITE_LAMBDA,
 )
 
+CONF_USE_WRITE_MULTIPLE = "use_write_multiple"
 DEPENDENCIES = ["modbus_controller"]
 CODEOWNERS = ["@martgras"]
 
@@ -36,6 +37,7 @@ CONFIG_SCHEMA = cv.All(
             {
                 cv.GenerateID(): cv.declare_id(ModbusSwitch),
                 cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
+                cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
             }
         )
     ),
@@ -58,6 +60,7 @@ async def to_code(config):
 
     paren = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
     cg.add(var.set_parent(paren))
+    cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
     cg.add(paren.add_sensor_item(var))
     if CONF_WRITE_LAMBDA in config:
         template_ = await cg.process_lambda(

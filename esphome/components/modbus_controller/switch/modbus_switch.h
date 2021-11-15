@@ -36,9 +36,11 @@ class ModbusSwitch : public Component, public switch_::Switch, public SensorItem
   using write_transform_func_t = std::function<optional<bool>(ModbusSwitch *, bool, std::vector<uint8_t> &)>;
   void set_template(transform_func_t &&f) { this->publish_transform_func_ = f; }
   void set_write_template(write_transform_func_t &&f) { this->write_transform_func_ = f; }
+  void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
  protected:
   ModbusController *parent_;
+  bool use_write_multiple_;
   optional<transform_func_t> publish_transform_func_{nullopt};
   optional<write_transform_func_t> write_transform_func_{nullopt};
 };
