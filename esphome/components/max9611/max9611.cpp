@@ -83,7 +83,7 @@ void MAX9611Component::update() {
     temperature_sensor_->publish_state(temp);
   }
 
-  ESP_LOGI(TAG, "V: %f, A: %f, W: %f, Deg C: %f", voltage, amps, watts, temp);
+  ESP_LOGD(TAG, "V: %f, A: %f, W: %f, Deg C: %f", voltage, amps, watts, temp);
 }
 }  // namespace max9611
 }  // namespace esphome
