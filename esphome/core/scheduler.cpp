@@ -128,9 +128,9 @@ void IRAM_ATTR HOT Scheduler::call() {
     ESP_LOGVV(TAG, "Items: count=%u, now=%u", this->items_.size(), now);
     while (!this->empty_()) {
       auto item = std::move(this->items_[0]);
-      ESP_LOGVV(TAG, "  %s '%s' interval=%u last_execution=%u (%u) next=%u (%u)", item->get_type_str(), item->name.c_str(),
-                item->interval, item->last_execution, item->last_execution_major, item->next_execution(),
-                item->next_execution_major());
+      ESP_LOGVV(TAG, "  %s '%s' interval=%u last_execution=%u (%u) next=%u (%u)", item->get_type_str(),
+                item->name.c_str(), item->interval, item->last_execution, item->last_execution_major,
+                item->next_execution(), item->next_execution_major());
 
       this->pop_raw_();
       old_items.push_back(std::move(item));
