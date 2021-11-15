@@ -14,8 +14,8 @@ from zeroconf import (
     Zeroconf,
     ServiceBrowser,
 )
-from zeroconf._services import ServiceStateChange
-from zeroconf._utils.time import current_time_millis
+from zeroconf import ServiceStateChange
+from zeroconf import current_time_millis
 
 _CLASS_IN = 1
 _FLAGS_QR_QUERY = 0x0000  # query
