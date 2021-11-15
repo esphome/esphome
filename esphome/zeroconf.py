@@ -13,9 +13,9 @@ from zeroconf import (
     RecordUpdateListener,
     Zeroconf,
     ServiceBrowser,
+    ServiceStateChange,
+    current_time_millis,
 )
-from zeroconf import ServiceStateChange
-from zeroconf import current_time_millis
 
 _CLASS_IN = 1
 _FLAGS_QR_QUERY = 0x0000  # query
