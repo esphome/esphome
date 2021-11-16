@@ -211,7 +211,8 @@ void IRAM_ATTR HOT Scheduler::call() {
         continue;
       }
 
-      if (item->type == SchedulerItem::INTERVAL || item->type == SchedulerItem::RETRY) {
+      if (item->type == SchedulerItem::INTERVAL ||
+          (item->type == SchedulerItem::RETRY && (--item->retry_countdown > 0 && retry_result != RetryResult::DONE))) {
         if (item->interval != 0) {
           const uint32_t before = item->last_execution;
           const uint32_t amount = (now - item->last_execution) / item->interval;
@@ -222,8 +223,7 @@ void IRAM_ATTR HOT Scheduler::call() {
             item->interval *= item->backoff_multiplier;
         }
       }
-      if (item->type == SchedulerItem::INTERVAL || (--item->retry_countdown > 0 && retry_result != RetryResult::DONE))
-        this->push_(std::move(item));
+      this->push_(std::move(item));
     }
   }
 
