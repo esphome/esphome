@@ -34,8 +34,6 @@ AQI_CALCULATION_TYPE = {
 
 
 def _validate(config):
-    if CONF_AQI in config and CONF_PM_2_5 not in config:
-        raise cv.Invalid("AQI sensor requires PM 2.5")
     if CONF_AQI in config and CONF_PM_10_0 not in config:
         raise cv.Invalid("AQI sensor requires PM 10 sensors")
     return config
