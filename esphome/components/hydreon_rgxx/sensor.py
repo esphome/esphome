@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart, sensor
+from . import RGModel, HydreonRGxxComponent
 from esphome.const import (
     CONF_ID,
     CONF_MODEL,
@@ -18,10 +19,6 @@ CONF_EVENT_ACC = "event_acc"
 CONF_TOTAL_ACC = "total_acc"
 CONF_R_INT = "r_int"
 
-DEPENDENCIES = ["uart"]
-
-hydreon_rgxx_ns = cg.esphome_ns.namespace("hydreon_rgxx")
-RGModel = hydreon_rgxx_ns.enum("RGModel")
 RG_MODELS = {
     "RG_9": RGModel.RG9,
     "RG_15": RGModel.RG15,
@@ -43,10 +40,6 @@ PROTOCOL_NAMES = {
     CONF_EVENT_ACC: "EventAcc",
     CONF_TOTAL_ACC: "TotalAcc",
 }
-
-HydreonRGxxComponent = hydreon_rgxx_ns.class_(
-    "HydreonRGxxComponent", cg.PollingComponent, uart.UARTDevice
-)
 
 
 def _validate(config):

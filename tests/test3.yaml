@@ -348,6 +348,7 @@ sensor:
   - platform: hydreon_rgxx
     model: "RG 9"
     uart_id: uart6
+    id: "hydreon_rg9"
     moisture:
       name: "hydreon_rain"
       id: hydreon_rain
@@ -770,6 +771,10 @@ binary_sensor:
     on_press:
       then:
         - cover.toggle: time_based_cover
+  - platform: hydreon_rgxx
+    hydreon_rgxx_id: "hydreon_rg9"
+    too_cold:
+      name: "rg9_toocold"
 
 globals:
   - id: my_global_string

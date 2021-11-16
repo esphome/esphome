@@ -75,6 +75,10 @@ void HydreonRGxxComponent::update() {
       this->no_response_count_ = 0;
     }
     this->write_str("R\n");
+    if(this->too_cold_sensor_ != nullptr) {
+      this->too_cold_sensor_->publish_state(this->too_cold_);
+    }
+    this->too_cold_ = false;
     this->sensors_received_ = 0;
   }
 }
@@ -176,6 +180,11 @@ void HydreonRGxxComponent::process_line_() {
     }
   }
   if (is_data_line) {
+    std::string::size_type tc = this->buffer_.find("TooCold");
+    this->too_cold_ |= tc != std::string::npos;
+    if(this->too_cold_) {
+      ESP_LOGD(TAG, "Received TooCold");
+    }
     for (int i = 0; i < NUM_SENSORS; i++) {
       if (this->sensors_[i] == nullptr) {
         continue;
@@ -185,7 +194,6 @@ void HydreonRGxxComponent::process_line_() {
         continue;
       }
       int data = strtol(this->buffer_.substr(n + strlen(PROTOCOL_NAMES[i])).c_str(), nullptr, 10);
-      // todo: parse TooCold
       this->sensors_[i]->publish_state(data);
       ESP_LOGD(TAG, "Received %s: %f", PROTOCOL_NAMES[i], this->sensors_[i]->get_raw_state());
       this->sensors_received_ |= (1 << i);
