@@ -2,27 +2,32 @@
 
 namespace improv {
 
-ImprovCommand parse_improv_data(const std::vector<uint8_t> &data) {
-  return parse_improv_data(data.data(), data.size());
+ImprovCommand parse_improv_data(const std::vector<uint8_t> &data, bool check_checksum) {
+  return parse_improv_data(data.data(), data.size(), check_checksum);
 }
 
-ImprovCommand parse_improv_data(const uint8_t *data, size_t length) {
+ImprovCommand parse_improv_data(const uint8_t *data, size_t length, bool check_checksum) {
+  ImprovCommand improv_command;
   Command command = (Command) data[0];
   uint8_t data_length = data[1];
 
-  if (data_length != length - 3) {
-    return {.command = UNKNOWN};
+  if (data_length != length - 2 - check_checksum) {
+    improv_command.command = UNKNOWN;
+    return improv_command;
   }
 
-  uint8_t checksum = data[length - 1];
+  if (check_checksum) {
+    uint8_t checksum = data[length - 1];
 
-  uint32_t calculated_checksum = 0;
-  for (uint8_t i = 0; i < length - 1; i++) {
-    calculated_checksum += data[i];
-  }
+    uint32_t calculated_checksum = 0;
+    for (uint8_t i = 0; i < length - 1; i++) {
+      calculated_checksum += data[i];
+    }
 
-  if ((uint8_t) calculated_checksum != checksum) {
-    return {.command = BAD_CHECKSUM};
+    if ((uint8_t) calculated_checksum != checksum) {
+      improv_command.command = BAD_CHECKSUM;
+      return improv_command;
+    }
   }
 
   if (command == WIFI_SETTINGS) {
@@ -39,12 +44,11 @@ ImprovCommand parse_improv_data(const uint8_t *data, size_t length) {
     return {.command = command, .ssid = ssid, .password = password};
   }
 
-  return {
-      .command = command,
-  };
+  improv_command.command = command;
+  return improv_command;
 }
 
-std::vector<uint8_t> build_rpc_response(Command command, const std::vector<std::string> &datum) {
+std::vector<uint8_t> build_rpc_response(Command command, const std::vector<std::string> &datum, bool add_checksum) {
   std::vector<uint8_t> out;
   uint32_t length = 0;
   out.push_back(command);
@@ -56,16 +60,19 @@ std::vector<uint8_t> build_rpc_response(Command command, const std::vector<std::
   }
   out.insert(out.begin() + 1, length);
 
-  uint32_t calculated_checksum = 0;
+  if (add_checksum) {
+    uint32_t calculated_checksum = 0;
 
-  for (uint8_t byte : out) {
-    calculated_checksum += byte;
+    for (uint8_t byte : out) {
+      calculated_checksum += byte;
+    }
+    out.push_back(calculated_checksum);
   }
-  out.push_back(calculated_checksum);
   return out;
 }
 
-std::vector<uint8_t> build_rpc_response(Command command, const std::vector<String> &datum) {
+#ifdef ARDUINO
+std::vector<uint8_t> build_rpc_response(Command command, const std::vector<String> &datum, bool add_checksum) {
   std::vector<uint8_t> out;
   uint32_t length = 0;
   out.push_back(command);
@@ -77,13 +84,16 @@ std::vector<uint8_t> build_rpc_response(Command command, const std::vector<Strin
   }
   out.insert(out.begin() + 1, length);
 
-  uint32_t calculated_checksum = 0;
+  if (add_checksum) {
+    uint32_t calculated_checksum = 0;
 
-  for (uint8_t byte : out) {
-    calculated_checksum += byte;
+    for (uint8_t byte : out) {
+      calculated_checksum += byte;
+    }
+    out.push_back(calculated_checksum);
   }
-  out.push_back(calculated_checksum);
   return out;
 }
+#endif  // ARDUINO
 
 }  // namespace improv

@@ -1,52 +1,72 @@
 #include "esphome/core/helpers.h"
+#include "esphome/core/defines.h"
 #include <cstdio>
 #include <algorithm>
+#include <cmath>
+#include <cstring>
 
-#ifdef ARDUINO_ARCH_ESP8266
-#include <ESP8266WiFi.h>
-#else
+#if defined(USE_ESP8266)
+#include <osapi.h>
+#include <user_interface.h>
+// for xt_rsil()/xt_wsr_ps()
+#include <Arduino.h>
+#elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
 #include <Esp.h>
+#elif defined(USE_ESP_IDF)
+#include "esp_system.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/portmacro.h>
+#endif
+#ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
+#include "esp_efuse.h"
+#include "esp_efuse_table.h"
 #endif
 
 #include "esphome/core/log.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 
 static const char *const TAG = "helpers";
 
-std::string get_mac_address() {
-  char tmp[20];
-  uint8_t mac[6];
-#ifdef ARDUINO_ARCH_ESP32
+void get_mac_address_raw(uint8_t *mac) {
+#if defined(USE_ESP32)
+#if defined(USE_ESP32_IGNORE_EFUSE_MAC_CRC)
+  // On some devices, the MAC address that is burnt into EFuse does not
+  // match the CRC that goes along with it. For those devices, this
+  // work-around reads and uses the MAC address as-is from EFuse,
+  // without doing the CRC check.
+  esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, 48);
+#else
   esp_efuse_mac_get_default(mac);
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
-  WiFi.macAddress(mac);
+#elif defined(USE_ESP8266)
+  wifi_get_macaddr(STATION_IF, mac);
 #endif
-  sprintf(tmp, "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  return std::string(tmp);
+}
+
+std::string get_mac_address() {
+  uint8_t mac[6];
+  get_mac_address_raw(mac);
+  return str_sprintf("%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 std::string get_mac_address_pretty() {
-  char tmp[20];
   uint8_t mac[6];
-#ifdef ARDUINO_ARCH_ESP32
-  esp_efuse_mac_get_default(mac);
-#endif
-#ifdef ARDUINO_ARCH_ESP8266
-  WiFi.macAddress(mac);
-#endif
-  sprintf(tmp, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  return std::string(tmp);
+  get_mac_address_raw(mac);
+  return str_sprintf("%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
+
+#ifdef USE_ESP32
+void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
+#endif
 
 std::string generate_hostname(const std::string &base) { return base + std::string("-") + get_mac_address(); }
 
 uint32_t random_uint32() {
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   return esp_random();
-#else
+#elif defined(USE_ESP8266)
   return os_random();
 #endif
 }
@@ -54,6 +74,17 @@ uint32_t random_uint32() {
 double random_double() { return random_uint32() / double(UINT32_MAX); }
 
 float random_float() { return float(random_double()); }
+
+void fill_random(uint8_t *data, size_t len) {
+#if defined(USE_ESP_IDF) || defined(USE_ESP32_FRAMEWORK_ARDUINO)
+  esp_fill_random(data, len);
+#elif defined(USE_ESP8266)
+  int err = os_get_random(data, len);
+  assert(err == 0);
+#else
+#error "No random source for this system config"
+#endif
+}
 
 static uint32_t fast_random_seed = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -88,36 +119,14 @@ float gamma_uncorrect(float value, float gamma) {
   return powf(value, 1 / gamma);
 }
 
-std::string to_lowercase_underscore(std::string s) {
-  std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-  std::replace(s.begin(), s.end(), ' ', '_');
-  return s;
-}
-
-std::string sanitize_string_allowlist(const std::string &s, const std::string &allowlist) {
-  std::string out(s);
-  out.erase(std::remove_if(out.begin(), out.end(),
-                           [&allowlist](const char &c) { return allowlist.find(c) == std::string::npos; }),
-            out.end());
-  return out;
-}
-
-std::string sanitize_hostname(const std::string &hostname) {
-  std::string s = sanitize_string_allowlist(hostname, HOSTNAME_CHARACTER_ALLOWLIST);
-  return truncate_string(s, 63);
-}
-
-std::string truncate_string(const std::string &s, size_t length) {
-  if (s.length() > length)
-    return s.substr(0, length);
-  return s;
-}
-
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
-  auto multiplier = float(powf(10.0f, accuracy_decimals));
-  float value_rounded = roundf(value * multiplier) / multiplier;
+  if (accuracy_decimals < 0) {
+    auto multiplier = powf(10.0f, accuracy_decimals);
+    value = roundf(value * multiplier) / multiplier;
+    accuracy_decimals = 0;
+  }
   char tmp[32];  // should be enough, but we should maybe improve this at some point.
-  dtostrf(value_rounded, 0, uint8_t(std::max(0, int(accuracy_decimals))), tmp);
+  snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
   return std::string(tmp);
 }
 std::string uint64_to_string(uint64_t num) {
@@ -131,21 +140,6 @@ std::string uint32_to_string(uint32_t num) {
   auto *address16 = reinterpret_cast<uint16_t *>(&num);
   snprintf(buffer, sizeof(buffer), "%04X%04X", address16[1], address16[0]);
   return std::string(buffer);
-}
-static char *global_json_build_buffer = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static size_t global_json_build_buffer_size = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-void reserve_global_json_build_buffer(size_t required_size) {
-  if (global_json_build_buffer_size == 0 || global_json_build_buffer_size < required_size) {
-    delete[] global_json_build_buffer;
-    global_json_build_buffer_size = std::max(required_size, global_json_build_buffer_size * 2);
-
-    size_t remainder = global_json_build_buffer_size % 16U;
-    if (remainder != 0)
-      global_json_build_buffer_size += 16 - remainder;
-
-    global_json_build_buffer = new char[global_json_build_buffer_size];
-  }
 }
 
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
@@ -163,8 +157,6 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   return PARSE_NONE;
 }
 
-const char *const HOSTNAME_CHARACTER_ALLOWLIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
-
 uint8_t crc8(uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
 
@@ -181,17 +173,18 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
   return crc;
 }
 
-void delay_microseconds_accurate(uint32_t usec) {
-  if (usec == 0)
-    return;
-  if (usec < 5000UL) {
-    delayMicroseconds(usec);
-    return;
+void delay_microseconds_safe(uint32_t us) {  // avoids CPU locks that could trigger WDT or affect WiFi/BT stability
+  auto start = micros();
+  const uint32_t lag = 5000;  // microseconds, specifies the maximum time for a CPU busy-loop.
+                              // it must be larger than the worst-case duration of a delay(1) call (hardware tasks)
+                              // 5ms is conservative, it could be reduced when exact BT/WiFi stack delays are known
+  if (us > lag) {
+    delay((us - lag) / 1000UL);  // note: in disabled-interrupt contexts delay() won't actually sleep
+    while (micros() - start < us - lag)
+      delay(1);  // in those cases, this loop allows to yield for BT/WiFi stack tasks
   }
-  uint32_t start = micros();
-  while (micros() - start < usec) {
-    delay(0);
-  }
+  while (micros() - start < us)  // fine delay the remaining usecs
+    ;
 }
 
 uint8_t reverse_bits_8(uint8_t x) {
@@ -250,20 +243,39 @@ std::string to_string(long double val) {
   sprintf(buf, "%Lf", val);
   return buf;
 }
-optional<float> parse_float(const std::string &str) {
-  char *end;
-  float value = ::strtof(str.c_str(), &end);
-  if (end == nullptr || end != str.end().base())
-    return {};
-  return value;
+
+optional<int> parse_hex(const char chr) {
+  int out = chr;
+  if (out >= '0' && out <= '9')
+    return (out - '0');
+  if (out >= 'A' && out <= 'F')
+    return (10 + (out - 'A'));
+  if (out >= 'a' && out <= 'f')
+    return (10 + (out - 'a'));
+  return {};
 }
-optional<int> parse_int(const std::string &str) {
-  char *end;
-  int value = ::strtol(str.c_str(), &end, 10);
-  if (end == nullptr || end != str.end().base())
+
+optional<int> parse_hex(const std::string &str, size_t start, size_t length) {
+  if (str.length() < start) {
     return {};
-  return value;
+  }
+  size_t end = start + length;
+  if (str.length() < end) {
+    return {};
+  }
+  int out = 0;
+  for (size_t i = start; i < end; i++) {
+    char chr = str[i];
+    auto digit = parse_hex(chr);
+    if (!digit.has_value()) {
+      ESP_LOGW(TAG, "Can't convert '%s' to number, invalid character %c!", str.substr(start, length).c_str(), chr);
+      return {};
+    }
+    out = (out << 4) | *digit;
+  }
+  return out;
 }
+
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
   for (char c : str) {
@@ -303,6 +315,7 @@ template<typename T> T clamp(const T val, const T min, const T max) {
     return max;
   return val;
 }
+template uint8_t clamp(uint8_t, uint8_t, uint8_t);
 template float clamp(float, float, float);
 template int clamp(int, int, int);
 
@@ -312,16 +325,20 @@ bool str_startswith(const std::string &full, const std::string &start) { return 
 bool str_endswith(const std::string &full, const std::string &ending) {
   return full.rfind(ending) == (full.size() - ending.size());
 }
+std::string str_sprintf(const char *fmt, ...) {
+  std::string str;
+  va_list args;
 
-uint16_t encode_uint16(uint8_t msb, uint8_t lsb) { return (uint16_t(msb) << 8) | uint16_t(lsb); }
-std::array<uint8_t, 2> decode_uint16(uint16_t value) {
-  uint8_t msb = (value >> 8) & 0xFF;
-  uint8_t lsb = (value >> 0) & 0xFF;
-  return {msb, lsb};
-}
+  va_start(args, fmt);
+  size_t length = vsnprintf(nullptr, 0, fmt, args);
+  va_end(args);
 
-uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb) {
-  return (uint32_t(msb) << 24) | (uint32_t(byte2) << 16) | (uint32_t(byte3) << 8) | uint32_t(lsb);
+  str.resize(length);
+  va_start(args, fmt);
+  vsnprintf(&str[0], length + 1, fmt, args);
+  va_end(args);
+
+  return str;
 }
 
 std::string hexencode(const uint8_t *data, uint32_t len) {
@@ -340,13 +357,96 @@ std::string hexencode(const uint8_t *data, uint32_t len) {
   return res;
 }
 
-#ifdef ARDUINO_ARCH_ESP8266
-ICACHE_RAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
-ICACHE_RAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
+void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value) {
+  float max_color_value = std::max(std::max(red, green), blue);
+  float min_color_value = std::min(std::min(red, green), blue);
+  float delta = max_color_value - min_color_value;
+
+  if (delta == 0)
+    hue = 0;
+  else if (max_color_value == red)
+    hue = int(fmod(((60 * ((green - blue) / delta)) + 360), 360));
+  else if (max_color_value == green)
+    hue = int(fmod(((60 * ((blue - red) / delta)) + 120), 360));
+  else if (max_color_value == blue)
+    hue = int(fmod(((60 * ((red - green) / delta)) + 240), 360));
+
+  if (max_color_value == 0)
+    saturation = 0;
+  else
+    saturation = delta / max_color_value;
+
+  value = max_color_value;
+}
+
+void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green, float &blue) {
+  float chroma = value * saturation;
+  float hue_prime = fmod(hue / 60.0, 6);
+  float intermediate = chroma * (1 - fabs(fmod(hue_prime, 2) - 1));
+  float delta = value - chroma;
+
+  if (0 <= hue_prime && hue_prime < 1) {
+    red = chroma;
+    green = intermediate;
+    blue = 0;
+  } else if (1 <= hue_prime && hue_prime < 2) {
+    red = intermediate;
+    green = chroma;
+    blue = 0;
+  } else if (2 <= hue_prime && hue_prime < 3) {
+    red = 0;
+    green = chroma;
+    blue = intermediate;
+  } else if (3 <= hue_prime && hue_prime < 4) {
+    red = 0;
+    green = intermediate;
+    blue = chroma;
+  } else if (4 <= hue_prime && hue_prime < 5) {
+    red = intermediate;
+    green = 0;
+    blue = chroma;
+  } else if (5 <= hue_prime && hue_prime < 6) {
+    red = chroma;
+    green = 0;
+    blue = intermediate;
+  } else {
+    red = 0;
+    green = 0;
+    blue = 0;
+  }
+
+  red += delta;
+  green += delta;
+  blue += delta;
+}
+
+#ifdef USE_ESP8266
+IRAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
+IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
 #endif
-#ifdef ARDUINO_ARCH_ESP32
-ICACHE_RAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
-ICACHE_RAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
+#ifdef USE_ESP32
+IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
+IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 #endif
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+std::string str_truncate(const std::string &str, size_t length) {
+  return str.length() > length ? str.substr(0, length) : str;
+}
+std::string str_snake_case(const std::string &str) {
+  std::string result;
+  result.resize(str.length());
+  std::transform(str.begin(), str.end(), result.begin(), ::tolower);
+  std::replace(result.begin(), result.end(), ' ', '_');
+  return result;
+}
+std::string str_sanitize(const std::string &str) {
+  std::string out;
+  std::copy_if(str.begin(), str.end(), std::back_inserter(out), [](const char &c) {
+    return c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+  });
+  return out;
+}
 
 }  // namespace esphome

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/preferences.h"
 #include "light_call.h"
@@ -26,10 +27,12 @@ enum LightRestoreMode {
 /** This class represents the communication layer between the front-end MQTT layer and the
  * hardware output layer.
  */
-class LightState : public Nameable, public Component {
+class LightState : public EntityBase, public Component {
  public:
   /// Construct this LightState using the provided traits and name.
   LightState(const std::string &name, LightOutput *output);
+
+  LightState(LightOutput *output);
 
   LightTraits get_traits();
 
@@ -99,6 +102,11 @@ class LightState : public Nameable, public Component {
 
   /// Set the default transition length, i.e. the transition length when no transition is provided.
   void set_default_transition_length(uint32_t default_transition_length);
+  uint32_t get_default_transition_length() const;
+
+  /// Set the flash transition length
+  void set_flash_transition_length(uint32_t flash_transition_length);
+  uint32_t get_flash_transition_length() const;
 
   /// Set the gamma correction factor
   void set_gamma_correct(float gamma_correct);
@@ -149,10 +157,10 @@ class LightState : public Nameable, public Component {
   /// Internal method to stop the current effect (if one is active).
   void stop_effect_();
   /// Internal method to start a transition to the target color with the given length.
-  void start_transition_(const LightColorValues &target, uint32_t length);
+  void start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values);
 
   /// Internal method to start a flash for the specified amount of time.
-  void start_flash_(const LightColorValues &target, uint32_t length);
+  void start_flash_(const LightColorValues &target, uint32_t length, bool set_remote_values);
 
   /// Internal method to set the color values to target immediately (with no transition).
   void set_immediately_(const LightColorValues &target, bool set_remote_values);
@@ -188,6 +196,8 @@ class LightState : public Nameable, public Component {
 
   /// Default transition length for all transitions in ms.
   uint32_t default_transition_length_{};
+  /// Transition length to use for flash transitions.
+  uint32_t flash_transition_length_{};
   /// Gamma correction factor for the light.
   float gamma_correct_{};
   /// Restore mode of the light.

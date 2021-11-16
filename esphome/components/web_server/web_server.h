@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/components/web_server_base/web_server_base.h"
@@ -30,10 +32,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
  public:
   WebServer(web_server_base::WebServerBase *base) : base_(base) {}
 
-  void set_username(const char *username) { username_ = username; }
-
-  void set_password(const char *password) { password_ = password; }
-
   /** Set the URL to the CSS <link> that's sent to each client. Defaults to
    * https://esphome.io/_static/webserver-v1.min.css
    *
@@ -60,6 +58,12 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    */
   void set_js_include(const char *js_include);
 
+  /** Set whether or not the webserver should expose the OTA form and handler.
+   *
+   * @param allow_ota.
+   */
+  void set_allow_ota(bool allow_ota) { this->allow_ota_ = allow_ota; }
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup the internal web server and register handlers.
@@ -82,8 +86,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// Handle included js request under '/0.js'.
   void handle_js_request(AsyncWebServerRequest *request);
 #endif
-
-  bool using_auth() { return username_ != nullptr && password_ != nullptr; }
 
 #ifdef USE_SENSOR
   void on_sensor_update(sensor::Sensor *obj, float state) override;
@@ -182,13 +184,14 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
  protected:
   web_server_base::WebServerBase *base_;
   AsyncEventSource events_{"/events"};
-  const char *username_{nullptr};
-  const char *password_{nullptr};
   const char *css_url_{nullptr};
   const char *css_include_{nullptr};
   const char *js_url_{nullptr};
   const char *js_include_{nullptr};
+  bool allow_ota_{true};
 };
 
 }  // namespace web_server
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

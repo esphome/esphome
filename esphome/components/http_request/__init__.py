@@ -2,7 +2,6 @@ import urllib.parse as urlparse
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-import esphome.final_validate as fv
 from esphome import automation
 from esphome.const import (
     CONF_ID,
@@ -10,8 +9,9 @@ from esphome.const import (
     CONF_METHOD,
     CONF_TRIGGER_ID,
     CONF_URL,
+    CONF_ESP8266_DISABLE_SSL_SUPPORT,
 )
-from esphome.core import CORE, Lambda
+from esphome.core import Lambda, CORE
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json"]
@@ -66,38 +66,39 @@ def validate_secure_url(config):
     return config
 
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(HttpRequestComponent),
-        cv.Optional(CONF_USERAGENT, "ESPHome"): cv.string,
-        cv.Optional(CONF_TIMEOUT, default="5s"): cv.positive_time_period_milliseconds,
-    }
-).extend(cv.COMPONENT_SCHEMA)
-
-
-def validate_framework(value):
-    if not CORE.is_esp8266:
-        # only for ESP8266
-        return
-
-    framework_version = fv.get_arduino_framework_version()
-    if framework_version is None or framework_version == "dev":
-        return
-
-    if framework_version < "2.5.1":
-        raise cv.Invalid(
-            "This component is not supported on arduino framework version below 2.5.1, ",
-            "please check esphome->arduino_version",
-        )
-
-
-FINAL_VALIDATE_SCHEMA = cv.Schema(validate_framework)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(HttpRequestComponent),
+            cv.Optional(CONF_USERAGENT, "ESPHome"): cv.string,
+            cv.Optional(
+                CONF_TIMEOUT, default="5s"
+            ): cv.positive_time_period_milliseconds,
+            cv.SplitDefault(CONF_ESP8266_DISABLE_SSL_SUPPORT, esp8266=False): cv.All(
+                cv.only_on_esp8266, cv.boolean
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.require_framework_version(
+        esp8266_arduino=cv.Version(2, 5, 1),
+        esp32_arduino=cv.Version(0, 0, 0),
+    ),
+)
 
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
+    if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
+        cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
+
+    if CORE.is_esp32:
+        cg.add_library("WiFiClientSecure", None)
+        cg.add_library("HTTPClient", None)
+    if CORE.is_esp8266:
+        cg.add_library("ESP8266HTTPClient", None)
+
     await cg.register_component(var, config)
 
 

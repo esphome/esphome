@@ -7,20 +7,42 @@ from esphome import pins, automation
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_ID,
+    CONF_NUMBER,
     CONF_RX_PIN,
     CONF_TX_PIN,
     CONF_UART_ID,
     CONF_DATA,
     CONF_RX_BUFFER_SIZE,
     CONF_INVERT,
+    CONF_TRIGGER_ID,
+    CONF_SEQUENCE,
+    CONF_TIMEOUT,
+    CONF_DEBUG,
+    CONF_DIRECTION,
+    CONF_AFTER,
+    CONF_BYTES,
+    CONF_DELIMITER,
+    CONF_DUMMY_RECEIVER,
+    CONF_DUMMY_RECEIVER_ID,
 )
 from esphome.core import CORE
 
 CODEOWNERS = ["@esphome/core"]
 uart_ns = cg.esphome_ns.namespace("uart")
-UARTComponent = uart_ns.class_("UARTComponent", cg.Component)
+UARTComponent = uart_ns.class_("UARTComponent")
+
+IDFUARTComponent = uart_ns.class_("IDFUARTComponent", UARTComponent, cg.Component)
+ESP32ArduinoUARTComponent = uart_ns.class_(
+    "ESP32ArduinoUARTComponent", UARTComponent, cg.Component
+)
+ESP8266UartComponent = uart_ns.class_(
+    "ESP8266UartComponent", UARTComponent, cg.Component
+)
+
 UARTDevice = uart_ns.class_("UARTDevice")
 UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
+UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
+UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
 
 
@@ -37,10 +59,21 @@ def validate_raw_data(value):
 
 
 def validate_rx_pin(value):
-    value = pins.input_pin(value)
-    if CORE.is_esp8266 and value >= 16:
+    value = pins.internal_gpio_input_pin_schema(value)
+    if CORE.is_esp8266 and value[CONF_NUMBER] >= 16:
         raise cv.Invalid("Pins GPIO16 and GPIO17 cannot be used as RX pins on ESP8266.")
     return value
+
+
+def _uart_declare_type(value):
+    if CORE.is_esp8266:
+        return cv.declare_id(ESP8266UartComponent)(value)
+    if CORE.is_esp32:
+        if CORE.using_arduino:
+            return cv.declare_id(ESP32ArduinoUARTComponent)(value)
+        if CORE.using_esp_idf:
+            return cv.declare_id(IDFUARTComponent)(value)
+    raise NotImplementedError
 
 
 UARTParityOptions = uart_ns.enum("UARTParityOptions")
@@ -54,26 +87,80 @@ CONF_STOP_BITS = "stop_bits"
 CONF_DATA_BITS = "data_bits"
 CONF_PARITY = "parity"
 
+UARTDirection = uart_ns.enum("UARTDirection")
+UART_DIRECTIONS = {
+    "RX": UARTDirection.UART_DIRECTION_RX,
+    "TX": UARTDirection.UART_DIRECTION_TX,
+    "BOTH": UARTDirection.UART_DIRECTION_BOTH,
+}
+
+DEBUG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UARTDebugger),
+        cv.Optional(CONF_DIRECTION, default="BOTH"): cv.enum(
+            UART_DIRECTIONS, upper=True
+        ),
+        cv.Optional(CONF_AFTER): cv.Schema(
+            {
+                cv.Optional(CONF_BYTES, default=256): cv.validate_bytes,
+                cv.Optional(
+                    CONF_TIMEOUT, default="100ms"
+                ): cv.positive_time_period_milliseconds,
+                cv.Optional(CONF_DELIMITER): cv.templatable(validate_raw_data),
+            }
+        ),
+        cv.Required(CONF_SEQUENCE): automation.validate_automation(),
+        cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
+        cv.GenerateID(CONF_DUMMY_RECEIVER_ID): cv.declare_id(UARTDummyReceiver),
+    }
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(UARTComponent),
+            cv.GenerateID(): _uart_declare_type,
             cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
-            cv.Optional(CONF_TX_PIN): pins.output_pin,
+            cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_PIN): validate_rx_pin,
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
-            cv.SplitDefault(CONF_INVERT, esp32=False): cv.All(
-                cv.only_on_esp32, cv.boolean
-            ),
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
             cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
                 UART_PARITY_OPTIONS, upper=True
             ),
+            cv.Optional(CONF_INVERT): cv.invalid(
+                "This option has been removed. Please instead use invert in the tx/rx pin schemas."
+            ),
+            cv.Optional(CONF_DEBUG): DEBUG_SCHEMA,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN),
 )
+
+
+async def debug_to_code(config, parent):
+    trigger = cg.new_Pvariable(config[CONF_TRIGGER_ID], parent)
+    await cg.register_component(trigger, config)
+    for action in config[CONF_SEQUENCE]:
+        await automation.build_automation(
+            trigger,
+            [(UARTDirection, "direction"), (cg.std_vector.template(cg.uint8), "bytes")],
+            action,
+        )
+    cg.add(trigger.set_direction(config[CONF_DIRECTION]))
+    after = config[CONF_AFTER]
+    cg.add(trigger.set_after_bytes(after[CONF_BYTES]))
+    cg.add(trigger.set_after_timeout(after[CONF_TIMEOUT]))
+    if CONF_DELIMITER in after:
+        data = after[CONF_DELIMITER]
+        if isinstance(data, bytes):
+            data = list(data)
+        for byte in after[CONF_DELIMITER]:
+            cg.add(trigger.add_delimiter_byte(byte))
+    if config[CONF_DUMMY_RECEIVER]:
+        dummy = cg.new_Pvariable(config[CONF_DUMMY_RECEIVER_ID], parent)
+        await cg.register_component(dummy, {})
+    cg.add_define("USE_UART_DEBUGGER")
 
 
 async def to_code(config):
@@ -84,15 +171,18 @@ async def to_code(config):
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
 
     if CONF_TX_PIN in config:
-        cg.add(var.set_tx_pin(config[CONF_TX_PIN]))
+        tx_pin = await cg.gpio_pin_expression(config[CONF_TX_PIN])
+        cg.add(var.set_tx_pin(tx_pin))
     if CONF_RX_PIN in config:
-        cg.add(var.set_rx_pin(config[CONF_RX_PIN]))
+        rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
+        cg.add(var.set_rx_pin(rx_pin))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
-    if CONF_INVERT in config:
-        cg.add(var.set_invert(config[CONF_INVERT]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))
+
+    if CONF_DEBUG in config:
+        await debug_to_code(config[CONF_DEBUG], var)
 
 
 # A schema to use for all UART devices, all UART integrations must extend this!

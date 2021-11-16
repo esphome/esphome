@@ -6,17 +6,9 @@ namespace switch_ {
 
 static const char *const TAG = "switch";
 
-std::string Switch::icon() { return ""; }
-Switch::Switch(const std::string &name) : Nameable(name), state(false) {}
+Switch::Switch(const std::string &name) : EntityBase(name), state(false) {}
 Switch::Switch() : Switch("") {}
 
-std::string Switch::get_icon() {
-  if (this->icon_.has_value())
-    return *this->icon_;
-  return this->icon();
-}
-
-void Switch::set_icon(const std::string &icon) { this->icon_ = icon; }
 void Switch::turn_on() {
   ESP_LOGD(TAG, "'%s' Turning ON.", this->get_name().c_str());
   this->write_state(!this->inverted_);
@@ -30,7 +22,7 @@ void Switch::toggle() {
   this->write_state(this->inverted_ == this->state);
 }
 optional<bool> Switch::get_initial_state() {
-  this->rtc_ = global_preferences.make_preference<bool>(this->get_object_id_hash());
+  this->rtc_ = global_preferences->make_preference<bool>(this->get_object_id_hash());
   bool initial_state;
   if (!this->rtc_.load(&initial_state))
     return {};

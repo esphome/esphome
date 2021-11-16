@@ -14,6 +14,8 @@ class PZEM004T : public PollingComponent, public uart::UARTDevice {
   void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
   void set_energy_sensor(sensor::Sensor *energy_sensor) { energy_sensor_ = energy_sensor; }
 
+  void setup() override;
+
   void loop() override;
 
   void update() override;

@@ -1,7 +1,9 @@
-#include "esp32_touch.h"
-#include "esphome/core/log.h"
+#ifdef USE_ESP32
 
-#ifdef ARDUINO_ARCH_ESP32
+#include "esp32_touch.h"
+#include "esphome/core/application.h"
+#include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace esp32_touch {
@@ -92,7 +94,6 @@ void ESP32TouchComponent::dump_config() {
 
   if (this->iir_filter_enabled_()) {
     ESP_LOGCONFIG(TAG, "    IIR Filter: %ums", this->iir_filter_);
-    touch_pad_filter_start(this->iir_filter_);
   } else {
     ESP_LOGCONFIG(TAG, "  IIR Filter DISABLED");
   }
@@ -124,6 +125,8 @@ void ESP32TouchComponent::loop() {
     if (should_print) {
       ESP_LOGD(TAG, "Touch Pad '%s' (T%u): %u", child->get_name().c_str(), child->get_touch_pad(), value);
     }
+
+    App.feed_wdt();
   }
 
   if (should_print) {
@@ -133,15 +136,33 @@ void ESP32TouchComponent::loop() {
 }
 
 void ESP32TouchComponent::on_shutdown() {
+  bool is_wakeup_source = false;
+
   if (this->iir_filter_enabled_()) {
     touch_pad_filter_stop();
     touch_pad_filter_delete();
   }
-  touch_pad_deinit();
+
+  for (auto *child : this->children_) {
+    if (child->get_wakeup_threshold() != 0) {
+      if (!is_wakeup_source) {
+        is_wakeup_source = true;
+        // Touch sensor FSM mode must be 'TOUCH_FSM_MODE_TIMER' to use it to wake-up.
+        touch_pad_set_fsm_mode(TOUCH_FSM_MODE_TIMER);
+      }
+
+      // No filter available when using as wake-up source.
+      touch_pad_config(child->get_touch_pad(), child->get_wakeup_threshold());
+    }
+  }
+
+  if (!is_wakeup_source) {
+    touch_pad_deinit();
+  }
 }
 
-ESP32TouchBinarySensor::ESP32TouchBinarySensor(const std::string &name, touch_pad_t touch_pad, uint16_t threshold)
-    : BinarySensor(name), touch_pad_(touch_pad), threshold_(threshold) {}
+ESP32TouchBinarySensor::ESP32TouchBinarySensor(touch_pad_t touch_pad, uint16_t threshold, uint16_t wakeup_threshold)
+    : BinarySensor(), touch_pad_(touch_pad), threshold_(threshold), wakeup_threshold_(wakeup_threshold) {}
 
 }  // namespace esp32_touch
 }  // namespace esphome

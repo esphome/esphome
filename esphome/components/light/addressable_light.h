@@ -19,6 +19,15 @@ namespace light {
 
 using ESPColor ESPDEPRECATED("esphome::light::ESPColor is deprecated, use esphome::Color instead.", "v1.21") = Color;
 
+/// Convert the color information from a `LightColorValues` object to a `Color` object (does not apply brightness).
+Color color_from_light_color_values(LightColorValues val);
+
+/// Use a custom state class for addressable lights, to allow type system to discriminate between addressable and
+/// non-addressable lights.
+class AddressableLightState : public LightState {
+  using LightState::LightState;
+};
+
 class AddressableLight : public LightOutput, public Component {
  public:
   virtual int32_t size() const = 0;
@@ -51,9 +60,9 @@ class AddressableLight : public LightOutput, public Component {
       amnt = this->size();
     this->range(amnt, this->size()) = this->range(0, -amnt);
   }
+  // Indicates whether an effect that directly updates the output buffer is active to prevent overwriting
   bool is_effect_active() const { return this->effect_active_; }
   void set_effect_active(bool effect_active) { this->effect_active_ = effect_active; }
-  void write_state(LightState *state) override;
   std::unique_ptr<LightTransformer> create_default_transition() override;
   void set_correction(float red, float green, float blue, float white = 1.0f) {
     this->correction_.set_max_brightness(
@@ -63,7 +72,8 @@ class AddressableLight : public LightOutput, public Component {
     this->correction_.calculate_gamma_table(state->get_gamma_correct());
     this->state_parent_ = state;
   }
-  void schedule_show() { this->next_show_ = true; }
+  void update_state(LightState *state) override;
+  void schedule_show() { this->state_parent_->next_write_ = true; }
 
 #ifdef USE_POWER_SUPPLY
   void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }
@@ -74,12 +84,10 @@ class AddressableLight : public LightOutput, public Component {
  protected:
   friend class AddressableLightTransformer;
 
-  bool should_show_() const { return this->effect_active_ || this->next_show_; }
   void mark_shown_() {
-    this->next_show_ = false;
 #ifdef USE_POWER_SUPPLY
-    for (auto c : *this) {
-      if (c.get().is_on()) {
+    for (const auto &c : *this) {
+      if (c.get_red_raw() > 0 || c.get_green_raw() > 0 || c.get_blue_raw() > 0 || c.get_white_raw() > 0) {
         this->power_.request();
         return;
       }
@@ -90,7 +98,6 @@ class AddressableLight : public LightOutput, public Component {
   virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
   bool effect_active_{false};
-  bool next_show_{true};
   ESPColorCorrection correction_{};
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_;

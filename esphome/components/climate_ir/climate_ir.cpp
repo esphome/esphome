@@ -52,7 +52,7 @@ void ClimateIR::setup() {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
   // Never send nan to HA
-  if (isnan(this->target_temperature))
+  if (std::isnan(this->target_temperature))
     this->target_temperature = 24;
 }
 

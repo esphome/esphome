@@ -5,10 +5,13 @@ esphome:
   board: d1_mini
   build_path: build/test3
   on_boot:
-    - wait_until:
-        - api.connected
-        - wifi.connected
-        - time.has_time
+    - if:
+        condition:
+          - api.connected
+          - wifi.connected
+          - time.has_time
+        then:
+          - logger.log: "Have time"
   includes:
     - custom.h
 
@@ -22,6 +25,8 @@ api:
   port: 8000
   password: 'pwd'
   reboot_timeout: 0min
+  encryption:
+    key: 'bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU='
   services:
     - service: hello_world
       variables:
@@ -245,6 +250,10 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
+  - id: uart7
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 38400
 
 modbus:
   uart_id: uart1
@@ -257,9 +266,9 @@ ota:
 logger:
   hardware_uart: UART1
   level: DEBUG
-  esp8266_store_log_strings_in_flash: false
+  esp8266_store_log_strings_in_flash: true
 
-web_server:
+improv_serial:
 
 deep_sleep:
   run_duration: 20s
@@ -271,6 +280,37 @@ adalight:
 
 
 sensor:
+  - platform: daly_bms
+    voltage:
+      name: "Battery Voltage"
+    current:
+      name: "Battery Current"
+    battery_level:
+      name: "Battery Level"
+    max_cell_voltage:
+      name: "Max Cell Voltage"
+    max_cell_voltage_number:
+      name: "Max Cell Voltage Number"
+    min_cell_voltage:
+      name: "Min Cell Voltage"
+    min_cell_voltage_number:
+      name: "Min Cell Voltage Number"
+    max_temperature:
+      name: "Max Temperature"
+    max_temperature_probe_number:
+      name: "Max Temperature Probe Number"
+    min_temperature:
+      name: "Min Temperature"
+    min_temperature_probe_number:
+      name: "Min Temperature Probe Number"
+    remaining_capacity:
+      name: "Remaining Capacity"
+    cells_number:
+      name: "Cells Number"
+    temperature_1:
+      name: "Temperature 1"
+    temperature_2:
+      name: "Temperature 2"
   - platform: apds9960
     type: proximity
     name: APDS9960 Proximity
@@ -369,7 +409,7 @@ sensor:
       name: Illuminance
     color_temperature:
       name: Color Temperature
-    integration_time: 700ms
+    integration_time: 614ms
     gain: 60x
   - platform: custom
     lambda: |-
@@ -393,14 +433,19 @@ sensor:
     irq_pin: GPIO16
     voltage:
       name: ADE7953 Voltage
+      id: ade7953_voltage
     current_a:
       name: ADE7953 Current A
+      id: ade7953_current_a
     current_b:
       name: ADE7953 Current B
+      id: ade7953_current_b
     active_power_a:
       name: ADE7953 Active Power A
+      id: ade7953_active_power_a
     active_power_b:
       name: ADE7953 Active Power B
+      id: ade7953_active_power_b
   - platform: pzem004t
     uart_id: uart3
     voltage:
@@ -510,6 +555,18 @@ sensor:
       name: 'PMS Humidity'
     formaldehyde:
       name: 'PMS Formaldehyde Concentration'
+  - platform: cse7761
+    uart_id: uart7
+    voltage:
+      name: 'CSE7761 Voltage'
+    current_1:
+      name: 'CSE7761 Current 1'
+    current_2:
+      name: 'CSE7761 Current 2'
+    active_power_1:
+      name: 'CSE7761 Active Power 1'
+    active_power_2:
+      name: 'CSE7761 Active Power 2'
   - platform: cse7766
     uart_id: uart3
     voltage:
@@ -619,6 +676,11 @@ mpr121:
   address: 0x5A
 
 binary_sensor:
+  - platform: daly_bms
+    charging_mos_enabled:
+      name: "Charging MOS"
+    discharging_mos_enabled:
+      name: "Discharging MOS"
   - platform: apds9960
     direction: up
     name: APDS9960 Up
@@ -686,6 +748,12 @@ binary_sensor:
     id: r0_sensor
     name: 'R0 Sensor'
     component_name: page0.r0
+  - platform: template
+    id: 'cover_toggle'
+    on_press:
+      then:
+        - cover.toggle: time_based_cover
+
 globals:
   - id: my_global_string
     type: std::string
@@ -699,6 +767,9 @@ status_led:
   pin: GPIO2
 
 text_sensor:
+  - platform: daly_bms
+    status:
+      name: "BMS Status"
   - platform: version
     name: 'ESPHome Version'
     icon: mdi:icon
@@ -748,17 +819,6 @@ script:
   - id: my_script
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
-  - id: climate_custom
-    then:
-      - climate.control:
-          id: midea_ac_unit
-          custom_preset: FREEZE_PROTECTION
-          custom_fan_mode: SILENT
-  - id: climate_preset
-    then:
-      - climate.control:
-          id: midea_ac_unit
-          preset: SLEEP
 
 sm2135:
   data_pin: GPIO12
@@ -949,32 +1009,6 @@ climate:
       kp: 0.0
       ki: 0.0
       kd: 0.0
-  - platform: midea_ac
-    id: midea_ac_unit
-    visual:
-      min_temperature: 18 °C
-      max_temperature: 25 °C
-      temperature_step: 0.1 °C
-    name: "Electrolux EACS"
-    beeper: true
-    custom_fan_modes:
-      - SILENT
-      - TURBO
-    preset_eco: true
-    preset_sleep: true
-    preset_boost: true
-    custom_presets:
-      - FREEZE_PROTECTION
-    outdoor_temperature:
-      name: "Temp"
-    power_usage:
-      name: "Power"
-    humidity_setpoint:
-      name: "Hum"
-
-midea_dongle:
-  uart_id: uart1
-  strength_icon: true
 
 cover:
   - platform: endstop
@@ -1009,6 +1043,7 @@ cover:
     max_duration: 10min
   - platform: time_based
     name: Time Based Cover
+    id: time_based_cover
     stop_action:
       - switch.turn_on: gpio_switch1
     open_action:
@@ -1017,6 +1052,29 @@ cover:
     close_action:
       - switch.turn_on: gpio_switch2
     close_duration: 4.5min
+  - platform: current_based
+    name: "Current Based Cover"
+    open_sensor: ade7953_current_a
+    open_moving_current_threshold: 0.5
+    open_obstacle_current_threshold: 0.8
+    open_duration: 12s
+    open_action:
+      - switch.turn_on: gpio_switch1
+    close_sensor: ade7953_current_b
+    close_moving_current_threshold: 0.5
+    close_obstacle_current_threshold: 0.8
+    close_duration: 10s
+    close_action:
+      - switch.turn_on: gpio_switch2
+    stop_action:
+      - switch.turn_off: gpio_switch1
+      - switch.turn_off: gpio_switch2
+    obstacle_rollback: 30%
+    start_sensing_delay: 0.8s
+    malfunction_detection: true
+    malfunction_action:
+      then:
+        - logger.log: "Malfunction Detected"
   - platform: template
     name: Template Cover with Tilt
     tilt_lambda: 'return 0.5;'
@@ -1053,10 +1111,6 @@ output:
       return {s};
     outputs:
       - id: custom_float
-  - platform: ac_dimmer
-    id: dimmer1
-    gate_pin: GPIO5
-    zero_cross_pin: GPIO12
   - platform: slow_pwm
     pin: GPIO5
     id: my_slow_pwm
@@ -1114,7 +1168,7 @@ servo:
 ttp229_lsf:
 
 ttp229_bsf:
-  sdo_pin: D0
+  sdo_pin: D2
   scl_pin: D1
 
 sim800l:
@@ -1254,3 +1308,7 @@ fingerprint_grow:
 dsmr:
   decryption_key: 00112233445566778899aabbccddeeff
   uart_id: uart6
+
+daly_bms:
+  update_interval: 20s
+  uart_id: uart1

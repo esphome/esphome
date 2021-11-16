@@ -1081,6 +1081,102 @@ void WaveshareEPaper7P5InV2::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+/* 7.50in-bc */
+void WaveshareEPaper7P5InBC::initialize() {
+  /* The command sequence is similar to the 7P5In display but differs in subtle ways
+  to allow for faster updates. */
+  // COMMAND POWER SETTING
+  this->command(0x01);
+  this->data(0x37);
+  this->data(0x00);
+
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  this->data(0xCF);
+  this->data(0x08);
+
+  // COMMAND PLL CONTROL
+  this->command(0x30);
+  this->data(0x3A);
+
+  // COMMAND VCM_DC_SETTING: all temperature range
+  this->command(0x82);
+  this->data(0x28);
+
+  // COMMAND BOOSTER SOFT START
+  this->command(0x06);
+  this->data(0xC7);
+  this->data(0xCC);
+  this->data(0x15);
+
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0x77);
+
+  // COMMAND TCON SETTING
+  this->command(0x60);
+  this->data(0x22);
+
+  // COMMAND FLASH CONTROL
+  this->command(0x65);
+  this->data(0x00);
+
+  // COMMAND RESOLUTION SETTING
+  this->command(0x61);
+  this->data(0x02);  // 640 >> 8
+  this->data(0x80);
+  this->data(0x01);  // 384 >> 8
+  this->data(0x80);
+
+  // COMMAND FLASH MODE
+  this->command(0xE5);
+  this->data(0x03);
+}
+
+void HOT WaveshareEPaper7P5InBC::display() {
+  // COMMAND DATA START TRANSMISSION 1
+  this->command(0x10);
+  this->start_data_();
+
+  for (size_t i = 0; i < this->get_buffer_length_(); i++) {
+    // A line of eight source pixels (each a bit in this byte)
+    uint8_t eight_pixels = this->buffer_[i];
+
+    for (uint8_t j = 0; j < 8; j += 2) {
+      /* For bichromatic displays, each byte represents two pixels. Each nibble encodes a pixel: 0=white, 3=black,
+      4=color. Therefore, e.g. 0x44 = two adjacent color pixels, 0x33 is two adjacent black pixels, etc. If you want
+      to draw using the color pixels, change '0x30' with '0x40' and '0x03' with '0x04' below. */
+      uint8_t left_nibble = (eight_pixels & 0x80) ? 0x30 : 0x00;
+      eight_pixels <<= 1;
+      uint8_t right_nibble = (eight_pixels & 0x80) ? 0x03 : 0x00;
+      eight_pixels <<= 1;
+      this->write_byte(left_nibble | right_nibble);
+    }
+    App.feed_wdt();
+  }
+  this->end_data_();
+
+  // Unlike the 7P5In display, we send the "power on" command here rather than during initialization
+  // COMMAND POWER ON
+  this->command(0x04);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+}
+
+int WaveshareEPaper7P5InBC::get_width_internal() { return 640; }
+
+int WaveshareEPaper7P5InBC::get_height_internal() { return 384; }
+
+void WaveshareEPaper7P5InBC::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.5in-bc");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 static const uint8_t LUT_SIZE_TTGO_DKE_PART = 153;
 
 static const uint8_t PART_UPDATE_LUT_TTGO_DKE[LUT_SIZE_TTGO_DKE_PART] = {

@@ -45,6 +45,7 @@ logger:
   level: DEBUG
 
 web_server:
+  ota: false
   auth:
     username: admin
     password: admin
@@ -58,6 +59,10 @@ tuya:
 
 pipsolar:
     id: inverter0
+
+sx1509:
+  - id: sx1509_hub
+    address: 0x3E
 
 sensor:
   - platform: homeassistant
@@ -209,6 +214,7 @@ sensor:
       - or:
         - throttle: "20min"
         - delta: 0.02
+
 #
 # platform sensor.apds9960 requires component apds9960
 #
@@ -308,6 +314,11 @@ binary_sensor:
     y_max: 212
     on_state:
       - lambda: 'ESP_LOGI("main", "key0: %s", (x ? "touch" : "release"));'
+  - platform: gpio
+    name: GPIO SX1509 test
+    pin:
+      sx1509: sx1509_hub
+      number: 3
 
 climate:
   - platform: tuya
@@ -358,6 +369,11 @@ light:
     warm_white_color_temperature: 500 mireds
     gamma_correct: 1
 
+cover:
+  - platform: tuya
+    id: tuya_cover
+    position_datapoint: 2
+
 display:
   - platform: addressable_light
     id: led_matrix_32x8_display
@@ -379,7 +395,7 @@ display:
       it.rectangle(3, 3, it.get_width()-6, it.get_height()-6, red);
     rotation: 0°
     update_interval: 16ms
-    
+
   - platform: waveshare_epaper
     cs_pin: GPIO23
     dc_pin: GPIO23
@@ -407,6 +423,23 @@ display:
     full_update_every: 30
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: inkplate6
+    id: inkplate_display
+    greyscale: false
+    partial_updating: false
+    update_interval: 60s
+
+    ckv_pin: GPIO1
+    sph_pin: GPIO1
+    gmod_pin: GPIO1
+    gpio0_enable_pin: GPIO1
+    oe_pin: GPIO1
+    spv_pin: GPIO1
+    powerup_pin: GPIO1
+    wakeup_pin: GPIO1
+    vcom_pin: GPIO1
+
+
 
 text_sensor:
   - platform: pipsolar
@@ -448,6 +481,12 @@ esp32_camera:
   power_down_pin: GPIO1
   resolution: 640x480
   jpeg_quality: 10
+
+esp32_camera_web_server:
+  - port: 8080
+    mode: stream
+  - port: 8081
+    mode: snapshot
 
 external_components:
   - source: github://esphome/esphome@dev

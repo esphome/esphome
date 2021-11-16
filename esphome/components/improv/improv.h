@@ -1,6 +1,9 @@
 #pragma once
 
+#ifdef ARDUINO
 #include "WString.h"
+#endif  // ARDUINO
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -35,6 +38,8 @@ enum Command : uint8_t {
   UNKNOWN = 0x00,
   WIFI_SETTINGS = 0x01,
   IDENTIFY = 0x02,
+  GET_CURRENT_STATE = 0x02,
+  GET_DEVICE_INFO = 0x03,
   BAD_CHECKSUM = 0xFF,
 };
 
@@ -46,10 +51,13 @@ struct ImprovCommand {
   std::string password;
 };
 
-ImprovCommand parse_improv_data(const std::vector<uint8_t> &data);
-ImprovCommand parse_improv_data(const uint8_t *data, size_t length);
+ImprovCommand parse_improv_data(const std::vector<uint8_t> &data, bool check_checksum = true);
+ImprovCommand parse_improv_data(const uint8_t *data, size_t length, bool check_checksum = true);
 
-std::vector<uint8_t> build_rpc_response(Command command, const std::vector<std::string> &datum);
-std::vector<uint8_t> build_rpc_response(Command command, const std::vector<String> &datum);
+std::vector<uint8_t> build_rpc_response(Command command, const std::vector<std::string> &datum,
+                                        bool add_checksum = true);
+#ifdef ARDUINO
+std::vector<uint8_t> build_rpc_response(Command command, const std::vector<String> &datum, bool add_checksum = true);
+#endif  // ARDUINO
 
 }  // namespace improv

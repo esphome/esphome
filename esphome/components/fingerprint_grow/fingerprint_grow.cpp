@@ -15,7 +15,7 @@ void FingerprintGrowComponent::update() {
   }
 
   if (this->sensing_pin_ != nullptr) {
-    if (this->sensing_pin_->digital_read() == HIGH) {
+    if (this->sensing_pin_->digital_read()) {
       ESP_LOGV(TAG, "No touch sensing");
       this->waiting_removal_ = false;
       return;

@@ -156,7 +156,7 @@ class StrobeLightEffect : public LightEffect {
 
     if (!color.is_on()) {
       // Don't turn the light off, otherwise the light effect will be stopped
-      call.set_brightness_if_supported(0.0f);
+      call.set_brightness(0.0f);
       call.set_state(true);
     }
     call.set_publish(false);
@@ -196,7 +196,6 @@ class FlickerLightEffect : public LightEffect {
     out.set_warm_white(remote.get_warm_white() * beta + current.get_warm_white() * alpha +
                        (random_cubic_float() * this->intensity_));
 
-    auto traits = this->state_->get_traits();
     auto call = this->state_->make_call();
     call.set_publish(false);
     call.set_save(false);
