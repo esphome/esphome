@@ -194,16 +194,16 @@ class Component {
    *
    * @param name The identifier for this retry function.
    * @param initial_wait_time The time in ms before f is called again
-   * @param max_retries The maximum number of retries
+   * @param max_attempts The maximum number of retries
    * @param f The function (or lambda) that should be called
    * @param backoff_increase_factor time between retries is increased by this factor on every retry
    * @see cancel_retry()
    */
-  void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_retries,  // NOLINT
-                 std::function<RetryResult()> &&f, float backoff_increase_factor = 1.0f);   // NOLINT
+  void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,  // NOLINT
+                 std::function<RetryResult()> &&f, float backoff_increase_factor = 1.0f);    // NOLINT
 
-  void set_retry(uint32_t initial_wait_time, uint8_t max_retries, std::function<RetryResult()> &&f,  // NOLINT
-                 float backoff_increase_factor = 1.0f);                                              // NOLINT
+  void set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult()> &&f,  // NOLINT
+                 float backoff_increase_factor = 1.0f);                                               // NOLINT
 
   /** Cancel a retry function.
    *

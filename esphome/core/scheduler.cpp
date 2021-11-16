@@ -74,7 +74,8 @@ bool HOT Scheduler::cancel_interval(Component *component, const std::string &nam
 }
 
 void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
-                              uint8_t max_retries, std::function<RetryResult()> &&func, float backoff_increase_factor) {
+                              uint8_t max_attempts, std::function<RetryResult()> &&func,
+                              float backoff_increase_factor) {
   const uint32_t now = this->millis_();
 
   if (!name.empty())
@@ -83,15 +84,15 @@ void HOT Scheduler::set_retry(Component *component, const std::string &name, uin
   if (initial_wait_time == SCHEDULER_DONT_RUN)
     return;
 
-  ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%u,max_retries=%u, backoff_factor=%0.1f)", name.c_str(),
-            initial_wait_time, max_retries, backoff_increase_factor);
+  ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%u,max_attempts=%u, backoff_factor=%0.1f)", name.c_str(),
+            initial_wait_time, max_attempts, backoff_increase_factor);
 
   auto item = make_unique<SchedulerItem>();
   item->component = component;
   item->name = name;
   item->type = SchedulerItem::RETRY;
   item->interval = initial_wait_time;
-  item->retry_countdown = max_retries;
+  item->retry_countdown = max_attempts;
   item->backoff_multiplier = backoff_increase_factor;
   item->last_execution = now - initial_wait_time;
   item->last_execution_major = this->millis_major_;
@@ -184,7 +185,7 @@ void IRAM_ATTR HOT Scheduler::call() {
                 item->name.c_str(), item->interval, item->last_execution, now);
 #endif
 
-      // Warning: During f(), a lot of stuff can happen, including:
+      // Warning: During callback(), a lot of stuff can happen, including:
       //  - timeouts/intervals get added, potentially invalidating vector pointers
       //  - timeouts/intervals get cancelled
       {
@@ -210,29 +211,19 @@ void IRAM_ATTR HOT Scheduler::call() {
         continue;
       }
 
-      if (item->type == SchedulerItem::INTERVAL) {
+      if (item->type == SchedulerItem::INTERVAL || item->type == SchedulerItem::RETRY) {
         if (item->interval != 0) {
           const uint32_t before = item->last_execution;
           const uint32_t amount = (now - item->last_execution) / item->interval;
           item->last_execution += amount * item->interval;
           if (item->last_execution < before)
             item->last_execution_major++;
-        }
-        this->push_(std::move(item));
-      } else if (item->type == SchedulerItem::RETRY) {
-        if (--item->retry_countdown > 0 && retry_result != RetryResult::DONE) {
-          if (item->interval != 0) {
-            const uint32_t before = item->last_execution;
-            const uint32_t amount = (now - item->last_execution) / item->interval;
-            item->last_execution += amount * item->interval;
-            // Increase the interval by backoff factor
+          if (item->type == SchedulerItem::RETRY)
             item->interval *= item->backoff_multiplier;
-            if (item->last_execution < before)
-              item->last_execution_major++;
-          }
-          this->push_(std::move(item));
         }
       }
+      if (item->type == SchedulerItem::INTERVAL || (--item->retry_countdown > 0 && retry_result != RetryResult::DONE))
+        this->push_(std::move(item));
     }
   }
 
