@@ -1,6 +1,5 @@
 #include "template_sensor.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
 #include <cmath>
 
 namespace esphome {
@@ -22,21 +21,6 @@ float TemplateSensor::get_setup_priority() const { return setup_priority::HARDWA
 void TemplateSensor::set_template(std::function<optional<float>()> &&f) { this->f_ = f; }
 void TemplateSensor::dump_config() {
   LOG_SENSOR("", "Template Sensor", this);
-  this->set_retry(
-      500, 10,
-      []() {
-        static auto last = millis();
-        static int counter = 1;
-        ESP_LOGI("RETRY DEMO", "RETRY Count=%u last invocation = %u ms", counter++, millis() - last);
-        last = millis();
-        if (counter < 6)
-          return RETRY;
-        else {
-          ESP_LOGI("RETRY DEMO", "retry stopped by lambda");
-          return DONE;
-        }
-      },
-      2.5f);
   LOG_UPDATE_INTERVAL(this);
 }
 
