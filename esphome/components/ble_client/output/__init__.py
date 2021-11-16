@@ -37,7 +37,7 @@ def to_code(config):
             var.set_service_uuid32(esp32_ble_tracker.as_hex(config[CONF_SERVICE_UUID]))
         )
     elif len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid128_format):
-        uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_SERVICE_UUID])
+        uuid128 = esp32_ble_tracker.as_reversed_hex_array(config[CONF_SERVICE_UUID])
         cg.add(var.set_service_uuid128(uuid128))
 
     if len(config[CONF_CHARACTERISTIC_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
@@ -57,7 +57,9 @@ def to_code(config):
     elif len(config[CONF_CHARACTERISTIC_UUID]) == len(
         esp32_ble_tracker.bt_uuid128_format
     ):
-        uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_CHARACTERISTIC_UUID])
+        uuid128 = esp32_ble_tracker.as_reversed_hex_array(
+            config[CONF_CHARACTERISTIC_UUID]
+        )
         cg.add(var.set_char_uuid128(uuid128))
 
     yield output.register_output(var, config)
