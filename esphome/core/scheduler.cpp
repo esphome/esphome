@@ -222,8 +222,8 @@ void IRAM_ATTR HOT Scheduler::call() {
           if (item->type == SchedulerItem::RETRY)
             item->interval *= item->backoff_multiplier;
         }
+        this->push_(std::move(item));
       }
-      this->push_(std::move(item));
     }
   }
 
