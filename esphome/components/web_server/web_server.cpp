@@ -317,7 +317,7 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 
 #define set_json_id(root, obj, sensor, start_config) \
   (root)["id"] = sensor; \
-  if ((start_config == DETAIL_ALL)) \
+  if (((start_config) == DETAIL_ALL)) \
     (root)["name"] = (obj)->get_name();
 
 #define set_json_value(root, obj, sensor, value, start_config) \
