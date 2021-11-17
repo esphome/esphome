@@ -75,7 +75,7 @@ void HydreonRGxxComponent::update() {
       this->no_response_count_ = 0;
     }
     this->write_str("R\n");
-    if(this->too_cold_sensor_ != nullptr) {
+    if (this->too_cold_sensor_ != nullptr) {
       this->too_cold_sensor_->publish_state(this->too_cold_);
     }
     this->too_cold_ = false;
@@ -182,7 +182,7 @@ void HydreonRGxxComponent::process_line_() {
   if (is_data_line) {
     std::string::size_type tc = this->buffer_.find("TooCold");
     this->too_cold_ |= tc != std::string::npos;
-    if(this->too_cold_) {
+    if (this->too_cold_) {
       ESP_LOGD(TAG, "Received TooCold");
     }
     for (int i = 0; i < NUM_SENSORS; i++) {
