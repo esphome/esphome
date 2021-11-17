@@ -22,8 +22,6 @@ void MidiInComponent::dump_config() {
 void MidiInComponent::setup() { this->midi_->begin(); }
 
 void MidiInComponent::loop() {
-  this->loop_counter_++;
-
   while (this->midi_->read()) {
     this->last_activity_time_ = millis();
 

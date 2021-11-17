@@ -60,8 +60,6 @@ class MidiInComponent : public Component, public uart::UARTDevice {
 
   void update_connected_binary_sensor_();
   void update_playback_binary_sensor_();
-
-  long loop_counter_;
 };
 
 }  // namespace midi_in
