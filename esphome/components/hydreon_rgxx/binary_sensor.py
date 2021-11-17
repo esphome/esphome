@@ -1,10 +1,11 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from . import hydreon_rgxx_ns, HydreonRGxxComponent
 from esphome.const import (
     CONF_ID,
 )
+
+from . import hydreon_rgxx_ns, HydreonRGxxComponent
 
 CONF_HYDREON_RGXX_ID = "hydreon_rgxx_id"
 CONF_TOO_COLD = "too_cold"

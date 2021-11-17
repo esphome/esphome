@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart, sensor
-from . import RGModel, HydreonRGxxComponent
 from esphome.const import (
     CONF_ID,
     CONF_MODEL,
@@ -9,6 +8,8 @@ from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
     STATE_CLASS_MEASUREMENT,
 )
+
+from . import RGModel, HydreonRGxxComponent
 
 UNIT_INTENSITY = "intensity"
 UNIT_MILLIMETERS = "mm"
