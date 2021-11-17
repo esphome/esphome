@@ -22,39 +22,47 @@ AUTO_LOAD = ["json", "web_server_base"]
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(WebServer),
-        cv.Optional(CONF_PORT, default=80): cv.port,
-        cv.Optional(CONF_VERSION, default=1): cv.one_of(1, 2),
-        cv.Optional(
-            CONF_CSS_URL, default="https://esphome.io/_static/webserver-v1.min.css"
-        ): cv.string,
-        cv.Optional(CONF_CSS_INCLUDE): cv.file_,
-        cv.Optional(
-            CONF_JS_URL, default="https://esphome.io/_static/webserver-v1.min.js"
-        ): cv.string,
-        cv.Optional(CONF_JS_INCLUDE): cv.file_,
-        cv.Optional(CONF_AUTH): cv.Schema(
-            {
-                cv.Required(CONF_USERNAME): cv.All(cv.string_strict, cv.Length(min=1)),
-                cv.Required(CONF_PASSWORD): cv.All(cv.string_strict, cv.Length(min=1)),
-            }
-        ),
-        cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
-            web_server_base.WebServerBase
-        ),
-        cv.Optional(CONF_OTA, default=True): cv.boolean,
-    }
-    # Need to apply Post defaults if not set
-    # if V1
-    # CONF_CSS_URL, default="https://esphome.io/_static/webserver-v1.min.css"
-    # CONF_JS_URL, default="https://esphome.io/_static/webserver-v1.min.js"
-    # if V2
-    # CONF_CSS_URL, default=""
-    # CONF_JS_URL, default="https://esphome.io/_static/v2/www.js"
-    # which version to default ? Do we force 2 on everyone or opt in?
-).extend(cv.COMPONENT_SCHEMA)
+def default_url(value):
+    if value[CONF_VERSION] == 1:
+        if value[CONF_CSS_URL] == "-":
+            value[CONF_CSS_URL] = "https://esphome.io/_static/webserver-v1.min.css"
+        if value[CONF_JS_URL] == "-":
+            value[CONF_JS_URL] = "https://esphome.io/_static/webserver-v1.min.js"
+    if value[CONF_VERSION] == 2:
+        if value[CONF_CSS_URL] == "-":
+            value[CONF_CSS_URL] = ""
+        if value[CONF_JS_URL] == "-":
+            value[CONF_JS_URL] = "https://esphome.io/_static/v2/www.js"
+    return value
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(WebServer),
+            cv.Optional(CONF_PORT, default=80): cv.port,
+            cv.Optional(CONF_VERSION, default=1): cv.one_of(1, 2),
+            cv.Optional(CONF_CSS_URL, default="-"): cv.string,
+            cv.Optional(CONF_CSS_INCLUDE): cv.file_,
+            cv.Optional(CONF_JS_URL, default="-"): cv.string,
+            cv.Optional(CONF_JS_INCLUDE): cv.file_,
+            cv.Optional(CONF_AUTH): cv.Schema(
+                {
+                    cv.Required(CONF_USERNAME): cv.All(
+                        cv.string_strict, cv.Length(min=1)
+                    ),
+                    cv.Required(CONF_PASSWORD): cv.All(
+                        cv.string_strict, cv.Length(min=1)
+                    ),
+                }
+            ),
+            cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
+                web_server_base.WebServerBase
+            ),
+            cv.Optional(CONF_OTA, default=True): cv.boolean,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    default_url,
+)
 
 
 @coroutine_with_priority(40.0)
