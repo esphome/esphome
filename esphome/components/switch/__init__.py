@@ -36,6 +36,7 @@ SwitchTurnOffTrigger = switch_ns.class_(
 
 icon = cv.icon
 
+
 SWITCH_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),

@@ -510,6 +510,12 @@ class DashboardEntry:
         return self.storage.address
 
     @property
+    def web_port(self):
+        if self.storage is None:
+            return None
+        return self.storage.web_port
+
+    @property
     def name(self):
         if self.storage is None:
             return self.filename.replace(".yml", "").replace(".yaml", "")
@@ -569,6 +575,7 @@ class ListDevicesHandler(BaseHandler):
                             "path": entry.path,
                             "comment": entry.comment,
                             "address": entry.address,
+                            "web_port": entry.web_port,
                             "target_platform": entry.target_platform,
                         }
                         for entry in entries
@@ -963,7 +970,7 @@ def start_web_server(args):
         server.add_socket(socket)
     else:
         _LOGGER.info(
-            "Starting dashboard web server on port %s and configuration dir %s...",
+            "Starting dashboard web server on http://0.0.0.0:%s and configuration dir %s...",
             args.port,
             settings.config_dir,
         )
