@@ -42,8 +42,6 @@ class MidiInComponent : public Component, public uart::UARTDevice {
   midi::SerialMIDI<UARTSerialPort> *serial_midi_;
   midi::MidiInterface<midi::SerialMIDI<UARTSerialPort>> *midi_;
 
-  void handleNoteOn(byte channel, byte pitch, byte velocity);
-
  protected:
   uint32_t last_activity_time_;
   uint32_t keys_on_;  // to track number of pressed keys to playback detection

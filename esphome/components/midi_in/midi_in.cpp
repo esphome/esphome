@@ -19,10 +19,6 @@ void MidiInComponent::dump_config() {
   this->check_uart_settings(31250);
 }
 
-void MidiInComponent::handleNoteOn(byte channel, byte pitch, byte velocity) {
-  ESP_LOGD(TAG, "NOTE ON: %#04x (velocity %#04x, channel %i)", pitch, velocity, channel);
-}
-
 void MidiInComponent::setup() { this->midi_->begin(); }
 
 void MidiInComponent::loop() {
