@@ -863,6 +863,7 @@ DEVICE_CLASS_SAFETY = "safety"
 DEVICE_CLASS_SMOKE = "smoke"
 DEVICE_CLASS_SOUND = "sound"
 DEVICE_CLASS_TAMPER = "tamper"
+DEVICE_CLASS_UPDATE = "update"
 DEVICE_CLASS_VIBRATION = "vibration"
 DEVICE_CLASS_WINDOW = "window"
 # device classes of both binary_sensor and sensor component
