@@ -89,9 +89,8 @@ void WebServer::setup() {
   this->base_->init();
 
   this->events_.onConnect([this](AsyncEventSourceClient *client) {
-    // Configure reconnect timeout
+    // Configure reconnect timeout and send config
 
-    [](JsonObject &root) {};
     client->send(json::build_json([this](JsonObject &root) {
                    root["title"] = App.get_name();
                    root["ota"] = this->allow_ota_;
