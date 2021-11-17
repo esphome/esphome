@@ -164,7 +164,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the number state with its value as a JSON string.
-  std::string number_json(number::Number *obj, float value,json_detail send_config);
+  std::string number_json(number::Number *obj, float value, json_detail send_config);
 #endif
 
 #ifdef USE_SELECT
@@ -173,7 +173,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the number state with its value as a JSON string.
-  std::string select_json(select::Select *obj, const std::string &value, json_detail send_config );
+  std::string select_json(select::Select *obj, const std::string &value, json_detail send_config);
 #endif
 
   /// Override the web handler's canHandle method.

@@ -183,13 +183,13 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   const std::string &title = App.get_name();
   // All content is controlled and created by user - so allowing all origins is fine here.
   stream->addHeader("Access-Control-Allow-Origin", "*");
-#if WEBSERVER_VERSION == 1  
+#if WEBSERVER_VERSION == 1
   stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><meta "
                   "name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));
   stream->print(title.c_str());
   stream->print(F("</title>"));
 #else
- stream->print(F("<!DOCTYPE html><html><head><link rel=icon href=data:>"));
+  stream->print(F("<!DOCTYPE html><html><head><link rel=icon href=data:>"));
 #endif
 #ifdef WEBSERVER_CSS_INCLUDE
   stream->print(F("<link rel=\"stylesheet\" href=\"/0.css\">"));
