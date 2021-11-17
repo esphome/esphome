@@ -77,6 +77,8 @@ async def to_code(config):
 
     cg.add_global(midi_ns.using)
 
+    cg.add_library("MIDI Library", "5.0.2")
+
     uart_component = await cg.get_variable(config[CONF_UART_ID])
     var = cg.new_Pvariable(config[CONF_ID], uart_component)
 

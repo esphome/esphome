@@ -21,6 +21,7 @@ class MidiInComponent : public Component, public uart::UARTDevice {
 
   void dump_config() override;
 
+  void setup() override;
   void loop() override;
 
   void add_on_voice_message_callback(std::function<void(MidiVoiceMessage)> &&callback) {
@@ -37,6 +38,13 @@ class MidiInComponent : public Component, public uart::UARTDevice {
   std::vector<uint8_t> note_velocities = std::vector<uint8_t>(128, 0);
 
  protected:
+  UARTSerialPort *serial_port_;
+  midi::SerialMIDI<UARTSerialPort> *serial_midi_;
+  midi::MidiInterface<midi::SerialMIDI<UARTSerialPort>> *midi_;
+
+  void handleNoteOn(byte channel, byte pitch, byte velocity);
+
+ protected:
   uint32_t last_activity_time_;
   uint32_t keys_on_;  // to track number of pressed keys to playback detection
 
@@ -47,7 +55,6 @@ class MidiInComponent : public Component, public uart::UARTDevice {
   CallbackManager<void(MidiSystemMessage)> system_message_callback_{};
 
  private:
-  void process_system_message_(uint8_t command);
   void process_controller_message_(const MidiVoiceMessage &msg);
 
   void all_notes_off_();
@@ -55,6 +62,8 @@ class MidiInComponent : public Component, public uart::UARTDevice {
 
   void update_connected_binary_sensor_();
   void update_playback_binary_sensor_();
+
+  long loop_counter_;
 };
 
 }  // namespace midi_in
