@@ -71,8 +71,11 @@ async def to_code(config):
         pos = 0
         for frameIndex in range(frames):
             image.seek(frameIndex)
+            if CONF_RESIZE in config:
+                image.thumbnail(config[CONF_RESIZE])
             frame = image.convert("RGB")
             pixels = list(frame.getdata())
+            assert len(pixels) == height * width
             for pix in pixels:
                 data[pos] = pix[0]
                 pos += 1
