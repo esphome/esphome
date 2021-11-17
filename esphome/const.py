@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2021.11.0"
+__version__ = "2021.11.1"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -883,6 +883,7 @@ DEVICE_CLASS_SAFETY = "safety"
 DEVICE_CLASS_SMOKE = "smoke"
 DEVICE_CLASS_SOUND = "sound"
 DEVICE_CLASS_TAMPER = "tamper"
+DEVICE_CLASS_UPDATE = "update"
 DEVICE_CLASS_VIBRATION = "vibration"
 DEVICE_CLASS_WINDOW = "window"
 # device classes of both binary_sensor and sensor component
