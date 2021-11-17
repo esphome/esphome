@@ -4,9 +4,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/log.h"
 #include <MIDI.h>
-// #include <midi_Defs.h>
 
 namespace esphome { 
 namespace midi_in {
@@ -20,42 +18,22 @@ class UARTSerialPort {
       uart_ = uart;
     }
 
-    void begin(const long baudRate) {
-      ESP_LOGD("UARTSerialPort", "begin(%i)", baudRate);
-    }
-    void end() {
-      ESP_LOGD("UARTSerialPort", "end");
-    }
-    bool beginTransmission(midi::MidiType)
-    {
-      return true;
-    };
+    void begin(const long baudRate) {}
+    void end() {}
 
-    void write(byte value)
+    void write(uint8_t value)
     {
       uart_->write(value);
     };
 
-    void endTransmission()
+    uint8_t read()
     {
-    };
-
-    byte read()
-    {
-      byte result = uart_->read();
-      ESP_LOGVV("UARTSerialPort", "read: %#04x", result);
-      return result;
+      return uart_->read();
     };
 
     unsigned available()
     {
-      if (uart_->available()) {
-        ESP_LOGV("UARTSerialPort", "available");
-        return true;
-      } else {
-        ESP_LOGV("UARTSerialPort", "not available");
-        return false;
-      }
+      return uart_->available();
     };
 
   private:
