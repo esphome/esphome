@@ -1312,6 +1312,7 @@ fingerprint_grow:
 dsmr:
   decryption_key: 00112233445566778899aabbccddeeff
   uart_id: uart6
+  max_telegram_length: 1000
 
 daly_bms:
   update_interval: 20s

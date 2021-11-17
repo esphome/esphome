@@ -72,7 +72,6 @@ esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/i2c/* @esphome/core
-esphome/components/improv/* @jesserockz
 esphome/components/improv_serial/* @esphome/core
 esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate6/* @jesserockz
