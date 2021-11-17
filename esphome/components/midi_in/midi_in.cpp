@@ -7,9 +7,9 @@ namespace midi_in {
 static const char *const TAG = "midi_in";
 
 MidiInComponent::MidiInComponent(uart::UARTComponent *uart) : uart::UARTDevice(uart) {
-    this->serial_port_ = new UARTSerialPort(this);
-    this->serial_midi_ = new midi::SerialMIDI<UARTSerialPort>(*this->serial_port_);
-    this->midi_ = new midi::MidiInterface<midi::SerialMIDI<UARTSerialPort>>(*this->serial_midi_);
+  this->serial_port_ = new UARTSerialPort(this);
+  this->serial_midi_ = new midi::SerialMIDI<UARTSerialPort>(*this->serial_port_);
+  this->midi_ = new midi::MidiInterface<midi::SerialMIDI<UARTSerialPort>>(*this->serial_midi_);
 }
 
 void MidiInComponent::dump_config() {
@@ -19,18 +19,15 @@ void MidiInComponent::dump_config() {
   this->check_uart_settings(31250);
 }
 
-void MidiInComponent::handleNoteOn(byte channel, byte pitch, byte velocity)
-{
+void MidiInComponent::handleNoteOn(byte channel, byte pitch, byte velocity) {
   ESP_LOGD(TAG, "NOTE ON: %#04x (velocity %#04x, channel %i)", pitch, velocity, channel);
 }
 
-void MidiInComponent::setup() {
-  this->midi_->begin();
-}
+void MidiInComponent::setup() { this->midi_->begin(); }
 
 void MidiInComponent::loop() {
   this->loop_counter_++;
-  
+
   while (this->midi_->read()) {
     this->last_activity_time_ = millis();
 
@@ -39,39 +36,39 @@ void MidiInComponent::loop() {
                                 .param1 = static_cast<uint8_t>(this->midi_->getData1()),
                                 .param2 = static_cast<uint8_t>(this->midi_->getData2())};
 
-    switch(this->midi_->getType()) {
-        case midi::MidiType::NoteOff:
-          // ESP_LOGD(TAG, "NOTE OFF: %#04x (channel %i)", msg.param1, msg.channel);
+    switch (this->midi_->getType()) {
+      case midi::MidiType::NoteOff:
+        // ESP_LOGD(TAG, "NOTE OFF: %#04x (channel %i)", msg.param1, msg.channel);
+        if (this->note_velocities[msg.param1] > 0) {
+          this->note_velocities[msg.param1] = 0;
+          this->keys_on_--;
+        }
+        this->voice_message_callback_.call(msg);
+        break;
+      case midi::MidiType::NoteOn:
+        // ESP_LOGD(TAG, "NOTE ON: %#04x (velocity %#04x, channel %i)", msg.param1, msg.param2, msg.channel);
+        if (msg.param2 > 0) {
+          if (this->note_velocities[msg.param1] == 0) {
+            this->keys_on_++;
+          }
+          this->note_velocities[msg.param1] = msg.param2;
+        } else {
+          // this is actualy NOTE OFF
           if (this->note_velocities[msg.param1] > 0) {
             this->note_velocities[msg.param1] = 0;
             this->keys_on_--;
           }
-          this->voice_message_callback_.call(msg);
-          break;
-       case midi::MidiType::NoteOn:
-          // ESP_LOGD(TAG, "NOTE ON: %#04x (velocity %#04x, channel %i)", msg.param1, msg.param2, msg.channel);
-          if (msg.param2 > 0) {
-            if (this->note_velocities[msg.param1] == 0) {
-              this->keys_on_++;
-            }
-            this->note_velocities[msg.param1] = msg.param2;
-          } else {
-            // this is actualy NOTE OFF
-            if (this->note_velocities[msg.param1] > 0) {
-              this->note_velocities[msg.param1] = 0;
-              this->keys_on_--;
-            }
-          }
-          this->voice_message_callback_.call(msg);
-          break;
-        case midi::MidiType::ControlChange:
-          // MIDI controller message tells a MIDI device that at a certain time the value of some controller should
-          // change. https://www.recordingblogs.com/wiki/midi-controller-message
-          this->process_controller_message_(msg);
-          this->voice_message_callback_.call(msg);
-          break;
-        default:
-          break;
+        }
+        this->voice_message_callback_.call(msg);
+        break;
+      case midi::MidiType::ControlChange:
+        // MIDI controller message tells a MIDI device that at a certain time the value of some controller should
+        // change. https://www.recordingblogs.com/wiki/midi-controller-message
+        this->process_controller_message_(msg);
+        this->voice_message_callback_.call(msg);
+        break;
+      default:
+        break;
     }
   }
   //   if ((byte1 & MASK_COMMAND) == midi::MidiType::SystemExclusive) {
@@ -81,7 +78,6 @@ void MidiInComponent::loop() {
   //     auto msg = MidiVoiceMessage{.command = static_cast<midi::MidiType>(byte1 & MASK_COMMAND),
   //                                 .channel = static_cast<uint8_t>(byte1 & MASK_CHANNEL)};
 
- 
   //       case midi::MidiType::AfterTouchPoly:
   //         msg.param1 = read();
   //         msg.param2 = read();

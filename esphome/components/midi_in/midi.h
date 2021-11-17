@@ -6,38 +6,27 @@
 #include "esphome/core/helpers.h"
 #include <MIDI.h>
 
-namespace esphome { 
+namespace esphome {
 namespace midi_in {
 
 const uint8_t MASK_COMMAND = 0xF0;
 const uint8_t MASK_CHANNEL = 0x0F;
 
 class UARTSerialPort {
-  public:
-    UARTSerialPort(uart::UARTDevice *uart) {
-      uart_ = uart;
-    }
+ public:
+  UARTSerialPort(uart::UARTDevice *uart) { uart_ = uart; }
 
-    void begin(const long baudRate) {}
-    void end() {}
+  void begin(const long baudRate) {}
+  void end() {}
 
-    void write(uint8_t value)
-    {
-      uart_->write(value);
-    };
+  void write(uint8_t value) { uart_->write(value); };
 
-    uint8_t read()
-    {
-      return uart_->read();
-    };
+  uint8_t read() { return uart_->read(); };
 
-    unsigned available()
-    {
-      return uart_->available();
-    };
+  unsigned available() { return uart_->available(); };
 
-  private:
-    uart::UARTDevice *uart_;
+ private:
+  uart::UARTDevice *uart_;
 };
 
 struct MidiVoiceMessage {
