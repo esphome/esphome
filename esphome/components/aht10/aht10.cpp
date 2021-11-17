@@ -66,6 +66,7 @@ void AHT10Component::update() {
     this->status_set_warning();
     return;
   }
+  delayMicroseconds(40);
   uint8_t data[6];
   uint8_t delay_ms = AHT10_DEFAULT_DELAY;
   if (this->humidity_sensor_ != nullptr)
