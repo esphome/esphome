@@ -3,6 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import (
     CONF_ID,
+    CONF_DEVICE_CLASS,
+    DEVICE_CLASS_COLD,
 )
 
 from . import hydreon_rgxx_ns, HydreonRGxxComponent
@@ -19,7 +21,14 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(HydreonRGxxBinarySensor),
         cv.GenerateID(CONF_HYDREON_RGXX_ID): cv.use_id(HydreonRGxxComponent),
-        cv.Optional(CONF_TOO_COLD): binary_sensor.BINARY_SENSOR_SCHEMA,
+        cv.Optional(CONF_TOO_COLD): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+            {
+                cv.Optional(
+                    CONF_DEVICE_CLASS,
+                    default=DEVICE_CLASS_COLD,
+                ): binary_sensor.device_class
+            }
+        ),
     }
 )
 
@@ -28,7 +37,6 @@ async def to_code(config):
     main_sensor = await cg.get_variable(config[CONF_HYDREON_RGXX_ID])
     bin_component = cg.new_Pvariable(config[CONF_ID], main_sensor)
     await cg.register_component(bin_component, config)
-
     if CONF_TOO_COLD in config:
         tc = await binary_sensor.new_binary_sensor(config[CONF_TOO_COLD])
         cg.add(main_sensor.set_too_cold_sensor(tc))
