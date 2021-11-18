@@ -71,9 +71,6 @@ CONFIG_SCHEMA = cv.Schema(
             DEVICE_CLASS_ENERGY,
             STATE_CLASS_TOTAL_INCREASING,
         ),
-        cv.Optional("electricity_tariff"): sensor.sensor_schema(
-            UNIT_EMPTY, ICON_EMPTY, 3, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
-        ),
         cv.Optional("total_imported_energy"): sensor.sensor_schema(
             UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
             ICON_EMPTY,
