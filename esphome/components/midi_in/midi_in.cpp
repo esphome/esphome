@@ -102,23 +102,24 @@ void MidiInComponent::process_controller_message_(const MidiVoiceMessage &msg) {
 void MidiInComponent::log_message_(const MidiVoiceMessage &msg) {
   const LogString *midi_type_s = midi_type_to_string(msg.command);
   switch (msg.command) {
-  case midi::MidiType::Tick:
-  case midi::MidiType::ActiveSensing:
-    ESP_LOGVV(TAG, "%s", LOG_STR_ARG(midi_type_s));
-    break;
-  case midi::MidiType::ControlChange: {
-    const LogString *midi_control_s = midi_controller_to_string(static_cast<midi::MidiControlChangeNumber>(msg.param1));
-    ESP_LOGV(TAG, "%s[%i]: %#04x", LOG_STR_ARG(midi_control_s), msg.channel, msg.param2);
-    break;
-  }
-  default:
-    if (this->midi_->isChannelMessage(msg.command)) {
-      ESP_LOGV(TAG, "%s[%i]: %#04x %#04x", LOG_STR_ARG(midi_type_s), msg.channel, msg.param1, msg.param2);
-    } else {
-      ESP_LOGV(TAG, "%s: %#04x %#04x", msg.channel, LOG_STR_ARG(midi_type_s), msg.param1, msg.param2);
+    case midi::MidiType::Tick:
+    case midi::MidiType::ActiveSensing:
+      ESP_LOGVV(TAG, "%s", LOG_STR_ARG(midi_type_s));
+      break;
+    case midi::MidiType::ControlChange: {
+      const LogString *midi_control_s =
+          midi_controller_to_string(static_cast<midi::MidiControlChangeNumber>(msg.param1));
+      ESP_LOGV(TAG, "%s[%i]: %#04x", LOG_STR_ARG(midi_control_s), msg.channel, msg.param2);
+      break;
     }
-    break;
-  }   
+    default:
+      if (this->midi_->isChannelMessage(msg.command)) {
+        ESP_LOGV(TAG, "%s[%i]: %#04x %#04x", LOG_STR_ARG(midi_type_s), msg.channel, msg.param1, msg.param2);
+      } else {
+        ESP_LOGV(TAG, "%s: %#04x %#04x", LOG_STR_ARG(midi_type_s), msg.param1, msg.param2);
+      }
+      break;
+  }
 }
 
 void MidiInComponent::all_notes_off_() {
@@ -136,21 +137,21 @@ void MidiInComponent::update_connected_binary_sensor_() {
   if (this->connected_binary_sensor_) {
     uint32_t millis_since_last_active_sense = millis() - this->last_activity_time_;
     // normal active sense interval is 300ms
-    if (millis_since_last_active_sense >= 500) {      
+    if (millis_since_last_active_sense >= 500) {
       // disconnected
       this->reset_controllers_();
       this->all_notes_off_();
       if (this->connected_binary_sensor_->state) {
         this->connected_binary_sensor_->publish_state(false);
         // this is needed to stop multiple publish calls, because publish is delayed:
-        this->connected_binary_sensor_->state = false;  
+        this->connected_binary_sensor_->state = false;
       }
     } else {
       // connected
       if (!this->connected_binary_sensor_->state) {
         this->connected_binary_sensor_->publish_state(true);
         // this is needed to stop multiple publish calls, because publish is delayed:
-        this->connected_binary_sensor_->state = true;  
+        this->connected_binary_sensor_->state = true;
       }
     }
   }
