@@ -14,7 +14,7 @@ namespace midi_in {
 
 class UARTSerialPort {
  public:
-  UARTSerialPort(uart::UARTDevice *uart): uart_(uart) {}
+  UARTSerialPort(uart::UARTDevice *uart) : uart_(uart) {}
 
   void begin(const int32_t baud_rate) {}
 
