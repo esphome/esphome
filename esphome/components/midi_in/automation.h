@@ -26,4 +26,4 @@ class MidiInOnSystemMessageTrigger : public Trigger<MidiSystemMessage> {
 }  // namespace midi_in
 }  // namespace esphome
 
-#endif // USE_ARDUINO
+#endif  // USE_ARDUINO
