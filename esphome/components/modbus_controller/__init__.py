@@ -1,4 +1,4 @@
-import hashlib
+import zlib
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import modbus
@@ -168,10 +168,7 @@ def modbus_calc_properties(config):
             value = config[CONF_NAME]
             if isinstance(value, str):
                 value = value.encode()
-            hash_ = int.from_bytes(
-                hashlib.shake_128(value).digest(2), "little"
-            )  # pylint: disable=too-many-arguments
-            config[CONF_ADDRESS] = hash_
+            config[CONF_ADDRESS] = zlib.crc32(value) % 2 ** 16
         config[CONF_REGISTER_TYPE] = ModbusRegisterType.CUSTOM
         config[CONF_FORCE_NEW_RANGE] = True
     return byte_offset, reg_count
