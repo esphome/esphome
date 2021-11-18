@@ -6,13 +6,11 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include <MIDI.h>
 
 namespace esphome {
 namespace midi_in {
-
-const uint8_t MASK_COMMAND = 0xF0;
-const uint8_t MASK_CHANNEL = 0x0F;
 
 class UARTSerialPort {
  public:
@@ -42,6 +40,13 @@ struct MidiVoiceMessage {
 struct MidiSystemMessage {
   midi::MidiType command;
 };
+
+/// Convert the given MidiType to a human-readable string.
+const LogString *midi_type_to_string(midi::MidiType type);
+
+/// Convert the given MidiControlChangeNumber to a human-readable string.
+const LogString *midi_controller_to_string(midi::MidiControlChangeNumber controller);
+
 }  // namespace midi_in
 }  // namespace esphome
 
