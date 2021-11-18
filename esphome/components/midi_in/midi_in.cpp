@@ -9,9 +9,9 @@ namespace midi_in {
 static const char *const TAG = "midi_in";
 
 MidiInComponent::MidiInComponent(uart::UARTComponent *uart) : uart::UARTDevice(uart) {
-  this->serial_port_ = new UARTSerialPort(this);
-  this->serial_midi_ = new midi::SerialMIDI<UARTSerialPort>(*this->serial_port_);
-  this->midi_ = new midi::MidiInterface<midi::SerialMIDI<UARTSerialPort>>(*this->serial_midi_);
+  this->serial_port_ = make_unique<UARTSerialPort>(this);
+  this->serial_midi_ = make_unique<midi::SerialMIDI<UARTSerialPort>>(*this->serial_port_);
+  this->midi_ = make_unique<midi::MidiInterface<midi::SerialMIDI<UARTSerialPort>>>(*this->serial_midi_);
 }
 
 void MidiInComponent::dump_config() {

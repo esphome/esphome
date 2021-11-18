@@ -40,9 +40,9 @@ class MidiInComponent : public Component, public uart::UARTDevice {
   std::vector<uint8_t> note_velocities = std::vector<uint8_t>(128, 0);
 
  protected:
-  UARTSerialPort *serial_port_;
-  midi::SerialMIDI<UARTSerialPort> *serial_midi_;
-  midi::MidiInterface<midi::SerialMIDI<UARTSerialPort>> *midi_;
+  std::unique_ptr<UARTSerialPort> serial_port_;
+  std::unique_ptr<midi::SerialMIDI<UARTSerialPort>> serial_midi_;
+  std::unique_ptr<midi::MidiInterface<midi::SerialMIDI<UARTSerialPort>>> midi_;
 
  protected:
   uint32_t last_activity_time_;
