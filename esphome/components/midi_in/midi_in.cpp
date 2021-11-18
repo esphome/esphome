@@ -33,9 +33,9 @@ void MidiInComponent::loop() {
 
     if (this->midi_->isChannelMessage(message_type)) {
       auto msg = MidiChannelMessage{.type = message_type,
-                                  .channel = static_cast<uint8_t>(this->midi_->getChannel()),
-                                  .data1 = static_cast<uint8_t>(this->midi_->getData1()),
-                                  .data2 = static_cast<uint8_t>(this->midi_->getData2())};
+                                    .channel = static_cast<uint8_t>(this->midi_->getChannel()),
+                                    .data1 = static_cast<uint8_t>(this->midi_->getData1()),
+                                    .data2 = static_cast<uint8_t>(this->midi_->getData2())};
 
       switch (message_type) {
         case midi::MidiType::NoteOff:
@@ -67,7 +67,7 @@ void MidiInComponent::loop() {
 
       this->channel_message_callback_.call(msg);
     } else {
-      this->system_message_callback_.call(MidiSystemMessage{.type = message_type});      
+      this->system_message_callback_.call(MidiSystemMessage{.type = message_type});
     }
   }
 
@@ -119,7 +119,8 @@ void MidiInComponent::log_message_(midi::MidiType type) {
     }
     default:
       if (this->midi_->isChannelMessage(type)) {
-        ESP_LOGV(TAG, "%s[%i]: %#04x %#04x", LOG_STR_ARG(midi_type_s), this->midi_->getChannel(), this->midi_->getData1(), this->midi_->getData2());
+        ESP_LOGV(TAG, "%s[%i]: %#04x %#04x", LOG_STR_ARG(midi_type_s), this->midi_->getChannel(),
+                 this->midi_->getData1(), this->midi_->getData2());
       } else {
         ESP_LOGV(TAG, "%s: %#04x %#04x", LOG_STR_ARG(midi_type_s), this->midi_->getData1(), this->midi_->getData2());
       }
