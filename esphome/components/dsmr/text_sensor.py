@@ -16,9 +16,9 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
             }
         ),
-        cv.Optional("electricity_tariff"):text_sensor.TEXT_SENSOR_SCHEMA.extend(
+        cv.Optional("electricity_tariff"): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
-              cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
+                cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
             }
         ),
         cv.Optional("p1_version"): text_sensor.TEXT_SENSOR_SCHEMA.extend(
