@@ -18,7 +18,8 @@ class UARTSerialPort {
  public:
   UARTSerialPort(uart::UARTDevice *uart) { uart_ = uart; }
 
-  void begin(const int32 baud_rate) {}
+  void begin(const int32_t baud_rate) {}
+  
   void end() {}
 
   void write(uint8_t value) { uart_->write(value); };
