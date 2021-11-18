@@ -1323,14 +1323,14 @@ midi_in:
     on_voice_message:
       - logger.log:
           format: "%i: %#04x (%#04x %#04x)"
-          args: [ 'x.channel', 'x.command', 'x.param1', 'x.param2' ]
+          args: [ 'x.channel', 'x.type', 'x.data1', 'x.data2' ]
       - lambda: |-
-          if (x.command == midi::MidiType::ProgramChange) {
-            ESP_LOGD("midi_in", "PATCH CHANGE: %#02x (channel %i)", x.param1, x.channel);
+          if (x.type == midi::MidiType::ProgramChange) {
+            ESP_LOGD("midi_in", "PROGRAM CHANGE: %#02x (channel %i)", x.data1, x.channel);
           }
     on_system_message:
       - lambda: |-
-          if (x.command == midi::MidiType::SystemReset) {
+          if (x.type == midi::MidiType::SystemReset) {
             ESP_LOGD("midi_in", "RESET");
           }
     connected:

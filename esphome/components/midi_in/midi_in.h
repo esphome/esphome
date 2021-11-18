@@ -26,8 +26,8 @@ class MidiInComponent : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
 
-  void add_on_voice_message_callback(std::function<void(MidiVoiceMessage)> &&callback) {
-    this->voice_message_callback_.add(std::move(callback));
+  void add_on_voice_message_callback(std::function<void(MidiChannelMessage)> &&callback) {
+    this->channel_message_callback_.add(std::move(callback));
   }
   void add_on_system_message_callback(std::function<void(MidiSystemMessage)> &&callback) {
     this->system_message_callback_.add(std::move(callback));
@@ -51,12 +51,12 @@ class MidiInComponent : public Component, public uart::UARTDevice {
   binary_sensor::BinarySensor *connected_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *playback_binary_sensor_{nullptr};
 
-  CallbackManager<void(MidiVoiceMessage)> voice_message_callback_{};
+  CallbackManager<void(MidiChannelMessage)> channel_message_callback_{};
   CallbackManager<void(MidiSystemMessage)> system_message_callback_{};
 
  private:
-  void process_controller_message_(const MidiVoiceMessage &msg);
-  void log_message_(const MidiVoiceMessage &msg);
+  void process_controller_message_(const MidiChannelMessage &msg);
+  void log_message_(midi::MidiType type);
 
   void all_notes_off_();
   void reset_controllers_();

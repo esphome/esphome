@@ -9,10 +9,10 @@
 namespace esphome {
 namespace midi_in {
 
-class MidiInOnVoiceMessageTrigger : public Trigger<MidiVoiceMessage> {
+class MidiInOnChannelMessageTrigger : public Trigger<MidiChannelMessage> {
  public:
-  MidiInOnVoiceMessageTrigger(MidiInComponent *parent) {
-    parent->add_on_voice_message_callback([this](MidiVoiceMessage msg) { this->trigger(msg); });
+  MidiInOnChannelMessageTrigger(MidiInComponent *parent) {
+    parent->add_on_voice_message_callback([this](MidiChannelMessage msg) { this->trigger(msg); });
   }
 };
 

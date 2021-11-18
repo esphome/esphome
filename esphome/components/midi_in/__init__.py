@@ -12,12 +12,12 @@ midi_ns = cg.esphome_ns.namespace("midi_in")
 
 MidiInComponent = midi_ns.class_("MidiInComponent", cg.Component, uart.UARTDevice)
 
-MidiVoiceMessage = midi_ns.class_("MidiVoiceMessage")
+MidiChannelMessage = midi_ns.class_("MidiChannelMessage")
 
 MidiSystemMessage = midi_ns.class_("MidiSystemMessage")
 
-MidiInOnVoiceMessageTrigger = midi_ns.class_(
-    "MidiInOnVoiceMessageTrigger", automation.Trigger.template()
+MidiInOnChannelMessageTrigger = midi_ns.class_(
+    "MidiInOnChannelMessageTrigger", automation.Trigger.template()
 )
 
 MidiInOnSystemMessageTrigger = midi_ns.class_(
@@ -26,7 +26,7 @@ MidiInOnSystemMessageTrigger = midi_ns.class_(
 
 MULTI_CONF = True
 
-CONF_ON_VOICE_MESSAGE = "on_voice_message"
+CONF_ON_CHANNEL_MESSAGE = "on_channel_message"
 CONF_ON_SYSTEM_MESSAGE = "on_system_message"
 CONF_CONNECTED = "connected"
 CONF_PLAYBACK = "playback"
@@ -35,10 +35,10 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MidiInComponent),
-            cv.Optional(CONF_ON_VOICE_MESSAGE): automation.validate_automation(
+            cv.Optional(CONF_ON_CHANNEL_MESSAGE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        MidiInOnVoiceMessageTrigger
+                        MidiInOnChannelMessageTrigger
                     ),
                 }
             ),
@@ -83,11 +83,11 @@ async def to_code(config):
     uart_component = await cg.get_variable(config[CONF_UART_ID])
     var = cg.new_Pvariable(config[CONF_ID], uart_component)
 
-    if CONF_ON_VOICE_MESSAGE in config:
-        for on_message in config.get(CONF_ON_VOICE_MESSAGE, []):
+    if CONF_ON_CHANNEL_MESSAGE in config:
+        for on_message in config.get(CONF_ON_CHANNEL_MESSAGE, []):
             message_trigger = cg.new_Pvariable(on_message[CONF_TRIGGER_ID], var)
             await automation.build_automation(
-                message_trigger, [(MidiVoiceMessage, "x")], on_message
+                message_trigger, [(MidiChannelMessage, "x")], on_message
             )
 
     if CONF_ON_SYSTEM_MESSAGE in config:

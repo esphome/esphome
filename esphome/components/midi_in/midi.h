@@ -30,15 +30,15 @@ class UARTSerialPort {
   uart::UARTDevice *uart_;
 };
 
-struct MidiVoiceMessage {
-  midi::MidiType command;
+struct MidiChannelMessage {
+  midi::MidiType type;
   uint8_t channel;
-  uint8_t param1;
-  uint8_t param2;
+  uint8_t data1;
+  uint8_t data2;
 };
 
 struct MidiSystemMessage {
-  midi::MidiType command;
+  midi::MidiType type;
 };
 
 /// Convert the given MidiType to a human-readable string.

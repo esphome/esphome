@@ -27,59 +27,64 @@ void MidiInComponent::loop() {
   while (this->midi_->read()) {
     this->last_activity_time_ = millis();
 
-    auto msg = MidiVoiceMessage{.command = this->midi_->getType(),
-                                .channel = static_cast<uint8_t>(this->midi_->getChannel()),
-                                .param1 = static_cast<uint8_t>(this->midi_->getData1()),
-                                .param2 = static_cast<uint8_t>(this->midi_->getData2())};
+    midi::MidiType message_type = this->midi_->getType();
 
-    switch (msg.command) {
-      case midi::MidiType::NoteOff:
-        if (this->note_velocities[msg.param1] > 0) {
-          this->note_velocities[msg.param1] = 0;
-          this->keys_on_--;
-        }
-        this->voice_message_callback_.call(msg);
-        break;
-      case midi::MidiType::NoteOn:
-        if (msg.param2 > 0) {
-          if (this->note_velocities[msg.param1] == 0) {
-            this->keys_on_++;
-          }
-          this->note_velocities[msg.param1] = msg.param2;
-        } else {
-          // this is actualy NOTE OFF
-          if (this->note_velocities[msg.param1] > 0) {
-            this->note_velocities[msg.param1] = 0;
+    this->log_message_(message_type);
+
+    if (this->midi_->isChannelMessage(message_type)) {
+      auto msg = MidiChannelMessage{.type = message_type,
+                                  .channel = static_cast<uint8_t>(this->midi_->getChannel()),
+                                  .data1 = static_cast<uint8_t>(this->midi_->getData1()),
+                                  .data2 = static_cast<uint8_t>(this->midi_->getData2())};
+
+      switch (message_type) {
+        case midi::MidiType::NoteOff:
+          if (this->note_velocities[msg.data1] > 0) {
+            this->note_velocities[msg.data1] = 0;
             this->keys_on_--;
           }
-        }
-        this->voice_message_callback_.call(msg);
-        break;
-      case midi::MidiType::ControlChange:
-        this->process_controller_message_(msg);
-        this->voice_message_callback_.call(msg);
-        break;
-      default:
-        break;
-    }
+          break;
+        case midi::MidiType::NoteOn:
+          if (msg.data2 > 0) {
+            if (this->note_velocities[msg.data1] == 0) {
+              this->keys_on_++;
+            }
+            this->note_velocities[msg.data1] = msg.data2;
+          } else {
+            // this is actualy NOTE OFF
+            if (this->note_velocities[msg.data1] > 0) {
+              this->note_velocities[msg.data1] = 0;
+              this->keys_on_--;
+            }
+          }
+          break;
+        case midi::MidiType::ControlChange:
+          this->process_controller_message_(msg);
+          break;
+        default:
+          break;
+      }
 
-    this->log_message_(msg);
+      this->channel_message_callback_.call(msg);
+    } else {
+      this->system_message_callback_.call(MidiSystemMessage{.type = message_type});      
+    }
   }
 
   this->update_connected_binary_sensor_();
   this->update_playback_binary_sensor_();
 }
 
-void MidiInComponent::process_controller_message_(const MidiVoiceMessage &msg) {
-  switch (msg.param1) {
+void MidiInComponent::process_controller_message_(const MidiChannelMessage &msg) {
+  switch (msg.data1) {
     case midi::MidiControlChangeNumber::Sustain:
-      this->sustain_pedal = msg.param2;
+      this->sustain_pedal = msg.data2;
       break;
     case midi::MidiControlChangeNumber::Sostenuto:
-      this->mid_pedal = msg.param2;
+      this->mid_pedal = msg.data2;
       break;
     case midi::MidiControlChangeNumber::SoftPedal:
-      this->soft_pedal = msg.param2;
+      this->soft_pedal = msg.data2;
       break;
     case midi::MidiControlChangeNumber::AllSoundOff:
       this->all_notes_off_();
@@ -99,24 +104,24 @@ void MidiInComponent::process_controller_message_(const MidiVoiceMessage &msg) {
   }
 }
 
-void MidiInComponent::log_message_(const MidiVoiceMessage &msg) {
-  const LogString *midi_type_s = midi_type_to_string(msg.command);
-  switch (msg.command) {
+void MidiInComponent::log_message_(midi::MidiType type) {
+  const LogString *midi_type_s = midi_type_to_string(type);
+  switch (type) {
     case midi::MidiType::Tick:
     case midi::MidiType::ActiveSensing:
       ESP_LOGVV(TAG, "%s", LOG_STR_ARG(midi_type_s));
       break;
     case midi::MidiType::ControlChange: {
       const LogString *midi_control_s =
-          midi_controller_to_string(static_cast<midi::MidiControlChangeNumber>(msg.param1));
-      ESP_LOGV(TAG, "%s[%i]: %#04x", LOG_STR_ARG(midi_control_s), msg.channel, msg.param2);
+          midi_controller_to_string(static_cast<midi::MidiControlChangeNumber>(this->midi_->getData1()));
+      ESP_LOGV(TAG, "%s[%i]: %#04x", LOG_STR_ARG(midi_control_s), this->midi_->getChannel(), this->midi_->getData2());
       break;
     }
     default:
-      if (this->midi_->isChannelMessage(msg.command)) {
-        ESP_LOGV(TAG, "%s[%i]: %#04x %#04x", LOG_STR_ARG(midi_type_s), msg.channel, msg.param1, msg.param2);
+      if (this->midi_->isChannelMessage(type)) {
+        ESP_LOGV(TAG, "%s[%i]: %#04x %#04x", LOG_STR_ARG(midi_type_s), this->midi_->getChannel(), this->midi_->getData1(), this->midi_->getData2());
       } else {
-        ESP_LOGV(TAG, "%s: %#04x %#04x", LOG_STR_ARG(midi_type_s), msg.param1, msg.param2);
+        ESP_LOGV(TAG, "%s: %#04x %#04x", LOG_STR_ARG(midi_type_s), this->midi_->getData1(), this->midi_->getData2());
       }
       break;
   }
