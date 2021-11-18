@@ -22,7 +22,7 @@ class AQICalculator : public AbstractAQICalculator {
   int pm2_5_calculation_grid_[AMOUNT_OF_LEVELS][2] = {{0, 12}, {13, 35}, {36, 55}, {56, 150}, {151, 250}, {251, 500}};
 
   int pm10_0_concentration_breakpoints_[AMOUNT_OF_LEVELS][2] = {{0, 54},    {55, 154},  {155, 254},
-                                                       {255, 354}, {355, 424}, {425, 604}};
+                                                                {255, 354}, {355, 424}, {425, 604}};
 
   int calculate_index_(uint16_t value, int concentration_breakpoints[AMOUNT_OF_LEVELS][2]) {
     int breakpoint_index = get_breakpoint_index_(value, concentration_breakpoints);
