@@ -62,6 +62,10 @@ async def to_code(config):
             image.seek(frameIndex)
             frame = image.convert("L", dither=Image.NONE)
             pixels = list(frame.getdata())
+            if len(pixels) != height * width:
+                raise core.EsphomeError(
+                    f"Unexpected number of pixels in frame {frameIndex}: ({len(pixels)} != {height*width}"
+                )
             for pix in pixels:
                 data[pos] = pix
                 pos += 1
@@ -75,7 +79,10 @@ async def to_code(config):
                 image.thumbnail(config[CONF_RESIZE])
             frame = image.convert("RGB")
             pixels = list(frame.getdata())
-            assert len(pixels) == height * width
+            if len(pixels) != height * width:
+                raise core.EsphomeError(
+                    f"Unexpected number of pixels in frame {frameIndex}: ({len(pixels)} != {height*width}"
+                )
             for pix in pixels:
                 data[pos] = pix[0]
                 pos += 1
