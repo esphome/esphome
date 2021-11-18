@@ -461,7 +461,7 @@ text_sensor:
           - Hello -> Goodbye
       - map:
           - red -> green
-      - lambda: return "1234";
+      - lambda: return {"1234"};
   - platform: homeassistant
     entity_id: sensor.hello_world2
     id: ha_hello_world2

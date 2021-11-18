@@ -88,16 +88,13 @@ def validate_mapping(value):
         a, b = value.split("->", 1)
         value = {CONF_FROM: a.strip(), CONF_TO: b.strip()}
 
-    return cv.Schema({
-        cv.Required(CONF_FROM): cv.string,
-        cv.Required(CONF_TO): cv.string
-    })(value)
+    return cv.Schema(
+        {cv.Required(CONF_FROM): cv.string, cv.Required(CONF_TO): cv.string}
+    )(value)
 
 
 @FILTER_REGISTRY.register(
-    "substitute",
-    SubstituteFilter,
-    cv.ensure_list(validate_mapping)
+    "substitute", SubstituteFilter, cv.ensure_list(validate_mapping)
 )
 async def substitute_filter_to_code(config, filter_id):
     from_strings = [conf[CONF_FROM] for conf in config]
@@ -105,14 +102,12 @@ async def substitute_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, from_strings, to_strings)
 
 
-@FILTER_REGISTRY.register(
-    "map",
-    MapFilter,
-    cv.ensure_list(validate_mapping)
-)
+@FILTER_REGISTRY.register("map", MapFilter, cv.ensure_list(validate_mapping))
 async def map_filter_to_code(config, filter_id):
     map_ = cg.std_ns.class_("map").template(cg.std_string, cg.std_string)
-    return cg.new_Pvariable(filter_id, map_([(item[CONF_FROM], item[CONF_TO]) for item in config]))
+    return cg.new_Pvariable(
+        filter_id, map_([(item[CONF_FROM], item[CONF_TO]) for item in config])
+    )
 
 
 icon = cv.icon

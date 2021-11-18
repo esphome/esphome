@@ -112,8 +112,7 @@ class SubstituteFilter : public Filter {
 /// A filter that maps values from one set to another
 class MapFilter : public Filter {
  public:
-  MapFilter(std::map<std::string, std::string> mappings)
-    : mappings_(std::move(mappings)) {}
+  MapFilter(std::map<std::string, std::string> mappings) : mappings_(std::move(mappings)) {}
   optional<std::string> new_value(std::string value) override;
 
  protected:

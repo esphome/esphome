@@ -73,7 +73,7 @@ optional<std::string> SubstituteFilter::new_value(std::string value) {
 // Map
 optional<std::string> MapFilter::new_value(std::string value) {
   auto item = mappings_.find(value);
-  return item == mappings_.end() ? value : item->first;
+  return item == mappings_.end() ? value : item->second;
 }
 
 }  // namespace text_sensor
