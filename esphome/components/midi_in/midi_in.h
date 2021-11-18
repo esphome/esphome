@@ -56,6 +56,7 @@ class MidiInComponent : public Component, public uart::UARTDevice {
 
  private:
   void process_controller_message_(const MidiVoiceMessage &msg);
+  void log_message_(const MidiVoiceMessage &msg);
 
   void all_notes_off_();
   void reset_controllers_();

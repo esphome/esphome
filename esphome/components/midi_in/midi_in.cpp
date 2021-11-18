@@ -32,9 +32,8 @@ void MidiInComponent::loop() {
                                 .param1 = static_cast<uint8_t>(this->midi_->getData1()),
                                 .param2 = static_cast<uint8_t>(this->midi_->getData2())};
 
-    switch (this->midi_->getType()) {
+    switch (msg.command) {
       case midi::MidiType::NoteOff:
-        // ESP_LOGD(TAG, "NOTE OFF: %#04x (channel %i)", msg.param1, msg.channel);
         if (this->note_velocities[msg.param1] > 0) {
           this->note_velocities[msg.param1] = 0;
           this->keys_on_--;
@@ -42,7 +41,6 @@ void MidiInComponent::loop() {
         this->voice_message_callback_.call(msg);
         break;
       case midi::MidiType::NoteOn:
-        // ESP_LOGD(TAG, "NOTE ON: %#04x (velocity %#04x, channel %i)", msg.param1, msg.param2, msg.channel);
         if (msg.param2 > 0) {
           if (this->note_velocities[msg.param1] == 0) {
             this->keys_on_++;
@@ -58,53 +56,15 @@ void MidiInComponent::loop() {
         this->voice_message_callback_.call(msg);
         break;
       case midi::MidiType::ControlChange:
-        // MIDI controller message tells a MIDI device that at a certain time the value of some controller should
-        // change. https://www.recordingblogs.com/wiki/midi-controller-message
         this->process_controller_message_(msg);
         this->voice_message_callback_.call(msg);
         break;
       default:
         break;
     }
+
+    this->log_message_(msg);
   }
-  //   if ((byte1 & MASK_COMMAND) == midi::MidiType::SystemExclusive) {
-  //     this->process_system_message_(byte1);
-  //     this->system_message_callback_.call(MidiSystemMessage{.command = static_cast<midi::MidiType>(byte1)});
-  //   } else {
-  //     auto msg = MidiVoiceMessage{.command = static_cast<midi::MidiType>(byte1 & MASK_COMMAND),
-  //                                 .channel = static_cast<uint8_t>(byte1 & MASK_CHANNEL)};
-
-  //       case midi::MidiType::AfterTouchPoly:
-  //         msg.param1 = read();
-  //         msg.param2 = read();
-  //         // ESP_LOGD(TAG, "AFTERTOUCH: %#04x (touch %#04x, channel %i)", msg.param1, msg.param2, msg.channel);
-  //         this->voice_message_callback_.call(msg);
-
-  //       case midi::MidiType::ProgramChange:
-  //         msg.param1 = read();
-  //         ESP_LOGD(TAG, "PATCH CHANGE: %#02x (channel %i)", msg.param1, msg.channel);
-  //         this->patch = msg.param1;
-  //         this->voice_message_callback_.call(msg);
-  //         break;
-  //       case midi::MidiType::AfterTouchChannel:
-  //         msg.param1 = read();
-  //         // ESP_LOGD(TAG, "CHANNEL PRESSURE: %#04x (channel: %i)", msg.param1, msg.channel);
-  //         this->voice_message_callback_.call(msg);
-  //         break;
-  //       case midi::MidiType::PitchBend:
-  //         // parametersparam 1      param 2
-  //         // 2        lsb (7 bits)msb (7 bits)
-  //         msg.param1 = read();
-  //         msg.param2 = read();
-  //         // ESP_LOGD(TAG, "PITCH BEND: %#04x %#04x (channel: %i)", msg.param1, msg.param2, msg.channel);
-  //         this->voice_message_callback_.call(msg);
-  //         break;
-  //       default:
-  //         ESP_LOGW(TAG, "Unexpected data: %#08x", byte1);
-  //         break;
-  //     }
-  //   }
-  // }
 
   this->update_connected_binary_sensor_();
   this->update_playback_binary_sensor_();
@@ -112,48 +72,53 @@ void MidiInComponent::loop() {
 
 void MidiInComponent::process_controller_message_(const MidiVoiceMessage &msg) {
   switch (msg.param1) {
-    case midi::MidiControlChangeNumber::BankSelect:
-      ESP_LOGD(TAG, "Bank select (coarse): %#04x (channel %i)", msg.param2, msg.channel);
-      break;
-    case midi::MidiControlChangeNumber::ChannelVolume:
-      ESP_LOGD(TAG, "Main volume: %#04x (channel %i)", msg.param2, msg.channel);
-      break;
-    // case midi::MidiControlChangeNumber::BANK_SELECT_FINE:
-    //   ESP_LOGD(TAG, "Bank select (fine): %#04x (channel %i)", msg.param2, msg.channel);
-    //   break;
     case midi::MidiControlChangeNumber::Sustain:
-      // ESP_LOGD(TAG, "Sustain pedal: %#04x (channel %i)", msg.param2, msg.channel);
       this->sustain_pedal = msg.param2;
       break;
     case midi::MidiControlChangeNumber::Sostenuto:
-      // ESP_LOGD(TAG, "Mid pedal: %#04x (channel %i)", msg.param2, msg.channel);
       this->mid_pedal = msg.param2;
       break;
     case midi::MidiControlChangeNumber::SoftPedal:
-      // ESP_LOGD(TAG, "Soft pedal: %#04x (channel %i)", msg.param2, msg.channel);
       this->soft_pedal = msg.param2;
       break;
     case midi::MidiControlChangeNumber::AllSoundOff:
-      ESP_LOGD(TAG, "All sounds off (channel %i)", msg.channel);
       this->all_notes_off_();
       break;
     case midi::MidiControlChangeNumber::ResetAllControllers:
-      ESP_LOGD(TAG, "Reset all controllers (channel %i)", msg.channel);
       this->reset_controllers_();
       break;
     case midi::MidiControlChangeNumber::AllNotesOff:
-      ESP_LOGD(TAG, "All notes off (channel %i)", msg.channel);
       this->all_notes_off_();
       break;
     case midi::MidiControlChangeNumber::PolyModeOn:
       // Poly operation and all notes off
-      ESP_LOGD(TAG, "Poly operation and all notes off (channel %i)", msg.channel);
       this->all_notes_off_();
       break;
     default:
-      ESP_LOGD(TAG, "Unknown continuous controller: %#04x %#04x (channel %i)", msg.param1, msg.param2, msg.channel);
       break;
   }
+}
+
+void MidiInComponent::log_message_(const MidiVoiceMessage &msg) {
+  const LogString *midi_type_s = midi_type_to_string(msg.command);
+  switch (msg.command) {
+  case midi::MidiType::Tick:
+  case midi::MidiType::ActiveSensing:
+    ESP_LOGVV(TAG, "%s", LOG_STR_ARG(midi_type_s));
+    break;
+  case midi::MidiType::ControlChange: {
+    const LogString *midi_control_s = midi_controller_to_string(static_cast<midi::MidiControlChangeNumber>(msg.param1));
+    ESP_LOGV(TAG, "%s[%i]: %#04x", LOG_STR_ARG(midi_control_s), msg.channel, msg.param2);
+    break;
+  }
+  default:
+    if (this->midi_->isChannelMessage(msg.command)) {
+      ESP_LOGV(TAG, "%s[%i]: %#04x %#04x", LOG_STR_ARG(midi_type_s), msg.channel, msg.param1, msg.param2);
+    } else {
+      ESP_LOGV(TAG, "%s: %#04x %#04x", msg.channel, LOG_STR_ARG(midi_type_s), msg.param1, msg.param2);
+    }
+    break;
+  }   
 }
 
 void MidiInComponent::all_notes_off_() {
@@ -170,21 +135,22 @@ void MidiInComponent::reset_controllers_() {
 void MidiInComponent::update_connected_binary_sensor_() {
   if (this->connected_binary_sensor_) {
     uint32_t millis_since_last_active_sense = millis() - this->last_activity_time_;
-    if (millis_since_last_active_sense >= 500) {  // normal active sense interval is 300ms
+    // normal active sense interval is 300ms
+    if (millis_since_last_active_sense >= 500) {      
       // disconnected
       this->reset_controllers_();
       this->all_notes_off_();
       if (this->connected_binary_sensor_->state) {
         this->connected_binary_sensor_->publish_state(false);
-        this->connected_binary_sensor_->state =
-            false;  // this is needed to stop multiple publish calls, because publish is delayed
+        // this is needed to stop multiple publish calls, because publish is delayed:
+        this->connected_binary_sensor_->state = false;  
       }
     } else {
       // connected
       if (!this->connected_binary_sensor_->state) {
         this->connected_binary_sensor_->publish_state(true);
-        this->connected_binary_sensor_->state =
-            true;  // this is needed to stop multiple publish calls, because publish is delayed
+        // this is needed to stop multiple publish calls, because publish is delayed:
+        this->connected_binary_sensor_->state = true;  
       }
     }
   }
@@ -196,15 +162,15 @@ void MidiInComponent::update_playback_binary_sensor_() {
       // playing
       if (!this->playback_binary_sensor_->state) {
         this->playback_binary_sensor_->publish_state(true);
-        this->playback_binary_sensor_->state =
-            true;  // this is needed to stop multiple publish calls, because publish is delayed
+        // this is needed to stop multiple publish calls, because publish is delayed:
+        this->playback_binary_sensor_->state = true;
       }
     } else {
       // not playing
       if (this->playback_binary_sensor_->state) {
         this->playback_binary_sensor_->publish_state(false);
-        this->playback_binary_sensor_->state =
-            false;  // this is needed to stop multiple publish calls, because publish is delayed
+        // this is needed to stop multiple publish calls, because publish is delayed:
+        this->playback_binary_sensor_->state = false;
       }
     }
   }
