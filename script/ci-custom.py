@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
-from helpers import git_ls_files, filter_changed
+from helpers import styled, print_error_for_file, git_ls_files, filter_changed
 import codecs
 import collections
+import colorama
 import fnmatch
 import os.path
 import re
@@ -29,6 +30,8 @@ def find_all(a_str, sub):
             yield i, column
             column += len(sub)
 
+
+colorama.init()
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -657,10 +660,8 @@ for fname in files:
 run_checks(LINT_POST_CHECKS, "POST")
 
 for f, errs in sorted(errors.items()):
-    print(f"\033[0;32m************* File \033[1;32m{f}\033[0m")
-    for lineno, col, msg in errs:
-        print(f"ERROR {f}:{lineno}:{col} - {msg}")
-    print()
+    err_str = (f"{styled(colorama.Style.BRIGHT, f'{f}:{lineno}:{col}:')} {msg}\n" for lineno, col, msg in errs)
+    print_error_for_file(f, "\n".join(err_str))
 
 if args.print_slowest:
     lint_times = []

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import colorama
 import json
 import multiprocessing
 import os
@@ -15,7 +16,7 @@ import threading
 import click
 
 sys.path.append(os.path.dirname(__file__))
-from helpers import shlex_quote, get_output, filter_grep, \
+from helpers import print_error_for_file, get_output, filter_grep, \
     build_all_include, temp_header_file, git_ls_files, filter_changed, load_idedata, basepath
 
 
@@ -96,13 +97,10 @@ def run_tidy(args, options, tmpdir, queue, lock, failed_files):
         invocation.append('--')
         invocation.extend(options)
 
-        proc = subprocess.run(invocation, capture_output=True)
+        proc = subprocess.run(invocation, capture_output=True, encoding='utf-8')
         if proc.returncode != 0:
             with lock:
-                print()
-                print("\033[0;32m************* File \033[1;32m{}\033[0m".format(path))
-                print(proc.stdout.decode('ascii'))
-                print()
+                print_error_for_file(path, proc.stdout)
                 failed_files.append(path)
         queue.task_done()
 
@@ -118,6 +116,8 @@ def split_list(a, n):
 
 
 def main():
+    colorama.init()
+
     parser = argparse.ArgumentParser()
     parser.add_argument('-j', '--jobs', type=int,
                         default=multiprocessing.cpu_count(),
