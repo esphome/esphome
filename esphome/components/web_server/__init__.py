@@ -33,7 +33,7 @@ def default_url(value):
         if value[CONF_CSS_URL] == "-":
             value[CONF_CSS_URL] = ""
         if value[CONF_JS_URL] == "-":
-            value[CONF_JS_URL] = "https://esphome.io/_static/v2/www.js"
+            value[CONF_JS_URL] = "https://oi.esphome.io/v2/www.js"
     return value
 
 
