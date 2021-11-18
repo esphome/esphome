@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 
 from helpers import styled, print_error_for_file, git_ls_files, filter_changed
+import argparse
 import codecs
 import collections
 import colorama
 import fnmatch
+import functools
 import os.path
 import re
-import subprocess
 import sys
 import time
-import functools
-import argparse
 
 sys.path.append(os.path.dirname(__file__))
 

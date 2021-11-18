@@ -1,4 +1,3 @@
-import codecs
 import colorama
 import os.path
 import re
@@ -10,15 +9,6 @@ root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", ".."))
 basepath = os.path.join(root_path, "esphome")
 temp_folder = os.path.join(root_path, ".temp")
 temp_header_file = os.path.join(temp_folder, "all-include.cpp")
-
-
-def shlex_quote(s):
-    if not s:
-        return "''"
-    if re.search(r"[^\w@%+=:,./-]", s) is None:
-        return s
-
-    return "'" + s.replace("'", "'\"'\"'") + "'"
 
 
 def styled(color, msg, reset=True):

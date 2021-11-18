@@ -2,14 +2,11 @@
 
 from __future__ import print_function
 from helpers import styled, print_error_for_file, get_output, get_err, git_ls_files, filter_changed
-
 import argparse
 import colorama
 import os
 import re
 import sys
-
-sys.path.append(os.path.dirname(__file__))
 
 curfile = None
 
