@@ -60,7 +60,8 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
         }
-    ).extend(uart.UART_DEVICE_SCHEMA)
+    ).extend(uart.UART_DEVICE_SCHEMA),
+    cv.only_with_arduino,
 )
 
 

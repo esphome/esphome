@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "midi_in.h"
@@ -23,3 +25,5 @@ class MidiInOnSystemMessageTrigger : public Trigger<MidiSystemMessage> {
 
 }  // namespace midi_in
 }  // namespace esphome
+
+#endif // USE_ARDUINO

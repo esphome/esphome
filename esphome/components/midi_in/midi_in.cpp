@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "midi_in.h"
 #include "esphome/core/log.h"
 
@@ -210,3 +212,5 @@ void MidiInComponent::update_playback_binary_sensor_() {
 
 }  // namespace midi_in
 }  // namespace esphome
+
+#endif // USE_ARDUINO
