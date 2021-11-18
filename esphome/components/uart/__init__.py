@@ -94,17 +94,21 @@ UART_DIRECTIONS = {
     "BOTH": UARTDirection.UART_DIRECTION_BOTH,
 }
 
+AFTER_DEFAULTS = {CONF_BYTES: 256, CONF_TIMEOUT: "100ms"}
+
 DEBUG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UARTDebugger),
         cv.Optional(CONF_DIRECTION, default="BOTH"): cv.enum(
             UART_DIRECTIONS, upper=True
         ),
-        cv.Optional(CONF_AFTER): cv.Schema(
+        cv.Optional(CONF_AFTER, default=AFTER_DEFAULTS): cv.Schema(
             {
-                cv.Optional(CONF_BYTES, default=256): cv.validate_bytes,
                 cv.Optional(
-                    CONF_TIMEOUT, default="100ms"
+                    CONF_BYTES, default=AFTER_DEFAULTS[CONF_BYTES]
+                ): cv.validate_bytes,
+                cv.Optional(
+                    CONF_TIMEOUT, default=AFTER_DEFAULTS[CONF_TIMEOUT]
                 ): cv.positive_time_period_milliseconds,
                 cv.Optional(CONF_DELIMITER): cv.templatable(validate_raw_data),
             }
