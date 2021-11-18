@@ -26,6 +26,7 @@ MidiInOnSystemMessageTrigger = midi_ns.class_(
 
 MULTI_CONF = True
 
+CONF_CHANNEL = "channel"
 CONF_ON_CHANNEL_MESSAGE = "on_channel_message"
 CONF_ON_SYSTEM_MESSAGE = "on_system_message"
 CONF_CONNECTED = "connected"
@@ -35,6 +36,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MidiInComponent),
+            cv.Optional(CONF_CHANNEL, default=1): cv.int_range(1, 16),
             cv.Optional(CONF_ON_CHANNEL_MESSAGE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -98,6 +100,9 @@ async def to_code(config):
             )
 
     await cg.register_component(var, config)
+
+    if CONF_CHANNEL in config:
+        cg.add(var.set_channel(config[CONF_CHANNEL]))
 
     if CONF_CONNECTED in config:
         conf = config[CONF_CONNECTED]

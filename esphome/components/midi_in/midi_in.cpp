@@ -16,6 +16,7 @@ MidiInComponent::MidiInComponent(uart::UARTComponent *uart) : uart::UARTDevice(u
 
 void MidiInComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MIDI In");
+  ESP_LOGCONFIG(TAG, "  Channel: %i", this->channel_);
   LOG_BINARY_SENSOR("  ", "Connection", this->connected_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Playback", this->playback_binary_sensor_);
   this->check_uart_settings(31250);
@@ -24,7 +25,7 @@ void MidiInComponent::dump_config() {
 void MidiInComponent::setup() { this->midi_->begin(); }
 
 void MidiInComponent::loop() {
-  while (this->midi_->read()) {
+  while (this->midi_->read(this->channel_)) {
     this->last_activity_time_ = millis();
 
     midi::MidiType message_type = this->midi_->getType();

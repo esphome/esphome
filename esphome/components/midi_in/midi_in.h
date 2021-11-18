@@ -13,6 +13,10 @@ class MidiInComponent : public Component, public uart::UARTDevice {
  public:
   MidiInComponent(uart::UARTComponent *uart);
 
+  void set_channel(uint8_t channel) {
+    channel_ = channel;
+  }
+
   void set_connected_binary_sensor(binary_sensor::BinarySensor *connected_binary_sensor) {
     connected_binary_sensor_ = connected_binary_sensor;
   }
@@ -45,8 +49,7 @@ class MidiInComponent : public Component, public uart::UARTDevice {
   std::unique_ptr<midi::MidiInterface<midi::SerialMIDI<UARTSerialPort>>> midi_;
 
  protected:
-  uint32_t last_activity_time_;
-  uint32_t keys_on_;  // to track number of pressed keys to playback detection
+  uint8_t channel_;
 
   binary_sensor::BinarySensor *connected_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *playback_binary_sensor_{nullptr};
@@ -54,6 +57,10 @@ class MidiInComponent : public Component, public uart::UARTDevice {
   CallbackManager<void(MidiChannelMessage)> channel_message_callback_{};
   CallbackManager<void(MidiSystemMessage)> system_message_callback_{};
 
+ protected:
+  uint32_t last_activity_time_;
+  uint32_t keys_on_;  // to track number of pressed keys to playback detection
+  
  private:
   void process_controller_message_(const MidiChannelMessage &msg);
   void log_message_(midi::MidiType type);
