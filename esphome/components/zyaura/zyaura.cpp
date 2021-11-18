@@ -74,7 +74,7 @@ bool ZyAuraSensor::publish_state_(ZaDataType data_type, sensor::Sensor *sensor, 
     return true;
   }
 
-  float value;
+  float value = NAN;
   switch (data_type) {
     case HUMIDITY:
       value = (*data_value > 10000) ? NAN : (*data_value / 100.0f);
