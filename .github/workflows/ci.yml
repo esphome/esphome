@@ -34,7 +34,7 @@ jobs:
           - id: test
             file: tests/test3.yaml
             name: Test tests/test3.yaml
-            pio_cache_key: test1
+            pio_cache_key: test3
           - id: test
             file: tests/test4.yaml
             name: Test tests/test4.yaml
