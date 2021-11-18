@@ -13,7 +13,6 @@ import tempfile
 import threading
 
 import click
-import pexpect
 
 sys.path.append(os.path.dirname(__file__))
 from helpers import shlex_quote, get_output, filter_grep, \
@@ -87,22 +86,22 @@ def run_tidy(args, options, tmpdir, queue, lock, failed_files):
             invocation.append(name)
 
         if args.quiet:
-            invocation.append('-quiet')
+            invocation.append('--quiet')
 
-        invocation.append(os.path.abspath(path))
+        if sys.stdout.isatty():
+            invocation.append('--use-color')
+
         invocation.append(f"--header-filter={os.path.abspath(basepath)}/.*")
+        invocation.append(os.path.abspath(path))
         invocation.append('--')
         invocation.extend(options)
-        invocation_s = ' '.join(shlex_quote(x) for x in invocation)
 
-        # Use pexpect for a pseudy-TTY with colored output
-        output, rc = pexpect.run(invocation_s, withexitstatus=True, encoding='utf-8',
-                                 timeout=15 * 60)
-        if rc != 0:
+        proc = subprocess.run(invocation, capture_output=True)
+        if proc.returncode != 0:
             with lock:
                 print()
                 print("\033[0;32m************* File \033[1;32m{}\033[0m".format(path))
-                print(output)
+                print(proc.stdout.decode('ascii'))
                 print()
                 failed_files.append(path)
         queue.task_done()
