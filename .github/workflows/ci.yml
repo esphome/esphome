@@ -1,5 +1,3 @@
-# THESE JOBS ARE COPIED IN release.yml and release-dev.yml
-# PLEASE ALSO UPDATE THOSE FILES WHEN CHANGING LINES HERE
 name: CI
 
 on:
