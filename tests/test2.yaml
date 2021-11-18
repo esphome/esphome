@@ -452,6 +452,16 @@ text_sensor:
     name: 'Template Text Sensor'
     lambda: |-
       return {"Hello World"};
+    filters:
+      - to_upper:
+      - to_lower:
+      - append: "xyz"
+      - prepend: "abcd"
+      - substitute:
+          - Hello -> Goodbye
+      - map:
+          - red -> green
+      - lambda: return "1234";
   - platform: homeassistant
     entity_id: sensor.hello_world2
     id: ha_hello_world2
