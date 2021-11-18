@@ -111,8 +111,16 @@ ModbusItemBaseSchema = cv.Schema(
         cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
         cv.Optional(CONF_ADDRESS): cv.positive_int,
         cv.Optional(CONF_CUSTOM_COMMAND): cv.ensure_list(cv.hex_uint8_t),
-        cv.Optional(CONF_OFFSET, default=0): cv.positive_int,
-        cv.Optional(CONF_BYTE_OFFSET): cv.positive_int,
+        cv.Exclusive(
+            CONF_OFFSET,
+            "offset",
+            f"{CONF_OFFSET} and {CONF_BYTE_OFFSET} can't be used together",
+        ): cv.positive_int,
+        cv.Exclusive(
+            CONF_BYTE_OFFSET,
+            "offset",
+            f"{CONF_OFFSET} and {CONF_BYTE_OFFSET} can't be used together",
+        ): cv.positive_int,
         cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
         cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
         cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
@@ -153,14 +161,14 @@ def modbus_calc_properties(config):
         if reg_count == 0:
             reg_count = TYPE_REGISTER_MAP[value_type]
     if CONF_CUSTOM_COMMAND in config:
-        if [CONF_ADDRESS] not in config:
+        if CONF_ADDRESS not in config:
             # generate a unique modbus address using the hash of the name
             # CONF_NAME set even if only CONF_ID is used.
             # a modbus register address is required to add the item to sensormap
             value = config[CONF_NAME]
             if isinstance(value, str):
                 value = value.encode()
-            hash_ = int(hashlib.md5(value).hexdigest()[:4], 16)
+            hash_ = int.from_bytes(hashlib.shake_128(value).digest(2), "little")
             config[CONF_ADDRESS] = hash_
         config[CONF_REGISTER_TYPE] = ModbusRegisterType.CUSTOM
         config[CONF_FORCE_NEW_RANGE] = True

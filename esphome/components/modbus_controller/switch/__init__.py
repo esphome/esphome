@@ -30,16 +30,16 @@ ModbusSwitch = modbus_controller_ns.class_(
     "ModbusSwitch", cg.Component, switch.Switch, SensorItem
 )
 
-
 CONFIG_SCHEMA = cv.All(
-    switch.SWITCH_SCHEMA.extend(
-        cv.COMPONENT_SCHEMA.extend(ModbusItemBaseSchema).extend(
-            {
-                cv.GenerateID(): cv.declare_id(ModbusSwitch),
-                cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
-                cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
-            }
-        )
+    switch.SWITCH_SCHEMA.extend(cv.COMPONENT_SCHEMA)
+    .extend(ModbusItemBaseSchema)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(ModbusSwitch),
+            cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
+            cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
+            cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
+        }
     ),
     validate_modbus_register,
 )
