@@ -64,7 +64,7 @@ async def to_code(config):
             pixels = list(frame.getdata())
             if len(pixels) != height * width:
                 raise core.EsphomeError(
-                    f"Unexpected number of pixels in frame {frameIndex}: ({len(pixels)} != {height*width}"
+                    f"Unexpected number of pixels in frame {frameIndex}: {len(pixels)} != {height*width}"
                 )
             for pix in pixels:
                 data[pos] = pix
@@ -81,7 +81,7 @@ async def to_code(config):
             pixels = list(frame.getdata())
             if len(pixels) != height * width:
                 raise core.EsphomeError(
-                    f"Unexpected number of pixels in frame {frameIndex}: ({len(pixels)} != {height*width}"
+                    f"Unexpected number of pixels in frame {frameIndex}: {len(pixels)} != {height*width}"
                 )
             for pix in pixels:
                 data[pos] = pix[0]
