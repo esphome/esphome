@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import light
 from esphome.const import (
+    CONF_CHANNEL,
     CONF_CLOCK_PIN,
     CONF_DATA_PIN,
     CONF_METHOD,
@@ -13,7 +14,26 @@ from esphome.const import (
     CONF_OUTPUT_ID,
     CONF_INVERT,
 )
+from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32.const import (
+    VARIANT_ESP32C3,
+)
 from esphome.core import CORE
+from ._methods import (
+    METHODS,
+    METHOD_SPI,
+    METHOD_ESP8266_UART,
+    METHOD_BIT_BANG,
+    METHOD_ESP32_I2S,
+    METHOD_ESP32_RMT,
+    METHOD_ESP8266_DMA,
+)
+from .const import (
+    CHIP_TYPES,
+    CONF_ASYNC,
+    CONF_BUS,
+    ONE_WIRE_CHIPS,
+)
 
 neopixelbus_ns = cg.esphome_ns.namespace("neopixelbus")
 NeoPixelBusLightOutputBase = neopixelbus_ns.class_(
@@ -46,127 +66,115 @@ def validate_type(value):
     return value
 
 
-def validate_variant(value):
-    value = cv.string(value).upper()
-    if value == "WS2813":
-        value = "WS2812X"
-    if value == "WS2812":
-        value = "800KBPS"
-    if value == "LC8812":
-        value = "SK6812"
-    return cv.one_of(*VARIANTS)(value)
+def _choose_default_method(config):
+    if CONF_METHOD in config:
+        return config
+    config = config.copy()
+    if CONF_PIN not in config:
+        config[CONF_METHOD] = _validate_method(METHOD_SPI)
+        return config
 
-
-def validate_method(value):
-    if value is None:
-        if CORE.is_esp32:
-            return "ESP32_I2S_1"
-        if CORE.is_esp8266:
-            return "ESP8266_DMA"
-        raise NotImplementedError
-
-    if CORE.is_esp32:
-        return cv.one_of(*ESP32_METHODS, upper=True, space="_")(value)
+    pin = config[CONF_PIN]
     if CORE.is_esp8266:
-        return cv.one_of(*ESP8266_METHODS, upper=True, space="_")(value)
-    raise NotImplementedError
-
-
-def validate_method_pin(value):
-    method = value[CONF_METHOD]
-    method_pins = {
-        "ESP8266_DMA": [3],
-        "ESP8266_UART0": [1],
-        "ESP8266_ASYNC_UART0": [1],
-        "ESP8266_UART1": [2],
-        "ESP8266_ASYNC_UART1": [2],
-        "ESP32_I2S_0": list(range(0, 32)),
-        "ESP32_I2S_1": list(range(0, 32)),
-    }
-    if CORE.is_esp8266:
-        method_pins["BIT_BANG"] = list(range(0, 16))
-    elif CORE.is_esp32:
-        method_pins["BIT_BANG"] = list(range(0, 32))
-    pins_ = method_pins.get(method)
-    if pins_ is None:
-        # all pins allowed for this method
-        return value
-
-    for opt in (CONF_PIN, CONF_CLOCK_PIN, CONF_DATA_PIN):
-        if opt in value and value[opt] not in pins_:
-            raise cv.Invalid(
-                f"Method {method} only supports pin(s) {', '.join(f'GPIO{x}' for x in pins_)}",
-                path=[CONF_METHOD],
+        if pin == 3:
+            config[CONF_METHOD] = _validate_method(METHOD_ESP8266_DMA)
+        elif pin == 1:
+            config[CONF_METHOD] = _validate_method(
+                {
+                    CONF_TYPE: METHOD_ESP8266_UART,
+                    CONF_BUS: 0,
+                }
             )
-    return value
-
-
-VARIANTS = {
-    "WS2812X": "Ws2812x",
-    "SK6812": "Sk6812",
-    "800KBPS": "800Kbps",
-    "400KBPS": "400Kbps",
-}
-
-ESP8266_METHODS = {
-    "ESP8266_DMA": "NeoEsp8266Dma{}Method",
-    "ESP8266_UART0": "NeoEsp8266Uart0{}Method",
-    "ESP8266_UART1": "NeoEsp8266Uart1{}Method",
-    "ESP8266_ASYNC_UART0": "NeoEsp8266AsyncUart0{}Method",
-    "ESP8266_ASYNC_UART1": "NeoEsp8266AsyncUart1{}Method",
-    "BIT_BANG": "NeoEsp8266BitBang{}Method",
-}
-ESP32_METHODS = {
-    "ESP32_I2S_0": "NeoEsp32I2s0{}Method",
-    "ESP32_I2S_1": "NeoEsp32I2s1{}Method",
-    "ESP32_RMT_0": "NeoEsp32Rmt0{}Method",
-    "ESP32_RMT_1": "NeoEsp32Rmt1{}Method",
-    "ESP32_RMT_2": "NeoEsp32Rmt2{}Method",
-    "ESP32_RMT_3": "NeoEsp32Rmt3{}Method",
-    "ESP32_RMT_4": "NeoEsp32Rmt4{}Method",
-    "ESP32_RMT_5": "NeoEsp32Rmt5{}Method",
-    "ESP32_RMT_6": "NeoEsp32Rmt6{}Method",
-    "ESP32_RMT_7": "NeoEsp32Rmt7{}Method",
-    "BIT_BANG": "NeoEsp32BitBang{}Method",
-}
-
-
-def format_method(config):
-    variant = VARIANTS[config[CONF_VARIANT]]
-    method = config[CONF_METHOD]
-
-    if config[CONF_INVERT]:
-        if method == "ESP8266_DMA":
-            variant = f"Inverted{variant}"
+        elif pin == 2:
+            config[CONF_METHOD] = _validate_method(
+                {
+                    CONF_TYPE: METHOD_ESP8266_UART,
+                    CONF_BUS: 1,
+                }
+            )
         else:
-            variant += "Inverted"
+            config[CONF_METHOD] = _validate_method(METHOD_BIT_BANG)
 
-    if CORE.is_esp8266:
-        return ESP8266_METHODS[method].format(variant)
     if CORE.is_esp32:
-        return ESP32_METHODS[method].format(variant)
-    raise NotImplementedError
+        if get_esp32_variant() == VARIANT_ESP32C3:
+            config[CONF_METHOD] = _validate_method(METHOD_ESP32_RMT)
+        else:
+            config[CONF_METHOD] = _validate_method(METHOD_ESP32_I2S)
+
+    return config
 
 
 def _validate(config):
-    if CONF_PIN in config:
+    variant = config[CONF_VARIANT]
+    if variant in ONE_WIRE_CHIPS:
+        if CONF_PIN not in config:
+            raise cv.Invalid(
+                f"Chip {variant} is a 1-wire chip and needs the [pin] option."
+            )
         if CONF_CLOCK_PIN in config or CONF_DATA_PIN in config:
-            raise cv.Invalid("Cannot specify both 'pin' and 'clock_pin'+'data_pin'")
-        return config
-    if CONF_CLOCK_PIN in config:
-        if CONF_DATA_PIN not in config:
-            raise cv.Invalid("If you give clock_pin, you must also specify data_pin")
-        return config
-    raise cv.Invalid("Must specify at least one of 'pin' or 'clock_pin'+'data_pin'")
+            raise cv.Invalid(
+                f"Chip {variant} is a 1-wire chip, you need to set [pin] instead of ."
+            )
+    else:
+        if CONF_PIN in config:
+            raise cv.Invalid(
+                f"Chip {variant} is a 2-wire chip and needs the [data_pin]+[clock_pin] option instead of [pin]."
+            )
+        if CONF_CLOCK_PIN not in config or CONF_DATA_PIN not in config:
+            raise cv.Invalid(
+                f"Chip {variant} is a 2-wire chip, you need to set [data_pin]+[clock_pin]."
+            )
+
+    method_type = config[CONF_METHOD][CONF_TYPE]
+    method_desc = METHODS[method_type]
+    if variant not in method_desc.supported_chips:
+        raise cv.Invalid(f"Method {method_type} does not support {variant}")
+    if method_desc.extra_validate is not None:
+        method_desc.extra_validate(config)
+
+    return config
+
+
+def _validate_method(value):
+    if value is None:
+        # default method is determined afterwards because it depends on the chip type chosen
+        return None
+
+    compat_methods = {}
+    for bus in [0, 1]:
+        for is_async in [False, True]:
+            compat_methods[f"ESP8266{'_ASYNC' if is_async else ''}_UART{bus}"] = {
+                CONF_TYPE: METHOD_ESP8266_UART,
+                CONF_BUS: bus,
+                CONF_ASYNC: is_async,
+            }
+        compat_methods[f"ESP32_I2S_{bus}"] = {
+            CONF_TYPE: METHOD_ESP32_I2S,
+            CONF_BUS: bus,
+        }
+    for channel in range(8):
+        compat_methods[f"ESP32_RMT_{channel}"] = {
+            CONF_TYPE: METHOD_ESP32_RMT,
+            CONF_CHANNEL: channel,
+        }
+
+    if isinstance(value, str):
+        if value.upper() in compat_methods:
+            return _validate_method(compat_methods[value.upper()])
+        return _validate_method({CONF_TYPE: value})
+    return cv.typed_schema(
+        {k: v.method_schema for k, v in METHODS.items()}, lower=True
+    )(value)
 
 
 CONFIG_SCHEMA = cv.All(
+    cv.only_with_arduino,
     light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         {
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(NeoPixelBusLightOutputBase),
             cv.Optional(CONF_TYPE, default="GRB"): validate_type,
-            cv.Optional(CONF_VARIANT, default="800KBPS"): validate_variant,
-            cv.Optional(CONF_METHOD, default=None): validate_method,
+            cv.Required(CONF_VARIANT): cv.one_of(*CHIP_TYPES, lower=True),
+            cv.Optional(CONF_METHOD): _validate_method,
             cv.Optional(CONF_INVERT, default="no"): cv.boolean,
             cv.Optional(CONF_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_CLOCK_PIN): pins.internal_gpio_output_pin_number,
@@ -174,19 +182,23 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    _choose_default_method,
     _validate,
-    validate_method_pin,
-    cv.only_with_arduino,
 )
 
 
 async def to_code(config):
     has_white = "W" in config[CONF_TYPE]
-    template = cg.TemplateArguments(getattr(cg.global_ns, format_method(config)))
+    method = config[CONF_METHOD]
+
+    method_template = METHODS[method[CONF_TYPE]].to_code(
+        method, config[CONF_VARIANT], config[CONF_INVERT]
+    )
+
     if has_white:
-        out_type = NeoPixelRGBWLightOutput.template(template)
+        out_type = NeoPixelRGBWLightOutput.template(method_template)
     else:
-        out_type = NeoPixelRGBLightOutput.template(template)
+        out_type = NeoPixelRGBLightOutput.template(method_template)
     rhs = out_type.new()
     var = cg.Pvariable(config[CONF_OUTPUT_ID], rhs, out_type)
     await light.register_light(var, config)
@@ -204,4 +216,4 @@ async def to_code(config):
     cg.add(var.set_pixel_order(getattr(ESPNeoPixelOrder, config[CONF_TYPE])))
 
     # https://github.com/Makuna/NeoPixelBus/blob/master/library.json
-    cg.add_library("makuna/NeoPixelBus", "2.6.7")
+    cg.add_library("makuna/NeoPixelBus", "2.6.9")

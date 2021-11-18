@@ -1,6 +1,8 @@
 #include "mqtt_light.h"
 #include "esphome/core/log.h"
 
+#include "mqtt_const.h"
+
 #ifdef USE_MQTT
 #ifdef USE_LIGHT
 
@@ -38,7 +40,7 @@ void MQTTJSONLightComponent::send_discovery(JsonObject &root, mqtt::SendDiscover
   root["schema"] = "json";
   auto traits = this->state_->get_traits();
 
-  root["color_mode"] = true;
+  root[MQTT_COLOR_MODE] = true;
   JsonArray &color_modes = root.createNestedArray("supported_color_modes");
   if (traits.supports_color_mode(ColorMode::ON_OFF))
     color_modes.add("onoff");
@@ -64,7 +66,7 @@ void MQTTJSONLightComponent::send_discovery(JsonObject &root, mqtt::SendDiscover
 
   if (this->state_->supports_effects()) {
     root["effect"] = true;
-    JsonArray &effect_list = root.createNestedArray("effect_list");
+    JsonArray &effect_list = root.createNestedArray(MQTT_EFFECT_LIST);
     for (auto *effect : this->state_->get_effects())
       effect_list.add(effect->get_name());
     effect_list.add("None");
