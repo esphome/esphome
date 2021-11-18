@@ -1,4 +1,4 @@
-import zlib
+import binascii
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import modbus
@@ -168,7 +168,7 @@ def modbus_calc_properties(config):
             value = config[CONF_NAME]
             if isinstance(value, str):
                 value = value.encode()
-            config[CONF_ADDRESS] = zlib.crc32(value) % 2 ** 16
+            config[CONF_ADDRESS] = binascii.crc_hqx(value, 0)
         config[CONF_REGISTER_TYPE] = ModbusRegisterType.CUSTOM
         config[CONF_FORCE_NEW_RANGE] = True
     return byte_offset, reg_count
