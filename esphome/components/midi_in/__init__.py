@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import uart, binary_sensor
-from esphome.const import CONF_ID, CONF_UART_ID, CONF_TRIGGER_ID
+from esphome.const import CONF_CHANNEL, CONF_ID, CONF_UART_ID, CONF_TRIGGER_ID
 
 CODEOWNERS = ["@muxa"]
 DEPENDENCIES = ["uart"]
@@ -26,7 +26,6 @@ MidiInOnSystemMessageTrigger = midi_ns.class_(
 
 MULTI_CONF = True
 
-CONF_CHANNEL = "channel"
 CONF_ON_CHANNEL_MESSAGE = "on_channel_message"
 CONF_ON_SYSTEM_MESSAGE = "on_system_message"
 CONF_CONNECTED = "connected"

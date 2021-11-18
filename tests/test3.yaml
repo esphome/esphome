@@ -1320,7 +1320,7 @@ daly_bms:
 
 midi_in:
   - uart_id: uart8
-    on_voice_message:
+    on_channel_message:
       - logger.log:
           format: "%i: %#04x (%#04x %#04x)"
           args: [ 'x.channel', 'x.type', 'x.data1', 'x.data2' ]

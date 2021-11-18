@@ -13,9 +13,7 @@ class MidiInComponent : public Component, public uart::UARTDevice {
  public:
   MidiInComponent(uart::UARTComponent *uart);
 
-  void set_channel(uint8_t channel) {
-    channel_ = channel;
-  }
+  void set_channel(uint8_t channel) { channel_ = channel; }
 
   void set_connected_binary_sensor(binary_sensor::BinarySensor *connected_binary_sensor) {
     connected_binary_sensor_ = connected_binary_sensor;
@@ -60,7 +58,7 @@ class MidiInComponent : public Component, public uart::UARTDevice {
  protected:
   uint32_t last_activity_time_;
   uint32_t keys_on_;  // to track number of pressed keys to playback detection
-  
+
  private:
   void process_controller_message_(const MidiChannelMessage &msg);
   void log_message_(midi::MidiType type);
