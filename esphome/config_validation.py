@@ -296,9 +296,9 @@ def icon(value):
     value = string_strict(value)
     if not value:
         return value
-    if value.startswith("mdi:"):
+    if re.match("^[\\w\\-]+:[\\w\\-]+$", value):
         return value
-    raise Invalid('Icons should start with prefix "mdi:"')
+    raise Invalid('Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"')
 
 
 def boolean(value):
