@@ -1,3 +1,4 @@
+esphome:
   name: $device_name
   comment: $device_comment
   platform: ESP8266
@@ -814,7 +815,7 @@ text_sensor:
     p1_version:
       name: "dsmr_p1_version"
     electricity_tariff:
-      name: dsmr_tariff
+      name: "dsmr_tariff"
 
 script:
   - id: my_script
