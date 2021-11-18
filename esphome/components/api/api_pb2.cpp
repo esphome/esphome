@@ -14,6 +14,8 @@ template<> const char *proto_enum_to_string<enums::EntityCategory>(enums::Entity
       return "ENTITY_CATEGORY_CONFIG";
     case enums::ENTITY_CATEGORY_DIAGNOSTIC:
       return "ENTITY_CATEGORY_DIAGNOSTIC";
+    case enums::ENTITY_CATEGORY_SYSTEM:
+      return "ENTITY_CATEGORY_SYSTEM";
     default:
       return "UNKNOWN";
   }

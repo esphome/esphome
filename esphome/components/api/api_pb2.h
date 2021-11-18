@@ -13,6 +13,7 @@ enum EntityCategory : uint32_t {
   ENTITY_CATEGORY_NONE = 0,
   ENTITY_CATEGORY_CONFIG = 1,
   ENTITY_CATEGORY_DIAGNOSTIC = 2,
+  ENTITY_CATEGORY_SYSTEM = 3,
 };
 enum LegacyCoverState : uint32_t {
   LEGACY_COVER_STATE_OPEN = 0,

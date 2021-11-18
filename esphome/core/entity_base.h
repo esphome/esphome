@@ -9,6 +9,7 @@ enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_NONE = 0,
   ENTITY_CATEGORY_CONFIG = 1,
   ENTITY_CATEGORY_DIAGNOSTIC = 2,
+  ENTITY_CATEGORY_SYSTEM = 3,
 };
 
 // The generic Entity base class that provides an interface common to all Entities.
