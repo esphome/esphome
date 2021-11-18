@@ -125,10 +125,18 @@ void Dsmr::receive_telegram_() {
     }
 
     // Some v2.2 or v3 meters will send a new value which starts with '('
-    // in a new line while the value belongs to the previous ObisId. For
-    // proper parsing remove these new line characters
-    while (c == '(' && (this->telegram_[this->telegram_len_ - 1] == '\n' || this->telegram_[this->telegram_len_ - 1] == '\r'))
-      this->telegram_len_--;
+    // in a new line, while the value belongs to the previous ObisId. For
+    // proper parsing, remove these new line characters.
+    if (c == '(') {
+      while (true) {
+        auto previous_char = this->telegram_[this->telegram_len_ - 1];
+        if (previous_char == '\n' || previous_char == '\r') {
+          this->telegram_len_--;
+        } else {
+          break;
+        }
+      }
+    }
 
     // Store the byte in the buffer.
     this->telegram_[this->telegram_len_] = c;
