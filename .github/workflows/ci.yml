@@ -80,18 +80,23 @@ jobs:
         with:
           python-version: '3.7'
 
-      - name: Cache pip modules
+      - name: Cache virtualenv
         uses: actions/cache@v2
         with:
-          path: ~/.cache/pip
-          key: pip-${{ steps.python.outputs.python-version }}-${{ hashFiles('requirements*.txt') }}
+          path: .venv
+          key: venv-${{ steps.python.outputs.python-version }}-${{ hashFiles('requirements*.txt') }}
           restore-keys: |
-            pip-${{ steps.python.outputs.python-version }}-
+            venv-${{ steps.python.outputs.python-version }}-
 
-      - name: Set up python environment
+      - name: Set up virtualenv
         run: |
-          pip3 install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
-          pip3 install -e .
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -U pip
+          pip install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
+          pip install -e .
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
+          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> $GITHUB_ENV
 
       # Use per check platformio cache because checks use different parts
       - name: Cache platformio
