@@ -298,7 +298,9 @@ def icon(value):
         return value
     if re.match("^[\\w\\-]+:[\\w\\-]+$", value):
         return value
-    raise Invalid('Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"')
+    raise Invalid(
+        'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
+    )
 
 
 def boolean(value):
