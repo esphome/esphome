@@ -39,6 +39,12 @@ uart:
   tx_pin: GPIO22
   rx_pin: GPIO23
   baud_rate: 115200
+  # Specifically added for testing debug with no after: definition.
+  debug:
+    dummy_receiver: false
+    direction: rx
+    sequence:
+      - lambda: UARTDebug::log_hex(direction, bytes, ':');
 
 ota:
   safe_mode: True
