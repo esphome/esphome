@@ -10,7 +10,7 @@
 namespace esphome {
 namespace mlx90393 {
 
-class MLX90393_cls : public PollingComponent, public i2c::I2CDevice, public MLX90393_i2c {
+class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90393_i2c {
  public:
   void setup() override;
   void dump_config() override;
@@ -34,7 +34,7 @@ class MLX90393_cls : public PollingComponent, public i2c::I2CDevice, public MLX9
   bool transceive(uint8_t *request, size_t request_size, uint8_t *response, size_t response_size);
 
  protected:
-  MLX90393 mlx;
+  MLX90393 mlx_;
   sensor::Sensor *x_sensor_{nullptr};
   sensor::Sensor *y_sensor_{nullptr};
   sensor::Sensor *z_sensor_{nullptr};
