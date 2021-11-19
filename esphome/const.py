@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2021.11.0-dev"
+__version__ = "2021.12.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -8,31 +8,11 @@ PLATFORM_ESP32 = "esp32"
 PLATFORM_ESP8266 = "esp8266"
 
 TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266]
-TARGET_FRAMEWORKS = ["arduino", "esp-idf"]
 
-# See also https://github.com/platformio/platform-espressif8266/releases
-ARDUINO_VERSION_ESP8266 = {
-    "dev": "https://github.com/platformio/platform-espressif8266.git",
-    "3.0.1": "platformio/espressif8266@3.1.0",
-    "3.0.0": "platformio/espressif8266@3.0.0",
-    "2.7.4": "platformio/espressif8266@2.6.2",
-    "2.7.3": "platformio/espressif8266@2.6.1",
-    "2.7.2": "platformio/espressif8266@2.6.0",
-    "2.7.1": "platformio/espressif8266@2.5.3",
-    "2.7.0": "platformio/espressif8266@2.5.0",
-    "2.6.3": "platformio/espressif8266@2.4.0",
-    "2.6.2": "platformio/espressif8266@2.3.1",
-    "2.6.1": "platformio/espressif8266@2.3.0",
-    "2.5.2": "platformio/espressif8266@2.2.3",
-    "2.5.1": "platformio/espressif8266@2.1.1",
-    "2.5.0": "platformio/espressif8266@2.0.4",
-    "2.4.2": "platformio/espressif8266@1.8.0",
-    "2.4.1": "platformio/espressif8266@1.7.3",
-    "2.4.0": "platformio/espressif8266@1.6.0",
-    "2.3.0": "platformio/espressif8266@1.5.0",
-}
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
+SECRETS_FILES = {"secrets.yaml", "secrets.yml"}
+
 
 CONF_ABOVE = "above"
 CONF_ACCELERATION = "acceleration"
@@ -47,6 +27,7 @@ CONF_ACTIVE_POWER = "active_power"
 CONF_ADDRESS = "address"
 CONF_ADDRESSABLE_LIGHT_ID = "addressable_light_id"
 CONF_ADVANCED = "advanced"
+CONF_AFTER = "after"
 CONF_ALPHA = "alpha"
 CONF_ALTITUDE = "altitude"
 CONF_AND = "and"
@@ -93,6 +74,7 @@ CONF_BUFFER_SIZE = "buffer_size"
 CONF_BUILD_PATH = "build_path"
 CONF_BUS_VOLTAGE = "bus_voltage"
 CONF_BUSY_PIN = "busy_pin"
+CONF_BYTES = "bytes"
 CONF_CALCULATED_LUX = "calculated_lux"
 CONF_CALIBRATE_LINEAR = "calibrate_linear"
 CONF_CALIBRATION = "calibration"
@@ -164,6 +146,7 @@ CONF_DAYS_OF_WEEK = "days_of_week"
 CONF_DC_PIN = "dc_pin"
 CONF_DEASSERT_RTS_DTR = "deassert_rts_dtr"
 CONF_DEBOUNCE = "debounce"
+CONF_DEBUG = "debug"
 CONF_DECAY_MODE = "decay_mode"
 CONF_DECELERATION = "deceleration"
 CONF_DEFAULT_MODE = "default_mode"
@@ -171,6 +154,7 @@ CONF_DEFAULT_TARGET_TEMPERATURE_HIGH = "default_target_temperature_high"
 CONF_DEFAULT_TARGET_TEMPERATURE_LOW = "default_target_temperature_low"
 CONF_DEFAULT_TRANSITION_LENGTH = "default_transition_length"
 CONF_DELAY = "delay"
+CONF_DELIMITER = "delimiter"
 CONF_DELTA = "delta"
 CONF_DEVICE = "device"
 CONF_DEVICE_CLASS = "device_class"
@@ -184,6 +168,7 @@ CONF_DISABLED_BY_DEFAULT = "disabled_by_default"
 CONF_DISCOVERY = "discovery"
 CONF_DISCOVERY_PREFIX = "discovery_prefix"
 CONF_DISCOVERY_RETAIN = "discovery_retain"
+CONF_DISCOVERY_UNIQUE_ID_GENERATOR = "discovery_unique_id_generator"
 CONF_DISTANCE = "distance"
 CONF_DITHER = "dither"
 CONF_DIV_RATIO = "div_ratio"
@@ -192,6 +177,8 @@ CONF_DNS2 = "dns2"
 CONF_DOMAIN = "domain"
 CONF_DRY_ACTION = "dry_action"
 CONF_DRY_MODE = "dry_mode"
+CONF_DUMMY_RECEIVER = "dummy_receiver"
+CONF_DUMMY_RECEIVER_ID = "dummy_receiver_id"
 CONF_DUMP = "dump"
 CONF_DURATION = "duration"
 CONF_EAP = "eap"
@@ -203,6 +190,7 @@ CONF_ELSE = "else"
 CONF_ENABLE_PIN = "enable_pin"
 CONF_ENABLE_TIME = "enable_time"
 CONF_ENERGY = "energy"
+CONF_ENTITY_CATEGORY = "entity_category"
 CONF_ENTITY_ID = "entity_id"
 CONF_ESP8266_DISABLE_SSL_SUPPORT = "esp8266_disable_ssl_support"
 CONF_ESPHOME = "esphome"
@@ -870,9 +858,11 @@ DEVICE_CLASS_OPENING = "opening"
 DEVICE_CLASS_PLUG = "plug"
 DEVICE_CLASS_PRESENCE = "presence"
 DEVICE_CLASS_PROBLEM = "problem"
+DEVICE_CLASS_RUNNING = "running"
 DEVICE_CLASS_SAFETY = "safety"
 DEVICE_CLASS_SMOKE = "smoke"
 DEVICE_CLASS_SOUND = "sound"
+DEVICE_CLASS_TAMPER = "tamper"
 DEVICE_CLASS_UPDATE = "update"
 DEVICE_CLASS_VIBRATION = "vibration"
 DEVICE_CLASS_WINDOW = "window"
@@ -919,3 +909,12 @@ KEY_CORE = "core"
 KEY_TARGET_PLATFORM = "target_platform"
 KEY_TARGET_FRAMEWORK = "target_framework"
 KEY_FRAMEWORK_VERSION = "framework_version"
+
+# Entity categories
+ENTITY_CATEGORY_NONE = ""
+
+# The entity category for configuration values/controls
+ENTITY_CATEGORY_CONFIG = "config"
+
+# The entity category for read only diagnostic values, for example RSSI, uptime or MAC Address
+ENTITY_CATEGORY_DIAGNOSTIC = "diagnostic"

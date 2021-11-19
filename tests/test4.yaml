@@ -45,6 +45,7 @@ logger:
   level: DEBUG
 
 web_server:
+  ota: false
   auth:
     username: admin
     password: admin
@@ -480,6 +481,12 @@ esp32_camera:
   power_down_pin: GPIO1
   resolution: 640x480
   jpeg_quality: 10
+
+esp32_camera_web_server:
+  - port: 8080
+    mode: stream
+  - port: 8081
+    mode: snapshot
 
 external_components:
   - source: github://esphome/esphome@dev

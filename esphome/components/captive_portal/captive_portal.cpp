@@ -67,6 +67,7 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   ESP_LOGI(TAG, "  SSID='%s'", ssid.c_str());
   ESP_LOGI(TAG, "  Password=" LOG_SECRET("'%s'"), psk.c_str());
   wifi::global_wifi_component->save_wifi_sta(ssid, psk);
+  wifi::global_wifi_component->start_scanning();
   request->redirect("/?save=true");
 }
 

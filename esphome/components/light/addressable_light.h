@@ -87,7 +87,7 @@ class AddressableLight : public LightOutput, public Component {
   void mark_shown_() {
 #ifdef USE_POWER_SUPPLY
     for (const auto &c : *this) {
-      if (c.get().is_on()) {
+      if (c.get_red_raw() > 0 || c.get_green_raw() > 0 || c.get_blue_raw() > 0 || c.get_white_raw() > 0) {
         this->power_.request();
         return;
       }

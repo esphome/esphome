@@ -28,6 +28,7 @@ from .const import (  # noqa
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
     VARIANT_ESP32C3,
+    VARIANT_FRIENDLY,
     VARIANTS,
 )
 from .boards import BOARD_TO_VARIANT
@@ -287,6 +288,7 @@ async def to_code(config):
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{config[CONF_VARIANT]}")
+    cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[config[CONF_VARIANT]])
 
     cg.add_platformio_option("lib_ldf_mode", "off")
 

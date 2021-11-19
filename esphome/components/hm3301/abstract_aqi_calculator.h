@@ -1,6 +1,5 @@
 #pragma once
 
-#ifdef USE_ARDUINO
 #include <cstdint>
 
 namespace esphome {
@@ -13,5 +12,3 @@ class AbstractAQICalculator {
 
 }  // namespace hm3301
 }  // namespace esphome
-
-#endif  // USE_ARDUINO
