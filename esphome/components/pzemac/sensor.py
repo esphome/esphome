@@ -23,6 +23,7 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from . import CONF_UPDATE_FILTER
 
 AUTO_LOAD = ["modbus"]
 
@@ -68,6 +69,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_POWER_FACTOR,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_UPDATE_FILTER, default=0): cv.int_range(min=0, max=255),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -104,3 +106,5 @@ async def to_code(config):
         conf = config[CONF_POWER_FACTOR]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_power_factor_sensor(sens))
+    if CONF_UPDATE_FILTER in config:
+        cg.add(var.set_update_filter(config[CONF_UPDATE_FILTER]))

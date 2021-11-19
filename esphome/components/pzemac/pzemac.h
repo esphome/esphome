@@ -16,6 +16,12 @@ class PZEMAC : public PollingComponent, public modbus::ModbusDevice {
   void set_frequency_sensor(sensor::Sensor *frequency_sensor) { frequency_sensor_ = frequency_sensor; }
   void set_power_factor_sensor(sensor::Sensor *power_factor_sensor) { power_factor_sensor_ = power_factor_sensor; }
 
+  void set_update_filter(uint8_t update_filter) {
+    update_filter_ = update_filter;
+    update_ok_count_down_ = update_filter;
+    update_not_ok_count_down_ = update_filter;
+  }
+
   void update() override;
 
   void on_modbus_data(const std::vector<uint8_t> &data) override;
@@ -29,6 +35,10 @@ class PZEMAC : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *energy_sensor_;
   sensor::Sensor *frequency_sensor_;
   sensor::Sensor *power_factor_sensor_;
+  bool modbus_has_data_{false};
+  uint8_t update_filter_{0};
+  uint8_t update_ok_count_down_{0};
+  uint8_t update_not_ok_count_down_{0};
 };
 
 }  // namespace pzemac

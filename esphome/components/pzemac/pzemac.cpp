@@ -15,6 +15,8 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
     return;
   }
 
+  this->modbus_has_data_ = true;
+
   // See https://github.com/esphome/feature-requests/issues/49#issuecomment-538636809
   //  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
   // 01 04 14 08 D1 00 6C 00 00 00 F4 00 00 00 26 00 00 01 F4 00 64 00 00 51 34
@@ -45,26 +47,59 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
   uint16_t raw_power_factor = pzem_get_16bit(16);
   float power_factor = raw_power_factor / 100.0f;
 
-  ESP_LOGD(TAG, "PZEM AC: V=%.1f V, I=%.3f A, P=%.1f W, E=%.1f Wh, F=%.1f Hz, PF=%.2f", voltage, current, active_power,
-           active_energy, frequency, power_factor);
-  if (this->voltage_sensor_ != nullptr)
-    this->voltage_sensor_->publish_state(voltage);
-  if (this->current_sensor_ != nullptr)
-    this->current_sensor_->publish_state(current);
-  if (this->power_sensor_ != nullptr)
-    this->power_sensor_->publish_state(active_power);
-  if (this->energy_sensor_ != nullptr)
-    this->energy_sensor_->publish_state(active_energy);
-  if (this->frequency_sensor_ != nullptr)
-    this->frequency_sensor_->publish_state(frequency);
-  if (this->power_factor_sensor_ != nullptr)
-    this->power_factor_sensor_->publish_state(power_factor);
+  if (this->update_ok_count_down_ == 0) {
+    ESP_LOGD(TAG, "PZEM AC: V=%.1f V, I=%.3f A, P=%.1f W, E=%.1f Wh, F=%.1f Hz, PF=%.2f", voltage, current, active_power,
+             active_energy, frequency, power_factor);
+    if (this->voltage_sensor_ != nullptr)
+      this->voltage_sensor_->publish_state(voltage);
+    if (this->current_sensor_ != nullptr)
+      this->current_sensor_->publish_state(current);
+    if (this->power_sensor_ != nullptr)
+      this->power_sensor_->publish_state(active_power);
+    if (this->energy_sensor_ != nullptr)
+      this->energy_sensor_->publish_state(active_energy);
+    if (this->frequency_sensor_ != nullptr)
+      this->frequency_sensor_->publish_state(frequency);
+    if (this->power_factor_sensor_ != nullptr)
+      this->power_factor_sensor_->publish_state(power_factor);
+  }
 }
 
-void PZEMAC::update() { this->send(PZEM_CMD_READ_IN_REGISTERS, 0, PZEM_REGISTER_COUNT); }
+void PZEMAC::update() {
+  this->send(PZEM_CMD_READ_IN_REGISTERS, 0, PZEM_REGISTER_COUNT);
+  if (this->modbus_has_data_) {
+    this->modbus_has_data_ = false;
+    this->update_not_ok_count_down_ = this->update_filter_;
+    if (this->update_ok_count_down_ > 0) this->update_ok_count_down_--;
+  } else {
+    this->update_ok_count_down_ = this->update_filter_;
+    if (this->update_not_ok_count_down_ > 0) {
+      this->update_not_ok_count_down_--;
+    } else {
+      if (this->update_filter_ > 0) {
+        ESP_LOGW(TAG, "PZEM AC: V=%.1f V, I=%.3f A, P=%.1f W, E=%.1f Wh, F=%.1f Hz, PF=%.2f", 0.0, 0.0, 0.0,
+                 0.0, 0.0, 0.0);
+        if (this->voltage_sensor_ != nullptr)
+          this->voltage_sensor_->publish_state(0.0);
+        if (this->current_sensor_ != nullptr)
+          this->current_sensor_->publish_state(0.0);
+        if (this->power_sensor_ != nullptr)
+          this->power_sensor_->publish_state(0.0);
+        if (this->energy_sensor_ != nullptr)
+          this->energy_sensor_->publish_state(0.0);
+        if (this->frequency_sensor_ != nullptr)
+          this->frequency_sensor_->publish_state(0.0);
+        if (this->power_factor_sensor_ != nullptr)
+          this->power_factor_sensor_->publish_state(0.0);
+      }
+    }
+  }
+}
+
 void PZEMAC::dump_config() {
   ESP_LOGCONFIG(TAG, "PZEMAC:");
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+  ESP_LOGCONFIG(TAG, "  Update filter: %d", this->update_filter_);
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("", "Current", this->current_sensor_);
   LOG_SENSOR("", "Power", this->power_sensor_);
