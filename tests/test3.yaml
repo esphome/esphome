@@ -664,6 +664,13 @@ sensor:
     name: 'testwave'
     component_id: 2
     wave_channel_id: 1
+  - platform: mlx90393
+    x-axis:
+      name: "mlxxaxis"
+    y-axis:
+      name: "mlxyaxis"
+    z-axis:
+      name: "mlxzaxis"
 time:
   - platform: homeassistant
 

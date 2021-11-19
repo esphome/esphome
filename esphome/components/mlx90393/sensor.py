@@ -70,9 +70,9 @@ CONFIG_SCHEMA = (
             ).extend(
                 cv.Schema(
                     {
-                        cv.Optional(
-                            CONF_RESOLUTION, default="19BIT"
-                        ): cv.enum(RESOLUTION, upper=True, space="_")
+                        cv.Optional(CONF_RESOLUTION, default="19BIT"): cv.enum(
+                            RESOLUTION, upper=True, space="_"
+                        )
                     }
                 )
             ),
@@ -84,9 +84,9 @@ CONFIG_SCHEMA = (
             ).extend(
                 cv.Schema(
                     {
-                        cv.Optional(
-                            CONF_RESOLUTION, default="19BIT"
-                        ): cv.enum(RESOLUTION, upper=True, space="_")
+                        cv.Optional(CONF_RESOLUTION, default="19BIT"): cv.enum(
+                            RESOLUTION, upper=True, space="_"
+                        )
                     }
                 )
             ),
@@ -98,9 +98,9 @@ CONFIG_SCHEMA = (
             ).extend(
                 cv.Schema(
                     {
-                        cv.Optional(
-                            CONF_RESOLUTION, default="16BIT"
-                        ): cv.enum(RESOLUTION, upper=True, space="_")
+                        cv.Optional(CONF_RESOLUTION, default="16BIT"): cv.enum(
+                            RESOLUTION, upper=True, space="_"
+                        )
                     }
                 )
             ),
@@ -112,9 +112,9 @@ CONFIG_SCHEMA = (
             ).extend(
                 cv.Schema(
                     {
-                        cv.Optional(
-                            CONF_RESOLUTION, default="16bit"
-                        ): cv.enum(RESOLUTION, upper=True, space="_")
+                        cv.Optional(CONF_RESOLUTION, default="16BIT"): cv.enum(
+                            RESOLUTION, upper=True, space="_"
+                        )
                     }
                 )
             ),
@@ -132,6 +132,8 @@ async def to_code(config):
 
     if CONF_GAIN in config:
         cg.add(var.set_gain(GAIN[config[CONF_GAIN]]))
+        print(f"set gain to {GAIN[config[CONF_GAIN]]}")
+        raise ValueError("")
     if CONF_OVERSAMPLING in config:
         cg.add(var.set_oversampling(OVERSAMPLING[config[CONF_OVERSAMPLING]]))
     if CONF_FILTER in config:
@@ -154,4 +156,4 @@ async def to_code(config):
         cg.add(var.set_drdy_pin(pin))
 
 
-cg.add_library("functionpointer/arduino-MLX90393", "^0.0.5")
+cg.add_library("functionpointer/arduino-MLX90393", "^0.0.8")

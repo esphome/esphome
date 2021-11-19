@@ -5,11 +5,12 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/hal.h"
 #include <MLX90393.h>
+#include <MLX90393_i2c.h>
 
 namespace esphome {
 namespace mlx90393 {
 
-class MLX90393_cls : public PollingComponent, public i2c::I2CDevice {
+class MLX90393_cls : public PollingComponent, public i2c::I2CDevice, public MLX90393_i2c {
  public:
   void setup() override;
   void dump_config() override;
@@ -29,6 +30,9 @@ class MLX90393_cls : public PollingComponent, public i2c::I2CDevice {
 
   void set_gain(uint8_t gain_sel) { gain_ = gain_sel; }
 
+  // override for MLX library
+  bool transceive(uint8_t *request, size_t request_size, uint8_t *response, size_t response_size);
+
  protected:
   MLX90393 mlx;
   sensor::Sensor *x_sensor_{nullptr};
@@ -40,9 +44,7 @@ class MLX90393_cls : public PollingComponent, public i2c::I2CDevice {
   uint8_t filter_ = 0;
   uint8_t resolutions_[3] = {0};
   GPIOPin *drdy_pin_ = nullptr;
-
 };
 
 }  // namespace mlx90393
 }  // namespace esphome
-
