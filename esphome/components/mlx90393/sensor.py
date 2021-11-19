@@ -39,10 +39,6 @@ RESOLUTION = {
     "19BIT": 3,
 }
 
-OVERSAMPLING = {f"OVERSAMPLING_{i}": i for i in range(4)}
-
-FILTER = {f"FILTER_{i}": i for i in range(8)}
-
 CONF_X_AXIS = "x-axis"
 CONF_Y_AXIS = "y-axis"
 CONF_Z_AXIS = "z-axis"
@@ -56,12 +52,8 @@ CONFIG_SCHEMA = (
                 GAIN, upper=True, space="_"
             ),
             cv.Optional(CONF_DRDY_PIN): pins.gpio_input_pin_schema,
-            cv.Optional(CONF_OVERSAMPLING, default="OVERSAMPLING_2"): cv.enum(
-                OVERSAMPLING, upper=True, space="_"
-            ),
-            cv.Optional(CONF_FILTER, default="FILTER_6"): cv.enum(
-                FILTER, upper=True, space="_"
-            ),
+            cv.Optional(CONF_OVERSAMPLING, default=2): cv.int_range(min=0, max=3),
+            cv.Optional(CONF_FILTER, default=6): cv.int_range(min=0, max=7),
             cv.Optional(CONF_X_AXIS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROTESLA,
                 accuracy_decimals=0,
@@ -132,12 +124,10 @@ async def to_code(config):
 
     if CONF_GAIN in config:
         cg.add(var.set_gain(GAIN[config[CONF_GAIN]]))
-        print(f"set gain to {GAIN[config[CONF_GAIN]]}")
-        raise ValueError("")
     if CONF_OVERSAMPLING in config:
-        cg.add(var.set_oversampling(OVERSAMPLING[config[CONF_OVERSAMPLING]]))
+        cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
     if CONF_FILTER in config:
-        cg.add(var.set_filter(FILTER[config[CONF_FILTER]]))
+        cg.add(var.set_filter(config[CONF_FILTER]))
 
     if CONF_X_AXIS in config:
         sens = await sensor.new_sensor(config[CONF_X_AXIS])
