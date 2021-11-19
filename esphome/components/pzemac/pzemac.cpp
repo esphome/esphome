@@ -77,8 +77,8 @@ void PZEMAC::update() {
       this->update_not_ok_count_down_--;
     } else {
       if (this->update_filter_ > 0) {
-        ESP_LOGW(TAG, "PZEM AC: V=%.1f V, I=%.3f A, P=%.1f W, E=%.1f Wh, F=%.1f Hz, PF=%.2f", 0.0, 0.0, 0.0,
-                 0.0, 0.0, 0.0);
+        ESP_LOGW(TAG, "PZEM AC: V=%.1f V, I=%.3f A, P=%.1f W, E=%.1f Wh, F=%.1f Hz, PF=%.2f", 0.0, 0.0, 0.0, 0.0, 0.0,
+                 0.0);
         if (this->voltage_sensor_ != nullptr)
           this->voltage_sensor_->publish_state(0.0);
         if (this->current_sensor_ != nullptr)
