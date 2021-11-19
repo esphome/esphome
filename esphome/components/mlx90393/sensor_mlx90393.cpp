@@ -29,13 +29,13 @@ void MLX90393_cls::setup() {
     this->mark_failed();
     return;
   }
-  mlx.setGainSel(gain_);
+  mlx.setGainSel(this->gain_);
 
-  mlx.setResolution(resolutions_[0], resolutions_[1], resolutions_[2]);
+  mlx.setResolution(this->resolutions_[0], this->resolutions_[1], this->resolutions_[2]);
 
-  mlx.setOverSampling(osr_);
+  mlx.setOverSampling(this->osr_);
 
-  mlx.setDigitalFiltering(filter_);
+  mlx.setDigitalFiltering(this->filter_);
 }
 
 void MLX90393_cls::dump_config() {
