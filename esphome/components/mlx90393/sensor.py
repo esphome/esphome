@@ -19,7 +19,9 @@ DEPENDENCIES = ["i2c"]
 
 mlx90393_ns = cg.esphome_ns.namespace("mlx90393")
 
-MLX90393 = mlx90393_ns.class_("MLX90393_cls", cg.PollingComponent, i2c.I2CDevice)
+MLX90393Component = mlx90393_ns.class_(
+    "MLX90393Cls", cg.PollingComponent, i2c.I2CDevice
+)
 
 GAIN = {
     "1X": 7,
@@ -47,7 +49,7 @@ CONF_DRDY_PIN = "drdy_pin"
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.declare_id(MLX90393),
+            cv.GenerateID(): cv.declare_id(MLX90393Component),
             cv.Optional(CONF_GAIN, default="2_5X"): cv.enum(
                 GAIN, upper=True, space="_"
             ),

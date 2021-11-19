@@ -16,7 +16,7 @@ bool MLX90393Cls::transceive(uint8_t *request, size_t request_size, uint8_t *res
 }
 
 void MLX90393Cls::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MLX90393_cls...");
+  ESP_LOGCONFIG(TAG, "Setting up MLX90393...");
   if (this->drdy_pin_ == nullptr) {
     this->mlx_.begin_custom_i2c(this, 0, 0, -1);
   } else {
@@ -33,11 +33,11 @@ void MLX90393Cls::setup() {
 }
 
 void MLX90393Cls::dump_config() {
-  ESP_LOGCONFIG(TAG, "MLX90393_cls:");
+  ESP_LOGCONFIG(TAG, "MLX90393:");
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MLX90393_cls failed!");
+    ESP_LOGE(TAG, "Communication with MLX90393 failed!");
     return;
   }
   LOG_UPDATE_INTERVAL(this);
