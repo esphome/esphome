@@ -70,7 +70,8 @@ void PZEMAC::update() {
   if (this->modbus_has_data_) {
     this->modbus_has_data_ = false;
     this->update_not_ok_count_down_ = this->update_filter_;
-    if (this->update_ok_count_down_ > 0) this->update_ok_count_down_--;
+    if (this->update_ok_count_down_ > 0)
+      this->update_ok_count_down_--;
   } else {
     this->update_ok_count_down_ = this->update_filter_;
     if (this->update_not_ok_count_down_ > 0) {
