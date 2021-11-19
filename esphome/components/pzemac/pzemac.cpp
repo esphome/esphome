@@ -48,8 +48,8 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
   float power_factor = raw_power_factor / 100.0f;
 
   if (this->update_ok_count_down_ == 0) {
-    ESP_LOGD(TAG, "PZEM AC: V=%.1f V, I=%.3f A, P=%.1f W, E=%.1f Wh, F=%.1f Hz, PF=%.2f", voltage, current, active_power,
-             active_energy, frequency, power_factor);
+    ESP_LOGD(TAG, "PZEM AC: V=%.1f V, I=%.3f A, P=%.1f W, E=%.1f Wh, F=%.1f Hz, PF=%.2f", voltage, current,
+             active_power, active_energy, frequency, power_factor);
     if (this->voltage_sensor_ != nullptr)
       this->voltage_sensor_->publish_state(voltage);
     if (this->current_sensor_ != nullptr)
