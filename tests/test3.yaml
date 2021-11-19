@@ -665,12 +665,17 @@ sensor:
     component_id: 2
     wave_channel_id: 1
   - platform: mlx90393
+    oversampling: 1
+    filter: 0
+    gain: "3X"
     x-axis:
       name: "mlxxaxis"
     y-axis:
       name: "mlxyaxis"
     z-axis:
       name: "mlxzaxis"
+    temperature:
+      name: "mlxtemp"
 time:
   - platform: homeassistant
 

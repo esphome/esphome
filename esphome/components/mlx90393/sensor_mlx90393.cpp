@@ -23,11 +23,8 @@ void MLX90393_cls::setup() {
   if (this->drdy_pin_ == nullptr) {
     mlx.begin_custom_i2c(this, 0, 0, -1);
   } else {
-    // mlx.begin(0,0, this->drdy_pin_);
-    // mlx.begin(0, 0);
-    ESP_LOGE(TAG, "drdy pin not yet supported");
-    this->mark_failed();
-    return;
+    // drdy pin not yet supported, just use normal
+    mlx.begin_custom_i2c(this, 0, 0, -1);
   }
   mlx.setGainSel(this->gain_);
 
