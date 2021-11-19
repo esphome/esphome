@@ -668,11 +668,11 @@ sensor:
     oversampling: 1
     filter: 0
     gain: "3X"
-    x-axis:
+    x_axis:
       name: "mlxxaxis"
-    y-axis:
+    y_axis:
       name: "mlxyaxis"
-    z-axis:
+    z_axis:
       name: "mlxzaxis"
     temperature:
       name: "mlxtemp"

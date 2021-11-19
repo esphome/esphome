@@ -39,9 +39,9 @@ RESOLUTION = {
     "19BIT": 3,
 }
 
-CONF_X_AXIS = "x-axis"
-CONF_Y_AXIS = "y-axis"
-CONF_Z_AXIS = "z-axis"
+CONF_X_AXIS = "x_axis"
+CONF_Y_AXIS = "y_axis"
+CONF_Z_AXIS = "z_axis"
 CONF_DRDY_PIN = "drdy_pin"
 
 CONFIG_SCHEMA = (
