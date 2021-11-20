@@ -17,7 +17,7 @@ class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90
   float get_setup_priority() const override;
   void update() override;
 
-  void set_drdy_pin(GPIOPin *pin) { drdy_pin_ = pin; }
+  void set_drdy_gpio(GPIOPin *pin) { drdy_pin_ = pin; }
 
   void set_x_sensor(sensor::Sensor *x_sensor) { x_sensor_ = x_sensor; }
   void set_y_sensor(sensor::Sensor *y_sensor) { y_sensor_ = y_sensor; }
@@ -34,11 +34,12 @@ class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90
 
   // disable lint because it keeps suggesting const uint8_t *response.
   // this->read() writes data into response, so it can't be const
-  virtual bool transceive(const uint8_t *request, size_t request_size, uint8_t *response, size_t response_size) override;  // NOLINT
-  virtual bool has_drdy_pin() override;
-  virtual bool read_drdy_pin() override;
-  virtual void sleep_millis(uint32_t millis) override;
-  virtual void sleep_micros(uint32_t micros) override;
+  bool transceive(const uint8_t *request, size_t request_size, uint8_t *response,
+                  size_t response_size) override;  // NOLINT
+  bool has_drdy_pin() override;
+  bool read_drdy_pin() override;
+  void sleep_millis(uint32_t millis) override;
+  void sleep_micros(uint32_t micros) override;
 
  protected:
   MLX90393 mlx_;

@@ -148,6 +148,6 @@ async def to_code(config):
         cg.add(var.set_resolution(2, RESOLUTION[config[CONF_Z_AXIS][CONF_RESOLUTION]]))
     if CONF_DRDY_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_DRDY_PIN])
-        cg.add(var.set_drdy_pin(pin))
+        cg.add(var.set_drdy_gpio(pin))
 
     cg.add_library("functionpointer/arduino-MLX90393", "^0.0.11")
