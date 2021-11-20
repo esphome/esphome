@@ -6,7 +6,8 @@ namespace mlx90393 {
 
 static const char *const TAG = "mlx90393";
 
-bool MLX90393Cls::transceive(const uint8_t *request, size_t request_size, uint8_t *response, size_t response_size) {
+bool MLX90393Cls::transceive(const uint8_t *request, size_t request_size, uint8_t *response,  // NOLINT
+                             size_t response_size) {                                          // NOLINT
   i2c::ErrorCode e = this->write(request, request_size);
   if (e != i2c::ErrorCode::ERROR_OK) {
     return false;
@@ -24,8 +25,8 @@ bool MLX90393Cls::read_drdy_pin() {
     return this->drdy_pin_->digital_read();
   }
 }
-void MLX90393Cls::sleep_millis(uint32 millis) { delay(millis); }
-void MLX90393Cls::sleep_micros(uint32 micros) { delayMicroseconds(micros); }
+void MLX90393Cls::sleep_millis(uint32_t millis) { delay(millis); }
+void MLX90393Cls::sleep_micros(uint32_t micros) { delayMicroseconds(micros); }
 
 void MLX90393Cls::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MLX90393...");
