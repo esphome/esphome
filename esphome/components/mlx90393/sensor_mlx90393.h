@@ -34,8 +34,8 @@ class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90
   bool transceive(const uint8_t *request, size_t request_size, uint8_t *response, size_t response_size);
   bool has_drdy_pin();
   bool read_drdy_pin();
-  void sleep_millis(long millis);
-  void sleep_micros(long micros);
+  void sleep_millis(uint32_t millis);
+  void sleep_micros(uint32_t micros);
 
  protected:
   MLX90393 mlx_;

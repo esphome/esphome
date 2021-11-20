@@ -150,4 +150,4 @@ async def to_code(config):
         pin = await cg.gpio_pin_expression(config[CONF_DRDY_PIN])
         cg.add(var.set_drdy_pin(pin))
 
-    cg.add_library("functionpointer/arduino-MLX90393", "^0.0.10")
+    cg.add_library("functionpointer/arduino-MLX90393", "^0.0.11")

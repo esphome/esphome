@@ -24,8 +24,8 @@ bool MLX90393Cls::read_drdy_pin() {
     return this->drdy_pin_->digital_read();
   }
 }
-void MLX90393Cls::sleep_millis(long millis) { delay(millis); }
-void MLX90393Cls::sleep_micros(long micros) { delayMicroseconds(micros); }
+void MLX90393Cls::sleep_millis(uint32 millis) { delay(millis); }
+void MLX90393Cls::sleep_micros(uint32 micros) { delayMicroseconds(micros); }
 
 void MLX90393Cls::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MLX90393...");
