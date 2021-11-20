@@ -39,43 +39,43 @@
 #include "esphome/components/light/light_traits.h"
 
 namespace esphome {
-namespace sonoff {
+namespace sonoff_d1 {
 
 class SonoffD1Output : public light::LightOutput, public uart::UARTDevice, public Component {
-  public:
-    // LightOutput methods
-    light::LightTraits get_traits() override;
-    void setup_state(light::LightState *state) override { this->light_state_ = state; }
-    void write_state(light::LightState *state) override;
+ public:
+  // LightOutput methods
+  light::LightTraits get_traits() override;
+  void setup_state(light::LightState *state) override { this->light_state_ = state; }
+  void write_state(light::LightState *state) override;
 
-    // Component methods
-    void setup() override {};
-    void loop() override;
-    void dump_config() override;
-    float get_setup_priority() const override { return esphome::setup_priority::DATA; }
+  // Component methods
+  void setup() override{};
+  void loop() override;
+  void dump_config() override;
+  float get_setup_priority() const override { return esphome::setup_priority::DATA; }
 
-    // Custom method
-    void set_use_rm433_remote(const bool use_rm433_remote) { this->use_rm433_remote_ = use_rm433_remote; }  
+  // Custom method
+  void set_use_rm433_remote(const bool use_rm433_remote) { this->use_rm433_remote_ = use_rm433_remote; }
 
-  protected:
-    bool use_rm433_remote_;
-    bool last_binary_{false};
-    int last_brightness_{0};
-    int write_count_{0};
-    int read_count_{0};
-    light::LightState *light_state_{nullptr};
+ protected:
+  bool use_rm433_remote_;
+  bool last_binary_{false};
+  int last_brightness_{0};
+  int write_count_{0};
+  int read_count_{0};
+  light::LightState *light_state_{nullptr};
 
-    uint8_t calc_checksum_(const uint8_t *cmd, const size_t len);
-    void populate_checksum_(uint8_t *cmd, const size_t len);
-    char* dump_cmd_(const uint8_t *cmd, const size_t len);
-    void skip_command_();
-    bool read_command_(uint8_t *cmd, size_t len);
-    bool read_ack_(const uint8_t *cmd, const size_t len);
-    bool write_command_(uint8_t *cmd, const size_t len, const bool needs_ack=true);
-    bool control_dimmer_(const bool binary, const int brightness);
-    void process_command_(const uint8_t *cmd, const size_t len);
-    void publish_state_(const float brightness);
+  uint8_t calc_checksum_(const uint8_t *cmd, size_t len);
+  void populate_checksum_(uint8_t *cmd, size_t len);
+  char *dump_cmd_(const uint8_t *cmd, size_t len);
+  void skip_command_();
+  bool read_command_(uint8_t *cmd, size_t len);
+  bool read_ack_(const uint8_t *cmd, size_t len);
+  bool write_command_(uint8_t *cmd, size_t len, bool needs_ack = true);
+  bool control_dimmer_(bool binary, int brightness);
+  void process_command_(const uint8_t *cmd, size_t len);
+  void publish_state_(float brightness);
 };
 
-}  // namespace sonoff
+}  // namespace sonoff_d1
 }  // namespace esphome

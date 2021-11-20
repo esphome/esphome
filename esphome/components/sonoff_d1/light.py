@@ -9,9 +9,8 @@ CONF_USE_RM433_REMOTE = "use_rm433_remote"
 
 DEPENDENCIES = ["uart", "light"]
 
-
-sonoff_ns = cg.esphome_ns.namespace("sonoff")
-SonoffD1Output = sonoff_ns.class_("SonoffD1Output", cg.Component, uart.UARTDevice, light.LightOutput)
+sonoff_d1_ns = cg.esphome_ns.namespace("sonoff_d1")
+SonoffD1Output = sonoff_d1_ns.class_("SonoffD1Output", cg.Component, uart.UARTDevice, light.LightOutput)
 
 CONFIG_SCHEMA = (
     light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
@@ -23,6 +22,7 @@ CONFIG_SCHEMA = (
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
 )
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
