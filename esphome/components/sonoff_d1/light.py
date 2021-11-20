@@ -10,7 +10,9 @@ CONF_USE_RM433_REMOTE = "use_rm433_remote"
 DEPENDENCIES = ["uart", "light"]
 
 sonoff_d1_ns = cg.esphome_ns.namespace("sonoff_d1")
-SonoffD1Output = sonoff_d1_ns.class_("SonoffD1Output", cg.Component, uart.UARTDevice, light.LightOutput)
+SonoffD1Output = sonoff_d1_ns.class_(
+    "SonoffD1Output", cg.Component, uart.UARTDevice, light.LightOutput
+)
 
 CONFIG_SCHEMA = (
     light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
