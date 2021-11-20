@@ -69,7 +69,7 @@ class SonoffD1Output : public light::LightOutput, public uart::UARTDevice, publi
   void populate_checksum_(uint8_t *cmd, size_t len);
   char *dump_cmd_(const uint8_t *cmd, size_t len);
   void skip_command_();
-  bool read_command_(uint8_t *cmd, size_t len);
+  bool read_command_(uint8_t *cmd, size_t &len);
   bool read_ack_(const uint8_t *cmd, size_t len);
   bool write_command_(uint8_t *cmd, size_t len, bool needs_ack = true);
   bool control_dimmer_(bool binary, int brightness);

@@ -86,7 +86,7 @@ void SonoffD1Output::skip_command_() {
 }
 
 // This assumes some data is already available
-bool SonoffD1Output::read_command_(uint8_t *cmd, size_t len) {
+bool SonoffD1Output::read_command_(uint8_t *cmd, size_t &len) {
   // Do consistency check
   if (cmd == nullptr || len < 7) {
     ESP_LOGW(TAG, "[%04d] Too short command buffer (actual len is %d bytes, minimal is 7)", this->write_count_, len);
@@ -120,7 +120,7 @@ bool SonoffD1Output::read_command_(uint8_t *cmd, size_t len) {
         this->skip_command_();
         return false;
       }
-      len = cmd[5] + 7;
+      len = cmd[5] + 7 /*mandatory header + suffix length*/;
 
       // Read remaining gardbled data (just in case, I don't see where this can appear now)
       this->skip_command_();
@@ -195,9 +195,9 @@ bool SonoffD1Output::write_command_(uint8_t *cmd, const size_t len, bool needs_a
 
 bool SonoffD1Output::control_dimmer_(const bool binary, const int brightness) {
   // Include our basic code from the Tasmota project, thank you again!
-  //                   0     1     2     3     4     5     6     7     8
+  //                    0     1     2     3     4     5     6     7     8
   uint8_t cmd[17] = {0xAA, 0x55, 0x01, 0x04, 0x00, 0x0A, 0x00, 0x00, 0xFF,
-                     //9     10    11    12    13    14    15    16
+                     // 9     10    11    12    13    14    15    16
                      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00};
 
   cmd[6] = binary;
@@ -224,7 +224,6 @@ void SonoffD1Output::process_command_(const uint8_t *cmd, const size_t len) {
         this->control_dimmer_(this->last_binary_, this->last_brightness_);
       }
     } else {
-      // TODO: Test me, can be tested with RF remote (or with ghost commands)
       this->last_binary_ = cmd[6];
       this->last_brightness_ = cmd[7];
       float brightness = 0.0f;
