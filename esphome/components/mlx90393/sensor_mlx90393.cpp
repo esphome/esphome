@@ -6,7 +6,7 @@ namespace mlx90393 {
 
 static const char *const TAG = "mlx90393";
 
-bool MLX90393Cls::transceive(uint8_t *request, size_t request_size, uint8_t *response, size_t response_size) {
+bool MLX90393Cls::transceive(const uint8_t *request, size_t request_size, uint8_t *response, size_t response_size) {
   i2c::ErrorCode e = this->write(request, request_size);
   if (e != i2c::ErrorCode::ERROR_OK) {
     return false;
@@ -15,14 +15,25 @@ bool MLX90393Cls::transceive(uint8_t *request, size_t request_size, uint8_t *res
   return e == i2c::ErrorCode::ERROR_OK;
 }
 
+bool MLX90393Cls::has_drdy_pin() { return this->drdy_pin_ != nullptr; }
+
+bool MLX90393Cls::read_drdy_pin() {
+  if (this->drdy_pin_ == nullptr) {
+    return false;
+  } else {
+    return this->drdy_pin_->digital_read();
+  }
+}
+void MLX90393Cls::sleep_millis(long millis) { delay(millis); }
+void MLX90393Cls::sleep_micros(long micros) { delayMicroseconds(micros); }
+
 void MLX90393Cls::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MLX90393...");
-  if (this->drdy_pin_ == nullptr) {
-    this->mlx_.begin_custom_i2c(this, 0, 0, -1);
-  } else {
-    // drdy pin not yet supported, just use normal
-    this->mlx_.begin_custom_i2c(this, 0, 0, -1);
-  }
+  // note the two arguments A0 and A1 which are used to construct an i2c address
+  // we can hard-code these because we never actually use the constructed address
+  // see the transceive function above, which uses the address from I2CComponent
+  this->mlx_.begin_with_hal(this, 0, 0);
+
   this->mlx_.setGainSel(this->gain_);
 
   this->mlx_.setResolution(this->resolutions_[0], this->resolutions_[1], this->resolutions_[2]);

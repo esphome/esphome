@@ -124,6 +124,9 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
+    if CONF_DRDY_PIN in config:
+        pin = await cg.gpio_pin_expression(config[CONF_DRDY_PIN])
+        cg.add(var.set_drdy_pin(pin))
     if CONF_GAIN in config:
         cg.add(var.set_gain(GAIN[config[CONF_GAIN]]))
     if CONF_OVERSAMPLING in config:
@@ -147,5 +150,4 @@ async def to_code(config):
         pin = await cg.gpio_pin_expression(config[CONF_DRDY_PIN])
         cg.add(var.set_drdy_pin(pin))
 
-
-cg.add_library("functionpointer/arduino-MLX90393", "^0.0.8")
+    cg.add_library("functionpointer/arduino-MLX90393", "^0.0.10")
