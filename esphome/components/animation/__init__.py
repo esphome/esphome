@@ -44,8 +44,9 @@ async def to_code(config):
     width, height = image.size
     frames = image.n_frames
     if CONF_RESIZE in config:
-        image.thumbnail(config[CONF_RESIZE])
-        width, height = image.size
+        image_copy = image.copy()
+        image_copy.thumbnail(config[CONF_RESIZE])
+        width, height = image_copy.size
     else:
         if width > 500 or height > 500:
             _LOGGER.warning(
@@ -59,6 +60,8 @@ async def to_code(config):
         for frameIndex in range(frames):
             image.seek(frameIndex)
             frame = image.convert("L", dither=Image.NONE)
+            if CONF_RESIZE in config:
+                frame = frame.resize(config[CONF_RESIZE])
             pixels = list(frame.getdata())
             if len(pixels) != height * width:
                 raise core.EsphomeError(
@@ -73,9 +76,9 @@ async def to_code(config):
         pos = 0
         for frameIndex in range(frames):
             image.seek(frameIndex)
-            if CONF_RESIZE in config:
-                image.thumbnail(config[CONF_RESIZE])
             frame = image.convert("RGB")
+            if CONF_RESIZE in config:
+                frame = frame.resize(config[CONF_RESIZE])
             pixels = list(frame.getdata())
             if len(pixels) != height * width:
                 raise core.EsphomeError(
@@ -95,6 +98,8 @@ async def to_code(config):
         for frameIndex in range(frames):
             image.seek(frameIndex)
             frame = image.convert("1", dither=Image.NONE)
+            if CONF_RESIZE in config:
+                frame = frame.resize(config[CONF_RESIZE])
             for y in range(height):
                 for x in range(width):
                     if frame.getpixel((x, y)):
