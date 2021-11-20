@@ -34,7 +34,7 @@ class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90
 
   // disable lint because it keeps suggesting const uint8_t *response.
   // this->read() writes data into response, so it can't be const
-  bool transceive(const uint8_t *request, size_t request_size, uint8_t *response, size_t response_size); // NOLINT
+  bool transceive(const uint8_t *request, size_t request_size, uint8_t *response, size_t response_size);  // NOLINT
   bool has_drdy_pin();
   bool read_drdy_pin();
   void sleep_millis(uint32_t millis);
