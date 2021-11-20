@@ -1157,6 +1157,12 @@ light:
     name: Icicle Lights
     pin_a: out
     pin_b: out2
+  - platform: sonoff_d1
+    uart_id: uart2
+    use_rm433_remote: False
+    name: Sonoff D1 Dimmer
+    id: d1_light
+    restore_mode: RESTORE_DEFAULT_OFF
 
 servo:
   id: my_servo
