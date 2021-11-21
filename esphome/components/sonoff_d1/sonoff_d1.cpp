@@ -47,7 +47,7 @@
 namespace esphome {
 namespace sonoff_d1 {
 
-static const char *const TAG = "D1_Dimmer";
+static const char *const TAG = "sonoff_d1";
 
 uint8_t SonoffD1Output::calc_checksum_(const uint8_t *cmd, const size_t len) {
   uint8_t crc = 0;
