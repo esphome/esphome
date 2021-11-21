@@ -35,8 +35,9 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   }
 
   auto time = this->now();
-  ESP_LOGD(TAG, "Synchronized time: %d-%d-%d %d:%d:%d", time.year, time.month, time.day_of_month, time.hour,
-           time.minute, time.second);
+  ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d",
+           time.year, time.month, time.day_of_month,
+           time.hour, time.minute, time.second);
 
   this->time_sync_callback_.call();
 }
