@@ -32,6 +32,7 @@ esphome/components/bh1750/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
 esphome/components/bl0940/* @tobias-
 esphome/components/ble_client/* @buxtronix
+esphome/components/ble_writer_switch/* @rbaron
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/bmp3xx/* @martgras
 esphome/components/button/* @esphome/core

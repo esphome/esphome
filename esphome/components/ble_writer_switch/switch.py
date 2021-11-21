@@ -9,6 +9,8 @@ from esphome.const import (
     ICON_BLUETOOTH,
 )
 
+CODEOWNERS = ["@rbaron"]
+
 ble_writer_switch_ns = cg.esphome_ns.namespace("ble_writer_switch")
 
 CONF_CHARACTERISTIC_UUID = "characteristic_uuid"
