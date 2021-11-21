@@ -566,4 +566,3 @@ switch:
     name: "BLE Writer Switch"
     service_uuid: 11223344-5566-7788-99aa-bbccddeeff00
     characteristic_uuid: 11223344-5566-7788-99aa-bbccddeeff00
-    
