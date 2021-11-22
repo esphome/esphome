@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import canbus
 from esphome.const import CONF_ID
 from esphome.components.canbus import CanbusComponent
+from esphome.core import CORE
 
 CODEOWNERS = ["@michaelansel", "@cbialobos"]
 
@@ -20,3 +21,5 @@ def to_code(config):
     rhs = espCanBus.new()
     var = cg.Pvariable(config[CONF_ID], rhs)
     yield canbus.register_canbus(var, config)
+    if CORE.is_esp32:
+        cg.add_library("miwagner/ESP32CAN", None)
