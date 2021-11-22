@@ -88,7 +88,7 @@ bool MideaProtocol::expect_data(RemoteReceiveData &src, MideaData &out) {
 optional<MideaData> MideaProtocol::decode(RemoteReceiveData src) {
   MideaData out, inv;
   if (MideaProtocol::expect_header(src) && MideaProtocol::expect_data(src, out) && MideaProtocol::expect_footer(src) &&
-      out.is_valid() && MideaProtocol::expect_data(src, inv) && out.check_compliment(inv))
+      out.is_valid() && MideaProtocol::expect_header(src) && MideaProtocol::expect_data(src, inv) && out.check_compliment(inv))
     return out;
   return {};
 }

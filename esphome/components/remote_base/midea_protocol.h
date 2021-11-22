@@ -38,10 +38,14 @@ class MideaData {
   template<typename T> T to() const { return T(*this); }
 
  protected:
-  void set_value_(uint8_t offset, uint8_t val_mask, uint8_t shift, uint8_t val) {
-    data_[offset] &= ~(val_mask << shift);
-    data_[offset] |= (val << shift);
+  uint8_t get_value_(uint8_t idx, uint8_t mask = 255, uint8_t shift = 0) const {
+    return (this->data_[idx] >> shift) & mask;
   }
+  void set_value_(uint8_t idx, uint8_t value, uint8_t mask = 255, uint8_t shift = 0) {
+    this->data_[idx] &= ~(mask << shift);
+    this->data_[idx] |= (value << shift);
+  }
+  void set_mask_(uint8_t idx, bool state, uint8_t mask = 255) { this->set_value_(idx, state ? mask : 0, mask); }
   static const uint8_t OFFSET_CS = 5;
   // 48-bits data
   uint8_t data_[6];

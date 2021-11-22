@@ -142,6 +142,11 @@ void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation,
 /// Convert hue (0-360) & saturation/value percentage (0-1) to RGB floats (0-1)
 void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green, float &blue);
 
+/// Convert degrees Celsius to degrees Fahrenheit.
+static inline float celsius_to_fahrenheit(float value) { return value * 1.8f + 32.0f; }
+/// Convert degrees Fahrenheit to degrees Celsius.
+static inline float fahrenheit_to_celsius(float value) { return (value - 32.0f) * 0.555555582f; }
+
 /***
  * An interrupt helper class.
  *
