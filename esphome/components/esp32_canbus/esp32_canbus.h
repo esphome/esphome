@@ -11,9 +11,9 @@ CAN_device_t CAN_cfg;  // TODO enforce singleton aspect at compile time
 namespace esphome {
 namespace esp32_canbus {
 
-class OnboardCANController : public canbus::Canbus {
+class EspCanBus : public canbus::Canbus {
  public:
-  OnboardCANController(){};
+  EspCanBus(){};
 
  protected:
   float get_setup_priority() const override { return esphome::setup_priority::BUS; }

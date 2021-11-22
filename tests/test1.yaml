@@ -8,6 +8,8 @@ esphome:
   name: test1
   name_add_mac_suffix: true
   platform: ESP32
+  libraries:
+    - "miwagner/ESP32CAN"
   board: nodemcu-32s
   platformio_options:
     board_build.partitions: huge_app.csv
@@ -2457,6 +2459,7 @@ text_sensor:
           value: '0'
       - canbus.send:
           can_id: 23
+          canbus_id: can_external
           data: [0x10, 0x20, 0x30]
   - platform: template
     name: Template Text Sensor
@@ -2493,7 +2496,7 @@ rtttl:
 
 canbus:
   - platform: mcp2515
-  id: can_external
+    id: can_external
     cs_pin: GPIO17
     can_id: 4
     bit_rate: 50kbps
