@@ -9,12 +9,13 @@ namespace light {
 class AddressableLightWrapper : public light::AddressableLight {
  public:
   explicit AddressableLightWrapper(light::LightState *light_state) : light_state_(light_state) {
-    this->wrapper_state_ = new uint8_t[5];  // NOLINT(cppcoreguidelines-owning-memory)
+    this->wrapper_state_ = new uint8_t[4];          // NOLINT(cppcoreguidelines-owning-memory)
+    this->wrapper_effect_state_ = new uint16_t[1];  // NOLINT(cppcoreguidelines-owning-memory)
   }
 
   int32_t size() const override { return 1; }
 
-  void clear_effect_data() override { this->wrapper_state_[4] = 0; }
+  void clear_effect_data() override { this->wrapper_effect_state_[0] = 0; }
 
   light::LightTraits get_traits() override {
     LightTraits traits;
@@ -114,12 +115,13 @@ class AddressableLightWrapper : public light::AddressableLight {
 
  protected:
   light::ESPColorView get_view_internal(int32_t index) const override {
-    return {&this->wrapper_state_[0], &this->wrapper_state_[1], &this->wrapper_state_[2],
-            &this->wrapper_state_[3], &this->wrapper_state_[4], &this->correction_};
+    return {&this->wrapper_state_[0], &this->wrapper_state_[1],        &this->wrapper_state_[2],
+            &this->wrapper_state_[3], &this->wrapper_effect_state_[0], &this->correction_};
   }
 
   light::LightState *light_state_;
   uint8_t *wrapper_state_;
+  uint16_t *wrapper_effect_state_;
   ColorMode color_mode_{ColorMode::UNKNOWN};
 };
 

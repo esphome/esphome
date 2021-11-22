@@ -81,7 +81,7 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
       (*this)[i] = Color(0, 0, 0, 0);
     }
 
-    this->effect_data_ = new uint8_t[this->size()];  // NOLINT
+    this->effect_data_ = new uint16_t[this->size()];  // NOLINT
     this->controller_->Begin();
   }
 
@@ -106,7 +106,7 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
 
  protected:
   NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *controller_{nullptr};
-  uint8_t *effect_data_{nullptr};
+  uint16_t *effect_data_{nullptr};
   uint8_t rgb_offsets_[4]{0, 1, 2, 3};
 };
 

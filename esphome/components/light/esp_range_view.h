@@ -31,7 +31,7 @@ class ESPRangeView : public ESPColorSettable {
   void set_green(uint8_t green) override;
   void set_blue(uint8_t blue) override;
   void set_white(uint8_t white) override;
-  void set_effect_data(uint8_t effect_data) override;
+  void set_effect_data(uint16_t effect_data) override;
 
   void fade_to_white(uint8_t amnt) override;
   void fade_to_black(uint8_t amnt) override;

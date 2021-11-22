@@ -14,7 +14,7 @@ class ESPColorSettable {
   virtual void set_green(uint8_t green) = 0;
   virtual void set_blue(uint8_t blue) = 0;
   virtual void set_white(uint8_t white) = 0;
-  virtual void set_effect_data(uint8_t effect_data) = 0;
+  virtual void set_effect_data(uint16_t effect_data) = 0;
   virtual void fade_to_white(uint8_t amnt) = 0;
   virtual void fade_to_black(uint8_t amnt) = 0;
   virtual void lighten(uint8_t delta) = 0;
@@ -37,7 +37,7 @@ class ESPColorSettable {
 
 class ESPColorView : public ESPColorSettable {
  public:
-  ESPColorView(uint8_t *red, uint8_t *green, uint8_t *blue, uint8_t *white, uint8_t *effect_data,
+  ESPColorView(uint8_t *red, uint8_t *green, uint8_t *blue, uint8_t *white, uint16_t *effect_data,
                const ESPColorCorrection *color_correction)
       : red_(red),
         green_(green),
@@ -62,7 +62,7 @@ class ESPColorView : public ESPColorSettable {
       return;
     *this->white_ = this->color_correction_->color_correct_white(white);
   }
-  void set_effect_data(uint8_t effect_data) override {
+  void set_effect_data(uint16_t effect_data) override {
     if (this->effect_data_ == nullptr)
       return;
     *this->effect_data_ = effect_data;
@@ -88,7 +88,7 @@ class ESPColorView : public ESPColorSettable {
       return 0;
     return *this->white_;
   }
-  uint8_t get_effect_data() const {
+  uint16_t get_effect_data() const {
     if (this->effect_data_ == nullptr)
       return 0;
     return *this->effect_data_;
@@ -102,7 +102,7 @@ class ESPColorView : public ESPColorSettable {
   uint8_t *const green_;
   uint8_t *const blue_;
   uint8_t *const white_;
-  uint8_t *const effect_data_;
+  uint16_t *const effect_data_;
   const ESPColorCorrection *color_correction_;
 };
 

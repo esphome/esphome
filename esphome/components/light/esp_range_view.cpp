@@ -39,7 +39,7 @@ void ESPRangeView::set_white(uint8_t white) {
   for (auto c : *this)
     c.set_white(white);
 }
-void ESPRangeView::set_effect_data(uint8_t effect_data) {
+void ESPRangeView::set_effect_data(uint16_t effect_data) {
   for (auto c : *this)
     c.set_effect_data(effect_data);
 }

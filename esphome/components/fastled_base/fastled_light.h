@@ -231,7 +231,7 @@ class FastLEDLightOutput : public light::AddressableLight {
 
   CLEDController *controller_{nullptr};
   CRGB *leds_{nullptr};
-  uint8_t *effect_data_{nullptr};
+  uint16_t *effect_data_{nullptr};
   int num_leds_{0};
   uint32_t last_refresh_{0};
   optional<uint32_t> max_refresh_rate_{};
