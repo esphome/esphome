@@ -55,9 +55,8 @@ class LightTransitionTransformer : public LightTransformer {
   }
 
  protected:
-  // This looks crazy, but it reduces to 6x^5 - 15x^4 + 10x^3 which is just a smooth sigmoid-like
-  // transition from 0 to 1 on x = [0, 1]
-  static float smoothed_progress(float x) { return x * x * x * (x * (x * 6.0f - 15.0f) + 10.0f); }
+  // This is a sigmoid-like transition from 0 to 1 on x=[0, 1] with zero derivative at x=0 and x=1.
+  static float smoothed_progress(float x) { return (-2.0f * x + 3.0f) * x * x; }
 
   bool changing_color_mode_{false};
   LightColorValues end_values_{};
