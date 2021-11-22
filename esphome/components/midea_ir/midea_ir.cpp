@@ -9,14 +9,14 @@ namespace midea_ir {
 static const char *const TAG = "midea_ir.climate";
 
 void ControlData::set_temp(float temp) {
-  this->set_value_(2, this->get_fahrenheit() ? (lroundf(celsius_to_fahrenheit(temp)) - 62) : (lroundf(temp) - 17), 31);
+  this->set_value_(2, this->get_fahrenheit() ? (lroundf(celsius_to_fahrenheit(temp)) - MIDEA_TEMPF_MIN) : (lroundf(temp) - MIDEA_TEMPC_MIN), 31);
 }
 
 float ControlData::get_temp() const {
   const uint8_t temp = this->get_value_(2, 31);
   if (this->get_fahrenheit())
-    return fahrenheit_to_celsius(static_cast<float>(temp + 62));
-  return static_cast<float>(temp + 17);
+    return fahrenheit_to_celsius(static_cast<float>(temp + MIDEA_TEMPF_MIN));
+  return static_cast<float>(temp + MIDEA_TEMPC_MIN);
 }
 
 void ControlData::set_mode(ClimateMode mode) {
@@ -91,7 +91,7 @@ ClimateFanMode ControlData::get_fan_mode() const {
 }
 
 void MideaIR::control(const climate::ClimateCall &call) {
-  // swing resets after unit powered off
+  // swing and preset resets after unit powered off
   if (call.get_mode() == climate::CLIMATE_MODE_OFF) {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
     this->preset = climate::CLIMATE_PRESET_NONE;
@@ -116,43 +116,28 @@ void MideaIR::transmit_state() {
   this->transmit_(data);
 }
 
-template<typename T> void update_property(T &property, const T &value, bool &flag) {
-  if (property != value) {
-    property = value;
-    flag = true;
-  }
+bool MideaIR::on_receive(remote_base::RemoteReceiveData data) {
+  auto midea = remote_base::MideaProtocol().decode(data);
+  if (midea.has_value())
+    return this->on_midea_(*midea);
+  // TODO: add feedback on coolix protocol
+  return false;
 }
 
-bool MideaIR::on_receive(remote_base::RemoteReceiveData data) {
-#if 0
-  auto opt = remote_base::MideaProtocol().decode(data);
-
-  if (!opt.has_value())
-    return false;
-
-  const remote_base::MideaData &code = opt.value();
-
-  if (code.type() != remote_base::MideaData::MIDEA_TYPE_COMMAND)
-    return false;
-
-  ControlData status(code);
-
-  remote_base::MideaProtocol().dump(code);
-
-  //ESP_LOGV(TAG, "Decoded Midea IR data: %s", code.to_string().c_str());
-
-  bool need_publish = false;
-  update_property(this->target_temperature, status.get_temp(), need_publish);
-  update_property(this->mode, status.get_mode(), need_publish);
-  if (!this->fan_mode.has_value() || this->fan_mode.value() != status.get_fan_mode()) {
+bool MideaIR::on_midea_(const MideaData &data) {
+  ESP_LOGV(TAG, "Decoded Midea IR data: %s", data.to_string().c_str());
+  if (data.type() == MideaData::MIDEA_TYPE_COMMAND) {
+    const ControlData status = data;
+    this->target_temperature = status.get_temp();
+    this->mode = status.get_mode();
     this->fan_mode = status.get_fan_mode();
-    need_publish = true;
-  }
-
-  if (need_publish)
+    if (status.get_sleep_preset())
+      this->preset = climate::CLIMATE_PRESET_SLEEP;
+    else if (this->preset == climate::CLIMATE_PRESET_SLEEP)
+      this->preset = climate::CLIMATE_PRESET_NONE;
     this->publish_state();
-  return true;
-#endif
+    return true;
+  }
   return false;
 }
 

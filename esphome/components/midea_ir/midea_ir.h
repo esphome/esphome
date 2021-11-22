@@ -7,13 +7,15 @@ namespace esphome {
 namespace midea_ir {
 
 // Temperature
-const uint8_t MIDEA_TEMP_MIN = 17;  // Celsius
-const uint8_t MIDEA_TEMP_MAX = 30;  // Celsius
+const uint8_t MIDEA_TEMPC_MIN = 17;  // Celsius
+const uint8_t MIDEA_TEMPC_MAX = 30;  // Celsius
+const uint8_t MIDEA_TEMPF_MIN = 62;  // Fahrenheit
+const uint8_t MIDEA_TEMPF_MAX = 30;  // Fahrenheit
 
 class MideaIR : public climate_ir::ClimateIR {
  public:
   MideaIR()
-      : climate_ir::ClimateIR(MIDEA_TEMP_MIN, MIDEA_TEMP_MAX, 1.0f, true, true,
+      : climate_ir::ClimateIR(MIDEA_TEMPC_MIN, MIDEA_TEMPC_MAX, 1.0f, true, true,
                               {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
                                climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL},
@@ -31,9 +33,10 @@ class MideaIR : public climate_ir::ClimateIR {
  protected:
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
-  void transmit_(remote_base::MideaData &data);
+  void transmit_(MideaData &data);
   /// Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
+  bool on_midea_(const MideaData &data);
   bool fahrenheit_{false};
 };
 
