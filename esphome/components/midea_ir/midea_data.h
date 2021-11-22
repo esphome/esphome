@@ -81,16 +81,9 @@ class FollowMeData : public MideaData {
 class SpecialData : public MideaData {
  public:
   SpecialData(uint8_t code) : MideaData({MIDEA_TYPE_SPECIAL, code, 0xFF, 0xFF, 0xFF}) {}
-};
-
-class ToggleVerticalSwingData : public SpecialData {
- public:
-  ToggleVerticalSwingData() : SpecialData(0x01) {}
-};
-
-class ToggleTurboModeData : public SpecialData {
- public:
-  ToggleTurboModeData() : SpecialData(0x09) {}
+  static const uint8_t STEP_VSWING = 1;
+  static const uint8_t TOGGLE_VSWING = 2;
+  static const uint8_t TOGGLE_TURBO_MODE = 9;
 };
 
 }  // namespace midea_ir

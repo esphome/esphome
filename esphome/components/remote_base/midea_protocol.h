@@ -36,6 +36,8 @@ class MideaData {
   };
   MideaDataType type() const { return static_cast<MideaDataType>(this->data_[0]); }
   template<typename T> T to() const { return T(*this); }
+  uint8_t &operator[](size_t idx) { return this->data_[idx]; }
+  const uint8_t &operator[](size_t idx) const { return this->data_[idx]; }
 
  protected:
   uint8_t get_value_(uint8_t idx, uint8_t mask = 255, uint8_t shift = 0) const {
