@@ -31,6 +31,10 @@ static const float TEMP_LSB = 0.48;           // 0.48C/LSB
 static const float MICRO_VOLTS_PER_VOLT = 1000000.0;
 void MAX9611Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up max9611...");
+  // Perform dummy-read
+  uint8_t value;
+  this->read(&value, 1);
+  // Configuration Stage.
   // First send an integration request with the specified gain
   const uint8_t setup_dat[] = {CONTROL_REGISTER_1_ADRR, static_cast<uint8_t>(gain_)};
   // Then send a request that samples all channels as fast as possible, using the last provided gain
