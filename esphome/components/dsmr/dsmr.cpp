@@ -58,7 +58,7 @@ bool Dsmr::request_interval_reached_() {
 }
 
 bool Dsmr::read_timeout_reached_() {
-  return millis() - this->last_read_time_ > READ_TIMEOUT_MS;
+  return millis() - this->last_read_time_ > this->read_timeout_;
 }
 
 bool Dsmr::available_within_timeout_() {

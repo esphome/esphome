@@ -5,6 +5,7 @@ from esphome.components import uart
 from esphome.const import (
     CONF_ID,
     CONF_UART_ID,
+    CONF_TIMEOUT,
 )
 
 CODEOWNERS = ["@glmnet", "@zuidwijk"]
@@ -52,7 +53,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_GAS_MBUS_ID, default=1): cv.int_,
             cv.Optional(CONF_MAX_TELEGRAM_LENGTH, default=1500): cv.int_,
             cv.Optional(CONF_REQUEST_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_REQUEST_INTERVAL): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_REQUEST_INTERVAL, default="0ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_TIMEOUT, default="200ms"
+            ): cv.positive_time_period_milliseconds,
         }
     ).extend(uart.UART_DEVICE_SCHEMA),
     cv.only_with_arduino,
@@ -70,10 +76,8 @@ async def to_code(config):
     if CONF_REQUEST_PIN in config:
         request_pin = await cg.gpio_pin_expression(config[CONF_REQUEST_PIN])
         cg.add(var.set_request_pin(request_pin))
-    if CONF_REQUEST_INTERVAL in config:
-        cg.add(
-            var.set_request_interval(config[CONF_REQUEST_INTERVAL].total_milliseconds)
-        )
+    cg.add(var.set_request_interval(config[CONF_REQUEST_INTERVAL].total_milliseconds))
+    cg.add(var.set_read_timeout(config[CONF_TIMEOUT].total_milliseconds))
 
     cg.add_define("DSMR_GAS_MBUS_ID", config[CONF_GAS_MBUS_ID])
 
