@@ -12,6 +12,15 @@ const uint8_t TM1637_I2C_COMM2 = 0xC0;
 const uint8_t TM1637_I2C_COMM3 = 0x80;
 const uint8_t TM1637_UNKNOWN_CHAR = 0b11111111;
 
+const uint8_t TM1637_CMD_DATA = 0x40; //!< Display data command
+const uint8_t TM1637_CMD_CTRL = 0x80; //!< Display control command
+const uint8_t TM1637_CMD_ADDR = 0xc0; //!< Display address command
+// Data command bits
+const uint8_t TM1637_DATA_WRITE = 0x00;         //!< Write data
+const uint8_t TM1637_DATA_READ_KEYS = 0x02;     //!< Read keys
+const uint8_t TM1637_DATA_AUTO_INC_ADDR = 0x00; //!< Auto increment address
+const uint8_t TM1637_DATA_FIXED_ADDR = 0x04;    //!< Fixed address
+
 //
 //      A
 //     ---
@@ -136,6 +145,41 @@ void TM1637Display::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+void TM1637Display::loop() {
+  uint8_t val = this->get_keys();
+  if (val != 0xFF) {
+    for (auto *tm1637_key : this->tm1637_keys_)
+      tm1637_key->process(val);
+  }
+}
+
+uint8_t TM1637Display::get_keys() {
+  uint8_t keyCode;
+  this->start_();
+  this->send_byte_(TM1637_CMD_DATA | TM1637_DATA_READ_KEYS);
+  this->start_();
+  keyCode = read_byte_();
+  this->stop_();
+  // Check if key is down (at least one bit is zero)
+  if (keyCode != 0xFF) {
+    // Invert keyCode:
+    //    Bit |  7  6  5  4  3  2  1  0
+    //  ------+-------------------------
+    //   From | S0 S1 S2 K1 K2 1  1  1
+    //     To | S0 S1 S2 K1 K2 0  0  0
+    keyCode = ~keyCode;
+    // Shift bits to:
+    //    Bit | 7  6  5  4  3  2  1  0
+    //  ------+------------------------
+    //     To | 0  0  0  0  K2 S2 S1 S0
+    keyCode = (uint8_t)((keyCode & 0x80) >> 7 |
+                        (keyCode & 0x40) >> 5 |
+                        (keyCode & 0x20) >> 3 |
+                        (keyCode & 0x08));
+  }
+  return keyCode;
+}
+
 void TM1637Display::update() {
   for (uint8_t &i : this->buffer_)
     i = 0;
@@ -226,6 +270,36 @@ bool TM1637Display::send_byte_(uint8_t b) {
   this->bit_delay_();
 
   return ack;
+}
+
+uint8_t TM1637Display::read_byte_(){
+  uint8_t retval = 0;
+  // Prepare DIO to read data
+  this->dio_pin_->pin_mode(gpio::FLAG_INPUT);
+  this->bit_delay_();
+  // Data is shifted out by the TM1637 on the CLK falling edge
+  for (uint8_t bit = 0; bit < 8; bit++) {
+    this->clk_pin_->pin_mode(gpio::FLAG_INPUT);
+    this->bit_delay_();
+    // Read next bit
+    retval <<= 1;
+    if (this->dio_pin_->digital_read()) {
+      retval |= 0x01;
+    }
+    this->clk_pin_->pin_mode(gpio::FLAG_OUTPUT);
+    this->bit_delay_();
+  }
+  // Return DIO to output mode
+  // Dummy ACK
+ this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->bit_delay_();
+  this->clk_pin_->pin_mode(gpio::FLAG_INPUT);
+  this->bit_delay_();
+  this->clk_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->bit_delay_();
+  this->dio_pin_->pin_mode(gpio::FLAG_INPUT);
+  this->bit_delay_();
+  return retval;
 }
 
 uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
