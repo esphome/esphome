@@ -57,8 +57,8 @@ bool Dsmr::request_interval_reached_() {
   return millis() - this->last_request_time_ > this->request_interval_;
 }
 
-bool Dsmr::read_timeout_reached_() {
-  return millis() - this->last_read_time_ > this->read_timeout_;
+bool Dsmr::receive_timeout_reached_() {
+  return millis() - this->last_read_time_ > this->receive_timeout_;
 }
 
 bool Dsmr::available_within_timeout_() {
@@ -80,7 +80,7 @@ bool Dsmr::available_within_timeout_() {
   // perform their work in their loop. Do this by not returning control to
   // the main loop, until the read timeout is reached.
   if (this->parent_->get_rx_buffer_size() < this->max_telegram_len_) {
-    while (!this->read_timeout_reached_()) {
+    while (!this->receive_timeout_reached_()) {
       delay(5);
       if (this->available()) {
         this->last_read_time_ = millis();
@@ -90,7 +90,7 @@ bool Dsmr::available_within_timeout_() {
   }
   // No new data has come in during the read timeout? Then stop reading the
   // telegram and start waiting for the next one to arrive.
-  if (this->read_timeout_reached_()) {
+  if (this->receive_timeout_reached_()) {
     ESP_LOGW(TAG, "Timeout while reading data for telegram");
     this->reset_telegram_();
   }

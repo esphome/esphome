@@ -74,7 +74,7 @@ class Dsmr : public Component, public uart::UARTDevice {
 
   void set_request_pin(GPIOPin *request_pin) { this->request_pin_ = request_pin; }
   void set_request_interval(uint32_t interval) { this->request_interval_ = interval; }
-  void set_read_timeout(uint32_t timeout) { this->read_timeout_ = timeout; }
+  void set_receive_timeout(uint32_t timeout) { this->receive_timeout_ = timeout; }
 
 // Sensor setters
 #define DSMR_SET_SENSOR(s) \
@@ -102,17 +102,18 @@ class Dsmr : public Component, public uart::UARTDevice {
   bool available_within_timeout_();
 
   // Request telegram
-  GPIOPin *request_pin_{nullptr};
   uint32_t request_interval_;
+  bool request_interval_reached_();
+  GPIOPin *request_pin_{nullptr};
   uint32_t last_request_time_{0};
   bool requesting_data_{false};
   bool ready_to_request_data_();
-  bool request_interval_reached_();
   void start_requesting_data_();
   void stop_requesting_data_();
 
   // Read telegram
-  uint32_t read_timeout_;
+  uint32_t receive_timeout_;
+  bool receive_timeout_reached_();
   size_t max_telegram_len_;
   char *telegram_{nullptr};
   int bytes_read_{0};
@@ -120,7 +121,6 @@ class Dsmr : public Component, public uart::UARTDevice {
   size_t crypt_telegram_len_{0};
   int crypt_bytes_read_{0};
   uint32_t last_read_time_{0};
-  bool read_timeout_reached_();
   bool header_found_{false};
   bool footer_found_{false};
 
