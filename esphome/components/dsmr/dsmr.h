@@ -88,7 +88,7 @@ class Dsmr : public Component, public uart::UARTDevice {
 
  protected:
   void receive_telegram_();
-  void receive_encrypted_();
+  void receive_encrypted_telegram_();
   void reset_telegram_();
 
   /// Wait for UART data to become available within the read timeout.
@@ -115,9 +115,12 @@ class Dsmr : public Component, public uart::UARTDevice {
   // Telegram buffer
   size_t max_telegram_len_;
   char *telegram_{nullptr};
-  int telegram_len_{0};
-  uint8_t *encrypted_telegram_{nullptr};
-  int encrypted_telegram_len_{0};
+  int bytes_read_{0};
+  uint8_t *crypt_telegram_{nullptr};
+  size_t crypt_telegram_len_{0};
+  int crypt_bytes_read_{0};
+  uint32_t last_read_time_{0};
+  bool read_timeout_reached_();
 
   // Serial parser
   bool header_found_{false};
