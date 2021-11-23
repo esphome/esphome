@@ -2514,6 +2514,8 @@ canbus:
   - platform: esp32_canbus
     id: can_builtin
     can_id: 4
+    rx_pin: CAN_RX
+    tx_pin: CAN_TX
     bit_rate: 20kbps
     on_frame:
       - can_id: 500

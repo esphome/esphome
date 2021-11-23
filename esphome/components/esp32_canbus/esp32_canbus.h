@@ -14,18 +14,17 @@ namespace esp32_canbus {
 class EspCanBus : public canbus::Canbus {
  public:
   EspCanBus(){};
+  void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
+  void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
+  void on_shutdown() override { ESP32Can.CANStop(); }
 
  protected:
   float get_setup_priority() const override { return esphome::setup_priority::BUS; }
 
-  // TODO on_shutdown?
-
   bool setup_internal() override {
-    ESP32Can.CANStop();
-
     CAN_cfg.speed = CAN_SPEED_500KBPS;  // TODO
-    CAN_cfg.tx_pin_id = GPIO_NUM_25;    // TODO
-    CAN_cfg.rx_pin_id = GPIO_NUM_26;    // TODO
+    CAN_cfg.tx_pin_id = gpio_num_t(this->tx_pin_->get_pin());
+    CAN_cfg.rx_pin_id = gpio_num_t(this->rx_pin_->get_pin());
     const int rx_queue_size = 50;       // TODO
 
     CAN_cfg.rx_queue = xQueueCreate(rx_queue_size, sizeof(CAN_frame_t));
@@ -52,6 +51,9 @@ class EspCanBus : public canbus::Canbus {
       return canbus::ERROR_NOMSG;
     }
   }
+
+  InternalGPIOPin *tx_pin_;
+  InternalGPIOPin *rx_pin_;
 };
 
 }  // namespace esp32_canbus

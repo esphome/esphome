@@ -39,6 +39,8 @@ ESP32_BASE_PINS = {
     "DAC2": 26,
     "SVP": 36,
     "SVN": 39,
+    "CAN_RX": 19,
+    "CAN_TX": 22,
 }
 
 ESP32_BOARD_PINS = {
