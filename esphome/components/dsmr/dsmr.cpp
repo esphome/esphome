@@ -57,9 +57,7 @@ bool Dsmr::request_interval_reached_() {
   return millis() - this->last_request_time_ > this->request_interval_;
 }
 
-bool Dsmr::receive_timeout_reached_() {
-  return millis() - this->last_read_time_ > this->receive_timeout_;
-}
+bool Dsmr::receive_timeout_reached_() { return millis() - this->last_read_time_ > this->receive_timeout_; }
 
 bool Dsmr::available_within_timeout_() {
   // Data are available for reading on the UART bus?
