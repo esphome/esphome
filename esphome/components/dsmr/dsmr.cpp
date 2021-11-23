@@ -225,7 +225,7 @@ void Dsmr::receive_encrypted_telegram_() {
     }
     ESP_LOGV(TAG, "End of encrypted telegram found");
 
-    // Decrypt and parse the encrypted telegram.
+    // Decrypt the encrypted telegram.
     GCM<AES128> *gcmaes128{new GCM<AES128>()};
     gcmaes128->setKey(this->decryption_key_.data(), gcmaes128->keySize());
     // the iv is 8 bytes of the system title + 4 bytes frame counter
@@ -245,7 +245,7 @@ void Dsmr::receive_encrypted_telegram_() {
     ESP_LOGV(TAG, "Decrypted telegram size: %d bytes", this->bytes_read_);
     ESP_LOGVV(TAG, "Decrypted telegram: %s", this->telegram_);
 
-    // Parse the telegram and publish sensor values.
+    // Parse the decrypted telegram and publish sensor values.
     this->parse_telegram();
     this->reset_telegram_();
     return;
