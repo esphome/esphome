@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_MAX_CURRENT,
     CONF_POWER,
-    CONF_SHUNT_RESISTANCE,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
@@ -46,9 +45,6 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_SHUNT_RESISTANCE, default=0.002): cv.All(
-                cv.resistance, cv.Range(min=0.0)
             ),
             cv.Optional(CONF_MAX_CURRENT, default=15): cv.All(
                 cv.current, cv.Range(min=0.0)

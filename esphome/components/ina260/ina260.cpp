@@ -36,12 +36,6 @@ enum {
   INA260_REGISTER_DEVICE_ID = 0xFF
 };
 
-enum mode {
-  INA260_MODE_SHUTDOWN = 0x00,
-  INA260_MODE_TRIGGERED = 0x03,
-  INA260_MODE_CONTINOUS = 0x07,
-};
-
 void INA260Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up INA260...");
 
@@ -72,8 +66,8 @@ void INA260Component::setup() {
   // Bus Voltage Conversion Time VBUSCT Bit Settings [8:6] (100 -> 1.1ms, 111 -> 8.244 ms)
   config |= 0b0000000100000000;
 
-  // Mode Settings [2:0] Combinations (001 -> Continuous)
-  config |= 0b0000000000000001;
+  // Mode Settings [2:0] Combinations (111 -> Shunt, Bus, Continuous)
+  config |= 0b0000000000000111;
 
   if (!this->write_byte_16(INA260_REGISTER_CONFIG, config)) {
     this->error_code_ = FAILED_TO_UPDATE_CONFIGURATION;
@@ -128,8 +122,6 @@ void INA260Component::update() {
       this->status_set_warning();
       return;
     }
-    // float current_ma = int16_t(raw_current) * (this->calibration_lsb_ / 1000.0f);
-    // this->current_sensor_->publish_state(current_ma / 1000.0f);
     float current_ma = int16_t(raw_current) * 0.00125f;
     this->current_sensor_->publish_state(current_ma);
   }
@@ -140,8 +132,7 @@ void INA260Component::update() {
       this->status_set_warning();
       return;
     }
-    // float power_mw = int16_t(raw_power) * (this->calibration_lsb_ * 25.0f / 1000.0f);
-    float power_mw = int16_t(raw_power) * 10 * 0.00125f;
+    float power_mw = ((int16_t(raw_power) * 10.0f) / 1000.0f);
     this->power_sensor_->publish_state(power_mw);
   }
 

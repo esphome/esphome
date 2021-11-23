@@ -24,10 +24,7 @@ class INA260Component : public PollingComponent, public i2c::I2CDevice {
   uint16_t manufacture_id_{0};
   uint16_t device_id_{0};
 
-  // float shunt_resistance_ohm_{0.02};
-  float max_current_amp_{13};
-
-  uint32_t calibration_lsb_{0};
+  float max_current_amp_{15};
 
   sensor::Sensor *bus_voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
