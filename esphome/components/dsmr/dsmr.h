@@ -69,9 +69,7 @@ class Dsmr : public Component, public uart::UARTDevice {
   void dump_config() override;
 
   void set_decryption_key(const std::string &decryption_key);
-
-  void set_max_telegram_length(size_t length);
-
+  void set_max_telegram_length(size_t length) { this->max_telegram_len_ = length; }
   void set_request_pin(GPIOPin *request_pin) { this->request_pin_ = request_pin; }
   void set_request_interval(uint32_t interval) { this->request_interval_ = interval; }
   void set_receive_timeout(uint32_t timeout) { this->receive_timeout_ = timeout; }

@@ -274,7 +274,7 @@ bool Dsmr::parse_telegram() {
 void Dsmr::dump_config() {
   ESP_LOGCONFIG(TAG, "DSMR:");
   ESP_LOGCONFIG(TAG, "  Max telegram length: %d", this->max_telegram_len_);
-
+  ESP_LOGCONFIG(TAG, "  Receive timeout: %.1fs", this->receive_timeout_ / 1e3f);
   if (this->request_pin_ != nullptr) {
     LOG_PIN("  Request Pin: ", this->request_pin_);
   }
@@ -320,8 +320,6 @@ void Dsmr::set_decryption_key(const std::string &decryption_key) {
     this->crypt_telegram_ = new uint8_t[this->max_telegram_len_];  // NOLINT
   }
 }
-
-void Dsmr::set_max_telegram_length(size_t length) { max_telegram_len_ = length; }
 
 }  // namespace dsmr
 }  // namespace esphome
