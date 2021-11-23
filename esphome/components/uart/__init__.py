@@ -111,13 +111,10 @@ DEFAULT_DEBUG_OUTPUT = "UARTDebug::log_hex(direction, bytes, ':');"
 DEFAULT_SEQUENCE = [{CONF_LAMBDA: make_data_base(DEFAULT_DEBUG_OUTPUT)}]
 
 
-def maybe_empty_debug(schema):
-    def validator(value):
-        if value is None:
-            value = {}
-        return schema(value)
-
-    return validator
+def maybe_empty_debug(value):
+    if value is None:
+        value = {}
+    return DEBUG_SCHEMA(value)
 
 
 DEBUG_SCHEMA = cv.Schema(
