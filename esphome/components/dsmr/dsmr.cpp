@@ -62,7 +62,7 @@ bool Dsmr::receive_timeout_reached_() { return millis() - this->last_read_time_ 
 bool Dsmr::available_within_timeout_() {
   // Data are available for reading on the UART bus?
   // Then we can start reading right away.
-  if (available()) {
+  if (this->available()) {
     this->last_read_time_ = millis();
     return true;
   }
@@ -134,7 +134,7 @@ void Dsmr::reset_telegram_() {
 }
 
 void Dsmr::receive_telegram_() {
-  while (available_within_timeout_()) {
+  while (this->available_within_timeout_()) {
     const char c = this->read();
 
     // Find a new telegram header, i.e. forward slash.
@@ -188,8 +188,8 @@ void Dsmr::receive_telegram_() {
 }
 
 void Dsmr::receive_encrypted_telegram_() {
-  while (available_within_timeout_()) {
-    const char c = read();
+  while (this->available_within_timeout_()) {
+    const char c = this->read();
 
     // Find a new telegram start byte.
     if (!this->header_found_) {
