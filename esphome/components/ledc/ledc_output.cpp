@@ -28,9 +28,7 @@ inline ledc_mode_t get_speed_mode(uint8_t) { return LEDC_LOW_SPEED_MODE; }
 static const int MAX_RES_BITS = 20;
 #endif
 
-float ledc_max_frequency_for_bit_depth(uint8_t bit_depth) {
-  return 80e6f / float(1 << bit_depth);
-}
+float ledc_max_frequency_for_bit_depth(uint8_t bit_depth) { return 80e6f / float(1 << bit_depth); }
 
 float ledc_min_frequency_for_bit_depth(uint8_t bit_depth, bool low_frequency) {
   const float max_div_num = ((1 << MAX_RES_BITS) - 1) / (low_frequency ? 32.0f : 256.0f);
