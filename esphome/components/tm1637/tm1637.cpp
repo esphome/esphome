@@ -7,16 +7,16 @@ namespace esphome {
 namespace tm1637 {
 
 static const char *const TAG = "display.tm1637";
-const uint8_t TM1637_CMD_DATA = 0x40;           //!< Display data command
-const uint8_t TM1637_CMD_CTRL = 0x80;           //!< Display control command
-const uint8_t TM1637_CMD_ADDR = 0xc0;           //!< Display address command
+const uint8_t TM1637_CMD_DATA = 0x40;  //!< Display data command
+const uint8_t TM1637_CMD_CTRL = 0x80;  //!< Display control command
+const uint8_t TM1637_CMD_ADDR = 0xc0;  //!< Display address command
 const uint8_t TM1637_UNKNOWN_CHAR = 0b11111111;
 
 // Data command bits
-const uint8_t TM1637_DATA_WRITE = 0x00;         //!< Write data
-const uint8_t TM1637_DATA_READ_KEYS = 0x02;     //!< Read keys
-const uint8_t TM1637_DATA_AUTO_INC_ADDR = 0x00; //!< Auto increment address
-const uint8_t TM1637_DATA_FIXED_ADDR = 0x04;    //!< Fixed address
+const uint8_t TM1637_DATA_WRITE = 0x00;          //!< Write data
+const uint8_t TM1637_DATA_READ_KEYS = 0x02;      //!< Read keys
+const uint8_t TM1637_DATA_AUTO_INC_ADDR = 0x00;  //!< Auto increment address
+const uint8_t TM1637_DATA_FIXED_ADDR = 0x04;     //!< Fixed address
 
 //
 //      A
@@ -152,25 +152,22 @@ uint8_t TM1637Display::get_keys() {
   this->start_();
   this->send_byte_(TM1637_CMD_DATA | TM1637_DATA_READ_KEYS);
   this->start_();
-  uint8_t keyCode = read_byte_();
+  uint8_t key_code = read_byte_();
   this->stop_();
-  if (keyCode != 0xFF) {
-    // Invert keyCode:
+  if (key_code != 0xFF) {
+    // Invert key_code:
     //    Bit |  7  6  5  4  3  2  1  0
     //  ------+-------------------------
     //   From | S0 S1 S2 K1 K2 1  1  1
     //     To | S0 S1 S2 K1 K2 0  0  0
-    keyCode = ~keyCode;
+    key_code = ~key_code;
     // Shift bits to:
     //    Bit | 7  6  5  4  3  2  1  0
     //  ------+------------------------
     //     To | 0  0  0  0  K2 S2 S1 S0
-    keyCode = (uint8_t)((keyCode & 0x80) >> 7 |
-                        (keyCode & 0x40) >> 5 |
-                        (keyCode & 0x20) >> 3 |
-                        (keyCode & 0x08));
+    key_code = (uint8_t)((key_code & 0x80) >> 7 | (key_code & 0x40) >> 5 | (key_code & 0x20) >> 3 | (key_code & 0x08));
   }
-  return keyCode;
+  return key_code;
 }
 
 void TM1637Display::update() {
@@ -258,7 +255,7 @@ bool TM1637Display::send_byte_(uint8_t b) {
   return ack;
 }
 
-uint8_t TM1637Display::read_byte_(){
+uint8_t TM1637Display::read_byte_() {
   uint8_t retval = 0;
   // Prepare DIO to read data
   this->dio_pin_->pin_mode(gpio::FLAG_INPUT);
