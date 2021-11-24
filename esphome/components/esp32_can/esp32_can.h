@@ -29,7 +29,22 @@ class EspCan : public canbus::Canbus {
      return esphome::setup_priority::BUS;
    }
 
-  canbus::Error send_message(canbus::CanFrame *frame) { return canbus::ERROR_FAILTX; }
+  canbus::Error send_message(canbus::CanFrame *frame) {
+    CAN_frame_t tx_frame;
+
+    tx_frame.MsgID = frame->can_id;
+    tx_frame.FIR.B.DLC = frame->can_data_length_code;
+    tx_frame.FIR.B.FF = frame->use_extended_id ? CAN_frame_ext : CAN_frame_std;
+    tx_frame.FIR.B.RTR = frame->remote_transmission_request ? CAN_RTR : CAN_no_RTR;
+
+    for (int i = 0; i < frame->can_data_length_code; i++) {
+      tx_frame.data.u8[i] = frame->data[i];
+    }
+
+    ESP32Can.CANWriteFrame(&tx_frame);
+
+    return canbus::ERROR_OK;
+  }
 
   canbus::Error read_message(canbus::CanFrame *frame) {
     CAN_frame_t rx_frame;
