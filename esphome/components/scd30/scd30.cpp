@@ -163,7 +163,7 @@ void SCD30Component::update() {
     this->status_set_warning();
     return;
   }
-
+  delay(4);
   this->set_timeout(50, [this]() {
     uint16_t raw_data[6];
     if (!this->read_data_(raw_data, 6)) {
@@ -200,6 +200,7 @@ bool SCD30Component::is_data_ready_() {
   if (!this->write_command_(SCD30_CMD_GET_DATA_READY_STATUS)) {
     return false;
   }
+  delay(4);
   uint16_t is_data_ready;
   if (!this->read_data_(&is_data_ready, 1)) {
     return false;
