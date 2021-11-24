@@ -15,6 +15,18 @@ namespace ledc {
 
 static const char *const TAG = "ledc.output";
 
+#ifdef USE_ESP_IDF
+#if SOC_LEDC_SUPPORT_HS_MODE
+// Only ESP32 has LEDC_HIGH_SPEED_MODE
+inline ledc_mode_t get_speed_mode(uint8_t channel) { return channel < 8 ? LEDC_HIGH_SPEED_MODE : LEDC_LOW_SPEED_MODE; }
+#else
+// S2, C3, S3 only support LEDC_LOW_SPEED_MODE
+// See
+// https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/api-reference/peripherals/ledc.html#functionality-overview
+inline ledc_mode_t get_speed_mode(uint8_t) { return LEDC_LOW_SPEED_MODE; }
+#endif
+#endif
+
 float ledc_max_frequency_for_bit_depth(uint8_t bit_depth) { return 80e6f / float(1 << bit_depth); }
 float ledc_min_frequency_for_bit_depth(uint8_t bit_depth) {
   const float max_div_num = ((1 << 20) - 1) / 256.0f;
@@ -48,7 +60,7 @@ void LEDCOutput::write_state(float state) {
   ledcWrite(this->channel_, duty);
 #endif
 #ifdef USE_ESP_IDF
-  auto speed_mode = channel_ < 8 ? LEDC_HIGH_SPEED_MODE : LEDC_LOW_SPEED_MODE;
+  auto speed_mode = get_speed_mode(channel_);
   auto chan_num = static_cast<ledc_channel_t>(channel_ % 8);
   ledc_set_duty(speed_mode, chan_num, duty);
   ledc_update_duty(speed_mode, chan_num);
@@ -63,7 +75,7 @@ void LEDCOutput::setup() {
   ledcAttachPin(this->pin_->get_pin(), this->channel_);
 #endif
 #ifdef USE_ESP_IDF
-  auto speed_mode = channel_ < 8 ? LEDC_HIGH_SPEED_MODE : LEDC_LOW_SPEED_MODE;
+  auto speed_mode = get_speed_mode(channel_);
   auto timer_num = static_cast<ledc_timer_t>((channel_ % 8) / 2);
   auto chan_num = static_cast<ledc_channel_t>(channel_ % 8);
 
@@ -114,7 +126,7 @@ void LEDCOutput::update_frequency(float frequency) {
     ESP_LOGW(TAG, "LEDC output hasn't been initialized yet!");
     return;
   }
-  auto speed_mode = channel_ < 8 ? LEDC_HIGH_SPEED_MODE : LEDC_LOW_SPEED_MODE;
+  auto speed_mode = get_speed_mode(channel_);
   auto timer_num = static_cast<ledc_timer_t>((channel_ % 8) / 2);
 
   ledc_timer_config_t timer_conf{};
