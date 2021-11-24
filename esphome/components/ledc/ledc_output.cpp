@@ -22,6 +22,8 @@ static const int MAX_RES_BITS = (LEDC_TIMER_BIT_MAX - 1);
 inline ledc_mode_t get_speed_mode(uint8_t channel) { return channel < 8 ? LEDC_HIGH_SPEED_MODE : LEDC_LOW_SPEED_MODE; }
 #else
 // S2, C3, S3 only support LEDC_LOW_SPEED_MODE
+// See
+// https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/api-reference/peripherals/ledc.html#functionality-overview
 inline ledc_mode_t get_speed_mode(uint8_t) { return LEDC_LOW_SPEED_MODE; }
 #endif
 #else
