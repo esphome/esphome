@@ -523,8 +523,6 @@ ESP32_BOARD_PINS = {
         "MOSI": 33,
         "MISO": 23,
         "SCK": 22,
-        "CAN_RX": 19,
-        "CAN_TX": 22,
     },
     "m5stack-core-esp32": {
         "ADC1": 35,
