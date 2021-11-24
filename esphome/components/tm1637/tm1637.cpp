@@ -7,14 +7,11 @@ namespace esphome {
 namespace tm1637 {
 
 static const char *const TAG = "display.tm1637";
-const uint8_t TM1637_I2C_COMM1 = 0x40;
-const uint8_t TM1637_I2C_COMM2 = 0xC0;
-const uint8_t TM1637_I2C_COMM3 = 0x80;
+const uint8_t TM1637_CMD_DATA = 0x40;           //!< Display data command
+const uint8_t TM1637_CMD_CTRL = 0x80;           //!< Display control command
+const uint8_t TM1637_CMD_ADDR = 0xc0;           //!< Display address command
 const uint8_t TM1637_UNKNOWN_CHAR = 0b11111111;
 
-const uint8_t TM1637_CMD_DATA = 0x40; //!< Display data command
-const uint8_t TM1637_CMD_CTRL = 0x80; //!< Display control command
-const uint8_t TM1637_CMD_ADDR = 0xc0; //!< Display address command
 // Data command bits
 const uint8_t TM1637_DATA_WRITE = 0x00;         //!< Write data
 const uint8_t TM1637_DATA_READ_KEYS = 0x02;     //!< Read keys
@@ -147,20 +144,16 @@ void TM1637Display::dump_config() {
 
 void TM1637Display::loop() {
   uint8_t val = this->get_keys();
-  if (val != 0xFF) {
-    for (auto *tm1637_key : this->tm1637_keys_)
-      tm1637_key->process(val);
-  }
+  for (auto *tm1637_key : this->tm1637_keys_)
+    tm1637_key->process(val);
 }
 
 uint8_t TM1637Display::get_keys() {
-  uint8_t keyCode;
   this->start_();
   this->send_byte_(TM1637_CMD_DATA | TM1637_DATA_READ_KEYS);
   this->start_();
-  keyCode = read_byte_();
+  uint8_t keyCode = read_byte_();
   this->stop_();
-  // Check if key is down (at least one bit is zero)
   if (keyCode != 0xFF) {
     // Invert keyCode:
     //    Bit |  7  6  5  4  3  2  1  0
@@ -207,14 +200,14 @@ void TM1637Display::stop_() {
 void TM1637Display::display() {
   ESP_LOGVV(TAG, "Display %02X%02X%02X%02X", buffer_[0], buffer_[1], buffer_[2], buffer_[3]);
 
-  // Write COMM1
+  // Write DATA CMND
   this->start_();
-  this->send_byte_(TM1637_I2C_COMM1);
+  this->send_byte_(TM1637_CMD_DATA);
   this->stop_();
 
-  // Write COMM2 + first digit address
+  // Write ADDR CMD + first digit address
   this->start_();
-  this->send_byte_(TM1637_I2C_COMM2);
+  this->send_byte_(TM1637_CMD_ADDR);
 
   // Write the data bytes
   for (auto b : this->buffer_) {
@@ -223,40 +216,33 @@ void TM1637Display::display() {
 
   this->stop_();
 
-  // Write COMM3 + brightness
+  // Write display CTRL CMND + brightness
   this->start_();
-  this->send_byte_(TM1637_I2C_COMM3 + ((this->intensity_ & 0x7) | 0x08));
+  this->send_byte_(TM1637_CMD_CTRL + ((this->intensity_ & 0x7) | 0x08));
   this->stop_();
 }
 bool TM1637Display::send_byte_(uint8_t b) {
   uint8_t data = b;
-
-  // 8 Data Bits
   for (uint8_t i = 0; i < 8; i++) {
     // CLK low
     this->clk_pin_->pin_mode(gpio::FLAG_OUTPUT);
     this->bit_delay_();
-
     // Set data bit
     if (data & 0x01)
       this->dio_pin_->pin_mode(gpio::FLAG_INPUT);
     else
       this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
-
     this->bit_delay_();
-
     // CLK high
     this->clk_pin_->pin_mode(gpio::FLAG_INPUT);
     this->bit_delay_();
     data = data >> 1;
   }
-
   // Wait for acknowledge
   // CLK to zero
   this->clk_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->dio_pin_->pin_mode(gpio::FLAG_INPUT);
   this->bit_delay_();
-
   // CLK to high
   this->clk_pin_->pin_mode(gpio::FLAG_INPUT);
   this->bit_delay_();
@@ -291,7 +277,7 @@ uint8_t TM1637Display::read_byte_(){
   }
   // Return DIO to output mode
   // Dummy ACK
- this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->bit_delay_();
   this->clk_pin_->pin_mode(gpio::FLAG_INPUT);
   this->bit_delay_();
@@ -303,7 +289,7 @@ uint8_t TM1637Display::read_byte_(){
 }
 
 uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
-  ESP_LOGV(TAG, "Print at %d: %s", start_pos, str);
+  // ESP_LOGV(TAG, "Print at %d: %s", start_pos, str);
   uint8_t pos = start_pos;
   for (; *str != '\0'; str++) {
     uint8_t data = TM1637_UNKNOWN_CHAR;
