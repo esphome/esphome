@@ -39,8 +39,6 @@ ESP32_BASE_PINS = {
     "DAC2": 26,
     "SVP": 36,
     "SVN": 39,
-    "CAN_RX": 19,
-    "CAN_TX": 22,
 }
 
 ESP32_BOARD_PINS = {
@@ -525,6 +523,8 @@ ESP32_BOARD_PINS = {
         "MOSI": 33,
         "MISO": 23,
         "SCK": 22,
+        "CAN_RX": 19,
+        "CAN_TX": 22,
     },
     "m5stack-core-esp32": {
         "ADC1": 35,
