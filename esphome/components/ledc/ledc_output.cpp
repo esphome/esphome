@@ -16,7 +16,7 @@ namespace ledc {
 static const char *const TAG = "ledc.output";
 
 #ifdef USE_ESP_IDF
-static const int MAX_RES_BITS = (LEDC_TIMER_BIT_MAX - 1);
+static const int MAX_RES_BITS = LEDC_TIMER_BIT_MAX - 1;
 #if SOC_LEDC_SUPPORT_HS_MODE
 // Only ESP32 has LEDC_HIGH_SPEED_MODE
 inline ledc_mode_t get_speed_mode(uint8_t channel) { return channel < 8 ? LEDC_HIGH_SPEED_MODE : LEDC_LOW_SPEED_MODE; }
