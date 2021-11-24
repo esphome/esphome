@@ -77,9 +77,9 @@ void SDP3XComponent::setup() {
       }
     } else if (data[2] == 0x01) {
       if (data[3] == 0x01) {
-        ESP_LOGCONFIG(TAG, "Sensor is SDP31");
+        ESP_LOGCONFIG(TAG, "Sensor is SDP31-500Pa");
       } else if (data[3] == 0x02) {
-        ESP_LOGCONFIG(TAG, "Sensor is SDP32");
+        ESP_LOGCONFIG(TAG, "Sensor is SDP32-125Pa");
       }
     }
 
