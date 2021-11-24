@@ -2511,7 +2511,7 @@ canbus:
                 lambda: 'return x[0] == 0x11;'
               then:
                 light.toggle: ${roomname}_lights
-  - platform: esp32_canbus
+  - platform: esp32_can
     id: can_builtin
     can_id: 4
     rx_pin: CAN_RX

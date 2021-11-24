@@ -1,36 +1,33 @@
 #pragma once
 
+//#include "esphome/core/component.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/defines.h"
 #include "esphome/components/canbus/canbus.h"
 #include "esphome/core/component.h"
 #include "ESP32CAN.h"
 
 #ifdef USE_ESP32
 
-CAN_device_t CAN_cfg;  // TODO enforce singleton aspect at compile time
+extern CAN_device_t CAN_cfg;  // TODO enforce singleton aspect at compile time
 
 namespace esphome {
-namespace esp32_canbus {
+namespace esp32_can {
 
-class EspCanBus : public canbus::Canbus {
+class EspCan : public canbus::Canbus {
  public:
-  EspCanBus(){};
+  EspCan(){};
   void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
   void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
+  void set_rx_buffer_size(size_t rx_buffer_size) { this->rx_buffer_size_ = rx_buffer_size; }
+
   void on_shutdown() override { ESP32Can.CANStop(); }
 
  protected:
-  float get_setup_priority() const override { return esphome::setup_priority::BUS; }
-
-  bool setup_internal() override {
-    CAN_cfg.speed = CAN_SPEED_500KBPS;  // TODO
-    CAN_cfg.tx_pin_id = gpio_num_t(this->tx_pin_->get_pin());
-    CAN_cfg.rx_pin_id = gpio_num_t(this->rx_pin_->get_pin());
-    const int rx_queue_size = 50;       // TODO
-
-    CAN_cfg.rx_queue = xQueueCreate(rx_queue_size, sizeof(CAN_frame_t));
-    int success = ESP32Can.CANInit();
-    return (success == 0);
-  }
+   bool setup_internal() override;
+   float get_setup_priority() const override {
+     return esphome::setup_priority::BUS;
+   }
 
   canbus::Error send_message(canbus::CanFrame *frame) { return canbus::ERROR_FAILTX; }
 
@@ -54,8 +51,9 @@ class EspCanBus : public canbus::Canbus {
 
   InternalGPIOPin *tx_pin_;
   InternalGPIOPin *rx_pin_;
+  size_t rx_buffer_size_;
 };
 
-}  // namespace esp32_canbus
+}  // namespace esp32_can
 }  // namespace esphome
 #endif
