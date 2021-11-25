@@ -28,7 +28,10 @@ bool ModbusController::send_next_command_() {
              command->register_address, command->register_count);
     command->send();
     this->last_command_timestamp_ = millis();
-    if (!command->on_data_func) {  // No handler remove from queue directly after sending
+    // remove from queue if no handler is defined or command was sent too often
+    if (!command->on_data_func || command->send_countdown < 1) {
+      ESP_LOGD(TAG, "Modbus command to device=%d register=0x%02X countdown=%d removed from queue after send",
+               this->address_, command->register_address, command->send_countdown);
       command_queue_.pop_front();
     }
   }
@@ -69,24 +72,30 @@ void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_
   }
 }
 
-void ModbusController::on_register_data(ModbusRegisterType register_type, uint16_t start_address,
-                                        const std::vector<uint8_t> &data) {
-  ESP_LOGV(TAG, "data for register address : 0x%X : ", start_address);
-
+std::map<uint64_t, SensorItem *>::iterator ModbusController::find_register_(ModbusRegisterType register_type,
+                                                                            uint16_t start_address) {
   auto vec_it = find_if(begin(register_ranges_), end(register_ranges_), [=](RegisterRange const &r) {
     return (r.start_address == start_address && r.register_type == register_type);
   });
 
   if (vec_it == register_ranges_.end()) {
-    ESP_LOGE(TAG, "Handle incoming data : No matching range for sensor found - start_address :  0x%X", start_address);
-    return;
+    ESP_LOGE(TAG, "No matching range for sensor found - start_address :  0x%X", start_address);
+  } else {
+    auto map_it = sensormap_.find(vec_it->first_sensorkey);
+    if (map_it == sensormap_.end()) {
+      ESP_LOGE(TAG, "No sensor found in at start_address :  0x%X (0x%llX)", start_address, vec_it->first_sensorkey);
+    } else {
+      return sensormap_.find(vec_it->first_sensorkey);
+    }
   }
-  auto map_it = sensormap_.find(vec_it->first_sensorkey);
-  if (map_it == sensormap_.end()) {
-    ESP_LOGE(TAG, "Handle incoming data : No sensor found in at start_address :  0x%X (0x%llX)", start_address,
-             vec_it->first_sensorkey);
-    return;
-  }
+  // not found
+  return std::end(sensormap_);
+}
+void ModbusController::on_register_data(ModbusRegisterType register_type, uint16_t start_address,
+                                        const std::vector<uint8_t> &data) {
+  ESP_LOGV(TAG, "data for register address : 0x%X : ", start_address);
+
+  auto map_it = find_register_(register_type, start_address);
   // loop through all sensors with the same start address
   while (map_it != sensormap_.end() && map_it->second->start_address == start_address) {
     if (map_it->second->register_type == register_type) {
@@ -116,9 +125,23 @@ void ModbusController::update_range_(RegisterRange &r) {
   ESP_LOGV(TAG, "Range : %X Size: %x (%d) skip: %d", r.start_address, r.register_count, (int) r.register_type,
            r.skip_updates_counter);
   if (r.skip_updates_counter == 0) {
-    ModbusCommandItem command_item =
-        ModbusCommandItem::create_read_command(this, r.register_type, r.start_address, r.register_count);
-    queue_command(command_item);
+    // if a custom command is used the user supplied custom_data is only available in the SensorItem.
+    if (r.register_type == ModbusRegisterType::CUSTOM) {
+      auto it = this->find_register_(r.register_type, r.start_address);
+      if (it != sensormap_.end()) {
+        auto command_item = ModbusCommandItem::create_custom_command(
+            this, it->second->custom_data,
+            [this](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
+              this->on_register_data(ModbusRegisterType::CUSTOM, start_address, data);
+            });
+        command_item.register_address = it->second->start_address;
+        command_item.register_count = it->second->register_count;
+        command_item.function_code = ModbusFunctionCode::CUSTOM;
+        queue_command(command_item);
+      }
+    } else {
+      queue_command(ModbusCommandItem::create_read_command(this, r.register_type, r.start_address, r.register_count));
+    }
     r.skip_updates_counter = r.skip_updates;  // reset counter to config value
   } else {
     r.skip_updates_counter--;
@@ -422,6 +445,7 @@ bool ModbusCommandItem::send() {
     modbusdevice->send_raw(this->payload);
   }
   ESP_LOGV(TAG, "Command sent %d 0x%X %d", uint8_t(this->function_code), this->register_address, this->register_count);
+  send_countdown--;
   return true;
 }
 
@@ -549,6 +573,9 @@ float payload_to_float(const std::vector<uint8_t> &data, SensorValueType sensor_
       ESP_LOGD(TAG, "FP32_R = 0x%08X => %f", raw_to_float.raw, raw_to_float.float_value);
       result = raw_to_float.float_value;
     } break;
+    case SensorValueType::RAW:
+      result = NAN;
+      break;
     default:
       break;
   }
