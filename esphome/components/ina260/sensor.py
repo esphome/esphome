@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_ID,
     CONF_BUS_VOLTAGE,
     CONF_CURRENT,
-    CONF_MAX_CURRENT,
     CONF_POWER,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_CURRENT,
@@ -46,9 +45,6 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_MAX_CURRENT, default=15): cv.All(
-                cv.current, cv.Range(min=0.0)
-            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -61,8 +57,6 @@ async def to_code(config):
 
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-
-    cg.add(var.set_max_current_amps(config[CONF_MAX_CURRENT]))
 
     if CONF_BUS_VOLTAGE in config:
         sens = await sensor.new_sensor(config[CONF_BUS_VOLTAGE])

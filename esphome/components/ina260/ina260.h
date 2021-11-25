@@ -15,7 +15,6 @@ class INA260Component : public PollingComponent, public i2c::I2CDevice {
 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  void set_max_current_amps(float max_current_amp) { this->max_current_amp_ = max_current_amp; }
   void set_bus_voltage_sensor(sensor::Sensor *bus_voltage_sensor) { this->bus_voltage_sensor_ = bus_voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { this->current_sensor_ = current_sensor; }
   void set_power_sensor(sensor::Sensor *power_sensor) { this->power_sensor_ = power_sensor; }
@@ -23,8 +22,6 @@ class INA260Component : public PollingComponent, public i2c::I2CDevice {
  protected:
   uint16_t manufacture_id_{0};
   uint16_t device_id_{0};
-
-  float max_current_amp_{15};
 
   sensor::Sensor *bus_voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
