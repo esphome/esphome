@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
 #include "esphome/core/log.h"
 #include "abstract_aqi_calculator.h"
 
@@ -52,5 +50,3 @@ class CAQICalculator : public AbstractAQICalculator {
 
 }  // namespace hm3301
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

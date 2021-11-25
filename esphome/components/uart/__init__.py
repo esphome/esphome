@@ -3,6 +3,7 @@ from typing import Optional
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
+from esphome.yaml_util import make_data_base
 from esphome import pins, automation
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -24,6 +25,7 @@ from esphome.const import (
     CONF_DELIMITER,
     CONF_DUMMY_RECEIVER,
     CONF_DUMMY_RECEIVER_ID,
+    CONF_LAMBDA,
 )
 from esphome.core import CORE
 
@@ -94,22 +96,47 @@ UART_DIRECTIONS = {
     "BOTH": UARTDirection.UART_DIRECTION_BOTH,
 }
 
+# The reason for having CONF_BYTES at 150 by default:
+#
+# The log message buffer size is 512 bytes by default. About 35 bytes are
+# used for the log prefix. That leaves us with 477 bytes for logging data.
+# The default log output is hex, which uses 3 characters per represented
+# byte (2 hex chars + 1 separator). That means that 477 / 3 = 159 bytes
+# can be represented in a single log line. Using 150, because people love
+# round numbers.
+AFTER_DEFAULTS = {CONF_BYTES: 150, CONF_TIMEOUT: "100ms"}
+
+# By default, log in hex format when no specific sequence is provided.
+DEFAULT_DEBUG_OUTPUT = "UARTDebug::log_hex(direction, bytes, ':');"
+DEFAULT_SEQUENCE = [{CONF_LAMBDA: make_data_base(DEFAULT_DEBUG_OUTPUT)}]
+
+
+def maybe_empty_debug(value):
+    if value is None:
+        value = {}
+    return DEBUG_SCHEMA(value)
+
+
 DEBUG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UARTDebugger),
         cv.Optional(CONF_DIRECTION, default="BOTH"): cv.enum(
             UART_DIRECTIONS, upper=True
         ),
-        cv.Optional(CONF_AFTER): cv.Schema(
+        cv.Optional(CONF_AFTER, default=AFTER_DEFAULTS): cv.Schema(
             {
-                cv.Optional(CONF_BYTES, default=256): cv.validate_bytes,
                 cv.Optional(
-                    CONF_TIMEOUT, default="100ms"
+                    CONF_BYTES, default=AFTER_DEFAULTS[CONF_BYTES]
+                ): cv.validate_bytes,
+                cv.Optional(
+                    CONF_TIMEOUT, default=AFTER_DEFAULTS[CONF_TIMEOUT]
                 ): cv.positive_time_period_milliseconds,
                 cv.Optional(CONF_DELIMITER): cv.templatable(validate_raw_data),
             }
         ),
-        cv.Required(CONF_SEQUENCE): automation.validate_automation(),
+        cv.Optional(
+            CONF_SEQUENCE, default=DEFAULT_SEQUENCE
+        ): automation.validate_automation(),
         cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
         cv.GenerateID(CONF_DUMMY_RECEIVER_ID): cv.declare_id(UARTDummyReceiver),
     }
@@ -131,7 +158,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INVERT): cv.invalid(
                 "This option has been removed. Please instead use invert in the tx/rx pin schemas."
             ),
-            cv.Optional(CONF_DEBUG): DEBUG_SCHEMA,
+            cv.Optional(CONF_DEBUG): maybe_empty_debug,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN),

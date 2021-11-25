@@ -48,13 +48,13 @@ void get_mac_address_raw(uint8_t *mac) {
 std::string get_mac_address() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
-  return str_sprintf("%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return str_snprintf("%02x%02x%02x%02x%02x%02x", 12, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 std::string get_mac_address_pretty() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
-  return str_sprintf("%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 #ifdef USE_ESP32
@@ -324,6 +324,20 @@ float lerp(float completion, float start, float end) { return start + (end - sta
 bool str_startswith(const std::string &full, const std::string &start) { return full.rfind(start, 0) == 0; }
 bool str_endswith(const std::string &full, const std::string &ending) {
   return full.rfind(ending) == (full.size() - ending.size());
+}
+std::string str_snprintf(const char *fmt, size_t length, ...) {
+  std::string str;
+  va_list args;
+
+  str.resize(length);
+  va_start(args, length);
+  size_t out_length = vsnprintf(&str[0], length + 1, fmt, args);
+  va_end(args);
+
+  if (out_length < length)
+    str.resize(out_length);
+
+  return str;
 }
 std::string str_sprintf(const char *fmt, ...) {
   std::string str;

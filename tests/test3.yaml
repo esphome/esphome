@@ -254,6 +254,8 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 38400
+    # Specifically added for testing debug with no options at all.
+    debug:
   - id: uart8
     tx_pin: GPIO1
     rx_pin: GPIO3
@@ -1313,6 +1315,8 @@ dsmr:
   decryption_key: 00112233445566778899aabbccddeeff
   uart_id: uart6
   max_telegram_length: 1000
+  request_pin: D5
+  request_interval: 20s
 
 daly_bms:
   update_interval: 20s
