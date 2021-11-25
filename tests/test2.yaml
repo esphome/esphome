@@ -312,7 +312,6 @@ sensor:
       name: "INA260 Power"
     bus_voltage:
       name: "INA260 Voltage"
-    max_current: 15A
     update_interval: 60s
 
 time:
