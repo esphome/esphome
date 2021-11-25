@@ -1,4 +1,4 @@
-pylint==2.11.1
+pylint==2.12.1
 flake8==4.0.1
 black==21.11b1
 pexpect==4.8.0
