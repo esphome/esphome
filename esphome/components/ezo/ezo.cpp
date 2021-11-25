@@ -32,7 +32,7 @@ void EZOSensor::update() {
 }
 
 void EZOSensor::loop() {
-  uint8_t buf[20];
+  uint8_t buf[21];
   if (!(this->state_ & EZO_STATE_WAIT)) {
     if (this->state_ & EZO_STATE_SEND_TEMP) {
       int len = sprintf((char *) buf, "T,%0.3f", this->tempcomp_);
@@ -74,7 +74,7 @@ void EZOSensor::loop() {
   if (buf[0] != 1)
     return;
 
-  float val = parse_number<float>((char *) &buf[1], sizeof(buf) - 1).value_or(0);
+  float val = parse_number<float>((char *) &buf[1], sizeof(buf) - 2).value_or(0);
   this->publish_state(val);
 }
 

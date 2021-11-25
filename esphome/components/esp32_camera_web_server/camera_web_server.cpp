@@ -21,12 +21,19 @@ static const char *const TAG = "esp32_camera_web_server";
 #define CONTENT_TYPE "image/jpeg"
 #define CONTENT_LENGTH "Content-Length"
 
-static const char *const STREAM_HEADER =
-    "HTTP/1.1 200\r\nAccess-Control-Allow-Origin: *\r\nContent-Type: multipart/x-mixed-replace;boundary=" PART_BOUNDARY
-    "\r\n";
-static const char *const STREAM_500 = "HTTP/1.1 500\r\nContent-Type: text/plain\r\n\r\nNo frames send.\r\n";
-static const char *const STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
+static const char *const STREAM_HEADER = "HTTP/1.0 200 OK\r\n"
+                                         "Access-Control-Allow-Origin: *\r\n"
+                                         "Connection: close\r\n"
+                                         "Content-Type: multipart/x-mixed-replace;boundary=" PART_BOUNDARY "\r\n"
+                                         "\r\n"
+                                         "--" PART_BOUNDARY "\r\n";
+static const char *const STREAM_ERROR = "Content-Type: text/plain\r\n"
+                                        "\r\n"
+                                        "No frames send.\r\n"
+                                        "--" PART_BOUNDARY "\r\n";
 static const char *const STREAM_PART = "Content-Type: " CONTENT_TYPE "\r\n" CONTENT_LENGTH ": %u\r\n\r\n";
+static const char *const STREAM_BOUNDARY = "\r\n"
+                                           "--" PART_BOUNDARY "\r\n";
 
 CameraWebServer::CameraWebServer() {}
 
@@ -45,6 +52,7 @@ void CameraWebServer::setup() {
   config.ctrl_port = this->port_;
   config.max_open_sockets = 1;
   config.backlog_conn = 2;
+  config.lru_purge_enable = true;
 
   if (httpd_start(&this->httpd_, &config) != ESP_OK) {
     mark_failed();
@@ -173,14 +181,14 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
       res = ESP_FAIL;
     }
     if (res == ESP_OK) {
-      res = httpd_send_all(req, STREAM_BOUNDARY, strlen(STREAM_BOUNDARY));
-    }
-    if (res == ESP_OK) {
       size_t hlen = snprintf(part_buf, 64, STREAM_PART, image->get_data_length());
       res = httpd_send_all(req, part_buf, hlen);
     }
     if (res == ESP_OK) {
       res = httpd_send_all(req, (const char *) image->get_data_buffer(), image->get_data_length());
+    }
+    if (res == ESP_OK) {
+      res = httpd_send_all(req, STREAM_BOUNDARY, strlen(STREAM_BOUNDARY));
     }
     if (res == ESP_OK) {
       frames++;
@@ -193,7 +201,7 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
   }
 
   if (!frames) {
-    res = httpd_send_all(req, STREAM_500, strlen(STREAM_500));
+    res = httpd_send_all(req, STREAM_ERROR, strlen(STREAM_ERROR));
   }
 
   ESP_LOGI(TAG, "STREAM: closed. Frames: %u", frames);
