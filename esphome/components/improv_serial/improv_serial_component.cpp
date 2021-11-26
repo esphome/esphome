@@ -111,7 +111,7 @@ std::vector<uint8_t> ImprovSerialComponent::build_version_info_() {
 bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
   size_t at = this->rx_buffer_.size();
   this->rx_buffer_.push_back(byte);
-  ESP_LOGD(TAG, "Improv Serial byte: 0x%02X", byte);
+  ESP_LOGV(TAG, "Improv Serial byte: 0x%02X", byte);
   const uint8_t *raw = &this->rx_buffer_[0];
   if (at == 0)
     return byte == 'I';
@@ -176,7 +176,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       wifi::global_wifi_component->set_sta(sta);
       wifi::global_wifi_component->start_scanning();
       this->set_state_(improv::STATE_PROVISIONING);
-      ESP_LOGD(TAG, "Received Improv wifi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
+      ESP_LOGI(TAG, "Received Improv wifi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                command.password.c_str());
 
       auto f = std::bind(&ImprovSerialComponent::on_wifi_connect_timeout_, this);
