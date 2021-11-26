@@ -31,7 +31,7 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
  * can be found under https://esphome.io/web-api/index.html.
  */
 class WebServer : public Controller, public Component, public AsyncWebHandler {
-public:
+ public:
   WebServer(web_server_base::WebServerBase *base) : base_(base) {}
 
   /** Set the URL to the CSS <link> that's sent to each client. Defaults to
@@ -192,7 +192,7 @@ public:
   /// This web handle is not trivial.
   bool isRequestHandlerTrivial() override;
 
-protected:
+ protected:
   web_server_base::WebServerBase *base_;
   AsyncEventSource events_{"/events"};
   const char *css_url_{nullptr};
@@ -202,7 +202,7 @@ protected:
   bool allow_ota_{true};
 };
 
-} // namespace web_server
-} // namespace esphome
+}  // namespace web_server
+}  // namespace esphome
 
-#endif // USE_ARDUINO
+#endif  // USE_ARDUINO

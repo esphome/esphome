@@ -99,9 +99,7 @@ void WebServer::setup() {
                    root["title"] = App.get_name();
                    root["ota"] = this->allow_ota_;
                    root["lang"] = "en";
-
-                 })
-                     .c_str(),
+                 }).c_str(),
                  "ping", millis(), 30000);
 
 #ifdef USE_SENSOR
@@ -255,7 +253,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifdef USE_SELECT
   for (auto *obj : App.get_selects())
     write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, EntityBase *obj) {
-      select::Select *select = (select::Select *) obj;
+      select::Select *select = (select::Select *)obj;
       stream.print("<select>");
       stream.print("<option></option>");
       for (auto const &option : select->traits.get_options()) {
@@ -323,7 +321,7 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 
 #define set_json_id(root, obj, sensor, start_config) \
   (root)["id"] = sensor;                             \
-  if (((start_config) == DETAIL_ALL))                \
+  if (((start_config) == DETAIL_ALL)) \
     (root)["name"] = (obj)->get_name();
 
 #define set_json_value(root, obj, sensor, value, start_config) \
@@ -466,15 +464,15 @@ std::string WebServer::fan_json(fan::FanState *obj, JsonDetail start_config) {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
       // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
       switch (fan::speed_level_to_enum(obj->speed, traits.supported_speed_count())) {
-      case fan::FAN_SPEED_LOW: // NOLINT(clang-diagnostic-deprecated-declarations)
-        root["speed"] = "low";
-        break;
-      case fan::FAN_SPEED_MEDIUM: // NOLINT(clang-diagnostic-deprecated-declarations)
-        root["speed"] = "medium";
-        break;
-      case fan::FAN_SPEED_HIGH: // NOLINT(clang-diagnostic-deprecated-declarations)
-        root["speed"] = "high";
-        break;
+        case fan::FAN_SPEED_LOW:  // NOLINT(clang-diagnostic-deprecated-declarations)
+          root["speed"] = "low";
+          break;
+        case fan::FAN_SPEED_MEDIUM:  // NOLINT(clang-diagnostic-deprecated-declarations)
+          root["speed"] = "medium";
+          break;
+        case fan::FAN_SPEED_HIGH:  // NOLINT(clang-diagnostic-deprecated-declarations)
+          root["speed"] = "high";
+          break;        
       }
 #pragma GCC diagnostic pop
     }
@@ -501,7 +499,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
         String speed = request->getParam("speed")->value();
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-        call.set_speed(speed.c_str()); // NOLINT(clang-diagnostic-deprecated-declarations)
+        call.set_speed(speed.c_str());  // NOLINT(clang-diagnostic-deprecated-declarations)
 #pragma GCC diagnostic pop
       }
       if (request->hasParam("speed_level")) {
@@ -517,18 +515,18 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
         String speed = request->getParam("oscillation")->value();
         auto val = parse_on_off(speed.c_str());
         switch (val) {
-        case PARSE_ON:
-          call.set_oscillating(true);
-          break;
-        case PARSE_OFF:
-          call.set_oscillating(false);
-          break;
-        case PARSE_TOGGLE:
-          call.set_oscillating(!obj->oscillating);
-          break;
-        case PARSE_NONE:
-          request->send(404);
-          return;
+          case PARSE_ON:       
+            call.set_oscillating(true);
+            break;
+          case PARSE_OFF:
+            call.set_oscillating(false);
+            break;
+          case PARSE_TOGGLE:
+            call.set_oscillating(!obj->oscillating);
+            break;
+          case PARSE_NONE:
+            request->send(404);
+            return;
         }
       }
       this->defer([call]() { call.perform(); });
@@ -599,7 +597,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
     } else if (match.method == "turn_off") {
       auto call = obj->turn_off();
       if (request->hasParam("transition")) {
-        auto length = (uint32_t) request->getParam("transition")->value().toFloat() * 1000;
+        auto length = (uint32_t)request->getParam("transition")->value().toFloat() * 1000;
         call.set_transition_length(length);
       }
       this->defer([call]() mutable { call.perform(); });
@@ -765,7 +763,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->hasParam("option")) {
       String option = request->getParam("option")->value();
-      call.set_option(option.c_str()); // NOLINT(clang-diagnostic-deprecated-declarations)
+      call.set_option(option.c_str());  // NOLINT(clang-diagnostic-deprecated-declarations)
     }
 
     this->defer([call]() mutable { call.perform(); });
@@ -837,8 +835,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
 }
 
 // Longest: HORIZONTAL
-#define PSTR_LOCAL(mode_s) \
-  strncpy_P(__buf, (PGM_P)((mode_s)), 15)
+#define PSTR_LOCAL(mode_s) strncpy_P(__buf, (PGM_P)((mode_s)), 15)
 
 std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject &root) {
@@ -863,7 +860,9 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
       }
       if (traits.get_supports_swing_modes()) {
         JsonArray &opt = root.createNestedArray("swing_modes");
-        // error: passing 'const esphome::climate::ClimateTraits' as 'this' argument of 'const std::set<esphome::climate::ClimateSwingMode> esphome::climate::ClimateTraits::get_supported_swing_modes()' discards qualifiers [-fpermissive]
+        // error: passing 'const esphome::climate::ClimateTraits' as 'this' argument of 'const
+        //  std::set<esphome::climate::ClimateSwingMode> esphome::climate::ClimateTraits::get_supported_swing_modes()'
+        //  discards qualifiers [-fpermissive]        
         //for (climate::ClimateSwingMode swing_mode : traits.get_supported_swing_modes())
         // opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
         /* const char *payload = "";
@@ -1097,7 +1096,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 
 bool WebServer::isRequestHandlerTrivial() { return false; }
 
-}  // namespace web_server
-}  // namespace esphome
+} // namespace web_server
+} // namespace esphome
 
-#endif  // USE_ARDUINO
+#endif // USE_ARDUINO
