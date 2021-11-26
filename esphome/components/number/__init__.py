@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
     CONF_TRIGGER_ID,
+    CONF_UNIT_OF_MEASUREMENT,
     CONF_MQTT_ID,
     CONF_VALUE,
 )
@@ -58,6 +59,7 @@ NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).e
             },
             cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
         ),
+        cv.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string_strict,
     }
 )
 
@@ -86,6 +88,8 @@ async def setup_number_core_(
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
+    if CONF_UNIT_OF_MEASUREMENT in config:
+        cg.add(var.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
