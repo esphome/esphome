@@ -710,8 +710,6 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
       return;
     }
 
-    auto call = obj->make_call();
-
     if (request->hasParam("value")) {
       auto val = parse_number<float>(request->getParam("value")->value().c_str());
       auto call = obj->make_call();

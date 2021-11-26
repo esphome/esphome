@@ -2,9 +2,9 @@
 
 #ifdef USE_ARDUINO
 
+#include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
-#include "esphome/components/web_server_base/web_server_base.h"
 
 #include <vector>
 
@@ -13,16 +13,13 @@ namespace web_server {
 
 /// Internal helper struct that is used to parse incoming URLs
 struct UrlMatch {
-  std::string domain;  ///< The domain of the component, for example "sensor"
-  std::string id;      ///< The id of the device that's being accessed, for example "living_room_fan"
-  std::string method;  ///< The method that's being called, for example "turn_on"
-  bool valid;          ///< Whether this match is valid
+  std::string domain; ///< The domain of the component, for example "sensor"
+  std::string id;     ///< The id of the device that's being accessed, for example "living_room_fan"
+  std::string method; ///< The method that's being called, for example "turn_on"
+  bool valid;         ///< Whether this match is valid
 };
 
-enum JsonDetail {
-  DETAIL_ALL,
-  DETAIL_STATE
-};
+enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 
 /** This class allows users to create a web server with their ESP nodes.
  *
@@ -34,7 +31,7 @@ enum JsonDetail {
  * can be found under https://esphome.io/web-api/index.html.
  */
 class WebServer : public Controller, public Component, public AsyncWebHandler {
- public:
+public:
   WebServer(web_server_base::WebServerBase *base) : base_(base) {}
 
   /** Set the URL to the CSS <link> that's sent to each client. Defaults to
@@ -195,7 +192,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// This web handle is not trivial.
   bool isRequestHandlerTrivial() override;
 
- protected:
+protected:
   web_server_base::WebServerBase *base_;
   AsyncEventSource events_{"/events"};
   const char *css_url_{nullptr};
@@ -205,7 +202,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   bool allow_ota_{true};
 };
 
-}  // namespace web_server
-}  // namespace esphome
+} // namespace web_server
+} // namespace esphome
 
-#endif  // USE_ARDUINO
+#endif // USE_ARDUINO
