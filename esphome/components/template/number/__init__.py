@@ -35,6 +35,9 @@ def validate(config):
             raise cv.Invalid("initial_value cannot be used with lambda")
         if CONF_RESTORE_VALUE in config:
             raise cv.Invalid("restore_value cannot be used with lambda")
+    elif CONF_INITIAL_VALUE not in config:
+        config[CONF_INITIAL_VALUE] = config[CONF_MIN_VALUE]
+
     if not config[CONF_OPTIMISTIC] and CONF_SET_ACTION not in config:
         raise cv.Invalid(
             "Either optimistic mode must be enabled, or set_action must be set, to handle the number being set."
@@ -80,8 +83,7 @@ async def to_code(config):
 
     else:
         cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
-        if CONF_INITIAL_VALUE in config:
-            cg.add(var.set_initial_value(config[CONF_INITIAL_VALUE]))
+        cg.add(var.set_initial_value(config[CONF_INITIAL_VALUE]))
         if CONF_RESTORE_VALUE in config:
             cg.add(var.set_restore_value(config[CONF_RESTORE_VALUE]))
 

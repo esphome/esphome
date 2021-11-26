@@ -16,7 +16,6 @@
 namespace esphome {
 namespace dsmr {
 
-static constexpr uint32_t MAX_TELEGRAM_LENGTH = 1500;
 static constexpr uint32_t READ_TIMEOUT_MS = 200;
 
 using namespace ::dsmr::fields;
@@ -52,6 +51,8 @@ class Dsmr : public Component, public uart::UARTDevice {
  public:
   Dsmr(uart::UARTComponent *uart, bool crc_check) : uart::UARTDevice(uart), crc_check_(crc_check) {}
 
+  void setup() override;
+
   void loop() override;
 
   bool parse_telegram();
@@ -71,6 +72,8 @@ class Dsmr : public Component, public uart::UARTDevice {
   void dump_config() override;
 
   void set_decryption_key(const std::string &decryption_key);
+
+  void set_max_telegram_length(size_t length);
 
 // Sensor setters
 #define DSMR_SET_SENSOR(s) \
@@ -97,8 +100,11 @@ class Dsmr : public Component, public uart::UARTDevice {
   bool available_within_timeout_();
 
   // Telegram buffer
-  char telegram_[MAX_TELEGRAM_LENGTH];
+  size_t max_telegram_len_;
+  char *telegram_{nullptr};
   int telegram_len_{0};
+  uint8_t *encrypted_telegram_{nullptr};
+  int encrypted_telegram_len_{0};
 
   // Serial parser
   bool header_found_{false};

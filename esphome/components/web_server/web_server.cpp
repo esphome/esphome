@@ -93,11 +93,13 @@ void WebServer::setup() {
   this->base_->init();
 
   this->events_.onConnect([this](AsyncEventSourceClient *client) {
-    // Configure reconnect timeout
+    // Configure reconnect timeout and send config
+
     client->send(json::build_json([this](JsonObject &root) {
                    root["title"] = App.get_name();
                    root["ota"] = this->allow_ota_;
                    root["lang"] = "en";
+
                  })
                      .c_str(),
                  "ping", millis(), 30000);
@@ -380,7 +382,9 @@ void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const
 }
 std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std::string &value,
                                         JsonDetail start_config) {
-  return json::build_json([obj, value, start_config](JsonObject &root) { set_json_icon_state_value(root, obj, "text_sensor-" + obj->get_object_id(), value, value, start_config); });
+  return json::build_json([obj, value, start_config](JsonObject &root) {
+    set_json_icon_state_value(root, obj, "text_sensor-" + obj->get_object_id(), value, value, start_config);
+  });
 }
 #endif
 
@@ -389,7 +393,9 @@ void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
   this->events_.send(this->switch_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 std::string WebServer::switch_json(switch_::Switch *obj, bool value, JsonDetail start_config) {
-  return json::build_json([obj, value, start_config](JsonObject &root) { set_json_icon_state_value(root, obj, "switch-" + obj->get_object_id(), value ? "ON" : "OFF", value, start_config); });
+  return json::build_json([obj, value, start_config](JsonObject &root) {
+    set_json_icon_state_value(root, obj, "switch-" + obj->get_object_id(), value ? "ON" : "OFF", value, start_config);
+  });
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
@@ -426,7 +432,9 @@ void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool s
   this->events_.send(this->binary_sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config) {
-  return json::build_json([obj, value, start_config](JsonObject &root) { set_json_state_value(root, obj, "binary_sensor-" + obj->get_object_id(), value ? "ON" : "OFF", value, start_config); });
+  return json::build_json([obj, value, start_config](JsonObject &root) {
+    set_json_state_value(root, obj, "binary_sensor-" + obj->get_object_id(), value ? "ON" : "OFF", value, start_config);
+  });
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
