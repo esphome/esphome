@@ -19,6 +19,11 @@ struct UrlMatch {
   bool valid;          ///< Whether this match is valid
 };
 
+enum JsonDetail {
+  DETAIL_ALL,
+  DETAIL_STATE
+};
+
 /** This class allows users to create a web server with their ESP nodes.
  *
  * Behind the scenes it's using AsyncWebServer to set up the server. It exposes 3 things:
@@ -93,7 +98,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the sensor state with its value as a JSON string.
-  std::string sensor_json(sensor::Sensor *obj, float value);
+  std::string sensor_json(sensor::Sensor *obj, float value, JsonDetail start_config);
 #endif
 
 #ifdef USE_SWITCH
@@ -103,7 +108,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the switch state with its value as a JSON string.
-  std::string switch_json(switch_::Switch *obj, bool value);
+  std::string switch_json(switch_::Switch *obj, bool value, JsonDetail start_config);
 #endif
 
 #ifdef USE_BINARY_SENSOR
@@ -113,7 +118,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the binary sensor state with its value as a JSON string.
-  std::string binary_sensor_json(binary_sensor::BinarySensor *obj, bool value);
+  std::string binary_sensor_json(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config);
 #endif
 
 #ifdef USE_FAN
@@ -123,7 +128,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the fan state as a JSON string.
-  std::string fan_json(fan::FanState *obj);
+  std::string fan_json(fan::FanState *obj, JsonDetail start_config);
 #endif
 
 #ifdef USE_LIGHT
@@ -133,7 +138,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the light state as a JSON string.
-  std::string light_json(light::LightState *obj);
+  std::string light_json(light::LightState *obj, JsonDetail start_config);
 #endif
 
 #ifdef USE_TEXT_SENSOR
@@ -143,7 +148,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the text sensor state with its value as a JSON string.
-  std::string text_sensor_json(text_sensor::TextSensor *obj, const std::string &value);
+  std::string text_sensor_json(text_sensor::TextSensor *obj, const std::string &value, JsonDetail start_config);
 #endif
 
 #ifdef USE_COVER
@@ -153,7 +158,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the cover state as a JSON string.
-  std::string cover_json(cover::Cover *obj);
+  std::string cover_json(cover::Cover *obj, JsonDetail start_config);
 #endif
 
 #ifdef USE_NUMBER
@@ -162,7 +167,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the number state with its value as a JSON string.
-  std::string number_json(number::Number *obj, float value);
+  std::string number_json(number::Number *obj, float value, JsonDetail start_config);
 #endif
 
 #ifdef USE_SELECT
@@ -170,8 +175,17 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// Handle a select request under '/select/<id>'.
   void handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
-  /// Dump the number state with its value as a JSON string.
-  std::string select_json(select::Select *obj, const std::string &value);
+  /// Dump the select state with its value as a JSON string.
+  std::string select_json(select::Select *obj, const std::string &value, JsonDetail start_config);
+#endif
+
+#ifdef USE_CLIMATE
+  void on_climate_update(climate::Climate *obj) override;
+  /// Handle a climate request under '/climate/<id>'.
+  void handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the climate details
+  std::string climate_json(climate::Climate *obj, JsonDetail start_config);
 #endif
 
   /// Override the web handler's canHandle method.

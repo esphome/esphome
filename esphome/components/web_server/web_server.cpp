@@ -24,6 +24,10 @@
 #include "esphome/components/fan/fan_helpers.h"
 #endif
 
+#ifdef USE_CLIMATE
+#include "esphome/components/climate/climate.h"
+#endif
+
 namespace esphome {
 namespace web_server {
 
@@ -90,66 +94,74 @@ void WebServer::setup() {
 
   this->events_.onConnect([this](AsyncEventSourceClient *client) {
     // Configure reconnect timeout
-    client->send("", "ping", millis(), 30000);
+    client->send(json::build_json([this](JsonObject &root) {
+                   root["title"] = App.get_name();
+                   root["ota"] = this->allow_ota_;
+                   root["lang"] = "en";
+                 })
+                     .c_str(),
+                 "ping", millis(), 30000);
 
 #ifdef USE_SENSOR
     for (auto *obj : App.get_sensors())
       if (!obj->is_internal())
-        client->send(this->sensor_json(obj, obj->state).c_str(), "state");
+        client->send(this->sensor_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
 #endif
 
 #ifdef USE_SWITCH
     for (auto *obj : App.get_switches())
       if (!obj->is_internal())
-        client->send(this->switch_json(obj, obj->state).c_str(), "state");
+        client->send(this->switch_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
 #endif
 
 #ifdef USE_BINARY_SENSOR
     for (auto *obj : App.get_binary_sensors())
       if (!obj->is_internal())
-        client->send(this->binary_sensor_json(obj, obj->state).c_str(), "state");
+        client->send(this->binary_sensor_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
 #endif
 
 #ifdef USE_FAN
     for (auto *obj : App.get_fans())
       if (!obj->is_internal())
-        client->send(this->fan_json(obj).c_str(), "state");
+        client->send(this->fan_json(obj, DETAIL_ALL).c_str(), "state");
 #endif
 
 #ifdef USE_LIGHT
     for (auto *obj : App.get_lights())
       if (!obj->is_internal())
-        client->send(this->light_json(obj).c_str(), "state");
+        client->send(this->light_json(obj, DETAIL_ALL).c_str(), "state");
 #endif
 
 #ifdef USE_TEXT_SENSOR
     for (auto *obj : App.get_text_sensors())
       if (!obj->is_internal())
-        client->send(this->text_sensor_json(obj, obj->state).c_str(), "state");
+        client->send(this->text_sensor_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
 #endif
 
 #ifdef USE_COVER
     for (auto *obj : App.get_covers())
       if (!obj->is_internal())
-        client->send(this->cover_json(obj).c_str(), "state");
+        client->send(this->cover_json(obj, DETAIL_ALL).c_str(), "state");
 #endif
 
 #ifdef USE_NUMBER
     for (auto *obj : App.get_numbers())
       if (!obj->is_internal())
-        client->send(this->number_json(obj, obj->state).c_str(), "state");
+        client->send(this->number_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
 #endif
 
 #ifdef USE_SELECT
     for (auto *obj : App.get_selects())
       if (!obj->is_internal())
-        client->send(this->select_json(obj, obj->state).c_str(), "state");
+        client->send(this->select_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
 #endif
-  });
 
 #ifdef USE_CLIMATE
-// To DO
+    for (auto *obj : App.get_climates())
+      if (!obj->is_internal())
+        client->send(this->climate_json(obj, DETAIL_ALL).c_str(), "state");
 #endif
+  });
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr)
@@ -175,10 +187,14 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   const std::string &title = App.get_name();
   // All content is controlled and created by user - so allowing all origins is fine here.
   stream->addHeader("Access-Control-Allow-Origin", "*");
-  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><link rel=icon href=data:><meta "
+#if WEBSERVER_VERSION == 1
+  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><meta "
                   "name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));
   stream->print(title.c_str());
   stream->print(F("</title>"));
+#else
+  stream->print(F("<!DOCTYPE html><html><head><meta charset=UTF-8><link rel=icon href=data:>"));
+#endif
 #ifdef WEBSERVER_CSS_INCLUDE
   stream->print(F("<link rel=\"stylesheet\" href=\"/0.css\">"));
 #endif
@@ -303,22 +319,25 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 }
 #endif
 
-#define set_json_id(root, obj, sensor) \
-  (root)["id"] = sensor; \
-  (root)["name"] = (obj)->get_name();
+#define set_json_id(root, obj, sensor, start_config) \
+  (root)["id"] = sensor;                             \
+  if (((start_config) == DETAIL_ALL))                \
+    (root)["name"] = (obj)->get_name();
 
-#define set_json_value(root, obj, sensor, value) set_json_id((root), (obj), sensor)(root)["value"] = value;
+#define set_json_value(root, obj, sensor, value, start_config) \
+  set_json_id((root), (obj), sensor, start_config)(root)["value"] = value;
 
-#define set_json_state_value(root, obj, sensor, state, value) \
-  set_json_value((root), (obj), sensor, value)(root)["state"] = state;
+#define set_json_state_value(root, obj, sensor, state, value, start_config) \
+  set_json_value(root, obj, sensor, value, start_config)(root)["state"] = state;
 
-#define set_json_icon_state_value(root, obj, sensor, state, value) \
-  set_json_value((root), (obj), sensor, value)(root)["icon"] = (obj)->get_icon(); \
-  (root)["state"] = state;
+#define set_json_icon_state_value(root, obj, sensor, state, value, start_config) \
+  set_json_value(root, obj, sensor, value, start_config)(root)["state"] = state; \
+  if (((start_config) == DETAIL_ALL))                                            \
+    (root)["icon"] = (obj)->get_icon();
 
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
-  this->events_.send(this->sensor_json(obj, state).c_str(), "state");
+  this->events_.send(this->sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
@@ -326,26 +345,26 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
       continue;
     if (obj->get_object_id() != match.id)
       continue;
-    std::string data = this->sensor_json(obj, obj->state);
+    std::string data = this->sensor_json(obj, obj->state, DETAIL_STATE);
     request->send(200, "text/json", data.c_str());
     return;
   }
   request->send(404);
 }
 
-std::string WebServer::sensor_json(sensor::Sensor *obj, float value) {
-  return json::build_json([obj, value](JsonObject &root) {
+std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail start_config) {
+  return json::build_json([obj, value, start_config](JsonObject &root) {
     std::string state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
     if (!obj->get_unit_of_measurement().empty())
       state += " " + obj->get_unit_of_measurement();
-    set_json_icon_state_value(root, obj, "sensor-" + obj->get_object_id(), state, value);
+    set_json_icon_state_value(root, obj, "sensor-" + obj->get_object_id(), state, value, start_config);
   });
 }
 #endif
 
 #ifdef USE_TEXT_SENSOR
 void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
-  this->events_.send(this->text_sensor_json(obj, state).c_str(), "state");
+  this->events_.send(this->text_sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
@@ -353,27 +372,24 @@ void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const
       continue;
     if (obj->get_object_id() != match.id)
       continue;
-    std::string data = this->text_sensor_json(obj, obj->state);
+    std::string data = this->text_sensor_json(obj, obj->state, DETAIL_STATE);
     request->send(200, "text/json", data.c_str());
     return;
   }
   request->send(404);
 }
-std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std::string &value) {
-  return json::build_json([obj, value](JsonObject &root) {
-    set_json_icon_state_value(root, obj, "text_sensor-" + obj->get_object_id(), value, value);
-  });
+std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std::string &value,
+                                        JsonDetail start_config) {
+  return json::build_json([obj, value, start_config](JsonObject &root) { set_json_icon_state_value(root, obj, "text_sensor-" + obj->get_object_id(), value, value, start_config); });
 }
 #endif
 
 #ifdef USE_SWITCH
 void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
-  this->events_.send(this->switch_json(obj, state).c_str(), "state");
+  this->events_.send(this->switch_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
-std::string WebServer::switch_json(switch_::Switch *obj, bool value) {
-  return json::build_json([obj, value](JsonObject &root) {
-    set_json_icon_state_value(root, obj, "switch-" + obj->get_object_id(), value ? "ON" : "OFF", value);
-  });
+std::string WebServer::switch_json(switch_::Switch *obj, bool value, JsonDetail start_config) {
+  return json::build_json([obj, value, start_config](JsonObject &root) { set_json_icon_state_value(root, obj, "switch-" + obj->get_object_id(), value ? "ON" : "OFF", value, start_config); });
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
@@ -383,7 +399,7 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
       continue;
 
     if (request->method() == HTTP_GET) {
-      std::string data = this->switch_json(obj, obj->state);
+      std::string data = this->switch_json(obj, obj->state, DETAIL_STATE);
       request->send(200, "text/json", data.c_str());
     } else if (match.method == "toggle") {
       this->defer([obj]() { obj->toggle(); });
@@ -407,12 +423,10 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
 void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {
   if (obj->is_internal())
     return;
-  this->events_.send(this->binary_sensor_json(obj, state).c_str(), "state");
+  this->events_.send(this->binary_sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
-std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value) {
-  return json::build_json([obj, value](JsonObject &root) {
-    set_json_state_value(root, obj, "binary_sensor-" + obj->get_object_id(), value ? "ON" : "OFF", value);
-  });
+std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config) {
+  return json::build_json([obj, value, start_config](JsonObject &root) { set_json_state_value(root, obj, "binary_sensor-" + obj->get_object_id(), value ? "ON" : "OFF", value, start_config); });
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
@@ -420,7 +434,7 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
       continue;
     if (obj->get_object_id() != match.id)
       continue;
-    std::string data = this->binary_sensor_json(obj, obj->state);
+    std::string data = this->binary_sensor_json(obj, obj->state, DETAIL_STATE);
     request->send(200, "text/json", data.c_str());
     return;
   }
@@ -432,11 +446,11 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
 void WebServer::on_fan_update(fan::FanState *obj) {
   if (obj->is_internal())
     return;
-  this->events_.send(this->fan_json(obj).c_str(), "state");
+  this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state");
 }
-std::string WebServer::fan_json(fan::FanState *obj) {
-  return json::build_json([obj](JsonObject &root) {
-    set_json_state_value(root, obj, "fan-" + obj->get_object_id(), obj->state ? "ON" : "OFF", obj->state);
+std::string WebServer::fan_json(fan::FanState *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject &root) {
+    set_json_state_value(root, obj, "fan-" + obj->get_object_id(), obj->state ? "ON" : "OFF", obj->state, start_config);
     const auto traits = obj->get_traits();
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
@@ -444,15 +458,15 @@ std::string WebServer::fan_json(fan::FanState *obj) {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
       // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
       switch (fan::speed_level_to_enum(obj->speed, traits.supported_speed_count())) {
-        case fan::FAN_SPEED_LOW:  // NOLINT(clang-diagnostic-deprecated-declarations)
-          root["speed"] = "low";
-          break;
-        case fan::FAN_SPEED_MEDIUM:  // NOLINT(clang-diagnostic-deprecated-declarations)
-          root["speed"] = "medium";
-          break;
-        case fan::FAN_SPEED_HIGH:  // NOLINT(clang-diagnostic-deprecated-declarations)
-          root["speed"] = "high";
-          break;
+      case fan::FAN_SPEED_LOW: // NOLINT(clang-diagnostic-deprecated-declarations)
+        root["speed"] = "low";
+        break;
+      case fan::FAN_SPEED_MEDIUM: // NOLINT(clang-diagnostic-deprecated-declarations)
+        root["speed"] = "medium";
+        break;
+      case fan::FAN_SPEED_HIGH: // NOLINT(clang-diagnostic-deprecated-declarations)
+        root["speed"] = "high";
+        break;
       }
 #pragma GCC diagnostic pop
     }
@@ -468,7 +482,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       continue;
 
     if (request->method() == HTTP_GET) {
-      std::string data = this->fan_json(obj);
+      std::string data = this->fan_json(obj, DETAIL_STATE);
       request->send(200, "text/json", data.c_str());
     } else if (match.method == "toggle") {
       this->defer([obj]() { obj->toggle().perform(); });
@@ -479,7 +493,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
         String speed = request->getParam("speed")->value();
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-        call.set_speed(speed.c_str());  // NOLINT(clang-diagnostic-deprecated-declarations)
+        call.set_speed(speed.c_str()); // NOLINT(clang-diagnostic-deprecated-declarations)
 #pragma GCC diagnostic pop
       }
       if (request->hasParam("speed_level")) {
@@ -495,18 +509,18 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
         String speed = request->getParam("oscillation")->value();
         auto val = parse_on_off(speed.c_str());
         switch (val) {
-          case PARSE_ON:
-            call.set_oscillating(true);
-            break;
-          case PARSE_OFF:
-            call.set_oscillating(false);
-            break;
-          case PARSE_TOGGLE:
-            call.set_oscillating(!obj->oscillating);
-            break;
-          case PARSE_NONE:
-            request->send(404);
-            return;
+        case PARSE_ON:
+          call.set_oscillating(true);
+          break;
+        case PARSE_OFF:
+          call.set_oscillating(false);
+          break;
+        case PARSE_TOGGLE:
+          call.set_oscillating(!obj->oscillating);
+          break;
+        case PARSE_NONE:
+          request->send(404);
+          return;
         }
       }
       this->defer([call]() { call.perform(); });
@@ -527,7 +541,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
 void WebServer::on_light_update(light::LightState *obj) {
   if (obj->is_internal())
     return;
-  this->events_.send(this->light_json(obj).c_str(), "state");
+  this->events_.send(this->light_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
@@ -537,7 +551,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
       continue;
 
     if (request->method() == HTTP_GET) {
-      std::string data = this->light_json(obj);
+      std::string data = this->light_json(obj, DETAIL_STATE);
       request->send(200, "text/json", data.c_str());
     } else if (match.method == "toggle") {
       this->defer([obj]() { obj->toggle().perform(); });
@@ -589,12 +603,19 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
   }
   request->send(404);
 }
-std::string WebServer::light_json(light::LightState *obj) {
-  return json::build_json([obj](JsonObject &root) {
-    set_json_id(root, obj, "light-" + obj->get_object_id());
+std::string WebServer::light_json(light::LightState *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject &root) {
+    set_json_id(root, obj, "light-" + obj->get_object_id(), start_config);
     root["state"] = obj->remote_values.is_on() ? "ON" : "OFF";
 
     light::LightJSONSchema::dump_json(*obj, root);
+    if (start_config == DETAIL_ALL) {
+      JsonArray &opt = root.createNestedArray("effects");
+      opt.add("None");
+      for (auto const &option : obj->get_effects()) {
+        opt.add(option->get_name());
+      }
+    }
   });
 }
 #endif
@@ -603,7 +624,7 @@ std::string WebServer::light_json(light::LightState *obj) {
 void WebServer::on_cover_update(cover::Cover *obj) {
   if (obj->is_internal())
     return;
-  this->events_.send(this->cover_json(obj).c_str(), "state");
+  this->events_.send(this->cover_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
@@ -613,7 +634,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
       continue;
 
     if (request->method() == HTTP_GET) {
-      std::string data = this->cover_json(obj);
+      std::string data = this->cover_json(obj, DETAIL_STATE);
       request->send(200, "text/json", data.c_str());
       continue;
     }
@@ -648,10 +669,10 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
   }
   request->send(404);
 }
-std::string WebServer::cover_json(cover::Cover *obj) {
-  return json::build_json([obj](JsonObject &root) {
+std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject &root) {
     set_json_state_value(root, obj, "cover-" + obj->get_object_id(), obj->is_fully_closed() ? "CLOSED" : "OPEN",
-                         obj->position);
+                         obj->position, start_config);
     root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
 
     if (obj->get_traits().get_supports_tilt())
@@ -662,7 +683,7 @@ std::string WebServer::cover_json(cover::Cover *obj) {
 
 #ifdef USE_NUMBER
 void WebServer::on_number_update(number::Number *obj, float state) {
-  this->events_.send(this->number_json(obj, state).c_str(), "state");
+  this->events_.send(this->number_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_numbers()) {
@@ -670,15 +691,37 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
       continue;
     if (obj->get_object_id() != match.id)
       continue;
-    std::string data = this->number_json(obj, obj->state);
-    request->send(200, "text/json", data.c_str());
-    return;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->number_json(obj, obj->state, DETAIL_STATE);
+      request->send(200, "text/json", data.c_str());
+      return;
+    }
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    if (request->hasParam("value")) {
+      auto val = parse_number<float>(request->getParam("value")->value().c_str());
+      auto call = obj->make_call();
+      call.set_value(*val);
+      call.perform();
+    }
   }
   request->send(404);
 }
-std::string WebServer::number_json(number::Number *obj, float value) {
-  return json::build_json([obj, value](JsonObject &root) {
-    set_json_id(root, obj, "number-" + obj->get_object_id());
+
+std::string WebServer::number_json(number::Number *obj, float value, JsonDetail start_config) {
+  return json::build_json([obj, value, start_config](JsonObject &root) {
+    set_json_id(root, obj, "number-" + obj->get_object_id(), start_config);
+    if (start_config == DETAIL_ALL) {
+      root["min_value"] = obj->traits.get_min_value();
+      root["max_value"] = obj->traits.get_max_value();
+      root["step"] = obj->traits.get_step();
+    }
     char buffer[64];
     snprintf(buffer, sizeof(buffer), "%f", value);
     root["state"] = buffer;
@@ -692,7 +735,7 @@ std::string WebServer::number_json(number::Number *obj, float value) {
 
 #ifdef USE_SELECT
 void WebServer::on_select_update(select::Select *obj, const std::string &state) {
-  this->events_.send(this->select_json(obj, state).c_str(), "state");
+  this->events_.send(this->select_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_selects()) {
@@ -702,7 +745,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
       continue;
 
     if (request->method() == HTTP_GET) {
-      std::string data = this->select_json(obj, obj->state);
+      std::string data = this->select_json(obj, obj->state, DETAIL_STATE);
       request->send(200, "text/json", data.c_str());
       return;
     }
@@ -716,7 +759,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->hasParam("option")) {
       String option = request->getParam("option")->value();
-      call.set_option(option.c_str());  // NOLINT(clang-diagnostic-deprecated-declarations)
+      call.set_option(option.c_str()); // NOLINT(clang-diagnostic-deprecated-declarations)
     }
 
     this->defer([call]() mutable { call.perform(); });
@@ -725,9 +768,162 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
   }
   request->send(404);
 }
-std::string WebServer::select_json(select::Select *obj, const std::string &value) {
-  return json::build_json([obj, value](JsonObject &root) {
-    set_json_state_value(root, obj, "select-" + obj->get_object_id(), value, value);
+std::string WebServer::select_json(select::Select *obj, const std::string &value, JsonDetail start_config) {
+  return json::build_json([obj, value, start_config](JsonObject &root) {
+    set_json_state_value(root, obj, "select-" + obj->get_object_id(), value, value, start_config);
+    if (start_config == DETAIL_ALL) {
+      JsonArray &opt = root.createNestedArray("option");
+      for (auto const &option : obj->traits.get_options()) {
+        opt.add(option.c_str());
+      }
+    }
+  });
+}
+#endif
+
+#ifdef USE_CLIMATE
+void WebServer::on_climate_update(climate::Climate *obj) {
+  this->events_.send(this->climate_json(obj, DETAIL_STATE).c_str(), "state");
+}
+
+void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_climates()) {
+    if (obj->is_internal())
+      continue;
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->climate_json(obj, DETAIL_STATE);
+      request->send(200, "text/json", data.c_str());
+      return;
+    }
+
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    if (request->hasParam("mode")) {
+      String mode = request->getParam("mode")->value();
+      call.set_mode(mode.c_str());
+    }
+
+    if (request->hasParam("target_temperature_high")) {
+      call.set_target_temperature_high(request->getParam("target_temperature_high")->value().toFloat());
+    }
+
+    if (request->hasParam("target_temperature_low")) {
+      call.set_target_temperature_low(request->getParam("target_temperature_low")->value().toFloat());
+    }
+
+    if (request->hasParam("target_temperature")) {
+      call.set_target_temperature(request->getParam("target_temperature")->value().toFloat());
+    }
+
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+// Longest: HORIZONTAL
+#define PSTR_LOCAL(mode_s) \
+  strncpy_P(__buf, (PGM_P)((mode_s)), 15)
+
+std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject &root) {
+    set_json_id(root, obj, "climate-" + obj->get_object_id(), start_config);
+    const auto traits = obj->get_traits();
+    char __buf[16];
+
+    if (start_config == DETAIL_ALL) {
+      JsonArray &opt = root.createNestedArray("modes");
+      for (climate::ClimateMode m : traits.get_supported_modes())
+        opt.add(PSTR_LOCAL(climate::climate_mode_to_string(m)));
+      if (!traits.get_supported_custom_fan_modes().empty()) {
+        JsonArray &opt = root.createNestedArray("fan_modes");
+        for (climate::ClimateFanMode m : traits.get_supported_fan_modes())
+          opt.add(PSTR_LOCAL(climate::climate_fan_mode_to_string(m)));
+      }
+
+      if (!traits.get_supported_custom_fan_modes().empty()) {
+        JsonArray &opt = root.createNestedArray("custom_fan_modes");
+        for (auto const &custom_fan_mode : traits.get_supported_custom_fan_modes())
+          opt.add(custom_fan_mode);
+      }
+      if (traits.get_supports_swing_modes()) {
+        JsonArray &opt = root.createNestedArray("swing_modes");
+        // error: passing 'const esphome::climate::ClimateTraits' as 'this' argument of 'const std::set<esphome::climate::ClimateSwingMode> esphome::climate::ClimateTraits::get_supported_swing_modes()' discards qualifiers [-fpermissive]
+        //for (climate::ClimateSwingMode swing_mode : traits.get_supported_swing_modes())
+        // opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
+        /* const char *payload = "";
+              for (climate::ClimateSwingMode swing_mode : traits.get_supported_swing_modes())
+              {
+                switch (swing_mode)
+                {
+                case climate::CLIMATE_SWING_OFF:
+                  payload = "off";
+                  break;
+                case climate::CLIMATE_SWING_BOTH:
+                  payload = "both";
+                  break;
+                case climate::CLIMATE_SWING_VERTICAL:
+                  payload = "vertical";
+                  break;
+                case climate::CLIMATE_SWING_HORIZONTAL:
+                  payload = "horizontal";
+                  break;
+                }
+                opt.add(PSTR_LOCAL(payload));
+
+              }*/
+      }
+      if (traits.get_supports_presets() && obj->preset.has_value()) {
+        JsonArray &opt = root.createNestedArray("presets");
+        for (climate::ClimatePreset m : traits.get_supported_presets())
+          opt.add(PSTR_LOCAL(climate::climate_preset_to_string(m)));
+      }
+      if (!traits.get_supported_custom_presets().empty() && obj->custom_preset.has_value()) {
+        JsonArray &opt = root.createNestedArray("custom_presets");
+        for (auto const &custom_preset : traits.get_supported_custom_presets())
+          opt.add(custom_preset);
+      }
+    }
+
+    root["mode"] = PSTR_LOCAL(climate_mode_to_string(obj->mode));
+
+    if (traits.get_supports_action()) {
+      root["action"] = PSTR_LOCAL(climate_action_to_string(obj->action));
+    }
+    if (traits.get_supports_fan_modes() && obj->fan_mode.has_value()) {
+      root["fan_mode"] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
+    }
+    if (!traits.get_supported_custom_fan_modes().empty() && obj->custom_fan_mode.has_value()) {
+      root["custom_fan_mode"] = obj->custom_fan_mode.value().c_str();
+    }
+    if (traits.get_supports_presets() && obj->preset.has_value()) {
+      root["preset"] = PSTR_LOCAL(climate_preset_to_string(obj->preset.value()));
+    }
+    if (!traits.get_supported_custom_presets().empty() && obj->custom_preset.has_value()) {
+      root["custom_preset"] = obj->custom_preset.value().c_str();
+    }
+    if (traits.get_supports_swing_modes()) {
+      root["swing_mode"] = PSTR_LOCAL(climate_swing_mode_to_string(obj->swing_mode));
+    }
+    if (traits.get_supports_current_temperature()) {
+      root["current_temperature"] = obj->current_temperature;
+    }
+    if (traits.get_supports_two_point_target_temperature()) {
+      root["current_temperature_low"] = obj->target_temperature_low;
+      root["current_temperature_high"] = obj->target_temperature_low;
+    } else {
+      root["target_temperature"] = obj->target_temperature;
+      root["state"] = obj->target_temperature;
+    }
   });
 }
 #endif
@@ -785,12 +981,17 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_NUMBER
-  if (request->method() == HTTP_GET && match.domain == "number")
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "number")
     return true;
 #endif
 
 #ifdef USE_SELECT
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "select")
+    return true;
+#endif
+
+#ifdef USE_CLIMATE
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "climate")
     return true;
 #endif
 
@@ -876,6 +1077,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_SELECT
   if (match.domain == "select") {
     this->handle_select_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_CLIMATE
+  if (match.domain == "climate") {
+    this->handle_climate_request(request, match);
     return;
   }
 #endif
