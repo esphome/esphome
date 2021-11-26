@@ -5,6 +5,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/defines.h"
 #include <map>
 
 #ifdef USE_BSEC
@@ -70,7 +71,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   int64_t get_time_ns_();
 
   void publish_sensor_state_(sensor::Sensor *sensor, float value, bool change_only = false);
-  void publish_sensor_state_(text_sensor::TextSensor *sensor, std::string value);
+  void publish_sensor_state_(text_sensor::TextSensor *sensor, const std::string &value);
 
   void load_state_();
   void save_state_(uint8_t accuracy);

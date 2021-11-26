@@ -4,7 +4,7 @@
 
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace esp32_ble_server {
@@ -27,7 +27,7 @@ BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) 
 
 void BLECharacteristic::set_value(std::vector<uint8_t> value) {
   xSemaphoreTake(this->set_value_lock_, 0L);
-  this->value_ = value;
+  this->value_ = std::move(value);
   xSemaphoreGive(this->set_value_lock_);
 }
 void BLECharacteristic::set_value(const std::string &value) {

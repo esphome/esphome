@@ -1,10 +1,11 @@
 #include "ble_descriptor.h"
 #include "ble_characteristic.h"
 #include "ble_service.h"
-
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#include <cstring>
+
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace esp32_ble_server {
@@ -15,10 +16,10 @@ BLEDescriptor::BLEDescriptor(ESPBTUUID uuid, uint16_t max_len) {
   this->uuid_ = uuid;
   this->value_.attr_len = 0;
   this->value_.attr_max_len = max_len;
-  this->value_.attr_value = (uint8_t *) malloc(max_len);
+  this->value_.attr_value = (uint8_t *) malloc(max_len);  // NOLINT
 }
 
-BLEDescriptor::~BLEDescriptor() { free(this->value_.attr_value); }
+BLEDescriptor::~BLEDescriptor() { free(this->value_.attr_value); }  // NOLINT
 
 void BLEDescriptor::do_create(BLECharacteristic *characteristic) {
   this->characteristic_ = characteristic;

@@ -1,10 +1,14 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+
+#ifdef USE_MQTT
+
+#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/log.h"
 #include "esphome/components/json/json_util.h"
+#include "esphome/components/network/ip_address.h"
 #include <AsyncMqttClient.h>
 #include "lwip/ip_addr.h"
 
@@ -51,6 +55,12 @@ struct Availability {
   std::string payload_not_available;
 };
 
+/// available discovery unique_id generators
+enum MQTTDiscoveryUniqueIdGenerator {
+  MQTT_LEGACY_UNIQUE_ID_GENERATOR = 0,
+  MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR,
+};
+
 /** Internal struct for MQTT Home Assistant discovery
  *
  * See <a href="https://www.home-assistant.io/docs/mqtt/discovery/">MQTT Discovery</a>.
@@ -59,6 +69,7 @@ struct MQTTDiscoveryInfo {
   std::string prefix;  ///< The Home Assistant discovery prefix. Empty means disabled.
   bool retain;         ///< Whether to retain discovery messages.
   bool clean;
+  MQTTDiscoveryUniqueIdGenerator unique_id_generator;
 };
 
 enum MQTTClientState {
@@ -94,9 +105,11 @@ class MQTTClientComponent : public Component {
    *
    * See <a href="https://www.home-assistant.io/docs/mqtt/discovery/">MQTT Discovery</a>.
    * @param prefix The Home Assistant discovery prefix.
+   * @param unique_id_generator Controls how UniqueId is generated.
    * @param retain Whether to retain discovery messages.
    */
-  void set_discovery_info(std::string &&prefix, bool retain, bool clean = false);
+  void set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator, bool retain,
+                          bool clean = false);
   /// Get Home Assistant discovery info.
   const MQTTDiscoveryInfo &get_discovery_info() const;
   /// Globally disable Home Assistant discovery.
@@ -226,7 +239,7 @@ class MQTTClientComponent : public Component {
   void start_connect_();
   void start_dnslookup_();
   void check_dnslookup_();
-#if defined(ARDUINO_ARCH_ESP8266) && LWIP_VERSION_MAJOR == 1
+#if defined(USE_ESP8266) && LWIP_VERSION_MAJOR == 1
   static void dns_found_callback(const char *name, ip_addr_t *ipaddr, void *callback_arg);
 #else
   static void dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
@@ -265,7 +278,7 @@ class MQTTClientComponent : public Component {
   std::vector<MQTTSubscription> subscriptions_;
   AsyncMqttClient mqtt_client_;
   MQTTClientState state_{MQTT_CLIENT_DISCONNECTED};
-  IPAddress ip_;
+  network::IPAddress ip_;
   bool dns_resolved_{false};
   bool dns_resolve_error_{false};
   std::vector<MQTTComponent *> children_;
@@ -352,3 +365,5 @@ template<typename... Ts> class MQTTConnectedCondition : public Condition<Ts...> 
 
 }  // namespace mqtt
 }  // namespace esphome
+
+#endif  // USE_MQTT

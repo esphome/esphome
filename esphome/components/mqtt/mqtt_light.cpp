@@ -1,8 +1,12 @@
 #include "mqtt_light.h"
 #include "esphome/core/log.h"
 
+#include "mqtt_const.h"
+
+#ifdef USE_MQTT
 #ifdef USE_LIGHT
 
+#include "esphome/components/light/light_json_schema.h"
 namespace esphome {
 namespace mqtt {
 
@@ -11,10 +15,13 @@ static const char *const TAG = "mqtt.light";
 using namespace esphome::light;
 
 std::string MQTTJSONLightComponent::component_type() const { return "light"; }
+const EntityBase *MQTTJSONLightComponent::get_entity() const { return this->state_; }
 
 void MQTTJSONLightComponent::setup() {
   this->subscribe_json(this->get_command_topic_(), [this](const std::string &topic, JsonObject &root) {
-    this->state_->make_call().parse_json(root).perform();
+    LightCall call = this->state_->make_call();
+    LightJSONSchema::parse_json(*this->state_, call, root);
+    call.perform();
   });
 
   auto f = std::bind(&MQTTJSONLightComponent::publish_state_, this);
@@ -24,31 +31,48 @@ void MQTTJSONLightComponent::setup() {
 MQTTJSONLightComponent::MQTTJSONLightComponent(LightState *state) : MQTTComponent(), state_(state) {}
 
 bool MQTTJSONLightComponent::publish_state_() {
-  return this->publish_json(this->get_state_topic_(), [this](JsonObject &root) { this->state_->dump_json(root); });
+  return this->publish_json(this->get_state_topic_(),
+                            [this](JsonObject &root) { LightJSONSchema::dump_json(*this->state_, root); });
 }
 LightState *MQTTJSONLightComponent::get_state() const { return this->state_; }
-std::string MQTTJSONLightComponent::friendly_name() const { return this->state_->get_name(); }
+
 void MQTTJSONLightComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   root["schema"] = "json";
   auto traits = this->state_->get_traits();
-  if (traits.get_supports_brightness())
+
+  root[MQTT_COLOR_MODE] = true;
+  JsonArray &color_modes = root.createNestedArray("supported_color_modes");
+  if (traits.supports_color_mode(ColorMode::ON_OFF))
+    color_modes.add("onoff");
+  if (traits.supports_color_mode(ColorMode::BRIGHTNESS))
+    color_modes.add("brightness");
+  if (traits.supports_color_mode(ColorMode::WHITE))
+    color_modes.add("white");
+  if (traits.supports_color_mode(ColorMode::COLOR_TEMPERATURE) ||
+      traits.supports_color_mode(ColorMode::COLD_WARM_WHITE))
+    color_modes.add("color_temp");
+  if (traits.supports_color_mode(ColorMode::RGB))
+    color_modes.add("rgb");
+  if (traits.supports_color_mode(ColorMode::RGB_WHITE) ||
+      // HA doesn't support RGBCT, and there's no CWWW->CT emulation in ESPHome yet, so ignore CT control for now
+      traits.supports_color_mode(ColorMode::RGB_COLOR_TEMPERATURE))
+    color_modes.add("rgbw");
+  if (traits.supports_color_mode(ColorMode::RGB_COLD_WARM_WHITE))
+    color_modes.add("rgbww");
+
+  // legacy API
+  if (traits.supports_color_capability(ColorCapability::BRIGHTNESS))
     root["brightness"] = true;
-  if (traits.get_supports_rgb())
-    root["rgb"] = true;
-  if (traits.get_supports_color_temperature())
-    root["color_temp"] = true;
-  if (traits.get_supports_rgb_white_value())
-    root["white_value"] = true;
+
   if (this->state_->supports_effects()) {
     root["effect"] = true;
-    JsonArray &effect_list = root.createNestedArray("effect_list");
+    JsonArray &effect_list = root.createNestedArray(MQTT_EFFECT_LIST);
     for (auto *effect : this->state_->get_effects())
       effect_list.add(effect->get_name());
     effect_list.add("None");
   }
 }
 bool MQTTJSONLightComponent::send_initial_state() { return this->publish_state_(); }
-bool MQTTJSONLightComponent::is_internal() { return this->state_->is_internal(); }
 void MQTTJSONLightComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Light '%s':", this->state_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, true)
@@ -58,3 +82,4 @@ void MQTTJSONLightComponent::dump_config() {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

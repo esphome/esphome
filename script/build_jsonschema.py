@@ -25,6 +25,11 @@ JSC_DESCRIPTION = "description"
 JSC_ONEOF = "oneOf"
 JSC_PROPERTIES = "properties"
 JSC_REF = "$ref"
+
+# this should be required, but YAML Language server completion does not work properly if required are specified.
+# still needed for other features / checks
+JSC_REQUIRED = "required_"
+
 SIMPLE_AUTOMATION = "simple_automation"
 
 schema_names = {}
@@ -295,9 +300,17 @@ def get_automation_schema(name, vschema):
     #   * an object with automation's schema and a then key
     #        with again a single action or an array of actions
 
+    if len(extra_jschema[JSC_PROPERTIES]) == 0:
+        return get_ref(SIMPLE_AUTOMATION)
+
     extra_jschema[JSC_PROPERTIES]["then"] = add_definition_array_or_single_object(
         get_ref(JSC_ACTION)
     )
+    # if there is a required element in extra_jschema then this automation does not support
+    # directly a list of actions
+    if JSC_REQUIRED in extra_jschema:
+        return create_ref(name, extra_vschema, extra_jschema)
+
     jschema = add_definition_array_or_single_object(get_ref(JSC_ACTION))
     jschema[JSC_ANYOF].append(extra_jschema)
 
@@ -370,9 +383,14 @@ def get_entry(parent_key, vschema):
         # everything else just accept string and let ESPHome validate
         try:
             from esphome.core import ID
+            from esphome.automation import Trigger, Automation
 
             v = vschema(None)
             if isinstance(v, ID):
+                if v.type.base != "script::Script" and (
+                    v.type.inherits_from(Trigger) or v.type == Automation
+                ):
+                    return None
                 entry = {"type": "string", "id_type": v.type.base}
             elif isinstance(v, str):
                 entry = {"type": "string"}
@@ -419,7 +437,7 @@ def get_jschema(path, vschema, create_return_ref=True):
 
 
 def get_schema_str(vschema):
-    # Hack on cs.use_id, in the future this can be improved by trackign which type is required by
+    # Hack on cs.use_id, in the future this can be improved by tracking which type is required by
     # the id, this information can be added somehow to schema (not supported by jsonschema) and
     # completion can be improved listing valid ids only Meanwhile it's a problem because it makes
     # all partial schemas with cv.use_id different, e.g. i2c
@@ -494,9 +512,11 @@ def convert_schema(path, vschema, un_extend=True):
     output = {}
 
     if str(vschema) in ejs.hidden_schemas:
-        # this can get another think twist. When adding this I've already figured out
-        # interval and script in other way
-        if path not in ["interval", "script"]:
+        if ejs.hidden_schemas[str(vschema)] == "automation":
+            vschema = vschema(ejs.jschema_extractor)
+            jschema = get_jschema(path, vschema, True)
+            return add_definition_array_or_single_object(jschema)
+        else:
             vschema = vschema(ejs.jschema_extractor)
 
     if un_extend:
@@ -515,9 +535,8 @@ def convert_schema(path, vschema, un_extend=True):
                 return rhs
 
             # merge
-
             if JSC_ALLOF in lhs and JSC_ALLOF in rhs:
-                output = lhs[JSC_ALLOF]
+                output = lhs
                 for k in rhs[JSC_ALLOF]:
                     merge(output[JSC_ALLOF], k)
             elif JSC_ALLOF in lhs:
@@ -574,6 +593,7 @@ def convert_schema(path, vschema, un_extend=True):
         return output
 
     props = output[JSC_PROPERTIES] = {}
+    required = []
 
     output["type"] = ["object", "null"]
     if DUMP_COMMENTS:
@@ -616,13 +636,21 @@ def convert_schema(path, vschema, un_extend=True):
             if prop:  # Deprecated (cv.Invalid) properties not added
                 props[str(k)] = prop
                 # TODO: see required, sometimes completions doesn't show up because of this...
-                # if isinstance(k, cv.Required):
-                #     required.append(str(k))
+                if isinstance(k, cv.Required):
+                    required.append(str(k))
                 try:
                     if str(k.default) != "...":
-                        prop["default"] = k.default()
+                        default_value = k.default()
+                        # Yaml validator fails if `"default": null` ends up in the json schema
+                        if default_value is not None:
+                            if prop["type"] == "string":
+                                default_value = str(default_value)
+                            prop["default"] = default_value
                 except:
                     pass
+
+    if len(required) > 0:
+        output[JSC_REQUIRED] = required
     return output
 
 
@@ -648,6 +676,7 @@ def add_pin_registry():
         internal = definitions[schema_name]
         definitions[schema_name]["additionalItems"] = False
         definitions[f"PIN.{mode}_INTERNAL"] = internal
+        internal[JSC_PROPERTIES]["number"] = {"type": ["number", "string"]}
         schemas = [get_ref(f"PIN.{mode}_INTERNAL")]
         schemas[0]["required"] = ["number"]
         # accept string and object, for internal shorthand pin IO:
@@ -675,7 +704,7 @@ def dump_schema():
     # The root directory of the repo
     root = Path(__file__).parent.parent
 
-    # Fake some diretory so that get_component works
+    # Fake some directory so that get_component works
     CORE.config_path = str(root)
 
     file_path = args.output

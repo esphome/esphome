@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_MODE,
     CONF_NUMBER,
     CONF_PINS,
-    CONF_RUN_CYCLES,
     CONF_RUN_DURATION,
     CONF_SLEEP_DURATION,
     CONF_WAKEUP_PIN,
@@ -17,8 +16,7 @@ def validate_pin_number(value):
     valid_pins = [0, 2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 33, 34, 35, 36, 37, 38, 39]
     if value[CONF_NUMBER] not in valid_pins:
         raise cv.Invalid(
-            "Only pins {} support wakeup"
-            "".format(", ".join(str(x) for x in valid_pins))
+            f"Only pins {', '.join(str(x) for x in valid_pins)} support wakeup"
         )
     return value
 
@@ -46,6 +44,7 @@ EXT1_WAKEUP_MODES = {
 
 CONF_WAKEUP_PIN_MODE = "wakeup_pin_mode"
 CONF_ESP32_EXT1_WAKEUP = "esp32_ext1_wakeup"
+CONF_TOUCH_WAKEUP = "touch_wakeup"
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -63,17 +62,13 @@ CONFIG_SCHEMA = cv.Schema(
             cv.Schema(
                 {
                     cv.Required(CONF_PINS): cv.ensure_list(
-                        pins.shorthand_input_pin, validate_pin_number
+                        pins.internal_gpio_input_pin_schema, validate_pin_number
                     ),
                     cv.Required(CONF_MODE): cv.enum(EXT1_WAKEUP_MODES, upper=True),
                 }
             ),
         ),
-        cv.Optional(CONF_RUN_CYCLES): cv.invalid(
-            "The run_cycles option has been removed in 1.11.0 as "
-            "it was essentially the same as a run_duration of 0s."
-            "Please use run_duration now."
-        ),
+        cv.Optional(CONF_TOUCH_WAKEUP): cv.All(cv.only_on_esp32, cv.boolean),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -101,6 +96,9 @@ async def to_code(config):
             Ext1Wakeup, ("mask", mask), ("wakeup_mode", conf[CONF_MODE])
         )
         cg.add(var.set_ext1_wakeup(struct))
+
+    if CONF_TOUCH_WAKEUP in config:
+        cg.add(var.set_touch_wakeup(config[CONF_TOUCH_WAKEUP]))
 
     cg.add_define("USE_DEEP_SLEEP")
 

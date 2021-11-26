@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_WIND_SPEED,
     CONF_PIN,
     CONF_WIND_DIRECTION_DEGREES,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
     UNIT_KILOMETER_PER_HOUR,
@@ -23,18 +22,18 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Tx20Component),
         cv.Optional(CONF_WIND_SPEED): sensor.sensor_schema(
-            UNIT_KILOMETER_PER_HOUR,
-            ICON_WEATHER_WINDY,
-            1,
-            DEVICE_CLASS_EMPTY,
-            STATE_CLASS_MEASUREMENT,
+            unit_of_measurement=UNIT_KILOMETER_PER_HOUR,
+            icon=ICON_WEATHER_WINDY,
+            accuracy_decimals=1,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_WIND_DIRECTION_DEGREES): sensor.sensor_schema(
-            UNIT_DEGREES, ICON_SIGN_DIRECTION, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
+            unit_of_measurement=UNIT_DEGREES,
+            icon=ICON_SIGN_DIRECTION,
+            accuracy_decimals=1,
+            state_class=STATE_CLASS_NONE,
         ),
-        cv.Required(CONF_PIN): cv.All(
-            pins.internal_gpio_input_pin_schema, pins.validate_has_interrupt
-        ),
+        cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

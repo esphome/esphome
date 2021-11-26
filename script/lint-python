@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 
 from __future__ import print_function
-from helpers import get_output, get_err, git_ls_files, filter_changed
-
+from helpers import styled, print_error_for_file, get_output, get_err, git_ls_files, filter_changed
 import argparse
+import colorama
 import os
 import re
 import sys
-
-sys.path.append(os.path.dirname(__file__))
 
 curfile = None
 
@@ -17,14 +15,18 @@ def print_error(file, lineno, msg):
     global curfile
 
     if curfile != file:
-        print()
-        print("\033[0;32m************* File \033[1;32m{}\033[0m".format(file))
+        print_error_for_file(file, None)
         curfile = file
 
-    print("{}:{} - {}".format(file, lineno, msg))
+    if lineno is not None:
+        print(f"{styled(colorama.Style.BRIGHT, f'{file}:{lineno}:')} {msg}")
+    else:
+        print(f"{styled(colorama.Style.BRIGHT, f'{file}:')} {msg}")
 
 
 def main():
+    colorama.init()
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "files", nargs="*", default=[], help="files to be processed (regex on path)"
@@ -56,6 +58,7 @@ def main():
 
     cmd = ["black", "--verbose", "--check"] + files
     print("Running black...")
+    print()
     log = get_err(*cmd)
     for line in log.splitlines():
         WOULD_REFORMAT = "would reformat"
@@ -65,7 +68,9 @@ def main():
             errors += 1
 
     cmd = ["flake8"] + files
+    print()
     print("Running flake8...")
+    print()
     log = get_output(*cmd)
     for line in log.splitlines():
         line = line.split(":", 4)
@@ -78,7 +83,9 @@ def main():
         errors += 1
 
     cmd = ["pylint", "-f", "parseable", "--persistent=n"] + files
+    print()
     print("Running pylint...")
+    print()
     log = get_output(*cmd)
     for line in log.splitlines():
         line = line.split(":", 3)

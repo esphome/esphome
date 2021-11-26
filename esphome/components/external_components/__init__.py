@@ -1,13 +1,12 @@
 import re
 import logging
 from pathlib import Path
-import subprocess
-import hashlib
-import datetime
 
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPONENTS,
+    CONF_REF,
+    CONF_REFRESH,
     CONF_SOURCE,
     CONF_URL,
     CONF_TYPE,
@@ -15,7 +14,7 @@ from esphome.const import (
     CONF_PATH,
 )
 from esphome.core import CORE
-from esphome import loader
+from esphome import git, loader
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,19 +22,11 @@ DOMAIN = CONF_EXTERNAL_COMPONENTS
 
 TYPE_GIT = "git"
 TYPE_LOCAL = "local"
-CONF_REFRESH = "refresh"
-CONF_REF = "ref"
-
-
-def validate_git_ref(value):
-    if re.match(r"[a-zA-Z0-9\-_.\./]+", value) is None:
-        raise cv.Invalid("Not a valid git ref")
-    return value
 
 
 GIT_SCHEMA = {
     cv.Required(CONF_URL): cv.url,
-    cv.Optional(CONF_REF): validate_git_ref,
+    cv.Optional(CONF_REF): cv.git_ref,
 }
 LOCAL_SCHEMA = {
     cv.Required(CONF_PATH): cv.directory,
@@ -52,28 +43,28 @@ def validate_source_shorthand(value):
     # Regex for GitHub repo name with optional branch/tag
     # Note: git allows other branch/tag names as well, but never seen them used before
     m = re.match(
-        r"github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)(?:@([a-zA-Z0-9\-_.\./]+))?",
+        r"github://(?:([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)(?:@([a-zA-Z0-9\-_.\./]+))?|pr#([0-9]+))",
         value,
     )
     if m is None:
         raise cv.Invalid(
-            "Source is not a file system path or in expected github://username/name[@branch-or-tag] format!"
+            "Source is not a file system path, in expected github://username/name[@branch-or-tag] or github://pr#1234 format!"
         )
-    conf = {
-        CONF_TYPE: TYPE_GIT,
-        CONF_URL: f"https://github.com/{m.group(1)}/{m.group(2)}.git",
-    }
-    if m.group(3):
-        conf[CONF_REF] = m.group(3)
+    if m.group(4):
+        conf = {
+            CONF_TYPE: TYPE_GIT,
+            CONF_URL: "https://github.com/esphome/esphome.git",
+            CONF_REF: f"pull/{m.group(4)}/head",
+        }
+    else:
+        conf = {
+            CONF_TYPE: TYPE_GIT,
+            CONF_URL: f"https://github.com/{m.group(1)}/{m.group(2)}.git",
+        }
+        if m.group(3):
+            conf[CONF_REF] = m.group(3)
+
     return SOURCE_SCHEMA(conf)
-
-
-def validate_refresh(value: str):
-    if value.lower() == "always":
-        return validate_refresh("0s")
-    if value.lower() == "never":
-        return validate_refresh("1000y")
-    return cv.positive_time_period_seconds(value)
 
 
 SOURCE_SCHEMA = cv.Any(
@@ -90,7 +81,7 @@ SOURCE_SCHEMA = cv.Any(
 CONFIG_SCHEMA = cv.ensure_list(
     {
         cv.Required(CONF_SOURCE): SOURCE_SCHEMA,
-        cv.Optional(CONF_REFRESH, default="1d"): cv.All(cv.string, validate_refresh),
+        cv.Optional(CONF_REFRESH, default="1d"): cv.All(cv.string, cv.source_refresh),
         cv.Optional(CONF_COMPONENTS, default="all"): cv.Any(
             "all", cv.ensure_list(cv.string)
         ),
@@ -102,62 +93,33 @@ async def to_code(config):
     pass
 
 
-def _compute_destination_path(key: str) -> Path:
-    base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN
-    h = hashlib.new("sha256")
-    h.update(key.encode())
-    return base_dir / h.hexdigest()[:8]
+def _process_git_config(config: dict, refresh) -> str:
+    repo_dir = git.clone_or_update(
+        url=config[CONF_URL],
+        ref=config.get(CONF_REF),
+        refresh=refresh,
+        domain=DOMAIN,
+    )
 
+    if (repo_dir / "esphome" / "components").is_dir():
+        components_dir = repo_dir / "esphome" / "components"
+    elif (repo_dir / "components").is_dir():
+        components_dir = repo_dir / "components"
+    else:
+        raise cv.Invalid(
+            "Could not find components folder for source. Please check the source contains a 'components' or 'esphome/components' folder"
+        )
 
-def _handle_git_response(ret):
-    if ret.returncode != 0 and ret.stderr:
-        err_str = ret.stderr.decode("utf-8")
-        lines = [x.strip() for x in err_str.splitlines()]
-        if lines[-1].startswith("fatal:"):
-            raise cv.Invalid(lines[-1][len("fatal: ") :])
-        raise cv.Invalid(err_str)
+    return components_dir
 
 
 def _process_single_config(config: dict):
     conf = config[CONF_SOURCE]
     if conf[CONF_TYPE] == TYPE_GIT:
-        key = f"{conf[CONF_URL]}@{conf.get(CONF_REF)}"
-        repo_dir = _compute_destination_path(key)
-        if not repo_dir.is_dir():
-            cmd = ["git", "clone", "--depth=1"]
-            if CONF_REF in conf:
-                cmd += ["--branch", conf[CONF_REF]]
-            cmd += [conf[CONF_URL], str(repo_dir)]
-            ret = subprocess.run(cmd, capture_output=True, check=False)
-            _handle_git_response(ret)
-
-        else:
-            # Check refresh needed
-            file_timestamp = Path(repo_dir / ".git" / "FETCH_HEAD")
-            # On first clone, FETCH_HEAD does not exists
-            if not file_timestamp.exists():
-                file_timestamp = Path(repo_dir / ".git" / "HEAD")
-            age = datetime.datetime.now() - datetime.datetime.fromtimestamp(
-                file_timestamp.stat().st_mtime
+        with cv.prepend_path([CONF_SOURCE]):
+            components_dir = _process_git_config(
+                config[CONF_SOURCE], config[CONF_REFRESH]
             )
-            if age.seconds > config[CONF_REFRESH].total_seconds:
-                _LOGGER.info("Executing git pull %s", key)
-                cmd = ["git", "pull"]
-                ret = subprocess.run(
-                    cmd, cwd=repo_dir, capture_output=True, check=False
-                )
-                _handle_git_response(ret)
-
-        if (repo_dir / "esphome" / "components").is_dir():
-            components_dir = repo_dir / "esphome" / "components"
-        elif (repo_dir / "components").is_dir():
-            components_dir = repo_dir / "components"
-        else:
-            raise cv.Invalid(
-                "Could not find components folder for source. Please check the source contains a 'components' or 'esphome/components' folder",
-                [CONF_SOURCE],
-            )
-
     elif conf[CONF_TYPE] == TYPE_LOCAL:
         components_dir = Path(CORE.relative_config_path(conf[CONF_PATH]))
     else:

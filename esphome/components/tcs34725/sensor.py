@@ -6,10 +6,9 @@ from esphome.const import (
     CONF_GAIN,
     CONF_ID,
     CONF_ILLUMINANCE,
+    CONF_GLASS_ATTENUATION_FACTOR,
     CONF_INTEGRATION_TIME,
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ILLUMINANCE,
-    ICON_EMPTY,
     ICON_LIGHTBULB,
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
@@ -36,8 +35,20 @@ TCS34725_INTEGRATION_TIMES = {
     "24ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_24MS,
     "50ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_50MS,
     "101ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_101MS,
+    "120ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_120MS,
     "154ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_154MS,
-    "700ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_700MS,
+    "180ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_180MS,
+    "199ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_199MS,
+    "240ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_240MS,
+    "300ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_300MS,
+    "360ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_360MS,
+    "401ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_401MS,
+    "420ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_420MS,
+    "480ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_480MS,
+    "499ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_499MS,
+    "540ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_540MS,
+    "600ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_600MS,
+    "614ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_614MS,
 }
 
 TCS34725Gain = tcs34725_ns.enum("TCS34725Gain")
@@ -49,13 +60,22 @@ TCS34725_GAINS = {
 }
 
 color_channel_schema = sensor.sensor_schema(
-    UNIT_PERCENT, ICON_LIGHTBULB, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+    unit_of_measurement=UNIT_PERCENT,
+    icon=ICON_LIGHTBULB,
+    accuracy_decimals=1,
+    state_class=STATE_CLASS_MEASUREMENT,
 )
 color_temperature_schema = sensor.sensor_schema(
-    UNIT_KELVIN, ICON_THERMOMETER, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_MEASUREMENT
+    unit_of_measurement=UNIT_KELVIN,
+    icon=ICON_THERMOMETER,
+    accuracy_decimals=1,
+    state_class=STATE_CLASS_MEASUREMENT,
 )
 illuminance_schema = sensor.sensor_schema(
-    UNIT_LUX, ICON_EMPTY, 1, DEVICE_CLASS_ILLUMINANCE, STATE_CLASS_MEASUREMENT
+    unit_of_measurement=UNIT_LUX,
+    accuracy_decimals=1,
+    device_class=DEVICE_CLASS_ILLUMINANCE,
+    state_class=STATE_CLASS_MEASUREMENT,
 )
 
 CONFIG_SCHEMA = (
@@ -72,6 +92,9 @@ CONFIG_SCHEMA = (
                 TCS34725_INTEGRATION_TIMES, lower=True
             ),
             cv.Optional(CONF_GAIN, default="1X"): cv.enum(TCS34725_GAINS, upper=True),
+            cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=1.0): cv.float_range(
+                min=1.0
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -86,6 +109,7 @@ async def to_code(config):
 
     cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
     cg.add(var.set_gain(config[CONF_GAIN]))
+    cg.add(var.set_glass_attenuation_factor(config[CONF_GLASS_ATTENUATION_FACTOR]))
 
     if CONF_RED_CHANNEL in config:
         sens = await sensor.new_sensor(config[CONF_RED_CHANNEL])

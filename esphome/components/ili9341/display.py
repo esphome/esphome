@@ -42,7 +42,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("1s"))
-    .extend(spi.spi_device_schema()),
+    .extend(spi.spi_device_schema(False)),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
 )
 

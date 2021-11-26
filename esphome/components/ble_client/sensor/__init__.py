@@ -2,12 +2,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, ble_client, esp32_ble_tracker
 from esphome.const import (
-    DEVICE_CLASS_EMPTY,
     CONF_ID,
     CONF_LAMBDA,
     STATE_CLASS_NONE,
-    UNIT_EMPTY,
-    ICON_EMPTY,
     CONF_TRIGGER_ID,
     CONF_SERVICE_UUID,
 )
@@ -34,7 +31,8 @@ BLESensorNotifyTrigger = ble_client_ns.class_(
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
-        UNIT_EMPTY, ICON_EMPTY, 0, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
+        accuracy_decimals=0,
+        state_class=STATE_CLASS_NONE,
     )
     .extend(
         {
@@ -69,7 +67,7 @@ async def to_code(config):
             var.set_service_uuid32(esp32_ble_tracker.as_hex(config[CONF_SERVICE_UUID]))
         )
     elif len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid128_format):
-        uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_SERVICE_UUID])
+        uuid128 = esp32_ble_tracker.as_reversed_hex_array(config[CONF_SERVICE_UUID])
         cg.add(var.set_service_uuid128(uuid128))
 
     if len(config[CONF_CHARACTERISTIC_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
@@ -89,7 +87,9 @@ async def to_code(config):
     elif len(config[CONF_CHARACTERISTIC_UUID]) == len(
         esp32_ble_tracker.bt_uuid128_format
     ):
-        uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_CHARACTERISTIC_UUID])
+        uuid128 = esp32_ble_tracker.as_reversed_hex_array(
+            config[CONF_CHARACTERISTIC_UUID]
+        )
         cg.add(var.set_char_uuid128(uuid128))
 
     if CONF_DESCRIPTOR_UUID in config:
@@ -110,7 +110,9 @@ async def to_code(config):
         elif len(config[CONF_DESCRIPTOR_UUID]) == len(
             esp32_ble_tracker.bt_uuid128_format
         ):
-            uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_DESCRIPTOR_UUID])
+            uuid128 = esp32_ble_tracker.as_reversed_hex_array(
+                config[CONF_DESCRIPTOR_UUID]
+            )
             cg.add(var.set_descr_uuid128(uuid128))
 
     if CONF_LAMBDA in config:

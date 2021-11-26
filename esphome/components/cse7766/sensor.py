@@ -9,7 +9,6 @@ from esphome.const import (
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
     UNIT_AMPERE,
@@ -28,17 +27,22 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(CSE7766Component),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_VOLTAGE, STATE_CLASS_MEASUREMENT
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-                UNIT_AMPERE,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_CURRENT,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_AMPERE,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_CURRENT,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_POWER): sensor.sensor_schema(
-                UNIT_WATT, ICON_EMPTY, 1, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+                unit_of_measurement=UNIT_WATT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )

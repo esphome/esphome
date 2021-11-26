@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 
+#ifdef USE_MQTT
 #ifdef USE_SENSOR
 
 #include "esphome/components/sensor/sensor.h"
@@ -40,14 +41,11 @@ class MQTTSensorComponent : public mqtt::MQTTComponent {
 
   bool publish_state(float value);
   bool send_initial_state() override;
-  bool is_internal() override;
 
  protected:
   /// Override for MQTTComponent, returns "sensor".
   std::string component_type() const override;
-
-  std::string friendly_name() const override;
-
+  const EntityBase *get_entity() const override;
   std::string unique_id() override;
 
   sensor::Sensor *sensor_;
@@ -58,3 +56,4 @@ class MQTTSensorComponent : public mqtt::MQTTComponent {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT
