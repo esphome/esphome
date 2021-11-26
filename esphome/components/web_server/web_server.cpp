@@ -864,7 +864,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
         JsonArray &opt = root.createNestedArray("swing_modes");
         // error: passing 'const esphome::climate::ClimateTraits' as 'this' argument of 'const
         //  std::set<esphome::climate::ClimateSwingMode> esphome::climate::ClimateTraits::get_supported_swing_modes()'
-        //  discards qualifiers [-fpermissive]          
+        //  discards qualifiers [-fpermissive] 
         //  for (climate::ClimateSwingMode swing_mode : traits.get_supported_swing_modes())
         // opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
         /* const char *payload = "";
