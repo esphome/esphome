@@ -35,7 +35,7 @@ class MidiInComponent : public Component, public uart::UARTDevice {
     this->system_message_callback_.add(std::move(callback));
   }
 
-  uint8_t patch = 0;
+  uint8_t program = 0;
   uint8_t soft_pedal = 0;
   uint8_t mid_pedal = 0;
   uint8_t sustain_pedal = 0;

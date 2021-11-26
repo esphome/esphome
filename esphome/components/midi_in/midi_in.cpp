@@ -60,6 +60,9 @@ void MidiInComponent::loop() {
               }
             }
             break;
+          case midi::MidiType::ProgramChange:
+            this->program = msg.data1;
+            break;
           case midi::MidiType::ControlChange:
             this->process_controller_message_(msg);
             break;
