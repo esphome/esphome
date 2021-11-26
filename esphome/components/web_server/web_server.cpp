@@ -253,7 +253,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifdef USE_SELECT
   for (auto *obj : App.get_selects())
     write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, EntityBase *obj) {
-      select::Select *select = (select::Select *)obj;
+      select::Select *select = (select::Select *) obj;
       stream.print("<select>");
       stream.print("<option></option>");
       for (auto const &option : select->traits.get_options()) {
@@ -320,7 +320,7 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 #endif
 
 #define set_json_id(root, obj, sensor, start_config) \
-  (root)["id"] = sensor;                             \
+  (root)["id"] = sensor; \
   if (((start_config) == DETAIL_ALL)) \
     (root)["name"] = (obj)->get_name();
 
@@ -332,7 +332,7 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 
 #define set_json_icon_state_value(root, obj, sensor, state, value, start_config) \
   set_json_value(root, obj, sensor, value, start_config)(root)["state"] = state; \
-  if (((start_config) == DETAIL_ALL))                                            \
+  if (((start_config) == DETAIL_ALL)) \
     (root)["icon"] = (obj)->get_icon();
 
 #ifdef USE_SENSOR
@@ -472,7 +472,7 @@ std::string WebServer::fan_json(fan::FanState *obj, JsonDetail start_config) {
           break;
         case fan::FAN_SPEED_HIGH:  // NOLINT(clang-diagnostic-deprecated-declarations)
           root["speed"] = "high";
-          break;        
+          break;
       }
 #pragma GCC diagnostic pop
     }
@@ -515,7 +515,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
         String speed = request->getParam("oscillation")->value();
         auto val = parse_on_off(speed.c_str());
         switch (val) {
-          case PARSE_ON:       
+          case PARSE_ON:
             call.set_oscillating(true);
             break;
           case PARSE_OFF:
@@ -597,7 +597,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
     } else if (match.method == "turn_off") {
       auto call = obj->turn_off();
       if (request->hasParam("transition")) {
-        auto length = (uint32_t)request->getParam("transition")->value().toFloat() * 1000;
+        auto length = (uint32_t) request->getParam("transition")->value().toFloat() * 1000;
         call.set_transition_length(length);
       }
       this->defer([call]() mutable { call.perform(); });
@@ -863,7 +863,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
         // error: passing 'const esphome::climate::ClimateTraits' as 'this' argument of 'const
         //  std::set<esphome::climate::ClimateSwingMode> esphome::climate::ClimateTraits::get_supported_swing_modes()'
         //  discards qualifiers [-fpermissive]        
-        //for (climate::ClimateSwingMode swing_mode : traits.get_supported_swing_modes())
+        //  for (climate::ClimateSwingMode swing_mode : traits.get_supported_swing_modes())
         // opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
         /* const char *payload = "";
               for (climate::ClimateSwingMode swing_mode : traits.get_supported_swing_modes())
