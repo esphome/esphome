@@ -709,9 +709,8 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
     }
 
     if (request->hasParam("value")) {
-      auto val = parse_number<float>(request->getParam("value")->value().c_str());
       auto call = obj->make_call();
-      call.set_value(*val);
+      call.set_value(request->getParam("value")->value().toFloat());
       call.perform();
       this->defer([call]() mutable { call.perform(); });
       request->send(200);
@@ -1102,4 +1101,4 @@ bool WebServer::isRequestHandlerTrivial() { return false; }
 }  // namespace web_server
 }  // namespace esphome
 
-#endif // USE_ARDUINO
+#endif  // USE_ARDUINO
