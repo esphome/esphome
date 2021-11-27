@@ -191,14 +191,14 @@ void BME280Component::update() {
       return;
     }
     int32_t t_fine = 0;
-    float temperature = this->read_temperature_(data+3, &t_fine);
+    float temperature = this->read_temperature_(data + 3, &t_fine);
     if (std::isnan(temperature)) {
       ESP_LOGW(TAG, "Invalid temperature, cannot read pressure & humidity values.");
       this->status_set_warning();
       return;
     }
     float pressure = this->read_pressure_(data, t_fine);
-    float humidity = this->read_humidity_(data+6, t_fine);
+    float humidity = this->read_humidity_(data + 6, t_fine);
 
     ESP_LOGD(TAG, "Got temperature=%.1f°C pressure=%.1fhPa humidity=%.1f%%", temperature, pressure, humidity);
     if (this->temperature_sensor_ != nullptr)
