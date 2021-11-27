@@ -169,10 +169,11 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
   uint32_t last_frame = millis();
   uint32_t frames = 0;
 
+  if (esp32_camera::global_esp32_camera != nullptr) {
+    esp32_camera::global_esp32_camera->start_stream(esphome::esp32_camera::WEB_SINK);
+  }
+
   while (res == ESP_OK && this->running_) {
-    if (esp32_camera::global_esp32_camera != nullptr) {
-      esp32_camera::global_esp32_camera->request_stream();
-    }
 
     auto image = this->wait_for_image_();
 
@@ -204,6 +205,10 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
     res = httpd_send_all(req, STREAM_ERROR, strlen(STREAM_ERROR));
   }
 
+  if (esp32_camera::global_esp32_camera != nullptr) {
+    esp32_camera::global_esp32_camera->stop_stream(esphome::esp32_camera::WEB_SINK);
+  }
+
   ESP_LOGI(TAG, "STREAM: closed. Frames: %u", frames);
 
   return res;
@@ -213,7 +218,7 @@ esp_err_t CameraWebServer::snapshot_handler_(struct httpd_req *req) {
   esp_err_t res = ESP_OK;
 
   if (esp32_camera::global_esp32_camera != nullptr) {
-    esp32_camera::global_esp32_camera->request_image();
+    esp32_camera::global_esp32_camera->request_image(esphome::esp32_camera::WEB_SINK);
   }
 
   auto image = this->wait_for_image_();

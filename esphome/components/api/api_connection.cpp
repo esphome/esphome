@@ -20,6 +20,7 @@ namespace esphome {
 namespace api {
 
 static const char *const TAG = "api.connection";
+static const int ESP32_CAMERA_STOP_STREAM = 5000;
 
 APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
     : parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
@@ -722,9 +723,14 @@ void APIConnection::camera_image(const CameraImageRequest &msg) {
     return;
 
   if (msg.single)
-    esp32_camera::global_esp32_camera->request_image();
-  if (msg.stream)
-    esp32_camera::global_esp32_camera->request_stream();
+    esp32_camera::global_esp32_camera->request_image(esphome::esp32_camera::API_SINK);
+  if (msg.stream) {
+    esp32_camera::global_esp32_camera->start_stream(esphome::esp32_camera::API_SINK);
+
+    App.scheduler.set_timeout(this->parent_, "api_esp32_camera_stop_stream", ESP32_CAMERA_STOP_STREAM, []() { 
+      esp32_camera::global_esp32_camera->stop_stream(esphome::esp32_camera::API_SINK);
+    });
+  }
 }
 #endif
 
