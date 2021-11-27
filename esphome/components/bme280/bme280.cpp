@@ -210,7 +210,7 @@ void BME280Component::update() {
     this->status_clear_warning();
   });
 }
-float BME280Component::read_temperature_(uint8_t *data, int32_t *t_fine) {
+float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
   int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
   adc >>= 4;
   if (adc == 0x80000)
@@ -229,7 +229,7 @@ float BME280Component::read_temperature_(uint8_t *data, int32_t *t_fine) {
   return temperature / 100.0f;
 }
 
-float BME280Component::read_pressure_(uint8_t *data, int32_t t_fine) {
+float BME280Component::read_pressure_(const uint8_t *data, int32_t t_fine) {
   int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
   adc >>= 4;
   if (adc == 0x80000)
@@ -265,7 +265,7 @@ float BME280Component::read_pressure_(uint8_t *data, int32_t t_fine) {
   return (p / 256.0f) / 100.0f;
 }
 
-float BME280Component::read_humidity_(uint8_t *data, int32_t t_fine) {
+float BME280Component::read_humidity_(const uint8_t *data, int32_t t_fine) {
   uint16_t raw_adc = ((data[0] & 0xFF) << 8) | (data[1] & 0xFF);
   if (raw_adc == 0x8000)
     return NAN;
