@@ -5,6 +5,7 @@
 #include "i2c_bus.h"
 #include "esphome/core/component.h"
 #include <driver/i2c.h>
+#include <vector>
 
 namespace esphome {
 namespace i2c {
@@ -33,6 +34,7 @@ class IDFI2CBus : public I2CBus, public Component {
  private:
   void recover_();
   RecoveryCode recovery_result_;
+  std::vector<std::string> scan_results_;
 
  protected:
   i2c_port_t port_;

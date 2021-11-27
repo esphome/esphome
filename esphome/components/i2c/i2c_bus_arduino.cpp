@@ -2,6 +2,7 @@
 
 #include "i2c_bus_arduino.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include <Arduino.h>
 #include <cstring>
 
@@ -27,6 +28,23 @@ void ArduinoI2CBus::setup() {
   wire_->begin(sda_pin_, scl_pin_);
   wire_->setClock(frequency_);
   initialized_ = true;
+  if (this->scan_) {
+    ESP_LOGV(TAG, "Scanning i2c bus for active devices...");
+    uint8_t found = 0;
+    for (uint8_t address = 8; address < 120; address++) {
+      auto err = writev(address, nullptr, 0);
+      if (err == ERROR_OK) {
+        ESP_LOGV(TAG, "Found i2c device at address 0x%02X", address);
+        scan_results_.push_back(str_sprintf("Found i2c device at address 0x%02X", address));
+        found++;
+      } else if (err == ERROR_UNKNOWN) {
+        ESP_LOGV(TAG, "Unknown error at address 0x%02X", address);
+        scan_results_.push_back(str_sprintf("Unknown error at address 0x%02X", address));
+      }
+    }
+    if (found == 0)
+      ESP_LOGI(TAG, "Found no i2c devices!");
+  }
 }
 void ArduinoI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "I2C Bus:");
@@ -45,20 +63,13 @@ void ArduinoI2CBus::dump_config() {
       break;
   }
   if (this->scan_) {
-    ESP_LOGI(TAG, "Scanning i2c bus for active devices...");
-    uint8_t found = 0;
-    for (uint8_t address = 8; address < 120; address++) {
-      auto err = writev(address, nullptr, 0);
-      if (err == ERROR_OK) {
-        ESP_LOGI(TAG, "Found i2c device at address 0x%02X", address);
-        found++;
-      } else if (err == ERROR_UNKNOWN) {
-        ESP_LOGI(TAG, "Unknown error at address 0x%02X", address);
-      }
-    }
-    if (found == 0) {
+    ESP_LOGI(TAG, "i2c bus scan results...");
+    for (const auto &s : scan_results_)
+      ESP_LOGI(TAG, "%s", s.c_str());
+    if (scan_results_.empty())
       ESP_LOGI(TAG, "Found no i2c devices!");
-    }
+    // release memory
+    scan_results_ = std::vector<std::string>();
   }
 }
 ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {

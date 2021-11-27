@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef USE_ARDUINO
-
+#include <vector>
 #include "i2c_bus.h"
 #include "esphome/core/component.h"
 #include <Wire.h>
@@ -39,6 +39,7 @@ class ArduinoI2CBus : public I2CBus, public Component {
   uint8_t scl_pin_;
   uint32_t frequency_;
   bool initialized_ = false;
+  std::vector<std::string> scan_results_;
 };
 
 }  // namespace i2c
