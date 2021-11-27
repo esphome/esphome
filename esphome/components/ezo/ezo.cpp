@@ -74,6 +74,11 @@ void EZOSensor::loop() {
   if (buf[0] != 1)
     return;
 
+  // some sensors return multiple comma-separated values, terminate string after first one
+  for (int i = 1; i < sizeof(buf) - 1; i++)
+    if (buf[i] == ',')
+      buf[i] = '\0';
+
   float val = parse_number<float>((char *) &buf[1], sizeof(buf) - 2).value_or(0);
   this->publish_state(val);
 }
