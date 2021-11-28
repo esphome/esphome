@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
     CONF_ID,
+    CONF_INPUT,
     DEVICE_CLASS_ENERGY,
     STATE_CLASS_MEASUREMENT,
     UNIT_WATT,
@@ -52,8 +53,6 @@ CT_INPUT = {
 
 CONF_PHASES = "phases"
 CONF_PHASE_ID = "phase_id"
-CONF_PHASE_INPUT = "phase_input"
-CONF_CT_INPUT = "ct_input"
 CONF_POWER = "power"
 
 CONFIG_SCHEMA = (
@@ -63,7 +62,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_PHASES): cv.ensure_list(
                 {
                     cv.Required(CONF_ID): cv.declare_id(PhaseConfig),
-                    cv.Required(CONF_PHASE_INPUT): cv.enum(PHASE_INPUT),
+                    cv.Required(CONF_INPUT): cv.enum(PHASE_INPUT),
                 }
             ),
             cv.Required(CONF_POWER): cv.ensure_list(
@@ -75,7 +74,7 @@ CONFIG_SCHEMA = (
                     {
                         cv.GenerateID(): cv.declare_id(PowerSensor),
                         cv.Required(CONF_PHASE_ID): cv.use_id(PhaseConfig),
-                        cv.Required(CONF_CT_INPUT): cv.enum(CT_INPUT),
+                        cv.Required(CONF_INPUT): cv.enum(CT_INPUT),
                     }
                 )
             ),
@@ -95,7 +94,7 @@ async def to_code(config):
     phases = []
     for phase_config in config[CONF_PHASES]:
         phase_var = cg.new_Pvariable(phase_config[CONF_ID], PhaseConfig())
-        cg.add(phase_var.set_input_color(phase_config[CONF_PHASE_INPUT]))
+        cg.add(phase_var.set_input_color(phase_config[CONF_INPUT]))
 
         phases.append(phase_var)
     cg.add(var.set_phases(phases))
@@ -105,6 +104,7 @@ async def to_code(config):
         power_var = cg.new_Pvariable(power_config[CONF_ID], PowerSensor())
         phase_var = await cg.get_variable(power_config[CONF_PHASE_ID])
         cg.add(power_var.set_phase(phase_var))
+        cg.add(power_var.set_ct_input(power_config[CONF_INPUT]))
 
         await sensor.register_sensor(power_var, power_config)
 
