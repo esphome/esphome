@@ -163,7 +163,7 @@ void SCD30Component::update() {
     this->status_set_warning();
     return;
   }
-  delay(4);
+
   this->set_timeout(50, [this]() {
     uint16_t raw_data[6];
     if (!this->read_data_(raw_data, 6)) {
