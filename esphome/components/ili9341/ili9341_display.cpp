@@ -227,7 +227,7 @@ uint32_t ILI9341Display::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
   }
 
   for (uint32_t i = 0; i < sz; ++i) {
-    uint16_t color = display::ColorUtil::convert_332_to_565(*src++);
+    uint16_t color = display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(*src++));
     *dst++ = (uint8_t)(color >> 8);
     *dst++ = (uint8_t) color;
   }

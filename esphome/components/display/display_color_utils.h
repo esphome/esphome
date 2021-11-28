@@ -66,6 +66,9 @@ class ColorUtil {
     }
     return color_return;
   }
+  static inline Color rgb332_to_color(uint8_t rgb332_color) {
+    return to_color((uint32_t) rgb332_color, COLOR_ORDER_RGB, COLOR_BITNESS_332);
+  }
   static uint8_t color_to_332(Color color, ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) {
     uint16_t red_color, green_color, blue_color;
 
@@ -100,23 +103,6 @@ class ColorUtil {
     }
     return 0;
   }
-
-  /***
-   * Converts an 8bit color from rgb 3,3,2 to 16bit rgb 5,6,5 format.
-   * @param[in] The 8bit input color to convert.
-   * @return The 16bit output color.
-   */
-  static uint16_t convert_332_to_565(uint8_t color_8bit) {
-    int r = color_8bit >> 5;
-    int g = (color_8bit >> 2) & 0x07;
-    int b = color_8bit & 0x03;
-    uint16_t color = (r * 0x04) << 11;
-    color |= (g * 0x09) << 5;
-    color |= (b * 0x0A);
-
-    return color;
-  }
-
   static uint32_t color_to_grayscale4(Color color) {
     uint32_t gs4 = esp_scale8(color.white, 15);
     return gs4;
