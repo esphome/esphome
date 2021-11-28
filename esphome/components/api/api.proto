@@ -40,6 +40,7 @@ service APIConnection {
   rpc climate_command (ClimateCommandRequest) returns (void) {}
   rpc number_command (NumberCommandRequest) returns (void) {}
   rpc select_command (SelectCommandRequest) returns (void) {}
+  rpc button_command (ButtonCommandRequest) returns (void) {}
 }
 
 
@@ -943,4 +944,28 @@ message SelectCommandRequest {
 
   fixed32 key = 1;
   string state = 2;
+}
+
+// ==================== BUTTON ====================
+message ListEntitiesButtonResponse {
+  option (id) = 61;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BUTTON";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+}
+message ButtonCommandRequest {
+  option (id) = 62;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BUTTON";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
 }
