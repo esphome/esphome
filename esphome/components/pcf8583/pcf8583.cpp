@@ -51,7 +51,7 @@ void PCF8583Component::update()  {
 
 //pushing state to esphome and resetting the counter
 void PCF8583Component::update_and_reset()  {
-  this->counter_->publish_state(read_counter_());
+  this->counter_->publish_state(this->read_counter_());
   this->reset_counter_();
 }
 
@@ -64,22 +64,22 @@ uint32_t PCF8583Component::read_counter_()  {
   uint8_t data[3];
   this->read_bytes(PCF8583_LOCATION_COUNTER, data , 3);
   unsigned long count = 0;
-  count = bcd2byte_(data[0]);
-  count = count + bcd2byte_(data[1]) * 100L;
-  count = count + bcd2byte_(data[2]) * 10000L;
+  count = this->bcd2byte_(data[0]);
+  count = count + this->bcd2byte_(data[1]) * 100L;
+  count = count + this->bcd2byte_(data[2]) * 10000L;
 
   return count;
 }
 
 //reset counter; set_counter could be implemented the same, but I don´t see a usecase
 void PCF8583Component::reset_counter_(){
-  uint8_t data[3];
-  unsigned long count = 0;
-  data[0] = byte2bcd_(count % 100);
-  data[1] = byte2bcd_((count / 100) % 100);
-  data[2] = byte2bcd_((count / 10000) % 100);
-  this->write_bytes(PCF8583_LOCATION_COUNTER, data, 3);
-}
+  uint8_t data [3];
+  uint32_t count = 0;
+  data[0] = this->byte2bcd_(count % 100);
+  data[1] = this->byte2bcd_((count / 100) % 100);
+  data[2] = this->byte2bcd_((count / 10000) % 100);
+  this->write_bytes(PCF8583_LOCATION_COUNTER, data , 3);
+} 
 
 
 
