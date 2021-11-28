@@ -106,4 +106,3 @@ uint8_t PCF8583Component::byte2bcd_(uint8_t value){
 
 }  //namespace esphome
 }  //namespace pcf8583
-
