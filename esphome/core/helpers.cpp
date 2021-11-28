@@ -98,7 +98,7 @@ uint16_t fast_random_16() {
   return (rand32 & 0xFFFF) + (rand32 >> 16);
 }
 uint8_t fast_random_8() {
-  uint8_t rand32 = fast_random_32();
+  uint32_t rand32 = fast_random_32();
   return (rand32 & 0xFF) + ((rand32 >> 8) & 0xFF);
 }
 
