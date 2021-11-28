@@ -51,8 +51,8 @@ void PCF8583Component::update()  {
 
 //pushing state to esphome and resetting the counter
 void PCF8583Component::update_and_reset()  {
-  this->counter_->publish_state(read_counter());
-  this->reset_counter();
+  this->counter_->publish_state(read_counter_());
+  this->reset_counter_();
 }
 
 
@@ -60,24 +60,24 @@ float PCF8583Component::get_setup_priority() const { return setup_priority::DATA
 
 
 //reading the counter register as BCD format
-unsigned long PCF8583Component::read_counter()  {          
+uint32_t PCF8583Component::read_counter_()  {          
   uint8_t data[3];
   this->read_bytes(PCF8583_LOCATION_COUNTER, data , 3);
   unsigned long count = 0;
-  count = bcd2byte(data[0]);
-  count = count + bcd2byte(data[1]) * 100L;
-  count = count + bcd2byte(data[2]) * 10000L;
+  count = bcd2byte_(data[0]);
+  count = count + bcd2byte_(data[1]) * 100L;
+  count = count + bcd2byte_(data[2]) * 10000L;
 
   return count;
 }
 
 //reset counter; set_counter could be implemented the same, but I don´t see a usecase
-void PCF8583Component::reset_counter(){
+void PCF8583Component::reset_counter_(){
   uint8_t data[3];
   unsigned long count = 0;
-  data[0] = byte2bcd(count % 100);
-  data[1] = byte2bcd((count / 100) % 100);
-  data[2] = byte2bcd((count / 10000) % 100);
+  data[0] = byte2bcd_(count % 100);
+  data[1] = byte2bcd_((count / 100) % 100);
+  data[2] = byte2bcd_((count / 10000) % 100);
   this->write_bytes(PCF8583_LOCATION_COUNTER, data, 3);
 }
 
@@ -91,12 +91,12 @@ void PCF8583Component::set_to_counter_mode()  {
 
 
 //converting bcd value to byte
-uint8_t PCF8583Component::bcd2byte(uint8_t value)  {
+uint8_t PCF8583Component::bcd2byte_(uint8_t value)  {
   return ((value >> 4) * 10) + (value & 0x0f);
 }
 
 //converting byte value to bcd
-uint8_t PCF8583Component::byte2bcd(uint8_t value){
+uint8_t PCF8583Component::byte2bcd_(uint8_t value){
     return ((value / 10) << 4) + (value % 10);
 }
 
@@ -106,3 +106,4 @@ uint8_t PCF8583Component::byte2bcd(uint8_t value){
 
 }  //namespace esphome
 }  //namespace pcf8583
+

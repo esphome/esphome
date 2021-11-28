@@ -30,10 +30,10 @@ class PCF8583Component : public PollingComponent, public i2c::I2CDevice {
 
     protected:
 
-      void reset_counter();
-      unsigned long read_counter();
-      uint8_t bcd2byte(uint8_t value);
-      uint8_t byte2bcd(uint8_t value);
+      void reset_counter_();
+      uint32_t read_counter_();
+      uint8_t bcd2byte_(uint8_t value);
+      uint8_t byte2bcd_(uint8_t value);
 
 
       sensor::Sensor *counter_;

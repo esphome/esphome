@@ -41,3 +41,4 @@ async def to_code(config):
         conf = config[CONF_COUNT]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_counter(sens))
+        
