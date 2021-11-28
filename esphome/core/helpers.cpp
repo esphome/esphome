@@ -444,6 +444,11 @@ IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 std::string str_truncate(const std::string &str, size_t length) {
   return str.length() > length ? str.substr(0, length) : str;
 }
+std::string str_until(const char *str, char ch) {
+  char *pos = strchr(str, ch);
+  return pos == nullptr ? std::string(str) : std::string(str, pos - str);
+}
+std::string str_until(const std::string &str, char ch) { return str.substr(0, str.find(ch)); }
 std::string str_snake_case(const std::string &str) {
   std::string result;
   result.resize(str.length());
