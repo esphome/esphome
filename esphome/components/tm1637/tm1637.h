@@ -16,7 +16,9 @@ namespace esphome {
 namespace tm1637 {
 
 class TM1637Display;
+#ifdef USE_BINARY_SENSOR
 class TM1637Key;
+#endif
 
 using tm1637_writer_t = std::function<void(TM1637Display &)>;
 
@@ -49,9 +51,11 @@ class TM1637Display : public PollingComponent {
 
   void display();
 
+#ifdef USE_BINARY_SENSOR
   void loop() override;
-
   uint8_t get_keys();
+  void add_tm1637_key(TM1637Key *tm1637_key) { this->tm1637_keys_.push_back(tm1637_key); }
+#endif
 
 #ifdef USE_TIME
   /// Evaluate the strftime-format and print the result at the given position.
@@ -61,7 +65,6 @@ class TM1637Display : public PollingComponent {
   uint8_t strftime(const char *format, time::ESPTime time) __attribute__((format(strftime, 2, 0)));
 #endif
 
-  void add_tm1637_key(TM1637Key *tm1637_key) { this->tm1637_keys_.push_back(tm1637_key); }
 
  protected:
   void bit_delay_();
@@ -76,9 +79,12 @@ class TM1637Display : public PollingComponent {
   uint8_t intensity_;
   optional<tm1637_writer_t> writer_{};
   uint8_t buffer_[6] = {0};
+#ifdef USE_BINARY_SENSOR  
   std::vector<TM1637Key *> tm1637_keys_{};
+#endif
 };
 
+#ifdef USE_BINARY_SENSOR
 class TM1637Key : public binary_sensor::BinarySensor {
   friend class TM1637Display;
 
@@ -89,6 +95,7 @@ class TM1637Key : public binary_sensor::BinarySensor {
  protected:
   uint8_t key_code_{0};
 };
+#endif
 
 }  // namespace tm1637
 }  // namespace esphome

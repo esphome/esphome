@@ -142,6 +142,7 @@ void TM1637Display::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+#ifdef USE_BINARY_SENSOR
 void TM1637Display::loop() {
   uint8_t val = this->get_keys();
   for (auto *tm1637_key : this->tm1637_keys_)
@@ -169,6 +170,7 @@ uint8_t TM1637Display::get_keys() {
   }
   return key_code;
 }
+#endif
 
 void TM1637Display::update() {
   for (uint8_t &i : this->buffer_)
