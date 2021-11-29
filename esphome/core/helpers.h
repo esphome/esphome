@@ -57,7 +57,10 @@ bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 bool str_startswith(const std::string &full, const std::string &start);
 bool str_endswith(const std::string &full, const std::string &ending);
 
-/// sprintf-like function returning std::string instead of writing to char array.
+/// snprintf-like function returning std::string with a given maximum length.
+std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t length, ...);
+
+/// sprintf-like function returning std::string.
 std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
 
 class HighFrequencyLoopRequester {
@@ -350,6 +353,12 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr
 /// Truncate a string to a specific length.
 std::string str_truncate(const std::string &str, size_t length);
 
+/// Extract the part of the string until either the first occurence of the specified character, or the end (requires str
+/// to be null-terminated).
+std::string str_until(const char *str, char ch);
+/// Extract the part of the string until either the first occurence of the specified character, or the end.
+std::string str_until(const std::string &str, char ch);
+
 /// Convert the string to snake case (lowercase with underscores).
 std::string str_snake_case(const std::string &str);
 
@@ -361,45 +370,47 @@ std::string str_sanitize(const std::string &str);
 /// @name Parsing & formatting
 ///@{
 
-/// Parse a unsigned decimal number.
+/// Parse an unsigned decimal number (requires null-terminated string).
 template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_unsigned<T>::value), int> = 0>
 optional<T> parse_number(const char *str, size_t len) {
   char *end = nullptr;
   unsigned long value = ::strtoul(str, &end, 10);  // NOLINT(google-runtime-int)
-  if (end == nullptr || end != str + len || value > std::numeric_limits<T>::max())
+  if (end == str || *end != '\0' || value > std::numeric_limits<T>::max())
     return {};
   return value;
 }
+/// Parse an unsigned decimal number.
 template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_unsigned<T>::value), int> = 0>
 optional<T> parse_number(const std::string &str) {
-  return parse_number<T>(str.c_str(), str.length());
+  return parse_number<T>(str.c_str(), str.length() + 1);
 }
-/// Parse a signed decimal number.
+/// Parse a signed decimal number (requires null-terminated string).
 template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T>::value), int> = 0>
 optional<T> parse_number(const char *str, size_t len) {
   char *end = nullptr;
   signed long value = ::strtol(str, &end, 10);  // NOLINT(google-runtime-int)
-  if (end == nullptr || end != str + len || value < std::numeric_limits<T>::min() ||
-      value > std::numeric_limits<T>::max())
+  if (end == str || *end != '\0' || value < std::numeric_limits<T>::min() || value > std::numeric_limits<T>::max())
     return {};
   return value;
 }
+/// Parse a signed decimal number.
 template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T>::value), int> = 0>
 optional<T> parse_number(const std::string &str) {
-  return parse_number<T>(str.c_str(), str.length());
+  return parse_number<T>(str.c_str(), str.length() + 1);
 }
-/// Parse a decimal floating-point number.
+/// Parse a decimal floating-point number (requires null-terminated string).
 template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0>
 optional<T> parse_number(const char *str, size_t len) {
   char *end = nullptr;
   float value = ::strtof(str, &end);
-  if (end == nullptr || end != str + len || value == HUGE_VALF)
+  if (end == str || *end != '\0' || value == HUGE_VALF)
     return {};
   return value;
 }
+/// Parse a decimal floating-point number.
 template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0>
 optional<T> parse_number(const std::string &str) {
-  return parse_number<T>(str.c_str(), str.length());
+  return parse_number<T>(str.c_str(), str.length() + 1);
 }
 
 ///@}

@@ -970,16 +970,17 @@ def start_web_server(args):
         server.add_socket(socket)
     else:
         _LOGGER.info(
-            "Starting dashboard web server on http://0.0.0.0:%s and configuration dir %s...",
+            "Starting dashboard web server on http://%s:%s and configuration dir %s...",
+            args.address,
             args.port,
             settings.config_dir,
         )
-        app.listen(args.port)
+        app.listen(args.port, args.address)
 
         if args.open_ui:
             import webbrowser
 
-            webbrowser.open(f"localhost:{args.port}")
+            webbrowser.open(f"http://{args.address}:{args.port}")
 
     if settings.status_use_ping:
         status_thread = PingStatusThread()

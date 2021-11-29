@@ -674,6 +674,27 @@ void APIConnection::select_command(const SelectCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_BUTTON
+bool APIConnection::send_button_info(button::Button *button) {
+  ListEntitiesButtonResponse msg;
+  msg.key = button->get_object_id_hash();
+  msg.object_id = button->get_object_id();
+  msg.name = button->get_name();
+  msg.unique_id = get_default_unique_id("button", button);
+  msg.icon = button->get_icon();
+  msg.disabled_by_default = button->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(button->get_entity_category());
+  return this->send_list_entities_button_response(msg);
+}
+void APIConnection::button_command(const ButtonCommandRequest &msg) {
+  button::Button *button = App.get_button_by_key(msg.key);
+  if (button == nullptr)
+    return;
+
+  button->press();
+}
+#endif
+
 #ifdef USE_ESP32_CAMERA
 void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
   if (!this->state_subscription_)

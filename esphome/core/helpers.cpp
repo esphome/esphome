@@ -48,13 +48,13 @@ void get_mac_address_raw(uint8_t *mac) {
 std::string get_mac_address() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
-  return str_sprintf("%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return str_snprintf("%02x%02x%02x%02x%02x%02x", 12, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 std::string get_mac_address_pretty() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
-  return str_sprintf("%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 #ifdef USE_ESP32
@@ -98,7 +98,7 @@ uint16_t fast_random_16() {
   return (rand32 & 0xFFFF) + (rand32 >> 16);
 }
 uint8_t fast_random_8() {
-  uint8_t rand32 = fast_random_32();
+  uint32_t rand32 = fast_random_32();
   return (rand32 & 0xFF) + ((rand32 >> 8) & 0xFF);
 }
 
@@ -325,6 +325,20 @@ bool str_startswith(const std::string &full, const std::string &start) { return 
 bool str_endswith(const std::string &full, const std::string &ending) {
   return full.rfind(ending) == (full.size() - ending.size());
 }
+std::string str_snprintf(const char *fmt, size_t length, ...) {
+  std::string str;
+  va_list args;
+
+  str.resize(length);
+  va_start(args, length);
+  size_t out_length = vsnprintf(&str[0], length + 1, fmt, args);
+  va_end(args);
+
+  if (out_length < length)
+    str.resize(out_length);
+
+  return str;
+}
 std::string str_sprintf(const char *fmt, ...) {
   std::string str;
   va_list args;
@@ -434,6 +448,11 @@ IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 std::string str_truncate(const std::string &str, size_t length) {
   return str.length() > length ? str.substr(0, length) : str;
 }
+std::string str_until(const char *str, char ch) {
+  char *pos = strchr(str, ch);
+  return pos == nullptr ? std::string(str) : std::string(str, pos - str);
+}
+std::string str_until(const std::string &str, char ch) { return str.substr(0, str.find(ch)); }
 std::string str_snake_case(const std::string &str) {
   std::string result;
   result.resize(str.length());
