@@ -49,6 +49,7 @@ web_server:
   auth:
     username: admin
     password: admin
+  include_internal: true
 
 time:
   - platform: sntp
