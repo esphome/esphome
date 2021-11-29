@@ -83,6 +83,12 @@ void MidiInComponent::loop() {
 
 void MidiInComponent::process_controller_message_(const MidiChannelMessage &msg) {
   switch (msg.data1) {
+    case midi::MidiControlChangeNumber::BankSelect:
+      this->bank_msb = msg.data2;
+      break;
+    case 0x20:
+      this->bank_lsb = msg.data2;
+      break;
     case midi::MidiControlChangeNumber::Sustain:
       this->sustain_pedal = msg.data2;
       break;
