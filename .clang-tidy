@@ -51,6 +51,7 @@ Checks: >-
   -google-explicit-constructor,
   -google-readability-braces-around-statements,
   -google-readability-casting,
+  -google-readability-namespace-comments,
   -google-readability-todo,
   -google-runtime-references,
   -hicpp-*,
@@ -97,12 +98,12 @@ CheckOptions:
     value:           '1'
   - key:             google-readability-function-size.StatementThreshold
     value:           '800'
-  - key:             google-readability-namespace-comments.ShortNamespaceLines
-    value:           '10'
-  - key:             google-readability-namespace-comments.SpacesBeforeComments
-    value:           '2'
   - key:             google-runtime-int.TypeSuffix
     value:           '_t'
+  - key:             llvm-namespace-comment.ShortNamespaceLines
+    value:           '10'
+  - key:             llvm-namespace-comment.SpacesBeforeComments
+    value:           '2'
   - key:             modernize-loop-convert.MaxCopySize
     value:           '16'
   - key:             modernize-loop-convert.MinConfidence
