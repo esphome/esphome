@@ -29,7 +29,7 @@ icon = cv.icon
 
 BUTTON_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),
+        # cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTButtonComponent),
         cv.Optional(CONF_ON_PRESS): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ButtonPressTrigger),
@@ -56,6 +56,12 @@ async def register_button(var, config):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_button(var))
     await setup_button_core_(var, config)
+
+
+async def new_button(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    await register_button(var, config)
+    return var
 
 
 BUTTON_PRESS_SCHEMA = maybe_simple_id(

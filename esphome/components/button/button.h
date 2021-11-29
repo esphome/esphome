@@ -32,16 +32,14 @@ class Button : public EntityBase {
 
   /** Set callback for state changes.
    *
-   * @param callback The void(bool) callback.
+   * @param callback The void() callback.
    */
   void add_on_press_callback(std::function<void()> &&callback);
 
  protected:
-  /** You should implement this abstract method if you want to create your own button.
-   *
-   * @param state The state to write. Inversion is already applied if user specified it.
+  /** You should implement this virtual method if you want to create your own button.
    */
-  virtual void press_action() = 0;
+  virtual void press_action(){};
 
   uint32_t hash_base() override;
 
