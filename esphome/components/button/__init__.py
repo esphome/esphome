@@ -26,7 +26,6 @@ PressAction = button_ns.class_("PressAction", automation.Action)
 ButtonPressTrigger = button_ns.class_(
     "ButtonPressTrigger", automation.Trigger.template()
 )
-icon = cv.icon
 
 
 BUTTON_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
@@ -49,7 +48,7 @@ def button_schema(
 ) -> cv.Schema:
     schema = BUTTON_SCHEMA
     if icon is not _UNDEF:
-        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): icon})
+        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
     if entity_category is not _UNDEF:
         schema = schema.extend(
             {
