@@ -129,15 +129,15 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &st
 void ProntoProtocol::encode(RemoteTransmitData *dst, const ProntoData &data) { send_pronto_(dst, data.data); }
 
 uint16_t ProntoProtocol::effective_frequency_(uint16_t frequency) {
-    return frequency > 0 ? frequency : FALLBACK_FREQUENCY;
+  return frequency > 0 ? frequency : FALLBACK_FREQUENCY;
 }
 
 uint16_t ProntoProtocol::to_timebase_(uint16_t frequency) {
-    return MICROSECONDS_IN_SECONDS / effective_frequency_(frequency);
+  return MICROSECONDS_IN_SECONDS / effective_frequency_(frequency);
 }
 
 uint16_t ProntoProtocol::to_frequency_code_(uint16_t frequency) {
-    return REFERENCE_FREQUENCY / effective_frequency_(frequency);
+  return REFERENCE_FREQUENCY / effective_frequency_(frequency);
 }
 
 std::string ProntoProtocol::dump_digit_(uint8_t x) {
@@ -164,15 +164,15 @@ std::string ProntoProtocol::compensate_and_dump_sequence_(std::vector<int32_t> *
   std::string out;
 
   for (uint_fast8_t i = 0; i < data->size() - 1; i++) {
-      int32_t tLength = data->at(i);
-      uint32_t tDuration;
-      if (tLength > 0) {
-          // Mark
-          tDuration = tLength - MARK_EXCESS_MICROS;
-      } else {
-          tDuration = -tLength + MARK_EXCESS_MICROS;
-      }
-      out += dump_duration_(tDuration, timebase);
+    int32_t t_length = data->at(i);
+    uint32_t t_duration;
+    if (t_length > 0) {
+      // Mark
+      t_duration = t_length - MARK_EXCESS_MICROS;
+    } else {
+      t_duration = -t_length + MARK_EXCESS_MICROS;
+    }
+    out += dump_duration_(t_duration, timebase);
   }
 
   // append minimum gap
@@ -201,7 +201,6 @@ optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
 
   return out;
 }
-
 
 void ProntoProtocol::dump(const ProntoData &data) { ESP_LOGD(TAG, "Received Pronto: data=%s", data.data.c_str()); }
 
