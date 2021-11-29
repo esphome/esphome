@@ -10,6 +10,12 @@ namespace esp32_can {
 
 static const char *const TAG = "esp32.can";
 
+void Esp32Can::dump_config() {
+  ESP_LOGCONFIG(TAG, "Rx buffer length: %d", this->rx_buffer_size_);
+  ESP_LOGCONFIG(TAG, "Rx pin: %d", gpio_num_t(this->rx_pin_->get_pin()));
+  ESP_LOGCONFIG(TAG, "Tx pin: %d", gpio_num_t(this->tx_pin_->get_pin()));
+}
+
 uint32_t from_canspeed_(canbus::CanSpeed can_speed) {
   uint32_t set;
   switch (can_speed) {
@@ -64,7 +70,7 @@ uint32_t from_canspeed_(canbus::CanSpeed can_speed) {
   return set;
 }
 
-bool EspCan::setup_internal() {
+bool Esp32Can::setup_internal() {
   CAN_cfg.speed = (CAN_speed_t) from_canspeed_(this->bit_rate_);
   CAN_cfg.tx_pin_id = gpio_num_t(this->tx_pin_->get_pin());
   CAN_cfg.rx_pin_id = gpio_num_t(this->rx_pin_->get_pin());

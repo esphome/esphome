@@ -1,6 +1,6 @@
 #pragma once
 
-//#include "esphome/core/component.h"
+#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/defines.h"
 #include "esphome/components/canbus/canbus.h"
@@ -14,9 +14,10 @@ extern CAN_device_t CAN_cfg;  // TODO enforce singleton aspect at compile time
 namespace esphome {
 namespace esp32_can {
 
-class EspCan : public canbus::Canbus {
+class Esp32Can : public canbus::Canbus {
  public:
-  EspCan(){};
+  Esp32Can(){};
+  void dump_config() override;
   void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
   void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
   void set_rx_buffer_size(size_t rx_buffer_size) { this->rx_buffer_size_ = rx_buffer_size; }

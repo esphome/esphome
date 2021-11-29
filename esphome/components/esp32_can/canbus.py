@@ -10,7 +10,7 @@ from esphome.components.canbus import CanbusComponent
 CODEOWNERS = ["@michaelansel", "@cbialobos"]
 
 espCan_ns = cg.esphome_ns.namespace("esp32_can")
-espCan = espCan_ns.class_("EspCan", CanbusComponent, cg.Component)
+espCan = espCan_ns.class_("Esp32Can", CanbusComponent, cg.Component)
 
 
 CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
