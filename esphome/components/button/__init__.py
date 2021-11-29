@@ -4,6 +4,8 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import (
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_ON_PRESS,
     CONF_TRIGGER_ID,
@@ -37,6 +39,26 @@ BUTTON_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).e
         ),
     }
 )
+
+_UNDEF = object()
+
+
+def button_schema(
+    icon: str = _UNDEF,
+    entity_category: str = _UNDEF,
+) -> cv.Schema:
+    schema = BUTTON_SCHEMA
+    if icon is not _UNDEF:
+        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): icon})
+    if entity_category is not _UNDEF:
+        schema = schema.extend(
+            {
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=entity_category
+                ): cv.entity_category
+            }
+        )
+    return schema
 
 
 async def setup_button_core_(var, config):
