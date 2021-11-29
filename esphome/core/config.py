@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_INCLUDES,
     CONF_LIBRARIES,
+    CONF_MODEL,
     CONF_NAME,
     CONF_ON_BOOT,
     CONF_ON_LOOP,
@@ -135,6 +136,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(CONF_VERSION): cv.string_strict,
                 }
             ),
+            cv.Optional(CONF_MODEL): cv.string,
         }
     ),
     validate_hostname,
@@ -350,6 +352,12 @@ async def to_code(config):
     if CONF_PROJECT in config:
         cg.add_define("ESPHOME_PROJECT_NAME", config[CONF_PROJECT][CONF_NAME])
         cg.add_define("ESPHOME_PROJECT_VERSION", config[CONF_PROJECT][CONF_VERSION])
+
+    if CONF_MODEL in config:
+        cg.add_define("ESPHOME_DEVICE_MODEL", config[CONF_MODEL])
+    else:
+        platform = [key for key in TARGET_PLATFORMS if key in config][0]
+        cg.add_define("ESPHOME_DEVICE_MODEL", config[platform][CONF_BOARD])
 
     if config[CONF_PLATFORMIO_OPTIONS]:
         CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])

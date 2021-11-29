@@ -7,6 +7,7 @@
 
 // Informative flags
 #define ESPHOME_BOARD "dummy_board"
+#define ESPHOME_DEVICE_MODEL "dummy model"
 #define ESPHOME_PROJECT_NAME "dummy project"
 #define ESPHOME_PROJECT_VERSION "v2"
 #define ESPHOME_VARIANT "ESP32"
