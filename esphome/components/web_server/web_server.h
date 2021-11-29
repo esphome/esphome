@@ -63,7 +63,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    *
    * @param include_internal Whether internal components should be displayed.
    */
-
   void set_include_internal(bool include_internal) { include_internal_ = include_internal; }
   /** Set whether or not the webserver should expose the OTA form and handler.
    *
