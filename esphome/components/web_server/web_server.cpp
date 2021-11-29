@@ -196,6 +196,11 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     write_row(stream, obj, "switch", "<button>Toggle</button>");
 #endif
 
+#ifdef USE_BUTTON
+  for (auto *obj : App.get_buttons())
+    write_row(stream, obj, "button", "<button>Press</button>");
+#endif
+
 #ifdef USE_BINARY_SENSOR
   for (auto *obj : App.get_binary_sensors())
     write_row(stream, obj, "binary_sensor", "");
@@ -369,6 +374,26 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
       request->send(200);
     } else if (match.method == "turn_off") {
       this->defer([obj]() { obj->turn_off(); });
+      request->send(200);
+    } else {
+      request->send(404);
+    }
+    return;
+  }
+  request->send(404);
+}
+#endif
+
+#ifdef USE_BUTTON
+void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (button::Button *obj : App.get_buttons()) {
+    if (obj->is_internal())
+      continue;
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_POST && match.method == "press") {
+      this->defer([obj]() { obj->press(); });
       request->send(200);
     } else {
       request->send(404);
@@ -738,6 +763,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef USE_BUTTON
+  if (request->method() == HTTP_POST && match.domain == "button")
+    return true;
+#endif
+
 #ifdef USE_BINARY_SENSOR
   if (request->method() == HTTP_GET && match.domain == "binary_sensor")
     return true;
@@ -806,6 +836,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_SWITCH
   if (match.domain == "switch") {
     this->handle_switch_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_BUTTON
+  if (match.domain == "button") {
+    this->handle_button_request(request, match);
     return;
   }
 #endif

@@ -16,6 +16,7 @@
 #define USE_API_NOISE
 #define USE_API_PLAINTEXT
 #define USE_BINARY_SENSOR
+#define USE_BUTTON
 #define USE_CLIMATE
 #define USE_COVER
 #define USE_DEEP_SLEEP

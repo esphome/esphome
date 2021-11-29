@@ -22,6 +22,9 @@
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
 #ifdef USE_CLIMATE
 #include "esphome/components/climate/climate.h"
 #endif
