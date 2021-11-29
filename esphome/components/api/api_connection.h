@@ -50,10 +50,6 @@ class APIConnection : public APIServerConnection {
   bool send_switch_info(switch_::Switch *a_switch);
   void switch_command(const SwitchCommandRequest &msg) override;
 #endif
-#ifdef USE_BUTTON
-  bool send_button_info(button::Button *button);
-  void button_command(const ButtonCommandRequest &msg) override;
-#endif
 #ifdef USE_TEXT_SENSOR
   bool send_text_sensor_state(text_sensor::TextSensor *text_sensor, std::string state);
   bool send_text_sensor_info(text_sensor::TextSensor *text_sensor);
@@ -77,6 +73,10 @@ class APIConnection : public APIServerConnection {
   bool send_select_state(select::Select *select, std::string state);
   bool send_select_info(select::Select *select);
   void select_command(const SelectCommandRequest &msg) override;
+#endif
+#ifdef USE_BUTTON
+  bool send_button_info(button::Button *button);
+  void button_command(const ButtonCommandRequest &msg) override;
 #endif
   bool send_log_message(int level, const char *tag, const char *line);
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
