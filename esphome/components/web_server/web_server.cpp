@@ -298,14 +298,10 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
   this->events_.send(this->sensor_json(obj, state).c_str(), "state");
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
-    if (!this->include_internal_ && obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->sensor_json(obj, obj->state);
@@ -328,14 +324,10 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value) {
 
 #ifdef USE_TEXT_SENSOR
 void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
   this->events_.send(this->text_sensor_json(obj, state).c_str(), "state");
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
-    if (!this->include_internal_ && obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->text_sensor_json(obj, obj->state);
@@ -355,8 +347,6 @@ std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std:
 
 #ifdef USE_SWITCH
 void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
   this->events_.send(this->switch_json(obj, state).c_str(), "state");
 }
 std::string WebServer::switch_json(switch_::Switch *obj, bool value) {
@@ -368,8 +358,6 @@ std::string WebServer::switch_json(switch_::Switch *obj, bool value) {
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
-    if (!this->include_internal_ && obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -396,8 +384,6 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
 
 #ifdef USE_BINARY_SENSOR
 void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
   this->events_.send(this->binary_sensor_json(obj, state).c_str(), "state");
 }
 std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value) {
@@ -409,8 +395,6 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
-    if (!this->include_internal_ && obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->binary_sensor_json(obj, obj->state);
@@ -423,8 +407,6 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
 
 #ifdef USE_FAN
 void WebServer::on_fan_update(fan::FanState *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
   this->events_.send(this->fan_json(obj).c_str(), "state");
 }
 std::string WebServer::fan_json(fan::FanState *obj) {
@@ -457,8 +439,6 @@ std::string WebServer::fan_json(fan::FanState *obj) {
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (fan::FanState *obj : App.get_fans()) {
-    if (!this->include_internal_ && obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -520,14 +500,10 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
 
 #ifdef USE_LIGHT
 void WebServer::on_light_update(light::LightState *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
   this->events_.send(this->light_json(obj).c_str(), "state");
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
-    if (!this->include_internal_ && obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -595,14 +571,10 @@ std::string WebServer::light_json(light::LightState *obj) {
 
 #ifdef USE_COVER
 void WebServer::on_cover_update(cover::Cover *obj) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
   this->events_.send(this->cover_json(obj).c_str(), "state");
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
-    if (!this->include_internal_ && obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -657,14 +629,10 @@ std::string WebServer::cover_json(cover::Cover *obj) {
 
 #ifdef USE_NUMBER
 void WebServer::on_number_update(number::Number *obj, float state) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
   this->events_.send(this->number_json(obj, state).c_str(), "state");
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_numbers()) {
-    if (!this->include_internal_ && obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->number_json(obj, obj->state);
@@ -686,14 +654,10 @@ std::string WebServer::number_json(number::Number *obj, float value) {
 
 #ifdef USE_SELECT
 void WebServer::on_select_update(select::Select *obj, const std::string &state) {
-  if (!this->include_internal_ && obj->is_internal())
-    return;
   this->events_.send(this->select_json(obj, state).c_str(), "state");
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_selects()) {
-    if (!this->include_internal_ && obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 

@@ -61,9 +61,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /** Determine whether internal components should be displayed on the web server.
    * Defaults to false.
    *
-   * If you ever plan to change this at runtime (not supported), make sure the
-   * value is initially true.
-   *
    * @param include_internal Whether internal components should be displayed.
    */
 
