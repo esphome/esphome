@@ -1313,6 +1313,7 @@ dsmr:
   max_telegram_length: 1000
   request_pin: D5
   request_interval: 20s
+  receive_timeout: 100ms
 
 daly_bms:
   update_interval: 20s
