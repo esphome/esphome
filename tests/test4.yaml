@@ -519,3 +519,7 @@ xpt2046:
             id(touchscreen).y_raw,
             id(touchscreen).z_raw
             );
+
+button:
+  - platform: restart
+    name: Restart Button
