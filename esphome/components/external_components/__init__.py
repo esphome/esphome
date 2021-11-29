@@ -104,7 +104,7 @@ def _process_git_config(config: dict, refresh) -> str:
         refresh=refresh,
         domain=DOMAIN,
         username=config.get(CONF_USERNAME),
-        password=config.get(CONF_PASSWORD)
+        password=config.get(CONF_PASSWORD),
     )
 
     if (repo_dir / "esphome" / "components").is_dir():
