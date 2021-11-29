@@ -247,18 +247,11 @@ float payload_to_float(const std::vector<uint8_t> &data, SensorValueType sensor_
 
 class ModbusController;
 
-struct SensorItem {
-  ModbusRegisterType register_type;
-  SensorValueType sensor_value_type;
-  uint16_t start_address;
-  uint32_t bitmask;
-  uint8_t offset;
-  uint8_t register_count;
-  uint8_t skip_updates;
-  bool force_new_range{false};
-
+class SensorItem {
+ public:
   virtual void parse_and_publish(const std::vector<uint8_t> &data) = 0;
 
+  void set_custom_data(const std::vector<uint8_t> &data) { custom_data = data; }
   uint64_t getkey() const { return calc_key(register_type, start_address, offset, bitmask); }
   size_t virtual get_register_size() const {
     if (register_type == ModbusRegisterType::COIL || register_type == ModbusRegisterType::DISCRETE_INPUT)
@@ -266,10 +259,22 @@ struct SensorItem {
     else
       return register_count * 2;
   }
+
+  ModbusRegisterType register_type;
+  SensorValueType sensor_value_type;
+  uint16_t start_address;
+  uint32_t bitmask;
+  uint8_t offset;
+  uint8_t register_count;
+  uint8_t skip_updates;
+  std::vector<uint8_t> custom_data{};
+  bool force_new_range{false};
 };
 
-struct ModbusCommandItem {
+class ModbusCommandItem {
+ public:
   static const size_t MAX_PAYLOAD_BYTES = 240;
+  static const uint8_t MAX_SEND_REPEATS = 5;
   ModbusController *modbusdevice;
   uint16_t register_address;
   uint16_t register_count;
@@ -279,7 +284,9 @@ struct ModbusCommandItem {
       on_data_func;
   std::vector<uint8_t> payload = {};
   bool send();
-
+  // wrong commands (esp. custom commands) can block the send queue
+  // limit the number of repeats
+  uint8_t send_countdown{MAX_SEND_REPEATS};
   /// factory methods
   /** Create modbus read command
    *  Function code 02-04
@@ -392,6 +399,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
  protected:
   /// parse sensormap_ and create range of sequential addresses
   size_t create_register_ranges_();
+  // find register in sensormap. Returns iterator with all registers having the same start address
+  std::map<uint64_t, SensorItem *>::iterator find_register_(ModbusRegisterType register_type, uint16_t start_address);
   /// submit the read command for the address range to the send queue
   void update_range_(RegisterRange &r);
   /// parse incoming modbus data

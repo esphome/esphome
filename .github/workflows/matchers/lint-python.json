@@ -5,7 +5,7 @@
       "severity": "error",
       "pattern": [
           {
-          "regexp": "^(.*):(\\d+) - ([EFCDNW]\\d{3}.*)$",
+          "regexp": "^(.*):(\\d+): ([EFCDNW]\\d{3}.*)$",
           "file": 1,
           "line": 2,
           "message": 3
@@ -17,7 +17,7 @@
       "severity": "error",
       "pattern": [
         {
-          "regexp": "^(.*):(\\d+) - (\\[[EFCRW]\\d{4}\\(.*\\),.*\\].*)$",
+          "regexp": "^(.*):(\\d+): (\\[[EFCRW]\\d{4}\\(.*\\),.*\\].*)$",
           "file": 1,
           "line": 2,
           "message": 3
