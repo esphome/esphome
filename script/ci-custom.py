@@ -660,7 +660,9 @@ for fname in files:
 run_checks(LINT_POST_CHECKS, "POST")
 
 for f, errs in sorted(errors.items()):
-    err_str = (f"{styled(colorama.Style.BRIGHT, f'{f}:{lineno}:{col}:')} {msg}\n" for lineno, col, msg in errs)
+    bold = functools.partial(styled, colorama.Style.BRIGHT)
+    bold_red = functools.partial(styled, (colorama.Style.BRIGHT, colorama.Fore.RED))
+    err_str = (f"{bold(f'{f}:{lineno}:{col}:')} {bold_red('lint:')} {msg}\n" for lineno, col, msg in errs)
     print_error_for_file(f, "\n".join(err_str))
 
 if args.print_slowest:
