@@ -4,12 +4,11 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
     STATE_CLASS_MEASUREMENT,
-    CONF_COUNT  
+    CONF_COUNT,  
 )
 
 
 DEPENDENCIES = ["i2c"]
-
 
 
 pcf8583_ns = cg.esphome_ns.namespace("pcf8583")
@@ -23,7 +22,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_COUNT): sensor.sensor_schema(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
-                ),
+
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
