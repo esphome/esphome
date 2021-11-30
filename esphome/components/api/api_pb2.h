@@ -957,6 +957,7 @@ class ListEntitiesNumberResponse : public ProtoMessage {
   float step{0.0f};
   bool disabled_by_default{false};
   enums::EntityCategory entity_category{};
+  std::string unit_of_measurement{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

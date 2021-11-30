@@ -97,6 +97,7 @@ number:
     max_value: 100
     min_value: 0
     step: 5
+    unit_of_measurement: '%'
 
 select:
   - platform: template

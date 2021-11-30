@@ -13,6 +13,9 @@ namespace number {
     if (!(obj)->get_icon().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
     } \
+    if (!(obj)->traits.get_unit_of_measurement().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, (obj)->traits.get_unit_of_measurement().c_str()); \
+    } \
   }
 
 class Number;
@@ -42,10 +45,16 @@ class NumberTraits {
   void set_step(float step) { step_ = step; }
   float get_step() const { return step_; }
 
+  /// Get the unit of measurement, using the manual override if set.
+  std::string get_unit_of_measurement();
+  /// Manually set the unit of measurement.
+  void set_unit_of_measurement(const std::string &unit_of_measurement);
+
  protected:
   float min_value_ = NAN;
   float max_value_ = NAN;
   float step_ = NAN;
+  optional<std::string> unit_of_measurement_;  ///< Unit of measurement override
 };
 
 /** Base-class for all numbers.
