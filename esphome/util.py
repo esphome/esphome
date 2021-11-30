@@ -226,7 +226,9 @@ def run_external_process(*cmd, **kwargs):
     sub_stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
 
     try:
-        proc = subprocess.run(cmd, stdout=sub_stdout, stderr=sub_stderr, encoding='utf-8')
+        proc = subprocess.run(
+            cmd, stdout=sub_stdout, stderr=sub_stderr, encoding="utf-8", check=False
+        )
         return proc.stdout if capture_stdout else proc.returncode
     except KeyboardInterrupt:  # pylint: disable=try-except-raise
         raise
