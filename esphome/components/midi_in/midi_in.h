@@ -28,20 +28,16 @@ class MidiInComponent : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
 
+  uint8_t program() { return this->program_; }
+  uint8_t note_velocity(uint8_t note) { return this->note_velocities_[note]; }
+  uint8_t control_value(midi::MidiControlChangeNumber control) { return this->control_values_[note]; }
+
   void add_on_voice_message_callback(std::function<void(MidiChannelMessage)> &&callback) {
     this->channel_message_callback_.add(std::move(callback));
   }
   void add_on_system_message_callback(std::function<void(MidiSystemMessage)> &&callback) {
     this->system_message_callback_.add(std::move(callback));
   }
-
-  uint8_t bank_msb = 0;
-  uint8_t bank_lsb = 0;
-  uint8_t program = 0;
-  uint8_t soft_pedal = 0;
-  uint8_t mid_pedal = 0;
-  uint8_t sustain_pedal = 0;
-  std::vector<uint8_t> note_velocities = std::vector<uint8_t>(128, 0);
 
  protected:
   std::unique_ptr<UARTSerialPort> serial_port_;
@@ -58,6 +54,10 @@ class MidiInComponent : public Component, public uart::UARTDevice {
   CallbackManager<void(MidiSystemMessage)> system_message_callback_{};
 
  protected:
+  uint8_t program_ = 0;
+  std::vector<uint8_t> note_velocities_ = std::vector<uint8_t>(128, 0);
+  std::vector<uint8_t> control_values_ = std::vector<uint8_t>(128, 0);
+
   uint32_t last_activity_time_;
   uint32_t keys_on_;  // to track number of pressed keys to playback detection
 

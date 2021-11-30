@@ -41,27 +41,27 @@ void MidiInComponent::loop() {
 
         switch (message_type) {
           case midi::MidiType::NoteOff:
-            if (this->note_velocities[msg.data1] > 0) {
-              this->note_velocities[msg.data1] = 0;
+            if (this->note_velocities_[msg.data1] > 0) {
+              this->note_velocities_[msg.data1] = 0;
               this->keys_on_--;
             }
             break;
           case midi::MidiType::NoteOn:
             if (msg.data2 > 0) {
-              if (this->note_velocities[msg.data1] == 0) {
+              if (this->note_velocities_[msg.data1] == 0) {
                 this->keys_on_++;
               }
-              this->note_velocities[msg.data1] = msg.data2;
+              this->note_velocities_[msg.data1] = msg.data2;
             } else {
               // this is actualy NOTE OFF
-              if (this->note_velocities[msg.data1] > 0) {
-                this->note_velocities[msg.data1] = 0;
+              if (this->note_velocities_[msg.data1] > 0) {
+                this->note_velocities_[msg.data1] = 0;
                 this->keys_on_--;
               }
             }
             break;
           case midi::MidiType::ProgramChange:
-            this->program = msg.data1;
+            this->program_ = msg.data1;
             break;
           case midi::MidiType::ControlChange:
             this->process_controller_message_(msg);
@@ -82,22 +82,8 @@ void MidiInComponent::loop() {
 }
 
 void MidiInComponent::process_controller_message_(const MidiChannelMessage &msg) {
+  this->control_values_[msg.data1] = msg.data2;
   switch (msg.data1) {
-    case midi::MidiControlChangeNumber::BankSelect:
-      this->bank_msb = msg.data2;
-      break;
-    case 0x20:
-      this->bank_lsb = msg.data2;
-      break;
-    case midi::MidiControlChangeNumber::Sustain:
-      this->sustain_pedal = msg.data2;
-      break;
-    case midi::MidiControlChangeNumber::Sostenuto:
-      this->mid_pedal = msg.data2;
-      break;
-    case midi::MidiControlChangeNumber::SoftPedal:
-      this->soft_pedal = msg.data2;
-      break;
     case midi::MidiControlChangeNumber::AllSoundOff:
       this->all_notes_off_();
       break;
@@ -142,13 +128,11 @@ void MidiInComponent::log_message_(midi::MidiType type) {
 
 void MidiInComponent::all_notes_off_() {
   this->keys_on_ = 0;
-  std::fill(this->note_velocities.begin(), this->note_velocities.end(), 0);
+  std::fill(this->note_velocities_.begin(), this->note_velocities_.end(), 0);
 }
 
 void MidiInComponent::reset_controllers_() {
-  this->soft_pedal = 0;
-  this->mid_pedal = 0;
-  this->sustain_pedal = 0;
+  std::fill(this->control_values_.begin(), this->control_values_.end(), 0);
 }
 
 void MidiInComponent::update_connected_binary_sensor_() {
