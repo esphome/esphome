@@ -30,7 +30,7 @@ class MidiInComponent : public Component, public uart::UARTDevice {
 
   uint8_t program() { return this->program_; }
   uint8_t note_velocity(uint8_t note) { return this->note_velocities_[note]; }
-  uint8_t control_value(midi::MidiControlChangeNumber control) { return this->control_values_[note]; }
+  uint8_t control_value(midi::MidiControlChangeNumber control) { return this->control_values_[control]; }
 
   void add_on_voice_message_callback(std::function<void(MidiChannelMessage)> &&callback) {
     this->channel_message_callback_.add(std::move(callback));
