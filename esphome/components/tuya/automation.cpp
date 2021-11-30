@@ -9,7 +9,7 @@ namespace tuya {
 
 void check_expected_datapoint(const TuyaDatapoint &dp, TuyaDatapointType expected) {
   if (dp.type != expected) {
-    ESP_LOGW(TAG, "Tuya sensor %u expected datapoint type %#02hhX but got %#02hhX", dp.id, 
+    ESP_LOGW(TAG, "Tuya sensor %u expected datapoint type %#02hhX but got %#02hhX", dp.id,
              static_cast<uint8_t>(expected), static_cast<uint8_t>(dp.type));
   }
 }
