@@ -60,6 +60,13 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    */
   void set_js_include(const char *js_include);
 
+  /** Determine whether internal components should be displayed on the web server.
+   * Defaults to false.
+   *
+   * @param include_internal Whether internal components should be displayed.
+   */
+  void set_include_internal(bool include_internal) { include_internal_ = include_internal; }
+
   /** Set whether or not the webserver should expose the OTA form and handler.
    *
    * @param allow_ota.
@@ -199,6 +206,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   const char *css_include_{nullptr};
   const char *js_url_{nullptr};
   const char *js_include_{nullptr};
+  bool include_internal_{false};  
   bool allow_ota_{true};
 };
 

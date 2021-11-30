@@ -342,8 +342,6 @@ void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
-    if (include_internal || !obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->sensor_json(obj, obj->state, DETAIL_STATE);
@@ -369,8 +367,6 @@ void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::s
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
-    if (include_internal || !obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->text_sensor_json(obj, obj->state, DETAIL_STATE);
@@ -398,8 +394,6 @@ std::string WebServer::switch_json(switch_::Switch *obj, bool value, JsonDetail 
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
-    if (include_internal || !obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -426,8 +420,6 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
 
 #ifdef USE_BINARY_SENSOR
 void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {
-  if (include_internal || !obj->is_internal())
-    return;
   this->events_.send(this->binary_sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config) {
@@ -437,8 +429,6 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
-    if (include_internal || !obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->binary_sensor_json(obj, obj->state, DETAIL_STATE);
@@ -451,8 +441,6 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
 
 #ifdef USE_FAN
 void WebServer::on_fan_update(fan::FanState *obj) {
-  if (include_internal || !obj->is_internal())
-    return;
   this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state");
 }
 std::string WebServer::fan_json(fan::FanState *obj, JsonDetail start_config) {
@@ -483,8 +471,6 @@ std::string WebServer::fan_json(fan::FanState *obj, JsonDetail start_config) {
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (fan::FanState *obj : App.get_fans()) {
-    if (include_internal || !obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -546,14 +532,10 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
 
 #ifdef USE_LIGHT
 void WebServer::on_light_update(light::LightState *obj) {
-  if (include_internal || !obj->is_internal())
-    return;
   this->events_.send(this->light_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
-    if (include_internal || !obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -629,14 +611,10 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
 
 #ifdef USE_COVER
 void WebServer::on_cover_update(cover::Cover *obj) {
-  if (include_internal || !obj->is_internal())
-    return;
   this->events_.send(this->cover_json(obj, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
-    if (include_internal || !obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -694,8 +672,6 @@ void WebServer::on_number_update(number::Number *obj, float state) {
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_numbers()) {
-    if (include_internal || !obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -746,8 +722,6 @@ void WebServer::on_select_update(select::Select *obj, const std::string &state) 
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_selects()) {
-    if (include_internal || !obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -795,8 +769,6 @@ void WebServer::on_climate_update(climate::Climate *obj) {
 
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_climates()) {
-    if (include_internal || !obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
