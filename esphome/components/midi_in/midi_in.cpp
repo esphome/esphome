@@ -161,7 +161,9 @@ void MidiInComponent::update_connected_binary_sensor_() {
 
 void MidiInComponent::update_playback_binary_sensor_() {
   if (this->playback_binary_sensor_) {
-    if (this->keys_on_ > 0 || this->soft_pedal > 0 || this->mid_pedal > 0 || this->sustain_pedal > 0) {
+    if (this->keys_on_ > 0 || this->control_values_[midi::MidiControlChangeNumber::SoftPedal] > 0 
+      || this->control_values_[midi::MidiControlChangeNumber::Sostenuto] > 0 
+      || this->control_values_[midi::MidiControlChangeNumber::Sustain] > 0) {
       // playing
       if (!this->playback_binary_sensor_->state) {
         this->playback_binary_sensor_->publish_state(true);
