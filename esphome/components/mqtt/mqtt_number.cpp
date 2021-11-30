@@ -45,7 +45,7 @@ void MQTTNumberComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryCo
   root[MQTT_STEP] = traits.get_step();
   if (!this->number_->traits.get_unit_of_measurement().empty())
     root[MQTT_UNIT_OF_MEASUREMENT] = this->number_->traits.get_unit_of_measurement();
-  switch(this->number->traits.get_mode()) {
+  switch (this->number_->traits.get_mode()) {
     case NUMBER_MODE_AUTO:
       break;
     case NUMBER_MODE_BOX:
