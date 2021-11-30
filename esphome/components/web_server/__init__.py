@@ -12,7 +12,7 @@ from esphome.const import (
     CONF_AUTH,
     CONF_USERNAME,
     CONF_PASSWORD,
-    CONF_INCLUDE_INTERNAL,    
+    CONF_INCLUDE_INTERNAL,
     CONF_OTA,
     CONF_VERSION,
 )

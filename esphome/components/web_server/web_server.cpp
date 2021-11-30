@@ -440,9 +440,7 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
 #endif
 
 #ifdef USE_FAN
-void WebServer::on_fan_update(fan::FanState *obj) {
-  this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state");
-}
+void WebServer::on_fan_update(fan::FanState *obj) { this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state"); }
 std::string WebServer::fan_json(fan::FanState *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject &root) {
     set_json_state_value(root, obj, "fan-" + obj->get_object_id(), obj->state ? "ON" : "OFF", obj->state, start_config);
@@ -531,9 +529,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
 #endif
 
 #ifdef USE_LIGHT
-void WebServer::on_light_update(light::LightState *obj) {
-  this->events_.send(this->light_json(obj, DETAIL_STATE).c_str(), "state");
-}
+void WebServer::on_light_update(light::LightState *obj) { this->events_.send(this->light_json(obj, DETAIL_STATE).c_str(), "state"); }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
     if (obj->get_object_id() != match.id)
@@ -610,9 +606,7 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
 #endif
 
 #ifdef USE_COVER
-void WebServer::on_cover_update(cover::Cover *obj) {
-  this->events_.send(this->cover_json(obj, DETAIL_STATE).c_str(), "state");
-}
+void WebServer::on_cover_update(cover::Cover *obj) { this->events_.send(this->cover_json(obj, DETAIL_STATE).c_str(), "state"); }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
     if (obj->get_object_id() != match.id)
