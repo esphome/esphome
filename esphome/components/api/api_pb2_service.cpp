@@ -282,6 +282,16 @@ bool APIServerConnectionBase::send_select_state_response(const SelectStateRespon
 #endif
 #ifdef USE_SELECT
 #endif
+#ifdef USE_BUTTON
+bool APIServerConnectionBase::send_list_entities_button_response(const ListEntitiesButtonResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_button_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesButtonResponse>(msg, 61);
+}
+#endif
+#ifdef USE_BUTTON
+#endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
@@ -516,6 +526,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 62: {
+#ifdef USE_BUTTON
+      ButtonCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_button_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_button_command_request(msg);
+#endif
+      break;
+    }
     default:
       return false;
   }
@@ -735,6 +756,19 @@ void APIServerConnection::on_select_command_request(const SelectCommandRequest &
     return;
   }
   this->select_command(msg);
+}
+#endif
+#ifdef USE_BUTTON
+void APIServerConnection::on_button_command_request(const ButtonCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->button_command(msg);
 }
 #endif
 

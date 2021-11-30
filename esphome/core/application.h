@@ -17,6 +17,9 @@
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
@@ -65,6 +68,10 @@ class Application {
 
 #ifdef USE_SWITCH
   void register_switch(switch_::Switch *a_switch) { this->switches_.push_back(a_switch); }
+#endif
+
+#ifdef USE_BUTTON
+  void register_button(button::Button *button) { this->buttons_.push_back(button); }
 #endif
 
 #ifdef USE_TEXT_SENSOR
@@ -167,6 +174,15 @@ class Application {
     return nullptr;
   }
 #endif
+#ifdef USE_BUTTON
+  const std::vector<button::Button *> &get_buttons() { return this->buttons_; }
+  button::Button *get_button_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->buttons_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
 #ifdef USE_SENSOR
   const std::vector<sensor::Sensor *> &get_sensors() { return this->sensors_; }
   sensor::Sensor *get_sensor_by_key(uint32_t key, bool include_internal = false) {
@@ -259,6 +275,9 @@ class Application {
 #endif
 #ifdef USE_SWITCH
   std::vector<switch_::Switch *> switches_{};
+#endif
+#ifdef USE_BUTTON
+  std::vector<button::Button *> buttons_{};
 #endif
 #ifdef USE_SENSOR
   std::vector<sensor::Sensor *> sensors_{};

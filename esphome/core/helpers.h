@@ -353,6 +353,12 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr
 /// Truncate a string to a specific length.
 std::string str_truncate(const std::string &str, size_t length);
 
+/// Extract the part of the string until either the first occurence of the specified character, or the end (requires str
+/// to be null-terminated).
+std::string str_until(const char *str, char ch);
+/// Extract the part of the string until either the first occurence of the specified character, or the end.
+std::string str_until(const std::string &str, char ch);
+
 /// Convert the string to snake case (lowercase with underscores).
 std::string str_snake_case(const std::string &str);
 

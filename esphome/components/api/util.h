@@ -38,6 +38,9 @@ class ComponentIterator {
 #ifdef USE_SWITCH
   virtual bool on_switch(switch_::Switch *a_switch) = 0;
 #endif
+#ifdef USE_BUTTON
+  virtual bool on_button(button::Button *button) = 0;
+#endif
 #ifdef USE_TEXT_SENSOR
   virtual bool on_text_sensor(text_sensor::TextSensor *text_sensor) = 0;
 #endif
@@ -77,6 +80,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_SWITCH
     SWITCH,
+#endif
+#ifdef USE_BUTTON
+    BUTTON,
 #endif
 #ifdef USE_TEXT_SENSOR
     TEXT_SENSOR,
