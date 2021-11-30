@@ -684,6 +684,7 @@ bool APIConnection::send_button_info(button::Button *button) {
   msg.icon = button->get_icon();
   msg.disabled_by_default = button->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(button->get_entity_category());
+  msg.device_class = button->get_device_class();
   return this->send_list_entities_button_response(msg);
 }
 void APIConnection::button_command(const ButtonCommandRequest &msg) {
