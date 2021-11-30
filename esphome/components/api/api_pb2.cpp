@@ -3780,6 +3780,10 @@ bool ListEntitiesNumberResponse::decode_length(uint32_t field_id, ProtoLengthDel
       this->icon = value.as_string();
       return true;
     }
+    case 11: {
+      this->unit_of_measurement = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -3817,6 +3821,7 @@ void ListEntitiesNumberResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(8, this->step);
   buffer.encode_bool(9, this->disabled_by_default);
   buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
+  buffer.encode_string(11, this->unit_of_measurement);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesNumberResponse::dump_to(std::string &out) const {
@@ -3864,6 +3869,10 @@ void ListEntitiesNumberResponse::dump_to(std::string &out) const {
 
   out.append("  entity_category: ");
   out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+
+  out.append("  unit_of_measurement: ");
+  out.append("'").append(this->unit_of_measurement).append("'");
   out.append("\n");
   out.append("}");
 }

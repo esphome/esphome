@@ -885,6 +885,7 @@ message ListEntitiesNumberResponse {
   float step = 8;
   bool disabled_by_default = 9;
   EntityCategory entity_category = 10;
+  string unit_of_measurement = 11;
 }
 message NumberStateResponse {
   option (id) = 50;
