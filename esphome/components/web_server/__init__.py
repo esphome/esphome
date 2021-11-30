@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_AUTH,
     CONF_USERNAME,
     CONF_PASSWORD,
+    CONF_INCLUDE_INTERNAL,    
     CONF_OTA,
     CONF_VERSION,
 )
@@ -60,6 +61,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
                 web_server_base.WebServerBase
             ),
+            cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
             cv.Optional(CONF_OTA, default=True): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
