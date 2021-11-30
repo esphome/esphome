@@ -41,15 +41,14 @@ void Number::add_on_state_callback(std::function<void(float)> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 
-std::string Number::get_unit_of_measurement() {
+std::string NumberTraits::get_unit_of_measurement() {
   if (this->unit_of_measurement_.has_value())
     return *this->unit_of_measurement_;
-  return this->unit_of_measurement();
+  return "";
 }
-void Number::set_unit_of_measurement(const std::string &unit_of_measurement) {
+void NumberTraits::set_unit_of_measurement(const std::string &unit_of_measurement) {
   this->unit_of_measurement_ = unit_of_measurement;
 }
-std::string Number::unit_of_measurement() { return ""; }
 
 uint32_t Number::hash_base() { return 2282307003UL; }
 

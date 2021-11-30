@@ -89,7 +89,7 @@ async def setup_number_core_(
         await automation.build_automation(trigger, [(float, "x")], conf)
 
     if CONF_UNIT_OF_MEASUREMENT in config:
-        cg.add(var.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
+        cg.add(var.traits.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)

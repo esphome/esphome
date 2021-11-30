@@ -45,10 +45,16 @@ class NumberTraits {
   void set_step(float step) { step_ = step; }
   float get_step() const { return step_; }
 
+  /// Get the unit of measurement, using the manual override if set.
+  std::string get_unit_of_measurement();
+  /// Manually set the unit of measurement.
+  void set_unit_of_measurement(const std::string &unit_of_measurement);
+
  protected:
   float min_value_ = NAN;
   float max_value_ = NAN;
   float step_ = NAN;
+  optional<std::string> unit_of_measurement_;  ///< Unit of measurement override
 };
 
 /** Base-class for all numbers.
@@ -66,11 +72,6 @@ class Number : public EntityBase {
 
   void add_on_state_callback(std::function<void(float)> &&callback);
 
-  /// Get the unit of measurement, using the manual override if set.
-  std::string get_unit_of_measurement();
-  /// Manually set the unit of measurement.
-  void set_unit_of_measurement(const std::string &unit_of_measurement);
-
   NumberTraits traits;
 
   /// Return whether this number has gotten a full state yet.
@@ -87,14 +88,10 @@ class Number : public EntityBase {
    */
   virtual void control(float value) = 0;
 
-  /// Override this to set the default unit of measurement.
-  virtual std::string unit_of_measurement();
-
   uint32_t hash_base() override;
 
   CallbackManager<void(float)> state_callback_;
   bool has_state_{false};
-  optional<std::string> unit_of_measurement_;  ///< Unit of measurement override
 };
 
 }  // namespace number
