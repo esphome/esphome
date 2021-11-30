@@ -16,10 +16,10 @@ struct __attribute__((__packed__)) PowerDataEntry {
 };
 
 struct __attribute__((__packed__)) EmporiaSensorData {
-  uint8_t version;
-  uint8_t checksum;
-  uint8_t unknown;  // TODO
-  uint8_t counter;
+  uint8_t unknown_0;  // signals whether the reading is new or not
+  uint8_t unknown_1;  // maybe a checksum, seems random
+  uint8_t unknown_2;  // unknown
+  uint8_t unknown_3;  // some kind of counter
 
   PowerDataEntry power[19];
 
@@ -45,8 +45,8 @@ class EmporiaVueComponent : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
  private:
-  std::vector<PhaseConfig *> _phases;
-  std::vector<PowerSensor *> _power_sensors;
+  std::vector<PhaseConfig *> phases_;
+  std::vector<PowerSensor *> power_sensors_;
 };
 
 enum PhaseInputColor { BLACK, RED, BLUE };
@@ -57,7 +57,7 @@ class PhaseConfig {
   int32_t extract_power_for_phase(const PowerDataEntry &entry);
 
  private:
-  PhaseInputColor _input_color;
+  PhaseInputColor input_color_;
 };
 
 enum CTInputPort : uint8_t {
@@ -90,8 +90,8 @@ class PowerSensor : public sensor::Sensor {
   void update_from_data(const EmporiaSensorData &data);
 
  private:
-  PhaseConfig *_phase;
-  CTInputPort _ct_input;
+  PhaseConfig *phase_;
+  CTInputPort ct_input_;
 };
 
 }  // namespace emporia_vue
