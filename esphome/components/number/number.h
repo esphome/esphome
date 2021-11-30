@@ -13,8 +13,8 @@ namespace number {
     if (!(obj)->get_icon().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
     } \
-    if (!(obj)->get_unit_of_measurement().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, (obj)->get_unit_of_measurement().c_str()); \
+    if (!(obj)->traits.get_unit_of_measurement().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, (obj)->traits.get_unit_of_measurement().c_str()); \
     } \
   }
 
