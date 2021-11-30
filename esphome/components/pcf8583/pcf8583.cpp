@@ -53,8 +53,13 @@ float PCF8583Component::get_setup_priority() const { return setup_priority::DATA
 // reading the counter register as BCD format
 uint32_t PCF8583Component::read_counter_() {
   uint8_t data[3];
+<<<<<<< HEAD
   uint32_t count = 0;
   this->read_bytes(PCF8583_LOCATION_COUNTER, data, 3);
+=======
+  this->read_bytes(PCF8583_LOCATION_COUNTER, data, 3);
+  uint32_t count = 0;
+>>>>>>> 9d43217bb99075715791bc58956f4216fbb2d9a7
   count = this->bcd2byte_(data[0]);
   count = count + this->bcd2byte_(data[1]) * 100L;
   count = count + this->bcd2byte_(data[2]) * 10000L;
