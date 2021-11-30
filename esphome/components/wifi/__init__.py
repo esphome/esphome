@@ -234,9 +234,9 @@ def _validate(config):
                 raise cv.Invalid(
                     "Must specify use_address when using multiple static IP addresses."
                 )
-            elif len(ips) == 1:
+            if len(ips) == 1:
                 use_address = ips[0]
-            
+
         config[CONF_USE_ADDRESS] = use_address
 
     return config
