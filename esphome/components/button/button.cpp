@@ -21,8 +21,7 @@ void Button::set_device_class(const std::string &device_class) { this->device_cl
 std::string Button::get_device_class() {
   if (this->device_class_.has_value())
     return *this->device_class_;
-  else
-    return "";
+  return "";
 }
 
 }  // namespace button
