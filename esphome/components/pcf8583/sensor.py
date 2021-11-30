@@ -4,7 +4,7 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
     STATE_CLASS_MEASUREMENT,
-    CONF_COUNT    
+    CONF_COUNT  
 )
 
 
