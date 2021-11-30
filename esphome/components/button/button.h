@@ -36,6 +36,12 @@ class Button : public EntityBase {
    */
   void add_on_press_callback(std::function<void()> &&callback);
 
+  /// Set the Home Assistant device class (see button::device_class).
+  void set_device_class(const std::string &device_class);
+
+  /// Get the device class for this button.
+  std::string get_device_class();
+
  protected:
   /** You should implement this virtual method if you want to create your own button.
    */
@@ -44,6 +50,7 @@ class Button : public EntityBase {
   uint32_t hash_base() override;
 
   CallbackManager<void()> press_callback_{};
+  optional<std::string> device_class_{};
 };
 
 }  // namespace button

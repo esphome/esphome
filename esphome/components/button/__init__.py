@@ -4,18 +4,26 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import (
+    CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
     CONF_ON_PRESS,
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
+    DEVICE_CLASS_RESTART,
+    DEVICE_CLASS_UPDATE,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
+
+DEVICE_CLASSES = [
+    DEVICE_CLASS_RESTART,
+    DEVICE_CLASS_UPDATE,
+]
 
 button_ns = cg.esphome_ns.namespace("button")
 Button = button_ns.class_("Button", cg.EntityBase)
@@ -27,10 +35,13 @@ ButtonPressTrigger = button_ns.class_(
     "ButtonPressTrigger", automation.Trigger.template()
 )
 
+validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
+
 
 BUTTON_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTButtonComponent),
+        cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
         cv.Optional(CONF_ON_PRESS): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ButtonPressTrigger),
@@ -45,6 +56,7 @@ _UNDEF = object()
 def button_schema(
     icon: str = _UNDEF,
     entity_category: str = _UNDEF,
+    device_class: str = _UNDEF,
 ) -> cv.Schema:
     schema = BUTTON_SCHEMA
     if icon is not _UNDEF:
@@ -57,6 +69,14 @@ def button_schema(
                 ): cv.entity_category
             }
         )
+    if device_class is not _UNDEF:
+        schema = schema.extend(
+            {
+                cv.Optional(
+                    CONF_DEVICE_CLASS, default=device_class
+                ): validate_device_class
+            }
+        )
     return schema
 
 
@@ -66,6 +86,9 @@ async def setup_button_core_(var, config):
     for conf in config.get(CONF_ON_PRESS, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+
+    if CONF_DEVICE_CLASS in config:
+        cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
