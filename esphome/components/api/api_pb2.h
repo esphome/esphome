@@ -123,6 +123,11 @@ enum ClimatePreset : uint32_t {
   CLIMATE_PRESET_SLEEP = 6,
   CLIMATE_PRESET_ACTIVITY = 7,
 };
+enum NumberMode : uint32_t {
+  NUMBER_MODE_AUTO = 0,
+  NUMBER_MODE_BOX = 1,
+  NUMBER_MODE_SLIDER = 2,
+};
 
 }  // namespace enums
 
@@ -958,6 +963,7 @@ class ListEntitiesNumberResponse : public ProtoMessage {
   bool disabled_by_default{false};
   enums::EntityCategory entity_category{};
   std::string unit_of_measurement{};
+  enums::NumberMode mode{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

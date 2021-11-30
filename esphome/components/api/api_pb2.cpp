@@ -266,6 +266,18 @@ template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::Climate
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode value) {
+  switch (value) {
+    case enums::NUMBER_MODE_AUTO:
+      return "NUMBER_MODE_AUTO";
+    case enums::NUMBER_MODE_BOX:
+      return "NUMBER_MODE_BOX";
+    case enums::NUMBER_MODE_SLIDER:
+      return "NUMBER_MODE_SLIDER";
+    default:
+      return "UNKNOWN";
+  }
+}
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -3758,6 +3770,10 @@ bool ListEntitiesNumberResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       this->entity_category = value.as_enum<enums::EntityCategory>();
       return true;
     }
+    case 12: {
+      this->mode = value.as_enum<enums::NumberMode>();
+      return true;
+    }
     default:
       return false;
   }
@@ -3822,6 +3838,7 @@ void ListEntitiesNumberResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(9, this->disabled_by_default);
   buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
   buffer.encode_string(11, this->unit_of_measurement);
+  buffer.encode_enum<enums::NumberMode>(12, this->mode);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesNumberResponse::dump_to(std::string &out) const {
@@ -3873,6 +3890,10 @@ void ListEntitiesNumberResponse::dump_to(std::string &out) const {
 
   out.append("  unit_of_measurement: ");
   out.append("'").append(this->unit_of_measurement).append("'");
+  out.append("\n");
+
+  out.append("  mode: ");
+  out.append(proto_enum_to_string<enums::NumberMode>(this->mode));
   out.append("\n");
   out.append("}");
 }
