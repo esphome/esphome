@@ -67,7 +67,7 @@ DemoClimate = demo_ns.class_("DemoClimate", climate.Climate, cg.Component)
 DemoClimateType = demo_ns.enum("DemoClimateType", is_class=True)
 DemoCover = demo_ns.class_("DemoCover", cover.Cover, cg.Component)
 DemoCoverType = demo_ns.enum("DemoCoverType", is_class=True)
-DemoFan = demo_ns.class_("DemoFan", cg.Component)
+DemoFan = demo_ns.class_("DemoFan", fan.Fan, cg.Component)
 DemoFanType = demo_ns.enum("DemoFanType", is_class=True)
 DemoLight = demo_ns.class_("DemoLight", light.LightOutput, cg.Component)
 DemoLightType = demo_ns.enum("DemoLightType", is_class=True)
@@ -411,8 +411,7 @@ async def to_code(config):
     for conf in config[CONF_FANS]:
         var = cg.new_Pvariable(conf[CONF_OUTPUT_ID])
         await cg.register_component(var, conf)
-        fan_ = await fan.create_fan_state(conf)
-        cg.add(var.set_fan(fan_))
+        await fan.register_fan(var, conf)
         cg.add(var.set_type(conf[CONF_TYPE]))
 
     for conf in config[CONF_LIGHTS]:
