@@ -82,7 +82,7 @@ CONFIG_SCHEMA = (
         },
         # cv.only_with_esp_idf,
     )
-    .extend(cv.polling_component_schema("5s"))
+    .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(0x64))
 )
 
@@ -100,14 +100,15 @@ async def to_code(config):
         phases.append(phase_var)
     cg.add(var.set_phases(phases))
 
-    power_sensors = []
-    for power_config in config[CONF_CT]:
-        power_var = cg.new_Pvariable(power_config[CONF_ID], CTSensor())
-        phase_var = await cg.get_variable(power_config[CONF_PHASE_ID])
+    ct_sensors = []
+    for ct_config in config[CONF_CT]:
+        power_var = cg.new_Pvariable(ct_config[CONF_ID], CTSensor())
+        phase_var = await cg.get_variable(ct_config[CONF_PHASE_ID])
         cg.add(power_var.set_phase(phase_var))
-        cg.add(power_var.set_ct_input(power_config[CONF_INPUT]))
+        cg.add(power_var.set_ct_input(ct_config[CONF_INPUT]))
 
-        await sensor.register_sensor(power_var, power_config)
+        await sensor.register_sensor(power_var, ct_config)
 
-        power_sensors.append(power_var)
-    cg.add(var.set_power_sensors(power_sensors))
+        ct_sensors.append(power_var)
+    cg.add(var.set_ct_sensors(ct_sensors))
+

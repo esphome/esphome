@@ -8,10 +8,11 @@ namespace emporia_vue {
 
 static const char *const TAG = "emporia_vue";
 
+EmporiaVueComponent *global_emporia_vue_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 void EmporiaVueComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Emporia Vue");
   LOG_I2C_DEVICE(this);
-  LOG_UPDATE_INTERVAL(this);
 
   // TODO: Log phases
   for (PhaseConfig *phase : this->phases_) {
@@ -26,6 +27,8 @@ void EmporiaVueComponent::dump_config() {
 }
 
 void EmporiaVueComponent::setup() {
+  global_emporia_vue_component = this;
+
   this->i2c_data_queue_ = xQueueCreate(1, sizeof(EmporiaSensorData *));
   xTaskCreatePinnedToCore(&EmporiaVueComponent::i2c_request_task,
                           "i2c_request_task",  // name
@@ -40,19 +43,21 @@ void EmporiaVueComponent::setup() {
 void EmporiaVueComponent::i2c_request_task(void *pv) {
   TickType_t xLastWakeTime;
   const TickType_t xDelay = 240 / portTICK_PERIOD_MS;
-  uint32_t last_update_ = micros();
-  uint16_t last_checksum = null;
+  uint32_t last_checksum = 4294967295;
 
   while (true) {
     xLastWakeTime = xTaskGetTickCount();
     EmporiaSensorData data;
-    i2c::ErrorCode error = this->read(reinterpret_cast<uint8_t *>(&data), sizeof(data));
+    i2c::ErrorCode error = global_emporia_vue_component->read(reinterpret_cast<uint8_t *>(&data), sizeof(data));
 
-    if (error == i2c::ErrorCode::ERROR_OK && data.read_flag != 0 && (last_checksum != data.last_checksum || last_checksum != null)) {
-      last_checksum = data.last_checksum;
-      xQueueOverwrite(this->i2c_data_queue_, &data);
+    if (data.read_flag == 0) {
+      last_checksum = 4294967295;
+    }
+    if (error == i2c::ErrorCode::ERROR_OK && data.read_flag != 0 && (last_checksum != data.checksum)) {
+      last_checksum = data.checksum;
+      xQueueOverwrite(global_emporia_vue_component->i2c_data_queue_, &data);
 
-      vTaskDelayUntil(&xLastWakeTime, xDelay)
+      vTaskDelayUntil(&xLastWakeTime, xDelay);
     }
   }
 }
@@ -69,7 +74,7 @@ void EmporiaVueComponent::i2c_request_task(void *pv) {
 } */
 
 void EmporiaVueComponent::loop() {
-  EmporiaSensorData data = null;
+  EmporiaSensorData data;
 
   if (xQueueReceive(this->i2c_data_queue_, &data, 0 ) == pdPASS) {
     for (CTSensor *ct_sensor : this->ct_sensors_) {
