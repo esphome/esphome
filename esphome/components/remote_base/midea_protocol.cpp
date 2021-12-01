@@ -19,35 +19,31 @@ bool MideaData::is_compliment(const MideaData &rhs) const {
   });
 }
 
-void MideaProtocol::data(RemoteTransmitData *dst, const MideaData &src, bool compliment) {
-  for (const uint8_t *it = src.data(); it != src.data() + src.size(); ++it) {
-    const uint8_t data = compliment ? ~(*it) : *it;
-    for (uint8_t mask = 1 << 7; mask; mask >>= 1) {
-      if (data & mask)
-        MideaProtocol::one(dst);
-      else
-        MideaProtocol::zero(dst);
-    }
-  }
-}
-
 void MideaProtocol::encode(RemoteTransmitData *dst, const MideaData &src) {
   dst->set_carrier_frequency(38000);
   dst->reserve(2 + 48 * 2 + 2 + 2 + 48 * 2 + 1);
-  MideaProtocol::header(dst);
-  MideaProtocol::data(dst, src);
-  MideaProtocol::footer(dst);
-  MideaProtocol::header(dst);
-  MideaProtocol::data(dst, src, true);
+  dst->item(HEADER_HIGH_US, HEADER_LOW_US);
+  for (const uint8_t *it = src.data(); it != src.data() + src.size(); ++it) {
+    const uint8_t data = *it;
+    for (uint8_t mask = 1 << 7; mask; mask >>= 1)
+      dst->item(BIT_HIGH_US, (data & mask) ? BIT_ONE_LOW_US : BIT_ZERO_LOW_US);
+  }
+  dst->item(BIT_HIGH_US, MIN_GAP_US);
+  dst->item(HEADER_HIGH_US, HEADER_LOW_US);
+  for (const uint8_t *it = src.data(); it != src.data() + src.size(); ++it) {
+    const uint8_t data = 255 - *it;
+    for (uint8_t mask = 1 << 7; mask; mask >>= 1)
+      dst->item(BIT_HIGH_US, (data & mask) ? BIT_ONE_LOW_US : BIT_ZERO_LOW_US);
+  }
   dst->mark(BIT_HIGH_US);
 }
 
-bool MideaProtocol::expect_data(RemoteReceiveData &src, MideaData &out) {
+bool MideaProtocol::read_data(RemoteReceiveData &src, MideaData &out) {
   for (uint8_t *dst = out.data(); dst != out.data() + out.size(); ++dst) {
-    for (uint8_t mask = 128; mask; mask >>= 1) {
-      if (MideaProtocol::expect_one(src))
+    for (uint8_t mask = 1 << 7; mask; mask >>= 1) {
+      if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US))
         *dst |= mask;
-      else if (!MideaProtocol::expect_zero(src))
+      else if (!src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US))
         return false;
     }
   }
@@ -56,8 +52,8 @@ bool MideaProtocol::expect_data(RemoteReceiveData &src, MideaData &out) {
 
 optional<MideaData> MideaProtocol::decode(RemoteReceiveData src) {
   MideaData out, inv;
-  if (MideaProtocol::expect_header(src) && MideaProtocol::expect_data(src, out) && MideaProtocol::expect_footer(src) &&
-      MideaProtocol::expect_header(src) && MideaProtocol::expect_data(src, inv) && src.expect_mark(BIT_HIGH_US) &&
+  if (src.expect_item(HEADER_HIGH_US, HEADER_LOW_US) && MideaProtocol::read_data(src, out) && src.expect_item(BIT_HIGH_US, MIN_GAP_US) &&
+      src.expect_item(HEADER_HIGH_US, HEADER_LOW_US) && MideaProtocol::read_data(src, inv) && src.expect_mark(BIT_HIGH_US) &&
       out.is_valid() && out.is_compliment(inv))
     return out;
   return {};

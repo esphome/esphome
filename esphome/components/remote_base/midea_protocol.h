@@ -74,16 +74,7 @@ class MideaProtocol : public RemoteProtocol<MideaData> {
   static const int32_t BIT_ONE_LOW_US = 3 * TICK_US;
   static const int32_t BIT_ZERO_LOW_US = 1 * TICK_US;
   static const int32_t MIN_GAP_US = 10 * TICK_US;
-  static void one(RemoteTransmitData *dst) { dst->item(BIT_HIGH_US, BIT_ONE_LOW_US); }
-  static void zero(RemoteTransmitData *dst) { dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US); }
-  static void header(RemoteTransmitData *dst) { dst->item(HEADER_HIGH_US, HEADER_LOW_US); }
-  static void footer(RemoteTransmitData *dst) { dst->item(BIT_HIGH_US, MIN_GAP_US); }
-  static void data(RemoteTransmitData *dst, const MideaData &src, bool compliment = false);
-  static bool expect_one(RemoteReceiveData &src) { return src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US); }
-  static bool expect_zero(RemoteReceiveData &src) { return src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US); }
-  static bool expect_header(RemoteReceiveData &src) { return src.expect_item(HEADER_HIGH_US, HEADER_LOW_US); }
-  static bool expect_footer(RemoteReceiveData &src) { return src.expect_item(BIT_HIGH_US, MIN_GAP_US); }
-  static bool expect_data(RemoteReceiveData &src, MideaData &out);
+  static bool read_data(RemoteReceiveData &src, MideaData &out);
 };
 
 class MideaBinarySensor : public RemoteReceiverBinarySensorBase {
