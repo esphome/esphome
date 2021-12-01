@@ -2,6 +2,7 @@
 #include "midea_data.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/components/coolix/coolix.h"
 
 namespace esphome {
 namespace midea_ir {
@@ -144,8 +145,7 @@ bool MideaIR::on_receive(remote_base::RemoteReceiveData data) {
   auto midea = remote_base::MideaProtocol().decode(data);
   if (midea.has_value())
     return this->on_midea_(*midea);
-  // TODO: add feedback on coolix protocol
-  return false;
+  return coolix::CoolixClimate::on_coolix(this, data);
 }
 
 bool MideaIR::on_midea_(const MideaData &data) {

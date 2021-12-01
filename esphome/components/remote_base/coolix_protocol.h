@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "remote_base.h"

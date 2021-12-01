@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import climate_ir
 from esphome.const import CONF_ID
 
-AUTO_LOAD = ["climate_ir"]
+AUTO_LOAD = ["climate_ir", "coolix"]
 CODEOWNERS = ["@dudanov"]
 
 midea_ir_ns = cg.esphome_ns.namespace("midea_ir")

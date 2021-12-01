@@ -26,6 +26,9 @@ class CoolixClimate : public climate_ir::ClimateIR {
     climate_ir::ClimateIR::control(call);
   }
 
+  /// This static method can be used in other climate components that accept the Coolix protocol. See midea_ir for example.
+  static bool on_coolix(climate::Climate *climate, remote_base::RemoteReceiveData data);
+
  protected:
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
