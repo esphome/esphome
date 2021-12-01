@@ -3,11 +3,11 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
     CONF_CALIBRATION,
-    CONF_CT,
+#    CONF_CT,
     CONF_ID,
     CONF_INPUT,
-    CONF_PHASES,
-    CONF_PHASE_ID,
+#    CONF_PHASES,
+#    CONF_PHASE_ID,
     DEVICE_CLASS_ENERGY,
     STATE_CLASS_MEASUREMENT,
     UNIT_WATT,
