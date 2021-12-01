@@ -1,4 +1,5 @@
 #include "coolix.h"
+#include "esphome/components/remote_base/coolix_protocol.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -115,77 +116,18 @@ void CoolixClimate::transmit_state() {
 
   auto transmit = this->transmitter_->transmit();
   auto data = transmit.get_data();
-
-  data->set_carrier_frequency(38000);
-  uint16_t repeat = 1;
-  for (uint16_t r = 0; r <= repeat; r++) {
-    // Header
-    data->mark(HEADER_MARK_US);
-    data->space(HEADER_SPACE_US);
-    // Data
-    //   Break data into bytes, starting at the Most Significant
-    //   Byte. Each byte then being sent normal, then followed inverted.
-    for (uint16_t i = 8; i <= COOLIX_BITS; i += 8) {
-      // Grab a bytes worth of data.
-      uint8_t byte = (remote_state >> (COOLIX_BITS - i)) & 0xFF;
-      // Normal
-      for (uint64_t mask = 1ULL << 7; mask; mask >>= 1) {
-        data->mark(BIT_MARK_US);
-        data->space((byte & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
-      }
-      // Inverted
-      for (uint64_t mask = 1ULL << 7; mask; mask >>= 1) {
-        data->mark(BIT_MARK_US);
-        data->space(!(byte & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
-      }
-    }
-    // Footer
-    data->mark(BIT_MARK_US);
-    data->space(FOOTER_SPACE_US);  // Pause before repeating
-  }
-
+  remote_base::CoolixProtocol().encode(data, remote_state);
   transmit.perform();
 }
 
 bool CoolixClimate::on_receive(remote_base::RemoteReceiveData data) {
+  auto decoded = remote_base::CoolixProtocol().decode(data);
+  if (!decoded.has_value())
+    return false;
   // Decoded remote state y 3 bytes long code.
-  uint32_t remote_state = 0;
-  // The protocol sends the data twice, read here
-  uint32_t loop_read;
-  for (uint16_t loop = 1; loop <= 2; loop++) {
-    if (!data.expect_item(HEADER_MARK_US, HEADER_SPACE_US))
-      return false;
-    loop_read = 0;
-    for (uint8_t a_byte = 0; a_byte < 3; a_byte++) {
-      uint8_t byte = 0;
-      for (int8_t a_bit = 7; a_bit >= 0; a_bit--) {
-        if (data.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US))
-          byte |= 1 << a_bit;
-        else if (!data.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US))
-          return false;
-      }
-      // Need to see this segment inverted
-      for (int8_t a_bit = 7; a_bit >= 0; a_bit--) {
-        bool bit = byte & (1 << a_bit);
-        if (!data.expect_item(BIT_MARK_US, bit ? BIT_ZERO_SPACE_US : BIT_ONE_SPACE_US))
-          return false;
-      }
-      // Receiving MSB first: reorder bytes
-      loop_read |= byte << ((2 - a_byte) * 8);
-    }
-    // Footer Mark
-    if (!data.expect_mark(BIT_MARK_US))
-      return false;
-    if (loop == 1) {
-      // Back up state on first loop
-      remote_state = loop_read;
-      if (!data.expect_space(FOOTER_SPACE_US))
-        return false;
-    }
-  }
-
+  uint32_t remote_state = *decoded;
   ESP_LOGV(TAG, "Decoded 0x%02X", remote_state);
-  if (remote_state != loop_read || (remote_state & 0xFF0000) != 0xB20000)
+  if ((remote_state & 0xFF0000) != 0xB20000)
     return false;
 
   if (remote_state == COOLIX_OFF) {

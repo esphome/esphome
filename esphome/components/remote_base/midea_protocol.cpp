@@ -23,18 +23,14 @@ void MideaProtocol::encode(RemoteTransmitData *dst, const MideaData &src) {
   dst->set_carrier_frequency(38000);
   dst->reserve(2 + 48 * 2 + 2 + 2 + 48 * 2 + 1);
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
-  for (unsigned idx = 0; idx < 6; idx++) {
-    const uint8_t data = src[idx];
+  for (unsigned idx = 0; idx < 6; idx++)
     for (uint8_t mask = 1 << 7; mask; mask >>= 1)
-      dst->item(BIT_HIGH_US, (data & mask) ? BIT_ONE_LOW_US : BIT_ZERO_LOW_US);
-  }
+      dst->item(BIT_HIGH_US, (src[idx] & mask) ? BIT_ONE_LOW_US : BIT_ZERO_LOW_US);
   dst->item(BIT_HIGH_US, MIN_GAP_US);
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
-  for (unsigned idx = 0; idx < 6; idx++) {
-    const uint8_t data = 255 - src[idx];
+  for (unsigned idx = 0; idx < 6; idx++)
     for (uint8_t mask = 1 << 7; mask; mask >>= 1)
-      dst->item(BIT_HIGH_US, (data & mask) ? BIT_ONE_LOW_US : BIT_ZERO_LOW_US);
-  }
+      dst->item(BIT_HIGH_US, (src[idx] & mask) ? BIT_ZERO_LOW_US : BIT_ONE_LOW_US);
   dst->mark(BIT_HIGH_US);
 }
 

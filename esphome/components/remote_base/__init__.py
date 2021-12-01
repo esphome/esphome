@@ -234,6 +234,45 @@ async def build_dumpers(config):
     return dumpers
 
 
+# Coolix
+(
+    CoolixData,
+    CoolixBinarySensor,
+    CoolixTrigger,
+    CoolixAction,
+    CoolixDumper,
+) = declare_protocol("Coolix")
+COOLIX_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_uint32_t})
+
+
+@register_binary_sensor("coolix", CoolixBinarySensor, COOLIX_SCHEMA)
+def coolix_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                CoolixData,
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("coolix", CoolixTrigger, CoolixData)
+def coolix_trigger(var, config):
+    pass
+
+
+@register_dumper("coolix", CoolixDumper)
+def coolix_dumper(var, config):
+    pass
+
+
+@register_action("coolix", CoolixAction, COOLIX_SCHEMA)
+async def coolix_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
+    cg.add(var.set_data(template_))
+
+
 # Dish
 DishData, DishBinarySensor, DishTrigger, DishAction, DishDumper = declare_protocol(
     "Dish"
