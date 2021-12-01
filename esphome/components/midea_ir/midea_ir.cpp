@@ -103,9 +103,9 @@ void MideaIR::control(const climate::ClimateCall &call) {
   if (call.get_mode() == climate::CLIMATE_MODE_OFF) {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
     this->preset = climate::CLIMATE_PRESET_NONE;
-  } else if (call.get_swing_mode().has_value() && ((*call.get_swing_mode() == climate::CLIMATE_SWING_VERTICAL) != (this->swing_mode == climate::CLIMATE_SWING_VERTICAL))) {
+  } else if (call.get_swing_mode().has_value() && ((*call.get_swing_mode() == climate::CLIMATE_SWING_OFF && this->swing_mode == climate::CLIMATE_SWING_VERTICAL) || (*call.get_swing_mode() == climate::CLIMATE_SWING_VERTICAL && this->swing_mode == climate::CLIMATE_SWING_OFF))) {
     this->swing_ = true;
-  } else if (call.get_preset().has_value() && ((*call.get_preset() == climate::CLIMATE_PRESET_BOOST) != (this->preset == climate::CLIMATE_PRESET_BOOST))) {
+  } else if (call.get_preset().has_value() && ((*call.get_preset() == climate::CLIMATE_PRESET_NONE && this->preset == climate::CLIMATE_PRESET_BOOST) || (*call.get_preset() == climate::CLIMATE_PRESET_BOOST && this->preset == climate::CLIMATE_PRESET_NONE))) {
     this->boost_ = true;
   }
   climate_ir::ClimateIR::control(call);
