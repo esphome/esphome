@@ -45,6 +45,9 @@ void EmporiaVueComponent::i2c_request_task(void *pv) {
   const TickType_t xDelay = 240 / portTICK_PERIOD_MS;
   uint32_t last_checksum = 4294967295;
 
+  // 10 seconds startup delay
+  vTaskDelay(10000 / portTICK_PERIOD_MS);
+
   while (true) {
     xLastWakeTime = xTaskGetTickCount();
     EmporiaSensorData data;
