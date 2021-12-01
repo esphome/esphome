@@ -8,8 +8,8 @@ static const char *const TAG = "remote.midea";
 
 uint8_t MideaData::calc_cs_() const {
   uint8_t cs = 0;
-  for (const uint8_t *it = this->data(); it != this->data() + OFFSET_CS; ++it)
-    cs -= reverse_bits_8(*it);
+  for (unsigned idx = 0; idx < OFFSET_CS; idx++)
+    cs -= reverse_bits_8(this->data_[idx]);
   return reverse_bits_8(cs);
 }
 
@@ -23,26 +23,26 @@ void MideaProtocol::encode(RemoteTransmitData *dst, const MideaData &src) {
   dst->set_carrier_frequency(38000);
   dst->reserve(2 + 48 * 2 + 2 + 2 + 48 * 2 + 1);
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
-  for (const uint8_t *it = src.data(); it != src.data() + src.size(); ++it) {
-    const uint8_t data = *it;
+  for (unsigned idx = 0; idx < 6; idx++) {
+    const uint8_t data = src[idx];
     for (uint8_t mask = 1 << 7; mask; mask >>= 1)
       dst->item(BIT_HIGH_US, (data & mask) ? BIT_ONE_LOW_US : BIT_ZERO_LOW_US);
   }
   dst->item(BIT_HIGH_US, MIN_GAP_US);
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
-  for (const uint8_t *it = src.data(); it != src.data() + src.size(); ++it) {
-    const uint8_t data = 255 - *it;
+  for (unsigned idx = 0; idx < 6; idx++) {
+    const uint8_t data = 255 - src[idx];
     for (uint8_t mask = 1 << 7; mask; mask >>= 1)
       dst->item(BIT_HIGH_US, (data & mask) ? BIT_ONE_LOW_US : BIT_ZERO_LOW_US);
   }
   dst->mark(BIT_HIGH_US);
 }
 
-bool MideaProtocol::read_data(RemoteReceiveData &src, MideaData &out) {
-  for (uint8_t *dst = out.data(); dst != out.data() + out.size(); ++dst) {
+bool MideaProtocol::read_data(RemoteReceiveData &src, MideaData &data) {
+  for (unsigned idx = 0; idx < 6; idx++) {
     for (uint8_t mask = 1 << 7; mask; mask >>= 1) {
       if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US))
-        *dst |= mask;
+        data[idx] |= mask;
       else if (!src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US))
         return false;
     }
