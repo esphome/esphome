@@ -1,6 +1,8 @@
 #include "emporia_vue.h"
 #include "esphome/core/log.h"
 
+#include <freertos/task.h>
+
 namespace esphome {
 namespace emporia_vue {
 
@@ -12,31 +14,69 @@ void EmporiaVueComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 
   // TODO: Log phases
+  for (PhaseConfig *phase : this->phases_) {
+    //LOG_SENSOR("  ", "Phase", phase);
+  }
 
-  for (auto *power_sensor : this->power_sensors_) {
-    LOG_SENSOR("  ", "Sensor", power_sensor);
+
+  for (CTSensor *ct_sensor : this->ct_sensors_) {
+    LOG_SENSOR("  ", "CT", ct_sensor);
     // TODO: Log other details
   }
 }
 
-void EmporiaVueComponent::set_phases(std::vector<PhaseConfig *> phases) { this->phases_ = phases; }
-
-void EmporiaVueComponent::set_power_sensors(std::vector<PowerSensor *> power_sensors) {
-  this->power_sensors_ = power_sensors;
+void EmporiaVueComponent::setup() {
+  this->i2c_data_queue_ = xQueueCreate(1, sizeof(EmporiaSensorData *));
+  xTaskCreatePinnedToCore(&EmporiaVueComponent::i2c_request_task,
+                          "i2c_request_task",  // name
+                          1024,                // stack size
+                          nullptr,             // task pv params
+                          0,                   // priority
+                          nullptr,             // handle
+                          1                    // core
+  );
 }
 
-void EmporiaVueComponent::update() {
+void EmporiaVueComponent::i2c_request_task(void *pv) {
+  TickType_t xLastWakeTime;
+  const TickType_t xDelay = 240 / portTICK_PERIOD_MS;
+  uint32_t last_update_ = micros();
+  uint16_t last_checksum = null;
+
+  while (true) {
+    xLastWakeTime = xTaskGetTickCount();
+    EmporiaSensorData data;
+    i2c::ErrorCode error = this->read(reinterpret_cast<uint8_t *>(&data), sizeof(data));
+
+    if (error == i2c::ErrorCode::ERROR_OK && data.read_flag != 0 && (last_checksum != data.last_checksum || last_checksum != null)) {
+      last_checksum = data.last_checksum;
+      xQueueOverwrite(this->i2c_data_queue_, &data);
+
+      vTaskDelayUntil(&xLastWakeTime, xDelay)
+    }
+  }
+}
+
+/* void EmporiaVueComponent::update() {
   EmporiaSensorData data;
   // TODO: Do this update read and update asyncronously
   i2c::ErrorCode error = this->read(reinterpret_cast<uint8_t *>(&data), sizeof(data));
   ESP_LOGVV(TAG, "Raw Sensor Data: %s", hexencode(reinterpret_cast<uint8_t *>(&data), sizeof(data)).c_str());
 
-  for (PowerSensor *power_sensor : this->power_sensors_) {
-    power_sensor->update_from_data(data);
+  for (CTSensor *ct_sensor : this->ct_sensors_) {
+    ct_sensor->update_from_data(data);
+  }
+} */
+
+void EmporiaVueComponent::loop() {
+  EmporiaSensorData data = null;
+
+  if (xQueueReceive(this->i2c_data_queue_, &data, 0 ) == pdPASS) {
+    for (CTSensor *ct_sensor : this->ct_sensors_) {
+      ct_sensor->update_from_data(data);
+    }
   }
 }
-
-void PhaseConfig::set_input_color(PhaseInputColor input_color) { this->input_color_ = input_color; }
 
 int32_t PhaseConfig::extract_power_for_phase(const PowerDataEntry &entry) {
   switch (this->input_color_) {
@@ -51,17 +91,25 @@ int32_t PhaseConfig::extract_power_for_phase(const PowerDataEntry &entry) {
   }
 }
 
-void PowerSensor::set_phase(PhaseConfig *phase) { this->phase_ = phase; }
-
-void PowerSensor::set_ct_input(CTInputPort ct_input) { this->ct_input_ = ct_input; }
-
-void PowerSensor::update_from_data(const EmporiaSensorData &data) {
+void CTSensor::update_from_data(const EmporiaSensorData &data) {
   PowerDataEntry entry = data.power[this->ct_input_];
   int32_t raw_power = this->phase_->extract_power_for_phase(entry);
-  // TODO: Temporary calibration; remove and use actual formula
-  float calibrated_power = (raw_power * 0.022609) / 22;
+  float calibrated_power = this->get_calibrated_power(raw_power);
   this->publish_state(calibrated_power);
 }
+
+double CTSensor::get_calibrated_power(int32_t raw_power) {
+  double calibration = this->phase_->get_calibration();
+
+  double correction_factor = (this->ct_input_ < 3) ? 5.5 : 22;
+
+  return CTSensor::get_calibrated_power(raw_power, calibration, correction_factor);
+}
+
+double CTSensor::get_calibrated_power(int32_t raw_power, double calibration, double correction_factor) {
+  return (raw_power * calibration) / correction_factor;
+}
+
 
 }  // namespace emporia_vue
 }  // namespace esphome

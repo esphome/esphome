@@ -16,10 +16,9 @@ struct __attribute__((__packed__)) PowerDataEntry {
 };
 
 struct __attribute__((__packed__)) EmporiaSensorData {
-  uint8_t unknown_0;  // signals whether the reading is new or not
-  uint8_t unknown_1;  // maybe a checksum, seems random
-  uint8_t unknown_2;  // unknown
-  uint8_t unknown_3;  // some kind of counter
+  uint8_t start;      // Always 0
+  uint8_t read_flag;  // Data is safe to ingest
+  uint16_t checksum;  // checksum?
 
   PowerDataEntry power[19];
 
@@ -33,31 +32,36 @@ struct __attribute__((__packed__)) EmporiaSensorData {
 };
 
 class PhaseConfig;
-class PowerSensor;
+class CTSensor;
 
-class EmporiaVueComponent : public PollingComponent, public i2c::I2CDevice {
+class EmporiaVueComponent : public Component, public i2c::I2CDevice {
  public:
+  void setup() override;
+  void loop() override;
   void dump_config() override;
+  void i2c_request_task(void *pv);
 
-  void set_phases(std::vector<PhaseConfig *> phases);
-  void set_power_sensors(std::vector<PowerSensor *> sensors);
-
-  void update() override;
+  void set_phases(std::vector<PhaseConfig *> phases) { this->phases_ = phases; }
+  void set_ct_sensors(std::vector<CTSensor *> sensors) { this->ct_sensors_ = sensors; }
 
  private:
   std::vector<PhaseConfig *> phases_;
-  std::vector<PowerSensor *> power_sensors_;
+  std::vector<CTSensor *> ct_sensors_;
+  QueueHandle_t i2c_data_queue_;
 };
 
 enum PhaseInputColor { BLACK, RED, BLUE };
 
 class PhaseConfig {
  public:
-  void set_input_color(PhaseInputColor input_color);
+  void set_input_color(PhaseInputColor input_color) { this->input_color_ = input_color; }
+  void set_calibration(double calibration) {this->calibration_ = calibration; }
+  double get_calibration() { return this->calibration_; }
   int32_t extract_power_for_phase(const PowerDataEntry &entry);
 
  private:
   PhaseInputColor input_color_;
+  double calibration_;
 };
 
 enum CTInputPort : uint8_t {
@@ -82,12 +86,14 @@ enum CTInputPort : uint8_t {
   SIXTEEN = 18,
 };
 
-class PowerSensor : public sensor::Sensor {
+class CTSensor : public sensor::Sensor {
  public:
-  void set_phase(PhaseConfig *phase);
-  void set_ct_input(CTInputPort ct_input);
+  void set_phase(PhaseConfig *phase) { this->phase_ = phase; };
+  void set_ct_input(CTInputPort ct_input) { this->ct_input_ = ct_input; };
 
   void update_from_data(const EmporiaSensorData &data);
+  double get_calibrated_power(int32_t raw_power);
+  static double get_calibrated_power(int32_t raw_power, double calibration, double correction_factor);
 
  private:
   PhaseConfig *phase_;
