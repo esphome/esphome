@@ -3,6 +3,10 @@
 #include <vector>
 
 #include "esphome/core/helpers.h"
+
+#undef ARDUINOJSON_ENABLE_STD_STRING
+#define ARDUINOJSON_ENABLE_STD_STRING 1
+
 #include <ArduinoJson.h>
 
 namespace esphome {
