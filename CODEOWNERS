@@ -95,6 +95,7 @@ esphome/components/mcp9808/* @k7hpn
 esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
 esphome/components/midea/* @dudanov
+esphome/components/midea_ir/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
 esphome/components/modbus_controller/* @martgras
 esphome/components/modbus_controller/binary_sensor/* @martgras
