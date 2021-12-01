@@ -29,7 +29,7 @@ void EmporiaVueComponent::dump_config() {
 void EmporiaVueComponent::setup() {
   global_emporia_vue_component = this;
 
-  this->i2c_data_queue_ = xQueueCreate(1, sizeof(EmporiaSensorData *));
+  this->i2c_data_queue_ = xQueueCreate(1, sizeof(EmporiaSensorData));
   xTaskCreatePinnedToCore(&EmporiaVueComponent::i2c_request_task,
                           "i2c_request_task",  // name
                           1024,                // stack size
