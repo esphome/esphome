@@ -29,34 +29,22 @@ fan::FanCall HBridgeFan::brake() {
 }
 
 void HBridgeFan::dump_config() {
-  ESP_LOGCONFIG(TAG, "Fan '%s':", this->get_name().c_str());
-  if (this->get_traits().supports_oscillation()) {
-    ESP_LOGCONFIG(TAG, "  Oscillation: YES");
-  }
-  if (this->get_traits().supports_direction()) {
-    ESP_LOGCONFIG(TAG, "  Direction: YES");
-  }
+  LOG_FAN("", "H-Bridge Fan", this);
   if (this->decay_mode_ == DECAY_MODE_SLOW) {
     ESP_LOGCONFIG(TAG, "  Decay Mode: Slow");
   } else {
     ESP_LOGCONFIG(TAG, "  Decay Mode: Fast");
   }
 }
-void HBridgeFan::setup() {
-  auto traits = fan::FanTraits(this->oscillating_ != nullptr, true, true, this->speed_count_);
-  this->set_traits(traits);
-  this->add_on_state_callback([this]() { this->next_update_ = true; });
+fan::FanTraits HBridgeFan::get_traits() {
+  return fan::FanTraits(this->oscillating_ != nullptr, true, true, this->speed_count_);
 }
-void HBridgeFan::loop() {
-  if (!this->next_update_) {
-    return;
-  }
-  this->next_update_ = false;
-
+void HBridgeFan::control(const fan::FanCall &call) {
   float speed = 0.0f;
-  if (this->state) {
-    speed = static_cast<float>(this->speed) / static_cast<float>(this->speed_count_);
+  if (call.get_state().value_or(this->state)) {
+    speed = static_cast<float>(call.get_speed().value_or(this->speed)) / static_cast<float>(this->speed_count_);
   }
+
   if (speed == 0.0f) {  // off means idle
     (this->enable_ == nullptr) ? this->set_hbridge_levels_(speed, speed)
                                : this->set_hbridge_levels_(speed, speed, speed);

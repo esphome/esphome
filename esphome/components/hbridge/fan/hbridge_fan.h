@@ -3,7 +3,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/output/binary_output.h"
 #include "esphome/components/output/float_output.h"
-#include "esphome/components/fan/fan_state.h"
+#include "esphome/components/fan/fan.h"
 
 namespace esphome {
 namespace hbridge {
@@ -13,7 +13,7 @@ enum DecayMode {
   DECAY_MODE_FAST = 1,
 };
 
-class HBridgeFan : public fan::FanState {
+class HBridgeFan : public Component, public fan::Fan {
  public:
   HBridgeFan(int speed_count, DecayMode decay_mode) : speed_count_(speed_count), decay_mode_(decay_mode) {}
 
@@ -21,10 +21,8 @@ class HBridgeFan : public fan::FanState {
   void set_pin_b(output::FloatOutput *pin_b) { pin_b_ = pin_b; }
   void set_enable_pin(output::FloatOutput *enable) { enable_ = enable; }
 
-  void setup() override;
-  void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  fan::FanTraits get_traits() override;
 
   fan::FanCall brake();
 
@@ -40,6 +38,8 @@ class HBridgeFan : public fan::FanState {
   bool next_update_{true};
   int speed_count_{};
   DecayMode decay_mode_{DECAY_MODE_SLOW};
+
+  void control(const fan::FanCall &call) override;
 
   void set_hbridge_levels_(float a_level, float b_level);
   void set_hbridge_levels_(float a_level, float b_level, float enable);
