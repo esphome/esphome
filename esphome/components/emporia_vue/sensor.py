@@ -111,4 +111,3 @@ async def to_code(config):
 
         ct_sensors.append(power_var)
     cg.add(var.set_ct_sensors(ct_sensors))
-
