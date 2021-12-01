@@ -346,7 +346,7 @@ void MQTTClientComponent::subscribe(const std::string &topic, mqtt_callback_t ca
 
 void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
   auto f = [callback](const std::string &topic, const std::string &payload) {
-    json::parse_json(payload, [topic, callback](JsonObject &root) { callback(topic, root); });
+    json::parse_json(payload, [topic, callback](JsonObject root) { callback(topic, root); });
   };
   MQTTSubscription subscription{
       .topic = topic,

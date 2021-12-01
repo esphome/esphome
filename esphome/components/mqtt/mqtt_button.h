@@ -23,7 +23,7 @@ class MQTTButtonComponent : public mqtt::MQTTComponent {
   /// Buttons do not send a state so just return true.
   bool send_initial_state() override { return true; }
 
-  void send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) override;
+  void send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) override;
 
  protected:
   /// "button" component type.
