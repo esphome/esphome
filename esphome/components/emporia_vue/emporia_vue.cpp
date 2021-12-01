@@ -46,7 +46,7 @@ void EmporiaVueComponent::i2c_request_task(void *pv) {
   uint32_t last_checksum = 4294967295;
 
   // 10 seconds startup delay
-  vTaskDelay(10000 / portTICK_PERIOD_MS);
+  //vTaskDelay(10000 / portTICK_PERIOD_MS);
 
   while (true) {
     xLastWakeTime = xTaskGetTickCount();
@@ -59,9 +59,9 @@ void EmporiaVueComponent::i2c_request_task(void *pv) {
     if (error == i2c::ErrorCode::ERROR_OK && data.read_flag != 0 && (last_checksum != data.checksum)) {
       last_checksum = data.checksum;
       xQueueOverwrite(global_emporia_vue_component->i2c_data_queue_, &data);
-
-      vTaskDelayUntil(&xLastWakeTime, xDelay);
     }
+
+    vTaskDelayUntil(&xLastWakeTime, xDelay);
   }
 }
 
