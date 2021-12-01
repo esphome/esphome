@@ -13,6 +13,11 @@ from esphome.const import (
     UNIT_WATT,
 )
 
+# TODO: Remove this - It's only added so we can test the component using the External_component configuration
+CONF_CT = "ct"
+CONF_PHASES = "phases"
+CONF_PHASE_ID = "phase_id"
+
 CODEOWNERS = ["@flaviut", "@Maelstrom96", "@krconv"]
 ESP_PLATFORMS = ["esp-idf"]
 DEPENDENCIES = ["i2c"]
