@@ -20,6 +20,7 @@ void arch_restart() {
     yield();
   }
 }
+void arch_init() {}
 void IRAM_ATTR HOT arch_feed_wdt() {
   ESP.wdtFeed();  // NOLINT(readability-static-accessed-through-instance)
 }
