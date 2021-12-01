@@ -56,7 +56,9 @@ void EmporiaVueComponent::i2c_request_task(void *pv) {
     if (data.read_flag == 0) {
       last_checksum = 4294967295;
     }
-    if (error == i2c::ErrorCode::ERROR_OK && data.read_flag != 0 && (last_checksum != data.checksum)) {
+
+    // Discard messages not ending by 0x0000
+    if (error == i2c::ErrorCode::ERROR_OK && data.read_flag == 3 && (last_checksum != data.checksum) && data.end == 0) {
       last_checksum = data.checksum;
       xQueueOverwrite(global_emporia_vue_component->i2c_data_queue_, &data);
     }

@@ -18,9 +18,10 @@ struct __attribute__((__packed__)) PowerDataEntry {
 };
 
 struct __attribute__((__packed__)) EmporiaSensorData {
-  uint8_t start;      // Always 0
-  uint8_t read_flag;  // Data is safe to ingest
-  uint16_t checksum;  // checksum?
+  uint8_t read_flag; // 0 = stale, 3 = new data
+  uint8_t unknown1;  // checksum?
+  uint8_t checksum;  // checksum?
+  uint8_t timer;     // tick each ~510ms
 
   PowerDataEntry power[19];
 
