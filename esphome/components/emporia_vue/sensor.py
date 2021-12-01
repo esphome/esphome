@@ -64,7 +64,7 @@ SCHEMA_CT = sensor.sensor_schema(
         cv.GenerateID(): cv.declare_id(CTSensor),
         cv.Required(CONF_PHASE_ID): cv.use_id(PhaseConfig),
         cv.Required(CONF_INPUT): cv.enum(CT_INPUT),
-        cv.Optional(CONF_CALIBRATION, default=0.022): cv.zero_to_one_float
+        cv.Optional(CONF_CALIBRATION, default=0.022): cv.zero_to_one_float,
     }
 )
 
@@ -85,6 +85,7 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("5s"))
     .extend(i2c.i2c_device_schema(0x64))
 )
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
