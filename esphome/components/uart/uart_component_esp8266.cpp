@@ -45,6 +45,11 @@ uint32_t ESP8266UartComponent::get_config() {
   else
     config |= UART_NB_STOP_BIT_2;
 
+  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted())
+    config |= BIT(22);
+  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted())
+    config |= BIT(19);
+
   return config;
 }
 
