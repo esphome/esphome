@@ -167,7 +167,7 @@ class AddressableScanEffect : public AddressableLightEffect {
     this->last_move_ = now;
 
     it.all() = Color::BLACK;
-    for (auto i = 0; i < this->scan_width_; i++) {
+    for (uint32_t i = 0; i < this->scan_width_; i++) {
       it[this->at_led_ + i] = current_color;
     }
 
@@ -178,7 +178,7 @@ class AddressableScanEffect : public AddressableLightEffect {
   uint32_t move_interval_{};
   uint32_t scan_width_{1};
   uint32_t last_move_{0};
-  int at_led_{0};
+  uint32_t at_led_{0};
   bool direction_{true};
 };
 

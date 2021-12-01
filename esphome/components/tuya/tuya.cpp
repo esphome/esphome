@@ -143,7 +143,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     case TuyaCommandType::PRODUCT_QUERY: {
       // check it is a valid string made up of printable characters
       bool valid = true;
-      for (int i = 0; i < len; i++) {
+      for (size_t i = 0; i < len; i++) {
         if (!std::isprint(buffer[i])) {
           valid = false;
           break;
@@ -339,8 +339,6 @@ void Tuya::send_raw_command_(TuyaCommand command) {
       this->expected_response_ = TuyaCommandType::CONF_QUERY;
       break;
     case TuyaCommandType::DATAPOINT_DELIVER:
-      this->expected_response_ = TuyaCommandType::DATAPOINT_REPORT;
-      break;
     case TuyaCommandType::DATAPOINT_QUERY:
       this->expected_response_ = TuyaCommandType::DATAPOINT_REPORT;
       break;

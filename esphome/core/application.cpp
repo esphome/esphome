@@ -94,7 +94,7 @@ void Application::loop() {
   }
   this->last_loop_ = now;
 
-  if (this->dump_config_at_ >= 0 && this->dump_config_at_ < this->components_.size()) {
+  if (this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
       ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
 #ifdef ESPHOME_PROJECT_NAME

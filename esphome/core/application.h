@@ -309,7 +309,7 @@ class Application {
   bool name_add_mac_suffix_;
   uint32_t last_loop_{0};
   uint32_t loop_interval_{16};
-  int dump_config_at_{-1};
+  size_t dump_config_at_{SIZE_MAX};
   uint32_t app_state_{0};
 };
 
