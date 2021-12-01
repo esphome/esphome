@@ -32,7 +32,7 @@ void EmporiaVueComponent::setup() {
   this->i2c_data_queue_ = xQueueCreate(1, sizeof(EmporiaSensorData));
   xTaskCreatePinnedToCore(&EmporiaVueComponent::i2c_request_task,
                           "i2c_request_task",  // name
-                          1024,                // stack size
+                          8192,                // stack size
                           nullptr,             // task pv params
                           0,                   // priority
                           nullptr,             // handle
