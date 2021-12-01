@@ -226,7 +226,7 @@ def _validate(config):
             use_address = str(config[CONF_MANUAL_IP][CONF_STATIC_IP])
         elif CONF_NETWORKS in config:
             ips = set(
-                net[CONF_MANUAL_IP][CONF_STATIC_IP]
+                str(net[CONF_MANUAL_IP][CONF_STATIC_IP])
                 for net in config[CONF_NETWORKS]
                 if CONF_MANUAL_IP in net
             )
@@ -235,7 +235,7 @@ def _validate(config):
                     "Must specify use_address when using multiple static IP addresses."
                 )
             if len(ips) == 1:
-                use_address = ips[0]
+                use_address = next(iter(ips))
 
         config[CONF_USE_ADDRESS] = use_address
 
