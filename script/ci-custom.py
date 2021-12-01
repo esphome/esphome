@@ -20,7 +20,7 @@ def find_all(a_str, sub):
         # Optimization: If str is not in whole text, then do not try
         # on each line
         return
-    for i, line in enumerate(a_str.splitlines()):
+    for i, line in enumerate(a_str.split('\n')):
         column = 0
         while True:
             column = line.find(sub, column)
@@ -172,7 +172,7 @@ def lint_re_check(regex, **kwargs):
     return decorator
 
 
-def lint_content_find_check(find, **kwargs):
+def lint_content_find_check(find, only_first=False, **kwargs):
     decor = lint_content_check(**kwargs)
 
     def decorator(func):
@@ -185,6 +185,8 @@ def lint_content_find_check(find, **kwargs):
             for line, col in find_all(content, find_):
                 err = func(fname)
                 errors.append((line + 1, col + 1, err))
+                if only_first:
+                    break
             return errors
 
         return decor(new_func)
@@ -234,6 +236,7 @@ def lint_executable_bit(fname):
 
 @lint_content_find_check(
     "\t",
+    only_first=True,
     exclude=[
         "esphome/dashboard/static/ace.js",
         "esphome/dashboard/static/ext-searchbox.js",
@@ -243,9 +246,9 @@ def lint_tabs(fname):
     return "File contains tab character. Please convert tabs to spaces."
 
 
-@lint_content_find_check("\r")
+@lint_content_find_check("\r", only_first=True)
 def lint_newline(fname):
-    return "File contains windows newline. Please set your editor to unix newline mode."
+    return "File contains Windows newline. Please set your editor to Unix newline mode."
 
 
 @lint_content_check(exclude=["*.svg"])
