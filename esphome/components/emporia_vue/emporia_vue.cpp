@@ -58,7 +58,7 @@ void EmporiaVueComponent::i2c_request_task(void *pv) {
     }
     if (error == i2c::ErrorCode::ERROR_OK && data.read_flag != 0 && (last_checksum != data.checksum)) {
       last_checksum = data.checksum;
-      //xQueueOverwrite(global_emporia_vue_component->i2c_data_queue_, &data);
+      xQueueOverwrite(global_emporia_vue_component->i2c_data_queue_, &data);
     }
 
     vTaskDelayUntil(&xLastWakeTime, xDelay);
