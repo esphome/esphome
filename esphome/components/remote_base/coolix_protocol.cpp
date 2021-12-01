@@ -61,13 +61,12 @@ static bool read_data(RemoteReceiveData &src, CoolixData &data) {
 optional<CoolixData> CoolixProtocol::decode(RemoteReceiveData data) {
   CoolixData first, second;
   if (data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && read_data(data, first) && data.expect_item(BIT_MARK_US, FOOTER_SPACE_US) &&
-      data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && read_data(data, second) && data.expect_mark(BIT_MARK_US) &&
-      first == second)
+      data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && read_data(data, second) && data.expect_mark(BIT_MARK_US) && first == second)
     return first;
   return {};
 }
 
-void CoolixProtocol::dump(const CoolixData &data) { ESP_LOGD(TAG, "Received Coolix: 0x%6X", data); }
+void CoolixProtocol::dump(const CoolixData &data) { ESP_LOGD(TAG, "Received Coolix: 0x%06X", data); }
 
 }  // namespace remote_base
 }  // namespace esphome
