@@ -31,9 +31,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_TUYA_ID])
 
-    var = cg.new_Pvariable(
-        config[CONF_OUTPUT_ID], parent, config[CONF_SPEED_COUNT]
-    )
+    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], parent, config[CONF_SPEED_COUNT])
     await cg.register_component(var, config)
     await fan.register_fan(var, config)
 
