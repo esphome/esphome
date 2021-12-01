@@ -22,7 +22,7 @@ void CoolixProtocol::encode(RemoteTransmitData *dst, const CoolixData &data) {
     // Data
     //   Break data into bytes, starting at the Most Significant
     //   Byte. Each byte then being sent normal, then followed inverted.
-    for (unsigned shift = 16; ; shift -= 8) {
+    for (unsigned shift = 16;; shift -= 8) {
       // Grab a bytes worth of data.
       const uint8_t byte = data >> shift;
       // Normal
@@ -42,7 +42,7 @@ void CoolixProtocol::encode(RemoteTransmitData *dst, const CoolixData &data) {
 
 static bool read_data(RemoteReceiveData &src, CoolixData &data) {
   data = 0;
-  for (unsigned n = 3; ; data <<= 8) {
+  for (unsigned n = 3;; data <<= 8) {
     for (uint32_t mask = 1 << 7; mask; mask >>= 1) {
       if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US))
         data |= mask;
@@ -60,8 +60,9 @@ static bool read_data(RemoteReceiveData &src, CoolixData &data) {
 
 optional<CoolixData> CoolixProtocol::decode(RemoteReceiveData data) {
   CoolixData first, second;
-  if (data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && read_data(data, first) && data.expect_item(BIT_MARK_US, FOOTER_SPACE_US) &&
-      data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && read_data(data, second) && data.expect_mark(BIT_MARK_US) && first == second)
+  if (data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && read_data(data, first) &&
+      data.expect_item(BIT_MARK_US, FOOTER_SPACE_US) && data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) &&
+      read_data(data, second) && data.expect_mark(BIT_MARK_US) && first == second)
     return first;
   return {};
 }

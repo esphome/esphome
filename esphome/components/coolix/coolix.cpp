@@ -159,9 +159,5 @@ bool CoolixClimate::on_coolix(climate::Climate *parent, remote_base::RemoteRecei
   return true;
 }
 
-bool CoolixClimate::on_receive(remote_base::RemoteReceiveData data) {
-  return CoolixClimate::on_coolix(this, data);
-}
-
 }  // namespace coolix
 }  // namespace esphome

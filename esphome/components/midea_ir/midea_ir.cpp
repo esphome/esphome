@@ -30,24 +30,24 @@ float ControlData::get_temp() const {
 
 void ControlData::set_mode(ClimateMode mode) {
   switch (mode) {
-  case ClimateMode::CLIMATE_MODE_OFF:
-    this->set_power_(false);
-    return;
-  case ClimateMode::CLIMATE_MODE_COOL:
-    this->set_mode_(MODE_COOL);
-    break;
-  case ClimateMode::CLIMATE_MODE_DRY:
-    this->set_mode_(MODE_DRY);
-    break;
-  case ClimateMode::CLIMATE_MODE_FAN_ONLY:
-    this->set_mode_(MODE_FAN_ONLY);
-    break;
-  case ClimateMode::CLIMATE_MODE_HEAT:
-    this->set_mode_(MODE_HEAT);
-    break;
-  default:
-    this->set_mode_(MODE_AUTO);
-    break;
+    case ClimateMode::CLIMATE_MODE_OFF:
+      this->set_power_(false);
+      return;
+    case ClimateMode::CLIMATE_MODE_COOL:
+      this->set_mode_(MODE_COOL);
+      break;
+    case ClimateMode::CLIMATE_MODE_DRY:
+      this->set_mode_(MODE_DRY);
+      break;
+    case ClimateMode::CLIMATE_MODE_FAN_ONLY:
+      this->set_mode_(MODE_FAN_ONLY);
+      break;
+    case ClimateMode::CLIMATE_MODE_HEAT:
+      this->set_mode_(MODE_HEAT);
+      break;
+    default:
+      this->set_mode_(MODE_AUTO);
+      break;
   }
   this->set_power_(true);
 }
@@ -56,46 +56,46 @@ ClimateMode ControlData::get_mode() const {
   if (!this->get_power_())
     return ClimateMode::CLIMATE_MODE_OFF;
   switch (this->get_mode_()) {
-  case MODE_COOL:
-    return ClimateMode::CLIMATE_MODE_COOL;
-  case MODE_DRY:
-    return ClimateMode::CLIMATE_MODE_DRY;
-  case MODE_FAN_ONLY:
-    return ClimateMode::CLIMATE_MODE_FAN_ONLY;
-  case MODE_HEAT:
-    return ClimateMode::CLIMATE_MODE_HEAT;
-  default:
-    return ClimateMode::CLIMATE_MODE_HEAT_COOL;
+    case MODE_COOL:
+      return ClimateMode::CLIMATE_MODE_COOL;
+    case MODE_DRY:
+      return ClimateMode::CLIMATE_MODE_DRY;
+    case MODE_FAN_ONLY:
+      return ClimateMode::CLIMATE_MODE_FAN_ONLY;
+    case MODE_HEAT:
+      return ClimateMode::CLIMATE_MODE_HEAT;
+    default:
+      return ClimateMode::CLIMATE_MODE_HEAT_COOL;
   }
 }
 
 void ControlData::set_fan_mode(ClimateFanMode mode) {
   switch (mode) {
-  case ClimateFanMode::CLIMATE_FAN_LOW:
-    this->set_fan_mode_(FAN_LOW);
-    break;
-  case ClimateFanMode::CLIMATE_FAN_MEDIUM:
-    this->set_fan_mode_(FAN_MEDIUM);
-    break;
-  case ClimateFanMode::CLIMATE_FAN_HIGH:
-    this->set_fan_mode_(FAN_HIGH);
-    break;
-  default:
-    this->set_fan_mode_(FAN_AUTO);
-    break;
+    case ClimateFanMode::CLIMATE_FAN_LOW:
+      this->set_fan_mode_(FAN_LOW);
+      break;
+    case ClimateFanMode::CLIMATE_FAN_MEDIUM:
+      this->set_fan_mode_(FAN_MEDIUM);
+      break;
+    case ClimateFanMode::CLIMATE_FAN_HIGH:
+      this->set_fan_mode_(FAN_HIGH);
+      break;
+    default:
+      this->set_fan_mode_(FAN_AUTO);
+      break;
   }
 }
 
 ClimateFanMode ControlData::get_fan_mode() const {
   switch (this->get_fan_mode_()) {
-  case FAN_LOW:
-    return ClimateFanMode::CLIMATE_FAN_LOW;
-  case FAN_MEDIUM:
-    return ClimateFanMode::CLIMATE_FAN_MEDIUM;
-  case FAN_HIGH:
-    return ClimateFanMode::CLIMATE_FAN_HIGH;
-  default:
-    return ClimateFanMode::CLIMATE_FAN_AUTO;
+    case FAN_LOW:
+      return ClimateFanMode::CLIMATE_FAN_LOW;
+    case FAN_MEDIUM:
+      return ClimateFanMode::CLIMATE_FAN_MEDIUM;
+    case FAN_HIGH:
+      return ClimateFanMode::CLIMATE_FAN_HIGH;
+    default:
+      return ClimateFanMode::CLIMATE_FAN_AUTO;
   }
 }
 
@@ -104,9 +104,14 @@ void MideaIR::control(const climate::ClimateCall &call) {
   if (call.get_mode() == climate::CLIMATE_MODE_OFF) {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
     this->preset = climate::CLIMATE_PRESET_NONE;
-  } else if (call.get_swing_mode().has_value() && ((*call.get_swing_mode() == climate::CLIMATE_SWING_OFF && this->swing_mode == climate::CLIMATE_SWING_VERTICAL) || (*call.get_swing_mode() == climate::CLIMATE_SWING_VERTICAL && this->swing_mode == climate::CLIMATE_SWING_OFF))) {
+  } else if (call.get_swing_mode().has_value() && ((*call.get_swing_mode() == climate::CLIMATE_SWING_OFF &&
+                                                    this->swing_mode == climate::CLIMATE_SWING_VERTICAL) ||
+                                                   (*call.get_swing_mode() == climate::CLIMATE_SWING_VERTICAL &&
+                                                    this->swing_mode == climate::CLIMATE_SWING_OFF))) {
     this->swing_ = true;
-  } else if (call.get_preset().has_value() && ((*call.get_preset() == climate::CLIMATE_PRESET_NONE && this->preset == climate::CLIMATE_PRESET_BOOST) || (*call.get_preset() == climate::CLIMATE_PRESET_BOOST && this->preset == climate::CLIMATE_PRESET_NONE))) {
+  } else if (call.get_preset().has_value() &&
+             ((*call.get_preset() == climate::CLIMATE_PRESET_NONE && this->preset == climate::CLIMATE_PRESET_BOOST) ||
+              (*call.get_preset() == climate::CLIMATE_PRESET_BOOST && this->preset == climate::CLIMATE_PRESET_NONE))) {
     this->boost_ = true;
   }
   climate_ir::ClimateIR::control(call);
@@ -164,12 +169,14 @@ bool MideaIR::on_midea_(const MideaData &data) {
   }
   if (data.type() == MideaData::MIDEA_TYPE_SPECIAL) {
     switch (data[1]) {
-    case SpecialData::TOGGLE_VSWING:
-      this->swing_mode = this->swing_mode == climate::CLIMATE_SWING_VERTICAL ? climate::CLIMATE_SWING_OFF : climate::CLIMATE_SWING_VERTICAL;
-      break;
-    case SpecialData::TOGGLE_TURBO_MODE:
-      this->preset = this->preset == climate::CLIMATE_PRESET_BOOST ? climate::CLIMATE_PRESET_NONE : climate::CLIMATE_PRESET_BOOST;
-      break;
+      case SpecialData::TOGGLE_VSWING:
+        this->swing_mode = this->swing_mode == climate::CLIMATE_SWING_VERTICAL ? climate::CLIMATE_SWING_OFF
+                                                                               : climate::CLIMATE_SWING_VERTICAL;
+        break;
+      case SpecialData::TOGGLE_TURBO_MODE:
+        this->preset = this->preset == climate::CLIMATE_PRESET_BOOST ? climate::CLIMATE_PRESET_NONE
+                                                                     : climate::CLIMATE_PRESET_BOOST;
+        break;
     }
     this->publish_state();
     return true;

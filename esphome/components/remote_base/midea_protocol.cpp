@@ -14,9 +14,8 @@ uint8_t MideaData::calc_cs_() const {
 }
 
 bool MideaData::is_compliment(const MideaData &rhs) const {
-  return std::equal(this->data_.begin(), this->data_.end(), rhs.data_.begin(), [](const uint8_t &a, const uint8_t &b){
-    return a + b == 255;
-  });
+  return std::equal(this->data_.begin(), this->data_.end(), rhs.data_.begin(),
+                    [](const uint8_t &a, const uint8_t &b) { return a + b == 255; });
 }
 
 void MideaProtocol::encode(RemoteTransmitData *dst, const MideaData &src) {
@@ -48,9 +47,9 @@ bool MideaProtocol::read_data(RemoteReceiveData &src, MideaData &data) {
 
 optional<MideaData> MideaProtocol::decode(RemoteReceiveData src) {
   MideaData out, inv;
-  if (src.expect_item(HEADER_HIGH_US, HEADER_LOW_US) && MideaProtocol::read_data(src, out) && src.expect_item(BIT_HIGH_US, MIN_GAP_US) &&
-      src.expect_item(HEADER_HIGH_US, HEADER_LOW_US) && MideaProtocol::read_data(src, inv) && src.expect_mark(BIT_HIGH_US) &&
-      out.is_valid() && out.is_compliment(inv))
+  if (src.expect_item(HEADER_HIGH_US, HEADER_LOW_US) && MideaProtocol::read_data(src, out) &&
+      src.expect_item(BIT_HIGH_US, MIN_GAP_US) && src.expect_item(HEADER_HIGH_US, HEADER_LOW_US) &&
+      MideaProtocol::read_data(src, inv) && src.expect_mark(BIT_HIGH_US) && out.is_valid() && out.is_compliment(inv))
     return out;
   return {};
 }

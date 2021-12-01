@@ -12,7 +12,7 @@ using CoolixData = uint32_t;
 class CoolixProtocol : public RemoteProtocol<CoolixData> {
  public:
   void encode(RemoteTransmitData *dst, const CoolixData &data) override;
-  optional<CoolixData> decode(RemoteReceiveData src) override;
+  optional<CoolixData> decode(RemoteReceiveData data) override;
   void dump(const CoolixData &data) override;
 };
 
