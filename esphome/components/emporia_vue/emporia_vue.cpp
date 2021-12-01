@@ -58,7 +58,7 @@ void EmporiaVueComponent::i2c_request_task(void *pv) {
     }
     if (error == i2c::ErrorCode::ERROR_OK && data.read_flag != 0 && (last_checksum != data.checksum)) {
       last_checksum = data.checksum;
-      xQueueOverwrite(global_emporia_vue_component->i2c_data_queue_, &data);
+      //xQueueOverwrite(global_emporia_vue_component->i2c_data_queue_, &data);
     }
 
     vTaskDelayUntil(&xLastWakeTime, xDelay);
@@ -79,7 +79,7 @@ void EmporiaVueComponent::i2c_request_task(void *pv) {
 void EmporiaVueComponent::loop() {
   EmporiaSensorData data;
 
-  if (xQueueReceive(this->i2c_data_queue_, &data, 0 ) == pdPASS) {
+  if (xQueueReceive(this->i2c_data_queue_, &data, 0 ) == pdTRUE) {
     for (CTSensor *ct_sensor : this->ct_sensors_) {
       ct_sensor->update_from_data(data);
     }
