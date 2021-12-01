@@ -7,29 +7,29 @@ namespace coolix {
 
 static const char *const TAG = "coolix.climate";
 
-const uint32_t COOLIX_OFF = 0xB27BE0;
-const uint32_t COOLIX_SWING = 0xB26BE0;
-const uint32_t COOLIX_LED = 0xB5F5A5;
-const uint32_t COOLIX_SILENCE_FP = 0xB5F5B6;
+static const uint32_t COOLIX_OFF = 0xB27BE0;
+static const uint32_t COOLIX_SWING = 0xB26BE0;
+static const uint32_t COOLIX_LED = 0xB5F5A5;
+static const uint32_t COOLIX_SILENCE_FP = 0xB5F5B6;
 
 // On, 25C, Mode: Auto, Fan: Auto, Zone Follow: Off, Sensor Temp: Ignore.
-const uint8_t COOLIX_COOL = 0b0000;
-const uint8_t COOLIX_DRY_FAN = 0b0100;
-const uint8_t COOLIX_AUTO = 0b1000;
-const uint8_t COOLIX_HEAT = 0b1100;
-const uint32_t COOLIX_MODE_MASK = 0b1100;
-const uint32_t COOLIX_FAN_MASK = 0xF000;
-const uint32_t COOLIX_FAN_MODE_AUTO_DRY = 0x1000;
-const uint32_t COOLIX_FAN_AUTO = 0xB000;
-const uint32_t COOLIX_FAN_MIN = 0x9000;
-const uint32_t COOLIX_FAN_MED = 0x5000;
-const uint32_t COOLIX_FAN_MAX = 0x3000;
+static const uint8_t COOLIX_COOL = 0b0000;
+static const uint8_t COOLIX_DRY_FAN = 0b0100;
+static const uint8_t COOLIX_AUTO = 0b1000;
+static const uint8_t COOLIX_HEAT = 0b1100;
+static const uint32_t COOLIX_MODE_MASK = 0b1100;
+static const uint32_t COOLIX_FAN_MASK = 0xF000;
+static const uint32_t COOLIX_FAN_MODE_AUTO_DRY = 0x1000;
+static const uint32_t COOLIX_FAN_AUTO = 0xB000;
+static const uint32_t COOLIX_FAN_MIN = 0x9000;
+static const uint32_t COOLIX_FAN_MED = 0x5000;
+static const uint32_t COOLIX_FAN_MAX = 0x3000;
 
 // Temperature
-const uint8_t COOLIX_TEMP_RANGE = COOLIX_TEMP_MAX - COOLIX_TEMP_MIN + 1;
-const uint8_t COOLIX_FAN_TEMP_CODE = 0b11100000;  // Part of Fan Mode.
-const uint32_t COOLIX_TEMP_MASK = 0b11110000;
-const uint8_t COOLIX_TEMP_MAP[COOLIX_TEMP_RANGE] = {
+static const uint8_t COOLIX_TEMP_RANGE = COOLIX_TEMP_MAX - COOLIX_TEMP_MIN + 1;
+static const uint8_t COOLIX_FAN_TEMP_CODE = 0b11100000;  // Part of Fan Mode.
+static const uint32_t COOLIX_TEMP_MASK = 0b11110000;
+static const uint8_t COOLIX_TEMP_MAP[COOLIX_TEMP_RANGE] = {
     0b00000000,  // 17C
     0b00010000,  // 18c
     0b00110000,  // 19C
@@ -45,17 +45,6 @@ const uint8_t COOLIX_TEMP_MAP[COOLIX_TEMP_RANGE] = {
     0b10100000,  // 29C
     0b10110000   // 30C
 };
-
-// Constants
-static const uint32_t BIT_MARK_US = 660;
-static const uint32_t HEADER_MARK_US = 560 * 8;
-static const uint32_t HEADER_SPACE_US = 560 * 8;
-static const uint32_t BIT_ONE_SPACE_US = 1500;
-static const uint32_t BIT_ZERO_SPACE_US = 450;
-static const uint32_t FOOTER_MARK_US = BIT_MARK_US;
-static const uint32_t FOOTER_SPACE_US = HEADER_SPACE_US;
-
-const uint16_t COOLIX_BITS = 24;
 
 void CoolixClimate::transmit_state() {
   uint32_t remote_state = 0xB20F00;
@@ -112,7 +101,7 @@ void CoolixClimate::transmit_state() {
       }
     }
   }
-  ESP_LOGV(TAG, "Sending coolix code: 0x%02X", remote_state);
+  ESP_LOGV(TAG, "Sending coolix code: 0x%06X", remote_state);
 
   auto transmit = this->transmitter_->transmit();
   auto data = transmit.get_data();
@@ -126,7 +115,7 @@ bool CoolixClimate::on_coolix(climate::Climate *parent, remote_base::RemoteRecei
     return false;
   // Decoded remote state y 3 bytes long code.
   uint32_t remote_state = *decoded;
-  ESP_LOGV(TAG, "Decoded 0x%02X", remote_state);
+  ESP_LOGV(TAG, "Decoded 0x%06X", remote_state);
   if ((remote_state & 0xFF0000) != 0xB20000)
     return false;
 
