@@ -44,9 +44,9 @@ template<typename... Ts> class MidiInControlInRangeCondition : public Condition<
   void set_max(uint8_t max) { this->max_ = max; }
   bool check(Ts... x) override {
     const uint8_t value = this->parent_->control_value(this->control_);
-    if (this->min_ == UNSPECIFIED) {
+    if (this->min_ == unspecified_) {
       return value <= this->max_;
-    } else if (this->max_ == UNSPECIFIED) {
+    } else if (this->max_ == unspecified_) {
       return value >= this->min_;
     } else {
       return this->min_ <= value && value <= this->max_;
@@ -56,9 +56,9 @@ template<typename... Ts> class MidiInControlInRangeCondition : public Condition<
  protected:
   MidiInComponent *parent_;
   midi::MidiControlChangeNumber control_;
-  uint8_t min_{UNSPECIFIED};
-  uint8_t max_{UNSPECIFIED};
-  const uint8_t UNSPECIFIED = 0xFF;
+  uint8_t min_{unspecified_};
+  uint8_t max_{unspecified_};
+  const uint8_t unspecified_ = 0xFF;
 };
 
 }  // namespace midi_in
