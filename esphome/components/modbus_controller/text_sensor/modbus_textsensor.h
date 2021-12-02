@@ -17,7 +17,7 @@ class ModbusTextSensor : public Component, public text_sensor::TextSensor, publi
     this->register_type = register_type;
     this->start_address = start_address;
     this->offset = offset;
-    this->response_bytes_ = response_bytes;
+    this->response_bytes = response_bytes;
     this->register_count = register_count;
     this->encode_ = encode;
     this->skip_updates = skip_updates;
@@ -38,7 +38,6 @@ class ModbusTextSensor : public Component, public text_sensor::TextSensor, publi
 
  protected:
   RawEncoding encode_;
-  uint16_t response_bytes_;
 };
 
 }  // namespace modbus_controller
