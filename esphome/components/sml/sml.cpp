@@ -73,7 +73,6 @@ void Sml::process_sml_file_(const bytes &sml_data) {
 }
 
 void Sml::log_obis_info_(const std::vector<ObisInfo> &obis_info_vec) {
-  int i = 0;
   ESP_LOGD(TAG, "OBIS info:");
   for (auto const &obis_info : obis_info_vec) {
     std::string info;
