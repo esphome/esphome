@@ -75,7 +75,7 @@ void EZOSensor::loop() {
     return;
 
   // some sensors return multiple comma-separated values, terminate string after first one
-  for (int i = 1; i < sizeof(buf) - 1; i++)
+  for (size_t i = 1; i < sizeof(buf) - 1; i++)
     if (buf[i] == ',')
       buf[i] = '\0';
 

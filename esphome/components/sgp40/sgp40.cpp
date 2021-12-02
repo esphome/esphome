@@ -144,8 +144,8 @@ int32_t SGP40Component::measure_voc_index_() {
   // much
   if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
     voc_algorithm_get_states(&voc_algorithm_params_, &this->state0_, &this->state1_);
-    if (abs(this->baselines_storage_.state0 - this->state0_) > MAXIMUM_STORAGE_DIFF ||
-        abs(this->baselines_storage_.state1 - this->state1_) > MAXIMUM_STORAGE_DIFF) {
+    if ((uint32_t) abs(this->baselines_storage_.state0 - this->state0_) > MAXIMUM_STORAGE_DIFF ||
+        (uint32_t) abs(this->baselines_storage_.state1 - this->state1_) > MAXIMUM_STORAGE_DIFF) {
       this->seconds_since_last_store_ = 0;
       this->baselines_storage_.state0 = this->state0_;
       this->baselines_storage_.state1 = this->state1_;

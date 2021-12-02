@@ -413,8 +413,6 @@ void Pipsolar::loop() {
         this->state_ = STATE_IDLE;
         break;
       case POLLING_QT:
-        this->state_ = STATE_IDLE;
-        break;
       case POLLING_QMN:
         this->state_ = STATE_IDLE;
         break;
@@ -481,7 +479,7 @@ void Pipsolar::loop() {
         ESP_LOGD(TAG, "Decode QFLAG");
         // result like:"(EbkuvxzDajy"
         // get through all char: ignore first "(" Enable flag on 'E', Disable on 'D') else set the corresponding value
-        for (int i = 1; i < strlen(tmp); i++) {
+        for (size_t i = 1; i < strlen(tmp); i++) {
           switch (tmp[i]) {
             case 'E':
               enabled = true;
@@ -530,7 +528,7 @@ void Pipsolar::loop() {
         this->value_warnings_present_ = false;
         this->value_faults_present_ = true;
 
-        for (int i = 1; i < strlen(tmp); i++) {
+        for (size_t i = 1; i < strlen(tmp); i++) {
           enabled = tmp[i] == '1';
           switch (i) {
             case 1:
