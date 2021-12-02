@@ -168,7 +168,8 @@ bool MideaIR::on_midea_(const MideaData &data) {
   ESP_LOGV(TAG, "Decoded Midea IR data: %s", data.to_string().c_str());
   if (data.type() == MideaData::MIDEA_TYPE_COMMAND) {
     const ControlData status = data;
-    this->target_temperature = status.get_temp();
+    if (status.get_mode() != climate::CLIMATE_MODE_FAN_ONLY)
+      this->target_temperature = status.get_temp();
     this->mode = status.get_mode();
     this->fan_mode = status.get_fan_mode();
     if (status.get_sleep_preset())
