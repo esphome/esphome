@@ -277,6 +277,7 @@ void OTAComponent::handle_() {
     ssize_t read = this->client_->read(buf, requested);
     if (read == -1) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        App.feed_wdt();
         delay(1);
         continue;
       }
@@ -305,8 +306,9 @@ void OTAComponent::handle_() {
 #ifdef USE_OTA_STATE_CALLBACK
       this->state_callback_.call(OTA_IN_PROGRESS, percentage, 0);
 #endif
-      // slow down OTA update to avoid getting killed by task watchdog (task_wdt)
-      delay(10);
+      // feed watchdog and give other tasks a chance to run
+      App.feed_wdt();
+      yield();
     }
   }
 
