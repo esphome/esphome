@@ -123,6 +123,11 @@ enum ClimatePreset : uint32_t {
   CLIMATE_PRESET_SLEEP = 6,
   CLIMATE_PRESET_ACTIVITY = 7,
 };
+enum NumberMode : uint32_t {
+  NUMBER_MODE_AUTO = 0,
+  NUMBER_MODE_BOX = 1,
+  NUMBER_MODE_SLIDER = 2,
+};
 
 }  // namespace enums
 
@@ -957,6 +962,8 @@ class ListEntitiesNumberResponse : public ProtoMessage {
   float step{0.0f};
   bool disabled_by_default{false};
   enums::EntityCategory entity_category{};
+  std::string unit_of_measurement{};
+  enums::NumberMode mode{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1040,6 +1047,37 @@ class SelectCommandRequest : public ProtoMessage {
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class ListEntitiesButtonResponse : public ProtoMessage {
+ public:
+  std::string object_id{};
+  uint32_t key{0};
+  std::string name{};
+  std::string unique_id{};
+  std::string icon{};
+  bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
+  std::string device_class{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class ButtonCommandRequest : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
 };
 
 }  // namespace api

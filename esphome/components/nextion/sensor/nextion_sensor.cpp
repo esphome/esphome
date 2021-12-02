@@ -24,7 +24,7 @@ void NextionSensor::add_to_wave_buffer(float state) {
 
   wave_buffer_.push_back(wave_state);
 
-  if (this->wave_buffer_.size() > this->wave_max_length_) {
+  if (this->wave_buffer_.size() > (size_t) this->wave_max_length_) {
     this->wave_buffer_.erase(this->wave_buffer_.begin());
   }
 }

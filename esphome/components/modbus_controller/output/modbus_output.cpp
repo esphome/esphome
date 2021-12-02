@@ -13,11 +13,6 @@ void ModbusOutput::setup() {}
  *
  */
 void ModbusOutput::write_state(float value) {
-  union {
-    float float_value;
-    uint32_t raw;
-  } raw_to_float;
-
   std::vector<uint16_t> data;
   auto original_value = value;
   // Is there are lambda configured?

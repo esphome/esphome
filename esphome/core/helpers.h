@@ -25,14 +25,13 @@
 
 namespace esphome {
 
-/// Read the raw MAC address into the provided byte array (6 bytes).
+/// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
 void get_mac_address_raw(uint8_t *mac);
 
-/// Get the MAC address as a string, using lower case hex notation.
-/// This can be used as way to identify this ESP.
+/// Get the device MAC address as a string, in lowercase hex notation.
 std::string get_mac_address();
 
-/// Get the MAC address as a string, using colon-separated upper case hex notation.
+/// Get the device MAC address as a string, in colon-separated uppercase hex notation.
 std::string get_mac_address_pretty();
 
 #ifdef USE_ESP32
@@ -58,7 +57,10 @@ bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 bool str_startswith(const std::string &full, const std::string &start);
 bool str_endswith(const std::string &full, const std::string &ending);
 
-/// sprintf-like function returning std::string instead of writing to char array.
+/// snprintf-like function returning std::string with a given maximum length.
+std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t length, ...);
+
+/// sprintf-like function returning std::string.
 std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
 
 class HighFrequencyLoopRequester {

@@ -535,8 +535,10 @@ void MQTTClientComponent::set_birth_message(MQTTMessage &&message) {
 
 void MQTTClientComponent::set_shutdown_message(MQTTMessage &&message) { this->shutdown_message_ = std::move(message); }
 
-void MQTTClientComponent::set_discovery_info(std::string &&prefix, bool retain, bool clean) {
+void MQTTClientComponent::set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
+                                             bool retain, bool clean) {
   this->discovery_info_.prefix = std::move(prefix);
+  this->discovery_info_.unique_id_generator = unique_id_generator;
   this->discovery_info_.retain = retain;
   this->discovery_info_.clean = clean;
 }

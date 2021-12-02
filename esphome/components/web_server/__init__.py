@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_AUTH,
     CONF_USERNAME,
     CONF_PASSWORD,
+    CONF_INCLUDE_INTERNAL,
     CONF_OTA,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -42,6 +43,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
             web_server_base.WebServerBase
         ),
+        cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
         cv.Optional(CONF_OTA, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -75,3 +77,4 @@ async def to_code(config):
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
         with open(file=path, mode="r", encoding="utf-8") as myfile:
             cg.add(var.set_js_include(myfile.read()))
+    cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))

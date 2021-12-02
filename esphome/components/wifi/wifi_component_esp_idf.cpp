@@ -67,9 +67,9 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
   memset(&event, 0, sizeof(IDFWiFiEvent));
   event.event_base = event_base;
   event.event_id = event_id;
-  if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+  if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {  // NOLINT(bugprone-branch-clone)
     // no data
-  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_STOP) {
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_STOP) {  // NOLINT(bugprone-branch-clone)
     // no data
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_AUTHMODE_CHANGE) {
     memcpy(&event.data.sta_authmode_change, event_data, sizeof(wifi_event_sta_authmode_change_t));
@@ -79,13 +79,13 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
     memcpy(&event.data.sta_disconnected, event_data, sizeof(wifi_event_sta_disconnected_t));
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
     memcpy(&event.data.ip_got_ip, event_data, sizeof(ip_event_got_ip_t));
-  } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_LOST_IP) {
+  } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_LOST_IP) {  // NOLINT(bugprone-branch-clone)
     // no data
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_SCAN_DONE) {
     memcpy(&event.data.sta_scan_done, event_data, sizeof(wifi_event_sta_scan_done_t));
-  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_START) {
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_START) {  // NOLINT(bugprone-branch-clone)
     // no data
-  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STOP) {
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STOP) {  // NOLINT(bugprone-branch-clone)
     // no data
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_PROBEREQRECVED) {
     memcpy(&event.data.ap_probe_req_rx, event_data, sizeof(wifi_event_ap_probe_req_rx_t));
@@ -430,7 +430,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
 
   err = tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA);
-  if (err != ESP_OK) {
+  if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
     ESP_LOGV(TAG, "tcpip_adapter_dhcpc_stop failed: %s", esp_err_to_name(err));
     return false;
   }
