@@ -56,9 +56,9 @@ template<typename... Ts> class MidiInControlInRangeCondition : public Condition<
  protected:
   MidiInComponent *parent_;
   midi::MidiControlChangeNumber control_;
+  const static uint8_t unspecified_ = 0xFF;
   uint8_t min_{unspecified_};
   uint8_t max_{unspecified_};
-  const uint8_t unspecified_ = 0xFF;
 };
 
 }  // namespace midi_in
