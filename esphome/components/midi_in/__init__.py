@@ -24,12 +24,16 @@ MidiInOnSystemMessageTrigger = midi_ns.class_(
     "MidiInOnSystemMessageTrigger", automation.Trigger.template()
 )
 
+MidiInNoteOnCondition = midi_ns.class_("MidiInNoteOnCondition", automation.Condition)
+
 MULTI_CONF = True
 
 CONF_ON_CHANNEL_MESSAGE = "on_channel_message"
 CONF_ON_SYSTEM_MESSAGE = "on_system_message"
 CONF_CONNECTED = "connected"
 CONF_PLAYBACK = "playback"
+
+CONF_NOTE = "note"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -116,3 +120,24 @@ async def to_code(config):
         cg.add(getattr(var, "set_playback_binary_sensor")(sens))
 
     cg.add(var.dump_config())
+
+
+@automation.register_condition(
+    "midi_in.note_on",
+    MidiInNoteOnCondition,
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(MidiInComponent),
+            cv.Required(CONF_NOTE): cv.Any(
+                cv.int_range(min=0, max=127), cv.hex_int_range(min=0, max=127)
+            ),
+        },
+        key=CONF_NOTE,
+    ),
+)
+async def midi_in_note_on_condition_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(condition_id, template_arg, paren)
+    cg.add(var.set_note(config[CONF_NOTE]))
+    return var
+    return var
