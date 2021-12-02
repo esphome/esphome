@@ -1335,6 +1335,20 @@ midi_in:
           if (x.type == midi::MidiType::ProgramChange) {
             ESP_LOGD("midi_in", "PROGRAM CHANGE: %#02x (channel %i)", x.data1, x.channel);
           }
+      - if:
+          condition:
+            midi_in.note_on: 0x15
+          then:
+            - lambda: |-
+                ESP_LOGD("midi_in", "A2 is on");
+      - if:
+          condition:
+            midi_in.control_in_range:
+              control: Sustain
+              above: 0x40
+          then:
+            - lambda: |-
+                ESP_LOGD("midi_in", "Sustan pedal is on");
     on_system_message:
       - lambda: |-
           if (x.type == midi::MidiType::SystemReset) {
