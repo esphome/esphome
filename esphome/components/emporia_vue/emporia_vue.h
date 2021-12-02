@@ -53,18 +53,25 @@ class EmporiaVueComponent : public Component, public i2c::I2CDevice {
   QueueHandle_t i2c_data_queue_;
 };
 
-enum PhaseInputWire { BLACK, RED, BLUE };
+enum PhaseInputWire : uint8_t { 
+  BLACK = 0,
+  RED = 1,
+  BLUE = 2, 
+};
 
 class PhaseConfig {
  public:
-  void set_input_color(PhaseInputWire input_color) { this->input_color_ = input_color; }
+  void set_input_wire(PhaseInputWire input_wire) { this->input_wire_ = input_wire; }
   void set_calibration(double calibration) {this->calibration_ = calibration; }
+  void set_voltage_sensor(sensor::Sensor voltage_sensor) {this->set_voltage_sensor = voltage_sensor; }
   double get_calibration() { return this->calibration_; }
+  void update_voltage(EmporiaSensorData &data);
   int32_t extract_power_for_phase(const PowerDataEntry &entry);
 
  private:
-  PhaseInputWire input_color_;
+  PhaseInputWire input_wire_;
   double calibration_;
+  sensor::Sensor voltage_sensor_;
 };
 
 enum CTInputPort : uint8_t {

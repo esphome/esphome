@@ -3,11 +3,11 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
     CONF_CALIBRATION,
-#    CONF_CT,
+    #    CONF_CT,
     CONF_ID,
     CONF_INPUT,
-#    CONF_PHASES,
-#    CONF_PHASE_ID,
+    #    CONF_PHASES,
+    #    CONF_PHASE_ID,
     CONF_VOLTAGE,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_VOLTAGE,
@@ -34,7 +34,7 @@ EmporiaVueComponent = emporia_vue_ns.class_(
 PhaseConfig = emporia_vue_ns.class_("PhaseConfig")
 CTSensor = emporia_vue_ns.class_("CTSensor", sensor.Sensor)
 
-PhaseInputColor = emporia_vue_ns.enum("PhaseInputColor")
+PhaseInputColor = emporia_vue_ns.enum("PhaseInputWire")
 PHASE_INPUT = {
     "BLACK": PhaseInputColor.BLACK,
     "RED": PhaseInputColor.RED,
@@ -86,10 +86,10 @@ CONFIG_SCHEMA = (
                     cv.Required(CONF_ID): cv.declare_id(PhaseConfig),
                     cv.Required(CONF_INPUT): cv.enum(PHASE_INPUT),
                     cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                        UNIT_VOLT, 
-                        ICON_EMPTY, 
+                        UNIT_VOLT,
+                        ICON_EMPTY,
                         1,
-                        DEVICE_CLASS_VOLTAGE, 
+                        DEVICE_CLASS_VOLTAGE,
                         STATE_CLASS_MEASUREMENT,
                     ),
                 }
@@ -111,8 +111,12 @@ async def to_code(config):
     phases = []
     for phase_config in config[CONF_PHASES]:
         phase_var = cg.new_Pvariable(phase_config[CONF_ID], PhaseConfig())
-        cg.add(phase_var.set_input_color(phase_config[CONF_INPUT]))
+        cg.add(phase_var.set_input_wire(phase_config[CONF_INPUT]))
         cg.add(phase_var.set_calibration(phase_config[CONF_CALIBRATION]))
+
+        if CONF_VOLTAGE in phase_config:
+            voltage_sensor = await sensor.new_sensor(phase_config[CONF_VOLTAGE])
+            cg.add(var.set_voltage_sensor(voltage_sensor))
 
         phases.append(phase_var)
     cg.add(var.set_phases(phases))

@@ -69,14 +69,23 @@ void EmporiaVueComponent::loop() {
   EmporiaSensorData data;
 
   if (xQueueReceive(this->i2c_data_queue_, &data, 0 ) == pdTRUE) {
+    for (PhaseConfig *phase : this->phases_) {
+      phase->update_from_data(data);
+    }
+
     for (CTSensor *ct_sensor : this->ct_sensors_) {
       ct_sensor->update_from_data(data);
     }
   }
 }
 
+void PhaseConfig::update_from_data(EmporiaSensorData &data) {
+  float calibrated_voltage = data.voltage[this->input_wire_] * this->calibration_;
+  this->voltage_sensor_.publish_state(calibrated_voltage);
+}
+
 int32_t PhaseConfig::extract_power_for_phase(const PowerDataEntry &entry) {
-  switch (this->input_color_) {
+  switch (this->input_wire_) {
     case PhaseInputColor::BLACK:
       return entry.phase_one;
     case PhaseInputColor::RED:
