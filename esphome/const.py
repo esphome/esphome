@@ -14,7 +14,6 @@ HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
 SECRETS_FILES = {"secrets.yaml", "secrets.yml"}
 
 
-
 CONF_ABOVE = "above"
 CONF_ACCELERATION = "acceleration"
 CONF_ACCELERATION_X = "acceleration_x"
