@@ -23,32 +23,26 @@ class MidiInOnSystemMessageTrigger : public Trigger<MidiSystemMessage> {
   }
 };
 
-template <typename... Ts>
-class MidiInNoteOnCondition : public Condition<Ts...> {
-public:
+template<typename... Ts> class MidiInNoteOnCondition : public Condition<Ts...> {
+ public:
   explicit MidiInNoteOnCondition(MidiInComponent *parent) : parent_(parent) {}
 
   void set_note(uint8_t note) { this->note_ = note; }
-  bool check(Ts... x) override
-  {
-    return this->parent_->note_velocity(this->note_) > 0;
-  }
+  bool check(Ts... x) override { return this->parent_->note_velocity(this->note_) > 0; }
 
-protected:
+ protected:
   MidiInComponent *parent_;
   uint8_t note_;
 };
 
-template <typename... Ts>
-class MidiInControlInRangeCondition : public Condition<Ts...> {
-public:
+template<typename... Ts> class MidiInControlInRangeCondition : public Condition<Ts...> {
+ public:
   explicit MidiInControlInRangeCondition(MidiInComponent *parent) : parent_(parent) {}
 
   void set_control(uint8_t control) { this->control_ = static_cast<midi::MidiControlChangeNumber>(control); }
   void set_min(uint8_t min) { this->min_ = min; }
   void set_max(uint8_t max) { this->max_ = max; }
-  bool check(Ts... x) override
-  {
+  bool check(Ts... x) override {
     const uint8_t value = this->parent_->control_value(this->control_);
     if (this->min_ == UNSPECIFIED) {
       return value <= this->max_;
@@ -59,7 +53,7 @@ public:
     }
   }
 
-protected:
+ protected:
   MidiInComponent *parent_;
   midi::MidiControlChangeNumber control_;
   uint8_t min_{UNSPECIFIED};
