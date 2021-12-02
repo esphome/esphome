@@ -430,7 +430,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
 
   err = tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA);
-  if (err != ESP_OK) {
+  if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
     ESP_LOGV(TAG, "tcpip_adapter_dhcpc_stop failed: %s", esp_err_to_name(err));
     return false;
   }
