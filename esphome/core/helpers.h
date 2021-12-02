@@ -261,21 +261,6 @@ template<typename T> class Parented {
 
 uint32_t fnv1_hash(const std::string &str);
 
-template<typename T> T *new_buffer(size_t length) {
-  T *buffer;
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-  if (psramFound()) {
-    buffer = (T *) ps_malloc(length);
-  } else {
-    buffer = new T[length];  // NOLINT(cppcoreguidelines-owning-memory)
-  }
-#else
-  buffer = new T[length];  // NOLINT(cppcoreguidelines-owning-memory)
-#endif
-
-  return buffer;
-}
-
 // ---------------------------------------------------------------------------------------------------------------------
 
 /// @name STL backports
