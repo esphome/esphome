@@ -32,6 +32,8 @@ class ControlData : public MideaData {
   void set_fahrenheit(bool value) { this->set_mask_(2, value, 32); }
   bool get_fahrenheit() const { return this->get_value_(2, 32); }
 
+  void do_fix();
+
  protected:
   enum Mode : uint8_t {
     MODE_COOL,
