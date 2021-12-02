@@ -114,10 +114,10 @@ class Dsmr : public Component, public uart::UARTDevice {
   bool receive_timeout_reached_();
   size_t max_telegram_len_;
   char *telegram_{nullptr};
-  int bytes_read_{0};
+  size_t bytes_read_{0};
   uint8_t *crypt_telegram_{nullptr};
   size_t crypt_telegram_len_{0};
-  int crypt_bytes_read_{0};
+  size_t crypt_bytes_read_{0};
   uint32_t last_read_time_{0};
   bool header_found_{false};
   bool footer_found_{false};

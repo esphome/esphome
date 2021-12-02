@@ -5,11 +5,8 @@ Checks: >-
   -altera-*,
   -android-*,
   -boost-*,
-  -bugprone-branch-clone,
-  -bugprone-easily-swappable-parameters,
   -bugprone-narrowing-conversions,
   -bugprone-signed-char-misuse,
-  -bugprone-too-small-loop-variable,
   -cert-dcl50-cpp,
   -cert-err58-cpp,
   -cert-oop57-cpp,
@@ -19,12 +16,10 @@ Checks: >-
   -clang-diagnostic-delete-abstract-non-virtual-dtor,
   -clang-diagnostic-delete-non-abstract-non-virtual-dtor,
   -clang-diagnostic-shadow-field,
-  -clang-diagnostic-sign-compare,
-  -clang-diagnostic-unused-variable,
   -clang-diagnostic-unused-const-variable,
+  -clang-diagnostic-unused-parameter,
   -concurrency-*,
   -cppcoreguidelines-avoid-c-arrays,
-  -cppcoreguidelines-avoid-goto,
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-init-variables,
   -cppcoreguidelines-macro-usage,
@@ -41,7 +36,6 @@ Checks: >-
   -cppcoreguidelines-pro-type-union-access,
   -cppcoreguidelines-pro-type-vararg,
   -cppcoreguidelines-special-member-functions,
-  -fuchsia-default-arguments,
   -fuchsia-multiple-inheritance,
   -fuchsia-overloaded-operator,
   -fuchsia-statically-constructed-objects,
@@ -51,6 +45,7 @@ Checks: >-
   -google-explicit-constructor,
   -google-readability-braces-around-statements,
   -google-readability-casting,
+  -google-readability-namespace-comments,
   -google-readability-todo,
   -google-runtime-references,
   -hicpp-*,
@@ -97,12 +92,12 @@ CheckOptions:
     value:           '1'
   - key:             google-readability-function-size.StatementThreshold
     value:           '800'
-  - key:             google-readability-namespace-comments.ShortNamespaceLines
-    value:           '10'
-  - key:             google-readability-namespace-comments.SpacesBeforeComments
-    value:           '2'
   - key:             google-runtime-int.TypeSuffix
     value:           '_t'
+  - key:             llvm-namespace-comment.ShortNamespaceLines
+    value:           '10'
+  - key:             llvm-namespace-comment.SpacesBeforeComments
+    value:           '2'
   - key:             modernize-loop-convert.MaxCopySize
     value:           '16'
   - key:             modernize-loop-convert.MinConfidence

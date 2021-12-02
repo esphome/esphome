@@ -149,9 +149,9 @@ void CSE7766Component::parse_data_() {
   }
 }
 void CSE7766Component::update() {
-  float voltage = this->voltage_counts_ > 0 ? this->voltage_acc_ / this->voltage_counts_ : 0.0;
-  float current = this->current_counts_ > 0 ? this->current_acc_ / this->current_counts_ : 0.0;
-  float power = this->power_counts_ > 0 ? this->power_acc_ / this->power_counts_ : 0.0;
+  float voltage = this->voltage_counts_ > 0 ? this->voltage_acc_ / this->voltage_counts_ : 0.0f;
+  float current = this->current_counts_ > 0 ? this->current_acc_ / this->current_counts_ : 0.0f;
+  float power = this->power_counts_ > 0 ? this->power_acc_ / this->power_counts_ : 0.0f;
 
   ESP_LOGV(TAG, "Got voltage_acc=%.2f current_acc=%.2f power_acc=%.2f", this->voltage_acc_, this->current_acc_,
            this->power_acc_);

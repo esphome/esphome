@@ -102,8 +102,6 @@ inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_
       return ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
       break;
     case ModbusRegisterType::READ:
-      return ModbusFunctionCode::CUSTOM;
-      break;
     default:
       return ModbusFunctionCode::CUSTOM;
       break;
@@ -221,7 +219,7 @@ template<typename N> N mask_and_shift_by_rightbit(N data, uint32_t mask) {
   if (result == 0) {
     return result;
   }
-  for (int pos = 0; pos < sizeof(N) << 3; pos++) {
+  for (size_t pos = 0; pos < sizeof(N) << 3; pos++) {
     if ((mask & (1 << pos)) != 0)
       return result >> pos;
   }
