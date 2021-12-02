@@ -5,13 +5,15 @@ namespace esphome {
 namespace remote_base {
 
 static const char *const TAG = "remote.coolix";
-static const int32_t BIT_MARK_US = 560;
-static const int32_t HEADER_MARK_US = 8 * BIT_MARK_US;
-static const int32_t HEADER_SPACE_US = 8 * BIT_MARK_US;
-static const int32_t BIT_ONE_SPACE_US = 3 * BIT_MARK_US;
-static const int32_t BIT_ZERO_SPACE_US = 1 * BIT_MARK_US;
-static const int32_t FOOTER_MARK_US = 1 * BIT_MARK_US;
-static const int32_t FOOTER_SPACE_US = 10 * BIT_MARK_US;
+
+static const int32_t TICK_US = 560;
+static const int32_t HEADER_MARK_US = 8 * TICK_US;
+static const int32_t HEADER_SPACE_US = 8 * TICK_US;
+static const int32_t BIT_MARK_US = 1 * TICK_US;
+static const int32_t BIT_ONE_SPACE_US = 3 * TICK_US;
+static const int32_t BIT_ZERO_SPACE_US = 1 * TICK_US;
+static const int32_t FOOTER_MARK_US = 1 * TICK_US;
+static const int32_t FOOTER_SPACE_US = 10 * TICK_US;
 
 void CoolixProtocol::encode(RemoteTransmitData *dst, const CoolixData &data) {
   dst->set_carrier_frequency(38000);
@@ -36,7 +38,7 @@ void CoolixProtocol::encode(RemoteTransmitData *dst, const CoolixData &data) {
         break;
     }
     // Footer
-    dst->item(BIT_MARK_US, FOOTER_SPACE_US);  // Pause before repeating
+    dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);  // Pause before repeating
   }
 }
 
@@ -61,8 +63,8 @@ static bool read_data(RemoteReceiveData &src, CoolixData &data) {
 optional<CoolixData> CoolixProtocol::decode(RemoteReceiveData data) {
   CoolixData first, second;
   if (data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && read_data(data, first) &&
-      data.expect_item(BIT_MARK_US, FOOTER_SPACE_US) && data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) &&
-      read_data(data, second) && data.expect_mark(BIT_MARK_US) && first == second)
+      data.expect_item(FOOTER_MARK_US, FOOTER_SPACE_US) && data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) &&
+      read_data(data, second) && data.expect_mark(FOOTER_MARK_US) && first == second)
     return first;
   return {};
 }

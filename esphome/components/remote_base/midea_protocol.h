@@ -65,16 +65,6 @@ class MideaProtocol : public RemoteProtocol<MideaData> {
   void encode(RemoteTransmitData *dst, const MideaData &src) override;
   optional<MideaData> decode(RemoteReceiveData src) override;
   void dump(const MideaData &data) override;
-
- protected:
-  static const int32_t TICK_US = 560;
-  static const int32_t HEADER_HIGH_US = 8 * TICK_US;
-  static const int32_t HEADER_LOW_US = 8 * TICK_US;
-  static const int32_t BIT_HIGH_US = 1 * TICK_US;
-  static const int32_t BIT_ONE_LOW_US = 3 * TICK_US;
-  static const int32_t BIT_ZERO_LOW_US = 1 * TICK_US;
-  static const int32_t MIN_GAP_US = 10 * TICK_US;
-  static bool read_data(RemoteReceiveData &src, MideaData &data);
 };
 
 class MideaBinarySensor : public RemoteReceiverBinarySensorBase {
