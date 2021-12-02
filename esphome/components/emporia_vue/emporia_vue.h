@@ -19,8 +19,8 @@ struct __attribute__((__packed__)) PowerDataEntry {
 
 struct __attribute__((__packed__)) EmporiaSensorData {
   uint8_t read_flag; // 0 = stale, 3 = new data
-  uint8_t unknown1;  // checksum?
   uint8_t checksum;  // checksum?
+  uint8_t unknown1;  // checksum?
   uint8_t timer;     // tick each ~510ms
 
   PowerDataEntry power[19];
@@ -53,17 +53,17 @@ class EmporiaVueComponent : public Component, public i2c::I2CDevice {
   QueueHandle_t i2c_data_queue_;
 };
 
-enum PhaseInputColor { BLACK, RED, BLUE };
+enum PhaseInputWire { BLACK, RED, BLUE };
 
 class PhaseConfig {
  public:
-  void set_input_color(PhaseInputColor input_color) { this->input_color_ = input_color; }
+  void set_input_color(PhaseInputWire input_color) { this->input_color_ = input_color; }
   void set_calibration(double calibration) {this->calibration_ = calibration; }
   double get_calibration() { return this->calibration_; }
   int32_t extract_power_for_phase(const PowerDataEntry &entry);
 
  private:
-  PhaseInputColor input_color_;
+  PhaseInputWire input_color_;
   double calibration_;
 };
 

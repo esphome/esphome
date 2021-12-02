@@ -8,9 +8,13 @@ from esphome.const import (
     CONF_INPUT,
 #    CONF_PHASES,
 #    CONF_PHASE_ID,
+    CONF_VOLTAGE,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_VOLTAGE,
+    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_WATT,
+    UNIT_VOLT,
 )
 
 # TODO: Remove this - It's only added so we can test the component using the External_component configuration
@@ -81,6 +85,13 @@ CONFIG_SCHEMA = (
                 {
                     cv.Required(CONF_ID): cv.declare_id(PhaseConfig),
                     cv.Required(CONF_INPUT): cv.enum(PHASE_INPUT),
+                    cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
+                        UNIT_VOLT, 
+                        ICON_EMPTY, 
+                        1,
+                        DEVICE_CLASS_VOLTAGE, 
+                        STATE_CLASS_MEASUREMENT,
+                    ),
                 }
             ),
             cv.Required(CONF_CT): cv.ensure_list(SCHEMA_CT),
@@ -101,6 +112,7 @@ async def to_code(config):
     for phase_config in config[CONF_PHASES]:
         phase_var = cg.new_Pvariable(phase_config[CONF_ID], PhaseConfig())
         cg.add(phase_var.set_input_color(phase_config[CONF_INPUT]))
+        cg.add(phase_var.set_calibration(phase_config[CONF_CALIBRATION]))
 
         phases.append(phase_var)
     cg.add(var.set_phases(phases))
