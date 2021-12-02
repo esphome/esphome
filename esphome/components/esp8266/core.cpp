@@ -20,6 +20,7 @@ void arch_restart() {
     yield();
   }
 }
+void arch_init() {}
 void IRAM_ATTR HOT arch_feed_wdt() {
   ESP.wdtFeed();  // NOLINT(readability-static-accessed-through-instance)
 }
@@ -27,7 +28,7 @@ void IRAM_ATTR HOT arch_feed_wdt() {
 uint8_t progmem_read_byte(const uint8_t *addr) {
   return pgm_read_byte(addr);  // NOLINT
 }
-uint32_t arch_get_cpu_cycle_count() {
+uint32_t IRAM_ATTR HOT arch_get_cpu_cycle_count() {
   return ESP.getCycleCount();  // NOLINT(readability-static-accessed-through-instance)
 }
 uint32_t arch_get_cpu_freq_hz() { return F_CPU; }

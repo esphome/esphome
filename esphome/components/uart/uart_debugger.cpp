@@ -90,6 +90,11 @@ void UARTDummyReceiver::loop() {
   }
 }
 
+// In the upcoming log functions, a delay was added after all log calls.
+// This is done to allow the system to ship the log lines via the API
+// TCP connection(s). Without these delays, debug log lines could go
+// missing when UART devices block the main loop for too long.
+
 void UARTDebug::log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator) {
   std::string res;
   if (direction == UART_DIRECTION_RX) {
@@ -107,6 +112,7 @@ void UARTDebug::log_hex(UARTDirection direction, std::vector<uint8_t> bytes, uin
     res += buf;
   }
   ESP_LOGD(TAG, "%s", res.c_str());
+  delay(10);
 }
 
 void UARTDebug::log_string(UARTDirection direction, std::vector<uint8_t> bytes) {
@@ -150,6 +156,7 @@ void UARTDebug::log_string(UARTDirection direction, std::vector<uint8_t> bytes) 
   }
   res += '"';
   ESP_LOGD(TAG, "%s", res.c_str());
+  delay(10);
 }
 
 void UARTDebug::log_int(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator) {
@@ -167,6 +174,7 @@ void UARTDebug::log_int(UARTDirection direction, std::vector<uint8_t> bytes, uin
     res += to_string(bytes[i]);
   }
   ESP_LOGD(TAG, "%s", res.c_str());
+  delay(10);
 }
 
 void UARTDebug::log_binary(UARTDirection direction, std::vector<uint8_t> bytes, uint8_t separator) {
@@ -186,6 +194,7 @@ void UARTDebug::log_binary(UARTDirection direction, std::vector<uint8_t> bytes, 
     res += buf;
   }
   ESP_LOGD(TAG, "%s", res.c_str());
+  delay(10);
 }
 
 }  // namespace uart

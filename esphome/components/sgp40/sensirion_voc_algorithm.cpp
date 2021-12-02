@@ -149,7 +149,7 @@ static fix16_t fix16_div(fix16_t a, fix16_t b) {
   /* Figure out the sign of result */
   if ((a ^ b) & 0x80000000) {
 #ifndef FIXMATH_NO_OVERFLOW
-    if (result == FIX16_MINIMUM)
+    if (result == FIX16_MINIMUM)  // NOLINT(clang-diagnostic-sign-compare)
       return FIX16_OVERFLOW;
 #endif
 

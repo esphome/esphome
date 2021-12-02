@@ -10,11 +10,6 @@ static const char *const TAG = "modbus_controller.sensor";
 void ModbusSensor::dump_config() { LOG_SENSOR(TAG, "Modbus Controller Sensor", this); }
 
 void ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
-  union {
-    float float_value;
-    uint32_t raw;
-  } raw_to_float;
-
   float result = payload_to_float(data, *this);
 
   // Is there a lambda registered

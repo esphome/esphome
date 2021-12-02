@@ -43,6 +43,18 @@ void MQTTNumberComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryCo
   root[MQTT_MIN] = traits.get_min_value();
   root[MQTT_MAX] = traits.get_max_value();
   root[MQTT_STEP] = traits.get_step();
+  if (!this->number_->traits.get_unit_of_measurement().empty())
+    root[MQTT_UNIT_OF_MEASUREMENT] = this->number_->traits.get_unit_of_measurement();
+  switch (this->number_->traits.get_mode()) {
+    case NUMBER_MODE_AUTO:
+      break;
+    case NUMBER_MODE_BOX:
+      root[MQTT_MODE] = "box";
+      break;
+    case NUMBER_MODE_SLIDER:
+      root[MQTT_MODE] = "slider";
+      break;
+  }
 
   config.command_topic = true;
 }
