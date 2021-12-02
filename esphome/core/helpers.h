@@ -415,4 +415,14 @@ optional<T> parse_number(const std::string &str) {
 
 ///@}
 
+/// @name Number manipulation
+///@{
+
+/// Remap a number from one range to another.
+template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
+  return (value - min) * (max_out - min_out) / (max - min) + min_out;
+}
+
+///@}
+
 }  // namespace esphome
