@@ -94,7 +94,7 @@ void Application::loop() {
   }
   this->last_loop_ = now;
 
-  if (this->dump_config_at_ >= 0 && this->dump_config_at_ < this->components_.size()) {
+  if (this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
       ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
 #ifdef ESPHOME_PROJECT_NAME
@@ -109,8 +109,8 @@ void Application::loop() {
 
 void IRAM_ATTR HOT Application::feed_wdt() {
   static uint32_t last_feed = 0;
-  uint32_t now = millis();
-  if (now - last_feed > 3) {
+  uint32_t now = micros();
+  if (now - last_feed > 3000) {
     arch_feed_wdt();
     last_feed = now;
 #ifdef USE_STATUS_LED

@@ -98,7 +98,7 @@ void LightCall::perform() {
     // EFFECT
     auto effect = this->effect_;
     const char *effect_s;
-    if (effect == 0)
+    if (effect == 0u)
       effect_s = "None";
     else
       effect_s = this->parent_->effects_[*this->effect_ - 1]->get_name().c_str();
@@ -532,7 +532,8 @@ LightCall &LightCall::set_white_if_supported(float white) {
   return *this;
 }
 LightCall &LightCall::set_color_temperature_if_supported(float color_temperature) {
-  if (this->get_active_color_mode_() & ColorCapability::COLOR_TEMPERATURE)
+  if (this->get_active_color_mode_() & ColorCapability::COLOR_TEMPERATURE ||
+      this->get_active_color_mode_() & ColorCapability::COLD_WARM_WHITE)
     this->set_color_temperature(color_temperature);
   return *this;
 }

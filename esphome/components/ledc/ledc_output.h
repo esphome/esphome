@@ -10,6 +10,7 @@
 namespace esphome {
 namespace ledc {
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern uint8_t next_ledc_channel;
 
 class LEDCOutput : public output::FloatOutput, public Component {

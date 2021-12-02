@@ -9,11 +9,17 @@ esp32:
   board: nodemcu-32s
   framework:
     type: esp-idf
+    advanced:
+      ignore_efuse_mac_crc: true
 
 wifi:
   networks:
     - ssid: 'MySSID'
       password: 'password1'
+      manual_ip:
+        static_ip: 192.168.1.23
+        gateway: 192.168.1.1
+        subnet: 255.255.255.0
 
 api:
 
@@ -36,11 +42,20 @@ i2c:
 
 modbus:
   uart_id: uart1
+  flow_control_pin: 5
+  id: mod_bus1
+
+modbus_controller:
+  - id: modbus_controller_test
+    address: 0x2
+    modbus_id: mod_bus1
+
 
 binary_sensor:
   - platform: gpio
     pin: GPIO0
     id: io0_button
+    icon: mdi:gesture-tap-button
 
 tlc5947:
   data_pin: GPIO12
@@ -86,6 +101,8 @@ number:
     max_value: 100
     min_value: 0
     step: 5
+    unit_of_measurement: '%'
+    mode: slider
 
 select:
   - platform: template
@@ -150,7 +167,23 @@ sensor:
       name: "SelecEM2M Maximum Demand Apparent Power"
       disabled_by_default: true
 
+  - id: battery_voltage
+    name: "Battery voltage2"
+    platform: modbus_controller
+    modbus_controller_id: modbus_controller_test
+    address: 0x331A
+    register_type: read
+    value_type: U_WORD
+
   - platform: t6615
     uart_id: uart2
     co2:
       name: CO2 Sensor
+
+script:
+  - id: automation_test
+    then:
+      - repeat:
+          count: 5
+          then:
+            - logger.log: "looping!"

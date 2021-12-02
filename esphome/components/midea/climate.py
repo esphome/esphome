@@ -40,9 +40,9 @@ AUTO_LOAD = ["sensor"]
 CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
 CONF_POWER_USAGE = "power_usage"
 CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
-midea_ns = cg.esphome_ns.namespace("midea")
-AirConditioner = midea_ns.class_("AirConditioner", climate.Climate, cg.Component)
-Capabilities = midea_ns.namespace("Constants")
+midea_ac_ns = cg.esphome_ns.namespace("midea").namespace("ac")
+AirConditioner = midea_ac_ns.class_("AirConditioner", climate.Climate, cg.Component)
+Capabilities = midea_ac_ns.namespace("Constants")
 
 
 def templatize(value):
@@ -156,13 +156,13 @@ CONFIG_SCHEMA = cv.All(
 )
 
 # Actions
-FollowMeAction = midea_ns.class_("FollowMeAction", automation.Action)
-DisplayToggleAction = midea_ns.class_("DisplayToggleAction", automation.Action)
-SwingStepAction = midea_ns.class_("SwingStepAction", automation.Action)
-BeeperOnAction = midea_ns.class_("BeeperOnAction", automation.Action)
-BeeperOffAction = midea_ns.class_("BeeperOffAction", automation.Action)
-PowerOnAction = midea_ns.class_("PowerOnAction", automation.Action)
-PowerOffAction = midea_ns.class_("PowerOffAction", automation.Action)
+FollowMeAction = midea_ac_ns.class_("FollowMeAction", automation.Action)
+DisplayToggleAction = midea_ac_ns.class_("DisplayToggleAction", automation.Action)
+SwingStepAction = midea_ac_ns.class_("SwingStepAction", automation.Action)
+BeeperOnAction = midea_ac_ns.class_("BeeperOnAction", automation.Action)
+BeeperOffAction = midea_ac_ns.class_("BeeperOffAction", automation.Action)
+PowerOnAction = midea_ac_ns.class_("PowerOnAction", automation.Action)
+PowerOffAction = midea_ac_ns.class_("PowerOffAction", automation.Action)
 
 MIDEA_ACTION_BASE_SCHEMA = cv.Schema(
     {
@@ -282,4 +282,4 @@ async def to_code(config):
     if CONF_HUMIDITY_SETPOINT in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
-    cg.add_library("dudanov/MideaUART", "1.1.5")
+    cg.add_library("dudanov/MideaUART", "1.1.8")

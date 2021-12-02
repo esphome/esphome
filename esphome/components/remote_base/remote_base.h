@@ -161,11 +161,11 @@ class RemoteRMTChannel {
   void set_clock_divider(uint8_t clock_divider) { this->clock_divider_ = clock_divider; }
 
  protected:
-  uint32_t from_microseconds(uint32_t us) {
+  uint32_t from_microseconds_(uint32_t us) {
     const uint32_t ticks_per_ten_us = 80000000u / this->clock_divider_ / 100000u;
     return us * ticks_per_ten_us / 10;
   }
-  uint32_t to_microseconds(uint32_t ticks) {
+  uint32_t to_microseconds_(uint32_t ticks) {
     const uint32_t ticks_per_ten_us = 80000000u / this->clock_divider_ / 100000u;
     return (ticks * 10) / ticks_per_ten_us;
   }

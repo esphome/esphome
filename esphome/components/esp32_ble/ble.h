@@ -19,6 +19,7 @@
 namespace esphome {
 namespace esp32_ble {
 
+// NOLINTNEXTLINE(modernize-use-using)
 typedef struct {
   void *peer_device;
   bool connected;
@@ -65,6 +66,7 @@ class ESP32BLE : public Component {
   BLEAdvertising *advertising_;
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32BLE *global_ble;
 
 }  // namespace esp32_ble

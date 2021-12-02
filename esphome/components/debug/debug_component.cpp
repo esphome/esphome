@@ -4,18 +4,21 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/version.h"
 
+#ifdef USE_ESP_IDF
+#include <esp_heap_caps.h>
+#include <esp_system.h>
+#endif
+
 #ifdef USE_ESP32
+#if ESP_IDF_VERSION_MAJOR >= 4
+#include <esp32/rom/rtc.h>
+#else
 #include <rom/rtc.h>
-#include <esp_idf_version.h>
+#endif
 #endif
 
 #ifdef USE_ARDUINO
 #include <Esp.h>
-#endif
-
-#ifdef USE_ESP_IDF
-#include <esp_heap_caps.h>
-#include <esp_system.h>
 #endif
 
 namespace esphome {
@@ -104,10 +107,7 @@ void DebugComponent::dump_config() {
 
   ESP_LOGD(TAG, "ESP-IDF Version: %s", esp_get_idf_version());
 
-  uint64_t chip_mac = 0LL;
-  esp_efuse_mac_get_default((uint8_t *) (&chip_mac));
-  std::string mac = uint64_to_string(chip_mac);
-  ESP_LOGD(TAG, "EFuse MAC: %s", mac.c_str());
+  ESP_LOGD(TAG, "EFuse MAC: %s", get_mac_address_pretty().c_str());
 
   const char *reset_reason;
   switch (rtc_get_reset_reason(0)) {

@@ -1,9 +1,8 @@
 #pragma once
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/esp32_ble_server/ble_server.h"
 #include "esphome/components/esp32_ble_server/ble_characteristic.h"
-#include "esphome/components/improv/improv.h"
+#include "esphome/components/esp32_ble_server/ble_server.h"
 #include "esphome/components/output/binary_output.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/component.h"
@@ -11,6 +10,8 @@
 #include "esphome/core/preferences.h"
 
 #ifdef USE_ESP32
+
+#include <improv.h>
 
 namespace esphome {
 namespace esp32_improv {
@@ -48,7 +49,7 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
   std::vector<uint8_t> incoming_data_;
   wifi::WiFiAP connecting_sta_;
 
-  BLEService *service_;
+  std::shared_ptr<BLEService> service_;
   BLECharacteristic *status_;
   BLECharacteristic *error_;
   BLECharacteristic *rpc_;
@@ -63,12 +64,13 @@ class ESP32ImprovComponent : public Component, public BLEServiceComponent {
 
   void set_state_(improv::State state);
   void set_error_(improv::Error error);
-  void send_response(std::vector<uint8_t> &response);
+  void send_response_(std::vector<uint8_t> &response);
   void process_incoming_data_();
   void on_wifi_connect_timeout_();
   bool check_identify_();
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32ImprovComponent *global_improv_component;
 
 }  // namespace esp32_improv

@@ -15,6 +15,7 @@ esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/addressable_light/* @justfalter
 esphome/components/airthings_ble/* @jeromelaban
+esphome/components/airthings_wave_mini/* @ncareau
 esphome/components/airthings_wave_plus/* @jeromelaban
 esphome/components/am43/* @buxtronix
 esphome/components/am43/cover/* @buxtronix
@@ -29,7 +30,9 @@ esphome/components/bang_bang/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
 esphome/components/ble_client/* @buxtronix
 esphome/components/bme680_bsec/* @trvrnrth
+esphome/components/button/* @esphome/core
 esphome/components/canbus/* @danielschramm @mvturnho
+esphome/components/cap1188/* @MrEditor97
 esphome/components/captive_portal/* @OttoWinter
 esphome/components/ccs811/* @habbie
 esphome/components/climate/* @esphome/core
@@ -38,8 +41,11 @@ esphome/components/color_temperature/* @jesserockz
 esphome/components/coolix/* @glmnet
 esphome/components/cover/* @esphome/core
 esphome/components/cs5460a/* @balrog-kun
+esphome/components/cse7761/* @berfenger
 esphome/components/ct_clamp/* @jesserockz
+esphome/components/current_based/* @djwmarcx
 esphome/components/daly_bms/* @s1lvi0
+esphome/components/dashboard_import/* @esphome/core
 esphome/components/debug/* @OttoWinter
 esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
@@ -48,6 +54,7 @@ esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @jesserockz
 esphome/components/esp32_ble_server/* @jesserockz
+esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_improv/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/exposure_notifications/* @OttoWinter
@@ -61,11 +68,12 @@ esphome/components/graph/* @synco
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
+esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/i2c/* @esphome/core
-esphome/components/improv/* @jesserockz
+esphome/components/improv_serial/* @esphome/core
 esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter
@@ -85,9 +93,17 @@ esphome/components/mcp23x17_base/* @jesserockz
 esphome/components/mcp23xxx_base/* @jesserockz
 esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp9808/* @k7hpn
+esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
 esphome/components/midea/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
+esphome/components/modbus_controller/* @martgras
+esphome/components/modbus_controller/binary_sensor/* @martgras
+esphome/components/modbus_controller/number/* @martgras
+esphome/components/modbus_controller/output/* @martgras
+esphome/components/modbus_controller/sensor/* @martgras
+esphome/components/modbus_controller/switch/* @martgras
+esphome/components/modbus_controller/text_sensor/* @martgras
 esphome/components/network/* @esphome/core
 esphome/components/nextion/* @senexcrenshaw
 esphome/components/nextion/binary_sensor/* @senexcrenshaw
@@ -116,6 +132,8 @@ esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rgbct/* @jesserockz
 esphome/components/rtttl/* @glmnet
+esphome/components/safe_mode/* @paulmonigatti
+esphome/components/scd4x/* @sjtrny
 esphome/components/script/* @esphome/core
 esphome/components/sdm_meter/* @jesserockz @polyfaces
 esphome/components/sdp3x/* @Azimath
@@ -164,6 +182,7 @@ esphome/components/tuya/binary_sensor/* @jesserockz
 esphome/components/tuya/climate/* @jesserockz
 esphome/components/tuya/sensor/* @jesserockz
 esphome/components/tuya/switch/* @jesserockz
+esphome/components/tuya/text_sensor/* @dentra
 esphome/components/uart/* @esphome/core
 esphome/components/ultrasonic/* @OttoWinter
 esphome/components/version/* @esphome/core

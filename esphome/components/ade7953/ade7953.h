@@ -76,9 +76,9 @@ class ADE7953 : public i2c::I2CDevice, public PollingComponent {
       return err;
     *value = 0;
     *value |= ((uint32_t) recv[0]) << 24;
-    *value |= ((uint32_t) recv[1]) << 24;
-    *value |= ((uint32_t) recv[2]) << 24;
-    *value |= ((uint32_t) recv[3]) << 24;
+    *value |= ((uint32_t) recv[1]) << 16;
+    *value |= ((uint32_t) recv[2]) << 8;
+    *value |= ((uint32_t) recv[3]);
     return i2c::ERROR_OK;
   }
 

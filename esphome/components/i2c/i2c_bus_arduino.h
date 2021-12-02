@@ -9,6 +9,12 @@
 namespace esphome {
 namespace i2c {
 
+enum RecoveryCode {
+  RECOVERY_FAILED_SCL_LOW,
+  RECOVERY_FAILED_SDA_LOW,
+  RECOVERY_COMPLETED,
+};
+
 class ArduinoI2CBus : public I2CBus, public Component {
  public:
   void setup() override;
@@ -23,7 +29,8 @@ class ArduinoI2CBus : public I2CBus, public Component {
   void set_frequency(uint32_t frequency) { frequency_ = frequency; }
 
  private:
-  void recover();
+  void recover_();
+  RecoveryCode recovery_result_;
 
  protected:
   TwoWire *wire_;

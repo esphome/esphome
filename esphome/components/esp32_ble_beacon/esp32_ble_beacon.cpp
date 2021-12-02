@@ -12,6 +12,10 @@
 #include <cstring>
 #include "esphome/core/hal.h"
 
+#ifdef USE_ARDUINO
+#include <esp32-hal-bt.h>
+#endif
+
 namespace esphome {
 namespace esp32_ble_beacon {
 
@@ -53,7 +57,7 @@ void ESP32BLEBeacon::setup() {
   );
 }
 
-float ESP32BLEBeacon::get_setup_priority() const { return setup_priority::DATA; }
+float ESP32BLEBeacon::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 void ESP32BLEBeacon::ble_core_task(void *params) {
   ble_setup();
 
@@ -70,6 +74,12 @@ void ESP32BLEBeacon::ble_setup() {
     return;
   }
 
+#ifdef USE_ARDUINO
+  if (!btStart()) {
+    ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
+    return;
+  }
+#else
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
@@ -94,6 +104,7 @@ void ESP32BLEBeacon::ble_setup() {
       return;
     }
   }
+#endif
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 

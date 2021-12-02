@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
+from helpers import print_error_for_file, get_output, filter_grep, \
+    build_all_include, temp_header_file, git_ls_files, filter_changed, load_idedata, basepath
 import argparse
-import json
+import click
+import colorama
 import multiprocessing
 import os
 import queue
@@ -11,13 +14,6 @@ import subprocess
 import sys
 import tempfile
 import threading
-
-import click
-import pexpect
-
-sys.path.append(os.path.dirname(__file__))
-from helpers import shlex_quote, get_output, filter_grep, \
-    build_all_include, temp_header_file, git_ls_files, filter_changed, load_idedata
 
 
 def clang_options(idedata):
@@ -32,6 +28,7 @@ def clang_options(idedata):
         '-D_PGMSPACE_H_',
         '-Dpgm_read_byte(s)=(*(const uint8_t *)(s))',
         '-Dpgm_read_byte_near(s)=(*(const uint8_t *)(s))',
+        '-Dpgm_read_word(s)=(*(const uint16_t *)(s))',
         '-Dpgm_read_dword(s)=(*(const uint32_t *)(s))',
         '-DPROGMEM=',
         '-DPGM_P=const char *',
@@ -86,22 +83,20 @@ def run_tidy(args, options, tmpdir, queue, lock, failed_files):
             invocation.append(name)
 
         if args.quiet:
-            invocation.append('-quiet')
+            invocation.append('--quiet')
 
+        if sys.stdout.isatty():
+            invocation.append('--use-color')
+
+        invocation.append(f"--header-filter={os.path.abspath(basepath)}/.*")
         invocation.append(os.path.abspath(path))
         invocation.append('--')
         invocation.extend(options)
-        invocation_s = ' '.join(shlex_quote(x) for x in invocation)
 
-        # Use pexpect for a pseudy-TTY with colored output
-        output, rc = pexpect.run(invocation_s, withexitstatus=True, encoding='utf-8',
-                                 timeout=15 * 60)
-        if rc != 0:
+        proc = subprocess.run(invocation, capture_output=True, encoding='utf-8')
+        if proc.returncode != 0:
             with lock:
-                print()
-                print("\033[0;32m************* File \033[1;32m{}\033[0m".format(path))
-                print(output)
-                print()
+                print_error_for_file(path, proc.stdout)
                 failed_files.append(path)
         queue.task_done()
 
@@ -117,11 +112,13 @@ def split_list(a, n):
 
 
 def main():
+    colorama.init()
+
     parser = argparse.ArgumentParser()
     parser.add_argument('-j', '--jobs', type=int,
                         default=multiprocessing.cpu_count(),
                         help='number of tidy instances to be run in parallel.')
-    parser.add_argument('-e', '--environment', default='esp8266-tidy',
+    parser.add_argument('-e', '--environment', default='esp32-tidy',
                         help='the PlatformIO environment to run against (esp8266-tidy or esp32-tidy)')
     parser.add_argument('files', nargs='*', default=[],
                         help='files to be processed (regex on path)')

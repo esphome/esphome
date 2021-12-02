@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_USE_ADDRESS,
     CONF_ETHERNET,
     CONF_WIFI,
+    CONF_PORT,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
@@ -520,6 +521,19 @@ class EsphomeCore:
         return None
 
     @property
+    def web_port(self) -> Optional[int]:
+        if self.config is None:
+            raise ValueError("Config has not been loaded yet")
+
+        if "web_server" in self.config:
+            try:
+                return self.config["web_server"][CONF_PORT]
+            except KeyError:
+                return 80
+
+        return None
+
+    @property
     def comment(self) -> Optional[str]:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
@@ -541,6 +555,9 @@ class EsphomeCore:
         # pylint: disable=no-value-for-parameter
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.config_dir, path_)
+
+    def relative_internal_path(self, *path: str) -> str:
+        return self.relative_config_path(".esphome", *path)
 
     def relative_build_path(self, *path):
         # pylint: disable=no-value-for-parameter

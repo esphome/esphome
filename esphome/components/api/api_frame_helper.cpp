@@ -10,7 +10,7 @@ namespace api {
 
 static const char *const TAG = "api.socket";
 
-/// Is the given return value (from read/write syscalls) a wouldblock error?
+/// Is the given return value (from write syscalls) a wouldblock error?
 bool is_would_block(ssize_t ret) {
   if (ret == -1) {
     return errno == EWOULDBLOCK || errno == EAGAIN;
@@ -64,6 +64,8 @@ const char *api_error_to_str(APIError err) {
     return "HANDSHAKESTATE_SPLIT_FAILED";
   } else if (err == APIError::BAD_HANDSHAKE_ERROR_BYTE) {
     return "BAD_HANDSHAKE_ERROR_BYTE";
+  } else if (err == APIError::CONNECTION_CLOSED) {
+    return "CONNECTION_CLOSED";
   }
   return "UNKNOWN";
 }
@@ -127,6 +129,14 @@ APIError APINoiseFrameHelper::init() {
     return APIError::TCP_NONBLOCKING_FAILED;
   }
 
+  int enable = 1;
+  err = socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
+  if (err != 0) {
+    state_ = State::FAILED;
+    HELPER_LOG("Setting nodelay failed with errno %d", errno);
+    return APIError::TCP_NODELAY_FAILED;
+  }
+
   // init prologue
   prologue_.insert(prologue_.end(), PROLOGUE_INIT, PROLOGUE_INIT + strlen(PROLOGUE_INIT));
 
@@ -164,9 +174,6 @@ APIError APINoiseFrameHelper::loop() {
  * errno API_ERROR_HANDSHAKE_PACKET_LEN: Packet too big for this phase.
  */
 APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
-  int err;
-  APIError aerr;
-
   if (frame == nullptr) {
     HELPER_LOG("Bad argument for try_read_frame_");
     return APIError::BAD_ARG;
@@ -177,15 +184,20 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
     // no header information yet
     size_t to_read = 3 - rx_header_buf_len_;
     ssize_t received = socket_->read(&rx_header_buf_[rx_header_buf_len_], to_read);
-    if (is_would_block(received)) {
-      return APIError::WOULD_BLOCK;
-    } else if (received == -1) {
+    if (received == -1) {
+      if (errno == EWOULDBLOCK || errno == EAGAIN) {
+        return APIError::WOULD_BLOCK;
+      }
       state_ = State::FAILED;
       HELPER_LOG("Socket read failed with errno %d", errno);
       return APIError::SOCKET_READ_FAILED;
+    } else if (received == 0) {
+      state_ = State::FAILED;
+      HELPER_LOG("Connection closed");
+      return APIError::CONNECTION_CLOSED;
     }
     rx_header_buf_len_ += received;
-    if (received != to_read) {
+    if ((size_t) received != to_read) {
       // not a full read
       return APIError::WOULD_BLOCK;
     }
@@ -219,15 +231,20 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
     // more data to read
     size_t to_read = msg_size - rx_buf_len_;
     ssize_t received = socket_->read(&rx_buf_[rx_buf_len_], to_read);
-    if (is_would_block(received)) {
-      return APIError::WOULD_BLOCK;
-    } else if (received == -1) {
+    if (received == -1) {
+      if (errno == EWOULDBLOCK || errno == EAGAIN) {
+        return APIError::WOULD_BLOCK;
+      }
       state_ = State::FAILED;
       HELPER_LOG("Socket read failed with errno %d", errno);
       return APIError::SOCKET_READ_FAILED;
+    } else if (received == 0) {
+      state_ = State::FAILED;
+      HELPER_LOG("Connection closed");
+      return APIError::CONNECTION_CLOSED;
     }
     rx_buf_len_ += received;
-    if (received != to_read) {
+    if ((size_t) received != to_read) {
       // not all read
       return APIError::WOULD_BLOCK;
     }
@@ -524,7 +541,6 @@ APIError APINoiseFrameHelper::try_send_tx_buf_() {
 APIError APINoiseFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
   if (iovcnt == 0)
     return APIError::OK;
-  int err;
   APIError aerr;
 
   size_t total_write_len = 0;
@@ -564,7 +580,7 @@ APIError APINoiseFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
     state_ = State::FAILED;
     HELPER_LOG("Socket write failed with errno %d", errno);
     return APIError::SOCKET_WRITE_FAILED;
-  } else if (sent != total_write_len) {
+  } else if ((size_t) sent != total_write_len) {
     // partially sent, add end to tx_buf
     size_t to_consume = sent;
     for (int i = 0; i < iovcnt; i++) {
@@ -722,6 +738,13 @@ APIError APIPlaintextFrameHelper::init() {
     HELPER_LOG("Setting nonblocking failed with errno %d", errno);
     return APIError::TCP_NONBLOCKING_FAILED;
   }
+  int enable = 1;
+  err = socket_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
+  if (err != 0) {
+    state_ = State::FAILED;
+    HELPER_LOG("Setting nodelay failed with errno %d", errno);
+    return APIError::TCP_NODELAY_FAILED;
+  }
 
   state_ = State::DATA;
   return APIError::OK;
@@ -751,9 +774,6 @@ APIError APIPlaintextFrameHelper::loop() {
  * error API_ERROR_BAD_INDICATOR: Bad indicator byte at start of frame.
  */
 APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
-  int err;
-  APIError aerr;
-
   if (frame == nullptr) {
     HELPER_LOG("Bad argument for try_read_frame_");
     return APIError::BAD_ARG;
@@ -763,12 +783,17 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
   while (!rx_header_parsed_) {
     uint8_t data;
     ssize_t received = socket_->read(&data, 1);
-    if (is_would_block(received)) {
-      return APIError::WOULD_BLOCK;
-    } else if (received == -1) {
+    if (received == -1) {
+      if (errno == EWOULDBLOCK || errno == EAGAIN) {
+        return APIError::WOULD_BLOCK;
+      }
       state_ = State::FAILED;
       HELPER_LOG("Socket read failed with errno %d", errno);
       return APIError::SOCKET_READ_FAILED;
+    } else if (received == 0) {
+      state_ = State::FAILED;
+      HELPER_LOG("Connection closed");
+      return APIError::CONNECTION_CLOSED;
     }
     rx_header_buf_.push_back(data);
 
@@ -809,15 +834,20 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
     // more data to read
     size_t to_read = rx_header_parsed_len_ - rx_buf_len_;
     ssize_t received = socket_->read(&rx_buf_[rx_buf_len_], to_read);
-    if (is_would_block(received)) {
-      return APIError::WOULD_BLOCK;
-    } else if (received == -1) {
+    if (received == -1) {
+      if (errno == EWOULDBLOCK || errno == EAGAIN) {
+        return APIError::WOULD_BLOCK;
+      }
       state_ = State::FAILED;
       HELPER_LOG("Socket read failed with errno %d", errno);
       return APIError::SOCKET_READ_FAILED;
+    } else if (received == 0) {
+      state_ = State::FAILED;
+      HELPER_LOG("Connection closed");
+      return APIError::CONNECTION_CLOSED;
     }
     rx_buf_len_ += received;
-    if (received != to_read) {
+    if ((size_t) received != to_read) {
       // not all read
       return APIError::WOULD_BLOCK;
     }
@@ -837,7 +867,6 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
 }
 
 APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
-  int err;
   APIError aerr;
 
   if (state_ != State::DATA) {
@@ -857,9 +886,6 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
 }
 bool APIPlaintextFrameHelper::can_write_without_blocking() { return state_ == State::DATA && tx_buf_.empty(); }
 APIError APIPlaintextFrameHelper::write_packet(uint16_t type, const uint8_t *payload, size_t payload_len) {
-  int err;
-  APIError aerr;
-
   if (state_ != State::DATA) {
     return APIError::BAD_STATE;
   }
@@ -903,7 +929,6 @@ APIError APIPlaintextFrameHelper::try_send_tx_buf_() {
 APIError APIPlaintextFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
   if (iovcnt == 0)
     return APIError::OK;
-  int err;
   APIError aerr;
 
   size_t total_write_len = 0;
@@ -943,7 +968,7 @@ APIError APIPlaintextFrameHelper::write_raw_(const struct iovec *iov, int iovcnt
     state_ = State::FAILED;
     HELPER_LOG("Socket write failed with errno %d", errno);
     return APIError::SOCKET_WRITE_FAILED;
-  } else if (sent != total_write_len) {
+  } else if ((size_t) sent != total_write_len) {
     // partially sent, add end to tx_buf
     size_t to_consume = sent;
     for (int i = 0; i < iovcnt; i++) {
