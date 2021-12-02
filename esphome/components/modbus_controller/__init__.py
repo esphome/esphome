@@ -182,9 +182,8 @@ async def add_modbus_base_properties(
     if CONF_CUSTOM_COMMAND in config:
         cg.add(var.set_custom_data(config[CONF_CUSTOM_COMMAND]))
 
-    if CONF_RESPONSE_SIZE in config:
-        if config[CONF_RESPONSE_SIZE] > 0:
-            cg.add(var.set_register_size(config[CONF_RESPONSE_SIZE]))
+    if config[CONF_RESPONSE_SIZE] > 0:
+        cg.add(var.set_register_size(config[CONF_RESPONSE_SIZE]))
 
     if CONF_LAMBDA in config:
         template_ = await cg.process_lambda(
