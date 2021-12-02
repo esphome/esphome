@@ -84,17 +84,13 @@ void MidiInComponent::loop() {
 void MidiInComponent::process_controller_message_(const MidiChannelMessage &msg) {
   this->control_values_[msg.data1] = msg.data2;
   switch (msg.data1) {
-    case midi::MidiControlChangeNumber::AllSoundOff:
-      this->all_notes_off_();
-      break;
     case midi::MidiControlChangeNumber::ResetAllControllers:
       this->reset_controllers_();
       break;
+    case midi::MidiControlChangeNumber::AllSoundOff:
     case midi::MidiControlChangeNumber::AllNotesOff:
-      this->all_notes_off_();
-      break;
+    case midi::MidiControlChangeNumber::MonoModeOn:
     case midi::MidiControlChangeNumber::PolyModeOn:
-      // Poly operation and all notes off
       this->all_notes_off_();
       break;
     default:
