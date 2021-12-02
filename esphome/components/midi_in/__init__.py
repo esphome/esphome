@@ -2,7 +2,14 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import uart, binary_sensor
-from esphome.const import CONF_CHANNEL, CONF_ID, CONF_UART_ID, CONF_TRIGGER_ID
+from esphome.const import (
+    CONF_ABOVE,
+    CONF_BELOW,
+    CONF_CHANNEL,
+    CONF_ID,
+    CONF_UART_ID,
+    CONF_TRIGGER_ID,
+)
 
 CODEOWNERS = ["@muxa"]
 DEPENDENCIES = ["uart"]
@@ -25,6 +32,9 @@ MidiInOnSystemMessageTrigger = midi_ns.class_(
 )
 
 MidiInNoteOnCondition = midi_ns.class_("MidiInNoteOnCondition", automation.Condition)
+MidiInControlInRangeCondition = midi_ns.class_(
+    "MidiInControlInRangeCondition", automation.Condition
+)
 
 MULTI_CONF = True
 
@@ -34,6 +44,7 @@ CONF_CONNECTED = "connected"
 CONF_PLAYBACK = "playback"
 
 CONF_NOTE = "note"
+CONF_CONTROL = "control"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -140,4 +151,38 @@ async def midi_in_note_on_condition_to_code(config, condition_id, template_arg, 
     var = cg.new_Pvariable(condition_id, template_arg, paren)
     cg.add(var.set_note(config[CONF_NOTE]))
     return var
+
+
+@automation.register_condition(
+    "midi_in.control_in_range",
+    MidiInControlInRangeCondition,
+    cv.All(
+        {
+            cv.GenerateID(): cv.use_id(MidiInComponent),
+            cv.Required(CONF_CONTROL): cv.Any(
+                cv.int_range(min=0, max=127), cv.hex_int_range(min=0, max=127)
+            ),
+            cv.Optional(CONF_ABOVE): cv.Any(
+                cv.int_range(min=0, max=127), cv.hex_int_range(min=0, max=127)
+            ),
+            cv.Optional(CONF_BELOW): cv.Any(
+                cv.int_range(min=0, max=127), cv.hex_int_range(min=0, max=127)
+            ),
+        },
+        cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+    ),
+)
+async def midi_in_control_in_range_condition_to_code(
+    config, condition_id, template_arg, args
+):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(condition_id, template_arg, paren)
+
+    cg.add(var.set_control(config[CONF_CONTROL]))
+
+    if CONF_ABOVE in config:
+        cg.add(var.set_min(config[CONF_ABOVE]))
+    if CONF_BELOW in config:
+        cg.add(var.set_max(config[CONF_BELOW]))
+
     return var

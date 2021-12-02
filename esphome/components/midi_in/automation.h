@@ -38,6 +38,35 @@ protected:
   MidiInComponent *parent_;
   uint8_t note_;
 };
+
+template <typename... Ts>
+class MidiInControlInRangeCondition : public Condition<Ts...> {
+public:
+  explicit MidiInControlInRangeCondition(MidiInComponent *parent) : parent_(parent) {}
+
+  void set_control(uint8_t control) { this->control_ = static_cast<midi::MidiControlChangeNumber>(control); }
+  void set_min(uint8_t min) { this->min_ = min; }
+  void set_max(uint8_t max) { this->max_ = max; }
+  bool check(Ts... x) override
+  {
+    const uint8_t value = this->parent_->control_value(this->control_);
+    if (this->min_ == UNSPECIFIED) {
+      return value <= this->max_;
+    } else if (this->max_ == UNSPECIFIED) {
+      return value >= this->min_;
+    } else {
+      return this->min_ <= value && value <= this->max_;
+    }
+  }
+
+protected:
+  MidiInComponent *parent_;
+  midi::MidiControlChangeNumber control_;
+  uint8_t min_{UNSPECIFIED};
+  uint8_t max_{UNSPECIFIED};
+  const uint8_t UNSPECIFIED = 0xFF;
+};
+
 }  // namespace midi_in
 }  // namespace esphome
 
