@@ -143,6 +143,10 @@ void MideaIR::transmit_state() {
   data.set_mode(this->mode);
   data.set_fan_mode(this->fan_mode.value_or(ClimateFanMode::CLIMATE_FAN_AUTO));
   data.set_sleep_preset(this->preset == climate::CLIMATE_PRESET_SLEEP);
+  // In FAN_AUTO, modes COOL, HEAT and FAN_ONLY bit #5 in byte #1 must be set
+  const uint8_t value = data[1] & 0x1F;
+  if (value == 0 || value == 3 || value == 4)
+    data[1] |= 0b100000;
   this->transmit_(data);
 }
 
