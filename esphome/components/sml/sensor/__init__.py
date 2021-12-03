@@ -5,6 +5,8 @@ from esphome.const import CONF_ID
 
 from .. import CONF_OBIS_CODE, CONF_SERVER_ID, CONF_SML_ID, Sml, obis_code, sml_ns
 
+AUTO_LOAD = ["sml"]
+
 SmlSensor = sml_ns.class_("SmlSensor", sensor.Sensor, cg.Component)
 
 

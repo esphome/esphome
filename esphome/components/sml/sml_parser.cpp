@@ -1,3 +1,4 @@
+#include "esphome/core/helpers.h"
 #include "constants.h"
 #include "sml_parser.h"
 
@@ -105,9 +106,7 @@ uint16_t calc_crc16_kermit(const uint8_t *buffer, size_t length) {
 std::string bytes_repr(const bytes &buffer) {
   std::string repr;
   for (auto const value : buffer) {
-    char buf[3];
-    sprintf(buf, "%02x", value & 0xff);
-    repr += buf;
+    repr += str_sprintf("%02x", value & 0xff);
   }
   return repr;
 }
@@ -153,9 +152,7 @@ ObisInfo::ObisInfo(bytes server_id, SmlNode val_list_entry) : server_id(std::mov
 }
 
 std::string ObisInfo::code_repr() const {
-  char repr[20];
-  sprintf(repr, "%d-%d:%d.%d.%d", this->code[0], this->code[1], this->code[2], this->code[3], this->code[4]);
-  return std::string(repr);
+  return str_sprintf("%d-%d:%d.%d.%d", this->code[0], this->code[1], this->code[2], this->code[3], this->code[4]);
 }
 
 }  // namespace sml

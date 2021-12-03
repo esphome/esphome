@@ -1,7 +1,5 @@
 import re
 
-import voluptuous as vol
-
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
@@ -36,5 +34,5 @@ def obis_code(value):
     value = cv.string(value)
     match = re.match(r"^\d{1,3}-\d{1,3}:\d{1,3}\.\d{1,3}\.\d{1,3}$", value)
     if match is None:
-        raise vol.Invalid(f"{value} is not a valid OBIS code")
+        raise cv.Invalid(f"{value} is not a valid OBIS code")
     return value
