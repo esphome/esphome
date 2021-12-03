@@ -29,7 +29,13 @@ void SmlSensor::publish_val(const ObisInfo &obis_info) {
   }
 }
 
-void SmlSensor::dump_config() { LOG_SENSOR("  ", "SML", this); }
+void SmlSensor::dump_config() {
+  LOG_SENSOR("", "SML", this);
+  if (!this->server_id.empty()) {
+    ESP_LOGCONFIG(TAG, "  Server ID: %s", this->server_id.c_str());
+  }
+  ESP_LOGCONFIG(TAG, "  OBIS Code: %s", this->obis_code.c_str());
+}
 
 }  // namespace sml
 }  // namespace esphome
