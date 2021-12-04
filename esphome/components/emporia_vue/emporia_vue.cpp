@@ -90,16 +90,16 @@ void EmporiaVueComponent::loop() {
   if (xQueueReceive(this->i2c_data_queue_, &sensor_reading, 0) == pdTRUE) {
     ESP_LOGV(TAG, "Received sensor reading with sequence number %d from queue", sensor_reading.sequence_num);
     for (PhaseConfig *phase : this->phases_) {
-      phase->update(sensor_reading);
+      phase->update_from_reading(sensor_reading);
     }
 
     for (CTSensor *ct_sensor : this->ct_sensors_) {
-      ct_sensor->update(sensor_reading);
+      ct_sensor->update_from_reading(sensor_reading);
     }
   }
 }
 
-void PhaseConfig::update(const SensorReading &sensor_reading) {
+void PhaseConfig::update_from_reading(const SensorReading &sensor_reading) {
   if (this->voltage_sensor_) {
     float calibrated_voltage = sensor_reading.voltage[this->input_wire_] * this->calibration_;
     this->voltage_sensor_->publish_state(calibrated_voltage);
@@ -120,7 +120,7 @@ int32_t PhaseConfig::extract_power_for_phase(const ReadingPowerEntry &power_entr
   }
 }
 
-void CTSensor::update(const SensorReading &sensor_reading) {
+void CTSensor::update_from_reading(const SensorReading &sensor_reading) {
   ReadingPowerEntry power_entry = sensor_reading.power[this->input_port_];
   int32_t raw_power = this->phase_->extract_power_for_phase(power_entry);
   float calibrated_power = this->get_calibrated_power(raw_power);

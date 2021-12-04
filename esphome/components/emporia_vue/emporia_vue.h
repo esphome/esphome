@@ -73,7 +73,7 @@ class PhaseConfig {
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { this->voltage_sensor_ = voltage_sensor; }
   sensor::Sensor *get_voltage_sensor() const { return this->voltage_sensor_; }
 
-  void update(const SensorReading &sensor_reading);
+  void update_from_reading(const SensorReading &sensor_reading);
 
   int32_t extract_power_for_phase(const ReadingPowerEntry &power_entry);
 
@@ -112,7 +112,7 @@ class CTSensor : public sensor::Sensor {
   void set_input_port(CTInputPort input_port) { this->input_port_ = input_port; };
   CTInputPort get_input_port() const { return this->input_port_; }
 
-  void update(const SensorReading &sensor_reading);
+  void update_from_reading(const SensorReading &sensor_reading);
 
  private:
   float get_calibrated_power(int32_t raw_power) const;
