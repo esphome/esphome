@@ -11,16 +11,16 @@ from esphome.const import (
     CONF_VOLTAGE,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_VOLTAGE,
-    ICON_EMPTY,
     STATE_CLASS_MEASUREMENT,
     UNIT_WATT,
     UNIT_VOLT,
 )
 
 # TODO: Remove this - It's only added so we can test the component using the External_component configuration
-CONF_CT = "ct"
+CONF_CT_CLAMPS = "ct_clamps"
 CONF_PHASES = "phases"
 CONF_PHASE_ID = "phase_id"
+CONF_SENSOR_POLL_INTERVAL = "sensor_poll_interval"
 
 CODEOWNERS = ["@flaviut", "@Maelstrom96", "@krconv"]
 ESP_PLATFORMS = ["esp-idf"]
@@ -34,11 +34,11 @@ EmporiaVueComponent = emporia_vue_ns.class_(
 PhaseConfig = emporia_vue_ns.class_("PhaseConfig")
 CTSensor = emporia_vue_ns.class_("CTSensor", sensor.Sensor)
 
-PhaseInputColor = emporia_vue_ns.enum("PhaseInputWire")
+PhaseInputWire = emporia_vue_ns.enum("PhaseInputWire")
 PHASE_INPUT = {
-    "BLACK": PhaseInputColor.BLACK,
-    "RED": PhaseInputColor.RED,
-    "BLUE": PhaseInputColor.BLUE,
+    "BLACK": PhaseInputWire.BLACK,
+    "RED": PhaseInputWire.RED,
+    "BLUE": PhaseInputWire.BLUE,
 }
 
 CTInputPort = emporia_vue_ns.enum("CTInputPort")
@@ -64,7 +64,7 @@ CT_INPUT = {
     "16": CTInputPort.SIXTEEN,
 }
 
-SCHEMA_CT = sensor.sensor_schema(
+SCHEMA_CT_CLAMP = sensor.sensor_schema(
     unit_of_measurement=UNIT_WATT,
     device_class=DEVICE_CLASS_ENERGY,
     state_class=STATE_CLASS_MEASUREMENT,
@@ -73,7 +73,6 @@ SCHEMA_CT = sensor.sensor_schema(
         cv.GenerateID(): cv.declare_id(CTSensor),
         cv.Required(CONF_PHASE_ID): cv.use_id(PhaseConfig),
         cv.Required(CONF_INPUT): cv.enum(CT_INPUT),
-        cv.Optional(CONF_CALIBRATION, default=0.022): cv.zero_to_one_float,
     }
 )
 
@@ -81,22 +80,25 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(EmporiaVueComponent),
+            cv.Optional(
+                CONF_SENSOR_POLL_INTERVAL, default="240ms"
+            ): cv.positive_time_period_milliseconds,
             cv.Required(CONF_PHASES): cv.ensure_list(
                 {
                     cv.Required(CONF_ID): cv.declare_id(PhaseConfig),
                     cv.Required(CONF_INPUT): cv.enum(PHASE_INPUT),
+                    cv.Optional(CONF_CALIBRATION, default=0.022): cv.zero_to_one_float,
                     cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                        UNIT_VOLT,
-                        ICON_EMPTY,
-                        1,
-                        DEVICE_CLASS_VOLTAGE,
-                        STATE_CLASS_MEASUREMENT,
+                        unit_of_measurement=UNIT_VOLT,
+                        device_class=DEVICE_CLASS_VOLTAGE,
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=1,
                     ),
                 }
             ),
-            cv.Required(CONF_CT): cv.ensure_list(SCHEMA_CT),
+            cv.Required(CONF_CT_CLAMPS): cv.ensure_list(SCHEMA_CT_CLAMP),
         },
-        # cv.only_with_esp_idf,
+        cv.only_with_esp_idf,
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(0x64))
@@ -105,6 +107,7 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    cg.add(var.set_sensor_poll_interval(config[CONF_SENSOR_POLL_INTERVAL]))
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
@@ -116,17 +119,17 @@ async def to_code(config):
 
         if CONF_VOLTAGE in phase_config:
             voltage_sensor = await sensor.new_sensor(phase_config[CONF_VOLTAGE])
-            cg.add(var.set_voltage_sensor(voltage_sensor))
+            cg.add(phase_var.set_voltage_sensor(voltage_sensor))
 
         phases.append(phase_var)
     cg.add(var.set_phases(phases))
 
     ct_sensors = []
-    for ct_config in config[CONF_CT]:
+    for ct_config in config[CONF_CT_CLAMPS]:
         power_var = cg.new_Pvariable(ct_config[CONF_ID], CTSensor())
         phase_var = await cg.get_variable(ct_config[CONF_PHASE_ID])
         cg.add(power_var.set_phase(phase_var))
-        cg.add(power_var.set_ct_input(ct_config[CONF_INPUT]))
+        cg.add(power_var.set_input_port(ct_config[CONF_INPUT]))
 
         await sensor.register_sensor(power_var, ct_config)
 
