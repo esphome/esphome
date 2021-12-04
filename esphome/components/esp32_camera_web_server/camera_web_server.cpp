@@ -233,7 +233,7 @@ esp_err_t CameraWebServer::snapshot_handler_(struct httpd_req *req) {
 
   httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
 
-  //if (res == ESP_OK) {
+  // if (res == ESP_OK) {
   //  res = httpd_resp_set_hdr(req, CONTENT_LENGTH, esphome::to_string(image->get_data_length()).c_str());
   //}
   if (res == ESP_OK) {
