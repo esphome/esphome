@@ -76,7 +76,7 @@ SCHEMA_CT_CLAMP = sensor.sensor_schema(
     }
 )
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(EmporiaVueComponent),
@@ -98,10 +98,11 @@ CONFIG_SCHEMA = (
             ),
             cv.Required(CONF_CT_CLAMPS): cv.ensure_list(SCHEMA_CT_CLAMP),
         },
-        cv.only_with_esp_idf,
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(i2c.i2c_device_schema(0x64))
+    .extend(i2c.i2c_device_schema(0x64)),
+    cv.only_with_esp_idf,
+    cv.only_on_esp32,
 )
 
 
