@@ -254,16 +254,18 @@ class SensorItem {
   size_t virtual get_register_size() const {
     if (register_type == ModbusRegisterType::COIL || register_type == ModbusRegisterType::DISCRETE_INPUT)
       return 1;
-    else
-      return register_count * 2;
+    else  // if CONF_RESPONSE_BYTES is used override the default
+      return response_bytes > 0 ? response_bytes : register_count * 2;
   }
-
+  // Override register size for modbus devices not using 1 register for one dword
+  void set_register_size(uint8_t register_size) { response_bytes = register_size; }
   ModbusRegisterType register_type;
   SensorValueType sensor_value_type;
   uint16_t start_address;
   uint32_t bitmask;
   uint8_t offset;
   uint8_t register_count;
+  uint8_t response_bytes{0};
   uint8_t skip_updates;
   std::vector<uint8_t> custom_data{};
   bool force_new_range{false};
