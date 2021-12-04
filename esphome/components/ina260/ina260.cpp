@@ -85,7 +85,6 @@ void INA260Component::dump_config() {
       ESP_LOGE(TAG, "Failed to update device configuration");
       break;
     case NONE:
-      break;
     default:
       break;
   }
