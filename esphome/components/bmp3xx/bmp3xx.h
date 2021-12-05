@@ -129,8 +129,8 @@ class BMP3XXComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *pressure_sensor_;
   enum ErrorCode {
     NONE = 0,
-    COMMUNICATION_FAILED,
-    WRONG_CHIP_ID,
+    ERROR_COMMUNICATION_FAILED,
+    ERROR_WRONG_CHIP_ID,
     ERROR_SENSOR_STATUS,
     ERROR_SENSOR_RESET,
   } error_code_{NONE};

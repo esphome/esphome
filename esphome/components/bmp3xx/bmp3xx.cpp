@@ -13,57 +13,55 @@ namespace bmp3xx {
 
 static const char *const TAG = "bmp3xx.sensor";
 
-static const char *chip_type_to_str(uint8_t chip_type) {
+static const LogString *chip_type_to_str(uint8_t chip_type) {
   switch (chip_type) {
     case BMP388_ID:
-      return "BMP 388";
+      return LOG_STR("BMP 388");
     case BMP390_ID:
-      return "BMP 390";
+      return LOG_STR("BMP 390");
     default:
-      return "UNKNOWN";
+      return LOG_STR("UNKNOWN Chip Type");
   }
 }
 
-static const char *oversampling_to_str(Oversampling oversampling) {
+static const LogString *oversampling_to_str(Oversampling oversampling) {
   switch (oversampling) {
     case Oversampling::OVERSAMPLING_NONE:
-      return "None";
+      return LOG_STR("None");
     case Oversampling::OVERSAMPLING_X2:
-      return "2x";
+      return LOG_STR("2x");
     case Oversampling::OVERSAMPLING_X4:
-      return "4x";
+      return LOG_STR("4x");
     case Oversampling::OVERSAMPLING_X8:
-      return "8x";
+      return LOG_STR("8x");
     case Oversampling::OVERSAMPLING_X16:
-      return "16x";
+      return LOG_STR("16x");
     case Oversampling::OVERSAMPLING_X32:
-      return "32x";
-    default:
-      return "UNKNOWN";
+      return LOG_STR("32x");
   }
+  return LOG_STR("");
 }
 
-static const char *iir_filter_to_str(IIRFilter filter) {
+static const LogString *iir_filter_to_str(IIRFilter filter) {
   switch (filter) {
     case IIRFilter::IIR_FILTER_OFF:
-      return "OFF";
+      return LOG_STR("OFF");
     case IIRFilter::IIR_FILTER_2:
-      return "2x";
+      return LOG_STR("2x");
     case IIRFilter::IIR_FILTER_4:
-      return "4x";
+      return LOG_STR("4x");
     case IIRFilter::IIR_FILTER_8:
-      return "4x";
+      return LOG_STR("8x");
     case IIRFilter::IIR_FILTER_16:
-      return "4x";
+      return LOG_STR("16x");
     case IIRFilter::IIR_FILTER_32:
-      return "32x";
+      return LOG_STR("32x");
     case IIRFilter::IIR_FILTER_64:
-      return "64x";
+      return LOG_STR("64x");
     case IIRFilter::IIR_FILTER_128:
-      return "128x";
-    default:
-      return "UNKNOWN";
+      return LOG_STR("128x");
   }
+  return LOG_STR("");
 }
 
 void BMP3XXComponent::setup() {
@@ -78,15 +76,15 @@ void BMP3XXComponent::setup() {
 
   if (!read_byte(BMP388_CHIP_ID, &this->chip_id_.reg)) {
     ESP_LOGE(TAG, "Can't read chip id");
-    this->error_code_ = COMMUNICATION_FAILED;
+    this->error_code_ = ERROR_COMMUNICATION_FAILED;
     this->mark_failed();
     return;
   }
-  ESP_LOGCONFIG(TAG, "Chip %s Id 0x%X", chip_type_to_str(this->chip_id_.reg), this->chip_id_.reg);
+  ESP_LOGCONFIG(TAG, "Chip %s Id 0x%X", LOG_STR_ARG(chip_type_to_str(this->chip_id_.reg)), this->chip_id_.reg);
 
   if (chip_id_.reg != BMP388_ID && chip_id_.reg != BMP390_ID) {
     ESP_LOGE(TAG, "Unknown chip id - is this really a BMP388 or BMP390?");
-    this->error_code_ = WRONG_CHIP_ID;
+    this->error_code_ = ERROR_WRONG_CHIP_ID;
     this->mark_failed();
     return;
   }
@@ -95,7 +93,7 @@ void BMP3XXComponent::setup() {
   // Read the calibration parameters into the params structure
   if (!read_bytes(BMP388_TRIM_PARAMS, (uint8_t *) &compensation_params_, sizeof(compensation_params_))) {
     ESP_LOGE(TAG, "Can't read calibration data");
-    this->error_code_ = COMMUNICATION_FAILED;
+    this->error_code_ = ERROR_COMMUNICATION_FAILED;
     ;
     this->mark_failed();
     return;
@@ -119,7 +117,7 @@ void BMP3XXComponent::setup() {
   // Initialise the BMP388 IIR filter register
   if (!set_iir_filter(this->iir_filter_)) {
     ESP_LOGE(TAG, "Failed to set IIR filter");
-    this->error_code_ = COMMUNICATION_FAILED;
+    this->error_code_ = ERROR_COMMUNICATION_FAILED;
     this->mark_failed();
     return;
   }
@@ -140,7 +138,7 @@ void BMP3XXComponent::setup() {
   // Initialise the BMP388 oversampling register
   if (!set_oversampling_register(this->pressure_oversampling_, this->temperature_oversampling_)) {
     ESP_LOGE(TAG, "Failed to set oversampling register");
-    this->error_code_ = COMMUNICATION_FAILED;
+    this->error_code_ = ERROR_COMMUNICATION_FAILED;
     this->mark_failed();
     return;
   }
@@ -148,13 +146,15 @@ void BMP3XXComponent::setup() {
 
 void BMP3XXComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP3XX:");
-  ESP_LOGCONFIG(TAG, "  Type: %s (0x%X)", chip_type_to_str(this->chip_id_.reg), this->chip_id_.reg);
+  ESP_LOGCONFIG(TAG, "  Type: %s (0x%X)", LOG_STR_ARG(chip_type_to_str(this->chip_id_.reg)), this->chip_id_.reg);
   LOG_I2C_DEVICE(this);
   switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
+    case NONE:
+      break;
+    case ERROR_COMMUNICATION_FAILED:
       ESP_LOGE(TAG, "Communication with BMP3XX failed!");
       break;
-    case WRONG_CHIP_ID:
+    case ERROR_WRONG_CHIP_ID:
       ESP_LOGE(
           TAG,
           "BMP3XX has wrong chip ID (reported id: 0x%X) - please check if you are really using a BMP 388 or BMP 390",
@@ -163,21 +163,19 @@ void BMP3XXComponent::dump_config() {
     case ERROR_SENSOR_RESET:
       ESP_LOGE(TAG, "BMP3XX failed to reset");
       break;
-    case NONE:
-      break;
     default:
       ESP_LOGE(TAG, "BMP3XX error code %d", (int) this->error_code_);
       break;
   }
-  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", iir_filter_to_str(this->iir_filter_));
+  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", LOG_STR_ARG(iir_filter_to_str(this->iir_filter_)));
   LOG_UPDATE_INTERVAL(this);
   if (this->temperature_sensor_) {
     LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-    ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->temperature_oversampling_));
+    ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)));
   }
   if (this->pressure_sensor_) {
     LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
-    ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->pressure_oversampling_));
+    ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
   }
 }
 float BMP3XXComponent::get_setup_priority() const { return setup_priority::DATA; }
@@ -211,7 +209,7 @@ void BMP3XXComponent::update() {
       ESP_LOGD(TAG, "Got temperature=%.1f°C pressure=%.1fhPa", temperature, pressure);
     } else {
       if (!get_temperature(temperature)) {
-        ESP_LOGW(TAG, "Failed to temperature - skipping update");
+        ESP_LOGW(TAG, "Failed to read temperature - skipping update");
         this->status_set_warning();
         return;
       }
