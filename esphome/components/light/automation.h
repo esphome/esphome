@@ -144,9 +144,7 @@ class LightTurnOffTrigger : public Trigger<> {
 class LightStateTrigger : public Trigger<> {
  public:
   LightStateTrigger(LightState *a_light) {
-    a_light->add_new_remote_values_callback([this, a_light]() {
-      this->trigger();
-    });
+    a_light->add_new_remote_values_callback([this]() { this->trigger(); });
   }
 };
 
