@@ -38,9 +38,9 @@ void AM2320Component::update() {
     return;
   }
 
-  float temperature = (((data[4] & 0x7F) << 8) + data[5]) / 10.0;
+  float temperature = (((data[4] & 0x7F) << 8) + data[5]) / 10.0f;
   temperature = (data[4] & 0x80) ? -temperature : temperature;
-  float humidity = ((data[2] << 8) + data[3]) / 10.0;
+  float humidity = ((data[2] << 8) + data[3]) / 10.0f;
 
   ESP_LOGD(TAG, "Got temperature=%.1f°C humidity=%.1f%%", temperature, humidity);
   if (this->temperature_sensor_ != nullptr)

@@ -147,8 +147,8 @@ void SGP30Component::read_iaq_baseline_() {
         // much
         if (this->store_baseline_ &&
             (this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL ||
-             abs(this->baselines_storage_.eco2 - this->eco2_baseline_) > MAXIMUM_STORAGE_DIFF ||
-             abs(this->baselines_storage_.tvoc - this->tvoc_baseline_) > MAXIMUM_STORAGE_DIFF)) {
+             (uint32_t) abs(this->baselines_storage_.eco2 - this->eco2_baseline_) > MAXIMUM_STORAGE_DIFF ||
+             (uint32_t) abs(this->baselines_storage_.tvoc - this->tvoc_baseline_) > MAXIMUM_STORAGE_DIFF)) {
           this->seconds_since_last_store_ = 0;
           this->baselines_storage_.eco2 = this->eco2_baseline_;
           this->baselines_storage_.tvoc = this->tvoc_baseline_;

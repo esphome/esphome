@@ -98,6 +98,7 @@ mqtt:
   discovery: True
   discovery_retain: False
   discovery_prefix: discovery
+  discovery_unique_id_generator: legacy
   topic_prefix: helloworld
   log_topic:
     topic: helloworld/hi
@@ -1707,6 +1708,8 @@ climate:
     min_temperature: 18
     max_temperature: 30
   - platform: midea
+    on_state:
+      logger.log: "State changed!"
     id: midea_unit
     uart_id: uart0
     name: Midea Climate
@@ -2512,3 +2515,23 @@ teleinfo:
   uart_id: uart0
   update_interval: 60s
   historical_mode: true
+
+number:
+  - platform: template
+    id: test_number
+    state_topic: livingroom/custom_state_topic
+    command_topic: livingroom/custom_command_topic
+    min_value: 0
+    step: 1
+    max_value: 10
+    optimistic: true
+
+select:
+  - platform: template
+    id: test_select
+    state_topic: livingroom/custom_state_topic
+    command_topic: livingroom/custom_command_topic
+    options:
+      - one
+      - two
+    optimistic: true

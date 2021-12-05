@@ -6,10 +6,10 @@
 #include <cstring>
 
 #if defined(USE_ESP8266)
-#ifdef USE_WIFI
-#include <ESP8266WiFi.h>
-#endif
 #include <osapi.h>
+#include <user_interface.h>
+// for xt_rsil()/xt_wsr_ps()
+#include <Arduino.h>
 #elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
 #include <Esp.h>
 #elif defined(USE_ESP_IDF)
@@ -30,8 +30,8 @@ namespace esphome {
 static const char *const TAG = "helpers";
 
 void get_mac_address_raw(uint8_t *mac) {
-#ifdef USE_ESP32
-#ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
+#if defined(USE_ESP32)
+#if defined(USE_ESP32_IGNORE_EFUSE_MAC_CRC)
   // On some devices, the MAC address that is burnt into EFuse does not
   // match the CRC that goes along with it. For those devices, this
   // work-around reads and uses the MAC address as-is from EFuse,
@@ -40,30 +40,21 @@ void get_mac_address_raw(uint8_t *mac) {
 #else
   esp_efuse_mac_get_default(mac);
 #endif
-#endif
-#if (defined USE_ESP8266 && defined USE_WIFI)
-  WiFi.macAddress(mac);
+#elif defined(USE_ESP8266)
+  wifi_get_macaddr(STATION_IF, mac);
 #endif
 }
 
 std::string get_mac_address() {
-  char tmp[20];
   uint8_t mac[6];
   get_mac_address_raw(mac);
-#ifdef USE_WIFI
-  sprintf(tmp, "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-#else
-  return "";
-#endif
-  return std::string(tmp);
+  return str_snprintf("%02x%02x%02x%02x%02x%02x", 12, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 std::string get_mac_address_pretty() {
-  char tmp[20];
   uint8_t mac[6];
   get_mac_address_raw(mac);
-  sprintf(tmp, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  return std::string(tmp);
+  return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 #ifdef USE_ESP32
@@ -107,7 +98,7 @@ uint16_t fast_random_16() {
   return (rand32 & 0xFFFF) + (rand32 >> 16);
 }
 uint8_t fast_random_8() {
-  uint8_t rand32 = fast_random_32();
+  uint32_t rand32 = fast_random_32();
   return (rand32 & 0xFF) + ((rand32 >> 8) & 0xFF);
 }
 
@@ -334,6 +325,20 @@ bool str_startswith(const std::string &full, const std::string &start) { return 
 bool str_endswith(const std::string &full, const std::string &ending) {
   return full.rfind(ending) == (full.size() - ending.size());
 }
+std::string str_snprintf(const char *fmt, size_t length, ...) {
+  std::string str;
+  va_list args;
+
+  str.resize(length);
+  va_start(args, length);
+  size_t out_length = vsnprintf(&str[0], length + 1, fmt, args);
+  va_end(args);
+
+  if (out_length < length)
+    str.resize(out_length);
+
+  return str;
+}
 std::string str_sprintf(const char *fmt, ...) {
   std::string str;
   va_list args;
@@ -430,13 +435,8 @@ void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green
 }
 
 #ifdef USE_ESP8266
-#ifdef USE_WIFI
 IRAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
 IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
-#else
-IRAM_ATTR InterruptLock::InterruptLock() {}
-IRAM_ATTR InterruptLock::~InterruptLock() {}
-#endif
 #endif
 #ifdef USE_ESP32
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
@@ -448,6 +448,11 @@ IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 std::string str_truncate(const std::string &str, size_t length) {
   return str.length() > length ? str.substr(0, length) : str;
 }
+std::string str_until(const char *str, char ch) {
+  char *pos = strchr(str, ch);
+  return pos == nullptr ? std::string(str) : std::string(str, pos - str);
+}
+std::string str_until(const std::string &str, char ch) { return str.substr(0, str.find(ch)); }
 std::string str_snake_case(const std::string &str) {
   std::string result;
   result.resize(str.length());

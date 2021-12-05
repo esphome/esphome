@@ -33,6 +33,7 @@ static const uint8_t BME280_REGISTER_CONTROLHUMID = 0xF2;
 static const uint8_t BME280_REGISTER_STATUS = 0xF3;
 static const uint8_t BME280_REGISTER_CONTROL = 0xF4;
 static const uint8_t BME280_REGISTER_CONFIG = 0xF5;
+static const uint8_t BME280_REGISTER_MEASUREMENTS = 0xF7;
 static const uint8_t BME280_REGISTER_PRESSUREDATA = 0xF7;
 static const uint8_t BME280_REGISTER_TEMPDATA = 0xFA;
 static const uint8_t BME280_REGISTER_HUMIDDATA = 0xFD;
@@ -178,21 +179,27 @@ void BME280Component::update() {
     return;
   }
 
-  float meas_time = 1.5;
+  float meas_time = 1.5f;
   meas_time += 2.3f * oversampling_to_time(this->temperature_oversampling_);
   meas_time += 2.3f * oversampling_to_time(this->pressure_oversampling_) + 0.575f;
   meas_time += 2.3f * oversampling_to_time(this->humidity_oversampling_) + 0.575f;
 
   this->set_timeout("data", uint32_t(ceilf(meas_time)), [this]() {
+    uint8_t data[8];
+    if (!this->read_bytes(BME280_REGISTER_MEASUREMENTS, data, 8)) {
+      ESP_LOGW(TAG, "Error reading registers.");
+      this->status_set_warning();
+      return;
+    }
     int32_t t_fine = 0;
-    float temperature = this->read_temperature_(&t_fine);
+    float temperature = this->read_temperature_(data, &t_fine);
     if (std::isnan(temperature)) {
       ESP_LOGW(TAG, "Invalid temperature, cannot read pressure & humidity values.");
       this->status_set_warning();
       return;
     }
-    float pressure = this->read_pressure_(t_fine);
-    float humidity = this->read_humidity_(t_fine);
+    float pressure = this->read_pressure_(data, t_fine);
+    float humidity = this->read_humidity_(data, t_fine);
 
     ESP_LOGD(TAG, "Got temperature=%.1f°C pressure=%.1fhPa humidity=%.1f%%", temperature, pressure, humidity);
     if (this->temperature_sensor_ != nullptr)
@@ -204,11 +211,8 @@ void BME280Component::update() {
     this->status_clear_warning();
   });
 }
-float BME280Component::read_temperature_(int32_t *t_fine) {
-  uint8_t data[3];
-  if (!this->read_bytes(BME280_REGISTER_TEMPDATA, data, 3))
-    return NAN;
-  int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
+float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
+  int32_t adc = ((data[3] & 0xFF) << 16) | ((data[4] & 0xFF) << 8) | (data[5] & 0xFF);
   adc >>= 4;
   if (adc == 0x80000)
     // temperature was disabled
@@ -226,10 +230,7 @@ float BME280Component::read_temperature_(int32_t *t_fine) {
   return temperature / 100.0f;
 }
 
-float BME280Component::read_pressure_(int32_t t_fine) {
-  uint8_t data[3];
-  if (!this->read_bytes(BME280_REGISTER_PRESSUREDATA, data, 3))
-    return NAN;
+float BME280Component::read_pressure_(const uint8_t *data, int32_t t_fine) {
   int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
   adc >>= 4;
   if (adc == 0x80000)
@@ -265,9 +266,9 @@ float BME280Component::read_pressure_(int32_t t_fine) {
   return (p / 256.0f) / 100.0f;
 }
 
-float BME280Component::read_humidity_(int32_t t_fine) {
-  uint16_t raw_adc;
-  if (!this->read_byte_16(BME280_REGISTER_HUMIDDATA, &raw_adc) || raw_adc == 0x8000)
+float BME280Component::read_humidity_(const uint8_t *data, int32_t t_fine) {
+  uint16_t raw_adc = ((data[6] & 0xFF) << 8) | (data[7] & 0xFF);
+  if (raw_adc == 0x8000)
     return NAN;
 
   int32_t adc = raw_adc;
