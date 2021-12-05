@@ -158,6 +158,9 @@ async def setup_light_core_(light_var, output_var, config):
     for conf in config.get(CONF_ON_TURN_OFF, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
         await auto.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_STATE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
+        await auto.build_automation(trigger, [], conf)
 
     if CONF_COLOR_CORRECT in config:
         cg.add(output_var.set_correction(*config[CONF_COLOR_CORRECT]))
