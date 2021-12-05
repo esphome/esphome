@@ -184,7 +184,7 @@ void EthernetComponent::start_connect_() {
   }
 
   err = tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_ETH);
-  if (! (this->manual_ip_.has_value() && err == ESP_ERR_TCPIP_ADAPTER_DHCP_ALREADY_STOPPED )) {
+  if (err != ESP_ERR_TCPIP_ADAPTER_DHCP_ALREADY_STOPPED)) {
     ESPHL_ERROR_CHECK(err, "DHCPC stop error");
   }
   err = tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_ETH, &info);
