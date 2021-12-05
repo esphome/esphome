@@ -56,11 +56,11 @@ static const char *iir_filter_to_str(IIRFilter filter) {
     case IIRFilter::IIR_FILTER_16:
       return "4x";
     case IIRFilter::IIR_FILTER_32:
-      return "4x";
+      return "32x";
     case IIRFilter::IIR_FILTER_64:
-      return "4x";
+      return "64x";
     case IIRFilter::IIR_FILTER_128:
-      return "4x";
+      return "128x";
     default:
       return "UNKNOWN";
   }
