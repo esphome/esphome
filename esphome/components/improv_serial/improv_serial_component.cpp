@@ -98,13 +98,13 @@ std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv:
   std::string webserver_url = "http://" + ip.str() + ":" + to_string(WEBSERVER_PORT);
   urls.push_back(webserver_url);
 #endif
-  std::vector<uint8_t> data = improv::build_rpc_response(command, urls);
+  std::vector<uint8_t> data = improv::build_rpc_response(command, urls, false);
   return data;
 }
 
 std::vector<uint8_t> ImprovSerialComponent::build_version_info_() {
   std::vector<std::string> infos = {"ESPHome", ESPHOME_VERSION, ESPHOME_VARIANT, App.get_name()};
-  std::vector<uint8_t> data = improv::build_rpc_response(improv::GET_DEVICE_INFO, infos);
+  std::vector<uint8_t> data = improv::build_rpc_response(improv::GET_DEVICE_INFO, infos, false);
   return data;
 };
 
@@ -140,22 +140,33 @@ bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
   if (at < 8 + data_len)
     return true;
 
-  if (at == 8 + data_len) {
+  if (at == 8 + data_len)
+    return true;
+
+  if (at == 8 + data_len + 1) {
+    uint8_t checksum = 0x00;
+    for (size_t i = 0; i < at; i++)
+      checksum += raw[i];
+
+    if (checksum != byte) {
+      ESP_LOGW(TAG, "Error decoding Improv payload");
+      this->set_error_(improv::ERROR_INVALID_RPC);
+      return false;
+    }
+
     if (type == TYPE_RPC) {
       this->set_error_(improv::ERROR_NONE);
-      auto command = improv::parse_improv_data(&raw[9], data_len);
+      auto command = improv::parse_improv_data(&raw[9], data_len, false);
       return this->parse_improv_payload_(command);
     }
   }
-  return true;
+
+  // If we got here then the command coming is is improv, but not an RPC command
+  return false;
 }
 
 bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command) {
   switch (command.command) {
-    case improv::BAD_CHECKSUM:
-      ESP_LOGW(TAG, "Error decoding Improv payload");
-      this->set_error_(improv::ERROR_INVALID_RPC);
-      return false;
     case improv::WIFI_SETTINGS: {
       wifi::WiFiAP sta{};
       sta.set_ssid(command.ssid);
@@ -232,6 +243,12 @@ void ImprovSerialComponent::send_response_(std::vector<uint8_t> &response) {
   data[7] = TYPE_RPC_RESPONSE;
   data[8] = response.size();
   data.insert(data.end(), response.begin(), response.end());
+
+  uint8_t checksum = 0x00;
+  for (uint8_t d : data)
+    checksum += d;
+  data.push_back(checksum);
+
   this->write_data_(data);
 }
 

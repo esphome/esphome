@@ -10,12 +10,16 @@ esp32:
   framework:
     type: esp-idf
     advanced:
-      ignore_efuse_mac_crc: true 
+      ignore_efuse_mac_crc: true
 
 wifi:
   networks:
     - ssid: 'MySSID'
       password: 'password1'
+      manual_ip:
+        static_ip: 192.168.1.23
+        gateway: 192.168.1.1
+        subnet: 255.255.255.0
 
 api:
 
@@ -97,6 +101,8 @@ number:
     max_value: 100
     min_value: 0
     step: 5
+    unit_of_measurement: '%'
+    mode: slider
 
 select:
   - platform: template
