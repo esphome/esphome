@@ -49,9 +49,17 @@ void EmporiaVueComponent::setup() {
   if (this->ota_){
     ESP_LOGV(TAG, "Adding OTA state callback");
     this->ota_->add_on_state_callback([this](ota::OTAState state, float var, uint8_t error_code) {
-      if (state == ota::OTAState::OTA_STARTED)
+      eTaskState i2c_request_task_status = eTaskGetState(this->i2c_request_task_);
+
+      if (state == ota::OTAState::OTA_STARTED && (i2c_request_task_status == eRunning 
+        || i2c_request_task_status == eReady || i2c_request_task_status == eBlocked)) {
         ESP_LOGV(TAG, "OTA Update started - Suspending i2c_request_task_");
         vTaskSuspend(this->i2c_request_task_);
+      }
+      if (state == ota::OTAState::OTA_ERROR && i2c_request_task_status == eSuspended) {
+        ESP_LOGV(TAG, "OTA Update failed - Resuming i2c_request_task_");
+        vTaskResume(this->i2c_request_task_);
+      }
     });
   }
 #endif
