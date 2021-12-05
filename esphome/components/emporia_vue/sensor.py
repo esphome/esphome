@@ -1,6 +1,7 @@
 from esphome.components import sensor, i2c
 import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.components.ota import OTAComponent
 from esphome.const import (
     CONF_CALIBRATION,
     #    CONF_CT,
@@ -8,6 +9,7 @@ from esphome.const import (
     CONF_INPUT,
     #    CONF_PHASES,
     #    CONF_PHASE_ID,
+    CONF_OTA,
     CONF_VOLTAGE,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_VOLTAGE,
@@ -80,6 +82,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(EmporiaVueComponent),
+            cv.OnlyWith(CONF_OTA, "ota"): cv.use_id(OTAComponent),
             cv.Optional(
                 CONF_SENSOR_POLL_INTERVAL, default="240ms"
             ): cv.positive_time_period_milliseconds,
@@ -136,3 +139,9 @@ async def to_code(config):
 
         ct_sensors.append(power_var)
     cg.add(var.set_ct_sensors(ct_sensors))
+    
+    if CONF_OTA in config:
+        ota = await cg.get_variable(config[CONF_OTA])
+        cg.add_define("USING_OTA_COMPONENT")
+        cg.add_define("USE_OTA_STATE_CALLBACK")
+        cg.add(var.set_ota(ota))

@@ -3,8 +3,14 @@
 #include <vector>
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
+
+#ifdef USING_OTA_COMPONENT
+  #include "esphome/components/ota/ota_component.h"
+#endif
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
@@ -45,6 +51,9 @@ class EmporiaVueComponent : public Component, public i2c::I2CDevice {
   uint32_t get_sensor_poll_interval() const { return this->sensor_poll_interval_; }
   void set_phases(std::vector<PhaseConfig *> phases) { this->phases_ = phases; }
   void set_ct_sensors(std::vector<CTSensor *> sensors) { this->ct_sensors_ = sensors; }
+#ifdef USING_OTA_COMPONENT
+  void set_ota(ota::OTAComponent *ota) { this->ota_ = ota; }
+#endif
 
   void setup() override;
   void loop() override;
@@ -56,6 +65,10 @@ class EmporiaVueComponent : public Component, public i2c::I2CDevice {
   std::vector<PhaseConfig *> phases_;
   std::vector<CTSensor *> ct_sensors_;
   QueueHandle_t i2c_data_queue_;
+#ifdef USING_OTA_COMPONENT
+  ota::OTAComponent *ota_{nullptr};
+#endif
+  TaskHandle_t i2c_request_task_;
 };
 
 enum PhaseInputWire : uint8_t {

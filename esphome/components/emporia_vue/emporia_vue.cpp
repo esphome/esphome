@@ -44,10 +44,22 @@ void EmporiaVueComponent::dump_config() {
 }
 
 void EmporiaVueComponent::setup() {
+#ifdef USING_OTA_COMPONENT
+  // OTA callback to prevent the i2c task to crash
+  if (this->ota_){
+    ESP_LOGV(TAG, "Adding OTA state callback");
+    this->ota_->add_on_state_callback([this](ota::OTAState state, float var, uint8_t error_code) {
+      if (state == ota::OTAState::OTA_STARTED)
+        ESP_LOGV(TAG, "OTA Update started - Suspending i2c_request_task_");
+        vTaskSuspend(this->i2c_request_task_);
+    });
+  }
+#endif
+
   global_emporia_vue_component = this;
 
   this->i2c_data_queue_ = xQueueCreate(1, sizeof(SensorReading));
-  xTaskCreatePinnedToCore(&EmporiaVueComponent::i2c_request_task, "i2c_request_task", 4096, nullptr, 0, nullptr, 1);
+  xTaskCreatePinnedToCore(&EmporiaVueComponent::i2c_request_task, "i2c_request_task", 4096, nullptr, 0, &this->i2c_request_task_, 0);
 }
 
 void EmporiaVueComponent::i2c_request_task(void *pv) {
@@ -79,8 +91,8 @@ void EmporiaVueComponent::i2c_request_task(void *pv) {
       ESP_LOGV(TAG, "Added sensor reading with sequence number %d to queue", sensor_reading.sequence_num);
 
       last_sequence_num = sensor_reading.sequence_num;
-      vTaskDelayUntil(&last_poll, poll_interval);
     }
+    vTaskDelayUntil(&last_poll, poll_interval);
   }
 }
 
