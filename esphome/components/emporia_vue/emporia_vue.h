@@ -58,7 +58,7 @@ class EmporiaVueComponent : public Component, public i2c::I2CDevice {
   void setup() override;
   void loop() override;
 
- private:
+ protected:
   static void i2c_request_task(void *pv);
 
   uint32_t sensor_poll_interval_;
@@ -90,7 +90,7 @@ class PhaseConfig {
 
   int32_t extract_power_for_phase(const ReadingPowerEntry &power_entry);
 
- private:
+ protected:
   PhaseInputWire input_wire_;
   float calibration_;
   sensor::Sensor *voltage_sensor_{nullptr};
@@ -127,7 +127,7 @@ class CTSensor : public sensor::Sensor {
 
   void update_from_reading(const SensorReading &sensor_reading);
 
- private:
+ protected:
   float get_calibrated_power(int32_t raw_power) const;
 
   PhaseConfig *phase_;
