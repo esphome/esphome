@@ -1,6 +1,6 @@
 pylint==2.12.2
 flake8==4.0.1
-black==21.11b1
+black==21.12b0
 pre-commit
 
 # Unit tests
