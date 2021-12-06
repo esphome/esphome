@@ -14,24 +14,24 @@ static const char *const TAG = "captive_portal";
 void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("application/json");
   stream->addHeader("cache-control", "public, max-age=0, must-revalidate");
-   stream->printf("{\"name\":\"%s\",\"aps\":[{}",App.get_name().c_str());
+  stream->printf(R"({"name":"%s","aps":[{})", App.get_name().c_str());
 
   for (auto &scan : wifi::global_wifi_component->get_scan_result()) {
     if (scan.get_is_hidden())
       continue;
 
-    int sig=1;
+    int sig = 1;
     if (scan.get_rssi() >= -50) {
-      sig=4;
+      sig = 4;
     } else if (scan.get_rssi() >= -65) {
-      sig=3;
+      sig = 3;
     } else if (scan.get_rssi() >= -85) {
-      sig=2;
+      sig = 2;
     }
-    int lock=scan.get_with_auth();
+    int lock = scan.get_with_auth();
     // Assumes no " in ssid, possible unicode isses?
-    stream->printf(",{\"ssid\":\"%s\",\"sig\":%d,\"lock\":%d}",scan.get_ssid().c_str(),sig,lock);    
-    }
+    stream->printf(R"(,{"ssid":"%s","sig":%d,"lock":%d})", scan.get_ssid().c_str(), sig, lock);
+  }    
   stream->print(F("]}"));
   request->send(stream);
 }
@@ -75,12 +75,11 @@ void CaptivePortal::start() {
 
 void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
   if (req->url() == "/") {
-    AsyncWebServerResponse *response = req->beginResponse_P(200, "text/html",INDEX_GZ, sizeof(INDEX_GZ));
+    AsyncWebServerResponse *response = req->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
     response->addHeader("Content-Encoding", "gzip");
     req->send(response);
     return;
-  }
-  else if (req->url() == "/config.json") {
+  } else if (req->url() == "/config.json") {
     this->handle_config(req);
     return;
   } else if (req->url() == "/wifisave") {
