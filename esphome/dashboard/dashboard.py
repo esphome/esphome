@@ -852,10 +852,10 @@ class SecretKeysRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        secrets = list(yaml_util.load_yaml(filename, clear_secrets=False))
+        secret_keys = list(yaml_util.load_yaml(filename, clear_secrets=False))
 
         self.set_header("content-type", "application/json")
-        self.write(json.dumps(secrets))
+        self.write(json.dumps(secret_keys))
 
 
 def get_base_frontend_path():
