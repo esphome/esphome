@@ -180,6 +180,24 @@ sensor:
     co2:
       name: CO2 Sensor
 
+  - platform: emporia_vue
+    phases:
+      - id: phase_a
+        input: BLACK
+        voltage: 
+          name: "Phase A Voltage"
+      - id: phase_c
+        input: RED
+        voltage: 
+          name: "Phase C Voltage"
+    ct_clamps:
+      - name: "A"
+        phase_id: phase_a
+        input: "A"
+      - name: "C"
+        phase_id: phase_c
+        input: "C"
+
 script:
   - id: automation_test
     then:
