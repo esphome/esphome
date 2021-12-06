@@ -78,8 +78,6 @@ void IDFI2CBus::dump_config() {
       ESP_LOGI(TAG, "%s", s.c_str());
     if (scan_results_.empty())
       ESP_LOGI(TAG, "Found no i2c devices!");
-    // release memory
-    scan_results_ = std::vector<std::string>();
   }
 }
 ErrorCode IDFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
