@@ -87,19 +87,10 @@ def wizard_file(**kwargs):
 
     if "ssid" in kwargs:
         if kwargs["ssid"].startswith("!secret"):
-            # pylint: disable=consider-using-f-string
-            config += """  ssid: {ssid}
-    password: {psk}
-    """.format(
-                **kwargs
-            )
+            template = "  ssid: {ssid}\n  password: {psk}\n"
         else:
-            # pylint: disable=consider-using-f-string
-            config += """  ssid: "{ssid}"
-    password: "{psk}"
-    """.format(
-                **kwargs
-            )
+            template = """  ssid: "{ssid}"\n  password: "{psk}"\n"""
+        config += template.format(**kwargs)
     else:
         config += """  # ssid: "My SSID"
   # password: "mypassword"
