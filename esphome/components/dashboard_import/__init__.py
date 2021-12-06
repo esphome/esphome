@@ -29,12 +29,11 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
-WIFI_MESSAGE = """
+WIFI_CONFIG = """
 
-# Do not forget to add your own wifi configuration before installing this configuration
-# wifi:
-#   ssid: !secret wifi_ssid
-#   password: !secret wifi_password
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
 """
 
 
@@ -55,6 +54,6 @@ def import_config(path: str, name: str, project_name: str, import_url: str) -> N
         "esphome": {"name_add_mac_suffix": False},
     }
     p.write_text(
-        dump(config) + WIFI_MESSAGE,
+        dump(config) + WIFI_CONFIG,
         encoding="utf8",
     )
