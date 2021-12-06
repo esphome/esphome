@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include <vector>
 
 #include "esphome/core/component.h"
@@ -136,3 +138,5 @@ class CTSensor : public sensor::Sensor {
 
 }  // namespace emporia_vue
 }  // namespace esphome
+
+#endif // ifdef USE_ESP32
