@@ -360,6 +360,7 @@ error:
 }
 
 bool OTAComponent::readall_(uint8_t *buf, size_t len) {
+  App.feed_wdt();
   uint32_t start = millis();
   uint32_t at = 0;
   while (len - at > 0) {
@@ -389,6 +390,7 @@ bool OTAComponent::readall_(uint8_t *buf, size_t len) {
   return true;
 }
 bool OTAComponent::writeall_(const uint8_t *buf, size_t len) {
+  App.feed_wdt();
   uint32_t start = millis();
   uint32_t at = 0;
   while (len - at > 0) {
