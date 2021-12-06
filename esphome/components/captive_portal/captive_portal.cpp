@@ -75,7 +75,7 @@ void CaptivePortal::start() {
 
 void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
   if (req->url() == "/") {
-    AsyncWebServerResponse *response = req->beginResponse_P(200, "text/html",index_gz, sizeof(index_gz));
+    AsyncWebServerResponse *response = req->beginResponse_P(200, "text/html",INDEX_GZ, sizeof(INDEX_GZ));
     response->addHeader("Content-Encoding", "gzip");
     req->send(response);
     return;
