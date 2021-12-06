@@ -25,10 +25,10 @@ void DutyCycleSensor::update() {
   const uint32_t now = micros();
   const uint32_t last_interrupt = this->store_.last_interrupt;  // Read the measurement taken by the interrupt
   uint32_t on_time = this->store_.on_time;
-  
+
   this->store_.on_time = 0;  // Start new measurement, exactly aligned with the micros() reading
   this->store_.last_interrupt = now;
-  
+
   if (this->last_update_ != 0) {
     const bool level = this->store_.last_level;
 
