@@ -4,11 +4,8 @@ import esphome.codegen as cg
 from esphome.components.ota import OTAComponent
 from esphome.const import (
     CONF_CALIBRATION,
-    #    CONF_CT,
     CONF_ID,
     CONF_INPUT,
-    #    CONF_PHASES,
-    #    CONF_PHASE_ID,
     CONF_OTA,
     CONF_VOLTAGE,
     DEVICE_CLASS_ENERGY,
@@ -18,7 +15,6 @@ from esphome.const import (
     UNIT_VOLT,
 )
 
-# TODO: Remove this - It's only added so we can test the component using the External_component configuration
 CONF_CT_CLAMPS = "ct_clamps"
 CONF_PHASES = "phases"
 CONF_PHASE_ID = "phase_id"
@@ -139,7 +135,7 @@ async def to_code(config):
 
         ct_sensors.append(power_var)
     cg.add(var.set_ct_sensors(ct_sensors))
-    
+
     if CONF_OTA in config:
         ota = await cg.get_variable(config[CONF_OTA])
         cg.add_define("USING_OTA_COMPONENT")
