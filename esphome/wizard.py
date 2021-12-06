@@ -86,12 +86,20 @@ def wizard_file(**kwargs):
     config += "\n\nwifi:\n"
 
     if "ssid" in kwargs:
-        # pylint: disable=consider-using-f-string
-        config += """  ssid: "{ssid}"
-  password: "{psk}"
-""".format(
-            **kwargs
-        )
+        if "!secret" in kwargs["ssid"]:
+            # pylint: disable=consider-using-f-string
+            config += """  ssid: {ssid}
+    password: {psk}
+    """.format(
+                **kwargs
+            )
+        else:
+            # pylint: disable=consider-using-f-string
+            config += """  ssid: "{ssid}"
+    password: "{psk}"
+    """.format(
+                **kwargs
+            )
     else:
         config += """  # ssid: "My SSID"
   # password: "mypassword"
