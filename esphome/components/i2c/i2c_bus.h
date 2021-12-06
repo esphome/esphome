@@ -48,13 +48,13 @@ class I2CBus {
     for (uint8_t address = 8; address < 120; address++) {
       auto err = writev(address, nullptr, 0);
       if (err == ERROR_OK) {
-        scan_results_.emplace_back(true, address);
+        scan_results_.emplace_back(address, true);
       } else if (err == ERROR_UNKNOWN) {
-        scan_results_.emplace_back(false, address);
+        scan_results_.emplace_back(address, false);
       }
     }
   }
-  std::vector<std::pair<bool, int>> scan_results_;
+  std::vector<std::pair<uint8_t, bool>> scan_results_;
   bool scan_{false};
 };
 

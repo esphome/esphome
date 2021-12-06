@@ -1,6 +1,7 @@
 #pragma once
 
 #ifdef USE_ARDUINO
+
 #include "i2c_bus.h"
 #include "esphome/core/component.h"
 #include <Wire.h>
