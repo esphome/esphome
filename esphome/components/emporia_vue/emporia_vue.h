@@ -13,6 +13,7 @@
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include <freertos/task.h>
 
 namespace esphome {
 namespace emporia_vue {
@@ -49,8 +50,8 @@ class EmporiaVueComponent : public Component, public i2c::I2CDevice {
 
   void set_sensor_poll_interval(uint32_t sensor_poll_interval) { this->sensor_poll_interval_ = sensor_poll_interval; }
   uint32_t get_sensor_poll_interval() const { return this->sensor_poll_interval_; }
-  void set_phases(std::vector<PhaseConfig *> phases) { this->phases_ = phases; }
-  void set_ct_sensors(std::vector<CTSensor *> sensors) { this->ct_sensors_ = sensors; }
+  void set_phases(std::vector<PhaseConfig *> phases) { this->phases_ = std::move(phases); }
+  void set_ct_sensors(std::vector<CTSensor *> sensors) { this->ct_sensors_ = std::move(sensors); }
 #ifdef USING_OTA_COMPONENT
   void set_ota(ota::OTAComponent *ota) { this->ota_ = ota; }
 #endif
@@ -126,10 +127,9 @@ class CTSensor : public sensor::Sensor {
   CTInputPort get_input_port() const { return this->input_port_; }
 
   void update_from_reading(const SensorReading &sensor_reading);
-
- protected:
   float get_calibrated_power(int32_t raw_power) const;
 
+ protected:
   PhaseConfig *phase_;
   CTInputPort input_port_;
 };

@@ -2,15 +2,12 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#include <freertos/task.h>
-
 namespace esphome {
 namespace emporia_vue {
 
 static const char *const TAG = "emporia_vue";
 
-EmporiaVueComponent *global_emporia_vue_component =
-    nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+EmporiaVueComponent *global_emporia_vue_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void EmporiaVueComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Emporia Vue");
