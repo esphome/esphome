@@ -8,7 +8,7 @@
 #include "esphome/components/sensor/sensor.h"
 
 #ifdef USING_OTA_COMPONENT
-  #include "esphome/components/ota/ota_component.h"
+#include "esphome/components/ota/ota_component.h"
 #endif
 
 #include <freertos/FreeRTOS.h>

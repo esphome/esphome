@@ -46,13 +46,14 @@ void EmporiaVueComponent::dump_config() {
 void EmporiaVueComponent::setup() {
 #ifdef USING_OTA_COMPONENT
   // OTA callback to prevent the i2c task to crash
-  if (this->ota_){
+  if (this->ota_) {
     ESP_LOGV(TAG, "Adding OTA state callback");
     this->ota_->add_on_state_callback([this](ota::OTAState state, float var, uint8_t error_code) {
       eTaskState i2c_request_task_status = eTaskGetState(this->i2c_request_task_);
 
-      if (state == ota::OTAState::OTA_STARTED && (i2c_request_task_status == eRunning 
-        || i2c_request_task_status == eReady || i2c_request_task_status == eBlocked)) {
+      if (state == ota::OTAState::OTA_STARTED &&
+          (i2c_request_task_status == eRunning || i2c_request_task_status == eReady ||
+           i2c_request_task_status == eBlocked)) {
         ESP_LOGV(TAG, "OTA Update started - Suspending i2c_request_task_");
         vTaskSuspend(this->i2c_request_task_);
       }
@@ -67,7 +68,8 @@ void EmporiaVueComponent::setup() {
   global_emporia_vue_component = this;
 
   this->i2c_data_queue_ = xQueueCreate(1, sizeof(SensorReading));
-  xTaskCreatePinnedToCore(&EmporiaVueComponent::i2c_request_task, "i2c_request_task", 4096, nullptr, 0, &this->i2c_request_task_, 0);
+  xTaskCreatePinnedToCore(&EmporiaVueComponent::i2c_request_task, "i2c_request_task", 4096, nullptr, 0,
+                          &this->i2c_request_task_, 0);
 }
 
 void EmporiaVueComponent::i2c_request_task(void *pv) {
