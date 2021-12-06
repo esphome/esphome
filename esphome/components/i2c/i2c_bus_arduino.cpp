@@ -30,20 +30,7 @@ void ArduinoI2CBus::setup() {
   initialized_ = true;
   if (this->scan_) {
     ESP_LOGV(TAG, "Scanning i2c bus for active devices...");
-    uint8_t found = 0;
-    for (uint8_t address = 8; address < 120; address++) {
-      auto err = writev(address, nullptr, 0);
-      if (err == ERROR_OK) {
-        ESP_LOGV(TAG, "Found i2c device at address 0x%02X", address);
-        scan_results_.push_back(str_sprintf("Found i2c device at address 0x%02X", address));
-        found++;
-      } else if (err == ERROR_UNKNOWN) {
-        ESP_LOGV(TAG, "Unknown error at address 0x%02X", address);
-        scan_results_.push_back(str_sprintf("Unknown error at address 0x%02X", address));
-      }
-    }
-    if (found == 0)
-      ESP_LOGI(TAG, "Found no i2c devices!");
+    this->i2c_scan_();
   }
 }
 void ArduinoI2CBus::dump_config() {
@@ -64,12 +51,19 @@ void ArduinoI2CBus::dump_config() {
   }
   if (this->scan_) {
     ESP_LOGI(TAG, "i2c bus scan results...");
-    for (const auto &s : scan_results_)
-      ESP_LOGI(TAG, "%s", s.c_str());
-    if (scan_results_.empty())
+    if (scan_results_.empty()) {
       ESP_LOGI(TAG, "Found no i2c devices!");
+    } else {
+      for (const auto &s : scan_results_) {
+        if (s.first)
+          ESP_LOGI(TAG, "Found i2c device at address 0x%02X", s.second);
+        else
+          ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.second);
+      }
+    }
   }
 }
+
 ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
   // logging is only enabled with vv level, if warnings are shown the caller
   // should log them
