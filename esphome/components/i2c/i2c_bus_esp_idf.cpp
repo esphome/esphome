@@ -60,7 +60,7 @@ void IDFI2CBus::dump_config() {
       break;
   }
   if (this->scan_) {
-    ESP_LOGI(TAG, "i2c bus scan results...");
+    ESP_LOGI(TAG, "Results from i2c bus scan:");
     if (scan_results_.empty()) {
       ESP_LOGI(TAG, "Found no i2c devices!");
     } else {
