@@ -1,3 +1,4 @@
+import functools
 from typing import Union, List
 
 import collections
@@ -240,6 +241,32 @@ def run_external_process(*cmd, **kwargs):
 
 def is_dev_esphome_version():
     return "dev" in const.__version__
+
+
+# Memoize results, as looking them up can be expensive
+@functools.lru_cache()
+def get_full_version():
+    # only try to augment versions ending -dev
+    if not const.__version__.endswith("-dev"):
+        return const.__version__
+
+    # the Dockerfile for the HA add-on adds the date to the version constant
+
+    # add git commit if running from source
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=Path(__file__).parent,
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+        )
+        return f"{const.__version__}-{proc.stdout.strip()}"
+    except Exception as err:  # pylint: disable=broad-except
+        pass
+
+    # use hardcoded version if we can't find anything
+    return const.__version__
 
 
 # Custom OrderedDict with nicer repr method for debugging

@@ -112,7 +112,9 @@ RUN \
 
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install --no-cache-dir -e /esphome
+RUN \
+    sed -i "s/^__version__ = .*$/__version__ = \"${BUILD_VERSION}\"/" /esphome/esphome/const.py \
+    && pip3 install --no-cache-dir -e /esphome
 
 # Labels
 LABEL \

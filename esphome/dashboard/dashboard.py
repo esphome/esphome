@@ -108,7 +108,7 @@ cookie_authenticated_yes = b"yes"
 
 
 def template_args():
-    version = const.__version__
+    version = util.get_full_version()
     if "b" in version:
         docs_link = "https://beta.esphome.io/"
     elif "dev" in version:

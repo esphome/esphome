@@ -28,6 +28,7 @@ from esphome.util import (
     safe_print,
     list_yaml_files,
     get_serial_ports,
+    get_full_version
 )
 from esphome.log import color, setup_log, Fore
 
@@ -402,7 +403,7 @@ def command_mqtt_fingerprint(args, config):
 
 
 def command_version(args):
-    safe_print(f"Version: {const.__version__}")
+    safe_print(f"Version: {get_full_version()}")
     return 0
 
 
