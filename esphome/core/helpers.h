@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <cstring>
 
 #include <string>
 #include <functional>
@@ -411,6 +412,84 @@ optional<T> parse_number(const char *str, size_t len) {
 template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0>
 optional<T> parse_number(const std::string &str) {
   return parse_number<T>(str.c_str(), str.length() + 1);
+}
+
+/** Parse bytes from a hex-encoded string into a byte array.
+ *
+ * When \p len is less than \p 2*count, the result is written to the back of \p data (i.e. this function treats \p str
+ * as if it were padded with zeros at the front).
+ *
+ * @param str String to read from.
+ * @param len Length of \p str (excluding optional null-terminator), is a limit on the number of characters parsed.
+ * @param data Byte array to write to.
+ * @param count Length of \p data.
+ * @return The number of characters parsed from \p str.
+ */
+size_t parse_hex(const char *str, size_t len, uint8_t *data, size_t count);
+/// Parse \p count bytes from the hex-encoded string \p str of at least \p 2*count characters into array \p data.
+inline bool parse_hex(const char *str, uint8_t *data, size_t count) {
+  return parse_hex(str, strlen(str), data, count) == 2 * count;
+}
+/// Parse \p count bytes from the hex-encoded string \p str of at least \p 2*count characters into array \p data.
+inline bool parse_hex(const std::string &str, uint8_t *data, size_t count) {
+  return parse_hex(str.c_str(), str.length(), data, count) == 2 * count;
+}
+/// Parse \p count bytes from the hex-encoded string \p str of at least \p 2*count characters into vector \p data.
+inline bool parse_hex(const char *str, std::vector<uint8_t> &data, size_t count) {
+  data.resize(count);
+  return parse_hex(str, strlen(str), data.data(), count) == 2 * count;
+}
+/// Parse \p count bytes from the hex-encoded string \p str of at least \p 2*count characters into vector \p data.
+inline bool parse_hex(const std::string &str, std::vector<uint8_t> &data, size_t count) {
+  data.resize(count);
+  return parse_hex(str.c_str(), str.length(), data.data(), count) == 2 * count;
+}
+/** Parse a hex-encoded string into an unsigned integer.
+ *
+ * @param str String to read from, starting with the most significant byte.
+ * @param len Length of \p str (excluding optional null-terminator), is a limit on the number of characters parsed.
+ */
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+optional<T> parse_hex(const char *str, size_t len) {
+  T val = 0;
+  if (len > 2 * sizeof(T) || parse_hex(str, len, reinterpret_cast<uint8_t *>(&val), sizeof(T)) == 0)
+    return {};
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  val = byteswap(val);
+#endif
+  return val;
+}
+/// Parse a hex-encoded null-terminated string (starting with the most significant byte) into an unsigned integer.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<T> parse_hex(const char *str) {
+  return parse_hex<T>(str, strlen(str));
+}
+/// Parse a hex-encoded null-terminated string (starting with the most significant byte) into an unsigned integer.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<T> parse_hex(const std::string &str) {
+  return parse_hex<T>(str.c_str(), str.length());
+}
+
+/// Format the byte array \p data of length \p len in lowercased hex.
+std::string format_hex(const uint8_t *data, size_t length);
+/// Format the vector \p data in lowercased hex.
+std::string format_hex(std::vector<uint8_t> data);
+/// Format an unsigned integer in lowercased hex, starting with the most significant byte.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  val = byteswap(val);
+#endif
+  return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
+}
+
+/// Format the byte array \p data of length \p len in pretty-printed, human-readable hex.
+std::string format_hex_pretty(const uint8_t *data, size_t length);
+/// Format the vector \p data in pretty-printed, human-readable hex.
+std::string format_hex_pretty(std::vector<uint8_t> data);
+/// Format an unsigned integer in pretty-printed, human-readable hex, starting with the most significant byte.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex_pretty(T val) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  val = byteswap(val);
+#endif
+  return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T));
 }
 
 ///@}

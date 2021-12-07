@@ -445,6 +445,8 @@ IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 
 // ---------------------------------------------------------------------------------------------------------------------
 
+// Strings
+
 std::string str_truncate(const std::string &str, size_t length) {
   return str.length() > length ? str.substr(0, length) : str;
 }
@@ -467,5 +469,52 @@ std::string str_sanitize(const std::string &str) {
   });
   return out;
 }
+
+// Parsing & formatting
+
+size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
+  uint8_t val;
+  size_t chars = std::min(length, 2 * count);
+  for (size_t i = 2 * count - chars; i < 2 * count; i++, str++) {
+    if (*str >= '0' && *str <= '9')
+      val = *str - '0';
+    else if (*str >= 'A' && *str <= 'F')
+      val = 10 + (*str - 'A');
+    else if (*str >= 'a' && *str <= 'f')
+      val = 10 + (*str - 'a');
+    else
+      return 0;
+    data[i >> 1] = !(i & 1) ? val << 4 : data[i >> 1] | val;
+  }
+  return chars;
+}
+
+static char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
+std::string format_hex(const uint8_t *data, size_t length) {
+  std::string ret;
+  ret.resize(length * 2);
+  for (size_t i = 0; i < length; i++) {
+    ret[2 * i] = format_hex_char((data[i] & 0xF0) >> 4);
+    ret[2 * i + 1] = format_hex_char(data[i] & 0x0F);
+  }
+  return ret;
+}
+std::string format_hex(std::vector<uint8_t> data) { return format_hex(data.data(), data.size()); }
+
+static char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
+std::string format_hex_pretty(const uint8_t *data, size_t length) {
+  std::string ret;
+  ret.resize(3 * length - 1);
+  for (size_t i = 0; i < length; i++) {
+    ret[3 * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
+    ret[3 * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
+    if (i != length - 1)
+      ret[3 * i + 2] = '.';
+  }
+  if (length > 4)
+    return ret + " (" + to_string(length) + ")";
+  return ret;
+}
+std::string format_hex_pretty(std::vector<uint8_t> data) { return format_hex_pretty(data.data(), data.size()); }
 
 }  // namespace esphome
