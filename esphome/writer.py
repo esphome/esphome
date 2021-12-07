@@ -21,6 +21,7 @@ from esphome.helpers import (
     get_bool_env,
 )
 from esphome.storage_json import StorageJSON, storage_path
+from esphome.util import get_full_version
 from esphome import loader
 
 _LOGGER = logging.getLogger(__name__)
@@ -302,7 +303,7 @@ def generate_version_h():
     if not match:
         raise EsphomeError(f"Could not parse version {__version__}.")
     return VERSION_H_FORMAT.format(
-        __version__, match.group(1), match.group(2), match.group(3)
+        get_full_version(), match.group(1), match.group(2), match.group(3)
     )
 
 

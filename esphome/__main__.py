@@ -28,7 +28,7 @@ from esphome.util import (
     safe_print,
     list_yaml_files,
     get_serial_ports,
-    get_full_version
+    get_full_version,
 )
 from esphome.log import color, setup_log, Fore
 
@@ -160,7 +160,7 @@ def write_cpp(config):
 
 
 def generate_cpp_contents(config):
-    _LOGGER.info("Generating C++ source...")
+    _LOGGER.info(f"Generating C++ source from {get_full_version()}...")
 
     for name, component, conf in iter_components(CORE.config):
         if component.to_code is not None:
