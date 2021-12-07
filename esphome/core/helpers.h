@@ -491,4 +491,18 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
 
 ///@}
 
+/// @name Deprecated functions
+///@{
+
+ESPDEPRECATED("hexencode() is deprecated, use format_hex_pretty() instead.", "2022.1")
+std::string hexencode(const uint8_t *data, uint32_t len) { return format_hex_pretty(data, len); }
+
+template<typename T>
+ESPDEPRECATED("hexencode() is deprecated, use format_hex_pretty() instead.", "2022.1")
+std::string hexencode(const T &data) {
+  return hexencode(data.data(), data.size());
+}
+
+///@}
+
 }  // namespace esphome
