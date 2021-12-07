@@ -45,14 +45,26 @@ OTA_BIG = r"""       ____ _______
 
 BASE_CONFIG = """esphome:
   name: {name}
-  platform: {platform}
-  board: {board}
+"""
 
+LOGGER_API_CONFIG = """
 # Enable logging
 logger:
 
 # Enable Home Assistant API
 api:
+"""
+
+ESP8266_CONFIG = """
+esp8266:
+  board: {board}
+"""
+
+ESP32_CONFIG = """
+esp32:
+  board: {board}
+  framework:
+    type: arduino
 """
 
 
@@ -70,6 +82,14 @@ def wizard_file(**kwargs):
     kwargs["fallback_psk"] = "".join(random.choice(letters) for _ in range(12))
 
     config = BASE_CONFIG.format(**kwargs)
+
+    config += (
+        ESP8266_CONFIG.format(**kwargs)
+        if kwargs["platform"] == "ESP8266"
+        else ESP32_CONFIG.format(**kwargs)
+    )
+
+    config += LOGGER_API_CONFIG
 
     # Configure API
     if "password" in kwargs:
