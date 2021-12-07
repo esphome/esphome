@@ -455,6 +455,8 @@ std::string format_hex(std::vector<uint8_t> data) { return format_hex(data.data(
 
 static char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
 std::string format_hex_pretty(const uint8_t *data, size_t length) {
+  if (length == 0)
+    return "";
   std::string ret;
   ret.resize(3 * length - 1);
   for (size_t i = 0; i < length; i++) {
