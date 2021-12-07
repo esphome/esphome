@@ -262,7 +262,7 @@ def get_full_version():
             check=False,
         )
         return f"{const.__version__}-{proc.stdout.strip()}"
-    except Exception as err:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         pass
 
     # use hardcoded version if we can't find anything

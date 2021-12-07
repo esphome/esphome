@@ -160,7 +160,7 @@ def write_cpp(config):
 
 
 def generate_cpp_contents(config):
-    _LOGGER.info(f"Generating C++ source from {get_full_version()}...")
+    _LOGGER.info("Generating C++ source from %s..." % get_full_version())
 
     for name, component, conf in iter_components(CORE.config):
         if component.to_code is not None:
