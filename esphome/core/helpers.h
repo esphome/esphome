@@ -399,8 +399,7 @@ optional<T> parse_number(const std::string &str) {
   return parse_number<T>(str.c_str());
 }
 /// Parse a decimal floating-point number from a null-terminated string.
-template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0>
-optional<T> parse_number(const char *str) {
+template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0> optional<T> parse_number(const char *str) {
   char *end = nullptr;
   float value = ::strtof(str, &end);
   if (end == str || *end != '\0' || value == HUGE_VALF)
