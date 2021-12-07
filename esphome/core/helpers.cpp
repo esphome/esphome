@@ -244,38 +244,6 @@ std::string to_string(long double val) {
   return buf;
 }
 
-optional<int> parse_hex(const char chr) {
-  int out = chr;
-  if (out >= '0' && out <= '9')
-    return (out - '0');
-  if (out >= 'A' && out <= 'F')
-    return (10 + (out - 'A'));
-  if (out >= 'a' && out <= 'f')
-    return (10 + (out - 'a'));
-  return {};
-}
-
-optional<int> parse_hex(const std::string &str, size_t start, size_t length) {
-  if (str.length() < start) {
-    return {};
-  }
-  size_t end = start + length;
-  if (str.length() < end) {
-    return {};
-  }
-  int out = 0;
-  for (size_t i = start; i < end; i++) {
-    char chr = str[i];
-    auto digit = parse_hex(chr);
-    if (!digit.has_value()) {
-      ESP_LOGW(TAG, "Can't convert '%s' to number, invalid character %c!", str.substr(start, length).c_str(), chr);
-      return {};
-    }
-    out = (out << 4) | *digit;
-  }
-  return out;
-}
-
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
   for (char c : str) {
@@ -353,22 +321,6 @@ std::string str_sprintf(const char *fmt, ...) {
   va_end(args);
 
   return str;
-}
-
-std::string hexencode(const uint8_t *data, uint32_t len) {
-  char buf[20];
-  std::string res;
-  for (size_t i = 0; i < len; i++) {
-    if (i + 1 != len) {
-      sprintf(buf, "%02X.", data[i]);
-    } else {
-      sprintf(buf, "%02X ", data[i]);
-    }
-    res += buf;
-  }
-  sprintf(buf, "(%u)", len);
-  res += buf;
-  return res;
 }
 
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value) {

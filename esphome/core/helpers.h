@@ -50,8 +50,6 @@ std::string to_string(unsigned long long val);  // NOLINT
 std::string to_string(float val);
 std::string to_string(double val);
 std::string to_string(long double val);
-optional<int> parse_hex(const std::string &str, size_t start, size_t length);
-optional<int> parse_hex(char chr);
 
 /// Compare string a to string b (ignoring case) and return whether they are equal.
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
@@ -190,10 +188,6 @@ enum ParseOnOffState {
 };
 
 ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const char *off = nullptr);
-
-// Encode raw data to a human-readable string (for debugging)
-std::string hexencode(const uint8_t *data, uint32_t len);
-template<typename T> std::string hexencode(const T &data) { return hexencode(data.data(), data.size()); }
 
 // https://stackoverflow.com/questions/7858817/unpacking-a-tuple-to-call-a-matching-function-pointer/7858971#7858971
 template<int...> struct seq {};                                       // NOLINT
