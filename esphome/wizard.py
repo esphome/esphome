@@ -140,7 +140,6 @@ if get_bool_env(ENV_QUICKWIZARD):
     def sleep(time):
         pass
 
-
 else:
     from time import sleep
 
