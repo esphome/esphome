@@ -176,7 +176,7 @@ void TM1637Display::display() {
 
   // Write the data bytes
   if (this->inverted_) {
-    for (auto i = this->length_ - 1; i >= 0; i--) {
+    for (uint8_t i = this->length_ - 1; i >= 0; i--) {
       this->send_byte_(this->buffer_[i]);
     }
   } else {
