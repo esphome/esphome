@@ -130,9 +130,9 @@ void TM1637Display::setup() {
 }
 void TM1637Display::dump_config() {
   ESP_LOGCONFIG(TAG, "TM1637:");
-  ESP_LOGCONFIG(TAG, "  INTENSITY: %d", this->intensity_);
-  ESP_LOGCONFIG(TAG, "  INVERTED: %d", this->inverted_);
-  ESP_LOGCONFIG(TAG, "  LENGTH: %d", this->length_);
+  ESP_LOGCONFIG(TAG, "  Intensity: %d", this->intensity_);
+  ESP_LOGCONFIG(TAG, "  Inverted: %d", this->inverted_);
+  ESP_LOGCONFIG(TAG, "  Length: %d", this->length_);
   LOG_PIN("  CLK Pin: ", this->clk_pin_);
   LOG_PIN("  DIO Pin: ", this->dio_pin_);
   LOG_UPDATE_INTERVAL(this);
