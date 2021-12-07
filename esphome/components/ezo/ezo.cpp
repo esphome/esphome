@@ -79,7 +79,7 @@ void EZOSensor::loop() {
     if (buf[i] == ',')
       buf[i] = '\0';
 
-  float val = parse_number<float>((char *) &buf[1], sizeof(buf) - 2).value_or(0);
+  float val = parse_number<float>((char *) &buf[1]).value_or(0);
   this->publish_state(val);
 }
 
