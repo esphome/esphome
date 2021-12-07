@@ -448,10 +448,7 @@ optional<T> parse_hex(const char *str, size_t len) {
   T val = 0;
   if (len > 2 * sizeof(T) || parse_hex(str, len, reinterpret_cast<uint8_t *>(&val), sizeof(T)) == 0)
     return {};
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-  val = byteswap(val);
-#endif
-  return val;
+  return convert_big_endian(val);
 }
 /// Parse a hex-encoded null-terminated string (starting with the most significant byte) into an unsigned integer.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<T> parse_hex(const char *str) {
@@ -468,9 +465,7 @@ std::string format_hex(const uint8_t *data, size_t length);
 std::string format_hex(std::vector<uint8_t> data);
 /// Format an unsigned integer in lowercased hex, starting with the most significant byte.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-  val = byteswap(val);
-#endif
+  val = convert_big_endian(val);
   return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
 }
 
@@ -480,9 +475,7 @@ std::string format_hex_pretty(const uint8_t *data, size_t length);
 std::string format_hex_pretty(std::vector<uint8_t> data);
 /// Format an unsigned integer in pretty-printed, human-readable hex, starting with the most significant byte.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex_pretty(T val) {
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-  val = byteswap(val);
-#endif
+  val = convert_big_endian(val);
   return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T));
 }
 
