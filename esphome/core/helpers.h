@@ -281,6 +281,16 @@ template<typename T> T *new_buffer(size_t length) {
 /// @name STL backports
 ///@{
 
+// std::is_trivially_copyable from C++11, implemented in libstdc++/g++ 5.1 (but minor releases can't be detected)
+#if _GLIBCXX_RELEASE >= 6
+using std::is_trivially_copyable;
+#else
+// Implementing this is impossible without compiler intrinsics, so don't bother. Invalid usage will be detected on
+// other variants that use a newer compiler anyway.
+// NOLINTNEXTLINE(readability-identifier-naming)
+template<typename T> struct is_trivially_copyable : public std::integral_constant<bool, true> {};
+#endif
+
 // std::byteswap is from C++23 and technically should be a template, but this will do for now.
 constexpr uint8_t byteswap(uint8_t n) { return n; }
 constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
