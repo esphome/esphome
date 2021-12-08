@@ -26,7 +26,7 @@ float MCP3204::read_data(uint8_t pin) {
   uint8_t adc_primary_byte = this->transfer_byte(adc_secondary_config);
   uint8_t adc_secondary_byte = this->transfer_byte(0x00);
   this->disable();
-  uint16_t digital_value = ( adc_primary_byte << 8 | adc_secondary_byte ) & 0b111111111111;
+  uint16_t digital_value = (adc_primary_byte << 8 | adc_secondary_byte) & 0b111111111111;
   return float(digital_value) / 4096.000;
 }
 
