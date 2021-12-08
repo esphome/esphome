@@ -7,7 +7,7 @@ from esphome.core import CORE
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["sensor"]
 MULTI_CONF = True
-CODEOWNERS = [ "rsumner" ]
+CODEOWNERS = ["rsumner"]
 
 CONF_MCP3204 = "mcp3204"
 
