@@ -291,6 +291,22 @@ using std::is_trivially_copyable;
 template<typename T> struct is_trivially_copyable : public std::integral_constant<bool, true> {};
 #endif
 
+// std::bit_cast from C++20
+#if __cpp_lib_bit_cast >= 201806
+using std::bit_cast;
+#else
+/// Convert data between types, without aliasing issues or undefined behaviour.
+template<
+    typename To, typename From,
+    enable_if_t<sizeof(To) == sizeof(From) && is_trivially_copyable<From>::value && is_trivially_copyable<To>::value,
+                int> = 0>
+To bit_cast(const From &src) {
+  To dst;
+  memcpy(&dst, &src, sizeof(To));
+  return dst;
+}
+#endif
+
 // std::byteswap is from C++23 and technically should be a template, but this will do for now.
 constexpr uint8_t byteswap(uint8_t n) { return n; }
 constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
