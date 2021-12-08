@@ -23,9 +23,9 @@ void ESP32Camera::setup() {
   sensor_t *s = esp_camera_sensor_get();
   s->set_vflip(s, this->vertical_flip_);
   s->set_hmirror(s, this->horizontal_mirror_);
-  s->set_aec2(s, this->aec2_);            //  0 = disable , 1 = enable
+  s->set_aec2(s, this->aec2_);            // 0 = disable , 1 = enable
   s->set_ae_level(s, this->ae_level_);    // -2 to 2
-  s->set_aec_value(s, this->aec_value_);  //	0 to 1200
+  s->set_aec_value(s, this->aec_value_);  // 0 to 1200
   s->set_contrast(s, this->contrast_);
   s->set_brightness(s, this->brightness_);
   s->set_saturation(s, this->saturation_);
