@@ -145,7 +145,8 @@ def wrap_to_code(name, comp):
         if comp.config_schema is not None:
             conf_str = yaml_util.dump(conf)
             conf_str = conf_str.replace("//", "")
-            conf_str = conf_str.replace("\\n\\", "")
+            # remove tailing \ to avoid multi-line comment warning
+            conf_str = conf_str.replace("\\\n", "\n")
             cg.add(cg.LineComment(indent(conf_str)))
         await coro(conf)
 
