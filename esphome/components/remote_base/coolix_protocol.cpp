@@ -18,7 +18,7 @@ static const int32_t FOOTER_SPACE_US = 10 * TICK_US;
 void CoolixProtocol::encode(RemoteTransmitData *dst, const CoolixData &data) {
   dst->set_carrier_frequency(38000);
   dst->reserve((2 + 2 * 48 + 2) * 2);
-  for (unsigned r = 0; r <= 1; r++) {
+  for (unsigned r = 0; r < 2; r++) {
     // Header
     dst->item(HEADER_MARK_US, HEADER_SPACE_US);
     // Data
@@ -42,21 +42,26 @@ void CoolixProtocol::encode(RemoteTransmitData *dst, const CoolixData &data) {
   }
 }
 
-static bool read_data(RemoteReceiveData &src, CoolixData &data) {
-  data = 0;
+static bool read_data(RemoteReceiveData &src, CoolixData &dst) {
+  uint32_t data = 0;
   for (unsigned n = 3;; data <<= 8) {
+    // Read byte
     for (uint32_t mask = 1 << 7; mask; mask >>= 1) {
       if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US))
         data |= mask;
       else if (!src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US))
         return false;
     }
+    // Check for inverse byte
     for (uint32_t mask = 1 << 7; mask; mask >>= 1) {
       if (!src.expect_item(BIT_MARK_US, (data & mask) ? BIT_ZERO_SPACE_US : BIT_ONE_SPACE_US))
         return false;
     }
-    if (--n == 0)
+    // Checking the end of reading
+    if (--n == 0) {
+      dst = data;
       return true;
+    }
   }
 }
 
