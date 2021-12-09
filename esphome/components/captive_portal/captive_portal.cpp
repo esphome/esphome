@@ -20,17 +20,8 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
     if (scan.get_is_hidden())
       continue;
 
-    int sig = 1;
-    if (scan.get_rssi() >= -50) {
-      sig = 4;
-    } else if (scan.get_rssi() >= -65) {
-      sig = 3;
-    } else if (scan.get_rssi() >= -85) {
-      sig = 2;
-    }
-    int lock = scan.get_with_auth();
     // Assumes no " in ssid, possible unicode isses?
-    stream->printf(R"(,{"ssid":"%s","sig":%d,"lock":%d})", scan.get_ssid().c_str(), sig, lock);
+    stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", scan.get_ssid().c_str(), scan.get_rssi(), scan.get_with_auth());
   }
   stream->print(F("]}"));
   request->send(stream);
