@@ -18,10 +18,10 @@ from ..const import (
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_TYPE,
+    CONF_USE_WRITE_MULTIPLE,
     CONF_WRITE_LAMBDA,
 )
 
-CONF_USE_WRITE_MULTIPLE = "use_write_multiple"
 DEPENDENCIES = ["modbus_controller"]
 CODEOWNERS = ["@martgras"]
 

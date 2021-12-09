@@ -55,9 +55,13 @@ void ModbusNumber::control(float value) {
            this->get_name().c_str(), this->start_address, this->register_count, write_value, write_value);
 
   // Create and send the write command
-  auto write_cmd = ModbusCommandItem::create_write_multiple_command(parent_, this->start_address + this->offset,
-                                                                    this->register_count, data);
-
+  ModbusCommandItem write_cmd;
+  if (this->register_count == 1 && !this->use_write_multiple_) {
+    write_cmd = ModbusCommandItem::create_write_single_command(parent_, this->start_address + this->offset, data[0]);
+  } else {
+    write_cmd = ModbusCommandItem::create_write_multiple_command(parent_, this->start_address + this->offset,
+                                                                 this->register_count, data);
+  }
   // publish new value
   write_cmd.on_data_func = [this, write_cmd, value](ModbusRegisterType register_type, uint16_t start_address,
                                                     const std::vector<uint8_t> &data) {
