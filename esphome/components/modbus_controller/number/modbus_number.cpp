@@ -55,7 +55,7 @@ void ModbusNumber::control(float value) {
 
   // Create and send the write command
   ModbusCommandItem write_cmd;
-  if (this->register_count == 1) {
+  if (this->register_count == 1 && !this->use_write_multiple_) {
     write_cmd = ModbusCommandItem::create_write_single_command(parent_, this->start_address + this->offset, data[0]);
   } else {
     write_cmd = ModbusCommandItem::create_write_multiple_command(parent_, this->start_address + this->offset,
