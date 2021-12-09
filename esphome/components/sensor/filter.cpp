@@ -1,7 +1,8 @@
 #include "filter.h"
-#include "sensor.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+#include "sensor.h"
+#include <cmath>
 
 namespace esphome {
 namespace sensor {
@@ -90,7 +91,7 @@ optional<float> QuantileFilter::new_value(float value) {
       sort(quantile_queue.begin(), quantile_queue.end());
 
       size_t queue_size = quantile_queue.size();
-      size_t position = ceil(queue_size * this->quantile_) - 1;
+      size_t position = std::ceill(queue_size * this->quantile_) - 1;
       ESP_LOGVV(TAG, "QuantileFilter(%p)::position: %d/%d", this, position, queue_size);
       result = quantile_queue[position];
     }

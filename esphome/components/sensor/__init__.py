@@ -293,7 +293,7 @@ QUANTILE_SCHEMA = cv.All(
             cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
             cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
             cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
-            cv.Optional(CONF_QUANTILE, default=.9): cv.zero_to_one_float,
+            cv.Optional(CONF_QUANTILE, default=0.9): cv.zero_to_one_float,
         }
     ),
     validate_send_first_at,
@@ -301,7 +301,7 @@ QUANTILE_SCHEMA = cv.All(
 
 
 @FILTER_REGISTRY.register("quantile", QuantileFilter, QUANTILE_SCHEMA)
-async def median_filter_to_code(config, filter_id):
+async def quantile_filter_to_code(config, filter_id):
     return cg.new_Pvariable(
         filter_id,
         config[CONF_WINDOW_SIZE],
