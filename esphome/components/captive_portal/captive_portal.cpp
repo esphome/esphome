@@ -22,6 +22,8 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
 
     // Assumes no " in ssid, possible unicode isses?
     stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", scan.get_ssid().c_str(), scan.get_rssi(), scan.get_with_auth());
+    stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", scan.get_ssid().c_str(), scan.get_rssi(),
+                   scan.get_with_auth());
   }
   stream->print(F("]}"));
   request->send(stream);
