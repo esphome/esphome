@@ -25,6 +25,7 @@ from ..const import (
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_SKIP_UPDATES,
+    CONF_USE_WRITE_MULTIPLE,
     CONF_VALUE_TYPE,
     CONF_WRITE_LAMBDA,
 )
@@ -69,6 +70,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MIN_VALUE, default=-16777215.0): cv.float_,
             cv.Optional(CONF_STEP, default=1): cv.positive_float,
             cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
+            cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s")),
@@ -105,6 +107,7 @@ async def to_code(config):
     cg.add(var.set_parent(parent))
     cg.add(parent.add_sensor_item(var))
     await add_modbus_base_properties(var, config, ModbusNumber)
+    cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
     if CONF_WRITE_LAMBDA in config:
         template_ = await cg.process_lambda(
             config[CONF_WRITE_LAMBDA],
