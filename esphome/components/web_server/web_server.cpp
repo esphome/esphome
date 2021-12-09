@@ -612,7 +612,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
     }
 
     if (request->hasParam("position"))
-      call.set_position(request->getParam("position")->value().toFloat());
+      call.set_position(request->getParam("position")->value().toFloat()/100);
     if (request->hasParam("tilt"))
       call.set_tilt(request->getParam("tilt")->value().toFloat());
 
@@ -626,7 +626,7 @@ std::string WebServer::cover_json(cover::Cover *obj) {
   return json::build_json([obj](JsonObject &root) {
     root["id"] = "cover-" + obj->get_object_id();
     root["state"] = obj->is_fully_closed() ? "CLOSED" : "OPEN";
-    root["value"] = obj->position;
+    root["value"] = int(obj->position*100);
     root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
 
     if (obj->get_traits().get_supports_tilt())
@@ -763,22 +763,26 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
   request->send(404);
 }
 std::string WebServer::climate_json(climate::Climate *obj) {
-  return json::build_json([obj](JsonObject &root) {
+  std::string toreturn = json::build_json([obj](JsonObject &root) {
     root["id"] = "climate-" + obj->get_object_id();
-    root["mode"] = climate_mode_to_string_other(obj->mode);
+    root["mode"] = int(obj->mode);
     if(obj->mode != climate::CLIMATE_MODE_OFF){
       root["target_temperature"] = obj->target_temperature;
-      if(!isnan(obj->current_temperature)) 
-        root ["current_temperature"] = obj->current_temperature;
-      else
-        root ["current_temperature"] = obj->target_temperature;
-      root["fanmode"] = climate_fan_mode_to_string_other(*obj->fan_mode);
+      root["current_temperature"] = isnan(obj->current_temperature) ? to_string(int(obj->target_temperature)) : to_string(int(obj->current_temperature));
+      // if(!isnan(obj->current_temperature)) 
+      //   root["current_temperature"] = to_string(int(obj->current_temperature));
+      // else
+      //   root["current_temperature"] = to_string(int(obj->target_temperature));
     }else{
       root["target_temperature"] = obj->target_temperature;
-      root ["current_temperature"] = "--";
-      root["fanmode"] = climate_fan_mode_to_string_other(*obj->fan_mode);
+      root["current_temperature"] = "--";
     }
+    root["fanmode"] = int(*obj->fan_mode);
   });
+  for(int i=0; i<toreturn.size(); i++){
+    if(toreturn[i] == '"') toreturn[i] = '+';
+  }
+  return toreturn;
 }
 #endif
 
