@@ -66,6 +66,41 @@ optional<float> MedianFilter::new_value(float value) {
   return {};
 }
 
+// QuantileFilter
+QuantileFilter::QuantileFilter(size_t window_size, size_t send_every, size_t send_first_at, float quantile)
+    : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size), quantile_(quantile) {}
+void QuantileFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
+void QuantileFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
+void QuantileFilter::set_quantile(float quantile) { this->quantile_ = quantile; }
+optional<float> QuantileFilter::new_value(float value) {
+  if (!std::isnan(value)) {
+    while (this->queue_.size() >= this->window_size_) {
+      this->queue_.pop_front();
+    }
+    this->queue_.push_back(value);
+    ESP_LOGVV(TAG, "QuantileFilter(%p)::new_value(%f), quantile:%f", this, value, this->quantile_);
+  }
+
+  if (++this->send_at_ >= this->send_every_) {
+    this->send_at_ = 0;
+
+    float result = 0.0f;
+    if (!this->queue_.empty()) {
+      std::deque<float> quantile_queue = this->queue_;
+      sort(quantile_queue.begin(), quantile_queue.end());
+
+      size_t queue_size = quantile_queue.size();
+      size_t position = ceil(queue_size * this->quantile_) - 1;
+      ESP_LOGVV(TAG, "QuantileFilter(%p)::position: %d/%d", this, position, queue_size);
+      result = quantile_queue[position];
+    }
+
+    ESP_LOGVV(TAG, "QuantileFilter(%p)::new_value(%f) SENDING", this, result);
+    return result;
+  }
+  return {};
+}
+
 // MinFilter
 MinFilter::MinFilter(size_t window_size, size_t send_every, size_t send_first_at)
     : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size) {}
