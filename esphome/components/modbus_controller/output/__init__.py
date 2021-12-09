@@ -18,6 +18,7 @@ from .. import (
 
 from ..const import (
     CONF_MODBUS_CONTROLLER_ID,
+    CONF_USE_WRITE_MULTIPLE,
     CONF_VALUE_TYPE,
     CONF_WRITE_LAMBDA,
 )
@@ -36,6 +37,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ModbusOutput),
             cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
+            cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
         }
     ),
     validate_modbus_register,
@@ -54,6 +56,7 @@ async def to_code(config):
     await output.register_output(var, config)
     cg.add(var.set_write_multiply(config[CONF_MULTIPLY]))
     parent = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
+    cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
     cg.add(var.set_parent(parent))
     if CONF_WRITE_LAMBDA in config:
         template_ = await cg.process_lambda(
