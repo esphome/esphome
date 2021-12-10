@@ -49,6 +49,10 @@ namespace sonoff_d1 {
 
 static const char *const TAG = "sonoff_d1";
 
+int SonoffD1Output::remap_(int value, int min, int max, int min_out, int max_out) {
+  return (value - min) * (max_out - min_out) / (max - min) + min_out;
+}
+
 uint8_t SonoffD1Output::calc_checksum_(const uint8_t *cmd, const size_t len) {
   uint8_t crc = 0;
   for (int i = 2; i < len - 1; i++) {
@@ -193,7 +197,7 @@ bool SonoffD1Output::write_command_(uint8_t *cmd, const size_t len, bool needs_a
   return false;
 }
 
-bool SonoffD1Output::control_dimmer_(const bool binary, const int brightness) {
+bool SonoffD1Output::control_dimmer_(const bool binary, const uint8_t brightness) {
   // Include our basic code from the Tasmota project, thank you again!
   //                    0     1     2     3     4     5     6     7     8
   uint8_t cmd[17] = {0xAA, 0x55, 0x01, 0x04, 0x00, 0x0A, 0x00, 0x00, 0xFF,
@@ -201,9 +205,9 @@ bool SonoffD1Output::control_dimmer_(const bool binary, const int brightness) {
                      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00};
 
   cmd[6] = binary;
-  cmd[7] = brightness;
-  ESP_LOGI(TAG, "[%04d] Setting dimmer state to %s, brightness=%d", this->write_count_, binary ? "ON" : "OFF",
-           brightness);
+  cmd[7] = this->remap_(brightness, 0, 100, this->min_value_, this->max_value_);
+  ESP_LOGI(TAG, "[%04d] Setting dimmer state to %s, raw brightness=%d", this->write_count_, binary ? "ON" : "OFF",
+           cmd[7]);
   return this->write_command_(cmd, sizeof(cmd));
 }
 
@@ -213,19 +217,20 @@ void SonoffD1Output::process_command_(const uint8_t *cmd, const size_t len) {
     // Ack a command from RF to ESP to prevent repeating commands
     this->write_command_(ack_buffer, sizeof(ack_buffer), false);
 
-    ESP_LOGI(TAG, "[%04d] RF sets dimmer state to %s, brightness=%d", this->write_count_, cmd[6] ? "ON" : "OFF",
+    ESP_LOGI(TAG, "[%04d] RF sets dimmer state to %s, raw brightness=%d", this->write_count_, cmd[6] ? "ON" : "OFF",
              cmd[7]);
+    const uint8_t new_brightness = this->remap_(cmd[7], this->min_value_, this->max_value_, 0, 100);
     if (!this->use_rm433_remote_) {
       // Got light change state command.
       // If RF remote is not used, this is a known ghost RF command
       // Override it with previous settings
       ESP_LOGI(TAG, "[%04d] Ghost command from RF detected, reverting", this->write_count_);
-      if (cmd[6] != this->last_binary_ || cmd[7] != this->last_brightness_) {
+      if (cmd[6] != this->last_binary_ || new_brightness != this->last_brightness_) {
         this->control_dimmer_(this->last_binary_, this->last_brightness_);
       }
     } else {
       this->last_binary_ = cmd[6];
-      this->last_brightness_ = cmd[7];
+      this->last_brightness_ = new_brightness;
       float brightness = 0.0f;
       if (this->last_binary_) {
         brightness = (float) this->last_brightness_ / 100.0f;
@@ -260,7 +265,7 @@ void SonoffD1Output::write_state(light::LightState *state) {
   state->current_values_as_brightness(&brightness);
 
   // Convert ESPHome's brightness (0-1) to the device's internal brightness (0-100)
-  const int calculated_brightness = std::round(brightness * 100);
+  const uint8_t calculated_brightness = std::round(brightness * 100);
 
   if (calculated_brightness == 0) {
     // if(binary) ESP_LOGD(TAG, "current_values_as_binary() returns true for zero brightness");
@@ -285,6 +290,8 @@ void SonoffD1Output::write_state(light::LightState *state) {
 void SonoffD1Output::dump_config() {
   ESP_LOGCONFIG(TAG, "Sonoff D1 Dimmer: '%s'", this->light_state_ ? this->light_state_->get_name().c_str() : "");
   ESP_LOGCONFIG(TAG, "  Use RM433 Remote: %s", this->use_rm433_remote_ ? "ON" : "OFF");
+  ESP_LOGCONFIG(TAG, "  Minimal brightness: %d", this->min_value_);
+  ESP_LOGCONFIG(TAG, "  Maximal brightness: %d", this->max_value_);
 }
 
 void SonoffD1Output::loop() {

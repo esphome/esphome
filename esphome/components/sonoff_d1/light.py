@@ -3,6 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import uart, light
 from esphome.const import (
     CONF_OUTPUT_ID,
+    CONF_MIN_VALUE,
+    CONF_MAX_VALUE,
 )
 
 CONF_USE_RM433_REMOTE = "use_rm433_remote"
@@ -19,6 +21,8 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(SonoffD1Output),
             cv.Optional(CONF_USE_RM433_REMOTE, default=False): cv.boolean,
+            cv.Optional(CONF_MIN_VALUE, default=0): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_MAX_VALUE, default=100): cv.int_range(min=0, max=100),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -32,5 +36,8 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
     if CONF_USE_RM433_REMOTE in config:
         cg.add(var.set_use_rm433_remote(config[CONF_USE_RM433_REMOTE]))
-
+    if CONF_MIN_VALUE in config:
+        cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
+    if CONF_MAX_VALUE in config:
+        cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
     await light.register_light(var, config)

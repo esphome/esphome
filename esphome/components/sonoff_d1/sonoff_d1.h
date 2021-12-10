@@ -32,6 +32,7 @@
 */
 
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/light/light_output.h"
@@ -54,17 +55,22 @@ class SonoffD1Output : public light::LightOutput, public uart::UARTDevice, publi
   void dump_config() override;
   float get_setup_priority() const override { return esphome::setup_priority::DATA; }
 
-  // Custom method
+  // Custom methods
   void set_use_rm433_remote(const bool use_rm433_remote) { this->use_rm433_remote_ = use_rm433_remote; }
+  void set_min_value(const uint8_t min_value) { this->min_value_ = min_value; }
+  void set_max_value(const uint8_t max_value) { this->max_value_ = max_value; }
 
  protected:
-  bool use_rm433_remote_;
+  uint8_t min_value_{0};
+  uint8_t max_value_{100};
+  bool use_rm433_remote_{false};
   bool last_binary_{false};
-  int last_brightness_{0};
+  uint8_t last_brightness_{0};
   int write_count_{0};
   int read_count_{0};
   light::LightState *light_state_{nullptr};
 
+  int remap_(int value, int min, int max, int min_out, int max_out);
   uint8_t calc_checksum_(const uint8_t *cmd, size_t len);
   void populate_checksum_(uint8_t *cmd, size_t len);
   char *dump_cmd_(const uint8_t *cmd, size_t len);
@@ -72,7 +78,7 @@ class SonoffD1Output : public light::LightOutput, public uart::UARTDevice, publi
   bool read_command_(uint8_t *cmd, size_t &len);
   bool read_ack_(const uint8_t *cmd, size_t len);
   bool write_command_(uint8_t *cmd, size_t len, bool needs_ack = true);
-  bool control_dimmer_(bool binary, int brightness);
+  bool control_dimmer_(bool binary, uint8_t brightness);
   void process_command_(const uint8_t *cmd, size_t len);
   void publish_state_(float brightness);
 };
