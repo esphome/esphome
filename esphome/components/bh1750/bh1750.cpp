@@ -45,13 +45,19 @@ void BH1750Sensor::dump_config() {
       resolution_s = "Unknown";
       break;
   }
-  ESP_LOGCONFIG(TAG, "  Resolution: %s", resolution_s);
+  ESP_LOGCONFIG(TAG, "  Resolution: %s, Measurement Duration: %d", resolution_s, measurement_duration_);
   LOG_UPDATE_INTERVAL(this);
 }
 
 void BH1750Sensor::update() {
   if (!this->write_bytes(this->resolution_, nullptr, 0))
     return;
+
+  uint8_t mtreg_hi = (this->measurement_duration_ >> 5) & 0b111;
+  uint8_t mtreg_lo = (this->measurement_duration_ >> 0) & 0b11111;
+  if (!this->write_bytes(BH1750_COMMAND_MT_REG_HI | mtreg_hi, nullptr, 0) && !this->write_bytes(BH1750_COMMAND_MT_REG_LO | mtreg_lo, nullptr, 0)) {
+    ESP_LOGW(TAG, "Failed to update BH1750 MTreg value!");
+  }
 
   uint32_t wait = 0;
   // use max conversion times
