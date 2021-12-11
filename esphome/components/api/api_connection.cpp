@@ -132,7 +132,7 @@ void APIConnection::loop() {
 
   if (state_subs_at_ != -1) {
     const auto &subs = this->parent_->get_state_subs();
-    if (state_subs_at_ >= subs.size()) {
+    if (state_subs_at_ >= (int) subs.size()) {
       state_subs_at_ = -1;
     } else {
       auto &it = subs[state_subs_at_];
@@ -619,6 +619,8 @@ bool APIConnection::send_number_info(number::Number *number) {
   msg.icon = number->get_icon();
   msg.disabled_by_default = number->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(number->get_entity_category());
+  msg.unit_of_measurement = number->traits.get_unit_of_measurement();
+  msg.mode = static_cast<enums::NumberMode>(number->traits.get_mode());
 
   msg.min_value = number->traits.get_min_value();
   msg.max_value = number->traits.get_max_value();
@@ -671,6 +673,28 @@ void APIConnection::select_command(const SelectCommandRequest &msg) {
   auto call = select->make_call();
   call.set_option(msg.state);
   call.perform();
+}
+#endif
+
+#ifdef USE_BUTTON
+bool APIConnection::send_button_info(button::Button *button) {
+  ListEntitiesButtonResponse msg;
+  msg.key = button->get_object_id_hash();
+  msg.object_id = button->get_object_id();
+  msg.name = button->get_name();
+  msg.unique_id = get_default_unique_id("button", button);
+  msg.icon = button->get_icon();
+  msg.disabled_by_default = button->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(button->get_entity_category());
+  msg.device_class = button->get_device_class();
+  return this->send_list_entities_button_response(msg);
+}
+void APIConnection::button_command(const ButtonCommandRequest &msg) {
+  button::Button *button = App.get_button_by_key(msg.key);
+  if (button == nullptr)
+    return;
+
+  button->press();
 }
 #endif
 

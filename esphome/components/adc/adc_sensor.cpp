@@ -91,7 +91,7 @@ void ADCSensor::dump_config() {
 float ADCSensor::get_setup_priority() const { return setup_priority::DATA; }
 void ADCSensor::update() {
   float value_v = this->sample();
-  ESP_LOGD(TAG, "'%s': Got voltage=%.4fV", this->get_name().c_str(), value_v);
+  ESP_LOGV(TAG, "'%s': Got voltage=%.4fV", this->get_name().c_str(), value_v);
   this->publish_state(value_v);
 }
 

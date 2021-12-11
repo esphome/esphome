@@ -11,7 +11,7 @@ def default_config():
     return {
         "name": "test-name",
         "platform": "test_platform",
-        "board": "test_board",
+        "board": "esp01_1m",
         "ssid": "test_ssid",
         "psk": "test_psk",
         "password": "",
@@ -105,6 +105,7 @@ def test_wizard_write_sets_platform(default_config, tmp_path, monkeypatch):
     If the platform is not explicitly set, use "ESP8266" if the board is one of the ESP8266 boards
     """
     # Given
+    del default_config["platform"]
     monkeypatch.setattr(wz, "write_file", MagicMock())
 
     # When
@@ -112,7 +113,7 @@ def test_wizard_write_sets_platform(default_config, tmp_path, monkeypatch):
 
     # Then
     generated_config = wz.write_file.call_args.args[1]
-    assert f"platform: {default_config['platform']}" in generated_config
+    assert "esp8266:" in generated_config
 
 
 def test_wizard_write_defaults_platform_from_board_esp8266(
@@ -132,7 +133,7 @@ def test_wizard_write_defaults_platform_from_board_esp8266(
 
     # Then
     generated_config = wz.write_file.call_args.args[1]
-    assert "platform: ESP8266" in generated_config
+    assert "esp8266:" in generated_config
 
 
 def test_wizard_write_defaults_platform_from_board_esp32(
@@ -152,7 +153,7 @@ def test_wizard_write_defaults_platform_from_board_esp32(
 
     # Then
     generated_config = wz.write_file.call_args.args[1]
-    assert "platform: ESP32" in generated_config
+    assert "esp32:" in generated_config
 
 
 def test_safe_print_step_prints_step_number_and_description(monkeypatch):

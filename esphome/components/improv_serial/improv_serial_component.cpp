@@ -145,7 +145,7 @@ bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
 
   if (at == 8 + data_len + 1) {
     uint8_t checksum = 0x00;
-    for (uint8_t i = 0; i < at; i++)
+    for (size_t i = 0; i < at; i++)
       checksum += raw[i];
 
     if (checksum != byte) {

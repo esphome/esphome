@@ -1,10 +1,11 @@
 #pragma once
 
-#include "esphome/components/improv/improv.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+
+#include <improv.h>
 
 #ifdef USE_ARDUINO
 #include <HardwareSerial.h>

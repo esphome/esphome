@@ -33,6 +33,7 @@ class ModbusOutput : public output::FloatOutput, public Component, public Sensor
 
   using write_transform_func_t = std::function<optional<float>(ModbusOutput *, float, std::vector<uint16_t> &)>;
   void set_write_template(write_transform_func_t &&f) { this->write_transform_func_ = f; }
+  void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
  protected:
   void write_state(float value) override;
@@ -40,6 +41,7 @@ class ModbusOutput : public output::FloatOutput, public Component, public Sensor
 
   ModbusController *parent_;
   float multiply_by_{1.0};
+  bool use_write_multiple_;
 };
 
 }  // namespace modbus_controller

@@ -86,8 +86,8 @@ void ILI9341Display::update() {
 
 void ILI9341Display::display_() {
   // we will only update the changed window to the display
-  int w = this->x_high_ - this->x_low_ + 1;
-  int h = this->y_high_ - this->y_low_ + 1;
+  uint16_t w = this->x_high_ - this->x_low_ + 1;
+  uint16_t h = this->y_high_ - this->y_low_ + 1;
 
   set_addr_window_(this->x_low_, this->y_low_, w, h);
   this->start_data_();

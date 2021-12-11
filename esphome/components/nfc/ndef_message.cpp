@@ -93,7 +93,7 @@ bool NdefMessage::add_uri_record(const std::string &uri) { return this->add_reco
 std::vector<uint8_t> NdefMessage::encode() {
   std::vector<uint8_t> data;
 
-  for (uint8_t i = 0; i < this->records_.size(); i++) {
+  for (size_t i = 0; i < this->records_.size(); i++) {
     auto encoded_record = this->records_[i]->encode(i == 0, (i + 1) == this->records_.size());
     data.insert(data.end(), encoded_record.begin(), encoded_record.end());
   }
