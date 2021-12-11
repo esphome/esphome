@@ -1,0 +1,59 @@
+esphome:
+  name: testboard
+  platform: ESP32
+  board: nodemcu-32s
+  #on_boot:
+    #priority: -700
+    #then:
+      #- output.turn_off: boardled
+      # - script.execute: flashled
+
+# Enable logging
+logger:
+
+api:
+
+ota:
+  num_attempts: 3
+
+# Enable Home Assistant API
+wifi:
+  ssid: "CobbNET25"
+  password: "technical"
+
+#time:
+#  - platform: homeassistant
+#    id: homeassistant_time
+
+#output:
+#  - platform: gpio
+#    pin: 2
+#    id: boardled
+
+
+display:
+  - platform: tm1638
+    id: primarydisplay
+    stb_pin: 5 #TM1638 STB
+    clk_pin: 18 #TM1638 CLK
+    dio_pin: 23 #TM1638 DIO
+
+    update_interval: 1s
+    intensity: 2
+    lambda: |-
+      it.print("777");
+
+    #switch1_action:
+    #  - output.turn_on: testled
+
+#interval:
+#  - interval: 250ms
+#    then:
+#      - output.turn_on: boardled
+#      - delay: 50ms
+#     - output.turn_off: boardled
+
+external_components:
+  - source:
+      type: local
+      path: devcomponents

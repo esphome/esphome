@@ -182,6 +182,7 @@ void TM1637Display::update() {
 
 float TM1637Display::get_setup_priority() const { return setup_priority::PROCESSOR; }
 void TM1637Display::bit_delay_() { delayMicroseconds(100); }
+
 void TM1637Display::start_() {
   this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->bit_delay_();
