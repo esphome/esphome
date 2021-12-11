@@ -55,7 +55,8 @@ void BH1750Sensor::update() {
 
   uint8_t mtreg_hi = (this->measurement_duration_ >> 5) & 0b111;
   uint8_t mtreg_lo = (this->measurement_duration_ >> 0) & 0b11111;
-  if (!this->write_bytes(BH1750_COMMAND_MT_REG_HI | mtreg_hi, nullptr, 0) && !this->write_bytes(BH1750_COMMAND_MT_REG_LO | mtreg_lo, nullptr, 0)) {
+  if (!this->write_bytes(BH1750_COMMAND_MT_REG_HI | mtreg_hi, nullptr, 0) &&
+      !this->write_bytes(BH1750_COMMAND_MT_REG_LO | mtreg_lo, nullptr, 0)) {
     ESP_LOGW(TAG, "Failed to update BH1750 MTreg value!");
   }
 
