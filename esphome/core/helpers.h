@@ -19,10 +19,6 @@
 #define ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
-#define xSemaphoreWait(semaphore, wait_time) \
-  xSemaphoreTake(semaphore, wait_time); \
-  xSemaphoreGive(semaphore);
-
 namespace esphome {
 
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
@@ -370,9 +366,9 @@ std::string str_sanitize(const std::string &str);
 /// @name Parsing & formatting
 ///@{
 
-/// Parse an unsigned decimal number (requires null-terminated string).
+/// Parse an unsigned decimal number from a null-terminated string.
 template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_unsigned<T>::value), int> = 0>
-optional<T> parse_number(const char *str, size_t len) {
+optional<T> parse_number(const char *str) {
   char *end = nullptr;
   unsigned long value = ::strtoul(str, &end, 10);  // NOLINT(google-runtime-int)
   if (end == str || *end != '\0' || value > std::numeric_limits<T>::max())
@@ -382,11 +378,11 @@ optional<T> parse_number(const char *str, size_t len) {
 /// Parse an unsigned decimal number.
 template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_unsigned<T>::value), int> = 0>
 optional<T> parse_number(const std::string &str) {
-  return parse_number<T>(str.c_str(), str.length() + 1);
+  return parse_number<T>(str.c_str());
 }
-/// Parse a signed decimal number (requires null-terminated string).
+/// Parse a signed decimal number from a null-terminated string.
 template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T>::value), int> = 0>
-optional<T> parse_number(const char *str, size_t len) {
+optional<T> parse_number(const char *str) {
   char *end = nullptr;
   signed long value = ::strtol(str, &end, 10);  // NOLINT(google-runtime-int)
   if (end == str || *end != '\0' || value < std::numeric_limits<T>::min() || value > std::numeric_limits<T>::max())
@@ -396,11 +392,10 @@ optional<T> parse_number(const char *str, size_t len) {
 /// Parse a signed decimal number.
 template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T>::value), int> = 0>
 optional<T> parse_number(const std::string &str) {
-  return parse_number<T>(str.c_str(), str.length() + 1);
+  return parse_number<T>(str.c_str());
 }
-/// Parse a decimal floating-point number (requires null-terminated string).
-template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0>
-optional<T> parse_number(const char *str, size_t len) {
+/// Parse a decimal floating-point number from a null-terminated string.
+template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0> optional<T> parse_number(const char *str) {
   char *end = nullptr;
   float value = ::strtof(str, &end);
   if (end == str || *end != '\0' || value == HUGE_VALF)
@@ -410,7 +405,7 @@ optional<T> parse_number(const char *str, size_t len) {
 /// Parse a decimal floating-point number.
 template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0>
 optional<T> parse_number(const std::string &str) {
-  return parse_number<T>(str.c_str(), str.length() + 1);
+  return parse_number<T>(str.c_str());
 }
 
 ///@}
