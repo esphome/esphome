@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
+from esphome import core, pins
 from esphome.components import display, spi
 from esphome.const import (
     CONF_BUSY_PIN,
@@ -96,7 +96,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_FULL_UPDATE_EVERY): cv.uint32_t,
-            cv.Optional(CONF_RESET_DURATION): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_RESET_DURATION): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=core.TimePeriod(milliseconds=500)),
+            ),
         }
     )
     .extend(cv.polling_component_schema("1s"))
