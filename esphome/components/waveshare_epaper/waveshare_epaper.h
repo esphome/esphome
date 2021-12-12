@@ -16,6 +16,7 @@ class WaveshareEPaper : public PollingComponent,
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
+  void set_reset_duration(uint32_t reset_duration) { this->reset_duration_ = reset_duration; }
 
   void command(uint8_t value);
   void data(uint8_t value);
@@ -45,13 +46,14 @@ class WaveshareEPaper : public PollingComponent,
   void reset_() {
     if (this->reset_pin_ != nullptr) {
       this->reset_pin_->digital_write(false);
-      delay(200);  // NOLINT
+      delay(reset_duration_);  // NOLINT
       this->reset_pin_->digital_write(true);
       delay(200);  // NOLINT
     }
   }
 
   uint32_t get_buffer_length_();
+  uint32_t reset_duration_{200};
 
   void start_command_();
   void end_command_();
