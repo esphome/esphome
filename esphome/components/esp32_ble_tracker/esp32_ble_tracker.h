@@ -97,7 +97,7 @@ class ESPBTDevice {
 
   const std::vector<ServiceData> &get_service_datas() const { return service_datas_; }
 
-  const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &get_scan_rst() const { return scan_rst_; }
+  const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &get_scan_result() const { return scan_result_; }
 
   optional<ESPBLEiBeacon> get_ibeacon() const {
     for (auto &it : this->manufacturer_datas_) {
@@ -123,7 +123,7 @@ class ESPBTDevice {
   std::vector<ESPBTUUID> service_uuids_;
   std::vector<ServiceData> manufacturer_datas_{};
   std::vector<ServiceData> service_datas_{};
-  esp_ble_gap_cb_param_t::ble_scan_result_evt_param scan_rst_{};
+  esp_ble_gap_cb_param_t::ble_scan_result_evt_param scan_result_{};
 };
 
 class ESP32BLETracker;
