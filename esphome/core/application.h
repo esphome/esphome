@@ -5,6 +5,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/scheduler.h"
 
@@ -16,6 +17,9 @@
 #endif
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
+#endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
 #endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -32,19 +36,26 @@
 #ifdef USE_COVER
 #include "esphome/components/cover/cover.h"
 #endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
 
 namespace esphome {
 
 class Application {
  public:
   void pre_setup(const std::string &name, const char *compilation_time, bool name_add_mac_suffix) {
+    arch_init();
+    this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
       this->name_ = name + "-" + get_mac_address().substr(6);
     } else {
       this->name_ = name;
     }
     this->compilation_time_ = compilation_time;
-    global_preferences.begin();
   }
 
 #ifdef USE_BINARY_SENSOR
@@ -59,6 +70,10 @@ class Application {
 
 #ifdef USE_SWITCH
   void register_switch(switch_::Switch *a_switch) { this->switches_.push_back(a_switch); }
+#endif
+
+#ifdef USE_BUTTON
+  void register_button(button::Button *button) { this->buttons_.push_back(button); }
 #endif
 
 #ifdef USE_TEXT_SENSOR
@@ -81,6 +96,14 @@ class Application {
   void register_light(light::LightState *light) { this->lights_.push_back(light); }
 #endif
 
+#ifdef USE_NUMBER
+  void register_number(number::Number *number) { this->numbers_.push_back(number); }
+#endif
+
+#ifdef USE_SELECT
+  void register_select(select::Select *select) { this->selects_.push_back(select); }
+#endif
+
   /// Register the component in this Application instance.
   template<class C> C *register_component(C *c) {
     static_assert(std::is_base_of<Component, C>::value, "Only Component subclasses can be registered");
@@ -96,6 +119,8 @@ class Application {
 
   /// Get the name of this Application set by set_name().
   const std::string &get_name() const { return this->name_; }
+
+  bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
   const std::string &get_compilation_time() const { return this->compilation_time_; }
 
@@ -146,6 +171,15 @@ class Application {
   const std::vector<switch_::Switch *> &get_switches() { return this->switches_; }
   switch_::Switch *get_switch_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->switches_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+#ifdef USE_BUTTON
+  const std::vector<button::Button *> &get_buttons() { return this->buttons_; }
+  button::Button *get_button_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->buttons_)
       if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
     return nullptr;
@@ -205,6 +239,24 @@ class Application {
     return nullptr;
   }
 #endif
+#ifdef USE_NUMBER
+  const std::vector<number::Number *> &get_numbers() { return this->numbers_; }
+  number::Number *get_number_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->numbers_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+#ifdef USE_SELECT
+  const std::vector<select::Select *> &get_selects() { return this->selects_; }
+  select::Select *get_select_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->selects_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
 
   Scheduler scheduler;
 
@@ -215,6 +267,8 @@ class Application {
 
   void calculate_looping_components_();
 
+  void feed_wdt_arch_();
+
   std::vector<Component *> components_{};
   std::vector<Component *> looping_components_{};
 
@@ -223,6 +277,9 @@ class Application {
 #endif
 #ifdef USE_SWITCH
   std::vector<switch_::Switch *> switches_{};
+#endif
+#ifdef USE_BUTTON
+  std::vector<button::Button *> buttons_{};
 #endif
 #ifdef USE_SENSOR
   std::vector<sensor::Sensor *> sensors_{};
@@ -242,16 +299,23 @@ class Application {
 #ifdef USE_LIGHT
   std::vector<light::LightState *> lights_{};
 #endif
+#ifdef USE_NUMBER
+  std::vector<number::Number *> numbers_{};
+#endif
+#ifdef USE_SELECT
+  std::vector<select::Select *> selects_{};
+#endif
 
   std::string name_;
   std::string compilation_time_;
+  bool name_add_mac_suffix_;
   uint32_t last_loop_{0};
   uint32_t loop_interval_{16};
-  int dump_config_at_{-1};
+  size_t dump_config_at_{SIZE_MAX};
   uint32_t app_state_{0};
 };
 
 /// Global storage of Application pointer - only one Application can exist.
-extern Application App;
+extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

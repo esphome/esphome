@@ -4,7 +4,7 @@
 namespace esphome {
 namespace mcp23s08 {
 
-static const char *TAG = "mcp23s08";
+static const char *const TAG = "mcp23s08";
 
 void MCP23S08::set_device_address(uint8_t device_addr) {
   if (device_addr != 0) {
@@ -35,7 +35,6 @@ void MCP23S08::dump_config() {
 }
 
 bool MCP23S08::read_reg(uint8_t reg, uint8_t *value) {
-  uint8_t data;
   this->enable();
   this->transfer_byte(this->device_opcode_ | 1);
   this->transfer_byte(reg);

@@ -1,19 +1,32 @@
+#ifdef USE_ARDUINO
+
 #include "web_server_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include <StreamString.h>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <Update.h>
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include <Updater.h>
 #endif
 
 namespace esphome {
 namespace web_server_base {
 
-static const char *TAG = "web_server_base";
+static const char *const TAG = "web_server_base";
+
+void WebServerBase::add_handler(AsyncWebHandler *handler) {
+  // remove all handlers
+
+  if (!credentials_.username.empty()) {
+    handler = new internal::AuthMiddlewareHandler(handler, &credentials_);
+  }
+  this->handlers_.push_back(handler);
+  if (this->server_ != nullptr)
+    this->server_->addHandler(handler);
+}
 
 void report_ota_error() {
   StreamString ss;
@@ -27,11 +40,12 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Strin
   if (index == 0) {
     ESP_LOGI(TAG, "OTA Update Start: %s", filename.c_str());
     this->ota_read_length_ = 0;
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
     Update.runAsync(true);
+    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     success = Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000);
 #endif
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
     if (Update.isRunning())
       Update.abort();
     success = Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH);
@@ -86,7 +100,9 @@ void OTARequestHandler::handleRequest(AsyncWebServerRequest *request) {
   request->send(response);
 }
 
-void WebServerBase::add_ota_handler() { this->add_handler(new OTARequestHandler(this)); }
+void WebServerBase::add_ota_handler() {
+  this->add_handler(new OTARequestHandler(this));  // NOLINT
+}
 float WebServerBase::get_setup_priority() const {
   // Before WiFi (captive portal)
   return setup_priority::WIFI + 2.0f;
@@ -94,3 +110,5 @@ float WebServerBase::get_setup_priority() const {
 
 }  // namespace web_server_base
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

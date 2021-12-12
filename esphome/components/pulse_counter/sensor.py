@@ -11,8 +11,9 @@ from esphome.const import (
     CONF_RISING_EDGE,
     CONF_NUMBER,
     CONF_TOTAL,
-    DEVICE_CLASS_EMPTY,
     ICON_PULSE,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_PULSES_PER_MINUTE,
     UNIT_PULSES,
 )
@@ -64,7 +65,12 @@ def validate_count_mode(value):
 
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2, DEVICE_CLASS_EMPTY)
+    sensor.sensor_schema(
+        unit_of_measurement=UNIT_PULSES_PER_MINUTE,
+        icon=ICON_PULSE,
+        accuracy_decimals=2,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
     .extend(
         {
             cv.GenerateID(): cv.declare_id(PulseCounterSensor),
@@ -86,7 +92,10 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_INTERNAL_FILTER, default="13us"): validate_internal_filter,
             cv.Optional(CONF_TOTAL): sensor.sensor_schema(
-                UNIT_PULSES, ICON_PULSE, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_PULSES,
+                icon=ICON_PULSE,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
         }
     )
@@ -94,12 +103,12 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
 
-    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
+    pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
     count = config[CONF_COUNT_MODE]
     cg.add(var.set_rising_edge_mode(count[CONF_RISING_EDGE]))
@@ -107,5 +116,5 @@ def to_code(config):
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
 
     if CONF_TOTAL in config:
-        sens = yield sensor.new_sensor(config[CONF_TOTAL])
+        sens = await sensor.new_sensor(config[CONF_TOTAL])
         cg.add(var.set_total_sensor(sens))

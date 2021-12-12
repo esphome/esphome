@@ -15,10 +15,10 @@ CONFIG_SCHEMA = output.BINARY_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield output.register_output(var, config)
-    yield cg.register_component(var, config)
+    await output.register_output(var, config)
+    await cg.register_component(var, config)
 
-    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
+    pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))

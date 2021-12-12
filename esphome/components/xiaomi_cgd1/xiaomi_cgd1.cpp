@@ -1,16 +1,16 @@
 #include "xiaomi_cgd1.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace xiaomi_cgd1 {
 
-static const char *TAG = "xiaomi_cgd1";
+static const char *const TAG = "xiaomi_cgd1";
 
 void XiaomiCGD1::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi CGD1");
-  ESP_LOGCONFIG(TAG, "  Bindkey: %s", hexencode(this->bindkey_, 16).c_str());
+  ESP_LOGCONFIG(TAG, "  Bindkey: %s", format_hex_pretty(this->bindkey_, 16).c_str());
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
@@ -52,11 +52,7 @@ bool XiaomiCGD1::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     success = true;
   }
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
 void XiaomiCGD1::set_bindkey(const std::string &bindkey) {
@@ -67,7 +63,7 @@ void XiaomiCGD1::set_bindkey(const std::string &bindkey) {
   char temp[3] = {0};
   for (int i = 0; i < 16; i++) {
     strncpy(temp, &(bindkey.c_str()[i * 2]), 2);
-    bindkey_[i] = std::strtoul(temp, NULL, 16);
+    bindkey_[i] = std::strtoul(temp, nullptr, 16);
   }
 }
 

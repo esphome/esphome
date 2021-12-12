@@ -4,7 +4,7 @@
 namespace esphome {
 namespace mcp23x08_base {
 
-static const char *TAG = "mcp23x08_base";
+static const char *const TAG = "mcp23x08_base";
 
 bool MCP23X08Base::digital_read(uint8_t pin) {
   uint8_t bit = pin % 8;
@@ -19,22 +19,16 @@ void MCP23X08Base::digital_write(uint8_t pin, bool value) {
   this->update_reg(pin, value, reg_addr);
 }
 
-void MCP23X08Base::pin_mode(uint8_t pin, uint8_t mode) {
+void MCP23X08Base::pin_mode(uint8_t pin, gpio::Flags flags) {
   uint8_t iodir = mcp23x08_base::MCP23X08_IODIR;
   uint8_t gppu = mcp23x08_base::MCP23X08_GPPU;
-  switch (mode) {
-    case mcp23xxx_base::MCP23XXX_INPUT:
-      this->update_reg(pin, true, iodir);
-      break;
-    case mcp23xxx_base::MCP23XXX_INPUT_PULLUP:
-      this->update_reg(pin, true, iodir);
-      this->update_reg(pin, true, gppu);
-      break;
-    case mcp23xxx_base::MCP23XXX_OUTPUT:
-      this->update_reg(pin, false, iodir);
-      break;
-    default:
-      break;
+  if (flags == gpio::FLAG_INPUT) {
+    this->update_reg(pin, true, iodir);
+  } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
+    this->update_reg(pin, true, iodir);
+    this->update_reg(pin, true, gppu);
+  } else if (flags == gpio::FLAG_OUTPUT) {
+    this->update_reg(pin, false, iodir);
   }
 }
 

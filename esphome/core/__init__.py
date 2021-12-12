@@ -1,29 +1,31 @@
-import functools
-import heapq
-import inspect
 import logging
-
 import math
 import os
 import re
-
-# pylint: disable=unused-import, wrong-import-order
-from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING  # noqa
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
 
 from esphome.const import (
-    CONF_ARDUINO_VERSION,
-    SOURCE_FILE_EXTENSIONS,
     CONF_COMMENT,
     CONF_ESPHOME,
     CONF_USE_ADDRESS,
     CONF_ETHERNET,
     CONF_WIFI,
+    CONF_PORT,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
 )
+from esphome.coroutine import FakeAwaitable as _FakeAwaitable
+from esphome.coroutine import FakeEventLoop as _FakeEventLoop
+
+# pylint: disable=unused-import
+from esphome.coroutine import coroutine, coroutine_with_priority  # noqa
 from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
     from ..cpp_generator import MockObj, MockObjClass, Statement
+    from ..types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -311,7 +313,7 @@ class ID:
         if self.id is None:
             base = str(self.type).replace("::", "_").lower()
             name = "".join(c for c in base if c.isalnum() or c == "_")
-            used = set(registered_ids) | set(RESERVED_IDS)
+            used = set(registered_ids) | set(RESERVED_IDS) | CORE.loaded_integrations
             self.id = ensure_unique_string(name, used)
         return self.id
 
@@ -408,19 +410,28 @@ class Define:
 
 
 class Library:
-    def __init__(self, name, version):
+    def __init__(self, name, version, repository=None):
         self.name = name
         self.version = version
+        self.repository = repository
+
+    def __str__(self):
+        return self.as_lib_dep
 
     @property
     def as_lib_dep(self):
+        if self.repository is not None:
+            if self.name is not None:
+                return f"{self.name}={self.repository}"
+            return self.repository
+
         if self.version is None:
             return self.name
         return f"{self.name}@{self.version}"
 
     @property
     def as_tuple(self):
-        return self.name, self.version
+        return self.name, self.version, self.repository
 
     def __hash__(self):
         return hash(self.as_tuple)
@@ -429,77 +440,6 @@ class Library:
         if isinstance(other, Library):
             return self.as_tuple == other.as_tuple
         return NotImplemented
-
-
-def coroutine(func):
-    return coroutine_with_priority(0.0)(func)
-
-
-def coroutine_with_priority(priority):
-    def decorator(func):
-        if getattr(func, "_esphome_coroutine", False):
-            # If func is already a coroutine, do not re-wrap it (performance)
-            return func
-
-        @functools.wraps(func)
-        def _wrapper_generator(*args, **kwargs):
-            instance_id = kwargs.pop("__esphome_coroutine_instance__")
-            if not inspect.isgeneratorfunction(func):
-                # If func is not a generator, return result immediately
-                yield func(*args, **kwargs)
-                # pylint: disable=protected-access
-                CORE._remove_coroutine(instance_id)
-                return
-            gen = func(*args, **kwargs)
-            var = None
-            try:
-                while True:
-                    var = gen.send(var)
-                    if inspect.isgenerator(var):
-                        # Yielded generator, equivalent to 'yield from'
-                        x = None
-                        for x in var:
-                            yield None
-                        # Last yield value is the result
-                        var = x
-                    else:
-                        yield var
-            except StopIteration:
-                # Stopping iteration
-                yield var
-            # pylint: disable=protected-access
-            CORE._remove_coroutine(instance_id)
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            import random
-
-            instance_id = random.randint(0, 2 ** 32)
-            kwargs["__esphome_coroutine_instance__"] = instance_id
-            gen = _wrapper_generator(*args, **kwargs)
-            # pylint: disable=protected-access
-            CORE._add_active_coroutine(instance_id, gen)
-            return gen
-
-        # pylint: disable=protected-access
-        wrapper._esphome_coroutine = True
-        wrapper.priority = priority
-        return wrapper
-
-    return decorator
-
-
-def find_source_files(file):
-    files = set()
-    directory = os.path.abspath(os.path.dirname(file))
-    for f in os.listdir(directory):
-        if not os.path.isfile(os.path.join(directory, f)):
-            continue
-        _, ext = os.path.splitext(f)
-        if ext.lower() not in SOURCE_FILE_EXTENSIONS:
-            continue
-        files.add(f)
-    return files
 
 
 # pylint: disable=too-many-instance-attributes,too-many-public-methods
@@ -512,22 +452,19 @@ class EsphomeCore:
         self.ace = False
         # The name of the node
         self.name: Optional[str] = None
+        # Additional data components can store temporary data in
+        # The first key to this dict should always be the integration name
+        self.data = {}
         # The relative path to the configuration YAML
         self.config_path: Optional[str] = None
         # The relative path to where all build files are stored
         self.build_path: Optional[str] = None
-        # The platform (ESP8266, ESP32) of this device
-        self.esp_platform: Optional[str] = None
-        # The board that's used (for example nodemcuv2)
-        self.board: Optional[str] = None
-        # The full raw configuration
-        self.raw_config: Optional[ConfigType] = None
         # The validated configuration, this is None until the config has been validated
-        self.config: Optional[ConfigType] = None
+        self.config: Optional["ConfigType"] = None
         # The pending tasks in the task queue (mostly for C++ generation)
         # This is a priority queue (with heapq)
         # Each item is a tuple of form: (-priority, unique number, task)
-        self.pending_tasks = []
+        self.event_loop = _FakeEventLoop()
         # Task counter for pending tasks
         self.task_counter = 0
         # The variable cache, for each ID this holds a MockObj of the variable obj
@@ -542,9 +479,8 @@ class EsphomeCore:
         self.build_flags: Set[str] = set()
         # A set of defines to set for the compile process in esphome/core/defines.h
         self.defines: Set["Define"] = set()
-        # A dictionary of started coroutines, used to warn when a coroutine was not
-        # awaited.
-        self.active_coroutines: Dict[int, Any] = {}
+        # A map of all platformio options to apply
+        self.platformio_options: Dict[str, Union[str, List[str]]] = {}
         # A set of strings of names of loaded integrations, used to find namespace ID conflicts
         self.loaded_integrations = set()
         # A set of component IDs to track what Component subclasses are declared
@@ -555,13 +491,11 @@ class EsphomeCore:
     def reset(self):
         self.dashboard = False
         self.name = None
+        self.data = {}
         self.config_path = None
         self.build_path = None
-        self.esp_platform = None
-        self.board = None
-        self.raw_config = None
         self.config = None
-        self.pending_tasks = []
+        self.event_loop = _FakeEventLoop()
         self.task_counter = 0
         self.variables = {}
         self.main_statements = []
@@ -569,7 +503,7 @@ class EsphomeCore:
         self.libraries = []
         self.build_flags = set()
         self.defines = set()
-        self.active_coroutines = {}
+        self.platformio_options = {}
         self.loaded_integrations = set()
         self.component_ids = set()
 
@@ -587,6 +521,19 @@ class EsphomeCore:
         return None
 
     @property
+    def web_port(self) -> Optional[int]:
+        if self.config is None:
+            raise ValueError("Config has not been loaded yet")
+
+        if "web_server" in self.config:
+            try:
+                return self.config["web_server"][CONF_PORT]
+            except KeyError:
+                return 80
+
+        return None
+
+    @property
     def comment(self) -> Optional[str]:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
@@ -595,19 +542,6 @@ class EsphomeCore:
             return self.config[CONF_ESPHOME][CONF_COMMENT]
 
         return None
-
-    def _add_active_coroutine(self, instance_id, obj):
-        self.active_coroutines[instance_id] = obj
-
-    def _remove_coroutine(self, instance_id):
-        self.active_coroutines.pop(instance_id)
-
-    @property
-    def arduino_version(self) -> str:
-        if self.config is None:
-            raise ValueError("Config has not been loaded yet")
-
-        return self.config[CONF_ESPHOME][CONF_ARDUINO_VERSION]
 
     @property
     def config_dir(self):
@@ -621,6 +555,9 @@ class EsphomeCore:
         # pylint: disable=no-value-for-parameter
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.config_dir, path_)
+
+    def relative_internal_path(self, *path: str) -> str:
+        return self.relative_config_path(".esphome", *path)
 
     def relative_build_path(self, *path):
         # pylint: disable=no-value-for-parameter
@@ -645,62 +582,37 @@ class EsphomeCore:
         return self.relative_pioenvs_path(self.name, "firmware.bin")
 
     @property
+    def target_platform(self):
+        return self.data[KEY_CORE][KEY_TARGET_PLATFORM]
+
+    @property
     def is_esp8266(self):
-        if self.esp_platform is None:
-            raise ValueError("No platform specified")
-        return self.esp_platform == "ESP8266"
+        return self.target_platform == "esp8266"
 
     @property
     def is_esp32(self):
-        if self.esp_platform is None:
-            raise ValueError("No platform specified")
-        return self.esp_platform == "ESP32"
+        return self.target_platform == "esp32"
+
+    @property
+    def target_framework(self):
+        return self.data[KEY_CORE][KEY_TARGET_FRAMEWORK]
+
+    @property
+    def using_arduino(self):
+        return self.target_framework == "arduino"
+
+    @property
+    def using_esp_idf(self):
+        return self.target_framework == "esp-idf"
 
     def add_job(self, func, *args, **kwargs):
-        coro = coroutine(func)
-        task = coro(*args, **kwargs)
-        item = (-coro.priority, self.task_counter, task)
-        self.task_counter += 1
-        heapq.heappush(self.pending_tasks, item)
-        return task
+        self.event_loop.add_job(func, *args, **kwargs)
 
     def flush_tasks(self):
-        i = 0
-        while self.pending_tasks:
-            i += 1
-            if i > 1000000:
-                raise EsphomeError("Circular dependency detected!")
-
-            inv_priority, num, task = heapq.heappop(self.pending_tasks)
-            priority = -inv_priority
-            _LOGGER.debug("Running %s (num %s)", task, num)
-            try:
-                next(task)
-                # Decrease priority over time, so that if this task is blocked
-                # due to a dependency others will clear the dependency
-                # This could be improved with a less naive approach
-                priority -= 1
-                item = (-priority, num, task)
-                heapq.heappush(self.pending_tasks, item)
-            except StopIteration:
-                _LOGGER.debug(" -> finished")
-
-        # Print not-awaited coroutines
-        for obj in self.active_coroutines.values():
-            _LOGGER.warning(
-                "Coroutine '%s' %s was never awaited with 'yield'.", obj.__name__, obj
-            )
-            _LOGGER.warning("Please file a bug report with your configuration.")
-        if self.active_coroutines:
-            raise EsphomeError()
-        if self.component_ids:
-            comps = ", ".join(f"'{x}'" for x in self.component_ids)
-            _LOGGER.warning(
-                "Components %s were never registered. Please create a bug report", comps
-            )
-            _LOGGER.warning("with your configuration.")
-            raise EsphomeError()
-        self.active_coroutines.clear()
+        try:
+            self.event_loop.flush_tasks()
+        except RuntimeError as e:
+            raise EsphomeError(str(e)) from e
 
     def add(self, expression):
         from esphome.cpp_generator import Expression, Statement, statement
@@ -709,8 +621,7 @@ class EsphomeCore:
             expression = statement(expression)
         if not isinstance(expression, Statement):
             raise ValueError(
-                "Add '{}' must be expression or statement, not {}"
-                "".format(expression, type(expression))
+                f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
 
         self.main_statements.append(expression)
@@ -724,8 +635,7 @@ class EsphomeCore:
             expression = statement(expression)
         if not isinstance(expression, Statement):
             raise ValueError(
-                "Add '{}' must be expression or statement, not {}"
-                "".format(expression, type(expression))
+                f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
         self.global_statements.append(expression)
         _LOGGER.debug("Adding global: %s", expression)
@@ -734,13 +644,25 @@ class EsphomeCore:
     def add_library(self, library):
         if not isinstance(library, Library):
             raise ValueError(
-                "Library {} must be instance of Library, not {}"
-                "".format(library, type(library))
+                f"Library {library} must be instance of Library, not {type(library)}"
             )
-        _LOGGER.debug("Adding library: %s", library)
         for other in self.libraries[:]:
-            if other.name != library.name:
+            if other.name != library.name or other.name is None or library.name is None:
                 continue
+            if other.repository is not None:
+                if library.repository is None or other.repository == library.repository:
+                    # Other is using a/the same repository, takes precendence
+                    break
+                raise ValueError(
+                    f"Adding named Library with repository failed! Libraries {library} and {other} "
+                    "requested with conflicting repositories!"
+                )
+
+            if library.repository is not None:
+                # This is more specific since its using a repository
+                self.libraries.remove(other)
+                continue
+
             if library.version is None:
                 # Other requirement is more specific
                 break
@@ -752,11 +674,11 @@ class EsphomeCore:
                 break
 
             raise ValueError(
-                "Version pinning failed! Libraries {} and {} "
+                f"Version pinning failed! Libraries {library} and {other} "
                 "requested with conflicting versions!"
-                "".format(library, other)
             )
         else:
+            _LOGGER.debug("Adding library: %s", library)
             self.libraries.append(library)
         return library
 
@@ -772,32 +694,49 @@ class EsphomeCore:
             pass
         else:
             raise ValueError(
-                "Define {} must be string or Define, not {}"
-                "".format(define, type(define))
+                f"Define {define} must be string or Define, not {type(define)}"
             )
         self.defines.add(define)
         _LOGGER.debug("Adding define: %s", define)
         return define
 
-    def get_variable(self, id):
+    def add_platformio_option(self, key: str, value: Union[str, List[str]]) -> None:
+        new_val = value
+        old_val = self.platformio_options.get(key)
+        if isinstance(old_val, list):
+            assert isinstance(value, list)
+            new_val = old_val + value
+        self.platformio_options[key] = new_val
+
+    def _get_variable_generator(self, id):
+        while True:
+            try:
+                return self.variables[id]
+            except KeyError:
+                _LOGGER.debug("Waiting for variable %s (%r)", id, id)
+                yield
+
+    async def get_variable(self, id) -> "MockObj":
         if not isinstance(id, ID):
             raise ValueError(f"ID {id!r} must be of type ID!")
-        while True:
-            if id in self.variables:
-                yield self.variables[id]
-                return
-            _LOGGER.debug("Waiting for variable %s (%r)", id, id)
-            yield None
+        # Fast path, check if already registered without awaiting
+        if id in self.variables:
+            return self.variables[id]
+        return await _FakeAwaitable(self._get_variable_generator(id))
 
-    def get_variable_with_full_id(self, id):
+    def _get_variable_with_full_id_generator(self, id):
         while True:
             if id in self.variables:
                 for k, v in self.variables.items():
                     if k == id:
-                        yield (k, v)
-                        return
+                        return (k, v)
             _LOGGER.debug("Waiting for variable %s", id)
-            yield None, None
+            yield
+
+    async def get_variable_with_full_id(self, id: ID) -> Tuple[ID, "MockObj"]:
+        if not isinstance(id, ID):
+            raise ValueError(f"ID {id!r} must be of type ID!")
+        return await _FakeAwaitable(self._get_variable_with_full_id_generator(id))
 
     def register_variable(self, id, obj):
         if id in self.variables:
@@ -848,6 +787,3 @@ class EnumValue:
 
 
 CORE = EsphomeCore()
-
-ConfigType = Dict[str, Any]
-CoreType = EsphomeCore

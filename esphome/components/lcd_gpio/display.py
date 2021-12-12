@@ -20,8 +20,7 @@ GPIOLCDDisplay = lcd_gpio_ns.class_("GPIOLCDDisplay", lcd_base.LCDDisplay)
 def validate_pin_length(value):
     if len(value) != 4 and len(value) != 8:
         raise cv.Invalid(
-            "LCD Displays can either operate in 4-pin or 8-pin mode,"
-            "not {}-pin mode".format(len(value))
+            f"LCD Displays can either operate in 4-pin or 8-pin mode,not {len(value)}-pin mode"
         )
     return value
 
@@ -39,25 +38,25 @@ CONFIG_SCHEMA = lcd_base.LCD_SCHEMA.extend(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield lcd_base.setup_lcd_display(var, config)
+    await lcd_base.setup_lcd_display(var, config)
     pins_ = []
     for conf in config[CONF_DATA_PINS]:
-        pins_.append((yield cg.gpio_pin_expression(conf)))
+        pins_.append((await cg.gpio_pin_expression(conf)))
     cg.add(var.set_data_pins(*pins_))
-    enable = yield cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
+    enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
     cg.add(var.set_enable_pin(enable))
 
-    rs = yield cg.gpio_pin_expression(config[CONF_RS_PIN])
+    rs = await cg.gpio_pin_expression(config[CONF_RS_PIN])
     cg.add(var.set_rs_pin(rs))
 
     if CONF_RW_PIN in config:
-        rw = yield cg.gpio_pin_expression(config[CONF_RW_PIN])
+        rw = await cg.gpio_pin_expression(config[CONF_RW_PIN])
         cg.add(var.set_rw_pin(rw))
 
     if CONF_LAMBDA in config:
-        lambda_ = yield cg.process_lambda(
+        lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA],
             [(GPIOLCDDisplay.operator("ref"), "it")],
             return_type=cg.void,

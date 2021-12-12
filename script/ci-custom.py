@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 
+from helpers import styled, print_error_for_file, git_ls_files, filter_changed
+import argparse
 import codecs
 import collections
+import colorama
 import fnmatch
+import functools
 import os.path
 import re
-import subprocess
 import sys
 import time
-import functools
-import argparse
 
 sys.path.append(os.path.dirname(__file__))
-from helpers import git_ls_files, filter_changed
 
 
 def find_all(a_str, sub):
@@ -20,7 +20,7 @@ def find_all(a_str, sub):
         # Optimization: If str is not in whole text, then do not try
         # on each line
         return
-    for i, line in enumerate(a_str.splitlines()):
+    for i, line in enumerate(a_str.split('\n')):
         column = 0
         while True:
             column = line.find(sub, column)
@@ -29,6 +29,8 @@ def find_all(a_str, sub):
             yield i, column
             column += len(sub)
 
+
+colorama.init()
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -170,7 +172,7 @@ def lint_re_check(regex, **kwargs):
     return decorator
 
 
-def lint_content_find_check(find, **kwargs):
+def lint_content_find_check(find, only_first=False, **kwargs):
     decor = lint_content_check(**kwargs)
 
     def decorator(func):
@@ -183,6 +185,8 @@ def lint_content_find_check(find, **kwargs):
             for line, col in find_all(content, find_):
                 err = func(fname)
                 errors.append((line + 1, col + 1, err))
+                if only_first:
+                    break
             return errors
 
         return decor(new_func)
@@ -217,7 +221,9 @@ def lint_ext_check(fname):
     )
 
 
-@lint_file_check(exclude=["docker/rootfs/*", "docker/*.py", "script/*", "setup.py"])
+@lint_file_check(
+    exclude=["**.sh", "docker/hassio-rootfs/**", "docker/*.py", "script/*", "setup.py"]
+)
 def lint_executable_bit(fname):
     ex = EXECUTABLE_BIT[fname]
     if ex != 100644:
@@ -230,6 +236,7 @@ def lint_executable_bit(fname):
 
 @lint_content_find_check(
     "\t",
+    only_first=True,
     exclude=[
         "esphome/dashboard/static/ace.js",
         "esphome/dashboard/static/ext-searchbox.js",
@@ -239,9 +246,9 @@ def lint_tabs(fname):
     return "File contains tab character. Please convert tabs to spaces."
 
 
-@lint_content_find_check("\r")
+@lint_content_find_check("\r", only_first=True)
 def lint_newline(fname):
-    return "File contains windows newline. Please set your editor to unix newline mode."
+    return "File contains Windows newline. Please set your editor to Unix newline mode."
 
 
 @lint_content_check(exclude=["*.svg"])
@@ -261,7 +268,11 @@ def highlight(s):
 @lint_re_check(
     r"^#define\s+([a-zA-Z0-9_]+)\s+([0-9bx]+)" + CPP_RE_EOL,
     include=cpp_include,
-    exclude=["esphome/core/log.h"],
+    exclude=[
+        "esphome/core/log.h",
+        "esphome/components/socket/headers.h",
+        "esphome/core/defines.h",
+    ],
 )
 def lint_no_defines(fname, match):
     s = highlight(
@@ -406,7 +417,6 @@ ARDUINO_FORBIDDEN_RE = r"[^\w\d](" + r"|".join(ARDUINO_FORBIDDEN) + r")\(.*"
     exclude=[
         "esphome/components/mqtt/custom_mqtt_device.h",
         "esphome/components/sun/sun.cpp",
-        "esphome/core/esphal.*",
     ],
 )
 def lint_no_arduino_framework_functions(fname, match):
@@ -417,6 +427,28 @@ def lint_no_arduino_framework_functions(fname, match):
         f"C++ instead.\n"
         f"\n"
         f"(If the function is strictly necessary, please add `{nolint}` to the end of the line)"
+    )
+
+
+IDF_CONVERSION_FORBIDDEN = {
+    "ARDUINO_ARCH_ESP32": "USE_ESP32",
+    "ARDUINO_ARCH_ESP8266": "USE_ESP8266",
+    "pgm_read_byte": "progmem_read_byte",
+    "ICACHE_RAM_ATTR": "IRAM_ATTR",
+    "esphome/core/esphal.h": "esphome/core/hal.h",
+}
+IDF_CONVERSION_FORBIDDEN_RE = r"(" + r"|".join(IDF_CONVERSION_FORBIDDEN) + r").*"
+
+
+@lint_re_check(
+    IDF_CONVERSION_FORBIDDEN_RE,
+    include=cpp_include,
+)
+def lint_no_removed_in_idf_conversions(fname, match):
+    replacement = IDF_CONVERSION_FORBIDDEN[match.group(1)]
+    return (
+        f"The macro {highlight(match.group(1))} can no longer be used in ESPHome directly. "
+        f"Plese use {highlight(replacement)} instead."
     )
 
 
@@ -493,7 +525,12 @@ def lint_relative_py_import(fname):
         "esphome/components/*.h",
         "esphome/components/*.cpp",
         "esphome/components/*.tcc",
-    ]
+    ],
+    exclude=[
+        "esphome/components/socket/headers.h",
+        "esphome/components/esp32/core.cpp",
+        "esphome/components/esp8266/core.cpp",
+    ],
 )
 def lint_namespace(fname, content):
     expected_name = re.match(
@@ -559,15 +596,19 @@ def lint_inclusive_language(fname, match):
         "esphome/components/display/display_buffer.h",
         "esphome/components/i2c/i2c.h",
         "esphome/components/mqtt/mqtt_component.h",
+        "esphome/components/number/number.h",
         "esphome/components/output/binary_output.h",
         "esphome/components/output/float_output.h",
+        "esphome/components/nextion/nextion_base.h",
+        "esphome/components/select/select.h",
         "esphome/components/sensor/sensor.h",
         "esphome/components/stepper/stepper.h",
         "esphome/components/switch/switch.h",
         "esphome/components/text_sensor/text_sensor.h",
         "esphome/components/climate/climate.h",
+        "esphome/components/button/button.h",
         "esphome/core/component.h",
-        "esphome/core/esphal.h",
+        "esphome/core/gpio.h",
         "esphome/core/log.h",
         "tests/custom.h",
     ],
@@ -622,10 +663,10 @@ for fname in files:
 run_checks(LINT_POST_CHECKS, "POST")
 
 for f, errs in sorted(errors.items()):
-    print(f"\033[0;32m************* File \033[1;32m{f}\033[0m")
-    for lineno, col, msg in errs:
-        print(f"ERROR {f}:{lineno}:{col} - {msg}")
-    print()
+    bold = functools.partial(styled, colorama.Style.BRIGHT)
+    bold_red = functools.partial(styled, (colorama.Style.BRIGHT, colorama.Fore.RED))
+    err_str = (f"{bold(f'{f}:{lineno}:{col}:')} {bold_red('lint:')} {msg}\n" for lineno, col, msg in errs)
+    print_error_for_file(f, "\n".join(err_str))
 
 if args.print_slowest:
     lint_times = []

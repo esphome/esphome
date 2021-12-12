@@ -2,7 +2,15 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import i2c
-from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, CONF_INVERTED
+from esphome.const import (
+    CONF_ID,
+    CONF_INPUT,
+    CONF_NUMBER,
+    CONF_MODE,
+    CONF_INVERTED,
+    CONF_OUTPUT,
+    CONF_PULLUP,
+)
 
 CONF_KEYPAD = "keypad"
 CONF_KEY_ROWS = "key_rows"
@@ -10,17 +18,12 @@ CONF_KEY_COLUMNS = "key_columns"
 CONF_SLEEP_TIME = "sleep_time"
 CONF_SCAN_TIME = "scan_time"
 CONF_DEBOUNCE_TIME = "debounce_time"
+CONF_SX1509_ID = "sx1509_id"
 
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 
 sx1509_ns = cg.esphome_ns.namespace("sx1509")
-SX1509GPIOMode = sx1509_ns.enum("SX1509GPIOMode")
-SX1509_GPIO_MODES = {
-    "INPUT": SX1509GPIOMode.SX1509_INPUT,
-    "INPUT_PULLUP": SX1509GPIOMode.SX1509_INPUT_PULLUP,
-    "OUTPUT": SX1509GPIOMode.SX1509_OUTPUT,
-}
 
 SX1509Component = sx1509_ns.class_("SX1509Component", cg.Component, i2c.I2CDevice)
 SX1509GPIOPin = sx1509_ns.class_("SX1509GPIOPin", cg.GPIOPin)
@@ -47,10 +50,10 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
     if CONF_KEYPAD in config:
         keypad = config[CONF_KEYPAD]
         cg.add(var.set_rows_cols(keypad[CONF_KEY_ROWS], keypad[CONF_KEY_COLUMNS]))
@@ -64,34 +67,43 @@ def to_code(config):
             cg.add(var.set_debounce_time(keypad[CONF_DEBOUNCE_TIME]))
 
 
-CONF_SX1509 = "sx1509"
-CONF_SX1509_ID = "sx1509_id"
+def validate_mode(value):
+    if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
+        raise cv.Invalid("Mode must be either input or output")
+    if value[CONF_INPUT] and value[CONF_OUTPUT]:
+        raise cv.Invalid("Mode must be either input or output")
+    if value[CONF_PULLUP] and not value[CONF_INPUT]:
+        raise cv.Invalid("Pullup only available with input")
+    return value
 
-SX1509_OUTPUT_PIN_SCHEMA = cv.Schema(
+
+CONF_SX1509 = "sx1509"
+SX1509_PIN_SCHEMA = cv.All(
     {
+        cv.GenerateID(): cv.declare_id(SX1509GPIOPin),
         cv.Required(CONF_SX1509): cv.use_id(SX1509Component),
-        cv.Required(CONF_NUMBER): cv.int_,
-        cv.Optional(CONF_MODE, default="OUTPUT"): cv.enum(
-            SX1509_GPIO_MODES, upper=True
+        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=15),
+        cv.Optional(CONF_MODE, default={}): cv.All(
+            {
+                cv.Optional(CONF_INPUT, default=False): cv.boolean,
+                cv.Optional(CONF_PULLUP, default=False): cv.boolean,
+                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
+            },
+            validate_mode,
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     }
 )
-SX1509_INPUT_PIN_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_SX1509): cv.use_id(SX1509Component),
-        cv.Required(CONF_NUMBER): cv.int_,
-        cv.Optional(CONF_MODE, default="INPUT"): cv.enum(SX1509_GPIO_MODES, upper=True),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-    }
-)
 
 
-@pins.PIN_SCHEMA_REGISTRY.register(
-    CONF_SX1509, (SX1509_OUTPUT_PIN_SCHEMA, SX1509_INPUT_PIN_SCHEMA)
-)
-def sx1509_pin_to_code(config):
-    parent = yield cg.get_variable(config[CONF_SX1509])
-    yield SX1509GPIOPin.new(
-        parent, config[CONF_NUMBER], config[CONF_MODE], config[CONF_INVERTED]
-    )
+@pins.PIN_SCHEMA_REGISTRY.register(CONF_SX1509, SX1509_PIN_SCHEMA)
+async def sx1509_pin_to_code(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    parent = await cg.get_variable(config[CONF_SX1509])
+    cg.add(var.set_parent(parent))
+
+    num = config[CONF_NUMBER]
+    cg.add(var.set_pin(num))
+    cg.add(var.set_inverted(config[CONF_INVERTED]))
+    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
+    return var

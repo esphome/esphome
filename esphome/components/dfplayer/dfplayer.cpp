@@ -4,7 +4,7 @@
 namespace esphome {
 namespace dfplayer {
 
-static const char* TAG = "dfplayer";
+static const char *const TAG = "dfplayer";
 
 void DFPlayer::play_folder(uint16_t folder, uint16_t file) {
   if (folder < 100 && file < 256) {

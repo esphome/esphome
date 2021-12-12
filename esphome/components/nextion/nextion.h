@@ -1,9 +1,21 @@
 #pragma once
 
-#include "esphome/core/component.h"
+#include <deque>
 #include "esphome/core/defines.h"
 #include "esphome/components/uart/uart.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "nextion_base.h"
+#include "nextion_component.h"
+#include "esphome/components/display/display_color_utils.h"
+
+#ifdef USE_NEXTION_TFT_UPLOAD
+#ifdef USE_ESP32
+#include <HTTPClient.h>
+#endif
+#ifdef USE_ESP8266
+#include <ESP8266HTTPClient.h>
+#include <WiFiClientSecure.h>
+#endif
+#endif
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -12,12 +24,14 @@
 namespace esphome {
 namespace nextion {
 
-class NextionTouchComponent;
 class Nextion;
+class NextionComponentBase;
 
 using nextion_writer_t = std::function<void(Nextion &)>;
 
-class Nextion : public PollingComponent, public uart::UARTDevice {
+static const std::string COMMAND_DELIMITER{static_cast<char>(255), static_cast<char>(255), static_cast<char>(255)};
+
+class Nextion : public NextionBase, public PollingComponent, public uart::UARTDevice {
  public:
   /**
    * Set the text of a component to a static string.
@@ -73,9 +87,20 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    *
    * This will change the image of the component `pic` to the image with ID `4`.
    */
-  void set_component_picture(const char *component, const char *picture) {
-    this->send_command_printf("%s.val=%s", component, picture);
-  }
+  void set_component_picture(const char *component, const char *picture);
+  /**
+   * Set the background color of a component.
+   * @param component The component name.
+   * @param color The color (as a uint32_t).
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_background_color("button", 0xFF0000);
+   * ```
+   *
+   * This will change the background color of the component `button` to red.
+   */
+  void set_component_background_color(const char *component, uint32_t color);
   /**
    * Set the background color of a component.
    * @param component The component name.
@@ -83,7 +108,7 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    *
    * Example:
    * ```cpp
-   * it.set_component_background_color("button", "17013");
+   * it.set_component_background_color("button", "RED");
    * ```
    *
    * This will change the background color of the component `button` to blue.
@@ -92,13 +117,40 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    */
   void set_component_background_color(const char *component, const char *color);
   /**
+   * Set the background color of a component.
+   * @param component The component name.
+   * @param color The color (as Color).
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_background_color("button", color);
+   * ```
+   *
+   * This will change the background color of the component `button` to what color contains.
+   */
+  void set_component_background_color(const char *component, Color color) override;
+  /**
+   * Set the pressed background color of a component.
+   * @param component The component name.
+   * @param color The color (as a int).
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_pressed_background_color("button", 0xFF0000 );
+   * ```
+   *
+   * This will change the pressed background color of the component `button` to red. This is the background color that
+   * is shown when the component is pressed.
+   */
+  void set_component_pressed_background_color(const char *component, uint32_t color);
+  /**
    * Set the pressed background color of a component.
    * @param component The component name.
    * @param color The color (as a string).
    *
    * Example:
    * ```cpp
-   * it.set_component_pressed_background_color("button", "17013");
+   * it.set_component_pressed_background_color("button", "RED");
    * ```
    *
    * This will change the pressed background color of the component `button` to blue. This is the background color that
@@ -108,13 +160,70 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    */
   void set_component_pressed_background_color(const char *component, const char *color);
   /**
+   * Set the pressed background color of a component.
+   * @param component The component name.
+   * @param color The color (as Color).
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_pressed_background_color("button", color);
+   * ```
+   *
+   * This will change the pressed background color of the component `button` to blue. This is the background color that
+   * is shown when the component is pressed. Use this [color
+   * picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to Nextion HMI
+   * colors.
+   */
+  void set_component_pressed_background_color(const char *component, Color color) override;
+
+  /**
+   * Set the picture id of a component.
+   * @param component The component name.
+   * @param pic_id The picture ID.
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_pic("textview", 1);
+   * ```
+   *
+   * This will change the picture id of the component `textview`.
+   */
+  void set_component_pic(const char *component, uint8_t pic_id);
+  /**
+   * Set the background picture id of component.
+   * @param component The component name.
+   * @param pic_id The picture ID.
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_picc("textview", 1);
+   * ```
+   *
+   * This will change the background picture id of the component `textview`.
+   */
+  void set_component_picc(const char *component, uint8_t pic_id);
+
+  /**
+   * Set the font color of a component.
+   * @param component The component name.
+   * @param color The color (as a uint32_t ).
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_font_color("textview", 0xFF0000);
+   * ```
+   *
+   * This will change the font color of the component `textview` to a red color.
+   */
+  void set_component_font_color(const char *component, uint32_t color);
+  /**
    * Set the font color of a component.
    * @param component The component name.
    * @param color The color (as a string).
    *
    * Example:
    * ```cpp
-   * it.set_component_font_color("textview", "17013");
+   * it.set_component_font_color("textview", "RED");
    * ```
    *
    * This will change the font color of the component `textview` to a blue color.
@@ -123,13 +232,41 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    */
   void set_component_font_color(const char *component, const char *color);
   /**
+   * Set the font color of a component.
+   * @param component The component name.
+   * @param color The color (as Color).
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_font_color("textview", color);
+   * ```
+   *
+   * This will change the font color of the component `textview` to a blue color.
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
+   * Nextion HMI colors.
+   */
+  void set_component_font_color(const char *component, Color color) override;
+  /**
+   * Set the pressed font color of a component.
+   * @param component The component name.
+   * @param color The color (as a uint32_t).
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_pressed_font_color("button", 0xFF0000);
+   * ```
+   *
+   * This will change the pressed font color of the component `button` to a red.
+   */
+  void set_component_pressed_font_color(const char *component, uint32_t color);
+  /**
    * Set the pressed font color of a component.
    * @param component The component name.
    * @param color The color (as a string).
    *
    * Example:
    * ```cpp
-   * it.set_component_pressed_font_color("button", "17013");
+   * it.set_component_pressed_font_color("button", "RED");
    * ```
    *
    * This will change the pressed font color of the component `button` to a blue color.
@@ -137,6 +274,21 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * Nextion HMI colors.
    */
   void set_component_pressed_font_color(const char *component, const char *color);
+  /**
+   * Set the pressed font color of a component.
+   * @param component The component name.
+   * @param color The color (as Color).
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_pressed_font_color("button", color);
+   * ```
+   *
+   * This will change the pressed font color of the component `button` to a blue color.
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
+   * Nextion HMI colors.
+   */
+  void set_component_pressed_font_color(const char *component, Color color) override;
   /**
    * Set the coordinates of a component on screen.
    * @param component The component name.
@@ -163,7 +315,7 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    *
    * Changes the font of the component named `textveiw`. Font IDs are set in the Nextion Editor.
    */
-  void set_component_font(const char *component, uint8_t font_id);
+  void set_component_font(const char *component, uint8_t font_id) override;
 #ifdef USE_TIME
   /**
    * Send the current time to the nextion display.
@@ -195,7 +347,7 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    *
    * Hides the component named `button`.
    */
-  void hide_component(const char *component);
+  void hide_component(const char *component) override;
   /**
    * Show a component.
    * @param component The component name.
@@ -207,7 +359,7 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    *
    * Shows the component named `button`.
    */
-  void show_component(const char *component);
+  void show_component(const char *component) override;
   /**
    * Enable touch for a component.
    * @param component The component name.
@@ -239,6 +391,7 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * @param value The value to write.
    */
   void add_waveform_data(int component_id, uint8_t channel_number, uint8_t value);
+  void open_waveform_channel(int component_id, uint8_t channel_number, uint8_t value);
   /**
    * Display a picture at coordinates.
    * @param picture_id The picture id.
@@ -263,14 +416,32 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    *
    * Example:
    * ```cpp
-   * fill_area(50, 50, 100, 100, "17013");
+   * fill_area(50, 50, 100, 100, "RED");
    * ```
    *
-   * Fills an area that starts at x coordiante `50` and y coordinate `50` with a height of `100` and width of `100` with
+   * Fills an area that starts at x coordinate `50` and y coordinate `50` with a height of `100` and width of `100` with
    * the color of blue. Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to
    * convert color codes to Nextion HMI colors
    */
   void fill_area(int x1, int y1, int width, int height, const char *color);
+  /**
+   * Fill a rectangle with a color.
+   * @param x1 The starting x coordinate.
+   * @param y1 The starting y coordinate.
+   * @param width The width to draw.
+   * @param height The height to draw.
+   * @param color The color to draw with (as Color).
+   *
+   * Example:
+   * ```cpp
+   * fill_area(50, 50, 100, 100, color);
+   * ```
+   *
+   * Fills an area that starts at x coordinate `50` and y coordinate `50` with a height of `100` and width of `100` with
+   * the color of blue. Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to
+   * convert color codes to Nextion HMI colors
+   */
+  void fill_area(int x1, int y1, int width, int height, Color color);
   /**
    * Draw a line on the screen.
    * @param x1 The starting x coordinate.
@@ -291,6 +462,25 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    */
   void line(int x1, int y1, int x2, int y2, const char *color);
   /**
+   * Draw a line on the screen.
+   * @param x1 The starting x coordinate.
+   * @param y1 The starting y coordinate.
+   * @param x2 The ending x coordinate.
+   * @param y2 The ending y coordinate.
+   * @param color The color to draw with (as Color).
+   *
+   * Example:
+   * ```cpp
+   * it.line(50, 50, 75, 75, "17013");
+   * ```
+   *
+   * Makes a line that starts at x coordinate `50` and y coordinate `50` and ends at x coordinate `75` and y coordinate
+   * `75` with the color of blue. Use this [color
+   * picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to Nextion HMI
+   * colors.
+   */
+  void line(int x1, int y1, int x2, int y2, Color color);
+  /**
    * Draw a rectangle outline.
    * @param x1 The starting x coordinate.
    * @param y1 The starting y coordinate.
@@ -310,6 +500,25 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    */
   void rectangle(int x1, int y1, int width, int height, const char *color);
   /**
+   * Draw a rectangle outline.
+   * @param x1 The starting x coordinate.
+   * @param y1 The starting y coordinate.
+   * @param width The width of the rectangle.
+   * @param height The height of the rectangle.
+   * @param color The color to draw with (as Color).
+   *
+   * Example:
+   * ```cpp
+   * it.rectangle(25, 35, 40, 50, "17013");
+   * ```
+   *
+   * Makes a outline of a rectangle that starts at x coordinate `25` and y coordinate `35` and has a width of `40` and a
+   * length of `50` with color of blue. Use this [color
+   * picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to Nextion HMI
+   * colors.
+   */
+  void rectangle(int x1, int y1, int width, int height, Color color);
+  /**
    * Draw a circle outline
    * @param center_x The center x coordinate.
    * @param center_y The center y coordinate.
@@ -317,6 +526,14 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * @param color The color to draw with (as a string).
    */
   void circle(int center_x, int center_y, int radius, const char *color);
+  /**
+   * Draw a circle outline
+   * @param center_x The center x coordinate.
+   * @param center_y The center y coordinate.
+   * @param radius The circle radius.
+   * @param color The color to draw with (as Color).
+   */
+  void circle(int center_x, int center_y, int radius, Color color);
   /**
    * Draw a filled circled.
    * @param center_x The center x coordinate.
@@ -329,24 +546,41 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * it.filled_cricle(25, 25, 10, "17013");
    * ```
    *
-   * Makes a filled circle at the x cordinates `25` and y coordinate `25` with a radius of `10` with a color of blue.
+   * Makes a filled circle at the x coordinate `25` and y coordinate `25` with a radius of `10` with a color of blue.
    * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
    * Nextion HMI colors.
    */
   void filled_circle(int center_x, int center_y, int radius, const char *color);
-
-  /** Set the brightness of the backlight.
-   *
-   * @param brightness The brightness, from 0 to 100.
+  /**
+   * Draw a filled circled.
+   * @param center_x The center x coordinate.
+   * @param center_y The center y coordinate.
+   * @param radius The circle radius.
+   * @param color The color to draw with (as Color).
    *
    * Example:
    * ```cpp
-   * it.set_backlight_brightness(30);
+   * it.filled_cricle(25, 25, 10, color);
+   * ```
+   *
+   * Makes a filled circle at the x coordinate `25` and y coordinate `25` with a radius of `10` with a color of blue.
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
+   * Nextion HMI colors.
+   */
+  void filled_circle(int center_x, int center_y, int radius, Color color);
+
+  /** Set the brightness of the backlight.
+   *
+   * @param brightness The brightness percentage from 0 to 1.0.
+   *
+   * Example:
+   * ```cpp
+   * it.set_backlight_brightness(.3);
    * ```
    *
    * Changes the brightness of the display to 30%.
    */
-  void set_backlight_brightness(uint8_t brightness);
+  void set_backlight_brightness(float brightness);
   /**
    * Set the touch sleep timeout of the display.
    * @param timeout Timeout in seconds.
@@ -360,10 +594,46 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * `thup`.
    */
   void set_touch_sleep_timeout(uint16_t timeout);
+  /**
+   * Sets which page Nextion loads when exiting sleep mode. Note this can be set even when Nextion is in sleep mode.
+   * @param page_id The page id, from 0 to the lage page in Nextion. Set 255 (not set to any existing page) to
+   * wakes up to current page.
+   *
+   * Example:
+   * ```cpp
+   * it.set_wake_up_page(2);
+   * ```
+   *
+   * The display will wake up to page 2.
+   */
+  void set_wake_up_page(uint8_t page_id = 255);
+  /**
+   * Sets if Nextion should auto-wake from sleep when touch press occurs.
+   * @param auto_wake True or false. When auto_wake is true and Nextion is in sleep mode,
+   * the first touch will only trigger the auto wake mode and not trigger a Touch Event.
+   *
+   * Example:
+   * ```cpp
+   * it.set_auto_wake_on_touch(true);
+   * ```
+   *
+   * The display will wake up by touch.
+   */
+  void set_auto_wake_on_touch(bool auto_wake);
+  /**
+   * Sets Nextion mode between sleep and awake
+   * @param True or false. Sleep=true to enter sleep mode or sleep=false to exit sleep mode.
+   */
+  void sleep(bool sleep);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  void register_touch_component(NextionTouchComponent *obj) { this->touch_.push_back(obj); }
+  void register_touch_component(NextionComponentBase *obj) { this->touch_.push_back(obj); }
+  void register_switch_component(NextionComponentBase *obj) { this->switchtype_.push_back(obj); }
+  void register_binarysensor_component(NextionComponentBase *obj) { this->binarysensortype_.push_back(obj); }
+  void register_sensor_component(NextionComponentBase *obj) { this->sensortype_.push_back(obj); }
+  void register_textsensor_component(NextionComponentBase *obj) { this->textsensortype_.push_back(obj); }
+
   void setup() override;
   void set_brightness(float brightness) { this->brightness_ = brightness; }
   float get_setup_priority() const override;
@@ -371,11 +641,9 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
   void loop() override;
   void set_writer(const nextion_writer_t &writer);
 
-  /**
-   * Manually send a raw command to the display and don't wait for an acknowledgement packet.
-   * @param command The command to write, for example "vis b0,0".
-   */
-  void send_command_no_ack(const char *command);
+  // This function has been deprecated
+  void set_wait_for_ack(bool wait_for_ack);
+
   /**
    * Manually send a raw formatted command to the display.
    * @param format The printf-style command format, like "vis %s,0"
@@ -384,28 +652,196 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    */
   bool send_command_printf(const char *format, ...) __attribute__((format(printf, 2, 3)));
 
-  void set_wait_for_ack(bool wait_for_ack);
+#ifdef USE_NEXTION_TFT_UPLOAD
+  /**
+   * Set the tft file URL. https seems problamtic with arduino..
+   */
+  void set_tft_url(const std::string &tft_url) { this->tft_url_ = tft_url; }
+
+#endif
+
+  /**
+   * Upload the tft file and softreset the Nextion
+   */
+  void upload_tft();
+  void dump_config() override;
+
+  /**
+   * Softreset the Nextion
+   */
+  void soft_reset();
+
+  /** Add a callback to be notified of sleep state changes.
+   *
+   * @param callback The void() callback.
+   */
+  void add_sleep_state_callback(std::function<void()> &&callback);
+
+  /** Add a callback to be notified of wake state changes.
+   *
+   * @param callback The void() callback.
+   */
+  void add_wake_state_callback(std::function<void()> &&callback);
+
+  /** Add a callback to be notified when the nextion completes its initialize setup.
+   *
+   * @param callback The void() callback.
+   */
+  void add_setup_state_callback(std::function<void()> &&callback);
+
+  void update_all_components();
+
+  /**
+   * @brief Set the nextion sensor state object.
+   *
+   * @param[in] queue_type
+   * Index of NextionQueueType.
+   *
+   * @param[in] name
+   * Component/variable name.
+   *
+   * @param[in] state
+   * State to set.
+   */
+  void set_nextion_sensor_state(int queue_type, const std::string &name, float state);
+  void set_nextion_sensor_state(NextionQueueType queue_type, const std::string &name, float state);
+  void set_nextion_text_state(const std::string &name, const std::string &state);
+
+  void add_no_result_to_queue_with_set(NextionComponentBase *component, int state_value) override;
+  void add_no_result_to_queue_with_set(const std::string &variable_name, const std::string &variable_name_to_send,
+                                       int state_value) override;
+
+  void add_no_result_to_queue_with_set(NextionComponentBase *component, const std::string &state_value) override;
+  void add_no_result_to_queue_with_set(const std::string &variable_name, const std::string &variable_name_to_send,
+                                       const std::string &state_value) override;
+
+  void add_to_get_queue(NextionComponentBase *component) override;
+
+  void add_addt_command_to_queue(NextionComponentBase *component) override;
+
+  void update_components_by_prefix(const std::string &prefix);
+
+  void set_touch_sleep_timeout_internal(uint32_t touch_sleep_timeout) {
+    this->touch_sleep_timeout_ = touch_sleep_timeout;
+  }
+  void set_wake_up_page_internal(uint8_t wake_up_page) { this->wake_up_page_ = wake_up_page; }
+  void set_auto_wake_on_touch_internal(bool auto_wake_on_touch) { this->auto_wake_on_touch_ = auto_wake_on_touch; }
 
  protected:
-  bool ack_();
-  bool read_until_ack_();
+  std::deque<NextionQueue *> nextion_queue_;
+  uint16_t recv_ret_string_(std::string &response, uint32_t timeout, bool recv_flag);
+  void all_components_send_state_(bool force_update = false);
+  uint64_t comok_sent_ = 0;
+  bool remove_from_q_(bool report_empty = true);
+  /**
+   * @brief
+   * Sends commands ignoring of the Nextion has been setup.
+   */
+  bool ignore_is_setup_ = false;
+  bool nextion_reports_is_setup_ = false;
+  uint8_t nextion_event_;
 
-  std::vector<NextionTouchComponent *> touch_;
+  void process_nextion_commands_();
+  void process_serial_();
+  bool is_updating_ = false;
+  uint32_t touch_sleep_timeout_ = 0;
+  int wake_up_page_ = -1;
+  bool auto_wake_on_touch_ = true;
+
+  /**
+   * Manually send a raw command to the display and don't wait for an acknowledgement packet.
+   * @param command The command to write, for example "vis b0,0".
+   */
+  bool send_command_(const std::string &command);
+  void add_no_result_to_queue_(const std::string &variable_name);
+  bool add_no_result_to_queue_with_ignore_sleep_printf_(const std::string &variable_name, const char *format, ...)
+      __attribute__((format(printf, 3, 4)));
+  void add_no_result_to_queue_with_command_(const std::string &variable_name, const std::string &command);
+
+  bool add_no_result_to_queue_with_printf_(const std::string &variable_name, const char *format, ...)
+      __attribute__((format(printf, 3, 4)));
+
+  void add_no_result_to_queue_with_set_internal_(const std::string &variable_name,
+                                                 const std::string &variable_name_to_send, int state_value,
+                                                 bool is_sleep_safe = false);
+
+  void add_no_result_to_queue_with_set_internal_(const std::string &variable_name,
+                                                 const std::string &variable_name_to_send,
+                                                 const std::string &state_value, bool is_sleep_safe = false);
+
+#ifdef USE_NEXTION_TFT_UPLOAD
+#ifdef USE_ESP8266
+  WiFiClient *wifi_client_{nullptr};
+  BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
+  WiFiClient *get_wifi_client_();
+#endif
+
+  /**
+   * will request chunk_size chunks from the web server
+   * and send each to the nextion
+   * @param int contentLength Total size of the file
+   * @param uint32_t chunk_size
+   * @return true if success, false for failure.
+   */
+  int content_length_ = 0;
+  int tft_size_ = 0;
+  int upload_by_chunks_(HTTPClient *http, int range_start);
+
+  bool upload_with_range_(uint32_t range_start, uint32_t range_end);
+
+  /**
+   * start update tft file to nextion.
+   *
+   * @param const uint8_t *file_buf
+   * @param size_t buf_size
+   * @return true if success, false for failure.
+   */
+  bool upload_from_buffer_(const uint8_t *file_buf, size_t buf_size);
+  void upload_end_();
+
+#endif  // USE_NEXTION_TFT_UPLOAD
+
+  bool get_is_connected_() { return this->is_connected_; }
+
+  bool check_connect_();
+
+  std::vector<NextionComponentBase *> touch_;
+  std::vector<NextionComponentBase *> switchtype_;
+  std::vector<NextionComponentBase *> sensortype_;
+  std::vector<NextionComponentBase *> textsensortype_;
+  std::vector<NextionComponentBase *> binarysensortype_;
+  CallbackManager<void()> setup_callback_{};
+  CallbackManager<void()> sleep_callback_{};
+  CallbackManager<void()> wake_callback_{};
+
   optional<nextion_writer_t> writer_;
-  bool wait_for_ack_{true};
   float brightness_{1.0};
+
+  std::string device_model_;
+  std::string firmware_version_;
+  std::string serial_number_;
+  std::string flash_size_;
+
+  void remove_front_no_sensors_();
+
+#ifdef USE_NEXTION_TFT_UPLOAD
+  std::string tft_url_;
+  uint8_t *transfer_buffer_{nullptr};
+  size_t transfer_buffer_size_;
+  bool upload_first_chunk_sent_ = false;
+#endif
+
+#ifdef NEXTION_PROTOCOL_LOG
+  void print_queue_members_();
+#endif
+  void reset_(bool reset_nextion = true);
+
+  std::string command_data_;
+  bool is_connected_ = false;
+  uint32_t startup_override_ms_ = 8000;
+  uint32_t max_q_age_ms_ = 8000;
+  uint32_t started_ms_ = 0;
+  bool sent_setup_commands_ = false;
 };
-
-class NextionTouchComponent : public binary_sensor::BinarySensorInitiallyOff {
- public:
-  void set_page_id(uint8_t page_id) { page_id_ = page_id; }
-  void set_component_id(uint8_t component_id) { component_id_ = component_id; }
-  void process(uint8_t page_id, uint8_t component_id, bool on);
-
- protected:
-  uint8_t page_id_;
-  uint8_t component_id_;
-};
-
 }  // namespace nextion
 }  // namespace esphome

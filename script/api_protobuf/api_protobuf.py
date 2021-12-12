@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Python 3 script to automatically generate C++ classes for ESPHome's native API.
 
 It's pretty crappy spaghetti code, but it works.
@@ -40,7 +41,16 @@ d = descriptor.FileDescriptorSet.FromString(content)
 
 
 def indent_list(text, padding="  "):
-    return [padding + line for line in text.splitlines()]
+    lines = []
+    for line in text.splitlines():
+        if line == "":
+            p = ""
+        elif line.startswith("#ifdef") or line.startswith("#endif"):
+            p = ""
+        else:
+            p = padding
+        lines.append(p + line)
+    return lines
 
 
 def indent(text, padding="  "):
@@ -103,7 +113,7 @@ class TypeInfo:
 
     @property
     def class_member(self) -> str:
-        return f"{self.cpp_type} {self.field_name}{{{self.default_value}}};  // NOLINT"
+        return f"{self.cpp_type} {self.field_name}{{{self.default_value}}};"
 
     @property
     def decode_varint_content(self) -> str:
@@ -432,7 +442,7 @@ class SInt64Type(TypeInfo):
     decode_varint = "value.as_sint64()"
     encode_func = "encode_sin64"
 
-    def dump(self):
+    def dump(self, name):
         o = f'sprintf(buffer, "%ll", {name});\n'
         o += f"out.append(buffer);"
         return o
@@ -514,10 +524,10 @@ class RepeatedTypeInfo(TypeInfo):
 
     @property
     def encode_content(self):
-        return f"""\
-        for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{
-          buffer.{self._ti.encode_func}({self.number}, it, true);
-        }}"""
+        o = f"for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{\n"
+        o += f"  buffer.{self._ti.encode_func}({self.number}, it, true);\n"
+        o += f"}}"
+        return o
 
     @property
     def dump_content(self):
@@ -536,12 +546,13 @@ def build_enum_type(desc):
         out += f"  {v.name} = {v.number},\n"
     out += "};\n"
 
-    cpp = f"template<>\n"
-    cpp += f"const char *proto_enum_to_string<enums::{name}>(enums::{name} value) {{\n"
+    cpp = f"template<> const char *proto_enum_to_string<enums::{name}>(enums::{name} value) {{\n"
     cpp += f"  switch (value) {{\n"
     for v in desc.value:
-        cpp += f'    case enums::{v.name}: return "{v.name}";\n'
-    cpp += f'    default: return "UNKNOWN";\n'
+        cpp += f"    case enums::{v.name}:\n"
+        cpp += f'      return "{v.name}";\n'
+    cpp += f"    default:\n"
+    cpp += f'      return "UNKNOWN";\n'
     cpp += f"  }}\n"
     cpp += f"}}\n"
 
@@ -620,31 +631,52 @@ def build_message_type(desc):
         prot = "bool decode_64bit(uint32_t field_id, Proto64bit value) override;"
         protected_content.insert(0, prot)
 
-    o = f"void {desc.name}::encode(ProtoWriteBuffer buffer) const {{\n"
-    o += indent("\n".join(encode)) + "\n"
+    o = f"void {desc.name}::encode(ProtoWriteBuffer buffer) const {{"
+    if encode:
+        if len(encode) == 1 and len(encode[0]) + len(o) + 3 < 120:
+            o += f" {encode[0]} "
+        else:
+            o += "\n"
+            o += indent("\n".join(encode)) + "\n"
     o += "}\n"
     cpp += o
     prot = "void encode(ProtoWriteBuffer buffer) const override;"
     public_content.append(prot)
 
-    o = f"void {desc.name}::dump_to(std::string &out) const {{\n"
+    o = f"void {desc.name}::dump_to(std::string &out) const {{"
     if dump:
-        o += f"  char buffer[64];\n"
-        o += f'  out.append("{desc.name} {{\\n");\n'
-        o += indent("\n".join(dump)) + "\n"
-        o += f'  out.append("}}");\n'
+        if len(dump) == 1 and len(dump[0]) + len(o) + 3 < 120:
+            o += f" {dump[0]} "
+        else:
+            o += "\n"
+            o += f"  __attribute__((unused)) char buffer[64];\n"
+            o += f'  out.append("{desc.name} {{\\n");\n'
+            o += indent("\n".join(dump)) + "\n"
+            o += f'  out.append("}}");\n'
     else:
-        o += f'  out.append("{desc.name} {{}}");\n'
+        o2 = f'out.append("{desc.name} {{}}");'
+        if len(o) + len(o2) + 3 < 120:
+            o += f" {o2} "
+        else:
+            o += "\n"
+            o += f"  {o2}\n"
     o += "}\n"
+    cpp += f"#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     cpp += o
-    prot = "void dump_to(std::string &out) const override;"
+    cpp += f"#endif\n"
+    prot = "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
+    prot += "void dump_to(std::string &out) const override;\n"
+    prot += "#endif\n"
     public_content.append(prot)
 
     out = f"class {desc.name} : public ProtoMessage {{\n"
     out += " public:\n"
     out += indent("\n".join(public_content)) + "\n"
+    out += "\n"
     out += " protected:\n"
-    out += indent("\n".join(protected_content)) + "\n"
+    out += indent("\n".join(protected_content))
+    if len(protected_content) > 0:
+        out += "\n"
     out += "};\n"
     return out, cpp
 
@@ -746,7 +778,9 @@ def build_service_message_type(mt):
         hout += f"bool {func}(const {mt.name} &msg);\n"
         cout += f"bool {class_name}::{func}(const {mt.name} &msg) {{\n"
         if log:
+            cout += f"#ifdef HAS_PROTO_MESSAGE_DUMP\n"
             cout += f'  ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
+            cout += f"#endif\n"
         # cout += f'  this->set_nodelay({str(nodelay).lower()});\n'
         cout += f"  return this->send_message_<{mt.name}>(msg, {id_});\n"
         cout += f"}}\n"
@@ -760,7 +794,9 @@ def build_service_message_type(mt):
         case += f"{mt.name} msg;\n"
         case += f"msg.decode(msg_data, msg_size);\n"
         if log:
+            case += f"#ifdef HAS_PROTO_MESSAGE_DUMP\n"
             case += f'ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
+            case += f"#endif\n"
         case += f"this->{func}(msg);\n"
         if ifdef is not None:
             case += f"#endif\n"
@@ -794,7 +830,7 @@ cpp += """\
 namespace esphome {
 namespace api {
 
-static const char *TAG = "api.service";
+static const char *const TAG = "api.service";
 
 """
 
@@ -814,13 +850,13 @@ cases.sort()
 hpp += " protected:\n"
 hpp += f"  bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;\n"
 out = f"bool {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {{\n"
-out += f"  switch(msg_type) {{\n"
+out += f"  switch (msg_type) {{\n"
 for i, case in cases:
     c = f"case {i}: {{\n"
     c += indent(case) + "\n"
     c += f"}}"
     out += indent(c, "    ") + "\n"
-out += "    default: \n"
+out += "    default:\n"
 out += "      return false;\n"
 out += "  }\n"
 out += "  return true;\n"

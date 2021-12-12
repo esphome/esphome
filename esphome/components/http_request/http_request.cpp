@@ -1,10 +1,14 @@
+#ifdef USE_ARDUINO
+
 #include "http_request.h"
+#include "esphome/core/macros.h"
 #include "esphome/core/log.h"
+#include "esphome/components/network/util.h"
 
 namespace esphome {
 namespace http_request {
 
-static const char *TAG = "http_request";
+static const char *const TAG = "http_request";
 
 void HttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HTTP Request:");
@@ -13,8 +17,8 @@ void HttpRequestComponent::dump_config() {
 }
 
 void HttpRequestComponent::set_url(std::string url) {
-  this->url_ = url;
-  this->secure_ = url.compare(0, 6, "https:") == 0;
+  this->url_ = std::move(url);
+  this->secure_ = this->url_.compare(0, 6, "https:") == 0;
 
   if (!this->last_url_.empty() && this->url_ != this->last_url_) {
     // Close connection if url has been changed
@@ -25,17 +29,28 @@ void HttpRequestComponent::set_url(std::string url) {
 }
 
 void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> &response_triggers) {
+  if (!network::is_connected()) {
+    this->client_.end();
+    this->status_set_warning();
+    ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
+    return;
+  }
+
   bool begin_status = false;
   const String url = this->url_.c_str();
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   begin_status = this->client_.begin(url);
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
-#ifndef CLANG_TIDY
+#ifdef USE_ESP8266
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
+  this->client_.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+#elif ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
   this->client_.setFollowRedirects(true);
-  this->client_.setRedirectLimit(3);
-  begin_status = this->client_.begin(*this->get_wifi_client_(), url);
 #endif
+#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
+  this->client_.setRedirectLimit(3);
+#endif
+  begin_status = this->client_.begin(*this->get_wifi_client_(), url);
 #endif
 
   if (!begin_status) {
@@ -74,19 +89,21 @@ void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> 
   ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_.c_str(), http_code);
 }
 
-#ifdef ARDUINO_ARCH_ESP8266
-WiFiClient *HttpRequestComponent::get_wifi_client_() {
+#ifdef USE_ESP8266
+std::shared_ptr<WiFiClient> HttpRequestComponent::get_wifi_client_() {
+#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
   if (this->secure_) {
     if (this->wifi_client_secure_ == nullptr) {
-      this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();
+      this->wifi_client_secure_ = std::make_shared<BearSSL::WiFiClientSecure>();
       this->wifi_client_secure_->setInsecure();
       this->wifi_client_secure_->setBufferSizes(512, 512);
     }
     return this->wifi_client_secure_;
   }
+#endif
 
   if (this->wifi_client_ == nullptr) {
-    this->wifi_client_ = new WiFiClient();
+    this->wifi_client_ = std::make_shared<WiFiClient>();
   }
   return this->wifi_client_;
 }
@@ -104,3 +121,5 @@ const char *HttpRequestComponent::get_string() {
 
 }  // namespace http_request
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

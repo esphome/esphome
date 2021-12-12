@@ -27,18 +27,18 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield spi.register_spi_device(var, config)
-    yield display.register_display(var, config)
+    await cg.register_component(var, config)
+    await spi.register_spi_device(var, config)
+    await display.register_display(var, config)
 
     cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
     cg.add(var.set_reverse(config[CONF_REVERSE_ENABLE]))
 
     if CONF_LAMBDA in config:
-        lambda_ = yield cg.process_lambda(
+        lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(MAX7219ComponentRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))

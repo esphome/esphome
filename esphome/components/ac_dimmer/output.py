@@ -19,31 +19,34 @@ DIM_METHODS = {
 CONF_GATE_PIN = "gate_pin"
 CONF_ZERO_CROSS_PIN = "zero_cross_pin"
 CONF_INIT_WITH_HALF_CYCLE = "init_with_half_cycle"
-CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
-    {
-        cv.Required(CONF_ID): cv.declare_id(AcDimmer),
-        cv.Required(CONF_GATE_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Required(CONF_ZERO_CROSS_PIN): pins.internal_gpio_input_pin_schema,
-        cv.Optional(CONF_INIT_WITH_HALF_CYCLE, default=True): cv.boolean,
-        cv.Optional(CONF_METHOD, default="leading pulse"): cv.enum(
-            DIM_METHODS, upper=True, space="_"
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    output.FLOAT_OUTPUT_SCHEMA.extend(
+        {
+            cv.Required(CONF_ID): cv.declare_id(AcDimmer),
+            cv.Required(CONF_GATE_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Required(CONF_ZERO_CROSS_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Optional(CONF_INIT_WITH_HALF_CYCLE, default=True): cv.boolean,
+            cv.Optional(CONF_METHOD, default="leading pulse"): cv.enum(
+                DIM_METHODS, upper=True, space="_"
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.only_with_arduino,
+)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
 
     # override default min power to 10%
     if CONF_MIN_POWER not in config:
         config[CONF_MIN_POWER] = 0.1
-    yield output.register_output(var, config)
+    await output.register_output(var, config)
 
-    pin = yield cg.gpio_pin_expression(config[CONF_GATE_PIN])
+    pin = await cg.gpio_pin_expression(config[CONF_GATE_PIN])
     cg.add(var.set_gate_pin(pin))
-    pin = yield cg.gpio_pin_expression(config[CONF_ZERO_CROSS_PIN])
+    pin = await cg.gpio_pin_expression(config[CONF_ZERO_CROSS_PIN])
     cg.add(var.set_zero_cross_pin(pin))
     cg.add(var.set_init_with_half_cycle(config[CONF_INIT_WITH_HALF_CYCLE]))
     cg.add(var.set_method(config[CONF_METHOD]))

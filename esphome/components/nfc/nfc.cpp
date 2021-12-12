@@ -1,15 +1,16 @@
 #include "nfc.h"
+#include <cstdio>
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace nfc {
 
-static const char *TAG = "nfc";
+static const char *const TAG = "nfc";
 
 std::string format_uid(std::vector<uint8_t> &uid) {
   char buf[(uid.size() * 2) + uid.size() - 1];
   int offset = 0;
-  for (uint8_t i = 0; i < uid.size(); i++) {
+  for (size_t i = 0; i < uid.size(); i++) {
     const char *format = "%02X";
     if (i + 1 < uid.size())
       format = "%02X-";
@@ -21,7 +22,7 @@ std::string format_uid(std::vector<uint8_t> &uid) {
 std::string format_bytes(std::vector<uint8_t> &bytes) {
   char buf[(bytes.size() * 2) + bytes.size() - 1];
   int offset = 0;
-  for (uint8_t i = 0; i < bytes.size(); i++) {
+  for (size_t i = 0; i < bytes.size(); i++) {
     const char *format = "%02X";
     if (i + 1 < bytes.size())
       format = "%02X ";

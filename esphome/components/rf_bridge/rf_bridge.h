@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
@@ -24,6 +26,7 @@ static const uint8_t RF_CODE_LEARN_KO_NEW = 0xAA;
 static const uint8_t RF_CODE_LEARN_OK_NEW = 0xAB;
 static const uint8_t RF_CODE_RFOUT_BUCKET = 0xB0;
 static const uint8_t RF_CODE_RFIN_BUCKET = 0xB1;
+static const uint8_t RF_CODE_BEEP = 0xC0;
 static const uint8_t RF_CODE_STOP = 0x55;
 static const uint8_t RF_DEBOUNCE = 200;
 
@@ -51,17 +54,19 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
     this->advanced_data_callback_.add(std::move(callback));
   }
   void send_code(RFBridgeData data);
-  void send_advanced_code(RFBridgeAdvancedData data);
+  void send_advanced_code(const RFBridgeAdvancedData &data);
   void learn();
   void start_advanced_sniffing();
   void stop_advanced_sniffing();
-  void send_raw(std::string code);
+  void start_bucket_sniffing();
+  void send_raw(const std::string &code);
+  void beep(uint16_t ms);
 
  protected:
   void ack_();
   void decode_();
   bool parse_bridge_byte_(uint8_t byte);
-  void write_byte_str_(std::string codes);
+  void write_byte_str_(const std::string &codes);
 
   std::vector<uint8_t> rx_buffer_;
   uint32_t last_bridge_byte_{0};
@@ -80,7 +85,7 @@ class RFBridgeReceivedCodeTrigger : public Trigger<RFBridgeData> {
 class RFBridgeReceivedAdvancedCodeTrigger : public Trigger<RFBridgeAdvancedData> {
  public:
   explicit RFBridgeReceivedAdvancedCodeTrigger(RFBridgeComponent *parent) {
-    parent->add_on_advanced_code_received_callback([this](RFBridgeAdvancedData data) { this->trigger(data); });
+    parent->add_on_advanced_code_received_callback([this](const RFBridgeAdvancedData &data) { this->trigger(data); });
   }
 };
 
@@ -154,12 +159,33 @@ template<typename... Ts> class RFBridgeStopAdvancedSniffingAction : public Actio
   RFBridgeComponent *parent_;
 };
 
+template<typename... Ts> class RFBridgeStartBucketSniffingAction : public Action<Ts...> {
+ public:
+  RFBridgeStartBucketSniffingAction(RFBridgeComponent *parent) : parent_(parent) {}
+
+  void play(Ts... x) { this->parent_->start_bucket_sniffing(); }
+
+ protected:
+  RFBridgeComponent *parent_;
+};
+
 template<typename... Ts> class RFBridgeSendRawAction : public Action<Ts...> {
  public:
   RFBridgeSendRawAction(RFBridgeComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, raw)
 
   void play(Ts... x) { this->parent_->send_raw(this->raw_.value(x...)); }
+
+ protected:
+  RFBridgeComponent *parent_;
+};
+
+template<typename... Ts> class RFBridgeBeepAction : public Action<Ts...> {
+ public:
+  RFBridgeBeepAction(RFBridgeComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(uint16_t, duration)
+
+  void play(Ts... x) { this->parent_->beep(this->duration_.value(x...)); }
 
  protected:
   RFBridgeComponent *parent_;

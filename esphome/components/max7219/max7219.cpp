@@ -1,11 +1,12 @@
 #include "max7219.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace max7219 {
 
-static const char *TAG = "max7219";
+static const char *const TAG = "max7219";
 
 static const uint8_t MAX7219_REGISTER_NOOP = 0x00;
 static const uint8_t MAX7219_REGISTER_DECODE_MODE = 0x09;
@@ -41,7 +42,7 @@ const uint8_t MAX7219_ASCII_TO_RAW[95] PROGMEM = {
     0b01011111,            // '6', ord 0x36
     0b01110000,            // '7', ord 0x37
     0b01111111,            // '8', ord 0x38
-    0b01110011,            // '9', ord 0x39
+    0b01111011,            // '9', ord 0x39
     0b01001000,            // ':', ord 0x3A
     0b01011000,            // ';', ord 0x3B
     MAX7219_UNKNOWN_CHAR,  // '<', ord 0x3C
@@ -117,7 +118,7 @@ float MAX7219Component::get_setup_priority() const { return setup_priority::PROC
 void MAX7219Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MAX7219...");
   this->spi_setup();
-  this->buffer_ = new uint8_t[this->num_chips_ * 8];
+  this->buffer_ = new uint8_t[this->num_chips_ * 8];  // NOLINT
   for (uint8_t i = 0; i < this->num_chips_ * 8; i++)
     this->buffer_[i] = 0;
 
@@ -172,7 +173,7 @@ uint8_t MAX7219Component::print(uint8_t start_pos, const char *str) {
   for (; *str != '\0'; str++) {
     uint8_t data = MAX7219_UNKNOWN_CHAR;
     if (*str >= ' ' && *str <= '~')
-      data = pgm_read_byte(&MAX7219_ASCII_TO_RAW[*str - ' ']);
+      data = progmem_read_byte(&MAX7219_ASCII_TO_RAW[*str - ' ']);
 
     if (data == MAX7219_UNKNOWN_CHAR) {
       ESP_LOGW(TAG, "Encountered character '%c' with no MAX7219 representation while translating string!", *str);

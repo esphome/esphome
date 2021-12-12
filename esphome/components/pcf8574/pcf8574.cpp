@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pcf8574 {
 
-static const char *TAG = "pcf8574";
+static const char *const TAG = "pcf8574";
 
 void PCF8574Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PCF8574...");
@@ -38,20 +38,15 @@ void PCF8574Component::digital_write(uint8_t pin, bool value) {
 
   this->write_gpio_();
 }
-void PCF8574Component::pin_mode(uint8_t pin, uint8_t mode) {
-  switch (mode) {
-    case PCF8574_INPUT:
-      // Clear mode mask bit
-      this->mode_mask_ &= ~(1 << pin);
-      // Write GPIO to enable input mode
-      this->write_gpio_();
-      break;
-    case PCF8574_OUTPUT:
-      // Set mode mask bit
-      this->mode_mask_ |= 1 << pin;
-      break;
-    default:
-      break;
+void PCF8574Component::pin_mode(uint8_t pin, gpio::Flags flags) {
+  if (flags == gpio::FLAG_INPUT) {
+    // Clear mode mask bit
+    this->mode_mask_ &= ~(1 << pin);
+    // Write GPIO to enable input mode
+    this->write_gpio_();
+  } else if (flags == gpio::FLAG_OUTPUT) {
+    // Set mode mask bit
+    this->mode_mask_ |= 1 << pin;
   }
 }
 bool PCF8574Component::read_gpio_() {
@@ -87,7 +82,7 @@ bool PCF8574Component::write_gpio_() {
   uint8_t data[2];
   data[0] = value;
   data[1] = value >> 8;
-  if (!this->write_bytes_raw(data, this->pcf8575_ ? 2 : 1)) {
+  if (this->write(data, this->pcf8575_ ? 2 : 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return false;
   }
@@ -97,12 +92,15 @@ bool PCF8574Component::write_gpio_() {
 }
 float PCF8574Component::get_setup_priority() const { return setup_priority::IO; }
 
-void PCF8574GPIOPin::setup() { this->pin_mode(this->mode_); }
+void PCF8574GPIOPin::setup() { pin_mode(flags_); }
+void PCF8574GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool PCF8574GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void PCF8574GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-void PCF8574GPIOPin::pin_mode(uint8_t mode) { this->parent_->pin_mode(this->pin_, mode); }
-PCF8574GPIOPin::PCF8574GPIOPin(PCF8574Component *parent, uint8_t pin, uint8_t mode, bool inverted)
-    : GPIOPin(pin, mode, inverted), parent_(parent) {}
+std::string PCF8574GPIOPin::dump_summary() const {
+  char buffer[32];
+  snprintf(buffer, sizeof(buffer), "%u via PCF8574", pin_);
+  return buffer;
+}
 
 }  // namespace pcf8574
 }  // namespace esphome

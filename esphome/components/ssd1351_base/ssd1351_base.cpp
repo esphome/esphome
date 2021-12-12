@@ -5,10 +5,8 @@
 namespace esphome {
 namespace ssd1351_base {
 
-static const char *TAG = "ssd1351";
+static const char *const TAG = "ssd1351";
 
-static const uint16_t BLACK = 0;
-static const uint16_t WHITE = 0xffff;
 static const uint16_t SSD1351_COLORMASK = 0xffff;
 static const uint8_t SSD1351_MAX_CONTRAST = 15;
 static const uint8_t SSD1351_BYTESPERPIXEL = 2;
@@ -87,9 +85,9 @@ void SSD1351::setup() {
   this->data(0x80);
   this->data(0xC8);
   set_brightness(this->brightness_);
-  this->fill(BLACK);  // clear display - ensures we do not see garbage at power-on
-  this->display();    // ...write buffer, which actually clears the display's memory
-  this->turn_on();    // display ON
+  this->fill(Color::BLACK);  // clear display - ensures we do not see garbage at power-on
+  this->display();           // ...write buffer, which actually clears the display's memory
+  this->turn_on();           // display ON
 }
 void SSD1351::display() {
   this->command(SSD1351_SETCOLUMN);  // set column address

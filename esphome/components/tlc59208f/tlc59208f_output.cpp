@@ -1,11 +1,12 @@
 #include "tlc59208f_output.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace tlc59208f {
 
-static const char *TAG = "tlc59208f";
+static const char *const TAG = "tlc59208f";
 
 // * marks register defaults
 // 0*: Register auto increment disabled, 1: Register auto increment enabled
@@ -75,7 +76,7 @@ void TLC59208FOutput::setup() {
   ESP_LOGV(TAG, "  Resetting all devices on the bus...");
 
   // Reset all devices on the bus
-  if (!this->parent_->write_byte(TLC59208F_SWRST_ADDR >> 1, TLC59208F_SWRST_SEQ[0], TLC59208F_SWRST_SEQ[1])) {
+  if (this->bus_->write(TLC59208F_SWRST_ADDR >> 1, TLC59208F_SWRST_SEQ, 2) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "RESET failed");
     this->mark_failed();
     return;
@@ -137,11 +138,11 @@ void TLC59208FOutput::loop() {
   this->update_ = false;
 }
 
-TLC59208FChannel *TLC59208FOutput::create_channel(uint8_t channel) {
-  this->min_channel_ = std::min(this->min_channel_, channel);
-  this->max_channel_ = std::max(this->max_channel_, channel);
-  auto *c = new TLC59208FChannel(this, channel);
-  return c;
+void TLC59208FOutput::register_channel(TLC59208FChannel *channel) {
+  auto c = channel->channel_;
+  this->min_channel_ = std::min(this->min_channel_, c);
+  this->max_channel_ = std::max(this->max_channel_, c);
+  channel->set_parent(this);
 }
 
 void TLC59208FChannel::write_state(float state) {

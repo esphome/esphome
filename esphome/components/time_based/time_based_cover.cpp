@@ -1,10 +1,11 @@
 #include "time_based_cover.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace time_based {
 
-static const char *TAG = "time_based.cover";
+static const char *const TAG = "time_based.cover";
 
 using namespace esphome::cover;
 
@@ -51,6 +52,7 @@ float TimeBasedCover::get_setup_priority() const { return setup_priority::DATA; 
 CoverTraits TimeBasedCover::get_traits() {
   auto traits = CoverTraits();
   traits.set_supports_position(true);
+  traits.set_supports_toggle(true);
   traits.set_is_assumed_state(this->assumed_state_);
   return traits;
 }
@@ -58,6 +60,20 @@ void TimeBasedCover::control(const CoverCall &call) {
   if (call.get_stop()) {
     this->start_direction_(COVER_OPERATION_IDLE);
     this->publish_state();
+  }
+  if (call.get_toggle().has_value()) {
+    if (this->current_operation != COVER_OPERATION_IDLE) {
+      this->start_direction_(COVER_OPERATION_IDLE);
+      this->publish_state();
+    } else {
+      if (this->position == COVER_CLOSED || this->last_operation_ == COVER_OPERATION_CLOSING) {
+        this->target_position_ = COVER_OPEN;
+        this->start_direction_(COVER_OPERATION_OPENING);
+      } else {
+        this->target_position_ = COVER_CLOSED;
+        this->start_direction_(COVER_OPERATION_CLOSING);
+      }
+    }
   }
   if (call.get_position().has_value()) {
     auto pos = *call.get_position();
@@ -104,9 +120,11 @@ void TimeBasedCover::start_direction_(CoverOperation dir) {
       trig = this->stop_trigger_;
       break;
     case COVER_OPERATION_OPENING:
+      this->last_operation_ = dir;
       trig = this->open_trigger_;
       break;
     case COVER_OPERATION_CLOSING:
+      this->last_operation_ = dir;
       trig = this->close_trigger_;
       break;
     default:
@@ -115,13 +133,13 @@ void TimeBasedCover::start_direction_(CoverOperation dir) {
 
   this->current_operation = dir;
 
-  this->stop_prev_trigger_();
-  trig->trigger();
-  this->prev_command_trigger_ = trig;
-
   const uint32_t now = millis();
   this->start_dir_time_ = now;
   this->last_recompute_time_ = now;
+
+  this->stop_prev_trigger_();
+  trig->trigger();
+  this->prev_command_trigger_ = trig;
 }
 void TimeBasedCover::recompute_position_() {
   if (this->current_operation == COVER_OPERATION_IDLE)

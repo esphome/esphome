@@ -5,7 +5,7 @@
 namespace esphome {
 namespace speed {
 
-static const char *TAG = "speed.fan";
+static const char *const TAG = "speed.fan";
 
 void SpeedFan::dump_config() {
   ESP_LOGCONFIG(TAG, "Fan '%s':", this->fan_->get_name().c_str());
@@ -56,7 +56,10 @@ void SpeedFan::loop() {
     ESP_LOGD(TAG, "Setting reverse direction: %s", ONOFF(enable));
   }
 }
-float SpeedFan::get_setup_priority() const { return setup_priority::DATA; }
+
+// We need a higher priority than the FanState component to make sure that the traits are set
+// when that component sets itself up.
+float SpeedFan::get_setup_priority() const { return fan_->get_setup_priority() + 1.0f; }
 
 }  // namespace speed
 }  // namespace esphome

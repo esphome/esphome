@@ -16,13 +16,13 @@ CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
-    yield light.register_light(var, config)
+    await light.register_light(var, config)
 
-    red = yield cg.get_variable(config[CONF_RED])
+    red = await cg.get_variable(config[CONF_RED])
     cg.add(var.set_red(red))
-    green = yield cg.get_variable(config[CONF_GREEN])
+    green = await cg.get_variable(config[CONF_GREEN])
     cg.add(var.set_green(green))
-    blue = yield cg.get_variable(config[CONF_BLUE])
+    blue = await cg.get_variable(config[CONF_BLUE])
     cg.add(var.set_blue(blue))

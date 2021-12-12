@@ -1,5 +1,8 @@
 #include "pn532.h"
+
+#include <memory>
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 // Based on:
 // - https://cdn-shop.adafruit.com/datasheets/PN532C106_Application+Note_v1.2.pdf
@@ -9,7 +12,7 @@
 namespace esphome {
 namespace pn532 {
 
-static const char *TAG = "pn532";
+static const char *const TAG = "pn532";
 
 void PN532::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PN532...");
@@ -49,7 +52,7 @@ void PN532::setup() {
   }
 
   // Set up SAM (secure access module)
-  uint8_t sam_timeout = std::min(255u, this->update_interval_ / 50);
+  uint8_t sam_timeout = std::min<uint8_t>(255u, this->update_interval_ / 50);
   if (!this->write_command_({
           PN532_COMMAND_SAMCONFIGURATION,
           0x01,         // normal mode
@@ -103,6 +106,11 @@ void PN532::loop() {
 
   if (!success) {
     // Something failed
+    if (!this->current_uid_.empty()) {
+      auto tag = make_unique<nfc::NfcTag>(this->current_uid_);
+      for (auto *trigger : this->triggers_ontagremoved_)
+        trigger->process(tag);
+    }
     this->current_uid_ = {};
     this->turn_off_rf_();
     return;
@@ -111,6 +119,11 @@ void PN532::loop() {
   uint8_t num_targets = read[0];
   if (num_targets != 1) {
     // no tags found or too many
+    if (!this->current_uid_.empty()) {
+      auto tag = make_unique<nfc::NfcTag>(this->current_uid_);
+      for (auto *trigger : this->triggers_ontagremoved_)
+        trigger->process(tag);
+    }
     this->current_uid_ = {};
     this->turn_off_rf_();
     return;
@@ -132,7 +145,7 @@ void PN532::loop() {
 
   if (nfcid.size() == this->current_uid_.size()) {
     bool same_uid = false;
-    for (uint8_t i = 0; i < nfcid.size(); i++)
+    for (size_t i = 0; i < nfcid.size(); i++)
       same_uid |= nfcid[i] == this->current_uid_[i];
     if (same_uid)
       return;
@@ -142,16 +155,16 @@ void PN532::loop() {
 
   if (next_task_ == READ) {
     auto tag = this->read_tag_(nfcid);
-    for (auto *trigger : this->triggers_)
+    for (auto *trigger : this->triggers_ontag_)
       trigger->process(tag);
 
     if (report) {
       ESP_LOGD(TAG, "Found new tag '%s'", nfc::format_uid(nfcid).c_str());
       if (tag->has_ndef_message()) {
-        auto message = tag->get_ndef_message();
-        auto records = message->get_records();
+        const auto &message = tag->get_ndef_message();
+        const auto &records = message->get_records();
         ESP_LOGD(TAG, "  NDEF formatted records:");
-        for (auto &record : records) {
+        for (const auto &record : records) {
           ESP_LOGD(TAG, "    %s - %s", record->get_type().c_str(), record->get_payload().c_str());
         }
       }
@@ -260,7 +273,7 @@ void PN532::turn_off_rf_() {
   });
 }
 
-nfc::NfcTag *PN532::read_tag_(std::vector<uint8_t> &uid) {
+std::unique_ptr<nfc::NfcTag> PN532::read_tag_(std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
 
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
@@ -271,9 +284,9 @@ nfc::NfcTag *PN532::read_tag_(std::vector<uint8_t> &uid) {
     return this->read_mifare_ultralight_tag_(uid);
   } else if (type == nfc::TAG_TYPE_UNKNOWN) {
     ESP_LOGV(TAG, "Cannot determine tag type");
-    return new nfc::NfcTag(uid);
+    return make_unique<nfc::NfcTag>(uid);
   } else {
-    return new nfc::NfcTag(uid);
+    return make_unique<nfc::NfcTag>(uid);
   }
 }
 
@@ -354,7 +367,7 @@ bool PN532BinarySensor::process(std::vector<uint8_t> &data) {
   if (data.size() != this->uid_.size())
     return false;
 
-  for (uint8_t i = 0; i < data.size(); i++) {
+  for (size_t i = 0; i < data.size(); i++) {
     if (data[i] != this->uid_[i])
       return false;
   }
@@ -363,7 +376,9 @@ bool PN532BinarySensor::process(std::vector<uint8_t> &data) {
   this->found_ = true;
   return true;
 }
-void PN532OnTagTrigger::process(nfc::NfcTag *tag) { this->trigger(nfc::format_uid(tag->get_uid()), *tag); }
+void PN532OnTagTrigger::process(const std::unique_ptr<nfc::NfcTag> &tag) {
+  this->trigger(nfc::format_uid(tag->get_uid()), *tag);
+}
 
 }  // namespace pn532
 }  // namespace esphome

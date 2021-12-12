@@ -9,7 +9,7 @@
 namespace esphome {
 namespace servo {
 
-extern uint32_t global_servo_id;
+extern uint32_t global_servo_id;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 class Servo : public Component {
  public:
@@ -24,7 +24,7 @@ class Servo : public Component {
   void setup() override {
     float v;
     if (this->restore_) {
-      this->rtc_ = global_preferences.make_preference<float>(global_servo_id);
+      this->rtc_ = global_preferences->make_preference<float>(global_servo_id);
       global_servo_id++;
       if (this->rtc_.load(&v)) {
         this->output_->set_level(v);

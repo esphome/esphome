@@ -9,7 +9,7 @@ namespace rc522 {
 
 static const uint8_t WAIT_I_RQ = 0x30;  // RxIRq and IdleIRq
 
-static const char *TAG = "rc522";
+static const char *const TAG = "rc522";
 
 static const uint8_t RESET_COUNT = 5;
 
@@ -28,7 +28,7 @@ std::string format_buffer(uint8_t *b, uint8_t len) {
 std::string format_uid(std::vector<uint8_t> &uid) {
   char buf[32];
   int offset = 0;
-  for (uint8_t i = 0; i < uid.size(); i++) {
+  for (size_t i = 0; i < uid.size(); i++) {
     const char *format = "%02X";
     if (i + 1 < uid.size())
       format = "%02X-";
@@ -43,14 +43,14 @@ void RC522::setup() {
 
   // First set the resetPowerDownPin as digital input, to check the MFRC522 power down mode.
   if (reset_pin_ != nullptr) {
-    reset_pin_->pin_mode(INPUT);
+    reset_pin_->pin_mode(gpio::FLAG_INPUT);
 
-    if (reset_pin_->digital_read() == LOW) {  // The MFRC522 chip is in power down mode.
+    if (!reset_pin_->digital_read()) {  // The MFRC522 chip is in power down mode.
       ESP_LOGV(TAG, "Power down mode detected. Hard resetting...");
-      reset_pin_->pin_mode(OUTPUT);     // Now set the resetPowerDownPin as digital output.
-      reset_pin_->digital_write(LOW);   // Make sure we have a clean LOW state.
+      reset_pin_->pin_mode(gpio::FLAG_OUTPUT);  // Now set the resetPowerDownPin as digital output.
+      reset_pin_->digital_write(false);         // Make sure we have a clean LOW state.
       delayMicroseconds(2);             // 8.8.1 Reset timing requirements says about 100ns. Let us be generous: 2μsl
-      reset_pin_->digital_write(HIGH);  // Exit power down mode. This triggers a hard reset.
+      reset_pin_->digital_write(true);  // Exit power down mode. This triggers a hard reset.
       // Section 8.8.2 in the datasheet says the oscillator start-up time is the start up time of the crystal + 37,74μs.
       // Let us be generous: 50ms.
       reset_timeout_ = millis();
@@ -162,7 +162,7 @@ void RC522::loop() {
         ESP_LOGW(TAG, "CMD_REQA -> Not OK %d", status);
         state_ = STATE_DONE;
       } else if (back_length_ != 2) {  // || *valid_bits_ != 0) {  // ATQA must be exactly 16 bits.
-        ESP_LOGW(TAG, "CMD_REQA -> OK, but unexpacted back_length_ of %d", back_length_);
+        ESP_LOGW(TAG, "CMD_REQA -> OK, but unexpected back_length_ of %d", back_length_);
         state_ = STATE_DONE;
       } else {
         state_ = STATE_READ_SERIAL;
@@ -470,7 +470,7 @@ RC522::StatusCode RC522::await_crc_() {
     return STATUS_WAITING;
 
   ESP_LOGD(TAG, "pcd_calculate_crc_() TIMEOUT");
-  // 89ms passed and nothing happend. Communication with the MFRC522 might be down.
+  // 89ms passed and nothing happened. Communication with the MFRC522 might be down.
   return STATUS_TIMEOUT;
 }
 
@@ -479,7 +479,7 @@ bool RC522BinarySensor::process(std::vector<uint8_t> &data) {
   if (data.size() != this->uid_.size())
     result = false;
   else {
-    for (uint8_t i = 0; i < data.size(); i++) {
+    for (size_t i = 0; i < data.size(); i++) {
       if (data[i] != this->uid_[i]) {
         result = false;
         break;

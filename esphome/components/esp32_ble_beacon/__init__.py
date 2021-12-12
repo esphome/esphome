@@ -1,8 +1,10 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TYPE, CONF_UUID, ESP_PLATFORM_ESP32
+from esphome.const import CONF_ID, CONF_TYPE, CONF_UUID
+from esphome.core import CORE
+from esphome.components.esp32 import add_idf_sdkconfig_option
 
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+DEPENDENCIES = ["esp32"]
 CONFLICTS_WITH = ["esp32_ble_tracker"]
 
 esp32_ble_beacon_ns = cg.esphome_ns.namespace("esp32_ble_beacon")
@@ -22,12 +24,13 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def to_code(config):
+async def to_code(config):
     uuid = config[CONF_UUID].hex
-    uuid_arr = [
-        cg.RawExpression("0x{}".format(uuid[i : i + 2])) for i in range(0, len(uuid), 2)
-    ]
+    uuid_arr = [cg.RawExpression(f"0x{uuid[i:i + 2]}") for i in range(0, len(uuid), 2)]
     var = cg.new_Pvariable(config[CONF_ID], uuid_arr)
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
     cg.add(var.set_major(config[CONF_MAJOR]))
     cg.add(var.set_minor(config[CONF_MINOR]))
+
+    if CORE.using_esp_idf:
+        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)

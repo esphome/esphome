@@ -44,14 +44,15 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_STATE_SAVE_INTERVAL, default="6hours"
         ): cv.positive_time_period_minutes,
-    }
+    },
+    cv.only_with_arduino,
 ).extend(i2c.i2c_device_schema(0x76))
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_temperature_offset(config[CONF_TEMPERATURE_OFFSET]))
     cg.add(var.set_iaq_mode(config[CONF_IAQ_MODE]))
@@ -60,5 +61,8 @@ def to_code(config):
         var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)
     )
 
-    cg.add_define("USING_BSEC")
-    cg.add_library("BSEC Software Library", "1.6.1480")
+    # Although this component does not use SPI, the BSEC library requires the SPI library
+    cg.add_library("SPI", None)
+
+    cg.add_define("USE_BSEC")
+    cg.add_library("boschsensortec/BSEC Software Library", "1.6.1480")

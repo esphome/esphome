@@ -1,11 +1,11 @@
 #include "sim800l.h"
 #include "esphome/core/log.h"
-#include <string.h>
+#include <cstring>
 
 namespace esphome {
 namespace sim800l {
 
-static const char* TAG = "sim800l";
+static const char *const TAG = "sim800l";
 
 const char ASCII_CR = 0x0D;
 const char ASCII_LF = 0x0A;
@@ -40,7 +40,7 @@ void Sim800LComponent::update() {
   }
 }
 
-void Sim800LComponent::send_cmd_(std::string message) {
+void Sim800LComponent::send_cmd_(const std::string &message) {
   ESP_LOGV(TAG, "S: %s - %d", message.c_str(), this->state_);
   this->watch_dog_ = 0;
   this->write_str(message.c_str());
@@ -128,7 +128,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       if (message.compare(0, 5, "+CSQ:") == 0) {
         size_t comma = message.find(',', 6);
         if (comma != 6) {
-          this->rssi_ = strtol(message.substr(6, comma - 6).c_str(), nullptr, 10);
+          this->rssi_ = parse_number<int>(message.substr(6, comma - 6)).value_or(0);
           ESP_LOGD(TAG, "RSSI: %d", this->rssi_);
         }
       }
@@ -146,7 +146,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         while (end != start) {
           item++;
           if (item == 1) {  // Slot Index
-            this->parse_index_ = strtol(message.substr(start, end - start).c_str(), nullptr, 10);
+            this->parse_index_ = parse_number<uint8_t>(message.substr(start, end - start)).value_or(0);
           }
           // item 2 = STATUS, usually "REC UNERAD"
           if (item == 3) {  // recipient
@@ -268,7 +268,7 @@ void Sim800LComponent::loop() {
   }
 }
 
-void Sim800LComponent::send_sms(std::string recipient, std::string message) {
+void Sim800LComponent::send_sms(const std::string &recipient, const std::string &message) {
   ESP_LOGD(TAG, "Sending to %s: %s", recipient.c_str(), message.c_str());
   this->recipient_ = recipient;
   this->outgoing_message_ = message;
@@ -279,7 +279,7 @@ void Sim800LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SIM800L:");
   ESP_LOGCONFIG(TAG, "  RSSI: %d dB", this->rssi_);
 }
-void Sim800LComponent::dial(std::string recipient) {
+void Sim800LComponent::dial(const std::string &recipient) {
   ESP_LOGD(TAG, "Dialing %s", recipient.c_str());
   this->recipient_ = recipient;
   this->dial_pending_ = true;

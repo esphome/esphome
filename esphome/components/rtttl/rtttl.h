@@ -7,8 +7,6 @@
 namespace esphome {
 namespace rtttl {
 
-extern uint32_t global_rtttl_id;
-
 class Rtttl : public Component {
  public:
   void set_output(output::FloatOutput *output) { output_ = output; }

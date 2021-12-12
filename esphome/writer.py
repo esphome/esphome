@@ -2,17 +2,13 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Union
 
 from esphome.config import iter_components
 from esphome.const import (
-    CONF_BOARD_FLASH_MODE,
-    CONF_ESPHOME,
-    CONF_PLATFORMIO_OPTIONS,
     HEADER_FILE_EXTENSIONS,
     SOURCE_FILE_EXTENSIONS,
     __version__,
-    ARDUINO_VERSION_ESP8266,
     ENV_NOGITIGNORE,
 )
 from esphome.core import CORE, EsphomeError
@@ -25,7 +21,6 @@ from esphome.helpers import (
     get_bool_env,
 )
 from esphome.storage_json import StorageJSON, storage_path
-from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 from esphome import loader
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,10 +38,8 @@ CPP_BASE_FORMAT = (
     """"
 
 void setup() {
-  // ===== DO NOT EDIT ANYTHING BELOW THIS LINE =====
   """,
     """
-  // ========= YOU CAN EDIT AFTER THIS LINE =========
   App.setup();
 }
 
@@ -64,10 +57,8 @@ lib_deps =
 build_flags =
 upload_flags =
 
-; ===== DO NOT EDIT ANYTHING BELOW THIS LINE =====
 """,
     """
-; ========= YOU CAN EDIT AFTER THIS LINE =========
 
 """,
 )
@@ -98,7 +89,7 @@ def get_include_text():
             includes = "\n".join(includes)
         if not includes:
             continue
-        include_text += includes + "\n"
+        include_text += f"{includes}\n"
     return include_text
 
 
@@ -107,70 +98,11 @@ def replace_file_content(text, pattern, repl):
     return content_new, count
 
 
-def migrate_src_version_0_to_1():
-    main_cpp = CORE.relative_build_path("src", "main.cpp")
-    if not os.path.isfile(main_cpp):
-        return
-
-    content = read_file(main_cpp)
-
-    if CPP_INCLUDE_BEGIN in content:
-        return
-
-    content, count = replace_file_content(content, r"\s*delay\((?:16|20)\);", "")
-    if count != 0:
-        _LOGGER.info(
-            "Migration: Removed %s occurrence of 'delay(16);' in %s", count, main_cpp
-        )
-
-    content, count = replace_file_content(content, r"using namespace esphomelib;", "")
-    if count != 0:
-        _LOGGER.info(
-            "Migration: Removed %s occurrence of 'using namespace esphomelib;' "
-            "in %s",
-            count,
-            main_cpp,
-        )
-
-    if CPP_INCLUDE_BEGIN not in content:
-        content, count = replace_file_content(
-            content,
-            r'#include "esphomelib/application.h"',
-            CPP_INCLUDE_BEGIN + "\n" + CPP_INCLUDE_END,
-        )
-        if count == 0:
-            _LOGGER.error(
-                "Migration failed. ESPHome 1.10.0 needs to have a new auto-generated "
-                "include section in the %s file. Please remove %s and let it be "
-                "auto-generated again.",
-                main_cpp,
-                main_cpp,
-            )
-        _LOGGER.info("Migration: Added include section to %s", main_cpp)
-
-    write_file_if_changed(main_cpp, content)
-
-
-def migrate_src_version(old, new):
-    if old == new:
-        return
-    if old > new:
-        _LOGGER.warning("The source version rolled backwards! Ignoring.")
-        return
-
-    if old == 0:
-        migrate_src_version_0_to_1()
-
-
 def storage_should_clean(old, new):  # type: (StorageJSON, StorageJSON) -> bool
     if old is None:
         return True
 
     if old.src_version != new.src_version:
-        return True
-    if old.arduino_version != new.arduino_version:
-        return True
-    if old.board != new.board:
         return True
     if old.build_path != new.build_path:
         return True
@@ -184,9 +116,6 @@ def update_storage_json():
     if old == new:
         return
 
-    old_src_version = old.src_version if old is not None else 0
-    migrate_src_version(old_src_version, new.src_version)
-
     if storage_should_clean(old, new):
         _LOGGER.info("Core config or version changed, cleaning build files...")
         clean_build()
@@ -194,10 +123,10 @@ def update_storage_json():
     new.save(path)
 
 
-def format_ini(data):
+def format_ini(data: Dict[str, Union[str, List[str]]]) -> str:
     content = ""
     for key, value in sorted(data.items()):
-        if isinstance(value, (list, set, tuple)):
+        if isinstance(value, list):
             content += f"{key} =\n"
             for x in value:
                 content += f"    {x}\n"
@@ -206,79 +135,15 @@ def format_ini(data):
     return content
 
 
-def gather_lib_deps():
-    return [x.as_lib_dep for x in CORE.libraries]
-
-
-def gather_build_flags():
-    build_flags = CORE.build_flags
-
-    # avoid changing build flags order
-    return list(sorted(list(build_flags)))
-
-
-ESP32_LARGE_PARTITIONS_CSV = """\
-nvs,      data, nvs,     0x009000, 0x005000,
-otadata,  data, ota,     0x00e000, 0x002000,
-app0,     app,  ota_0,   0x010000, 0x1C0000,
-app1,     app,  ota_1,   0x1D0000, 0x1C0000,
-eeprom,   data, 0x99,    0x390000, 0x001000,
-spiffs,   data, spiffs,  0x391000, 0x00F000
-"""
-
-
 def get_ini_content():
-    lib_deps = gather_lib_deps()
-    build_flags = gather_build_flags()
-
-    data = {
-        "platform": CORE.arduino_version,
-        "board": CORE.board,
-        "framework": "arduino",
-        "lib_deps": lib_deps + ["${common.lib_deps}"],
-        "build_flags": build_flags + ["${common.build_flags}"],
-        "upload_speed": UPLOAD_SPEED_OVERRIDE.get(CORE.board, 115200),
-    }
-
-    if CORE.is_esp32:
-        data["board_build.partitions"] = "partitions.csv"
-        partitions_csv = CORE.relative_build_path("partitions.csv")
-        write_file_if_changed(partitions_csv, ESP32_LARGE_PARTITIONS_CSV)
-
-    # pylint: disable=unsubscriptable-object
-    if CONF_BOARD_FLASH_MODE in CORE.config[CONF_ESPHOME]:
-        flash_mode = CORE.config[CONF_ESPHOME][CONF_BOARD_FLASH_MODE]
-        data["board_build.flash_mode"] = flash_mode
-
-    # Build flags
-    if CORE.is_esp8266 and CORE.board in ESP8266_FLASH_SIZES:
-        flash_size = ESP8266_FLASH_SIZES[CORE.board]
-        ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
-
-        versions_with_old_ldscripts = [
-            ARDUINO_VERSION_ESP8266["2.4.0"],
-            ARDUINO_VERSION_ESP8266["2.4.1"],
-            ARDUINO_VERSION_ESP8266["2.4.2"],
-        ]
-        if CORE.arduino_version == ARDUINO_VERSION_ESP8266["2.3.0"]:
-            # No ld script support
-            ld_script = None
-        if CORE.arduino_version in versions_with_old_ldscripts:
-            # Old ld script path
-            ld_script = ld_scripts[0]
-        else:
-            ld_script = ld_scripts[1]
-
-        if ld_script is not None:
-            data["board_build.ldscript"] = ld_script
-
-    # Ignore libraries that are not explicitly used, but may
-    # be added by LDF
-    # data['lib_ldf_mode'] = 'chain'
-    data.update(CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS, {}))
+    CORE.add_platformio_option(
+        "lib_deps", [x.as_lib_dep for x in CORE.libraries] + ["${common.lib_deps}"]
+    )
+    # Sort to avoid changing build flags order
+    CORE.add_platformio_option("build_flags", sorted(CORE.build_flags))
 
     content = f"[env:{CORE.name}]\n"
-    content += format_ini(data)
+    content += format_ini(CORE.platformio_options)
 
     return content
 
@@ -321,7 +186,7 @@ def write_platformio_ini(content):
         )
     else:
         content_format = INI_BASE_FORMAT
-    full_file = content_format[0] + INI_AUTO_GENERATE_BEGIN + "\n" + content
+    full_file = f"{content_format[0] + INI_AUTO_GENERATE_BEGIN}\n{content}"
     full_file += INI_AUTO_GENERATE_END + content_format[1]
     write_file_if_changed(path, full_file)
 
@@ -341,29 +206,34 @@ DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
 """
 VERSION_H_FORMAT = """\
 #pragma once
+#include "esphome/core/macros.h"
 #define ESPHOME_VERSION "{}"
+#define ESPHOME_VERSION_CODE VERSION_CODE({}, {}, {})
 """
 DEFINES_H_TARGET = "esphome/core/defines.h"
 VERSION_H_TARGET = "esphome/core/version.h"
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
-ESPHome automatically populates the esphome/ directory, and any
+ESPHome automatically populates the build directory, and any
 changes to this directory will be removed the next time esphome is
 run.
 
-For modifying esphome's core files, please use a development esphome install
-or use the custom_components folder.
+For modifying esphome's core files, please use a development esphome install,
+the custom_components folder or the external_components feature.
 """
 
 
 def copy_src_tree():
-    source_files: Dict[Path, loader.SourceFile] = {}
+    source_files: List[loader.FileResource] = []
     for _, component, _ in iter_components(CORE.config):
-        source_files.update(component.source_files)
+        source_files += component.resources
+    source_files_map = {
+        Path(x.package.replace(".", "/") + "/" + x.resource): x for x in source_files
+    }
 
     # Convert to list and sort
-    source_files_l = list(source_files.items())
+    source_files_l = list(source_files_map.items())
     source_files_l.sort()
 
     # Build #include list for esphome.h
@@ -374,7 +244,7 @@ def copy_src_tree():
     include_l.append("")
     include_s = "\n".join(include_l)
 
-    source_files_copy = source_files.copy()
+    source_files_copy = source_files_map.copy()
     ignore_targets = [Path(x) for x in (DEFINES_H_TARGET, VERSION_H_TARGET)]
     for t in ignore_targets:
         source_files_copy.pop(t)
@@ -407,22 +277,33 @@ def copy_src_tree():
     write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "defines.h"), generate_defines_h()
     )
-    write_file_if_changed(
-        CORE.relative_src_path("esphome", "README.txt"), ESPHOME_README_TXT
-    )
+    write_file_if_changed(CORE.relative_build_path("README.txt"), ESPHOME_README_TXT)
     write_file_if_changed(
         CORE.relative_src_path("esphome.h"), ESPHOME_H_FORMAT.format(include_s)
     )
     write_file_if_changed(
-        CORE.relative_src_path("esphome", "core", "version.h"),
-        VERSION_H_FORMAT.format(__version__),
+        CORE.relative_src_path("esphome", "core", "version.h"), generate_version_h()
     )
+
+    if CORE.is_esp32:
+        from esphome.components.esp32 import copy_files
+
+        copy_files()
 
 
 def generate_defines_h():
     define_content_l = [x.as_macro for x in CORE.defines]
     define_content_l.sort()
     return DEFINES_H_FORMAT.format("\n".join(define_content_l))
+
+
+def generate_version_h():
+    match = re.match(r"^(\d+)\.(\d+).(\d+)-?\w*$", __version__)
+    if not match:
+        raise EsphomeError(f"Could not parse version {__version__}.")
+    return VERSION_H_FORMAT.format(
+        __version__, match.group(1), match.group(2), match.group(3)
+    )
 
 
 def write_cpp(code_s):
@@ -443,9 +324,9 @@ def write_cpp(code_s):
     global_s = '#include "esphome.h"\n'
     global_s += CORE.cpp_global_section
 
-    full_file = code_format[0] + CPP_INCLUDE_BEGIN + "\n" + global_s + CPP_INCLUDE_END
+    full_file = f"{code_format[0] + CPP_INCLUDE_BEGIN}\n{global_s}{CPP_INCLUDE_END}"
     full_file += (
-        code_format[1] + CPP_AUTO_GENERATE_BEGIN + "\n" + code_s + CPP_AUTO_GENERATE_END
+        f"{code_format[1] + CPP_AUTO_GENERATE_BEGIN}\n{code_s}{CPP_AUTO_GENERATE_END}"
     )
     full_file += code_format[2]
     write_file_if_changed(path, full_file)
@@ -468,11 +349,6 @@ GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
 # This is an example and may include too much for your use-case.
 # You can modify this file to suit your needs.
 /.esphome/
-**/.pioenvs/
-**/.piolibdeps/
-**/lib/
-**/src/
-**/platformio.ini
 /secrets.yaml
 """
 
@@ -480,5 +356,5 @@ GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
 def write_gitignore():
     path = CORE.relative_config_path(".gitignore")
     if not os.path.isfile(path):
-        with open(path, "w") as f:
+        with open(file=path, mode="w", encoding="utf-8") as f:
             f.write(GITIGNORE_CONTENT)

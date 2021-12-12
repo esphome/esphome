@@ -6,7 +6,7 @@
 namespace esphome {
 namespace max31856 {
 
-static const char *TAG = "max31856";
+static const char *const TAG = "max31856";
 
 // Based on Adafruit's library: https://github.com/adafruit/Adafruit_MAX31856
 
@@ -163,7 +163,7 @@ void MAX31856Sensor::write_register_(uint8_t reg, uint8_t value) {
   ESP_LOGV(TAG, "write_register_ 0x%02X: 0x%02X", reg, value);
 }
 
-const uint8_t MAX31856Sensor::read_register_(uint8_t reg) {
+uint8_t MAX31856Sensor::read_register_(uint8_t reg) {
   ESP_LOGVV(TAG, "read_register_ 0x%02X", reg);
   this->enable();
   ESP_LOGVV(TAG, "write_byte reg=0x%02X", reg);
@@ -175,7 +175,7 @@ const uint8_t MAX31856Sensor::read_register_(uint8_t reg) {
   return value;
 }
 
-const uint32_t MAX31856Sensor::read_register24_(uint8_t reg) {
+uint32_t MAX31856Sensor::read_register24_(uint8_t reg) {
   ESP_LOGVV(TAG, "read_register_24_ 0x%02X", reg);
   this->enable();
   ESP_LOGVV(TAG, "write_byte reg=0x%02X", reg);

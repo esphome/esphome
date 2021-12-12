@@ -3,16 +3,20 @@ import esphome.config_validation as cv
 from esphome.components import sensor, uart
 from esphome.const import (
     CONF_CURRENT,
+    CONF_ENERGY,
     CONF_ID,
     CONF_POWER,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
-    ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_VOLT,
     UNIT_AMPERE,
     UNIT_WATT,
+    UNIT_WATT_HOURS,
 )
 
 DEPENDENCIES = ["uart"]
@@ -27,35 +31,57 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(CSE7766Component),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_VOLTAGE
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-                UNIT_AMPERE, ICON_EMPTY, 2, DEVICE_CLASS_CURRENT
+                unit_of_measurement=UNIT_AMPERE,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_CURRENT,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_POWER): sensor.sensor_schema(
-                UNIT_WATT, ICON_EMPTY, 1, DEVICE_CLASS_POWER
+                unit_of_measurement=UNIT_WATT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_ENERGY): sensor.sensor_schema(
+                unit_of_measurement=UNIT_WATT_HOURS,
+                accuracy_decimals=3,
+                device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "cse7766", baud_rate=4800, require_rx=True
+)
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield uart.register_uart_device(var, config)
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
 
     if CONF_VOLTAGE in config:
         conf = config[CONF_VOLTAGE]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_voltage_sensor(sens))
     if CONF_CURRENT in config:
         conf = config[CONF_CURRENT]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_current_sensor(sens))
     if CONF_POWER in config:
         conf = config[CONF_POWER]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_power_sensor(sens))
+    if CONF_ENERGY in config:
+        conf = config[CONF_ENERGY]
+        sens = await sensor.new_sensor(conf)
+        cg.add(var.set_energy_sensor(sens))

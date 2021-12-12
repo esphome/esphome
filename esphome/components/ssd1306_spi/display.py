@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import spi, ssd1306_base
+from esphome.components.ssd1306_base import _validate
 from esphome.const import CONF_DC_PIN, CONF_ID, CONF_LAMBDA, CONF_PAGES
 
 AUTO_LOAD = ["ssd1306_base"]
@@ -20,13 +21,14 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.COMPONENT_SCHEMA)
     .extend(spi.spi_device_schema()),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
+    _validate,
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield ssd1306_base.setup_ssd1036(var, config)
-    yield spi.register_spi_device(var, config)
+    await ssd1306_base.setup_ssd1306(var, config)
+    await spi.register_spi_device(var, config)
 
-    dc = yield cg.gpio_pin_expression(config[CONF_DC_PIN])
+    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))

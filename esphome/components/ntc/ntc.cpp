@@ -4,7 +4,7 @@
 namespace esphome {
 namespace ntc {
 
-static const char *TAG = "ntc";
+static const char *const TAG = "ntc";
 
 void NTC::setup() {
   this->sensor_->add_on_state_callback([this](float value) { this->process_(value); });
@@ -14,7 +14,7 @@ void NTC::setup() {
 void NTC::dump_config() { LOG_SENSOR("", "NTC Sensor", this) }
 float NTC::get_setup_priority() const { return setup_priority::DATA; }
 void NTC::process_(float value) {
-  if (isnan(value)) {
+  if (std::isnan(value)) {
     this->publish_state(NAN);
     return;
   }

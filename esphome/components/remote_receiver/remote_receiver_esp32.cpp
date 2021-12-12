@@ -1,13 +1,13 @@
 #include "remote_receiver.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <driver/rmt.h>
 
 namespace esphome {
 namespace remote_receiver {
 
-static const char *TAG = "remote_receiver.esp32";
+static const char *const TAG = "remote_receiver.esp32";
 
 void RemoteReceiverComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Remote Receiver...");
@@ -20,9 +20,9 @@ void RemoteReceiverComponent::setup() {
     rmt.rx_config.filter_en = false;
   } else {
     rmt.rx_config.filter_en = true;
-    rmt.rx_config.filter_ticks_thresh = this->from_microseconds(this->filter_us_);
+    rmt.rx_config.filter_ticks_thresh = this->from_microseconds_(this->filter_us_);
   }
-  rmt.rx_config.idle_threshold = this->from_microseconds(this->idle_us_);
+  rmt.rx_config.idle_threshold = this->from_microseconds_(this->idle_us_);
 
   esp_err_t error = rmt_config(&rmt);
   if (error != ESP_OK) {
@@ -78,6 +78,7 @@ void RemoteReceiverComponent::loop() {
     if (this->temp_.empty())
       return;
 
+    this->temp_.push_back(-this->idle_us_);
     this->call_listeners_dumpers_();
   }
 }
@@ -86,24 +87,25 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
   uint32_t prev_length = 0;
   this->temp_.clear();
   int32_t multiplier = this->pin_->is_inverted() ? -1 : 1;
+  size_t item_count = len / sizeof(rmt_item32_t);
 
   ESP_LOGVV(TAG, "START:");
-  for (size_t i = 0; i < len; i++) {
+  for (size_t i = 0; i < item_count; i++) {
     if (item[i].level0) {
-      ESP_LOGVV(TAG, "%u A: ON %uus (%u ticks)", i, this->to_microseconds(item[i].duration0), item[i].duration0);
+      ESP_LOGVV(TAG, "%u A: ON %uus (%u ticks)", i, this->to_microseconds_(item[i].duration0), item[i].duration0);
     } else {
-      ESP_LOGVV(TAG, "%u A: OFF %uus (%u ticks)", i, this->to_microseconds(item[i].duration0), item[i].duration0);
+      ESP_LOGVV(TAG, "%u A: OFF %uus (%u ticks)", i, this->to_microseconds_(item[i].duration0), item[i].duration0);
     }
     if (item[i].level1) {
-      ESP_LOGVV(TAG, "%u B: ON %uus (%u ticks)", i, this->to_microseconds(item[i].duration1), item[i].duration1);
+      ESP_LOGVV(TAG, "%u B: ON %uus (%u ticks)", i, this->to_microseconds_(item[i].duration1), item[i].duration1);
     } else {
-      ESP_LOGVV(TAG, "%u B: OFF %uus (%u ticks)", i, this->to_microseconds(item[i].duration1), item[i].duration1);
+      ESP_LOGVV(TAG, "%u B: OFF %uus (%u ticks)", i, this->to_microseconds_(item[i].duration1), item[i].duration1);
     }
   }
   ESP_LOGVV(TAG, "\n");
 
-  this->temp_.reserve(len / 4);
-  for (size_t i = 0; i < len; i++) {
+  this->temp_.reserve(item_count * 2);  // each RMT item has 2 pulses
+  for (size_t i = 0; i < item_count; i++) {
     if (item[i].duration0 == 0u) {
       // Do nothing
     } else if (bool(item[i].level0) == prev_level) {
@@ -111,17 +113,13 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
     } else {
       if (prev_length > 0) {
         if (prev_level) {
-          this->temp_.push_back(this->to_microseconds(prev_length) * multiplier);
+          this->temp_.push_back(this->to_microseconds_(prev_length) * multiplier);
         } else {
-          this->temp_.push_back(-int32_t(this->to_microseconds(prev_length)) * multiplier);
+          this->temp_.push_back(-int32_t(this->to_microseconds_(prev_length)) * multiplier);
         }
       }
       prev_level = bool(item[i].level0);
       prev_length = item[i].duration0;
-    }
-
-    if (this->to_microseconds(prev_length) > this->idle_us_) {
-      break;
     }
 
     if (item[i].duration1 == 0u) {
@@ -131,24 +129,20 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
     } else {
       if (prev_length > 0) {
         if (prev_level) {
-          this->temp_.push_back(this->to_microseconds(prev_length) * multiplier);
+          this->temp_.push_back(this->to_microseconds_(prev_length) * multiplier);
         } else {
-          this->temp_.push_back(-int32_t(this->to_microseconds(prev_length)) * multiplier);
+          this->temp_.push_back(-int32_t(this->to_microseconds_(prev_length)) * multiplier);
         }
       }
       prev_level = bool(item[i].level1);
       prev_length = item[i].duration1;
     }
-
-    if (this->to_microseconds(prev_length) > this->idle_us_) {
-      break;
-    }
   }
   if (prev_length > 0) {
     if (prev_level) {
-      this->temp_.push_back(this->to_microseconds(prev_length) * multiplier);
+      this->temp_.push_back(this->to_microseconds_(prev_length) * multiplier);
     } else {
-      this->temp_.push_back(-int32_t(this->to_microseconds(prev_length)) * multiplier);
+      this->temp_.push_back(-int32_t(this->to_microseconds_(prev_length)) * multiplier);
     }
   }
 }

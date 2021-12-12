@@ -5,7 +5,7 @@ from esphome.components import display, font
 import esphome.components.image as espImage
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_FILE, CONF_ID, CONF_TYPE, CONF_RESIZE
+from esphome.const import CONF_FILE, CONF_ID, CONF_RAW_DATA_ID, CONF_RESIZE, CONF_TYPE
 from esphome.core import CORE, HexInt
 
 _LOGGER = logging.getLogger(__name__)
@@ -14,8 +14,6 @@ DEPENDENCIES = ["display"]
 MULTI_CONF = True
 
 Animation_ = display.display_ns.class_("Animation")
-
-CONF_RAW_DATA_ID = "raw_data_id"
 
 ANIMATION_SCHEMA = cv.Schema(
     {
@@ -34,7 +32,7 @@ CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, ANIMATION_SCHEMA)
 CODEOWNERS = ["@syndlex"]
 
 
-def to_code(config):
+async def to_code(config):
     from PIL import Image
 
     path = CORE.relative_config_path(config[CONF_FILE])
@@ -46,8 +44,9 @@ def to_code(config):
     width, height = image.size
     frames = image.n_frames
     if CONF_RESIZE in config:
-        image.thumbnail(config[CONF_RESIZE])
-        width, height = image.size
+        new_width_max, new_height_max = config[CONF_RESIZE]
+        ratio = min(new_width_max / width, new_height_max / height)
+        width, height = int(width * ratio), int(height * ratio)
     else:
         if width > 500 or height > 500:
             _LOGGER.warning(
@@ -61,7 +60,13 @@ def to_code(config):
         for frameIndex in range(frames):
             image.seek(frameIndex)
             frame = image.convert("L", dither=Image.NONE)
+            if CONF_RESIZE in config:
+                frame = frame.resize([width, height])
             pixels = list(frame.getdata())
+            if len(pixels) != height * width:
+                raise core.EsphomeError(
+                    f"Unexpected number of pixels in {path} frame {frameIndex}: ({len(pixels)} != {height*width})"
+                )
             for pix in pixels:
                 data[pos] = pix
                 pos += 1
@@ -72,7 +77,13 @@ def to_code(config):
         for frameIndex in range(frames):
             image.seek(frameIndex)
             frame = image.convert("RGB")
+            if CONF_RESIZE in config:
+                frame = frame.resize([width, height])
             pixels = list(frame.getdata())
+            if len(pixels) != height * width:
+                raise core.EsphomeError(
+                    f"Unexpected number of pixels in {path} frame {frameIndex}: ({len(pixels)} != {height*width})"
+                )
             for pix in pixels:
                 data[pos] = pix[0]
                 pos += 1
@@ -87,6 +98,8 @@ def to_code(config):
         for frameIndex in range(frames):
             image.seek(frameIndex)
             frame = image.convert("1", dither=Image.NONE)
+            if CONF_RESIZE in config:
+                frame = frame.resize([width, height])
             for y in range(height):
                 for x in range(width):
                     if frame.getpixel((x, y)):

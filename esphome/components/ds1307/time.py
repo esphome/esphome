@@ -29,10 +29,10 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
         }
     ),
 )
-def ds1307_write_time_to_code(config, action_id, template_arg, args):
+async def ds1307_write_time_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 @automation.register_action(
@@ -44,15 +44,15 @@ def ds1307_write_time_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-def ds1307_read_time_to_code(config, action_id, template_arg, args):
+async def ds1307_read_time_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_ID])
-    yield var
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
-    yield cg.register_component(var, config)
-    yield i2c.register_i2c_device(var, config)
-    yield time.register_time(var, config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
+    await time.register_time(var, config)

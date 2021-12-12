@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.core import CORE, coroutine
+from esphome.core import CORE
 from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_DATA
 
 CODEOWNERS = ["@mvturnho", "@danielschramm"]
@@ -82,10 +82,9 @@ CANBUS_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-@coroutine
-def setup_canbus_core_(var, config):
+async def setup_canbus_core_(var, config):
     validate_id(config[CONF_CAN_ID], config[CONF_USE_EXTENDED_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
     cg.add(var.set_can_id([config[CONF_CAN_ID]]))
     cg.add(var.set_use_extended_id([config[CONF_USE_EXTENDED_ID]]))
     cg.add(var.set_bitrate(CAN_SPEEDS[config[CONF_BIT_RATE]]))
@@ -95,17 +94,16 @@ def setup_canbus_core_(var, config):
         ext_id = conf[CONF_USE_EXTENDED_ID]
         validate_id(can_id, ext_id)
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, can_id, ext_id)
-        yield cg.register_component(trigger, conf)
-        yield automation.build_automation(
+        await cg.register_component(trigger, conf)
+        await automation.build_automation(
             trigger, [(cg.std_vector.template(cg.uint8), "x")], conf
         )
 
 
-@coroutine
-def register_canbus(var, config):
+async def register_canbus(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.new_Pvariable(config[CONF_ID], var)
-    yield setup_canbus_core_(var, config)
+    await setup_canbus_core_(var, config)
 
 
 # Actions
@@ -122,16 +120,16 @@ def register_canbus(var, config):
         key=CONF_DATA,
     ),
 )
-def canbus_action_to_code(config, action_id, template_arg, args):
+async def canbus_action_to_code(config, action_id, template_arg, args):
     validate_id(config[CONF_CAN_ID], config[CONF_USE_EXTENDED_ID])
     var = cg.new_Pvariable(action_id, template_arg)
-    yield cg.register_parented(var, config[CONF_CANBUS_ID])
+    await cg.register_parented(var, config[CONF_CANBUS_ID])
 
     if CONF_CAN_ID in config:
-        can_id = yield cg.templatable(config[CONF_CAN_ID], args, cg.uint32)
+        can_id = await cg.templatable(config[CONF_CAN_ID], args, cg.uint32)
         cg.add(var.set_can_id(can_id))
 
-    use_extended_id = yield cg.templatable(
+    use_extended_id = await cg.templatable(
         config[CONF_USE_EXTENDED_ID], args, cg.uint32
     )
     cg.add(var.set_use_extended_id(use_extended_id))
@@ -140,8 +138,8 @@ def canbus_action_to_code(config, action_id, template_arg, args):
     if isinstance(data, bytes):
         data = [int(x) for x in data]
     if cg.is_template(data):
-        templ = yield cg.templatable(data, args, cg.std_vector.template(cg.uint8))
+        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_data_template(templ))
     else:
         cg.add(var.set_data_static(data))
-    yield var
+    return var

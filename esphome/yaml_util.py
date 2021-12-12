@@ -183,9 +183,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                         raise yaml.constructor.ConstructorError(
                             "While constructing a mapping",
                             node.start_mark,
-                            "Expected a mapping for merging, but found {}".format(
-                                type(item)
-                            ),
+                            f"Expected a mapping for merging, but found {type(item)}",
                             value_node.start_mark,
                         )
                     merge_pairs.extend(item.items())
@@ -193,8 +191,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                 raise yaml.constructor.ConstructorError(
                     "While constructing a mapping",
                     node.start_mark,
-                    "Expected a mapping or list of mappings for merging, "
-                    "but found {}".format(type(value)),
+                    f"Expected a mapping or list of mappings for merging, but found {type(value)}",
                     value_node.start_mark,
                 )
 
@@ -332,9 +329,10 @@ ESPHomeLoader.add_constructor("!lambda", ESPHomeLoader.construct_lambda)
 ESPHomeLoader.add_constructor("!force", ESPHomeLoader.construct_force)
 
 
-def load_yaml(fname):
-    _SECRET_VALUES.clear()
-    _SECRET_CACHE.clear()
+def load_yaml(fname, clear_secrets=True):
+    if clear_secrets:
+        _SECRET_VALUES.clear()
+        _SECRET_CACHE.clear()
     return _load_yaml_internal(fname)
 
 
@@ -411,17 +409,19 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
             return self.represent_secret(value)
         return self.represent_scalar(tag="tag:yaml.org,2002:str", value=str(value))
 
-    # pylint: disable=arguments-differ
+    # pylint: disable=arguments-renamed
     def represent_bool(self, value):
         return self.represent_scalar(
             "tag:yaml.org,2002:bool", "true" if value else "false"
         )
 
+    # pylint: disable=arguments-renamed
     def represent_int(self, value):
         if is_secret(value):
             return self.represent_secret(value)
         return self.represent_scalar(tag="tag:yaml.org,2002:int", value=str(value))
 
+    # pylint: disable=arguments-renamed
     def represent_float(self, value):
         if is_secret(value):
             return self.represent_secret(value)

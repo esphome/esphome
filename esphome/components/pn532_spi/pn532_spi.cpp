@@ -9,7 +9,7 @@
 namespace esphome {
 namespace pn532_spi {
 
-static const char *TAG = "pn532_spi";
+static const char *const TAG = "pn532_spi";
 
 void PN532Spi::setup() {
   ESP_LOGI(TAG, "PN532Spi setup started!");
@@ -26,7 +26,7 @@ bool PN532Spi::write_data(const std::vector<uint8_t> &data) {
   delay(2);
   // First byte, communication mode: Write data
   this->write_byte(0x01);
-  ESP_LOGV(TAG, "Writing data: %s", hexencode(data).c_str());
+  ESP_LOGV(TAG, "Writing data: %s", format_hex_pretty(data).c_str());
   this->write_array(data.data(), data.size());
   this->disable();
 
@@ -65,7 +65,7 @@ bool PN532Spi::read_data(std::vector<uint8_t> &data, uint8_t len) {
   this->read_array(data.data(), len);
   this->disable();
   data.insert(data.begin(), 0x01);
-  ESP_LOGV(TAG, "Read data: %s", hexencode(data).c_str());
+  ESP_LOGV(TAG, "Read data: %s", format_hex_pretty(data).c_str());
   return true;
 }
 
@@ -97,7 +97,7 @@ bool PN532Spi::read_response(uint8_t command, std::vector<uint8_t> &data) {
   std::vector<uint8_t> header(7);
   this->read_array(header.data(), 7);
 
-  ESP_LOGV(TAG, "Header data: %s", hexencode(header).c_str());
+  ESP_LOGV(TAG, "Header data: %s", format_hex_pretty(header).c_str());
 
   if (header[0] != 0x00 && header[1] != 0x00 && header[2] != 0xFF) {
     // invalid packet
@@ -127,7 +127,7 @@ bool PN532Spi::read_response(uint8_t command, std::vector<uint8_t> &data) {
   this->read_array(data.data(), len + 1);
   this->disable();
 
-  ESP_LOGV(TAG, "Response data: %s", hexencode(data).c_str());
+  ESP_LOGV(TAG, "Response data: %s", format_hex_pretty(data).c_str());
 
   uint8_t checksum = header[5] + header[6];  // TFI + Command response code
   for (int i = 0; i < len - 1; i++) {

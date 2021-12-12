@@ -30,7 +30,8 @@ class PN532 : public PollingComponent {
   void loop() override;
 
   void register_tag(PN532BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
-  void register_trigger(PN532OnTagTrigger *trig) { this->triggers_.push_back(trig); }
+  void register_ontag_trigger(PN532OnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
+  void register_ontagremoved_trigger(PN532OnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
 
   void add_on_finished_write_callback(std::function<void()> callback) {
     this->on_finished_write_callback_.add(std::move(callback));
@@ -53,13 +54,13 @@ class PN532 : public PollingComponent {
   virtual bool read_data(std::vector<uint8_t> &data, uint8_t len) = 0;
   virtual bool read_response(uint8_t command, std::vector<uint8_t> &data) = 0;
 
-  nfc::NfcTag *read_tag_(std::vector<uint8_t> &uid);
+  std::unique_ptr<nfc::NfcTag> read_tag_(std::vector<uint8_t> &uid);
 
   bool format_tag_(std::vector<uint8_t> &uid);
   bool clean_tag_(std::vector<uint8_t> &uid);
   bool write_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
 
-  nfc::NfcTag *read_mifare_classic_tag_(std::vector<uint8_t> &uid);
+  std::unique_ptr<nfc::NfcTag> read_mifare_classic_tag_(std::vector<uint8_t> &uid);
   bool read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
   bool write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
   bool auth_mifare_classic_block_(std::vector<uint8_t> &uid, uint8_t block_num, uint8_t key_num, const uint8_t *key);
@@ -67,7 +68,7 @@ class PN532 : public PollingComponent {
   bool format_mifare_classic_ndef_(std::vector<uint8_t> &uid);
   bool write_mifare_classic_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
 
-  nfc::NfcTag *read_mifare_ultralight_tag_(std::vector<uint8_t> &uid);
+  std::unique_ptr<nfc::NfcTag> read_mifare_ultralight_tag_(std::vector<uint8_t> &uid);
   bool read_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &data);
   bool is_mifare_ultralight_formatted_();
   uint16_t read_mifare_ultralight_capacity_();
@@ -78,7 +79,8 @@ class PN532 : public PollingComponent {
 
   bool requested_read_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
-  std::vector<PN532OnTagTrigger *> triggers_;
+  std::vector<PN532OnTagTrigger *> triggers_ontag_;
+  std::vector<PN532OnTagTrigger *> triggers_ontagremoved_;
   std::vector<uint8_t> current_uid_;
   nfc::NdefMessage *next_task_message_to_write_;
   enum NfcTask {
@@ -115,7 +117,7 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
 
 class PN532OnTagTrigger : public Trigger<std::string, nfc::NfcTag> {
  public:
-  void process(nfc::NfcTag *tag);
+  void process(const std::unique_ptr<nfc::NfcTag> &tag);
 };
 
 class PN532OnFinishedWriteTrigger : public Trigger<> {

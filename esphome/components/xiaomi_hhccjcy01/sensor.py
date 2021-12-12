@@ -4,11 +4,11 @@ from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_MAC_ADDRESS,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_TEMPERATURE,
-    ICON_EMPTY,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_WATER_PERCENT,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
     CONF_ID,
@@ -36,19 +36,35 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(XiaomiHHCCJCY01),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                UNIT_CELSIUS, ICON_EMPTY, 1, DEVICE_CLASS_TEMPERATURE
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_WATER_PERCENT, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_PERCENT,
+                icon=ICON_WATER_PERCENT,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                UNIT_LUX, ICON_EMPTY, 0, DEVICE_CLASS_ILLUMINANCE
+                unit_of_measurement=UNIT_LUX,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_ILLUMINANCE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CONDUCTIVITY): sensor.sensor_schema(
-                UNIT_MICROSIEMENS_PER_CENTIMETER, ICON_FLOWER, 0, DEVICE_CLASS_EMPTY
+                unit_of_measurement=UNIT_MICROSIEMENS_PER_CENTIMETER,
+                icon=ICON_FLOWER,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_EMPTY, 0, DEVICE_CLASS_BATTERY
+                unit_of_measurement=UNIT_PERCENT,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_BATTERY,
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
     )
@@ -57,25 +73,25 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield esp32_ble_tracker.register_ble_device(var, config)
+    await cg.register_component(var, config)
+    await esp32_ble_tracker.register_ble_device(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
     if CONF_TEMPERATURE in config:
-        sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])
+        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature(sens))
     if CONF_MOISTURE in config:
-        sens = yield sensor.new_sensor(config[CONF_MOISTURE])
+        sens = await sensor.new_sensor(config[CONF_MOISTURE])
         cg.add(var.set_moisture(sens))
     if CONF_ILLUMINANCE in config:
-        sens = yield sensor.new_sensor(config[CONF_ILLUMINANCE])
+        sens = await sensor.new_sensor(config[CONF_ILLUMINANCE])
         cg.add(var.set_illuminance(sens))
     if CONF_CONDUCTIVITY in config:
-        sens = yield sensor.new_sensor(config[CONF_CONDUCTIVITY])
+        sens = await sensor.new_sensor(config[CONF_CONDUCTIVITY])
         cg.add(var.set_conductivity(sens))
     if CONF_BATTERY_LEVEL in config:
-        sens = yield sensor.new_sensor(config[CONF_BATTERY_LEVEL])
+        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
         cg.add(var.set_battery_level(sens))

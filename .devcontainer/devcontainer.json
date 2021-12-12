@@ -1,17 +1,29 @@
 {
   "name": "ESPHome Dev",
-  "context": "..",
-  "dockerFile": "../docker/Dockerfile.dev",
-  "postCreateCommand": "mkdir -p config && pip3 install -e .",
-  "runArgs": ["--privileged", "-e", "ESPHOME_DASHBOARD_USE_PING=1"],
+  "image": "esphome/esphome-lint:dev",
+  "postCreateCommand": [
+    "script/devcontainer-post-create"
+  ],
+  "runArgs": [
+    "--privileged",
+    "-e",
+    "ESPHOME_DASHBOARD_USE_PING=1"
+  ],
   "appPort": 6052,
   "extensions": [
+    // python
     "ms-python.python",
     "visualstudioexptteam.vscodeintellicode",
-    "redhat.vscode-yaml"
+    // yaml
+    "redhat.vscode-yaml",
+    // cpp
+    "ms-vscode.cpptools",
+    // editorconfig
+    "editorconfig.editorconfig",
   ],
   "settings": {
-    "python.pythonPath": "/usr/local/bin/python",
+    "python.languageServer": "Pylance",
+    "python.pythonPath": "/usr/bin/python3",
     "python.linting.pylintEnabled": true,
     "python.linting.enabled": true,
     "python.formatting.provider": "black",
@@ -19,7 +31,7 @@
     "editor.formatOnSave": true,
     "editor.formatOnType": true,
     "files.trimTrailingWhitespace": true,
-    "terminal.integrated.shell.linux": "/bin/bash",
+    "terminal.integrated.defaultProfile.linux": "bash",
     "yaml.customTags": [
       "!secret scalar",
       "!lambda scalar",
@@ -27,6 +39,18 @@
       "!include_dir_list scalar",
       "!include_dir_merge_list scalar",
       "!include_dir_merge_named scalar"
-    ]
+    ],
+    "files.exclude": {
+      "**/.git": true,
+      "**/.DS_Store": true,
+      "**/*.pyc": {
+        "when": "$(basename).py"
+      },
+      "**/__pycache__": true
+    },
+    "files.associations": {
+      "**/.vscode/*.json": "jsonc"
+    },
+    "C_Cpp.clang_format_path": "/usr/bin/clang-format-11",
   }
 }

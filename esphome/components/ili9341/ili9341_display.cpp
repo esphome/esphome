@@ -2,11 +2,12 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace ili9341 {
 
-static const char *TAG = "ili9341";
+static const char *const TAG = "ili9341";
 
 void ILI9341Display::setup_pins_() {
   this->init_internal_(this->get_buffer_length_());
@@ -85,19 +86,21 @@ void ILI9341Display::update() {
 
 void ILI9341Display::display_() {
   // we will only update the changed window to the display
-  int w = this->x_high_ - this->x_low_ + 1;
-  int h = this->y_high_ - this->y_low_ + 1;
+  uint16_t w = this->x_high_ - this->x_low_ + 1;
+  uint16_t h = this->y_high_ - this->y_low_ + 1;
 
   set_addr_window_(this->x_low_, this->y_low_, w, h);
   this->start_data_();
   uint32_t start_pos = ((this->y_low_ * this->width_) + x_low_);
   for (uint16_t row = 0; row < h; row++) {
-    for (uint16_t col = 0; col < w; col++) {
-      uint32_t pos = start_pos + (row * width_) + col;
+    uint32_t pos = start_pos + (row * width_);
+    uint32_t rem = w;
 
-      uint16_t color = convert_to_16bit_color_(buffer_[pos]);
-      this->write_byte(color >> 8);
-      this->write_byte(color);
+    while (rem > 0) {
+      uint32_t sz = buffer_to_transfer_(pos, rem);
+      this->write_array(transfer_buffer_, 2 * sz);
+      pos += sz;
+      rem -= sz;
     }
   }
   this->end_data_();
@@ -139,16 +142,32 @@ void ILI9341Display::fill(Color color) {
 }
 
 void ILI9341Display::fill_internal_(Color color) {
+  if (color.raw_32 == Color::BLACK.raw_32) {
+    memset(transfer_buffer_, 0, sizeof(transfer_buffer_));
+  } else {
+    uint8_t *dst = transfer_buffer_;
+    auto color565 = display::ColorUtil::color_to_565(color);
+
+    while (dst < transfer_buffer_ + sizeof(transfer_buffer_)) {
+      *dst++ = (uint8_t)(color565 >> 8);
+      *dst++ = (uint8_t) color565;
+    }
+  }
+
+  uint32_t rem = this->get_width_internal() * this->get_height_internal();
+
   this->set_addr_window_(0, 0, this->get_width_internal(), this->get_height_internal());
   this->start_data_();
 
-  auto color565 = display::ColorUtil::color_to_565(color);
-  for (uint32_t i = 0; i < (this->get_width_internal()) * (this->get_height_internal()); i++) {
-    this->write_byte(color565 >> 8);
-    this->write_byte(color565);
-    buffer_[i] = 0;
+  while (rem > 0) {
+    size_t sz = rem <= sizeof(transfer_buffer_) ? rem : sizeof(transfer_buffer_);
+    this->write_array(transfer_buffer_, sz);
+    rem -= sz;
   }
+
   this->end_data_();
+
+  memset(buffer_, 0, (this->get_width_internal()) * (this->get_height_internal()));
 }
 
 void HOT ILI9341Display::draw_absolute_pixel_internal(int x, int y, Color color) {
@@ -185,8 +204,8 @@ void ILI9341Display::end_data_() { this->disable(); }
 void ILI9341Display::init_lcd_(const uint8_t *init_cmd) {
   uint8_t cmd, x, num_args;
   const uint8_t *addr = init_cmd;
-  while ((cmd = pgm_read_byte(addr++)) > 0) {
-    x = pgm_read_byte(addr++);
+  while ((cmd = progmem_read_byte(addr++)) > 0) {
+    x = progmem_read_byte(addr++);
     num_args = x & 0x7F;
     send_command(cmd, addr, num_args);
     addr += num_args;
@@ -219,13 +238,30 @@ void ILI9341Display::invert_display_(bool invert) { this->command(invert ? ILI93
 int ILI9341Display::get_width_internal() { return this->width_; }
 int ILI9341Display::get_height_internal() { return this->height_; }
 
+uint32_t ILI9341Display::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
+  uint8_t *src = buffer_ + pos;
+  uint8_t *dst = transfer_buffer_;
+
+  if (sz > sizeof(transfer_buffer_) / 2) {
+    sz = sizeof(transfer_buffer_) / 2;
+  }
+
+  for (uint32_t i = 0; i < sz; ++i) {
+    uint16_t color = convert_to_16bit_color_(*src++);
+    *dst++ = (uint8_t)(color >> 8);
+    *dst++ = (uint8_t) color;
+  }
+
+  return sz;
+}
+
 //   M5Stack display
 void ILI9341M5Stack::initialize() {
   this->init_lcd_(INITCMD_M5STACK);
   this->width_ = 320;
   this->height_ = 240;
   this->invert_display_(true);
-  this->fill_internal_(COLOR_BLACK);
+  this->fill_internal_(Color::BLACK);
 }
 
 //   24_TFT display
@@ -233,7 +269,7 @@ void ILI9341TFT24::initialize() {
   this->init_lcd_(INITCMD_TFT);
   this->width_ = 240;
   this->height_ = 320;
-  this->fill_internal_(COLOR_BLACK);
+  this->fill_internal_(Color::BLACK);
 }
 
 }  // namespace ili9341
