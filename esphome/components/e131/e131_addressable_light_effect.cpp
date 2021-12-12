@@ -8,38 +8,25 @@ namespace esphome {
 namespace e131 {
 
 static const char *const TAG = "e131_addressable_light_effect";
-static const int MAX_DATA_SIZE = (sizeof(E131Packet::values) - 1);
 
 E131AddressableLightEffect::E131AddressableLightEffect(const std::string &name) : AddressableLightEffect(name) {}
 
-int E131AddressableLightEffect::get_data_per_universe() const { return get_lights_per_universe() * channels_; }
+const std::string &E131AddressableLightEffect::get_name() { return AddressableLightEffect::get_name(); }
 
-int E131AddressableLightEffect::get_lights_per_universe() const { return MAX_DATA_SIZE / channels_; }
+void E131AddressableLightEffect::start() {
+  AddressableLightEffect::start();
+  E131LightEffectBase::start();
+}
 
-int E131AddressableLightEffect::get_first_universe() const { return first_universe_; }
-
-int E131AddressableLightEffect::get_last_universe() const { return first_universe_ + get_universe_count() - 1; }
+void E131AddressableLightEffect::stop() {
+  E131LightEffectBase::stop();
+  AddressableLightEffect::stop();
+}
 
 int E131AddressableLightEffect::get_universe_count() const {
   // Round up to lights_per_universe
   auto lights = get_lights_per_universe();
   return (get_addressable_()->size() + lights - 1) / lights;
-}
-
-void E131AddressableLightEffect::start() {
-  AddressableLightEffect::start();
-
-  if (this->e131_) {
-    this->e131_->add_effect(this);
-  }
-}
-
-void E131AddressableLightEffect::stop() {
-  if (this->e131_) {
-    this->e131_->remove_effect(this);
-  }
-
-  AddressableLightEffect::stop();
 }
 
 void E131AddressableLightEffect::apply(light::AddressableLight &it, const Color &current_color) {
@@ -87,6 +74,7 @@ bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet
   }
 
   it->schedule_show();
+
   return true;
 }
 

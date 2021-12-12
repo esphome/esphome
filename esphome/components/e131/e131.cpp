@@ -1,7 +1,7 @@
 #ifdef USE_ARDUINO
 
 #include "e131.h"
-#include "e131_addressable_light_effect.h"
+#include "e131_light_effect_base.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -62,7 +62,7 @@ void E131Component::loop() {
   }
 }
 
-void E131Component::add_effect(E131AddressableLightEffect *light_effect) {
+void E131Component::add_effect(E131LightEffectBase *light_effect) {
   if (light_effects_.count(light_effect)) {
     return;
   }
@@ -77,7 +77,7 @@ void E131Component::add_effect(E131AddressableLightEffect *light_effect) {
   }
 }
 
-void E131Component::remove_effect(E131AddressableLightEffect *light_effect) {
+void E131Component::remove_effect(E131LightEffectBase *light_effect) {
   if (!light_effects_.count(light_effect)) {
     return;
   }

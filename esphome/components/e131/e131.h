@@ -14,7 +14,7 @@ class UDP;
 namespace esphome {
 namespace e131 {
 
-class E131AddressableLightEffect;
+class E131LightEffectBase;
 
 enum E131ListenMethod { E131_MULTICAST, E131_UNICAST };
 
@@ -34,8 +34,8 @@ class E131Component : public esphome::Component {
   void loop() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  void add_effect(E131AddressableLightEffect *light_effect);
-  void remove_effect(E131AddressableLightEffect *light_effect);
+  void add_effect(E131LightEffectBase *light_effect);
+  void remove_effect(E131LightEffectBase *light_effect);
 
   void set_method(E131ListenMethod listen_method) { this->listen_method_ = listen_method; }
 
@@ -48,7 +48,7 @@ class E131Component : public esphome::Component {
 
   E131ListenMethod listen_method_{E131_MULTICAST};
   std::unique_ptr<UDP> udp_;
-  std::set<E131AddressableLightEffect *> light_effects_;
+  std::set<E131LightEffectBase *> light_effects_;
   std::map<int, int> universe_consumers_;
   std::map<int, E131Packet> universe_packets_;
 };
