@@ -201,7 +201,7 @@ void BME280Component::update() {
     float pressure = this->read_pressure_(data, t_fine);
     float humidity = this->read_humidity_(data, t_fine);
 
-    ESP_LOGD(TAG, "Got temperature=%.1f°C pressure=%.1fhPa humidity=%.1f%%", temperature, pressure, humidity);
+    ESP_LOGV(TAG, "Got temperature=%.1f°C pressure=%.1fhPa humidity=%.1f%%", temperature, pressure, humidity);
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(temperature);
     if (this->pressure_sensor_ != nullptr)
