@@ -82,7 +82,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_FULL_UPDATE_EVERY): cv.uint32_t,
-            cv.Optional(CONF_RESET_DURATION): cv.uint32_t,
+            cv.Optional(CONF_RESET_DURATION): cv.positive_time_period_milliseconds,
         }
     )
     .extend(cv.polling_component_schema("1s"))
