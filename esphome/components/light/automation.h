@@ -141,6 +141,13 @@ class LightTurnOffTrigger : public Trigger<> {
   }
 };
 
+class LightStateTrigger : public Trigger<> {
+ public:
+  LightStateTrigger(LightState *a_light) {
+    a_light->add_new_remote_values_callback([this]() { this->trigger(); });
+  }
+};
+
 // This is slightly ugly, but we can't log in headers, and can't make this a static method on AddressableSet
 // due to the template. It's just a temporary warning anyway.
 void addressableset_warn_about_scale(const char *field);
