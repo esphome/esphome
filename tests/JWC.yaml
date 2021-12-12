@@ -21,14 +21,15 @@ wifi:
   ssid: "CobbNET25"
   password: "technical"
 
-#time:
-#  - platform: homeassistant
-#    id: homeassistant_time
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+    timezone: EST+5EDT,M3.2.0/2,M11.1.0/2
 
-#output:
-#  - platform: gpio
-#    pin: 2
-#    id: boardled
+output:
+  - platform: gpio
+    pin: 2
+    id: boardled
 
 
 display:
@@ -39,19 +40,20 @@ display:
     dio_pin: 23 #TM1638 DIO
 
     update_interval: 1s
-    intensity: 2
+    intensity: 6
     lambda: |-
-      it.print("777");
+      it.strftime("%I-%M-%S", id(homeassistant_time).now());
+
 
     #switch1_action:
     #  - output.turn_on: testled
 
-#interval:
-#  - interval: 250ms
-#    then:
-#      - output.turn_on: boardled
-#      - delay: 50ms
-#     - output.turn_off: boardled
+interval:
+  - interval: 250ms
+    then:
+      - output.turn_on: boardled
+      - delay: 50ms
+      - output.turn_off: boardled
 
 external_components:
   - source:

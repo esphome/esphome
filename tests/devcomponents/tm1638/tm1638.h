@@ -64,7 +64,6 @@ class TM1638Component : public PollingComponent {
 #ifdef USE_TIME
   /// Evaluate the strftime-format and print the result at the given position.
   uint8_t strftime(uint8_t pos, const char *format, time::ESPTime time) __attribute__((format(strftime, 3, 0)));
-
   /// Evaluate the strftime-format and print the result at position 0.
   uint8_t strftime(const char *format, time::ESPTime time) __attribute__((format(strftime, 2, 0)));
 #endif

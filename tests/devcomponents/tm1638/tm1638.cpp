@@ -27,39 +27,41 @@ void TM1638Component::set_writer(tm1638_writer_t &&writer) { this->writer_ = wri
 void TM1638Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up TM1638...");
 
-  //this->clk_pin_->setup();              // OUTPUT
-  //this->dio_pin_->setup();              // OUTPUT
-  //this->stb_pin_->setup();              // OUTPUT
+  this->clk_pin_->setup();              // OUTPUT  <--- THIS MAKE THE CHIP RESTART
+  this->dio_pin_->setup();              // OUTPUT
+  this->stb_pin_->setup();              // OUTPUT
 
-  //this->clk_pin_->pin_mode(gpio::FLAG_OUTPUT);
-  //this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
-  //this->stb_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->clk_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->stb_pin_->pin_mode(gpio::FLAG_OUTPUT);
 
-  //this->clk_pin_->digital_write(false);  // false
-  //this->dio_pin_->digital_write(false);  // false
-  //this->stb_pin_->digital_write(false);  // false
+  this->clk_pin_->digital_write(false);  // false
+  this->dio_pin_->digital_write(false);  // false
+  this->stb_pin_->digital_write(false);  // false
 
   ESP_LOGI(TAG, "Pin setup complete");
 
-  //this->sendCommand(TM1638_REGISTER_AUTOADDRESS);  // move this to reset display method
+  this->sendCommand(TM1638_REGISTER_AUTOADDRESS);  // move this to reset display method
 
-  ESP_LOGI(TAG, "Testing display");
+  //ESP_LOGI(TAG, "Testing display");
 
   //uint8_t userIntensity = intensity_;
 
-  ESP_LOGI(TAG, gpio::FLAG_OUTPUT);
-
-    ESP_LOGI(TAG, "Testing display complete");
+  //set_intensity(7);
 
   //this->reset(true);                // all LEDs on
 
-  //this->reset(false);               // all LEDs off
+  set_intensity(intensity_);
+
+  this->reset(false);               // all LEDs off
 
   //setLed(7, true);                  //remove from final build
 
+  //ESP_LOGI(TAG, "Testing display complete");
+
   this->buffer_ = new uint8_t[8];  // NOLINT
 
-  for (uint8_t i = 0; i < 8; i++)  // zero fill print buffer, do we need this
+  for (uint8_t i = 0; i < 8; i++)  // zero fill print buffer
     this->buffer_[i] = 0;
 }
 
@@ -87,13 +89,9 @@ uint8_t TM1638Component::readButtons() {
 
   stb_pin->digital_write(false);
 
-
   this->shiftOut(TM1638_REGISTER_READBUTTONS);
 
-
   dio_pin_->pin_mode(gpio::FLAG_INPUT);
-
-
 
   delayMicroseconds(10);
 
@@ -105,8 +103,6 @@ uint8_t TM1638Component::readButtons() {
   dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
 
   stb_pin->digital_write(true);
-
-
 
   // ESP_LOGI(TAG, "READ BUTTONS COMPLETE");
 
@@ -124,9 +120,9 @@ void TM1638Component::update() {  // this is called at the interval specified in
   {
     (*this->writer_)(*this);
   }
-  ESP_LOGI(TAG, "Update");
+  //ESP_LOGI(TAG, "Update");
 
-  //this->display();
+  this->display();
 }
 
 
@@ -137,22 +133,9 @@ void TM1638Component::bit_delay_() { delayMicroseconds(100); }
 
 void TM1638Component::start_() {
 
-  ESP_LOGI(TAG, "START RUNNING");
-
-
-
   this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
-  ESP_LOGI(TAG, "DIO");
-  this->bit_delay_();
   this->clk_pin_->pin_mode(gpio::FLAG_OUTPUT);
-  ESP_LOGI(TAG, "CLK");
-  this->bit_delay_();
   this->stb_pin_->pin_mode(gpio::FLAG_OUTPUT);
-  ESP_LOGI(TAG, "STB");
-  this->bit_delay_();
-
-  ESP_LOGI(TAG, "START COMPLETE");
-
 }
 
 void TM1638Component::stop_() {
@@ -212,14 +195,9 @@ void TM1638Component::set7Seg(int segPos, uint8_t segBits) {
 
 void TM1638Component::set_intensity(uint8_t brightnessLevel) {
 
+  this->intensity_ = brightnessLevel;
 
-  ESP_LOGI(TAG, "SETTING INTENSITY JWC");
-
-  intensity_ = brightnessLevel;
-
-  ESP_LOGI(TAG, "intensity saved");
-
-  ESP_LOGI(TAG, "intensity value:  %u", intensity_);
+  //ESP_LOGI(TAG, "intensity value:  %u", intensity_);
 
   if (brightnessLevel == 1) {
     sendCommand(TM1638_REGISTER_DISPLAYOFF);
@@ -227,7 +205,7 @@ void TM1638Component::set_intensity(uint8_t brightnessLevel) {
     sendCommand((uint8_t)(TM1638_REGISTER_DISPLAYON | intensity_));
   }
 
-  ESP_LOGI(TAG, "SETTING INTENSITY DONE");
+  //ESP_LOGI(TAG, "SETTING INTENSITY DONE");
 }
 
 /////////////// DISPLAY PRINT /////////////////
@@ -307,24 +285,24 @@ uint8_t TM1638Component::strftime(const char *format, time::ESPTime time) { retu
 //////////////// SPI   ////////////////
 
 void TM1638Component::sendCommand(uint8_t value) {
-  ESP_LOGI(TAG, "Sending command test: %u", value);
-  ESP_LOGI(TAG, "Strobe false");
-  //this->stb_pin_->pin_mode(gpio::FLAG_OUTPUT);
-  ESP_LOGI(TAG, "pinmode output");
-  delayMicroseconds(100);
-  ESP_LOGI(TAG, "delay complete");
-  //this->stb_pin_->digital_write(false);
-  delayMicroseconds(100);
-  ESP_LOGI(TAG, "shift out");
+
+  this->stb_pin_->pin_mode(gpio::FLAG_OUTPUT);
+
+  //delayMicroseconds(100);
+
+  this->stb_pin_->digital_write(false);
+  //delayMicroseconds(100);
+
   this->shiftOut(value);
-  delayMicroseconds(100);
-  ESP_LOGI(TAG, "Strobe true");
-  //stb_pin_->digital_write(true);
+  //delayMicroseconds(100);
+
+  stb_pin_->digital_write(true);
 }
 
 void TM1638Component::sendCommands(uint8_t commands[], int numCommands) {
 
   stb_pin_->digital_write(false);
+
   for (int i = 0; i < numCommands; i++) {
     uint8_t command = commands[i];
     this->shiftOut(command);
@@ -333,10 +311,10 @@ void TM1638Component::sendCommands(uint8_t commands[], int numCommands) {
 }
 
 void TM1638Component::sendCommandLeaveOpen(uint8_t value) {
-  ESP_LOGI(TAG, "Send single command leave open: %u", value);
+  //ESP_LOGI(TAG, "Send single command leave open: %u", value);
   stb_pin_->digital_write(false);
   this->shiftOut(value);
-  ESP_LOGI(TAG, "Send single leave open complete");
+  //ESP_LOGI(TAG, "Send single leave open complete");
 }
 
 void TM1638Component::sendCommandSequence(uint8_t commands[], int numCommands, uint8_t startingAddress) {
@@ -346,17 +324,18 @@ void TM1638Component::sendCommandSequence(uint8_t commands[], int numCommands, u
 
   //ESP_LOGI(TAG, " Set starting address: %u", startingAddress);
 
-  stb_pin_->digital_write(false);
+  //stb_pin_->digital_write(false);
 
+  sendCommandLeaveOpen(startingAddress);
 
-  this->shiftOut(startingAddress);
+  //this->shiftOut(startingAddress);
 
   for (int8_t i = 0; i < numCommands; i++) {
     //ESP_LOGI(TAG, " Sending command sequence: %u", commands[i]);
     this->shiftOut(commands[i]);
   }
-  stb_pin_->digital_write(true);
 
+  stb_pin_->digital_write(true);
 }
 
 uint8_t TM1638Component::shiftIn() {
@@ -375,23 +354,17 @@ uint8_t TM1638Component::shiftIn() {
 
 void TM1638Component::shiftOut(uint8_t val)
 {
-  ESP_LOGI(TAG, "CALLING START FROM SHIFTOUT");
   //this->start_();
-
-  ESP_LOGI(TAG, "CALLING START FROM SHIFTOUT COMPLETE");
 
   for (int i = 0; i < 8; i++)
   {
-    ESP_LOGI(TAG, "DIO WRITE");
-    //dio_pin_->digital_write((val & (1 << i)));
+    dio_pin_->digital_write((val & (1 << i)));
     delayMicroseconds(TM1638_SHIFT_DELAY);
 
-    ESP_LOGI(TAG, "CLK WRITE TRUE");
-    //clk_pin_->digital_write(true);
+    clk_pin_->digital_write(true);
     delayMicroseconds(TM1638_SHIFT_DELAY);
 
-        ESP_LOGI(TAG, "CLK WRITE FALSE");
-    //clk_pin_->digital_write(false);
+    clk_pin_->digital_write(false);
     delayMicroseconds(TM1638_SHIFT_DELAY);
   }
 }

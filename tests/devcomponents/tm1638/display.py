@@ -54,7 +54,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await display.register_display(var, config)
 
-    cg.add(var.set_intensity(config[CONF_INTENSITY]))
+    # cg.add(var.set_intensity(config[CONF_INTENSITY]))
 
     clk = await cg.gpio_pin_expression(config[CONF_CLK_PIN])
     cg.add(var.set_clk_pin(clk))
@@ -63,7 +63,7 @@ async def to_code(config):
     cg.add(var.set_dio_pin(dio))
 
     stb = await cg.gpio_pin_expression(config[CONF_STB_PIN])
-    cg.add(var.set_dio_pin(stb))
+    cg.add(var.set_stb_pin(stb))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
