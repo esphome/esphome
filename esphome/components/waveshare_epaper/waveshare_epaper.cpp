@@ -360,15 +360,18 @@ void HOT WaveshareEPaperTypeA::display() {
 
   // COMMAND DISPLAY UPDATE CONTROL 2
   this->command(0x22);
-  if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2 || this->model_ == WAVESHARE_EPAPER_1_54_IN_V2) {
-    this->data(full_update ? 0xF7 : 0xFF);
-  } else if (this->model_ == TTGO_EPAPER_2_13_IN_B73) {
-    this->data(0xC7);
-  } else if (this->model_ == TTGO_EPAPER_2_13_IN_B74) {
-    // this->data(0xC7);
-    this->data(full_update ? 0xF7 : 0xFF);
-  } else {
-    this->data(0xC4);
+  switch (this->model_) {
+    case WAVESHARE_EPAPER_2_9_IN_V2:
+    case WAVESHARE_EPAPER_1_54_IN_V2:
+    case TTGO_EPAPER_2_13_IN_B74:
+      this->data(full_update ? 0xF7 : 0xFF);
+      break;
+    case TTGO_EPAPER_2_13_IN_B73:
+      this->data(0xC7);
+      break;
+    default:
+      this->data(0xC4);
+      break;
   }
 
   // COMMAND MASTER ACTIVATION
@@ -381,20 +384,14 @@ void HOT WaveshareEPaperTypeA::display() {
 int WaveshareEPaperTypeA::get_width_internal() {
   switch (this->model_) {
     case WAVESHARE_EPAPER_1_54_IN:
-      return 200;
     case WAVESHARE_EPAPER_1_54_IN_V2:
       return 200;
     case WAVESHARE_EPAPER_2_13_IN:
-      return 128;
     case TTGO_EPAPER_2_13_IN:
-      return 128;
     case TTGO_EPAPER_2_13_IN_B73:
     case TTGO_EPAPER_2_13_IN_B74:
-      return 128;
     case TTGO_EPAPER_2_13_IN_B1:
-      return 128;
     case WAVESHARE_EPAPER_2_9_IN:
-      return 128;
     case WAVESHARE_EPAPER_2_9_IN_V2:
       return 128;
   }
@@ -403,20 +400,15 @@ int WaveshareEPaperTypeA::get_width_internal() {
 int WaveshareEPaperTypeA::get_height_internal() {
   switch (this->model_) {
     case WAVESHARE_EPAPER_1_54_IN:
-      return 200;
     case WAVESHARE_EPAPER_1_54_IN_V2:
       return 200;
     case WAVESHARE_EPAPER_2_13_IN:
-      return 250;
     case TTGO_EPAPER_2_13_IN:
-      return 250;
     case TTGO_EPAPER_2_13_IN_B73:
     case TTGO_EPAPER_2_13_IN_B74:
-      return 250;
     case TTGO_EPAPER_2_13_IN_B1:
       return 250;
     case WAVESHARE_EPAPER_2_9_IN:
-      return 296;
     case WAVESHARE_EPAPER_2_9_IN_V2:
       return 296;
   }
@@ -433,11 +425,10 @@ void WaveshareEPaperTypeA::set_full_update_every(uint32_t full_update_every) {
   this->full_update_every_ = full_update_every;
 }
 
-int WaveshareEPaperTypeA::idle_timeout_() {
+uint32_t WaveshareEPaperTypeA::idle_timeout_() {
   switch (this->model_) {
     case TTGO_EPAPER_2_13_IN_B1:
       return 2500;
-      break;
     default:
       return WaveshareEPaper::idle_timeout_();
   }
@@ -646,7 +637,7 @@ void HOT WaveshareEPaper2P9InB::display() {
   this->command(0x13);
   delay(2);
   this->start_data_();
-  for (int i = 0; i < this->get_buffer_length_(); i++)
+  for (size_t i = 0; i < this->get_buffer_length_(); i++)
     this->write_byte(0x00);
   this->end_data_();
   delay(2);
@@ -825,7 +816,7 @@ void HOT WaveshareEPaper4P2InBV2::display() {
   // COMMAND DATA START TRANSMISSION 2 (RED data)
   this->command(0x13);
   this->start_data_();
-  for (int i = 0; i < this->get_buffer_length_(); i++)
+  for (size_t i = 0; i < this->get_buffer_length_(); i++)
     this->write_byte(0xFF);
   this->end_data_();
   delay(2);
@@ -1293,7 +1284,7 @@ void HOT WaveshareEPaper2P13InDKE::display() {
 
 int WaveshareEPaper2P13InDKE::get_width_internal() { return 128; }
 int WaveshareEPaper2P13InDKE::get_height_internal() { return 250; }
-int WaveshareEPaper2P13InDKE::idle_timeout_() { return 5000; }
+uint32_t WaveshareEPaper2P13InDKE::idle_timeout_() { return 5000; }
 void WaveshareEPaper2P13InDKE::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 2.13inDKE");

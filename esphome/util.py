@@ -219,24 +219,23 @@ def run_external_process(*cmd, **kwargs):
 
     capture_stdout = kwargs.get("capture_stdout", False)
     if capture_stdout:
-        sub_stdout = io.BytesIO()
+        sub_stdout = subprocess.PIPE
     else:
         sub_stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
 
     sub_stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
 
     try:
-        return subprocess.call(cmd, stdout=sub_stdout, stderr=sub_stderr)
+        proc = subprocess.run(
+            cmd, stdout=sub_stdout, stderr=sub_stderr, encoding="utf-8", check=False
+        )
+        return proc.stdout if capture_stdout else proc.returncode
     except KeyboardInterrupt:  # pylint: disable=try-except-raise
         raise
     except Exception as err:  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
         _LOGGER.error("Please try running %s locally.", full_cmd)
         return 1
-    finally:
-        if capture_stdout:
-            # pylint: disable=lost-exception
-            return sub_stdout.getvalue()
 
 
 def is_dev_esphome_version():

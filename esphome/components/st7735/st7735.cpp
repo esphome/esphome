@@ -275,7 +275,7 @@ void ST7735::setup() {
 
   uint8_t data = 0;
   if (this->model_ != INITR_HALLOWING) {
-    uint8_t data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MY;
+    data = ST77XX_MADCTL_MX | ST77XX_MADCTL_MY;
   }
   if (this->usebgr_) {
     data = data | ST7735_MADCTL_BGR;
@@ -446,7 +446,7 @@ void HOT ST7735::write_display_data_() {
   this->dc_pin_->digital_write(true);
 
   if (this->eightbitcolor_) {
-    for (int line = 0; line < this->get_buffer_length(); line = line + this->get_width_internal()) {
+    for (size_t line = 0; line < this->get_buffer_length(); line = line + this->get_width_internal()) {
       for (int index = 0; index < this->get_width_internal(); ++index) {
         auto color332 = display::ColorUtil::to_color(this->buffer_[index + line], display::ColorOrder::COLOR_ORDER_RGB,
                                                      display::ColorBitness::COLOR_BITNESS_332, true);

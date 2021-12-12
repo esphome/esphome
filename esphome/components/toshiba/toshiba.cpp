@@ -580,13 +580,13 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
         temperature_code =
             (message[4] >> 4) | (message[14] & RAC_PT1411HWRU_FLAG_FRAC) | (message[15] & RAC_PT1411HWRU_FLAG_NEG);
         if (message[15] & RAC_PT1411HWRU_FLAG_FAH) {
-          for (uint8_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_F.size(); i++) {
+          for (size_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_F.size(); i++) {
             if (RAC_PT1411HWRU_TEMPERATURE_F[i] == temperature_code) {
               this->target_temperature = static_cast<float>((i + TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN - 32) * 5) / 9;
             }
           }
         } else {
-          for (uint8_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_C.size(); i++) {
+          for (size_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_C.size(); i++) {
             if (RAC_PT1411HWRU_TEMPERATURE_C[i] == temperature_code) {
               this->target_temperature = i + TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
             }

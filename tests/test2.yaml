@@ -55,7 +55,10 @@ logger:
   level: DEBUG
 
 deep_sleep:
-  run_duration: 20s
+  run_duration:
+    default: 20s
+    gpio_wakeup_reason: 10s
+    touch_wakeup_reason: 15s
   sleep_duration: 50s
   wakeup_pin: GPIO39
   wakeup_pin_mode: INVERT_WAKEUP
@@ -458,6 +461,16 @@ text_sensor:
     name: 'Template Text Sensor'
     lambda: |-
       return {"Hello World"};
+    filters:
+      - to_upper:
+      - to_lower:
+      - append: "xyz"
+      - prepend: "abcd"
+      - substitute:
+          - Hello -> Goodbye
+      - map:
+          - red -> green
+      - lambda: return {"1234"};
   - platform: homeassistant
     entity_id: sensor.hello_world2
     id: ha_hello_world2

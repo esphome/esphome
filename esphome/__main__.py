@@ -638,6 +638,12 @@ def parse_args(argv):
         default=6052,
     )
     parser_dashboard.add_argument(
+        "--address",
+        help="The address to bind to.",
+        type=str,
+        default="0.0.0.0",
+    )
+    parser_dashboard.add_argument(
         "--username",
         help="The optional username to require for authentication.",
         type=str,

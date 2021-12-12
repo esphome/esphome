@@ -35,6 +35,7 @@ class ModbusNumber : public number::Number, public Component, public SensorItem 
   using write_transform_func_t = std::function<optional<float>(ModbusNumber *, float, std::vector<uint16_t> &)>;
   void set_template(transform_func_t &&f) { this->transform_func_ = f; }
   void set_write_template(write_transform_func_t &&f) { this->write_transform_func_ = f; }
+  void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
  protected:
   void control(float value) override;
@@ -42,6 +43,7 @@ class ModbusNumber : public number::Number, public Component, public SensorItem 
   optional<write_transform_func_t> write_transform_func_;
   ModbusController *parent_;
   float multiply_by_{1.0};
+  bool use_write_multiple_{false};
 };
 
 }  // namespace modbus_controller
