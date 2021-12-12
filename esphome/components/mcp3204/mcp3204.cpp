@@ -30,23 +30,5 @@ float MCP3204::read_data(uint8_t pin) {
   return float(digital_value) / 4096.000;
 }
 
-MCP3204Sensor::MCP3204Sensor(MCP3204 *parent, uint8_t pin, float reference_voltage)
-    : PollingComponent(1000), parent_(parent), pin_(pin), reference_voltage_(reference_voltage) {}
-
-float MCP3204Sensor::get_setup_priority() const { return setup_priority::DATA; }
-
-void MCP3204Sensor::setup() { LOG_SENSOR("", "Setting up MCP3204 Sensor '%s'...", this); }
-void MCP3204Sensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "MCP3204Sensor:");
-  ESP_LOGCONFIG(TAG, "  Pin: %u", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Reference Voltage: %.2fV", this->reference_voltage_);
-}
-float MCP3204Sensor::sample() {
-  float value_v = this->parent_->read_data(pin_);
-  value_v = (value_v * this->reference_voltage_);
-  return value_v;
-}
-void MCP3204Sensor::update() { this->publish_state(this->sample()); }
-
 }  // namespace mcp3204
 }  // namespace esphome
