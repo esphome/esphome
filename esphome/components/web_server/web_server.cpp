@@ -237,7 +237,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifdef USE_COVER
   for (auto *obj : App.get_covers())
     if (this->include_internal_ || !obj->is_internal())
-      write_row(stream, obj, "cover", "<button>Open</button><button>Close</button>");
+      write_row(stream, obj, "cover", "<button>Open</button><button>Stop</button><button>Close</button>");
 #endif
 
 #ifdef USE_NUMBER
