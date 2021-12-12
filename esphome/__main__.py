@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_PORT,
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
+    SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.helpers import indent
@@ -200,8 +201,7 @@ def upload_using_esptool(config, port):
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
         flash_images = [
             platformio_api.FlashImage(
-                path=idedata.firmware_bin_path,
-                offset=firmware_offset,
+                path=idedata.firmware_bin_path, offset=firmware_offset
             ),
             *idedata.extra_flash_images,
         ]
@@ -226,6 +226,8 @@ def upload_using_esptool(config, port):
             mcu,
             "write_flash",
             "-z",
+            "--flash_size",
+            "detect",
         ]
         for img in flash_images:
             cmd += [img.offset, img.path]
@@ -605,10 +607,7 @@ def parse_args(argv):
         "wizard",
         help="A helpful setup wizard that will guide you through setting up ESPHome.",
     )
-    parser_wizard.add_argument(
-        "configuration",
-        help="Your YAML configuration file.",
-    )
+    parser_wizard.add_argument("configuration", help="Your YAML configuration file.")
 
     parser_fingerprint = subparsers.add_parser(
         "mqtt-fingerprint", help="Get the SSL fingerprint from a MQTT broker."
@@ -630,14 +629,19 @@ def parse_args(argv):
         "dashboard", help="Create a simple web server for a dashboard."
     )
     parser_dashboard.add_argument(
-        "configuration",
-        help="Your YAML configuration file directory.",
+        "configuration", help="Your YAML configuration file directory."
     )
     parser_dashboard.add_argument(
         "--port",
         help="The HTTP port to open connections on. Defaults to 6052.",
         type=int,
         default=6052,
+    )
+    parser_dashboard.add_argument(
+        "--address",
+        help="The address to bind to.",
+        type=str,
+        default="0.0.0.0",
     )
     parser_dashboard.add_argument(
         "--username",
@@ -787,6 +791,10 @@ def run_esphome(argv):
             return 1
 
     for conf_path in args.configuration:
+        if any(os.path.basename(conf_path) == x for x in SECRETS_FILES):
+            _LOGGER.warning("Skipping secrets file %s", conf_path)
+            continue
+
         CORE.config_path = conf_path
         CORE.dashboard = args.dashboard
 

@@ -40,6 +40,7 @@ service APIConnection {
   rpc climate_command (ClimateCommandRequest) returns (void) {}
   rpc number_command (NumberCommandRequest) returns (void) {}
   rpc select_command (SelectCommandRequest) returns (void) {}
+  rpc button_command (ButtonCommandRequest) returns (void) {}
 }
 
 
@@ -182,6 +183,8 @@ message DeviceInfoResponse {
   // The esphome project details if set
   string project_name = 8;
   string project_version = 9;
+
+  uint32 webserver_port = 10;
 }
 
 message ListEntitiesRequest {
@@ -201,6 +204,14 @@ message SubscribeStatesRequest {
   // Empty
 }
 
+// ==================== COMMON =====================
+
+enum EntityCategory {
+  ENTITY_CATEGORY_NONE = 0;
+  ENTITY_CATEGORY_CONFIG = 1;
+  ENTITY_CATEGORY_DIAGNOSTIC = 2;
+}
+
 // ==================== BINARY SENSOR ====================
 message ListEntitiesBinarySensorResponse {
   option (id) = 12;
@@ -216,6 +227,7 @@ message ListEntitiesBinarySensorResponse {
   bool is_status_binary_sensor = 6;
   bool disabled_by_default = 7;
   string icon = 8;
+  EntityCategory entity_category = 9;
 }
 message BinarySensorStateResponse {
   option (id) = 21;
@@ -247,6 +259,7 @@ message ListEntitiesCoverResponse {
   string device_class = 8;
   bool disabled_by_default = 9;
   string icon = 10;
+  EntityCategory entity_category = 11;
 }
 
 enum LegacyCoverState {
@@ -316,6 +329,7 @@ message ListEntitiesFanResponse {
   int32 supported_speed_count = 8;
   bool disabled_by_default = 9;
   string icon = 10;
+  EntityCategory entity_category = 11;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
@@ -392,6 +406,7 @@ message ListEntitiesLightResponse {
   repeated string effects = 11;
   bool disabled_by_default = 13;
   string icon = 14;
+  EntityCategory entity_category = 15;
 }
 message LightStateResponse {
   option (id) = 24;
@@ -480,6 +495,7 @@ message ListEntitiesSensorResponse {
   // Last reset type removed in 2021.9.0
   SensorLastResetType legacy_last_reset_type = 11;
   bool disabled_by_default = 12;
+  EntityCategory entity_category = 13;
 }
 message SensorStateResponse {
   option (id) = 25;
@@ -508,6 +524,7 @@ message ListEntitiesSwitchResponse {
   string icon = 5;
   bool assumed_state = 6;
   bool disabled_by_default = 7;
+  EntityCategory entity_category = 8;
 }
 message SwitchStateResponse {
   option (id) = 26;
@@ -541,6 +558,7 @@ message ListEntitiesTextSensorResponse {
 
   string icon = 5;
   bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
 }
 message TextSensorStateResponse {
   option (id) = 27;
@@ -701,6 +719,8 @@ message ListEntitiesCameraResponse {
   string name = 3;
   string unique_id = 4;
   bool disabled_by_default = 5;
+  string icon = 6;
+  EntityCategory entity_category = 7;
 }
 
 message CameraImageResponse {
@@ -795,6 +815,7 @@ message ListEntitiesClimateResponse {
   repeated string supported_custom_presets = 17;
   bool disabled_by_default = 18;
   string icon = 19;
+  EntityCategory entity_category = 20;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -848,6 +869,11 @@ message ClimateCommandRequest {
 }
 
 // ==================== NUMBER ====================
+enum NumberMode {
+  NUMBER_MODE_AUTO = 0;
+  NUMBER_MODE_BOX = 1;
+  NUMBER_MODE_SLIDER = 2;
+}
 message ListEntitiesNumberResponse {
   option (id) = 49;
   option (source) = SOURCE_SERVER;
@@ -863,6 +889,9 @@ message ListEntitiesNumberResponse {
   float max_value = 7;
   float step = 8;
   bool disabled_by_default = 9;
+  EntityCategory entity_category = 10;
+  string unit_of_measurement = 11;
+  NumberMode mode = 12;
 }
 message NumberStateResponse {
   option (id) = 50;
@@ -900,6 +929,7 @@ message ListEntitiesSelectResponse {
   string icon = 5;
   repeated string options = 6;
   bool disabled_by_default = 7;
+  EntityCategory entity_category = 8;
 }
 message SelectStateResponse {
   option (id) = 53;
@@ -921,4 +951,29 @@ message SelectCommandRequest {
 
   fixed32 key = 1;
   string state = 2;
+}
+
+// ==================== BUTTON ====================
+message ListEntitiesButtonResponse {
+  option (id) = 61;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BUTTON";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+  string device_class = 8;
+}
+message ButtonCommandRequest {
+  option (id) = 62;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BUTTON";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
 }

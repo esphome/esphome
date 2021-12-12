@@ -11,18 +11,19 @@ namespace mdns {
 static const char *const TAG = "mdns";
 
 void MDNSComponent::setup() {
+  this->compile_records_();
+
   esp_err_t err = mdns_init();
   if (err != ESP_OK) {
-    ESP_LOGW(TAG, "MDNS init failed: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "mDNS init failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
 
-  mdns_hostname_set(compile_hostname_().c_str());
-  mdns_instance_name_set(compile_hostname_().c_str());
+  mdns_hostname_set(this->hostname_.c_str());
+  mdns_instance_name_set(this->hostname_.c_str());
 
-  auto services = compile_services_();
-  for (const auto &service : services) {
+  for (const auto &service : this->services_) {
     std::vector<mdns_txt_item_t> txt_records;
     for (const auto &record : service.txt_records) {
       mdns_txt_item_t it{};

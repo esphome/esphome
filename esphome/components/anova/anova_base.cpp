@@ -73,51 +73,46 @@ AnovaPacket *AnovaCodec::get_stop_request() {
 }
 
 void AnovaCodec::decode(const uint8_t *data, uint16_t length) {
-  memset(this->buf_, 0, 32);
-  strncpy(this->buf_, (char *) data, length);
+  char buf[32];
+  memset(buf, 0, sizeof(buf));
+  strncpy(buf, (char *) data, std::min<uint16_t>(length, sizeof(buf) - 1));
   this->has_target_temp_ = this->has_current_temp_ = this->has_unit_ = this->has_running_ = false;
   switch (this->current_query_) {
     case READ_DEVICE_STATUS: {
-      if (!strncmp(this->buf_, "stopped", 7)) {
+      if (!strncmp(buf, "stopped", 7)) {
         this->has_running_ = true;
         this->running_ = false;
       }
-      if (!strncmp(this->buf_, "running", 7)) {
+      if (!strncmp(buf, "running", 7)) {
         this->has_running_ = true;
         this->running_ = true;
       }
       break;
     }
     case START: {
-      if (!strncmp(this->buf_, "start", 5)) {
+      if (!strncmp(buf, "start", 5)) {
         this->has_running_ = true;
         this->running_ = true;
       }
       break;
     }
     case STOP: {
-      if (!strncmp(this->buf_, "stop", 4)) {
+      if (!strncmp(buf, "stop", 4)) {
         this->has_running_ = true;
         this->running_ = false;
       }
       break;
     }
-    case READ_TARGET_TEMPERATURE: {
-      this->target_temp_ = strtof(this->buf_, nullptr);
-      if (this->fahrenheit_)
-        this->target_temp_ = ftoc(this->target_temp_);
-      this->has_target_temp_ = true;
-      break;
-    }
+    case READ_TARGET_TEMPERATURE:
     case SET_TARGET_TEMPERATURE: {
-      this->target_temp_ = strtof(this->buf_, nullptr);
+      this->target_temp_ = parse_number<float>(str_until(buf, '\r')).value_or(0.0f);
       if (this->fahrenheit_)
         this->target_temp_ = ftoc(this->target_temp_);
       this->has_target_temp_ = true;
       break;
     }
     case READ_CURRENT_TEMPERATURE: {
-      this->current_temp_ = strtof(this->buf_, nullptr);
+      this->current_temp_ = parse_number<float>(str_until(buf, '\r')).value_or(0.0f);
       if (this->fahrenheit_)
         this->current_temp_ = ftoc(this->current_temp_);
       this->has_current_temp_ = true;
@@ -125,8 +120,8 @@ void AnovaCodec::decode(const uint8_t *data, uint16_t length) {
     }
     case SET_UNIT:
     case READ_UNIT: {
-      this->unit_ = this->buf_[0];
-      this->fahrenheit_ = this->buf_[0] == 'f';
+      this->unit_ = buf[0];
+      this->fahrenheit_ = buf[0] == 'f';
       this->has_unit_ = true;
       break;
     }

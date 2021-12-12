@@ -12,6 +12,8 @@ from esphome.const import (
     CONF_AUTH,
     CONF_USERNAME,
     CONF_PASSWORD,
+    CONF_INCLUDE_INTERNAL,
+    CONF_OTA,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -41,6 +43,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
             web_server_base.WebServerBase
         ),
+        cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
+        cv.Optional(CONF_OTA, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -52,10 +56,14 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
 
+    cg.add_define("USE_WEBSERVER")
+
     cg.add(paren.set_port(config[CONF_PORT]))
     cg.add_define("WEBSERVER_PORT", config[CONF_PORT])
+    cg.add_define("USE_WEBSERVER")
     cg.add(var.set_css_url(config[CONF_CSS_URL]))
     cg.add(var.set_js_url(config[CONF_JS_URL]))
+    cg.add(var.set_allow_ota(config[CONF_OTA]))
     if CONF_AUTH in config:
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
@@ -69,3 +77,4 @@ async def to_code(config):
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
         with open(file=path, mode="r", encoding="utf-8") as myfile:
             cg.add(var.set_js_include(myfile.read()))
+    cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))

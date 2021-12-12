@@ -9,8 +9,8 @@ static const char *const TAG = "htu21d";
 
 static const uint8_t HTU21D_ADDRESS = 0x40;
 static const uint8_t HTU21D_REGISTER_RESET = 0xFE;
-static const uint8_t HTU21D_REGISTER_TEMPERATURE = 0xE3;
-static const uint8_t HTU21D_REGISTER_HUMIDITY = 0xE5;
+static const uint8_t HTU21D_REGISTER_TEMPERATURE = 0xF3;
+static const uint8_t HTU21D_REGISTER_HUMIDITY = 0xF5;
 static const uint8_t HTU21D_REGISTER_STATUS = 0xE7;
 
 void HTU21DComponent::setup() {

@@ -7,6 +7,7 @@
 
 namespace esphome {
 namespace midea {
+namespace ac {
 
 template<typename... Ts> class MideaActionBase : public Action<Ts...> {
  public:
@@ -55,6 +56,7 @@ template<typename... Ts> class PowerOffAction : public MideaActionBase<Ts...> {
   void play(Ts... x) override { this->parent_->do_power_off(); }
 };
 
+}  // namespace ac
 }  // namespace midea
 }  // namespace esphome
 

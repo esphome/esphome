@@ -52,7 +52,7 @@ void CCS811Component::setup() {
 
   if (this->baseline_.has_value()) {
     // baseline available, write to sensor
-    this->write_bytes(0x11, decode_uint16(*this->baseline_));
+    this->write_bytes(0x11, decode_value(*this->baseline_));
   }
 
   auto hardware_version_data = this->read_bytes<1>(0x21);

@@ -9,14 +9,13 @@
 namespace esphome {
 namespace mdns {
 
-static const char *const TAG = "mdns";
-
 void MDNSComponent::setup() {
-  network::IPAddress addr = network::get_ip_address();
-  MDNS.begin(compile_hostname_().c_str(), (uint32_t) addr);
+  this->compile_records_();
 
-  auto services = compile_services_();
-  for (const auto &service : services) {
+  network::IPAddress addr = network::get_ip_address();
+  MDNS.begin(this->hostname_.c_str(), (uint32_t) addr);
+
+  for (const auto &service : this->services_) {
     // Strip the leading underscore from the proto and service_type. While it is
     // part of the wire protocol to have an underscore, and for example ESP-IDF
     // expects the underscore to be there, the ESP8266 implementation always adds
