@@ -23,6 +23,7 @@ AUTO_LOAD = ["json", "web_server_base"]
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 
+
 def default_url(value):
     if value[CONF_VERSION] == 1:
         if value[CONF_CSS_URL] == "-":
@@ -66,6 +67,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     default_url,
 )
+
 
 @coroutine_with_priority(40.0)
 async def to_code(config):
