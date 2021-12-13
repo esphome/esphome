@@ -13,7 +13,6 @@ MCP3204Sensor = mcp3204_ns.class_(
 )
 CONF_MCP3204_ID = "mcp3204_id"
 
-# TODO: figure out how to only allow 4 or 8 channels
 CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(MCP3204Sensor),
