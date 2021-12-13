@@ -1709,7 +1709,7 @@ climate:
     max_temperature: 30
   - platform: midea_ir
     name: Midea IR
-    use_fahrenheits: True
+    use_fahrenheit: true
   - platform: midea
     on_state:
       logger.log: "State changed!"

@@ -9,12 +9,12 @@ CODEOWNERS = ["@dudanov"]
 midea_ir_ns = cg.esphome_ns.namespace("midea_ir")
 MideaIR = midea_ir_ns.class_("MideaIR", climate_ir.ClimateIR)
 
-CONF_USE_FAHRENHEITS = "use_fahrenheits"
+CONF_USE_FAHRENHEIT = "use_fahrenheit"
 
 CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(MideaIR),
-        cv.Optional(CONF_USE_FAHRENHEITS, default=False): cv.boolean,
+        cv.Optional(CONF_USE_FAHRENHEIT, default=False): cv.boolean,
     }
 )
 
@@ -22,5 +22,4 @@ CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await climate_ir.register_climate_ir(var, config)
-    if CONF_USE_FAHRENHEITS in config:
-        cg.add(var.set_fahrenheit(config[CONF_USE_FAHRENHEITS]))
+    cg.add(var.set_fahrenheit(config[CONF_USE_FAHRENHEIT]))
