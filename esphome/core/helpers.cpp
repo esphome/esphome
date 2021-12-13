@@ -469,6 +469,6 @@ std::string format_hex_pretty(const uint8_t *data, size_t length) {
     return ret + " (" + to_string(length) + ")";
   return ret;
 }
-std::string format_hex_pretty(std::vector<uint8_t> data) { return format_hex_pretty(data.data(), data.size()); }
+std::string format_hex_pretty(const std::vector<uint8_t> &data) { return format_hex_pretty(data.data(), data.size()); }
 
 }  // namespace esphome
