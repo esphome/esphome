@@ -104,6 +104,7 @@ void APIConnection::loop() {
       ESP_LOGW(TAG, "%s didn't respond to ping request in time. Disconnecting...", this->client_info_.c_str());
     }
   } else if (now - this->last_traffic_ > keepalive) {
+    ESP_LOGD(TAG, "Sending keepalive PING...");
     this->sent_ping_ = true;
     this->send_ping_request(PingRequest());
   }
@@ -852,7 +853,8 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
     }
     return false;
   }
-  this->last_traffic_ = millis();
+  // Do not set last_traffic_ on send
+  // this->last_traffic_ = millis();
   return true;
 }
 void APIConnection::on_unauthenticated_access() {
