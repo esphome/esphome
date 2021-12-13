@@ -181,7 +181,7 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
     this->flow_control_pin_->digital_write(false);
   waiting_for_response = address;
   last_send_ = millis();
-  ESP_LOGV(TAG, "Modbus write: %s", hexencode(data).c_str());
+  ESP_LOGV(TAG, "Modbus write: %s", format_hex_pretty(data).c_str());
 }
 
 // Helper function for lambdas
@@ -202,7 +202,7 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   if (this->flow_control_pin_ != nullptr)
     this->flow_control_pin_->digital_write(false);
   waiting_for_response = payload[0];
-  ESP_LOGV(TAG, "Modbus write raw: %s", hexencode(payload).c_str());
+  ESP_LOGV(TAG, "Modbus write raw: %s", format_hex_pretty(payload).c_str());
   last_send_ = millis();
 }
 

@@ -2,6 +2,7 @@ from pathlib import Path
 import subprocess
 import hashlib
 import logging
+import urllib.parse
 
 from datetime import datetime
 
@@ -36,9 +37,21 @@ def _compute_destination_path(key: str, domain: str) -> Path:
 
 
 def clone_or_update(
-    *, url: str, ref: str = None, refresh: TimePeriodSeconds, domain: str
+    *,
+    url: str,
+    ref: str = None,
+    refresh: TimePeriodSeconds,
+    domain: str,
+    username: str = None,
+    password: str = None,
 ) -> Path:
     key = f"{url}@{ref}"
+
+    if username is not None and password is not None:
+        url = url.replace(
+            "://", f"://{urllib.parse.quote(username)}:{urllib.parse.quote(password)}@"
+        )
+
     repo_dir = _compute_destination_path(key, domain)
     fetch_pr_branch = ref is not None and ref.startswith("pull/")
     if not repo_dir.is_dir():

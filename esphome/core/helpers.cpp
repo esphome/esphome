@@ -48,13 +48,13 @@ void get_mac_address_raw(uint8_t *mac) {
 std::string get_mac_address() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
-  return str_sprintf("%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return str_snprintf("%02x%02x%02x%02x%02x%02x", 12, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 std::string get_mac_address_pretty() {
   uint8_t mac[6];
   get_mac_address_raw(mac);
-  return str_sprintf("%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 #ifdef USE_ESP32
@@ -98,7 +98,7 @@ uint16_t fast_random_16() {
   return (rand32 & 0xFFFF) + (rand32 >> 16);
 }
 uint8_t fast_random_8() {
-  uint8_t rand32 = fast_random_32();
+  uint32_t rand32 = fast_random_32();
   return (rand32 & 0xFF) + ((rand32 >> 8) & 0xFF);
 }
 
@@ -244,38 +244,6 @@ std::string to_string(long double val) {
   return buf;
 }
 
-optional<int> parse_hex(const char chr) {
-  int out = chr;
-  if (out >= '0' && out <= '9')
-    return (out - '0');
-  if (out >= 'A' && out <= 'F')
-    return (10 + (out - 'A'));
-  if (out >= 'a' && out <= 'f')
-    return (10 + (out - 'a'));
-  return {};
-}
-
-optional<int> parse_hex(const std::string &str, size_t start, size_t length) {
-  if (str.length() < start) {
-    return {};
-  }
-  size_t end = start + length;
-  if (str.length() < end) {
-    return {};
-  }
-  int out = 0;
-  for (size_t i = start; i < end; i++) {
-    char chr = str[i];
-    auto digit = parse_hex(chr);
-    if (!digit.has_value()) {
-      ESP_LOGW(TAG, "Can't convert '%s' to number, invalid character %c!", str.substr(start, length).c_str(), chr);
-      return {};
-    }
-    out = (out << 4) | *digit;
-  }
-  return out;
-}
-
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
   for (char c : str) {
@@ -325,6 +293,20 @@ bool str_startswith(const std::string &full, const std::string &start) { return 
 bool str_endswith(const std::string &full, const std::string &ending) {
   return full.rfind(ending) == (full.size() - ending.size());
 }
+std::string str_snprintf(const char *fmt, size_t length, ...) {
+  std::string str;
+  va_list args;
+
+  str.resize(length);
+  va_start(args, length);
+  size_t out_length = vsnprintf(&str[0], length + 1, fmt, args);
+  va_end(args);
+
+  if (out_length < length)
+    str.resize(out_length);
+
+  return str;
+}
 std::string str_sprintf(const char *fmt, ...) {
   std::string str;
   va_list args;
@@ -339,22 +321,6 @@ std::string str_sprintf(const char *fmt, ...) {
   va_end(args);
 
   return str;
-}
-
-std::string hexencode(const uint8_t *data, uint32_t len) {
-  char buf[20];
-  std::string res;
-  for (size_t i = 0; i < len; i++) {
-    if (i + 1 != len) {
-      sprintf(buf, "%02X.", data[i]);
-    } else {
-      sprintf(buf, "%02X ", data[i]);
-    }
-    res += buf;
-  }
-  sprintf(buf, "(%u)", len);
-  res += buf;
-  return res;
 }
 
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value) {
@@ -431,9 +397,16 @@ IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 
 // ---------------------------------------------------------------------------------------------------------------------
 
+// Strings
+
 std::string str_truncate(const std::string &str, size_t length) {
   return str.length() > length ? str.substr(0, length) : str;
 }
+std::string str_until(const char *str, char ch) {
+  char *pos = strchr(str, ch);
+  return pos == nullptr ? std::string(str) : std::string(str, pos - str);
+}
+std::string str_until(const std::string &str, char ch) { return str.substr(0, str.find(ch)); }
 std::string str_snake_case(const std::string &str) {
   std::string result;
   result.resize(str.length());
@@ -448,5 +421,54 @@ std::string str_sanitize(const std::string &str) {
   });
   return out;
 }
+
+// Parsing & formatting
+
+size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
+  uint8_t val;
+  size_t chars = std::min(length, 2 * count);
+  for (size_t i = 2 * count - chars; i < 2 * count; i++, str++) {
+    if (*str >= '0' && *str <= '9')
+      val = *str - '0';
+    else if (*str >= 'A' && *str <= 'F')
+      val = 10 + (*str - 'A');
+    else if (*str >= 'a' && *str <= 'f')
+      val = 10 + (*str - 'a');
+    else
+      return 0;
+    data[i >> 1] = !(i & 1) ? val << 4 : data[i >> 1] | val;
+  }
+  return chars;
+}
+
+static char format_hex_char(uint8_t v) { return v >= 10 ? 'a' + (v - 10) : '0' + v; }
+std::string format_hex(const uint8_t *data, size_t length) {
+  std::string ret;
+  ret.resize(length * 2);
+  for (size_t i = 0; i < length; i++) {
+    ret[2 * i] = format_hex_char((data[i] & 0xF0) >> 4);
+    ret[2 * i + 1] = format_hex_char(data[i] & 0x0F);
+  }
+  return ret;
+}
+std::string format_hex(std::vector<uint8_t> data) { return format_hex(data.data(), data.size()); }
+
+static char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
+std::string format_hex_pretty(const uint8_t *data, size_t length) {
+  if (length == 0)
+    return "";
+  std::string ret;
+  ret.resize(3 * length - 1);
+  for (size_t i = 0; i < length; i++) {
+    ret[3 * i] = format_hex_pretty_char((data[i] & 0xF0) >> 4);
+    ret[3 * i + 1] = format_hex_pretty_char(data[i] & 0x0F);
+    if (i != length - 1)
+      ret[3 * i + 2] = '.';
+  }
+  if (length > 4)
+    return ret + " (" + to_string(length) + ")";
+  return ret;
+}
+std::string format_hex_pretty(std::vector<uint8_t> data) { return format_hex_pretty(data.data(), data.size()); }
 
 }  // namespace esphome

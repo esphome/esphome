@@ -96,7 +96,7 @@ void Component::call() {
       // State loop: Call loop
       this->call_loop();
       break;
-    case COMPONENT_STATE_FAILED:
+    case COMPONENT_STATE_FAILED:  // NOLINT(bugprone-branch-clone)
       // State failed: Do nothing
       break;
     default:

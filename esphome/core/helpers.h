@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <cstring>
 
 #include <string>
 #include <functional>
@@ -18,10 +19,6 @@
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
 #define ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
-
-#define xSemaphoreWait(semaphore, wait_time) \
-  xSemaphoreTake(semaphore, wait_time); \
-  xSemaphoreGive(semaphore);
 
 namespace esphome {
 
@@ -49,15 +46,16 @@ std::string to_string(unsigned long long val);  // NOLINT
 std::string to_string(float val);
 std::string to_string(double val);
 std::string to_string(long double val);
-optional<int> parse_hex(const std::string &str, size_t start, size_t length);
-optional<int> parse_hex(char chr);
 
 /// Compare string a to string b (ignoring case) and return whether they are equal.
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 bool str_startswith(const std::string &full, const std::string &start);
 bool str_endswith(const std::string &full, const std::string &ending);
 
-/// sprintf-like function returning std::string instead of writing to char array.
+/// snprintf-like function returning std::string with a given maximum length.
+std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t length, ...);
+
+/// sprintf-like function returning std::string.
 std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
 
 class HighFrequencyLoopRequester {
@@ -191,10 +189,6 @@ enum ParseOnOffState {
 };
 
 ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const char *off = nullptr);
-
-// Encode raw data to a human-readable string (for debugging)
-std::string hexencode(const uint8_t *data, uint32_t len);
-template<typename T> std::string hexencode(const T &data) { return hexencode(data.data(), data.size()); }
 
 // https://stackoverflow.com/questions/7858817/unpacking-a-tuple-to-call-a-matching-function-pointer/7858971#7858971
 template<int...> struct seq {};                                       // NOLINT
@@ -355,6 +349,12 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr
 /// Truncate a string to a specific length.
 std::string str_truncate(const std::string &str, size_t length);
 
+/// Extract the part of the string until either the first occurence of the specified character, or the end (requires str
+/// to be null-terminated).
+std::string str_until(const char *str, char ch);
+/// Extract the part of the string until either the first occurence of the specified character, or the end.
+std::string str_until(const std::string &str, char ch);
+
 /// Convert the string to snake case (lowercase with underscores).
 std::string str_snake_case(const std::string &str);
 
@@ -366,45 +366,141 @@ std::string str_sanitize(const std::string &str);
 /// @name Parsing & formatting
 ///@{
 
-/// Parse a unsigned decimal number.
+/// Parse an unsigned decimal number from a null-terminated string.
 template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_unsigned<T>::value), int> = 0>
-optional<T> parse_number(const char *str, size_t len) {
+optional<T> parse_number(const char *str) {
   char *end = nullptr;
   unsigned long value = ::strtoul(str, &end, 10);  // NOLINT(google-runtime-int)
-  if (end == nullptr || end != str + len || value > std::numeric_limits<T>::max())
+  if (end == str || *end != '\0' || value > std::numeric_limits<T>::max())
     return {};
   return value;
 }
+/// Parse an unsigned decimal number.
 template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_unsigned<T>::value), int> = 0>
 optional<T> parse_number(const std::string &str) {
-  return parse_number<T>(str.c_str(), str.length());
+  return parse_number<T>(str.c_str());
+}
+/// Parse a signed decimal number from a null-terminated string.
+template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T>::value), int> = 0>
+optional<T> parse_number(const char *str) {
+  char *end = nullptr;
+  signed long value = ::strtol(str, &end, 10);  // NOLINT(google-runtime-int)
+  if (end == str || *end != '\0' || value < std::numeric_limits<T>::min() || value > std::numeric_limits<T>::max())
+    return {};
+  return value;
 }
 /// Parse a signed decimal number.
 template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T>::value), int> = 0>
-optional<T> parse_number(const char *str, size_t len) {
+optional<T> parse_number(const std::string &str) {
+  return parse_number<T>(str.c_str());
+}
+/// Parse a decimal floating-point number from a null-terminated string.
+template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0> optional<T> parse_number(const char *str) {
   char *end = nullptr;
-  signed long value = ::strtol(str, &end, 10);  // NOLINT(google-runtime-int)
-  if (end == nullptr || end != str + len || value < std::numeric_limits<T>::min() ||
-      value > std::numeric_limits<T>::max())
+  float value = ::strtof(str, &end);
+  if (end == str || *end != '\0' || value == HUGE_VALF)
     return {};
   return value;
-}
-template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T>::value), int> = 0>
-optional<T> parse_number(const std::string &str) {
-  return parse_number<T>(str.c_str(), str.length());
 }
 /// Parse a decimal floating-point number.
 template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0>
-optional<T> parse_number(const char *str, size_t len) {
-  char *end = nullptr;
-  float value = ::strtof(str, &end);
-  if (end == nullptr || end != str + len || value == HUGE_VALF)
-    return {};
-  return value;
-}
-template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0>
 optional<T> parse_number(const std::string &str) {
-  return parse_number<T>(str.c_str(), str.length());
+  return parse_number<T>(str.c_str());
+}
+
+/** Parse bytes from a hex-encoded string into a byte array.
+ *
+ * When \p len is less than \p 2*count, the result is written to the back of \p data (i.e. this function treats \p str
+ * as if it were padded with zeros at the front).
+ *
+ * @param str String to read from.
+ * @param len Length of \p str (excluding optional null-terminator), is a limit on the number of characters parsed.
+ * @param data Byte array to write to.
+ * @param count Length of \p data.
+ * @return The number of characters parsed from \p str.
+ */
+size_t parse_hex(const char *str, size_t len, uint8_t *data, size_t count);
+/// Parse \p count bytes from the hex-encoded string \p str of at least \p 2*count characters into array \p data.
+inline bool parse_hex(const char *str, uint8_t *data, size_t count) {
+  return parse_hex(str, strlen(str), data, count) == 2 * count;
+}
+/// Parse \p count bytes from the hex-encoded string \p str of at least \p 2*count characters into array \p data.
+inline bool parse_hex(const std::string &str, uint8_t *data, size_t count) {
+  return parse_hex(str.c_str(), str.length(), data, count) == 2 * count;
+}
+/// Parse \p count bytes from the hex-encoded string \p str of at least \p 2*count characters into vector \p data.
+inline bool parse_hex(const char *str, std::vector<uint8_t> &data, size_t count) {
+  data.resize(count);
+  return parse_hex(str, strlen(str), data.data(), count) == 2 * count;
+}
+/// Parse \p count bytes from the hex-encoded string \p str of at least \p 2*count characters into vector \p data.
+inline bool parse_hex(const std::string &str, std::vector<uint8_t> &data, size_t count) {
+  data.resize(count);
+  return parse_hex(str.c_str(), str.length(), data.data(), count) == 2 * count;
+}
+/** Parse a hex-encoded string into an unsigned integer.
+ *
+ * @param str String to read from, starting with the most significant byte.
+ * @param len Length of \p str (excluding optional null-terminator), is a limit on the number of characters parsed.
+ */
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+optional<T> parse_hex(const char *str, size_t len) {
+  T val = 0;
+  if (len > 2 * sizeof(T) || parse_hex(str, len, reinterpret_cast<uint8_t *>(&val), sizeof(T)) == 0)
+    return {};
+  return convert_big_endian(val);
+}
+/// Parse a hex-encoded null-terminated string (starting with the most significant byte) into an unsigned integer.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<T> parse_hex(const char *str) {
+  return parse_hex<T>(str, strlen(str));
+}
+/// Parse a hex-encoded null-terminated string (starting with the most significant byte) into an unsigned integer.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<T> parse_hex(const std::string &str) {
+  return parse_hex<T>(str.c_str(), str.length());
+}
+
+/// Format the byte array \p data of length \p len in lowercased hex.
+std::string format_hex(const uint8_t *data, size_t length);
+/// Format the vector \p data in lowercased hex.
+std::string format_hex(std::vector<uint8_t> data);
+/// Format an unsigned integer in lowercased hex, starting with the most significant byte.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
+  val = convert_big_endian(val);
+  return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
+}
+
+/// Format the byte array \p data of length \p len in pretty-printed, human-readable hex.
+std::string format_hex_pretty(const uint8_t *data, size_t length);
+/// Format the vector \p data in pretty-printed, human-readable hex.
+std::string format_hex_pretty(std::vector<uint8_t> data);
+/// Format an unsigned integer in pretty-printed, human-readable hex, starting with the most significant byte.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex_pretty(T val) {
+  val = convert_big_endian(val);
+  return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T));
+}
+
+///@}
+
+/// @name Number manipulation
+///@{
+
+/// Remap a number from one range to another.
+template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
+  return (value - min) * (max_out - min_out) / (max - min) + min_out;
+}
+
+///@}
+
+/// @name Deprecated functions
+///@{
+
+ESPDEPRECATED("hexencode() is deprecated, use format_hex_pretty() instead.", "2022.1")
+inline std::string hexencode(const uint8_t *data, uint32_t len) { return format_hex_pretty(data, len); }
+
+template<typename T>
+ESPDEPRECATED("hexencode() is deprecated, use format_hex_pretty() instead.", "2022.1")
+std::string hexencode(const T &data) {
+  return hexencode(data.data(), data.size());
 }
 
 ///@}
