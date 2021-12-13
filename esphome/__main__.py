@@ -145,6 +145,8 @@ def wrap_to_code(name, comp):
         if comp.config_schema is not None:
             conf_str = yaml_util.dump(conf)
             conf_str = conf_str.replace("//", "")
+            # remove tailing \ to avoid multi-line comment warning
+            conf_str = conf_str.replace("\\\n", "\n")
             cg.add(cg.LineComment(indent(conf_str)))
         await coro(conf)
 
@@ -636,6 +638,12 @@ def parse_args(argv):
         help="The HTTP port to open connections on. Defaults to 6052.",
         type=int,
         default=6052,
+    )
+    parser_dashboard.add_argument(
+        "--address",
+        help="The address to bind to.",
+        type=str,
+        default="0.0.0.0",
     )
     parser_dashboard.add_argument(
         "--username",

@@ -49,6 +49,7 @@ web_server:
   auth:
     username: admin
     password: admin
+  include_internal: true
 
 time:
   - platform: sntp
@@ -412,6 +413,7 @@ display:
     reset_pin: GPIO23
     model: 2.90in
     full_update_every: 30
+    reset_duration: 200ms
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
@@ -519,3 +521,7 @@ xpt2046:
             id(touchscreen).y_raw,
             id(touchscreen).z_raw
             );
+
+button:
+  - platform: restart
+    name: Restart Button

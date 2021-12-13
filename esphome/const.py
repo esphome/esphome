@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2021.12.0-dev"
+__version__ = "2022.1.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -286,6 +286,7 @@ CONF_ILLUMINANCE = "illuminance"
 CONF_IMPEDANCE = "impedance"
 CONF_IMPORT_ACTIVE_ENERGY = "import_active_energy"
 CONF_IMPORT_REACTIVE_ENERGY = "import_reactive_energy"
+CONF_INCLUDE_INTERNAL = "include_internal"
 CONF_INCLUDES = "includes"
 CONF_INDEX = "index"
 CONF_INDOOR = "indoor"
@@ -538,6 +539,7 @@ CONF_REFERENCE_TEMPERATURE = "reference_temperature"
 CONF_REFRESH = "refresh"
 CONF_REPEAT = "repeat"
 CONF_REPOSITORY = "repository"
+CONF_RESET_DURATION = "reset_duration"
 CONF_RESET_PIN = "reset_pin"
 CONF_RESIZE = "resize"
 CONF_RESOLUTION = "resolution"
@@ -578,6 +580,7 @@ CONF_SEND_EVERY = "send_every"
 CONF_SEND_FIRST_AT = "send_first_at"
 CONF_SENSING_PIN = "sensing_pin"
 CONF_SENSOR = "sensor"
+CONF_SENSOR_DATAPOINT = "sensor_datapoint"
 CONF_SENSOR_ID = "sensor_id"
 CONF_SENSORS = "sensors"
 CONF_SEQUENCE = "sequence"
@@ -863,7 +866,6 @@ DEVICE_CLASS_SAFETY = "safety"
 DEVICE_CLASS_SMOKE = "smoke"
 DEVICE_CLASS_SOUND = "sound"
 DEVICE_CLASS_TAMPER = "tamper"
-DEVICE_CLASS_UPDATE = "update"
 DEVICE_CLASS_VIBRATION = "vibration"
 DEVICE_CLASS_WINDOW = "window"
 # device classes of both binary_sensor and sensor component
@@ -895,6 +897,11 @@ DEVICE_CLASS_TEMPERATURE = "temperature"
 DEVICE_CLASS_TIMESTAMP = "timestamp"
 DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS = "volatile_organic_compounds"
 DEVICE_CLASS_VOLTAGE = "voltage"
+# device classes of both binary_sensor and button component
+DEVICE_CLASS_UPDATE = "update"
+# device classes of button component
+DEVICE_CLASS_RESTART = "restart"
+
 
 # state classes
 STATE_CLASS_NONE = ""

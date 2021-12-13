@@ -217,12 +217,19 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_SENSOR
   for (auto *obj : App.get_sensors())
-    write_row(stream, obj, "sensor", "");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "sensor", "");
 #endif
 
 #ifdef USE_SWITCH
   for (auto *obj : App.get_switches())
-    write_row(stream, obj, "switch", "<button>Toggle</button>");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "switch", "<button>Toggle</button>");
+#endif
+
+#ifdef USE_BUTTON
+  for (auto *obj : App.get_buttons())
+    write_row(stream, obj, "button", "<button>Press</button>");
 #endif
 
 #ifdef USE_BUTTON
@@ -232,47 +239,54 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_BINARY_SENSOR
   for (auto *obj : App.get_binary_sensors())
-    write_row(stream, obj, "binary_sensor", "");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "binary_sensor", "");
 #endif
 
 #ifdef USE_FAN
   for (auto *obj : App.get_fans())
-    write_row(stream, obj, "fan", "<button>Toggle</button>");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "fan", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_LIGHT
   for (auto *obj : App.get_lights())
-    write_row(stream, obj, "light", "<button>Toggle</button>");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "light", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_TEXT_SENSOR
   for (auto *obj : App.get_text_sensors())
-    write_row(stream, obj, "text_sensor", "");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "text_sensor", "");
 #endif
 
 #ifdef USE_COVER
   for (auto *obj : App.get_covers())
-    write_row(stream, obj, "cover", "<button>Open</button><button>Close</button>");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "cover", "<button>Open</button><button>Close</button>");
 #endif
 
 #ifdef USE_NUMBER
   for (auto *obj : App.get_numbers())
-    write_row(stream, obj, "number", "");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "number", "");
 #endif
 
 #ifdef USE_SELECT
   for (auto *obj : App.get_selects())
-    write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, EntityBase *obj) {
-      select::Select *select = (select::Select *) obj;
-      stream.print("<select>");
-      stream.print("<option></option>");
-      for (auto const &option : select->traits.get_options()) {
-        stream.print("<option>");
-        stream.print(option.c_str());
-        stream.print("</option>");
-      }
-      stream.print("</select>");
-    });
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, EntityBase *obj) {
+        select::Select *select = (select::Select *) obj;
+        stream.print("<select>");
+        stream.print("<option></option>");
+        for (auto const &option : select->traits.get_options()) {
+          stream.print("<option>");
+          stream.print(option.c_str());
+          stream.print("</option>");
+        }
+        stream.print("</select>");
+      });
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
@@ -965,13 +979,6 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_BUTTON
-  if (match.domain == "button") {
-    this->handle_button_request(request, match);
-    return false;
-  }
-#endif
-
-#ifdef USE_BUTTON
   if (request->method() == HTTP_POST && match.domain == "button")
     return true;
 #endif
@@ -1049,6 +1056,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_SWITCH
   if (match.domain == "switch") {
     this->handle_switch_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_BUTTON
+  if (match.domain == "button") {
+    this->handle_button_request(request, match);
     return;
   }
 #endif

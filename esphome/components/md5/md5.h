@@ -44,7 +44,7 @@ class MD5Digest {
   void get_hex(char *output);
 
   /// Compare the digest against a provided byte-encoded digest (16 bytes).
-  bool equals_bytes(const char *expected);
+  bool equals_bytes(const uint8_t *expected);
 
   /// Compare the digest against a provided hex-encoded digest (32 bytes).
   bool equals_hex(const char *expected);

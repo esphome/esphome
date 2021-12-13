@@ -221,10 +221,22 @@ def _validate(config):
             raise cv.Invalid("Fast connect can only be used with one network!")
 
     if CONF_USE_ADDRESS not in config:
+        use_address = CORE.name + config[CONF_DOMAIN]
         if CONF_MANUAL_IP in config:
             use_address = str(config[CONF_MANUAL_IP][CONF_STATIC_IP])
-        else:
-            use_address = CORE.name + config[CONF_DOMAIN]
+        elif CONF_NETWORKS in config:
+            ips = set(
+                str(net[CONF_MANUAL_IP][CONF_STATIC_IP])
+                for net in config[CONF_NETWORKS]
+                if CONF_MANUAL_IP in net
+            )
+            if len(ips) > 1:
+                raise cv.Invalid(
+                    "Must specify use_address when using multiple static IP addresses."
+                )
+            if len(ips) == 1:
+                use_address = next(iter(ips))
+
         config[CONF_USE_ADDRESS] = use_address
 
     return config
@@ -334,7 +346,8 @@ async def to_code(config):
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     for network in config.get(CONF_NETWORKS, []):
-        cg.add(var.add_sta(wifi_network(network, config.get(CONF_MANUAL_IP))))
+        ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
+        cg.add(var.add_sta(wifi_network(network, ip_config)))
 
     if CONF_AP in config:
         conf = config[CONF_AP]

@@ -23,7 +23,6 @@ AUTO_LOAD = ["json", "web_server_base"]
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 
-
 def default_url(value):
     if value[CONF_VERSION] == 1:
         if value[CONF_CSS_URL] == "-":
@@ -68,7 +67,6 @@ CONFIG_SCHEMA = cv.All(
     default_url,
 )
 
-
 @coroutine_with_priority(40.0)
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
@@ -97,3 +95,4 @@ async def to_code(config):
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
         with open(file=path, mode="r", encoding="utf-8") as myfile:
             cg.add(var.set_js_include(myfile.read()))
+    cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
