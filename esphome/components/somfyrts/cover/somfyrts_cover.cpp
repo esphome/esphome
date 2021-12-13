@@ -116,11 +116,11 @@ void SomfyRTSCover::start_direction_(esphome::cover::CoverOperation dir) {
       break;
     case esphome::cover::COVER_OPERATION_OPENING:
       this->last_operation_ = dir;
-      frame[10] = 0xFD;
+      frame[10] = 0xFE;
       break;
     case esphome::cover::COVER_OPERATION_CLOSING:
       this->last_operation_ = dir;
-      frame[10] = 0xFE;
+      frame[10] = 0xFD;
       break;
     default:
       return;
