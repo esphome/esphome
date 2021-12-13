@@ -189,10 +189,10 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
-  const std::string &title = App.get_name();
   // All content is controlled and created by user - so allowing all origins is fine here.
   stream->addHeader("Access-Control-Allow-Origin", "*");
 #if WEBSERVER_VERSION == 1
+  const std::string &title = App.get_name();
   stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><meta "
                   "name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));
   stream->print(title.c_str());
@@ -883,36 +883,9 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
           opt.add(custom_fan_mode);
       }
       if (traits.get_supports_swing_modes()) {
-        //JsonArray &opt = root.createNestedArray("swing_modes");
-        //for (auto swing_mode : traits.get_supported_swing_modes())
-        //  opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
-        
-        // error: passing 'const esphome::climate::ClimateTraits' as 'this' argument of 'const
-        //  std::set<esphome::climate::ClimateSwingMode> esphome::climate::ClimateTraits::get_supported_swing_modes()'
-        //  discards qualifiers [-fpermissive]
-        //for (std::set<ClimateSwingMode> swing_mode : traits.get_supported_swing_modes())
-        //for (climate::ClimateSwingMode swing_mode : traits.get_supported_swing_modes())
-        
-        /* const char *payload = "";
-              for (climate::ClimateSwingMode swing_mode : traits.get_supported_swing_modes())
-              {
-                switch (swing_mode)
-                {
-                case climate::CLIMATE_SWING_OFF:
-                  payload = "off";
-                  break;
-                case climate::CLIMATE_SWING_BOTH:
-                  payload = "both";
-                  break;
-                case climate::CLIMATE_SWING_VERTICAL:
-                  payload = "vertical";
-                  break;
-                case climate::CLIMATE_SWING_HORIZONTAL:
-                  payload = "horizontal";
-                  break;
-                }
-                opt.add(PSTR_LOCAL(payload));
-              }*/
+        // JsonArray &opt = root.createNestedArray("swing_modes");
+        // for (auto swing_mode : traits.get_supported_swing_modes())
+        // opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
       }
       if (traits.get_supports_presets() && obj->preset.has_value()) {
         JsonArray &opt = root.createNestedArray("presets");
