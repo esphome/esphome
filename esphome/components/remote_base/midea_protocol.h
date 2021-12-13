@@ -29,7 +29,7 @@ class MideaData {
   bool is_valid() const { return this->data_[OFFSET_CS] == this->calc_cs_(); }
   void finalize() { this->data_[OFFSET_CS] = this->calc_cs_(); }
   bool is_compliment(const MideaData &rhs) const;
-  std::string to_string() const { return format_hex_pretty(this->data_, sizeof(this->data_)); }
+  std::string to_string() const { return format_hex_pretty(this->data_.data(), this->data_.size()); }
   // compare only 40-bits
   bool operator==(const MideaData &rhs) const {
     return std::equal(this->data_.begin(), this->data_.begin() + OFFSET_CS, rhs.data_.begin());
