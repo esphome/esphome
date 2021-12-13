@@ -6,13 +6,13 @@ namespace esphome {
 namespace modbus_controller {
 
 static const char *const TAG = "modbus_controller.output";
-
-void ModbusOutput::setup() {}
+static const char *const FLOAT_TAG = "modbus_controller.float_output";
+static const char *const BINARY_TAG = "modbus_controller.binary_output";
 
 /** Write a value to the device
  *
  */
-void ModbusOutput::write_state(float value) {
+void ModbusFloatOutput::write_state(float value) {
   std::vector<uint16_t> data;
   auto original_value = value;
   // Is there are lambda configured?
@@ -22,10 +22,10 @@ void ModbusOutput::write_state(float value) {
     // in that case the return value is ignored
     auto val = (*this->write_transform_func_)(this, value, data);
     if (val.has_value()) {
-      ESP_LOGV(TAG, "Value overwritten by lambda");
+      ESP_LOGV(FLOAT_TAG, "Value overwritten by lambda");
       value = val.value();
     } else {
-      ESP_LOGV(TAG, "Communication handled by lambda - exiting control");
+      ESP_LOGV(FLOAT_TAG, "Communication handled by lambda - exiting control");
       return;
     }
   } else {
@@ -36,10 +36,9 @@ void ModbusOutput::write_state(float value) {
     data = float_to_payload(value, this->sensor_value_type);
   }
 
-  ESP_LOGD(TAG, "Updating register: start address=0x%X register count=%d new value=%.02f (val=%.02f)",
+  ESP_LOGD(FLOAT_TAG, "Updating register: start address=0x%X register count=%d new value=%.02f (val=%.02f)",
            this->start_address, this->register_count, value, original_value);
 
-  // Create and send the write command
   // Create and send the write command
   ModbusCommandItem write_cmd;
   if (this->register_count == 1 && !this->use_write_multiple_) {
@@ -51,10 +50,58 @@ void ModbusOutput::write_state(float value) {
   parent_->queue_command(write_cmd);
 }
 
-void ModbusOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "Modbus Float Output:");
+void ModbusFloatOutput::dump_config() {
+  ESP_LOGCONFIG(FLOAT_TAG, "Modbus Float Output:");
   LOG_FLOAT_OUTPUT(this);
-  ESP_LOGCONFIG(TAG, "Modbus device start address=0x%X register count=%d value type=%hhu", this->start_address,
+  ESP_LOGCONFIG(FLOAT_TAG, "Modbus device start address=0x%X register count=%d value type=%hhu", this->start_address,
+                this->register_count, this->sensor_value_type);
+}
+
+// ModbusBinaryOutput
+void ModbusBinaryOutput::write_state(bool state) {
+  // This will be called every time the user requests a state change.
+  ModbusCommandItem cmd;
+  std::vector<uint8_t> data;
+  // Is there are lambda configured?
+  if (this->write_transform_func_.has_value()) {
+    // data is passed by reference
+    // the lambda can fill the empty vector directly
+    // in that case the return value is ignored
+    auto val = (*this->write_transform_func_)(this, state, data);
+    if (val.has_value()) {
+      ESP_LOGV(BINARY_TAG, "Value overwritten by lambda");
+      state = val.value();
+    } else {
+      ESP_LOGV(BINARY_TAG, "Communication handled by lambda - exiting control");
+      return;
+    }
+  }
+  if (!data.empty()) {
+    ESP_LOGV(BINARY_TAG, "Modbus binary output write raw: %s", format_hex_pretty(data).c_str());
+    cmd = ModbusCommandItem::create_custom_command(
+        this->parent_, data,
+        [this, cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
+          this->parent_->on_write_register_response(cmd.register_type, this->start_address, data);
+        });
+  } else {
+    ESP_LOGV(BINARY_TAG, "write_state new value = %s type = %d address = %X offset = %x", ONOFF(state),
+             (int) this->register_type, this->start_address, this->offset);
+
+    // offset for coil and discrete inputs is the coil/register number not bytes
+    if (this->use_write_multiple_) {
+      std::vector<bool> states{state};
+      cmd = ModbusCommandItem::create_write_multiple_coils(parent_, this->start_address + this->offset, states);
+    } else {
+      cmd = ModbusCommandItem::create_write_single_coil(parent_, this->start_address + this->offset, state);
+    }
+  }
+  this->parent_->queue_command(cmd);
+}
+
+void ModbusBinaryOutput::dump_config() {
+  ESP_LOGCONFIG(BINARY_TAG, "Modbus Binary Output:");
+  LOG_BINARY_OUTPUT(this);
+  ESP_LOGCONFIG(BINARY_TAG, "Modbus device start address=0x%X  register count=%d value type=%hhu", this->start_address,
                 this->register_count, this->sensor_value_type);
 }
 
