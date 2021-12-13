@@ -114,6 +114,14 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string switch_json(switch_::Switch *obj, bool value, JsonDetail start_config);
 #endif
 
+#ifdef USE_BUTTON
+  /// Handle a button request under '/button/<id>/press'.
+  void handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the button details with its value as a JSON string.
+  std::string button_json(button::Button *obj, JsonDetail start_config);
+#endif
+
 #ifdef USE_BINARY_SENSOR
   void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) override;
 

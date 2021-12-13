@@ -114,6 +114,11 @@ void WebServer::setup() {
         client->send(this->switch_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
 #endif
 
+#ifdef USE_BUTTON
+  for (auto *obj : App.get_buttons())
+    client->send(this->button_json(obj, DETAIL_ALL).c_str(), "state");
+#endif
+
 #ifdef USE_BINARY_SENSOR
     for (auto *obj : App.get_binary_sensors())
       if (this->include_internal_ || !obj->is_internal())
@@ -218,6 +223,11 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifdef USE_SWITCH
   for (auto *obj : App.get_switches())
     write_row(stream, obj, "switch", "<button>Toggle</button>");
+#endif
+
+#ifdef USE_BUTTON
+  for (auto *obj : App.get_buttons())
+    write_row(stream, obj, "button", "<button>Press</button>");
 #endif
 
 #ifdef USE_BINARY_SENSOR
@@ -407,6 +417,32 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
       request->send(200);
     } else if (match.method == "turn_off") {
       this->defer([obj]() { obj->turn_off(); });
+      request->send(200);
+    } else {
+      request->send(404);
+    }
+    return;
+  }
+  request->send(404);
+}
+#endif
+
+#ifdef USE_BUTTON
+std::string WebServer::button_json(button::Button *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject &root) {
+    set_json_id(root, obj, "button-" + obj->get_object_id(), start_config);
+  });
+}
+
+void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (button::Button *obj : App.get_buttons()) {
+    if (obj->is_internal())
+      continue;
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_POST && match.method == "press") {
+      this->defer([obj]() { obj->press(); });
       request->send(200);
     } else {
       request->send(404);
@@ -925,6 +961,18 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_SWITCH
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "switch")
+    return true;
+#endif
+
+#ifdef USE_BUTTON
+  if (match.domain == "button") {
+    this->handle_button_request(request, match);
+    return false;
+  }
+#endif
+
+#ifdef USE_BUTTON
+  if (request->method() == HTTP_POST && match.domain == "button")
     return true;
 #endif
 
