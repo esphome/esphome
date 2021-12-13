@@ -88,7 +88,9 @@ class TM1637Key : public binary_sensor::BinarySensor {
 
  public:
   void set_keycode(uint8_t key_code) { key_code_ = key_code; }
-  void process(uint8_t data) { this->publish_state(static_cast<bool>(data == this->key_code_)); }
+  void process(uint8_t data) {
+    this->publish_state(static_cast<bool>(data == this->key_code_));
+    }
 
  protected:
   uint8_t key_code_{0};

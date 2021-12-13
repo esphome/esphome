@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
@@ -87,7 +86,7 @@ class TM1638Component : public PollingComponent {
   void bit_delay_();
 
   uint8_t shiftIn();
-  uint8_t readButtons();
+
 
   // void GetTranslation(char *str);
 
@@ -109,18 +108,24 @@ class TM1638Component : public PollingComponent {
 
 #ifdef USE_BINARY_SENSOR
 class TM1638Key : public binary_sensor::BinarySensor {
-  friend class TM1638Display;
+  friend class TM1638Component;
 
  public:
-  void set_keycode(uint8_t key_code) { key_code_ = key_code; }
-  void process(uint8_t data) { this->publish_state(static_cast<bool>(data == this->key_code_)); }
+  void set_keycode(uint8_t key_code) { key_code_ = key_code; }  //needed for binary sensor
+  void process(uint8_t data) {
+
+    uint8_t mask = 1;
+
+    data = data >> key_code_;
+    data = data & mask;
+
+    this->publish_state(static_cast<bool>(data));
+  }
 
  protected:
   uint8_t key_code_{0};
 };
 #endif
-
-
 
 }  // namespace tm1638
 }  // namespace esphome

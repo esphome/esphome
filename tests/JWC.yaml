@@ -16,6 +16,9 @@ api:
 ota:
   num_attempts: 3
 
+status_led:
+  pin: GPIO2
+
 # Enable Home Assistant API
 wifi:
   ssid: "CobbNET25"
@@ -26,10 +29,10 @@ time:
     id: homeassistant_time
     timezone: EST+5EDT,M3.2.0/2,M11.1.0/2
 
-output:
-  - platform: gpio
-    pin: 2
-    id: boardled
+#output:
+#  - platform: gpio
+#    pin: 2
+#    id: boardled
 
 
 display:
@@ -42,20 +45,102 @@ display:
     update_interval: 1s
     intensity: 6
     lambda: |-
-      it.strftime("%I-%M-%S", id(homeassistant_time).now());
+        it.strftime("%I-%M-%S", id(homeassistant_time).now());
 
-
+    #it.print("1234");
     #switch1_action:
     #  - output.turn_on: testled
 
-interval:
-  - interval: 250ms
-    then:
-      - output.turn_on: boardled
-      - delay: 50ms
-      - output.turn_off: boardled
+#interval:
+#  - interval: 250ms
+#    then:
+#      - output.turn_on: boardled
+#      - delay: 50ms
+#      - output.turn_off: boardled
 
 external_components:
   - source:
       type: local
       path: devcomponents
+
+binary_sensor:
+  - platform: tm1638
+    id: key0
+    name: key1-00
+    tm1638_id: primarydisplay
+    key: 0
+    filters:
+      - delayed_on: 10ms
+    on_press:
+      then:
+        - lambda: |-
+                id(primarydisplay).setLed(0, true);
+
+    on_release:
+      then:
+        - lambda: |-
+                id(primarydisplay).setLed(0, false);
+
+  - platform: tm1638
+    id: key1
+    name: key1-01
+    tm1638_id: primarydisplay
+    key: 1
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key2
+    name: key1-02
+    tm1638_id: primarydisplay
+    key: 2
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key3
+    name: key1-03
+    tm1638_id: primarydisplay
+    key: 3
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key4
+    name: key1-04
+    tm1638_id: primarydisplay
+    key: 4
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key5
+    name: key1-05
+    tm1638_id: primarydisplay
+    key: 5
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key6
+    name: key1-06
+    tm1638_id: primarydisplay
+    key: 6
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key7
+    name: key1-07
+    tm1638_id: primarydisplay
+    key: 7
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key8
+    name: key1-08
+    tm1638_id: primarydisplay
+    key: 8
+    filters:
+      - delayed_on: 10ms

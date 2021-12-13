@@ -162,6 +162,7 @@ uint8_t TM1637Display::get_keys() {
     //   From | S0 S1 S2 K1 K2 1  1  1
     //     To | S0 S1 S2 K1 K2 0  0  0
     key_code = ~key_code;
+
     // Shift bits to:
     //    Bit | 7  6  5  4  3  2  1  0
     //  ------+------------------------

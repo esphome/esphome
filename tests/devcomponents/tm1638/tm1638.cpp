@@ -18,7 +18,7 @@ static const uint8_t TM1638_REGISTER_DISPLAYON = 0x88;
 static const uint8_t TM1638_REGISTER_7SEG_1 = 0xC0;
 static const uint8_t TM1638_REGISTER_LED_1 = 0xC1;
 
-static const uint8_t TM1638_SHIFT_DELAY = 4;  // clock pause between commands, default 4ms
+static const uint8_t TM1638_SHIFT_DELAY = 10;  // clock pause between commands, default 4ms
 
 
 void TM1638Component::set_writer(tm1638_writer_t &&writer) { this->writer_ = writer; }
@@ -27,7 +27,7 @@ void TM1638Component::set_writer(tm1638_writer_t &&writer) { this->writer_ = wri
 void TM1638Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up TM1638...");
 
-  this->clk_pin_->setup();              // OUTPUT  <--- THIS MAKE THE CHIP RESTART
+  this->clk_pin_->setup();              // OUTPUT
   this->dio_pin_->setup();              // OUTPUT
   this->stb_pin_->setup();              // OUTPUT
 
@@ -41,23 +41,11 @@ void TM1638Component::setup() {
 
   ESP_LOGI(TAG, "Pin setup complete");
 
-  this->sendCommand(TM1638_REGISTER_AUTOADDRESS);  // move this to reset display method
 
-  //ESP_LOGI(TAG, "Testing display");
-
-  //uint8_t userIntensity = intensity_;
-
-  //set_intensity(7);
-
-  //this->reset(true);                // all LEDs on
 
   set_intensity(intensity_);
 
   this->reset(false);               // all LEDs off
-
-  //setLed(7, true);                  //remove from final build
-
-  //ESP_LOGI(TAG, "Testing display complete");
 
   this->buffer_ = new uint8_t[8];  // NOLINT
 
@@ -71,23 +59,27 @@ void TM1638Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
   LOG_PIN("  CLK Pin: ", this->clk_pin_);
   LOG_PIN("  DIO Pin: ", this->dio_pin_);
+  LOG_PIN("  STB Pin: ", this->stb_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
 
 #ifdef USE_BINARY_SENSOR
 void TM1638Component::loop() {
   uint8_t val = this->get_keys();
+
   for (auto *tm1638_key : this->tm1638_keys_)
+  {
     tm1638_key->process(val);
+  }
 }
 
 
-uint8_t TM1638Component::readButtons() {
+uint8_t TM1638Component::get_keys() {
   // ESP_LOGI(TAG, "READ BUTTONS");
 
   uint8_t buttons = 0;
 
-  stb_pin->digital_write(false);
+  stb_pin_->digital_write(false);
 
   this->shiftOut(TM1638_REGISTER_READBUTTONS);
 
@@ -102,15 +94,11 @@ uint8_t TM1638Component::readButtons() {
 
   dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
 
-  stb_pin->digital_write(true);
-
-  // ESP_LOGI(TAG, "READ BUTTONS COMPLETE");
+  stb_pin_->digital_write(true);
 
   return buttons;
 }
 
-
-}
 #endif
 
 
@@ -120,29 +108,12 @@ void TM1638Component::update() {  // this is called at the interval specified in
   {
     (*this->writer_)(*this);
   }
-  //ESP_LOGI(TAG, "Update");
 
   this->display();
 }
 
-
 float TM1638Component::get_setup_priority() const { return setup_priority::PROCESSOR; }
 void TM1638Component::bit_delay_() { delayMicroseconds(100); }
-
-
-
-void TM1638Component::start_() {
-
-  this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
-  this->clk_pin_->pin_mode(gpio::FLAG_OUTPUT);
-  this->stb_pin_->pin_mode(gpio::FLAG_OUTPUT);
-}
-
-void TM1638Component::stop_() {
-
-}
-
-
 
 
 void TM1638Component::display() {
@@ -197,7 +168,8 @@ void TM1638Component::set_intensity(uint8_t brightnessLevel) {
 
   this->intensity_ = brightnessLevel;
 
-  //ESP_LOGI(TAG, "intensity value:  %u", intensity_);
+
+  this->sendCommand(TM1638_REGISTER_AUTOADDRESS);  // move this to reset display method
 
   if (brightnessLevel == 1) {
     sendCommand(TM1638_REGISTER_DISPLAYOFF);
@@ -205,7 +177,7 @@ void TM1638Component::set_intensity(uint8_t brightnessLevel) {
     sendCommand((uint8_t)(TM1638_REGISTER_DISPLAYON | intensity_));
   }
 
-  //ESP_LOGI(TAG, "SETTING INTENSITY DONE");
+
 }
 
 /////////////// DISPLAY PRINT /////////////////
