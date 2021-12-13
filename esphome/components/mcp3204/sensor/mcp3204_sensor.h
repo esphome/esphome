@@ -15,9 +15,8 @@ class MCP3204Sensor : public PollingComponent,
                       public sensor::Sensor,
                       public voltage_sampler::VoltageSampler {
  public:
-  MCP3204Sensor(uint8_t pin, float reference_voltage);
+  MCP3204Sensor(uint8_t pin);
 
-  void set_reference_voltage(float reference_voltage) { reference_voltage_ = reference_voltage; }
   void update() override;
   void dump_config() override;
   float get_setup_priority() const override;
@@ -25,7 +24,6 @@ class MCP3204Sensor : public PollingComponent,
 
  protected:
   uint8_t pin_;
-  float reference_voltage_;
 };
 
 }  // namespace mcp3204

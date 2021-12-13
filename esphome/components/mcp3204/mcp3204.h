@@ -13,12 +13,15 @@ class MCP3204 : public Component,
  public:
   MCP3204() = default;
 
+  void set_reference_voltage(float reference_voltage) { this->reference_voltage_ = reference_voltage; }
+
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
   float read_data(uint8_t pin);
 
  protected:
+  float reference_voltage_;
 };
 
 }  // namespace mcp3204
