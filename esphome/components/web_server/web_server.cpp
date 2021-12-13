@@ -232,11 +232,6 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     write_row(stream, obj, "button", "<button>Press</button>");
 #endif
 
-#ifdef USE_BUTTON
-  for (auto *obj : App.get_buttons())
-    write_row(stream, obj, "button", "<button>Press</button>");
-#endif
-
 #ifdef USE_BINARY_SENSOR
   for (auto *obj : App.get_binary_sensors())
     if (this->include_internal_ || !obj->is_internal())
