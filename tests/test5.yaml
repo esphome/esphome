@@ -191,4 +191,3 @@ script:
 web_server:
   port: 8080
   # should default to version: 1
-  
