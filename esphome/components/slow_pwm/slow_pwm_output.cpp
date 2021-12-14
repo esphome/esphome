@@ -7,8 +7,30 @@ namespace slow_pwm {
 static const char *const TAG = "output.slow_pwm";
 
 void SlowPWMOutput::setup() {
-  this->pin_->setup();
+  if (this->pin_)
+    this->pin_->setup();
   this->turn_off();
+}
+
+/// turn on/off the configured output
+void SlowPWMOutput::set_state_(bool new_state) {
+  static bool current_state = false;
+  if (this->pin_) {
+    this->pin_->digital_write(new_state);
+  }
+  if (new_state != current_state) {
+    if (this->toggle_trigger_) {
+      this->toggle_trigger_->trigger(new_state);
+    }
+    if (new_state) {
+      if (this->turn_on_trigger_)
+        this->turn_on_trigger_->trigger();
+    } else {
+      if (this->turn_off_trigger_)
+        this->turn_off_trigger_->trigger();
+    }
+    current_state = new_state;
+  }
 }
 
 void SlowPWMOutput::loop() {
@@ -21,20 +43,25 @@ void SlowPWMOutput::loop() {
   }
 
   if (scaled_state > now - this->period_start_time_) {
-    this->pin_->digital_write(true);
+    this->set_state_(true);
   } else {
-    this->pin_->digital_write(false);
+    this->set_state_(false);
   }
 }
 
 void SlowPWMOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "Slow PWM Output:");
-  LOG_PIN("  Pin: ", this->pin_);
+  if (this->pin_)
+    LOG_PIN("  Using pin: ", this->pin_);
+  if (this->toggle_trigger_)
+    ESP_LOGCONFIG(TAG, "  Toggle on automation configured");
+  if (this->turn_on_trigger_)
+    ESP_LOGCONFIG(TAG, "  Turn on automation configured");
+  if (this->turn_off_trigger_)
+    ESP_LOGCONFIG(TAG, "  Turn off automation configured");
   ESP_LOGCONFIG(TAG, "  Period: %d ms", this->period_);
   LOG_FLOAT_OUTPUT(this);
 }
-
-void SlowPWMOutput::write_state(float state) { this->state_ = state; }
 
 }  // namespace slow_pwm
 }  // namespace esphome
