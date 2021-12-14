@@ -605,15 +605,8 @@ bool Bedjet::update_status_() {
 
   // TODO: do we have any way to know if a particular preset is running (M1/2/3)? get biorhythm data?
   switch (status.mode) {
+    case MODE_WAIT:  // Biorhythm "wait" step: device is idle
     case MODE_STANDBY:
-      this->mode = climate::CLIMATE_MODE_OFF;
-      this->action = climate::CLIMATE_ACTION_IDLE;
-      this->fan_mode = climate::CLIMATE_FAN_OFF;
-      this->custom_preset.reset();
-      this->preset.reset();
-      break;
-
-    case MODE_WAIT:
       this->mode = climate::CLIMATE_MODE_OFF;
       this->action = climate::CLIMATE_ACTION_IDLE;
       this->fan_mode = climate::CLIMATE_FAN_OFF;
