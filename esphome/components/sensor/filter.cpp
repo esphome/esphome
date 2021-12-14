@@ -91,7 +91,7 @@ optional<float> QuantileFilter::new_value(float value) {
       sort(quantile_queue.begin(), quantile_queue.end());
 
       size_t queue_size = quantile_queue.size();
-      size_t position = ceill(queue_size * this->quantile_) - 1;
+      size_t position = ceilf(queue_size * this->quantile_) - 1;
       ESP_LOGVV(TAG, "QuantileFilter(%p)::position: %d/%d", this, position, queue_size);
       result = quantile_queue[position];
     }
