@@ -141,14 +141,14 @@ void OTAComponent::handle_() {
 
   if (!this->readall_(buf, 5)) {
     ESP_LOGW(TAG, "Reading magic bytes failed!");
-    goto error;
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
   // 0x6C, 0x26, 0xF7, 0x5C, 0x45
   if (buf[0] != 0x6C || buf[1] != 0x26 || buf[2] != 0xF7 || buf[3] != 0x5C || buf[4] != 0x45) {
     ESP_LOGW(TAG, "Magic bytes do not match! 0x%02X-0x%02X-0x%02X-0x%02X-0x%02X", buf[0], buf[1], buf[2], buf[3],
              buf[4]);
     error_code = OTA_RESPONSE_ERROR_MAGIC;
-    goto error;
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
 
   // Send OK and version - 2 bytes
@@ -161,7 +161,7 @@ void OTAComponent::handle_() {
   // Read features - 1 byte
   if (!this->readall_(buf, 1)) {
     ESP_LOGW(TAG, "Reading features failed!");
-    goto error;
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
   ota_features = buf[0];  // NOLINT
   ESP_LOGV(TAG, "OTA features is 0x%02X", ota_features);
@@ -189,7 +189,7 @@ void OTAComponent::handle_() {
     // Send nonce, 32 bytes hex MD5
     if (!this->writeall_(reinterpret_cast<uint8_t *>(sbuf), 32)) {
       ESP_LOGW(TAG, "Auth: Writing nonce failed!");
-      goto error;
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
 
     // prepare challenge
@@ -201,7 +201,7 @@ void OTAComponent::handle_() {
     // Receive cnonce, 32 bytes hex MD5
     if (!this->readall_(buf, 32)) {
       ESP_LOGW(TAG, "Auth: Reading cnonce failed!");
-      goto error;
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
     sbuf[32] = '\0';
     ESP_LOGV(TAG, "Auth: CNonce is %s", sbuf);
@@ -216,7 +216,7 @@ void OTAComponent::handle_() {
     // Receive result, 32 bytes hex MD5
     if (!this->readall_(buf + 64, 32)) {
       ESP_LOGW(TAG, "Auth: Reading response failed!");
-      goto error;
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
     sbuf[64 + 32] = '\0';
     ESP_LOGV(TAG, "Auth: Response is %s", sbuf + 64);
@@ -228,7 +228,7 @@ void OTAComponent::handle_() {
     if (!matches) {
       ESP_LOGW(TAG, "Auth failed! Passwords do not match!");
       error_code = OTA_RESPONSE_ERROR_AUTH_INVALID;
-      goto error;
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
   }
 #endif  // USE_OTA_PASSWORD
@@ -240,7 +240,7 @@ void OTAComponent::handle_() {
   // Read size, 4 bytes MSB first
   if (!this->readall_(buf, 4)) {
     ESP_LOGW(TAG, "Reading size failed!");
-    goto error;
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
   ota_size = 0;
   for (uint8_t i = 0; i < 4; i++) {
@@ -251,7 +251,7 @@ void OTAComponent::handle_() {
 
   error_code = backend->begin(ota_size);
   if (error_code != OTA_RESPONSE_OK)
-    goto error;
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   update_started = true;
 
   // Acknowledge prepare OK - 1 byte
@@ -261,7 +261,7 @@ void OTAComponent::handle_() {
   // Read binary MD5, 32 bytes
   if (!this->readall_(buf, 32)) {
     ESP_LOGW(TAG, "Reading binary MD5 checksum failed!");
-    goto error;
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
   sbuf[32] = '\0';
   ESP_LOGV(TAG, "Update: Binary MD5 is %s", sbuf);
@@ -277,23 +277,24 @@ void OTAComponent::handle_() {
     ssize_t read = this->client_->read(buf, requested);
     if (read == -1) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        App.feed_wdt();
         delay(1);
         continue;
       }
       ESP_LOGW(TAG, "Error receiving data for update, errno: %d", errno);
-      goto error;
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     } else if (read == 0) {
       // $ man recv
       // "When  a  stream socket peer has performed an orderly shutdown, the return value will
       // be 0 (the traditional "end-of-file" return)."
       ESP_LOGW(TAG, "Remote end closed connection");
-      goto error;
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
 
     error_code = backend->write(buf, read);
     if (error_code != OTA_RESPONSE_OK) {
       ESP_LOGW(TAG, "Error writing binary data to flash!");
-      goto error;
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
     total += read;
 
@@ -305,8 +306,9 @@ void OTAComponent::handle_() {
 #ifdef USE_OTA_STATE_CALLBACK
       this->state_callback_.call(OTA_IN_PROGRESS, percentage, 0);
 #endif
-      // slow down OTA update to avoid getting killed by task watchdog (task_wdt)
-      delay(10);
+      // feed watchdog and give other tasks a chance to run
+      App.feed_wdt();
+      yield();
     }
   }
 
@@ -317,7 +319,7 @@ void OTAComponent::handle_() {
   error_code = backend->end();
   if (error_code != OTA_RESPONSE_OK) {
     ESP_LOGW(TAG, "Error ending OTA!");
-    goto error;
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
 
   // Acknowledge Update end OK - 1 byte
@@ -370,6 +372,7 @@ bool OTAComponent::readall_(uint8_t *buf, size_t len) {
     ssize_t read = this->client_->read(buf + at, len - at);
     if (read == -1) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        App.feed_wdt();
         delay(1);
         continue;
       }
@@ -381,6 +384,7 @@ bool OTAComponent::readall_(uint8_t *buf, size_t len) {
     } else {
       at += read;
     }
+    App.feed_wdt();
     delay(1);
   }
 
@@ -399,6 +403,7 @@ bool OTAComponent::writeall_(const uint8_t *buf, size_t len) {
     ssize_t written = this->client_->write(buf + at, len - at);
     if (written == -1) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        App.feed_wdt();
         delay(1);
         continue;
       }
@@ -407,6 +412,7 @@ bool OTAComponent::writeall_(const uint8_t *buf, size_t len) {
     } else {
       at += written;
     }
+    App.feed_wdt();
     delay(1);
   }
   return true;

@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdint>
 #include <cstddef>
+#include <utility>
+#include <vector>
 
 namespace esphome {
 namespace i2c {
@@ -40,6 +42,20 @@ class I2CBus {
     return writev(address, &buf, 1);
   }
   virtual ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t cnt) = 0;
+
+ protected:
+  void i2c_scan_() {
+    for (uint8_t address = 8; address < 120; address++) {
+      auto err = writev(address, nullptr, 0);
+      if (err == ERROR_OK) {
+        scan_results_.emplace_back(address, true);
+      } else if (err == ERROR_UNKNOWN) {
+        scan_results_.emplace_back(address, false);
+      }
+    }
+  }
+  std::vector<std::pair<uint8_t, bool>> scan_results_;
+  bool scan_{false};
 };
 
 }  // namespace i2c

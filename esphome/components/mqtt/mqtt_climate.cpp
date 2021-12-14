@@ -137,7 +137,7 @@ void MQTTClimateComponent::setup() {
   if (traits.get_supports_two_point_target_temperature()) {
     this->subscribe(this->get_target_temperature_low_command_topic(),
                     [this](const std::string &topic, const std::string &payload) {
-                      auto val = parse_float(payload);
+                      auto val = parse_number<float>(payload);
                       if (!val.has_value()) {
                         ESP_LOGW(TAG, "Can't convert '%s' to number!", payload.c_str());
                         return;
@@ -148,7 +148,7 @@ void MQTTClimateComponent::setup() {
                     });
     this->subscribe(this->get_target_temperature_high_command_topic(),
                     [this](const std::string &topic, const std::string &payload) {
-                      auto val = parse_float(payload);
+                      auto val = parse_number<float>(payload);
                       if (!val.has_value()) {
                         ESP_LOGW(TAG, "Can't convert '%s' to number!", payload.c_str());
                         return;
@@ -160,7 +160,7 @@ void MQTTClimateComponent::setup() {
   } else {
     this->subscribe(this->get_target_temperature_command_topic(),
                     [this](const std::string &topic, const std::string &payload) {
-                      auto val = parse_float(payload);
+                      auto val = parse_number<float>(payload);
                       if (!val.has_value()) {
                         ESP_LOGW(TAG, "Can't convert '%s' to number!", payload.c_str());
                         return;

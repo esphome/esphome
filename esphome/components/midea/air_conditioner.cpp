@@ -2,13 +2,11 @@
 
 #include "esphome/core/log.h"
 #include "air_conditioner.h"
-#include "adapter.h"
-#ifdef USE_REMOTE_TRANSMITTER
-#include "midea_ir.h"
-#endif
+#include "ac_adapter.h"
 
 namespace esphome {
 namespace midea {
+namespace ac {
 
 static void set_sensor(Sensor *sensor, float value) {
   if (sensor != nullptr && (!sensor->has_state() || sensor->get_raw_state() != value))
@@ -122,7 +120,7 @@ void AirConditioner::dump_config() {
 void AirConditioner::do_follow_me(float temperature, bool beeper) {
 #ifdef USE_REMOTE_TRANSMITTER
   IrFollowMeData data(static_cast<uint8_t>(lroundf(temperature)), beeper);
-  this->transmit_ir(data);
+  this->transmitter_.transmit(data);
 #else
   ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
 #endif
@@ -131,7 +129,7 @@ void AirConditioner::do_follow_me(float temperature, bool beeper) {
 void AirConditioner::do_swing_step() {
 #ifdef USE_REMOTE_TRANSMITTER
   IrSpecialData data(0x01);
-  this->transmit_ir(data);
+  this->transmitter_.transmit(data);
 #else
   ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
 #endif
@@ -143,13 +141,14 @@ void AirConditioner::do_display_toggle() {
   } else {
 #ifdef USE_REMOTE_TRANSMITTER
     IrSpecialData data(0x08);
-    this->transmit_ir(data);
+    this->transmitter_.transmit(data);
 #else
     ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
 #endif
   }
 }
 
+}  // namespace ac
 }  // namespace midea
 }  // namespace esphome
 

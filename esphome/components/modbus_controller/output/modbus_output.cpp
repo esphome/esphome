@@ -13,11 +13,6 @@ void ModbusOutput::setup() {}
  *
  */
 void ModbusOutput::write_state(float value) {
-  union {
-    float float_value;
-    uint32_t raw;
-  } raw_to_float;
-
   std::vector<uint16_t> data;
   auto original_value = value;
   // Is there are lambda configured?
@@ -45,8 +40,14 @@ void ModbusOutput::write_state(float value) {
            this->start_address, this->register_count, value, original_value);
 
   // Create and send the write command
-  auto write_cmd =
-      ModbusCommandItem::create_write_multiple_command(parent_, this->start_address, this->register_count, data);
+  // Create and send the write command
+  ModbusCommandItem write_cmd;
+  if (this->register_count == 1 && !this->use_write_multiple_) {
+    write_cmd = ModbusCommandItem::create_write_single_command(parent_, this->start_address + this->offset, data[0]);
+  } else {
+    write_cmd = ModbusCommandItem::create_write_multiple_command(parent_, this->start_address + this->offset,
+                                                                 this->register_count, data);
+  }
   parent_->queue_command(write_cmd);
 }
 

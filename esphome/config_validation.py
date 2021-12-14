@@ -296,9 +296,11 @@ def icon(value):
     value = string_strict(value)
     if not value:
         return value
-    if value.startswith("mdi:"):
+    if re.match("^[\\w\\-]+:[\\w\\-]+$", value):
         return value
-    raise Invalid('Icons should start with prefix "mdi:"')
+    raise Invalid(
+        'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
+    )
 
 
 def boolean(value):
@@ -1399,7 +1401,7 @@ def typed_schema(schemas, **kwargs):
         if schema_option is None:
             raise Invalid(f"{key} not specified!")
         key_v = key_validator(schema_option)
-        value = schemas[key_v](value)
+        value = Schema(schemas[key_v])(value)
         value[key] = key_v
         return value
 

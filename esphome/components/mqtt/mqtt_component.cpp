@@ -17,7 +17,7 @@ static const char *const TAG = "mqtt.component";
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
-  std::string sanitized_name = sanitize_string_allowlist(App.get_name(), HOSTNAME_CHARACTER_ALLOWLIST);
+  std::string sanitized_name = str_sanitize(App.get_name());
   return discovery_info.prefix + "/" + this->component_type() + "/" + sanitized_name + "/" +
          this->get_default_object_id_() + "/config";
 }
@@ -77,6 +77,17 @@ bool MQTTComponent::send_discovery_() {
         if (!this->get_icon().empty())
           root[MQTT_ICON] = this->get_icon();
 
+        switch (this->get_entity()->get_entity_category()) {
+          case ENTITY_CATEGORY_NONE:
+            break;
+          case ENTITY_CATEGORY_CONFIG:
+            root[MQTT_ENTITY_CATEGORY] = "config";
+            break;
+          case ENTITY_CATEGORY_DIAGNOSTIC:
+            root[MQTT_ENTITY_CATEGORY] = "diagnostic";
+            break;
+        }
+
         if (config.state_topic)
           root[MQTT_STATE_TOPIC] = this->get_state_topic_();
         if (config.command_topic)
@@ -103,9 +114,17 @@ bool MQTTComponent::send_discovery_() {
         if (!unique_id.empty()) {
           root[MQTT_UNIQUE_ID] = unique_id;
         } else {
-          // default to almost-unique ID. It's a hack but the only way to get that
-          // gorgeous device registry view.
-          root[MQTT_UNIQUE_ID] = "ESP" + this->component_type() + this->get_default_object_id_();
+          const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
+          if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
+            char friendly_name_hash[9];
+            sprintf(friendly_name_hash, "%08x", fnv1_hash(this->friendly_name()));
+            friendly_name_hash[8] = 0;  // ensure the hash-string ends with null
+            root[MQTT_UNIQUE_ID] = get_mac_address() + "-" + this->component_type() + "-" + friendly_name_hash;
+          } else {
+            // default to almost-unique ID. It's a hack but the only way to get that
+            // gorgeous device registry view.
+            root[MQTT_UNIQUE_ID] = "ESP" + this->component_type() + this->get_default_object_id_();
+          }
         }
 
         JsonObject &device_info = root.createNestedObject(MQTT_DEVICE);
@@ -125,7 +144,7 @@ bool MQTTComponent::is_discovery_enabled() const {
 }
 
 std::string MQTTComponent::get_default_object_id_() const {
-  return sanitize_string_allowlist(to_lowercase_underscore(this->friendly_name()), HOSTNAME_CHARACTER_ALLOWLIST);
+  return str_sanitize(str_snake_case(this->friendly_name()));
 }
 
 void MQTTComponent::subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos) {
