@@ -390,8 +390,6 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
 #ifdef USE_BUTTON
 void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (button::Button *obj : App.get_buttons()) {
-    if (obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
