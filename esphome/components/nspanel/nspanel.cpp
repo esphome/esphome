@@ -89,7 +89,7 @@ bool NSPanel::process_data_() {
     return false;
   }
   ESP_LOGD(TAG, "Received NSPanel: Type=0x%02X PAYLOAD=%s RAW=[%s]", type, message.c_str(),
-           hexencode(message_data, length).c_str());
+           format_hex_pretty(message_data, length).c_str());
   json::parse_json(message, [this, type, message](JsonObject &root) { this->process_command_(type, root, message); });
   return false;
 }
@@ -127,37 +127,62 @@ void NSPanel::process_command_(uint8_t type, JsonObject &root, const std::string
 }
 
 void NSPanel::control_switch(GroupItem item, bool state) {
-  this->send_json_command_(0x86, "{\"relation\":{\"id\":\"" + to_string(item.widget_id) +
-                                     "\",\"params\":{\"switches\":[{\"switch\":\"" + to_string(state ? "on" : "off") +
-                                     "\",\"outlet\":" + to_string(item.id) + "}]}}}");
+  std::string json_str = json::build_json([item, state](JsonObject &root) {
+    JsonObject &relation = root.createNestedObject("relation");
+    relation["id"] = to_string(item.widget_id);
+    JsonObject &params = relation.createNestedObject("params");
+    JsonArray &switches = params.createNestedArray("switches");
+    JsonObject &switch_object = switches.createNestedObject();
+    switch_object["switch"] = state ? "on" : "off";
+    switch_object["outlet"] = item.id;
+  });
+
+  this->send_json_command_(0x86, json_str);
 }
 
 // {"relation":{"id":"2","params":{"switches":[{"switch":"off","outlet":1}]}}}
 // {"relation":{"id":"5","params":{"switches":[{"switch":"off","outlet":0}]}}}
 
 void NSPanel::send_relay_states_() {
-  this->send_json_command_(
-      0x87, "{\"switches\":[{\"outlet\":0,\"switch\":\"" + to_string(this->relay_1_->state ? "on" : "off") +
-                "\"},{\"outlet\":1,\"switch\":\"" + to_string(this->relay_2_->state ? "on" : "off") + "\"}]}");
+  std::string json_str = json::build_json([this](JsonObject &root) {
+    JsonArray &switches = root.createNestedArray("switches");
+    JsonObject &one = switches.createNestedObject();
+    one["outlet"] = 0;
+    one["switch"] = this->relay_1_->state ? "on" : "off";
+    JsonObject &two = switches.createNestedObject();
+    two["outlet"] = 1;
+    two["switch"] = this->relay_2_->state ? "on" : "off";
+  });
+  this->send_json_command_(0x87, json_str);
 }
 
 void NSPanel::send_time_() {
   auto time = this->time_->now();
   if (!time.is_valid())
     return;
-  this->send_json_command_(0x82, "{\"year\":" + to_string(time.year) + ",\"mon\":" + to_string(time.month) +
-                                     ",\"day\":" + to_string(time.day_of_month) + ",\"hour\":" + to_string(time.hour) +
-                                     ",\"min\":" + to_string(time.minute) +
-                                     ",\"week\":" + to_string(time.day_of_week - 1) + "}");
+  std::string json_str = json::build_json([time](JsonObject &root) {
+    root["year"] = time.year;
+    root["month"] = time.month;
+    root["day"] = time.day_of_month;
+    root["hour"] = time.hour;
+    root["min"] = time.minute;
+    root["week"] = time.day_of_week - 1;
+  });
+  this->send_json_command_(0x82, json_str);
 }
 
 void NSPanel::send_temperature_(float temperature) {
-  this->send_json_command_(0x83, "{\"temperature\":" + to_string(temperature).substr(0, 5) +
-                                     ",\"tempUnit\":" + to_string(this->temperature_celcius_ ? 0 : 1) + "}");
+  std::string json_str = json::build_json([this, temperature](JsonObject &root) {
+    root["temperature"] = temperature;
+    root["tempUnit"] = this->temperature_celcius_ ? 0 : 1;
+  });
+  this->send_json_command_(0x83, json_str);
 }
 
 void NSPanel::send_eco_mode_(bool eco_mode) {
-  this->send_json_command_(0x87, "{\"HMI_dimOpen\":" + to_string(eco_mode ? 1 : 0) + "}");
+  std::string json_str =
+      json::build_json([this, eco_mode](JsonObject &root) { root["HMI_dimOpen"] = eco_mode ? 1 : 0; });
+  this->send_json_command_(0x87, json_str);
 }
 
 void NSPanel::send_wifi_state_() {
@@ -174,7 +199,11 @@ void NSPanel::send_wifi_state_() {
   } else {
     if (!last_connected_ || this->last_wifi_sent_at_ + 60000 < now) {
       rssi = (wifi::global_wifi_component->wifi_rssi() * -1) / 20.0f;
-      this->send_json_command_(0x85, "{\"wifiState\":\"connected\",\"rssiLevel\":" + to_string(rssi) + "}");
+      std::string json_str = json::build_json([rssi](JsonObject &root) {
+        root["wifiState"] = "connected";
+        root["rssiLevel"] = rssi;
+      });
+      this->send_json_command_(0x85, json_str);
       this->last_connected_ = true;
       this->last_wifi_sent_at_ = now;
     }
@@ -182,33 +211,65 @@ void NSPanel::send_wifi_state_() {
 }
 
 void NSPanel::send_weather_data(WeatherIcon icon, int8_t temperature, int8_t min, int8_t max) {
-  std::string data = "{\"HMI_weather\":" + to_string((uint8_t) icon) +
-                     ",\"HMI_outdoorTemp\":{\"current\":" + to_string(temperature) + ",\"range\":\"" +
-                     (to_string(min) + "," + to_string(max)).substr(0, 5) + "\"}}";
-  this->send_json_command_(0x81, data);
+  std::string json_str = json::build_json([icon, temperature, min, max](JsonObject &root) {
+    root["HMI_weather"] = (uint8_t) icon;
+    JsonObject &outdoor = root.createNestedObject("HMI_outdoorTemp");
+    outdoor["current"] = temperature;
+    root["range"] = (to_string(min) + "," + to_string(max)).substr(0, 5);
+  });
+
+  this->send_json_command_(0x81, json_str);
 }
 
 void NSPanel::send_all_widgets_() {
   for (uint8_t i = 1; i < 9; i++) {
     auto widget = this->widgets_[i - 1];
     switch (widget.type) {
-      case EMPTY:
-        this->send_json_command_(0x86, "{\"index\":" + to_string(i) + ",\"type\":\"delete\"}");
-        continue;
-      case DEVICE:
-        this->send_json_command_(0x86, "{\"HMI_resources\":[{\"index\":" + to_string(i) +
-                                           ",\"ctype\":\"device\",\"id\":\"" + to_string(i) +
-                                           "\",\"uiid\":" + to_string(widget.uiid) + "}]}");
-        this->send_json_command_(0x86, "{\"relation\":[{\"ctype\":\"device\",\"id\":\"" + to_string(i) +
-                                           "\",\"name\":\"" + widget.name.substr(0, 7) +
-                                           "\",\"online\":true, \"params\":{\"switch\":\"on\"}}]}");
+      case EMPTY: {
+        std::string json_str = json::build_json([i](JsonObject &root) {
+          root["index"] = i;
+          root["type"] = "delete";
+        });
+        this->send_json_command_(0x86, json_str);
         break;
-      case GROUP: {
-        this->send_json_command_(0x86, "{\"HMI_resources\":[{\"index\":" + to_string(i) +
-                                           ",\"ctype\":\"group\",\"id\":\"" + to_string(i) +
-                                           "\",\"uiid\":" + to_string(widget.uiid) + "}]}");
+      }
+      case DEVICE: {
+        std::string resource = json::build_json([i, widget](JsonObject &root) {
+          JsonArray &resources = root.createNestedArray("HMI_resources");
+          JsonObject &r = resources.createNestedObject();
+          r["index"] = i;
+          r["ctype"] = "device";
+          r["id"] = to_string(i);
+          r["uiid"] = widget.uiid;
+        });
+        this->send_json_command_(0x86, resource);
 
-        std::string str = json::build_json([i, widget](JsonObject &root) {
+        std::string relation = json::build_json([i, widget](JsonObject &root) {
+          JsonArray &relations = root.createNestedArray("relation");
+          JsonObject &r = relations.createNestedObject();
+          r["ctype"] = "device";
+          r["id"] = to_string(i);
+          r["name"] = widget.name.substr(0, 7);
+          r["online"] = true;
+          JsonObject &p = r.createNestedObject("params");
+          p["switch"] = "on";
+        });
+        this->send_json_command_(0x86, relation);
+
+        break;
+      }
+      case GROUP: {
+        std::string resource = json::build_json([i, widget](JsonObject &root) {
+          JsonArray &resources = root.createNestedArray("HMI_resources");
+          JsonObject &r = resources.createNestedObject();
+          r["index"] = i;
+          r["ctype"] = "group";
+          r["id"] = to_string(i);
+          r["uiid"] = widget.uiid;
+        });
+        this->send_json_command_(0x86, resource);
+
+        std::string relation = json::build_json([i, widget](JsonObject &root) {
           JsonArray &relation_list = root.createNestedArray("relation");
           JsonObject &relation = relation_list.createNestedObject();
           relation["ctype"] = "group";
@@ -229,15 +290,29 @@ void NSPanel::send_all_widgets_() {
           }
         });
 
-        this->send_json_command_(0x86, str);
+        this->send_json_command_(0x86, relation);
         break;
       }
-      case SCENE:
-        this->send_json_command_(0x86, "{\"HMI_resources\":[{\"index\":" + to_string(i) +
-                                           ",\"ctype\":\"scene\",\"id\":\"" + to_string(i) + "\"}]}");
-        this->send_json_command_(0x86, "{\"relation\":[{\"ctype\":\"scene\",\"id\":\"" + to_string(i) +
-                                           "\",\"name\":\"" + widget.name.substr(0, 7) + "\"}]}");
+      case SCENE: {
+        std::string resource = json::build_json([i, widget](JsonObject &root) {
+          JsonArray &resources = root.createNestedArray("HMI_resources");
+          JsonObject &r = resources.createNestedObject();
+          r["index"] = i;
+          r["ctype"] = "scene";
+          r["id"] = to_string(i);
+        });
+        this->send_json_command_(0x86, resource);
+
+        std::string relation = json::build_json([i, widget](JsonObject &root) {
+          JsonArray &relations = root.createNestedArray("relation");
+          JsonObject &r = relations.createNestedObject();
+          r["ctype"] = "scene";
+          r["id"] = to_string(i);
+          r["name"] = widget.name.substr(0, 7);
+        });
+        this->send_json_command_(0x86, relation);
         break;
+      }
     }
   }
 }
