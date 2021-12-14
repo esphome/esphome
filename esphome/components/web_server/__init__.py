@@ -80,6 +80,7 @@ async def to_code(config):
 
     cg.add(paren.set_port(config[CONF_PORT]))
     cg.add_define("WEBSERVER_PORT", config[CONF_PORT])
+    cg.add_define("USE_WEBSERVER")
     cg.add_define("WEBSERVER_VERSION", config[CONF_VERSION])
     cg.add(var.set_css_url(config[CONF_CSS_URL]))
     cg.add(var.set_js_url(config[CONF_JS_URL]))
