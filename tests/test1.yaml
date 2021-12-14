@@ -247,9 +247,7 @@ logger:
 
 web_server:
   port: 8080
-  ota: true
-  css_url: https://esphome.io/_static/webserver-v1.min.css
-  js_url: https://esphome.io/_static/webserver-v1.min.js
+  version: 2
 
 power_supply:
   id: 'atx_power_supply'

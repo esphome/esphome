@@ -187,3 +187,7 @@ script:
           count: 5
           then:
             - logger.log: "looping!"
+
+web_server:
+  port: 8080
+  # should default to version: 1

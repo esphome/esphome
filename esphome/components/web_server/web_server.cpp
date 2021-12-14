@@ -162,9 +162,11 @@ void WebServer::setup() {
 #endif
 
 #ifdef USE_CLIMATE
+#if WEBSERVER_VERSION == 2
     for (auto *obj : App.get_climates())
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->climate_json(obj, DETAIL_ALL).c_str(), "state");
+#endif
 #endif
   });
 
@@ -445,14 +447,12 @@ std::string WebServer::button_json(button::Button *obj, JsonDetail start_config)
 
 void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (button::Button *obj : App.get_buttons()) {
-    if (obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
-
     if (request->method() == HTTP_POST && match.method == "press") {
       this->defer([obj]() { obj->press(); });
       request->send(200);
+      return;
     } else {
       request->send(404);
     }
