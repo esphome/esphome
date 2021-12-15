@@ -1,4 +1,5 @@
 #include "mqtt_client.h"
+#define USE_MQTT
 
 #ifdef USE_MQTT
 
@@ -416,9 +417,8 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
 }
 bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos,
                                        bool retain) {
-  size_t len;
-  const char *message = json::build_json(f, &len);
-  return this->publish(topic, message, len, qos, retain);
+  std::string message = json::build_json(f, &len);
+  return this->publish(topic, message, qos, retain);
 }
 
 /** Check if the message topic matches the given subscription topic
