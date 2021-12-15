@@ -12,7 +12,7 @@
 namespace esphome {
 namespace esp32_can {
 
-static const char *TAG = "esp32_can";
+static const char *const TAG = "esp32_can";
 
 static bool get_bitrate(canbus::CanSpeed bitrate, can_timing_config_t *t_config) {
   switch (bitrate) {
@@ -97,7 +97,6 @@ canbus::Error ESP32Can::send_message(struct canbus::CanFrame *frame) {
 }
 
 canbus::Error ESP32Can::read_message(struct canbus::CanFrame *frame) {
-  canbus::Error rc;
   can_message_t message;
 
   if (can_receive(&message, 0) != ESP_OK) {
