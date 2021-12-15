@@ -2510,6 +2510,26 @@ canbus:
               then:
                 light.toggle: ${roomname}_lights
 
+canbus:
+  - platform: esp32_can
+    rx_pin: GPIO04
+    tx_pin: GPIO05
+    can_id: 4
+    bit_rate: 50kbps
+    on_frame:
+      - can_id: 500
+        then:
+          - lambda: |-
+              std::string b(x.begin(), x.end());
+              ESP_LOGD("canid 500", "%s", &b[0] );
+      - can_id: 23
+        then:
+          - if:
+              condition:
+                lambda: 'return x[0] == 0x11;'
+              then:
+                light.toggle: ${roomname}_lights
+
 teleinfo:
   id: myteleinfo
   uart_id: uart0
