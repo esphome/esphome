@@ -24,8 +24,8 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(esp32_can),
         cv.Optional(CONF_BIT_RATE, default="125KBPS"): cv.enum(CAN_SPEEDS, upper=True),
-        cv.Required(CONF_RX_PIN): pins.internal_gpio_input_pin_schema,
-        cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
+        cv.Required(CONF_RX_PIN): pins.internal_gpio_input_pin_number,
+        cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
     }
 )
 

@@ -2493,6 +2493,7 @@ rtttl:
 
 canbus:
   - platform: mcp2515
+    id: mcp2515_can
     cs_pin: GPIO17
     can_id: 4
     bit_rate: 50kbps
@@ -2509,9 +2510,8 @@ canbus:
                 lambda: 'return x[0] == 0x11;'
               then:
                 light.toggle: ${roomname}_lights
-
-canbus:
   - platform: esp32_can
+    id: esp32_internal_can
     rx_pin: GPIO04
     tx_pin: GPIO05
     can_id: 4
