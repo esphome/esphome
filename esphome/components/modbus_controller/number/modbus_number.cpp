@@ -8,7 +8,7 @@ namespace modbus_controller {
 static const char *const TAG = "modbus.number";
 
 void ModbusNumber::parse_and_publish(const std::vector<uint8_t> &data) {
-  float result = payload_to_float(data, *this);
+  float result = payload_to_float(data, *this) / multiply_by_;
 
   // Is there a lambda registered
   // call it with the pre converted value and the raw data array
