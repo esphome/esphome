@@ -100,6 +100,8 @@ class NSPanel : public Component, public uart::UARTDevice {
     this->eco_mode_switch_->add_on_state_callback([this](bool state) { this->send_eco_mode_(state); });
   }
 
+  void set_screen_power_switch(switch_::Switch *screen_power) { this->screen_power_switch_ = screen_power; }
+
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) {
     temperature_sensor->add_on_state_callback([this](float state) { this->send_temperature_(state); });
   }
@@ -136,6 +138,7 @@ class NSPanel : public Component, public uart::UARTDevice {
   switch_::Switch *relay_2_;
 
   switch_::Switch *eco_mode_switch_;
+  switch_::Switch *screen_power_switch_;
 
   Widget widgets_[8];
 

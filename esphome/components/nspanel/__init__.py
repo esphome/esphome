@@ -30,6 +30,7 @@ CONF_ECO_MODE_SWITCH = "eco_mode_switch"
 CONF_EMPTY = "empty"
 CONF_ITEMS = "items"
 CONF_RELAYS = "relays"
+CONF_SCREEN_POWER_SWITCH = "screen_power_switch"
 CONF_TEMPERATURE_UNIT_CELCIUS = "temperature_unit_celcius"
 CONF_UIID = "uiid"
 CONF_WIDGETS = "widgets"
@@ -72,23 +73,29 @@ GROUP_ITEM_SCHEMA = cv.Schema(
 WIDGET_SCHEMA = cv.typed_schema(
     {
         EMPTY: cv.Schema({cv.GenerateID(): cv.declare_id(Widget)}),
-        DEVICE: cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(Widget),
-                cv.Required(CONF_NAME): widget_name,
-                cv.Required(CONF_UIID): cv.enum(ALL, upper=True, space="_"),
-                cv.Required(CONF_THEN): automation.validate_automation(single=True),
-            }
+        DEVICE: cv.All(
+            cv.invalid("Device widgets are not yet supported"),
+            cv.Schema(
+                {
+                    cv.GenerateID(): cv.declare_id(Widget),
+                    cv.Required(CONF_NAME): widget_name,
+                    cv.Required(CONF_UIID): cv.enum(ALL, upper=True, space="_"),
+                    cv.Required(CONF_THEN): automation.validate_automation(single=True),
+                }
+            ),
         ),
-        GROUP: cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(Widget),
-                cv.Required(CONF_NAME): widget_name,
-                cv.Required(CONF_UIID): cv.enum(ALL, upper=True, space="_"),
-                cv.Required(CONF_ITEMS): cv.All(
-                    cv.ensure_list(GROUP_ITEM_SCHEMA), cv.Length(min=1)
-                ),
-            }
+        GROUP: cv.All(
+            cv.invalid("Group widgets are not yet supported"),
+            cv.Schema(
+                {
+                    cv.GenerateID(): cv.declare_id(Widget),
+                    cv.Required(CONF_NAME): widget_name,
+                    cv.Required(CONF_UIID): cv.enum(ALL, upper=True, space="_"),
+                    cv.Required(CONF_ITEMS): cv.All(
+                        cv.ensure_list(GROUP_ITEM_SCHEMA), cv.Length(min=1)
+                    ),
+                }
+            ),
         ),
         SCENE: cv.Schema(
             {
@@ -110,6 +117,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.ensure_list(cv.use_id(switch.Switch)), cv.Length(min=2, max=2)
             ),
             cv.Required(CONF_TEMPERATURE): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_SCREEN_POWER_SWITCH): cv.use_id(switch.Switch),
             cv.Optional(CONF_TEMPERATURE_UNIT_CELCIUS, default=True): cv.boolean,
             cv.Optional(CONF_ECO_MODE_SWITCH): cv.use_id(switch.Switch),
             cv.Optional(CONF_WIDGETS): cv.All(
@@ -142,8 +150,12 @@ async def to_code(config):
 
     cg.add(var.set_temperature_unit_celcius(config[CONF_TEMPERATURE_UNIT_CELCIUS]))
 
-    eco_mode = await cg.get_variable(config.get(CONF_ECO_MODE_SWITCH))
-    cg.add(var.set_eco_mode_switch(eco_mode))
+    sceen_power = await cg.get_variable(config.get(CONF_SCREEN_POWER_SWITCH))
+    cg.add(var.set_screen_power_switch(sceen_power))
+
+    if CONF_ECO_MODE_SWITCH in config:
+        eco_mode = await cg.get_variable(config.get(CONF_ECO_MODE_SWITCH))
+        cg.add(var.set_eco_mode_switch(eco_mode))
 
     if CONF_WIDGETS in config:
         for idx, widget_conf in enumerate(config[CONF_WIDGETS]):

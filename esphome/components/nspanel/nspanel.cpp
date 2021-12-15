@@ -14,22 +14,18 @@ static const char *const TAG = "nspanel";
 
 static const char *const SUCCESS_RESPONSE = "{\"error\":0}";
 
-void NSPanel::initialize() {
-  // this->send_json_command_(
-  //     0x84, "{\"HMI_ATCDevice\":{\"ctype\":\"device\",\"id\":\"thermostat\",\"outlet\":0,\"etype\":\"hot\"}");
-  // this->send_json_command_(0x86, "{\"relation\":[{\"ctype\":\"device\",\"id\":\"panel\",\"name\":\"" + App.get_name()
-  // +
-  //                                    "\",\"online\":true}]}");
+static const uint8_t WAKE_RESPONSE[7] = {0xFF, 0xFF, 0xFF, 0x88, 0xFF, 0xFF, 0xFF};
 
+void NSPanel::initialize() {
   this->send_relay_states_();
 
   this->send_all_widgets_();
 }
 
 void NSPanel::setup() {
-  this->set_interval(60000, [this]() { this->send_time_(); });
+  this->screen_power_switch_->turn_on();
 
-  this->set_timeout(15000, [this]() { this->initialize(); });
+  this->set_interval(60000, [this]() { this->send_time_(); });
 }
 
 void NSPanel::loop() {
@@ -51,6 +47,17 @@ bool NSPanel::process_data_() {
   uint32_t at = this->buffer_.size() - 1;
   auto *data = &this->buffer_[0];
   uint8_t new_byte = data[at];
+
+  if (data[0] == WAKE_RESPONSE[0]) {  // Screen wake message
+    if (at < 6)
+      return new_byte == WAKE_RESPONSE[at];
+    if (new_byte == WAKE_RESPONSE[at]) {
+      ESP_LOGD(TAG, "Screen wake message received");
+      this->initialize();
+      return false;
+    }
+    return false;
+  }
 
   // Byte 0: HEADER1 (always 0x55)
   if (at == 0)
@@ -101,8 +108,6 @@ void NSPanel::process_command_(uint8_t type, JsonObject &root, const std::string
   switch (type) {
     case 0x86: {
       if (root.containsKey("ctype") && strcasecmp(root["ctype"], "group") == 0) {  // Group
-        // {"ctype":"group","id":"3","params":{"switch":"off","switches":[{"switch":"off","outlet":0}]}}
-        // {"ctype":"group","id":"6","params":{"switches":[{"switch":"on","outlet":0},{"switch":"off","outlet":1}]}}
 
         auto params = root["params"];
 
@@ -140,9 +145,6 @@ void NSPanel::control_switch(GroupItem item, bool state) {
   this->send_json_command_(0x86, json_str);
 }
 
-// {"relation":{"id":"2","params":{"switches":[{"switch":"off","outlet":1}]}}}
-// {"relation":{"id":"5","params":{"switches":[{"switch":"off","outlet":0}]}}}
-
 void NSPanel::send_relay_states_() {
   std::string json_str = json::build_json([this](JsonObject &root) {
     JsonArray &switches = root.createNestedArray("switches");
@@ -162,7 +164,7 @@ void NSPanel::send_time_() {
     return;
   std::string json_str = json::build_json([time](JsonObject &root) {
     root["year"] = time.year;
-    root["month"] = time.month;
+    root["mon"] = time.month;
     root["day"] = time.day_of_month;
     root["hour"] = time.hour;
     root["min"] = time.minute;
