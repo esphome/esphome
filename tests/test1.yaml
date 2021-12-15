@@ -2456,6 +2456,11 @@ text_sensor:
           id: glob_int
           value: '0'
       - canbus.send:
+          canbus_id: mcp2515_can
+          can_id: 23
+          data: [0x10, 0x20, 0x30]
+      - canbus.send:
+          canbus_id: esp32_internal_can
           can_id: 23
           data: [0x10, 0x20, 0x30]
   - platform: template
@@ -2493,7 +2498,27 @@ rtttl:
 
 canbus:
   - platform: mcp2515
+    id: mcp2515_can
     cs_pin: GPIO17
+    can_id: 4
+    bit_rate: 50kbps
+    on_frame:
+      - can_id: 500
+        then:
+          - lambda: |-
+              std::string b(x.begin(), x.end());
+              ESP_LOGD("canid 500", "%s", &b[0] );
+      - can_id: 23
+        then:
+          - if:
+              condition:
+                lambda: 'return x[0] == 0x11;'
+              then:
+                light.toggle: ${roomname}_lights
+  - platform: esp32_can
+    id: esp32_internal_can
+    rx_pin: GPIO04
+    tx_pin: GPIO05
     can_id: 4
     bit_rate: 50kbps
     on_frame:
