@@ -1,9 +1,8 @@
+#ifdef USE_ESP32
 #include "esp32_can.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
 #include <driver/can.h>
-#endif
 
 // WORKAROUND, because CAN_IO_UNUSED is just defined as (-1) in this version
 // of the framework which does not work with -fpermissive
@@ -121,3 +120,5 @@ canbus::Error ESP32Can::read_message(struct canbus::CanFrame *frame) {
 
 }  // namespace esp32_can
 }  // namespace esphome
+
+#endif

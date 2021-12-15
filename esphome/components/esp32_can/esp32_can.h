@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include "esphome/components/canbus/canbus.h"
 #include "esphome/core/component.h"
 
@@ -23,3 +25,5 @@ class ESP32Can : public canbus::Canbus {
 
 }  // namespace esp32_can
 }  // namespace esphome
+
+#endif

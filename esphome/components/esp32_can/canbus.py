@@ -2,13 +2,13 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import canbus
-from esphome.const import CONF_ID, CONF_RX_PIN, CONF_TX_PIN, ESP_PLATFORM_ESP32
+from esphome.const import CONF_ID, CONF_RX_PIN, CONF_TX_PIN
 from esphome.components.canbus import CanbusComponent, CanSpeed, CONF_BIT_RATE
+
+DEPENDENCIES = ["esp32"]
 
 esp32_can_ns = cg.esphome_ns.namespace("esp32_can")
 esp32_can = esp32_can_ns.class_("ESP32Can", CanbusComponent)
-
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
 # Currently the driver only supports a subset of the bit rates defined in canbus
 CAN_SPEEDS = {
@@ -24,8 +24,8 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(esp32_can),
         cv.Optional(CONF_BIT_RATE, default="125KBPS"): cv.enum(CAN_SPEEDS, upper=True),
-        cv.Required(CONF_RX_PIN): pins.input_pin,
-        cv.Required(CONF_TX_PIN): pins.output_pin,
+        cv.Required(CONF_RX_PIN): pins.internal_gpio_input_pin_schema,
+        cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
     }
 )
 
