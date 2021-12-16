@@ -120,7 +120,7 @@ class RealTimeClock : public PollingComponent {
   ESPTime utcnow() { return ESPTime::from_epoch_utc(this->timestamp_now()); }
 
   /// Get the current time as the UTC epoch since January 1st 1970.
-  time_t timestamp_now() { return ::time(nullptr); }
+  virtual time_t timestamp_now() { return ::time(nullptr); }
 
   void call_setup() override;
 
