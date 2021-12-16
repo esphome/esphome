@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_MODE,
     CONF_MODE_COMMAND_TOPIC,
     CONF_MODE_STATE_TOPIC,
+    CONF_ON_STATE,
     CONF_PRESET,
     CONF_SWING_MODE,
     CONF_SWING_MODE_COMMAND_TOPIC,
@@ -34,6 +35,7 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE_LOW_COMMAND_TOPIC,
     CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC,
     CONF_TEMPERATURE_STEP,
+    CONF_TRIGGER_ID,
     CONF_VISUAL,
     CONF_MQTT_ID,
 )
@@ -101,6 +103,7 @@ validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
 # Actions
 ControlAction = climate_ns.class_("ControlAction", automation.Action)
+StateTrigger = climate_ns.class_("StateTrigger", automation.Trigger.template())
 
 CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
@@ -161,6 +164,11 @@ CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).
         cv.Optional(CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
+        cv.Optional(CONF_ON_STATE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
+            }
+        ),
     }
 )
 
@@ -205,7 +213,7 @@ async def setup_climate_core_(var, config):
         if CONF_MODE_COMMAND_TOPIC in config:
             cg.add(mqtt_.set_custom_mode_command_topic(config[CONF_MODE_COMMAND_TOPIC]))
         if CONF_MODE_STATE_TOPIC in config:
-            cg.add(mqtt_.set_custom_state_topic(config[CONF_MODE_STATE_TOPIC]))
+            cg.add(mqtt_.set_custom_mode_state_topic(config[CONF_MODE_STATE_TOPIC]))
 
         if CONF_SWING_MODE_COMMAND_TOPIC in config:
             cg.add(
@@ -255,6 +263,10 @@ async def setup_climate_core_(var, config):
                     config[CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC]
                 )
             )
+
+    for conf in config.get(CONF_ON_STATE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
 
 
 async def register_climate(var, config):

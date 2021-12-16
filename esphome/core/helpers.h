@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cmath>
+#include <cstring>
+
 #include <string>
 #include <functional>
 #include <vector>
@@ -17,23 +20,15 @@
 #define ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
-#define xSemaphoreWait(semaphore, wait_time) \
-  xSemaphoreTake(semaphore, wait_time); \
-  xSemaphoreGive(semaphore);
-
 namespace esphome {
 
-/// The characters that are allowed in a hostname.
-extern const char *const HOSTNAME_CHARACTER_ALLOWLIST;
-
-/// Read the raw MAC address into the provided byte array (6 bytes).
+/// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
 void get_mac_address_raw(uint8_t *mac);
 
-/// Get the MAC address as a string, using lower case hex notation.
-/// This can be used as way to identify this ESP.
+/// Get the device MAC address as a string, in lowercase hex notation.
 std::string get_mac_address();
 
-/// Get the MAC address as a string, using colon-separated upper case hex notation.
+/// Get the device MAC address as a string, in colon-separated uppercase hex notation.
 std::string get_mac_address_pretty();
 
 #ifdef USE_ESP32
@@ -51,25 +46,16 @@ std::string to_string(unsigned long long val);  // NOLINT
 std::string to_string(float val);
 std::string to_string(double val);
 std::string to_string(long double val);
-optional<float> parse_float(const std::string &str);
-optional<int> parse_int(const std::string &str);
-optional<int> parse_hex(const std::string &str, size_t start, size_t length);
-optional<int> parse_hex(char chr);
-/// Sanitize the hostname by removing characters that are not in the allowlist and truncating it to 63 chars.
-std::string sanitize_hostname(const std::string &hostname);
-
-/// Truncate a string to a specific length
-std::string truncate_string(const std::string &s, size_t length);
-
-/// Convert the string to lowercase_underscore.
-std::string to_lowercase_underscore(std::string s);
 
 /// Compare string a to string b (ignoring case) and return whether they are equal.
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 bool str_startswith(const std::string &full, const std::string &start);
 bool str_endswith(const std::string &full, const std::string &ending);
 
-/// sprintf-like function returning std::string instead of writing to char array.
+/// snprintf-like function returning std::string with a given maximum length.
+std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t length, ...);
+
+/// sprintf-like function returning std::string.
 std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
 
 class HighFrequencyLoopRequester {
@@ -145,19 +131,9 @@ std::string uint64_to_string(uint64_t num);
 /// Convert a uint32_t to a hex string
 std::string uint32_to_string(uint32_t num);
 
-/// Sanitizes the input string with the allowlist.
-std::string sanitize_string_allowlist(const std::string &s, const std::string &allowlist);
-
 uint8_t reverse_bits_8(uint8_t x);
 uint16_t reverse_bits_16(uint16_t x);
 uint32_t reverse_bits_32(uint32_t x);
-
-/// Encode a 16-bit unsigned integer given a most and least-significant byte.
-uint16_t encode_uint16(uint8_t msb, uint8_t lsb);
-/// Decode a 16-bit unsigned integer into an array of two values: most significant byte, least significant byte.
-std::array<uint8_t, 2> decode_uint16(uint16_t value);
-/// Encode a 32-bit unsigned integer given four bytes in MSB -> LSB order
-uint32_t encode_uint32(uint8_t msb, uint8_t byte2, uint8_t byte3, uint8_t lsb);
 
 /// Convert RGB floats (0-1) to hue (0-360) & saturation/value percentage (0-1)
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
@@ -209,10 +185,6 @@ enum ParseOnOffState {
 
 ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const char *off = nullptr);
 
-// Encode raw data to a human-readable string (for debugging)
-std::string hexencode(const uint8_t *data, uint32_t len);
-template<typename T> std::string hexencode(const T &data) { return hexencode(data.data(), data.size()); }
-
 // https://stackoverflow.com/questions/7858817/unpacking-a-tuple-to-call-a-matching-function-pointer/7858971#7858971
 template<int...> struct seq {};                                       // NOLINT
 template<int N, int... S> struct gens : gens<N - 1, N - 1, S...> {};  // NOLINT
@@ -255,7 +227,7 @@ struct is_callable  // NOLINT
   static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
 };
 
-void delay_microseconds_accurate(uint32_t usec);
+void delay_microseconds_safe(uint32_t us);
 
 template<typename T> class Deduplicator {
  public:
@@ -303,5 +275,229 @@ template<typename T> T *new_buffer(size_t length) {
 
   return buffer;
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+/// @name STL backports
+///@{
+
+// std::byteswap is from C++23 and technically should be a template, but this will do for now.
+constexpr uint8_t byteswap(uint8_t n) { return n; }
+constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
+constexpr uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
+constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+
+///@}
+
+/// @name Bit manipulation
+///@{
+
+/// Encode a 16-bit value given the most and least significant byte.
+constexpr uint16_t encode_uint16(uint8_t msb, uint8_t lsb) {
+  return (static_cast<uint16_t>(msb) << 8) | (static_cast<uint16_t>(lsb));
+}
+/// Encode a 32-bit value given four bytes in most to least significant byte order.
+constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, uint8_t byte4) {
+  return (static_cast<uint32_t>(byte1) << 24) | (static_cast<uint32_t>(byte2) << 16) |
+         (static_cast<uint32_t>(byte3) << 8) | (static_cast<uint32_t>(byte4));
+}
+
+/// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> inline T encode_value(const uint8_t *bytes) {
+  T val = 0;
+  for (size_t i = 0; i < sizeof(T); i++) {
+    val <<= 8;
+    val |= bytes[i];
+  }
+  return val;
+}
+/// Encode a value from its constituent bytes (from most to least significant) in an std::array with length sizeof(T).
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
+  return encode_value<T>(bytes.data());
+}
+/// Decode a value into its constituent bytes (from most to least significant).
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline std::array<uint8_t, sizeof(T)> decode_value(T val) {
+  std::array<uint8_t, sizeof(T)> ret{};
+  for (size_t i = sizeof(T); i > 0; i--) {
+    ret[i - 1] = val & 0xFF;
+    val >>= 8;
+  }
+  return ret;
+}
+
+/// Convert a value between host byte order and big endian (most significant byte first) order.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr T convert_big_endian(T val) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  return byteswap(val);
+#else
+  return val;
+#endif
+}
+
+///@}
+
+/// @name Strings
+///@{
+
+/// Truncate a string to a specific length.
+std::string str_truncate(const std::string &str, size_t length);
+
+/// Extract the part of the string until either the first occurence of the specified character, or the end (requires str
+/// to be null-terminated).
+std::string str_until(const char *str, char ch);
+/// Extract the part of the string until either the first occurence of the specified character, or the end.
+std::string str_until(const std::string &str, char ch);
+
+/// Convert the string to snake case (lowercase with underscores).
+std::string str_snake_case(const std::string &str);
+
+/// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
+std::string str_sanitize(const std::string &str);
+
+///@}
+
+/// @name Parsing & formatting
+///@{
+
+/// Parse an unsigned decimal number from a null-terminated string.
+template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_unsigned<T>::value), int> = 0>
+optional<T> parse_number(const char *str) {
+  char *end = nullptr;
+  unsigned long value = ::strtoul(str, &end, 10);  // NOLINT(google-runtime-int)
+  if (end == str || *end != '\0' || value > std::numeric_limits<T>::max())
+    return {};
+  return value;
+}
+/// Parse an unsigned decimal number.
+template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_unsigned<T>::value), int> = 0>
+optional<T> parse_number(const std::string &str) {
+  return parse_number<T>(str.c_str());
+}
+/// Parse a signed decimal number from a null-terminated string.
+template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T>::value), int> = 0>
+optional<T> parse_number(const char *str) {
+  char *end = nullptr;
+  signed long value = ::strtol(str, &end, 10);  // NOLINT(google-runtime-int)
+  if (end == str || *end != '\0' || value < std::numeric_limits<T>::min() || value > std::numeric_limits<T>::max())
+    return {};
+  return value;
+}
+/// Parse a signed decimal number.
+template<typename T, enable_if_t<(std::is_integral<T>::value && std::is_signed<T>::value), int> = 0>
+optional<T> parse_number(const std::string &str) {
+  return parse_number<T>(str.c_str());
+}
+/// Parse a decimal floating-point number from a null-terminated string.
+template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0> optional<T> parse_number(const char *str) {
+  char *end = nullptr;
+  float value = ::strtof(str, &end);
+  if (end == str || *end != '\0' || value == HUGE_VALF)
+    return {};
+  return value;
+}
+/// Parse a decimal floating-point number.
+template<typename T, enable_if_t<(std::is_same<T, float>::value), int> = 0>
+optional<T> parse_number(const std::string &str) {
+  return parse_number<T>(str.c_str());
+}
+
+/** Parse bytes from a hex-encoded string into a byte array.
+ *
+ * When \p len is less than \p 2*count, the result is written to the back of \p data (i.e. this function treats \p str
+ * as if it were padded with zeros at the front).
+ *
+ * @param str String to read from.
+ * @param len Length of \p str (excluding optional null-terminator), is a limit on the number of characters parsed.
+ * @param data Byte array to write to.
+ * @param count Length of \p data.
+ * @return The number of characters parsed from \p str.
+ */
+size_t parse_hex(const char *str, size_t len, uint8_t *data, size_t count);
+/// Parse \p count bytes from the hex-encoded string \p str of at least \p 2*count characters into array \p data.
+inline bool parse_hex(const char *str, uint8_t *data, size_t count) {
+  return parse_hex(str, strlen(str), data, count) == 2 * count;
+}
+/// Parse \p count bytes from the hex-encoded string \p str of at least \p 2*count characters into array \p data.
+inline bool parse_hex(const std::string &str, uint8_t *data, size_t count) {
+  return parse_hex(str.c_str(), str.length(), data, count) == 2 * count;
+}
+/// Parse \p count bytes from the hex-encoded string \p str of at least \p 2*count characters into vector \p data.
+inline bool parse_hex(const char *str, std::vector<uint8_t> &data, size_t count) {
+  data.resize(count);
+  return parse_hex(str, strlen(str), data.data(), count) == 2 * count;
+}
+/// Parse \p count bytes from the hex-encoded string \p str of at least \p 2*count characters into vector \p data.
+inline bool parse_hex(const std::string &str, std::vector<uint8_t> &data, size_t count) {
+  data.resize(count);
+  return parse_hex(str.c_str(), str.length(), data.data(), count) == 2 * count;
+}
+/** Parse a hex-encoded string into an unsigned integer.
+ *
+ * @param str String to read from, starting with the most significant byte.
+ * @param len Length of \p str (excluding optional null-terminator), is a limit on the number of characters parsed.
+ */
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+optional<T> parse_hex(const char *str, size_t len) {
+  T val = 0;
+  if (len > 2 * sizeof(T) || parse_hex(str, len, reinterpret_cast<uint8_t *>(&val), sizeof(T)) == 0)
+    return {};
+  return convert_big_endian(val);
+}
+/// Parse a hex-encoded null-terminated string (starting with the most significant byte) into an unsigned integer.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<T> parse_hex(const char *str) {
+  return parse_hex<T>(str, strlen(str));
+}
+/// Parse a hex-encoded null-terminated string (starting with the most significant byte) into an unsigned integer.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<T> parse_hex(const std::string &str) {
+  return parse_hex<T>(str.c_str(), str.length());
+}
+
+/// Format the byte array \p data of length \p len in lowercased hex.
+std::string format_hex(const uint8_t *data, size_t length);
+/// Format the vector \p data in lowercased hex.
+std::string format_hex(std::vector<uint8_t> data);
+/// Format an unsigned integer in lowercased hex, starting with the most significant byte.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
+  val = convert_big_endian(val);
+  return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
+}
+
+/// Format the byte array \p data of length \p len in pretty-printed, human-readable hex.
+std::string format_hex_pretty(const uint8_t *data, size_t length);
+/// Format the vector \p data in pretty-printed, human-readable hex.
+std::string format_hex_pretty(std::vector<uint8_t> data);
+/// Format an unsigned integer in pretty-printed, human-readable hex, starting with the most significant byte.
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex_pretty(T val) {
+  val = convert_big_endian(val);
+  return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T));
+}
+
+///@}
+
+/// @name Number manipulation
+///@{
+
+/// Remap a number from one range to another.
+template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
+  return (value - min) * (max_out - min_out) / (max - min) + min_out;
+}
+
+///@}
+
+/// @name Deprecated functions
+///@{
+
+ESPDEPRECATED("hexencode() is deprecated, use format_hex_pretty() instead.", "2022.1")
+inline std::string hexencode(const uint8_t *data, uint32_t len) { return format_hex_pretty(data, len); }
+
+template<typename T>
+ESPDEPRECATED("hexencode() is deprecated, use format_hex_pretty() instead.", "2022.1")
+std::string hexencode(const T &data) {
+  return hexencode(data.data(), data.size());
+}
+
+///@}
 
 }  // namespace esphome

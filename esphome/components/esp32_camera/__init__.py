@@ -17,7 +17,7 @@ from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.cpp_helpers import setup_entity
 
-DEPENDENCIES = ["esp32", "api"]
+DEPENDENCIES = ["esp32"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
@@ -57,6 +57,9 @@ CONF_IDLE_FRAMERATE = "idle_framerate"
 CONF_JPEG_QUALITY = "jpeg_quality"
 CONF_VERTICAL_FLIP = "vertical_flip"
 CONF_HORIZONTAL_MIRROR = "horizontal_mirror"
+CONF_AEC2 = "aec2"
+CONF_AE_LEVEL = "ae_level"
+CONF_AEC_VALUE = "aec_value"
 CONF_SATURATION = "saturation"
 CONF_TEST_PATTERN = "test_pattern"
 
@@ -102,6 +105,9 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         cv.Optional(CONF_SATURATION, default=0): camera_range_param,
         cv.Optional(CONF_VERTICAL_FLIP, default=True): cv.boolean,
         cv.Optional(CONF_HORIZONTAL_MIRROR, default=True): cv.boolean,
+        cv.Optional(CONF_AEC2, default=False): cv.boolean,
+        cv.Optional(CONF_AE_LEVEL, default=0): camera_range_param,
+        cv.Optional(CONF_AEC_VALUE, default=300): cv.int_range(min=0, max=1200),
         cv.Optional(CONF_TEST_PATTERN, default=False): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -116,6 +122,9 @@ SETTERS = {
     CONF_JPEG_QUALITY: "set_jpeg_quality",
     CONF_VERTICAL_FLIP: "set_vertical_flip",
     CONF_HORIZONTAL_MIRROR: "set_horizontal_mirror",
+    CONF_AEC2: "set_aec2",
+    CONF_AE_LEVEL: "set_ae_level",
+    CONF_AEC_VALUE: "set_aec_value",
     CONF_CONTRAST: "set_contrast",
     CONF_BRIGHTNESS: "set_brightness",
     CONF_SATURATION: "set_saturation",

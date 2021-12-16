@@ -1,7 +1,6 @@
-pylint==2.11.1
+pylint==2.12.2
 flake8==4.0.1
-black==21.9b0
-pexpect==4.8.0
+black==21.12b0
 pre-commit
 
 # Unit tests

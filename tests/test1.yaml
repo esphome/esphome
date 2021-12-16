@@ -98,6 +98,7 @@ mqtt:
   discovery: True
   discovery_retain: False
   discovery_prefix: discovery
+  discovery_unique_id_generator: legacy
   topic_prefix: helloworld
   log_topic:
     topic: helloworld/hi
@@ -193,6 +194,18 @@ uart:
     data_bits: 8
     stop_bits: 1
     rx_buffer_size: 512
+    debug:
+      dummy_receiver: true
+      direction: both
+      after:
+        bytes: 50
+        timeout: 500ms
+        delimiter: "\r\n"
+      sequence:
+        - lambda: UARTDebug::log_hex(direction, bytes, ':');
+        - lambda: UARTDebug::log_string(direction, bytes);
+        - lambda: UARTDebug::log_int(direction, bytes, ',');
+        - lambda: UARTDebug::log_binary(direction, bytes, ';');
 
   - id: adalight_uart
     tx_pin: GPIO25
@@ -234,6 +247,7 @@ logger:
 
 web_server:
   port: 8080
+  ota: true
   css_url: https://esphome.io/_static/webserver-v1.min.css
   js_url: https://esphome.io/_static/webserver-v1.min.js
 
@@ -1694,6 +1708,8 @@ climate:
     min_temperature: 18
     max_temperature: 30
   - platform: midea
+    on_state:
+      logger.log: "State changed!"
     id: midea_unit
     uart_id: uart0
     name: Midea Climate
@@ -2214,6 +2230,31 @@ display:
     row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: ili9341
+    model: "TFT 2.4"
+    cs_pin: GPIO5
+    dc_pin: GPIO4
+    reset_pin: GPIO22
+    led_pin:
+      number: GPIO15
+      inverted: true
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: ili9341
+    model: "TFT 2.4"
+    cs_pin: GPIO5
+    dc_pin: GPIO4
+    reset_pin: GPIO22
+    led_pin:
+      number: GPIO15
+      inverted: true
+    auto_clear_enabled: false
+    rotation: 90
+    lambda: |-
+      if (!id(glob_bool_processed)) {
+        it.fill(Color::WHITE);
+        id(glob_bool_processed) = true;
+      }
 
 tm1651:
   id: tm1651_battery
@@ -2393,6 +2434,10 @@ globals:
     type: std::string
     restore_value: no
     # initial_value: ""
+  - id: glob_bool_processed
+    type: bool
+    restore_value: no
+    initial_value: 'false'
 
 text_sensor:
   - platform: mqtt_subscribe
@@ -2470,3 +2515,23 @@ teleinfo:
   uart_id: uart0
   update_interval: 60s
   historical_mode: true
+
+number:
+  - platform: template
+    id: test_number
+    state_topic: livingroom/custom_state_topic
+    command_topic: livingroom/custom_command_topic
+    min_value: 0
+    step: 1
+    max_value: 10
+    optimistic: true
+
+select:
+  - platform: template
+    id: test_select
+    state_topic: livingroom/custom_state_topic
+    command_topic: livingroom/custom_command_topic
+    options:
+      - one
+      - two
+    optimistic: true

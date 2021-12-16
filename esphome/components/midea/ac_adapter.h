@@ -2,12 +2,15 @@
 
 #ifdef USE_ARDUINO
 
+// MideaUART
 #include <Appliance/AirConditioner/AirConditioner.h>
+
 #include "esphome/components/climate/climate_traits.h"
-#include "appliance_base.h"
+#include "air_conditioner.h"
 
 namespace esphome {
 namespace midea {
+namespace ac {
 
 using MideaMode = dudanov::midea::ac::Mode;
 using MideaSwingMode = dudanov::midea::ac::SwingMode;
@@ -41,6 +44,7 @@ class Converters {
   static void to_climate_traits(ClimateTraits &traits, const dudanov::midea::ac::Capabilities &capabilities);
 };
 
+}  // namespace ac
 }  // namespace midea
 }  // namespace esphome
 

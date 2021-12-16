@@ -227,7 +227,9 @@ spi:
 
 uart:
   - id: uart1
-    tx_pin: GPIO1
+    tx_pin:
+      number: GPIO1
+      inverted: yes
     rx_pin: GPIO3
     baud_rate: 115200
   - id: uart2
@@ -254,6 +256,8 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 38400
+    # Specifically added for testing debug with no options at all.
+    debug:
 
 modbus:
   uart_id: uart1
@@ -267,6 +271,8 @@ logger:
   hardware_uart: UART1
   level: DEBUG
   esp8266_store_log_strings_in_flash: true
+
+improv_serial:
 
 deep_sleep:
   run_duration: 20s
@@ -352,6 +358,11 @@ sensor:
       - filter_out: NAN
       - sliding_window_moving_average:
       - exponential_moving_average:
+      - quantile:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
+          quantile: .8
       - lambda: 'return 0;'
       - delta: 100
       - throttle: 100ms
@@ -1306,6 +1317,10 @@ fingerprint_grow:
 dsmr:
   decryption_key: 00112233445566778899aabbccddeeff
   uart_id: uart6
+  max_telegram_length: 1000
+  request_pin: D5
+  request_interval: 20s
+  receive_timeout: 100ms
 
 daly_bms:
   update_interval: 20s
