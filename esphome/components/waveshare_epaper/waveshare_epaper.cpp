@@ -489,7 +489,7 @@ void HOT WaveshareEPaperTypeA::display() {
 
   // switch to partial update and update display
   if ((this->model_ == WAVESHARE_EPAPER_2_9_IN_V2) && (this->full_update_every_ >= 1) && full_update) {
-    delay(2000)  // NOLINT;
+    delay(2000);  // NOLINT
     this->display();
   }
 }
