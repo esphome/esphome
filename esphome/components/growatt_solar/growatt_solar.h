@@ -40,8 +40,6 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *total_energy_production_{nullptr};
   sensor::Sensor *inverter_module_temp_{nullptr};
 
-  float toFloat(uint16_t w1, uint16_t w0);
-
  public:
   void update() override;
   void on_modbus_data(const std::vector<uint8_t> &data) override;

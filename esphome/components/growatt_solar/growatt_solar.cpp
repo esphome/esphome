@@ -14,16 +14,6 @@ void GrowattSolar::update() {
   this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT);
 }
 
-float GrowattSolar::toFloat(uint16_t w1, uint16_t w0) {
-  unsigned long t;
-  t = w1 << 16;
-  t += w0;
-
-  float f;
-  f = t;
-  f = f  ;
-  return f;
-}
 void GrowattSolar::on_modbus_data(const std::vector<uint8_t> &data) {
   auto publish_1_reg_sensor_state = [&](sensor::Sensor *sensor, size_t i, float unit) -> void {
     float value = encode_uint16(data[i * 2], data[i * 2 + 1]) * unit;
@@ -32,8 +22,8 @@ void GrowattSolar::on_modbus_data(const std::vector<uint8_t> &data) {
   };
 
   auto publish_2_reg_sensor_state = [&](sensor::Sensor *sensor, size_t reg1, size_t reg2, float unit) -> void {
-    float value = this->toFloat(encode_uint16(data[reg1 * 2], data[reg1 * 2 + 1]),
-                                  encode_uint16(data[reg2 * 2], data[reg2 * 2 + 1])) *
+    float value = ((encode_uint16(data[reg1 * 2], data[reg1 * 2 + 1]) << 16) +
+                   encode_uint16(data[reg2 * 2], data[reg2 * 2 + 1])) *
                   unit;
     if (sensor != nullptr)
       sensor->publish_state(value);
