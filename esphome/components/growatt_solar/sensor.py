@@ -17,7 +17,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
-    UNIT_DEGREES,
+    UNIT_CELSIUS,
     UNIT_HERTZ,
     UNIT_MINUTE,
     UNIT_VOLT,
@@ -28,6 +28,7 @@ from esphome.const import (
 CONF_PHASE_A = "phase_a"
 CONF_PHASE_B = "phase_b"
 CONF_PHASE_C = "phase_c"
+
 CONF_ENERGY_PRODUCTION_DAY = "energy_production_day"
 CONF_TOTAL_ENERGY_PRODUCTION = "total_energy_production"
 CONF_TOTAL_GENERATION_TIME = "total_generation_time"
@@ -39,7 +40,7 @@ UNIT_HOURS = "h"
 UNIT_KOHM = "kΩ"
 UNIT_MILLIAMPERE = "mA"
 
-
+CONF_PV_ACTIVE_POWER = "pv_active_power"
 CONF_INVERTER_MODULE_TEMP = "inverter_module_temp"
 CONF_INVERTER_BUS_VOLTAGE = "inverter_bus_voltage"
 CONF_VOLTAGE_SAMPLED_BY_SECONDARY_CPU = "voltage_sampled_by_secondary_cpu"
@@ -114,10 +115,6 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PHASE_C): PHASE_SCHEMA,
             cv.Optional(CONF_PV1): PV_SCHEMA,
             cv.Optional(CONF_PV2): PV_SCHEMA,
-            cv.Optional(CONF_STATUS) : sensor.sensor_schema(
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
             cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_HERTZ,
                 icon=ICON_CURRENT_AC,
@@ -130,6 +127,12 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_PV_ACTIVE_POWER): sensor.sensor_schema(
+                unit_of_measurement=UNIT_WATT,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),            
             cv.Optional(CONF_ENERGY_PRODUCTION_DAY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
                 accuracy_decimals=2,
@@ -143,7 +146,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_INVERTER_MODULE_TEMP): sensor.sensor_schema(
-                unit_of_measurement=UNIT_DEGREES,
+                unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=1,
                 state_class=STATE_CLASS_MEASUREMENT,
             ) 
@@ -167,9 +170,9 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_ACTIVE_POWER])
         cg.add(var.set_grid_active_power_sensor(sens))
 
-    # if CONF_REACTIVE_POWER in config:
-    #     sens = await sensor.new_sensor(config[CONF_REACTIVE_POWER])
-    #     cg.add(var.set_reactive_power_sensor(sens))
+    if CONF_PV_ACTIVE_POWER in config:
+        sens = await sensor.new_sensor(config[CONF_PV_ACTIVE_POWER])
+        cg.add(var.set_pv_active_power_sensor(sens))
 
     if CONF_ENERGY_PRODUCTION_DAY in config:
         sens = await sensor.new_sensor(config[CONF_ENERGY_PRODUCTION_DAY])

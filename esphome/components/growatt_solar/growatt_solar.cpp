@@ -27,19 +27,9 @@ float GrowattSolar::glueFloat(uint16_t w1, uint16_t w0) {
 }
 void GrowattSolar::on_modbus_data(const std::vector<uint8_t> &data) {
 
-  auto get_4_registers = [&](size_t i, float unit) -> float {
-    uint32_t temp = encode_uint32(data[i], data[i + 1], data[i + 2], data[i + 3]);
-    return temp * unit;
-  };
-
   auto get_2_register = [&](size_t i) -> float {
     uint16_t temp = encode_uint16(data[i], data[i + 1]);
     return temp;
-  };
-
-  auto get_1_register = [&](size_t i, float unit) -> float {
-    uint16_t temp = data[i];
-    return temp * unit;
   };
 
   auto publish_1_reg_sensor_state = [&](sensor::Sensor *sensor, size_t i, float unit) -> void {
@@ -54,11 +44,7 @@ void GrowattSolar::on_modbus_data(const std::vector<uint8_t> &data) {
       sensor->publish_state(value);
   };
 
-  // this->publishState(this->grid_active_power_sensor_,
-  //                    this->glueFloat(get_2_register(11 * 2), get_2_register(12 * 2)) * ONE_DEC_UNIT);
-
-  publish_1_reg_sensor_state(this->inverter_status_, 00, ONE_DEC_UNIT);
-  // publish_2_reg_sensor_state(this->pv_input_power_, 01, 02, ONE_DEC_UNIT);
+  publish_2_reg_sensor_state(this->pv_active_power_sensor_, 1, 2, ONE_DEC_UNIT);
 
   publish_1_reg_sensor_state(this->pvs_[0].voltage_sensor_, 3, ONE_DEC_UNIT);
   publish_1_reg_sensor_state(this->pvs_[0].current_sensor_, 4, ONE_DEC_UNIT);
@@ -85,11 +71,9 @@ void GrowattSolar::on_modbus_data(const std::vector<uint8_t> &data) {
 
   publish_2_reg_sensor_state(this->today_production_, 26, 27, ONE_DEC_UNIT);
   publish_2_reg_sensor_state(this->total_energy_production_, 28, 29, ONE_DEC_UNIT);
-  // 30,31 = work time total
-
+  
   publish_1_reg_sensor_state(this->inverter_module_temp_, 32, ONE_DEC_UNIT);
 
-  // this->publishState(this->grid_frequency_sensor_, this->glueFloat(0, get_2_register(13 * 2)) * TWO_DEC_UNIT);
 }
 
 void GrowattSolar::dump_config() {

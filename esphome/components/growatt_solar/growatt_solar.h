@@ -26,14 +26,10 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
     sensor::Sensor *active_power_sensor_{nullptr};
   } pvs_[2];
 
-  sensor::Sensor *inverter_status_{nullptr};
-  // sensor::Sensor *pv_input_power_{nullptr};
-  // sensor::Sensor *grid_output_power_{nullptr};
-
   sensor::Sensor *grid_frequency_sensor_{nullptr};
   sensor::Sensor *grid_active_power_sensor_{nullptr};
 
-  // sensor::Sensor *pv_active_power_sensor_{nullptr};
+  sensor::Sensor *pv_active_power_sensor_{nullptr};
 
   sensor::Sensor *today_production_{nullptr};
   sensor::Sensor *total_energy_production_{nullptr};
@@ -48,6 +44,8 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
 
   void set_grid_frequency_sensor(sensor::Sensor *sensor) { this->grid_frequency_sensor_ = sensor; }
   void set_grid_active_power_sensor(sensor::Sensor *sensor) { this->grid_active_power_sensor_ = sensor; }
+  void set_pv_active_power_sensor(sensor::Sensor *sensor) { this->pv_active_power_sensor_ = sensor; }
+  
 
   void set_today_production_sensor(sensor::Sensor *sensor) { this->today_production_ = sensor; }
   void set_total_energy_production_sensor(sensor::Sensor *sensor) { this->total_energy_production_ = sensor; }
@@ -65,7 +63,6 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
     this->phases_[phase].setup = true;
     this->phases_[phase].active_power_sensor_ = active_power_sensor;
   }
-
   void set_voltage_sensor_pv(uint8_t pv, sensor::Sensor *voltage_sensor) {
     this->pvs_[pv].setup = true;
     this->pvs_[pv].voltage_sensor_ = voltage_sensor;
