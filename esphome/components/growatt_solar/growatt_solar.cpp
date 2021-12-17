@@ -9,9 +9,7 @@ static const char *const TAG = "growatt_solar";
 static const uint8_t MODBUS_CMD_READ_IN_REGISTERS = 0x04;
 static const uint8_t MODBUS_REGISTER_COUNT = 33;
 
-void GrowattSolar::update() {
-  this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT);
-}
+void GrowattSolar::update() { this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT); }
 
 void GrowattSolar::on_modbus_data(const std::vector<uint8_t> &data) {
   auto publish_1_reg_sensor_state = [&](sensor::Sensor *sensor, size_t i, float unit) -> void {
