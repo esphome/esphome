@@ -10,7 +10,6 @@ static const uint8_t MODBUS_CMD_READ_IN_REGISTERS = 0x04;
 static const uint8_t MODBUS_REGISTER_COUNT = 33;
 
 void GrowattSolar::update() {
-  ESP_LOGW(TAG, "Request send");
   this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT);
 }
 

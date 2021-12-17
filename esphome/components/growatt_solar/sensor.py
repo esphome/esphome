@@ -6,9 +6,7 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_FREQUENCY,
     CONF_ID,
-    CONF_REACTIVE_POWER,
     CONF_VOLTAGE,
-    CONF_STATUS,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
@@ -19,9 +17,7 @@ from esphome.const import (
     UNIT_AMPERE,
     UNIT_CELSIUS,
     UNIT_HERTZ,
-    UNIT_MINUTE,
     UNIT_VOLT,
-    UNIT_VOLT_AMPS_REACTIVE,
     UNIT_WATT,
 )
 
@@ -43,14 +39,6 @@ UNIT_MILLIAMPERE = "mA"
 CONF_INVERTER_STATUS = "inverter_status"
 CONF_PV_ACTIVE_POWER = "pv_active_power"
 CONF_INVERTER_MODULE_TEMP = "inverter_module_temp"
-CONF_INVERTER_BUS_VOLTAGE = "inverter_bus_voltage"
-CONF_VOLTAGE_SAMPLED_BY_SECONDARY_CPU = "voltage_sampled_by_secondary_cpu"
-CONF_INSULATION_OF_P_TO_GROUND = "insulation_of_p_to_ground"
-CONF_INSULATION_OF_PV_N_TO_GROUND = "insulation_of_pv_n_to_ground"
-CONF_GFCI_VALUE = "gfci_value"
-CONF_DCI_OF_R = "dci_of_r"
-CONF_DCI_OF_S = "dci_of_s"
-CONF_DCI_OF_T = "dci_of_t"
 
 
 AUTO_LOAD = ["modbus"]
