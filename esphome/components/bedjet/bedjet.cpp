@@ -21,53 +21,18 @@ uint8_t bedjet_fan_step_to_speed(const uint8_t fan) {
   return 5 * fan + 5;
 }
 
-static const char *bedjet_fan_step_to_fan_mode(const uint8_t fan_step) {
+static const std::string *bedjet_fan_step_to_fan_mode(const uint8_t fan_step) {
   if (fan_step >= 0 && fan_step <= 19)
-    return BEDJET_FAN_STEP_NAMES[fan_step];
+    return &BEDJET_FAN_STEP_NAME_STRINGS[fan_step];
   return nullptr;
 }
 
 static uint8_t bedjet_fan_speed_to_step(const std::string &fan_step_percent) {
-  if (fan_step_percent == "5%")
-    return 0;
-  if (fan_step_percent == "10%")
-    return 1;
-  if (fan_step_percent == "15%")
-    return 2;
-  if (fan_step_percent == "20%")
-    return 3;
-  if (fan_step_percent == "25%")
-    return 4;
-  if (fan_step_percent == "30%")
-    return 5;
-  if (fan_step_percent == "35%")
-    return 6;
-  if (fan_step_percent == "40%")
-    return 7;
-  if (fan_step_percent == "45%")
-    return 8;
-  if (fan_step_percent == "50%")
-    return 9;
-  if (fan_step_percent == "55%")
-    return 10;
-  if (fan_step_percent == "60%")
-    return 11;
-  if (fan_step_percent == "65%")
-    return 12;
-  if (fan_step_percent == "70%")
-    return 13;
-  if (fan_step_percent == "75%")
-    return 14;
-  if (fan_step_percent == "80%")
-    return 15;
-  if (fan_step_percent == "85%")
-    return 16;
-  if (fan_step_percent == "90%")
-    return 17;
-  if (fan_step_percent == "95%")
-    return 18;
-  if (fan_step_percent == "100%")
-    return 19;
+  for (int i = 0; i < sizeof(BEDJET_FAN_STEP_NAME_STRINGS); i++) {
+    if (fan_step_percent == BEDJET_FAN_STEP_NAME_STRINGS[i]) {
+      return i;
+    }
+  }
   return -1;
 }
 
@@ -238,7 +203,8 @@ void Bedjet::control(const ClimateCall &call) {
   }
 
   if (call.get_fan_mode().has_value()) {
-    // FIXME: determine what style of fan speeds we want to support.
+    // FIXME: climate fan mode only supports low/med/high, but the BedJet supports 5-100% increments.
+    //  We can still support a ClimateCall that requests low/med/high, and just translate it to a step increment here.
     auto fan_mode = *call.get_fan_mode();
     BedjetPacket *pkt;
     if (fan_mode == climate::CLIMATE_FAN_LOW) {
@@ -258,7 +224,6 @@ void Bedjet::control(const ClimateCall &call) {
       ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
     } else {
       this->force_refresh_ = true;
-      // TODO: we need to settle on low/med/high vs 5% increments
     }
   } else if (call.get_custom_fan_mode().has_value()) {
     auto fan_mode = *call.get_custom_fan_mode();
@@ -590,17 +555,7 @@ bool Bedjet::update_status_() {
 
   auto fan_mode_name = bedjet_fan_step_to_fan_mode(status.fan_step);
   if (fan_mode_name != nullptr) {
-    this->custom_fan_mode = std::string(fan_mode_name);
-  } else {
-    auto fan_speed = bedjet_fan_step_to_speed(status.fan_step);
-    // FIXME: fan speed should support 5-100, at 5% increments
-    if (fan_speed <= 33) {
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-    } else if (fan_speed <= 66) {
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-    } else if (fan_speed <= 100) {
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-    }
+    this->custom_fan_mode = *fan_mode_name;
   }
 
   // TODO: do we have any way to know if a particular preset is running (M1/2/3)? get biorhythm data?

@@ -47,16 +47,8 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
         climate::CLIMATE_MODE_DRY,
     });
 
-    // TODO: decide if we stick with low/med/high, or use 5% increments
-    traits.set_supported_fan_modes({
-        climate::CLIMATE_FAN_HIGH,
-        climate::CLIMATE_FAN_MEDIUM,
-        climate::CLIMATE_FAN_LOW,
-    });
     // It would be better if we had a slider for the fan modes.
-    // FIXME: this set is not ordered by insertion, it is sorted alphabetically...
-    traits.set_supported_custom_fan_modes({"5%",  "10%", "15%", "20%", "25%", "30%", "35%", "40%", "45%", "50%",
-                                           "55%", "60%", "65%", "70%", "75%", "80%", "85%", "90%", "95%", "100%"});
+    traits.set_supported_custom_fan_modes(BEDJET_FAN_STEP_NAMES_SET);
     traits.set_supported_presets({
         // If we support NONE, then have to decide what happens if the user switches to it (turn off?)
         // climate::CLIMATE_PRESET_NONE,

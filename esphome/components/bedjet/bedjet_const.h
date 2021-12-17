@@ -1,5 +1,7 @@
 #pragma once
 
+#include <set>
+
 namespace esphome {
 namespace bedjet {
 
@@ -62,9 +64,15 @@ enum BedjetCommand : uint8_t {
   CMD_SET_TIME = 0x8,
 };
 
-static const char *const BEDJET_FAN_STEP_NAMES[20] = {"5%",  "10%", "15%", "20%", "25%", "30%", "35%",
-                                                      "40%", "45%", "50%", "55%", "60%", "65%", "70%",
-                                                      "75%", "80%", "85%", "90%", "95%", "100%"};
+#define BEDJET_FAN_STEP_NAMES_ \
+  { \
+    "  5%", " 10%", " 15%", " 20%", " 25%", " 30%", " 35%", " 40%", " 45%", " 50%", " 55%", " 60%", " 65%", " 70%", \
+        " 75%", " 80%", " 85%", " 90%", " 95%", "100%" \
+  }
+
+static const char *const BEDJET_FAN_STEP_NAMES[20] = BEDJET_FAN_STEP_NAMES_;
+static const std::string BEDJET_FAN_STEP_NAME_STRINGS[20] = BEDJET_FAN_STEP_NAMES_;
+static const std::set<std::string> BEDJET_FAN_STEP_NAMES_SET BEDJET_FAN_STEP_NAMES_;
 
 }  // namespace bedjet
 }  // namespace esphome
