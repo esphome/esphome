@@ -4,9 +4,6 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
-#include <stdint.h>
-#include <functional>
-
 namespace esphome {
 namespace growatt_solar {
 
