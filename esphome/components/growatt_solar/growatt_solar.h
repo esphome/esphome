@@ -11,8 +11,8 @@
 namespace esphome {
 namespace growatt_solar {
 
-static const float TWO_DEC_UNIT = 0.1;
-static const float ONE_DEC_UNIT = 1;
+static const float TWO_DEC_UNIT = 0.01;
+static const float ONE_DEC_UNIT = 0.1;
 
 class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
  protected:
@@ -29,6 +29,8 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
     sensor::Sensor *active_power_sensor_{nullptr};
   } pvs_[2];
 
+  sensor::Sensor *inverter_status_{nullptr};
+
   sensor::Sensor *grid_frequency_sensor_{nullptr};
   sensor::Sensor *grid_active_power_sensor_{nullptr};
 
@@ -38,12 +40,15 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *total_energy_production_{nullptr};
   sensor::Sensor *inverter_module_temp_{nullptr};
 
-  float glueFloat(uint16_t w1, uint16_t w0);
+  float toFloat(uint16_t w1, uint16_t w0);
 
  public:
   void update() override;
   void on_modbus_data(const std::vector<uint8_t> &data) override;
   void dump_config() override;
+
+
+  void set_inverter_status_sensor(sensor::Sensor *sensor) { this->inverter_status_ = sensor; }
 
   void set_grid_frequency_sensor(sensor::Sensor *sensor) { this->grid_frequency_sensor_ = sensor; }
   void set_grid_active_power_sensor(sensor::Sensor *sensor) { this->grid_active_power_sensor_ = sensor; }

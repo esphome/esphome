@@ -40,6 +40,7 @@ UNIT_HOURS = "h"
 UNIT_KOHM = "kΩ"
 UNIT_MILLIAMPERE = "mA"
 
+CONF_INVERTER_STATUS = "inverter_status"
 CONF_PV_ACTIVE_POWER = "pv_active_power"
 CONF_INVERTER_MODULE_TEMP = "inverter_module_temp"
 CONF_INVERTER_BUS_VOLTAGE = "inverter_bus_voltage"
@@ -115,6 +116,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PHASE_C): PHASE_SCHEMA,
             cv.Optional(CONF_PV1): PV_SCHEMA,
             cv.Optional(CONF_PV2): PV_SCHEMA,
+            cv.Optional(CONF_INVERTER_STATUS) : sensor.sensor_schema(),
             cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_HERTZ,
                 icon=ICON_CURRENT_AC,
@@ -162,6 +164,10 @@ async def to_code(config):
     await cg.register_component(var, config)
     await modbus.register_modbus_device(var, config)
 
+    if CONF_INVERTER_STATUS in config:
+        sens = await sensor.new_sensor(config[CONF_INVERTER_STATUS])
+        cg.add(var.set_inverter_status_sensor(sens))
+   
     if CONF_FREQUENCY in config:
         sens = await sensor.new_sensor(config[CONF_FREQUENCY])
         cg.add(var.set_grid_frequency_sensor(sens))
