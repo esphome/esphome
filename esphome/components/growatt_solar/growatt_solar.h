@@ -11,6 +11,9 @@
 namespace esphome {
 namespace growatt_solar {
 
+static const float TWO_DEC_UNIT = 0.1;
+static const float ONE_DEC_UNIT = 1;
+
 class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
  protected:
   struct GrowattPhase {

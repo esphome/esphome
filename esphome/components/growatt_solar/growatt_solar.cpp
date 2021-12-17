@@ -1,5 +1,4 @@
 #include "growatt_solar.h"
-#include "growatt_solar_registers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -7,8 +6,8 @@ namespace growatt_solar {
 
 static const char *const TAG = "growatt_solar";
 
-static const uint8_t MODBUS_CMD_READ_IN_REGISTERS = 0x04;  // 0x03;
-static const uint8_t MODBUS_REGISTER_COUNT = 33;           // 48;           // 48;  // 48 x 16-bit registers
+static const uint8_t MODBUS_CMD_READ_IN_REGISTERS = 0x04; 
+static const uint8_t MODBUS_REGISTER_COUNT = 33;
 
 void GrowattSolar::update() {
   ESP_LOGW(TAG, "Request send");
