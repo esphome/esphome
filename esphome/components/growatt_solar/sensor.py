@@ -66,7 +66,7 @@ PHASE_SENSORS = {
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
-    )
+    ),
 }
 PV_SENSORS = {
     CONF_VOLTAGE: sensor.sensor_schema(
@@ -85,7 +85,7 @@ PV_SENSORS = {
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
-    )
+    ),
 }
 
 PHASE_SCHEMA = cv.Schema(
@@ -104,7 +104,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PHASE_C): PHASE_SCHEMA,
             cv.Optional(CONF_PV1): PV_SCHEMA,
             cv.Optional(CONF_PV2): PV_SCHEMA,
-            cv.Optional(CONF_INVERTER_STATUS) : sensor.sensor_schema(),
+            cv.Optional(CONF_INVERTER_STATUS): sensor.sensor_schema(),
             cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_HERTZ,
                 icon=ICON_CURRENT_AC,
@@ -122,7 +122,7 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ),            
+            ),
             cv.Optional(CONF_ENERGY_PRODUCTION_DAY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
                 accuracy_decimals=2,
@@ -139,7 +139,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=1,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ) 
+            ),
         }
     )
     .extend(cv.polling_component_schema("10s"))
@@ -155,7 +155,7 @@ async def to_code(config):
     if CONF_INVERTER_STATUS in config:
         sens = await sensor.new_sensor(config[CONF_INVERTER_STATUS])
         cg.add(var.set_inverter_status_sensor(sens))
-   
+
     if CONF_FREQUENCY in config:
         sens = await sensor.new_sensor(config[CONF_FREQUENCY])
         cg.add(var.set_grid_frequency_sensor(sens))
@@ -179,7 +179,7 @@ async def to_code(config):
     if CONF_INVERTER_MODULE_TEMP in config:
         sens = await sensor.new_sensor(config[CONF_INVERTER_MODULE_TEMP])
         cg.add(var.set_inverter_module_temp_sensor(sens))
- 
+
     for i, phase in enumerate([CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C]):
         if phase not in config:
             continue
