@@ -6,7 +6,6 @@
 
 #include <stdint.h>
 #include <functional>
-#define SLAVE_ADDRESS 1
 
 namespace esphome {
 namespace growatt_solar {
