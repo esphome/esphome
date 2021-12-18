@@ -35,7 +35,7 @@ class MideaData {
     return std::equal(this->data_.begin(), this->data_.begin() + OFFSET_CS, rhs.data_.begin());
   }
   enum MideaDataType : uint8_t {
-    MIDEA_TYPE_COMMAND = 0xA1,
+    MIDEA_TYPE_CONTROL = 0xA1,
     MIDEA_TYPE_SPECIAL = 0xA2,
     MIDEA_TYPE_FOLLOW_ME = 0xA4,
   };

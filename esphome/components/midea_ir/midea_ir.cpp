@@ -28,7 +28,7 @@ float ControlData::get_temp() const {
   return static_cast<float>(temp + MIDEA_TEMPC_MIN);
 }
 
-void ControlData::do_fix() {
+void ControlData::fix() {
   // In FAN_AUTO, modes COOL, HEAT and FAN_ONLY bit #5 in byte #1 must be set
   const uint8_t value = this->get_value_(1, 31);
   if (value == 0 || value == 3 || value == 4)
@@ -136,13 +136,13 @@ void MideaIR::transmit_(MideaData &data) {
 
 void MideaIR::transmit_state() {
   if (this->swing_) {
-    SpecialData data(SpecialData::TOGGLE_VSWING);
+    SpecialData data(SpecialData::VSWING_TOGGLE);
     this->transmit_(data);
     this->swing_ = false;
     return;
   }
   if (this->boost_) {
-    SpecialData data(SpecialData::TOGGLE_TURBO_MODE);
+    SpecialData data(SpecialData::TURBO_TOGGLE);
     this->transmit_(data);
     this->boost_ = false;
     return;
@@ -153,7 +153,7 @@ void MideaIR::transmit_state() {
   data.set_mode(this->mode);
   data.set_fan_mode(this->fan_mode.value_or(ClimateFanMode::CLIMATE_FAN_AUTO));
   data.set_sleep_preset(this->preset == climate::CLIMATE_PRESET_SLEEP);
-  data.do_fix();
+  data.fix();
   this->transmit_(data);
 }
 
@@ -166,7 +166,7 @@ bool MideaIR::on_receive(remote_base::RemoteReceiveData data) {
 
 bool MideaIR::on_midea_(const MideaData &data) {
   ESP_LOGV(TAG, "Decoded Midea IR data: %s", data.to_string().c_str());
-  if (data.type() == MideaData::MIDEA_TYPE_COMMAND) {
+  if (data.type() == MideaData::MIDEA_TYPE_CONTROL) {
     const ControlData status = data;
     if (status.get_mode() != climate::CLIMATE_MODE_FAN_ONLY)
       this->target_temperature = status.get_temp();
@@ -181,11 +181,11 @@ bool MideaIR::on_midea_(const MideaData &data) {
   }
   if (data.type() == MideaData::MIDEA_TYPE_SPECIAL) {
     switch (data[1]) {
-      case SpecialData::TOGGLE_VSWING:
+      case SpecialData::VSWING_TOGGLE:
         this->swing_mode = this->swing_mode == climate::CLIMATE_SWING_VERTICAL ? climate::CLIMATE_SWING_OFF
                                                                                : climate::CLIMATE_SWING_VERTICAL;
         break;
-      case SpecialData::TOGGLE_TURBO_MODE:
+      case SpecialData::TURBO_TOGGLE:
         this->preset = this->preset == climate::CLIMATE_PRESET_BOOST ? climate::CLIMATE_PRESET_NONE
                                                                      : climate::CLIMATE_PRESET_BOOST;
         break;

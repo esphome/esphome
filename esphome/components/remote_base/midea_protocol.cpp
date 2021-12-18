@@ -42,23 +42,25 @@ void MideaProtocol::encode(RemoteTransmitData *dst, const MideaData &src) {
   dst->mark(FOOTER_MARK_US);
 }
 
-static bool read_data(RemoteReceiveData &src, MideaData &data) {
+static bool decode_data(RemoteReceiveData &src, MideaData &dst) {
   for (unsigned idx = 0; idx < 6; idx++) {
+    uint8_t data = 0;
     for (uint8_t mask = 1 << 7; mask; mask >>= 1) {
       if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US))
-        data[idx] |= mask;
+        data |= mask;
       else if (!src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US))
         return false;
     }
+    dst[idx] = data;
   }
   return true;
 }
 
 optional<MideaData> MideaProtocol::decode(RemoteReceiveData src) {
   MideaData out, inv;
-  if (src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && read_data(src, out) && out.is_valid() &&
+  if (src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && decode_data(src, out) && out.is_valid() &&
       src.expect_item(FOOTER_MARK_US, FOOTER_SPACE_US) && src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) &&
-      read_data(src, inv) && src.expect_mark(FOOTER_MARK_US) && out.is_compliment(inv))
+      decode_data(src, inv) && src.expect_mark(FOOTER_MARK_US) && out.is_compliment(inv))
     return out;
   return {};
 }

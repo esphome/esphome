@@ -13,7 +13,7 @@ using remote_base::MideaData;
 class ControlData : public MideaData {
  public:
   // Default constructor (power: ON, mode: AUTO, fan: AUTO, temp: 25C)
-  ControlData() : MideaData({MIDEA_TYPE_COMMAND, 0x82, 0x48, 0xFF, 0xFF}) {}
+  ControlData() : MideaData({MIDEA_TYPE_CONTROL, 0x82, 0x48, 0xFF, 0xFF}) {}
   // Copy from Base
   ControlData(const MideaData &data) : MideaData(data) {}
 
@@ -32,7 +32,7 @@ class ControlData : public MideaData {
   void set_fahrenheit(bool value) { this->set_mask_(2, value, 32); }
   bool get_fahrenheit() const { return this->get_value_(2, 32); }
 
-  void do_fix();
+  void fix();
 
  protected:
   enum Mode : uint8_t {
@@ -69,8 +69,8 @@ class FollowMeData : public MideaData {
   }
 
   /* TEMPERATURE */
-  uint8_t temp() const { return this->data_[4] - 1; }
-  void set_temp(uint8_t val) { this->data_[4] = std::min(MAX_TEMP, val) + 1; }
+  uint8_t temp() const { return this->get_value_(4) - 1; }
+  void set_temp(uint8_t val) { this->set_value_(4, std::min(MAX_TEMP, val) + 1); }
 
   /* BEEPER */
   bool beeper() const { return this->get_value_(3, 128); }
@@ -83,9 +83,9 @@ class FollowMeData : public MideaData {
 class SpecialData : public MideaData {
  public:
   SpecialData(uint8_t code) : MideaData({MIDEA_TYPE_SPECIAL, code, 0xFF, 0xFF, 0xFF}) {}
-  static const uint8_t STEP_VSWING = 1;
-  static const uint8_t TOGGLE_VSWING = 2;
-  static const uint8_t TOGGLE_TURBO_MODE = 9;
+  static const uint8_t VSWING_STEP = 1;
+  static const uint8_t VSWING_TOGGLE = 2;
+  static const uint8_t TURBO_TOGGLE = 9;
 };
 
 }  // namespace midea_ir

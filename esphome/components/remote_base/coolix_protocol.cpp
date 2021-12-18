@@ -15,34 +15,36 @@ static const int32_t BIT_ZERO_SPACE_US = 1 * TICK_US;
 static const int32_t FOOTER_MARK_US = 1 * TICK_US;
 static const int32_t FOOTER_SPACE_US = 10 * TICK_US;
 
-void CoolixProtocol::encode(RemoteTransmitData *dst, const CoolixData &data) {
-  dst->set_carrier_frequency(38000);
-  dst->reserve((2 + 2 * 48 + 2) * 2);
-  for (unsigned r = 0; r < 2; r++) {
-    // Header
-    dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-    // Data
-    //   Break data into bytes, starting at the Most Significant
-    //   Byte. Each byte then being sent normal, then followed inverted.
-    for (unsigned shift = 16;; shift -= 8) {
-      // Grab a bytes worth of data.
-      const uint8_t byte = data >> shift;
-      // Normal
-      for (uint8_t mask = 1 << 7; mask; mask >>= 1)
-        dst->item(BIT_MARK_US, (byte & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
-      // Inverted
-      for (uint8_t mask = 1 << 7; mask; mask >>= 1)
-        dst->item(BIT_MARK_US, (byte & mask) ? BIT_ZERO_SPACE_US : BIT_ONE_SPACE_US);
-      // Data end
-      if (shift == 0)
-        break;
-    }
-    // Footer
-    dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);  // Pause before repeating
+static void encode_data(RemoteTransmitData *dst, const CoolixData &src) {
+  //   Break data into bytes, starting at the Most Significant
+  //   Byte. Each byte then being sent normal, then followed inverted.
+  for (unsigned shift = 16;; shift -= 8) {
+    // Grab a bytes worth of data.
+    const uint8_t byte = src >> shift;
+    // Normal
+    for (uint8_t mask = 1 << 7; mask; mask >>= 1)
+      dst->item(BIT_MARK_US, (byte & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
+    // Inverted
+    for (uint8_t mask = 1 << 7; mask; mask >>= 1)
+      dst->item(BIT_MARK_US, (byte & mask) ? BIT_ZERO_SPACE_US : BIT_ONE_SPACE_US);
+    // Data end
+    if (shift == 0)
+      break;
   }
 }
 
-static bool read_data(RemoteReceiveData &src, CoolixData &dst) {
+void CoolixProtocol::encode(RemoteTransmitData *dst, const CoolixData &data) {
+  dst->set_carrier_frequency(38000);
+  dst->reserve(2 + 2 * 48 + 2 + 2 + 2 * 48 + 1);
+  dst->item(HEADER_MARK_US, HEADER_SPACE_US);
+  encode_data(dst, data);
+  dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
+  dst->item(HEADER_MARK_US, HEADER_SPACE_US);
+  encode_data(dst, data);
+  dst->mark(FOOTER_MARK_US);
+}
+
+static bool decode_data(RemoteReceiveData &src, CoolixData &dst) {
   uint32_t data = 0;
   for (unsigned n = 3;; data <<= 8) {
     // Read byte
@@ -67,9 +69,9 @@ static bool read_data(RemoteReceiveData &src, CoolixData &dst) {
 
 optional<CoolixData> CoolixProtocol::decode(RemoteReceiveData data) {
   CoolixData first, second;
-  if (data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && read_data(data, first) &&
+  if (data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && decode_data(data, first) &&
       data.expect_item(FOOTER_MARK_US, FOOTER_SPACE_US) && data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) &&
-      read_data(data, second) && data.expect_mark(FOOTER_MARK_US) && first == second)
+      decode_data(data, second) && data.expect_mark(FOOTER_MARK_US) && first == second)
     return first;
   return {};
 }
