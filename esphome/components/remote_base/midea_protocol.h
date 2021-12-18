@@ -10,8 +10,8 @@ namespace remote_base {
 
 class MideaData {
  public:
-  // Make zero-filled
-  MideaData() { std::fill(this->data_.begin(), this->data_.end(), 0); }
+  // Make default
+  MideaData() {}
   // Make from initializer_list
   MideaData(std::initializer_list<uint8_t> data) {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
