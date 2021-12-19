@@ -50,7 +50,7 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
     this->pvs_[pv].setup = true;
     this->pvs_[pv].active_power_sensor_ = active_power_sensor;
   }
-  
+
  protected:
   struct GrowattPhase {
     sensor::Sensor *voltage_sensor_{nullptr};
@@ -73,7 +73,6 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *today_production_{nullptr};
   sensor::Sensor *total_energy_production_{nullptr};
   sensor::Sensor *inverter_module_temp_{nullptr};
-
 };
 
 }  // namespace growatt_solar
