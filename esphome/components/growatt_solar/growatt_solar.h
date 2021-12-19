@@ -27,27 +27,21 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
   void set_inverter_module_temp_sensor(sensor::Sensor *sensor) { this->inverter_module_temp_ = sensor; }
 
   void set_voltage_sensor(uint8_t phase, sensor::Sensor *voltage_sensor) {
-    this->phases_[phase].setup = true;
     this->phases_[phase].voltage_sensor_ = voltage_sensor;
   }
   void set_current_sensor(uint8_t phase, sensor::Sensor *current_sensor) {
-    this->phases_[phase].setup = true;
     this->phases_[phase].current_sensor_ = current_sensor;
   }
   void set_active_power_sensor(uint8_t phase, sensor::Sensor *active_power_sensor) {
-    this->phases_[phase].setup = true;
     this->phases_[phase].active_power_sensor_ = active_power_sensor;
   }
   void set_voltage_sensor_pv(uint8_t pv, sensor::Sensor *voltage_sensor) {
-    this->pvs_[pv].setup = true;
     this->pvs_[pv].voltage_sensor_ = voltage_sensor;
   }
   void set_current_sensor_pv(uint8_t pv, sensor::Sensor *current_sensor) {
-    this->pvs_[pv].setup = true;
     this->pvs_[pv].current_sensor_ = current_sensor;
   }
   void set_active_power_sensor_pv(uint8_t pv, sensor::Sensor *active_power_sensor) {
-    this->pvs_[pv].setup = true;
     this->pvs_[pv].active_power_sensor_ = active_power_sensor;
   }
 
