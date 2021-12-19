@@ -13,9 +13,10 @@ void GrowattSolar::update() { this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS
 
 void GrowattSolar::on_modbus_data(const std::vector<uint8_t> &data) {
   auto publish_1_reg_sensor_state = [&](sensor::Sensor *sensor, size_t i, float unit) -> void {
+    if (sensor == nullptr)
+      return;
     float value = encode_uint16(data[i * 2], data[i * 2 + 1]) * unit;
-    if (sensor != nullptr)
-      sensor->publish_state(value);
+    sensor->publish_state(value);
   };
 
   auto publish_2_reg_sensor_state = [&](sensor::Sensor *sensor, size_t reg1, size_t reg2, float unit) -> void {
