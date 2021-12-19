@@ -320,8 +320,7 @@ class LWIPRawImpl : public Socket {
       return -1;
     }
     if (rx_closed_ && rx_buf_ == nullptr) {
-      errno = ECONNRESET;
-      return -1;
+      return 0;
     }
     if (len == 0) {
       return 0;
@@ -366,6 +365,11 @@ class LWIPRawImpl : public Socket {
       read += copysize;
     }
 
+    if (read == 0) {
+      errno = EWOULDBLOCK;
+      return -1;
+    }
+
     return read;
   }
   ssize_t readv(const struct iovec *iov, int iovcnt) override {
@@ -379,7 +383,7 @@ class LWIPRawImpl : public Socket {
         return err;
       }
       ret += err;
-      if (err != iov[i].iov_len)
+      if ((size_t) err != iov[i].iov_len)
         break;
     }
     return ret;
@@ -458,7 +462,7 @@ class LWIPRawImpl : public Socket {
         return err;
       }
       written += err;
-      if (err != iov[i].iov_len)
+      if ((size_t) err != iov[i].iov_len)
         break;
     }
     if (written == 0)

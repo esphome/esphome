@@ -7,6 +7,8 @@
 namespace esphome {
 namespace sdp3x {
 
+enum MeasurementMode { MASS_FLOW_AVG, DP_AVG };
+
 class SDP3XComponent : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
  public:
   /// Schedule temperature+pressure readings.
@@ -16,14 +18,14 @@ class SDP3XComponent : public PollingComponent, public i2c::I2CDevice, public se
   void dump_config() override;
 
   float get_setup_priority() const override;
+  void set_measurement_mode(MeasurementMode mode) { measurement_mode_ = mode; }
 
  protected:
   /// Internal method to read the pressure from the component after it has been scheduled.
   void read_pressure_();
 
   bool check_crc_(const uint8_t data[], uint8_t size, uint8_t checksum);
-
-  float pressure_scale_factor_ = 0.0f;  // hPa per count
+  MeasurementMode measurement_mode_;
 };
 
 }  // namespace sdp3x

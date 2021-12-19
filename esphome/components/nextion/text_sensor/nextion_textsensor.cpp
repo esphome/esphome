@@ -18,7 +18,7 @@ void NextionTextSensor::process_text(const std::string &variable_name, const std
 void NextionTextSensor::update() {
   if (!this->nextion_->is_setup())
     return;
-  this->nextion_->add_to_get_queue(shared_from_this());
+  this->nextion_->add_to_get_queue(this);
 }
 
 void NextionTextSensor::set_state(const std::string &state, bool publish, bool send_to_nextion) {
@@ -29,7 +29,7 @@ void NextionTextSensor::set_state(const std::string &state, bool publish, bool s
     if (this->nextion_->is_sleeping() || !this->visible_) {
       this->needs_to_send_update_ = true;
     } else {
-      this->nextion_->add_no_result_to_queue_with_set(shared_from_this(), state);
+      this->nextion_->add_no_result_to_queue_with_set(this, state);
     }
   }
 

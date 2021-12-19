@@ -13,7 +13,7 @@ void ModbusTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Modbus Controller Te
 
 void ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   std::ostringstream output;
-  uint8_t max_items = this->response_bytes_;
+  uint8_t max_items = this->response_bytes;
   char buffer[4];
   bool add_comma = false;
   for (auto b : data) {

@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_ALPHA,
     CONF_BELOW,
+    CONF_ENTITY_CATEGORY,
     CONF_EXPIRE_AFTER,
     CONF_FILTERS,
     CONF_FROM,
@@ -18,6 +19,7 @@ from esphome.const import (
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
+    CONF_QUANTILE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
     CONF_STATE_CLASS,
@@ -133,7 +135,6 @@ def validate_datapoint(value):
 
 
 # Base
-sensor_ns = cg.esphome_ns.namespace("sensor")
 Sensor = sensor_ns.class_("Sensor", cg.EntityBase)
 SensorPtr = Sensor.operator("ptr")
 
@@ -151,6 +152,7 @@ SensorPublishAction = sensor_ns.class_("SensorPublishAction", automation.Action)
 
 # Filters
 Filter = sensor_ns.class_("Filter")
+QuantileFilter = sensor_ns.class_("QuantileFilter", Filter)
 MedianFilter = sensor_ns.class_("MedianFilter", Filter)
 MinFilter = sensor_ns.class_("MinFilter", Filter)
 MaxFilter = sensor_ns.class_("MaxFilter", Filter)
@@ -226,6 +228,7 @@ def sensor_schema(
     accuracy_decimals: int = _UNDEF,
     device_class: str = _UNDEF,
     state_class: str = _UNDEF,
+    entity_category: str = _UNDEF,
 ) -> cv.Schema:
     schema = SENSOR_SCHEMA
     if unit_of_measurement is not _UNDEF:
@@ -258,6 +261,14 @@ def sensor_schema(
         schema = schema.extend(
             {cv.Optional(CONF_STATE_CLASS, default=state_class): validate_state_class}
         )
+    if entity_category is not _UNDEF:
+        schema = schema.extend(
+            {
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=entity_category
+                ): cv.entity_category
+            }
+        )
     return schema
 
 
@@ -274,6 +285,30 @@ async def multiply_filter_to_code(config, filter_id):
 @FILTER_REGISTRY.register("filter_out", FilterOutValueFilter, cv.float_)
 async def filter_out_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
+
+
+QUANTILE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_QUANTILE, default=0.9): cv.zero_to_one_float,
+        }
+    ),
+    validate_send_first_at,
+)
+
+
+@FILTER_REGISTRY.register("quantile", QuantileFilter, QUANTILE_SCHEMA)
+async def quantile_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_WINDOW_SIZE],
+        config[CONF_SEND_EVERY],
+        config[CONF_SEND_FIRST_AT],
+        config[CONF_QUANTILE],
+    )
 
 
 MEDIAN_SCHEMA = cv.All(

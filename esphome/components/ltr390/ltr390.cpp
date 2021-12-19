@@ -97,7 +97,7 @@ void LTR390Component::read_mode_(int mode_index) {
 
     // If there are more modes to read then begin the next
     // otherwise stop
-    if (mode_index + 1 < this->mode_funcs_.size()) {
+    if (mode_index + 1 < (int) this->mode_funcs_.size()) {
       this->read_mode_(mode_index + 1);
     } else {
       this->reading_ = false;
