@@ -11,31 +11,6 @@ static const float TWO_DEC_UNIT = 0.01;
 static const float ONE_DEC_UNIT = 0.1;
 
 class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
- protected:
-  struct GrowattPhase {
-    bool setup{false};
-    sensor::Sensor *voltage_sensor_{nullptr};
-    sensor::Sensor *current_sensor_{nullptr};
-    sensor::Sensor *active_power_sensor_{nullptr};
-  } phases_[3];
-  struct GrowattPV {
-    bool setup{false};
-    sensor::Sensor *voltage_sensor_{nullptr};
-    sensor::Sensor *current_sensor_{nullptr};
-    sensor::Sensor *active_power_sensor_{nullptr};
-  } pvs_[2];
-
-  sensor::Sensor *inverter_status_{nullptr};
-
-  sensor::Sensor *grid_frequency_sensor_{nullptr};
-  sensor::Sensor *grid_active_power_sensor_{nullptr};
-
-  sensor::Sensor *pv_active_power_sensor_{nullptr};
-
-  sensor::Sensor *today_production_{nullptr};
-  sensor::Sensor *total_energy_production_{nullptr};
-  sensor::Sensor *inverter_module_temp_{nullptr};
-
  public:
   void update() override;
   void on_modbus_data(const std::vector<uint8_t> &data) override;
@@ -75,6 +50,30 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
     this->pvs_[pv].setup = true;
     this->pvs_[pv].active_power_sensor_ = active_power_sensor;
   }
+  
+ protected:
+  struct GrowattPhase {
+    sensor::Sensor *voltage_sensor_{nullptr};
+    sensor::Sensor *current_sensor_{nullptr};
+    sensor::Sensor *active_power_sensor_{nullptr};
+  } phases_[3];
+  struct GrowattPV {
+    sensor::Sensor *voltage_sensor_{nullptr};
+    sensor::Sensor *current_sensor_{nullptr};
+    sensor::Sensor *active_power_sensor_{nullptr};
+  } pvs_[2];
+
+  sensor::Sensor *inverter_status_{nullptr};
+
+  sensor::Sensor *grid_frequency_sensor_{nullptr};
+  sensor::Sensor *grid_active_power_sensor_{nullptr};
+
+  sensor::Sensor *pv_active_power_sensor_{nullptr};
+
+  sensor::Sensor *today_production_{nullptr};
+  sensor::Sensor *total_energy_production_{nullptr};
+  sensor::Sensor *inverter_module_temp_{nullptr};
+
 };
 
 }  // namespace growatt_solar
