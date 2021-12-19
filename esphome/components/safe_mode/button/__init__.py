@@ -6,8 +6,10 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ICON_RESTART_ALERT,
 )
+from .. import safe_mode_ns
 
-safe_mode_ns = cg.esphome_ns.namespace("safe_mode")
+CODEOWNERS = ["@jesserockz"]
+
 SafeModeButton = safe_mode_ns.class_("SafeModeButton", button.Button, cg.Component)
 
 CONFIG_SCHEMA = (
