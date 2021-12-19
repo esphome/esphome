@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import button
 from esphome.components.ota import OTAComponent
 from esphome.const import (
-    CONF_ICON,
     CONF_ID,
     CONF_OTA,
     DEVICE_CLASS_RESTART,
@@ -18,11 +17,12 @@ SafeModeButton = safe_mode_ns.class_("SafeModeButton", button.Button, cg.Compone
 
 CONFIG_SCHEMA = (
     button.button_schema(
-        device_class=DEVICE_CLASS_RESTART, entity_category=ENTITY_CATEGORY_CONFIG
+        device_class=DEVICE_CLASS_RESTART,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        icon=ICON_RESTART_ALERT,
     )
     .extend({cv.GenerateID(): cv.declare_id(SafeModeButton)})
     .extend({cv.GenerateID(CONF_OTA): cv.use_id(OTAComponent)})
-    .extend({cv.Optional(CONF_ICON, default=ICON_RESTART_ALERT): cv.icon})
     .extend(cv.COMPONENT_SCHEMA)
 )
 

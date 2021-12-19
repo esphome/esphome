@@ -6,7 +6,7 @@
 namespace esphome {
 namespace safe_mode {
 
-static const char *const TAG = "safe_mode_button";
+static const char *const TAG = "safe_mode.button";
 
 void SafeModeButton::set_ota(ota::OTAComponent *ota) { this->ota_ = ota; }
 
