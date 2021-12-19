@@ -45,9 +45,11 @@ logger:
   level: DEBUG
 
 web_server:
+  ota: false
   auth:
     username: admin
     password: admin
+  include_internal: true
 
 time:
   - platform: sntp
@@ -58,6 +60,10 @@ tuya:
 
 pipsolar:
     id: inverter0
+
+sx1509:
+  - id: sx1509_hub
+    address: 0x3E
 
 sensor:
   - platform: homeassistant
@@ -209,6 +215,7 @@ sensor:
       - or:
         - throttle: "20min"
         - delta: 0.02
+
 #
 # platform sensor.apds9960 requires component apds9960
 #
@@ -308,6 +315,11 @@ binary_sensor:
     y_max: 212
     on_state:
       - lambda: 'ESP_LOGI("main", "key0: %s", (x ? "touch" : "release"));'
+  - platform: gpio
+    name: GPIO SX1509 test
+    pin:
+      sx1509: sx1509_hub
+      number: 3
 
 climate:
   - platform: tuya
@@ -401,6 +413,7 @@ display:
     reset_pin: GPIO23
     model: 2.90in
     full_update_every: 30
+    reset_duration: 200ms
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
@@ -471,6 +484,12 @@ esp32_camera:
   resolution: 640x480
   jpeg_quality: 10
 
+esp32_camera_web_server:
+  - port: 8080
+    mode: stream
+  - port: 8081
+    mode: snapshot
+
 external_components:
   - source: github://esphome/esphome@dev
     refresh: 1d
@@ -502,3 +521,7 @@ xpt2046:
             id(touchscreen).y_raw,
             id(touchscreen).z_raw
             );
+
+button:
+  - platform: restart
+    name: Restart Button

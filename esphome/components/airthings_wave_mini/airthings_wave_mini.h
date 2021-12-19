@@ -1,28 +1,28 @@
 #pragma once
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_ESP32
 
+#include <esp_gattc_api.h>
 #include <algorithm>
 #include <iterator>
-#include <esp_gattc_api.h>
-#include <BLEDevice.h>
-#include "esphome/core/component.h"
-#include "esphome/core/log.h"
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/core/component.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace airthings_wave_mini {
+
+static const char *const SERVICE_UUID = "b42e3882-ade7-11e4-89d3-123b93f75cba";
+static const char *const CHARACTERISTIC_UUID = "b42e3b98-ade7-11e4-89d3-123b93f75cba";
 
 class AirthingsWaveMini : public PollingComponent, public ble_client::BLEClientNode {
  public:
   AirthingsWaveMini();
 
-  void setup() override;
   void dump_config() override;
   void update() override;
-  void loop() override;
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
@@ -62,4 +62,4 @@ class AirthingsWaveMini : public PollingComponent, public ble_client::BLEClientN
 }  // namespace airthings_wave_mini
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_ESP32

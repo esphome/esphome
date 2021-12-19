@@ -3,10 +3,12 @@ import esphome.config_validation as cv
 from esphome.components import switch
 from esphome.components.ota import OTAComponent
 from esphome.const import (
+    CONF_ENTITY_CATEGORY,
     CONF_ID,
     CONF_INVERTED,
     CONF_ICON,
     CONF_OTA,
+    ENTITY_CATEGORY_CONFIG,
     ICON_RESTART_ALERT,
 )
 from .. import safe_mode_ns
@@ -23,6 +25,9 @@ CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
             "Safe Mode Restart switches do not support inverted mode!"
         ),
         cv.Optional(CONF_ICON, default=ICON_RESTART_ALERT): switch.icon,
+        cv.Optional(
+            CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
+        ): cv.entity_category,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

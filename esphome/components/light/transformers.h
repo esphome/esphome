@@ -18,10 +18,13 @@ class LightTransitionTransformer : public LightTransformer {
       this->start_values_.set_brightness(0.0f);
     }
 
-    // When turning light off from on state, use source state and only decrease brightness to zero.
+    // When turning light off from on state, use source state and only decrease brightness to zero. Use a second
+    // variable for transition end state, as overwriting target_values breaks LightState logic.
     if (this->start_values_.is_on() && !this->target_values_.is_on()) {
-      this->target_values_ = LightColorValues(this->start_values_);
-      this->target_values_.set_brightness(0.0f);
+      this->end_values_ = LightColorValues(this->start_values_);
+      this->end_values_.set_brightness(0.0f);
+    } else {
+      this->end_values_ = LightColorValues(this->target_values_);
     }
 
     // When changing color mode, go through off state, as color modes are orthogonal and there can't be two active.
@@ -43,7 +46,7 @@ class LightTransitionTransformer : public LightTransformer {
     }
 
     LightColorValues &start = this->changing_color_mode_ && p > 0.5f ? this->intermediate_values_ : this->start_values_;
-    LightColorValues &end = this->changing_color_mode_ && p < 0.5f ? this->intermediate_values_ : this->target_values_;
+    LightColorValues &end = this->changing_color_mode_ && p < 0.5f ? this->intermediate_values_ : this->end_values_;
     if (this->changing_color_mode_)
       p = p < 0.5f ? p * 2 : (p - 0.5) * 2;
 
@@ -57,6 +60,7 @@ class LightTransitionTransformer : public LightTransformer {
   static float smoothed_progress(float x) { return x * x * x * (x * (x * 6.0f - 15.0f) + 10.0f); }
 
   bool changing_color_mode_{false};
+  LightColorValues end_values_{};
   LightColorValues intermediate_values_{};
 };
 
@@ -69,9 +73,7 @@ class LightFlashTransformer : public LightTransformer {
     if (this->transition_length_ * 2 > this->length_)
       this->transition_length_ = this->length_ / 2;
 
-    // do not create transition if length is 0
-    if (this->transition_length_ == 0)
-      return;
+    this->begun_lightstate_restore_ = false;
 
     // first transition to original target
     this->transformer_ = this->state_.get_output()->create_default_transition();
@@ -79,40 +81,45 @@ class LightFlashTransformer : public LightTransformer {
   }
 
   optional<LightColorValues> apply() override {
-    // transition transformer does not handle 0 length as progress returns nan
-    if (this->transition_length_ == 0)
-      return this->target_values_;
+    optional<LightColorValues> result = {};
+
+    if (this->transformer_ == nullptr && millis() > this->start_time_ + this->length_ - this->transition_length_) {
+      // second transition back to start value
+      this->transformer_ = this->state_.get_output()->create_default_transition();
+      this->transformer_->setup(this->state_.current_values, this->get_start_values(), this->transition_length_);
+      this->begun_lightstate_restore_ = true;
+    }
 
     if (this->transformer_ != nullptr) {
-      if (!this->transformer_->is_finished()) {
-        return this->transformer_->apply();
-      } else {
+      result = this->transformer_->apply();
+
+      if (this->transformer_->is_finished()) {
         this->transformer_->stop();
         this->transformer_ = nullptr;
       }
     }
 
-    if (millis() > this->start_time_ + this->length_ - this->transition_length_) {
-      // second transition back to start value
-      this->transformer_ = this->state_.get_output()->create_default_transition();
-      this->transformer_->setup(this->state_.current_values, this->get_start_values(), this->transition_length_);
-    }
-
-    // once transition is complete, don't change states until next transition
-    return optional<LightColorValues>();
+    return result;
   }
 
   // Restore the original values after the flash.
   void stop() override {
+    if (this->transformer_ != nullptr) {
+      this->transformer_->stop();
+      this->transformer_ = nullptr;
+    }
     this->state_.current_values = this->get_start_values();
     this->state_.remote_values = this->get_start_values();
     this->state_.publish_state();
   }
 
+  bool is_finished() override { return this->begun_lightstate_restore_ && LightTransformer::is_finished(); }
+
  protected:
   LightState &state_;
   uint32_t transition_length_;
   std::unique_ptr<LightTransformer> transformer_{nullptr};
+  bool begun_lightstate_restore_;
 };
 
 }  // namespace light

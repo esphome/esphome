@@ -10,16 +10,16 @@ from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_ALPHA,
     CONF_BELOW,
-    CONF_DISABLED_BY_DEFAULT,
+    CONF_ENTITY_CATEGORY,
     CONF_EXPIRE_AFTER,
     CONF_FILTERS,
     CONF_FROM,
     CONF_ICON,
     CONF_ID,
-    CONF_INTERNAL,
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
+    CONF_QUANTILE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
     CONF_STATE_CLASS,
@@ -27,7 +27,6 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_WINDOW_SIZE,
-    CONF_NAME,
     CONF_MQTT_ID,
     CONF_FORCE_UPDATE,
     DEVICE_CLASS_EMPTY,
@@ -59,6 +58,7 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -135,8 +135,7 @@ def validate_datapoint(value):
 
 
 # Base
-sensor_ns = cg.esphome_ns.namespace("sensor")
-Sensor = sensor_ns.class_("Sensor", cg.Nameable)
+Sensor = sensor_ns.class_("Sensor", cg.EntityBase)
 SensorPtr = Sensor.operator("ptr")
 
 # Triggers
@@ -153,6 +152,7 @@ SensorPublishAction = sensor_ns.class_("SensorPublishAction", automation.Action)
 
 # Filters
 Filter = sensor_ns.class_("Filter")
+QuantileFilter = sensor_ns.class_("QuantileFilter", Filter)
 MedianFilter = sensor_ns.class_("MedianFilter", Filter)
 MinFilter = sensor_ns.class_("MinFilter", Filter)
 MaxFilter = sensor_ns.class_("MaxFilter", Filter)
@@ -162,6 +162,7 @@ SlidingWindowMovingAverageFilter = sensor_ns.class_(
 ExponentialMovingAverageFilter = sensor_ns.class_(
     "ExponentialMovingAverageFilter", Filter
 )
+ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter, cg.Component)
 LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
 OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
 MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
@@ -180,12 +181,11 @@ validate_accuracy_decimals = cv.int_
 validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
-SENSOR_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
+SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
         cv.GenerateID(): cv.declare_id(Sensor),
         cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
-        cv.Optional(CONF_ICON): validate_icon,
         cv.Optional(CONF_ACCURACY_DECIMALS): validate_accuracy_decimals,
         cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
         cv.Optional(CONF_STATE_CLASS): validate_state_class,
@@ -228,6 +228,7 @@ def sensor_schema(
     accuracy_decimals: int = _UNDEF,
     device_class: str = _UNDEF,
     state_class: str = _UNDEF,
+    entity_category: str = _UNDEF,
 ) -> cv.Schema:
     schema = SENSOR_SCHEMA
     if unit_of_measurement is not _UNDEF:
@@ -260,6 +261,14 @@ def sensor_schema(
         schema = schema.extend(
             {cv.Optional(CONF_STATE_CLASS, default=state_class): validate_state_class}
         )
+    if entity_category is not _UNDEF:
+        schema = schema.extend(
+            {
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=entity_category
+                ): cv.entity_category
+            }
+        )
     return schema
 
 
@@ -276,6 +285,30 @@ async def multiply_filter_to_code(config, filter_id):
 @FILTER_REGISTRY.register("filter_out", FilterOutValueFilter, cv.float_)
 async def filter_out_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
+
+
+QUANTILE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_QUANTILE, default=0.9): cv.zero_to_one_float,
+        }
+    ),
+    validate_send_first_at,
+)
+
+
+@FILTER_REGISTRY.register("quantile", QuantileFilter, QUANTILE_SCHEMA)
+async def quantile_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_WINDOW_SIZE],
+        config[CONF_SEND_EVERY],
+        config[CONF_SEND_FIRST_AT],
+        config[CONF_QUANTILE],
+    )
 
 
 MEDIAN_SCHEMA = cv.All(
@@ -382,6 +415,15 @@ async def sliding_window_moving_average_filter_to_code(config, filter_id):
 )
 async def exponential_moving_average_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config[CONF_ALPHA], config[CONF_SEND_EVERY])
+
+
+@FILTER_REGISTRY.register(
+    "throttle_average", ThrottleAverageFilter, cv.positive_time_period_milliseconds
+)
+async def throttle_average_filter_to_code(config, filter_id):
+    var = cg.new_Pvariable(filter_id, config)
+    await cg.register_component(var, {})
+    return var
 
 
 @FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
@@ -495,18 +537,14 @@ async def build_filters(config):
 
 
 async def setup_sensor_core_(var, config):
-    cg.add(var.set_name(config[CONF_NAME]))
-    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
-    if CONF_INTERNAL in config:
-        cg.add(var.set_internal(config[CONF_INTERNAL]))
+    await setup_entity(var, config)
+
     if CONF_DEVICE_CLASS in config:
         cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
     if CONF_STATE_CLASS in config:
         cg.add(var.set_state_class(config[CONF_STATE_CLASS]))
     if CONF_UNIT_OF_MEASUREMENT in config:
         cg.add(var.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
-    if CONF_ICON in config:
-        cg.add(var.set_icon(config[CONF_ICON]))
     if CONF_ACCURACY_DECIMALS in config:
         cg.add(var.set_accuracy_decimals(config[CONF_ACCURACY_DECIMALS]))
     cg.add(var.set_force_update(config[CONF_FORCE_UPDATE]))

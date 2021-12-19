@@ -77,6 +77,20 @@ void SGP40Component::setup() {
   }
 
   this->self_test_();
+
+  /* The official spec for this sensor at https://docs.rs-online.com/1956/A700000007055193.pdf
+  indicates this sensor should be driven at 1Hz. Comments from the developers at:
+  https://github.com/Sensirion/embedded-sgp/issues/136 indicate the algorithm should be a bit
+  resilient to slight timing variations so the software timer should be accurate enough for
+  this.
+
+  This block starts sampling from the sensor at 1Hz, and is done seperately from the call
+  to the update method. This seperation is to support getting accurate measurements but
+  limit the amount of communication done over wifi for power consumption or to keep the
+  number of records reported from being overwhelming.
+  */
+  ESP_LOGD(TAG, "Component requires sampling of 1Hz, setting up background sampler");
+  this->set_interval(1000, [this]() { this->update_voc_index(); });
 }
 
 void SGP40Component::self_test_() {
@@ -130,8 +144,8 @@ int32_t SGP40Component::measure_voc_index_() {
   // much
   if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
     voc_algorithm_get_states(&voc_algorithm_params_, &this->state0_, &this->state1_);
-    if (abs(this->baselines_storage_.state0 - this->state0_) > MAXIMUM_STORAGE_DIFF ||
-        abs(this->baselines_storage_.state1 - this->state1_) > MAXIMUM_STORAGE_DIFF) {
+    if ((uint32_t) abs(this->baselines_storage_.state0 - this->state0_) > MAXIMUM_STORAGE_DIFF ||
+        (uint32_t) abs(this->baselines_storage_.state1 - this->state1_) > MAXIMUM_STORAGE_DIFF) {
       this->seconds_since_last_store_ = 0;
       this->baselines_storage_.state0 = this->state0_;
       this->baselines_storage_.state1 = this->state1_;
@@ -224,21 +238,26 @@ uint8_t SGP40Component::generate_crc_(const uint8_t *data, uint8_t datalen) {
   return crc;
 }
 
-void SGP40Component::update() {
-  this->seconds_since_last_store_ += this->update_interval_ / 1000;
+void SGP40Component::update_voc_index() {
+  this->seconds_since_last_store_ += 1;
 
-  uint32_t voc_index = this->measure_voc_index_();
-
+  this->voc_index_ = this->measure_voc_index_();
   if (this->samples_read_ < this->samples_to_stabalize_) {
     this->samples_read_++;
     ESP_LOGD(TAG, "Sensor has not collected enough samples yet. (%d/%d) VOC index is: %u", this->samples_read_,
-             this->samples_to_stabalize_, voc_index);
+             this->samples_to_stabalize_, this->voc_index_);
+    return;
+  }
+}
+
+void SGP40Component::update() {
+  if (this->samples_read_ < this->samples_to_stabalize_) {
     return;
   }
 
-  if (voc_index != UINT16_MAX) {
+  if (this->voc_index_ != UINT16_MAX) {
     this->status_clear_warning();
-    this->publish_state(voc_index);
+    this->publish_state(this->voc_index_);
   } else {
     this->status_set_warning();
   }
@@ -247,6 +266,8 @@ void SGP40Component::update() {
 void SGP40Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SGP40:");
   LOG_I2C_DEVICE(this);
+  ESP_LOGCONFIG(TAG, "  store_baseline: %d", this->store_baseline_);
+
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:

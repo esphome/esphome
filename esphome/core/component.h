@@ -61,6 +61,8 @@ extern const uint32_t STATUS_LED_OK;
 extern const uint32_t STATUS_LED_WARNING;
 extern const uint32_t STATUS_LED_ERROR;
 
+enum RetryResult { DONE, RETRY };
+
 class Component {
  public:
   /** Where the component's initialization should happen.
@@ -180,7 +182,35 @@ class Component {
    */
   bool cancel_interval(const std::string &name);  // NOLINT
 
-  void set_timeout(uint32_t timeout, std::function<void()> &&f);  // NOLINT
+  /** Set an retry function with a unique name. Empty name means no cancelling possible.
+   *
+   * This will call f. If f returns RetryResult::RETRY f is called again after initial_wait_time ms.
+   * f should return RetryResult::DONE if no repeat is required. The initial wait time will be increased
+   * by backoff_increase_factor for each iteration. Default is doubling the time between iterations
+   * Can be cancelled via cancel_retry().
+   *
+   * IMPORTANT: Do not rely on this having correct timing. This is only called from
+   * loop() and therefore can be significantly delayed.
+   *
+   * @param name The identifier for this retry function.
+   * @param initial_wait_time The time in ms before f is called again
+   * @param max_attempts The maximum number of retries
+   * @param f The function (or lambda) that should be called
+   * @param backoff_increase_factor time between retries is increased by this factor on every retry
+   * @see cancel_retry()
+   */
+  void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,  // NOLINT
+                 std::function<RetryResult()> &&f, float backoff_increase_factor = 1.0f);    // NOLINT
+
+  void set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult()> &&f,  // NOLINT
+                 float backoff_increase_factor = 1.0f);                                               // NOLINT
+
+  /** Cancel a retry function.
+   *
+   * @param name The identifier for this retry function.
+   * @return Whether a retry function was deleted.
+   */
+  bool cancel_retry(const std::string &name);  // NOLINT
 
   /** Set a timeout function with a unique name.
    *
@@ -197,6 +227,8 @@ class Component {
    * @see cancel_timeout()
    */
   void set_timeout(const std::string &name, uint32_t timeout, std::function<void()> &&f);  // NOLINT
+
+  void set_timeout(uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
   /** Cancel a timeout function.
    *
@@ -262,40 +294,6 @@ class PollingComponent : public Component {
 
  protected:
   uint32_t update_interval_;
-};
-
-/// Helper class that enables naming of objects so that it doesn't have to be re-implement every time.
-class Nameable {
- public:
-  Nameable() : Nameable("") {}
-  explicit Nameable(std::string name);
-  const std::string &get_name() const;
-  void set_name(const std::string &name);
-  /// Get the sanitized name of this nameable as an ID. Caching it internally.
-  const std::string &get_object_id();
-  uint32_t get_object_id_hash();
-
-  bool is_internal() const;
-  void set_internal(bool internal);
-
-  /** Check if this object is declared to be disabled by default.
-   *
-   * That means that when the device gets added to Home Assistant (or other clients) it should
-   * not be added to the default view by default, and a user action is necessary to manually add it.
-   */
-  bool is_disabled_by_default() const;
-  void set_disabled_by_default(bool disabled_by_default);
-
- protected:
-  virtual uint32_t hash_base() = 0;
-
-  void calc_object_id_();
-
-  std::string name_;
-  std::string object_id_;
-  uint32_t object_id_hash_;
-  bool internal_{false};
-  bool disabled_by_default_{false};
 };
 
 class WarnIfComponentBlockingGuard {

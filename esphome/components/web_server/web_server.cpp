@@ -3,6 +3,7 @@
 #include "web_server.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/util.h"
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
@@ -28,12 +29,12 @@ namespace web_server {
 
 static const char *const TAG = "web_server";
 
-void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &klass, const std::string &action,
-               const std::function<void(AsyncResponseStream &stream, Nameable *obj)> &action_func = nullptr) {
-  if (obj->is_internal())
-    return;
+void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
+               const std::function<void(AsyncResponseStream &stream, EntityBase *obj)> &action_func = nullptr) {
   stream->print("<tr class=\"");
   stream->print(klass.c_str());
+  if (obj->is_internal())
+    stream->print(" internal");
   stream->print("\" id=\"");
   stream->print(klass.c_str());
   stream->print("-");
@@ -82,7 +83,7 @@ void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_
 
 void WebServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up web server...");
-  this->setup_controller();
+  this->setup_controller(this->include_internal_);
   this->base_->init();
 
   this->events_.onConnect([this](AsyncEventSourceClient *client) {
@@ -91,55 +92,55 @@ void WebServer::setup() {
 
 #ifdef USE_SENSOR
     for (auto *obj : App.get_sensors())
-      if (!obj->is_internal())
+      if (this->include_internal_ || !obj->is_internal())
         client->send(this->sensor_json(obj, obj->state).c_str(), "state");
 #endif
 
 #ifdef USE_SWITCH
     for (auto *obj : App.get_switches())
-      if (!obj->is_internal())
+      if (this->include_internal_ || !obj->is_internal())
         client->send(this->switch_json(obj, obj->state).c_str(), "state");
 #endif
 
 #ifdef USE_BINARY_SENSOR
     for (auto *obj : App.get_binary_sensors())
-      if (!obj->is_internal())
+      if (this->include_internal_ || !obj->is_internal())
         client->send(this->binary_sensor_json(obj, obj->state).c_str(), "state");
 #endif
 
 #ifdef USE_FAN
     for (auto *obj : App.get_fans())
-      if (!obj->is_internal())
+      if (this->include_internal_ || !obj->is_internal())
         client->send(this->fan_json(obj).c_str(), "state");
 #endif
 
 #ifdef USE_LIGHT
     for (auto *obj : App.get_lights())
-      if (!obj->is_internal())
+      if (this->include_internal_ || !obj->is_internal())
         client->send(this->light_json(obj).c_str(), "state");
 #endif
 
 #ifdef USE_TEXT_SENSOR
     for (auto *obj : App.get_text_sensors())
-      if (!obj->is_internal())
+      if (this->include_internal_ || !obj->is_internal())
         client->send(this->text_sensor_json(obj, obj->state).c_str(), "state");
 #endif
 
 #ifdef USE_COVER
     for (auto *obj : App.get_covers())
-      if (!obj->is_internal())
+      if (this->include_internal_ || !obj->is_internal())
         client->send(this->cover_json(obj).c_str(), "state");
 #endif
 
 #ifdef USE_NUMBER
     for (auto *obj : App.get_numbers())
-      if (!obj->is_internal())
+      if (this->include_internal_ || !obj->is_internal())
         client->send(this->number_json(obj, obj->state).c_str(), "state");
 #endif
 
 #ifdef USE_SELECT
     for (auto *obj : App.get_selects())
-      if (!obj->is_internal())
+      if (this->include_internal_ || !obj->is_internal())
         client->send(this->select_json(obj, obj->state).c_str(), "state");
 #endif
   });
@@ -151,7 +152,9 @@ void WebServer::setup() {
 #endif
   this->base_->add_handler(&this->events_);
   this->base_->add_handler(this);
-  this->base_->add_ota_handler();
+
+  if (this->allow_ota_)
+    this->base_->add_ota_handler();
 
   this->set_interval(10000, [this]() { this->events_.send("", "ping", millis(), 30000); });
 }
@@ -185,64 +188,82 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_SENSOR
   for (auto *obj : App.get_sensors())
-    write_row(stream, obj, "sensor", "");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "sensor", "");
 #endif
 
 #ifdef USE_SWITCH
   for (auto *obj : App.get_switches())
-    write_row(stream, obj, "switch", "<button>Toggle</button>");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "switch", "<button>Toggle</button>");
+#endif
+
+#ifdef USE_BUTTON
+  for (auto *obj : App.get_buttons())
+    write_row(stream, obj, "button", "<button>Press</button>");
 #endif
 
 #ifdef USE_BINARY_SENSOR
   for (auto *obj : App.get_binary_sensors())
-    write_row(stream, obj, "binary_sensor", "");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "binary_sensor", "");
 #endif
 
 #ifdef USE_FAN
   for (auto *obj : App.get_fans())
-    write_row(stream, obj, "fan", "<button>Toggle</button>");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "fan", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_LIGHT
   for (auto *obj : App.get_lights())
-    write_row(stream, obj, "light", "<button>Toggle</button>");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "light", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_TEXT_SENSOR
   for (auto *obj : App.get_text_sensors())
-    write_row(stream, obj, "text_sensor", "");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "text_sensor", "");
 #endif
 
 #ifdef USE_COVER
   for (auto *obj : App.get_covers())
-    write_row(stream, obj, "cover", "<button>Open</button><button>Close</button>");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "cover", "<button>Open</button><button>Close</button>");
 #endif
 
 #ifdef USE_NUMBER
   for (auto *obj : App.get_numbers())
-    write_row(stream, obj, "number", "");
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "number", "");
 #endif
 
 #ifdef USE_SELECT
   for (auto *obj : App.get_selects())
-    write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, Nameable *obj) {
-      select::Select *select = (select::Select *) obj;
-      stream.print("<select>");
-      stream.print("<option></option>");
-      for (auto const &option : select->traits.get_options()) {
-        stream.print("<option>");
-        stream.print(option.c_str());
-        stream.print("</option>");
-      }
-      stream.print("</select>");
-    });
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, EntityBase *obj) {
+        select::Select *select = (select::Select *) obj;
+        stream.print("<select>");
+        stream.print("<option></option>");
+        for (auto const &option : select->traits.get_options()) {
+          stream.print("<option>");
+          stream.print(option.c_str());
+          stream.print("</option>");
+        }
+        stream.print("</select>");
+      });
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
-                  "REST API documentation.</p>"
-                  "<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
-                  "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"
-                  "<h2>Debug Log</h2><pre id=\"log\"></pre>"));
+                  "REST API documentation.</p>"));
+  if (this->allow_ota_) {
+    stream->print(
+        F("<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
+          "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"));
+  }
+  stream->print(F("<h2>Debug Log</h2><pre id=\"log\"></pre>"));
+
 #ifdef WEBSERVER_JS_INCLUDE
   if (this->js_include_ != nullptr) {
     stream->print(F("<script src=\"/0.js\"></script>"));
@@ -286,8 +307,6 @@ void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
-    if (obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->sensor_json(obj, obj->state);
@@ -314,8 +333,6 @@ void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::s
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
-    if (obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->text_sensor_json(obj, obj->state);
@@ -346,8 +363,6 @@ std::string WebServer::switch_json(switch_::Switch *obj, bool value) {
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
-    if (obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -372,10 +387,26 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
 }
 #endif
 
+#ifdef USE_BUTTON
+void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (button::Button *obj : App.get_buttons()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_POST && match.method == "press") {
+      this->defer([obj]() { obj->press(); });
+      request->send(200);
+    } else {
+      request->send(404);
+    }
+    return;
+  }
+  request->send(404);
+}
+#endif
+
 #ifdef USE_BINARY_SENSOR
 void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {
-  if (obj->is_internal())
-    return;
   this->events_.send(this->binary_sensor_json(obj, state).c_str(), "state");
 }
 std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value) {
@@ -387,8 +418,6 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
-    if (obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->binary_sensor_json(obj, obj->state);
@@ -400,11 +429,7 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
 #endif
 
 #ifdef USE_FAN
-void WebServer::on_fan_update(fan::FanState *obj) {
-  if (obj->is_internal())
-    return;
-  this->events_.send(this->fan_json(obj).c_str(), "state");
-}
+void WebServer::on_fan_update(fan::FanState *obj) { this->events_.send(this->fan_json(obj).c_str(), "state"); }
 std::string WebServer::fan_json(fan::FanState *obj) {
   return json::build_json([obj](JsonObject &root) {
     root["id"] = "fan-" + obj->get_object_id();
@@ -413,6 +438,8 @@ std::string WebServer::fan_json(fan::FanState *obj) {
     const auto traits = obj->get_traits();
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
       // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
       switch (fan::speed_level_to_enum(obj->speed, traits.supported_speed_count())) {
         case fan::FAN_SPEED_LOW:  // NOLINT(clang-diagnostic-deprecated-declarations)
@@ -425,6 +452,7 @@ std::string WebServer::fan_json(fan::FanState *obj) {
           root["speed"] = "high";
           break;
       }
+#pragma GCC diagnostic pop
     }
     if (obj->get_traits().supports_oscillation())
       root["oscillation"] = obj->oscillating;
@@ -432,8 +460,6 @@ std::string WebServer::fan_json(fan::FanState *obj) {
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (fan::FanState *obj : App.get_fans()) {
-    if (obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -447,11 +473,14 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       auto call = obj->turn_on();
       if (request->hasParam("speed")) {
         String speed = request->getParam("speed")->value();
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
         call.set_speed(speed.c_str());  // NOLINT(clang-diagnostic-deprecated-declarations)
+#pragma GCC diagnostic pop
       }
       if (request->hasParam("speed_level")) {
         String speed_level = request->getParam("speed_level")->value();
-        auto val = parse_int(speed_level.c_str());
+        auto val = parse_number<int>(speed_level.c_str());
         if (!val.has_value()) {
           ESP_LOGW(TAG, "Can't convert '%s' to number!", speed_level.c_str());
           return;
@@ -491,15 +520,9 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
 #endif
 
 #ifdef USE_LIGHT
-void WebServer::on_light_update(light::LightState *obj) {
-  if (obj->is_internal())
-    return;
-  this->events_.send(this->light_json(obj).c_str(), "state");
-}
+void WebServer::on_light_update(light::LightState *obj) { this->events_.send(this->light_json(obj).c_str(), "state"); }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
-    if (obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -566,15 +589,9 @@ std::string WebServer::light_json(light::LightState *obj) {
 #endif
 
 #ifdef USE_COVER
-void WebServer::on_cover_update(cover::Cover *obj) {
-  if (obj->is_internal())
-    return;
-  this->events_.send(this->cover_json(obj).c_str(), "state");
-}
+void WebServer::on_cover_update(cover::Cover *obj) { this->events_.send(this->cover_json(obj).c_str(), "state"); }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
-    if (obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -633,8 +650,6 @@ void WebServer::on_number_update(number::Number *obj, float state) {
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_numbers()) {
-    if (obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->number_json(obj, obj->state);
@@ -660,8 +675,6 @@ void WebServer::on_select_update(select::Select *obj, const std::string &state) 
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_selects()) {
-    if (obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -722,6 +735,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_SWITCH
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "switch")
+    return true;
+#endif
+
+#ifdef USE_BUTTON
+  if (request->method() == HTTP_POST && match.domain == "button")
     return true;
 #endif
 
@@ -793,6 +811,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_SWITCH
   if (match.domain == "switch") {
     this->handle_switch_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_BUTTON
+  if (match.domain == "button") {
+    this->handle_button_request(request, match);
     return;
   }
 #endif

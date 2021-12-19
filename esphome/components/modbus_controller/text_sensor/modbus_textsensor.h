@@ -17,20 +17,13 @@ class ModbusTextSensor : public Component, public text_sensor::TextSensor, publi
     this->register_type = register_type;
     this->start_address = start_address;
     this->offset = offset;
-    this->response_bytes_ = response_bytes;
+    this->response_bytes = response_bytes;
     this->register_count = register_count;
     this->encode_ = encode;
     this->skip_updates = skip_updates;
     this->bitmask = 0xFFFFFFFF;
     this->sensor_value_type = SensorValueType::RAW;
     this->force_new_range = force_new_range;
-  }
-  size_t get_register_size() const override {
-    if (sensor_value_type == SensorValueType::RAW) {
-      return this->response_bytes_;
-    } else {
-      return SensorItem::get_register_size();
-    }
   }
 
   void dump_config() override;
@@ -45,7 +38,6 @@ class ModbusTextSensor : public Component, public text_sensor::TextSensor, publi
 
  protected:
   RawEncoding encode_;
-  uint16_t response_bytes_;
 };
 
 }  // namespace modbus_controller

@@ -24,7 +24,7 @@ void NextionSensor::add_to_wave_buffer(float state) {
 
   wave_buffer_.push_back(wave_state);
 
-  if (this->wave_buffer_.size() > this->wave_max_length_) {
+  if (this->wave_buffer_.size() > (size_t) this->wave_max_length_) {
     this->wave_buffer_.erase(this->wave_buffer_.begin());
   }
 }
@@ -34,7 +34,7 @@ void NextionSensor::update() {
     return;
 
   if (this->wave_chan_id_ == UINT8_MAX) {
-    this->nextion_->add_to_get_queue(shared_from_this());
+    this->nextion_->add_to_get_queue(this);
   } else {
     if (this->send_last_value_) {
       this->add_to_wave_buffer(this->last_value_);
@@ -62,9 +62,9 @@ void NextionSensor::set_state(float state, bool publish, bool send_to_nextion) {
           double to_multiply = pow(10, this->precision_);
           int state_value = (int) (state * to_multiply);
 
-          this->nextion_->add_no_result_to_queue_with_set(shared_from_this(), (int) state_value);
+          this->nextion_->add_no_result_to_queue_with_set(this, (int) state_value);
         } else {
-          this->nextion_->add_no_result_to_queue_with_set(shared_from_this(), (int) state);
+          this->nextion_->add_no_result_to_queue_with_set(this, (int) state);
         }
       }
     }
@@ -103,7 +103,7 @@ void NextionSensor::wave_update_() {
            buffer_to_send, this->wave_buffer_.size(), this->component_id_, this->wave_chan_id_);
 #endif
 
-  this->nextion_->add_addt_command_to_queue(shared_from_this());
+  this->nextion_->add_addt_command_to_queue(this);
 }
 
 }  // namespace nextion

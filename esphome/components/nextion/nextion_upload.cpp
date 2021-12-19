@@ -95,7 +95,7 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
   }
   http->end();
   ESP_LOGN(TAG, "this->content_length_ %d sent %d", this->content_length_, sent);
-  for (uint32_t i = 0; i < range; i += 4096) {
+  for (int i = 0; i < range; i += 4096) {
     this->write_array(&this->transfer_buffer_[i], 4096);
     this->content_length_ -= 4096;
     ESP_LOGN(TAG, "this->content_length_ %d range %d range_end %d range_start %d", this->content_length_, range,
@@ -238,7 +238,7 @@ void Nextion::upload_tft() {
   // The Nextion display will, if it's ready to accept data, send a 0x05 byte.
   ESP_LOGD(TAG, "Upgrade response is %s %zu", response.c_str(), response.length());
 
-  for (int i = 0; i < response.length(); i++) {
+  for (size_t i = 0; i < response.length(); i++) {
     ESP_LOGD(TAG, "Available %d : 0x%02X", i, response[i]);
   }
 
@@ -281,12 +281,14 @@ void Nextion::upload_tft() {
 #endif
       // NOLINTNEXTLINE(readability-static-accessed-through-instance)
       ESP_LOGD(TAG, "Allocating buffer size %d, Heap size is %u", chunk_size, ESP.getFreeHeap());
-      this->transfer_buffer_ = new (std::nothrow) uint8_t[chunk_size];  // NOLINT(cppcoreguidelines-owning-memory)
-      if (this->transfer_buffer_ == nullptr) {                          // Try a smaller size
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      this->transfer_buffer_ = new (std::nothrow) uint8_t[chunk_size];
+      if (this->transfer_buffer_ == nullptr) {  // Try a smaller size
         ESP_LOGD(TAG, "Could not allocate buffer size: %d trying 4096 instead", chunk_size);
         chunk_size = 4096;
         ESP_LOGD(TAG, "Allocating %d buffer", chunk_size);
-        this->transfer_buffer_ = new (std::nothrow) uint8_t[chunk_size];  // NOLINT(cppcoreguidelines-owning-memory)
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        this->transfer_buffer_ = new uint8_t[chunk_size];
 
         if (!this->transfer_buffer_)
           this->upload_end_();
@@ -330,7 +332,8 @@ void Nextion::upload_end_() {
 WiFiClient *Nextion::get_wifi_client_() {
   if (this->tft_url_.compare(0, 6, "https:") == 0) {
     if (this->wifi_client_secure_ == nullptr) {
-      this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();  // NOLINT(cppcoreguidelines-owning-memory)
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();
       this->wifi_client_secure_->setInsecure();
       this->wifi_client_secure_->setBufferSizes(512, 512);
     }
@@ -338,7 +341,8 @@ WiFiClient *Nextion::get_wifi_client_() {
   }
 
   if (this->wifi_client_ == nullptr) {
-    this->wifi_client_ = new WiFiClient();  // NOLINT(cppcoreguidelines-owning-memory)
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+    this->wifi_client_ = new WiFiClient();
   }
   return this->wifi_client_;
 }

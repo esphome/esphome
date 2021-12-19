@@ -1,6 +1,6 @@
 #include "airthings_wave_mini.h"
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace airthings_wave_mini {
@@ -75,8 +75,6 @@ void AirthingsWaveMini::read_sensors_(uint8_t *raw_value, uint16_t value_len) {
 
 bool AirthingsWaveMini::is_valid_voc_value_(uint16_t voc) { return 0 <= voc && voc <= 16383; }
 
-void AirthingsWaveMini::loop() {}
-
 void AirthingsWaveMini::update() {
   if (this->node_state != esp32_ble_tracker::ClientState::ESTABLISHED) {
     if (!parent()->enabled) {
@@ -104,17 +102,12 @@ void AirthingsWaveMini::dump_config() {
   LOG_SENSOR("  ", "TVOC", this->tvoc_sensor_);
 }
 
-AirthingsWaveMini::AirthingsWaveMini() : PollingComponent(10000) {
-  auto service_bt = *BLEUUID::fromString(std::string("b42e3882-ade7-11e4-89d3-123b93f75cba")).getNative();
-  auto characteristic_bt = *BLEUUID::fromString(std::string("b42e3b98-ade7-11e4-89d3-123b93f75cba")).getNative();
-
-  service_uuid_ = esp32_ble_tracker::ESPBTUUID::from_uuid(service_bt);
-  sensors_data_characteristic_uuid_ = esp32_ble_tracker::ESPBTUUID::from_uuid(characteristic_bt);
-}
-
-void AirthingsWaveMini::setup() {}
+AirthingsWaveMini::AirthingsWaveMini()
+    : PollingComponent(10000),
+      service_uuid_(esp32_ble_tracker::ESPBTUUID::from_raw(SERVICE_UUID)),
+      sensors_data_characteristic_uuid_(esp32_ble_tracker::ESPBTUUID::from_raw(CHARACTERISTIC_UUID)) {}
 
 }  // namespace airthings_wave_mini
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_ESP32

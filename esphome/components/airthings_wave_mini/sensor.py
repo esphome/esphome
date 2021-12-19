@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, ble_client
-from esphome.core import CORE
 
 from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
@@ -58,10 +57,8 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     )
-    .extend(cv.polling_component_schema("5mins"))
+    .extend(cv.polling_component_schema("5min"))
     .extend(ble_client.BLE_CLIENT_SCHEMA),
-    # Until BLEUUID reference removed
-    cv.only_with_arduino,
 )
 
 
@@ -83,6 +80,3 @@ async def to_code(config):
     if CONF_TVOC in config:
         sens = await sensor.new_sensor(config[CONF_TVOC])
         cg.add(var.set_tvoc(sens))
-
-    if CORE.is_esp32:
-        cg.add_library("ESP32 BLE Arduino", None)

@@ -71,25 +71,21 @@ SENSORS = {
     CONF_TOTAL_REACTIVE_ENERGY: sensor.sensor_schema(
         unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
         accuracy_decimals=2,
-        device_class=DEVICE_CLASS_ENERGY,
         state_class=STATE_CLASS_TOTAL_INCREASING,
     ),
     CONF_IMPORT_REACTIVE_ENERGY: sensor.sensor_schema(
         unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
         accuracy_decimals=2,
-        device_class=DEVICE_CLASS_ENERGY,
         state_class=STATE_CLASS_TOTAL_INCREASING,
     ),
     CONF_EXPORT_REACTIVE_ENERGY: sensor.sensor_schema(
         unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
         accuracy_decimals=2,
-        device_class=DEVICE_CLASS_ENERGY,
         state_class=STATE_CLASS_TOTAL_INCREASING,
     ),
     CONF_APPARENT_ENERGY: sensor.sensor_schema(
         unit_of_measurement=UNIT_KILOVOLT_AMPS_HOURS,
         accuracy_decimals=2,
-        device_class=DEVICE_CLASS_ENERGY,
         state_class=STATE_CLASS_TOTAL_INCREASING,
     ),
     CONF_ACTIVE_POWER: sensor.sensor_schema(
@@ -101,13 +97,11 @@ SENSORS = {
     CONF_REACTIVE_POWER: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
         accuracy_decimals=3,
-        device_class=DEVICE_CLASS_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_APPARENT_POWER: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT_AMPS,
         accuracy_decimals=3,
-        device_class=DEVICE_CLASS_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_VOLTAGE: sensor.sensor_schema(
@@ -142,13 +136,11 @@ SENSORS = {
     CONF_MAXIMUM_DEMAND_REACTIVE_POWER: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
         accuracy_decimals=3,
-        device_class=DEVICE_CLASS_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_MAXIMUM_DEMAND_APPARENT_POWER: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT_AMPS,
         accuracy_decimals=3,
-        device_class=DEVICE_CLASS_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
 }

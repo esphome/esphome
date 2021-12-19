@@ -10,12 +10,16 @@ esp32:
   framework:
     type: esp-idf
     advanced:
-      ignore_efuse_mac_crc: true 
+      ignore_efuse_mac_crc: true
 
 wifi:
   networks:
     - ssid: 'MySSID'
       password: 'password1'
+      manual_ip:
+        static_ip: 192.168.1.23
+        gateway: 192.168.1.1
+        subnet: 255.255.255.0
 
 api:
 
@@ -51,6 +55,7 @@ binary_sensor:
   - platform: gpio
     pin: GPIO0
     id: io0_button
+    icon: mdi:gesture-tap-button
 
 tlc5947:
   data_pin: GPIO12
@@ -96,6 +101,8 @@ number:
     max_value: 100
     min_value: 0
     step: 5
+    unit_of_measurement: '%'
+    mode: slider
 
 select:
   - platform: template
@@ -172,3 +179,11 @@ sensor:
     uart_id: uart2
     co2:
       name: CO2 Sensor
+
+script:
+  - id: automation_test
+    then:
+      - repeat:
+          count: 5
+          then:
+            - logger.log: "looping!"

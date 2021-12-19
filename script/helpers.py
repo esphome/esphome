@@ -1,4 +1,4 @@
-import codecs
+import colorama
 import os.path
 import re
 import subprocess
@@ -11,13 +11,18 @@ temp_folder = os.path.join(root_path, ".temp")
 temp_header_file = os.path.join(temp_folder, "all-include.cpp")
 
 
-def shlex_quote(s):
-    if not s:
-        return "''"
-    if re.search(r"[^\w@%+=:,./-]", s) is None:
-        return s
+def styled(color, msg, reset=True):
+    prefix = ''.join(color) if isinstance(color, tuple) else color
+    suffix = colorama.Style.RESET_ALL if reset else ''
+    return prefix + msg + suffix
 
-    return "'" + s.replace("'", "'\"'\"'") + "'"
+
+def print_error_for_file(file, body):
+    print(styled(colorama.Fore.GREEN, "### File ") + styled((colorama.Fore.GREEN, colorama.Style.BRIGHT), file))
+    print()
+    if body is not None:
+        print(body)
+        print()
 
 
 def build_all_include():

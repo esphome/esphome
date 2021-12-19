@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include <esp_camera.h>
 #include <freertos/FreeRTOS.h>
@@ -50,9 +51,10 @@ enum ESP32CameraFrameSize {
   ESP32_CAMERA_SIZE_1600X1200,  // UXGA
 };
 
-class ESP32Camera : public Component, public Nameable {
+class ESP32Camera : public Component, public EntityBase {
  public:
   ESP32Camera(const std::string &name);
+  ESP32Camera();
   void set_data_pins(std::array<uint8_t, 8> pins);
   void set_vsync_pin(uint8_t pin);
   void set_href_pin(uint8_t pin);
@@ -65,6 +67,9 @@ class ESP32Camera : public Component, public Nameable {
   void set_power_down_pin(uint8_t pin);
   void set_vertical_flip(bool vertical_flip);
   void set_horizontal_mirror(bool horizontal_mirror);
+  void set_aec2(bool aec2);
+  void set_ae_level(int ae_level);
+  void set_aec_value(uint32_t aec_value);
   void set_contrast(int contrast);
   void set_brightness(int brightness);
   void set_saturation(int saturation);
@@ -89,6 +94,9 @@ class ESP32Camera : public Component, public Nameable {
   camera_config_t config_{};
   bool vertical_flip_{true};
   bool horizontal_mirror_{true};
+  bool aec2_{false};
+  int ae_level_{0};
+  uint32_t aec_value_{300};
   int contrast_{0};
   int brightness_{0};
   int saturation_{0};

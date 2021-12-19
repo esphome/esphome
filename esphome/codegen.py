@@ -67,7 +67,7 @@ from esphome.cpp_types import (  # noqa
     NAN,
     esphome_ns,
     App,
-    Nameable,
+    EntityBase,
     Component,
     ComponentPtr,
     PollingComponent,
@@ -81,4 +81,5 @@ from esphome.cpp_types import (  # noqa
     GPIOPin,
     InternalGPIOPin,
     gpio_Flags,
+    EntityCategory,
 )
