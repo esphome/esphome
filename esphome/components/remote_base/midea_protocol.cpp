@@ -46,9 +46,11 @@ static bool decode_data(RemoteReceiveData &src, MideaData &dst) {
   for (unsigned idx = 0; idx < 6; idx++) {
     uint8_t data = 0;
     for (uint8_t mask = 1 << 7; mask; mask >>= 1) {
-      if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US))
+      if (!src.expect_mark(BIT_MARK_US))
+        return false;
+      if (src.expect_space(BIT_ONE_SPACE_US))
         data |= mask;
-      else if (!src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US))
+      else if (!src.expect_space(BIT_ZERO_SPACE_US))
         return false;
     }
     dst[idx] = data;
