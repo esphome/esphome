@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sun/sun.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/time/real_time_clock.h"
 
 namespace esphome {
 namespace sun {
@@ -15,10 +16,12 @@ enum SensorType {
 class SunSensor : public sensor::Sensor, public PollingComponent {
  public:
   void set_parent(Sun *parent) { parent_ = parent; }
+  void set_clock(time::RealTimeClock *clock) { clock_ = clock; }
   void set_type(SensorType type) { type_ = type; }
   void dump_config() override;
   void update() override {
     double val;
+    this->parent_->set_time(clock_->utcnow());
     switch (this->type_) {
       case SUN_SENSOR_ELEVATION:
         val = this->parent_->elevation();
@@ -34,6 +37,7 @@ class SunSensor : public sensor::Sensor, public PollingComponent {
 
  protected:
   sun::Sun *parent_;
+  time::RealTimeClock *clock_;
   SensorType type_;
 };
 

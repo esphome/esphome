@@ -3,7 +3,6 @@ import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import time
 from esphome.const import (
     CONF_TIME_ID,
     CONF_ID,
@@ -92,7 +91,9 @@ def parse_latlon(value):
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Sun),
-        cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+        cv.Optional(CONF_TIME_ID): cv.invalid(
+            "sun->time_id has moved to the sensor."
+        ),
         cv.Required(CONF_LATITUDE): cv.All(
             parse_latlon, cv.float_range(min=-90, max=90)
         ),
@@ -117,8 +118,6 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    time_ = await cg.get_variable(config[CONF_TIME_ID])
-    cg.add(var.set_time(time_))
     cg.add(var.set_latitude(config[CONF_LATITUDE]))
     cg.add(var.set_longitude(config[CONF_LONGITUDE]))
 

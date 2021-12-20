@@ -52,8 +52,7 @@ struct HorizontalCoordinate {
 
 class Sun {
  public:
-  void set_time(time::RealTimeClock *time) { time_ = time; }
-  time::RealTimeClock *get_time() const { return time_; }
+  void set_time(time::ESPTime time) { time_ = time; }
   void set_latitude(double latitude) { location_.latitude = latitude; }
   void set_longitude(double longitude) { location_.longitude = longitude; }
 
@@ -67,7 +66,7 @@ class Sun {
   internal::HorizontalCoordinate calc_coords_();
   optional<time::ESPTime> calc_event_(bool rising, double zenith);
 
-  time::RealTimeClock *time_;
+  time::ESPTime time_;
   internal::GeoLocation location_;
 };
 

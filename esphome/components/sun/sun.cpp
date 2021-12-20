@@ -276,7 +276,7 @@ struct SunAtLocation {
 
 HorizontalCoordinate Sun::calc_coords_() {
   SunAtLocation sun{location_};
-  Moment m{time_->utcnow()};
+  Moment m{time_};
   if (!m.dt.is_valid())
     return HorizontalCoordinate{NAN, NAN};
 
@@ -289,16 +289,15 @@ HorizontalCoordinate Sun::calc_coords_() {
 }
 optional<time::ESPTime> Sun::calc_event_(bool rising, double zenith) {
   SunAtLocation sun{location_};
-  auto now = this->time_->utcnow();
-  if (!now.is_valid())
+  if (!this->time_.is_valid())
     return {};
   // Calculate UT1 timestamp at 0h
-  auto today = now;
+  auto today = this->time_;
   today.hour = today.minute = today.second = 0;
   today.recalc_timestamp_utc();
 
   auto it = sun.event(rising, today, zenith);
-  if (it.has_value() && it->timestamp < now.timestamp) {
+  if (it.has_value() && it->timestamp < this->time_.timestamp) {
     // We're calculating *next* sunrise/sunset, but calculated event
     // is today, so try again tomorrow
     time_t new_timestamp = today.timestamp + 24 * 60 * 60;

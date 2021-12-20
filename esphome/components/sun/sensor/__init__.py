@@ -1,12 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import sensor
+from esphome.components import sensor, time
 from esphome.const import (
     STATE_CLASS_NONE,
     UNIT_DEGREES,
     ICON_WEATHER_SUNSET,
     CONF_ID,
     CONF_TYPE,
+    CONF_TIME_ID,
 )
 from .. import sun_ns, CONF_SUN_ID, Sun
 
@@ -30,6 +31,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SunSensor),
             cv.GenerateID(CONF_SUN_ID): cv.use_id(Sun),
+            cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
             cv.Required(CONF_TYPE): cv.enum(TYPES, lower=True),
         }
     )

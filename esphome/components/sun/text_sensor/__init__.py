@@ -1,6 +1,7 @@
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.components import time
 from esphome.const import (
     CONF_ICON,
     ICON_WEATHER_SUNSET_DOWN,
@@ -8,6 +9,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_ID,
     CONF_FORMAT,
+    CONF_TIME_ID,
 )
 from .. import sun_ns, CONF_SUN_ID, Sun, CONF_ELEVATION, elevation, DEFAULT_ELEVATION
 
@@ -37,6 +39,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(SunTextSensor),
             cv.GenerateID(CONF_SUN_ID): cv.use_id(Sun),
+            cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
             cv.Required(CONF_TYPE): cv.one_of(*SUN_TYPES, lower=True),
             cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): elevation,
             cv.Optional(CONF_FORMAT, default="%X"): cv.string_strict,
@@ -52,7 +55,9 @@ async def to_code(config):
     await text_sensor.register_text_sensor(var, config)
 
     paren = await cg.get_variable(config[CONF_SUN_ID])
+    clock = await cg.get_variable(config[CONF_TIME_ID])
     cg.add(var.set_parent(paren))
+    cg.add(var.set_clock(clock))
     cg.add(var.set_sunrise(SUN_TYPES[config[CONF_TYPE]]))
     cg.add(var.set_elevation(config[CONF_ELEVATION]))
     cg.add(var.set_format(config[CONF_FORMAT]))
