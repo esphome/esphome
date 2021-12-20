@@ -91,9 +91,7 @@ def parse_latlon(value):
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Sun),
-        cv.Optional(CONF_TIME_ID): cv.invalid(
-            "sun->time_id has moved to the sensor."
-        ),
+        cv.Optional(CONF_TIME_ID): cv.invalid("sun->time_id has moved to the sensor."),
         cv.Required(CONF_LATITUDE): cv.All(
             parse_latlon, cv.float_range(min=-90, max=90)
         ),
