@@ -531,3 +531,7 @@ xpt2046:
 button:
   - platform: restart
     name: Restart Button
+  - platform: safe_mode
+    name: Safe Mode Button
+  - platform: shutdown
+    name: Shutdown Button
