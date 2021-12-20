@@ -441,7 +441,13 @@ display:
     wakeup_pin: GPIO1
     vcom_pin: GPIO1
 
-
+number:
+  - platform: tuya
+    id: tuya_number
+    number_datapoint: 102
+    min_value: 0
+    max_value: 17
+    step: 1
 
 text_sensor:
   - platform: pipsolar

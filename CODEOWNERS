@@ -180,6 +180,7 @@ esphome/components/toshiba/* @kbx81
 esphome/components/tsl2591/* @wjcarpenter
 esphome/components/tuya/binary_sensor/* @jesserockz
 esphome/components/tuya/climate/* @jesserockz
+esphome/components/tuya/number/* @frankiboy1
 esphome/components/tuya/sensor/* @jesserockz
 esphome/components/tuya/switch/* @jesserockz
 esphome/components/tuya/text_sensor/* @dentra
