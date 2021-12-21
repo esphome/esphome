@@ -113,6 +113,7 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
       return 800;
     else if (this->model_ == INKPLATE_10)
       return 1200;
+    return 0;
   }
 
   int get_height_internal() override {
@@ -120,6 +121,7 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
       return 600;
     else if (this->model_ == INKPLATE_10)
       return 825;
+    return 0;
   }
 
   size_t get_buffer_length_();
