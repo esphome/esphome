@@ -134,7 +134,7 @@ def main():
         if args.push:
             cmd += ["--push", "--cache-to", f"type=registry,ref={cache_img},mode=max"]
         if args.load:
-            cmd += ["--load", "--progress=plain"]
+            cmd += ["--load"]
 
         run_command(*cmd, ".")
     elif args.command == "manifest":
