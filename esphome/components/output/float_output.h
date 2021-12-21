@@ -69,6 +69,9 @@ class FloatOutput : public BinaryOutput {
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
 
+  /// Get the actual level of this float output
+  float get_level() const;
+
   /// Get the maximum power output.
   float get_max_power() const;
 
@@ -82,6 +85,7 @@ class FloatOutput : public BinaryOutput {
 
   float max_power_{1.0f};
   float min_power_{0.0f};
+  float state_;
   bool zero_means_zero_;
 };
 
