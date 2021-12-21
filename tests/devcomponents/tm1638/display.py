@@ -12,7 +12,7 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_STB_PIN,
     CONF_DIO_PIN,
-    CONF_LED
+    CONF_LED,
 )
 
 
@@ -40,7 +40,6 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_DIO_PIN): pins.gpio_output_pin_schema,
             # cv.Optional(CONF_NUM_CHIPS, default=1): cv.int_range(min=1, max=255),
             cv.Optional(CONF_INTENSITY, default=7): cv.int_range(min=0, max=7),
-
             # cv.Optional(CONF_REVERSE_ENABLE, default=False): cv.boolean,
             # cv.Optional(CONF_SWITCH1_ACTION): automation.validate_automation(
             #    single=True

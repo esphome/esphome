@@ -13,7 +13,7 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(TM1638Key),
         cv.GenerateID(CONF_TM1638_ID): cv.use_id(TM1638Component),
-        cv.Required(CONF_KEY): cv.int_range(min=0, max=7),
+        cv.Required(CONF_KEY): cv.int_range(min=0, max=15),
     }
 )
 

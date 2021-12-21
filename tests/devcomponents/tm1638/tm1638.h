@@ -149,13 +149,17 @@ class TM1638Key : public binary_sensor::BinarySensor {
 
 #ifdef USE_SWITCH
 
+
 class TM1638Led : public switch_::Switch {
   friend class TM1638Component;
 
-  public:
-  void set_lednum(uint8_t led_num) { led_num_ = led_num; }
 
-  protected:
+  public:
+  void set_lednum(int8_t led_num) { led_num_ = led_num; }
+
+
+ protected:
+
   void write_state(bool state) override
   {
 
@@ -163,8 +167,11 @@ class TM1638Led : public switch_::Switch {
 
     //Should I push out the bits over the wire here, or pass in a reference to the TM1638 object and expose the setLed() method
 
+   // this->TM1638Component::setLed(led_num_, state);
 
-    this->publish_state(static_cast<bool>(state));
+   //tm1638_->setLed(led_num_, state);
+
+   this->publish_state(static_cast<bool>(state));
   }
 
   uint8_t led_num_{0};

@@ -186,27 +186,35 @@ switch:
     - platform: tm1638
       led: 0
       id: Led0
+      tm1638_id: primarydisplay
     - platform: tm1638
       led: 1
       id: Led1
+      tm1638_id: primarydisplay
     - platform: tm1638
       led: 2
       id: Led2
+      tm1638_id: primarydisplay
     - platform: tm1638
       led: 3
       id: Led3
+      tm1638_id: primarydisplay
     - platform: tm1638
       led: 4
       id: Led4
+      tm1638_id: primarydisplay
     - platform: tm1638
       led: 5
       id: Led5
+      tm1638_id: primarydisplay
     - platform: tm1638
       led: 6
       id: Led6
+      tm1638_id: primarydisplay
     - platform: tm1638
       led: 7
       id: Led7
+      tm1638_id: primarydisplay
 
 
 climate:
@@ -437,13 +445,11 @@ binary_sensor:
       - delayed_on: 10ms
     on_press:
       then:
-        - lambda: |-
-                id(primarydisplay).setLed(0, true);
+        - switch.turn_on: Led0
 
     on_release:
       then:
-        - lambda: |-
-                id(primarydisplay).setLed(0, false);
+       - switch.turn_off: Led0
 
   - platform: tm1638
     id: key1
