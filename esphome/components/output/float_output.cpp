@@ -38,7 +38,7 @@ void FloatOutput::set_level(float state) {
   if (this->is_inverted())
     state = 1.0f - state;
 
-  state_ = state; // remember state to read out later
+  state_ = state;  // remember state to read out later
   this->write_state(state);
 }
 
