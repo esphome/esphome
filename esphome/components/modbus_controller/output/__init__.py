@@ -32,7 +32,7 @@ ModbusFloatOutput = modbus_controller_ns.class_(
     "ModbusFloatOutput", cg.Component, output.FloatOutput, SensorItem
 )
 ModbusBinaryOutput = modbus_controller_ns.class_(
-    "ModbusBinaryOutput", cg.Component, output.FloatOutput, SensorItem
+    "ModbusBinaryOutput", cg.Component, output.BinaryOutput, SensorItem
 )
 
 
