@@ -21,7 +21,6 @@ class ModbusFloatOutput : public output::FloatOutput, public Component, public S
     this->start_address += offset;
     this->offset = 0;
   }
-  void setup() override{};
   void dump_config() override;
 
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
@@ -54,7 +53,6 @@ class ModbusBinaryOutput : public output::BinaryOutput, public Component, public
     this->start_address += offset;
     this->offset = 0;
   }
-  void setup() override{};
   void dump_config() override;
 
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
