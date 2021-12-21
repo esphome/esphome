@@ -42,7 +42,6 @@ void FloatOutput::set_level(float state) {
   this->write_state(state);
 }
 
-
 float FloatOutput::get_level() const { return this->state_; }
 
 void FloatOutput::write_state(bool state) { this->set_level(state != this->inverted_ ? 1.0f : 0.0f); }
