@@ -10,6 +10,11 @@
 namespace esphome {
 namespace inkplate6 {
 
+enum InkplateModel : uint8_t {
+  INKPLATE_6 = 0,
+  INKPLATE_10 = 1,
+};
+
 class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public i2c::I2CDevice {
  public:
   const uint8_t LUT2[16] = {0b10101010, 0b10101001, 0b10100110, 0b10100101, 0b10011010, 0b10011001,
@@ -42,6 +47,8 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   }
   void set_partial_updating(bool partial_updating) { this->partial_updating_ = partial_updating; }
   void set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
+
+  void set_model(InkplateModel model) { this->model_ = model; }
 
   void set_display_data_0_pin(InternalGPIOPin *data) { this->display_data_0_pin_ = data; }
   void set_display_data_1_pin(InternalGPIOPin *data) { this->display_data_1_pin_ = data; }
@@ -101,9 +108,19 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   void pins_z_state_();
   void pins_as_outputs_();
 
-  int get_width_internal() override { return 800; }
+  int get_width_internal() override {
+    if (this->model_ == INKPLATE_6)
+      return 800;
+    else if (this->model_ == INKPLATE_10)
+      return 1200;
+  }
 
-  int get_height_internal() override { return 600; }
+  int get_height_internal() override {
+    if (this->model_ == INKPLATE_6)
+      return 600;
+    else if (this->model_ == INKPLATE_10)
+      return 825;
+  }
 
   size_t get_buffer_length_();
 
@@ -132,6 +149,8 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   bool block_partial_;
   bool greyscale_;
   bool partial_updating_;
+
+  InkplateModel model_;
 
   InternalGPIOPin *display_data_0_pin_;
   InternalGPIOPin *display_data_1_pin_;
