@@ -74,6 +74,7 @@ void TM1638Component::loop() {
 }
 
 
+
 uint8_t TM1638Component::get_keys() {
   // ESP_LOGI(TAG, "READ BUTTONS");
 
@@ -101,6 +102,12 @@ uint8_t TM1638Component::get_keys() {
 
 #endif
 
+
+#ifdef USE_SWITCH
+
+
+
+#endif
 
 
 void TM1638Component::update() {  // this is called at the interval specified in the congif.yaml

@@ -14,6 +14,10 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
+
 
 namespace esphome {
 namespace tm1638 {
@@ -24,10 +28,15 @@ class TM1638Key;
 #endif
 
 
+#ifdef USE_SWITCH
+class TM1638Led;
+#endif
+
+
 using tm1638_writer_t = std::function<void(TM1638Component &)>;  //<-   where does this class come from
 
 
-class TM1638Component : public PollingComponent {
+class TM1638Component : public PollingComponent{
  public:
   void set_writer(tm1638_writer_t &&writer);  //<--  takes in a lambda?
   void setup() override;
@@ -57,6 +66,11 @@ class TM1638Component : public PollingComponent {
   void loop() override;
   uint8_t get_keys();
   void add_tm1638_key(TM1638Key *tm1638_key) { this->tm1638_keys_.push_back(tm1638_key); }
+#endif
+
+
+#ifdef USE_SWITCH
+  void add_tm1638_led(TM1638Led *tm1638_led) { this->tm1638_leds_.push_back(tm1638_led); }
 #endif
 
 
@@ -102,6 +116,10 @@ class TM1638Component : public PollingComponent {
     std::vector<TM1638Key *> tm1638_keys_{};
   #endif
 
+  #ifdef USE_SWITCH
+    std::vector<TM1638Led *> tm1638_leds_{};
+  #endif
+
 
 };
 
@@ -125,6 +143,34 @@ class TM1638Key : public binary_sensor::BinarySensor {
  protected:
   uint8_t key_code_{0};
 };
+#endif
+
+
+
+#ifdef USE_SWITCH
+
+class TM1638Led : public switch_::Switch {
+  friend class TM1638Component;
+
+  public:
+  void set_lednum(uint8_t led_num) { led_num_ = led_num; }
+
+  protected:
+  void write_state(bool state) override
+  {
+
+   // TM1638Component::setLed(led_num_, state);  //  <---   not sure what to do about this.
+
+    //Should I push out the bits over the wire here, or pass in a reference to the TM1638 object and expose the setLed() method
+
+
+    this->publish_state(static_cast<bool>(state));
+  }
+
+  uint8_t led_num_{0};
+
+};
+
 #endif
 
 }  // namespace tm1638
