@@ -51,9 +51,8 @@ void ModbusFloatOutput::write_state(float value) {
 void ModbusFloatOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus Float Output:");
   LOG_FLOAT_OUTPUT(this);
-  ESP_LOGCONFIG(TAG, "  Device start address=0x%X", , this->start_address, this->register_count,
-                this->sensor_value_type);
-  ESP_LOGCONFIG(TAG, "  Register count=0x%d", this->sensor_value_type);
+  ESP_LOGCONFIG(TAG, "  Device start address=0x%X", , this->start_address);
+  ESP_LOGCONFIG(TAG, "  Register count=0x%d", this->register_count);
   ESP_LOGCONFIG(TAG, "  Value type=%hhu", this->sensor_value_type);
 }
 
