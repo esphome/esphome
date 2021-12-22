@@ -162,7 +162,6 @@ uint8_t TM1637Display::get_keys() {
     //   From | S0 S1 S2 K1 K2 1  1  1
     //     To | S0 S1 S2 K1 K2 0  0  0
     key_code = ~key_code;
-
     // Shift bits to:
     //    Bit | 7  6  5  4  3  2  1  0
     //  ------+------------------------
@@ -183,7 +182,6 @@ void TM1637Display::update() {
 
 float TM1637Display::get_setup_priority() const { return setup_priority::PROCESSOR; }
 void TM1637Display::bit_delay_() { delayMicroseconds(100); }
-
 void TM1637Display::start_() {
   this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->bit_delay_();
