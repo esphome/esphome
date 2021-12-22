@@ -165,7 +165,7 @@ void ENS210Component::update() {
     float humidity = (humidity_data & 0xFFFF) / 512.0;
     this->humidity_sensor_->publish_state(humidity);
   } else {
-    ESP_LOGW(TAG, "Humidity status failure: %s", status_str(humidity_status));
+    ESP_LOGW(TAG, "Humidity status failure: %s", status_str_(humidity_status));
     this->status_set_warning();
     return;
   }
@@ -179,7 +179,7 @@ void ENS210Component::update() {
     float temperature = (temperature_data & 0xFFFF) / 64.0 - 27315L / 100.0;
     this->temperature_sensor_->publish_state(temperature);
   } else {
-    ESP_LOGW(TAG, "Temperature status failure: %s", status_str(temperature_status));
+    ESP_LOGW(TAG, "Temperature status failure: %s", status_str_(temperature_status));
   }
 }
 
