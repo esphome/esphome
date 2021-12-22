@@ -100,8 +100,9 @@ void ModbusBinaryOutput::write_state(bool state) {
 void ModbusBinaryOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus Binary Output:");
   LOG_BINARY_OUTPUT(this);
-  ESP_LOGCONFIG(TAG, "Modbus device start address=0x%X  register count=%d value type=%hhu", this->start_address,
-                this->register_count, this->sensor_value_type);
+  ESP_LOGCONFIG(TAG, "  Device start address=0x%X", this->start_address);
+  ESP_LOGCONFIG(TAG, "  Register count=0x%d", this->register_count);
+  ESP_LOGCONFIG(TAG, "  Value type=%hhu", this->sensor_value_type);
 }
 
 }  // namespace modbus_controller
