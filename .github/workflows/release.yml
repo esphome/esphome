@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
   release:
     types: [published]
-  schedule:
-    - cron: "0 2 * * *"
+  # schedule:
+  #   - cron: "0 2 * * *"
 
 permissions:
   contents: read
