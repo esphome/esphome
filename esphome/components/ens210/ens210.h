@@ -20,18 +20,19 @@ class ENS210Component : public PollingComponent, public i2c::I2CDevice {
 
  protected:
   bool set_low_power_(bool enable);
-  const char * status_str_( int status );
+  const char *status_str_(int status);
   void extract_measurement_(uint32_t val, int *data, int *status);
 
   sensor::Sensor *temperature_sensor_;
   sensor::Sensor *humidity_sensor_;
 
   enum ErrorCode {
-    ENS210_STATUS_OK = 0,           // The value was read, the CRC matches, and data is valid
-    ENS210_STATUS_INVALID,          // The value was read, the CRC matches, but the data is invalid (e.g. the measurement was not yet finished)
-    ENS210_STATUS_CRC_ERROR,        // The value was read, but the CRC over the payload (valid and data) does not match
-    ENS210_STATUS_I2C_ERROR,        // There was an I2C communication error
-    ENS210_WRONG_CHIP_ID            // The read PART_ID is not the expected part id of the ENS210
+    ENS210_STATUS_OK = 0,     // The value was read, the CRC matches, and data is valid
+    ENS210_STATUS_INVALID,    // The value was read, the CRC matches, but the data is invalid (e.g. the measurement was
+                              // not yet finished)
+    ENS210_STATUS_CRC_ERROR,  // The value was read, but the CRC over the payload (valid and data) does not match
+    ENS210_STATUS_I2C_ERROR,  // There was an I2C communication error
+    ENS210_WRONG_CHIP_ID      // The read PART_ID is not the expected part id of the ENS210
   } error_code_{ENS210_STATUS_OK};
 };
 
