@@ -12,6 +12,7 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
+CODEOWNERS = ["@itn3rd77"]
 DEPENDENCIES = ["i2c"]
 
 ens210_ns = cg.esphome_ns.namespace("ens210")
