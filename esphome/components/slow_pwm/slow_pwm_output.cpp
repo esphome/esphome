@@ -19,8 +19,8 @@ void SlowPWMOutput::set_state_(bool new_state) {
     this->pin_->digital_write(new_state);
   }
   if (new_state != current_state) {
-    if (this->toggle_trigger_) {
-      this->toggle_trigger_->trigger(new_state);
+    if (this->state_change_trigger_) {
+      this->state_change_trigger_->trigger(new_state);
     }
     if (new_state) {
       if (this->turn_on_trigger_)
@@ -52,8 +52,8 @@ void SlowPWMOutput::loop() {
 void SlowPWMOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "Slow PWM Output:");
   LOG_PIN("  Using pin: ", this->pin_);
-  if (this->toggle_trigger_)
-    ESP_LOGCONFIG(TAG, "  Toggle on automation configured");
+  if (this->state_change_trigger_)
+    ESP_LOGCONFIG(TAG, "  State change automation configured");
   if (this->turn_on_trigger_)
     ESP_LOGCONFIG(TAG, "  Turn on automation configured");
   if (this->turn_off_trigger_)

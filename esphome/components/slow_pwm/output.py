@@ -14,7 +14,7 @@ from esphome.const import (
 slow_pwm_ns = cg.esphome_ns.namespace("slow_pwm")
 SlowPWMOutput = slow_pwm_ns.class_("SlowPWMOutput", output.FloatOutput, cg.Component)
 
-CONF_TOGGLE_ACTION = "toggle_action"
+CONF_STATE_CHANGE_ACTION = "state_change_action"
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
@@ -30,7 +30,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
             "on_off",
             f"{CONF_TURN_ON_ACTION} and {CONF_TURN_OFF_ACTION} must both be defined",
         ): automation.validate_automation(single=True),
-        cv.Optional(CONF_TOGGLE_ACTION): automation.validate_automation(single=True),
+        cv.Optional(CONF_STATE_CHANGE_ACTION): automation.validate_automation(
+            single=True
+        ),
         cv.Required(CONF_PERIOD): cv.All(
             cv.positive_time_period_milliseconds,
             cv.Range(min=core.TimePeriod(milliseconds=100)),
@@ -46,9 +48,11 @@ async def to_code(config):
     if CONF_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_PIN])
         cg.add(var.set_pin(pin))
-    if CONF_TOGGLE_ACTION in config:
+    if CONF_STATE_CHANGE_ACTION in config:
         await automation.build_automation(
-            var.get_toggle_trigger(), [(bool, "state")], config[CONF_TOGGLE_ACTION]
+            var.get_state_change_trigger(),
+            [(bool, "state")],
+            config[CONF_STATE_CHANGE_ACTION],
         )
     if CONF_TURN_ON_ACTION in config:
         await automation.build_automation(

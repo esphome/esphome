@@ -31,10 +31,10 @@ class SlowPWMOutput : public output::FloatOutput, public Component {
     return turn_off_trigger_.get();
   }
 
-  Trigger<bool> *get_toggle_trigger() {
-    if (!toggle_trigger_)
-      toggle_trigger_ = make_unique<Trigger<bool>>();
-    return toggle_trigger_.get();
+  Trigger<bool> *get_state_change_trigger() {
+    if (!state_change_trigger_)
+      state_change_trigger_ = make_unique<Trigger<bool>>();
+    return state_change_trigger_.get();
   }
 
  protected:
@@ -48,7 +48,7 @@ class SlowPWMOutput : public output::FloatOutput, public Component {
 
   std::unique_ptr<Trigger<>> turn_on_trigger_{nullptr};
   std::unique_ptr<Trigger<>> turn_off_trigger_{nullptr};
-  std::unique_ptr<Trigger<bool>> toggle_trigger_{nullptr};
+  std::unique_ptr<Trigger<bool>> state_change_trigger_{nullptr};
   float state_;
   unsigned int period_start_time_{0};
   unsigned int period_{5000};
