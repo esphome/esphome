@@ -1,0 +1,135 @@
+#See if you can implement   -display.turn_on_led: 7
+#look at what the switch and gpio components do
+
+esphome:
+  name: htest
+  platform: ESP32
+  board: nodemcu-32s
+
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+# api:
+
+#ota:
+
+display:
+  - platform: tm1638
+    id: primarydisplay
+    stb_pin: 5 #TM1638 STB
+    clk_pin: 18 #TM1638 CLK
+    dio_pin: 23 #TM1638 DIO
+    update_interval: 1s
+    intensity: 5
+    lambda: |-
+        it.printf("%u", millis());
+
+switch:
+    - platform: tm1638
+      led: 0
+      id: Led0
+      tm1638_id: primarydisplay
+    - platform: tm1638
+      led: 1
+      id: Led1
+      tm1638_id: primarydisplay
+    - platform: tm1638
+      led: 2
+      id: Led2
+      tm1638_id: primarydisplay
+    - platform: tm1638
+      led: 3
+      id: Led3
+      tm1638_id: primarydisplay
+    - platform: tm1638
+      led: 4
+      id: Led4
+      tm1638_id: primarydisplay
+    - platform: tm1638
+      led: 5
+      id: Led5
+      tm1638_id: primarydisplay
+    - platform: tm1638
+      led: 6
+      id: Led6
+      tm1638_id: primarydisplay
+    - platform: tm1638
+      led: 7
+      id: Led7
+      tm1638_id: primarydisplay
+
+
+
+binary_sensor:
+  - platform: tm1638
+    id: key0
+    name: key1-00
+    tm1638_id: primarydisplay
+    key: 0
+    filters:
+      - delayed_on: 10ms
+    on_press:
+      then:
+        - switch.turn_on: Led0
+
+    on_release:
+      then:
+       - switch.turn_off: Led0
+
+  - platform: tm1638
+    id: key1
+    name: key1-01
+    tm1638_id: primarydisplay
+    key: 1
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key2
+    name: key1-02
+    tm1638_id: primarydisplay
+    key: 2
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key3
+    name: key1-03
+    tm1638_id: primarydisplay
+    key: 3
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key4
+    name: key1-04
+    tm1638_id: primarydisplay
+    key: 4
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key5
+    name: key1-05
+    tm1638_id: primarydisplay
+    key: 5
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key6
+    name: key1-06
+    tm1638_id: primarydisplay
+    key: 6
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key7
+    name: key1-07
+    tm1638_id: primarydisplay
+    key: 7
+    filters:
+      - delayed_on: 10ms

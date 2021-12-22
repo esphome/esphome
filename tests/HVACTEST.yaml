@@ -64,10 +64,10 @@ display:
 #    id: sntp_time
 #    timezone: EST+5EDT,M3.2.0/2,M11.1.0/2
 
-external_components:
-  - source:
-      type: local
-      path: devcomponents
+#external_components:
+#  - source:
+#      type: local
+#      path: devcomponents
 
 #time:
 #  - platform: homeassistant
