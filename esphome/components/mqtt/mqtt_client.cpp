@@ -417,7 +417,7 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
 }
 bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos,
                                        bool retain) {
-  std::string message = json::build_json(f, &len);
+  std::string message = json::build_json(f);
   return this->publish(topic, message, qos, retain);
 }
 
