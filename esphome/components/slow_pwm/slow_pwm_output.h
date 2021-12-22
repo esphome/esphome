@@ -3,8 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/output/float_output.h"
-#include "esphome/components/output/binary_output.h"
-#include "esphome/components/switch/switch.h"
 
 namespace esphome {
 namespace slow_pwm {
