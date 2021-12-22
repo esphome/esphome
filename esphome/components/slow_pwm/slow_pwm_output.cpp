@@ -51,8 +51,7 @@ void SlowPWMOutput::loop() {
 
 void SlowPWMOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "Slow PWM Output:");
-  if (this->pin_)
-    LOG_PIN("  Using pin: ", this->pin_);
+  LOG_PIN("  Using pin: ", this->pin_);
   if (this->toggle_trigger_)
     ESP_LOGCONFIG(TAG, "  Toggle on automation configured");
   if (this->turn_on_trigger_)

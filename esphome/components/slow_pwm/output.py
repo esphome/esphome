@@ -54,7 +54,6 @@ async def to_code(config):
         await automation.build_automation(
             var.get_turn_on_trigger(), [], config[CONF_TURN_ON_ACTION]
         )
-    if CONF_TURN_OFF_ACTION in config:
         await automation.build_automation(
             var.get_turn_off_trigger(), [], config[CONF_TURN_OFF_ACTION]
         )
