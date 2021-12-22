@@ -292,7 +292,7 @@ const char *SSD1306::model_str_() {
     case SSD1305_MODEL_128_32:
       return "SSD1305 128x32";
     case SSD1305_MODEL_128_64:
-      return "SSD1305 128x32";
+      return "SSD1305 128x64";
     default:
       return "Unknown";
   }

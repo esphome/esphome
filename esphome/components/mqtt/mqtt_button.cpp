@@ -17,7 +17,7 @@ MQTTButtonComponent::MQTTButtonComponent(button::Button *button) : MQTTComponent
 
 void MQTTButtonComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
-    if (payload == "press") {
+    if (payload == "PRESS") {
       this->button_->press();
     } else {
       ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name().c_str(), payload.c_str());
@@ -31,6 +31,7 @@ void MQTTButtonComponent::dump_config() {
 }
 
 void MQTTButtonComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  config.state_topic = false;
   if (!this->button_->get_device_class().empty())
     root[MQTT_DEVICE_CLASS] = this->button_->get_device_class();
 }

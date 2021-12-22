@@ -41,6 +41,8 @@ class TM1637Display : public PollingComponent {
   uint8_t print(const char *str);
 
   void set_intensity(uint8_t intensity) { this->intensity_ = intensity; }
+  void set_inverted(bool inverted) { this->inverted_ = inverted; }
+  void set_length(uint8_t length) { this->length_ = length; }
 
   void display();
 
@@ -62,6 +64,8 @@ class TM1637Display : public PollingComponent {
   GPIOPin *dio_pin_;
   GPIOPin *clk_pin_;
   uint8_t intensity_;
+  uint8_t length_;
+  bool inverted_;
   optional<tm1637_writer_t> writer_{};
   uint8_t buffer_[6] = {0};
 };

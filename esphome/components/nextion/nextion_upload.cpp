@@ -95,7 +95,7 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
   }
   http->end();
   ESP_LOGN(TAG, "this->content_length_ %d sent %d", this->content_length_, sent);
-  for (uint32_t i = 0; i < range; i += 4096) {
+  for (int i = 0; i < range; i += 4096) {
     this->write_array(&this->transfer_buffer_[i], 4096);
     this->content_length_ -= 4096;
     ESP_LOGN(TAG, "this->content_length_ %d range %d range_end %d range_start %d", this->content_length_, range,
@@ -238,7 +238,7 @@ void Nextion::upload_tft() {
   // The Nextion display will, if it's ready to accept data, send a 0x05 byte.
   ESP_LOGD(TAG, "Upgrade response is %s %zu", response.c_str(), response.length());
 
-  for (int i = 0; i < response.length(); i++) {
+  for (size_t i = 0; i < response.length(); i++) {
     ESP_LOGD(TAG, "Available %d : 0x%02X", i, response[i]);
   }
 
