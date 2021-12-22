@@ -1,12 +1,12 @@
 #include "oralb_ble.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace oralb_ble {
 
-static const char *TAG = "oralb_ble";
+static const char *const TAG = "oralb_ble";
 
 bool parse_oralb_data_byte(const esp32_ble_tracker::adv_data_t &adv_data, OralbParseResult &result) {
   result.state = adv_data[3];
@@ -45,4 +45,4 @@ bool OralbListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 }  // namespace oralb_ble
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32
