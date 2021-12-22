@@ -556,8 +556,7 @@ sensor:
     temperature:
       name: 'Living Room Temperature 6'
     humidity:
-      name: 'Living Room Pressure 6'
-      name: "Living Room Pressure 5"
+      name: 'Living Room Humidity 5'
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: hlw8012
