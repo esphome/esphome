@@ -9,6 +9,9 @@ static const char *const TAG = "json";
 static std::vector<char> global_json_build_buffer;  // NOLINT
 
 std::string build_json(const json_build_t &f) {
+  // Here we are allocating as much heap memory as available minus 2kb to be safe
+  // as we can not have a true dynamic sized document.
+  // The excess memory is freed below with `shrinkToFit()`
 #ifdef USE_ESP8266
   const size_t free_heap = ESP.getMaxFreeBlockSize() - 2048;
 #elif defined(USE_ESP32)
@@ -26,6 +29,9 @@ std::string build_json(const json_build_t &f) {
 }
 
 void parse_json(const std::string &data, const json_parse_t &f) {
+  // Here we are allocating as much heap memory as available minus 2kb to be safe
+  // as we can not have a true dynamic sized document.
+  // The excess memory is freed below with `shrinkToFit()`
 #ifdef USE_ESP8266
   const size_t free_heap = ESP.getMaxFreeBlockSize() - 2048;
 #elif defined(USE_ESP32)
