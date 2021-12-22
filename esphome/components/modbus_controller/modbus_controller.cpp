@@ -179,15 +179,13 @@ size_t ModbusController::create_register_ranges_() {
   uint8_t buffer_offset = ix->second->offset;
   uint8_t skip_updates = ix->second->skip_updates;
   auto first_sensorkey = ix->second->getkey();
-  total_register_count = 0;
   while (ix != sensormap_.end()) {
     ESP_LOGV(TAG, "Register: 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X) skip=%u", ix->second->start_address,
              ix->second->register_count, ix->second->offset, ix->second->getkey(), total_register_count, buffer_offset,
              buffer_offset, ix->second->skip_updates);
     // if this is a sequential address based on number of registers and address of previous sensor
     // convert to an offset to the previous sensor (address 0x101 becomes address 0x100 offset 2 bytes)
-    if (!ix->second->force_new_range && total_register_count >= 0 &&
-        prev->second->register_type == ix->second->register_type &&
+    if (!ix->second->force_new_range && prev->second->register_type == ix->second->register_type &&
         prev->second->start_address + total_register_count == ix->second->start_address &&
         prev->second->start_address < ix->second->start_address) {
       ix->second->start_address = prev->second->start_address;
