@@ -64,7 +64,7 @@ RUN \
 
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install --no-cache-dir -e /esphome
+RUN pip3 install --no-cache-dir /esphome
 
 # Settings for dashboard
 ENV USERNAME="" PASSWORD=""
