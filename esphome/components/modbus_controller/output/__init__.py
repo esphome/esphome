@@ -26,7 +26,6 @@ from ..const import (
 DEPENDENCIES = ["modbus_controller"]
 CODEOWNERS = ["@martgras"]
 
-CONF_FLOAT = "float"
 
 ModbusFloatOutput = modbus_controller_ns.class_(
     "ModbusFloatOutput", cg.Component, output.FloatOutput, SensorItem
@@ -72,15 +71,16 @@ async def to_code(config):
             config[CONF_ADDRESS],
             byte_offset,
         )
-        template_ = await cg.process_lambda(
-            config[CONF_WRITE_LAMBDA],
-            [
-                (ModbusBinaryOutput.operator("ptr"), "item"),
-                (cg.bool_, "x"),
-                (cg.std_vector.template(cg.uint8).operator("ref"), "payload"),
-            ],
-            return_type=cg.optional.template(bool),
-        )
+        if CONF_WRITE_LAMBDA in config:
+            template_ = await cg.process_lambda(
+                config[CONF_WRITE_LAMBDA],
+                [
+                    (ModbusBinaryOutput.operator("ptr"), "item"),
+                    (cg.bool_, "x"),
+                    (cg.std_vector.template(cg.uint8).operator("ref"), "payload"),
+                ],
+                return_type=cg.optional.template(bool),
+            )
     # Float Output
     else:
         var = cg.new_Pvariable(
@@ -91,15 +91,16 @@ async def to_code(config):
             reg_count,
         )
         cg.add(var.set_write_multiply(config[CONF_MULTIPLY]))
-        template_ = await cg.process_lambda(
-            config[CONF_WRITE_LAMBDA],
-            [
-                (ModbusFloatOutput.operator("ptr"), "item"),
-                (cg.float_, "x"),
-                (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
-            ],
-            return_type=cg.optional.template(float),
-        )
+        if CONF_WRITE_LAMBDA in config:
+            template_ = await cg.process_lambda(
+                config[CONF_WRITE_LAMBDA],
+                [
+                    (ModbusFloatOutput.operator("ptr"), "item"),
+                    (cg.float_, "x"),
+                    (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
+                ],
+                return_type=cg.optional.template(float),
+            )
     await output.register_output(var, config)
     parent = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
     cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
