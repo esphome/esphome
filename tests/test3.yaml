@@ -1,24 +1,32 @@
 esphome:
-  name: $devicename
-  comment: $devicecomment
+  name: $device_name
+  comment: $device_comment
   platform: ESP8266
   board: d1_mini
   build_path: build/test3
   on_boot:
-    - wait_until:
-        - api.connected
-        - wifi.connected
+    - if:
+        condition:
+          - api.connected
+          - wifi.connected
+          - time.has_time
+        then:
+          - logger.log: "Have time"
   includes:
     - custom.h
 
 substitutions:
-  devicename: test3
-  devicecomment: test3 device
+  device_name: test3
+  device_comment: test3 device
+  min_sub: '0.03'
+  max_sub: '12.0%'
 
 api:
   port: 8000
   password: 'pwd'
   reboot_timeout: 0min
+  encryption:
+    key: 'bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU='
   services:
     - service: hello_world
       variables:
@@ -138,6 +146,14 @@ api:
       then:
         - dfplayer.random
 
+    - service: dfplayer_volume_up
+      then:
+        - dfplayer.volume_up
+
+    - service: dfplayer_volume_down
+      then:
+        - dfplayer.volume_down
+
     - service: battery_level_percent
       variables:
         level_percent: int
@@ -167,6 +183,33 @@ api:
       then:
         - tm1651.turn_off:
             id: tm1651_battery
+    - service: pid_set_control_parameters
+      then:
+        - climate.pid.set_control_parameters:
+            id: pid_climate
+            kp: 1.0
+            kd: 1.0
+            ki: 1.0
+    - service: fingerprint_grow_enroll
+      variables:
+        finger_id: int
+        num_scans: int
+      then:
+        - fingerprint_grow.enroll:
+            finger_id: !lambda 'return finger_id;'
+            num_scans: !lambda 'return num_scans;'
+    - service: fingerprint_grow_cancel_enroll
+      then:
+        - fingerprint_grow.cancel_enroll:
+    - service: fingerprint_grow_delete
+      variables:
+        finger_id: int
+      then:
+        - fingerprint_grow.delete:
+            finger_id: !lambda 'return finger_id;'
+    - service: fingerprint_grow_delete_all
+      then:
+        - fingerprint_grow.delete_all:
 
 wifi:
   ssid: 'MySSID'
@@ -183,29 +226,104 @@ spi:
   miso_pin: GPIO14
 
 uart:
-  tx_pin: GPIO1
-  rx_pin: GPIO3
-  baud_rate: 115200
+  - id: uart1
+    tx_pin:
+      number: GPIO1
+      inverted: yes
+    rx_pin: GPIO3
+    baud_rate: 115200
+  - id: uart2
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+  - id: uart3
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 4800
+  - id: uart4
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+  - id: uart5
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+  - id: uart6
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+  - id: uart7
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 38400
+    # Specifically added for testing debug with no options at all.
+    debug:
+
+modbus:
+  uart_id: uart1
 
 ota:
   safe_mode: True
   port: 3286
+  reboot_timeout: 15min
 
 logger:
   hardware_uart: UART1
   level: DEBUG
-  esp8266_store_log_strings_in_flash: false
+  esp8266_store_log_strings_in_flash: true
 
-web_server:
+improv_serial:
 
 deep_sleep:
   run_duration: 20s
   sleep_duration: 50s
 
+wled:
+
+adalight:
+
+
 sensor:
+  - platform: daly_bms
+    voltage:
+      name: "Battery Voltage"
+    current:
+      name: "Battery Current"
+    battery_level:
+      name: "Battery Level"
+    max_cell_voltage:
+      name: "Max Cell Voltage"
+    max_cell_voltage_number:
+      name: "Max Cell Voltage Number"
+    min_cell_voltage:
+      name: "Min Cell Voltage"
+    min_cell_voltage_number:
+      name: "Min Cell Voltage Number"
+    max_temperature:
+      name: "Max Temperature"
+    max_temperature_probe_number:
+      name: "Max Temperature Probe Number"
+    min_temperature:
+      name: "Min Temperature"
+    min_temperature_probe_number:
+      name: "Min Temperature Probe Number"
+    remaining_capacity:
+      name: "Remaining Capacity"
+    cells_number:
+      name: "Cells Number"
+    temperature_1:
+      name: "Temperature 1"
+    temperature_2:
+      name: "Temperature 2"
   - platform: apds9960
     type: proximity
     name: APDS9960 Proximity
+  - platform: vl53l0x
+    name: 'VL53L0x Distance'
+    address: 0x29
+    update_interval: 60s
+    enable_pin: GPIO13
+    timeout: 200us
   - platform: apds9960
     type: clear
     name: APDS9960 Clear
@@ -221,16 +339,16 @@ sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
-  - platform: aht10  
+  - platform: aht10
     temperature:
-      name: "Temperature"
+      name: 'Temperature'
     humidity:
-      name: "Humidity"
+      name: 'Humidity'
   - platform: am2320
     temperature:
-      name: "Temperature"
+      name: 'Temperature'
     humidity:
-      name: "Humidity"
+      name: 'Humidity'
   - platform: adc
     pin: VCC
     id: my_sensor
@@ -240,6 +358,11 @@ sensor:
       - filter_out: NAN
       - sliding_window_moving_average:
       - exponential_moving_average:
+      - quantile:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
+          quantile: .8
       - lambda: 'return 0;'
       - delta: 100
       - throttle: 100ms
@@ -295,7 +418,7 @@ sensor:
       name: Illuminance
     color_temperature:
       name: Color Temperature
-    integration_time: 700ms
+    integration_time: 614ms
     gain: 60x
   - platform: custom
     lambda: |-
@@ -316,53 +439,242 @@ sensor:
       - binary_sensor: bin3
         value: 100.0
   - platform: ade7953
+    irq_pin: GPIO16
     voltage:
       name: ADE7953 Voltage
+      id: ade7953_voltage
     current_a:
       name: ADE7953 Current A
+      id: ade7953_current_a
     current_b:
       name: ADE7953 Current B
+      id: ade7953_current_b
     active_power_a:
       name: ADE7953 Active Power A
+      id: ade7953_active_power_a
     active_power_b:
       name: ADE7953 Active Power B
+      id: ade7953_active_power_b
   - platform: pzem004t
+    uart_id: uart3
     voltage:
-      name: "PZEM00T Voltage"
+      name: 'PZEM00T Voltage'
     current:
-      name: "PZEM004T Current"
+      name: 'PZEM004T Current'
     power:
-      name: "PZEM004T Power"
+      name: 'PZEM004T Power'
   - platform: pzemac
     voltage:
-      name: "PZEMAC Voltage"
+      name: 'PZEMAC Voltage'
     current:
-      name: "PZEMAC Current"
+      name: 'PZEMAC Current'
     power:
-      name: "PZEMAC Power"
+      name: 'PZEMAC Power'
     energy:
-      name: "PZEMAC Energy"
+      name: 'PZEMAC Energy'
     frequency:
-      name: "PZEMAC Frequency"
+      name: 'PZEMAC Frequency'
     power_factor:
-      name: "PZEMAC Power Factor"
+      name: 'PZEMAC Power Factor'
   - platform: pzemdc
     voltage:
-      name: "PZEMDC Voltage"
+      name: 'PZEMDC Voltage'
     current:
-      name: "PZEMDC Current"
+      name: 'PZEMDC Current'
     power:
-      name: "PZEMDC Power"
+      name: 'PZEMDC Power'
+  - platform: tmp102
+    name: 'TMP102 Temperature'
   - platform: hm3301
     pm_1_0:
-      name: "PM1.0"
+      name: 'PM1.0'
     pm_2_5:
-      name: "PM2.5"
+      name: 'PM2.5'
     pm_10_0:
-      name: "PM10.0"
+      name: 'PM10.0'
+    aqi:
+      name: 'AQI'
+      calculation_type: 'AQI'
+  - platform: pmsx003
+    uart_id: uart2
+    type: PMSX003
+    pm_1_0:
+      name: 'PM 1.0 Concentration'
+    pm_2_5:
+      name: 'PM 2.5 Concentration'
+    pm_10_0:
+      name: 'PM 10.0 Concentration'
+    pm_1_0_std:
+      name: 'PM 1.0 Standard Atmospher Concentration'
+    pm_2_5_std:
+      name: 'PM 2.5 Standard Atmospher Concentration'
+    pm_10_0_std:
+      name: 'PM 10.0 Standard Atmospher Concentration'
+    pm_0_3um:
+      name: 'Particulate Count >0.3um'
+    pm_0_5um:
+      name: 'Particulate Count >0.5um'
+    pm_1_0um:
+      name: 'Particulate Count >1.0um'
+    pm_2_5um:
+      name: 'Particulate Count >2.5um'
+    pm_5_0um:
+      name: 'Particulate Count >5.0um'
+    pm_10_0um:
+      name: 'Particulate Count >10.0um'
+  - platform: pmsx003
+    uart_id: uart2
+    type: PMS5003T
+    pm_2_5:
+      name: 'PM 2.5 Concentration'
+    temperature:
+      name: 'PMS Temperature'
+    humidity:
+      name: 'PMS Humidity'
+  - platform: pmsx003
+    uart_id: uart2
+    type: PMS5003ST
+    pm_1_0:
+      name: 'PM 1.0 Concentration'
+    pm_2_5:
+      name: 'PM 2.5 Concentration'
+    pm_10_0:
+      name: 'PM 10.0 Concentration'
+    pm_1_0_std:
+      name: 'PM 1.0 Standard Atmospher Concentration'
+    pm_2_5_std:
+      name: 'PM 2.5 Standard Atmospher Concentration'
+    pm_10_0_std:
+      name: 'PM 10.0 Standard Atmospher Concentration'
+    pm_0_3um:
+      name: 'Particulate Count >0.3um'
+    pm_0_5um:
+      name: 'Particulate Count >0.5um'
+    pm_1_0um:
+      name: 'Particulate Count >1.0um'
+    pm_2_5um:
+      name: 'Particulate Count >2.5um'
+    pm_5_0um:
+      name: 'Particulate Count >5.0um'
+    pm_10_0um:
+      name: 'Particulate Count >10.0um'
+    temperature:
+      name: 'PMS Temperature'
+    humidity:
+      name: 'PMS Humidity'
+    formaldehyde:
+      name: 'PMS Formaldehyde Concentration'
+  - platform: cse7761
+    uart_id: uart7
+    voltage:
+      name: 'CSE7761 Voltage'
+    current_1:
+      name: 'CSE7761 Current 1'
+    current_2:
+      name: 'CSE7761 Current 2'
+    active_power_1:
+      name: 'CSE7761 Active Power 1'
+    active_power_2:
+      name: 'CSE7761 Active Power 2'
+  - platform: cse7766
+    uart_id: uart3
+    voltage:
+      name: 'CSE7766 Voltage'
+    current:
+      name: 'CSE7766 Current'
+    power:
+      name: 'CSE776 Power'
+  - platform: ezo
+    id: ph_ezo
+    address: 99
+    unit_of_measurement: 'pH'
+  - platform: tof10120
+    name: "Distance sensor"
+    update_interval: 5s
+  - platform: fingerprint_grow
+    fingerprint_count:
+      name: "Fingerprint Count"
+    status:
+      name: "Fingerprint Status"
+    capacity:
+      name: "Fingerprint Capacity"
+    security_level:
+      name: "Fingerprint Security Level"
+    last_finger_id:
+      name: "Fingerprint Last Finger ID"
+    last_confidence:
+      name: "Fingerprint Last Confidence"
+  - platform: sdm_meter
+    phase_a:
+      current:
+        name: 'Phase A Current'
+      voltage:
+        name: 'Phase A Voltage'
+      active_power:
+        name: 'Phase A Power'
+      power_factor:
+        name: 'Phase A Power Factor'
+      apparent_power:
+        name: 'Phase A Apparent Power'
+      reactive_power:
+        name: 'Phase A Reactive Power'
+      phase_angle:
+        name: 'Phase A Phase Angle'
+    phase_b:
+      current:
+        name: 'Phase B Current'
+      voltage:
+        name: 'Phase B Voltage'
+      active_power:
+        name: 'Phase B Power'
+      power_factor:
+        name: 'Phase B Power Factor'
+      apparent_power:
+        name: 'Phase B Apparent Power'
+      reactive_power:
+        name: 'Phase B Reactive Power'
+      phase_angle:
+        name: 'Phase B Phase Angle'
+    phase_c:
+      current:
+        name: 'Phase C Current'
+      voltage:
+        name: 'Phase C Voltage'
+      active_power:
+        name: 'Phase C Power'
+      power_factor:
+        name: 'Phase C Power Factor'
+      apparent_power:
+        name: 'Phase C Apparent Power'
+      reactive_power:
+        name: 'Phase C Reactive Power'
+      phase_angle:
+        name: 'Phase C Phase Angle'
+    frequency:
+      name: 'Frequency'
+    import_active_energy:
+      name: 'Import Active Energy'
+    export_active_energy:
+      name: 'Export Active Energy'
+    import_reactive_energy:
+      name: 'Import Reactive Energy'
+    export_reactive_energy:
+      name: 'Export Reactive Energy'
+  - platform: dsmr
+    energy_delivered_tariff1:
+      name: dsmr_energy_delivered_tariff1
 
+  - platform: nextion
+    id: testnumber
+    name: 'testnumber'
+    variable_name: testnumber
+  - platform: nextion
+    id: testwave
+    name: 'testwave'
+    component_id: 2
+    wave_channel_id: 1
 time:
-- platform: homeassistant
+  - platform: homeassistant
 
 apds9960:
   address: 0x20
@@ -373,6 +685,11 @@ mpr121:
   address: 0x5A
 
 binary_sensor:
+  - platform: daly_bms
+    charging_mos_enabled:
+      name: "Charging MOS"
+    discharging_mos_enabled:
+      name: "Discharging MOS"
   - platform: apds9960
     direction: up
     name: APDS9960 Up
@@ -400,18 +717,18 @@ binary_sensor:
   - platform: mpr121
     id: touchkey0
     channel: 0
-    name: "touchkey0"
+    name: 'touchkey0'
   - platform: mpr121
     channel: 1
-    name: "touchkey1"
+    name: 'touchkey1'
     id: bin1
   - platform: mpr121
     channel: 2
-    name: "touchkey2"
+    name: 'touchkey2'
     id: bin2
   - platform: mpr121
     channel: 3
-    name: "touchkey3"
+    name: 'touchkey3'
     id: bin3
     on_press:
       then:
@@ -422,6 +739,8 @@ binary_sensor:
   - platform: ttp229_bsf
     channel: 1
     name: TTP229 BSF Test
+  - platform: fingerprint_grow
+    name: "Fingerprint Enrolling"
   - platform: custom
     lambda: |-
       auto s = new CustomBinarySensor();
@@ -430,6 +749,19 @@ binary_sensor:
     binary_sensors:
       - id: custom_binary_sensor
         name: Custom Binary Sensor
+  - platform: nextion
+    page_id: 0
+    component_id: 2
+    name: 'Nextion Component 2 Touch'
+  - platform: nextion
+    id: r0_sensor
+    name: 'R0 Sensor'
+    component_name: page0.r0
+  - platform: template
+    id: 'cover_toggle'
+    on_press:
+      then:
+        - cover.toggle: time_based_cover
 
 globals:
   - id: my_global_string
@@ -444,8 +776,11 @@ status_led:
   pin: GPIO2
 
 text_sensor:
+  - platform: daly_bms
+    status:
+      name: "BMS Status"
   - platform: version
-    name: "ESPHome Version"
+    name: 'ESPHome Version'
     icon: mdi:icon
     id: version_sensor
     on_value:
@@ -464,7 +799,7 @@ text_sensor:
             my_variable: |-
               return id(version_sensor).state;
   - platform: template
-    name: "Template Text Sensor"
+    name: 'Template Text Sensor'
     lambda: |-
       return {"Hello World"};
   - platform: homeassistant
@@ -478,28 +813,42 @@ text_sensor:
     text_sensors:
       - id: custom_text_sensor
         name: Custom Text Sensor
+  - platform: nextion
+    name: text0
+    id: text0
+    update_interval: 4s
+    component_name: text0
+  - platform: dsmr
+    identification:
+      name: "dsmr_identification"
+    p1_version:
+      name: "dsmr_p1_version"
 
 script:
   - id: my_script
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
 
+sm2135:
+  data_pin: GPIO12
+  clock_pin: GPIO14
+
 switch:
   - platform: template
-    name: "mpr121_toggle"
+    name: 'mpr121_toggle'
     id: mpr121_toggle
     optimistic: True
   - platform: gpio
     id: gpio_switch1
     pin:
-      mcp23017: mcp23017_hub
+      mcp23xxx: mcp23017_hub
       number: 0
       mode: OUTPUT
     interlock: &interlock [gpio_switch1, gpio_switch2, gpio_switch3]
   - platform: gpio
     id: gpio_switch2
     pin:
-      mcp23008: mcp23008_hub
+      mcp23xxx: mcp23008_hub
       number: 0
       mode: OUTPUT
     interlock: *interlock
@@ -514,12 +863,16 @@ switch:
     switches:
       - id: custom_switch
         name: Custom Switch
+  - platform: nextion
+    id: r0
+    name: 'R0 Switch'
+    component_name: page0.r0
 
 custom_component:
-   lambda: |-
-     auto s = new CustomComponent();
-     s->set_update_interval(15000);
-     return {s};
+  lambda: |-
+    auto s = new CustomComponent();
+    s->set_update_interval(15000);
+    return {s};
 
 stepper:
   - platform: uln2003
@@ -544,7 +897,7 @@ stepper:
 interval:
   interval: 5s
   then:
-    - logger.log: "Interval Run"
+    - logger.log: 'Interval Run'
     - stepper.set_target:
         id: my_stepper2
         target: 500
@@ -573,6 +926,98 @@ climate:
     away_config:
       default_target_temperature_low: 16°C
       default_target_temperature_high: 20°C
+  - platform: thermostat
+    name: Thermostat Climate
+    sensor: ha_hello_world
+    default_target_temperature_low: 18°C
+    default_target_temperature_high: 24°C
+    idle_action:
+      - switch.turn_on: gpio_switch1
+    cool_action:
+      - switch.turn_on: gpio_switch2
+    supplemental_cooling_action:
+      - switch.turn_on: gpio_switch3
+    heat_action:
+      - switch.turn_on: gpio_switch1
+    supplemental_heating_action:
+      - switch.turn_on: gpio_switch3
+    dry_action:
+      - switch.turn_on: gpio_switch2
+    fan_only_action:
+      - switch.turn_on: gpio_switch1
+    auto_mode:
+      - switch.turn_on: gpio_switch2
+    off_mode:
+      - switch.turn_on: gpio_switch1
+    heat_mode:
+      - switch.turn_on: gpio_switch2
+    cool_mode:
+      - switch.turn_on: gpio_switch1
+    dry_mode:
+      - switch.turn_on: gpio_switch2
+    fan_only_mode:
+      - switch.turn_on: gpio_switch1
+    fan_mode_auto_action:
+      - switch.turn_on: gpio_switch2
+    fan_mode_on_action:
+      - switch.turn_on: gpio_switch1
+    fan_mode_off_action:
+      - switch.turn_on: gpio_switch2
+    fan_mode_low_action:
+      - switch.turn_on: gpio_switch1
+    fan_mode_medium_action:
+      - switch.turn_on: gpio_switch2
+    fan_mode_high_action:
+      - switch.turn_on: gpio_switch1
+    fan_mode_middle_action:
+      - switch.turn_on: gpio_switch2
+    fan_mode_focus_action:
+      - switch.turn_on: gpio_switch1
+    fan_mode_diffuse_action:
+      - switch.turn_on: gpio_switch2
+    swing_off_action:
+      - switch.turn_on: gpio_switch1
+    swing_horizontal_action:
+      - switch.turn_on: gpio_switch2
+    swing_vertical_action:
+      - switch.turn_on: gpio_switch1
+    swing_both_action:
+      - switch.turn_on: gpio_switch2
+    startup_delay: true
+    supplemental_cooling_delta: 2.0
+    cool_deadband: 0.5
+    cool_overrun: 0.5
+    min_cooling_off_time: 300s
+    min_cooling_run_time: 300s
+    max_cooling_run_time: 600s
+    supplemental_heating_delta: 2.0
+    heat_deadband: 0.5
+    heat_overrun: 0.5
+    min_heating_off_time: 300s
+    min_heating_run_time: 300s
+    max_heating_run_time: 600s
+    min_fanning_off_time: 30s
+    min_fanning_run_time: 30s
+    min_fan_mode_switching_time: 15s
+    min_idle_time: 30s
+    set_point_minimum_differential: 0.5
+    fan_only_action_uses_fan_mode_timer: true
+    fan_only_cooling: true
+    fan_with_cooling: true
+    fan_with_heating: true
+    away_config:
+      default_target_temperature_low: 16°C
+      default_target_temperature_high: 20°C
+  - platform: pid
+    id: pid_climate
+    name: 'PID Climate Controller'
+    sensor: ha_hello_world
+    default_target_temperature: 21°C
+    heat_output: my_slow_pwm
+    control_parameters:
+      kp: 0.0
+      ki: 0.0
+      kd: 0.0
 
 cover:
   - platform: endstop
@@ -607,6 +1052,7 @@ cover:
     max_duration: 10min
   - platform: time_based
     name: Time Based Cover
+    id: time_based_cover
     stop_action:
       - switch.turn_on: gpio_switch1
     open_action:
@@ -615,24 +1061,49 @@ cover:
     close_action:
       - switch.turn_on: gpio_switch2
     close_duration: 4.5min
+  - platform: current_based
+    name: "Current Based Cover"
+    open_sensor: ade7953_current_a
+    open_moving_current_threshold: 0.5
+    open_obstacle_current_threshold: 0.8
+    open_duration: 12s
+    open_action:
+      - switch.turn_on: gpio_switch1
+    close_sensor: ade7953_current_b
+    close_moving_current_threshold: 0.5
+    close_obstacle_current_threshold: 0.8
+    close_duration: 10s
+    close_action:
+      - switch.turn_on: gpio_switch2
+    stop_action:
+      - switch.turn_off: gpio_switch1
+      - switch.turn_off: gpio_switch2
+    obstacle_rollback: 30%
+    start_sensing_delay: 0.8s
+    malfunction_detection: true
+    malfunction_action:
+      then:
+        - logger.log: "Malfunction Detected"
   - platform: template
     name: Template Cover with Tilt
-    tilt_lambda: "return 0.5;"
+    tilt_lambda: 'return 0.5;'
     tilt_action:
       - output.set_level:
           id: out
-          level: !lambda "return tilt;"
+          level: !lambda 'return tilt;'
     position_action:
       - output.set_level:
           id: out
-          level: !lambda "return pos;"
-
+          level: !lambda 'return pos;'
 
 output:
   - platform: esp8266_pwm
     id: out
     pin: D3
     frequency: 50Hz
+  - platform: esp8266_pwm
+    id: out2
+    pin: D4
   - platform: custom
     type: binary
     lambda: |-
@@ -649,16 +1120,33 @@ output:
       return {s};
     outputs:
       - id: custom_float
-  - platform: ac_dimmer
-    id: dimmer1
-    gate_pin: GPIO5
-    zero_cross_pin: GPIO12
+  - platform: slow_pwm
+    pin: GPIO5
+    id: my_slow_pwm
+    period: 15s
+  - platform: sm2135
+    id: sm2135_0
+    channel: 0
+  - platform: sm2135
+    id: sm2135_1
+    channel: 1
+  - platform: sm2135
+    id: sm2135_2
+    channel: 2
+  - platform: sm2135
+    id: sm2135_3
+    channel: 3
+  - platform: sm2135
+    id: sm2135_4
+    channel: 4
 
 mcp23017:
   id: mcp23017_hub
 
 mcp23008:
   id: mcp23008_hub
+
+e131:
 
 light:
   - platform: neopixelbus
@@ -668,19 +1156,32 @@ light:
     variant: SK6812
     method: ESP8266_UART0
     num_leds: 100
+    effects:
+      - wled:
+      - adalight:
+          uart_id: uart3
+      - e131:
+          universe: 1
+  - platform: hbridge
+    name: Icicle Lights
+    pin_a: out
+    pin_b: out2
 
 servo:
   id: my_servo
   output: out
   restore: true
+  min_level: $min_sub
+  max_level: $max_sub
 
 ttp229_lsf:
 
 ttp229_bsf:
-  sdo_pin: D0
+  sdo_pin: D2
   scl_pin: D1
 
 sim800l:
+  uart_id: uart4
   on_sms_received:
     - lambda: |-
         std::string str;
@@ -689,21 +1190,25 @@ sim800l:
     - sim800l.send_sms:
         message: 'hello you'
         recipient: '+1234'
+    - sim800l.dial:
+        recipient: '+1234'
 
 dfplayer:
+  uart_id: uart5
   on_finished_playback:
     then:
       if:
         condition:
-          not:
-            dfplayer.is_playing
+          not: dfplayer.is_playing
         then:
           logger.log: 'Playback finished event'
 tm1651:
   id: tm1651_battery
   clk_pin: D6
   dio_pin: D5
+
 rf_bridge:
+  uart_id: uart5
   on_code_received:
     - lambda: |-
         uint32_t test;
@@ -717,3 +1222,106 @@ rf_bridge:
         high: 0x1234
         code: 0x123456
     - rf_bridge.learn
+
+  on_advanced_code_received:
+    - lambda: |-
+        uint32_t test;
+        std::string test_code;
+        test = data.length;
+        test = data.protocol;
+        test_code = data.code;
+    - rf_bridge.start_advanced_sniffing
+    - rf_bridge.stop_advanced_sniffing
+    - rf_bridge.send_advanced_code:
+        length: 0x04
+        protocol: 0x01
+        code: 'ABC123'
+    - rf_bridge.send_raw:
+        raw: 'AAA5070008001000ABC12355'
+    - http_request.get:
+        url: https://esphome.io
+        headers:
+          Content-Type: application/json
+        verify_ssl: false
+    - http_request.post:
+        url: https://esphome.io
+        verify_ssl: false
+        json:
+          key: !lambda |-
+            return id(version_sensor).state;
+          greeting: 'Hello World'
+    - http_request.send:
+        method: PUT
+        url: https://esphome.io
+        headers:
+          Content-Type: application/json
+        body: 'Some data'
+        verify_ssl: false
+
+display:
+  - platform: max7219digit
+    cs_pin: GPIO15
+    num_chips: 4
+    rotate_chip: 0
+    intensity: 10
+    scroll_mode: 'STOP'
+    id: my_matrix
+    lambda: |-
+      it.printdigit("hello");
+  - platform: nextion
+    uart_id: uart1
+    tft_url: 'http://esphome.io/default35.tft'
+    update_interval: 5s
+    on_sleep:
+      then:
+        lambda: 'ESP_LOGD("display","Display went to sleep");'
+    on_wake:
+      then:
+        lambda: 'ESP_LOGD("display","Display woke up");'
+
+http_request:
+  useragent: esphome/device
+  timeout: 10s
+
+fingerprint_grow:
+  sensing_pin: 4
+  password: 0x12FE37DC
+  new_password: 0xA65B9840
+  on_finger_scan_matched:
+    - homeassistant.event:
+        event: esphome.${device_name}_fingerprint_grow_finger_scan_matched
+        data:
+          finger_id: !lambda 'return finger_id;'
+          confidence: !lambda 'return confidence;'
+  on_finger_scan_unmatched:
+    - homeassistant.event:
+        event: esphome.${device_name}_fingerprint_grow_finger_scan_unmatched
+  on_enrollment_scan:
+    - homeassistant.event:
+        event: esphome.${device_name}_fingerprint_grow_enrollment_scan
+        data:
+          finger_id: !lambda 'return finger_id;'
+          scan_num: !lambda 'return scan_num;'
+  on_enrollment_done:
+    - homeassistant.event:
+        event: esphome.${device_name}_fingerprint_grow_node_enrollment_done
+        data:
+          finger_id: !lambda 'return finger_id;'
+  on_enrollment_failed:
+    - homeassistant.event:
+        event: esphome.${device_name}_fingerprint_grow_enrollment_failed
+        data:
+          finger_id: !lambda 'return finger_id;'
+  uart_id: uart6
+
+dsmr:
+  decryption_key: 00112233445566778899aabbccddeeff
+  uart_id: uart6
+  max_telegram_length: 1000
+  request_pin: D5
+  request_interval: 20s
+  receive_timeout: 100ms
+
+daly_bms:
+  update_interval: 20s
+  uart_id: uart1

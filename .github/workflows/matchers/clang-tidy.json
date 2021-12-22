@@ -1,0 +1,17 @@
+{
+    "problemMatcher": [
+        {
+            "owner": "clang-tidy",
+            "pattern": [
+                {
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+(error):\\s+(.*) \\[([a-z0-9,\\-]+)\\]\\s*$",
+                    "file": 1,
+                    "line": 2,
+                    "column": 3,
+                    "severity": 4,
+                    "message": 5
+                }
+            ]
+        }
+    ]
+}

@@ -14,6 +14,9 @@ enum PIDClimateSensorType {
   PID_SENSOR_TYPE_DERIVATIVE,
   PID_SENSOR_TYPE_HEAT,
   PID_SENSOR_TYPE_COOL,
+  PID_SENSOR_TYPE_KP,
+  PID_SENSOR_TYPE_KI,
+  PID_SENSOR_TYPE_KD,
 };
 
 class PIDClimateSensor : public sensor::Sensor, public Component {

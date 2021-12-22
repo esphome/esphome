@@ -4,7 +4,7 @@
 namespace esphome {
 namespace power_supply {
 
-static const char *TAG = "power_supply";
+static const char *const TAG = "power_supply";
 
 void PowerSupply::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Power Supply...");
@@ -42,7 +42,7 @@ void PowerSupply::request_high_power() {
 void PowerSupply::unrequest_high_power() {
   this->active_requests_--;
   if (this->active_requests_ < 0) {
-    // we're just going to use 0 as our now counter.
+    // we're just going to use 0 as our new counter.
     this->active_requests_ = 0;
   }
 

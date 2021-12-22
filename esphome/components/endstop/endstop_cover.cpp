@@ -1,10 +1,11 @@
 #include "endstop_cover.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace endstop {
 
-static const char *TAG = "endstop.cover";
+static const char *const TAG = "endstop.cover";
 
 using namespace esphome::cover;
 
@@ -94,7 +95,7 @@ void EndstopCover::dump_config() {
 float EndstopCover::get_setup_priority() const { return setup_priority::DATA; }
 void EndstopCover::stop_prev_trigger_() {
   if (this->prev_command_trigger_ != nullptr) {
-    this->prev_command_trigger_->stop();
+    this->prev_command_trigger_->stop_action();
     this->prev_command_trigger_ = nullptr;
   }
 }

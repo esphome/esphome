@@ -4,7 +4,7 @@
 namespace esphome {
 namespace daikin {
 
-static const char *TAG = "daikin.climate";
+static const char *const TAG = "daikin.climate";
 
 void DaikinClimate::transmit_state() {
   uint8_t remote_state[35] = {0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0xD7, 0x11, 0xDA, 0x27, 0x00,
@@ -12,8 +12,10 @@ void DaikinClimate::transmit_state() {
                               0x00, 0x00, 0x00, 0x06, 0x60, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00};
 
   remote_state[21] = this->operation_mode_();
-  remote_state[24] = this->fan_speed_();
   remote_state[22] = this->temperature_();
+  uint16_t fan_speed = this->fan_speed_();
+  remote_state[24] = fan_speed >> 8;
+  remote_state[25] = fan_speed & 0xff;
 
   // Calculate checksum
   for (int i = 16; i < 34; i++) {
@@ -75,7 +77,7 @@ uint8_t DaikinClimate::operation_mode_() {
     case climate::CLIMATE_MODE_HEAT:
       operating_mode |= DAIKIN_MODE_HEAT;
       break;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
       operating_mode |= DAIKIN_MODE_AUTO;
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
@@ -90,25 +92,38 @@ uint8_t DaikinClimate::operation_mode_() {
   return operating_mode;
 }
 
-uint8_t DaikinClimate::fan_speed_() {
-  uint8_t fan_speed;
-  switch (this->fan_mode) {
+uint16_t DaikinClimate::fan_speed_() {
+  uint16_t fan_speed;
+  switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
-      fan_speed = DAIKIN_FAN_1;
+      fan_speed = DAIKIN_FAN_1 << 8;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      fan_speed = DAIKIN_FAN_3;
+      fan_speed = DAIKIN_FAN_3 << 8;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      fan_speed = DAIKIN_FAN_5;
+      fan_speed = DAIKIN_FAN_5 << 8;
       break;
     case climate::CLIMATE_FAN_AUTO:
     default:
-      fan_speed = DAIKIN_FAN_AUTO;
+      fan_speed = DAIKIN_FAN_AUTO << 8;
   }
 
   // If swing is enabled switch first 4 bits to 1111
-  return this->swing_mode == climate::CLIMATE_SWING_VERTICAL ? fan_speed | 0xF : fan_speed;
+  switch (this->swing_mode) {
+    case climate::CLIMATE_SWING_VERTICAL:
+      fan_speed |= 0x0F00;
+      break;
+    case climate::CLIMATE_SWING_HORIZONTAL:
+      fan_speed |= 0x000F;
+      break;
+    case climate::CLIMATE_SWING_BOTH:
+      fan_speed |= 0x0F0F;
+      break;
+    default:
+      break;
+  }
+  return fan_speed;
 }
 
 uint8_t DaikinClimate::temperature_() {
@@ -116,11 +131,11 @@ uint8_t DaikinClimate::temperature_() {
   switch (this->mode) {
     case climate::CLIMATE_MODE_FAN_ONLY:
       return 0x32;
-    case climate::CLIMATE_MODE_AUTO:
+    case climate::CLIMATE_MODE_HEAT_COOL:
     case climate::CLIMATE_MODE_DRY:
       return 0xc0;
     default:
-      uint8_t temperature = (uint8_t) roundf(clamp(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX));
+      uint8_t temperature = (uint8_t) roundf(clamp<float>(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX));
       return temperature << 1;
   }
 }
@@ -145,7 +160,7 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
         this->mode = climate::CLIMATE_MODE_HEAT;
         break;
       case DAIKIN_MODE_AUTO:
-        this->mode = climate::CLIMATE_MODE_AUTO;
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
       case DAIKIN_MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
@@ -159,13 +174,19 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
     this->target_temperature = temperature >> 1;
   }
   uint8_t fan_mode = frame[8];
-  if (fan_mode & 0xF)
+  uint8_t swing_mode = frame[9];
+  if (fan_mode & 0xF && swing_mode & 0xF)
+    this->swing_mode = climate::CLIMATE_SWING_BOTH;
+  else if (fan_mode & 0xF)
     this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+  else if (swing_mode & 0xF)
+    this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
   else
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   switch (fan_mode & 0xF0) {
     case DAIKIN_FAN_1:
     case DAIKIN_FAN_2:
+    case DAIKIN_FAN_SILENT:
       this->fan_mode = climate::CLIMATE_FAN_LOW;
       break;
     case DAIKIN_FAN_3:
@@ -210,7 +231,7 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
       // frame header
       if (byte != 0x27)
         return false;
-    } else if (pos == 3) {
+    } else if (pos == 3) {  // NOLINT(bugprone-branch-clone)
       // frame header
       if (byte != 0x00)
         return false;

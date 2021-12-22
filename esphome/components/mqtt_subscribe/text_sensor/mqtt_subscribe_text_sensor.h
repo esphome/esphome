@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_MQTT
+
 #include "esphome/core/component.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/mqtt/mqtt_client.h"
@@ -24,3 +28,5 @@ class MQTTSubscribeTextSensor : public text_sensor::TextSensor, public Component
 
 }  // namespace mqtt_subscribe
 }  // namespace esphome
+
+#endif  // USE_MQTT

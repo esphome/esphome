@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/components/web_server_base/web_server_base.h"
@@ -30,10 +32,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
  public:
   WebServer(web_server_base::WebServerBase *base) : base_(base) {}
 
-  void set_username(const char *username) { username_ = username; }
-
-  void set_password(const char *password) { password_ = password; }
-
   /** Set the URL to the CSS <link> that's sent to each client. Defaults to
    * https://esphome.io/_static/webserver-v1.min.css
    *
@@ -60,6 +58,18 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    */
   void set_js_include(const char *js_include);
 
+  /** Determine whether internal components should be displayed on the web server.
+   * Defaults to false.
+   *
+   * @param include_internal Whether internal components should be displayed.
+   */
+  void set_include_internal(bool include_internal) { include_internal_ = include_internal; }
+  /** Set whether or not the webserver should expose the OTA form and handler.
+   *
+   * @param allow_ota.
+   */
+  void set_allow_ota(bool allow_ota) { this->allow_ota_ = allow_ota; }
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup the internal web server and register handlers.
@@ -83,12 +93,10 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_js_request(AsyncWebServerRequest *request);
 #endif
 
-  bool using_auth() { return username_ != nullptr && password_ != nullptr; }
-
 #ifdef USE_SENSOR
   void on_sensor_update(sensor::Sensor *obj, float state) override;
   /// Handle a sensor request under '/sensor/<id>'.
-  void handle_sensor_request(AsyncWebServerRequest *request, UrlMatch match);
+  void handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the sensor state with its value as a JSON string.
   std::string sensor_json(sensor::Sensor *obj, float value);
@@ -98,17 +106,22 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void on_switch_update(switch_::Switch *obj, bool state) override;
 
   /// Handle a switch request under '/switch/<id>/</turn_on/turn_off/toggle>'.
-  void handle_switch_request(AsyncWebServerRequest *request, UrlMatch match);
+  void handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the switch state with its value as a JSON string.
   std::string switch_json(switch_::Switch *obj, bool value);
+#endif
+
+#ifdef USE_BUTTON
+  /// Handle a button request under '/button/<id>/press'.
+  void handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match);
 #endif
 
 #ifdef USE_BINARY_SENSOR
   void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) override;
 
   /// Handle a binary sensor request under '/binary_sensor/<id>'.
-  void handle_binary_sensor_request(AsyncWebServerRequest *request, UrlMatch match);
+  void handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the binary sensor state with its value as a JSON string.
   std::string binary_sensor_json(binary_sensor::BinarySensor *obj, bool value);
@@ -118,7 +131,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void on_fan_update(fan::FanState *obj) override;
 
   /// Handle a fan request under '/fan/<id>/</turn_on/turn_off/toggle>'.
-  void handle_fan_request(AsyncWebServerRequest *request, UrlMatch match);
+  void handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the fan state as a JSON string.
   std::string fan_json(fan::FanState *obj);
@@ -128,17 +141,17 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void on_light_update(light::LightState *obj) override;
 
   /// Handle a light request under '/light/<id>/</turn_on/turn_off/toggle>'.
-  void handle_light_request(AsyncWebServerRequest *request, UrlMatch match);
+  void handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the light state as a JSON string.
   std::string light_json(light::LightState *obj);
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  void on_text_sensor_update(text_sensor::TextSensor *obj, std::string state) override;
+  void on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) override;
 
   /// Handle a text sensor request under '/text_sensor/<id>'.
-  void handle_text_sensor_request(AsyncWebServerRequest *request, UrlMatch match);
+  void handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the text sensor state with its value as a JSON string.
   std::string text_sensor_json(text_sensor::TextSensor *obj, const std::string &value);
@@ -148,10 +161,28 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void on_cover_update(cover::Cover *obj) override;
 
   /// Handle a cover request under '/cover/<id>/<open/close/stop/set>'.
-  void handle_cover_request(AsyncWebServerRequest *request, UrlMatch match);
+  void handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the cover state as a JSON string.
   std::string cover_json(cover::Cover *obj);
+#endif
+
+#ifdef USE_NUMBER
+  void on_number_update(number::Number *obj, float state) override;
+  /// Handle a number request under '/number/<id>'.
+  void handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the number state with its value as a JSON string.
+  std::string number_json(number::Number *obj, float value);
+#endif
+
+#ifdef USE_SELECT
+  void on_select_update(select::Select *obj, const std::string &state) override;
+  /// Handle a select request under '/select/<id>'.
+  void handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the number state with its value as a JSON string.
+  std::string select_json(select::Select *obj, const std::string &value);
 #endif
 
   /// Override the web handler's canHandle method.
@@ -164,13 +195,15 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
  protected:
   web_server_base::WebServerBase *base_;
   AsyncEventSource events_{"/events"};
-  const char *username_{nullptr};
-  const char *password_{nullptr};
   const char *css_url_{nullptr};
   const char *css_include_{nullptr};
   const char *js_url_{nullptr};
   const char *js_include_{nullptr};
+  bool include_internal_{false};
+  bool allow_ota_{true};
 };
 
 }  // namespace web_server
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

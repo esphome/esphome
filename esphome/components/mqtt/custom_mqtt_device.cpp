@@ -1,10 +1,13 @@
 #include "custom_mqtt_device.h"
+
+#ifdef USE_MQTT
+
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace mqtt {
 
-static const char *TAG = "mqtt.custom";
+static const char *const TAG = "mqtt.custom";
 
 bool CustomMQTTDevice::publish(const std::string &topic, const std::string &payload, uint8_t qos, bool retain) {
   return global_mqtt_client->publish(topic, payload, qos, retain);
@@ -28,3 +31,5 @@ bool CustomMQTTDevice::is_connected() { return global_mqtt_client != nullptr && 
 
 }  // namespace mqtt
 }  // namespace esphome
+
+#endif  // USE_MQTT

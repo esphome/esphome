@@ -1,12 +1,15 @@
+#ifdef USE_ESP32
+
 #include "esp32_camera.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#include <freertos/task.h>
 
 namespace esphome {
 namespace esp32_camera {
 
-static const char *TAG = "esp32_camera";
+static const char *const TAG = "esp32_camera";
 
 void ESP32Camera::setup() {
   global_esp32_camera = this;
@@ -23,6 +26,9 @@ void ESP32Camera::setup() {
   sensor_t *s = esp_camera_sensor_get();
   s->set_vflip(s, this->vertical_flip_);
   s->set_hmirror(s, this->horizontal_mirror_);
+  s->set_aec2(s, this->aec2_);            // 0 = disable , 1 = enable
+  s->set_ae_level(s, this->ae_level_);    // -2 to 2
+  s->set_aec_value(s, this->aec_value_);  // 0 to 1200
   s->set_contrast(s, this->contrast_);
   s->set_brightness(s, this->brightness_);
   s->set_saturation(s, this->saturation_);
@@ -42,7 +48,10 @@ void ESP32Camera::dump_config() {
   auto conf = this->config_;
   ESP_LOGCONFIG(TAG, "ESP32 Camera:");
   ESP_LOGCONFIG(TAG, "  Name: %s", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "  Internal: %s", YESNO(this->internal_));
+#ifdef USE_ARDUINO
   ESP_LOGCONFIG(TAG, "  Board Has PSRAM: %s", YESNO(psramFound()));
+#endif  // USE_ARDUINO
   ESP_LOGCONFIG(TAG, "  Data Pins: D0:%d D1:%d D2:%d D3:%d D4:%d D5:%d D6:%d D7:%d", conf.pin_d0, conf.pin_d1,
                 conf.pin_d2, conf.pin_d3, conf.pin_d4, conf.pin_d5, conf.pin_d6, conf.pin_d7);
   ESP_LOGCONFIG(TAG, "  VSYNC Pin: %d", conf.pin_vsync);
@@ -54,9 +63,6 @@ void ESP32Camera::dump_config() {
   switch (this->config_.frame_size) {
     case FRAMESIZE_QQVGA:
       ESP_LOGCONFIG(TAG, "  Resolution: 160x120 (QQVGA)");
-      break;
-    case FRAMESIZE_QQVGA2:
-      ESP_LOGCONFIG(TAG, "  Resolution: 128x160 (QQVGA2)");
       break;
     case FRAMESIZE_QCIF:
       ESP_LOGCONFIG(TAG, "  Resolution: 176x155 (QCIF)");
@@ -108,9 +114,9 @@ void ESP32Camera::dump_config() {
   // ESP_LOGCONFIG(TAG, "  Auto White Balance: %u", st.awb);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance Gain: %u", st.awb_gain);
   // ESP_LOGCONFIG(TAG, "  Auto Exposure Control: %u", st.aec);
-  // ESP_LOGCONFIG(TAG, "  Auto Exposure Control 2: %u", st.aec2);
-  // ESP_LOGCONFIG(TAG, "  Auto Exposure Level: %d", st.ae_level);
-  // ESP_LOGCONFIG(TAG, "  Auto Exposure Value: %u", st.aec_value);
+  ESP_LOGCONFIG(TAG, "  Auto Exposure Control 2: %u", st.aec2);
+  ESP_LOGCONFIG(TAG, "  Auto Exposure Level: %d", st.ae_level);
+  ESP_LOGCONFIG(TAG, "  Auto Exposure Value: %u", st.aec_value);
   // ESP_LOGCONFIG(TAG, "  AGC: %u", st.agc);
   // ESP_LOGCONFIG(TAG, "  AGC Gain: %u", st.agc_gain);
   // ESP_LOGCONFIG(TAG, "  Gain Ceiling: %u", st.gainceiling);
@@ -170,7 +176,7 @@ void ESP32Camera::framebuffer_task(void *pv) {
     esp_camera_fb_return(framebuffer);
   }
 }
-ESP32Camera::ESP32Camera(const std::string &name) : Nameable(name) {
+ESP32Camera::ESP32Camera(const std::string &name) : EntityBase(name) {
   this->config_.pin_pwdn = -1;
   this->config_.pin_reset = -1;
   this->config_.pin_xclk = -1;
@@ -183,6 +189,7 @@ ESP32Camera::ESP32Camera(const std::string &name) : Nameable(name) {
 
   global_esp32_camera = this;
 }
+ESP32Camera::ESP32Camera() : ESP32Camera("") {}
 void ESP32Camera::set_data_pins(std::array<uint8_t, 8> pins) {
   this->config_.pin_d0 = pins[0];
   this->config_.pin_d1 = pins[1];
@@ -208,9 +215,6 @@ void ESP32Camera::set_frame_size(ESP32CameraFrameSize size) {
   switch (size) {
     case ESP32_CAMERA_SIZE_160X120:
       this->config_.frame_size = FRAMESIZE_QQVGA;
-      break;
-    case ESP32_CAMERA_SIZE_128X160:
-      this->config_.frame_size = FRAMESIZE_QQVGA2;
       break;
     case ESP32_CAMERA_SIZE_176X144:
       this->config_.frame_size = FRAMESIZE_QCIF;
@@ -249,6 +253,9 @@ void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<CameraIm
 }
 void ESP32Camera::set_vertical_flip(bool vertical_flip) { this->vertical_flip_ = vertical_flip; }
 void ESP32Camera::set_horizontal_mirror(bool horizontal_mirror) { this->horizontal_mirror_ = horizontal_mirror; }
+void ESP32Camera::set_aec2(bool aec2) { this->aec2_ = aec2; }
+void ESP32Camera::set_ae_level(int ae_level) { this->ae_level_ = ae_level; }
+void ESP32Camera::set_aec_value(uint32_t aec_value) { this->aec_value_ = aec_value; }
 void ESP32Camera::set_contrast(int contrast) { this->contrast_ = contrast; }
 void ESP32Camera::set_brightness(int brightness) { this->brightness_ = brightness; }
 void ESP32Camera::set_saturation(int saturation) { this->saturation_ = saturation; }
@@ -281,10 +288,10 @@ void ESP32Camera::set_idle_update_interval(uint32_t idle_update_interval) {
 }
 void ESP32Camera::set_test_pattern(bool test_pattern) { this->test_pattern_ = test_pattern; }
 
-ESP32Camera *global_esp32_camera;
+ESP32Camera *global_esp32_camera;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void CameraImageReader::set_image(std::shared_ptr<CameraImage> image) {
-  this->image_ = image;
+  this->image_ = std::move(image);
   this->offset_ = 0;
 }
 size_t CameraImageReader::available() const {

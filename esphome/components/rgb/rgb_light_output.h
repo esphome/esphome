@@ -12,15 +12,15 @@ class RGBLightOutput : public light::LightOutput {
   void set_red(output::FloatOutput *red) { red_ = red; }
   void set_green(output::FloatOutput *green) { green_ = green; }
   void set_blue(output::FloatOutput *blue) { blue_ = blue; }
+
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    traits.set_supports_brightness(true);
-    traits.set_supports_rgb(true);
+    traits.set_supported_color_modes({light::ColorMode::RGB});
     return traits;
   }
   void write_state(light::LightState *state) override {
     float red, green, blue;
-    state->current_values_as_rgb(&red, &green, &blue);
+    state->current_values_as_rgb(&red, &green, &blue, false);
     this->red_->set_level(red);
     this->green_->set_level(green);
     this->blue_->set_level(blue);

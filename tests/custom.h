@@ -49,6 +49,7 @@ class CustomNativeAPI : public Component, public CustomAPIDevice {
     register_service(&CustomNativeAPI::on_start_dryer, "start_dryer", {"value"});
     register_service(&CustomNativeAPI::on_many_values, "many_values", {"bool", "int", "float", "str1", "str2"});
     subscribe_homeassistant_state(&CustomNativeAPI::on_light_state, "light.my_light");
+    subscribe_homeassistant_state(&CustomNativeAPI::on_brightness_state, "light.my_light", "brightness");
   }
 
   void on_hello_world() { ESP_LOGD("custom_api", "Hello World from native API service!"); }
@@ -69,4 +70,5 @@ class CustomNativeAPI : public Component, public CustomAPIDevice {
     call_homeassistant_service("homeassistant.restart");
   }
   void on_light_state(std::string state) { ESP_LOGD("custom_api", "Got state %s", state.c_str()); }
+  void on_brightness_state(std::string state) { ESP_LOGD("custom_api", "Got attribute state %s", state.c_str()); }
 };

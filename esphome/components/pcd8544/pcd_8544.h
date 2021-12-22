@@ -29,9 +29,11 @@ class PCD8544 : public PollingComponent,
   const uint8_t PCD8544_SETTEMP = 0x04;
   const uint8_t PCD8544_SETBIAS = 0x10;
   const uint8_t PCD8544_SETVOP = 0x80;
+  uint8_t contrast_;
 
   void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
+  void set_contrast(uint8_t contrast) { this->contrast_ = contrast; }
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
   void command(uint8_t value);
@@ -43,7 +45,7 @@ class PCD8544 : public PollingComponent,
 
   void update() override;
 
-  void fill(int color) override;
+  void fill(Color color) override;
 
   void setup() override {
     this->setup_pins_();
@@ -51,7 +53,7 @@ class PCD8544 : public PollingComponent,
   }
 
  protected:
-  void draw_absolute_pixel_internal(int x, int y, int color) override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
   void setup_pins_();
 

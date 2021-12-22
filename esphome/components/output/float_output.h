@@ -46,8 +46,25 @@ class FloatOutput : public BinaryOutput {
    */
   void set_min_power(float min_power);
 
-  /// Set the level of this float output, this is called from the front-end.
+  /** Sets this output to ignore min_power for a 0 state
+   *
+   * @param zero True if a 0 state should mean 0 and not min_power.
+   */
+  void set_zero_means_zero(bool zero_means_zero);
+
+  /** Set the level of this float output, this is called from the front-end.
+   *
+   * @param state The new state.
+   */
   void set_level(float state);
+
+  /** Set the frequency of the output for PWM outputs.
+   *
+   * Implemented only by components which can set the output PWM frequency.
+   *
+   * @param frequence The new frequency.
+   */
+  virtual void update_frequency(float frequency) {}
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -65,6 +82,7 @@ class FloatOutput : public BinaryOutput {
 
   float max_power_{1.0f};
   float min_power_{0.0f};
+  bool zero_means_zero_;
 };
 
 }  // namespace output

@@ -4,17 +4,17 @@
 namespace esphome {
 namespace remote_base {
 
-static const char *TAG = "remote.rc_switch";
+static const char *const TAG = "remote.rc_switch";
 
-RCSwitchBase rc_switch_protocols[9] = {RCSwitchBase(0, 0, 0, 0, 0, 0, false),
-                                       RCSwitchBase(350, 10850, 350, 1050, 1050, 350, false),
-                                       RCSwitchBase(650, 6500, 650, 1300, 1300, 650, false),
-                                       RCSwitchBase(3000, 7100, 400, 1100, 900, 600, false),
-                                       RCSwitchBase(380, 2280, 380, 1140, 1140, 380, false),
-                                       RCSwitchBase(3000, 7000, 500, 1000, 1000, 500, false),
-                                       RCSwitchBase(10350, 450, 450, 900, 900, 450, true),
-                                       RCSwitchBase(300, 9300, 150, 900, 900, 150, false),
-                                       RCSwitchBase(250, 2500, 250, 1250, 250, 250, false)};
+const RCSwitchBase RC_SWITCH_PROTOCOLS[9] = {RCSwitchBase(0, 0, 0, 0, 0, 0, false),
+                                             RCSwitchBase(350, 10850, 350, 1050, 1050, 350, false),
+                                             RCSwitchBase(650, 6500, 650, 1300, 1300, 650, false),
+                                             RCSwitchBase(3000, 7100, 400, 1100, 900, 600, false),
+                                             RCSwitchBase(380, 2280, 380, 1140, 1140, 380, false),
+                                             RCSwitchBase(3000, 7000, 500, 1000, 1000, 500, false),
+                                             RCSwitchBase(10350, 450, 450, 900, 900, 450, true),
+                                             RCSwitchBase(300, 9300, 150, 900, 900, 150, false),
+                                             RCSwitchBase(250, 2500, 250, 1250, 250, 250, false)};
 
 RCSwitchBase::RCSwitchBase(uint32_t sync_high, uint32_t sync_low, uint32_t zero_high, uint32_t zero_low,
                            uint32_t one_high, uint32_t one_low, bool inverted)
@@ -55,13 +55,13 @@ void RCSwitchBase::sync(RemoteTransmitData *dst) const {
 }
 void RCSwitchBase::transmit(RemoteTransmitData *dst, uint64_t code, uint8_t len) const {
   dst->set_carrier_frequency(0);
+  this->sync(dst);
   for (int16_t i = len - 1; i >= 0; i--) {
     if (code & ((uint64_t) 1 << i))
       this->one(dst);
     else
       this->zero(dst);
   }
-  this->sync(dst);
 }
 
 bool RCSwitchBase::expect_one(RemoteReceiveData &src) const {
@@ -101,10 +101,13 @@ bool RCSwitchBase::expect_sync(RemoteReceiveData &src) const {
     if (!src.peek_space(this->sync_low_, 1))
       return false;
   } else {
-    if (!src.peek_space(this->sync_high_))
+    // We cant peek a space at the beginning because signals starts with a low to high transition.
+    // this long space at the beginning is the separation between the transmissions itself, so it is actually
+    // added at the end kind of artificially (by the value given to "idle:" option by the user in the yaml)
+    if (!src.peek_mark(this->sync_low_))
       return false;
-    if (!src.peek_mark(this->sync_low_, 1))
-      return false;
+    src.advance(1);
+    return true;
   }
   src.advance(2);
   return true;
@@ -132,7 +135,7 @@ optional<RCSwitchData> RCSwitchBase::decode(RemoteReceiveData &src) const {
   uint8_t out_nbits;
   for (uint8_t i = 1; i <= 8; i++) {
     src.reset();
-    RCSwitchBase *protocol = &rc_switch_protocols[i];
+    const RCSwitchBase *protocol = &RC_SWITCH_PROTOCOLS[i];
     if (protocol->decode(src, &out.code, &out_nbits) && out_nbits >= 3) {
       out.protocol = i;
       return out;
@@ -246,7 +249,7 @@ bool RCSwitchDumper::dump(RemoteReceiveData src) {
     src.reset();
     uint64_t out_data;
     uint8_t out_nbits;
-    RCSwitchBase *protocol = &rc_switch_protocols[i];
+    const RCSwitchBase *protocol = &RC_SWITCH_PROTOCOLS[i];
     if (protocol->decode(src, &out_data, &out_nbits) && out_nbits >= 3) {
       char buffer[65];
       for (uint8_t j = 0; j < out_nbits; j++)

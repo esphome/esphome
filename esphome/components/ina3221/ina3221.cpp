@@ -1,10 +1,11 @@
 #include "ina3221.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace ina3221 {
 
-static const char *TAG = "ina3221";
+static const char *const TAG = "ina3221";
 
 static const uint8_t INA3221_REGISTER_CONFIG = 0x00;
 static const uint8_t INA3221_REGISTER_CHANNEL1_SHUNT_VOLTAGE = 0x01;
@@ -42,7 +43,7 @@ void INA3221Component::setup() {
     config |= 0b0001000000000000;
   }
   // 0b0000xxx000000000 << 9 Averaging Mode (0 -> 1 sample, 111 -> 1024 samples)
-  config |= 0b0000111000000000;
+  config |= 0b0000000000000000;
   // 0b0000000xxx000000 << 6 Bus Voltage Conversion time (100 -> 1.1ms, 111 -> 8.244 ms)
   config |= 0b0000000111000000;
   // 0b0000000000xxx000 << 3 Shunt Voltage Conversion time (same as above)
@@ -87,7 +88,7 @@ void INA3221Component::update() {
     float bus_voltage_v = NAN, current_a = NAN;
     uint16_t raw;
     if (channel.should_measure_bus_voltage()) {
-      if (!this->read_byte_16(ina3221_bus_voltage_register(i), &raw, 1)) {
+      if (!this->read_byte_16(ina3221_bus_voltage_register(i), &raw)) {
         this->status_set_warning();
         return;
       }
@@ -96,11 +97,11 @@ void INA3221Component::update() {
         channel.bus_voltage_sensor_->publish_state(bus_voltage_v);
     }
     if (channel.should_measure_shunt_voltage()) {
-      if (!this->read_byte_16(ina3221_shunt_voltage_register(i), &raw, 1)) {
+      if (!this->read_byte_16(ina3221_shunt_voltage_register(i), &raw)) {
         this->status_set_warning();
         return;
       }
-      const float shunt_voltage_v = int16_t(raw) * 40.0f / 1000000.0f;
+      const float shunt_voltage_v = int16_t(raw) * 40.0f / 8.0f / 1000000.0f;
       if (channel.shunt_voltage_sensor_ != nullptr)
         channel.shunt_voltage_sensor_->publish_state(shunt_voltage_v);
       current_a = shunt_voltage_v / channel.shunt_resistance_;

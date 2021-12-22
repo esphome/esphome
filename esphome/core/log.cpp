@@ -46,22 +46,12 @@ void HOT esp_log_vprintf_(int level, const char *tag, int line, const __FlashStr
 }
 #endif
 
-#ifdef ARDUINO_ARCH_ESP32
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
 int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
 #ifdef USE_LOGGER
   auto *log = logger::global_logger;
   if (log == nullptr)
     return 0;
-
-  size_t len = strlen(format);
-  if (format[len - 1] == '\n') {
-    // Remove trailing newline from format
-    // Use locally stored
-    static std::string FORMAT_COPY;
-    FORMAT_COPY.clear();
-    FORMAT_COPY.insert(0, format, len - 1);
-    format = FORMAT_COPY.c_str();
-  }
 
   log->log_vprintf_(ESPHOME_LOG_LEVEL, "esp-idf", 0, format, args);
 #endif

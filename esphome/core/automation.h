@@ -17,14 +17,50 @@ namespace esphome {
 
 #define TEMPLATABLE_VALUE(type, name) TEMPLATABLE_VALUE_(type, name)
 
-#define TEMPLATABLE_STRING_VALUE_(name) \
- protected: \
-  TemplatableStringValue<Ts...> name##_{}; \
-\
- public: \
-  template<typename V> void set_##name(V name) { this->name##_ = name; }
+template<typename T, typename... X> class TemplatableValue {
+ public:
+  TemplatableValue() : type_(EMPTY) {}
 
-#define TEMPLATABLE_STRING_VALUE(name) TEMPLATABLE_STRING_VALUE_(name)
+  template<typename F, enable_if_t<!is_callable<F, X...>::value, int> = 0>
+  TemplatableValue(F value) : type_(VALUE), value_(value) {}
+
+  template<typename F, enable_if_t<is_callable<F, X...>::value, int> = 0>
+  TemplatableValue(F f) : type_(LAMBDA), f_(f) {}
+
+  bool has_value() { return this->type_ != EMPTY; }
+
+  T value(X... x) {
+    if (this->type_ == LAMBDA) {
+      return this->f_(x...);
+    }
+    // return value also when empty
+    return this->value_;
+  }
+
+  optional<T> optional_value(X... x) {
+    if (!this->has_value()) {
+      return {};
+    }
+    return this->value(x...);
+  }
+
+  T value_or(X... x, T default_value) {
+    if (!this->has_value()) {
+      return default_value;
+    }
+    return this->value(x...);
+  }
+
+ protected:
+  enum {
+    EMPTY,
+    VALUE,
+    LAMBDA,
+  } type_;
+
+  T value_{};
+  std::function<T(X...)> f_{};
+};
 
 /** Base class for all automation conditions.
  *
@@ -50,18 +86,22 @@ template<typename... Ts> class Automation;
 
 template<typename... Ts> class Trigger {
  public:
+  /// Inform the parent automation that the event has triggered.
   void trigger(Ts... x) {
     if (this->automation_parent_ == nullptr)
       return;
     this->automation_parent_->trigger(x...);
   }
   void set_automation_parent(Automation<Ts...> *automation_parent) { this->automation_parent_ = automation_parent; }
-  void stop() {
+
+  /// Stop any action connected to this trigger.
+  void stop_action() {
     if (this->automation_parent_ == nullptr)
       return;
     this->automation_parent_->stop();
   }
-  bool is_running() {
+  /// Returns true if any action connected to this trigger is running.
+  bool is_action_running() {
     if (this->automation_parent_ == nullptr)
       return false;
     return this->automation_parent_->is_running();
@@ -75,45 +115,67 @@ template<typename... Ts> class ActionList;
 
 template<typename... Ts> class Action {
  public:
-  virtual void play(Ts... x) = 0;
   virtual void play_complex(Ts... x) {
+    this->num_running_++;
     this->play(x...);
-    this->play_next(x...);
+    this->play_next_(x...);
   }
-  void play_next(Ts... x) {
-    if (this->next_ != nullptr) {
-      this->next_->play_complex(x...);
-    }
-  }
-  virtual void stop() {}
   virtual void stop_complex() {
-    this->stop();
-    this->stop_next();
-  }
-  void stop_next() {
-    if (this->next_ != nullptr) {
-      this->next_->stop_complex();
+    if (num_running_) {
+      this->stop();
+      this->num_running_ = 0;
     }
+    this->stop_next_();
   }
-  virtual bool is_running() { return this->is_running_next(); }
-  bool is_running_next() {
-    if (this->next_ == nullptr)
-      return false;
-    return this->next_->is_running();
-  }
+  /// Check if this or any of the following actions are currently running.
+  virtual bool is_running() { return this->num_running_ > 0 || this->is_running_next_(); }
 
-  void play_next_tuple(const std::tuple<Ts...> &tuple) {
-    this->play_next_tuple_(tuple, typename gens<sizeof...(Ts)>::type());
+  /// The total number of actions that are currently running in this plus any of
+  /// the following actions in the chain.
+  int num_running_total() {
+    int total = this->num_running_;
+    if (this->next_ != nullptr)
+      total += this->next_->num_running_total();
+    return total;
   }
 
  protected:
   friend ActionList<Ts...>;
 
+  virtual void play(Ts... x) = 0;
+  void play_next_(Ts... x) {
+    if (this->num_running_ > 0) {
+      this->num_running_--;
+      if (this->next_ != nullptr) {
+        this->next_->play_complex(x...);
+      }
+    }
+  }
   template<int... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, seq<S...>) {
-    this->play_next(std::get<S>(tuple)...);
+    this->play_next_(std::get<S>(tuple)...);
+  }
+  void play_next_tuple_(const std::tuple<Ts...> &tuple) {
+    this->play_next_tuple_(tuple, typename gens<sizeof...(Ts)>::type());
+  }
+
+  virtual void stop() {}
+  void stop_next_() {
+    if (this->next_ != nullptr) {
+      this->next_->stop_complex();
+    }
+  }
+
+  bool is_running_next_() {
+    if (this->next_ == nullptr)
+      return false;
+    return this->next_->is_running();
   }
 
   Action<Ts...> *next_ = nullptr;
+
+  /// The number of instances of this sequence in the list of actions
+  /// that is currently being executed.
+  int num_running_{0};
 };
 
 template<typename... Ts> class ActionList {
@@ -141,10 +203,18 @@ template<typename... Ts> class ActionList {
       this->actions_begin_->stop_complex();
   }
   bool empty() const { return this->actions_begin_ == nullptr; }
+
+  /// Check if any action in this action list is currently running.
   bool is_running() {
     if (this->actions_begin_ == nullptr)
       return false;
     return this->actions_begin_->is_running();
+  }
+  /// Return the number of actions in this action list that are currently running.
+  int num_running() {
+    if (this->actions_begin_ == nullptr)
+      return false;
+    return this->actions_begin_->num_running_total();
   }
 
  protected:
@@ -166,6 +236,9 @@ template<typename... Ts> class Automation {
   void trigger(Ts... x) { this->actions_.play(x...); }
 
   bool is_running() { return this->actions_.is_running(); }
+
+  /// Return the number of actions in the action part of this automation that are currently running.
+  int num_running() { return this->actions_.num_running(); }
 
  protected:
   Trigger<Ts...> *trigger_;

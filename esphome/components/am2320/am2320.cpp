@@ -5,11 +5,12 @@
 
 #include "am2320.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace am2320 {
 
-static const char *TAG = "am2320";
+static const char *const TAG = "am2320";
 
 // ---=== Calc CRC16 ===---
 uint16_t crc_16(uint8_t *ptr, uint8_t length) {
@@ -37,9 +38,9 @@ void AM2320Component::update() {
     return;
   }
 
-  float temperature = (((data[4] & 0x7F) << 8) + data[5]) / 10.0;
+  float temperature = (((data[4] & 0x7F) << 8) + data[5]) / 10.0f;
   temperature = (data[4] & 0x80) ? -temperature : temperature;
-  float humidity = ((data[2] << 8) + data[3]) / 10.0;
+  float humidity = ((data[2] << 8) + data[3]) / 10.0f;
 
   ESP_LOGD(TAG, "Got temperature=%.1f°C humidity=%.1f%%", temperature, humidity);
   if (this->temperature_sensor_ != nullptr)
@@ -77,7 +78,7 @@ bool AM2320Component::read_bytes_(uint8_t a_register, uint8_t *data, uint8_t len
 
   if (conversion > 0)
     delay(conversion);
-  return this->parent_->raw_receive(this->address_, data, len);
+  return this->read(data, len) == i2c::ERROR_OK;
 }
 
 bool AM2320Component::read_data_(uint8_t *data) {

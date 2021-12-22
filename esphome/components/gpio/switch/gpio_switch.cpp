@@ -4,7 +4,7 @@
 namespace esphome {
 namespace gpio {
 
-static const char *TAG = "switch.gpio";
+static const char *const TAG = "switch.gpio";
 
 float GPIOSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 void GPIOSwitch::setup() {
@@ -17,6 +17,12 @@ void GPIOSwitch::setup() {
       break;
     case GPIO_SWITCH_RESTORE_DEFAULT_ON:
       initial_state = this->get_initial_state().value_or(true);
+      break;
+    case GPIO_SWITCH_RESTORE_INVERTED_DEFAULT_OFF:
+      initial_state = !this->get_initial_state().value_or(true);
+      break;
+    case GPIO_SWITCH_RESTORE_INVERTED_DEFAULT_ON:
+      initial_state = !this->get_initial_state().value_or(false);
       break;
     case GPIO_SWITCH_ALWAYS_OFF:
       initial_state = false;
@@ -41,22 +47,28 @@ void GPIOSwitch::setup() {
 void GPIOSwitch::dump_config() {
   LOG_SWITCH("", "GPIO Switch", this);
   LOG_PIN("  Pin: ", this->pin_);
-  const char *restore_mode = "";
+  const LogString *restore_mode = LOG_STR("");
   switch (this->restore_mode_) {
     case GPIO_SWITCH_RESTORE_DEFAULT_OFF:
-      restore_mode = "Restore (Defaults to OFF)";
+      restore_mode = LOG_STR("Restore (Defaults to OFF)");
       break;
     case GPIO_SWITCH_RESTORE_DEFAULT_ON:
-      restore_mode = "Restore (Defaults to ON)";
+      restore_mode = LOG_STR("Restore (Defaults to ON)");
+      break;
+    case GPIO_SWITCH_RESTORE_INVERTED_DEFAULT_ON:
+      restore_mode = LOG_STR("Restore inverted (Defaults to ON)");
+      break;
+    case GPIO_SWITCH_RESTORE_INVERTED_DEFAULT_OFF:
+      restore_mode = LOG_STR("Restore inverted (Defaults to OFF)");
       break;
     case GPIO_SWITCH_ALWAYS_OFF:
-      restore_mode = "Always OFF";
+      restore_mode = LOG_STR("Always OFF");
       break;
     case GPIO_SWITCH_ALWAYS_ON:
-      restore_mode = "Always ON";
+      restore_mode = LOG_STR("Always ON");
       break;
   }
-  ESP_LOGCONFIG(TAG, "  Restore Mode: %s", restore_mode);
+  ESP_LOGCONFIG(TAG, "  Restore Mode: %s", LOG_STR_ARG(restore_mode));
   if (!this->interlock_.empty()) {
     ESP_LOGCONFIG(TAG, "  Interlocks:");
     for (auto *lock : this->interlock_) {

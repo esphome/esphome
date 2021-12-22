@@ -5,7 +5,7 @@
 namespace esphome {
 namespace pid {
 
-static const char *TAG = "pid.sensor";
+static const char *const TAG = "pid.sensor";
 
 void PIDClimateSensor::setup() {
   this->parent_->add_on_pid_computed_callback([this]() { this->update_from_parent_(); });
@@ -35,6 +35,18 @@ void PIDClimateSensor::update_from_parent_() {
     case PID_SENSOR_TYPE_COOL:
       value = clamp(-this->parent_->get_output_value(), 0.0f, 1.0f);
       break;
+    case PID_SENSOR_TYPE_KP:
+      value = this->parent_->get_kp();
+      this->publish_state(value);
+      return;
+    case PID_SENSOR_TYPE_KI:
+      value = this->parent_->get_ki();
+      this->publish_state(value);
+      return;
+    case PID_SENSOR_TYPE_KD:
+      value = this->parent_->get_kd();
+      this->publish_state(value);
+      return;
     default:
       value = NAN;
       break;

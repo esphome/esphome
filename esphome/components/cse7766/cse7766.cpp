@@ -4,7 +4,7 @@
 namespace esphome {
 namespace cse7766 {
 
-static const char *TAG = "cse7766";
+static const char *const TAG = "cse7766";
 
 void CSE7766Component::loop() {
   const uint32_t now = millis();
@@ -90,6 +90,7 @@ void CSE7766Component::parse_data_() {
   uint32_t power_cycle = this->get_24_bit_uint_(17);
 
   uint8_t adj = this->raw_data_[20];
+  uint32_t cf_pulses = (this->raw_data_[21] << 8) + this->raw_data_[22];
 
   bool power_ok = true;
   bool voltage_ok = true;
@@ -127,6 +128,18 @@ void CSE7766Component::parse_data_() {
     power = power_calib / float(power_cycle);
     this->power_acc_ += power;
     this->power_counts_ += 1;
+
+    uint32_t difference;
+    if (this->cf_pulses_last_ == 0)
+      this->cf_pulses_last_ = cf_pulses;
+
+    if (cf_pulses < this->cf_pulses_last_) {
+      difference = cf_pulses + (0x10000 - this->cf_pulses_last_);
+    } else {
+      difference = cf_pulses - this->cf_pulses_last_;
+    }
+    this->cf_pulses_last_ = cf_pulses;
+    this->energy_total_ += difference * float(power_calib) / 1000000.0 / 3600.0;
   }
 
   if ((adj & 0x20) == 0x20 && current_ok && voltage_ok && power != 0.0) {
@@ -136,9 +149,9 @@ void CSE7766Component::parse_data_() {
   }
 }
 void CSE7766Component::update() {
-  float voltage = this->voltage_counts_ > 0 ? this->voltage_acc_ / this->voltage_counts_ : 0.0;
-  float current = this->current_counts_ > 0 ? this->current_acc_ / this->current_counts_ : 0.0;
-  float power = this->power_counts_ > 0 ? this->power_acc_ / this->power_counts_ : 0.0;
+  float voltage = this->voltage_counts_ > 0 ? this->voltage_acc_ / this->voltage_counts_ : 0.0f;
+  float current = this->current_counts_ > 0 ? this->current_acc_ / this->current_counts_ : 0.0f;
+  float power = this->power_counts_ > 0 ? this->power_acc_ / this->power_counts_ : 0.0f;
 
   ESP_LOGV(TAG, "Got voltage_acc=%.2f current_acc=%.2f power_acc=%.2f", this->voltage_acc_, this->current_acc_,
            this->power_acc_);
@@ -152,6 +165,8 @@ void CSE7766Component::update() {
     this->current_sensor_->publish_state(current);
   if (this->power_sensor_ != nullptr)
     this->power_sensor_->publish_state(power);
+  if (this->energy_sensor_ != nullptr)
+    this->energy_sensor_->publish_state(this->energy_total_);
 
   this->voltage_acc_ = 0.0f;
   this->current_acc_ = 0.0f;
@@ -172,6 +187,7 @@ void CSE7766Component::dump_config() {
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
+  LOG_SENSOR("  ", "Energy", this->energy_sensor_);
   this->check_uart_settings(4800);
 }
 

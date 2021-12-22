@@ -4,7 +4,15 @@
 namespace esphome {
 namespace pzem004t {
 
-static const char *TAG = "pzem004t";
+static const char *const TAG = "pzem004t";
+
+void PZEM004T::setup() {
+  // Clear UART buffer
+  while (this->available())
+    this->read();
+  // Set module address
+  this->write_state_(SET_ADDRESS);
+}
 
 void PZEM004T::loop() {
   const uint32_t now = millis();
@@ -59,11 +67,19 @@ void PZEM004T::loop() {
         if (this->power_sensor_ != nullptr)
           this->power_sensor_->publish_state(power);
         ESP_LOGD(TAG, "Got Power %u W", power);
+        this->write_state_(READ_ENERGY);
+        break;
+      }
+
+      case 0xA3: {  // Energy Response
+        uint32_t energy = (uint32_t(resp[1]) << 16) | (uint32_t(resp[2]) << 8) | (uint32_t(resp[3]));
+        if (this->energy_sensor_ != nullptr)
+          this->energy_sensor_->publish_state(energy);
+        ESP_LOGD(TAG, "Got Energy %u Wh", energy);
         this->write_state_(DONE);
         break;
       }
 
-      case 0xA3:  // Energy Response
       case 0xA5:  // Set Power Alarm Response
       case 0xB0:  // Voltage Request
       case 0xB1:  // Current Request

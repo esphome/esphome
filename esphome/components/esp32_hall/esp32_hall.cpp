@@ -1,16 +1,18 @@
+#ifdef USE_ESP32
 #include "esp32_hall.h"
 #include "esphome/core/log.h"
-#include "esphome/core/esphal.h"
-
-#ifdef ARDUINO_ARCH_ESP32
+#include "esphome/core/hal.h"
+#include <driver/adc.h>
 
 namespace esphome {
 namespace esp32_hall {
 
-static const char *TAG = "esp32_hall";
+static const char *const TAG = "esp32_hall";
 
 void ESP32HallSensor::update() {
-  float value = (hallRead() / 4095.0f) * 10000.0f;
+  adc1_config_width(ADC_WIDTH_BIT_12);
+  int value_int = hall_sensor_read();
+  float value = (value_int / 4095.0f) * 10000.0f;
   ESP_LOGD(TAG, "'%s': Got reading %.0f µT", this->name_.c_str(), value);
   this->publish_state(value);
 }
