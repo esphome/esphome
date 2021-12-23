@@ -55,9 +55,9 @@ def small_distance(value):
 #
 CONF_SUPPORTED_TANKS_MAP = {
     TANK_TYPE_CUSTOM: (0, 100),
-    "20LB_V": (20, 302),  # empty/full readings for 20lb tank
-    "30LB_V": (20, 410),
-    "40LB_V": (20, 450),
+    "20LB_V": (38, 254),  # empty/full readings for 20lb US tank
+    "30LB_V": (38, 381),
+    "40LB_V": (38, 508),
 }
 
 CODEOWNERS = ["@spbrogan"]
