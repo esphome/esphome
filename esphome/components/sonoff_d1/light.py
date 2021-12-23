@@ -28,6 +28,9 @@ CONFIG_SCHEMA = (
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
 )
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "sonoff_d1", baud_rate=9600, require_tx=True, require_rx=True
+)
 
 
 async def to_code(config):
