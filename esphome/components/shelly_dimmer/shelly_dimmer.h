@@ -1,7 +1,6 @@
 #include <HardwareSerial.h>
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
 #include "esphome/core/log.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/sensor/sensor.h"
@@ -17,7 +16,7 @@ public:
 
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    traits.set_supports_brightness(true);
+    traits.set_supported_color_modes({light::ColorMode::BRIGHTNESS});
     return traits;
   }
 
