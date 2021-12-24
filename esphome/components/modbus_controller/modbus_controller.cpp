@@ -167,97 +167,106 @@ void ModbusController::update() {
 // walk through the sensors and determine the registerranges to read
 size_t ModbusController::create_register_ranges_() {
   register_ranges_.clear();
-  uint8_t n = 0;
   if (sensormap_.empty()) {
+    ESP_LOGW(TAG, "No sensors registered");
     return 0;
   }
 
   auto ix = sensormap_.begin();
-  auto prev = ix;
-  int total_register_count = 0;
-  uint16_t current_start_address = ix->second->start_address;
-  uint8_t buffer_offset = ix->second->offset;
-  uint8_t skip_updates = ix->second->skip_updates;
-  auto first_sensorkey = ix->second->getkey();
-  while (ix != sensormap_.end()) {
-    ESP_LOGV(TAG, "Register: 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X) skip=%u", ix->second->start_address,
-             ix->second->register_count, ix->second->offset, ix->second->getkey(), total_register_count, buffer_offset,
-             buffer_offset, ix->second->skip_updates);
-    // if this is a sequential address based on number of registers and address of previous sensor
-    // convert to an offset to the previous sensor (address 0x101 becomes address 0x100 offset 2 bytes)
-    if (!ix->second->force_new_range && prev->second->register_type == ix->second->register_type &&
-        prev->second->start_address + total_register_count == ix->second->start_address &&
-        prev->second->start_address < ix->second->start_address) {
-      ix->second->start_address = prev->second->start_address;
-      ix->second->offset += prev->second->offset + prev->second->get_register_size();
+  SensorItem *curr = ix->second;
+  SensorItem *prev = nullptr;
 
-      // replace entry in sensormap_
-      auto const value = ix->second;
-      sensormap_.erase(ix);
-      sensormap_.insert({value->getkey(), value});
-      // move iterator back to new element
-      ix = sensormap_.find(value->getkey());  // next(prev, 1);
-    }
-    if (current_start_address != ix->second->start_address ||
-        //  ( prev->second->start_address + prev->second->offset != ix->second->start_address) ||
-        ix->second->register_type != prev->second->register_type) {
-      // Difference doesn't match so we have a gap
-      if (n > 0) {
-        RegisterRange r;
-        r.start_address = current_start_address;
-        r.register_count = total_register_count;
-        if (prev->second->register_type == ModbusRegisterType::COIL ||
-            prev->second->register_type == ModbusRegisterType::DISCRETE_INPUT) {
-          r.register_count = prev->second->offset + 1;
+  RegisterRange r;
+  uint8_t buffer_offset = 0;
+  while (ix != sensormap_.end()) {
+    ESP_LOGV(TAG, "Register: 0x%X %d %d  key=0x%llx skip=%u", curr->start_address, curr->register_count, curr->offset,
+             curr->getkey(), curr->skip_updates);
+
+    if (prev == nullptr) {
+      // first register in range
+      r.start_address = curr->start_address;
+      r.register_count = curr->register_count;
+      // if (prev->register_type == ModbusRegisterType::COIL || prev->register_type ==
+      // ModbusRegisterType::DISCRETE_INPUT) {
+      //   r.register_count = prev->offset + 1;
+      // }
+      r.register_type = curr->register_type;
+      r.first_sensorkey = curr->getkey();
+      r.skip_updates = curr->skip_updates;
+      r.skip_updates_counter = 0;
+      buffer_offset = curr->get_register_size();
+
+      ESP_LOGV(TAG, "Start range - change to register: 0x%X %d %d", curr->start_address, curr->register_count,
+               curr->offset);
+    } else {
+      bool close_range = false;
+
+      if (curr->force_new_range || r.register_type != curr->register_type) {
+        close_range = true;
+      }
+
+      if (!close_range && curr->start_address <= (r.start_address + r.register_count)) {
+        // this sensor can be attached to the current range
+
+        sensormap_.erase(ix);
+        uint16_t additional_register_count =
+            (curr->start_address + curr->register_count) - (r.start_address + r.register_count);
+        curr->start_address = r.start_address;
+
+        if (additional_register_count == curr->register_count) {
+          // joing to previous register
+          r.register_count += curr->register_count;
+          curr->offset += buffer_offset;
+          buffer_offset += curr->get_register_size();
+        } else {
+          // re-use previous register maybe extend range
+          size_t size_of_register = curr->get_register_size() / curr->register_count;
+          r.register_count += additional_register_count;
+          buffer_offset += additional_register_count * size_of_register;
+          curr->offset = buffer_offset - curr->get_register_size();
         }
-        r.register_type = prev->second->register_type;
-        r.first_sensorkey = first_sensorkey;
-        r.skip_updates = skip_updates;
-        r.skip_updates_counter = 0;
+
+        sensormap_.insert({curr->getkey(), curr});
+
+        ESP_LOGV(TAG, "Attach to range - change to register: 0x%X %d %d", curr->start_address, curr->register_count,
+                 curr->offset);
+      }
+
+      if (curr->start_address != r.start_address) {
+        close_range = true;
+      }
+
+      if (close_range) {
         ESP_LOGV(TAG, "Add range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
         register_ranges_.push_back(r);
+        prev = nullptr;
+        r = {};
+        buffer_offset = 0;
+        continue;  // re-evaluate current register without incrementing iterator
       }
-      skip_updates = ix->second->skip_updates;
-      current_start_address = ix->second->start_address;
-      first_sensorkey = ix->second->getkey();
-      total_register_count = ix->second->register_count;
-      buffer_offset = ix->second->offset;
-      n = 1;
-    } else {
-      n++;
-      if (ix->second->offset != prev->second->offset || n == 1) {
-        total_register_count += ix->second->register_count;
-        buffer_offset += ix->second->get_register_size();
-      }
+
       // use the lowest non zero value for the whole range
       // Because zero is the default value for skip_updates it is excluded from getting the min value.
-      if (ix->second->skip_updates != 0) {
-        if (skip_updates != 0) {
-          skip_updates = std::min(skip_updates, ix->second->skip_updates);
+      if (curr->skip_updates != 0) {
+        if (r.skip_updates != 0) {
+          r.skip_updates = std::min(r.skip_updates, curr->skip_updates);
         } else {
-          skip_updates = ix->second->skip_updates;
+          r.skip_updates = curr->skip_updates;
         }
       }
     }
-    prev = ix++;
+
+    ix++;
+    prev = curr;
+    curr = ix->second;
   }
-  // Add the last range
-  if (n > 0) {
-    RegisterRange r;
-    r.start_address = current_start_address;
-    //    r.register_count = prev->second->offset>>1 + prev->second->get_register_size();
-    r.register_count = total_register_count;
-    if (prev->second->register_type == ModbusRegisterType::COIL ||
-        prev->second->register_type == ModbusRegisterType::DISCRETE_INPUT) {
-      r.register_count = prev->second->offset + 1;
-    }
-    r.register_type = prev->second->register_type;
-    r.first_sensorkey = first_sensorkey;
-    r.skip_updates = skip_updates;
-    r.skip_updates_counter = 0;
+
+  if (r.register_count > 0) {
+    // Add the last range
     ESP_LOGV(TAG, "Add last range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
     register_ranges_.push_back(r);
   }
+
   return register_ranges_.size();
 }
 
