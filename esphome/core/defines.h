@@ -30,6 +30,7 @@
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_CALLBACK
 #define USE_POWER_SUPPLY
+#define USE_QR_CODE
 #define USE_SELECT
 #define USE_SENSOR
 #define USE_STATUS_LED

@@ -14,6 +14,10 @@
 #include "esphome/components/graph/graph.h"
 #endif
 
+#ifdef USE_QR_CODE
+#include "esphome/components/qr_code/qr_code.h"
+#endif
+
 namespace esphome {
 namespace display {
 
@@ -301,6 +305,17 @@ class DisplayBuffer {
    */
   void legend(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON);
 #endif  // USE_GRAPH
+
+#ifdef USE_QR_CODE
+  /** Draw the `qr_code` with the top-left corner at [x,y] to the screen.
+   *
+   * @param x The x coordinate of the upper left corner.
+   * @param y The y coordinate of the upper left corner.
+   * @param qr_code The qr_code to draw
+   * @param color_on The color to replace in binary images for the on bits.
+   */
+  void qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on = COLOR_ON);
+#endif
 
   /** Get the text bounds of the given string.
    *

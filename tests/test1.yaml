@@ -2139,6 +2139,7 @@ display:
     pages:
       - id: page1
         lambda: |-
+          it.qr_code(0, 0, id(homepage_qr));
           it.rectangle(0, 0, it.get_width(), it.get_height());
       - id: page2
         lambda: |-
@@ -2537,3 +2538,7 @@ select:
       - one
       - two
     optimistic: true
+
+qr_code:
+  - id: homepage_qr
+    value: https://esphome.io/index.html
