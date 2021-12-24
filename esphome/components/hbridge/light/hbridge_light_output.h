@@ -4,17 +4,15 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/core/log.h"
+#include "esphome/components/hbridge/hbridge.h"
 
 namespace esphome {
 namespace hbridge {
 
 // Using PollingComponent as the updates are more consistent and reduces flickering
-class HBridgeLightOutput : public PollingComponent, public light::LightOutput {
+class HBridgeLightOutput : public PollingComponent, public light::LightOutput, public hbridge::HBridge {
  public:
   HBridgeLightOutput() : PollingComponent(1) {}
-
-  void set_pina_pin(output::FloatOutput *pina_pin) { pina_pin_ = pina_pin; }
-  void set_pinb_pin(output::FloatOutput *pinb_pin) { pinb_pin_ = pinb_pin; }
 
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
@@ -24,34 +22,39 @@ class HBridgeLightOutput : public PollingComponent, public light::LightOutput {
     return traits;
   }
 
-  void setup() override { this->forward_direction_ = false; }
+  void setup() override { 
+    this->direction_a_update_ = false; 
+    HBridge::setup();
+  }
+
+  void loop() override { 
+    HBridge::loop();
+  }
 
   void update() override {
     // This method runs around 60 times per second
     // We cannot do the PWM ourselves so we are reliant on the hardware PWM
-    if (!this->forward_direction_) {  // First LED Direction
-      this->pina_pin_->set_level(this->pina_duty_);
-      this->pinb_pin_->set_level(0);
-      this->forward_direction_ = true;
+
+    //Alternate updating/flashing each light direction
+    if (!this->direction_a_update_) {  // First LED Direction
+      hbridge_set_output_state(HBRIDGE_MODE_DIRECTION_A, this->light_direction_a_duty_); //Use protected function to prevent a flood of debug prints
+      this->direction_a_update_ = true;
     } else {  // Second LED Direction
-      this->pina_pin_->set_level(0);
-      this->pinb_pin_->set_level(this->pinb_duty_);
-      this->forward_direction_ = false;
+      hbridge_set_output_state(HBRIDGE_MODE_DIRECTION_B, this->light_direction_b_duty_); //Use protected function to prevent a flood of debug prints
+      this->direction_a_update_ = false;
     }
   }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void write_state(light::LightState *state) override {
-    state->current_values_as_cwww(&this->pina_duty_, &this->pinb_duty_, false);
+    state->current_values_as_cwww(&this->light_direction_a_duty_, &this->light_direction_b_duty_, false);
   }
 
  protected:
-  output::FloatOutput *pina_pin_;
-  output::FloatOutput *pinb_pin_;
-  float pina_duty_ = 0;
-  float pinb_duty_ = 0;
-  bool forward_direction_ = false;
+  float light_direction_a_duty_ = 0;
+  float light_direction_b_duty_ = 0;
+  bool direction_a_update_ = false;
 };
 
 }  // namespace hbridge
