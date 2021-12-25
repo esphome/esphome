@@ -1,9 +1,10 @@
+#include "esphome/core/defines.h"
 #include "shelly_dimmer.h"
-#include "firmware_v515.h"
 #include "stm32flash.h"
 
 namespace esphome {
 namespace shelly {
+
 
 static const char *TAG = "shelly";
 
@@ -27,6 +28,9 @@ static const uint8_t SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE = 2;
 static const uint8_t SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE = 10;
 static const uint8_t SHELLY_DIMMER_PROTO_MAX_FRAME_SIZE = 4 + 72 + 3;
 
+// STM Firmware
+const uint8_t stm_firmware[] PROGMEM = SHD_FIRMWARE_DATA;
+
 /// Computes a crappy checksum as defined by the Shelly Dimmer protocol.
 uint16_t shelly_dimmer_checksum(uint8_t *buf, int len) {
   uint16_t sum = 0;
@@ -42,11 +46,15 @@ void ShellyDimmer::setup() {
   this->pin_boot0_->setup();
   this->serial_ = &Serial;
 
+  ESP_LOGI(TAG, "Initializing Shelly Dimmer...");
+
   // Reset the STM32 and check the firmware version.
   for (int i = 0; i < 2; i++) {
     this->reset_normal_boot_();
     this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, 0, 0);
-    ESP_LOGI(TAG, "STM32 firmware version: %d.%d", this->version_major_, this->version_minor_);
+    ESP_LOGI(TAG, "STM32 current firmware version: %d.%d, desired version: %d,%d",
+        this->version_major_, this->version_minor_, 
+        SHD_FIRMWARE_MAJOR_VERSION, SHD_FIRMWARE_MINOR_VERSION);
     if (this->version_major_ != SHD_FIRMWARE_MAJOR_VERSION ||
         this->version_minor_ != SHD_FIRMWARE_MINOR_VERSION) {
       // Update firmware if needed.

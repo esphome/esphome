@@ -1,47 +1,75 @@
+from pathlib import Path
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import light, sensor
-from esphome.const import CONF_OUTPUT_ID, CONF_GAMMA_CORRECT, \
-    CONF_POWER, CONF_VOLTAGE, CONF_CURRENT, UNIT_VOLT, \
-    ICON_FLASH, UNIT_AMPERE, UNIT_WATT
+from esphome.const import (
+    CONF_OUTPUT_ID,
+    CONF_GAMMA_CORRECT,
+    CONF_POWER,
+    CONF_VOLTAGE,
+    CONF_CURRENT,
+    UNIT_VOLT,
+    ICON_FLASH,
+    UNIT_AMPERE,
+    UNIT_WATT,
+)
+from esphome.core import CORE, HexInt
 
-DEPENDENCIES = ['sensor']
 
-shelly_ns = cg.esphome_ns.namespace('shelly')
-ShellyDimmer = shelly_ns.class_('ShellyDimmer', light.LightOutput, cg.Component)
+DEPENDENCIES = ["sensor"]
 
-CONF_LEADING_EDGE = 'leading_edge'
-CONF_WARMUP_BRIGHTNESS = 'warmup_brightness'
-CONF_WARMUP_TIME = 'warmup_time'
-CONF_MIN_BRIGHTNESS = 'min_brightness'
-CONF_MAX_BRIGHTNESS = 'max_brightness'
+shelly_ns = cg.esphome_ns.namespace("shelly")
+ShellyDimmer = shelly_ns.class_("ShellyDimmer", light.LightOutput, cg.Component)
 
-CONF_NRST_PIN = 'nrst_pin'
-CONF_BOOT0_PIN = 'boot0_pin'
+CONF_FIRMWARE_VERSION = "firmware"
 
-CONFIG_SCHEMA = light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend({
-    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ShellyDimmer),
+FIRMWARE_MAPPING = {
+    "51.5": (51, 5, "shelly-dimmer-stm32_v51.5.bin"),
+    "51.6": (51, 6, "shelly-dimmer-stm32_v51.6.bin"),
+}
 
-    cv.Optional(CONF_NRST_PIN, default='GPIO5'): pins.gpio_output_pin_schema,
-    cv.Optional(CONF_BOOT0_PIN, default='GPIO4'): pins.gpio_output_pin_schema,
 
-    cv.Optional(CONF_LEADING_EDGE, default=False): cv.boolean,
-    cv.Optional(CONF_WARMUP_BRIGHTNESS, default=100): cv.uint16_t,
-    cv.Optional(CONF_WARMUP_TIME, default=20): cv.uint16_t,
-    cv.Optional(CONF_MIN_BRIGHTNESS, default=0): cv.uint16_t,
-    cv.Optional(CONF_MAX_BRIGHTNESS, default=1000): cv.uint16_t,
+CONF_LEADING_EDGE = "leading_edge"
+CONF_WARMUP_BRIGHTNESS = "warmup_brightness"
+CONF_WARMUP_TIME = "warmup_time"
+CONF_MIN_BRIGHTNESS = "min_brightness"
+CONF_MAX_BRIGHTNESS = "max_brightness"
 
-    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1),
-    cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
-    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
+CONF_NRST_PIN = "nrst_pin"
+CONF_BOOT0_PIN = "boot0_pin"
 
-    # Change the default gamma_correct setting.
-    cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
-}).extend(cv.COMPONENT_SCHEMA)
+
+CONFIG_SCHEMA = light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
+    {
+        cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ShellyDimmer),
+        cv.Optional(CONF_FIRMWARE_VERSION, default="51.5"): cv.enum(FIRMWARE_MAPPING),
+        cv.Optional(CONF_NRST_PIN, default="GPIO5"): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_BOOT0_PIN, default="GPIO4"): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_LEADING_EDGE, default=False): cv.boolean,
+        cv.Optional(CONF_WARMUP_BRIGHTNESS, default=100): cv.uint16_t,
+        cv.Optional(CONF_WARMUP_TIME, default=20): cv.uint16_t,
+        cv.Optional(CONF_MIN_BRIGHTNESS, default=0): cv.uint16_t,
+        cv.Optional(CONF_MAX_BRIGHTNESS, default=1000): cv.uint16_t,
+        cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1),
+        cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
+        cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
+        # Change the default gamma_correct setting.
+        cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
+    fw_major, fw_minor, fw_file = config[CONF_FIRMWARE_VERSION].enum_value
+    firmware_path = (Path(__file__).parent / fw_file).resolve()
+    firmware_data = Path(firmware_path).read_bytes()
+    hexdata = [HexInt(x) for x in firmware_data]
+    cg.add_define("SHD_FIRMWARE_DATA", hexdata)
+    cg.add_define("SHD_FIRMWARE_MAJOR_VERSION", fw_major)
+    cg.add_define("SHD_FIRMWARE_MINOR_VERSION", fw_minor)
+
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     yield cg.register_component(var, config)
     yield light.register_light(var, config)
@@ -63,4 +91,5 @@ def to_code(config):
 
         conf = config[key]
         sens = yield sensor.new_sensor(conf)
-        cg.add(getattr(var, f'set_{key}_sensor')(sens))
+        cg.add(getattr(var, f"set_{key}_sensor")(sens))
+

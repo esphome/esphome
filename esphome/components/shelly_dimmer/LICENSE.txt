@@ -1,0 +1,2 @@
+The firmware files for the STM microcontroller (shelly-dimmer-stm32_*.bin) are taken from
+https://github.com/jamesturton/shelly-dimmer-stm32 and GPLv3 licensed.
