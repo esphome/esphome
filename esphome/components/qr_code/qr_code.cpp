@@ -48,10 +48,10 @@ void QrCode::draw(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_of
     this->needs_update_ = false;
   }
 
-  uint8_t qrcodeWidth = this->qr_.getSize();
+  uint8_t qrcode_width = this->qr_.getSize();
 
-  for (int y = 0; y < qrcodeWidth * this->scale_; y++) {
-    for (int x = 0; x < qrcodeWidth * this->scale_; x++) {
+  for (int y = 0; y < qrcode_width * this->scale_; y++) {
+    for (int x = 0; x < qrcode_width * this->scale_; x++) {
       if (this->qr_.getModule(x / this->scale_, y / this->scale_)) {
         buff->draw_pixel_at(x_offset + x, y_offset + y, color);
       }
@@ -60,8 +60,3 @@ void QrCode::draw(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_of
 }
 }  // namespace qr_code
 }  // namespace esphome
-
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#define HIGH 0x1
-#define LOW 0x0
-#endif

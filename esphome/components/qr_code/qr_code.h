@@ -1,8 +1,8 @@
 #pragma once
 #include "esphome/core/component.h"
 #include "esphome/core/color.h"
-#include <stdbool.h>
-#include <stdint.h>
+
+#include <cstdint>
 
 // The definition of these macro must be temporarily disabled to avoid conflicts
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
@@ -50,9 +50,3 @@ class QrCode : public Component {
 };
 }  // namespace qr_code
 }  // namespace esphome
-
-// Redefine the macros to their original values
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#define HIGH 0x1
-#define LOW 0x0
-#endif
