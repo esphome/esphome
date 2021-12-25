@@ -1,3 +1,4 @@
+#pragma once
 #include <HardwareSerial.h>
 
 #include "esphome/core/component.h"
@@ -6,7 +7,7 @@
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
-namespace shelly {
+namespace shelly_dimmer {
 
 class ShellyDimmer : public Component, public light::LightOutput {
 public:

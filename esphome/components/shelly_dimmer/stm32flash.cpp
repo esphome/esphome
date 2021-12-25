@@ -18,6 +18,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
+#pragma once
 #include <stdint.h>
 #include <Arduino.h>
 
@@ -26,9 +27,13 @@
 
 #include "dev_table.h"
 
-#define STM32_ACK	0x79
-#define STM32_NACK	0x1F
-#define STM32_BUSY	0x76
+
+namespace esphome {
+namespace shelly_dimmer {
+
+static const uint8_t STM32_ACK = 0x79; 
+static const uint8_t STM32_NACK = 0x1F;
+static const uint8_t STM32_BUSY = 0x76;
 
 #define STM32_CMD_INIT	0x7F
 #define STM32_CMD_GET	0x00	/* get the version and command supported */
@@ -248,7 +253,7 @@ static stm32_err_t stm32_resync(const stm32_t *stm)
 	while (t1 < t0 + STM32_RESYNC_TIMEOUT) {
 		ret = stream->write(buf, 2);
 		if (ret == 0) {
-			delay(500000);
+			delay(500000);// NOLINT
 			t1 = millis();
 			continue;
 		}
@@ -1080,7 +1085,7 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address,
  * libraries, so here is a simple not optimized implementation.
  */
 #define CRCPOLY_BE	0x04c11db7
-#define CRC_MSBMASK	0x80000000
+static const uint8_t CRC_MSBMASK = 0x80000000
 #define CRC_INIT_VALUE	0xFFFFFFFF
 uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len)
 {
@@ -1148,4 +1153,6 @@ stm32_err_t stm32_crc_wrapper(const stm32_t *stm, uint32_t address,
 	DEBUG_MSG(TAG, "Done.");
 	*crc = current_crc;
 	return STM32_ERR_OK;
+}
+}
 }

@@ -17,18 +17,24 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
-
+#pragma once
 #include "stm32flash.h"
 
-#define SZ_128	0x00000080
-#define SZ_256	0x00000100
-#define SZ_1K	0x00000400
-#define SZ_2K	0x00000800
-#define SZ_16K	0x00004000
-#define SZ_32K	0x00008000
-#define SZ_64K	0x00010000
-#define SZ_128K	0x00020000
-#define SZ_256K	0x00040000
+
+namespace esphome {
+namespace shelly_dimmer {
+
+
+static const uint8_t SZ_128 = 0x00000080;
+static const uint8_t SZ_256 = 0x00000100; 
+static const uint8_t SZ_1K = 0x00000400; 
+static const uint8_t SZ_2K = 0x00000800; 
+static const uint8_t SZ_16K = 0x00004000; 
+static const uint8_t SZ_32K = 0x00008000; 
+static const uint8_t SZ_64K = 0x00010000;
+static const uint8_t SZ_128K = 0x00020000;
+static const uint8_t SZ_256K = 0x00040000;
+
 
 /*
  * Page-size for page-by-page flash erase.
@@ -108,3 +114,6 @@ const stm32_dev_t devices[] = {
 	{0x9b0, "STM32W-256K"                     , 0x20000200, 0x20004000, 0x08000000, 0x08040000,  4, p_2k  , 0x08040800, 0x0804080F, 0x08040000, 0x08040800, 0},
 	{0x0}
 };
+
+}
+}

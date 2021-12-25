@@ -18,11 +18,16 @@
 */
 
 
-#ifndef _STM32_FLASH_H
-#define _STM32_FLASH_H
+#pragma once
+
+namespace esphome {
+namespace shelly_dimmer {
+
 
 #include <stdint.h>
 #include <Stream.h>
+
+#define DEBUG_MSG(tag, ...) esphome::ESP_LOGD(tag, __VA_ARGS__)
 
 /* flags */
 #define STREAM_OPT_BYTE	(1 << 0)	/* byte (not frame) oriented */
@@ -113,5 +118,7 @@ stm32_err_t stm32_crc_wrapper(const stm32_t *stm, uint32_t address,
 			      uint32_t length, uint32_t *crc);
 uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len);
 
-#endif
+}
+}
+
 

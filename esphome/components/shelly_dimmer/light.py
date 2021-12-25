@@ -15,7 +15,7 @@ from esphome.const import (
     UNIT_AMPERE,
     UNIT_WATT,
 )
-from esphome.core import CORE, HexInt
+from esphome.core import HexInt
 
 
 DEPENDENCIES = ["sensor"]
@@ -23,7 +23,7 @@ DEPENDENCIES = ["sensor"]
 shelly_ns = cg.esphome_ns.namespace("shelly")
 ShellyDimmer = shelly_ns.class_("ShellyDimmer", light.LightOutput, cg.Component)
 
-CONF_FIRMWARE_VERSION = "firmware"
+CONF_FIRMWARE = "firmware"
 
 FIRMWARE_MAPPING = {
     "51.5": (51, 5, "shelly-dimmer-stm32_v51.5.bin"),
@@ -44,7 +44,7 @@ CONF_BOOT0_PIN = "boot0_pin"
 CONFIG_SCHEMA = light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
     {
         cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ShellyDimmer),
-        cv.Optional(CONF_FIRMWARE_VERSION, default="51.5"): cv.enum(FIRMWARE_MAPPING),
+        cv.Optional(CONF_FIRMWARE, default="51.5"): cv.enum(FIRMWARE_MAPPING),
         cv.Optional(CONF_NRST_PIN, default="GPIO5"): pins.gpio_output_pin_schema,
         cv.Optional(CONF_BOOT0_PIN, default="GPIO4"): pins.gpio_output_pin_schema,
         cv.Optional(CONF_LEADING_EDGE, default=False): cv.boolean,
@@ -62,7 +62,7 @@ CONFIG_SCHEMA = light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
 
 
 def to_code(config):
-    fw_major, fw_minor, fw_file = config[CONF_FIRMWARE_VERSION].enum_value
+    fw_major, fw_minor, fw_file = config[CONF_FIRMWARE].enum_value
     firmware_path = (Path(__file__).parent / fw_file).resolve()
     firmware_data = Path(firmware_path).read_bytes()
     hexdata = [HexInt(x) for x in firmware_data]
@@ -92,4 +92,3 @@ def to_code(config):
         conf = config[key]
         sens = yield sensor.new_sensor(conf)
         cg.add(getattr(var, f"set_{key}_sensor")(sens))
-

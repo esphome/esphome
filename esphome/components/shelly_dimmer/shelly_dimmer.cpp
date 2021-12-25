@@ -3,7 +3,7 @@
 #include "stm32flash.h"
 
 namespace esphome {
-namespace shelly {
+namespace shelly_dimmer {
 
 
 static const char *TAG = "shelly";
@@ -454,7 +454,7 @@ void ShellyDimmer::reset_(bool boot0) {
   this->pin_nrst_->digital_write(false);
 
   // Wait 50ms for the STM32 to reset.
-  delay(50);
+  delay(50); // NOLINT
 
   // Clear receive buffer.
   while (this->serial_->available()) {
@@ -463,7 +463,7 @@ void ShellyDimmer::reset_(bool boot0) {
 
   this->pin_nrst_->digital_write(true);
   // Wait 50ms for the STM32 to boot.
-  delay(50);
+  delay(50); // NOLINT
 
   ESP_LOGD(TAG, "Reset STM32 done");
 }
