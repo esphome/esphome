@@ -23,15 +23,15 @@
 namespace esphome {
 namespace shelly_dimmer {
 
-static const uint8_t SZ_128 = 0x00000080;
-static const uint8_t SZ_256 = 0x00000100;
-static const uint8_t SZ_1K = 0x00000400;
-static const uint8_t SZ_2K = 0x00000800;
-static const uint8_t SZ_16K = 0x00004000;
-static const uint8_t SZ_32K = 0x00008000;
-static const uint8_t SZ_64K = 0x00010000;
-static const uint8_t SZ_128K = 0x00020000;
-static const uint8_t SZ_256K = 0x00040000;
+static const uint32_t SZ_128 = 0x00000080;
+static const uint32_t SZ_256 = 0x00000100;
+static const uint32_t SZ_1K = 0x00000400;
+static const uint32_t SZ_2K = 0x00000800;
+static const uint32_t SZ_16K = 0x00004000;
+static const uint32_t SZ_32K = 0x00008000;
+static const uint32_t SZ_64K = 0x00010000;
+static const uint32_t SZ_128K = 0x00020000;
+static const uint32_t SZ_256K = 0x00040000;
 
 /*
  * Page-size for page-by-page flash erase.

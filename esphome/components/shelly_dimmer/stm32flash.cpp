@@ -1031,11 +1031,12 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t leng
  * Due to byte swap, I cannot use any CRC available in existing
  * libraries, so here is a simple not optimized implementation.
  */
-#define CRCPOLY_BE 0x04c11db7
-static const uint8_t CRC_MSBMASK = 0x80000000
-#define CRC_INIT_VALUE 0xFFFFFFFF
-    uint32_t
-    stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len) {
+
+static const uint32_t CRCPOLY_BE = 0x04c11db7;
+static const uint32_t CRC_MSBMASK = 0x80000000;
+static const uint32_t CRC_INIT_VALUE = 0xFFFFFFFF;
+
+uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len) {
   int i;
   uint32_t data;
 
