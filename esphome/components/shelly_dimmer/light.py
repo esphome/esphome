@@ -20,8 +20,8 @@ from esphome.core import HexInt
 
 DEPENDENCIES = ["sensor"]
 
-shelly_ns = cg.esphome_ns.namespace("shelly")
-ShellyDimmer = shelly_ns.class_("ShellyDimmer", light.LightOutput, cg.Component)
+shelly_dimmer_ns = cg.esphome_ns.namespace("shelly_dimmer")
+ShellyDimmer = shelly_dimmer_ns.class_("ShellyDimmer", light.LightOutput, cg.Component)
 
 CONF_FIRMWARE = "firmware"
 
