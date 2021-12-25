@@ -26,6 +26,9 @@
 #include "debug.h"
 
 #include "dev_table.h"
+#include "esphome/core/log.h"
+
+#define DEBUG_MSG(tag, ...) esphome::ESP_LOGD(tag, __VA_ARGS__)
 
 namespace esphome {
 namespace shelly_dimmer {

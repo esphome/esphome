@@ -25,8 +25,6 @@ namespace shelly_dimmer {
 #include <stdint.h>
 #include <Stream.h>
 
-#define DEBUG_MSG(tag, ...) esphome::ESP_LOGD(tag, __VA_ARGS__)
-
 /* flags */
 #define STREAM_OPT_BYTE (1 << 0)      /* byte (not frame) oriented */
 #define STREAM_OPT_GVR_ETX (1 << 1)   /* cmd GVR returns protection status */
