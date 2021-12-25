@@ -2,7 +2,6 @@
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
-#include <Arduino.h>
 
 // The definition of these macro must be temporarily disabled to avoid conflicts
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
