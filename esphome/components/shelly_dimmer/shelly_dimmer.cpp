@@ -5,13 +5,12 @@
 namespace esphome {
 namespace shelly_dimmer {
 
-
 static const char *TAG = "shelly";
 
 static const uint16_t SHELLY_DIMMER_BUFFER_SIZE = 256;
-static const uint8_t SHELLY_DIMMER_ACK_TIMEOUT = 200; // ms
+static const uint8_t SHELLY_DIMMER_ACK_TIMEOUT = 200;  // ms
 static const uint8_t SHELLY_DIMMER_MAX_RETRIES = 3;
-static const uint16_t SHELLY_DIMMER_MAX_BRIGHTNESS = 1000; // 100%
+static const uint16_t SHELLY_DIMMER_MAX_BRIGHTNESS = 1000;  // 100%
 
 // Protocol framing.
 static const uint8_t SHELLY_DIMMER_PROTO_START_BYTE = 0x01;
@@ -52,11 +51,9 @@ void ShellyDimmer::setup() {
   for (int i = 0; i < 2; i++) {
     this->reset_normal_boot_();
     this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, 0, 0);
-    ESP_LOGI(TAG, "STM32 current firmware version: %d.%d, desired version: %d,%d",
-        this->version_major_, this->version_minor_, 
-        SHD_FIRMWARE_MAJOR_VERSION, SHD_FIRMWARE_MINOR_VERSION);
-    if (this->version_major_ != SHD_FIRMWARE_MAJOR_VERSION ||
-        this->version_minor_ != SHD_FIRMWARE_MINOR_VERSION) {
+    ESP_LOGI(TAG, "STM32 current firmware version: %d.%d, desired version: %d,%d", this->version_major_,
+             this->version_minor_, SHD_FIRMWARE_MAJOR_VERSION, SHD_FIRMWARE_MINOR_VERSION);
+    if (this->version_major_ != SHD_FIRMWARE_MAJOR_VERSION || this->version_minor_ != SHD_FIRMWARE_MINOR_VERSION) {
       // Update firmware if needed.
       ESP_LOGW(TAG, "Unsupported STM32 firmware version, flashing");
       if (i > 0) {
@@ -79,9 +76,7 @@ void ShellyDimmer::setup() {
   }
 
   // Poll the dimmer roughly every 10s.
-  this->set_interval("poll", 10000, [this]() {
-    this->send_command_(SHELLY_DIMMER_PROTO_CMD_POLL, 0, 0);
-  });
+  this->set_interval("poll", 10000, [this]() { this->send_command_(SHELLY_DIMMER_PROTO_CMD_POLL, 0, 0); });
 
   this->send_settings_();
   // Do an immediate poll to refresh current state.
@@ -178,14 +173,9 @@ uint16_t ShellyDimmer::convert_brightness_(float brightness) {
 void ShellyDimmer::send_brightness_(uint16_t brightness) {
   uint8_t payload[SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE];
   // Brightness (%) * 10.
-  payload[0] = brightness & 0xff,
-  payload[1] = brightness >> 8,
+  payload[0] = brightness & 0xff, payload[1] = brightness >> 8,
 
-  this->send_command_(
-    SHELLY_DIMMER_PROTO_CMD_SWITCH,
-    payload,
-    SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE
-  );
+  this->send_command_(SHELLY_DIMMER_PROTO_CMD_SWITCH, payload, SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE);
 
   this->brightness_ = brightness;
 }
@@ -217,11 +207,7 @@ void ShellyDimmer::send_settings_() {
   payload[8] = this->warmup_time_ & 0xff;
   payload[9] = this->warmup_time_ >> 8;
 
-  this->send_command_(
-    SHELLY_DIMMER_PROTO_CMD_SETTINGS,
-    payload,
-    SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE
-  );
+  this->send_command_(SHELLY_DIMMER_PROTO_CMD_SETTINGS, payload, SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE);
 
   // Also send brightness separately as it is ignored above.
   this->send_brightness_(brightness_int);
@@ -369,23 +355,13 @@ bool ShellyDimmer::handle_frame_() {
 
       uint8_t hw_version = payload[0];
       // payload[1] is unused.
-      uint16_t brightness = payload[3] << 8 |
-        payload[2];
+      uint16_t brightness = payload[3] << 8 | payload[2];
 
-      uint32_t power_raw = payload[7] << 24 |
-        payload[6] << 16 |
-        payload[5] << 8 |
-        payload[4];
+      uint32_t power_raw = payload[7] << 24 | payload[6] << 16 | payload[5] << 8 | payload[4];
 
-      uint32_t voltage_raw = payload[11] << 24 |
-        payload[10] << 16 |
-        payload[9] << 8 |
-        payload[8];
+      uint32_t voltage_raw = payload[11] << 24 | payload[10] << 16 | payload[9] << 8 | payload[8];
 
-      uint32_t current_raw = payload[15] << 24 |
-        payload[14] << 16 |
-        payload[13] << 8 |
-        payload[12];
+      uint32_t current_raw = payload[15] << 24 | payload[14] << 16 | payload[13] << 8 | payload[12];
 
       uint16_t fade_rate = payload[16];
 
@@ -454,7 +430,7 @@ void ShellyDimmer::reset_(bool boot0) {
   this->pin_nrst_->digital_write(false);
 
   // Wait 50ms for the STM32 to reset.
-  delay(50); // NOLINT
+  delay(50);  // NOLINT
 
   // Clear receive buffer.
   while (this->serial_->available()) {
@@ -463,7 +439,7 @@ void ShellyDimmer::reset_(bool boot0) {
 
   this->pin_nrst_->digital_write(true);
   // Wait 50ms for the STM32 to boot.
-  delay(50); // NOLINT
+  delay(50);  // NOLINT
 
   ESP_LOGD(TAG, "Reset STM32 done");
 }
@@ -484,5 +460,5 @@ void ShellyDimmer::reset_dfu_boot_() {
   this->reset_(true);
 }
 
-}
-}
+}  // namespace shelly_dimmer
+}  // namespace esphome

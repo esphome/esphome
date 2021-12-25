@@ -10,7 +10,7 @@ namespace esphome {
 namespace shelly_dimmer {
 
 class ShellyDimmer : public Component, public light::LightOutput {
-public:
+ public:
   float get_setup_priority() const override { return setup_priority::LATE; }
 
   void setup() override;
@@ -37,7 +37,8 @@ public:
   void set_power_sensor(sensor::Sensor *power_sensor) { this->power_sensor_ = power_sensor; }
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { this->voltage_sensor_ = voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { this->current_sensor_ = current_sensor; }
-protected:
+
+ protected:
   GPIOPin *pin_nrst_;
   GPIOPin *pin_boot0_;
 
@@ -67,7 +68,8 @@ protected:
 
   bool ready_{false};
   uint16_t brightness_;
-protected:
+
+ protected:
   /// Convert relative brightness into a dimmer brightness value.
   uint16_t convert_brightness_(float brightness);
 
@@ -107,5 +109,5 @@ protected:
   void reset_dfu_boot_();
 };
 
-}
-}
+}  // namespace shelly_dimmer
+}  // namespace esphome
