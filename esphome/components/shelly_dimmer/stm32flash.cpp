@@ -87,7 +87,7 @@ struct stm32_cmd {
  * see ARMv7-M or ARMv6-M Architecture Reference Manual (table B3-8)
  * or "The definitive guide to the ARM Cortex-M3", section 14.4.
  */
-static const uint8_t stm_reset_code[] = {
+static const uint8_t STM_RESET_CODE[] = {
     0x01, 0x49,              // ldr     r1, [pc, #4] ; (<AIRCR_OFFSET>)
     0x02, 0x4A,              // ldr     r2, [pc, #8] ; (<AIRCR_RESET_VALUE>)
     0x0A, 0x60,              // str     r2, [r1, #0]
@@ -96,7 +96,7 @@ static const uint8_t stm_reset_code[] = {
     0x04, 0x00, 0xfa, 0x05   // .word 0x05fa0004 <AIRCR_RESET_VALUE> = VECTKEY | SYSRESETREQ
 };
 
-static const uint32_t stm_reset_code_length = sizeof(stm_reset_code);
+static const uint32_t STM_RESET_CODE_LENGTH = sizeof(STM_RESET_CODE);
 
 /* RM0360, Empty check
  * On STM32F070x6 and STM32F030xC devices only, internal empty check flag is
@@ -109,7 +109,7 @@ static const uint32_t stm_reset_code_length = sizeof(stm_reset_code);
  * on or setting of OBL_LAUNCH bit in FLASH_CR register is needed to clear this flag after
  * programming of a virgin device to execute user code after System reset.
  */
-static const uint8_t stm_obl_launch_code[] = {
+static const uint8_t STM_OBL_LAUNCH_CODE[] = {
     0x01, 0x49,              // ldr     r1, [pc, #4] ; (<FLASH_CR>)
     0x02, 0x4A,              // ldr     r2, [pc, #8] ; (<OBL_LAUNCH>)
     0x0A, 0x60,              // str     r2, [r1, #0]
@@ -118,7 +118,7 @@ static const uint8_t stm_obl_launch_code[] = {
     0x00, 0x20, 0x00, 0x00   // value: OBL_LAUNCH = 00002000
 };
 
-static const uint32_t stm_obl_launch_code_length = sizeof(stm_obl_launch_code);
+static const uint32_t STM_OBL_LAUNCH_CODE_LENGTH = sizeof(STM_OBL_LAUNCH_CODE);
 
 static struct VarlenCmd i2c_cmd_get_reply[] = {{0x10, 11}, {0x11, 17}, {0x12, 18}, {/* sentinel */}};
 
@@ -190,7 +190,7 @@ static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
       DEBUG_MSG(TAG, "Got byte 0x%02x instead of ACK", byte);
       return STM32_ERR_UNKNOWN;
     }
-  } while (1);
+  } while (true);
 }
 
 static stm32_err_t stm32_get_ack(const stm32_t *stm) { return stm32_get_ack_timeout(stm, 0); }
@@ -374,24 +374,24 @@ stm32_t *stm32_init(Stream *stream, uint8_t flags, char init) {
 
   if ((stm->flags & STREAM_OPT_CMD_INIT) && init)
     if (stm32_send_init_seq(stm) != STM32_ERR_OK)
-      return NULL;
+      return nullptr;
 
   /* get the version and read protection status  */
   if (stm32_send_command(stm, STM32_CMD_GVR) != STM32_ERR_OK) {
     stm32_close(stm);
-    return NULL;
+    return nullptr;
   }
 
   /* From AN, only UART bootloader returns 3 bytes */
   len = (stm->flags & STREAM_OPT_GVR_ETX) ? 3 : 1;
   if (stream->readBytes(buf, len) != len)
-    return NULL;
+    return nullptr;
   stm->version = buf[0];
   stm->option1 = (stm->flags & STREAM_OPT_GVR_ETX) ? buf[1] : 0;
   stm->option2 = (stm->flags & STREAM_OPT_GVR_ETX) ? buf[2] : 0;
   if (stm32_get_ack(stm) != STM32_ERR_OK) {
     stm32_close(stm);
-    return NULL;
+    return nullptr;
   }
 
   /* get the bootloader information */
@@ -403,7 +403,7 @@ stm32_t *stm32_init(Stream *stream, uint8_t flags, char init) {
         break;
       }
   if (stm32_guess_len_cmd(stm, STM32_CMD_GET, buf, len) != STM32_ERR_OK)
-    return NULL;
+    return nullptr;
   len = buf[0] + 1;
   stm->bl_version = buf[1];
   new_cmds = 0;
@@ -464,24 +464,24 @@ stm32_t *stm32_init(Stream *stream, uint8_t flags, char init) {
     DEBUG_MSG(TAG, ")");
   if (stm32_get_ack(stm) != STM32_ERR_OK) {
     stm32_close(stm);
-    return NULL;
+    return nullptr;
   }
 
   if (stm->cmd->get == STM32_CMD_ERR || stm->cmd->gvr == STM32_CMD_ERR || stm->cmd->gid == STM32_CMD_ERR) {
     DEBUG_MSG(TAG, "Error: bootloader did not returned correct information from GET command");
-    return NULL;
+    return nullptr;
   }
 
   /* get the device ID */
   if (stm32_guess_len_cmd(stm, stm->cmd->gid, buf, 1) != STM32_ERR_OK) {
     stm32_close(stm);
-    return NULL;
+    return nullptr;
   }
   len = buf[0] + 1;
   if (len < 2) {
     stm32_close(stm);
     DEBUG_MSG(TAG, "Only %d bytes sent in the PID, unknown/unsupported device", len);
-    return NULL;
+    return nullptr;
   }
   stm->pid = (buf[1] << 8) | buf[2];
   if (len > 2) {
@@ -491,7 +491,7 @@ stm32_t *stm32_init(Stream *stream, uint8_t flags, char init) {
   }
   if (stm32_get_ack(stm) != STM32_ERR_OK) {
     stm32_close(stm);
-    return NULL;
+    return nullptr;
   }
 
   stm->dev = DEVICES;
@@ -501,7 +501,7 @@ stm32_t *stm32_init(Stream *stream, uint8_t flags, char init) {
   if (!stm->dev->id) {
     DEBUG_MSG(TAG, "Unknown/unsupported device (Device ID: 0x%03x)", stm->pid);
     stm32_close(stm);
-    return NULL;
+    return nullptr;
   }
 
   return stm;
@@ -967,9 +967,9 @@ stm32_err_t stm32_reset_device(const stm32_t *stm) {
 
   if (stm->dev->flags & F_OBLL) {
     /* set the OBL_LAUNCH bit to reset device (see RM0360, 2.5) */
-    return stm32_run_raw_code(stm, target_address, stm_obl_launch_code, stm_obl_launch_code_length);
+    return stm32_run_raw_code(stm, target_address, STM_OBL_LAUNCH_CODE, STM_OBL_LAUNCH_CODE_LENGTH);
   } else {
-    return stm32_run_raw_code(stm, target_address, stm_reset_code, stm_reset_code_length);
+    return stm32_run_raw_code(stm, target_address, STM_RESET_CODE, STM_RESET_CODE_LENGTH);
   }
 }
 

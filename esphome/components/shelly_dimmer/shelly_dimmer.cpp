@@ -28,10 +28,10 @@ static const uint8_t SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE = 10;
 static const uint8_t SHELLY_DIMMER_PROTO_MAX_FRAME_SIZE = 4 + 72 + 3;
 
 // STM Firmware
-const uint8_t stm_firmware[] PROGMEM = SHD_FIRMWARE_DATA;
+const uint8_t STM_FIRMWARE[] PROGMEM = SHD_FIRMWARE_DATA;
 
 /// Computes a crappy checksum as defined by the Shelly Dimmer protocol.
-uint16_t shelly_dimmer_checksum(uint8_t *buf, int len) {
+uint16_t shelly_dimmer_checksum(const uint8_t *buf, int len) {
   uint16_t sum = 0;
   for (uint8_t i = 0; i < len; i++) {
     sum += buf[i];
@@ -50,7 +50,7 @@ void ShellyDimmer::setup() {
   // Reset the STM32 and check the firmware version.
   for (int i = 0; i < 2; i++) {
     this->reset_normal_boot_();
-    this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, 0, 0);
+    this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, nullptr, 0);
     ESP_LOGI(TAG, "STM32 current firmware version: %d.%d, desired version: %d,%d", this->version_major_,
              this->version_minor_, SHD_FIRMWARE_MAJOR_VERSION, SHD_FIRMWARE_MINOR_VERSION);
     if (this->version_major_ != SHD_FIRMWARE_MAJOR_VERSION || this->version_minor_ != SHD_FIRMWARE_MINOR_VERSION) {
@@ -76,11 +76,11 @@ void ShellyDimmer::setup() {
   }
 
   // Poll the dimmer roughly every 10s.
-  this->set_interval("poll", 10000, [this]() { this->send_command_(SHELLY_DIMMER_PROTO_CMD_POLL, 0, 0); });
+  this->set_interval("poll", 10000, [this]() { this->send_command_(SHELLY_DIMMER_PROTO_CMD_POLL, nullptr, 0); });
 
   this->send_settings_();
   // Do an immediate poll to refresh current state.
-  this->send_command_(SHELLY_DIMMER_PROTO_CMD_POLL, 0, 0);
+  this->send_command_(SHELLY_DIMMER_PROTO_CMD_POLL, nullptr, 0);
 
   this->ready_ = true;
 }
@@ -412,10 +412,7 @@ bool ShellyDimmer::handle_frame_() {
     }
     case SHELLY_DIMMER_PROTO_CMD_SWITCH:
     case SHELLY_DIMMER_PROTO_CMD_SETTINGS: {
-      if (payload_len < 1 || payload[0] != 0x01) {
-        return false;
-      }
-      return true;
+      return !(payload_len < 1 || payload[0] != 0x01);
     }
     default: {
       return false;
