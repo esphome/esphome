@@ -124,7 +124,6 @@ static struct VarlenCmd i2c_cmd_get_reply[] = {{0x10, 11}, {0x11, 17}, {0x12, 18
 
 static const char *TAG = "stm32flash";
 
-extern const stm32_dev_t DEVICES[];
 
 int flash_addr_to_page_ceil(const stm32_t *stm, uint32_t addr) {
   int page;
