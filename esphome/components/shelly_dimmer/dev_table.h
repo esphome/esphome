@@ -39,17 +39,17 @@ static const uint32_t SZ_256K = 0x00040000;
  */
 
 /* fixed size pages */
-static uint32_t p_128[] = {SZ_128, 0};
-static uint32_t p_256[] = {SZ_256, 0};
-static uint32_t p_1k[] = {SZ_1K, 0};
-static uint32_t p_2k[] = {SZ_2K, 0};
+static uint32_t p_128[] = {SZ_128, 0};//NOLINT
+static uint32_t p_256[] = {SZ_256, 0};//NOLINT
+static uint32_t p_1k[] = {SZ_1K, 0};//NOLINT
+static uint32_t p_2k[] = {SZ_2K, 0};//NOLINT
 /* F2 and F4 page size */
-static uint32_t f2f4[] = {SZ_16K, SZ_16K, SZ_16K, SZ_16K, SZ_64K, SZ_128K, 0};
+static uint32_t f2f4[] = {SZ_16K, SZ_16K, SZ_16K, SZ_16K, SZ_64K, SZ_128K, 0};//NOLINT
 /* F4 dual bank page size */
 static uint32_t f4db[] = {SZ_16K, SZ_16K, SZ_16K, SZ_16K, SZ_64K, SZ_128K, SZ_128K, SZ_128K,
-                          SZ_16K, SZ_16K, SZ_16K, SZ_16K, SZ_64K, SZ_128K, 0};
+                          SZ_16K, SZ_16K, SZ_16K, SZ_16K, SZ_64K, SZ_128K, 0};//NOLINT
 /* F7 page size */
-static uint32_t f7[] = {SZ_32K, SZ_32K, SZ_32K, SZ_32K, SZ_128K, SZ_256K, 0};
+static uint32_t f7[] = {SZ_32K, SZ_32K, SZ_32K, SZ_32K, SZ_128K, SZ_256K, 0};//NOLINT
 
 /*
  * Device table, corresponds to the "Bootloader device-dependant parameters"
