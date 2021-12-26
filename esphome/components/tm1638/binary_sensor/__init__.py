@@ -2,12 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import CONF_ID, CONF_KEY
+from ..display import tm1638_ns, TM1638Component, CONF_TM1638_ID
 
-
-CONF_TM1638_ID = "tm1638_id"
-
-tm1638_ns = cg.esphome_ns.namespace("tm1638")
-TM1638Component = tm1638_ns.class_("TM1638Component", cg.PollingComponent)
 TM1638Key = tm1638_ns.class_("TM1638Key", binary_sensor.BinarySensor)
 
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
@@ -18,10 +14,9 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
     }
 )
 
-
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await binary_sensor.register_binary_sensor(var, config)
     cg.add(var.set_keycode(config[CONF_KEY]))
     hub = await cg.get_variable(config[CONF_TM1638_ID])
-    cg.add(hub.add_tm1638_key(var))
+    cg.add(hub.register_listener(var))
