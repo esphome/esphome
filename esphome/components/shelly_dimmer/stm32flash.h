@@ -41,14 +41,14 @@ namespace shelly_dimmer {
 #define STM32_MAX_PAGES 0x0000ffff
 #define STM32_MASS_ERASE 0x00100000 /* > 2 x max_pages */
 
-typedef enum {
+typedef enum { // NOLINT
   STM32_ERR_OK = 0,
   STM32_ERR_UNKNOWN, /* Generic error */
   STM32_ERR_NACK,
   STM32_ERR_NO_CMD, /* Command not available in bootloader */
 } stm32_err_t;
 
-typedef enum {
+typedef enum { // NOLINT
   F_NO_ME = 1 << 0, /* Mass-Erase not supported */
   F_OBLL = 1 << 1,  /* OBL_LAUNCH required */
 } flags_t;
