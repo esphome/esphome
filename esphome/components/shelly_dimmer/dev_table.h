@@ -56,7 +56,7 @@ static uint32_t f7[] = {SZ_32K, SZ_32K, SZ_32K, SZ_32K, SZ_128K, SZ_256K, 0};
  * table in ST document AN2606.
  * Note that the option bytes upper range is inclusive!
  */
-const stm32_dev_t devices[] = {
+const stm32_dev_t DEVICES[] = {
     /* ID   "name"                              SRAM-address-range      FLASH-address-range    PPS  PSize
        Option-byte-addr-range  System-mem-addr-range   Flags */
     /* F0 */

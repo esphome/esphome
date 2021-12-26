@@ -22,8 +22,8 @@
 namespace esphome {
 namespace shelly_dimmer {
 
-#include <stdint.h>
 #include <Stream.h>
+#include <cstdint>
 
 /* flags */
 #define STREAM_OPT_BYTE (1 << 0)      /* byte (not frame) oriented */
@@ -42,21 +42,21 @@ namespace shelly_dimmer {
 #define STM32_MAX_PAGES 0x0000ffff
 #define STM32_MASS_ERASE 0x00100000 /* > 2 x max_pages */
 
-typedef enum {
+using stm32_err_t = enum {
   STM32_ERR_OK = 0,
   STM32_ERR_UNKNOWN, /* Generic error */
   STM32_ERR_NACK,
   STM32_ERR_NO_CMD, /* Command not available in bootloader */
-} stm32_err_t;
+};
 
-typedef enum {
+using flags_t = enum {
   F_NO_ME = 1 << 0, /* Mass-Erase not supported */
   F_OBLL = 1 << 1,  /* OBL_LAUNCH required */
-} flags_t;
+};
 
-typedef struct stm32 stm32_t;
-typedef struct stm32_cmd stm32_cmd_t;
-typedef struct stm32_dev stm32_dev_t;
+using stm32_t = struct stm32;
+using stm32_cmd_t = struct stm32_cmd;
+using stm32_dev_t = struct stm32_dev;
 
 /*
  * Specify the length of reply for command GET
@@ -65,7 +65,7 @@ typedef struct stm32_dev stm32_dev_t;
  * On byte-oriented protocols, i.e. UART, this information would be skipped
  * after read the first byte, so not needed.
  */
-struct varlen_cmd {
+struct VarlenCmd {
   uint8_t version;
   uint8_t length;
 };
@@ -73,7 +73,7 @@ struct varlen_cmd {
 struct stm32 {
   Stream *stream;
   uint8_t flags;
-  struct varlen_cmd *cmd_get_reply;
+  struct VarlenCmd *cmd_get_reply;
   uint8_t bl_version;
   uint8_t version;
   uint8_t option1, option2;
@@ -94,7 +94,7 @@ struct stm32_dev {
   uint32_t flags;
 };
 
-stm32_t *stm32_init(Stream *stream, const uint8_t flags, const char init);
+stm32_t *stm32_init(Stream *stream, uint8_t flags, char init);
 void stm32_close(stm32_t *stm);
 stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address, uint8_t data[], unsigned int len);
 stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8_t data[], unsigned int len);
