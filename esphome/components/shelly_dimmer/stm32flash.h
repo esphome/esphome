@@ -81,7 +81,7 @@ struct stm32 {
   const stm32_dev_t *dev;
 };
 
-struct stm32_dev { // NOLINT
+struct stm32_dev {  // NOLINT
   uint16_t id;
   const char *name;
   uint32_t ram_start, ram_end;
