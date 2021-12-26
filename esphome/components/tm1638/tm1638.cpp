@@ -6,6 +6,8 @@
 
 
 
+
+
 namespace esphome {
 namespace tm1638 {
 
@@ -62,6 +64,7 @@ void TM1638Component::dump_config() {
   LOG_PIN("  STB Pin: ", this->stb_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
+
 
 #ifdef USE_BINARY_SENSOR
 void TM1638Component::loop() {
@@ -256,8 +259,6 @@ uint8_t TM1638Component::strftime(uint8_t pos, const char *format, time::ESPTime
 }
 uint8_t TM1638Component::strftime(const char *format, time::ESPTime time) { return this->strftime(0, format, time); }
 #endif
-
-/////////////// DEBUG /////////////////
 
 
 

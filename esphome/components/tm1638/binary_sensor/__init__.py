@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import CONF_ID, CONF_KEY
 
+
 CONF_TM1638_ID = "tm1638_id"
 
 tm1638_ns = cg.esphome_ns.namespace("tm1638")

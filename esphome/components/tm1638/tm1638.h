@@ -5,14 +5,18 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/hal.h"
 
+
+
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
 #endif
 
 
-#ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
+
+//#ifdef USE_BINARY_SENSOR
+//#include "esphome/components/binary_sensor/binary_sensor.h"
+//#endif
 
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
@@ -124,26 +128,6 @@ class TM1638Component : public PollingComponent{
 };
 
 
-#ifdef USE_BINARY_SENSOR
-class TM1638Key : public binary_sensor::BinarySensor {
-  friend class TM1638Component;
-
- public:
-  void set_keycode(uint8_t key_code) { key_code_ = key_code; }  //needed for binary sensor
-  void process(uint8_t data) {
-
-    uint8_t mask = 1;
-
-    data = data >> key_code_;
-    data = data & mask;
-
-    this->publish_state(static_cast<bool>(data));
-  }
-
- protected:
-  uint8_t key_code_{0};
-};
-#endif
 
 
 

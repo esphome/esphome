@@ -51,14 +51,6 @@ display:
         it.printf("%u", millis());
 
 
-
-
-
-
-
-
-
-
 #time:
 #  - platform: sntp
 #    id: sntp_time
