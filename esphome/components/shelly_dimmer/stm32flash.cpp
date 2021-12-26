@@ -18,7 +18,7 @@
  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-#include <stdint.h>
+#include <cstdint>
 #include <Arduino.h>
 
 #include "stm32flash.h"
@@ -36,37 +36,37 @@ static const uint8_t STM32_ACK = 0x79;
 static const uint8_t STM32_NACK = 0x1F;
 static const uint8_t STM32_BUSY = 0x76;
 
-#define STM32_CMD_INIT 0x7F
-#define STM32_CMD_GET 0x00   /* get the version and command supported */
-#define STM32_CMD_GVR 0x01   /* get version and read protection status */
-#define STM32_CMD_GID 0x02   /* get ID */
-#define STM32_CMD_RM 0x11    /* read memory */
-#define STM32_CMD_GO 0x21    /* go */
-#define STM32_CMD_WM 0x31    /* write memory */
-#define STM32_CMD_WM_NS 0x32 /* no-stretch write memory */
-#define STM32_CMD_ER 0x43    /* erase */
-#define STM32_CMD_EE 0x44    /* extended erase */
-#define STM32_CMD_EE_NS 0x45 /* extended erase no-stretch */
-#define STM32_CMD_WP 0x63    /* write protect */
-#define STM32_CMD_WP_NS 0x64 /* write protect no-stretch */
-#define STM32_CMD_UW 0x73    /* write unprotect */
-#define STM32_CMD_UW_NS 0x74 /* write unprotect no-stretch */
-#define STM32_CMD_RP 0x82    /* readout protect */
-#define STM32_CMD_RP_NS 0x83 /* readout protect no-stretch */
-#define STM32_CMD_UR 0x92    /* readout unprotect */
-#define STM32_CMD_UR_NS 0x93 /* readout unprotect no-stretch */
-#define STM32_CMD_CRC 0xA1   /* compute CRC */
-#define STM32_CMD_ERR 0xFF   /* not a valid command */
+static const uint8_t STM32_CMD_INIT = 0x7F;
+static const uint8_t STM32_CMD_GET = 0x00;   /* get the version and command supported */
+static const uint8_t STM32_CMD_GVR = 0x01;   /* get version and read protection status */
+static const uint8_t STM32_CMD_GID = 0x02;   /* get ID */
+static const uint8_t STM32_CMD_RM = 0x11;    /* read memory */
+static const uint8_t STM32_CMD_GO = 0x21;    /* go */
+static const uint8_t STM32_CMD_WM = 0x31;    /* write memory */
+static const uint8_t STM32_CMD_WM_NS = 0x32; /* no-stretch write memory */
+static const uint8_t STM32_CMD_ER = 0x43;    /* erase */
+static const uint8_t STM32_CMD_EE = 0x44;    /* extended erase */
+static const uint8_t STM32_CMD_EE_NS = 0x45; /* extended erase no-stretch */
+static const uint8_t STM32_CMD_WP = 0x63;    /* write protect */
+static const uint8_t STM32_CMD_WP_NS = 0x64; /* write protect no-stretch */
+static const uint8_t STM32_CMD_UW = 0x73;    /* write unprotect */
+static const uint8_t STM32_CMD_UW_NS = 0x74; /* write unprotect no-stretch */
+static const uint8_t STM32_CMD_RP = 0x82;    /* readout protect */
+static const uint8_t STM32_CMD_RP_NS = 0x83; /* readout protect no-stretch */
+static const uint8_t STM32_CMD_UR = 0x92;    /* readout unprotect */
+static const uint8_t STM32_CMD_UR_NS = 0x93; /* readout unprotect no-stretch */
+static const uint8_t STM32_CMD_CRC = 0xA1;   /* compute CRC */
+static const uint8_t STM32_CMD_ERR = 0xFF;   /* not a valid command */
 
-#define STM32_RESYNC_TIMEOUT 35 * 1000    /* milliseconds */
-#define STM32_MASSERASE_TIMEOUT 35 * 1000 /* milliseconds */
-#define STM32_PAGEERASE_TIMEOUT 5 * 1000  /* milliseconds */
-#define STM32_BLKWRITE_TIMEOUT 1 * 1000   /* milliseconds */
-#define STM32_WUNPROT_TIMEOUT 1 * 1000    /* milliseconds */
-#define STM32_WPROT_TIMEOUT 1 * 1000      /* milliseconds */
-#define STM32_RPROT_TIMEOUT 1 * 1000      /* milliseconds */
+static const uint32_t STM32_RESYNC_TIMEOUT = 35 * 1000;  /* milliseconds */
+static const uint32_t STM32_MASSERASE_TIMEOUT = 35 * 1000; /* milliseconds */
+static const uint32_t STM32_PAGEERASE_TIMEOUT = 5 * 1000;  /* milliseconds */
+static const uint32_t STM32_BLKWRITE_TIMEOUT = 1 * 1000;   /* milliseconds */
+static const uint32_t STM32_WUNPROT_TIMEOUT = 1 * 1000;    /* milliseconds */
+static const uint32_t STM32_WPROT_TIMEOUT = 1 * 1000;      /* milliseconds */
+static const uint32_t STM32_RPROT_TIMEOUT = 1 * 1000;      /* milliseconds */
 
-#define STM32_CMD_GET_LENGTH 17 /* bytes in the reply */
+static const uint8_t STM32_CMD_GET_LENGTH = 17; /* bytes in the reply */
 
 struct stm32_cmd {
   uint8_t get;
@@ -120,11 +120,11 @@ static const uint8_t stm_obl_launch_code[] = {
 
 static const uint32_t stm_obl_launch_code_length = sizeof(stm_obl_launch_code);
 
-static struct varlen_cmd i2c_cmd_get_reply[] = {{0x10, 11}, {0x11, 17}, {0x12, 18}, {/* sentinel */}};
+static struct VarlenCmd i2c_cmd_get_reply[] = {{0x10, 11}, {0x11, 17}, {0x12, 18}, {/* sentinel */}};
 
 static const char *TAG = "stm32flash";
 
-extern const stm32_dev_t devices[];
+extern const stm32_dev_t DEVICES[];
 
 int flash_addr_to_page_ceil(const stm32_t *stm, uint32_t addr) {
   int page;
@@ -359,7 +359,7 @@ static stm32_err_t stm32_send_init_seq(const stm32_t *stm) {
 /* find newer command by higher code */
 #define newer(prev, a) (((prev) == STM32_CMD_ERR) ? (a) : (((prev) > (a)) ? (prev) : (a)))
 
-stm32_t *stm32_init(Stream *stream, const uint8_t flags, const char init) {
+stm32_t *stm32_init(Stream *stream, uint8_t flags, char init) {
   uint8_t len, val, buf[257];
   stm32_t *stm;
   int i, new_cmds;
@@ -494,7 +494,7 @@ stm32_t *stm32_init(Stream *stream, const uint8_t flags, const char init) {
     return NULL;
   }
 
-  stm->dev = devices;
+  stm->dev = DEVICES;
   while (stm->dev->id != 0x00 && stm->dev->id != stm->pid)
     ++stm->dev;
 

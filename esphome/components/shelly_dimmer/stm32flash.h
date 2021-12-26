@@ -19,11 +19,11 @@
 
 #pragma once
 
+#include <cstdint>
+
+
 namespace esphome {
 namespace shelly_dimmer {
-
-#include <Stream.h>
-#include <cstdint>
 
 /* flags */
 #define STREAM_OPT_BYTE (1 << 0)      /* byte (not frame) oriented */
@@ -42,17 +42,17 @@ namespace shelly_dimmer {
 #define STM32_MAX_PAGES 0x0000ffff
 #define STM32_MASS_ERASE 0x00100000 /* > 2 x max_pages */
 
-using stm32_err_t = enum {
+typedef enum {
   STM32_ERR_OK = 0,
   STM32_ERR_UNKNOWN, /* Generic error */
   STM32_ERR_NACK,
   STM32_ERR_NO_CMD, /* Command not available in bootloader */
-};
+} stm32_err_t;
 
-using flags_t = enum {
+typedef enum {
   F_NO_ME = 1 << 0, /* Mass-Erase not supported */
   F_OBLL = 1 << 1,  /* OBL_LAUNCH required */
-};
+} flags_t;
 
 using stm32_t = struct stm32;
 using stm32_cmd_t = struct stm32_cmd;
