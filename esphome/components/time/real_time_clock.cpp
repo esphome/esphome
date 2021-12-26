@@ -131,6 +131,23 @@ void ESPTime::increment_second() {
     this->year++;
   }
 }
+void ESPTime::increment_day() {
+  this->timestamp += 86400;
+
+  // increment day
+  increment_time_value(this->day_of_week, 1, 8);
+
+  if (increment_time_value(this->day_of_month, 1, days_in_month(this->month, this->year) + 1)) {
+    // day of month roll-over, increment month
+    increment_time_value(this->month, 1, 13);
+  }
+
+  uint16_t days_in_year = (this->year % 4 == 0) ? 366 : 365;
+  if (increment_time_value(this->day_of_year, 1, days_in_year + 1)) {
+    // day of year roll-over, increment year
+    this->year++;
+  }
+}
 void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
   time_t res = 0;
 
