@@ -21,7 +21,6 @@
 
 #include <cstdint>
 
-
 namespace esphome {
 namespace shelly_dimmer {
 

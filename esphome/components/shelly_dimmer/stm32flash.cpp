@@ -58,7 +58,7 @@ static const uint8_t STM32_CMD_UR_NS = 0x93; /* readout unprotect no-stretch */
 static const uint8_t STM32_CMD_CRC = 0xA1;   /* compute CRC */
 static const uint8_t STM32_CMD_ERR = 0xFF;   /* not a valid command */
 
-static const uint32_t STM32_RESYNC_TIMEOUT = 35 * 1000;  /* milliseconds */
+static const uint32_t STM32_RESYNC_TIMEOUT = 35 * 1000;    /* milliseconds */
 static const uint32_t STM32_MASSERASE_TIMEOUT = 35 * 1000; /* milliseconds */
 static const uint32_t STM32_PAGEERASE_TIMEOUT = 5 * 1000;  /* milliseconds */
 static const uint32_t STM32_BLKWRITE_TIMEOUT = 1 * 1000;   /* milliseconds */
