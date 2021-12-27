@@ -59,7 +59,7 @@ void ShellyDimmer::setup() {
     ESP_LOGI(TAG, "STM32 current firmware version: %d.%d, desired version: %d.%d", this->version_major_,
              this->version_minor_, SHD_FIRMWARE_MAJOR_VERSION, SHD_FIRMWARE_MINOR_VERSION);  // NOLINT
     if (this->version_major_ != SHD_FIRMWARE_MAJOR_VERSION ||  // NOLINT: these are defines
-    this->version_minor_ != SHD_FIRMWARE_MINOR_VERSION) {
+        this->version_minor_ != SHD_FIRMWARE_MINOR_VERSION) {
       // Update firmware if needed.
       ESP_LOGW(TAG, "Unsupported STM32 firmware version, flashing");
       if (i > 0) {
@@ -204,8 +204,8 @@ void ShellyDimmer::send_settings_() {
   payload[2] = this->leading_edge_ ? 0x01 : 0x02;
   payload[3] = 0x00;
   // Fade rate.
-  payload[4] = fade_rate_ & 0xff;
-  payload[5] = fade_rate_ >> 8;
+  payload[4] = fade_rate & 0xff;
+  payload[5] = fade_rate >> 8;
   // Warmup brightness.
   payload[6] = this->warmup_brightness_ & 0xff;
   payload[7] = this->warmup_brightness_ >> 8;

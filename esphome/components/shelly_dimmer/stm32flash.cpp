@@ -362,7 +362,7 @@ stm32_t *stm32_init(Stream *stream, uint8_t flags, char init) {
   stm32_t *stm;
   int i, new_cmds;
 
-  stm = (stm32_t *) calloc(sizeof(stm32_t), 1);  // NOLINT
+  stm = (stm32_t *) calloc(sizeof(stm32_t), 1);            // NOLINT
   stm->cmd = (stm32_cmd_t *) malloc(sizeof(stm32_cmd_t));  // NOLINT
   memset(stm->cmd, STM32_CMD_ERR, sizeof(stm32_cmd_t));
   stm->stream = stream;
@@ -372,18 +372,18 @@ stm32_t *stm32_init(Stream *stream, uint8_t flags, char init) {
 
   if ((stm->flags & STREAM_OPT_CMD_INIT) && init)
     if (stm32_send_init_seq(stm) != STM32_ERR_OK)
-      return nullptr;
+      return nullptr;  // NOLINT
 
   /* get the version and read protection status  */
   if (stm32_send_command(stm, STM32_CMD_GVR) != STM32_ERR_OK) {
     stm32_close(stm);
-    return nullptr;
+    return nullptr;  // NOLINT
   }
 
   /* From AN, only UART bootloader returns 3 bytes */
   len = (stm->flags & STREAM_OPT_GVR_ETX) ? 3 : 1;
   if (stream->readBytes(buf, len) != len)
-    return nullptr;
+    return nullptr;  // NOLINT
   stm->version = buf[0];
   stm->option1 = (stm->flags & STREAM_OPT_GVR_ETX) ? buf[1] : 0;
   stm->option2 = (stm->flags & STREAM_OPT_GVR_ETX) ? buf[2] : 0;
@@ -508,7 +508,7 @@ stm32_t *stm32_init(Stream *stream, uint8_t flags, char init) {
 void stm32_close(stm32_t *stm) {
   if (stm)
     free(stm->cmd);  // NOLINT
-  free(stm);  // NOLINT
+  free(stm);         // NOLINT
 }
 
 stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address, uint8_t data[], unsigned int len) {
@@ -663,7 +663,6 @@ stm32_err_t stm32_wprot_memory(const stm32_t *stm) {
 }
 
 stm32_err_t stm32_runprot_memory(const stm32_t *stm) {
-  Stream *stream = stm->stream;
   stm32_err_t s_err;
 
   if (stm->cmd->ur == STM32_CMD_ERR) {
@@ -906,7 +905,7 @@ static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_addres
     return STM32_ERR_UNKNOWN;
   }
 
-  mem = (uint8_t *) malloc(length);
+  mem = (uint8_t *) malloc(length);  // NOLINT
   if (!mem)
     return STM32_ERR_UNKNOWN;
 
