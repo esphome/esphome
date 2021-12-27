@@ -5,7 +5,7 @@
 namespace esphome {
 namespace shelly_dimmer {
 
-static const char *TAG = "shelly";
+static const char * const TAG = "shelly";
 
 static const uint16_t SHELLY_DIMMER_BUFFER_SIZE = 256;
 static const uint8_t SHELLY_DIMMER_ACK_TIMEOUT = 200;  // ms
@@ -28,19 +28,27 @@ static const uint8_t SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE = 10;
 static const uint8_t SHELLY_DIMMER_PROTO_MAX_FRAME_SIZE = 4 + 72 + 3;
 
 // STM Firmware
-const uint8_t STM_FIRMWARE[] PROGMEM = SHD_FIRMWARE_DATA;
+const uint8_t STM_FIRMWARE[] PROGMEM = SHD_FIRMWARE_DATA; // NOLINT: SHD_FIRMWARE_DATA is a define
+
+
+// Scaling Constants
+static const float POWER_SCALING_FACTOR = 880373;
+static const float VOLTAGE_SCALING_FACTOR = 347800;
+static const float CURRENT_SCALING_FACTOR = 1448;
+ 
+
 
 /// Computes a crappy checksum as defined by the Shelly Dimmer protocol.
 uint16_t shelly_dimmer_checksum(const uint8_t *buf, int len) {
   uint16_t sum = 0;
-  for (uint8_t i = 0; i < len; i++) {
+  for (int i = 0; i < len; i++) {
     sum += buf[i];
   }
   return sum;
 }
 
 void ShellyDimmer::setup() {
-  this->buffer_ = new uint8_t[SHELLY_DIMMER_BUFFER_SIZE];
+  this->buffer_ = new uint8_t[SHELLY_DIMMER_BUFFER_SIZE]; // NOLINT: It will never be freed
   this->pin_nrst_->setup();
   this->pin_boot0_->setup();
   this->serial_ = &Serial;
@@ -51,9 +59,9 @@ void ShellyDimmer::setup() {
   for (int i = 0; i < 2; i++) {
     this->reset_normal_boot_();
     this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, nullptr, 0);
-    ESP_LOGI(TAG, "STM32 current firmware version: %d.%d, desired version: %d,%d", this->version_major_,
-             this->version_minor_, SHD_FIRMWARE_MAJOR_VERSION, SHD_FIRMWARE_MINOR_VERSION);
-    if (this->version_major_ != SHD_FIRMWARE_MAJOR_VERSION || this->version_minor_ != SHD_FIRMWARE_MINOR_VERSION) {
+    ESP_LOGI(TAG, "STM32 current firmware version: %d.%d, desired version: %d.%d", this->version_major_,
+             this->version_minor_, SHD_FIRMWARE_MAJOR_VERSION, SHD_FIRMWARE_MINOR_VERSION); // NOLINT
+    if (this->version_major_ != SHD_FIRMWARE_MAJOR_VERSION || this->version_minor_ != SHD_FIRMWARE_MINOR_VERSION) {  // NOLINT: these are defines
       // Update firmware if needed.
       ESP_LOGW(TAG, "Unsupported STM32 firmware version, flashing");
       if (i > 0) {
@@ -198,8 +206,8 @@ void ShellyDimmer::send_settings_() {
   payload[2] = this->leading_edge_ ? 0x01 : 0x02;
   payload[3] = 0x00;
   // Fade rate.
-  payload[4] = this->fade_rate_ & 0xff;
-  payload[5] = this->fade_rate_ >> 8;
+  payload[4] = fade_rate_ & 0xff;
+  payload[5] = fade_rate_ >> 8;
   // Warmup brightness.
   payload[6] = this->warmup_brightness_ & 0xff;
   payload[7] = this->warmup_brightness_ >> 8;
@@ -367,17 +375,17 @@ bool ShellyDimmer::handle_frame_() {
 
       float power = 0;
       if (power_raw > 0) {
-        power = 880373 / (float) power_raw;
+        power = POWER_SCALING_FACTOR / (float) power_raw;
       }
 
       float voltage = 0;
       if (voltage_raw > 0) {
-        voltage = 347800 / (float) voltage_raw;
+        voltage = VOLTAGE_SCALING_FACTOR / (float) voltage_raw;
       }
 
       float current = 0;
       if (current_raw > 0) {
-        current = 1448 / (float) current_raw;
+        current = CURRENT_SCALING_FACTOR / (float) current_raw;
       }
 
       ESP_LOGI(TAG, "Got dimmer data:");
