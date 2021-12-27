@@ -32,8 +32,8 @@ FIRMWARE_MAPPING = {
 
 
 CONF_LEADING_EDGE = "leading_edge"
-CONF_WARMUP_BRIGHTNESS = "warmup_brightness"
-CONF_WARMUP_TIME = "warmup_time"
+#CONF_WARMUP_BRIGHTNESS = "warmup_brightness"
+#CONF_WARMUP_TIME = "warmup_time"
 CONF_MIN_BRIGHTNESS = "min_brightness"
 CONF_MAX_BRIGHTNESS = "max_brightness"
 
@@ -48,8 +48,8 @@ CONFIG_SCHEMA = light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
         cv.Optional(CONF_NRST_PIN, default="GPIO5"): pins.gpio_output_pin_schema,
         cv.Optional(CONF_BOOT0_PIN, default="GPIO4"): pins.gpio_output_pin_schema,
         cv.Optional(CONF_LEADING_EDGE, default=False): cv.boolean,
-        cv.Optional(CONF_WARMUP_BRIGHTNESS, default=100): cv.uint16_t,
-        cv.Optional(CONF_WARMUP_TIME, default=20): cv.uint16_t,
+        #cv.Optional(CONF_WARMUP_BRIGHTNESS, default=100): cv.uint16_t,
+        #cv.Optional(CONF_WARMUP_TIME, default=20): cv.uint16_t,
         cv.Optional(CONF_MIN_BRIGHTNESS, default=0): cv.uint16_t,
         cv.Optional(CONF_MAX_BRIGHTNESS, default=1000): cv.uint16_t,
         cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1),
@@ -80,8 +80,8 @@ def to_code(config):
     cg.add(var.set_boot0_pin(boot0_pin))
 
     cg.add(var.set_leading_edge(config[CONF_LEADING_EDGE]))
-    cg.add(var.set_warmup_brightness(config[CONF_WARMUP_BRIGHTNESS]))
-    cg.add(var.set_warmup_time(config[CONF_WARMUP_TIME]))
+    #cg.add(var.set_warmup_brightness(config[CONF_WARMUP_BRIGHTNESS]))
+    #cg.add(var.set_warmup_time(config[CONF_WARMUP_TIME]))
     cg.add(var.set_min_brightness(config[CONF_MIN_BRIGHTNESS]))
     cg.add(var.set_max_brightness(config[CONF_MAX_BRIGHTNESS]))
 
