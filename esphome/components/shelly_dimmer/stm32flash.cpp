@@ -120,9 +120,9 @@ static const uint8_t STM_OBL_LAUNCH_CODE[] = {
 
 static const uint32_t STM_OBL_LAUNCH_CODE_LENGTH = sizeof(STM_OBL_LAUNCH_CODE);
 
-static struct VarlenCmd i2c_cmd_get_reply[] = {{0x10, 11}, {0x11, 17}, {0x12, 18}, {/* sentinel */}}; // NOLINT
+static struct VarlenCmd i2c_cmd_get_reply[] = {{0x10, 11}, {0x11, 17}, {0x12, 18}, {/* sentinel */}};  // NOLINT
 
-static const char * const TAG = "stm32flash";
+static const char *const TAG = "stm32flash";
 
 int flash_addr_to_page_ceil(const stm32_t *stm, uint32_t addr) {
   int page;
@@ -362,8 +362,8 @@ stm32_t *stm32_init(Stream *stream, uint8_t flags, char init) {
   stm32_t *stm;
   int i, new_cmds;
 
-  stm = (stm32_t *) calloc(sizeof(stm32_t), 1); // NOLINT
-  stm->cmd = (stm32_cmd_t *) malloc(sizeof(stm32_cmd_t)); // NOLINT
+  stm = (stm32_t *) calloc(sizeof(stm32_t), 1);  // NOLINT
+  stm->cmd = (stm32_cmd_t *) malloc(sizeof(stm32_cmd_t));  // NOLINT
   memset(stm->cmd, STM32_CMD_ERR, sizeof(stm32_cmd_t));
   stm->stream = stream;
   stm->flags = flags;
@@ -507,8 +507,8 @@ stm32_t *stm32_init(Stream *stream, uint8_t flags, char init) {
 
 void stm32_close(stm32_t *stm) {
   if (stm)
-    free(stm->cmd); // NOLINT
-  free(stm); // NOLINT
+    free(stm->cmd);  // NOLINT
+  free(stm);  // NOLINT
 }
 
 stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address, uint8_t data[], unsigned int len) {
@@ -770,7 +770,7 @@ static stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_
 
   /* regular erase (0x43) */
   if (stm->cmd->er == STM32_CMD_ER) {
-    buf = (uint8_t *) malloc(1 + pages + 1); // ?NOLINT
+    buf = (uint8_t *) malloc(1 + pages + 1);  // NOLINT
     if (!buf)
       return STM32_ERR_UNKNOWN;
 
@@ -782,7 +782,7 @@ static stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_
     }
     buf[i++] = cs;
     ret = stream->write(buf, i);
-    free(buf); // NOLINT
+    free(buf);  // NOLINT
     if (ret != i) {
       DEBUG_MSG(TAG, "Erase failed.");
       return STM32_ERR_UNKNOWN;
@@ -797,7 +797,7 @@ static stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_
   }
 
   /* extended erase */
-  buf = (uint8_t *) malloc(2 + 2 * pages + 1); // NOLINT
+  buf = (uint8_t *) malloc(2 + 2 * pages + 1);  // NOLINT
   if (!buf)
     return STM32_ERR_UNKNOWN;
 
@@ -919,7 +919,7 @@ static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_addres
   while (length > 0) {
     w = length > 256 ? 256 : length;
     if (stm32_write_memory(stm, address, pos, w) != STM32_ERR_OK) {
-      free(mem); // NOLINT
+      free(mem);  // NOLINT
       return STM32_ERR_UNKNOWN;
     }
 
@@ -928,7 +928,7 @@ static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_addres
     length -= w;
   }
 
-  free(mem); // NOLINT
+  free(mem);  // NOLINT
   return stm32_go(stm, target_address);
 }
 

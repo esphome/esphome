@@ -5,7 +5,7 @@
 namespace esphome {
 namespace shelly_dimmer {
 
-static const char * const TAG = "shelly";
+static const char *const TAG = "shelly";
 
 static const uint16_t SHELLY_DIMMER_BUFFER_SIZE = 256;
 static const uint8_t SHELLY_DIMMER_ACK_TIMEOUT = 200;  // ms
@@ -28,15 +28,12 @@ static const uint8_t SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE = 10;
 static const uint8_t SHELLY_DIMMER_PROTO_MAX_FRAME_SIZE = 4 + 72 + 3;
 
 // STM Firmware
-const uint8_t STM_FIRMWARE[] PROGMEM = SHD_FIRMWARE_DATA; // NOLINT: SHD_FIRMWARE_DATA is a define
-
+const uint8_t STM_FIRMWARE[] PROGMEM = SHD_FIRMWARE_DATA;  // NOLINT: SHD_FIRMWARE_DATA is a define
 
 // Scaling Constants
 static const float POWER_SCALING_FACTOR = 880373;
 static const float VOLTAGE_SCALING_FACTOR = 347800;
 static const float CURRENT_SCALING_FACTOR = 1448;
- 
-
 
 /// Computes a crappy checksum as defined by the Shelly Dimmer protocol.
 uint16_t shelly_dimmer_checksum(const uint8_t *buf, int len) {
@@ -48,7 +45,7 @@ uint16_t shelly_dimmer_checksum(const uint8_t *buf, int len) {
 }
 
 void ShellyDimmer::setup() {
-  this->buffer_ = new uint8_t[SHELLY_DIMMER_BUFFER_SIZE]; // NOLINT: It will never be freed
+  this->buffer_ = new uint8_t[SHELLY_DIMMER_BUFFER_SIZE];  // NOLINT: It will never be freed
   this->pin_nrst_->setup();
   this->pin_boot0_->setup();
   this->serial_ = &Serial;
@@ -60,8 +57,9 @@ void ShellyDimmer::setup() {
     this->reset_normal_boot_();
     this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, nullptr, 0);
     ESP_LOGI(TAG, "STM32 current firmware version: %d.%d, desired version: %d.%d", this->version_major_,
-             this->version_minor_, SHD_FIRMWARE_MAJOR_VERSION, SHD_FIRMWARE_MINOR_VERSION); // NOLINT
-    if (this->version_major_ != SHD_FIRMWARE_MAJOR_VERSION || this->version_minor_ != SHD_FIRMWARE_MINOR_VERSION) {  // NOLINT: these are defines
+             this->version_minor_, SHD_FIRMWARE_MAJOR_VERSION, SHD_FIRMWARE_MINOR_VERSION);  // NOLINT
+    if (this->version_major_ != SHD_FIRMWARE_MAJOR_VERSION ||  // NOLINT: these are defines
+    this->version_minor_ != SHD_FIRMWARE_MINOR_VERSION) {
       // Update firmware if needed.
       ESP_LOGW(TAG, "Unsupported STM32 firmware version, flashing");
       if (i > 0) {
