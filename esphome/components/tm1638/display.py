@@ -23,13 +23,10 @@ CONFIG_SCHEMA = (
     display.BASIC_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(TM1638Component),
-            cv.Required(
-                CONF_CLK_PIN
-            ): pins.gpio_output_pin_schema,  ## do we want input and output here
+            cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_STB_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_DIO_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_INTENSITY, default=7): cv.int_range(min=0, max=7),
-            # cv.Optional(CONF_REVERSE_ENABLE, default=False): cv.boolean,
         }
     ).extend(cv.polling_component_schema("1s"))
 )
@@ -39,8 +36,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await display.register_display(var, config)
-
-    # cg.add(var.set_intensity(config[CONF_INTENSITY]))
 
     clk = await cg.gpio_pin_expression(config[CONF_CLK_PIN])
     cg.add(var.set_clk_pin(clk))
@@ -57,4 +52,3 @@ async def to_code(config):
         )
 
     cg.add(var.set_writer(lambda_))
-
