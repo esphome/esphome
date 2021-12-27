@@ -8,8 +8,6 @@
 namespace esphome {
 namespace lock_ {
 
-#define LOCKUNLOCK(b) ((b) ? "LOCKED" : "UNLOCKED")
-
 #define LOG_LOCK(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
