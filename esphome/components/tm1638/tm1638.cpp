@@ -4,10 +4,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
 
-
-
-
-
 namespace esphome {
 namespace tm1638 {
 
@@ -23,11 +19,8 @@ static const uint8_t TM1638_REGISTER_LED_1 = 0xC1;
 static const uint8_t TM1638_SHIFT_DELAY = 10;  // clock pause between commands, default 4ms
 
 
-void TM1638Component::set_writer(tm1638_writer_t &&writer) { this->writer_ = writer; }
-
-
 void TM1638Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up TM1638...");
+  ESP_LOGD(TAG, "Setting up TM1638...");
 
   this->clk_pin_->setup();              // OUTPUT
   this->dio_pin_->setup();              // OUTPUT
@@ -41,9 +34,7 @@ void TM1638Component::setup() {
   this->dio_pin_->digital_write(false);  // false
   this->stb_pin_->digital_write(false);  // false
 
-  ESP_LOGI(TAG, "Pin setup complete");
-
-
+  ESP_LOGD(TAG, "Pin setup complete");
 
   set_intensity(intensity_);
 
@@ -55,7 +46,6 @@ void TM1638Component::setup() {
     this->buffer_[i] = 0;
 }
 
-
 void TM1638Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TM1638:");
   ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
@@ -65,18 +55,14 @@ void TM1638Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-
-#ifdef USE_BINARY_SENSOR
 void TM1638Component::loop() {
-  uint8_t val = this->get_keys();
+  if (!this->listeners_.size())
+    return;
 
-  for (auto *tm1638_key : this->tm1638_keys_)
-  {
-    tm1638_key->process(val);
-  }
+  uint8_t keys = this->get_keys();
+  for (auto &listener : this->listeners_)
+    listener->keys_update(keys);
 }
-
-
 
 uint8_t TM1638Component::get_keys() {
   // ESP_LOGI(TAG, "READ BUTTONS");
@@ -103,17 +89,7 @@ uint8_t TM1638Component::get_keys() {
   return buttons;
 }
 
-#endif
-
-
-#ifdef USE_SWITCH
-
-
-
-#endif
-
-
-void TM1638Component::update() {  // this is called at the interval specified in the congif.yaml
+void TM1638Component::update() {  // this is called at the interval specified in the config.yaml
   if (this->writer_.has_value())
   {
     (*this->writer_)(*this);
@@ -130,7 +106,7 @@ void TM1638Component::display() {
   for (uint8_t i = 0; i < 8; i++)  // loop though the buffer
   {
     // ESP_LOGI(TAG, "Buffer loop %u", i);
-    this->set7Seg(i + 1, buffer_[i]);
+    this->set_7seg_(i + 1, buffer_[i]);
   }
 
   //perhaps put something in here to eval some lamdas for the leds
@@ -141,7 +117,7 @@ void TM1638Component::reset(bool onOff) {
   // ESP_LOGI(TAG, "CLEARING DISPLAY");
 
   uint8_t numCommands = 16;           //16 addresses, 8 for 7seg and 8 for LEDs
-  uint8_t commands[numCommands] = {};
+  uint8_t commands[numCommands];
 
   for (int8_t i = 0; i < numCommands; i++) {
     commands[i] = onOff ? 255 : 0;
@@ -152,24 +128,24 @@ void TM1638Component::reset(bool onOff) {
 
 /////////////// LEDs /////////////////
 
-void TM1638Component::setLed(int ledPos, bool ledOnOff) {
+void TM1638Component::set_led(int led_pos, bool led_on_off) {
   this->sendCommand(TM1638_REGISTER_FIXEDADDRESS);
 
-  uint8_t commands[2] = {};
+  uint8_t commands[2];
 
-  commands[0] = TM1638_REGISTER_LED_1 + (ledPos << 1);
-  commands[1] = ledOnOff;
+  commands[0] = TM1638_REGISTER_LED_1 + (led_pos << 1);
+  commands[1] = led_on_off;
 
   this->sendCommands(commands, 2);
 }
 
-void TM1638Component::set7Seg(int segPos, uint8_t segBits) {
+void TM1638Component::set_7seg_(int seg_pos, uint8_t seg_bits) {
   this->sendCommand(TM1638_REGISTER_FIXEDADDRESS);
 
   uint8_t commands[2] = {};
 
-  commands[0] = TM1638_REGISTER_7SEG_1 + (segPos - 1 << 1);
-  commands[1] = segBits;
+  commands[0] = TM1638_REGISTER_7SEG_1 + ((seg_pos - 1) << 1);
+  commands[1] = seg_bits;
 
   this->sendCommands(commands, 2);
 }
