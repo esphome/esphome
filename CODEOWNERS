@@ -82,6 +82,7 @@ esphome/components/interval/* @esphome/core
 esphome/components/json/* @OttoWinter
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
+esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/ltr390/* @sjtrny
 esphome/components/max7219digit/* @rspaargaren
