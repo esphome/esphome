@@ -23,11 +23,11 @@ void TemplateLock::write_state(bool state) {
   }
 
   if (state) {
-    this->prev_trigger_ = this->turn_on_trigger_;
-    this->turn_on_trigger_->trigger();
+    this->prev_trigger_ = this->lock_trigger_;
+    this->lock_trigger_->trigger();
   } else {
-    this->prev_trigger_ = this->turn_off_trigger_;
-    this->turn_off_trigger_->trigger();
+    this->prev_trigger_ = this->unlock_trigger_;
+    this->unlock_trigger_->trigger();
   }
 
   if (this->optimistic_)

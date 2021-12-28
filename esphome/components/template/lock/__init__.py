@@ -19,10 +19,8 @@ TemplateLock = template_ns.class_("TemplateLock", lock.Lock, cg.Component)
 
 
 def validate(config):
-    if (
-        not config[CONF_OPTIMISTIC]
-        and (CONF_LOCK_ACTION not in config
-        or CONF_UNLOCK_ACTION not in config)
+    if not config[CONF_OPTIMISTIC] and (
+        CONF_LOCK_ACTION not in config or CONF_UNLOCK_ACTION not in config
     ):
         raise cv.Invalid(
             "Either optimistic mode must be enabled, or turn_on_action and turn_off_action must be set, "
@@ -41,12 +39,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_UNLOCK_ACTION): automation.validate_automation(
                 single=True
             ),
-            cv.Optional(CONF_LOCK_ACTION): automation.validate_automation(
-                single=True
-            ),
-            cv.Optional(CONF_OPEN_ACTION): automation.validate_automation(
-                single=True
-            ),
+            cv.Optional(CONF_LOCK_ACTION): automation.validate_automation(single=True),
+            cv.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_RESTORE_STATE, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),

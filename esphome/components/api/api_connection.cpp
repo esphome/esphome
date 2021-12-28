@@ -726,13 +726,13 @@ void APIConnection::lock_command(const LockCommandRequest &msg) {
     return;
 
   switch (msg.state){
-    case LOCK_UNLOCK:
+    case enums::LOCK_UNLOCK:
       a_lock->unlock();
       break;
-    case LOCK_LOCK:
+    case enums::LOCK_LOCK:
       a_lock->lock();
       break;
-    case LOCK_OPEN:
+    case enums::LOCK_OPEN:
       a_lock->open();
       break;
   }

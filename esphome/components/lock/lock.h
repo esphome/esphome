@@ -26,7 +26,7 @@ namespace lock_ {
  *
  * A lock is basically a switch with a combination of a binary sensor (for reporting lock values)
  * and a write_state method that writes a state to the hardware. Locks can also have an "open"
- * method to unlatch
+ * method to unlatch.
  */
 class Lock : public EntityBase {
  public:
@@ -106,7 +106,7 @@ class Lock : public EntityBase {
    * In the implementation of this method, it is recommended you also call
    * publish_state with "unlock" to acknowledge that the state was written to the hardware.
    */
-  void open_latch() { unlock(); };
+  virtual void open_latch() { unlock(); };
 
   uint32_t hash_base() override;
 
