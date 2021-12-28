@@ -20,30 +20,31 @@ RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        python3=3.9.2-3 \
-        python3-pip=20.3.4-4 \
-        python3-setuptools=52.0.0-4 \
-        python3-pil=8.1.2+dfsg-0.3 \
-        python3-cryptography=3.3.2-1 \
-        iputils-ping=3:20210202-1 \
-        git=1:2.30.2-1 \
-        curl=7.74.0-1.3+deb11u1 \
+    python3=3.9.2-3 \
+    python3-pip=20.3.4-4 \
+    python3-setuptools=52.0.0-4 \
+    python3-pil=8.1.2+dfsg-0.3 \
+    python3-cryptography=3.3.2-1 \
+    protobuf-compiler=3.12.4-1 \
+    iputils-ping=3:20210202-1 \
+    git=1:2.30.2-1 \
+    curl=7.74.0-1.3+deb11u1 \
     && rm -rf \
-        /tmp/* \
-        /var/{cache,log}/* \
-        /var/lib/apt/lists/*
+    /tmp/* \
+    /var/{cache,log}/* \
+    /var/lib/apt/lists/*
 
 ENV \
-  # Fix click python3 lang warning https://click.palletsprojects.com/en/7.x/python3/
-  LANG=C.UTF-8 LC_ALL=C.UTF-8 \
-  # Store globally installed pio libs in /piolibs
-  PLATFORMIO_GLOBALLIB_DIR=/piolibs
+    # Fix click python3 lang warning https://click.palletsprojects.com/en/7.x/python3/
+    LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+    # Store globally installed pio libs in /piolibs
+    PLATFORMIO_GLOBALLIB_DIR=/piolibs
 
 RUN \
     # Ubuntu python3-pip is missing wheel
     pip3 install --no-cache-dir \
-        wheel==0.36.2 \
-        platformio==5.2.2 \
+    wheel==0.36.2 \
+    platformio==5.2.2 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_libraries_interval 1000000 \
@@ -93,11 +94,11 @@ RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        nginx=1.18.0-6.1 \
+    nginx=1.18.0-6.1 \
     && rm -rf \
-        /tmp/* \
-        /var/{cache,log}/* \
-        /var/lib/apt/lists/*
+    /tmp/* \
+    /var/{cache,log}/* \
+    /var/lib/apt/lists/*
 
 ARG BUILD_VERSION=dev
 
@@ -120,7 +121,7 @@ LABEL \
     io.hass.description="Manage and program ESP8266/ESP32 microcontrollers through YAML configuration files" \
     io.hass.type="addon" \
     io.hass.version="${BUILD_VERSION}"
-    # io.hass.arch is inherited from addon-debian-base
+# io.hass.arch is inherited from addon-debian-base
 
 
 
@@ -129,23 +130,23 @@ LABEL \
 FROM base AS lint
 
 ENV \
-  PLATFORMIO_CORE_DIR=/esphome/.temp/platformio
+    PLATFORMIO_CORE_DIR=/esphome/.temp/platformio
 
 RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        clang-format-11=1:11.0.1-2 \
-        clang-tidy-11=1:11.0.1-2 \
-        patch=2.7.6-7 \
-        software-properties-common=0.96.20.2-2.1 \
-        nano=5.4-2 \
-        build-essential=12.9 \
-        python3-dev=3.9.2-3 \
+    clang-format-11=1:11.0.1-2 \
+    clang-tidy-11=1:11.0.1-2 \
+    patch=2.7.6-7 \
+    software-properties-common=0.96.20.2-2.1 \
+    nano=5.4-2 \
+    build-essential=12.9 \
+    python3-dev=3.9.2-3 \
     && rm -rf \
-        /tmp/* \
-        /var/{cache,log}/* \
-        /var/lib/apt/lists/*
+    /tmp/* \
+    /var/{cache,log}/* \
+    /var/lib/apt/lists/*
 
 COPY requirements.txt requirements_optional.txt requirements_test.txt docker/platformio_install_deps.py platformio.ini /
 RUN \
