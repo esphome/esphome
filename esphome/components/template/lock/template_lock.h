@@ -29,7 +29,7 @@ class TemplateLock : public lock_::Lock, public Component {
   bool assumed_state() override;
 
   void write_state(bool state) override;
-  void open_latch(bool state) override;
+  void open_latch() override;
 
   optional<std::function<optional<bool>()>> f_;
   bool optimistic_{false};

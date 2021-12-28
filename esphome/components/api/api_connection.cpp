@@ -725,7 +725,7 @@ void APIConnection::lock_command(const LockCommandRequest &msg) {
   if (a_lock == nullptr)
     return;
 
-  switch (msg.state){
+  switch (msg.state) {
     case enums::LOCK_UNLOCK:
       a_lock->unlock();
       break;

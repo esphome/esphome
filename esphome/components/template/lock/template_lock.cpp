@@ -6,7 +6,7 @@ namespace template_ {
 
 static const char *const TAG = "template.lock";
 
-TemplateLock::TemplateLock() : turn_on_trigger_(new Trigger<>()), turn_off_trigger_(new Trigger<>()) {}
+TemplateLock::TemplateLock() : lock_trigger_(new Trigger<>()), unlock_trigger_(new Trigger<>()) {}
 
 void TemplateLock::loop() {
   if (!this->f_.has_value())
