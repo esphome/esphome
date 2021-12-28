@@ -58,6 +58,7 @@ void SDMMeter::on_modbus_data(const std::vector<uint8_t> &data) {
   }
 
   float frequency = sdm_meter_get_float(SDM_FREQUENCY * 2);
+  float total_power = sdm_meter_get_float(SDM_TOTAL_SYSTEM_POWER * 2);
   float import_active_energy = sdm_meter_get_float(SDM_IMPORT_ACTIVE_ENERGY * 2);
   float export_active_energy = sdm_meter_get_float(SDM_EXPORT_ACTIVE_ENERGY * 2);
   float import_reactive_energy = sdm_meter_get_float(SDM_IMPORT_REACTIVE_ENERGY * 2);
@@ -68,6 +69,8 @@ void SDMMeter::on_modbus_data(const std::vector<uint8_t> &data) {
 
   if (this->frequency_sensor_ != nullptr)
     this->frequency_sensor_->publish_state(frequency);
+  if (this->total_power_sensor_ != nullptr)
+    this->total_power_sensor_->publish_state(total_power);
   if (this->import_active_energy_sensor_ != nullptr)
     this->import_active_energy_sensor_->publish_state(import_active_energy);
   if (this->export_active_energy_sensor_ != nullptr)
@@ -96,6 +99,7 @@ void SDMMeter::dump_config() {
     LOG_SENSOR("    ", "Phase Angle", phase.phase_angle_sensor_);
   }
   LOG_SENSOR("  ", "Frequency", this->frequency_sensor_);
+  LOG_SENSOR("  ", "Total Power", this->total_power_sensor_);
   LOG_SENSOR("  ", "Import Active Energy", this->import_active_energy_sensor_);
   LOG_SENSOR("  ", "Export Active Energy", this->export_active_energy_sensor_);
   LOG_SENSOR("  ", "Import Reactive Energy", this->import_reactive_energy_sensor_);
