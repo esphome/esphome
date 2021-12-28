@@ -41,6 +41,7 @@ service APIConnection {
   rpc number_command (NumberCommandRequest) returns (void) {}
   rpc select_command (SelectCommandRequest) returns (void) {}
   rpc button_command (ButtonCommandRequest) returns (void) {}
+  rpc lock_command (LockCommandRequest) returns (void) {}
 }
 
 
@@ -976,4 +977,44 @@ message ButtonCommandRequest {
   option (no_delay) = true;
 
   fixed32 key = 1;
+}
+
+// ==================== LOCK ====================
+enum LockAction {
+  LOCK_UNLOCK = 0;
+  LOCK_LOCK = 1;
+  LOCK_OPEN = 2;
+}
+message ListEntitiesLockResponse {
+  option (id) = 19;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_LOCK";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool assumed_state = 6;
+  bool disabled_by_default = 7;
+  EntityCategory entity_category = 8;
+}
+message LockStateResponse {
+  option (id) = 28;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_LOCK";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  bool state = 2;
+}
+message LockCommandRequest {
+  option (id) = 63;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_LOCK";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  LockAction state = 2;
 }

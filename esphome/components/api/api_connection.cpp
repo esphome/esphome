@@ -698,6 +698,47 @@ void APIConnection::button_command(const ButtonCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_LOCK
+bool APIConnection::send_lock_state(lock_::Lock *a_lock, bool state) {
+  if (!this->state_subscription_)
+    return false;
+
+  LockStateResponse resp{};
+  resp.key = a_lock->get_object_id_hash();
+  resp.state = state;
+  return this->send_lock_state_response(resp);
+}
+bool APIConnection::send_lock_info(lock_::Lock *a_lock) {
+  ListEntitiesLockResponse msg;
+  msg.key = a_lock->get_object_id_hash();
+  msg.object_id = a_lock->get_object_id();
+  msg.name = a_lock->get_name();
+  msg.unique_id = get_default_unique_id("lock", a_lock);
+  msg.icon = a_lock->get_icon();
+  msg.assumed_state = a_lock->assumed_state();
+  msg.disabled_by_default = a_lock->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(a_lock->get_entity_category());
+  return this->send_list_entities_lock_response(msg);
+}
+void APIConnection::lock_command(const LockCommandRequest &msg) {
+  lock_::Lock *a_lock = App.get_lock_by_key(msg.key);
+  if (a_lock == nullptr)
+    return;
+
+  switch (msg.state){
+    case LOCK_UNLOCK:
+      a_lock->unlock();
+      break;
+    case LOCK_LOCK:
+      a_lock->lock();
+      break;
+    case LOCK_OPEN:
+      a_lock->open();
+      break;
+  }
+}
+#endif
+
 #ifdef USE_ESP32_CAMERA
 void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
   if (!this->state_subscription_)

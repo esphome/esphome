@@ -278,6 +278,18 @@ template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::LockAction>(enums::LockAction value) {
+  switch (value) {
+    case enums::LOCK_UNLOCK:
+      return "LOCK_UNLOCK";
+    case enums::LOCK_LOCK:
+      return "LOCK_LOCK";
+    case enums::LOCK_OPEN:
+      return "LOCK_OPEN";
+    default:
+      return "UNKNOWN";
+  }
+}
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -4239,7 +4251,7 @@ void ListEntitiesButtonResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesButtonResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ListEntitiesButtonResponse {\n");
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
@@ -4289,11 +4301,188 @@ bool ButtonCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 void ButtonCommandRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_fixed32(1, this->key); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ButtonCommandRequest::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ButtonCommandRequest {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool ListEntitiesLockResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 6: {
+      this->assumed_state = value.as_bool();
+      return true;
+    }
+    case 7: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    case 8: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesLockResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->object_id = value.as_string();
+      return true;
+    }
+    case 3: {
+      this->name = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->unique_id = value.as_string();
+      return true;
+    }
+    case 5: {
+      this->icon = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesLockResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 2: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ListEntitiesLockResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name);
+  buffer.encode_string(4, this->unique_id);
+  buffer.encode_string(5, this->icon);
+  buffer.encode_bool(6, this->assumed_state);
+  buffer.encode_bool(7, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(8, this->entity_category);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ListEntitiesLockResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("ListEntitiesLockResponse {\n");
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id).append("'");
+  out.append("\n");
+
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  unique_id: ");
+  out.append("'").append(this->unique_id).append("'");
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  assumed_state: ");
+  out.append(YESNO(this->assumed_state));
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool LockStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->state = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool LockStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void LockStateResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_bool(2, this->state);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void LockStateResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("LockStateResponse {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  state: ");
+  out.append(YESNO(this->state));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool LockCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->state = value.as_enum<enums::LockAction>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool LockCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void LockCommandRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_enum<enums::LockAction>(2, this->state);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void LockCommandRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("LockCommandRequest {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  state: ");
+  out.append(proto_enum_to_string<enums::LockAction>(this->state));
   out.append("\n");
   out.append("}");
 }

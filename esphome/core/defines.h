@@ -24,6 +24,7 @@
 #define USE_GRAPH
 #define USE_HOMEASSISTANT_TIME
 #define USE_LIGHT
+#define USE_LOCK
 #define USE_LOGGER
 #define USE_MDNS
 #define USE_NUMBER
