@@ -46,7 +46,8 @@ bool Nextion::check_connect_() {
     this->reset_(false);
 
     this->ignore_is_setup_ = true;
-    this->send_command_("boguscommand=0");  // bogus command. needed sometimes after updating
+    this->send_command_("boguscommand=0");            // bogus command. needed sometimes after updating
+    this->send_command_("DRAKJHSUYDGBNCJHGJKSHBDN");  // escape Protocol Reparse mode if we're in it
     this->send_command_("connect");
 
     this->comok_sent_ = millis();
@@ -61,6 +62,11 @@ bool Nextion::check_connect_() {
   std::string response;
 
   this->recv_ret_string_(response, 0, false);
+  if (!response.empty() && response[0] == 0x1A) {
+    // Swallow invalid variable name responses that may be caused by the above commands
+    ESP_LOGD(TAG, "0x1A error ignored during setup");
+    return false;
+  }
   if (response.empty() || response.find("comok") == std::string::npos) {
 #ifdef NEXTION_PROTOCOL_LOG
     ESP_LOGN(TAG, "Bad connect request %s", response.c_str());
