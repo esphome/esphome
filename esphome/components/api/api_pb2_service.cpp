@@ -651,8 +651,7 @@ void APIServerConnection::on_subscribe_homeassistant_services_request(
   }
   this->subscribe_homeassistant_services(msg);
 }
-void APIServerConnection::on_subscribe_home_assistant_states_request(
-    const SubscribeHomeAssistantStatesRequest &msg) {
+void APIServerConnection::on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
