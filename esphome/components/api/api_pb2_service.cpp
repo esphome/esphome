@@ -186,7 +186,7 @@ bool APIServerConnectionBase::send_homeassistant_service_response(const Homeassi
   return this->send_message_<HomeassistantServiceResponse>(msg, 35);
 }
 bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(
-     const SubscribeHomeAssistantStateResponse &msg) {
+    const SubscribeHomeAssistantStateResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_subscribe_home_assistant_state_response: %s", msg.dump().c_str());
 #endif
