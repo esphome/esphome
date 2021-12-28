@@ -22,22 +22,15 @@ lock_ns = cg.esphome_ns.namespace("lock_")
 Lock = lock_ns.class_("Lock", cg.EntityBase)
 LockPtr = Lock.operator("ptr")
 
-ToggleAction = lock_ns.class_("ToggleAction", automation.Action)
 UnlockAction = lock_ns.class_("UnlockAction", automation.Action)
 LockAction = lock_ns.class_("LockAction", automation.Action)
 OpenAction = lock_ns.class_("OpenAction", automation.Action)
 LockPublishAction = lock_ns.class_("LockPublishAction", automation.Action)
 
 LockCondition = lock_ns.class_("LockCondition", Condition)
-LockLockTrigger = lock_ns.class_(
-    "LockLockTrigger", automation.Trigger.template()
-)
-LockUnlockTrigger = lock_ns.class_(
-    "LockUnlockTrigger", automation.Trigger.template()
-)
-LockOpenTrigger = lock_ns.class_(
-    "LockOpenTrigger", automation.Trigger.template()
-)
+LockLockTrigger = lock_ns.class_("LockLockTrigger", automation.Trigger.template())
+LockUnlockTrigger = lock_ns.class_("LockUnlockTrigger", automation.Trigger.template())
+LockOpenTrigger = lock_ns.class_("LockOpenTrigger", automation.Trigger.template())
 
 icon = cv.icon
 
@@ -99,15 +92,9 @@ LOCK_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("lock.toggle", ToggleAction, LOCK_ACTION_SCHEMA)
 @automation.register_action("lock.unlock", UnlockAction, LOCK_ACTION_SCHEMA)
 @automation.register_action("lock.lock", LockAction, LOCK_ACTION_SCHEMA)
 @automation.register_action("lock.open", OpenAction, LOCK_ACTION_SCHEMA)
-async def lock_toggle_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
 @automation.register_condition("lock.is_locked", LockCondition, LOCK_ACTION_SCHEMA)
 async def lock_is_on_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

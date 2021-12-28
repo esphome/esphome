@@ -27,16 +27,6 @@ template<typename... Ts> class UnlockAction : public Action<Ts...> {
   Lock *lock_;
 };
 
-template<typename... Ts> class ToggleAction : public Action<Ts...> {
- public:
-  explicit ToggleAction(Lock *a_lock) : lock_(a_lock) {}
-
-  void play(Ts... x) override { this->lock_->toggle(); }
-
- protected:
-  Lock *lock_;
-};
-
 template<typename... Ts> class OpenAction : public Action<Ts...> {
  public:
   explicit OpenAction(Lock *a_lock) : lock_(a_lock) {}

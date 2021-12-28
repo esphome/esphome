@@ -17,10 +17,6 @@ void Lock::unlock() {
   ESP_LOGD(TAG, "'%s' UNLOCKING.", this->get_name().c_str());
   this->write_state(this->inverted_);
 }
-void Lock::toggle() {
-  ESP_LOGD(TAG, "'%s' Toggling %s.", this->get_name().c_str(), this->state ? "UNLOCKED" : "LOCKED");
-  this->write_state(this->inverted_ == this->state);
-}
 void Lock::open() {
   ESP_LOGD(TAG, "'%s' Opening.", this->get_name().c_str());
   this->open_latch()

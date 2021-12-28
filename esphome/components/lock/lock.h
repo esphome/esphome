@@ -55,11 +55,6 @@ class Lock : public EntityBase {
    * For implementing locks, please override write_state.
    */
   void unlock();
-  /** Toggle this lock. This is called by the front-end.
-   *
-   * For implementing locks, please override write_state.
-   */
-  void toggle();
   /** Open (unlatch) this lock. This is called by the front-end.
    *
    * For implementing locks, please override write_state.
@@ -71,7 +66,7 @@ class Lock : public EntityBase {
    * To the developer and user an inverted lock will act just like a non-inverted one.
    * In particular, the only thing that's changed by this is the value passed to
    * write_state and the state in publish_state. The .state member variable and
-   * turn_on/turn_off/toggle remain unaffected.
+   * lock/unlock/open remain unaffected.
    *
    * @param inverted Whether to invert this lock.
    */
@@ -104,7 +99,7 @@ class Lock : public EntityBase {
    * @param state The state to write. Inversion is already applied if user specified it.
    */
   virtual void write_state(bool state) = 0;
-  
+
   /** Perform the open latch action with hardware. This method is optional to implement
    * when creating a new lock.
    *
