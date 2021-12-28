@@ -64,8 +64,9 @@ void SDMMeter::on_modbus_data(const std::vector<uint8_t> &data) {
   float import_reactive_energy = sdm_meter_get_float(SDM_IMPORT_REACTIVE_ENERGY * 2);
   float export_reactive_energy = sdm_meter_get_float(SDM_EXPORT_REACTIVE_ENERGY * 2);
 
-  ESP_LOGD(TAG, "SDMMeter: F=%.3f Hz, Im.A.E=%.3f Wh, Ex.A.E=%.3f Wh, Im.R.E=%.3f VARh, Ex.R.E=%.3f VARh, T.P=%.3f W", frequency,
-           import_active_energy, export_active_energy, import_reactive_energy, export_reactive_energy, total_power);
+  ESP_LOGD(TAG, "SDMMeter: F=%.3f Hz, Im.A.E=%.3f Wh, Ex.A.E=%.3f Wh, Im.R.E=%.3f VARh, Ex.R.E=%.3f VARh, T.P=%.3f W",
+	frequency, import_active_energy, export_active_energy, import_reactive_energy, export_reactive_energy,
+       	total_power);
 
   if (this->frequency_sensor_ != nullptr)
     this->frequency_sensor_->publish_state(frequency);
