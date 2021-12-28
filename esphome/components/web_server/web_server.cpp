@@ -264,7 +264,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifdef USE_LOCK
   for (auto *obj : App.get_locks())
     if (this->include_internal_ || !obj->is_internal())
-      write_row(stream, obj, "lock", "<button>Lock</button><button>Unlock</button>");
+      write_row(stream, obj, "lock", "<button>Lock</button><button>Unlock</button><button>Open</button>");
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "

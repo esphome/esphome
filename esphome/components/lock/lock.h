@@ -106,7 +106,7 @@ class Lock : public EntityBase {
    * In the implementation of this method, it is recommended you also call
    * publish_state with "unlock" to acknowledge that the state was written to the hardware.
    */
-  void open_latch(){};
+  void open_latch() { unlock(); };
 
   uint32_t hash_base() override;
 
