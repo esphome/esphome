@@ -640,7 +640,7 @@ void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &
   this->subscribe_logs(msg);
 }
 void APIServerConnection::on_subscribe_homeassistant_services_request(
-     const SubscribeHomeassistantServicesRequest &msg) {
+    const SubscribeHomeassistantServicesRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
