@@ -136,6 +136,9 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_BUTTON
   virtual void on_button_command_request(const ButtonCommandRequest &value){};
 #endif
+#ifdef USE_BUTTON
+  bool send_button_state_response(const ButtonStateResponse &msg);
+#endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };

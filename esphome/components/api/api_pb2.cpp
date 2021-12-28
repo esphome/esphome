@@ -4276,6 +4276,16 @@ void ListEntitiesButtonResponse::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool ButtonCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->state = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool ButtonCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
@@ -4286,7 +4296,10 @@ bool ButtonCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
       return false;
   }
 }
-void ButtonCommandRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_fixed32(1, this->key); }
+void ButtonCommandRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_string(2, this->state);
+}
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ButtonCommandRequest::dump_to(std::string &out) const {
   char buffer[64];
@@ -4294,6 +4307,49 @@ void ButtonCommandRequest::dump_to(std::string &out) const {
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
+  out.append("\n");
+
+  out.append("  state: ");
+  out.append("'").append(this->state).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool ButtonStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->state = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ButtonStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ButtonStateResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_string(2, this->state);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ButtonStateResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("ButtonStateResponse {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  state: ");
+  out.append("'").append(this->state).append("'");
   out.append("\n");
   out.append("}");
 }

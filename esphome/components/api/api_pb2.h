@@ -1071,6 +1071,7 @@ class ListEntitiesButtonResponse : public ProtoMessage {
 class ButtonCommandRequest : public ProtoMessage {
  public:
   uint32_t key{0};
+  std::string state{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1078,6 +1079,20 @@ class ButtonCommandRequest : public ProtoMessage {
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class ButtonStateResponse : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  std::string state{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 
 }  // namespace api

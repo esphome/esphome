@@ -976,4 +976,14 @@ message ButtonCommandRequest {
   option (no_delay) = true;
 
   fixed32 key = 1;
+  string state = 2;
+}
+message ButtonStateResponse {
+  option (id) = 63;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BUTTON";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  string state = 2;
 }

@@ -292,6 +292,14 @@ bool APIServerConnectionBase::send_list_entities_button_response(const ListEntit
 #endif
 #ifdef USE_BUTTON
 #endif
+#ifdef USE_BUTTON
+bool APIServerConnectionBase::send_button_state_response(const ButtonStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_button_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ButtonStateResponse>(msg, 63);
+}
+#endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
