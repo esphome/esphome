@@ -35,6 +35,7 @@ void TM1638Component::setup() {
   this->stb_pin_->digital_write(false);  // false
 
   ESP_LOGD(TAG, "Pin setup complete");
+  ESP_LOGD(TAG, "Setting initial Intensity: %u", this->intensity_);
 
   set_intensity(intensity_);
 
@@ -98,14 +99,13 @@ void TM1638Component::update() {  // this is called at the interval specified in
 }
 
 float TM1638Component::get_setup_priority() const { return setup_priority::PROCESSOR; }
-void TM1638Component::bit_delay_() { delayMicroseconds(100); }
 
 
 void TM1638Component::display() {
   for (uint8_t i = 0; i < 8; i++)
   {
 
-    this->set_7seg_(i + 1, buffer_[i]);
+    this->set_7seg_(i, buffer_[i]);
   }
 }
 
@@ -140,7 +140,7 @@ void TM1638Component::set_7seg_(int seg_pos, uint8_t seg_bits) {
 
   uint8_t commands[2] = {};
 
-  commands[0] = TM1638_REGISTER_7SEG_0 + ((seg_pos - 1) << 1);
+  commands[0] = TM1638_REGISTER_7SEG_0 + (seg_pos << 1);
   commands[1] = seg_bits;
 
   this->sendCommands(commands, 2);
@@ -150,15 +150,16 @@ void TM1638Component::set_intensity(uint8_t brightnessLevel) {
 
   this->intensity_ = brightnessLevel;
 
-  this->sendCommand(TM1638_REGISTER_AUTOADDRESS);
+  this->sendCommand(TM1638_REGISTER_FIXEDADDRESS);
 
-  if (brightnessLevel == 1) {
-    sendCommand(TM1638_REGISTER_DISPLAYOFF);
-  } else {
-    sendCommand((uint8_t)(TM1638_REGISTER_DISPLAYON | intensity_));
-  }
-
-
+  if (brightnessLevel > 0)
+    {
+      sendCommand((uint8_t)(TM1638_REGISTER_DISPLAYON | intensity_));
+    }
+    else
+    {
+      sendCommand(TM1638_REGISTER_DISPLAYOFF);
+    }
 }
 
 /////////////// DISPLAY PRINT /////////////////

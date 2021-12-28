@@ -69,14 +69,11 @@ class TM1638Component : public PollingComponent{
   void sendCommandSequence(uint8_t commands[], int numCommands, uint8_t startingAddress);
   void shiftOut(uint8_t value);
   void reset(bool onOff);
-  void start_();
-  void stop_();
-  void bit_delay_();
   uint8_t shiftIn();
 
   // void GetTranslation(char *str);
 
-  uint8_t intensity_{7};  /// brghtness of the display  0 through 7
+  uint8_t intensity_{};  /// brghtness of the display  0 through 7
   GPIOPin *clk_pin_;
   GPIOPin *stb_pin_;
   GPIOPin *dio_pin_;

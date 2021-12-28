@@ -41,7 +41,6 @@ display:
     stb_pin: 5 #TM1638 STB
     clk_pin: 18 #TM1638 CLK
     dio_pin: 23 #TM1638 DIO
-
     update_interval: 1s
     intensity: 6
     lambda: |-

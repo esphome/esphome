@@ -19,17 +19,15 @@ TM1638ComponentRef = TM1638Component.operator("ref")
 
 CONF_STB_PIN = "stb_pin"
 
-CONFIG_SCHEMA = (
-    display.BASIC_DISPLAY_SCHEMA.extend(
-        {
-            cv.GenerateID(): cv.declare_id(TM1638Component),
-            cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_STB_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_DIO_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_INTENSITY, default=7): cv.int_range(min=0, max=7),
-        }
-    ).extend(cv.polling_component_schema("1s"))
-)
+CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(TM1638Component),
+        cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
+        cv.Required(CONF_STB_PIN): pins.gpio_output_pin_schema,
+        cv.Required(CONF_DIO_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_INTENSITY, default=7): cv.int_range(min=0, max=8),
+    }
+).extend(cv.polling_component_schema("1s"))
 
 
 async def to_code(config):
@@ -45,6 +43,8 @@ async def to_code(config):
 
     stb = await cg.gpio_pin_expression(config[CONF_STB_PIN])
     cg.add(var.set_stb_pin(stb))
+
+    cg.add(var.set_intensity(config[CONF_INTENSITY]))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(

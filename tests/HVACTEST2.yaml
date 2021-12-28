@@ -1,0 +1,523 @@
+#See if you can implement   -display.turn_on_led: 7
+#look at what the switch and gpio components do
+
+esphome:
+  name: htest
+  platform: ESP32
+  board: nodemcu-32s
+  on_boot:
+    priority: -700
+    then:
+    #  - switch.turn_off: cool
+    # - switch.turn_off: heat
+    # - switch.turn_off: fan
+      - output.turn_on: boardled
+      #add step to set default fan mode, default temp and
+
+#web_server:
+#  port: 80
+
+
+#wifi:
+#  ssid: "CobbNET25"
+#  password: "technical"
+#  id: "wirelessnetwork"
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+#  ap:
+#    ssid: "HTEST Fallback Hotspot"
+#    password: "technical"
+
+#captive_portal:
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+# api:
+
+#ota:
+
+
+display:
+  - platform: tm1638
+    id: primarydisplay
+    stb_pin: 5 #TM1638 STB
+    clk_pin: 18 #TM1638 CLK
+    dio_pin: 23 #TM1638 DIO
+    update_interval: 1s
+    intensity: 5
+    lambda: |-
+         it.printf("%.0f %.0f %.0f%.1s %1s  %.1f",
+                          id(hvac).target_temperature_low * 1.8 + 32,                           //low temp
+                          id(hvacsens).state * 1.8 + 32,                                        //current temp
+                          id(hvac).target_temperature_high * 1.8 + 32,                          //high temp
+
+                          id(hvac).mode == CLIMATE_MODE_OFF ? "F" :                             //current mode
+                          id(hvac).mode == CLIMATE_MODE_HEAT_COOL ? "A" :                       //created inilne if to
+                          id(hvac).mode == CLIMATE_MODE_HEAT ? "H" :                            //prevent issues with future ESPHome changes
+                          id(hvac).mode == CLIMATE_MODE_COOL ? "C" :
+                          LOG_STR_ARG(climate_mode_to_string(id(hvac).mode)),
+
+                          id(hvac).fan_mode == CLIMATE_FAN_ON ? "O" :                           //current fan mode
+                          id(hvac).fan_mode == CLIMATE_FAN_AUTO ? "A" :                         //create inline if to prevent
+                          LOG_STR_ARG(climate_fan_mode_to_string(id(hvac).fan_mode.value())),   //issues with future ESPHome changes
+
+                          id(humidsens).state                                                  //current humidity
+
+                          );
+
+
+#time:
+#  - platform: sntp
+#    id: sntp_time
+#    timezone: EST+5EDT,M3.2.0/2,M11.1.0/2
+
+#external_components:
+#  - source:
+#      type: local
+#      path: devcomponents
+
+#time:
+#  - platform: homeassistant
+#    id: homeassistant_time
+
+#display:
+#  - platform: max7219
+#    id: primarydisplay
+#    cs_pin: 5
+#    num_chips: 2
+#    update_interval: 10s
+#    intensity: 1
+#    reverse_enable: true
+#    lambda: |-
+#        it.printf("%.0f %.0f %.0f%.1s %1s  %.1f",
+#                          id(htest).target_temperature_low * 1.8 + 32,                           //low temp
+#                          id(htestsens).state * 1.8 + 32,                                        //current temp
+#                          id(htest).target_temperature_high * 1.8 + 32,                          //high temp
+#
+#                          id(htest).mode == CLIMATE_MODE_OFF ? "F" :                             //current mode
+#                          id(htest).mode == CLIMATE_MODE_HEAT_COOL ? "A" :                       //created inilne if to
+#                          id(htest).mode == CLIMATE_MODE_HEAT ? "H" :                            //prevent issues with future ESPHome changes
+#                          id(htest).mode == CLIMATE_MODE_COOL ? "C" :
+#                          LOG_STR_ARG(climate_mode_to_string(id(htest).mode)),
+#
+#                          id(htest).fan_mode == CLIMATE_FAN_ON ? "O" :                           //current fan mode
+#                          id(htest).fan_mode == CLIMATE_FAN_AUTO ? "A" :                         //create inline if to prevent
+#                          LOG_STR_ARG(climate_fan_mode_to_string(id(htest).fan_mode.value())),   //issues with future ESPHome changes
+#
+#                          id(humidsens).state                                                  //current humidity
+#
+#                          );
+
+
+    #  id(wirelessnetwork).is_connected()                                    //WiFi Satus
+    #it.printf("%s", LOG_STR_ARG(climate_mode_to_string(id(hvac).mode)));
+
+
+    #(id(hvacsens).state * 1.8) + 32 ,
+    #(id(hvac).target_temperature_high * 1.8) + 32,
+    #id(hvac).mode == CLIMATE_MODE_OFF ? "F" : climate_mode_to_string(id(hvac).mode) ,
+    #climate_fan_mode_to_string(id(hvac).fan_mode) ,
+    #(id(humidsens).state));
+
+
+
+
+#it.printf("%.1s",  climate_fan_mode_to_string(id(hvac).fan_mode));
+
+
+#  humidsens
+#it.printf("%.1f",  (id(hvacsens).state));
+
+#(id(hvacsens).state * 1.8)
+
+#it.strftime(0, "%Y-%m-%d %H:%M", id(homeassistant_time).now());
+
+ #it.print("--test----test--");
+
+
+# it.printf("%.1f",  (id(hvacsens).state * 1.8) + 32);
+
+interval:
+  - interval: 250ms
+    then:
+      - output.turn_on: boardled
+      - delay: 50ms
+      - output.turn_off: boardled
+
+  - interval: 10s
+    then:
+      #- logger.log:
+      #    format: "Temp Data  %.4f %.4f  %.4f"
+      #    args: [id(hvac).target_temperature_high, id(hvac).target_temperature_low, id(hvac).target_temperature_high - id(hvac).target_temperature_low]
+      - lambda: |-
+          if ((id(htest).target_temperature_high - id(htest).target_temperature_low) < 1 )
+          {
+              auto call = id(htest).make_call();
+              call.set_target_temperature_low(id(htest).target_temperature_low - 0.55);
+              call.set_target_temperature_high(id(htest).target_temperature_high + 0.55);
+              call.perform();
+              id(primarydisplay).update();
+          }
+
+#      - logger.log:
+#          format: "Blink %.1i"
+#         args: [ 'id(blinkcount)']
+#
+#      - lambda: |-
+#          id(blinkcount) += 1;
+
+
+
+sensor:
+  - pin:
+      number: 26
+      mode: INPUT_PULLUP
+    platform: dht
+    model: dht22
+    temperature:
+      name: "Living Room Temperature"
+      id: htestsens
+#      unit_of_measurement: "°F"
+#      filters:
+#        - lambda: return (x * 1.8) + 32;
+    humidity:
+      name: "Living Room Humidity"
+      id: humidsens
+    update_interval: 10s
+
+#  - platform: wifi_signal
+#    name: "WiFi_Status"
+#    update_interval: 60s
+
+switch:
+    - platform: tm1638
+      led: 0
+      id: Led0
+      tm1638_id: primarydisplay
+    - platform: tm1638
+      led: 1
+      id: Led1
+      tm1638_id: primarydisplay
+    - platform: tm1638
+      led: 2
+      id: Led2
+      tm1638_id: primarydisplay
+    - platform: tm1638
+      led: 3
+      id: Led3
+      tm1638_id: primarydisplay
+    - platform: tm1638
+      led: 4
+      id: Led4
+      tm1638_id: primarydisplay
+    - platform: tm1638
+      led: 5
+      id: Led5
+      tm1638_id: primarydisplay
+    - platform: tm1638
+      led: 6
+      id: Led6
+      tm1638_id: primarydisplay
+    - platform: tm1638
+      led: 7
+      id: Led7
+      tm1638_id: primarydisplay
+
+
+climate:
+  - platform: thermostat
+    name: "Thermostat Climate Controller"
+    id: htest
+    sensor: htestsens
+    default_target_temperature_low: 10 °C
+    default_target_temperature_high: 15 °C
+    visual:
+      min_temperature: 10 °C
+      max_temperature: 30 °C
+      temperature_step: 1 °C
+    cool_action:
+       - lambda: |-
+            id(primarydisplay).setLed(7, true);
+            id(primarydisplay).setLed(6, false);
+            id(primarydisplay).setLed(5, false);
+
+    heat_action:
+       - lambda: |-
+            id(primarydisplay).setLed(6, true);
+            id(primarydisplay).setLed(7, false);
+            id(primarydisplay).setLed(5, false);
+
+    idle_action:
+       - lambda: |-
+          id(primarydisplay).setLed(6, false);
+          id(primarydisplay).setLed(7, false);
+          id(primarydisplay).setLed(5, true);
+
+    fan_mode_on_action:
+#        - switch.turn_on: fan
+        - lambda: |-
+
+    fan_mode_auto_action:
+#        - switch.turn_off: fan
+        - lambda: |-
+
+    min_idle_time: 60s
+    min_cooling_off_time: 300s
+    min_cooling_run_time: 300s
+    min_heating_off_time: 300s
+    min_heating_run_time: 300s
+    min_fan_mode_switching_time: 60s
+
+
+
+    away_config:
+      default_target_temperature_low: 10 °C
+      default_target_temperature_high: 30 °C
+
+    #hysteresis: 1 °C
+
+
+
+
+output:
+  - platform: gpio
+    pin: 2
+    id: boardled
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: 35
+      #mode: INPUT_PULLUP  #this pin has no internal resistor
+      inverted: True
+    name: "Lower Temp"
+    filters:
+      - delayed_on: 10ms
+    on_press:
+        then:
+        - lambda: |-
+                auto call = id(htest).make_call();
+                bool completeCall = false;
+
+                if (id(heatselsw).state)
+                {
+                   call.set_target_temperature_low(id(htest).target_temperature_low - 0.55);
+                   completeCall = true;
+                }
+                else if (id(coolselsw).state)
+                {
+                   call.set_target_temperature_high(id(htest).target_temperature_high - 0.55);
+                   completeCall = true;
+                }
+
+                if(completeCall)
+                {
+                  call.perform();
+                }
+
+        - component.update: primarydisplay
+
+  - platform: gpio
+    pin:
+      number: 34
+      #mode: INPUT_PULLUP  #this pin has no internal resistor
+      inverted: true
+    name: "Raise Temp"
+    filters:
+      - delayed_on: 10ms
+    on_press:
+      then:
+        - logger.log: 'BUTTON PRESSED #######'
+        - lambda: |-
+
+                auto call = id(htest).make_call();
+                bool completeCall = false;
+
+                if (id(heatselsw).state)
+                {
+                   call.set_target_temperature_low(id(htest).target_temperature_low + 0.55);
+                   completeCall = true;
+                }
+                else if (id(coolselsw).state)
+                {
+                   call.set_target_temperature_high(id(htest).target_temperature_high + 0.55);
+                   completeCall = true;
+                }
+
+                if(completeCall)
+                {
+                  call.perform();
+                }
+
+        - component.update: primarydisplay
+
+  - platform: gpio
+    pin:
+      number: 4
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Mode Cycle Switch"
+    id: modesw
+    filters:
+      - delayed_on: 10ms
+    on_press:
+      then:
+        - logger.log: 'BUTTON PRESSED #######'
+        - lambda: |-
+
+                auto call = id(htest).make_call();
+
+                if(id(htest).mode == CLIMATE_MODE_HEAT)
+                {
+                  call.set_mode(CLIMATE_MODE_COOL);
+                }
+                else if (id(htest).mode == CLIMATE_MODE_COOL)
+                {
+                  call.set_mode(CLIMATE_MODE_HEAT_COOL);
+                }
+                else if (id(htest).mode == CLIMATE_MODE_HEAT_COOL)
+                {
+                  call.set_mode(CLIMATE_MODE_OFF);
+                }
+                else if (id(htest).mode == CLIMATE_MODE_OFF)
+                {
+                  call.set_mode(CLIMATE_MODE_HEAT);
+                }
+                else
+                {
+                   call.set_mode(CLIMATE_MODE_HEAT_COOL);
+                }
+
+                call.perform();
+
+        - component.update: primarydisplay
+
+  - platform: gpio
+    pin:
+      number: 19
+      mode: INPUT_PULLUP
+    name: "Fan Cycle Switch"
+    id: modeselsw
+    filters:
+      - delayed_on: 10ms
+    on_press:
+      then:
+        - logger.log: 'BUTTON PRESSED #######'
+        - lambda: |-
+
+                auto call = id(htest).make_call();
+
+                if(id(htest).fan_mode == CLIMATE_FAN_ON)
+                {
+                  call.set_fan_mode(CLIMATE_FAN_AUTO);
+                }
+                else if (id(htest).fan_mode == CLIMATE_FAN_AUTO)
+                {
+                  call.set_fan_mode(CLIMATE_FAN_ON);
+                }
+
+                call.perform();
+
+        - component.update: primarydisplay
+
+
+
+  - platform: gpio
+    pin:
+      number: 17
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Heat Select Switch"
+    id: heatselsw
+    filters:
+      - delayed_on: 10ms
+
+  - platform: gpio
+    pin:
+      number: 16
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Cool Select Switch"
+    id: coolselsw
+    filters:
+      - delayed_on: 10ms
+
+
+  - platform: tm1638
+    id: key0
+    name: key1-00
+    tm1638_id: primarydisplay
+    key: 0
+    filters:
+      - delayed_on: 10ms
+    on_press:
+      then:
+        - switch.turn_on: Led0
+
+    on_release:
+      then:
+       - switch.turn_off: Led0
+
+  - platform: tm1638
+    id: key1
+    name: key1-01
+    tm1638_id: primarydisplay
+    key: 1
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key2
+    name: key1-02
+    tm1638_id: primarydisplay
+    key: 2
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key3
+    name: key1-03
+    tm1638_id: primarydisplay
+    key: 3
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key4
+    name: key1-04
+    tm1638_id: primarydisplay
+    key: 4
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key5
+    name: key1-05
+    tm1638_id: primarydisplay
+    key: 5
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key6
+    name: key1-06
+    tm1638_id: primarydisplay
+    key: 6
+    filters:
+      - delayed_on: 10ms
+
+  - platform: tm1638
+    id: key7
+    name: key1-07
+    tm1638_id: primarydisplay
+    key: 7
+    filters:
+      - delayed_on: 10ms
+
+
+
+
+
+
