@@ -29,6 +29,11 @@ bool InitialStateIterator::on_switch(switch_::Switch *a_switch) {
   return this->client_->send_switch_state(a_switch, a_switch->state);
 }
 #endif
+#ifdef USE_BUTTON
+bool InitialStateIterator::on_button(button::Button *button) {
+  return this->client_->send_button_state(button, button->state);
+}
+#endif
 #ifdef USE_TEXT_SENSOR
 bool InitialStateIterator::on_text_sensor(text_sensor::TextSensor *text_sensor) {
   return this->client_->send_text_sensor_state(text_sensor, text_sensor->state);

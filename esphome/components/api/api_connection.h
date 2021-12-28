@@ -75,6 +75,7 @@ class APIConnection : public APIServerConnection {
   void select_command(const SelectCommandRequest &msg) override;
 #endif
 #ifdef USE_BUTTON
+  bool send_button_state(button::Button *button, std::string state);
   bool send_button_info(button::Button *button);
   void button_command(const ButtonCommandRequest &msg) override;
 #endif

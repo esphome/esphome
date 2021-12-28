@@ -102,6 +102,11 @@ void WebServer::setup() {
         client->send(this->switch_json(obj, obj->state).c_str(), "state");
 #endif
 
+#ifdef USE_BUTTON
+    for (auto *obj : App.get_buttons())
+      client->send(this->button_json(obj, obj->state).c_str(), "state");
+#endif
+
 #ifdef USE_BINARY_SENSOR
     for (auto *obj : App.get_binary_sensors())
       if (this->include_internal_ || !obj->is_internal())
@@ -388,6 +393,16 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
 #endif
 
 #ifdef USE_BUTTON
+void WebServer::on_button_update(button::Button *obj, const std::string &state) {
+  this->events_.send(this->button_json(obj, state).c_str(), "state");
+}
+std::string WebServer::button_json(button::Button *obj, const std::string &value) {
+  return json::build_json([obj, value](JsonObject root) {
+    root["id"] = "button-" + obj->get_object_id();
+    root["state"] = value;
+    root["value"] = value;
+  });
+}
 void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (button::Button *obj : App.get_buttons()) {
     if (obj->get_object_id() != match.id)

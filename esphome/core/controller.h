@@ -55,6 +55,9 @@ class Controller {
 #ifdef USE_SWITCH
   virtual void on_switch_update(switch_::Switch *obj, bool state){};
 #endif
+#ifdef USE_BUTTON
+  virtual void on_button_update(button::Button *obj, const std::string &state){};
+#endif
 #ifdef USE_COVER
   virtual void on_cover_update(cover::Cover *obj){};
 #endif

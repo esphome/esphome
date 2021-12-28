@@ -677,6 +677,15 @@ void APIConnection::select_command(const SelectCommandRequest &msg) {
 #endif
 
 #ifdef USE_BUTTON
+bool APIConnection::send_button_state(button::Button *button, std::string state) {
+  if (!this->state_subscription_)
+    return false;
+
+  ButtonStateResponse resp{};
+  resp.key = button->get_object_id_hash();
+  resp.state = std::move(state);
+  return this->send_button_state_response(resp);
+}
 bool APIConnection::send_button_info(button::Button *button) {
   ListEntitiesButtonResponse msg;
   msg.key = button->get_object_id_hash();
@@ -694,7 +703,7 @@ void APIConnection::button_command(const ButtonCommandRequest &msg) {
   if (button == nullptr)
     return;
 
-  button->press();
+  button->set_state(msg.state);
 }
 #endif
 

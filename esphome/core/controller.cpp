@@ -35,6 +35,12 @@ void Controller::setup_controller(bool include_internal) {
       obj->add_on_state_callback([this, obj](bool state) { this->on_switch_update(obj, state); });
   }
 #endif
+#ifdef USE_BUTTON
+  for (auto *obj : App.get_buttons()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_press_callback([this, obj](const std::string &state) { this->on_button_update(obj, state); });
+  }
+#endif
 #ifdef USE_COVER
   for (auto *obj : App.get_covers()) {
     if (include_internal || !obj->is_internal())

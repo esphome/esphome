@@ -20,7 +20,7 @@ template<typename... Ts> class PressAction : public Action<Ts...> {
 class ButtonPressTrigger : public Trigger<> {
  public:
   ButtonPressTrigger(Button *button) {
-    button->add_on_press_callback([this]() { this->trigger(); });
+    button->add_on_press_callback([this](std::string) { this->trigger(); });
   }
 };
 

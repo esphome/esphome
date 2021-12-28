@@ -223,6 +223,17 @@ void APIServer::on_switch_update(switch_::Switch *obj, bool state) {
 }
 #endif
 
+#ifdef USE_BUTTON
+void APIServer::on_button_update(button::Button *obj, const std::string &state) {
+  ESP_LOGW(TAG, "on_button_update-1");
+  if (obj->is_internal())
+    return;
+  ESP_LOGW(TAG, "on_button_update-1");
+  for (auto &c : this->clients_)
+    c->send_button_state(obj, state);
+}
+#endif
+
 #ifdef USE_TEXT_SENSOR
 void APIServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
   if (obj->is_internal())

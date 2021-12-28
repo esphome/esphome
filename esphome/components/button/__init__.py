@@ -2,13 +2,14 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.components import mqtt
+from esphome.components import mqtt, time
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
     CONF_ON_PRESS,
+    CONF_TIME_ID,
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
     DEVICE_CLASS_RESTART,
@@ -47,6 +48,7 @@ BUTTON_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).e
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ButtonPressTrigger),
             }
         ),
+        cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
     }
 )
 
@@ -104,6 +106,9 @@ async def register_button(var, config):
 
 async def new_button(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    if CONF_TIME_ID in config:
+        time_ = await cg.get_variable(config[CONF_TIME_ID])
+        cg.add(var.set_time_id(time_))
     await register_button(var, config)
     return var
 
