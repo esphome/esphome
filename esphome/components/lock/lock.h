@@ -105,10 +105,8 @@ class Lock : public EntityBase {
    *
    * In the implementation of this method, it is recommended you also call
    * publish_state with "unlock" to acknowledge that the state was written to the hardware.
-   *
-   * @param state The state to write. Inversion is already applied if user specified it.
    */
-  virtual void open_latch() = 0;
+  void open_latch(){};
 
   uint32_t hash_base() override;
 

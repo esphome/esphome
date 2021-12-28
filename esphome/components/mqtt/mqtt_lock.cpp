@@ -17,16 +17,15 @@ MQTTLockComponent::MQTTLockComponent(lock_::Lock *a_lock) : MQTTComponent(), loc
 
 void MQTTLockComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
-    if (on == nullptr && strcasecmp(str, "LOCK") == 0)
+    if (strcasecmp(payload.c_str(), "LOCK") == 0)
       this->lock_->lock();
-    else if (off == nullptr && strcasecmp(str, "UNLOCK") == 0)
+    else if (strcasecmp(payload.c_str(), "UNLOCK") == 0)
       this->lock_->unlock();
-    else if (off == nullptr && strcasecmp(str, "OPEN") == 0)
+    else if (strcasecmp(payload.c_str(), "OPEN") == 0)
       this->lock_->open();
     else {
       ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name().c_str(), payload.c_str());
       this->status_momentary_warning("state", 5000);
-      break;
     }
   });
   this->lock_->add_on_state_callback(

@@ -20,9 +20,9 @@ void OutputLock::setup() {
 }
 void OutputLock::write_state(bool state) {
   if (state) {
-    this->output_->lock();
+    this->output_->turn_on();
   } else {
-    this->output_->unlock();
+    this->output_->turn_off();
   }
   this->publish_state(state);
 }

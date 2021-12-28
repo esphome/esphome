@@ -19,7 +19,7 @@ void Lock::unlock() {
 }
 void Lock::open() {
   ESP_LOGD(TAG, "'%s' Opening.", this->get_name().c_str());
-  this->open_latch()
+  this->open_latch();
 }
 optional<bool> Lock::get_initial_state() {
   this->rtc_ = global_preferences->make_preference<bool>(this->get_object_id_hash());
