@@ -6,5 +6,5 @@ namespace lock_ {
 
 static const char *const TAG = "lock.automation";
 
-}  // namespace switch_
+}  // namespace lock_
 }  // namespace esphome

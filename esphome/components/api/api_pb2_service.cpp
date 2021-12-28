@@ -185,7 +185,8 @@ bool APIServerConnectionBase::send_homeassistant_service_response(const Homeassi
 #endif
   return this->send_message_<HomeassistantServiceResponse>(msg, 35);
 }
-bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(const SubscribeHomeAssistantStateResponse &msg) {
+bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(
+    const SubscribeHomeAssistantStateResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_subscribe_home_assistant_state_response: %s", msg.dump().c_str());
 #endif
@@ -638,7 +639,8 @@ void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &
   }
   this->subscribe_logs(msg);
 }
-void APIServerConnection::on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) {
+void APIServerConnection::on_subscribe_homeassistant_services_request(
+    const SubscribeHomeassistantServicesRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
@@ -649,7 +651,8 @@ void APIServerConnection::on_subscribe_homeassistant_services_request(const Subs
   }
   this->subscribe_homeassistant_services(msg);
 }
-void APIServerConnection::on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) {
+void APIServerConnection::on_subscribe_home_assistant_states_request(
+    const SubscribeHomeAssistantStatesRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
