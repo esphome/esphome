@@ -6,7 +6,8 @@ namespace template_ {
 
 static const char *const TAG = "template.lock";
 
-TemplateLock::TemplateLock() : lock_trigger_(new Trigger<>()), unlock_trigger_(new Trigger<>()) {}
+TemplateLock::TemplateLock()
+    : lock_trigger_(new Trigger<>()), unlock_trigger_(new Trigger<>()), open_trigger_(new Trigger<>()) {}
 
 void TemplateLock::loop() {
   if (!this->f_.has_value())
@@ -32,6 +33,16 @@ void TemplateLock::write_state(bool state) {
 
   if (this->optimistic_)
     this->publish_state(state);
+}
+void TemplateLock::open_latch() {
+  if (this->prev_trigger_ != nullptr) {
+    this->prev_trigger_->stop_action();
+  }
+  this->prev_trigger_ = this->open_trigger_;
+  this->open_trigger_->trigger();
+
+  if (this->optimistic_)
+    this->publish_state(false);
 }
 void TemplateLock::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 bool TemplateLock::assumed_state() { return this->assumed_state_; }

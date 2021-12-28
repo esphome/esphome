@@ -2537,3 +2537,33 @@ select:
       - one
       - two
     optimistic: true
+
+lock:
+  - platform: template
+    id: test_lock1
+    name: "Template Switch"
+    lambda: |-
+      if (id(binary_sensor1).state) {
+        return true;
+      } else {
+        return {};
+      }
+    optimistic: true
+    assumed_state: no
+    restore_state: True
+    on_unlock:
+      - lock.template.publish:
+          id: test_lock1
+          state: !lambda "return false;"
+    on_lock:
+      - lock.template.publish:
+          id: test_lock1
+          state: !lambda "return true;"
+    on_open:
+      - lock.template.publish:
+          id: test_lock1
+          state: !lambda "return false;"
+  - platform: output
+    name: "Generic Output Lock"
+    id: test_lock2
+    output: pca_6
