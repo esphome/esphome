@@ -986,7 +986,7 @@ enum LockAction {
   LOCK_OPEN = 2;
 }
 message ListEntitiesLockResponse {
-  option (id) = 19;
+  option (id) = 63;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_LOCK";
 
@@ -999,9 +999,10 @@ message ListEntitiesLockResponse {
   bool assumed_state = 6;
   bool disabled_by_default = 7;
   EntityCategory entity_category = 8;
+  string device_class = 9;
 }
 message LockStateResponse {
-  option (id) = 28;
+  option (id) = 64;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_LOCK";
   option (no_delay) = true;
@@ -1010,7 +1011,7 @@ message LockStateResponse {
   bool state = 2;
 }
 message LockCommandRequest {
-  option (id) = 63;
+  option (id) = 65;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_LOCK";
   option (no_delay) = true;
