@@ -1818,6 +1818,11 @@ switch:
       remote_transmitter.transmit_jvc:
         data: 0x10EF
   - platform: template
+    name: MagiQuest
+    turn_on_action:
+      remote_transmitter.transmit_magiquest:
+        wand_id: 0x01234567
+  - platform: template
     name: NEC
     id: living_room_lights_off
     turn_on_action:
