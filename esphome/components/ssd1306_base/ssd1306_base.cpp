@@ -112,7 +112,7 @@ void SSD1306::setup() {
 
   // Set V_COM (0xDB)
   this->command(SSD1306_COMMAND_SET_VCOM_DETECT);
-  this->command(0x00);
+  this->command(0x35);
 
   // Display output follow RAM (0xA4)
   this->command(SSD1306_COMMAND_DISPLAY_ALL_ON_RESUME);
@@ -163,7 +163,7 @@ void SSD1306::display() {
 }
 bool SSD1306::is_sh1106_() const {
   return this->model_ == SH1106_MODEL_96_16 || this->model_ == SH1106_MODEL_128_32 ||
-         this->model_ == SH1106_MODEL_128_64 || this->model_ == SH1107_MODEL_128_64;
+         this->model_ == SH1106_MODEL_128_64;
 }
 bool SSD1306::is_ssd1305_() const {
   return this->model_ == SSD1305_MODEL_128_64 || this->model_ == SSD1305_MODEL_128_64;
