@@ -112,7 +112,14 @@ void SSD1306::setup() {
 
   // Set V_COM (0xDB)
   this->command(SSD1306_COMMAND_SET_VCOM_DETECT);
-  this->command(0x35);
+  switch (this->model_) {
+    case SH1107_MODEL_128_64:
+      this->command(0x35);
+      break;
+    default:
+      this->command(0x00);
+      break;
+  }
 
   // Display output follow RAM (0xA4)
   this->command(SSD1306_COMMAND_DISPLAY_ALL_ON_RESUME);
