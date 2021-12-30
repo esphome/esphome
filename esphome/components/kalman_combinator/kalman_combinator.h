@@ -8,7 +8,7 @@ namespace esphome {
 namespace kalman_combinator {
 class KalmanCombinatorComponent : public Component, public sensor::Sensor {
  public:
-  KalmanCombinatorComponent(float update_variance = 1.) : update_variance_(update_variance) {}
+  KalmanCombinatorComponent() = default;
 
   float get_setup_priority() const override { return esphome::setup_priority::DATA; }
 
@@ -18,6 +18,7 @@ class KalmanCombinatorComponent : public Component, public sensor::Sensor {
 
   void add_source(Sensor *sensor, std::function<float(float)> const &stddev);
   void add_source(Sensor *sensor, float stddev);
+  void set_process_std_dev(float process_std_dev) { this->update_variance_ = process_std_dev * process_std_dev * 0.001; }
   void set_std_dev_sensor(Sensor *sensor) { this->std_dev_sensor_ = sensor; }
 
  private:

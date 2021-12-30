@@ -40,6 +40,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 
+    cg.add(var.set_process_std_dev(config[CONF_PROCESS_STD_DEV]))
     for source_conf in config[CONF_SOURCES]:
         source = await cg.get_variable(source_conf[CONF_SOURCE])
         if CONF_ERROR_FUNCTION in source_conf:
