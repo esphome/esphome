@@ -12,6 +12,7 @@ CONF_ERROR = "error"
 CONF_ERROR_FUNCTION = "error_function"
 CONF_SOURCES = "sources"
 CONF_PROCESS_STD_DEV = "process_std_dev"
+CONF_STD_DEV = "std_dev"
 
 CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
     {
@@ -29,6 +30,7 @@ CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
                 cv.has_exactly_one_key(CONF_ERROR, CONF_ERROR_FUNCTION),
             )
         ),
+        cv.Optional(CONF_STD_DEV): sensor.SENSOR_SCHEMA,
     }
 )
 
@@ -49,3 +51,7 @@ async def to_code(config):
         else:
             error = source_conf[CONF_ERROR]
         cg.add(var.add_source(source, error))
+
+    if CONF_STD_DEV in config:
+        sens = await sensor.new_sensor(config[CONF_STD_DEV])
+        cg.add(var.set_std_dev_sensor(sens))
