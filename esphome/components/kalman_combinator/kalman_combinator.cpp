@@ -14,7 +14,7 @@ void KalmanCombinatorComponent::setup() {
 }
 
 void KalmanCombinatorComponent::add_source(Sensor *sensor, std::function<float(float)> const &stddev) {
-  this->sensors_.push_back(std::make_pair(sensor, stddev));
+  this->sensors_.emplace_back(sensor, stddev);
 }
 
 void KalmanCombinatorComponent::add_source(Sensor *sensor, float stddev) {
