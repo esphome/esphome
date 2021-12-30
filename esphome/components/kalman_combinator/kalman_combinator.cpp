@@ -10,14 +10,14 @@ void KalmanCombinatorComponent::dump_config() {
   ESP_LOGCONFIG("kalman_combinator", "Kalman Combinator:");
   ESP_LOGCONFIG("kalman_combinator", "  Update variance per ms: %f", this->update_variance_);
   ESP_LOGCONFIG("kalman_combinator", "  Sensors:");
-  for (auto sensor : this->sensors_) {
+  for (const auto &sensor : this->sensors_) {
     auto &entity = *sensor.first;
     ESP_LOGCONFIG("kalman_combinator", "    - %s", entity.get_object_id().c_str());
   }
 }
 
 void KalmanCombinatorComponent::setup() {
-  for (auto sensor : this->sensors_) {
+  for (const auto &sensor : this->sensors_) {
     const auto stddev = sensor.second;
     sensor.first->add_on_state_callback([this, stddev](float x) -> void { this->correct_(x, stddev(x)); });
   }
@@ -34,11 +34,13 @@ void KalmanCombinatorComponent::setup() {
 }
 
 std::string KalmanCombinatorComponent::device_class() {
-  return this->device_class_.value_or(this->sensors_.size() != 0 ? this->sensors_[0].first->get_device_class() : std::string(""));
+  return this->device_class_.value_or(!this->sensors_.empty() ? this->sensors_[0].first->get_device_class()
+                                                              : std::string(""));
 }
 
 std::string KalmanCombinatorComponent::unit_of_measurement() {
-  return this->unit_of_measurement_.value_or(this->sensors_.size() != 0 ? this->sensors_[0].first->get_unit_of_measurement() : std::string(""));
+  return this->unit_of_measurement_.value_or(
+      !this->sensors_.empty() ? this->sensors_[0].first->get_unit_of_measurement() : std::string(""));
 }
 
 void KalmanCombinatorComponent::add_source(Sensor *sensor, std::function<float(float)> const &stddev) {
@@ -79,7 +81,7 @@ void KalmanCombinatorComponent::correct_(float value, float stddev) {
 
   // Combine two gaussian distributions mu1+-var1, mu2+-var2 to a new one around mu
   // Use the value with the smaller variance as mu1 to prevent precision errors
-  const bool this_first = this->variance_ < (stddev*stddev);
+  const bool this_first = this->variance_ < (stddev * stddev);
   const float mu1 = this_first ? this->state_ : value;
   const float mu2 = this_first ? value : this->state_;
 

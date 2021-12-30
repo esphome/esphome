@@ -18,7 +18,9 @@ class KalmanCombinatorComponent : public Component, public sensor::Sensor {
 
   void add_source(Sensor *sensor, std::function<float(float)> const &stddev);
   void add_source(Sensor *sensor, float stddev);
-  void set_process_std_dev(float process_std_dev) { this->update_variance_ = process_std_dev * process_std_dev * 0.001; }
+  void set_process_std_dev(float process_std_dev) {
+    this->update_variance_ = process_std_dev * process_std_dev * 0.001;
+  }
   void set_std_dev_sensor(Sensor *sensor) { this->std_dev_sensor_ = sensor; }
 
  protected:
