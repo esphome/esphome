@@ -199,6 +199,8 @@ void SSD1306::turn_off() {
 }
 int SSD1306::get_height_internal() {
   switch (this->model_) {
+    case SH1107_MODEL_128_64:
+      return 128;
     case SSD1306_MODEL_128_32:
     case SSD1306_MODEL_64_32:
     case SH1106_MODEL_128_32:
@@ -207,7 +209,6 @@ int SSD1306::get_height_internal() {
     case SSD1306_MODEL_128_64:
     case SH1106_MODEL_128_64:
     case SSD1305_MODEL_128_64:
-    case SH1107_MODEL_128_64:
       return 64;
     case SSD1306_MODEL_96_16:
     case SH1106_MODEL_96_16:
@@ -225,7 +226,6 @@ int SSD1306::get_width_internal() {
     case SH1106_MODEL_128_32:
     case SSD1306_MODEL_128_64:
     case SH1106_MODEL_128_64:
-    case SH1107_MODEL_128_64:
     case SSD1305_MODEL_128_32:
     case SSD1305_MODEL_128_64:
       return 128;
@@ -235,6 +235,7 @@ int SSD1306::get_width_internal() {
     case SSD1306_MODEL_64_48:
     case SSD1306_MODEL_64_32:
     case SH1106_MODEL_64_48:
+    case SH1107_MODEL_128_64:
       return 64;
     default:
       return 0;
