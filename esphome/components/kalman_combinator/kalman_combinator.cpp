@@ -6,6 +6,16 @@
 namespace esphome {
 namespace kalman_combinator {
 
+void KalmanCombinatorComponent::dump_config() {
+  ESP_LOGCONFIG("kalman_combinator", "Kalman Combinator:");
+  ESP_LOGCONFIG("kalman_combinator", "  Update variance per ms: %f", this->update_variance_);
+  ESP_LOGCONFIG("kalman_combinator", "  Sensors:");
+  for (auto sensor : this->sensors_) {
+    auto &entity = *sensor.first;
+    ESP_LOGCONFIG("kalman_combinator", "    - %s", entity.get_object_id().c_str());
+  }
+}
+
 void KalmanCombinatorComponent::setup() {
   for (auto sensor : this->sensors_) {
     const auto stddev = sensor.second;
