@@ -28,8 +28,9 @@ from esphome.util import safe_print
 _LOGGER = logging.getLogger(__name__)
 
 
-def initialize(config, subscriptions, on_message, username, password, client_id,
-        ca_certs=None):
+def initialize(
+    config, subscriptions, on_message, username, password, client_id, ca_certs=None
+):
     def on_connect(client, userdata, flags, return_code):
         _LOGGER.info("Connected to MQTT broker!")
         for topic in subscriptions:
@@ -97,8 +98,9 @@ def initialize(config, subscriptions, on_message, username, password, client_id,
     return 0
 
 
-def show_logs(config, topic=None, username=None, password=None, client_id=None,
-        ca_certs=None):
+def show_logs(
+    config, topic=None, username=None, password=None, client_id=None, ca_certs=None
+):
     if topic is not None:
         pass  # already have topic
     elif CONF_MQTT in config:
@@ -120,12 +122,14 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None,
         message = time_ + payload
         safe_print(message)
 
-    return initialize(config, [topic], on_message, username, password,
-            client_id, ca_certs)
+    return initialize(
+        config, [topic], on_message, username, password, client_id, ca_certs
+    )
 
 
-def clear_topic(config, topic, username=None, password=None, client_id=None,
-        ca_certs=None):
+def clear_topic(
+    config, topic, username=None, password=None, client_id=None, ca_certs=None
+):
     if topic is None:
         discovery_prefix = config[CONF_MQTT].get(CONF_DISCOVERY_PREFIX, "homeassistant")
         name = config[CONF_ESPHOME][CONF_NAME]
@@ -146,8 +150,9 @@ def clear_topic(config, topic, username=None, password=None, client_id=None,
             return
         client.publish(msg.topic, None, retain=True)
 
-    return initialize(config, [topic], on_message, username, password,
-            client_id, ca_certs)
+    return initialize(
+        config, [topic], on_message, username, password, client_id, ca_certs
+    )
 
 
 # From marvinroger/async-mqtt-client -> scripts/get-fingerprint/get-fingerprint.py
