@@ -286,7 +286,8 @@ def show_logs(config, args, port):
         from esphome import mqtt
 
         return mqtt.show_logs(
-            config, args.topic, args.username, args.password, args.client_id
+            config, args.topic, args.username, args.password, args.client_id,
+            mqtt_ca_cert(args.mqtt_ca_cert)
         )
 
     raise EsphomeError("No remote or local logging method configured (api/mqtt/logger)")
@@ -296,8 +297,14 @@ def clean_mqtt(config, args):
     from esphome import mqtt
 
     return mqtt.clear_topic(
-        config, args.topic, args.username, args.password, args.client_id
+        config, args.topic, args.username, args.password, args.client_id,
+        mqtt_ca_cert(args.mqtt_ca_cert)
     )
+
+def mqtt_ca_cert(ca_cert_path):
+    import os
+
+    return None if ca_cert_path is None else os.path.abspath(ca_cert_path)
 
 
 def command_wizard(args):
@@ -531,6 +538,8 @@ def parse_args(argv):
     mqtt_options.add_argument("--username", help="Manually set the MQTT username.")
     mqtt_options.add_argument("--password", help="Manually set the MQTT password.")
     mqtt_options.add_argument("--client-id", help="Manually set the MQTT client id.")
+    mqtt_options.add_argument("--mqtt-ca-cert",
+        help="Self signed certificate path when TLS is used.")
 
     subparsers = parser.add_subparsers(
         help="Command to run:", dest="command", metavar="command"
