@@ -4,6 +4,8 @@
 namespace esphome {
 namespace template_ {
 
+using namespace esphome::lock;
+
 static const char *const TAG = "template.lock";
 
 TemplateLock::TemplateLock()
@@ -12,21 +14,21 @@ TemplateLock::TemplateLock()
 void TemplateLock::loop() {
   if (!this->f_.has_value())
     return;
-  auto s = (*this->f_)();
-  if (!s.has_value())
+  auto val = (*this->f_)();
+  if (!val.has_value())
     return;
 
-  this->publish_state(*s);
+  this->publish_state(*val);
 }
-void TemplateLock::write_state(bool state) {
+void TemplateLock::write_state(LockState state) {
   if (this->prev_trigger_ != nullptr) {
     this->prev_trigger_->stop_action();
   }
 
-  if (state) {
+  if (state == LOCK_STATE_LOCKED) {
     this->prev_trigger_ = this->lock_trigger_;
     this->lock_trigger_->trigger();
-  } else {
+  } else if (state == LOCK_STATE_UNLOCKED) {
     this->prev_trigger_ = this->unlock_trigger_;
     this->unlock_trigger_->trigger();
   }
@@ -42,37 +44,21 @@ void TemplateLock::open_latch() {
   this->open_trigger_->trigger();
 
   if (this->optimistic_)
-    this->publish_state(false);
+    this->publish_state(LOCK_STATE_UNLOCKED);
 }
 void TemplateLock::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 bool TemplateLock::assumed_state() { return this->assumed_state_; }
-void TemplateLock::set_state_lambda(std::function<optional<bool>()> &&f) { this->f_ = f; }
+void TemplateLock::set_state_lambda(std::function<optional<LockState>()> &&f) { this->f_ = f; }
 float TemplateLock::get_setup_priority() const { return setup_priority::HARDWARE; }
 Trigger<> *TemplateLock::get_lock_trigger() const { return this->lock_trigger_; }
 Trigger<> *TemplateLock::get_unlock_trigger() const { return this->unlock_trigger_; }
 Trigger<> *TemplateLock::get_open_trigger() const { return this->open_trigger_; }
-void TemplateLock::setup() {
-  if (!this->restore_state_)
-    return;
-
-  auto restored = this->get_initial_state();
-  if (!restored.has_value())
-    return;
-
-  ESP_LOGD(TAG, "  Restored state %s", LOCKUNLOCK(*restored));
-  if (*restored) {
-    this->lock();
-  } else {
-    this->unlock();
-  }
-}
 void TemplateLock::dump_config() {
   LOG_LOCK("", "Template Lock", this);
-  ESP_LOGCONFIG(TAG, "  Restore State: %s", YESNO(this->restore_state_));
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
 }
-void TemplateLock::set_restore_state(bool restore_state) { this->restore_state_ = restore_state; }
 void TemplateLock::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
+void TemplateLock::set_supports_open(bool supports_open) { this->supports_open = supports_open; }
 
 }  // namespace template_
 }  // namespace esphome

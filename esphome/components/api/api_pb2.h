@@ -128,7 +128,15 @@ enum NumberMode : uint32_t {
   NUMBER_MODE_BOX = 1,
   NUMBER_MODE_SLIDER = 2,
 };
-enum LockAction : uint32_t {
+enum LockState : uint32_t {
+  LOCK_STATE_NONE = 0,
+  LOCK_STATE_LOCKED = 1,
+  LOCK_STATE_UNLOCKED = 2,
+  LOCK_STATE_JAMMED = 3,
+  LOCK_STATE_LOCKING = 4,
+  LOCK_STATE_UNLOCKING = 5,
+};
+enum LockCommand : uint32_t {
   LOCK_UNLOCK = 0,
   LOCK_LOCK = 1,
   LOCK_OPEN = 2,
@@ -1091,10 +1099,12 @@ class ListEntitiesLockResponse : public ProtoMessage {
   std::string name{};
   std::string unique_id{};
   std::string icon{};
-  bool assumed_state{false};
   bool disabled_by_default{false};
   enums::EntityCategory entity_category{};
-  std::string device_class{};
+  bool assumed_state{false};
+  bool supports_open{false};
+  bool requires_code{false};
+  std::string code_format{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1108,7 +1118,7 @@ class ListEntitiesLockResponse : public ProtoMessage {
 class LockStateResponse : public ProtoMessage {
  public:
   uint32_t key{0};
-  bool state{false};
+  enums::LockState state{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1121,7 +1131,9 @@ class LockStateResponse : public ProtoMessage {
 class LockCommandRequest : public ProtoMessage {
  public:
   uint32_t key{0};
-  enums::LockAction state{};
+  enums::LockCommand command{};
+  bool has_code{false};
+  std::string code{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1129,6 +1141,7 @@ class LockCommandRequest : public ProtoMessage {
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 

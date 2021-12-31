@@ -80,7 +80,7 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   /// Return the type for prometheus
   void lock_type_(AsyncResponseStream *stream);
   /// Return the lock Values state as prometheus data point
-  void lock_row_(AsyncResponseStream *stream, lock_::Lock *obj);
+  void lock_row_(AsyncResponseStream *stream, lock::Lock *obj);
 #endif
 
   web_server_base::WebServerBase *base_;

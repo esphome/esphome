@@ -74,7 +74,7 @@ class Controller {
   virtual void on_select_update(select::Select *obj, const std::string &state){};
 #endif
 #ifdef USE_LOCK
-  virtual void on_lock_update(lock_::Lock *obj, bool state){};
+  virtual void on_lock_update(lock::Lock *obj){};
 #endif
 };
 

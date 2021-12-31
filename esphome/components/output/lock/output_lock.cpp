@@ -7,21 +7,11 @@ namespace output {
 static const char *const TAG = "output.lock";
 
 void OutputLock::dump_config() { LOG_LOCK("", "Output Lock", this); }
-void OutputLock::setup() {
-  auto restored = this->get_initial_state();
-  if (!restored.has_value())
-    return;
 
-  if (*restored) {
-    this->lock();
-  } else {
-    this->unlock();
-  }
-}
-void OutputLock::write_state(bool state) {
-  if (state) {
+void OutputLock::write_state(lock::LockState state) {
+  if (state == lock::LOCK_STATE_LOCKED) {
     this->output_->turn_on();
-  } else {
+  } else if (state == lock::LOCK_STATE_UNLOCKED) {
     this->output_->turn_off();
   }
   this->publish_state(state);

@@ -278,7 +278,25 @@ template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode
       return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<enums::LockAction>(enums::LockAction value) {
+template<> const char *proto_enum_to_string<enums::LockState>(enums::LockState value) {
+  switch (value) {
+    case enums::LOCK_STATE_NONE:
+      return "LOCK_STATE_NONE";
+    case enums::LOCK_STATE_LOCKED:
+      return "LOCK_STATE_LOCKED";
+    case enums::LOCK_STATE_UNLOCKED:
+      return "LOCK_STATE_UNLOCKED";
+    case enums::LOCK_STATE_JAMMED:
+      return "LOCK_STATE_JAMMED";
+    case enums::LOCK_STATE_LOCKING:
+      return "LOCK_STATE_LOCKING";
+    case enums::LOCK_STATE_UNLOCKING:
+      return "LOCK_STATE_UNLOCKING";
+    default:
+      return "UNKNOWN";
+  }
+}
+template<> const char *proto_enum_to_string<enums::LockCommand>(enums::LockCommand value) {
   switch (value) {
     case enums::LOCK_UNLOCK:
       return "LOCK_UNLOCK";
@@ -4313,15 +4331,23 @@ void ButtonCommandRequest::dump_to(std::string &out) const {
 bool ListEntitiesLockResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 6: {
-      this->assumed_state = value.as_bool();
-      return true;
-    }
-    case 7: {
       this->disabled_by_default = value.as_bool();
       return true;
     }
-    case 8: {
+    case 7: {
       this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
+    case 8: {
+      this->assumed_state = value.as_bool();
+      return true;
+    }
+    case 9: {
+      this->supports_open = value.as_bool();
+      return true;
+    }
+    case 10: {
+      this->requires_code = value.as_bool();
       return true;
     }
     default:
@@ -4346,8 +4372,8 @@ bool ListEntitiesLockResponse::decode_length(uint32_t field_id, ProtoLengthDelim
       this->icon = value.as_string();
       return true;
     }
-    case 9: {
-      this->device_class = value.as_string();
+    case 11: {
+      this->code_format = value.as_string();
       return true;
     }
     default:
@@ -4370,10 +4396,12 @@ void ListEntitiesLockResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(3, this->name);
   buffer.encode_string(4, this->unique_id);
   buffer.encode_string(5, this->icon);
-  buffer.encode_bool(6, this->assumed_state);
-  buffer.encode_bool(7, this->disabled_by_default);
-  buffer.encode_enum<enums::EntityCategory>(8, this->entity_category);
-  buffer.encode_string(9, this->device_class);
+  buffer.encode_bool(6, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(7, this->entity_category);
+  buffer.encode_bool(8, this->assumed_state);
+  buffer.encode_bool(9, this->supports_open);
+  buffer.encode_bool(10, this->requires_code);
+  buffer.encode_string(11, this->code_format);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesLockResponse::dump_to(std::string &out) const {
@@ -4400,10 +4428,6 @@ void ListEntitiesLockResponse::dump_to(std::string &out) const {
   out.append("'").append(this->icon).append("'");
   out.append("\n");
 
-  out.append("  assumed_state: ");
-  out.append(YESNO(this->assumed_state));
-  out.append("\n");
-
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
   out.append("\n");
@@ -4412,8 +4436,20 @@ void ListEntitiesLockResponse::dump_to(std::string &out) const {
   out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
 
-  out.append("  device_class: ");
-  out.append("'").append(this->device_class).append("'");
+  out.append("  assumed_state: ");
+  out.append(YESNO(this->assumed_state));
+  out.append("\n");
+
+  out.append("  supports_open: ");
+  out.append(YESNO(this->supports_open));
+  out.append("\n");
+
+  out.append("  requires_code: ");
+  out.append(YESNO(this->requires_code));
+  out.append("\n");
+
+  out.append("  code_format: ");
+  out.append("'").append(this->code_format).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -4421,7 +4457,7 @@ void ListEntitiesLockResponse::dump_to(std::string &out) const {
 bool LockStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
-      this->state = value.as_bool();
+      this->state = value.as_enum<enums::LockState>();
       return true;
     }
     default:
@@ -4440,7 +4476,7 @@ bool LockStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
 }
 void LockStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
-  buffer.encode_bool(2, this->state);
+  buffer.encode_enum<enums::LockState>(2, this->state);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void LockStateResponse::dump_to(std::string &out) const {
@@ -4452,7 +4488,7 @@ void LockStateResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  state: ");
-  out.append(YESNO(this->state));
+  out.append(proto_enum_to_string<enums::LockState>(this->state));
   out.append("\n");
   out.append("}");
 }
@@ -4460,7 +4496,21 @@ void LockStateResponse::dump_to(std::string &out) const {
 bool LockCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
-      this->state = value.as_enum<enums::LockAction>();
+      this->command = value.as_enum<enums::LockCommand>();
+      return true;
+    }
+    case 3: {
+      this->has_code = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool LockCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 4: {
+      this->code = value.as_string();
       return true;
     }
     default:
@@ -4479,7 +4529,9 @@ bool LockCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 }
 void LockCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
-  buffer.encode_enum<enums::LockAction>(2, this->state);
+  buffer.encode_enum<enums::LockCommand>(2, this->command);
+  buffer.encode_bool(3, this->has_code);
+  buffer.encode_string(4, this->code);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void LockCommandRequest::dump_to(std::string &out) const {
@@ -4490,8 +4542,16 @@ void LockCommandRequest::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  state: ");
-  out.append(proto_enum_to_string<enums::LockAction>(this->state));
+  out.append("  command: ");
+  out.append(proto_enum_to_string<enums::LockCommand>(this->command));
+  out.append("\n");
+
+  out.append("  has_code: ");
+  out.append(YESNO(this->has_code));
+  out.append("\n");
+
+  out.append("  code: ");
+  out.append("'").append(this->code).append("'");
   out.append("\n");
   out.append("}");
 }

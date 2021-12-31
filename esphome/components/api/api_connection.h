@@ -79,8 +79,8 @@ class APIConnection : public APIServerConnection {
   void button_command(const ButtonCommandRequest &msg) override;
 #endif
 #ifdef USE_LOCK
-  bool send_lock_state(lock_::Lock *a_lock, bool state);
-  bool send_lock_info(lock_::Lock *a_lock);
+  bool send_lock_state(lock::Lock *a_lock, bool state);
+  bool send_lock_info(lock::Lock *a_lock);
   void lock_command(const LockCommandRequest &msg) override;
 #endif
   bool send_log_message(int level, const char *tag, const char *line);

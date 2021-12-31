@@ -18,7 +18,7 @@ from esphome.cpp_helpers import setup_entity
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
-lock_ns = cg.esphome_ns.namespace("lock_")
+lock_ns = cg.esphome_ns.namespace("lock")
 Lock = lock_ns.class_("Lock", cg.EntityBase)
 LockPtr = Lock.operator("ptr")
 
@@ -30,7 +30,6 @@ LockPublishAction = lock_ns.class_("LockPublishAction", automation.Action)
 LockCondition = lock_ns.class_("LockCondition", Condition)
 LockLockTrigger = lock_ns.class_("LockLockTrigger", automation.Trigger.template())
 LockUnlockTrigger = lock_ns.class_("LockUnlockTrigger", automation.Trigger.template())
-LockOpenTrigger = lock_ns.class_("LockOpenTrigger", automation.Trigger.template())
 
 icon = cv.icon
 
@@ -47,11 +46,6 @@ LOCK_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).ext
         cv.Optional(CONF_ON_UNLOCK): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LockUnlockTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_OPEN): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LockOpenTrigger),
             }
         ),
     }

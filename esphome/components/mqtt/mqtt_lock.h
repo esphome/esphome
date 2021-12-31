@@ -13,7 +13,7 @@ namespace mqtt {
 
 class MQTTLockComponent : public mqtt::MQTTComponent {
  public:
-  explicit MQTTLockComponent(lock_::Lock *a_lock);
+  explicit MQTTLockComponent(lock::Lock *a_lock);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -24,14 +24,14 @@ class MQTTLockComponent : public mqtt::MQTTComponent {
 
   bool send_initial_state() override;
 
-  bool publish_state(bool state);
+  bool publish_state();
 
  protected:
   /// "lock" component type.
   std::string component_type() const override;
   const EntityBase *get_entity() const override;
 
-  lock_::Lock *lock_;
+  lock::Lock *lock_;
 };
 
 }  // namespace mqtt

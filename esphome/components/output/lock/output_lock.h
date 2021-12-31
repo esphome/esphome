@@ -7,16 +7,15 @@
 namespace esphome {
 namespace output {
 
-class OutputLock : public lock_::Lock, public Component {
+class OutputLock : public lock::Lock, public Component {
  public:
   void set_output(BinaryOutput *output) { output_ = output; }
 
-  void setup() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE - 1.0f; }
   void dump_config() override;
 
  protected:
-  void write_state(bool state) override;
+  void write_state(lock::LockState state) override;
 
   output::BinaryOutput *output_;
 };

@@ -36,7 +36,7 @@ bool ListEntitiesIterator::on_text_sensor(text_sensor::TextSensor *text_sensor) 
 }
 #endif
 #ifdef USE_LOCK
-bool ListEntitiesIterator::on_lock(lock_::Lock *a_lock) { return this->client_->send_lock_info(a_lock); }
+bool ListEntitiesIterator::on_lock(lock::Lock *a_lock) { return this->client_->send_lock_info(a_lock); }
 #endif
 
 bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(); }

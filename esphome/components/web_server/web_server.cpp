@@ -264,7 +264,13 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifdef USE_LOCK
   for (auto *obj : App.get_locks())
     if (this->include_internal_ || !obj->is_internal())
-      write_row(stream, obj, "lock", "<button>Lock</button><button>Unlock</button><button>Open</button>");
+      write_row(stream, obj, "lock", "", [](AsyncResponseStream &stream, EntityBase *obj) {
+        lock::Lock *lock = (lock::Lock *) obj;
+        stream.print("<button>Lock</button><button>Unlock</button>");
+        if (lock->supports_open) {
+          stream.print("<button>Open</button>");
+        }
+      });
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
@@ -724,18 +730,18 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
 #endif
 
 #ifdef USE_LOCK
-void WebServer::on_lock_update(lock_::Lock *obj, bool state) {
-  this->events_.send(this->lock_json(obj, state).c_str(), "state");
+void WebServer::on_lock_update(lock::Lock *obj) {
+  this->events_.send(this->lock_json(obj, obj->state).c_str(), "state");
 }
-std::string WebServer::lock_json(lock_::Lock *obj, bool value) {
+std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value) {
   return json::build_json([obj, value](JsonObject &root) {
     root["id"] = "lock-" + obj->get_object_id();
-    root["state"] = value ? "LOCKED" : "UNLOCKED";
+    root["state"] = lock::lock_state_to_string(value);
     root["value"] = value;
   });
 }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (lock_::Lock *obj : App.get_locks()) {
+  for (lock::Lock *obj : App.get_locks()) {
     if (obj->get_object_id() != match.id)
       continue;
 

@@ -47,7 +47,7 @@ class InitialStateIterator : public ComponentIterator {
   bool on_select(select::Select *select) override;
 #endif
 #ifdef USE_LOCK
-  bool on_lock(lock_::Lock *a_lock) override;
+  bool on_lock(lock::Lock *a_lock) override;
 #endif
  protected:
   APIConnection *client_;

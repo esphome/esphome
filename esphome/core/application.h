@@ -108,7 +108,7 @@ class Application {
 #endif
 
 #ifdef USE_LOCK
-  void register_lock(lock_::Lock *a_lock) { this->locks_.push_back(a_lock); }
+  void register_lock(lock::Lock *a_lock) { this->locks_.push_back(a_lock); }
 #endif
 
   /// Register the component in this Application instance.
@@ -265,8 +265,8 @@ class Application {
   }
 #endif
 #ifdef USE_LOCK
-  const std::vector<lock_::Lock *> &get_locks() { return this->locks_; }
-  lock_::Lock *get_lock_by_key(uint32_t key, bool include_internal = false) {
+  const std::vector<lock::Lock *> &get_locks() { return this->locks_; }
+  lock::Lock *get_lock_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->locks_)
       if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
@@ -322,7 +322,7 @@ class Application {
   std::vector<select::Select *> selects_{};
 #endif
 #ifdef USE_LOCK
-  std::vector<lock_::Lock *> locks_{};
+  std::vector<lock::Lock *> locks_{};
 #endif
 
   std::string name_;

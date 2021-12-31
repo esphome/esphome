@@ -168,7 +168,6 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #define YESNO(b) ((b) ? "YES" : "NO")
 #define ONOFF(b) ((b) ? "ON" : "OFF")
 #define TRUEFALSE(b) ((b) ? "TRUE" : "FALSE")
-#define LOCKUNLOCK(b) ((b) ? "LOCKED" : "UNLOCKED")
 
 // Helper class that identifies strings that may be stored in flash storage (similar to Arduino's __FlashStringHelper)
 struct LogString;

@@ -979,8 +979,17 @@ message ButtonCommandRequest {
   fixed32 key = 1;
 }
 
+
 // ==================== LOCK ====================
-enum LockAction {
+enum LockState {
+  LOCK_STATE_NONE = 0;
+  LOCK_STATE_LOCKED = 1;
+  LOCK_STATE_UNLOCKED = 2;
+  LOCK_STATE_JAMMED = 3;
+  LOCK_STATE_LOCKING = 4;
+  LOCK_STATE_UNLOCKING = 5;
+}
+enum LockCommand  {
   LOCK_UNLOCK = 0;
   LOCK_LOCK = 1;
   LOCK_OPEN = 2;
@@ -996,26 +1005,30 @@ message ListEntitiesLockResponse {
   string unique_id = 4;
 
   string icon = 5;
-  bool assumed_state = 6;
-  bool disabled_by_default = 7;
-  EntityCategory entity_category = 8;
-  string device_class = 9;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+  bool assumed_state = 8;
+
+  bool supports_open = 9;
+  bool requires_code = 10;
+  string code_format = 11;
 }
 message LockStateResponse {
   option (id) = 64;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_LOCK";
   option (no_delay) = true;
-
   fixed32 key = 1;
-  bool state = 2;
+  LockState  state = 2;
 }
 message LockCommandRequest {
   option (id) = 65;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_LOCK";
   option (no_delay) = true;
-
   fixed32 key = 1;
-  LockAction state = 2;
+  LockCommand command = 2;
+  bool has_code = 3;
+  string code = 4;
 }
+

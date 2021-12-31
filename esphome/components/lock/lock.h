@@ -4,9 +4,10 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
-namespace lock_ {
+namespace lock {
 
 #define LOG_LOCK(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -17,10 +18,18 @@ namespace lock_ {
     if ((obj)->assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
-    if ((obj)->is_inverted()) { \
-      ESP_LOGCONFIG(TAG, "%s  Inverted: YES", prefix); \
-    } \
   }
+/// Enum for all states a lock can be in.
+enum LockState : uint8_t {
+  LOCK_STATE_NONE = 0,
+  LOCK_STATE_LOCKED = 1,
+  LOCK_STATE_UNLOCKED = 2,
+  LOCK_STATE_JAMMED = 3,
+  LOCK_STATE_LOCKING = 4,
+  LOCK_STATE_UNLOCKING = 5
+};
+const LogString *lock_state_to_log_string(LockState mode);
+std::string lock_state_to_string(LockState mode);
 
 /** Base class for all locks.
  *
@@ -40,10 +49,13 @@ class Lock : public EntityBase {
    *
    * @param state The new state.
    */
-  void publish_state(bool state);
+  void publish_state(LockState state);
 
-  /// The current reported state of the binary sensor.
-  bool state;
+  /// The current reported state of the lock.
+  LockState state{LOCK_STATE_NONE};
+
+  bool supports_open{false};
+  bool requires_code{false};
 
   /** Turn this lock on. This is called by the front-end.
    *
@@ -61,33 +73,18 @@ class Lock : public EntityBase {
    */
   void open();
 
-  /** Set whether the state should be treated as inverted.
-   *
-   * To the developer and user an inverted lock will act just like a non-inverted one.
-   * In particular, the only thing that's changed by this is the value passed to
-   * write_state and the state in publish_state. The .state member variable and
-   * lock/unlock/open remain unaffected.
-   *
-   * @param inverted Whether to invert this lock.
-   */
-  void set_inverted(bool inverted);
-
   /** Set callback for state changes.
    *
    * @param callback The void(bool) callback.
    */
-  void add_on_state_callback(std::function<void(bool)> &&callback);
+  void add_on_state_callback(std::function<void()> &&callback);
 
-  optional<bool> get_initial_state();
-
-  /** Return whether this lock uses an assumed state - i.e. if both the ON/OFF actions should be displayed in Home
+  /** Return whether this lock uses an assumed state - i.e. if both the LOCK/UNLOCK actions should be displayed in Home
    * Assistant because the real state is unknown.
    *
    * Defaults to false.
    */
   virtual bool assumed_state();
-
-  bool is_inverted() const;
 
  protected:
   /** Write the given state to hardware. You should implement this
@@ -96,9 +93,9 @@ class Lock : public EntityBase {
    * In the implementation of this method, you should also call
    * publish_state to acknowledge that the state was written to the hardware.
    *
-   * @param state The state to write. Inversion is already applied if user specified it.
+   * @param state The state to write.
    */
-  virtual void write_state(bool state) = 0;
+  virtual void write_state(LockState state) = 0;
 
   /** Perform the open latch action with hardware. This method is optional to implement
    * when creating a new lock.
@@ -110,11 +107,10 @@ class Lock : public EntityBase {
 
   uint32_t hash_base() override;
 
-  CallbackManager<void(bool)> state_callback_{};
-  bool inverted_{false};
-  Deduplicator<bool> publish_dedup_;
+  CallbackManager<void()> state_callback_{};
+  Deduplicator<LockState> publish_dedup_;
   ESPPreferenceObject rtc_;
 };
 
-}  // namespace lock_
+}  // namespace lock
 }  // namespace esphome

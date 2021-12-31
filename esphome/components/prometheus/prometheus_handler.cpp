@@ -321,7 +321,7 @@ void PrometheusHandler::lock_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_lock_value GAUGE\n"));
   stream->print(F("#TYPE esphome_lock_failed GAUGE\n"));
 }
-void PrometheusHandler::lock_row_(AsyncResponseStream *stream, lock_::Lock *obj) {
+void PrometheusHandler::lock_row_(AsyncResponseStream *stream, lock::Lock *obj) {
   if (obj->is_internal())
     return;
   stream->print(F("esphome_lock_failed{id=\""));

@@ -58,7 +58,7 @@ class ComponentIterator {
   virtual bool on_select(select::Select *select) = 0;
 #endif
 #ifdef USE_LOCK
-  virtual bool on_lock(lock_::Lock *a_lock) = 0;
+  virtual bool on_lock(lock::Lock *a_lock) = 0;
 #endif
   virtual bool on_end();
 

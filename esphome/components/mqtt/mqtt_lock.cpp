@@ -11,9 +11,9 @@ namespace mqtt {
 
 static const char *const TAG = "mqtt.lock";
 
-using namespace esphome::lock_;
+using namespace esphome::lock;
 
-MQTTLockComponent::MQTTLockComponent(lock_::Lock *a_lock) : MQTTComponent(), lock_(a_lock) {}
+MQTTLockComponent::MQTTLockComponent(lock::Lock *a_lock) : MQTTComponent(), lock_(a_lock) {}
 
 void MQTTLockComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
@@ -28,8 +28,7 @@ void MQTTLockComponent::setup() {
       this->status_momentary_warning("state", 5000);
     }
   });
-  this->lock_->add_on_state_callback(
-      [this](bool enabled) { this->defer("send", [this, enabled]() { this->publish_state(enabled); }); });
+  this->lock_->add_on_state_callback([this]() { this->defer("send", [this]() { this->publish_state(); }); });
 }
 void MQTTLockComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Lock '%s': ", this->lock_->get_name().c_str());
@@ -42,11 +41,11 @@ void MQTTLockComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConf
   if (this->lock_->assumed_state())
     root[MQTT_OPTIMISTIC] = true;
 }
-bool MQTTLockComponent::send_initial_state() { return this->publish_state(this->lock_->state); }
+bool MQTTLockComponent::send_initial_state() { return this->publish_state(); }
 
-bool MQTTLockComponent::publish_state(bool state) {
-  const char *state_s = state ? "LOCKED" : "UNLOCKED";
-  return this->publish(this->get_state_topic_(), state_s);
+bool MQTTLockComponent::publish_state() {
+  std::string payload = lock_state_to_string(this->lock_->state);
+  return this->publish(this->get_state_topic_(), payload);
 }
 
 }  // namespace mqtt

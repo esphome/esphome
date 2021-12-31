@@ -699,7 +699,7 @@ void APIConnection::button_command(const ButtonCommandRequest &msg) {
 #endif
 
 #ifdef USE_LOCK
-bool APIConnection::send_lock_state(lock_::Lock *a_lock, bool state) {
+bool APIConnection::send_lock_state(lock::Lock *a_lock, bool state) {
   if (!this->state_subscription_)
     return false;
 
@@ -708,7 +708,7 @@ bool APIConnection::send_lock_state(lock_::Lock *a_lock, bool state) {
   resp.state = state;
   return this->send_lock_state_response(resp);
 }
-bool APIConnection::send_lock_info(lock_::Lock *a_lock) {
+bool APIConnection::send_lock_info(lock::Lock *a_lock) {
   ListEntitiesLockResponse msg;
   msg.key = a_lock->get_object_id_hash();
   msg.object_id = a_lock->get_object_id();
@@ -721,7 +721,7 @@ bool APIConnection::send_lock_info(lock_::Lock *a_lock) {
   return this->send_list_entities_lock_response(msg);
 }
 void APIConnection::lock_command(const LockCommandRequest &msg) {
-  lock_::Lock *a_lock = App.get_lock_by_key(msg.key);
+  lock::Lock *a_lock = App.get_lock_by_key(msg.key);
   if (a_lock == nullptr)
     return;
 

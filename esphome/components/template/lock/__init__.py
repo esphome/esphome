@@ -9,13 +9,14 @@ from esphome.const import (
     CONF_LOCK_ACTION,
     CONF_OPEN_ACTION,
     CONF_OPTIMISTIC,
-    CONF_RESTORE_STATE,
     CONF_STATE,
     CONF_UNLOCK_ACTION,
 )
 from .. import template_ns
 
 TemplateLock = template_ns.class_("TemplateLock", lock.Lock, cg.Component)
+
+LockState = template_ns.enum("LockState")
 
 
 def validate(config):
@@ -41,7 +42,6 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_LOCK_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
-            cv.Optional(CONF_RESTORE_STATE, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate,
@@ -55,7 +55,7 @@ async def to_code(config):
 
     if CONF_LAMBDA in config:
         template_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [], return_type=cg.optional.template(bool)
+            config[CONF_LAMBDA], [], return_type=cg.optional.template(LockState)
         )
         cg.add(var.set_state_lambda(template_))
     if CONF_UNLOCK_ACTION in config:
@@ -70,9 +70,9 @@ async def to_code(config):
         await automation.build_automation(
             var.get_open_trigger(), [], config[CONF_OPEN_ACTION]
         )
+    cg.add(var.set_supports_open(CONF_OPEN_ACTION in config))
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
-    cg.add(var.set_restore_state(config[CONF_RESTORE_STATE]))
 
 
 @automation.register_action(
