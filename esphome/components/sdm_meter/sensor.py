@@ -8,8 +8,8 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_EXPORT_ACTIVE_ENERGY,
     CONF_EXPORT_REACTIVE_ENERGY,
-    CONF_FREQUENCY,
     CONF_TOTAL_POWER,
+    CONF_FREQUENCY,
     CONF_ID,
     CONF_IMPORT_ACTIVE_ENERGY,
     CONF_IMPORT_REACTIVE_ENERGY,
@@ -139,13 +139,13 @@ async def to_code(config):
     await cg.register_component(var, config)
     await modbus.register_modbus_device(var, config)
 
-    if CONF_FREQUENCY in config:
-        sens = await sensor.new_sensor(config[CONF_FREQUENCY])
-        cg.add(var.set_frequency_sensor(sens))
-
     if CONF_TOTAL_POWER in config:
         sens = await sensor.new_sensor(config[CONF_TOTAL_POWER])
         cg.add(var.set_total_power_sensor(sens))
+
+    if CONF_FREQUENCY in config:
+        sens = await sensor.new_sensor(config[CONF_FREQUENCY])
+        cg.add(var.set_frequency_sensor(sens))
 
     if CONF_IMPORT_ACTIVE_ENERGY in config:
         sens = await sensor.new_sensor(config[CONF_IMPORT_ACTIVE_ENERGY])
