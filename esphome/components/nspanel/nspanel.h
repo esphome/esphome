@@ -106,7 +106,7 @@ class NSPanel : public Component, public uart::UARTDevice {
     temperature_sensor->add_on_state_callback([this](float state) { this->send_temperature_(state); });
   }
 
-  void set_temperature_unit_celcius(bool celcius) { this->temperature_celcius_ = celcius; }
+  void set_temperature_unit_celsius(bool celsius) { this->temperature_celsius_ = celsius; }
 
   void initialize();
 
@@ -142,7 +142,7 @@ class NSPanel : public Component, public uart::UARTDevice {
 
   Widget widgets_[8];
 
-  bool temperature_celcius_;
+  bool temperature_celsius_;
 
   bool last_connected_{true};
   uint32_t last_wifi_sent_at_{0};

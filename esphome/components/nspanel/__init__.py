@@ -31,7 +31,7 @@ CONF_EMPTY = "empty"
 CONF_ITEMS = "items"
 CONF_RELAYS = "relays"
 CONF_SCREEN_POWER_SWITCH = "screen_power_switch"
-CONF_TEMPERATURE_UNIT_CELCIUS = "temperature_unit_celcius"
+CONF_TEMPERATURE_UNIT_CELSIUS = "temperature_unit_celsius"
 CONF_UIID = "uiid"
 CONF_WIDGETS = "widgets"
 
@@ -118,7 +118,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Required(CONF_TEMPERATURE): cv.use_id(sensor.Sensor),
             cv.Required(CONF_SCREEN_POWER_SWITCH): cv.use_id(switch.Switch),
-            cv.Optional(CONF_TEMPERATURE_UNIT_CELCIUS, default=True): cv.boolean,
+            cv.Optional(CONF_TEMPERATURE_UNIT_CELSIUS, default=True): cv.boolean,
             cv.Optional(CONF_ECO_MODE_SWITCH): cv.use_id(switch.Switch),
             cv.Optional(CONF_WIDGETS): cv.All(
                 cv.ensure_list(WIDGET_SCHEMA), cv.Length(min=8, max=8)
@@ -148,7 +148,7 @@ async def to_code(config):
     sens = await cg.get_variable(config[CONF_TEMPERATURE])
     cg.add(var.set_temperature_sensor(sens))
 
-    cg.add(var.set_temperature_unit_celcius(config[CONF_TEMPERATURE_UNIT_CELCIUS]))
+    cg.add(var.set_temperature_unit_celsius(config[CONF_TEMPERATURE_UNIT_CELSIUS]))
 
     sceen_power = await cg.get_variable(config.get(CONF_SCREEN_POWER_SWITCH))
     cg.add(var.set_screen_power_switch(sceen_power))

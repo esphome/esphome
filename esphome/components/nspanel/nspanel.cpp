@@ -181,7 +181,7 @@ void NSPanel::send_time_() {
 void NSPanel::send_temperature_(float temperature) {
   std::string json_str = json::build_json([this, temperature](JsonObject &root) {
     root["temperature"] = temperature;
-    root["tempUnit"] = this->temperature_celcius_ ? 0 : 1;
+    root["tempUnit"] = this->temperature_celsius_ ? 0 : 1;
   });
   this->send_json_command_(0x83, json_str);
 }
