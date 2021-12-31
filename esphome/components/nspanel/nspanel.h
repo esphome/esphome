@@ -114,7 +114,7 @@ class NSPanel : public Component, public uart::UARTDevice {
 
   void send_weather_data(WeatherIcon icon, int8_t temperature, int8_t min, int8_t max);
 
-  void control_switch(GroupItem item, bool state);
+  void control_switch(const GroupItem item, bool state);
 
  protected:
   void send_nextion_command_(const std::string &command);
