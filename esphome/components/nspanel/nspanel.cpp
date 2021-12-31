@@ -136,7 +136,7 @@ void NSPanel::process_command_(uint8_t type, JsonObject &root, const std::string
   }
 }
 
-void NSPanel::control_switch(const GroupItem item, bool state) {
+void NSPanel::control_switch(GroupItem &item, bool state) {
   std::string json_str = json::build_json([item, state](JsonObject &root) {
     JsonObject &relation = root.createNestedObject("relation");
     relation["id"] = to_string(item.widget_id);
@@ -187,8 +187,7 @@ void NSPanel::send_temperature_(float temperature) {
 }
 
 void NSPanel::send_eco_mode_(bool eco_mode) {
-  std::string json_str =
-      json::build_json([eco_mode](JsonObject &root) { root["HMI_dimOpen"] = eco_mode ? 1 : 0; });
+  std::string json_str = json::build_json([eco_mode](JsonObject &root) { root["HMI_dimOpen"] = eco_mode ? 1 : 0; });
   this->send_json_command_(0x87, json_str);
 }
 
@@ -200,7 +199,7 @@ void NSPanel::send_wifi_state_() {
   uint8_t rssi = 0;
   if (!connected) {
     if (this->last_connected_) {
-      this->send_json_command_(0x85, "{\"wifiState\":\"nonetwork\",\"rssiLevel\":0}");
+      this->send_json_command_(0x85, R"({"wifiState":"nonetwork","rssiLevel":0})");
       this->last_connected_ = false;
     }
   } else {
@@ -288,7 +287,7 @@ void NSPanel::send_all_widgets_() {
             params["switch"] = "on";
           } else {
             JsonArray &switches_list = params.createNestedArray("switches");
-            for (uint8_t j = 0; j < widget.items.size(); j++) {
+            for (size_t j = 0; j < widget.items.size(); j++) {
               GroupItem item = widget.items[j];
               JsonObject &item_obj = switches_list.createNestedObject();
               item_obj["outlet"] = j;

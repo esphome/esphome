@@ -2,6 +2,8 @@
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
+#include <utility>
+
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/switch/switch.h"
@@ -110,11 +112,11 @@ class NSPanel : public Component, public uart::UARTDevice {
 
   void initialize();
 
-  void set_widget(uint8_t index, Widget widget) { this->widgets_[index] = widget; }
+  void set_widget(uint8_t index, Widget widget) { this->widgets_[index] = std::move(widget); }
 
   void send_weather_data(WeatherIcon icon, int8_t temperature, int8_t min, int8_t max);
 
-  void control_switch(const GroupItem item, bool state);
+  void control_switch(GroupItem &item, bool state);
 
  protected:
   void send_nextion_command_(const std::string &command);
