@@ -52,6 +52,7 @@ GROUP_WIDGETS = {
 }
 
 DEVICE_WIDGETS = {
+    "CURTAIN": 11,
     "RGB_LIGHT_STRIP": 33,
     "CCT_LIGHT": 52,
     "RGB_CCT_LIGHT": 69,
