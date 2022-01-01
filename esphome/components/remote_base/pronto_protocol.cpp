@@ -52,6 +52,7 @@ static const uint32_t REFERENCE_FREQUENCY = 4145146UL;
 static const uint16_t FALLBACK_FREQUENCY = 64767U;  // To use with frequency = 0;
 static const uint32_t MICROSECONDS_IN_SECONDS = 1000000UL;
 static const uint16_t PRONTO_DEFAULT_GAP = 45000;
+static const uint16_t MARK_EXCESS_MICROS = 20;
 
 static uint16_t to_frequency_k_hz(uint16_t code) {
   if (code == 0)
@@ -113,7 +114,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &st
   const char *p = str.c_str();
   char *endptr[1];
 
-  for (size_t i = 0; i < len; i++) {
+  for (uint16_t i = 0; i < len; i++) {
     uint16_t x = strtol(p, endptr, 16);
     if (x == 0 && i >= NUMBERS_IN_PREAMBLE) {
       // Alignment error?, bail immediately (often right result).
@@ -127,7 +128,79 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &st
 
 void ProntoProtocol::encode(RemoteTransmitData *dst, const ProntoData &data) { send_pronto_(dst, data.data); }
 
-optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) { return {}; }
+uint16_t ProntoProtocol::effective_frequency_(uint16_t frequency) {
+  return frequency > 0 ? frequency : FALLBACK_FREQUENCY;
+}
+
+uint16_t ProntoProtocol::to_timebase_(uint16_t frequency) {
+  return MICROSECONDS_IN_SECONDS / effective_frequency_(frequency);
+}
+
+uint16_t ProntoProtocol::to_frequency_code_(uint16_t frequency) {
+  return REFERENCE_FREQUENCY / effective_frequency_(frequency);
+}
+
+std::string ProntoProtocol::dump_digit_(uint8_t x) {
+  return std::string(1, (char) (x <= 9 ? ('0' + x) : ('A' + (x - 10))));
+}
+
+std::string ProntoProtocol::dump_number_(uint16_t number) {
+  std::string num;
+
+  for (uint8_t i = 0; i < DIGITS_IN_PRONTO_NUMBER; ++i) {
+    uint8_t shifts = BITS_IN_HEXADECIMAL * (DIGITS_IN_PRONTO_NUMBER - 1 - i);
+    num += dump_digit_((number >> shifts) & HEX_MASK);
+  }
+
+  num += ' ';
+  return num;
+}
+
+std::string ProntoProtocol::dump_duration_(uint32_t duration, uint16_t timebase) {
+  return dump_number_((duration + timebase / 2) / timebase);
+}
+
+std::string ProntoProtocol::compensate_and_dump_sequence_(std::vector<int32_t> *data, uint16_t timebase) {
+  std::string out;
+
+  for (uint_fast8_t i = 0; i < data->size() - 1; i++) {
+    int32_t t_length = data->at(i);
+    uint32_t t_duration;
+    if (t_length > 0) {
+      // Mark
+      t_duration = t_length - MARK_EXCESS_MICROS;
+    } else {
+      t_duration = -t_length + MARK_EXCESS_MICROS;
+    }
+    out += dump_duration_(t_duration, timebase);
+  }
+
+  // append minimum gap
+  out += dump_duration_(PRONTO_DEFAULT_GAP, timebase);
+
+  return out;
+}
+
+optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
+  ProntoData out;
+
+  uint16_t frequency = 38000U;
+  ESP_LOGD(TAG, "Receive Pronto: frequency=%d", frequency);
+  std::vector<int32_t> *data = src.get_raw_data();
+  std::string prontodata;
+
+  prontodata += dump_number_(frequency > 0 ? LEARNED_TOKEN : LEARNED_NON_MODULATED_TOKEN);
+  prontodata += dump_number_(to_frequency_code_(frequency));
+  prontodata += dump_number_((data->size() + 1) / 2);
+  prontodata += dump_number_(0);
+  uint16_t timebase = to_timebase_(frequency);
+  ESP_LOGD(TAG, "Receive Pronto: timebase=%d", timebase);
+  prontodata += compensate_and_dump_sequence_(data, timebase);
+
+  out.data = prontodata;
+
+  return out;
+}
 
 void ProntoProtocol::dump(const ProntoData &data) { ESP_LOGD(TAG, "Received Pronto: data=%s", data.data.c_str()); }
 

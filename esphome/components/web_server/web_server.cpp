@@ -787,12 +787,9 @@ std::string WebServer::climate_json(climate::Climate *obj) {
     }
     root["fanmode"] = int(*obj->fan_mode);
   });
-  for(char & i : toreturn){
-    if(i == '"') i = '+';
-   }
-  // for(int i=0; i<toreturn.size(); i++){
-  //   if(toreturn[i] == '"') toreturn[i] = '+';
-  // }
+  for(int i=0; i<toreturn.size(); i++){
+    if(toreturn[i] == '"') toreturn[i] = '+';
+  }
   return toreturn;
 }
 #endif
