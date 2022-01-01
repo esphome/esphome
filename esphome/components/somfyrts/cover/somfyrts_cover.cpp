@@ -15,6 +15,7 @@ void SomfyRTSCover::dump_config() {
   ESP_LOGCONFIG(TAG, "  NodeID: 0x%02X 0x%02X 0x%02X", this->node_id_1_, this->node_id_2_, this->node_id_3_);
   ESP_LOGCONFIG(TAG, "  Open Duration: %.1fs", this->open_duration_ / 1e3f);
   ESP_LOGCONFIG(TAG, "  Close Duration: %.1fs", this->close_duration_ / 1e3f);
+  ESP_LOGCONFIG(TAG, "  RTS Control Pin: %d", this->ctrl_pin);
 }
 void SomfyRTSCover::setup() {
   auto restore = this->restore_state_();
@@ -23,6 +24,8 @@ void SomfyRTSCover::setup() {
   } else {
     this->position = 0.5f;
   }
+  if (this->ctrl_pin != nullptr)
+    this->ctrl_pin->digital_write(false);
 }
 void SomfyRTSCover::loop() {
   if (this->current_operation == esphome::cover::COVER_OPERATION_IDLE)
@@ -55,12 +58,32 @@ esphome::cover::CoverTraits SomfyRTSCover::get_traits() {
   traits.set_supports_position(true);
   traits.set_supports_toggle(true);
   traits.set_is_assumed_state(false);
+  traits.set_supports_tilt(true);
   return traits;
 }
 void SomfyRTSCover::control(const esphome::cover::CoverCall &call) {
   if (call.get_stop()) {
     this->start_direction_(esphome::cover::COVER_OPERATION_IDLE);
     this->publish_state();
+  }
+  if (call.get_tilt()) {
+    if (call.get_tilt() == 1) {
+        uint8_t frame[14] = {0x7E, 0xF1, 0xFA, 0x01, 0x00, 0x00, ~this->node_id_3_, ~this->node_id_2_, ~this->node_id_1_, ~this->channel_, 0xFF, 0xFE, 0x00, 0x00};
+        this->calc_chksum(frame, 14);
+        if (this->ctrl_pin != nullptr)
+          this->ctrl_pin->digital_write(true);
+        this->write_array(frame, sizeof(frame));
+        if (this->ctrl_pin != nullptr) 
+          this->ctrl_pin->digital_write(false);
+      } else {
+        uint8_t frame[14] = {0x7E, 0xF1, 0xFA, 0x01, 0x00, 0x00, ~this->node_id_3_, ~this->node_id_2_, ~this->node_id_1_, ~this->channel_, 0xFE, 0xFE, 0x00, 0x00};
+        this->calc_chksum(frame, 14);
+        if (this->ctrl_pin != nullptr)
+          this->ctrl_pin->digital_write(true);
+        this->write_array(frame, sizeof(frame));
+        if (this->ctrl_pin != nullptr) 
+          this->ctrl_pin->digital_write(false);
+      }
   }
   if (call.get_toggle().has_value()) {
     if (this->current_operation != esphome::cover::COVER_OPERATION_IDLE) {
@@ -117,10 +140,12 @@ void SomfyRTSCover::start_direction_(esphome::cover::CoverOperation dir) {
     case esphome::cover::COVER_OPERATION_OPENING:
       this->last_operation_ = dir;
       frame[10] = 0xFE;
+      if(this->isinverted) frame[10] = 0xFD;
       break;
     case esphome::cover::COVER_OPERATION_CLOSING:
       this->last_operation_ = dir;
       frame[10] = 0xFD;
+      if(this->isinverted) frame[10] = 0xFE;
       break;
     default:
       return;
@@ -132,8 +157,11 @@ void SomfyRTSCover::start_direction_(esphome::cover::CoverOperation dir) {
   this->start_dir_time_ = now;
   this->last_recompute_time_ = now;
   this->calc_chksum(frame, 13);
+  if (this->ctrl_pin != nullptr)
+    this->ctrl_pin->digital_write(true);
   this->write_array(frame, sizeof(frame));
-  
+  if (this->ctrl_pin != nullptr) 
+    this->ctrl_pin->digital_write(false);
 }
 void SomfyRTSCover::calc_chksum(uint8_t *frame, uint8_t frame_size){
   uint16_t chksum = 0x00;

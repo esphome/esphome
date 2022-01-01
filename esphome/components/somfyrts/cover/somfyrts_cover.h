@@ -3,21 +3,23 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/cover/cover.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace somfyrts {
 
-class SomfyRTSCover : public cover::Cover, public uart::UARTDevice, public Component {
+class SomfyRTSCover : public cover::Cover, public uart::UARTDevice, public Component{
  public:
   void setup() override;
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
-
   void set_open_duration(uint32_t open_duration) { this->open_duration_ = open_duration; }
   void set_close_duration(uint32_t close_duration) { this->close_duration_ = close_duration; }
   void set_channel(uint8_t channel);
   void set_node_id(uint8_t nodeid_1, uint8_t nodeid_2, uint8_t nodeid_3);
+  void inverted(bool isit){this->isinverted = isit;}
+  void set_ctrl_pin(GPIOPin *thepin){this->ctrl_pin = thepin;}
   cover::CoverTraits get_traits() override;
 
  protected:
@@ -34,6 +36,8 @@ class SomfyRTSCover : public cover::Cover, public uart::UARTDevice, public Compo
   uint8_t channel_;
   uint32_t open_duration_;
   uint32_t close_duration_;
+  bool isinverted = false;
+  GPIOPin *ctrl_pin{nullptr};
 
   uint32_t last_recompute_time_{0};
   uint32_t start_dir_time_{0};
