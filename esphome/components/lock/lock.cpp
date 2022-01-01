@@ -42,22 +42,6 @@ std::string lock_state_to_string(LockState mode) {
   }
 }
 
-LockState string_to_lock_state(std::string mode) {
-  if (mode == "LOCKED")
-    return LOCK_STATE_LOCKED;
-  if (mode == "UNLOCKED")
-    return LOCK_STATE_UNLOCKED;
-  if (mode == "JAMMED")
-    return LOCK_STATE_JAMMED;
-  if (mode == "LOCKED")
-    return LOCK_STATE_LOCKED;
-  if (mode == "LOCKING")
-    return LOCK_STATE_LOCKING;
-  if (mode == "UNLOCKING")
-    return LOCK_STATE_UNLOCKING;
-  return LOCK_STATE_NONE;
-}
-
 Lock::Lock(const std::string &name) : EntityBase(name), state(LOCK_STATE_NONE) {}
 Lock::Lock() : Lock("") {}
 

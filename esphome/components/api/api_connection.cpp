@@ -699,7 +699,7 @@ void APIConnection::button_command(const ButtonCommandRequest &msg) {
 #endif
 
 #ifdef USE_LOCK
-bool APIConnection::send_lock_state(lock::Lock *a_lock, bool state) {
+bool APIConnection::send_lock_state(lock::Lock *a_lock, lock::LockState state) {
   if (!this->state_subscription_)
     return false;
 
@@ -725,7 +725,7 @@ void APIConnection::lock_command(const LockCommandRequest &msg) {
   if (a_lock == nullptr)
     return;
 
-  switch (msg.state) {
+  switch (msg.command) {
     case enums::LOCK_UNLOCK:
       a_lock->unlock();
       break;
