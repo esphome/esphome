@@ -705,7 +705,7 @@ bool APIConnection::send_lock_state(lock::Lock *a_lock, lock::LockState state) {
 
   LockStateResponse resp{};
   resp.key = a_lock->get_object_id_hash();
-  resp.state = state;
+  resp.state = (enums::LockState) state;
   return this->send_lock_state_response(resp);
 }
 bool APIConnection::send_lock_info(lock::Lock *a_lock) {

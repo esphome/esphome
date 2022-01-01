@@ -67,7 +67,7 @@ void Lock::publish_state(LockState state) {
 
   this->state = state;
   this->rtc_.save(&this->state);
-  ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), lock_state_to_log_string(state));
+  ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), lock_state_to_string(state).c_str());
   this->state_callback_.call();
 }
 bool Lock::assumed_state() { return false; }
