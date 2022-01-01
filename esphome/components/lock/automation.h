@@ -78,7 +78,7 @@ class LockUnlockTrigger : public Trigger<> {
 template<typename... Ts> class LockPublishAction : public Action<Ts...> {
  public:
   LockPublishAction(Lock *a_lock) : lock_(a_lock) {}
-  TEMPLATABLE_VALUE(bool, state)
+  TEMPLATABLE_VALUE(LockState, state)
 
   void play(Ts... x) override { this->lock_->publish_state(this->state_.value(x...)); }
 

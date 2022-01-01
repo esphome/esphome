@@ -260,11 +260,11 @@ void APIServer::on_select_update(select::Select *obj, const std::string &state) 
 #endif
 
 #ifdef USE_LOCK
-void APIServer::on_lock_update(lock::Lock *obj, bool state) {
+void APIServer::on_lock_update(lock::Lock *obj) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
-    c->send_lock_state(obj, state);
+    c->send_lock_state(obj, obj->state);
 }
 #endif
 
