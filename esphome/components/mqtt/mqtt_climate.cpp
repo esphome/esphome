@@ -13,7 +13,7 @@ static const char *const TAG = "mqtt.climate";
 
 using namespace esphome::climate;
 
-void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   auto traits = this->device_->get_traits();
   // current_temperature_topic
   if (traits.get_supports_current_temperature()) {
@@ -25,7 +25,7 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
   // mode_state_topic
   root[MQTT_MODE_STATE_TOPIC] = this->get_mode_state_topic();
   // modes
-  JsonArray &modes = root.createNestedArray(MQTT_MODES);
+  JsonArray modes = root.createNestedArray(MQTT_MODES);
   // sort array for nice UI in HA
   if (traits.supports_mode(CLIMATE_MODE_AUTO))
     modes.add("auto");
@@ -83,7 +83,7 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
     // fan_mode_state_topic
     root[MQTT_FAN_MODE_STATE_TOPIC] = this->get_fan_mode_state_topic();
     // fan_modes
-    JsonArray &fan_modes = root.createNestedArray("fan_modes");
+    JsonArray fan_modes = root.createNestedArray("fan_modes");
     if (traits.supports_fan_mode(CLIMATE_FAN_ON))
       fan_modes.add("on");
     if (traits.supports_fan_mode(CLIMATE_FAN_OFF))
@@ -112,7 +112,7 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
     // swing_mode_state_topic
     root[MQTT_SWING_MODE_STATE_TOPIC] = this->get_swing_mode_state_topic();
     // swing_modes
-    JsonArray &swing_modes = root.createNestedArray("swing_modes");
+    JsonArray swing_modes = root.createNestedArray("swing_modes");
     if (traits.supports_swing_mode(CLIMATE_SWING_OFF))
       swing_modes.add("off");
     if (traits.supports_swing_mode(CLIMATE_SWING_BOTH))

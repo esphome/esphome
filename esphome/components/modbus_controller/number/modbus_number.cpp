@@ -8,7 +8,7 @@ namespace modbus_controller {
 static const char *const TAG = "modbus.number";
 
 void ModbusNumber::parse_and_publish(const std::vector<uint8_t> &data) {
-  float result = payload_to_float(data, *this);
+  float result = payload_to_float(data, *this) / multiply_by_;
 
   // Is there a lambda registered
   // call it with the pre converted value and the raw data array
@@ -52,7 +52,7 @@ void ModbusNumber::control(float value) {
 
   ESP_LOGD(TAG,
            "Updating register: connected Sensor=%s start address=0x%X register count=%d new value=%.02f (val=%.02f)",
-           this->get_name().c_str(), this->start_address, this->register_count, write_value, write_value);
+           this->get_name().c_str(), this->start_address, this->register_count, value, write_value);
 
   // Create and send the write command
   ModbusCommandItem write_cmd;
