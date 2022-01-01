@@ -48,7 +48,6 @@ void ShellyDimmer::setup() {
   this->buffer_ = new uint8_t[SHELLY_DIMMER_BUFFER_SIZE];  // NOLINT: It will never be freed
   this->pin_nrst_->setup();
   this->pin_boot0_->setup();
-  this->serial_ = &Serial;
 
   ESP_LOGI(TAG, "Initializing Shelly Dimmer...");
 
@@ -113,7 +112,7 @@ bool ShellyDimmer::upgrade_firmware_() {
   ESP_LOGW(TAG, "Starting STM32 firmware upgrade");
   this->reset_dfu_boot_();
 
-  stm32_t *stm32 = stm32_init(this->serial_, STREAM_SERIAL, 1);
+  stm32_t *stm32 = stm32_init(this, STREAM_SERIAL, 1);
   if (!stm32) {
     ESP_LOGW(TAG, "Failed to initialize STM32");
     return false;
@@ -229,8 +228,8 @@ bool ShellyDimmer::send_command_(uint8_t cmd, uint8_t *payload, uint8_t len) {
   // Write the frame and wait for acknowledgement.
   int retries = SHELLY_DIMMER_MAX_RETRIES;
   while (retries--) {
-    this->serial_->write(frame, frame_len);
-    this->serial_->flush();
+    this->write_array(frame, frame_len);
+    this->flush();
 
     ESP_LOGD(TAG, "Command sent, waiting for reply");
     uint32_t tx_time = millis();
@@ -309,8 +308,8 @@ int ShellyDimmer::handle_byte_(uint8_t c) {
 }
 
 bool ShellyDimmer::read_frame_() {
-  while (this->serial_->available()) {
-    uint8_t c = this->serial_->read();
+  while (this->available()) {
+    uint8_t c = this->read();
     this->buffer_[this->buffer_pos_] = c;
 
     ESP_LOGV(TAG, "Read byte: 0x%02x (pos %d)", c, this->buffer_pos_);
@@ -436,8 +435,8 @@ void ShellyDimmer::reset_(bool boot0) {
   delay(50);  // NOLINT
 
   // Clear receive buffer.
-  while (this->serial_->available()) {
-    this->serial_->read();
+  while (this->available()) {
+    this->read();
   }
 
   this->pin_nrst_->digital_write(true);
@@ -448,17 +447,17 @@ void ShellyDimmer::reset_(bool boot0) {
 }
 
 void ShellyDimmer::reset_normal_boot_() {
-  this->serial_->end();
-  this->serial_->begin(115200, SERIAL_8N1);
-  this->serial_->flush();
+  this->flush();
+  this->check_uart_settings(115200);
+  this->flush();
 
   this->reset_(false);
 }
 
 void ShellyDimmer::reset_dfu_boot_() {
-  this->serial_->end();
-  this->serial_->begin(115200, SERIAL_8E1);
-  this->serial_->flush();
+  this->flush();
+  this->check_uart_settings(115200);
+  this->flush();
 
   this->reset_(true);
 }

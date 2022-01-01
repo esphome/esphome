@@ -1,15 +1,15 @@
 #pragma once
-#include <HardwareSerial.h>
 
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/uart/uart.h"
 
 namespace esphome {
 namespace shelly_dimmer {
 
-class ShellyDimmer : public Component, public light::LightOutput {
+class ShellyDimmer : public Component, public light::LightOutput, public uart::UARTDevice {
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
 
@@ -41,8 +41,6 @@ class ShellyDimmer : public Component, public light::LightOutput {
  protected:
   GPIOPin *pin_nrst_;
   GPIOPin *pin_boot0_;
-
-  HardwareSerial *serial_;
 
   // Frame parser state.
   uint8_t seq_{0};

@@ -154,28 +154,28 @@ static void stm32_warn_stretching(const char *f) {
 }
 
 static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
-  Stream *stream = stm->stream;
+  auto *stream = stm->stream;
   uint8_t byte;
-  size_t ret;
+  bool ret;
   uint32_t t0 = 0, t1;
 
   if (!(stm->flags & STREAM_OPT_RETRY))
     timeout = 0;
 
   if (timeout) {
-    stream->setTimeout(timeout);
+    // timeout is fixed at 100ms
     t0 = millis();
   }
 
   do {
-    ret = stream->readBytes(&byte, 1);
-    if (ret == 0 && timeout) {
+    ret = stream->read_array(&byte, 1);
+    if (!ret && timeout) {
       t1 = millis();
       if (t1 < t0 + timeout)
         continue;
     }
 
-    if (ret != 1) {
+    if (!ret) {
       DEBUG_MSG(TAG, "Failed to read ACK byte");
       return STM32_ERR_UNKNOWN;
     }
@@ -194,18 +194,14 @@ static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
 static stm32_err_t stm32_get_ack(const stm32_t *stm) { return stm32_get_ack_timeout(stm, 0); }
 
 static stm32_err_t stm32_send_command_timeout(const stm32_t *stm, const uint8_t cmd, uint32_t timeout) {
-  Stream *stream = stm->stream;
+  uart::UARTDevice *stream = stm->stream;
   stm32_err_t s_err;
   size_t ret;
   uint8_t buf[2];
 
   buf[0] = cmd;
   buf[1] = cmd ^ 0xFF;
-  ret = stream->write(buf, 2);
-  if (ret != 2) {
-    DEBUG_MSG(TAG, "Failed to send command");
-    return STM32_ERR_UNKNOWN;
-  }
+  stream->write_array(buf, 2);
   s_err = stm32_get_ack_timeout(stm, timeout);
   if (s_err == STM32_ERR_OK)
     return STM32_ERR_OK;
@@ -222,8 +218,7 @@ static stm32_err_t stm32_send_command(const stm32_t *stm, const uint8_t cmd) {
 
 /* if we have lost sync, send a wrong command and expect a NACK */
 static stm32_err_t stm32_resync(const stm32_t *stm) {
-  Stream *stream = stm->stream;
-  size_t ret;
+  uart::UARTDevice *stream = stm->stream;
   uint8_t buf[2], ack;
   uint32_t t0, t1;
 
@@ -233,14 +228,8 @@ static stm32_err_t stm32_resync(const stm32_t *stm) {
   buf[0] = STM32_CMD_ERR;
   buf[1] = STM32_CMD_ERR ^ 0xFF;
   while (t1 < t0 + STM32_RESYNC_TIMEOUT) {
-    ret = stream->write(buf, 2);
-    if (ret == 0) {
-      delay(500000);  // NOLINT
-      t1 = millis();
-      continue;
-    }
-    ret = stream->readBytes(&ack, 1);
-    if (ret == 0) {
+    stream->write_array(buf, 2);
+    if (!stream->read_array(&ack, 1)) {
       t1 = millis();
       continue;
     }
@@ -264,25 +253,23 @@ static stm32_err_t stm32_resync(const stm32_t *stm) {
  * len is value of the first byte in the frame.
  */
 static stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, uint8_t cmd, uint8_t *data, unsigned int len) {
-  Stream *stream = stm->stream;
-  size_t ret;
+  uart::UARTDevice *stream = stm->stream;
+  bool ret;
 
   if (stm32_send_command(stm, cmd) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
   if (stm->flags & STREAM_OPT_BYTE) {
     /* interface is UART-like */
-    ret = stream->readBytes(data, 1);
-    if (ret != 1)
+    if (!stream->read_array(data, 1))
       return STM32_ERR_UNKNOWN;
     len = data[0];
-    ret = stream->readBytes(data + 1, len + 1);
-    if (ret != len + 1)
+    if (!stream->read_array(data + 1, len + 1))
       return STM32_ERR_UNKNOWN;
     return STM32_ERR_OK;
   }
 
-  ret = stream->readBytes(data, len + 2);
-  if (ret == len + 2 && len == data[0])
+  ret = stream->read_array(data, len + 2);
+  if (ret && len == data[0])
     return STM32_ERR_OK;
   if (ret == 0 || ret != len + 2) {
     /* restart with only one byte */
@@ -290,8 +277,7 @@ static stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, uint8_t cmd, uint8_t 
       return STM32_ERR_UNKNOWN;
     if (stm32_send_command(stm, cmd) != STM32_ERR_OK)
       return STM32_ERR_UNKNOWN;
-    ret = stream->readBytes(data, 1);
-    if (ret != 1)
+    if (!stream->read_array(data, 1))
       return STM32_ERR_UNKNOWN;
   }
 
@@ -302,8 +288,8 @@ static stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, uint8_t cmd, uint8_t 
   len = data[0];
   if (stm32_send_command(stm, cmd) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
-  ret = stream->readBytes(data, len + 2);
-  if (ret != len + 2)
+    
+  if (!stream->read_array(data, len + 2))
     return STM32_ERR_UNKNOWN;
   return STM32_ERR_OK;
 }
@@ -316,24 +302,21 @@ static stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, uint8_t cmd, uint8_t 
  * the interface.
  */
 static stm32_err_t stm32_send_init_seq(const stm32_t *stm) {
-  Stream *stream = stm->stream;
-  size_t ret;
+  uart::UARTDevice *stream = stm->stream;
+  bool ret;
   uint8_t byte, cmd = STM32_CMD_INIT;
 
-  ret = stream->write(&cmd, 1);
-  if (ret != 1) {
-    DEBUG_MSG(TAG, "Failed to send init to device");
-    return STM32_ERR_UNKNOWN;
-  }
-  ret = stream->readBytes(&byte, 1);
-  if (ret == 1 && byte == STM32_ACK)
+  stream->write_array(&cmd, 1);
+
+  ret = stream->read_array(&byte, 1);
+  if (ret && byte == STM32_ACK)
     return STM32_ERR_OK;
-  if (ret == 1 && byte == STM32_NACK) {
+  if (ret && byte == STM32_NACK) {
     /* We could get error later, but let's continue, for now. */
     DEBUG_MSG(TAG, "Warning: the interface was not closed properly.");
     return STM32_ERR_OK;
   }
-  if (ret != 1) {
+  if (!ret) {
     DEBUG_MSG(TAG, "Failed to init device.");
     return STM32_ERR_UNKNOWN;
   }
@@ -342,13 +325,10 @@ static stm32_err_t stm32_send_init_seq(const stm32_t *stm) {
    * Check if previous STM32_CMD_INIT was taken as first byte
    * of a command. Send a new byte, we should get back a NACK.
    */
-  ret = stream->write(&cmd, 1);
-  if (ret != 1) {
-    DEBUG_MSG(TAG, "Failed to send init to device");
-    return STM32_ERR_UNKNOWN;
-  }
-  ret = stream->readBytes(&byte, 1);
-  if (ret == 1 && byte == STM32_NACK)
+  stream->write_array(&cmd, 1);
+
+  ret = stream->read_array(&byte, 1);
+  if (ret && byte == STM32_NACK)
     return STM32_ERR_OK;
   DEBUG_MSG(TAG, "Failed to init device.");
   return STM32_ERR_UNKNOWN;
@@ -357,7 +337,7 @@ static stm32_err_t stm32_send_init_seq(const stm32_t *stm) {
 /* find newer command by higher code */
 #define newer(prev, a) (((prev) == STM32_CMD_ERR) ? (a) : (((prev) > (a)) ? (prev) : (a)))
 
-stm32_t *stm32_init(Stream *stream, uint8_t flags, char init) {
+stm32_t *stm32_init(uart::UARTDevice *stream, uint8_t flags, char init) {
   uint8_t len, val, buf[257];
   stm32_t *stm;
   int i, new_cmds;
@@ -382,7 +362,7 @@ stm32_t *stm32_init(Stream *stream, uint8_t flags, char init) {
 
   /* From AN, only UART bootloader returns 3 bytes */
   len = (stm->flags & STREAM_OPT_GVR_ETX) ? 3 : 1;
-  if (stream->readBytes(buf, len) != len)
+  if (!stream->read_array(buf, len))
     return nullptr;  // NOLINT
   stm->version = buf[0];
   stm->option1 = (stm->flags & STREAM_OPT_GVR_ETX) ? buf[1] : 0;
@@ -512,7 +492,7 @@ void stm32_close(stm32_t *stm) {
 }
 
 stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address, uint8_t data[], unsigned int len) {
-  Stream *stream = stm->stream;
+  uart::UARTDevice *stream = stm->stream;
   uint8_t buf[5];
 
   if (!len)
@@ -536,22 +516,21 @@ stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address, uint8_t data
   buf[2] = (address >> 8) & 0xFF;
   buf[3] = address & 0xFF;
   buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
-  if (stream->write(buf, 5) != 5)
-    return STM32_ERR_UNKNOWN;
+  stream->write_array(buf, 5);
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
   if (stm32_send_command(stm, len - 1) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  if (stream->readBytes(data, len) != len)
+  if (!stream->read_array(data, len))
     return STM32_ERR_UNKNOWN;
 
   return STM32_ERR_OK;
 }
 
 stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8_t data[], unsigned int len) {
-  Stream *stream = stm->stream;
+  uart::UARTDevice *stream = stm->stream;
   uint8_t cs, buf[256 + 2];
   unsigned int i, aligned_len;
   stm32_err_t s_err;
@@ -584,8 +563,7 @@ stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8
   buf[2] = (address >> 8) & 0xFF;
   buf[3] = address & 0xFF;
   buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
-  if (stream->write(buf, 5) != 5)
-    return STM32_ERR_UNKNOWN;
+  stream->write_array(buf, 5);
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
@@ -602,8 +580,7 @@ stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8
     buf[i + 1] = 0xFF;
   }
   buf[aligned_len + 1] = cs;
-  if (stream->write(buf, aligned_len + 2) != aligned_len + 2)
-    return STM32_ERR_UNKNOWN;
+  stream->write_array(buf, aligned_len + 2);
 
   s_err = stm32_get_ack_timeout(stm, STM32_BLKWRITE_TIMEOUT);
   if (s_err != STM32_ERR_OK) {
@@ -711,7 +688,7 @@ stm32_err_t stm32_readprot_memory(const stm32_t *stm) {
 }
 
 static stm32_err_t stm32_mass_erase(const stm32_t *stm) {
-  Stream *stream = stm->stream;
+  uart::UARTDevice *stream = stm->stream;
   stm32_err_t s_err;
   uint8_t buf[3];
 
@@ -735,10 +712,8 @@ static stm32_err_t stm32_mass_erase(const stm32_t *stm) {
   buf[0] = 0xFF; /* 0xFFFF the magic number for mass erase */
   buf[1] = 0xFF;
   buf[2] = 0x00; /* checksum */
-  if (stream->write(buf, 3) != 3) {
-    DEBUG_MSG(TAG, "Mass erase error.");
-    return STM32_ERR_UNKNOWN;
-  }
+  stream->write_array(buf, 3);
+  
   s_err = stm32_get_ack_timeout(stm, STM32_MASSERASE_TIMEOUT);
   if (s_err != STM32_ERR_OK) {
     DEBUG_MSG(TAG, "Mass erase failed. Try specifying the number of pages to be erased.");
@@ -750,7 +725,7 @@ static stm32_err_t stm32_mass_erase(const stm32_t *stm) {
 }
 
 static stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_t pages) {
-  Stream *stream = stm->stream;
+  uart::UARTDevice *stream = stm->stream;
   stm32_err_t s_err;
   size_t ret;
   uint32_t pg_num;
@@ -780,12 +755,9 @@ static stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_
       cs ^= pg_num;
     }
     buf[i++] = cs;
-    ret = stream->write(buf, i);
+    stream->write_array(buf, i);
     free(buf);  // NOLINT
-    if (ret != i) {
-      DEBUG_MSG(TAG, "Erase failed.");
-      return STM32_ERR_UNKNOWN;
-    }
+
     s_err = stm32_get_ack_timeout(stm, pages * STM32_PAGEERASE_TIMEOUT);
     if (s_err != STM32_ERR_OK) {
       if (stm->flags & STREAM_OPT_STRETCH_W)
@@ -817,12 +789,8 @@ static stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_
     buf[i++] = pg_byte;
   }
   buf[i++] = cs;
-  ret = stream->write(buf, i);
+  stream->write_array(buf, i);
   free(buf);  // NOLINT
-  if (ret != i) {
-    DEBUG_MSG(TAG, "Page-by-page erase error.");
-    return STM32_ERR_UNKNOWN;
-  }
 
   s_err = stm32_get_ack_timeout(stm, pages * STM32_PAGEERASE_TIMEOUT);
   if (s_err != STM32_ERR_OK) {
@@ -932,7 +900,7 @@ static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_addres
 }
 
 stm32_err_t stm32_go(const stm32_t *stm, uint32_t address) {
-  Stream *stream = stm->stream;
+  uart::UARTDevice *stream = stm->stream;
   uint8_t buf[5];
 
   if (stm->cmd->go == STM32_CMD_ERR) {
@@ -948,8 +916,7 @@ stm32_err_t stm32_go(const stm32_t *stm, uint32_t address) {
   buf[2] = (address >> 8) & 0xFF;
   buf[3] = address & 0xFF;
   buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
-  if (stream->write(buf, 5) != 5)
-    return STM32_ERR_UNKNOWN;
+  stream->write_array(buf, 5);
 
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
@@ -968,7 +935,7 @@ stm32_err_t stm32_reset_device(const stm32_t *stm) {
 }
 
 stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t length, uint32_t *crc) {
-  Stream *stream = stm->stream;
+  uart::UARTDevice *stream = stm->stream;
   uint8_t buf[5];
 
   if (address & 0x3 || length & 0x3) {
@@ -989,8 +956,7 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t leng
   buf[2] = (address >> 8) & 0xFF;
   buf[3] = address & 0xFF;
   buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
-  if (stream->write(buf, 5) != 5)
-    return STM32_ERR_UNKNOWN;
+  stream->write_array(buf, 5);
 
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
@@ -1000,8 +966,7 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t leng
   buf[2] = (length >> 8) & 0xFF;
   buf[3] = length & 0xFF;
   buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
-  if (stream->write(buf, 5) != 5)
-    return STM32_ERR_UNKNOWN;
+  stream->write_array(buf, 5);
 
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
@@ -1009,7 +974,7 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t leng
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  if (stream->readBytes(buf, 5) != 5)
+  if (!stream->read_array(buf, 5))
     return STM32_ERR_UNKNOWN;
 
   if (buf[4] != (buf[0] ^ buf[1] ^ buf[2] ^ buf[3]))

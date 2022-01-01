@@ -3,7 +3,7 @@ from pathlib import Path
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import light, sensor
+from esphome.components import light, sensor, uart
 from esphome.const import (
     CONF_OUTPUT_ID,
     CONF_GAMMA_CORRECT,
@@ -18,10 +18,10 @@ from esphome.const import (
 from esphome.core import HexInt
 
 
-DEPENDENCIES = ["sensor"]
+DEPENDENCIES = ["sensor", "uart"]
 
 shelly_dimmer_ns = cg.esphome_ns.namespace("shelly_dimmer")
-ShellyDimmer = shelly_dimmer_ns.class_("ShellyDimmer", light.LightOutput, cg.Component)
+ShellyDimmer = shelly_dimmer_ns.class_("ShellyDimmer", light.LightOutput, cg.Component, uart.UARTDevice)
 
 CONF_FIRMWARE = "firmware"
 
@@ -58,7 +58,7 @@ CONFIG_SCHEMA = light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
         # Change the default gamma_correct setting.
         cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
     }
-).extend(cv.COMPONENT_SCHEMA)
+).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
 
 
 def to_code(config):
@@ -73,6 +73,7 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     yield cg.register_component(var, config)
     yield light.register_light(var, config)
+    yield uart.register_uart_device(var, config)
 
     nrst_pin = yield cg.gpio_pin_expression(config[CONF_NRST_PIN])
     cg.add(var.set_nrst_pin(nrst_pin))

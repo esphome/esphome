@@ -20,6 +20,7 @@
 #pragma once
 
 #include <cstdint>
+#include "esphome/components/uart/uart.h"
 
 namespace esphome {
 namespace shelly_dimmer {
@@ -70,7 +71,7 @@ struct VarlenCmd {
 };
 
 struct stm32 {
-  Stream *stream;
+  uart::UARTDevice *stream;
   uint8_t flags;
   struct VarlenCmd *cmd_get_reply;
   uint8_t bl_version;
@@ -93,7 +94,7 @@ struct stm32_dev {  // NOLINT
   uint32_t flags;
 };
 
-stm32_t *stm32_init(Stream *stream, uint8_t flags, char init);
+stm32_t *stm32_init(uart::UARTDevice *stream, uint8_t flags, char init);
 void stm32_close(stm32_t *stm);
 stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address, uint8_t data[], unsigned int len);
 stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8_t data[], unsigned int len);
