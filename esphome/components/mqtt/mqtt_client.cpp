@@ -1,4 +1,5 @@
 #include "mqtt_client.h"
+#define USE_MQTT
 
 #ifdef USE_MQTT
 
@@ -346,7 +347,7 @@ void MQTTClientComponent::subscribe(const std::string &topic, mqtt_callback_t ca
 
 void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
   auto f = [callback](const std::string &topic, const std::string &payload) {
-    json::parse_json(payload, [topic, callback](JsonObject &root) { callback(topic, root); });
+    json::parse_json(payload, [topic, callback](JsonObject root) { callback(topic, root); });
   };
   MQTTSubscription subscription{
       .topic = topic,
@@ -416,9 +417,8 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
 }
 bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos,
                                        bool retain) {
-  size_t len;
-  const char *message = json::build_json(f, &len);
-  return this->publish(topic, message, len, qos, retain);
+  std::string message = json::build_json(f);
+  return this->publish(topic, message, qos, retain);
 }
 
 /** Check if the message topic matches the given subscription topic

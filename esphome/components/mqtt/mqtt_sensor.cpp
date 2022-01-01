@@ -42,7 +42,7 @@ uint32_t MQTTSensorComponent::get_expire_after() const {
 void MQTTSensorComponent::set_expire_after(uint32_t expire_after) { this->expire_after_ = expire_after; }
 void MQTTSensorComponent::disable_expire_after() { this->expire_after_ = 0; }
 
-void MQTTSensorComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+void MQTTSensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   if (!this->sensor_->get_device_class().empty())
     root[MQTT_DEVICE_CLASS] = this->sensor_->get_device_class();
 

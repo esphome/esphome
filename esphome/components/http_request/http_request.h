@@ -78,7 +78,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
 
   void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.insert({key, value}); }
 
-  void set_json(std::function<void(Ts..., JsonObject &)> json_func) { this->json_func_ = json_func; }
+  void set_json(std::function<void(Ts..., JsonObject)> json_func) { this->json_func_ = json_func; }
 
   void register_response_trigger(HttpRequestResponseTrigger *trigger) { this->response_triggers_.push_back(trigger); }
 
@@ -118,17 +118,17 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   }
 
  protected:
-  void encode_json_(Ts... x, JsonObject &root) {
+  void encode_json_(Ts... x, JsonObject root) {
     for (const auto &item : this->json_) {
       auto val = item.second;
       root[item.first] = val.value(x...);
     }
   }
-  void encode_json_func_(Ts... x, JsonObject &root) { this->json_func_(x..., root); }
+  void encode_json_func_(Ts... x, JsonObject root) { this->json_func_(x..., root); }
   HttpRequestComponent *parent_;
   std::map<const char *, TemplatableValue<const char *, Ts...>> headers_{};
   std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
-  std::function<void(Ts..., JsonObject &)> json_func_{nullptr};
+  std::function<void(Ts..., JsonObject)> json_func_{nullptr};
   std::vector<HttpRequestResponseTrigger *> response_triggers_;
 };
 
