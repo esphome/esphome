@@ -6,6 +6,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/util.h"
+#include "esphome/core/version.h"
 
 namespace esphome {
 namespace nspanel {
