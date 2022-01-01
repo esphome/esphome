@@ -80,4 +80,5 @@
 // Dummy firmware payload for shelly_dimmer
 #define SHD_FIRMWARE_MAJOR_VERSION 56
 #define SHD_FIRMWARE_MINOR_VERSION 5
-#define SHD_FIRMWARE_DATA {}
+#define SHD_FIRMWARE_DATA \
+  {}

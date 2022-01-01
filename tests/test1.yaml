@@ -1659,6 +1659,7 @@ light:
       name: "Shelly Dimmer Current"
     max_brightness: 500
     firmware: "51.6"
+    uart_id: uart0
 
 remote_transmitter:
   - pin: 32

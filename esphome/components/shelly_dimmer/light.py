@@ -21,7 +21,9 @@ from esphome.core import HexInt
 DEPENDENCIES = ["sensor", "uart"]
 
 shelly_dimmer_ns = cg.esphome_ns.namespace("shelly_dimmer")
-ShellyDimmer = shelly_dimmer_ns.class_("ShellyDimmer", light.LightOutput, cg.Component, uart.UARTDevice)
+ShellyDimmer = shelly_dimmer_ns.class_(
+    "ShellyDimmer", light.LightOutput, cg.Component, uart.UARTDevice
+)
 
 CONF_FIRMWARE = "firmware"
 
@@ -41,24 +43,28 @@ CONF_NRST_PIN = "nrst_pin"
 CONF_BOOT0_PIN = "boot0_pin"
 
 
-CONFIG_SCHEMA = light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
-    {
-        cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ShellyDimmer),
-        cv.Optional(CONF_FIRMWARE, default="51.5"): cv.enum(FIRMWARE_MAPPING),
-        cv.Optional(CONF_NRST_PIN, default="GPIO5"): pins.gpio_output_pin_schema,
-        cv.Optional(CONF_BOOT0_PIN, default="GPIO4"): pins.gpio_output_pin_schema,
-        cv.Optional(CONF_LEADING_EDGE, default=False): cv.boolean,
-        # cv.Optional(CONF_WARMUP_BRIGHTNESS, default=100): cv.uint16_t,
-        # cv.Optional(CONF_WARMUP_TIME, default=20): cv.uint16_t,
-        cv.Optional(CONF_MIN_BRIGHTNESS, default=0): cv.uint16_t,
-        cv.Optional(CONF_MAX_BRIGHTNESS, default=1000): cv.uint16_t,
-        cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1),
-        cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
-        cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
-        # Change the default gamma_correct setting.
-        cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
-    }
-).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
+CONFIG_SCHEMA = (
+    light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
+        {
+            cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ShellyDimmer),
+            cv.Optional(CONF_FIRMWARE, default="51.5"): cv.enum(FIRMWARE_MAPPING),
+            cv.Optional(CONF_NRST_PIN, default="GPIO5"): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_BOOT0_PIN, default="GPIO4"): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_LEADING_EDGE, default=False): cv.boolean,
+            # cv.Optional(CONF_WARMUP_BRIGHTNESS, default=100): cv.uint16_t,
+            # cv.Optional(CONF_WARMUP_TIME, default=20): cv.uint16_t,
+            cv.Optional(CONF_MIN_BRIGHTNESS, default=0): cv.uint16_t,
+            cv.Optional(CONF_MAX_BRIGHTNESS, default=1000): cv.uint16_t,
+            cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1),
+            cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
+            cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
+            # Change the default gamma_correct setting.
+            cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA)
+)
 
 
 def to_code(config):

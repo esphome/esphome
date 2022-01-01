@@ -196,7 +196,6 @@ static stm32_err_t stm32_get_ack(const stm32_t *stm) { return stm32_get_ack_time
 static stm32_err_t stm32_send_command_timeout(const stm32_t *stm, const uint8_t cmd, uint32_t timeout) {
   uart::UARTDevice *stream = stm->stream;
   stm32_err_t s_err;
-  size_t ret;
   uint8_t buf[2];
 
   buf[0] = cmd;
@@ -288,7 +287,7 @@ static stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, uint8_t cmd, uint8_t 
   len = data[0];
   if (stm32_send_command(stm, cmd) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
-    
+
   if (!stream->read_array(data, len + 2))
     return STM32_ERR_UNKNOWN;
   return STM32_ERR_OK;
@@ -713,7 +712,7 @@ static stm32_err_t stm32_mass_erase(const stm32_t *stm) {
   buf[1] = 0xFF;
   buf[2] = 0x00; /* checksum */
   stream->write_array(buf, 3);
-  
+
   s_err = stm32_get_ack_timeout(stm, STM32_MASSERASE_TIMEOUT);
   if (s_err != STM32_ERR_OK) {
     DEBUG_MSG(TAG, "Mass erase failed. Try specifying the number of pages to be erased.");
@@ -727,7 +726,6 @@ static stm32_err_t stm32_mass_erase(const stm32_t *stm) {
 static stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_t pages) {
   uart::UARTDevice *stream = stm->stream;
   stm32_err_t s_err;
-  size_t ret;
   uint32_t pg_num;
   uint8_t pg_byte;
   uint8_t cs = 0;
