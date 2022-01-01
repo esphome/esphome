@@ -18,8 +18,8 @@ class SomfyRTSCover : public cover::Cover, public uart::UARTDevice, public Compo
   void set_close_duration(uint32_t close_duration) { this->close_duration_ = close_duration; }
   void set_channel(uint8_t channel);
   void set_node_id(uint8_t nodeid_1, uint8_t nodeid_2, uint8_t nodeid_3);
-  void inverted(bool isit){this->isinverted = isit;}
-  void set_ctrl_pin(GPIOPin *thepin){this->ctrl_pin = thepin;}
+  void inverted(bool isit){this->isinverted_ = isit;}
+  void set_ctrl_pin(GPIOPin *thepin){this->ctrl_pin_ = thepin;}
   cover::CoverTraits get_traits() override;
 
  protected:
@@ -29,15 +29,15 @@ class SomfyRTSCover : public cover::Cover, public uart::UARTDevice, public Compo
   void start_direction_(cover::CoverOperation dir);
 
   void recompute_position_();
-  void calc_chksum(uint8_t *frame, uint8_t frame_size);
+  void calc_chksum_(uint8_t *frame, uint8_t frame_size);
   uint8_t node_id_1_;
   uint8_t node_id_2_;
   uint8_t node_id_3_;
   uint8_t channel_;
   uint32_t open_duration_;
   uint32_t close_duration_;
-  bool isinverted = false;
-  GPIOPin *ctrl_pin{nullptr};
+  bool isinverted_ = false;
+  GPIOPin *ctrl_pin_{nullptr};
 
   uint32_t last_recompute_time_{0};
   uint32_t start_dir_time_{0};

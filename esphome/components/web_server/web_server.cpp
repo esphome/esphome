@@ -781,19 +781,18 @@ std::string WebServer::climate_json(climate::Climate *obj) {
     if(obj->mode != climate::CLIMATE_MODE_OFF){
       root["target_temperature"] = obj->target_temperature;
       root["current_temperature"] = isnan(obj->current_temperature) ? to_string(int(obj->target_temperature)) : to_string(int(obj->current_temperature));
-      // if(!isnan(obj->current_temperature)) 
-      //   root["current_temperature"] = to_string(int(obj->current_temperature));
-      // else
-      //   root["current_temperature"] = to_string(int(obj->target_temperature));
     }else{
       root["target_temperature"] = obj->target_temperature;
       root["current_temperature"] = "--";
     }
     root["fanmode"] = int(*obj->fan_mode);
   });
-  for(int i=0; i<toreturn.size(); i++){
-    if(toreturn[i] == '"') toreturn[i] = '+';
-  }
+  for(char & i : toreturn){
+    if(i == '"') i = '+';
+   }
+  // for(int i=0; i<toreturn.size(); i++){
+  //   if(toreturn[i] == '"') toreturn[i] = '+';
+  // }
   return toreturn;
 }
 #endif

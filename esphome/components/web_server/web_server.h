@@ -186,7 +186,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_CLIMATE
-  void on_climate_update(climate::Climate *obj);
+  void on_climate_update(climate::Climate *obj) override; 
   /// Handle a climate request under '/climate/<id>'.
   void handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match);
 

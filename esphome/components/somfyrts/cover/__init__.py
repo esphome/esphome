@@ -8,7 +8,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INVERTED,
     CONF_OPEN_DURATION,
-    CONF_CHANNEL
+    CONF_CHANNEL,
 )
 
 CONF_NODE_ID_1 = "node_id_1"
@@ -18,21 +18,27 @@ DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@icarome"]
 
 somfyrts_ns = cg.esphome_ns.namespace("somfyrts")
-SomfyRTSCover = somfyrts_ns.class_("SomfyRTSCover", cover.Cover, cg.Component, uart.UARTDevice)
+SomfyRTSCover = somfyrts_ns.class_(
+    "SomfyRTSCover", cover.Cover, cg.Component, uart.UARTDevice
+)
 
-CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(SomfyRTSCover),
-        cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=15),
-        cv.Required(CONF_NODE_ID_1): cv.int_range(min=0, max=0xFF),
-        cv.Required(CONF_NODE_ID_2): cv.int_range(min=0, max=0xFF),
-        cv.Required(CONF_NODE_ID_3): cv.int_range(min=0, max=0xFF),
-        cv.Required(CONF_OPEN_DURATION): cv.positive_time_period_milliseconds,
-        cv.Required(CONF_CLOSE_DURATION): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-        cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
-    }
-).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
+CONFIG_SCHEMA = (
+    cover.COVER_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(SomfyRTSCover),
+            cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=15),
+            cv.Required(CONF_NODE_ID_1): cv.int_range(min=0, max=0xFF),
+            cv.Required(CONF_NODE_ID_2): cv.int_range(min=0, max=0xFF),
+            cv.Required(CONF_NODE_ID_3): cv.int_range(min=0, max=0xFF),
+            cv.Required(CONF_OPEN_DURATION): cv.positive_time_period_milliseconds,
+            cv.Required(CONF_CLOSE_DURATION): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+            cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA)
+)
 
 
 async def to_code(config):
@@ -43,7 +49,11 @@ async def to_code(config):
     cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
     cg.add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
     cg.add(var.set_channel(config[CONF_CHANNEL]))
-    cg.add(var.set_node_id(config[CONF_NODE_ID_1], config[CONF_NODE_ID_2], config[CONF_NODE_ID_3]))
+    cg.add(
+        var.set_node_id(
+            config[CONF_NODE_ID_1], config[CONF_NODE_ID_2], config[CONF_NODE_ID_3]
+        )
+    )
     if CONF_INVERTED in config:
         cg.add(var.inverted(config[CONF_INVERTED]))
     if CONF_FLOW_CONTROL_PIN in config:
