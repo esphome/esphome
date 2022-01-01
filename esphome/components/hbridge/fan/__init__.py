@@ -11,7 +11,7 @@ from esphome.const import (
     CONF_ENABLE_PIN,
     CONF_OSCILLATION_OUTPUT,
 )
-from .. import hbridge_ns, HBRIDGE_CONFIG_SCHEMA
+from .. import hbridge_ns, HBRIDGE_CONFIG_SCHEMA, hbridge_config_to_code
 
 
 CODEOWNERS = ["@WeekendWarrior"]
@@ -54,11 +54,4 @@ async def to_code(config):
        cg.add(var.set_oscillation_output(oscillation_output))
 
     # HBridge driver config
-    pina = await cg.get_variable(config[CONF_PIN_A])
-    cg.add(var.set_hbridge_pin_a(pina))
-    pinb = await cg.get_variable(config[CONF_PIN_B])
-    cg.add(var.set_hbridge_pin_b(pinb))
-
-    if CONF_ENABLE_PIN in config:
-        pin_enable = await cg.get_variable(config[CONF_ENABLE_PIN])
-        cg.add(var.set_hbridge_enable_pin(pin_enable))
+    await hbridge_config_to_code(config, var)

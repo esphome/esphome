@@ -91,10 +91,10 @@ void HBridgeSwitch::write_state(bool state)
 
   //Set HBridge output states to desired state (direction is relative, can be inverted by config or wiring)
   if(state){
-    hbridge_set_state(HBRIDGE_MODE_DIRECTION_A, 1);
+    HBridge::set_state(HBRIDGE_MODE_DIRECTION_A, 1);
   }
   else{
-    hbridge_set_state(HBRIDGE_MODE_DIRECTION_B, 1);
+    HBridge::set_state(HBRIDGE_MODE_DIRECTION_B, 1);
   }
 
   //If we have a switching signal duration, set timeout to disable the signal after the duration
@@ -102,7 +102,7 @@ void HBridgeSwitch::write_state(bool state)
     this->set_timeout("switch_signal_timeout", this->switching_signal_duration_, [this, state] 
     {
       //Put actuator motor back to idle
-      hbridge_set_state(HBRIDGE_MODE_OFF, 1);
+      HBridge::set_state(HBRIDGE_MODE_OFF, 1);
 
       ESP_LOGCONFIG(TAG, "Switching signal end (%dms)", this->switching_signal_duration_);
     });

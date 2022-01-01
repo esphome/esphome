@@ -37,10 +37,10 @@ class HBridgeLightOutput : public PollingComponent, public light::LightOutput, p
 
     //Alternate updating/flashing each light direction
     if (!this->direction_a_update_) {  // First LED Direction
-      hbridge_set_output_state(HBRIDGE_MODE_DIRECTION_A, this->light_direction_a_duty_); //Use protected function to prevent a flood of debug prints
+      HBridge::set_output_state(HBRIDGE_MODE_DIRECTION_A, this->light_direction_a_duty_); //Use protected function to prevent a flood of debug prints
       this->direction_a_update_ = true;
     } else {  // Second LED Direction
-      hbridge_set_output_state(HBRIDGE_MODE_DIRECTION_B, this->light_direction_b_duty_); //Use protected function to prevent a flood of debug prints
+      HBridge::set_output_state(HBRIDGE_MODE_DIRECTION_B, this->light_direction_b_duty_); //Use protected function to prevent a flood of debug prints
       this->direction_a_update_ = false;
     }
   }

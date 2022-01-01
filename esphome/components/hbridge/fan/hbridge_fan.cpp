@@ -8,7 +8,10 @@ namespace hbridge {
 static const char *const TAG = "fan.hbridge";
 
 fan::FanCall HBridgeFan::brake() {
-  hbridge_set_state(HBRIDGE_MODE_SHORT, 0); //Break motor by shorting windings
+  HBridge::transition_to_state(HBRIDGE_MODE_SHORT, 1, 
+  HBridge::setting_transition_delta_per_ms, 
+  HBridge::setting_transition_shorting_buildup_duration_ms_, 
+  HBridge::setting_transition_full_short_duration_ms_);
   ESP_LOGD(TAG, "Braking");
   return this->make_call().set_state(false);
 }
@@ -44,18 +47,28 @@ void HBridgeFan::control(const fan::FanCall &call) {
   this->publish_state();
 }
 void HBridgeFan::write_state_() {
-  float speed = this->state ? static_cast<float>(this->speed) / static_cast<float>(this->speed_count_) : 0.0f;
+  float speed_dutycycle = this->state ? static_cast<float>(this->speed) / static_cast<float>(this->speed_count_) : 0.0f;
 
-  if (speed == 0.0f) {  // off means idle
-    hbridge_set_state(HBRIDGE_MODE_OFF, 0);
-  }
-  else{
-    if (this->direction == fan::FAN_DIRECTION_FORWARD) {
-      hbridge_set_state(HBRIDGE_MODE_DIRECTION_A, speed);
-    } else {  // fan::FAN_DIRECTION_REVERSE
-      hbridge_set_state(HBRIDGE_MODE_DIRECTION_B, speed);
+    //Set speed/direction
+    if (speed_dutycycle == 0.0f) {  // speed_dutycycle 0 means off
+      HBridge::transition_to_state(HBRIDGE_MODE_OFF, 0, 
+        HBridge::setting_transition_delta_per_ms, 
+        HBridge::setting_transition_shorting_buildup_duration_ms_, 
+        HBridge::setting_transition_full_short_duration_ms_);
     }
-  }
+    else{
+      if (this->direction == fan::FAN_DIRECTION_FORWARD) {
+        HBridge::transition_to_state(HBRIDGE_MODE_DIRECTION_A, speed_dutycycle, 
+          HBridge::setting_transition_delta_per_ms, 
+          HBridge::setting_transition_shorting_buildup_duration_ms_, 
+          HBridge::setting_transition_full_short_duration_ms_);
+      } else {  // fan::FAN_DIRECTION_REVERSE
+        HBridge::transition_to_state(HBRIDGE_MODE_DIRECTION_B, speed_dutycycle, 
+          HBridge::setting_transition_delta_per_ms, 
+          HBridge::setting_transition_shorting_buildup_duration_ms_, 
+          HBridge::setting_transition_full_short_duration_ms_);
+      }
+    }
 
   if (this->oscillating_ != nullptr){
     this->oscillating_->set_state(this->oscillating);
