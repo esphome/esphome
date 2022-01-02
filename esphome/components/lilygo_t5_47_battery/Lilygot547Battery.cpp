@@ -19,8 +19,8 @@ void Lilygot547Battery::update_battery_info() {
   // 35 battery ?
   uint16_t v = analogRead(36);
   double_t battery_voltage = ((double_t) v / 4095.0) * 2.0 * 3.3 * (this->vref / 1000.0);
-  if (this->voltage_sensor_ != nullptr) {
-    this->voltage_sensor_->publish_state(battery_voltage);
+  if (this->voltage != nullptr) {
+    this->voltage->publish_state(battery_voltage);
   }
 }
 

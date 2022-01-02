@@ -14,7 +14,7 @@ namespace lilygo_t5_47_battery {
 
 class Lilygot547Battery : public PollingComponent {
  public:
-  sensor::Sensor *voltage_sensor_{nullptr};
+  sensor::Sensor *voltage{nullptr};
 
   int vref = 1100;
   void setup() override;
@@ -22,8 +22,7 @@ class Lilygot547Battery : public PollingComponent {
   void update_battery_info();
   void correct_adc_reference();
 
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
+  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage = voltage_sensor; }
 };
-
 }  // namespace lilygo_t5_47_battery
 }  // namespace esphome
