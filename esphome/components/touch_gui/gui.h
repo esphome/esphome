@@ -234,7 +234,7 @@ class TouchGUIButton : public binary_sensor::BinarySensor, public Component, pub
   optional<button_writer_t> writer_{};
   TemplatableValue<std::string> text_;
   bool initial_{false};
-  unsigned long activation_time_{0};
+  uint32_t activation_time_{0};
 };
 
 template<typename... Ts> class TouchGUITouchAction : public Action<Ts...> {

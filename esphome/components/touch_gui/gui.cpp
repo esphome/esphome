@@ -6,7 +6,7 @@
 namespace esphome {
 namespace touch_gui {
 
-static const char *TAG = "touch_gui";
+static const char *const TAG = "touch_gui";
 
 void TouchGUIComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Configured");

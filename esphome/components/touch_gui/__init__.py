@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, automation
 from esphome.core import coroutine
-from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_PAGES
+from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_PAGES, CONF_BORDER
 from esphome.components import binary_sensor, display, font
 from esphome.components.color import ColorStruct
 
@@ -22,7 +22,6 @@ CONF_BACKGROUND = "background"
 CONF_ACTIVE_BACKGROUND = "active_background"
 CONF_FOREGROUND = "foreground"
 CONF_ACTIVE_FOREGROUND = "active_foreground"
-CONF_BORDER = "border"
 CONF_BUTTON_FONT = "button_font"
 CONF_BUTTON_LAMBDA = "button_lambda"
 CONF_BUTTON = "button"

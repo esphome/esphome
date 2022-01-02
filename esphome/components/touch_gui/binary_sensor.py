@@ -49,15 +49,11 @@ BUTTON_TYPES = {
 def validate(conf):
     if conf[CONF_X_MAX] < conf[CONF_X_MIN] + 8:
         raise cv.Invalid(
-            "x_max ({}) must be at least 8 more than x_min ({})".format(
-                conf[CONF_X_MAX], conf[CONF_X_MIN]
-            )
+            f"x_max ({conf[CONF_X_MAX]}) must be at least 8 more than x_min ({conf[CONF_X_MIN]})"
         )
     if conf[CONF_Y_MAX] < conf[CONF_Y_MIN] + 8:
         raise cv.Invalid(
-            "y_max ({}) must be at least 8 more than y_min ({})".format(
-                conf[CONF_Y_MAX], conf[CONF_Y_MIN]
-            )
+            f"y_max ({conf[CONF_Y_MAX]}) must be at least 8 more than y_min ({conf[CONF_Y_MIN]})"
         )
 
     if conf[CONF_TYPE] == CONF_RADIO and CONF_RADIO_GROUP not in conf:
