@@ -27,7 +27,7 @@ import tornado.process
 import tornado.web
 import tornado.websocket
 
-from esphome import const, platformio_api, util
+from esphome import const, platformio_api, util, yaml_util
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -836,6 +836,28 @@ class LogoutHandler(BaseHandler):
         self.redirect("./login")
 
 
+class SecretKeysRequestHandler(BaseHandler):
+    @authenticated
+    def get(self):
+
+        filename = None
+
+        for secret_filename in const.SECRETS_FILES:
+            relative_filename = settings.rel_path(secret_filename)
+            if os.path.isfile(relative_filename):
+                filename = relative_filename
+                break
+
+        if filename is None:
+            self.send_error(404)
+            return
+
+        secret_keys = list(yaml_util.load_yaml(filename, clear_secrets=False))
+
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(secret_keys))
+
+
 def get_base_frontend_path():
     if ENV_DEV not in os.environ:
         import esphome_dashboard
@@ -939,6 +961,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}static/(.*)", StaticFileHandler, {"path": get_static_path()}),
             (f"{rel}devices", ListDevicesHandler),
             (f"{rel}import", ImportRequestHandler),
+            (f"{rel}secret_keys", SecretKeysRequestHandler),
         ],
         **app_settings,
     )
@@ -970,16 +993,17 @@ def start_web_server(args):
         server.add_socket(socket)
     else:
         _LOGGER.info(
-            "Starting dashboard web server on http://0.0.0.0:%s and configuration dir %s...",
+            "Starting dashboard web server on http://%s:%s and configuration dir %s...",
+            args.address,
             args.port,
             settings.config_dir,
         )
-        app.listen(args.port)
+        app.listen(args.port, args.address)
 
         if args.open_ui:
             import webbrowser
 
-            webbrowser.open(f"localhost:{args.port}")
+            webbrowser.open(f"http://{args.address}:{args.port}")
 
     if settings.status_use_ping:
         status_thread = PingStatusThread()

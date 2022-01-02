@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_REF,
     CONF_REFRESH,
     CONF_URL,
+    CONF_USERNAME,
+    CONF_PASSWORD,
 )
 import esphome.config_validation as cv
 
@@ -93,6 +95,8 @@ BASE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_URL): cv.url,
+            cv.Optional(CONF_USERNAME): cv.string,
+            cv.Optional(CONF_PASSWORD): cv.string,
             cv.Exclusive(CONF_FILE, "files"): validate_yaml_filename,
             cv.Exclusive(CONF_FILES, "files"): cv.All(
                 cv.ensure_list(validate_yaml_filename),
@@ -124,6 +128,8 @@ def _process_base_package(config: dict) -> dict:
         ref=config.get(CONF_REF),
         refresh=config[CONF_REFRESH],
         domain=DOMAIN,
+        username=config.get(CONF_USERNAME),
+        password=config.get(CONF_PASSWORD),
     )
     files: str = config[CONF_FILES]
 

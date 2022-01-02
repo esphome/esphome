@@ -88,8 +88,8 @@ def _esp32_i2s_default_bus():
 
 
 def _validate_esp32_i2s_bus(value):
-    if isinstance(value, str) and value.lower() == CHANNEL_DYNAMIC:
-        value = CHANNEL_DYNAMIC
+    if isinstance(value, str) and value.lower() == BUS_DYNAMIC:
+        value = BUS_DYNAMIC
     else:
         value = cv.int_(value)
     variant_buses = {

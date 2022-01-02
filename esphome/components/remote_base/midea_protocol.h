@@ -26,7 +26,7 @@ class MideaData {
   bool is_valid() const { return this->data_[OFFSET_CS] == this->calc_cs_(); }
   void finalize() { this->data_[OFFSET_CS] = this->calc_cs_(); }
   bool check_compliment(const MideaData &rhs) const;
-  std::string to_string() const { return hexencode(*this); }
+  std::string to_string() const { return format_hex_pretty(this->data_, sizeof(this->data_)); }
   // compare only 40-bits
   bool operator==(const MideaData &rhs) const { return !memcmp(this->data_, rhs.data_, OFFSET_CS); }
   enum MideaDataType : uint8_t {
