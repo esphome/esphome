@@ -37,7 +37,7 @@ enum class ModbusFunctionCode {
   READ_FIFO_QUEUE = 0x18,                // not implemented
 };
 
-enum class ModbusRegisterType : int {
+enum class ModbusRegisterType : uint8_t {
   CUSTOM = 0x0,
   COIL = 0x01,
   DISCRETE_INPUT = 0x02,

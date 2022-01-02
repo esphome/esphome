@@ -280,6 +280,11 @@ void ModbusController::dump_config() {
     ESP_LOGCONFIG(TAG, "  Sensor start=0x%X count=%d size=%d", it->start_address, it->register_count,
                   it->get_register_size());
   }
+  ESP_LOGCONFIG(TAG, "ranges");
+  for (auto &it : register_ranges_) {
+    ESP_LOGCONFIG(TAG, "  Range type=%d start=0x%X count=%d skip_updates=%d", (uint8_t) it.register_type,
+                  it.start_address, it.register_count, it.skip_updates);
+  }
 #endif
 }
 
