@@ -624,7 +624,9 @@ sensor:
       name: HMC5883L Heading
     range: 130uT
     oversampling: 8x
-    update_interval: 15s
+    update_interval:
+      minutes: 1
+      milliseconds: 500
     i2c_id: i2c_bus
   - platform: honeywellabp
     pressure:
@@ -646,7 +648,9 @@ sensor:
       name: QMC5883L Heading
     range: 800uT
     oversampling: 256x
-    update_interval: 15s
+    update_interval:
+      minutes: 1
+      milliseconds: 500
     i2c_id: i2c_bus
   - platform: hx711
     name: HX711 Value
