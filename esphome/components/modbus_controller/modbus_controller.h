@@ -267,18 +267,18 @@ class SensorItemsComparator {
  public:
   bool operator()(const SensorItem *lhs, const SensorItem *rhs) {
     // first sort according to register type
-    if (lhs->register_type < rhs->register_type) {
-      return true;
+    if (lhs->register_type != rhs->register_type) {
+      return lhs->register_type < rhs->register_type;
     }
 
     // ensure that sensor with force_new_range set are before the others
-    if (lhs->force_new_range && !rhs->force_new_range) {
-      return true;
+    if (lhs->force_new_range != rhs->force_new_range) {
+      return lhs->force_new_range > rhs->force_new_range;
     }
 
     // sort by start address
-    if (lhs->start_address < rhs->start_address) {
-      return true;
+    if (lhs->start_address != rhs->start_address) {
+      return lhs->start_address < rhs->start_address;
     }
 
     // The pointer to the sensor are added at last to ensure that
