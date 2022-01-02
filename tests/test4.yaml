@@ -418,7 +418,7 @@ binary_sensor:
       active_foreground: color_magenta
       border: color_yellow
     text: 'Btn 11'
-  
+
   # Third row: momentary
   - platform: touch_gui
     id: btn20
