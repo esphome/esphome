@@ -112,6 +112,7 @@ CONFIG_SCHEMA = (
 
 
 def auto_data_rate(config):
+    """Select the minimal sampling rate required to satisfy the requested update interval"""
     interval_msec = config[CONF_UPDATE_INTERVAL].total_milliseconds
     interval_hz = 1000.0 / interval_msec
     for datarate in sorted(HMC5883LDatarates.keys()):

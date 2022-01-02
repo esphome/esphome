@@ -103,6 +103,7 @@ CONFIG_SCHEMA = (
 
 
 def auto_data_rate(config):
+    """Select the minimal sampling rate required to satisfy the requested update interval"""
     interval_ms = config[CONF_UPDATE_INTERVAL].total_milliseconds
     interval_hz = 1000.0 / interval_ms
     for datarate in sorted(QMC5883LDatarates.keys()):
