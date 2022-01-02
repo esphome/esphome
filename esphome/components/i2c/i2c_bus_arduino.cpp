@@ -25,7 +25,7 @@ void ArduinoI2CBus::setup() {
   wire_ = &Wire;  // NOLINT(cppcoreguidelines-prefer-member-initializer)
 #endif
 
-  wire_->begin(sda_pin_, scl_pin_);
+  wire_->begin((int) sda_pin_, (int) scl_pin_);
   wire_->setClock(frequency_);
   initialized_ = true;
   if (this->scan_) {
