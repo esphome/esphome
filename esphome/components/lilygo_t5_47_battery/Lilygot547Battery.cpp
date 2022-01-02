@@ -24,8 +24,6 @@ void Lilygot547Battery::update_battery_info() {
   }
 }
 
-}
-
 void Lilygot547Battery::correct_adc_reference() {
   esp_adc_cal_characteristics_t adc_chars;
   esp_adc_cal_value_t val_type =
