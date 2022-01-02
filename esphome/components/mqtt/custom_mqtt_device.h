@@ -4,7 +4,7 @@
 #ifdef USE_MQTT
 
 #include "esphome/core/component.h"
-#include "mqtt_client.h"
+#include "mqttclient.h"
 
 namespace esphome {
 namespace mqtt {

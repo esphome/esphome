@@ -8,7 +8,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
-#include "mqtt_client.h"
+#include "mqttclient.h"
 
 namespace esphome {
 namespace mqtt {

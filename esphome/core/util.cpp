@@ -9,7 +9,7 @@
 #endif
 
 #ifdef USE_MQTT
-#include "esphome/components/mqtt/mqtt_client.h"
+#include "esphome/components/mqtt/mqttclient.h"
 #endif
 
 namespace esphome {
