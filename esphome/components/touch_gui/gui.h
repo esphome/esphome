@@ -232,7 +232,7 @@ class TouchGUIButton : public binary_sensor::BinarySensor, public Component, pub
   optional<Color> active_foreground_color_{};
   optional<Color> border_color_{};
   optional<button_writer_t> writer_{};
-  TemplatableStringValue<> text_;
+  TemplatableValue<std::string> text_;
   bool initial_{false};
   unsigned long activation_time_{0};
 };
