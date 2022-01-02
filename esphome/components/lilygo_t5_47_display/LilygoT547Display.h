@@ -40,7 +40,7 @@ class LilygoT547Display : public PollingComponent, public display::DisplayBuffer
   void set_all_white();
   void poweron();
   void poweroff();
-  void on_shutdown();
+  void on_shutdown() override;
 
  protected:
   void HOT draw_absolute_pixel_internal(int x, int y, Color color) override;

@@ -8,7 +8,7 @@ namespace lilygo_t5_47_display {
 
 static const char *const TAG = "lilygo_t5_47_display";
 
-float LilygoT547Display::get_setup_priority() const { return esphome::setup_priority::LATE; }
+float LilygoT547Display::get_setup_priority() const { return esphome::setup_priority::PROCESSOR; }
 
 void LilygoT547Display::set_clear_screen(bool clear) { this->clear_ = clear; }
 void LilygoT547Display::set_landscape(bool landscape) { this->landscape_ = landscape; }
@@ -66,6 +66,7 @@ void LilygoT547Display::poweroff() { epd_poweroff(); }
 void LilygoT547Display::on_shutdown() {
   ESP_LOGI(TAG, "Shutting down Lilygo T5-4.7 screen");
   epd_poweroff();
+  epd_deinit();
 }
 
 void HOT LilygoT547Display::draw_absolute_pixel_internal(int x, int y, Color color) {
