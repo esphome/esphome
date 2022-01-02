@@ -6,7 +6,7 @@
 #include "esphome/components/modbus/modbus.h"
 
 #include <list>
-#include <map>
+#include <set>
 #include <queue>
 #include <vector>
 
@@ -62,12 +62,14 @@ enum class SensorValueType : uint8_t {
   FP32_R = 0xD
 };
 
+class SensorItem;
+
 struct RegisterRange {
   uint16_t start_address;
   ModbusRegisterType register_type;
   uint8_t register_count;
   uint8_t skip_updates;  // the config value
-  uint64_t first_sensorkey;
+  SensorItem *first_sensor;
   uint8_t skip_updates_counter;  // the running value
 } __attribute__((packed));
 
@@ -107,18 +109,6 @@ inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_
       break;
   }
 }
-
-/** All sensors are stored in a map
- * to enable binary sensors for values encoded as bits in the same register the key of each sensor
- * the key is a 64 bit integer that combines the register properties
- * sensormap_ is sorted by this key. The key ensures the correct order when creating consequtive ranges
- * Format:  function_code (8 bit) | start address (16 bit)| offset (8bit)| bitmask (32 bit)
- */
-inline uint64_t calc_key(ModbusRegisterType register_type, uint16_t start_address, uint8_t offset = 0,
-                         uint32_t bitmask = 0) {
-  return uint64_t((uint16_t(register_type) << 24) + (uint32_t(start_address) << 8) + (offset & 0xFF)) << 32 | bitmask;
-}
-inline uint16_t register_from_key(uint64_t key) { return (key >> 40) & 0xFFFF; }
 
 inline uint8_t c_to_hex(char c) { return (c >= 'A') ? (c >= 'a') ? (c - 'a' + 10) : (c - 'A' + 10) : (c - '0'); }
 
@@ -250,7 +240,6 @@ class SensorItem {
   virtual void parse_and_publish(const std::vector<uint8_t> &data) = 0;
 
   void set_custom_data(const std::vector<uint8_t> &data) { custom_data = data; }
-  uint64_t getkey() const { return calc_key(register_type, start_address, offset, bitmask); }
   size_t virtual get_register_size() const {
     if (register_type == ModbusRegisterType::COIL || register_type == ModbusRegisterType::DISCRETE_INPUT)
       return 1;
@@ -269,6 +258,33 @@ class SensorItem {
   uint8_t skip_updates;
   std::vector<uint8_t> custom_data{};
   bool force_new_range{false};
+};
+
+// ModbusController::create_register_ranges_ tries to optimize register range
+// for this the sensors should be order of its start_address separated by the
+// register type.
+class SensorItemsComparator {
+ public:
+  bool operator()(const SensorItem *lhs, const SensorItem *rhs) {
+    // first sort according to register type
+    if (lhs->register_type < rhs->register_type) {
+      return true;
+    }
+
+    // ensure that sensor with force_new_range set are before the others
+    if (lhs->force_new_range && !rhs->force_new_range) {
+      return true;
+    }
+
+    // sort by start address
+    if (lhs->start_address < rhs->start_address) {
+      return true;
+    }
+
+    // The pointer to the sensor are added at last to ensure that
+    // multiple sensors with the save values can be added with a stable sort order.
+    return lhs < rhs;
+  }
 };
 
 class ModbusCommandItem {
@@ -382,7 +398,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// queues a modbus command in the send queue
   void queue_command(const ModbusCommandItem &command);
   /// Registers a sensor with the controller. Called by esphomes code generator
-  void add_sensor_item(SensorItem *item) { sensormap_[item->getkey()] = item; }
+  void add_sensor_item(SensorItem *item) { sensorset_.insert(item); }
   /// called when a modbus response was prased without errors
   void on_modbus_data(const std::vector<uint8_t> &data) override;
   /// called when a modbus error response was received
@@ -400,7 +416,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// parse sensormap_ and create range of sequential addresses
   size_t create_register_ranges_();
   // find register in sensormap. Returns iterator with all registers having the same start address
-  std::map<uint64_t, SensorItem *>::iterator find_register_(ModbusRegisterType register_type, uint16_t start_address);
+  std::set<SensorItem *>::iterator find_register_(ModbusRegisterType register_type, uint16_t start_address);
   /// submit the read command for the address range to the send queue
   void update_range_(RegisterRange &r);
   /// parse incoming modbus data
@@ -410,10 +426,10 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// get the number of queued modbus commands (should be mostly empty)
   size_t get_command_queue_length_() { return command_queue_.size(); }
   /// dump the parsed sensormap for diagnostics
-  void dump_sensormap_();
+  void dump_sensors_();
   /// Collection of all sensors for this component
   /// see calc_key how the key is contructed
-  std::map<uint64_t, SensorItem *> sensormap_;
+  std::set<SensorItem *, SensorItemsComparator> sensorset_;
   /// Continous range of modbus registers
   std::vector<RegisterRange> register_ranges_;
   /// Hold the pending requests to be sent
