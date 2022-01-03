@@ -9,8 +9,8 @@
 #include <memory>
 #include <type_traits>
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#include "esp32-hal-psram.h"
+#ifdef USE_ESP32
+#include <esp_heap_caps.h>
 #endif
 
 #include "esphome/core/optional.h"
@@ -261,21 +261,6 @@ template<typename T> class Parented {
 
 uint32_t fnv1_hash(const std::string &str);
 
-template<typename T> T *new_buffer(size_t length) {
-  T *buffer;
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-  if (psramFound()) {
-    buffer = (T *) ps_malloc(length);
-  } else {
-    buffer = new T[length];  // NOLINT(cppcoreguidelines-owning-memory)
-  }
-#else
-  buffer = new T[length];  // NOLINT(cppcoreguidelines-owning-memory)
-#endif
-
-  return buffer;
-}
-
 // ---------------------------------------------------------------------------------------------------------------------
 
 /// @name STL backports
@@ -485,6 +470,51 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
 }
 
 ///@}
+
+/// @name Memory management
+///@{
+
+/** An STL allocator that uses SPI RAM.
+ *
+ * By setting flags, it can be configured to don't try main memory if SPI RAM is full or unavailable, and to return
+ * `nulllptr` instead of aborting when no memory is available.
+ */
+template<class T> class ExternalRAMAllocator {
+ public:
+  using value_type = T;
+
+  enum Flags {
+    NONE = 0,
+    REFUSE_INTERNAL = 1 << 0,  ///< Refuse falling back to internal memory when external RAM is full or unavailable.
+    ALLOW_FAILURE = 1 << 1,    ///< Don't abort when memory allocation fails.
+  };
+
+  ExternalRAMAllocator() = default;
+  ExternalRAMAllocator(Flags flags) : flags_{flags} {}
+  template<class U> constexpr ExternalRAMAllocator(const ExternalRAMAllocator<U> &other) : flags_{other.flags} {}
+
+  T *allocate(size_t n) {
+    size_t size = n * sizeof(T);
+    T *ptr = nullptr;
+#ifdef USE_ESP32
+    ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM));
+#endif
+    if (ptr == nullptr && (this->flags_ & Flags::REFUSE_INTERNAL) == 0)
+      ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
+    if (ptr == nullptr && (this->flags_ & Flags::ALLOW_FAILURE) == 0)
+      abort();
+    return ptr;
+  }
+
+  void deallocate(T *p, size_t n) {
+    free(p);  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
+  }
+
+ private:
+  Flags flags_{Flags::NONE};
+};
+
+/// @}
 
 /// @name Deprecated functions
 ///@{
