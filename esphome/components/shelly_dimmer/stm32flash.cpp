@@ -162,7 +162,7 @@ static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
       t1 = millis();
       if (t1 < t0 + timeout)
         continue;
-      DEBUG_MSG(TAG, "Failed to read ACK byte timeout=%i", timeout);
+      DEBUG_MSG(TAG, "Failed to read ACK timeout=%i", timeout);
       return STM32_ERR_UNKNOWN;
     }
 
