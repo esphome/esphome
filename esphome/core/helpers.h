@@ -295,6 +295,7 @@ To bit_cast(const From &src) {
   memcpy(&dst, &src, sizeof(To));
   return dst;
 }
+#endif
 
 // std::byteswap is from C++23 and technically should be a template, but this will do for now.
 constexpr uint8_t byteswap(uint8_t n) { return n; }
