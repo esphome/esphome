@@ -3,20 +3,18 @@ import esphome.config_validation as cv
 from esphome.components import text_sensor
 from esphome.const import (
     CONF_ID,
-    CONF_SENSOR,
-    ICON_EMPTY,
 )
-from . import CONF_ABBAURORA_ID, ABBAurora, ABBAURORA_COMPONENT_SCHEMA
+from . import CONF_ABBAURORA_ID, ABBAURORA_COMPONENT_SCHEMA
 
-CONF_ABB_VERSION = "version"
-CONF_ABB_STATUS = "connection_status"
-CONF_ABB_IDENTIFICATION = "identification"
+CONF_VERSION = "version"
+CONF_STATUS = "connection_status"
+CONF_IDENTIFICATION = "identification"
 AUTO_LOAD = ["abbaurora"]
 
 TYPES = {
-    CONF_ABB_VERSION,
-    CONF_ABB_STATUS,
-    CONF_ABB_IDENTIFICATION,
+    CONF_VERSION,
+    CONF_STATUS,
+    CONF_IDENTIFICATION,
 }
 
 CONFIG_SCHEMA = ABBAURORA_COMPONENT_SCHEMA.extend(
