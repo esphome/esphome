@@ -3,7 +3,7 @@
 #include "stm32flash.h"
 #ifndef USE_ESP_IDF
 #include <HardwareSerial.h>
-#endif USE_ESP_IDF
+#endif
 
 namespace esphome {
 namespace shelly_dimmer {
