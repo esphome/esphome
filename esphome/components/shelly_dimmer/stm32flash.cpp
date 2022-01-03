@@ -65,6 +65,7 @@ static const uint32_t STM32_BLKWRITE_TIMEOUT = 1 * 1000;   /* milliseconds */
 static const uint32_t STM32_WUNPROT_TIMEOUT = 1 * 1000;    /* milliseconds */
 static const uint32_t STM32_WPROT_TIMEOUT = 1 * 1000;      /* milliseconds */
 static const uint32_t STM32_RPROT_TIMEOUT = 1 * 1000;      /* milliseconds */
+static const uint32_t DEFAULT_TIMEOUT = 5 * 1000;      /* milliseconds */
 
 static const uint8_t STM32_CMD_GET_LENGTH = 17; /* bytes in the reply */
 
@@ -156,29 +157,27 @@ static void stm32_warn_stretching(const char *f) {
 static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
   auto *stream = stm->stream;
   uint8_t byte;
-  bool ret;
   uint32_t t0 = 0, t1;
+  bool ret;
 
   if (!(stm->flags & STREAM_OPT_RETRY))
     timeout = 0;
 
-  if (timeout) {
-    // timeout is fixed at 100ms
-    t0 = millis();
-  }
+  if (timeout == 0)
+    timeout = DEFAULT_TIMEOUT;
 
-  do {
-    ret = stream->read_array(&byte, 1);
-    if (!ret && timeout) {
+  t0 = millis();
+  do { 
+    yield();
+    if (!stream->available()) {
       t1 = millis();
       if (t1 < t0 + timeout)
         continue;
-    }
-
-    if (!ret) {
-      DEBUG_MSG(TAG, "Failed to read ACK byte");
+      DEBUG_MSG(TAG, "Failed to read ACK byte timeout=%i", timeout);
       return STM32_ERR_UNKNOWN;
     }
+    
+    ret = stream->read_byte(&byte);
 
     if (byte == STM32_ACK)
       return STM32_ERR_OK;
@@ -200,7 +199,10 @@ static stm32_err_t stm32_send_command_timeout(const stm32_t *stm, const uint8_t 
 
   buf[0] = cmd;
   buf[1] = cmd ^ 0xFF;
+  
   stream->write_array(buf, 2);
+  stream->flush();
+  
   s_err = stm32_get_ack_timeout(stm, timeout);
   if (s_err == STM32_ERR_OK)
     return STM32_ERR_OK;
@@ -228,6 +230,7 @@ static stm32_err_t stm32_resync(const stm32_t *stm) {
   buf[1] = STM32_CMD_ERR ^ 0xFF;
   while (t1 < t0 + STM32_RESYNC_TIMEOUT) {
     stream->write_array(buf, 2);
+    stream->flush();
     if (!stream->read_array(&ack, 1)) {
       t1 = millis();
       continue;
@@ -306,6 +309,7 @@ static stm32_err_t stm32_send_init_seq(const stm32_t *stm) {
   uint8_t byte, cmd = STM32_CMD_INIT;
 
   stream->write_array(&cmd, 1);
+  stream->flush();
 
   ret = stream->read_array(&byte, 1);
   if (ret && byte == STM32_ACK)
@@ -325,7 +329,8 @@ static stm32_err_t stm32_send_init_seq(const stm32_t *stm) {
    * of a command. Send a new byte, we should get back a NACK.
    */
   stream->write_array(&cmd, 1);
-
+  stream->flush();
+  
   ret = stream->read_array(&byte, 1);
   if (ret && byte == STM32_NACK)
     return STM32_ERR_OK;
@@ -352,7 +357,6 @@ stm32_t *stm32_init(uart::UARTDevice *stream, uint8_t flags, char init) {
   if ((stm->flags & STREAM_OPT_CMD_INIT) && init)
     if (stm32_send_init_seq(stm) != STM32_ERR_OK)
       return nullptr;  // NOLINT
-
   /* get the version and read protection status  */
   if (stm32_send_command(stm, STM32_CMD_GVR) != STM32_ERR_OK) {
     stm32_close(stm);
@@ -516,6 +520,8 @@ stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address, uint8_t data
   buf[3] = address & 0xFF;
   buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
   stream->write_array(buf, 5);
+  stream->flush();
+  
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
@@ -563,6 +569,7 @@ stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8
   buf[3] = address & 0xFF;
   buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
   stream->write_array(buf, 5);
+  stream->flush();
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
@@ -580,6 +587,7 @@ stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8
   }
   buf[aligned_len + 1] = cs;
   stream->write_array(buf, aligned_len + 2);
+  stream->flush();
 
   s_err = stm32_get_ack_timeout(stm, STM32_BLKWRITE_TIMEOUT);
   if (s_err != STM32_ERR_OK) {
@@ -712,6 +720,7 @@ static stm32_err_t stm32_mass_erase(const stm32_t *stm) {
   buf[1] = 0xFF;
   buf[2] = 0x00; /* checksum */
   stream->write_array(buf, 3);
+  stream->flush();
 
   s_err = stm32_get_ack_timeout(stm, STM32_MASSERASE_TIMEOUT);
   if (s_err != STM32_ERR_OK) {
@@ -754,6 +763,8 @@ static stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_
     }
     buf[i++] = cs;
     stream->write_array(buf, i);
+    stream->flush();
+
     free(buf);  // NOLINT
 
     s_err = stm32_get_ack_timeout(stm, pages * STM32_PAGEERASE_TIMEOUT);
@@ -788,6 +799,8 @@ static stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_
   }
   buf[i++] = cs;
   stream->write_array(buf, i);
+  stream->flush();
+    
   free(buf);  // NOLINT
 
   s_err = stm32_get_ack_timeout(stm, pages * STM32_PAGEERASE_TIMEOUT);
@@ -915,6 +928,7 @@ stm32_err_t stm32_go(const stm32_t *stm, uint32_t address) {
   buf[3] = address & 0xFF;
   buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
   stream->write_array(buf, 5);
+  stream->flush();
 
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
@@ -955,6 +969,7 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t leng
   buf[3] = address & 0xFF;
   buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
   stream->write_array(buf, 5);
+  stream->flush();
 
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
@@ -965,6 +980,7 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t leng
   buf[3] = length & 0xFF;
   buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
   stream->write_array(buf, 5);
+  stream->flush();
 
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
