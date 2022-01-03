@@ -254,7 +254,7 @@ uint32_t fnv1_hash(const std::string &str);
 
 /// @name STL backports
 ///@{
-  
+
 // std::to_string() from C++11, available from libstdc++/g++ 8
 // See https://github.com/espressif/esp-idf/issues/1445
 #if _GLIBCXX_RELEASE >= 8
