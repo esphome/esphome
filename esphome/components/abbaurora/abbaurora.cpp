@@ -3,7 +3,7 @@
 namespace esphome {
 namespace abbaurora {
 
-static const char *TAG = "abbaurora";
+static const char *const TAG = "abbaurora";
 
 void ABBAuroraComponent::setup() {
   ESP_LOGD(TAG, "Setup");
@@ -12,8 +12,7 @@ void ABBAuroraComponent::setup() {
   if (this->flow_control_pin_ != nullptr)
     this->flow_control_pin_->setup();
 
-  for (int i = 0; i < 8; i++)
-    receive_data_[i] = 0;
+  memset((uint8_t *)receive_data_,0,8);
 
   connection_status_->publish_state("Setup");
 }
@@ -149,8 +148,7 @@ bool ABBAuroraComponent::send_(uint8_t address, uint8_t param0, uint8_t param1,
   send_data[9] = (uint8_t)(~bcc_hi);
 
   // Clear data
-  for (int i = 0; i < 8; i++)
-    receive_data_[i] = 0;
+  memset((uint8_t *)receive_data_,0,8);
   // Empty RX buffer
   while (this->available()) {
     uint8_t purge;
@@ -458,7 +456,7 @@ bool ABBAuroraComponent::read_cumulated_energy_(CumulatedEnergyType par) {
   cumulated_energy_.TransmissionState = receive_data_[0];
   cumulated_energy_.GlobalState = receive_data_[1];
 
-  if (cumulated_energy_.ReadState == true) {
+  if (cumulated_energy_.ReadState) {
     long_bytes_.asBytes[0] = receive_data_[5];
     long_bytes_.asBytes[1] = receive_data_[4];
     long_bytes_.asBytes[2] = receive_data_[3];
@@ -474,8 +472,7 @@ bool ABBAuroraComponent::write_baudrate_setting_(uint8_t baudcode) {
     return send_(this->address_, (uint8_t)85, baudcode, (uint8_t)0, (uint8_t)0,
                  (uint8_t)0, (uint8_t)0, (uint8_t)0);
   } else {
-    for (int i = 0; i < 8; i++)
-      receive_data_[i] = 0;
+    memset((uint8_t *)receive_data_,0,8);
     return false;
   }
 }
@@ -1045,7 +1042,6 @@ std::string ABBAuroraComponent::inverter_state_text(uint8_t id) {
   case 29:
     return std::string("Self Test 4");
   case 30:
-    return std::string("Internal Error");
   case 31:
     return std::string("Internal Error");
   case 40:
