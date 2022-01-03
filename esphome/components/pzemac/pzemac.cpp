@@ -62,7 +62,7 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
     this->power_factor_sensor_->publish_state(power_factor);
 }
 
-void PZEMAC::update() { this->send(PZEM_CMD_RESET_ENERGY, 0, PZEM_REGISTER_COUNT); }
+void PZEMAC::update() { this->send(PZEM_CMD_READ_IN_REGISTERS, 0, PZEM_REGISTER_COUNT); }
 void PZEMAC::dump_config() {
   ESP_LOGCONFIG(TAG, "PZEMAC:");
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
