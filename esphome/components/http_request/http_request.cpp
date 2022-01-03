@@ -115,8 +115,9 @@ void HttpRequestComponent::close() {
 }
 
 const char *HttpRequestComponent::get_string() {
-  static const String STR = this->client_.getString();
-  return STR.c_str();
+  static std::string str;
+  str = this->client_.getString().c_str();
+  return str.c_str();
 }
 
 }  // namespace http_request
