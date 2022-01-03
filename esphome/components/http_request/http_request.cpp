@@ -114,7 +114,11 @@ void HttpRequestComponent::close() {
   this->client_.end();
 }
 
-const char *HttpRequestComponent::get_string() { return this->client_.getString().c_str(); }
+const char *HttpRequestComponent::get_string() {
+  static std::string str;
+  str = this->client_.getString().c_str();
+  return str.c_str();
+}
 
 }  // namespace http_request
 }  // namespace esphome
