@@ -82,56 +82,30 @@ namespace esphome {
 namespace abbaurora {
 
 class ABBAuroraComponent : public uart::UARTDevice, public Component {
-public:
+ public:
   void setup() override;
   void loop() override;
   void dump_config() override;
   void set_address(uint8_t address) { this->address_ = address; }
-  void set_flow_control_pin(GPIOPin *flow_control_pin) {
-    this->flow_control_pin_ = flow_control_pin;
-  }
+  void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
   void set_v_in_1_sensor(sensor::Sensor *sensor) { this->v_in_1_ = sensor; }
   void set_v_in_2_sensor(sensor::Sensor *sensor) { this->v_in_2_ = sensor; }
   void set_i_in_1_sensor(sensor::Sensor *sensor) { this->i_in_1_ = sensor; }
   void set_i_in_2_sensor(sensor::Sensor *sensor) { this->i_in_2_ = sensor; }
-  void set_power_in_1_sensor(sensor::Sensor *sensor) {
-    this->power_in_1_ = sensor;
-  }
-  void set_power_in_2_sensor(sensor::Sensor *sensor) {
-    this->power_in_2_ = sensor;
-  }
-  void set_power_in_total_sensor(sensor::Sensor *sensor) {
-    this->power_in_total_ = sensor;
-  }
-  void set_grid_power_sensor(sensor::Sensor *sensor) {
-    this->grid_power_ = sensor;
-  }
-  void set_temperature_inverter_sensor(sensor::Sensor *sensor) {
-    this->temperature_inverter_ = sensor;
-  }
-  void set_temperature_booster_sensor(sensor::Sensor *sensor) {
-    this->temperature_booster_ = sensor;
-  }
-  void set_grid_voltage_sensor(sensor::Sensor *sensor) {
-    this->grid_voltage_ = sensor;
-  }
-  void set_cumulated_energy_today_sensor(sensor::Sensor *sensor) {
-    this->cumulated_energy_today_ = sensor;
-  }
-  void set_cumulated_energy_total_sensor(sensor::Sensor *sensor) {
-    this->cumulated_energy_total_ = sensor;
-  }
-  void set_inverter_version_text_sensor(text_sensor::TextSensor *sensor) {
-    this->inverter_version_ = sensor;
-  }
-  void set_connection_status_text_sensor(text_sensor::TextSensor *sensor) {
-    this->connection_status_ = sensor;
-  }
-  void set_identification_text_sensor(text_sensor::TextSensor *sensor) {
-    this->identification_ = sensor;
-  }
+  void set_power_in_1_sensor(sensor::Sensor *sensor) { this->power_in_1_ = sensor; }
+  void set_power_in_2_sensor(sensor::Sensor *sensor) { this->power_in_2_ = sensor; }
+  void set_power_in_total_sensor(sensor::Sensor *sensor) { this->power_in_total_ = sensor; }
+  void set_grid_power_sensor(sensor::Sensor *sensor) { this->grid_power_ = sensor; }
+  void set_temperature_inverter_sensor(sensor::Sensor *sensor) { this->temperature_inverter_ = sensor; }
+  void set_temperature_booster_sensor(sensor::Sensor *sensor) { this->temperature_booster_ = sensor; }
+  void set_grid_voltage_sensor(sensor::Sensor *sensor) { this->grid_voltage_ = sensor; }
+  void set_cumulated_energy_today_sensor(sensor::Sensor *sensor) { this->cumulated_energy_today_ = sensor; }
+  void set_cumulated_energy_total_sensor(sensor::Sensor *sensor) { this->cumulated_energy_total_ = sensor; }
+  void set_inverter_version_text_sensor(text_sensor::TextSensor *sensor) { this->inverter_version_ = sensor; }
+  void set_connection_status_text_sensor(text_sensor::TextSensor *sensor) { this->connection_status_ = sensor; }
+  void set_identification_text_sensor(text_sensor::TextSensor *sensor) { this->identification_ = sensor; }
 
-protected:
+ protected:
   GPIOPin *flow_control_pin_{nullptr};
   uint8_t address_ = 0;
   uint8_t receive_data_[8];
@@ -155,14 +129,12 @@ protected:
 
   bool read_baudrate_setting_central_(uint8_t baudcode, uint8_t serialline);
   bool read_cumulated_energy_(CumulatedEnergyType par);
-  bool read_cumulated_energy_central_(uint8_t var, uint8_t ndays_h,
-                                      uint8_t ndays_l, uint8_t global);
+  bool read_cumulated_energy_central_(uint8_t var, uint8_t ndays_h, uint8_t ndays_l, uint8_t global);
   bool read_dsp_value_(DspValueType type, DspGlobal global);
   bool read_firmware_release_();
   bool read_firmware_release_central_(uint8_t var);
   bool read_flags_switch_central_();
-  bool read_junctionbox_monitoring_central_(uint8_t cf, uint8_t rn, uint8_t njt,
-                                            uint8_t jal, uint8_t jah);
+  bool read_junctionbox_monitoring_central_(uint8_t cf, uint8_t rn, uint8_t njt, uint8_t jal, uint8_t jah);
   bool read_junctionbox_state_(uint8_t nj);
   bool read_junctionbox_value_(uint8_t nj, uint8_t par);
   bool read_last_four_alarms_();
@@ -175,8 +147,8 @@ protected:
   bool read_system_serialnumber_central_();
   bool read_timedate_();
   bool read_version_();
-  bool send_(uint8_t address, uint8_t param0, uint8_t param1, uint8_t param2,
-             uint8_t param3, uint8_t param4, uint8_t param5, uint8_t param6);
+  bool send_(uint8_t address, uint8_t param0, uint8_t param1, uint8_t param2, uint8_t param3, uint8_t param4,
+             uint8_t param5, uint8_t param6);
   bool write_baudrate_setting_(uint8_t baudcode);
 
   static std::string transmission_state_text(uint8_t id);
@@ -283,5 +255,5 @@ protected:
   DataCumulatedEnergy cumulated_energy_;
 };
 
-} // namespace abbaurora
-} // namespace esphome
+}  // namespace abbaurora
+}  // namespace esphome
