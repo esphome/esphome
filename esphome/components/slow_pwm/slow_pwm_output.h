@@ -48,7 +48,7 @@ class SlowPWMOutput : public output::FloatOutput, public Component {
   float state_{0};
   bool current_state_{false};
   unsigned int period_start_time_{0};
-  unsigned int period_{5000};
+  unsigned int period_;
 };
 
 }  // namespace slow_pwm
