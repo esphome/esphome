@@ -96,22 +96,22 @@ protected:
     bool read_cumulated_energy_(CumulatedEnergyType par);
     bool read_cumulated_energy_central_(uint8_t var, uint8_t ndays_h, uint8_t ndays_l, uint8_t global);
     bool read_dsp_value_(DspValueType type, DspGlobal global);
-    bool read_firmware_release_(void);
+    bool read_firmware_release_();
     bool read_firmware_release_central_(uint8_t var);
     bool read_flags_switch_central_();
     bool read_junctionbox_monitoring_central_(uint8_t cf, uint8_t rn, uint8_t njt, uint8_t jal, uint8_t jah);
     bool read_junctionbox_state_(uint8_t nj);
     bool read_junctionbox_value_(uint8_t nj, uint8_t par);
-    bool read_last_four_alarms_(void);
-    bool read_manufacturing_week_year_(void);
-    bool read_state_(void);
+    bool read_last_four_alarms_();
+    bool read_manufacturing_week_year_();
+    bool read_state_();
     bool read_system_info_central_(uint8_t var);
-    bool read_system_partnumber_(void);    
+    bool read_system_partnumber_();    
     bool read_system_partnumber_central_();
-    bool read_system_serialnumber_(void);
+    bool read_system_serialnumber_();
     bool read_system_serialnumber_central_();
-    bool read_timedate_(void);
-    bool read_version_(void);
+    bool read_timedate_();
+    bool read_version_();
     bool send_(uint8_t address, uint8_t param0, uint8_t param1, uint8_t param2, uint8_t param3, uint8_t param4, uint8_t param5, uint8_t param6);
     bool write_baudrate_setting_(uint8_t baudcode);
 
@@ -124,15 +124,14 @@ protected:
     union {
         uint8_t asBytes[4];
         float asFloat;
-    } FloatBytes;
+    } float_bytes_;
 
     union {
         uint8_t asBytes[4];
         unsigned long asUlong;
-    } LongBytes;
+    } long_bytes_;
 
-
-    typedef struct
+    using DataState = struct
     {
         uint8_t TransmissionState;
         uint8_t GlobalState;
@@ -141,10 +140,10 @@ protected:
         uint8_t Channel2State;
         uint8_t AlarmState;
         bool ReadState;
-    } DataState;
-    DataState State_;
+    };
+    DataState state_;
 
-    typedef struct
+    using DataVersion = struct
     {
         uint8_t TransmissionState;
         uint8_t GlobalState;
@@ -153,29 +152,28 @@ protected:
         std::string Par3;
         std::string Par4;
         bool ReadState;
-    } DataVersion;
-    DataVersion Version_;
+    };
+    DataVersion data_version_;
 
-    typedef struct
+    using DataDSP = struct
     {
         uint8_t TransmissionState;
         uint8_t GlobalState;
         float Value;
         bool ReadState;
-    } DataDSP;
-    DataDSP DSP_;
+    };
+    DataDSP dsp_;
 
-    typedef struct
+    using DataTimeDate = struct
     {
         uint8_t TransmissionState;
         uint8_t GlobalState;
         unsigned long Seconds;
         bool ReadState;
-    } DataTimeDate;
-    DataTimeDate TimeDate_;
+    };
+    DataTimeDate timedate_;
 
-
-    typedef struct
+    using DataLastFourAlarms = struct
     {
         uint8_t TransmissionState;
         uint8_t GlobalState;
@@ -184,55 +182,53 @@ protected:
         uint8_t Alarms3;
         uint8_t Alarms4;
         bool ReadState;
-    } DataLastFourAlarms;
-    DataLastFourAlarms LastFourAlarms_;
+    };
+    DataLastFourAlarms last_four_alarms_;
 
     // Inverters
-    typedef struct
+    using DataSystemPartNumber = struct
     {
         std::string PartNumber;
         bool ReadState;
-    } DataSystemPartNumber;
-    DataSystemPartNumber SystemPartNumber_;
+    };
+    DataSystemPartNumber system_partnumber_;
 
-    typedef struct
+    using DataSystemSerialNumber = struct
     {
         std::string SerialNumber;
         bool ReadState;
-    } DataSystemSerialNumber;
-    DataSystemSerialNumber SystemSerialNumber_;
+    };
+    DataSystemSerialNumber system_serialnumber_;
 
-    typedef struct
+    using DataManufacturingWeekYear = struct
     {
         uint8_t TransmissionState;
         uint8_t GlobalState;
         std::string Week;
         std::string Year;
         bool ReadState;
-    } DataManufacturingWeekYear;
-    DataManufacturingWeekYear ManufacturingWeekYear_;
+    };
+    DataManufacturingWeekYear manufacturing_week_year_;
 
-    typedef struct
+    using DataFirmwareRelease = struct
     {
         uint8_t TransmissionState;
         uint8_t GlobalState;
         std::string Release;
         bool ReadState;
-    } DataFirmwareRelease;
-
-    DataFirmwareRelease FirmwareRelease_;
+    };
+    DataFirmwareRelease firmware_release_;
 
  
-    typedef struct
+    using DataCumulatedEnergy = struct
     {
         uint8_t TransmissionState;
         uint8_t GlobalState;
         unsigned long Energy;
         bool ReadState;
-    } DataCumulatedEnergy;
-
-    DataCumulatedEnergy CumulatedEnergy_;
+    };
+    DataCumulatedEnergy cumulated_energy_;
 };
 
-} // abbaurora namespace
-} // esphome namespace
+} // namespace abbaurora
+} // namespace esphome
