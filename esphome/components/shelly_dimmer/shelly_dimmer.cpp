@@ -106,7 +106,7 @@ void ShellyDimmer::write_state(light::LightState *state) {
     return;
   }
   ESP_LOGD(TAG, "Brightness update: %d (raw: %f)", brightness_int, brightness);
-      
+
   this->send_brightness_(brightness_int);
 }
 
@@ -451,24 +451,24 @@ void ShellyDimmer::reset_(bool boot0) {
 void ShellyDimmer::reset_normal_boot_() {
   // set NONE parity in normal mode
 
- #ifndef USE_ESP_IDF  //workaround for reconfiguring the uart
+#ifndef USE_ESP_IDF  // workaround for reconfiguring the uart
   Serial.end();
   Serial.begin(115200, SERIAL_8N1);
   Serial.flush();
- #endif
- 
+#endif
+
   this->flush();
   this->reset_(false);
 }
 
 void ShellyDimmer::reset_dfu_boot_() {
   // set EVEN parity in bootloader mode
-  
- #ifndef USE_ESP_IDF //workaround for reconfiguring the uart
+
+#ifndef USE_ESP_IDF  // workaround for reconfiguring the uart
   Serial.end();
-  Serial.begin(115200, SERIAL_8E1); 
+  Serial.begin(115200, SERIAL_8E1);
   Serial.flush();
- #endif
+#endif
 
   this->flush();
   this->reset_(true);
