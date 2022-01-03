@@ -36,17 +36,6 @@ std::string get_mac_address_pretty();
 void set_mac_address(uint8_t *mac);
 #endif
 
-std::string to_string(const std::string &val);
-std::string to_string(int val);
-std::string to_string(long val);                // NOLINT
-std::string to_string(long long val);           // NOLINT
-std::string to_string(unsigned val);            // NOLINT
-std::string to_string(unsigned long val);       // NOLINT
-std::string to_string(unsigned long long val);  // NOLINT
-std::string to_string(float val);
-std::string to_string(double val);
-std::string to_string(long double val);
-
 /// Compare string a to string b (ignoring case) and return whether they are equal.
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 bool str_startswith(const std::string &full, const std::string &start);
@@ -266,6 +255,22 @@ uint32_t fnv1_hash(const std::string &str);
 /// @name STL backports
 ///@{
 
+// std::to_string() from C++11, available from libstdc++/g++ 8+
+// See https://github.com/espressif/esp-idf/issues/1445
+#if _GLIBCXX_RELEASE >= 8
+using std::to_string;
+#else
+inline std::string to_string(int value) { return str_snprintf("%d", 32, value); }                   // NOLINT
+inline std::string to_string(long value) { return str_snprintf("%ld", 32, value); }                 // NOLINT
+inline std::string to_string(long long value) { return str_snprintf("%lld", 32, value); }           // NOLINT
+inline std::string to_string(unsigned value) { return str_snprintf("%u", 32, value); }              // NOLINT
+inline std::string to_string(unsigned long value) { return str_snprintf("%lu", 32, value); }        // NOLINT
+inline std::string to_string(unsigned long long value) { return str_snprintf("%llu", 32, value); }  // NOLINT
+inline std::string to_string(float value) { return str_snprintf("%f", 32, value); }
+inline std::string to_string(double value) { return str_snprintf("%f", 32, value); }
+inline std::string to_string(long double value) { return str_snprintf("%Lf", 32, value); }
+#endif
+
 // std::byteswap is from C++23 and technically should be a template, but this will do for now.
 constexpr uint8_t byteswap(uint8_t n) { return n; }
 constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
@@ -325,6 +330,9 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr
 
 /// @name Strings
 ///@{
+
+/// Convert the value to a string (added as extra overload so that to_string() can be used on all stringifiable types).
+inline std::string to_string(const std::string &val) { return val; }
 
 /// Truncate a string to a specific length.
 std::string str_truncate(const std::string &str, size_t length);
