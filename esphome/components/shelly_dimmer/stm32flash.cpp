@@ -146,7 +146,7 @@ int flash_addr_to_page_ceil(const stm32_t *stm, uint32_t addr) {
 
 static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
   auto *stream = stm->stream;
-  uint8_t byte;
+  uint8_t rxbyte;
   uint32_t t0 = 0, t1;
 
   if (!(stm->flags & STREAM_OPT_RETRY))
@@ -166,14 +166,14 @@ static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
       return STM32_ERR_UNKNOWN;
     }
 
-    stream->read_byte(&byte);
+    stream->read_byte(&rxbyte);
 
-    if (byte == STM32_ACK)
+    if (rxbyte == STM32_ACK)
       return STM32_ERR_OK;
-    if (byte == STM32_NACK)
+    if (rxbyte == STM32_NACK)
       return STM32_ERR_NACK;
-    if (byte != STM32_BUSY) {
-      DEBUG_MSG(TAG, "Got byte 0x%02x instead of ACK", byte);
+    if (rxbyte != STM32_BUSY) {
+      DEBUG_MSG(TAG, "Got byte 0x%02x instead of ACK", rxbyte);
       return STM32_ERR_UNKNOWN;
     }
   } while (true);
