@@ -316,7 +316,7 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
   request->send(404);
 }
 std::string WebServer::sensor_json(sensor::Sensor *obj, float value) {
-  return json::build_json([obj, value](JsonObject &root) {
+  return json::build_json([obj, value](JsonObject root) {
     root["id"] = "sensor-" + obj->get_object_id();
     std::string state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
     if (!obj->get_unit_of_measurement().empty())
@@ -342,7 +342,7 @@ void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const
   request->send(404);
 }
 std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std::string &value) {
-  return json::build_json([obj, value](JsonObject &root) {
+  return json::build_json([obj, value](JsonObject root) {
     root["id"] = "text_sensor-" + obj->get_object_id();
     root["state"] = value;
     root["value"] = value;
@@ -355,7 +355,7 @@ void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
   this->events_.send(this->switch_json(obj, state).c_str(), "state");
 }
 std::string WebServer::switch_json(switch_::Switch *obj, bool value) {
-  return json::build_json([obj, value](JsonObject &root) {
+  return json::build_json([obj, value](JsonObject root) {
     root["id"] = "switch-" + obj->get_object_id();
     root["state"] = value ? "ON" : "OFF";
     root["value"] = value;
@@ -410,7 +410,7 @@ void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool s
   this->events_.send(this->binary_sensor_json(obj, state).c_str(), "state");
 }
 std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value) {
-  return json::build_json([obj, value](JsonObject &root) {
+  return json::build_json([obj, value](JsonObject root) {
     root["id"] = "binary_sensor-" + obj->get_object_id();
     root["state"] = value ? "ON" : "OFF";
     root["value"] = value;
@@ -431,7 +431,7 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
 #ifdef USE_FAN
 void WebServer::on_fan_update(fan::FanState *obj) { this->events_.send(this->fan_json(obj).c_str(), "state"); }
 std::string WebServer::fan_json(fan::FanState *obj) {
-  return json::build_json([obj](JsonObject &root) {
+  return json::build_json([obj](JsonObject root) {
     root["id"] = "fan-" + obj->get_object_id();
     root["state"] = obj->state ? "ON" : "OFF";
     root["value"] = obj->state;
@@ -580,7 +580,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
   request->send(404);
 }
 std::string WebServer::light_json(light::LightState *obj) {
-  return json::build_json([obj](JsonObject &root) {
+  return json::build_json([obj](JsonObject root) {
     root["id"] = "light-" + obj->get_object_id();
     root["state"] = obj->remote_values.is_on() ? "ON" : "OFF";
     light::LightJSONSchema::dump_json(*obj, root);
@@ -632,7 +632,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
   request->send(404);
 }
 std::string WebServer::cover_json(cover::Cover *obj) {
-  return json::build_json([obj](JsonObject &root) {
+  return json::build_json([obj](JsonObject root) {
     root["id"] = "cover-" + obj->get_object_id();
     root["state"] = obj->is_fully_closed() ? "CLOSED" : "OPEN";
     root["value"] = obj->position;
@@ -659,7 +659,7 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
   request->send(404);
 }
 std::string WebServer::number_json(number::Number *obj, float value) {
-  return json::build_json([obj, value](JsonObject &root) {
+  return json::build_json([obj, value](JsonObject root) {
     root["id"] = "number-" + obj->get_object_id();
     char buffer[64];
     snprintf(buffer, sizeof(buffer), "%f", value);
@@ -703,7 +703,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
   request->send(404);
 }
 std::string WebServer::select_json(select::Select *obj, const std::string &value) {
-  return json::build_json([obj, value](JsonObject &root) {
+  return json::build_json([obj, value](JsonObject root) {
     root["id"] = "select-" + obj->get_object_id();
     root["state"] = value;
     root["value"] = value;
