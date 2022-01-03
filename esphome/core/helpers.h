@@ -9,8 +9,8 @@
 #include <memory>
 #include <type_traits>
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#include "esp32-hal-psram.h"
+#ifdef USE_ESP32
+#include <esp_heap_caps.h>
 #endif
 
 #include "esphome/core/optional.h"
@@ -35,17 +35,6 @@ std::string get_mac_address_pretty();
 /// Set the MAC address to use from the provided byte array (6 bytes).
 void set_mac_address(uint8_t *mac);
 #endif
-
-std::string to_string(const std::string &val);
-std::string to_string(int val);
-std::string to_string(long val);                // NOLINT
-std::string to_string(long long val);           // NOLINT
-std::string to_string(unsigned val);            // NOLINT
-std::string to_string(unsigned long val);       // NOLINT
-std::string to_string(unsigned long long val);  // NOLINT
-std::string to_string(float val);
-std::string to_string(double val);
-std::string to_string(long double val);
 
 /// Compare string a to string b (ignoring case) and return whether they are equal.
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
@@ -261,25 +250,26 @@ template<typename T> class Parented {
 
 uint32_t fnv1_hash(const std::string &str);
 
-template<typename T> T *new_buffer(size_t length) {
-  T *buffer;
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-  if (psramFound()) {
-    buffer = (T *) ps_malloc(length);
-  } else {
-    buffer = new T[length];  // NOLINT(cppcoreguidelines-owning-memory)
-  }
-#else
-  buffer = new T[length];  // NOLINT(cppcoreguidelines-owning-memory)
-#endif
-
-  return buffer;
-}
-
 // ---------------------------------------------------------------------------------------------------------------------
 
 /// @name STL backports
 ///@{
+  
+// std::to_string() from C++11, available from libstdc++/g++ 8
+// See https://github.com/espressif/esp-idf/issues/1445
+#if _GLIBCXX_RELEASE >= 8
+using std::to_string;
+#else
+inline std::string to_string(int value) { return str_snprintf("%d", 32, value); }                   // NOLINT
+inline std::string to_string(long value) { return str_snprintf("%ld", 32, value); }                 // NOLINT
+inline std::string to_string(long long value) { return str_snprintf("%lld", 32, value); }           // NOLINT
+inline std::string to_string(unsigned value) { return str_snprintf("%u", 32, value); }              // NOLINT
+inline std::string to_string(unsigned long value) { return str_snprintf("%lu", 32, value); }        // NOLINT
+inline std::string to_string(unsigned long long value) { return str_snprintf("%llu", 32, value); }  // NOLINT
+inline std::string to_string(float value) { return str_snprintf("%f", 32, value); }
+inline std::string to_string(double value) { return str_snprintf("%f", 32, value); }
+inline std::string to_string(long double value) { return str_snprintf("%Lf", 32, value); }
+#endif
 
 // std::is_trivially_copyable from C++11, implemented in libstdc++/g++ 5.1 (but minor releases can't be detected)
 #if _GLIBCXX_RELEASE >= 6
@@ -305,7 +295,6 @@ To bit_cast(const From &src) {
   memcpy(&dst, &src, sizeof(To));
   return dst;
 }
-#endif
 
 // std::byteswap is from C++23 and technically should be a template, but this will do for now.
 constexpr uint8_t byteswap(uint8_t n) { return n; }
@@ -366,6 +355,9 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr
 
 /// @name Strings
 ///@{
+
+/// Convert the value to a string (added as extra overload so that to_string() can be used on all stringifiable types).
+inline std::string to_string(const std::string &val) { return val; }
 
 /// Truncate a string to a specific length.
 std::string str_truncate(const std::string &str, size_t length);
@@ -511,6 +503,51 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
 }
 
 ///@}
+
+/// @name Memory management
+///@{
+
+/** An STL allocator that uses SPI RAM.
+ *
+ * By setting flags, it can be configured to don't try main memory if SPI RAM is full or unavailable, and to return
+ * `nulllptr` instead of aborting when no memory is available.
+ */
+template<class T> class ExternalRAMAllocator {
+ public:
+  using value_type = T;
+
+  enum Flags {
+    NONE = 0,
+    REFUSE_INTERNAL = 1 << 0,  ///< Refuse falling back to internal memory when external RAM is full or unavailable.
+    ALLOW_FAILURE = 1 << 1,    ///< Don't abort when memory allocation fails.
+  };
+
+  ExternalRAMAllocator() = default;
+  ExternalRAMAllocator(Flags flags) : flags_{flags} {}
+  template<class U> constexpr ExternalRAMAllocator(const ExternalRAMAllocator<U> &other) : flags_{other.flags} {}
+
+  T *allocate(size_t n) {
+    size_t size = n * sizeof(T);
+    T *ptr = nullptr;
+#ifdef USE_ESP32
+    ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM));
+#endif
+    if (ptr == nullptr && (this->flags_ & Flags::REFUSE_INTERNAL) == 0)
+      ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
+    if (ptr == nullptr && (this->flags_ & Flags::ALLOW_FAILURE) == 0)
+      abort();
+    return ptr;
+  }
+
+  void deallocate(T *p, size_t n) {
+    free(p);  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
+  }
+
+ private:
+  Flags flags_{Flags::NONE};
+};
+
+/// @}
 
 /// @name Deprecated functions
 ///@{
