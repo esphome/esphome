@@ -115,10 +115,10 @@ void HttpRequestComponent::close() {
 }
 
 const char *HttpRequestComponent::get_string() {
-  // The static variable is here because HTTPClient::getString() returns a String on ESP32, and we need something to
-  // to keep a buffer alive.
-  static std::string str;
-  str = this->client_.getString().c_str();
+  // The static variable is here because HTTPClient::getString() returns a String on ESP32,
+  // and we need something to keep a buffer alive.
+  static String str;
+  str = this->client_.getString();
   return str.c_str();
 }
 
