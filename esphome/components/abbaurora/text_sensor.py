@@ -6,20 +6,20 @@ from esphome.const import (
 )
 from . import CONF_ABBAURORA_ID, ABBAURORA_COMPONENT_SCHEMA
 
-CONF_VERSION = "version"
-CONF_STATUS = "connection_status"
+CONF_INVERTER_VERSION = "inverter_version"
+CONF_CONNECTION_STATUS = "connection_status"
 CONF_IDENTIFICATION = "identification"
 AUTO_LOAD = ["abbaurora"]
 
 TYPES = {
-    CONF_VERSION,
-    CONF_STATUS,
+    CONF_INVERTER_VERSION,
+    CONF_CONNECTION_STATUS,
     CONF_IDENTIFICATION,
 }
 
 CONFIG_SCHEMA = ABBAURORA_COMPONENT_SCHEMA.extend(
     {
-        cv.Optional( type ): text_sensor.TEXT_SENSOR_SCHEMA.extend( { cv.GenerateID(): cv.declare_id(text_sensor.TextSensor) } )
+        cv.Optional(type): text_sensor.TEXT_SENSOR_SCHEMA.extend({cv.GenerateID(): cv.declare_id(text_sensor.TextSensor)})
         for type in TYPES
     }
 )
