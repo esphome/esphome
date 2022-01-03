@@ -11,6 +11,7 @@ esphome/*.py @esphome/core
 esphome/core/* @esphome/core
 
 # Integrations
+esphome/components/abbaurora/* @ajvdw
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/addressable_light/* @justfalter
