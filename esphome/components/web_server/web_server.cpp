@@ -748,6 +748,7 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
       root["min_value"] = obj->traits.get_min_value();
       root["max_value"] = obj->traits.get_max_value();
       root["step"] = obj->traits.get_step();
+      root["mode"] = (int)obj->traits.get_mode();
     }
     char buffer[64];
     snprintf(buffer, sizeof(buffer), "%f", value);
