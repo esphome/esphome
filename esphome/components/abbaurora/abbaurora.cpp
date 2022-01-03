@@ -9,7 +9,8 @@ void ABBAuroraComponent::setup() {
   ESP_LOGD(TAG, "Setup");
 
   // Set flowcontrolpin
-  if (this->flow_control_pin_ != nullptr) this->flow_control_pin_->setup();
+  if (this->flow_control_pin_ != nullptr)
+    this->flow_control_pin_->setup();
 
   memset((uint8_t *) receive_data_, 0, 8);
 
@@ -41,7 +42,8 @@ void ABBAuroraComponent::loop() {
           identification_->publish_state(this->system_serialnumber_.SerialNumber);
         break;
       case 6:
-        if (inverter_version_ && this->read_version_()) inverter_version_->publish_state(this->data_version_.Par1);
+        if (inverter_version_ && this->read_version_())
+          inverter_version_->publish_state(this->data_version_.Par1);
         break;
       case 8:
         if (temperature_inverter_ && this->read_dsp_value_(TEMPERATURE_INVERTER, MODULE_MEASUREMENT))
@@ -60,16 +62,20 @@ void ABBAuroraComponent::loop() {
           power_in_total_->publish_state(power_in_1_->get_state() + power_in_2_->get_state());
         break;
       case 14:
-        if (v_in_1_ && this->read_dsp_value_(V_IN_1, MODULE_MEASUREMENT)) v_in_1_->publish_state(this->dsp_.Value);
+        if (v_in_1_ && this->read_dsp_value_(V_IN_1, MODULE_MEASUREMENT))
+          v_in_1_->publish_state(this->dsp_.Value);
         break;
       case 16:
-        if (v_in_2_ && this->read_dsp_value_(V_IN_2, MODULE_MEASUREMENT)) v_in_2_->publish_state(this->dsp_.Value);
+        if (v_in_2_ && this->read_dsp_value_(V_IN_2, MODULE_MEASUREMENT))
+          v_in_2_->publish_state(this->dsp_.Value);
         break;
       case 18:
-        if (i_in_1_ && this->read_dsp_value_(I_IN_1, MODULE_MEASUREMENT)) i_in_1_->publish_state(this->dsp_.Value);
+        if (i_in_1_ && this->read_dsp_value_(I_IN_1, MODULE_MEASUREMENT))
+          i_in_1_->publish_state(this->dsp_.Value);
         break;
       case 20:
-        if (i_in_2_ && this->read_dsp_value_(I_IN_2, MODULE_MEASUREMENT)) i_in_2_->publish_state(this->dsp_.Value);
+        if (i_in_2_ && this->read_dsp_value_(I_IN_2, MODULE_MEASUREMENT))
+          i_in_2_->publish_state(this->dsp_.Value);
         break;
       case 22:
         if (temperature_booster_ && this->read_dsp_value_(TEMPERATURE_BOOSTER, MODULE_MEASUREMENT))
@@ -143,7 +149,8 @@ bool ABBAuroraComponent::send_(uint8_t address, uint8_t param0, uint8_t param1, 
   }
 
   // Flow control to TX
-  if (this->flow_control_pin_ != nullptr) this->flow_control_pin_->digital_write(true);
+  if (this->flow_control_pin_ != nullptr)
+    this->flow_control_pin_->digital_write(true);
 
   // Send data
   this->write_array((uint8_t *) send_data, 10);
@@ -151,12 +158,14 @@ bool ABBAuroraComponent::send_(uint8_t address, uint8_t param0, uint8_t param1, 
   this->flush();
 
   // Flow control to RX
-  if (this->flow_control_pin_ != nullptr) this->flow_control_pin_->digital_write(false);
+  if (this->flow_control_pin_ != nullptr)
+    this->flow_control_pin_->digital_write(false);
 
   // Wait for 100ms for data to arrive
   const uint32_t now = millis();
   bool datawaiting = false;
-  while (millis() - now < 100 && !datawaiting) datawaiting = this->available();
+  while (millis() - now < 100 && !datawaiting)
+    datawaiting = this->available();
 
   ESP_LOGV(TAG, "Waited for %d ms for data to arrive", millis() - now);
 
