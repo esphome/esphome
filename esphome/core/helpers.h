@@ -255,7 +255,7 @@ uint32_t fnv1_hash(const std::string &str);
 /// @name STL backports
 ///@{
 
-// std::to_string() from C++11, available from libstdc++/g++ 8+
+// std::to_string() from C++11, available from libstdc++/g++ 8
 // See https://github.com/espressif/esp-idf/issues/1445
 #if _GLIBCXX_RELEASE >= 8
 using std::to_string;
@@ -269,6 +269,32 @@ inline std::string to_string(unsigned long long value) { return str_snprintf("%l
 inline std::string to_string(float value) { return str_snprintf("%f", 32, value); }
 inline std::string to_string(double value) { return str_snprintf("%f", 32, value); }
 inline std::string to_string(long double value) { return str_snprintf("%Lf", 32, value); }
+#endif
+
+// std::is_trivially_copyable from C++11, implemented in libstdc++/g++ 5.1 (but minor releases can't be detected)
+#if _GLIBCXX_RELEASE >= 6
+using std::is_trivially_copyable;
+#else
+// Implementing this is impossible without compiler intrinsics, so don't bother. Invalid usage will be detected on
+// other variants that use a newer compiler anyway.
+// NOLINTNEXTLINE(readability-identifier-naming)
+template<typename T> struct is_trivially_copyable : public std::integral_constant<bool, true> {};
+#endif
+
+// std::bit_cast from C++20
+#if __cpp_lib_bit_cast >= 201806
+using std::bit_cast;
+#else
+/// Convert data between types, without aliasing issues or undefined behaviour.
+template<
+    typename To, typename From,
+    enable_if_t<sizeof(To) == sizeof(From) && is_trivially_copyable<From>::value && is_trivially_copyable<To>::value,
+                int> = 0>
+To bit_cast(const From &src) {
+  To dst;
+  memcpy(&dst, &src, sizeof(To));
+  return dst;
+}
 #endif
 
 // std::byteswap is from C++23 and technically should be a template, but this will do for now.
