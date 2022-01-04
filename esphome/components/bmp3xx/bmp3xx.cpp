@@ -1,5 +1,6 @@
 /*
   based on BMP388_DEV by Martin Lindupp
+  under MIT License (MIT)
   Copyright (C) Martin Lindupp 2020
   http://github.com/MartinL1/BMP388_DEV
 */
@@ -20,7 +21,7 @@ static const LogString *chip_type_to_str(uint8_t chip_type) {
     case BMP390_ID:
       return LOG_STR("BMP 390");
     default:
-      return LOG_STR("UNKNOWN Chip Type");
+      return LOG_STR("Unknown Chip Type");
   }
 }
 
@@ -38,8 +39,9 @@ static const LogString *oversampling_to_str(Oversampling oversampling) {
       return LOG_STR("16x");
     case Oversampling::OVERSAMPLING_X32:
       return LOG_STR("32x");
+    default:
+      return LOG_STR("");
   }
-  return LOG_STR("");
 }
 
 static const LogString *iir_filter_to_str(IIRFilter filter) {
@@ -60,8 +62,9 @@ static const LogString *iir_filter_to_str(IIRFilter filter) {
       return LOG_STR("64x");
     case IIRFilter::IIR_FILTER_128:
       return LOG_STR("128x");
+    default:
+      return LOG_STR("");
   }
-  return LOG_STR("");
 }
 
 void BMP3XXComponent::setup() {
@@ -94,7 +97,6 @@ void BMP3XXComponent::setup() {
   if (!read_bytes(BMP388_TRIM_PARAMS, (uint8_t *) &compensation_params_, sizeof(compensation_params_))) {
     ESP_LOGE(TAG, "Can't read calibration data");
     this->error_code_ = ERROR_COMMUNICATION_FAILED;
-    ;
     this->mark_failed();
     return;
   }
@@ -229,7 +231,7 @@ void BMP3XXComponent::update() {
 uint8_t BMP3XXComponent::reset() {
   write_byte(BMP388_CMD, RESET_CODE);  // Write the reset code to the command register
   // Wait for 10ms
-  delay(10);                                   // reset is only called from setup so not blocking the loop
+  delay(10);
   this->read_byte(BMP388_EVENT, &event_.reg);  // Read the BMP388's event register
   return event_.bit.por_detected;              // Return if device reset is complete
 }
@@ -265,7 +267,7 @@ bool BMP3XXComponent::set_iir_filter(IIRFilter iir_filter) {
 }
 
 // Get temperature
-bool BMP3XXComponent::get_temperature(volatile float &temperature) {
+bool BMP3XXComponent::get_temperature(float &temperature) {
   // Check if a measurement is ready
   if (!data_ready()) {
     return false;
@@ -284,13 +286,13 @@ bool BMP3XXComponent::get_temperature(volatile float &temperature) {
 }
 
 // Get the pressure
-bool BMP3XXComponent::get_pressure(volatile float &pressure) {
+bool BMP3XXComponent::get_pressure(float &pressure) {
   float temperature;
   return get_measurements(temperature, pressure);
 }
 
 // Get temperature and pressure
-bool BMP3XXComponent::get_measurements(volatile float &temperature, volatile float &pressure) {
+bool BMP3XXComponent::get_measurements(float &temperature, float &pressure) {
   // Check if a measurement is ready
   if (!data_ready()) {
     ESP_LOGD(TAG, "BMP3XX Get measurement - data not ready skipping update");

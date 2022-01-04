@@ -1,5 +1,6 @@
 /*
   based on BMP388_DEV by Martin Lindupp
+  under MIT License (MIT)
   Copyright (C) Martin Lindupp 2020
   http://github.com/MartinL1/BMP388_DEV
 */
@@ -105,12 +106,11 @@ class BMP3XXComponent : public PollingComponent, public i2c::I2CDevice {
   /// Set the IIR filter setting: OFF, 2, 3, 8, 16, 32
   bool set_iir_filter(IIRFilter iir_filter);
   /// Get a temperature measurement
-  bool get_temperature(volatile float &temperature);
+  bool get_temperature(float &temperature);
   /// Get a pressure measurement
-  bool get_pressure(volatile float &pressure);
+  bool get_pressure(float &pressure);
   /// Get a temperature and pressure measurement
-  bool get_measurements(volatile float &temperature, volatile float &pressure);
-  // Get the BMP388 sensor time
+  bool get_measurements(float &temperature, float &pressure);
   /// Get a temperature and pressure measurement
   bool get_measurement();
   /// Set the barometer mode
@@ -184,7 +184,7 @@ class BMP3XXComponent : public PollingComponent, public i2c::I2CDevice {
     uint8_t reg;
   } event_ = {.reg = 0};
 
-  volatile union {  // Copy of the BMP388's interrupt status register
+  union {  // Copy of the BMP388's interrupt status register
     struct {
       uint8_t fwm_int : 1;
       uint8_t ffull_int : 1;
@@ -194,7 +194,7 @@ class BMP3XXComponent : public PollingComponent, public i2c::I2CDevice {
     uint8_t reg;
   } int_status_ = {.reg = 0};
 
-  volatile union {  // Copy of the BMP388's power control register
+  union {  // Copy of the BMP388's power control register
     struct {
       uint8_t press_en : 1;
       uint8_t temp_en : 1;
