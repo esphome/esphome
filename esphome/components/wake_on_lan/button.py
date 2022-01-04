@@ -6,11 +6,11 @@ from esphome.const import CONF_ID
 CONF_WOL_TARGET = "target_mac_address"
 CONF_WOL_DEFAULT_ID = "wol_button"
 
-button.button_ns.class_("WakeOnLan", button.Button)
+WakeOnLan = button.button_ns.class_("WakeOnLan", button.Button)
 
 CONFIG_SCHEMA = cv.Schema({
   cv.Required(CONF_WOL_TARGET): cv.mac_address,
-  cv.GenerateID(CONF_WOL_DEFAULT_ID): cv.use_id(button)
+  cv.GenerateID(CONF_WOL_DEFAULT_ID): cv.use_id(WakeOnLan)
 }).extend(button.BUTTON_SCHEMA)
 
 def to_code(config):
