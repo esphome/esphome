@@ -37,7 +37,7 @@ void MQTTLockComponent::dump_config() {
 
 std::string MQTTLockComponent::component_type() const { return "lock"; }
 const EntityBase *MQTTLockComponent::get_entity() const { return this->lock_; }
-void MQTTLockComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+void MQTTLockComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   if (this->lock_->traits.get_assumed_state())
     root[MQTT_OPTIMISTIC] = true;
 }
