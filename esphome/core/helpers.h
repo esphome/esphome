@@ -305,11 +305,21 @@ To bit_cast(const From &src) {
 }
 #endif
 
-// std::byteswap is from C++23 and technically should be a template, but this will do for now.
-constexpr uint8_t byteswap(uint8_t n) { return n; }
-constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
-constexpr uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
-constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+// std::byteswap from C++23
+template<typename T> constexpr14 T byteswap(T n) {
+  T m;
+  for (size_t i = 0; i < sizeof(T); i++)
+    reinterpret_cast<uint8_t *>(&m)[i] = reinterpret_cast<uint8_t *>(&n)[sizeof(T) - 1 - i];
+  return m;
+}
+template<> constexpr14 uint8_t byteswap(uint8_t n) { return n; }
+template<> constexpr14 uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
+template<> constexpr14 uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
+template<> constexpr14 uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+template<> constexpr14 int8_t byteswap(int8_t n) { return n; }
+template<> constexpr14 int16_t byteswap(int16_t n) { return __builtin_bswap16(n); }
+template<> constexpr14 int32_t byteswap(int32_t n) { return __builtin_bswap32(n); }
+template<> constexpr14 int64_t byteswap(int64_t n) { return __builtin_bswap64(n); }
 
 ///@}
 
@@ -327,7 +337,8 @@ constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, ui
 }
 
 /// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr14 T encode_value(const uint8_t *bytes) {
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+constexpr14 T encode_value(const uint8_t *bytes) {
   T val = 0;
   for (size_t i = 0; i < sizeof(T); i++) {
     val <<= 8;
@@ -352,11 +363,20 @@ constexpr14 std::array<uint8_t, sizeof(T)> decode_value(T val) {
 }
 
 /// Convert a value between host byte order and big endian (most significant byte first) order.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr T convert_big_endian(T val) {
+template<typename T> constexpr14 T convert_big_endian(T val) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   return byteswap(val);
 #else
   return val;
+#endif
+}
+
+/// Convert a value between host byte order and little endian (least significant byte first) order.
+template<typename T> constexpr14 T convert_little_endian(T val) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  return val;
+#else
+  return byteswap(val);
 #endif
 }
 
