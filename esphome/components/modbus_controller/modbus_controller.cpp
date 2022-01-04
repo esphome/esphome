@@ -72,35 +72,28 @@ void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_
   }
 }
 
-std::set<SensorItem *>::iterator ModbusController::find_register_(ModbusRegisterType register_type,
-                                                                  uint16_t start_address) {
-  auto vec_it = find_if(begin(register_ranges_), end(register_ranges_), [=](RegisterRange const &r) {
+SensorSet ModbusController::find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const {
+  auto reg_it = find_if(begin(register_ranges_), end(register_ranges_), [=](RegisterRange const &r) {
     return (r.start_address == start_address && r.register_type == register_type);
   });
 
-  if (vec_it == register_ranges_.end()) {
-    ESP_LOGE(TAG, "No matching range for sensor found - start_address :  0x%X", start_address);
+  if (reg_it == register_ranges_.end()) {
+    ESP_LOGE(TAG, "No matching range for sensor found - start_address : 0x%X", start_address);
   } else {
-    auto sensor_it = sensorset_.find(vec_it->first_sensor);
-    if (sensor_it == sensorset_.end()) {
-      ESP_LOGE(TAG, "No sensor found in at start_address :  0x%X", start_address);
-    } else {
-      return sensor_it;
-    }
+    return reg_it->sensors;
   }
+
   // not found
-  return std::end(sensorset_);
+  return {};
 }
 void ModbusController::on_register_data(ModbusRegisterType register_type, uint16_t start_address,
                                         const std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "data for register address : 0x%X : ", start_address);
 
-  auto sensor_it = find_register_(register_type, start_address);
   // loop through all sensors with the same start address
-  while (sensor_it != sensorset_.end() && (*sensor_it)->start_address == start_address &&
-         (*sensor_it)->register_type == register_type) {
+  auto sensors = find_sensors_(register_type, start_address);
+  for (auto sensor_it = sensors.cbegin(); sensor_it != sensors.cend(); sensor_it++) {
     (*sensor_it)->parse_and_publish(data);
-    sensor_it++;
   }
 }
 
@@ -126,15 +119,16 @@ void ModbusController::update_range_(RegisterRange &r) {
   if (r.skip_updates_counter == 0) {
     // if a custom command is used the user supplied custom_data is only available in the SensorItem.
     if (r.register_type == ModbusRegisterType::CUSTOM) {
-      auto it = this->find_register_(r.register_type, r.start_address);
-      if (it != sensorset_.end()) {
+      auto sensors = this->find_sensors_(r.register_type, r.start_address);
+      if (!sensors.empty()) {
+        auto sensor = sensors.cbegin();
         auto command_item = ModbusCommandItem::create_custom_command(
-            this, (*it)->custom_data,
+            this, (*sensor)->custom_data,
             [this](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
               this->on_register_data(ModbusRegisterType::CUSTOM, start_address, data);
             });
-        command_item.register_address = (*it)->start_address;
-        command_item.register_count = (*it)->register_count;
+        command_item.register_address = (*sensor)->start_address;
+        command_item.register_count = (*sensor)->register_count;
         command_item.function_code = ModbusFunctionCode::CUSTOM;
         queue_command(command_item);
       }
@@ -191,7 +185,7 @@ size_t ModbusController::create_register_ranges_() {
       //   r.register_count = prev->offset + 1;
       // }
       r.register_type = curr->register_type;
-      r.first_sensor = curr;
+      r.sensors.insert(curr);
       r.skip_updates = curr->skip_updates;
       r.skip_updates_counter = 0;
       buffer_offset = curr->get_register_size();
@@ -250,6 +244,9 @@ size_t ModbusController::create_register_ranges_() {
         }
       }
 
+      // add sensor to this range
+      r.sensors.insert(curr);
+
       ix++;
     } else {
       ESP_LOGV(TAG, "Add range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
@@ -277,8 +274,8 @@ void ModbusController::dump_config() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGCONFIG(TAG, "sensormap");
   for (auto &it : sensorset_) {
-    ESP_LOGCONFIG(TAG, "  Sensor start=0x%X count=%d size=%d", it->start_address, it->register_count,
-                  it->get_register_size());
+    ESP_LOGCONFIG(TAG, "  Sensor start=0x%X count=%d size=%d offset=%d", it->start_address, it->register_count,
+                  it->get_register_size(), it->offset);
   }
   ESP_LOGCONFIG(TAG, "ranges");
   for (auto &it : register_ranges_) {

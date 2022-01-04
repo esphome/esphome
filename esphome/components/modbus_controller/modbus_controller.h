@@ -62,17 +62,6 @@ enum class SensorValueType : uint8_t {
   FP32_R = 0xD
 };
 
-class SensorItem;
-
-struct RegisterRange {
-  uint16_t start_address;
-  ModbusRegisterType register_type;
-  uint8_t register_count;
-  uint8_t skip_updates;  // the config value
-  SensorItem *first_sensor;
-  uint8_t skip_updates_counter;  // the running value
-} __attribute__((packed));
-
 inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_type) {
   switch (reg_type) {
     case ModbusRegisterType::COIL:
@@ -281,10 +270,26 @@ class SensorItemsComparator {
       return lhs->start_address < rhs->start_address;
     }
 
+    // sort by offset (ensures update of sensors in ascending order)
+    if (lhs->offset != rhs->offset) {
+      return lhs->offset < rhs->offset;
+    }
+
     // The pointer to the sensor are added at last to ensure that
     // multiple sensors with the save values can be added with a stable sort order.
     return lhs < rhs;
   }
+};
+
+using SensorSet = std::set<SensorItem *, SensorItemsComparator>;
+
+struct RegisterRange {
+  uint16_t start_address;
+  ModbusRegisterType register_type;
+  uint8_t register_count;
+  uint8_t skip_updates;          // the config value
+  SensorSet sensors;             // all sensors of this range
+  uint8_t skip_updates_counter;  // the running value
 };
 
 class ModbusCommandItem {
@@ -416,7 +421,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// parse sensormap_ and create range of sequential addresses
   size_t create_register_ranges_();
   // find register in sensormap. Returns iterator with all registers having the same start address
-  std::set<SensorItem *>::iterator find_register_(ModbusRegisterType register_type, uint16_t start_address);
+  SensorSet find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const;
   /// submit the read command for the address range to the send queue
   void update_range_(RegisterRange &r);
   /// parse incoming modbus data
@@ -428,8 +433,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// dump the parsed sensormap for diagnostics
   void dump_sensors_();
   /// Collection of all sensors for this component
-  /// see calc_key how the key is contructed
-  std::set<SensorItem *, SensorItemsComparator> sensorset_;
+  SensorSet sensorset_;
   /// Continous range of modbus registers
   std::vector<RegisterRange> register_ranges_;
   /// Hold the pending requests to be sent
