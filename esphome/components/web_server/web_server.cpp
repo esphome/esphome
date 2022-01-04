@@ -734,7 +734,7 @@ void WebServer::on_lock_update(lock::Lock *obj) {
   this->events_.send(this->lock_json(obj, obj->state).c_str(), "state");
 }
 std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value) {
-  return json::build_json([obj, value](JsonObject &root) {
+  return json::build_json([obj, value](JsonObject root) {
     root["id"] = "lock-" + obj->get_object_id();
     root["state"] = lock::lock_state_to_string(value);
     root["value"] = value;
