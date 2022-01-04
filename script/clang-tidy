@@ -58,10 +58,14 @@ def clang_options(idedata):
     # defines
     cmd.extend(f'-D{define}' for define in idedata['defines'])
 
-    # add include directories, using -isystem for dependencies to suppress their errors
+    # add toolchain include directories using -isystem
+    # idedata contains include directories for all toolchains of this platform, only use those from the one in use
+    toolchain_dir = os.path.normpath(f"{idedata['cxx_path']}/../../")
     for directory in idedata['includes']['toolchain']:
-        if 'xtensa-esp32s2-elf' not in directory:
+        if directory.startswith(toolchain_dir):
             cmd.extend(['-isystem', directory])
+
+    # add include directories, using -isystem for dependencies to suppress their errors
     for directory in sorted(set(idedata['includes']['build'])):
         dependency = "framework-arduino" in directory or "/libdeps/" in directory
         cmd.extend(['-isystem' if dependency else '-I', directory])
