@@ -64,7 +64,7 @@ RUN \
 
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install --no-cache-dir /esphome
+RUN pip3 install --no-cache-dir --no-use-pep517 -e /esphome
 
 # Settings for dashboard
 ENV USERNAME="" PASSWORD=""
@@ -112,7 +112,7 @@ RUN \
 
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install --no-cache-dir /esphome
+RUN pip3 install --no-cache-dir --no-use-pep517 -e /esphome
 
 # Labels
 LABEL \
