@@ -24,15 +24,22 @@ bool ModbusController::send_next_command_() {
   if ((last_send > this->command_throttle_) && !waiting_for_response() && !command_queue_.empty()) {
     auto &command = command_queue_.front();
 
-    ESP_LOGV(TAG, "Sending next modbus command to device %d register 0x%02X count %d", this->address_,
-             command->register_address, command->register_count);
-    command->send();
-    this->last_command_timestamp_ = millis();
-    // remove from queue if no handler is defined or command was sent too often
-    if (!command->on_data_func || command->send_countdown < 1) {
-      ESP_LOGD(TAG, "Modbus command to device=%d register=0x%02X countdown=%d removed from queue after send",
-               this->address_, command->register_address, command->send_countdown);
+    // remove from queue if command was sent too often
+    if (command->send_countdown < 1) {
+      ESP_LOGD(
+          TAG,
+          "Modbus command to device=%d register=0x%02X countdown=%d no response received - removed from send queue",
+          this->address_, command->register_address, command->send_countdown);
       command_queue_.pop_front();
+    } else {
+      ESP_LOGV(TAG, "Sending next modbus command to device %d register 0x%02X count %d", this->address_,
+               command->register_address, command->register_count);
+      command->send();
+      this->last_command_timestamp_ = millis();
+      // remove from queue if no handler is defined
+      if (!command->on_data_func) {
+        command_queue_.pop_front();
+      }
     }
   }
   return (!command_queue_.empty());
@@ -180,10 +187,6 @@ size_t ModbusController::create_register_ranges_() {
       // this is the first register in range
       r.start_address = curr->start_address;
       r.register_count = curr->register_count;
-      // if (prev->register_type == ModbusRegisterType::COIL || prev->register_type ==
-      // ModbusRegisterType::DISCRETE_INPUT) {
-      //   r.register_count = prev->offset + 1;
-      // }
       r.register_type = curr->register_type;
       r.sensors.insert(curr);
       r.skip_updates = curr->skip_updates;
@@ -274,12 +277,13 @@ void ModbusController::dump_config() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGCONFIG(TAG, "sensormap");
   for (auto &it : sensorset_) {
-    ESP_LOGCONFIG(TAG, "  Sensor start=0x%X count=%d size=%d offset=%d", it->start_address, it->register_count,
-                  it->get_register_size(), it->offset);
+    ESP_LOGCONFIG(TAG, " Sensor type=%zu start=0x%X offset=0x%X count=%d size=%d",
+                  static_cast<uint8_t>(it->register_type), it->start_address, it->offset, it->register_count,
+                  it->get_register_size());
   }
   ESP_LOGCONFIG(TAG, "ranges");
   for (auto &it : register_ranges_) {
-    ESP_LOGCONFIG(TAG, "  Range type=%d start=0x%X count=%d skip_updates=%d", (uint8_t) it.register_type,
+    ESP_LOGCONFIG(TAG, "  Range type=%zu start=0x%X count=%d skip_updates=%d", static_cast<uint8_t>(it.register_type),
                   it.start_address, it.register_count, it.skip_updates);
   }
 #endif
