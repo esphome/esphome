@@ -126,8 +126,8 @@ def main():
     parser.add_argument('-j', '--jobs', type=int,
                         default=multiprocessing.cpu_count(),
                         help='number of tidy instances to be run in parallel.')
-    parser.add_argument('-e', '--environment', default='esp32-tidy',
-                        help='the PlatformIO environment to run against (esp8266-tidy or esp32-tidy)')
+    parser.add_argument('-e', '--environment', default='esp32-arduino-tidy',
+                        help='the PlatformIO environment to run against (esp8266-arduino-tidy or esp32-arduino-tidy)')
     parser.add_argument('files', nargs='*', default=[],
                         help='files to be processed (regex on path)')
     parser.add_argument('--fix', action='store_true', help='apply fix-its')
