@@ -1,12 +1,14 @@
 import esphome.codegen as cg
-from esphome.components import button
+from esphome.components import button, wake_on_lan
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
 CONF_WOL_TARGET = "target_mac_address"
 CONF_WOL_DEFAULT_ID = "wol_button"
 
-WakeOnLan = button.button_ns.class_("WakeOnLan", button.Button)
+wake_on_lan_ns = cg.esphome_ns.namespace("wake_on_lan")
+
+WakeOnLan = wake_on_lan_ns.class_("WakeOnLan", button.Button)
 
 CONFIG_SCHEMA = cv.Schema({
   cv.Required(CONF_WOL_TARGET): cv.mac_address,
