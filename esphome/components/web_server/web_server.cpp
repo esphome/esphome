@@ -441,9 +441,8 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
 
 #ifdef USE_BUTTON
 std::string WebServer::button_json(button::Button *obj, JsonDetail start_config) {
-  return json::build_json([obj, start_config](JsonObject root) {
-    set_json_id(root, obj, "button-" + obj->get_object_id(), start_config);
-  });
+  return json::build_json(
+      [obj, start_config](JsonObject root) { set_json_id(root, obj, "button-" + obj->get_object_id(), start_config); });
 }
 
 void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -644,7 +643,7 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
 
     light::LightJSONSchema::dump_json(*obj, root);
     if (start_config == DETAIL_ALL) {
-      JsonArray &opt = root.createNestedArray("effects");
+      JsonArray opt = root.createNestedArray("effects");
       opt.add("None");
       for (auto const &option : obj->get_effects()) {
         opt.add(option->get_name());
@@ -799,7 +798,7 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
   return json::build_json([obj, value, start_config](JsonObject root) {
     set_json_state_value(root, obj, "select-" + obj->get_object_id(), value, value, start_config);
     if (start_config == DETAIL_ALL) {
-      JsonArray &opt = root.createNestedArray("option");
+      JsonArray opt = root.createNestedArray("option");
       for (auto const &option : obj->traits.get_options()) {
         opt.add(option.c_str());
       }
@@ -865,32 +864,32 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
     char __buf[16];
 
     if (start_config == DETAIL_ALL) {
-      JsonArray &opt = root.createNestedArray("modes");
+      JsonArray opt = root.createNestedArray("modes");
       for (climate::ClimateMode m : traits.get_supported_modes())
         opt.add(PSTR_LOCAL(climate::climate_mode_to_string(m)));
       if (!traits.get_supported_custom_fan_modes().empty()) {
-        JsonArray &opt = root.createNestedArray("fan_modes");
+        JsonArray opt = root.createNestedArray("fan_modes");
         for (climate::ClimateFanMode m : traits.get_supported_fan_modes())
           opt.add(PSTR_LOCAL(climate::climate_fan_mode_to_string(m)));
       }
 
       if (!traits.get_supported_custom_fan_modes().empty()) {
-        JsonArray &opt = root.createNestedArray("custom_fan_modes");
+        JsonArray opt = root.createNestedArray("custom_fan_modes");
         for (auto const &custom_fan_mode : traits.get_supported_custom_fan_modes())
           opt.add(custom_fan_mode);
       }
       if (traits.get_supports_swing_modes()) {
-        // JsonArray &opt = root.createNestedArray("swing_modes");
+        // JsonArray opt = root.createNestedArray("swing_modes");
         // for (auto swing_mode : traits.get_supported_swing_modes())
         // opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
       }
       if (traits.get_supports_presets() && obj->preset.has_value()) {
-        JsonArray &opt = root.createNestedArray("presets");
+        JsonArray opt = root.createNestedArray("presets");
         for (climate::ClimatePreset m : traits.get_supported_presets())
           opt.add(PSTR_LOCAL(climate::climate_preset_to_string(m)));
       }
       if (!traits.get_supported_custom_presets().empty() && obj->custom_preset.has_value()) {
-        JsonArray &opt = root.createNestedArray("custom_presets");
+        JsonArray opt = root.createNestedArray("custom_presets");
         for (auto const &custom_preset : traits.get_supported_custom_presets())
           opt.add(custom_preset);
       }

@@ -63,7 +63,6 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
             cv.Optional(CONF_OTA, default=True): cv.boolean,
-
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
