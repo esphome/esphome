@@ -18,6 +18,9 @@ MULTI_CONF = True
 
 CONF_MODBUS_ID = "modbus_id"
 CONF_SEND_WAIT_TIME = "send_wait_time"
+CONF_USE_SEND_DIRECT = "use_send_direct"
+CONF_DONT_DROP_WHEN_IDLE = "dont_drop_when_idle"
+
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -27,6 +30,7 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_SEND_WAIT_TIME, default="250ms"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_DONT_DROP_WHEN_IDLE, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -38,7 +42,8 @@ async def to_code(config):
     cg.add_global(modbus_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-
+    if config[CONF_DONT_DROP_WHEN_IDLE]:
+        cg.add_define("MODBUS_DONT_DROP_WHEN_IDLE")
     await uart.register_uart_device(var, config)
 
     if CONF_FLOW_CONTROL_PIN in config:
@@ -52,6 +57,7 @@ async def to_code(config):
 def modbus_device_schema(default_address):
     schema = {
         cv.GenerateID(CONF_MODBUS_ID): cv.use_id(Modbus),
+        cv.Optional(CONF_USE_SEND_DIRECT, default=False): cv.boolean,
     }
     if default_address is None:
         schema[cv.Required(CONF_ADDRESS)] = cv.hex_uint8_t
@@ -64,4 +70,5 @@ async def register_modbus_device(var, config):
     parent = await cg.get_variable(config[CONF_MODBUS_ID])
     cg.add(var.set_parent(parent))
     cg.add(var.set_address(config[CONF_ADDRESS]))
+    cg.add(var.set_use_send_direct(config[CONF_USE_SEND_DIRECT]))
     cg.add(parent.register_device(var))
