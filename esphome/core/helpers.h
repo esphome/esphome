@@ -20,6 +20,14 @@
 #define ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
+// Various functions can be constexpr in C++14, but not in C++11 (because their body isn't just a return statement).
+// Define a substitute constexpr keyword for those functions, until we can drop C++11 support.
+#if __cplusplus >= 201402L
+#define constexpr14 constexpr
+#else
+#define constexpr14 inline  // constexpr implies inline
+#endif
+
 namespace esphome {
 
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
@@ -319,7 +327,7 @@ constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, ui
 }
 
 /// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> inline T encode_value(const uint8_t *bytes) {
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr14 T encode_value(const uint8_t *bytes) {
   T val = 0;
   for (size_t i = 0; i < sizeof(T); i++) {
     val <<= 8;
@@ -329,12 +337,12 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> inline T 
 }
 /// Encode a value from its constituent bytes (from most to least significant) in an std::array with length sizeof(T).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-inline T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
+constexpr14 T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
   return encode_value<T>(bytes.data());
 }
 /// Decode a value into its constituent bytes (from most to least significant).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-inline std::array<uint8_t, sizeof(T)> decode_value(T val) {
+constexpr14 std::array<uint8_t, sizeof(T)> decode_value(T val) {
   std::array<uint8_t, sizeof(T)> ret{};
   for (size_t i = sizeof(T); i > 0; i--) {
     ret[i - 1] = val & 0xFF;
@@ -499,7 +507,7 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::stri
 ///@{
 
 /// Remap a number from one range to another.
-template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
+template<typename T, typename U> constexpr T remap(U value, U min, U max, T min_out, T max_out) {
   return (value - min) * (max_out - min_out) / (max - min) + min_out;
 }
 
