@@ -80,7 +80,7 @@ MQTTMessageTrigger = mqtt_ns.class_(
     "MQTTMessageTrigger", automation.Trigger.template(cg.std_string), cg.Component
 )
 MQTTJsonMessageTrigger = mqtt_ns.class_(
-    "MQTTJsonMessageTrigger", automation.Trigger.template(cg.JsonObjectConstRef)
+    "MQTTJsonMessageTrigger", automation.Trigger.template(cg.JsonObjectConst)
 )
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 MQTTConnectedCondition = mqtt_ns.class_("MQTTConnectedCondition", Condition)
@@ -312,7 +312,7 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_JSON_MESSAGE, []):
         trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC], conf[CONF_QOS])
-        await automation.build_automation(trig, [(cg.JsonObjectConstRef, "x")], conf)
+        await automation.build_automation(trig, [(cg.JsonObjectConst, "x")], conf)
 
 
 MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(
@@ -364,7 +364,7 @@ async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args
     template_ = await cg.templatable(config[CONF_TOPIC], args, cg.std_string)
     cg.add(var.set_topic(template_))
 
-    args_ = args + [(cg.JsonObjectRef, "root")]
+    args_ = args + [(cg.JsonObject, "root")]
     lambda_ = await cg.process_lambda(config[CONF_PAYLOAD], args_, return_type=cg.void)
     cg.add(var.set_payload(lambda_))
     template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
