@@ -267,7 +267,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
       write_row(stream, obj, "lock", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         lock::Lock *lock = (lock::Lock *) obj;
         stream.print("<button>Lock</button><button>Unlock</button>");
-        if (lock->supports_open) {
+        if (lock->traits.get_supports_open()) {
           stream.print("<button>Open</button>");
         }
       });

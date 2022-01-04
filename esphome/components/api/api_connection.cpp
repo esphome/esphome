@@ -715,9 +715,11 @@ bool APIConnection::send_lock_info(lock::Lock *a_lock) {
   msg.name = a_lock->get_name();
   msg.unique_id = get_default_unique_id("lock", a_lock);
   msg.icon = a_lock->get_icon();
-  msg.assumed_state = a_lock->assumed_state();
+  msg.assumed_state = a_lock->traits.get_assumed_state();
   msg.disabled_by_default = a_lock->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(a_lock->get_entity_category());
+  msg.supports_open = a_lock->traits.get_supports_open();
+  msg.requires_code = a_lock->traits.get_requires_code();
   return this->send_list_entities_lock_response(msg);
 }
 void APIConnection::lock_command(const LockCommandRequest &msg) {

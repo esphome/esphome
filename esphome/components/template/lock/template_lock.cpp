@@ -47,7 +47,6 @@ void TemplateLock::open_latch() {
     this->publish_state(LOCK_STATE_UNLOCKED);
 }
 void TemplateLock::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-bool TemplateLock::assumed_state() { return this->assumed_state_; }
 void TemplateLock::set_state_lambda(std::function<optional<LockState>()> &&f) { this->f_ = f; }
 float TemplateLock::get_setup_priority() const { return setup_priority::HARDWARE; }
 Trigger<> *TemplateLock::get_lock_trigger() const { return this->lock_trigger_; }
@@ -57,8 +56,6 @@ void TemplateLock::dump_config() {
   LOG_LOCK("", "Template Lock", this);
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
 }
-void TemplateLock::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
-void TemplateLock::set_supports_open(bool supports_open) { this->supports_open = supports_open; }
 
 }  // namespace template_
 }  // namespace esphome

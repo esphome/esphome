@@ -17,13 +17,13 @@ MQTTLockComponent::MQTTLockComponent(lock::Lock *a_lock) : MQTTComponent(), lock
 
 void MQTTLockComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
-    if (strcasecmp(payload.c_str(), "LOCK") == 0)
+    if (strcasecmp(payload.c_str(), "LOCK") == 0) {
       this->lock_->lock();
-    else if (strcasecmp(payload.c_str(), "UNLOCK") == 0)
+    } else if (strcasecmp(payload.c_str(), "UNLOCK") == 0) {
       this->lock_->unlock();
-    else if (strcasecmp(payload.c_str(), "OPEN") == 0)
+    } else if (strcasecmp(payload.c_str(), "OPEN") == 0) {
       this->lock_->open();
-    else {
+    } else {
       ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name().c_str(), payload.c_str());
       this->status_momentary_warning("state", 5000);
     }
@@ -38,7 +38,7 @@ void MQTTLockComponent::dump_config() {
 std::string MQTTLockComponent::component_type() const { return "lock"; }
 const EntityBase *MQTTLockComponent::get_entity() const { return this->lock_; }
 void MQTTLockComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
-  if (this->lock_->assumed_state())
+  if (this->lock_->traits.get_assumed_state())
     root[MQTT_OPTIMISTIC] = true;
 }
 bool MQTTLockComponent::send_initial_state() { return this->publish_state(); }

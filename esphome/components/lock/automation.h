@@ -41,11 +41,8 @@ template<typename... Ts> class LockCondition : public Condition<Ts...> {
  public:
   LockCondition(Lock *parent, bool state) : parent_(parent), state_(state) {}
   bool check(Ts... x) override {
-    if (this->state_)
-      return this->parent_->state == LockState::LOCK_STATE_LOCKED;
-    if (!this->state_)
-      return this->parent_->state == LockState::LOCK_STATE_UNLOCKED;
-    return false;
+    auto check_state = this->state_ ? LockState::LOCK_STATE_LOCKED : LockState::LOCK_STATE_UNLOCKED;
+    return this->parent_->state == check_state;
   }
 
  protected:

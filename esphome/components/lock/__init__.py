@@ -5,7 +5,6 @@ from esphome.automation import Condition, maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import (
     CONF_ID,
-    CONF_INVERTED,
     CONF_ON_LOCK,
     CONF_ON_OPEN,
     CONF_ON_UNLOCK,
@@ -37,7 +36,6 @@ icon = cv.icon
 LOCK_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTLockComponent),
-        cv.Optional(CONF_INVERTED): cv.boolean,
         cv.Optional(CONF_ON_LOCK): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LockLockTrigger),
@@ -55,8 +53,6 @@ LOCK_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).ext
 async def setup_lock_core_(var, config):
     await setup_entity(var, config)
 
-    if CONF_INVERTED in config:
-        cg.add(var.set_inverted(config[CONF_INVERTED]))
     for conf in config.get(CONF_ON_LOCK, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)

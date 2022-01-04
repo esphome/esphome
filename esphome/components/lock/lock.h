@@ -15,7 +15,7 @@ namespace lock {
     if (!(obj)->get_icon().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
     } \
-    if ((obj)->assumed_state()) { \
+    if ((obj)->traits.get_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
   }
@@ -28,8 +28,24 @@ enum LockState : uint8_t {
   LOCK_STATE_LOCKING = 4,
   LOCK_STATE_UNLOCKING = 5
 };
-const LogString *lock_state_to_log_string(LockState mode);
-std::string lock_state_to_string(LockState mode);
+const char *lock_state_to_string(LockState mode);
+
+class LockTraits {
+ public:
+  LockTraits() = default;
+
+  bool get_supports_open() const { return this->supports_open_; }
+  void set_supports_open(bool supports_open) { this->supports_open_ = supports_open; }
+  bool get_requires_code() const { return this->requires_code_; }
+  void set_requires_code(bool requires_code) { this->requires_code_ = requires_code; }
+  bool get_assumed_state() const { return this->assumed_state_; }
+  void set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
+
+ protected:
+  bool supports_open_{false};
+  bool requires_code_{false};
+  bool assumed_state_{false};
+};
 
 /** Base class for all locks.
  *
@@ -44,8 +60,7 @@ class Lock : public EntityBase {
 
   /** Publish a state to the front-end from the back-end.
    *
-   * The input value is inverted if applicable. Then the internal value member is set and
-   * finally the callbacks are called.
+   * Then the internal value member is set and finally the callbacks are called.
    *
    * @param state The new state.
    */
@@ -54,8 +69,7 @@ class Lock : public EntityBase {
   /// The current reported state of the lock.
   LockState state{LOCK_STATE_NONE};
 
-  bool supports_open{false};
-  bool requires_code{false};
+  LockTraits traits;
 
   /** Turn this lock on. This is called by the front-end.
    *
@@ -84,7 +98,6 @@ class Lock : public EntityBase {
    *
    * Defaults to false.
    */
-  virtual bool assumed_state();
 
  protected:
   /** Write the given state to hardware. You should implement this

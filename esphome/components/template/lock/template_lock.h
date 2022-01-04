@@ -20,21 +20,16 @@ class TemplateLock : public lock::Lock, public Component {
   Trigger<> *get_unlock_trigger() const;
   Trigger<> *get_open_trigger() const;
   void set_optimistic(bool optimistic);
-  void set_assumed_state(bool assumed_state);
-  void set_supports_open(bool supports_open);
   void loop() override;
 
   float get_setup_priority() const override;
 
  protected:
-  bool assumed_state() override;
-
   void write_state(lock::LockState state) override;
   void open_latch() override;
 
   optional<std::function<optional<LockState>()>> f_;
   bool optimistic_{false};
-  bool assumed_state_{false};
   Trigger<> *lock_trigger_;
   Trigger<> *unlock_trigger_;
   Trigger<> *open_trigger_;

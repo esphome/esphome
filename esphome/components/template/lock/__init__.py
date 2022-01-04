@@ -70,9 +70,9 @@ async def to_code(config):
         await automation.build_automation(
             var.get_open_trigger(), [], config[CONF_OPEN_ACTION]
         )
-    cg.add(var.set_supports_open(CONF_OPEN_ACTION in config))
+    cg.add(var.traits.set_supports_open(CONF_OPEN_ACTION in config))
+    cg.add(var.traits.set_assumed_state(config[CONF_ASSUMED_STATE]))
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
-    cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
 
 
 @automation.register_action(
