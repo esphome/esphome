@@ -95,7 +95,7 @@ void WebServer::setup() {
   this->events_.onConnect([this](AsyncEventSourceClient *client) {
     // Configure reconnect timeout and send config
 
-    client->send(json::build_json([this](JsonObject &root) {
+    client->send(json::build_json([this](JsonObject root) {
                    root["title"] = App.get_name();
                    root["ota"] = this->allow_ota_;
                    root["lang"] = "en";
@@ -370,9 +370,9 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
   }
   request->send(404);
 }
-
 std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail start_config) {
-  return json::build_json([obj, value, start_config](JsonObject &root) {
+  return json::build_json([obj, value, start_config](JsonObject root) {
+
     std::string state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
     if (!obj->get_unit_of_measurement().empty())
       state += " " + obj->get_unit_of_measurement();
@@ -397,7 +397,7 @@ void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const
 }
 std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std::string &value,
                                         JsonDetail start_config) {
-  return json::build_json([obj, value, start_config](JsonObject &root) {
+  return json::build_json([obj, value, start_config](JsonObject root) {
     set_json_icon_state_value(root, obj, "text_sensor-" + obj->get_object_id(), value, value, start_config);
   });
 }
@@ -408,8 +408,9 @@ void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
   this->events_.send(this->switch_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 std::string WebServer::switch_json(switch_::Switch *obj, bool value, JsonDetail start_config) {
-  return json::build_json([obj, value, start_config](JsonObject &root) {
+  return json::build_json([obj, value, start_config](JsonObject root) {
     set_json_icon_state_value(root, obj, "switch-" + obj->get_object_id(), value ? "ON" : "OFF", value, start_config);
+
   });
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -440,7 +441,7 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
 
 #ifdef USE_BUTTON
 std::string WebServer::button_json(button::Button *obj, JsonDetail start_config) {
-  return json::build_json([obj, start_config](JsonObject &root) {
+  return json::build_json([obj, start_config](JsonObject root) {
     set_json_id(root, obj, "button-" + obj->get_object_id(), start_config);
   });
 }
@@ -467,7 +468,7 @@ void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool s
   this->events_.send(this->binary_sensor_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value, JsonDetail start_config) {
-  return json::build_json([obj, value, start_config](JsonObject &root) {
+  return json::build_json([obj, value, start_config](JsonObject root) {
     set_json_state_value(root, obj, "binary_sensor-" + obj->get_object_id(), value ? "ON" : "OFF", value, start_config);
   });
 }
@@ -488,7 +489,7 @@ void WebServer::on_fan_update(fan::FanState *obj) {
   this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state");
 }
 std::string WebServer::fan_json(fan::FanState *obj, JsonDetail start_config) {
-  return json::build_json([obj, start_config](JsonObject &root) {
+  return json::build_json([obj, start_config](JsonObject root) {
     set_json_state_value(root, obj, "fan-" + obj->get_object_id(), obj->state ? "ON" : "OFF", obj->state, start_config);
     const auto traits = obj->get_traits();
     if (traits.supports_speed()) {
@@ -637,7 +638,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
   request->send(404);
 }
 std::string WebServer::light_json(light::LightState *obj, JsonDetail start_config) {
-  return json::build_json([obj, start_config](JsonObject &root) {
+  return json::build_json([obj, start_config](JsonObject root) {
     set_json_id(root, obj, "light-" + obj->get_object_id(), start_config);
     root["state"] = obj->remote_values.is_on() ? "ON" : "OFF";
 
@@ -699,7 +700,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
   request->send(404);
 }
 std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
-  return json::build_json([obj, start_config](JsonObject &root) {
+  return json::build_json([obj, start_config](JsonObject root) {
     set_json_state_value(root, obj, "cover-" + obj->get_object_id(), obj->is_fully_closed() ? "CLOSED" : "OPEN",
                          obj->position, start_config);
     root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
@@ -742,7 +743,7 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
 }
 
 std::string WebServer::number_json(number::Number *obj, float value, JsonDetail start_config) {
-  return json::build_json([obj, value, start_config](JsonObject &root) {
+  return json::build_json([obj, value, start_config](JsonObject root) {
     set_json_id(root, obj, "number-" + obj->get_object_id(), start_config);
     if (start_config == DETAIL_ALL) {
       root["min_value"] = obj->traits.get_min_value();
@@ -795,7 +796,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
   request->send(404);
 }
 std::string WebServer::select_json(select::Select *obj, const std::string &value, JsonDetail start_config) {
-  return json::build_json([obj, value, start_config](JsonObject &root) {
+  return json::build_json([obj, value, start_config](JsonObject root) {
     set_json_state_value(root, obj, "select-" + obj->get_object_id(), value, value, start_config);
     if (start_config == DETAIL_ALL) {
       JsonArray &opt = root.createNestedArray("option");
@@ -858,7 +859,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
 #define PSTR_LOCAL(mode_s) strncpy_P(__buf, (PGM_P)((mode_s)), 15)
 
 std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_config) {
-  return json::build_json([obj, start_config](JsonObject &root) {
+  return json::build_json([obj, start_config](JsonObject root) {
     set_json_id(root, obj, "climate-" + obj->get_object_id(), start_config);
     const auto traits = obj->get_traits();
     char __buf[16];

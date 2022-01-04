@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from helpers import print_error_for_file, get_output, filter_grep, \
-    build_all_include, temp_header_file, git_ls_files, filter_changed, load_idedata, basepath
+    build_all_include, temp_header_file, git_ls_files, filter_changed, load_idedata, root_path, basepath
 import argparse
 import click
 import colorama
@@ -58,13 +58,21 @@ def clang_options(idedata):
     # defines
     cmd.extend(f'-D{define}' for define in idedata['defines'])
 
-    # add include directories, using -isystem for dependencies to suppress their errors
+    # add toolchain include directories using -isystem to suppress their errors
+    # idedata contains include directories for all toolchains of this platform, only use those from the one in use
+    toolchain_dir = os.path.normpath(f"{idedata['cxx_path']}/../../")
     for directory in idedata['includes']['toolchain']:
-        if 'xtensa-esp32s2-elf' not in directory:
+        if directory.startswith(toolchain_dir):
             cmd.extend(['-isystem', directory])
+
+    # add library include directories using -isystem to suppress their errors
     for directory in sorted(set(idedata['includes']['build'])):
-        dependency = "framework-arduino" in directory or "/libdeps/" in directory
-        cmd.extend(['-isystem' if dependency else '-I', directory])
+        # skip our own directories, we add those later
+        if not directory.startswith(f"{root_path}/") or directory.startswith(f"{root_path}/.pio/"):
+            cmd.extend(['-isystem', directory])
+
+    # add the esphome include directory using -I
+    cmd.extend(['-I', root_path])
 
     return cmd
 

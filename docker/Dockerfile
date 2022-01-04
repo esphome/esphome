@@ -27,7 +27,7 @@ RUN \
         python3-cryptography=3.3.2-1 \
         iputils-ping=3:20210202-1 \
         git=1:2.30.2-1 \
-        curl=7.74.0-1.3+b1 \
+        curl=7.74.0-1.3+deb11u1 \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
@@ -64,7 +64,7 @@ RUN \
 
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install --no-cache-dir -e /esphome
+RUN pip3 install --no-cache-dir --no-use-pep517 -e /esphome
 
 # Settings for dashboard
 ENV USERNAME="" PASSWORD=""
@@ -112,7 +112,7 @@ RUN \
 
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install --no-cache-dir -e /esphome
+RUN pip3 install --no-cache-dir --no-use-pep517 -e /esphome
 
 # Labels
 LABEL \
