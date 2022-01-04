@@ -8,11 +8,11 @@ CONF_WOL_DEFAULT_ID = "wol_button"
 
 wake_on_lan_ns = cg.esphome_ns.namespace("wake_on_lan")
 
-WakeOnLan = wake_on_lan_ns.class_("WakeOnLan", button.Button)
+WakeOnLanButton = wake_on_lan_ns.class_("WakeOnLanButton", button.Button)
 
 CONFIG_SCHEMA = cv.Schema({
   cv.Required(CONF_WOL_TARGET): cv.mac_address,
-  cv.GenerateID(CONF_WOL_DEFAULT_ID): cv.use_id(WakeOnLan)
+  cv.GenerateID(CONF_WOL_DEFAULT_ID): cv.use_id(WakeOnLanButton)
 }).extend(button.BUTTON_SCHEMA)
 
 def to_code(config):
