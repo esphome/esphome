@@ -372,7 +372,6 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
 }
 std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
-
     std::string state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
     if (!obj->get_unit_of_measurement().empty())
       state += " " + obj->get_unit_of_measurement();
@@ -410,7 +409,6 @@ void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
 std::string WebServer::switch_json(switch_::Switch *obj, bool value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
     set_json_icon_state_value(root, obj, "switch-" + obj->get_object_id(), value ? "ON" : "OFF", value, start_config);
-
   });
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
