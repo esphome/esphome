@@ -410,6 +410,17 @@ class DownloadBinaryRequestHandler(BaseHandler):
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path
 
+        elif type == "firmware-combined.bin":
+            storage_path = ext_storage_path(settings.config_dir, configuration)
+            storage_json = StorageJSON.load(storage_path)
+            if storage_json is None:
+                self.send_error(404)
+                return
+            filename = f"{storage_json.name}.bin"
+            path = storage_json.firmware_bin_path.replace(
+                "firmware.bin", "firmware-combined.bin"
+            )
+
         else:
             args = ["esphome", "idedata", settings.rel_path(configuration)]
             rc, stdout, _ = run_system_command(*args)
