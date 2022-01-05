@@ -9,7 +9,7 @@
 namespace esphome {
 namespace wake_on_lan {
 
-class WakeOnLanButton : public button::Button {
+class WakeOnLanButton : public button::Button, public Component {
  public:
   void set_macaddr(const uint8_t* addr); 
  protected:
