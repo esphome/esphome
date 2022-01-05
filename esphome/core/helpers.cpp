@@ -230,17 +230,6 @@ void HighFrequencyLoopRequester::stop() {
 }
 bool HighFrequencyLoopRequester::is_high_frequency() { return high_freq_num_requests > 0; }
 
-template<typename T> T clamp(const T val, const T min, const T max) {
-  if (val < min)
-    return min;
-  if (val > max)
-    return max;
-  return val;
-}
-template uint8_t clamp(uint8_t, uint8_t, uint8_t);
-template float clamp(float, float, float);
-template int clamp(int, int, int);
-
 float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
 
 bool str_startswith(const std::string &full, const std::string &start) { return full.rfind(start, 0) == 0; }
