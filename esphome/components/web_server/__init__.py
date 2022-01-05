@@ -24,18 +24,16 @@ web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 
 
-def default_url(value):
-    if value[CONF_VERSION] == 1:
-        if value[CONF_CSS_URL] == "-":
-            value[CONF_CSS_URL] = "https://esphome.io/_static/webserver-v1.min.css"
-        if value[CONF_JS_URL] == "-":
-            value[CONF_JS_URL] = "https://esphome.io/_static/webserver-v1.min.js"
-    if value[CONF_VERSION] == 2:
-        if value[CONF_CSS_URL] == "-":
-            value[CONF_CSS_URL] = ""
-        if value[CONF_JS_URL] == "-":
-            value[CONF_JS_URL] = "https://oi.esphome.io/v2/www.js"
-    return value
+def default_url(config):
+    if config[CONF_VERSION] == 1:
+        if not CONF_CSS_URL in config:
+            config[CONF_CSS_URL] = "https://esphome.io/_static/webserver-v1.min.css"
+        if not CONF_JS_URL in config:
+            config[CONF_JS_URL] = "https://esphome.io/_static/webserver-v1.min.js"
+    if config[CONF_VERSION] == 2:
+        if not CONF_JS_URL in config:
+            config[CONF_JS_URL] = "https://oi.esphome.io/v2/www.js"
+    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -44,9 +42,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(WebServer),
             cv.Optional(CONF_PORT, default=80): cv.port,
             cv.Optional(CONF_VERSION, default=1): cv.one_of(1, 2),
-            cv.Optional(CONF_CSS_URL, default="-"): cv.string,
+            cv.Optional(CONF_CSS_URL): cv.string,
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
-            cv.Optional(CONF_JS_URL, default="-"): cv.string,
+            cv.Optional(CONF_JS_URL): cv.string,
             cv.Optional(CONF_JS_INCLUDE): cv.file_,
             cv.Optional(CONF_AUTH): cv.Schema(
                 {
@@ -83,7 +81,8 @@ async def to_code(config):
     cg.add_define("WEBSERVER_PORT", config[CONF_PORT])
     cg.add_define("USE_WEBSERVER")
     cg.add_define("WEBSERVER_VERSION", config[CONF_VERSION])
-    cg.add(var.set_css_url(config[CONF_CSS_URL]))
+    if CONF_CSS_URL in config:
+        cg.add(var.set_css_url(config[CONF_CSS_URL]))
     cg.add(var.set_js_url(config[CONF_JS_URL]))
     cg.add(var.set_allow_ota(config[CONF_OTA]))
     if CONF_AUTH in config:
