@@ -185,8 +185,7 @@ bool APIServerConnectionBase::send_homeassistant_service_response(const Homeassi
 #endif
   return this->send_message_<HomeassistantServiceResponse>(msg, 35);
 }
-bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(
-    const SubscribeHomeAssistantStateResponse &msg) {
+bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(const SubscribeHomeAssistantStateResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_subscribe_home_assistant_state_response: %s", msg.dump().c_str());
 #endif
@@ -282,6 +281,24 @@ bool APIServerConnectionBase::send_select_state_response(const SelectStateRespon
 #endif
 #ifdef USE_SELECT
 #endif
+#ifdef USE_LOCK
+bool APIServerConnectionBase::send_list_entities_lock_response(const ListEntitiesLockResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_lock_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesLockResponse>(msg, 58);
+}
+#endif
+#ifdef USE_LOCK
+bool APIServerConnectionBase::send_lock_state_response(const LockStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_lock_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<LockStateResponse>(msg, 59);
+}
+#endif
+#ifdef USE_LOCK
+#endif
 #ifdef USE_BUTTON
 bool APIServerConnectionBase::send_list_entities_button_response(const ListEntitiesButtonResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -291,24 +308,6 @@ bool APIServerConnectionBase::send_list_entities_button_response(const ListEntit
 }
 #endif
 #ifdef USE_BUTTON
-#endif
-#ifdef USE_LOCK
-bool APIServerConnectionBase::send_list_entities_lock_response(const ListEntitiesLockResponse &msg) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  ESP_LOGVV(TAG, "send_list_entities_lock_response: %s", msg.dump().c_str());
-#endif
-  return this->send_message_<ListEntitiesLockResponse>(msg, 63);
-}
-#endif
-#ifdef USE_LOCK
-bool APIServerConnectionBase::send_lock_state_response(const LockStateResponse &msg) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  ESP_LOGVV(TAG, "send_lock_state_response: %s", msg.dump().c_str());
-#endif
-  return this->send_message_<LockStateResponse>(msg, 64);
-}
-#endif
-#ifdef USE_LOCK
 #endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
@@ -544,6 +543,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 60: {
+#ifdef USE_LOCK
+      LockCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_lock_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_lock_command_request(msg);
+#endif
+      break;
+    }
     case 62: {
 #ifdef USE_BUTTON
       ButtonCommandRequest msg;
@@ -552,17 +562,6 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       ESP_LOGVV(TAG, "on_button_command_request: %s", msg.dump().c_str());
 #endif
       this->on_button_command_request(msg);
-#endif
-      break;
-    }
-    case 65: {
-#ifdef USE_LOCK
-      LockCommandRequest msg;
-      msg.decode(msg_data, msg_size);
-#ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_lock_command_request: %s", msg.dump().c_str());
-#endif
-      this->on_lock_command_request(msg);
 #endif
       break;
     }
@@ -639,8 +638,7 @@ void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &
   }
   this->subscribe_logs(msg);
 }
-void APIServerConnection::on_subscribe_homeassistant_services_request(
-    const SubscribeHomeassistantServicesRequest &msg) {
+void APIServerConnection::on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
