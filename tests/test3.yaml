@@ -1144,6 +1144,7 @@ output:
     pin: GPIO5
     id: my_slow_pwm
     period: 15s
+    restart_cycle_on_state_change: false
   - platform: sm2135
     id: sm2135_0
     channel: 0
