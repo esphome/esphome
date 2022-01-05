@@ -85,6 +85,11 @@ LOCK_ACTION_SCHEMA = maybe_simple_id(
 @automation.register_action("lock.unlock", UnlockAction, LOCK_ACTION_SCHEMA)
 @automation.register_action("lock.lock", LockAction, LOCK_ACTION_SCHEMA)
 @automation.register_action("lock.open", OpenAction, LOCK_ACTION_SCHEMA)
+async def lock_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
 @automation.register_condition("lock.is_locked", LockCondition, LOCK_ACTION_SCHEMA)
 async def lock_is_on_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
