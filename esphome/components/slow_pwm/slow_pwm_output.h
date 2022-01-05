@@ -19,35 +19,34 @@ class SlowPWMOutput : public output::FloatOutput, public Component {
 
   Trigger<> *get_turn_on_trigger() {
     // Lazy create
-    if (!turn_on_trigger_)
-      turn_on_trigger_ = make_unique<Trigger<>>();
-    return turn_on_trigger_.get();
+    if (!this->turn_on_trigger_)
+      this->turn_on_trigger_ = make_unique<Trigger<>>();
+    return this->turn_on_trigger_.get();
   }
   Trigger<> *get_turn_off_trigger() {
-    if (!turn_off_trigger_)
-      turn_off_trigger_ = make_unique<Trigger<>>();
-    return turn_off_trigger_.get();
+    if (!this->turn_off_trigger_)
+      this->turn_off_trigger_ = make_unique<Trigger<>>();
+    return this->turn_off_trigger_.get();
   }
 
   Trigger<bool> *get_state_change_trigger() {
-    if (!state_change_trigger_)
-      state_change_trigger_ = make_unique<Trigger<bool>>();
-    return state_change_trigger_.get();
+    if (!this->state_change_trigger_)
+      this->state_change_trigger_ = make_unique<Trigger<bool>>();
+    return this->state_change_trigger_.get();
   }
 
  protected:
-  /// turn on/off the configured output
-  void set_state_(bool state);
   void loop() override;
+  void write_state(float state) override { state_ = state; }
+  /// turn on/off the configured output
+  void set_output_state_(bool state);
 
   GPIOPin *pin_{nullptr};
-
-  void write_state(float state) override { state_ = state; }
-
   std::unique_ptr<Trigger<>> turn_on_trigger_{nullptr};
   std::unique_ptr<Trigger<>> turn_off_trigger_{nullptr};
   std::unique_ptr<Trigger<bool>> state_change_trigger_{nullptr};
-  float state_;
+  float state_{0};
+  bool current_state_{false};
   unsigned int period_start_time_{0};
   unsigned int period_{5000};
 };

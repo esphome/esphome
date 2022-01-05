@@ -13,7 +13,7 @@ void SlowPWMOutput::setup() {
 }
 
 /// turn on/off the configured output
-void SlowPWMOutput::set_state_(bool new_state) {
+void SlowPWMOutput::set_output_state_(bool new_state) {
   static bool current_state = false;
   if (this->pin_) {
     this->pin_->digital_write(new_state);
@@ -43,15 +43,15 @@ void SlowPWMOutput::loop() {
   }
 
   if (scaled_state > now - this->period_start_time_) {
-    this->set_state_(true);
+    this->set_output_state_(true);
   } else {
-    this->set_state_(false);
+    this->set_output_state_(false);
   }
 }
 
 void SlowPWMOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "Slow PWM Output:");
-  LOG_PIN("  Using pin: ", this->pin_);
+  LOG_PIN("  Pin: ", this->pin_);
   if (this->state_change_trigger_)
     ESP_LOGCONFIG(TAG, "  State change automation configured");
   if (this->turn_on_trigger_)
