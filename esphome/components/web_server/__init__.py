@@ -26,12 +26,12 @@ WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 
 def default_url(config):
     if config[CONF_VERSION] == 1:
-        if not CONF_CSS_URL in config:
+        if not (CONF_CSS_URL in config):
             config[CONF_CSS_URL] = "https://esphome.io/_static/webserver-v1.min.css"
-        if not CONF_JS_URL in config:
+        if not (CONF_JS_URL in config):
             config[CONF_JS_URL] = "https://esphome.io/_static/webserver-v1.min.js"
     if config[CONF_VERSION] == 2:
-        if not CONF_JS_URL in config:
+        if not (CONF_JS_URL in config):
             config[CONF_JS_URL] = "https://oi.esphome.io/v2/www.js"
     return config
 
