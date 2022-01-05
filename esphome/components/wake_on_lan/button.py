@@ -25,9 +25,10 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    
     cg.add(
         var.set_macaddr(
-            cg.static_const_array(config[CONF_TARGET_MAC_ADDRESS].parts)
+            config[CONF_TARGET_MAC_ADDRESS].parts
         )
     )
     cg.register_component(var, config)
