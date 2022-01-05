@@ -23,14 +23,14 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     
     cg.add(
         var.set_macaddr(
-            config[CONF_TARGET_MAC_ADDRESS].parts
+            *config[CONF_TARGET_MAC_ADDRESS].parts
         )
     )
-    cg.register_component(var, config)
-    button.register_button(var, config)
+    yield cg.register_component(var, config)
+    yield button.register_button(var, config)
     cg.add(var)
