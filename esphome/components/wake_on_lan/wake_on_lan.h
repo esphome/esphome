@@ -14,13 +14,14 @@ class WakeOnLanButton : public button::Button, public Component {
   void set_macaddr(uint8_t a, uint8_t b, uint8_t c, uint8_t d, uint8_t e, uint8_t f);
 
   void dump_config() override;
+
  protected:
   WiFiUDP udp_client_{};
   void press_action() override;
-  uint8_t macaddr[6] = {0, 0, 0, 0, 0};
+  uint8_t macaddr_[6] = {0, 0, 0, 0, 0};
 };
 
-}
-}
+}  // namespace wake_on_lan
+}  // namespace esphome
 
 #endif
