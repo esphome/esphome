@@ -10,15 +10,13 @@ namespace wake_on_lan{
 
 static const char *const TAG = "restart.button";
 
-void WakeOnLanButton::set_macaddr(uint8_t* addr) {
-    for (size_t i = 0; i < 6; i++)
-    {
-        macaddr[i] = addr[i];
-    }
-}
-
 void WakeOnLanButton::set_macaddr(uint8_t a, uint8_t b, uint8_t c, uint8_t d, uint8_t e, uint8_t f) {
-  set_macaddr((uint8_t[6]) {a, b, c, d, e, f});
+  macaddr[0] = a;
+  macaddr[1] = b;
+  macaddr[2] = c;
+  macaddr[3] = d;
+  macaddr[4] = e;
+  macaddr[5] = f;
 }
 
 void WakeOnLanButton::press_action() {
