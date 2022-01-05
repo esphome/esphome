@@ -114,12 +114,6 @@ float gamma_uncorrect(float value, float gamma);
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
 
-/// Convert a uint64_t to a hex string
-std::string uint64_to_string(uint64_t num);
-
-/// Convert a uint32_t to a hex string
-std::string uint32_to_string(uint32_t num);
-
 uint8_t reverse_bits_8(uint8_t x);
 uint16_t reverse_bits_16(uint16_t x);
 uint32_t reverse_bits_32(uint32_t x);
