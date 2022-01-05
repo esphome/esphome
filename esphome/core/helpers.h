@@ -369,6 +369,10 @@ std::string str_until(const char *str, char ch);
 /// Extract the part of the string until either the first occurence of the specified character, or the end.
 std::string str_until(const std::string &str, char ch);
 
+/// Convert the string to lower case.
+std::string str_lower_case(const std::string &str);
+/// Convert the string to upper case.
+std::string str_upper_case(const std::string &str);
 /// Convert the string to snake case (lowercase with underscores).
 std::string str_snake_case(const std::string &str);
 
