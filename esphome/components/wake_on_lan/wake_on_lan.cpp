@@ -8,7 +8,7 @@
 namespace esphome {
 namespace wake_on_lan{
 
-static const char *const TAG = "restart.button";
+static const char *const TAG = "wake_on_lan.button";
 
 void WakeOnLanButton::set_macaddr(uint8_t a, uint8_t b, uint8_t c, uint8_t d, uint8_t e, uint8_t f) {
   macaddr[0] = a;
@@ -17,6 +17,12 @@ void WakeOnLanButton::set_macaddr(uint8_t a, uint8_t b, uint8_t c, uint8_t d, ui
   macaddr[3] = d;
   macaddr[4] = e;
   macaddr[5] = f;
+}
+
+void WakeOnLanButton::dump_config() {
+  ESP_LOGCONFIG(TAG, "wake_on_lan:");
+  ESP_LOGCONFIG(TAG, "  Target MAC address: %02X:%02X:%02X:%02X:%02X:%02X",
+    macaddr[0], macaddr[1], macaddr[2], macaddr[3], macaddr[4], macaddr[5]);
 }
 
 void WakeOnLanButton::press_action() {
@@ -47,6 +53,9 @@ void WakeOnLanButton::press_action() {
       this->udp_client_.write(macaddr, 6);
     }  
     end_status = this->udp_client_.endPacket();
+  }
+  if (!begin_status || end_status) {
+    ESP_LOGE(TAG, "Sending Wake On Lan Packet Failed!");
   }
 }
 
