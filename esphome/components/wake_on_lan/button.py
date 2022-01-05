@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import button
+from esphome.components.binary_sensor import CODEOWNERS
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
@@ -10,6 +11,8 @@ wake_on_lan_ns = cg.esphome_ns.namespace("wake_on_lan")
 WakeOnLanButton = wake_on_lan_ns.class_("WakeOnLanButton", button.Button, cg.Component)
 
 DEPENDENCIES = ["wifi"]
+
+CODEOWNERS = ["willwill2will54"]
 
 CONFIG_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(button.BUTTON_SCHEMA)
