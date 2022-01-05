@@ -197,52 +197,6 @@ uint8_t reverse_bits_8(uint8_t x) {
 uint16_t reverse_bits_16(uint16_t x) {
   return uint16_t(reverse_bits_8(x & 0xFF) << 8) | uint16_t(reverse_bits_8(x >> 8));
 }
-std::string to_string(const std::string &val) { return val; }
-std::string to_string(int val) {
-  char buf[64];
-  sprintf(buf, "%d", val);
-  return buf;
-}
-std::string to_string(long val) {  // NOLINT
-  char buf[64];
-  sprintf(buf, "%ld", val);
-  return buf;
-}
-std::string to_string(long long val) {  // NOLINT
-  char buf[64];
-  sprintf(buf, "%lld", val);
-  return buf;
-}
-std::string to_string(unsigned val) {  // NOLINT
-  char buf[64];
-  sprintf(buf, "%u", val);
-  return buf;
-}
-std::string to_string(unsigned long val) {  // NOLINT
-  char buf[64];
-  sprintf(buf, "%lu", val);
-  return buf;
-}
-std::string to_string(unsigned long long val) {  // NOLINT
-  char buf[64];
-  sprintf(buf, "%llu", val);
-  return buf;
-}
-std::string to_string(float val) {
-  char buf[64];
-  sprintf(buf, "%f", val);
-  return buf;
-}
-std::string to_string(double val) {
-  char buf[64];
-  sprintf(buf, "%f", val);
-  return buf;
-}
-std::string to_string(long double val) {
-  char buf[64];
-  sprintf(buf, "%Lf", val);
-  return buf;
-}
 
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
