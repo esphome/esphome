@@ -27,7 +27,7 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(
         var.set_macaddr(
-            (int(x, 16) for x in config[CONF_TARGET_MAC_ADDRESS].split(":"))
+            (int(x, 16) for x in config[CONF_TARGET_MAC_ADDRESS].parts)
         )
     )
     yield cg.register_component(var, config)
