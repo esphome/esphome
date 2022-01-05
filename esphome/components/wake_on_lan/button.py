@@ -34,4 +34,3 @@ def to_code(config):
     yield cg.add(var.set_macaddr(*config[CONF_TARGET_MAC_ADDRESS].parts))
     yield cg.register_component(var, config)
     yield button.register_button(var, config)
-    yield cg.add(var)
