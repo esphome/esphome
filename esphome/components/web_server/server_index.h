@@ -1,5 +1,5 @@
 #pragma once
-// Generated from https://github.com/esphome/esphome-webserver
+// Generated from https://github.com/esphome/esphome-webserver/
 namespace esphome {
 
 namespace web_server {
