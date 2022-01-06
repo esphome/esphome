@@ -148,7 +148,7 @@ void NSPanel::control_switch(GroupItem &item, bool state) {
     switch_object["outlet"] = item.id;
   });
 
-  this->send_json_command_(0x86, json_str);
+  this->send_json_command(0x86, json_str);
 }
 
 void NSPanel::send_relay_states_() {
@@ -161,7 +161,7 @@ void NSPanel::send_relay_states_() {
     two["outlet"] = 1;
     two["switch"] = this->relay_2_->state ? "on" : "off";
   });
-  this->send_json_command_(0x87, json_str);
+  this->send_json_command(0x87, json_str);
 }
 
 void NSPanel::send_time_() {
@@ -176,7 +176,7 @@ void NSPanel::send_time_() {
     root["min"] = time.minute;
     root["week"] = time.day_of_week - 1;
   });
-  this->send_json_command_(0x82, json_str);
+  this->send_json_command(0x82, json_str);
 }
 
 void NSPanel::send_temperature_(float temperature) {
@@ -184,12 +184,12 @@ void NSPanel::send_temperature_(float temperature) {
     root["temperature"] = temperature;
     root["tempUnit"] = this->temperature_celsius_ ? 0 : 1;
   });
-  this->send_json_command_(0x83, json_str);
+  this->send_json_command(0x83, json_str);
 }
 
 void NSPanel::send_eco_mode_(bool eco_mode) {
   std::string json_str = json::build_json([eco_mode](JsonObject &root) { root["HMI_dimOpen"] = eco_mode ? 1 : 0; });
-  this->send_json_command_(0x87, json_str);
+  this->send_json_command(0x87, json_str);
 }
 
 void NSPanel::send_wifi_state_() {
@@ -200,7 +200,7 @@ void NSPanel::send_wifi_state_() {
   uint8_t rssi = 0;
   if (!connected) {
     if (this->last_connected_) {
-      this->send_json_command_(0x85, R"({"wifiState":"nonetwork","rssiLevel":0})");
+      this->send_json_command(0x85, R"({"wifiState":"nonetwork","rssiLevel":0})");
       this->last_connected_ = false;
     }
   } else {
@@ -210,7 +210,7 @@ void NSPanel::send_wifi_state_() {
         root["wifiState"] = "connected";
         root["rssiLevel"] = rssi;
       });
-      this->send_json_command_(0x85, json_str);
+      this->send_json_command(0x85, json_str);
       this->last_connected_ = true;
       this->last_wifi_sent_at_ = now;
     }
@@ -225,7 +225,7 @@ void NSPanel::send_weather_data(WeatherIcon icon, int8_t temperature, int8_t min
     root["range"] = (to_string(min) + "," + to_string(max)).substr(0, 5);
   });
 
-  this->send_json_command_(0x81, json_str);
+  this->send_json_command(0x81, json_str);
 }
 
 void NSPanel::send_all_widgets_() {
@@ -237,7 +237,7 @@ void NSPanel::send_all_widgets_() {
           root["index"] = i;
           root["type"] = "delete";
         });
-        this->send_json_command_(0x86, json_str);
+        this->send_json_command(0x86, json_str);
         break;
       }
       case DEVICE: {
@@ -249,7 +249,7 @@ void NSPanel::send_all_widgets_() {
           r["id"] = to_string(i);
           r["uiid"] = widget.uiid;
         });
-        this->send_json_command_(0x86, resource);
+        this->send_json_command(0x86, resource);
 
         std::string relation = json::build_json([i, widget](JsonObject &root) {
           JsonArray &relations = root.createNestedArray("relation");
@@ -261,7 +261,7 @@ void NSPanel::send_all_widgets_() {
           JsonObject &p = r.createNestedObject("params");
           p["switch"] = "on";
         });
-        this->send_json_command_(0x86, relation);
+        this->send_json_command(0x86, relation);
 
         break;
       }
@@ -274,7 +274,7 @@ void NSPanel::send_all_widgets_() {
           r["id"] = to_string(i);
           r["uiid"] = widget.uiid;
         });
-        this->send_json_command_(0x86, resource);
+        this->send_json_command(0x86, resource);
 
         std::string relation = json::build_json([i, widget](JsonObject &root) {
           JsonArray &relation_list = root.createNestedArray("relation");
@@ -297,7 +297,7 @@ void NSPanel::send_all_widgets_() {
           }
         });
 
-        this->send_json_command_(0x86, relation);
+        this->send_json_command(0x86, relation);
         break;
       }
       case SCENE: {
@@ -308,7 +308,7 @@ void NSPanel::send_all_widgets_() {
           r["ctype"] = "scene";
           r["id"] = to_string(i);
         });
-        this->send_json_command_(0x86, resource);
+        this->send_json_command(0x86, resource);
 
         std::string relation = json::build_json([i, widget](JsonObject &root) {
           JsonArray &relations = root.createNestedArray("relation");
@@ -317,7 +317,7 @@ void NSPanel::send_all_widgets_() {
           r["id"] = to_string(i);
           r["name"] = widget.name.substr(0, 7);
         });
-        this->send_json_command_(0x86, relation);
+        this->send_json_command(0x86, relation);
         break;
       }
     }
@@ -333,7 +333,7 @@ void NSPanel::send_nextion_command_(const std::string &command) {
   this->write_array(to_send, sizeof(to_send));
 }
 
-void NSPanel::send_json_command_(uint8_t type, const std::string &command) {
+void NSPanel::send_json_command(uint8_t type, const std::string &command) {
   ESP_LOGD(TAG, "Sending JSON command: %s", command.c_str());
   std::vector<uint8_t> data = {0x55, 0xAA};
   data.push_back(type);

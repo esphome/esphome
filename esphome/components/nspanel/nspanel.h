@@ -118,9 +118,10 @@ class NSPanel : public Component, public uart::UARTDevice {
 
   void control_switch(GroupItem &item, bool state);
 
+  void send_json_command(uint8_t type, const std::string &command);
+
  protected:
   void send_nextion_command_(const std::string &command);
-  void send_json_command_(uint8_t type, const std::string &command);
   static uint16_t crc16(const uint8_t *data, uint16_t len);
 
   bool process_data_();
