@@ -120,10 +120,6 @@ std::string uint64_to_string(uint64_t num);
 /// Convert a uint32_t to a hex string
 std::string uint32_to_string(uint32_t num);
 
-uint8_t reverse_bits_8(uint8_t x);
-uint16_t reverse_bits_16(uint16_t x);
-uint32_t reverse_bits_32(uint32_t x);
-
 /// Convert RGB floats (0-1) to hue (0-360) & saturation/value percentage (0-1)
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
 /// Convert hue (0-360) & saturation/value percentage (0-1) to RGB floats (0-1)
@@ -341,6 +337,23 @@ inline std::array<uint8_t, sizeof(T)> decode_value(T val) {
     val >>= 8;
   }
   return ret;
+}
+
+/// Reverse the order of 8 bits.
+inline uint8_t reverse_bits(uint8_t x) {
+  x = ((x & 0xAA) >> 1) | ((x & 0x55) << 1);
+  x = ((x & 0xCC) >> 2) | ((x & 0x33) << 2);
+  x = ((x & 0xF0) >> 4) | ((x & 0x0F) << 4);
+  return x;
+}
+/// Reverse the order of 16 bits.
+inline uint16_t reverse_bits(uint16_t x) {
+  return (reverse_bits(static_cast<uint8_t>(x & 0xFF)) << 8) | reverse_bits(static_cast<uint8_t>((x >> 8) & 0xFF));
+}
+/// Reverse the order of 32 bits.
+inline uint32_t reverse_bits(uint32_t x) {
+  return (reverse_bits(static_cast<uint16_t>(x & 0xFFFF)) << 16) |
+         reverse_bits(static_cast<uint16_t>((x >> 16) & 0xFFFF));
 }
 
 /// Convert a value between host byte order and big endian (most significant byte first) order.
