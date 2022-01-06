@@ -31,6 +31,7 @@ esphome/components/binary_sensor/* @esphome/core
 esphome/components/bl0940/* @tobias-
 esphome/components/ble_client/* @buxtronix
 esphome/components/bme680_bsec/* @trvrnrth
+esphome/components/bmp3xx/* @martgras
 esphome/components/button/* @esphome/core
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/cap1188/* @MrEditor97
