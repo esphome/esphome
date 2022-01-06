@@ -105,12 +105,6 @@ float gamma_uncorrect(float value, float gamma);
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
 
-/// Convert a uint64_t to a hex string
-std::string uint64_to_string(uint64_t num);
-
-/// Convert a uint32_t to a hex string
-std::string uint32_to_string(uint32_t num);
-
 /// Convert RGB floats (0-1) to hue (0-360) & saturation/value percentage (0-1)
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
 /// Convert hue (0-360) & saturation/value percentage (0-1) to RGB floats (0-1)
