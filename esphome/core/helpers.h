@@ -58,15 +58,6 @@ class HighFrequencyLoopRequester {
   bool started_{false};
 };
 
-/** Clamp the value between min and max.
- *
- * @param val The value.
- * @param min The minimum value.
- * @param max The maximum value.
- * @return val clamped in between min and max.
- */
-template<typename T> T clamp(T val, T min, T max);
-
 /** Linearly interpolate between end start and end by completion.
  *
  * @tparam T The input/output typename.
@@ -275,6 +266,18 @@ using std::is_trivially_copyable;
 // other variants that use a newer compiler anyway.
 // NOLINTNEXTLINE(readability-identifier-naming)
 template<typename T> struct is_trivially_copyable : public std::integral_constant<bool, true> {};
+#endif
+
+// std::clamp from C++17
+#if __cpp_lib_clamp >= 201603
+using std::clamp;
+#else
+template<typename T, typename Compare> constexpr const T &clamp(const T &v, const T &lo, const T &hi, Compare comp) {
+  return comp(v, lo) ? lo : comp(hi, v) ? hi : v;
+}
+template<typename T> constexpr const T &clamp(const T &v, const T &lo, const T &hi) {
+  return clamp(v, lo, hi, std::less<T>{});
+}
 #endif
 
 // std::bit_cast from C++20
