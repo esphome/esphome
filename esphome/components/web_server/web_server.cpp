@@ -324,7 +324,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
   request->send(stream);
 }
-#endif 
+#endif
 #ifdef WEBSERVER_CSS_INCLUDE
 void WebServer::handle_css_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/css");
