@@ -76,7 +76,7 @@ class LWIPRawImpl : public Socket {
     auto family = name->sa_family;
 #if LWIP_IPV6
     if (family == AF_INET) {
-      if (addrlen < sizeof(sockaddr_in6)) {
+      if (addrlen < sizeof(sockaddr_in)) {
         errno = EINVAL;
         return -1;
       }
@@ -84,16 +84,17 @@ class LWIPRawImpl : public Socket {
       port = ntohs(addr4->sin_port);
       ip.type = IPADDR_TYPE_V4;
       ip.u_addr.ip4.addr = addr4->sin_addr.s_addr;
-
+      LWIP_LOG("tcp_bind(%p ip=%s port=%u)", pcb_, ip4addr_ntoa(&ip.u_addr.ip4), port);
     } else if (family == AF_INET6) {
-      if (addrlen < sizeof(sockaddr_in)) {
+      if (addrlen < sizeof(sockaddr_in6)) {
         errno = EINVAL;
         return -1;
       }
       auto *addr6 = reinterpret_cast<const sockaddr_in6 *>(name);
       port = ntohs(addr6->sin6_port);
-      ip.type = IPADDR_TYPE_V6;
+      ip.type = IPADDR_TYPE_ANY;
       memcpy(&ip.u_addr.ip6.addr, &addr6->sin6_addr.un.u8_addr, 16);
+      LWIP_LOG("tcp_bind(%p ip=%s port=%u)", pcb_, ip6addr_ntoa(&ip.u_addr.ip6), port);
     } else {
       errno = EINVAL;
       return -1;
@@ -106,8 +107,8 @@ class LWIPRawImpl : public Socket {
     auto *addr4 = reinterpret_cast<const sockaddr_in *>(name);
     port = ntohs(addr4->sin_port);
     ip.addr = addr4->sin_addr.s_addr;
-#endif
     LWIP_LOG("tcp_bind(%p ip=%u port=%u)", pcb_, ip.addr, port);
+#endif
     err_t err = tcp_bind(pcb_, &ip, port);
     if (err == ERR_USE) {
       LWIP_LOG("  -> err ERR_USE");
