@@ -525,6 +525,7 @@ message ListEntitiesSwitchResponse {
   bool assumed_state = 6;
   bool disabled_by_default = 7;
   EntityCategory entity_category = 8;
+  string device_class = 9;
 }
 message SwitchStateResponse {
   option (id) = 26;

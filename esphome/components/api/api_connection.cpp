@@ -461,6 +461,7 @@ bool APIConnection::send_switch_info(switch_::Switch *a_switch) {
   msg.assumed_state = a_switch->assumed_state();
   msg.disabled_by_default = a_switch->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(a_switch->get_entity_category());
+  msg.device_class = sensor->get_device_class();
   return this->send_list_entities_switch_response(msg);
 }
 void APIConnection::switch_command(const SwitchCommandRequest &msg) {

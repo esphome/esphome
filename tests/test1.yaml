@@ -2022,6 +2022,10 @@ switch:
   - platform: template
     id: ble1_status
     optimistic: true
+  - platform: template
+    id: outlet_switch
+    optimistic: true
+    device_class: outlet
 
 fan:
   - platform: binary

@@ -905,6 +905,9 @@ DEVICE_CLASS_VOLTAGE = "voltage"
 DEVICE_CLASS_UPDATE = "update"
 # device classes of button component
 DEVICE_CLASS_RESTART = "restart"
+# device classes of switch component
+DEVICE_CLASS_OUTLET = "outlet"
+DEVICE_CLASS_SWITCH = "switch"
 
 
 # state classes

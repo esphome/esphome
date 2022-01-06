@@ -20,6 +20,9 @@ namespace switch_ {
     if ((obj)->is_inverted()) { \
       ESP_LOGCONFIG(TAG, "%s  Inverted: YES", prefix); \
     } \
+    if (!(obj)->get_device_class().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
+    } \
   }
 
 /** Base class for all switches.
@@ -88,6 +91,11 @@ class Switch : public EntityBase {
 
   bool is_inverted() const;
 
+  /// Get the device class, using the manual override if set.
+  std::string get_device_class();
+  /// Manually set the device class.
+  void set_device_class(const std::string &device_class);
+
  protected:
   /** Write the given state to hardware. You should implement this
    * abstract method if you want to create your own switch.
@@ -99,12 +107,16 @@ class Switch : public EntityBase {
    */
   virtual void write_state(bool state) = 0;
 
+  /// Override this to set the default device class.
+  virtual std::string device_class();  // NOLINT
+
   uint32_t hash_base() override;
 
   CallbackManager<void(bool)> state_callback_{};
   bool inverted_{false};
   Deduplicator<bool> publish_dedup_;
   ESPPreferenceObject rtc_;
+  optional<std::string> device_class_;
 };
 
 }  // namespace switch_
