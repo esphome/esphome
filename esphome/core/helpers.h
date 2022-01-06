@@ -58,15 +58,6 @@ class HighFrequencyLoopRequester {
   bool started_{false};
 };
 
-/** Clamp the value between min and max.
- *
- * @param val The value.
- * @param min The minimum value.
- * @param max The maximum value.
- * @return val clamped in between min and max.
- */
-template<typename T> T clamp(T val, T min, T max);
-
 /** Linearly interpolate between end start and end by completion.
  *
  * @tparam T The input/output typename.
@@ -113,10 +104,6 @@ float gamma_uncorrect(float value, float gamma);
 
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
-
-uint8_t reverse_bits_8(uint8_t x);
-uint16_t reverse_bits_16(uint16_t x);
-uint32_t reverse_bits_32(uint32_t x);
 
 /// Convert RGB floats (0-1) to hue (0-360) & saturation/value percentage (0-1)
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
@@ -275,6 +262,18 @@ using std::is_trivially_copyable;
 template<typename T> struct is_trivially_copyable : public std::integral_constant<bool, true> {};
 #endif
 
+// std::clamp from C++17
+#if __cpp_lib_clamp >= 201603
+using std::clamp;
+#else
+template<typename T, typename Compare> constexpr const T &clamp(const T &v, const T &lo, const T &hi, Compare comp) {
+  return comp(v, lo) ? lo : comp(hi, v) ? hi : v;
+}
+template<typename T> constexpr const T &clamp(const T &v, const T &lo, const T &hi) {
+  return clamp(v, lo, hi, std::less<T>{});
+}
+#endif
+
 // std::bit_cast from C++20
 #if __cpp_lib_bit_cast >= 201806
 using std::bit_cast;
@@ -335,6 +334,23 @@ inline std::array<uint8_t, sizeof(T)> decode_value(T val) {
     val >>= 8;
   }
   return ret;
+}
+
+/// Reverse the order of 8 bits.
+inline uint8_t reverse_bits(uint8_t x) {
+  x = ((x & 0xAA) >> 1) | ((x & 0x55) << 1);
+  x = ((x & 0xCC) >> 2) | ((x & 0x33) << 2);
+  x = ((x & 0xF0) >> 4) | ((x & 0x0F) << 4);
+  return x;
+}
+/// Reverse the order of 16 bits.
+inline uint16_t reverse_bits(uint16_t x) {
+  return (reverse_bits(static_cast<uint8_t>(x & 0xFF)) << 8) | reverse_bits(static_cast<uint8_t>((x >> 8) & 0xFF));
+}
+/// Reverse the order of 32 bits.
+inline uint32_t reverse_bits(uint32_t x) {
+  return (reverse_bits(static_cast<uint16_t>(x & 0xFFFF)) << 16) |
+         reverse_bits(static_cast<uint16_t>((x >> 16) & 0xFFFF));
 }
 
 /// Convert a value between host byte order and big endian (most significant byte first) order.

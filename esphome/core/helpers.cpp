@@ -176,17 +176,6 @@ void delay_microseconds_safe(uint32_t us) {  // avoids CPU locks that could trig
     ;
 }
 
-uint8_t reverse_bits_8(uint8_t x) {
-  x = ((x & 0xAA) >> 1) | ((x & 0x55) << 1);
-  x = ((x & 0xCC) >> 2) | ((x & 0x33) << 2);
-  x = ((x & 0xF0) >> 4) | ((x & 0x0F) << 4);
-  return x;
-}
-
-uint16_t reverse_bits_16(uint16_t x) {
-  return uint16_t(reverse_bits_8(x & 0xFF) << 8) | uint16_t(reverse_bits_8(x >> 8));
-}
-
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
   for (char c : str) {
@@ -197,10 +186,6 @@ uint32_t fnv1_hash(const std::string &str) {
 }
 bool str_equals_case_insensitive(const std::string &a, const std::string &b) {
   return strcasecmp(a.c_str(), b.c_str()) == 0;
-}
-
-template<uint32_t> uint32_t reverse_bits(uint32_t x) {
-  return uint32_t(reverse_bits_16(x & 0xFFFF) << 16) | uint32_t(reverse_bits_16(x >> 16));
 }
 
 static int high_freq_num_requests = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -218,17 +203,6 @@ void HighFrequencyLoopRequester::stop() {
   this->started_ = false;
 }
 bool HighFrequencyLoopRequester::is_high_frequency() { return high_freq_num_requests > 0; }
-
-template<typename T> T clamp(const T val, const T min, const T max) {
-  if (val < min)
-    return min;
-  if (val > max)
-    return max;
-  return val;
-}
-template uint8_t clamp(uint8_t, uint8_t, uint8_t);
-template float clamp(float, float, float);
-template int clamp(int, int, int);
 
 float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
 
