@@ -130,18 +130,6 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
   snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
   return std::string(tmp);
 }
-std::string uint64_to_string(uint64_t num) {
-  char buffer[17];
-  auto *address16 = reinterpret_cast<uint16_t *>(&num);
-  snprintf(buffer, sizeof(buffer), "%04X%04X%04X%04X", address16[3], address16[2], address16[1], address16[0]);
-  return std::string(buffer);
-}
-std::string uint32_to_string(uint32_t num) {
-  char buffer[9];
-  auto *address16 = reinterpret_cast<uint16_t *>(&num);
-  snprintf(buffer, sizeof(buffer), "%04X%04X", address16[1], address16[0]);
-  return std::string(buffer);
-}
 
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   if (on == nullptr && strcasecmp(str, "on") == 0)
