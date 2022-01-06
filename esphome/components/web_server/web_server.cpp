@@ -193,9 +193,8 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 #include "server_index.h"
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
-    response->addHeader("Content-Encoding", "gzip");
-    request->send(response);
-    return;
+  response->addHeader("Content-Encoding", "gzip");
+  request->send(response);
 }
 #else
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
