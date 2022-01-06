@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_INCLUDE_INTERNAL,
     CONF_OTA,
     CONF_VERSION,
+    CONF_LOCAL,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -42,7 +43,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(WebServer),
             cv.Optional(CONF_PORT, default=80): cv.port,
             cv.Optional(CONF_VERSION, default=1): cv.one_of(1, 2),
-            cv.Optional(CONF_CSS_URL): cv.string,
+            cv.Optional(CONF_CSS_URL,""): cv.string,
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
             cv.Optional(CONF_JS_URL): cv.string,
             cv.Optional(CONF_JS_INCLUDE): cv.file_,
@@ -61,6 +62,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
             cv.Optional(CONF_OTA, default=True): cv.boolean,
+            cv.Optional(CONF_LOCAL): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
@@ -81,8 +83,7 @@ async def to_code(config):
     cg.add_define("WEBSERVER_PORT", config[CONF_PORT])
     cg.add_define("USE_WEBSERVER")
     cg.add_define("WEBSERVER_VERSION", config[CONF_VERSION])
-    if CONF_CSS_URL in config:
-        cg.add(var.set_css_url(config[CONF_CSS_URL]))
+    cg.add(var.set_css_url(config[CONF_CSS_URL]))
     cg.add(var.set_js_url(config[CONF_JS_URL]))
     cg.add(var.set_allow_ota(config[CONF_OTA]))
     if CONF_AUTH in config:
@@ -99,3 +100,5 @@ async def to_code(config):
         with open(file=path, mode="r", encoding="utf-8") as myfile:
             cg.add(var.set_js_include(myfile.read()))
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
+    if CONF_LOCAL in config:
+        cg.add_define("WEBSERVER_LOCAL")

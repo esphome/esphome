@@ -189,6 +189,15 @@ void WebServer::dump_config() {
 }
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 
+#ifdef WEBSERVER_LOCAL
+#include "server_index.h"
+void WebServer::handle_index_request(AsyncWebServerRequest *request) {
+  AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
+    response->addHeader("Content-Encoding", "gzip");
+    request->send(response);
+    return;
+}
+#else
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
   // All content is controlled and created by user - so allowing all origins is fine here.
@@ -316,7 +325,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
   request->send(stream);
 }
-
+#endif 
 #ifdef WEBSERVER_CSS_INCLUDE
 void WebServer::handle_css_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/css");
