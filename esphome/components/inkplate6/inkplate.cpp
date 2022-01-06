@@ -457,22 +457,28 @@ void Inkplate6::display3b_() {
   uint32_t clock = (1 << this->cl_pin_->get_pin());
   uint32_t data_mask = this->get_data_pin_mask_();
   uint32_t pos;
+  uint32_t data;
   uint8_t glut_size = this->model_ == INKPLATE_6_PLUS ? 9 : 8;
   for (int k = 0; k < glut_size; k++) {
     pos = this->get_buffer_length_();
     vscan_start_();
     for (int i = 0; i < this->get_height_internal(); i++) {
-      hscan_start_((this->glut2_[k * 256 + this->buffer_[--pos]] | this->glut_[k * 256 + this->buffer_[--pos]]));
-      GPIO.out_w1ts =
-          (this->glut2_[k * 256 + this->buffer_[--pos]] | this->glut_[k * 256 + this->buffer_[--pos]]) | clock;
+      data = this->glut2_[k * 256 + this->buffer_[--pos]];
+      data |= this->glut_[k * 256 + this->buffer_[--pos]];
+      hscan_start_(data);
+      data = this->glut2_[k * 256 + this->buffer_[--pos]];
+      data |= this->glut_[k * 256 + this->buffer_[--pos]];
+      GPIO.out_w1ts = data | clock;
       GPIO.out_w1tc = data_mask | clock;
 
       for (int j = 0; j < (this->get_width_internal() / 8) - 1; j++) {
-        GPIO.out_w1ts =
-            (this->glut2_[k * 256 + this->buffer_[--pos]] | this->glut_[k * 256 + this->buffer_[--pos]]) | clock;
+        data = this->glut2_[k * 256 + this->buffer_[--pos]];
+        data |= this->glut_[k * 256 + this->buffer_[--pos]];
+        GPIO.out_w1ts = data | clock;
         GPIO.out_w1tc = data_mask | clock;
-        GPIO.out_w1ts =
-            (this->glut2_[k * 256 + this->buffer_[--pos]] | this->glut_[k * 256 + this->buffer_[--pos]]) | clock;
+        data = this->glut2_[k * 256 + this->buffer_[--pos]];
+        data |= this->glut_[k * 256 + this->buffer_[--pos]];
+        GPIO.out_w1ts = data | clock;
         GPIO.out_w1tc = data_mask | clock;
       }
       GPIO.out_w1ts = clock;
