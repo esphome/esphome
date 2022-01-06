@@ -45,11 +45,11 @@ void Inkplate6::setup() {
   this->wakeup_pin_->digital_write(true);
   delay(1);
   this->write_bytes(0x09, {
-    0b00011011, // Power up seq.
-    0b00000000, // Power up delay (3mS per rail)
-    0b00011011, // Power down seq.
-    0b00000000, // Power down delay (6mS per rail)
-  });
+                              0b00011011,  // Power up seq.
+                              0b00000000,  // Power up delay (3mS per rail)
+                              0b00011011,  // Power down seq.
+                              0b00000000,  // Power down delay (6mS per rail)
+                          });
   delay(1);
   this->wakeup_pin_->digital_write(false);
 
