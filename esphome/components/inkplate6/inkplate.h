@@ -13,6 +13,7 @@ namespace inkplate6 {
 enum InkplateModel : uint8_t {
   INKPLATE_6 = 0,
   INKPLATE_10 = 1,
+  INKPLATE_6_PLUS = 2,
 };
 
 class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public i2c::I2CDevice {
@@ -32,6 +33,10 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   const uint8_t waveform3Bit[8][8] = {{0, 1, 1, 0, 0, 1, 1, 0}, {0, 1, 2, 1, 1, 2, 1, 0}, {1, 1, 1, 2, 2, 1, 0, 0},
                                       {0, 0, 0, 1, 1, 1, 2, 0}, {2, 1, 1, 1, 2, 1, 2, 0}, {2, 2, 1, 1, 2, 1, 2, 0},
                                       {1, 1, 1, 2, 1, 2, 2, 0}, {0, 0, 0, 0, 0, 0, 2, 0}};
+  const uint8_t waveform3Bit6Plus[8][9] = {{0, 0, 0, 0, 0, 2, 1, 1, 0}, {0, 0, 2, 1, 1, 1, 2, 1, 0},
+                                           {0, 2, 2, 2, 1, 1, 2, 1, 0}, {0, 0, 2, 2, 2, 1, 2, 1, 0},
+                                           {0, 0, 0, 0, 2, 2, 2, 1, 0}, {0, 0, 2, 1, 2, 1, 1, 2, 0},
+                                           {0, 0, 2, 2, 2, 1, 1, 2, 0}, {0, 0, 0, 0, 2, 2, 2, 2, 0}};
   const uint32_t waveform[50] = {
       0x00000008, 0x00000008, 0x00200408, 0x80281888, 0x60a81898, 0x60a8a8a8, 0x60a8a8a8, 0x6068a868, 0x6868a868,
       0x6868a868, 0x68686868, 0x6a686868, 0x5a686868, 0x5a686868, 0x5a586a68, 0x5a5a6a68, 0x5a5a6a68, 0x55566a68,
@@ -99,10 +104,10 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   void hscan_start_(uint32_t d);
   void vscan_end_();
   void vscan_start_();
-  void vscan_write_();
 
   void eink_off_();
   void eink_on_();
+  bool read_power_status_();
 
   void setup_pins_();
   void pins_z_state_();
@@ -113,6 +118,8 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
       return 800;
     else if (this->model_ == INKPLATE_10)
       return 1200;
+    else if (this->model_ == INKPLATE_6_PLUS)
+      return 1024;
     return 0;
   }
 
@@ -121,6 +128,8 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
       return 600;
     else if (this->model_ == INKPLATE_10)
       return 825;
+    else if (this->model_ == INKPLATE_6_PLUS)
+      return 758;
     return 0;
   }
 
@@ -139,7 +148,7 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
     return data;
   }
 
-  uint8_t panel_on_ = 0;
+  bool panel_on_{false};
   uint8_t temperature_;
 
   uint8_t *partial_buffer_{nullptr};
@@ -147,6 +156,7 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
 
   uint32_t *glut_{nullptr};
   uint32_t *glut2_{nullptr};
+  uint32_t pin_lut_[256];
 
   uint32_t full_update_every_;
   uint32_t partial_updates_{0};
