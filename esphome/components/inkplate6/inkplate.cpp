@@ -65,20 +65,7 @@ void Inkplate6::initialize_() {
     this->mark_failed();
     return;
   }
-  if (!this->greyscale_) {
-    this->partial_buffer_ = allocator.allocate(buffer_size);
-    if (this->partial_buffer_ == nullptr) {
-      ESP_LOGE(TAG, "Could not allocate partial buffer for display!");
-      this->mark_failed();
-      return;
-    }
-    this->partial_buffer_2_ = allocator.allocate(buffer_size * 2);
-    if (this->partial_buffer_2_ == nullptr) {
-      ESP_LOGE(TAG, "Could not allocate partial buffer 2 for display!");
-      this->mark_failed();
-      return;
-    }
-
+  if (this->greyscale_) {
     this->glut_ = allocator32.allocate(256 * 8);
     if (this->glut_ == nullptr) {
       ESP_LOGE(TAG, "Could not allocate glut!");
@@ -92,9 +79,6 @@ void Inkplate6::initialize_() {
       return;
     }
 
-    memset(this->partial_buffer_, 0, buffer_size);
-    memset(this->partial_buffer_2_, 0, buffer_size * 2);
-
     for (int i = 0; i < 8; i++) {
       for (uint32_t j = 0; j < 256; j++) {
         uint8_t z = (waveform3Bit[j & 0x07][i] << 2) | (waveform3Bit[(j >> 4) & 0x07][i]);
@@ -105,6 +89,23 @@ void Inkplate6::initialize_() {
                                     (((z & 0b00010000) >> 4) << 23) | (((z & 0b11100000) >> 5) << 25);
       }
     }
+
+  } else {
+    this->partial_buffer_ = allocator.allocate(buffer_size);
+    if (this->partial_buffer_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate partial buffer for display!");
+      this->mark_failed();
+      return;
+    }
+    this->partial_buffer_2_ = allocator.allocate(buffer_size * 2);
+    if (this->partial_buffer_2_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate partial buffer 2 for display!");
+      this->mark_failed();
+      return;
+    }
+
+    memset(this->partial_buffer_, 0, buffer_size);
+    memset(this->partial_buffer_2_, 0, buffer_size * 2);
   }
 
   memset(this->buffer_, 0, buffer_size);
@@ -396,17 +397,9 @@ void Inkplate6::display3b_() {
   uint32_t pos;
   for (int k = 0; k < 8; k++) {
     pos = this->get_buffer_length_();
-    ESP_LOGD(TAG, "Display3b loop %d - %d", k, pos);
-
     vscan_start_();
     for (int i = 0; i < this->get_height_internal(); i++) {
-      hscan_start_((
-        this->glut2_[k * 256 +
-        this->buffer_[--pos]
-        ] |
-        this->glut_[k * 256 +
-        this->buffer_[--pos]
-        ]));
+      hscan_start_((this->glut2_[k * 256 + this->buffer_[--pos]] | this->glut_[k * 256 + this->buffer_[--pos]]));
       GPIO.out_w1ts =
           (this->glut2_[k * 256 + this->buffer_[--pos]] | this->glut_[k * 256 + this->buffer_[--pos]]) | clock;
       GPIO.out_w1tc = data_mask | clock;
