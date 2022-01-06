@@ -31,7 +31,7 @@ def esp32_create_combined_bin(source, target, env):
 
     cmd += ["-o", new_file_name]
 
-    subprocess.run(cmd)
+    subprocess.run(cmd, check=False)
 
 
 # pylint: disable=E0602
