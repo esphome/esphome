@@ -14,11 +14,10 @@ void SlowPWMOutput::setup() {
 
 /// turn on/off the configured output
 void SlowPWMOutput::set_output_state_(bool new_state) {
-  static bool current_state = false;
   if (this->pin_) {
     this->pin_->digital_write(new_state);
   }
-  if (new_state != current_state) {
+  if (new_state != current_state_) {
     if (this->state_change_trigger_) {
       this->state_change_trigger_->trigger(new_state);
     }
@@ -29,7 +28,7 @@ void SlowPWMOutput::set_output_state_(bool new_state) {
       if (this->turn_off_trigger_)
         this->turn_off_trigger_->trigger();
     }
-    current_state = new_state;
+    current_state_ = new_state;
   }
 }
 
