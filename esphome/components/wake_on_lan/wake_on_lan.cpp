@@ -52,6 +52,12 @@ void WakeOnLanButton::press_action() {
   local_interface.s_addr = esphome::network::get_ip_address();
 
   /*
+   * Permit the sending of broadcast packets
+   */
+  int allow_broadcast = true;
+  sd->setsockopt(SOL_SOCKET, SO_BROADCAST, &allow_broadcast, sizeof(int));
+
+  /*
    * Send a message to the multicast group specified by the
    * groupSock sockaddr structure.
    */
