@@ -51,19 +51,17 @@ void WakeOnLanButton::press_action() {
    */
   local_interface.s_addr = esphome::network::get_ip_address();
 
-
   /*
    * Send a message to the multicast group specified by the
    * groupSock sockaddr structure.
    */
-  if (sd->bind((struct sockaddr*) &group_sock, sizeof(group_sock))) {
+  if (sd->bind((struct sockaddr *) &group_sock, sizeof(group_sock))) {
     ESP_LOGE(TAG, "Error binding to socket!");
     return;
   }
   uint8_t data[102];
   fill_buffer_(data);
-  if (sd->write(data, sizeof(data)) < 0)
-  {
+  if (sd->write(data, sizeof(data)) < 0) {
     ESP_LOGE(TAG, "Error sending datagram message!");
   }
 }
@@ -71,16 +69,13 @@ void WakeOnLanButton::press_action() {
 void WakeOnLanButton::fill_buffer_(uint8_t *buff) {
   fill_preamble_(buff);
   fill_mac_address_(buff + 6);
-  //fill_password(buff + 102)
+  // fill_password(buff + 102)
 }
 
-void WakeOnLanButton::fill_preamble_(uint8_t *buff) {
-  std::fill(buff, buff+6, 255);
-}
+void WakeOnLanButton::fill_preamble_(uint8_t *buff) { std::fill(buff, buff + 6, 255); }
 
 void WakeOnLanButton::fill_mac_address_(uint8_t *buff) {
-  for (int i = 0; i < 16; i++)
-  {
+  for (int i = 0; i < 16; i++) {
     std::copy(std::begin(macaddr_), std::end(macaddr_), buff + (i * 6));
   }
 }
