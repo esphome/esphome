@@ -1,10 +1,7 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
 #include "esphome/components/button/button.h"
 #include "esphome/core/component.h"
-#include "WiFiUdp.h"
 
 namespace esphome {
 namespace wake_on_lan {
@@ -16,12 +13,13 @@ class WakeOnLanButton : public button::Button, public Component {
   void dump_config() override;
 
  protected:
-  WiFiUDP udp_client_{};
   void press_action() override;
   uint8_t macaddr_[6] = {0, 0, 0, 0, 0};
+  void fill_buffer_(uint8_t *buff);
+  void fill_preamble_(uint8_t *buff);
+  void fill_mac_address_(uint8_t *buff);
+  // void fill_password(uint8_t *buff); for future implementation
 };
 
 }  // namespace wake_on_lan
 }  // namespace esphome
-
-#endif
