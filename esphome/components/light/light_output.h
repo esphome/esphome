@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "light_traits.h"
 #include "light_state.h"
 #include "light_transformer.h"
@@ -27,6 +28,11 @@ class LightOutput {
   /// should write the new state to hardware. Every call to write_state() is
   /// preceded by (at least) one call to update_state().
   virtual void write_state(LightState *state) = 0;
+
+  virtual void add_on_state_callback(std::function<void(bool)> &&callback) {}
+
+ protected:
+  CallbackManager<void(bool)> state_callback_{};
 };
 
 }  // namespace light

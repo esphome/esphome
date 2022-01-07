@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_POWER_SUPPLY
 #include "esphome/components/power_supply/power_supply.h"
@@ -36,6 +37,7 @@ class BinaryOutput {
     this->power_.request();
 #endif
     this->write_state(!this->inverted_);
+    this->state_callback_.call(!this->inverted_);
   }
 
   /// Disable this binary output.
@@ -44,6 +46,11 @@ class BinaryOutput {
     this->power_.unrequest();
 #endif
     this->write_state(this->inverted_);
+    this->state_callback_.call(this->inverted_);
+  }
+
+  void add_on_state_callback(std::function<void(bool)> &&callback) {
+    this->state_callback_.add(std::move(callback));
   }
 
   // ========== INTERNAL METHODS ==========
@@ -58,6 +65,8 @@ class BinaryOutput {
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_{};
 #endif
+
+  CallbackManager<void(bool)> state_callback_{};
 };
 
 }  // namespace output

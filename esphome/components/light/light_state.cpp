@@ -8,8 +8,24 @@ namespace light {
 
 static const char *const TAG = "light";
 
-LightState::LightState(const std::string &name, LightOutput *output) : EntityBase(name), output_(output) {}
-LightState::LightState(LightOutput *output) : output_(output) {}
+LightState::LightState(const std::string &name, LightOutput *output) : EntityBase(name), output_(output) {
+  this->output_->add_on_state_callback([this] (bool state) {
+    auto call = this->make_call();
+    call.set_state(state);
+    call.perform();
+
+    this->next_write_ = false;
+  });
+}
+LightState::LightState(LightOutput *output) : output_(output) {
+  this->output_->add_on_state_callback([this] (bool state) {
+    auto call = this->make_call();
+    call.set_state(state);
+    call.perform();
+
+    this->next_write_ = false;
+  });
+}
 
 LightTraits LightState::get_traits() { return this->output_->get_traits(); }
 LightCall LightState::turn_on() { return this->make_call().set_state(true); }

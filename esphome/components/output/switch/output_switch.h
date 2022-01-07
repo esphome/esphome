@@ -9,7 +9,7 @@ namespace output {
 
 class OutputSwitch : public switch_::Switch, public Component {
  public:
-  void set_output(BinaryOutput *output) { output_ = output; }
+  void set_output(BinaryOutput *output);
 
   void setup() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE - 1.0f; }

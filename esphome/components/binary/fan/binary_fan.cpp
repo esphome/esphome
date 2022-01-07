@@ -60,5 +60,41 @@ void BinaryFan::loop() {
 // when that component sets itself up.
 float BinaryFan::get_setup_priority() const { return fan_->get_setup_priority() + 1.0f; }
 
+void BinaryFan::set_output(output::BinaryOutput *output) {
+  this->output_ = output;
+
+  this->output_->add_on_state_callback([this] (bool state) {
+    auto call = this->fan_->make_call();
+    call.set_state(state);
+    call.perform();
+
+    this->next_update_ = false;
+  });
+}
+
+void BinaryFan::set_oscillating(output::BinaryOutput *oscillating) {
+  this->oscillating_ = oscillating;
+
+  this->oscillating_->add_on_state_callback([this] (bool state) {
+    auto call = this->fan_->make_call();
+    call.set_oscillating(state);
+    call.perform();
+
+    this->next_update_ = false;
+  });
+}
+
+void BinaryFan::set_direction(output::BinaryOutput *direction) {
+  this->direction_ = direction;
+
+  this->direction_->add_on_state_callback([this] (bool state) {
+    auto call = this->fan_->make_call();
+    call.set_direction(static_cast<fan::FanDirection>(state));
+    call.perform();
+
+    this->next_update_ = false;
+  });
+}
+
 }  // namespace binary
 }  // namespace esphome

@@ -10,13 +10,13 @@ namespace binary {
 class BinaryFan : public Component {
  public:
   void set_fan(fan::FanState *fan) { fan_ = fan; }
-  void set_output(output::BinaryOutput *output) { output_ = output; }
+  void set_output(output::BinaryOutput *output);
   void setup() override;
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  void set_oscillating(output::BinaryOutput *oscillating) { this->oscillating_ = oscillating; }
-  void set_direction(output::BinaryOutput *direction) { this->direction_ = direction; }
+  void set_oscillating(output::BinaryOutput *oscillating);
+  void set_direction(output::BinaryOutput *direction);
 
  protected:
   fan::FanState *fan_;
