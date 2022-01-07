@@ -93,12 +93,6 @@ class Lock : public EntityBase {
    */
   void add_on_state_callback(std::function<void()> &&callback);
 
-  /** Return whether this lock uses an assumed state - i.e. if both the LOCK/UNLOCK actions should be displayed in Home
-   * Assistant because the real state is unknown.
-   *
-   * Defaults to false.
-   */
-
  protected:
   /** Write the given state to hardware. You should implement this
    * abstract method if you want to create your own lock.

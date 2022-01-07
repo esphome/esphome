@@ -24,7 +24,7 @@ def validate(config):
         CONF_LOCK_ACTION not in config or CONF_UNLOCK_ACTION not in config
     ):
         raise cv.Invalid(
-            "Either optimistic mode must be enabled, or turn_on_action and turn_off_action must be set, "
+            "Either optimistic mode must be enabled, or lock_action and unlock_action must be set, "
             "to handle the lock being changed."
         )
     return config

@@ -30,9 +30,6 @@ LockCondition = lock_ns.class_("LockCondition", Condition)
 LockLockTrigger = lock_ns.class_("LockLockTrigger", automation.Trigger.template())
 LockUnlockTrigger = lock_ns.class_("LockUnlockTrigger", automation.Trigger.template())
 
-icon = cv.icon
-
-
 LOCK_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTLockComponent),
@@ -57,9 +54,6 @@ async def setup_lock_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_UNLOCK, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_OPEN, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
