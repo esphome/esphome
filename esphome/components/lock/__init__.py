@@ -6,7 +6,6 @@ from esphome.components import mqtt
 from esphome.const import (
     CONF_ID,
     CONF_ON_LOCK,
-    CONF_ON_OPEN,
     CONF_ON_UNLOCK,
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
