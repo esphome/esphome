@@ -64,6 +64,7 @@ void WakeOnLanButton::press_action() {
   if (sd->write(data, sizeof(data)) < 0) {
     ESP_LOGE(TAG, "Error sending datagram message!");
   }
+  sd->close();
 }
 
 void WakeOnLanButton::fill_buffer_(uint8_t *buff) {
