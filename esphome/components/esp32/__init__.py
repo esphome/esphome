@@ -296,7 +296,7 @@ async def to_code(config):
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
 
-    cg.add_platformio_option("extra_scripts", "post:post_build.py")
+    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_platformio_option("framework", "espidf")
