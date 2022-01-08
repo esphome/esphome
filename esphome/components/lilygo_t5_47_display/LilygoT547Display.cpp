@@ -8,9 +8,12 @@ namespace lilygo_t5_47_display {
 
 static const char *const TAG = "lilygo_t5_47_display";
 
-float LilygoT547Display::get_setup_priority() const { return esphome::setup_priority::PROCESSOR; }
+float LilygoT547Display::get_setup_priority() const { return esphome::setup_priority::LATE; }
 
 void LilygoT547Display::set_clear_screen(bool clear) { this->clear_ = clear; }
+void LilygoT547Display::set_power_off_delay_enabled(bool power_off_delay_enabled) {
+  this->power_off_delay_enabled_ = power_off_delay_enabled;
+}
 void LilygoT547Display::set_landscape(bool landscape) { this->landscape_ = landscape; }
 
 void LilygoT547Display::set_temperature(uint32_t temperature) { this->temperature_ = temperature; }
@@ -22,7 +25,6 @@ int LilygoT547Display::get_height_internal() { return 540; }
 void LilygoT547Display::setup() {
   epd_init(EPD_OPTIONS_DEFAULT);
   hl = epd_hl_init(WAVEFORM);
-
   if (landscape_) {
     EpdRotation orientation = EPD_ROT_LANDSCAPE;
     epd_set_rotation(orientation);
@@ -30,17 +32,14 @@ void LilygoT547Display::setup() {
     EpdRotation orientation = EPD_ROT_PORTRAIT;
     epd_set_rotation(orientation);
   }
-
   fb = epd_hl_get_framebuffer(&hl);
-  if (this->clear_) {
-    clear();
-    epd_hl_set_all_white(&hl);
-  }
-  this->do_update_();
-  epd_poweroff();
 }
 
 void LilygoT547Display::update() {
+  if (this->init_clear_executed_ == false && this->clear_ == true) {
+    LilygoT547Display::clear();
+    this->init_clear_executed_ = true;
+  }
   this->do_update_();
   LilygoT547Display::flush_screen_changes();
 }
@@ -48,14 +47,14 @@ void LilygoT547Display::update() {
 void LilygoT547Display::clear() {
   epd_clear();
   epd_hl_set_all_white(&this->hl);
-  this->was_cleared_ = true;
 }
-// Was screen cleared at leat once
-bool LilygoT547Display::was_cleared() { return this->was_cleared_; }
 
 void LilygoT547Display::flush_screen_changes() {
   epd_poweron();
   err = epd_hl_update_screen(&hl, MODE_GC16, this->temperature_);
+  if (this->power_off_delay_enabled_ == true) {
+    delay(700);
+  }
   epd_poweroff();
 }
 
