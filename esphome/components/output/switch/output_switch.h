@@ -30,7 +30,7 @@ class OutputSwitch : public switch_::Switch, public Component {
   void write_state(bool state) override;
 
   output::BinaryOutput *output_;
-  OutputSwitchRestoreMode restore_mode_{OUTPUT_SWITCH_RESTORE_DEFAULT_OFF};
+  OutputSwitchRestoreMode restore_mode_;
 };
 
 }  // namespace output
