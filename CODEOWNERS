@@ -96,6 +96,7 @@ esphome/components/mcp23x08_base/* @jesserockz
 esphome/components/mcp23x17_base/* @jesserockz
 esphome/components/mcp23xxx_base/* @jesserockz
 esphome/components/mcp2515/* @danielschramm @mvturnho
+esphome/components/mcp47a1/* @jesserockz
 esphome/components/mcp9808/* @k7hpn
 esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
