@@ -19,7 +19,7 @@ CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
         cv.GenerateID(CONF_MCP3204_ID): cv.use_id(MCP3204),
         cv.Required(CONF_NUMBER): cv.int_range(min=0, max=3),
     }
-).extend(cv.polling_component_schema("1s"))
+).extend(cv.polling_component_schema("60s"))
 
 
 async def to_code(config):
