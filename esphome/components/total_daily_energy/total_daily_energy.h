@@ -25,7 +25,6 @@ class TotalDailyEnergy : public sensor::Sensor, public Component {
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
-  int8_t accuracy_decimals() override { return this->parent_->get_accuracy_decimals() + 2; }
   void loop() override;
 
   void publish_state_and_save(float state);
