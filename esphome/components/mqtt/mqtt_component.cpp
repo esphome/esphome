@@ -63,7 +63,7 @@ bool MQTTComponent::send_discovery_() {
 
   return global_mqtt_client->publish_json(
       this->get_discovery_topic_(discovery_info),
-      [this](JsonObject &root) {
+      [this](JsonObject root) {
         SendDiscoveryConfig config;
         config.state_topic = true;
         config.command_topic = true;
@@ -127,7 +127,7 @@ bool MQTTComponent::send_discovery_() {
           }
         }
 
-        JsonObject &device_info = root.createNestedObject(MQTT_DEVICE);
+        JsonObject device_info = root.createNestedObject(MQTT_DEVICE);
         device_info[MQTT_DEVICE_IDENTIFIERS] = get_mac_address();
         device_info[MQTT_DEVICE_NAME] = node_name;
         device_info[MQTT_DEVICE_SW_VERSION] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();

@@ -28,8 +28,10 @@ esphome/components/b_parasite/* @rbaron
 esphome/components/ballu/* @bazuchan
 esphome/components/bang_bang/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
+esphome/components/bl0940/* @tobias-
 esphome/components/ble_client/* @buxtronix
 esphome/components/bme680_bsec/* @trvrnrth
+esphome/components/bmp3xx/* @martgras
 esphome/components/button/* @esphome/core
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/cap1188/* @MrEditor97
@@ -65,6 +67,7 @@ esphome/components/globals/* @esphome/core
 esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
 esphome/components/graph/* @synco
+esphome/components/growatt_solar/* @leeuwte
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
@@ -74,6 +77,7 @@ esphome/components/homeassistant/* @OttoWinter
 esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/i2c/* @esphome/core
 esphome/components/improv_serial/* @esphome/core
+esphome/components/ina260/* @MrEditor97
 esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter
@@ -93,6 +97,7 @@ esphome/components/mcp23x17_base/* @jesserockz
 esphome/components/mcp23xxx_base/* @jesserockz
 esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp3204/* @rsumner
+esphome/components/mcp47a1/* @jesserockz
 esphome/components/mcp9808/* @k7hpn
 esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
@@ -124,6 +129,7 @@ esphome/components/pn532_i2c/* @OttoWinter @jesserockz
 esphome/components/pn532_spi/* @OttoWinter @jesserockz
 esphome/components/power_supply/* @esphome/core
 esphome/components/preferences/* @esphome/core
+esphome/components/psram/* @esphome/core
 esphome/components/pulse_meter/* @stevebaxter
 esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/rc522/* @glmnet
@@ -133,7 +139,7 @@ esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rgbct/* @jesserockz
 esphome/components/rtttl/* @glmnet
-esphome/components/safe_mode/* @paulmonigatti
+esphome/components/safe_mode/* @jsuanet @paulmonigatti
 esphome/components/scd4x/* @sjtrny
 esphome/components/script/* @esphome/core
 esphome/components/sdm_meter/* @jesserockz @polyfaces
@@ -143,7 +149,7 @@ esphome/components/select/* @esphome/core
 esphome/components/sensor/* @esphome/core
 esphome/components/sgp40/* @SenexCrenshaw
 esphome/components/sht4x/* @sjtrny
-esphome/components/shutdown/* @esphome/core
+esphome/components/shutdown/* @esphome/core @jsuanet
 esphome/components/sim800l/* @glmnet
 esphome/components/sm2135/* @BoukeHaarsma23
 esphome/components/socket/* @esphome/core
@@ -180,6 +186,7 @@ esphome/components/toshiba/* @kbx81
 esphome/components/tsl2591/* @wjcarpenter
 esphome/components/tuya/binary_sensor/* @jesserockz
 esphome/components/tuya/climate/* @jesserockz
+esphome/components/tuya/number/* @frankiboy1
 esphome/components/tuya/sensor/* @jesserockz
 esphome/components/tuya/switch/* @jesserockz
 esphome/components/tuya/text_sensor/* @dentra

@@ -20,7 +20,7 @@ namespace mqtt {
  * First parameter is the topic, the second one is the payload.
  */
 using mqtt_callback_t = std::function<void(const std::string &, const std::string &)>;
-using mqtt_json_callback_t = std::function<void(const std::string &, JsonObject &)>;
+using mqtt_json_callback_t = std::function<void(const std::string &, JsonObject)>;
 
 /// internal struct for MQTT messages.
 struct MQTTMessage {
@@ -306,11 +306,11 @@ class MQTTMessageTrigger : public Trigger<std::string>, public Component {
   optional<std::string> payload_;
 };
 
-class MQTTJsonMessageTrigger : public Trigger<const JsonObject &> {
+class MQTTJsonMessageTrigger : public Trigger<JsonObjectConst> {
  public:
   explicit MQTTJsonMessageTrigger(const std::string &topic, uint8_t qos) {
     global_mqtt_client->subscribe_json(
-        topic, [this](const std::string &topic, JsonObject &root) { this->trigger(root); }, qos);
+        topic, [this](const std::string &topic, JsonObject root) { this->trigger(root); }, qos);
   }
 };
 
@@ -338,7 +338,7 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint8_t, qos)
   TEMPLATABLE_VALUE(bool, retain)
 
-  void set_payload(std::function<void(Ts..., JsonObject &)> payload) { this->payload_ = payload; }
+  void set_payload(std::function<void(Ts..., JsonObject)> payload) { this->payload_ = payload; }
 
   void play(Ts... x) override {
     auto f = std::bind(&MQTTPublishJsonAction<Ts...>::encode_, this, x..., std::placeholders::_1);
@@ -349,8 +349,8 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
   }
 
  protected:
-  void encode_(Ts... x, JsonObject &root) { this->payload_(x..., root); }
-  std::function<void(Ts..., JsonObject &)> payload_;
+  void encode_(Ts... x, JsonObject root) { this->payload_(x..., root); }
+  std::function<void(Ts..., JsonObject)> payload_;
   MQTTClientComponent *parent_;
 };
 
