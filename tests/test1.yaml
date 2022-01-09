@@ -662,11 +662,10 @@ sensor:
     process_std_dev: 0.00139
     sources:
       - source: scd30_temperature
-        error_function: |-
+        error: !lambda |-
           return 0.4 + std::abs(x - 25) * 0.023;
       - source: scd4x_temperature
-        error_function: |-
-          return (15 <= x && x <= 35) ? 0.8 : 1.5;
+        error: 1.5
   - platform: htu21d
     temperature:
       name: 'Living Room Temperature 6'

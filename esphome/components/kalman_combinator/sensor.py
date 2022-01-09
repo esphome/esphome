@@ -15,27 +15,24 @@ KalmanCombinatorComponent = kalman_combinator_ns.class_(
 )
 
 CONF_ERROR = "error"
-CONF_ERROR_FUNCTION = "error_function"
 CONF_SOURCES = "sources"
 CONF_PROCESS_STD_DEV = "process_std_dev"
 CONF_STD_DEV = "std_dev"
+
+sources_schema = cv.ensure_list(
+    cv.Schema(
+        {
+            cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_ERROR): cv.templatable(cv.positive_float),
+        }
+    ),
+)
 
 CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(KalmanCombinatorComponent),
         cv.Required(CONF_PROCESS_STD_DEV): cv.positive_float,
-        cv.Required(CONF_SOURCES): cv.ensure_list(
-            cv.All(
-                cv.Schema(
-                    {
-                        cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
-                        cv.Optional(CONF_ERROR): cv.positive_float,
-                        cv.Optional(CONF_ERROR_FUNCTION): cv.returning_lambda,
-                    }
-                ),
-                cv.has_exactly_one_key(CONF_ERROR, CONF_ERROR_FUNCTION),
-            )
-        ),
+        cv.Required(CONF_SOURCES): sources_schema,
         cv.Optional(CONF_STD_DEV): sensor.SENSOR_SCHEMA,
     }
 )
@@ -69,14 +66,11 @@ async def to_code(config):
     cg.add(var.set_process_std_dev(config[CONF_PROCESS_STD_DEV]))
     for source_conf in config[CONF_SOURCES]:
         source = await cg.get_variable(source_conf[CONF_SOURCE])
-        if CONF_ERROR_FUNCTION in source_conf:
-            error = await cg.process_lambda(
-                source_conf[CONF_ERROR_FUNCTION],
-                [(float, "x")],
-                return_type=cg.float_,
-            )
-        else:
-            error = source_conf[CONF_ERROR]
+        error = await cg.templatable(
+            source_conf[CONF_ERROR],
+            [(float, "x")],
+            cg.float_,
+        )
         cg.add(var.add_source(source, error))
 
     if CONF_STD_DEV in config:
