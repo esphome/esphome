@@ -28,6 +28,7 @@ class ATCMiThermometer : public Component, public esp32_ble_tracker::ESPBTDevice
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
   void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }
   void set_battery_voltage(sensor::Sensor *battery_voltage) { battery_voltage_ = battery_voltage; }
+  void set_signal_strength(sensor::Sensor *signal_strength) { signal_strength_ = signal_strength; }
 
  protected:
   uint64_t address_;
@@ -35,6 +36,7 @@ class ATCMiThermometer : public Component, public esp32_ble_tracker::ESPBTDevice
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
   sensor::Sensor *battery_voltage_{nullptr};
+  sensor::Sensor *signal_strength_{nullptr};
 
   optional<ParseResult> parse_header_(const esp32_ble_tracker::ServiceData &service_data);
   bool parse_message_(const std::vector<uint8_t> &message, ParseResult &result);

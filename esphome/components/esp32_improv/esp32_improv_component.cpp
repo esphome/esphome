@@ -219,7 +219,7 @@ void ESP32ImprovComponent::dump_config() {
 void ESP32ImprovComponent::process_incoming_data_() {
   uint8_t length = this->incoming_data_[1];
 
-  ESP_LOGD(TAG, "Processing bytes - %s", hexencode(this->incoming_data_).c_str());
+  ESP_LOGD(TAG, "Processing bytes - %s", format_hex_pretty(this->incoming_data_).c_str());
   if (this->incoming_data_.size() - 3 == length) {
     this->set_error_(improv::ERROR_NONE);
     improv::ImprovCommand command = improv::parse_improv_data(this->incoming_data_);

@@ -22,7 +22,7 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
   MQTT_COMPONENT_CUSTOM_TOPIC(speed, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(speed, state)
 
-  void send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) override;
+  void send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) override;
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)

@@ -383,7 +383,7 @@ class LWIPRawImpl : public Socket {
         return err;
       }
       ret += err;
-      if (err != iov[i].iov_len)
+      if ((size_t) err != iov[i].iov_len)
         break;
     }
     return ret;
@@ -462,7 +462,7 @@ class LWIPRawImpl : public Socket {
         return err;
       }
       written += err;
-      if (err != iov[i].iov_len)
+      if ((size_t) err != iov[i].iov_len)
         break;
     }
     if (written == 0)

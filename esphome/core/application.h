@@ -5,6 +5,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/scheduler.h"
 
@@ -47,6 +48,7 @@ namespace esphome {
 class Application {
  public:
   void pre_setup(const std::string &name, const char *compilation_time, bool name_add_mac_suffix) {
+    arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
       this->name_ = name + "-" + get_mac_address().substr(6);
@@ -309,7 +311,7 @@ class Application {
   bool name_add_mac_suffix_;
   uint32_t last_loop_{0};
   uint32_t loop_interval_{16};
-  int dump_config_at_{-1};
+  size_t dump_config_at_{SIZE_MAX};
   uint32_t app_state_{0};
 };
 

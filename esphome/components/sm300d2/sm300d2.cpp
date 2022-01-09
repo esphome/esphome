@@ -50,10 +50,10 @@ void SM300D2Sensor::update() {
   const uint16_t pm_2_5 = (response[8] * 256) + response[9];
   const uint16_t pm_10_0 = (response[10] * 256) + response[11];
   // A negative value is indicated by adding 0x80 (128) to the temperature value
-  const float temperature = ((response[12] + (response[13] * 0.1)) > 128)
-                                ? (((response[12] + (response[13] * 0.1)) - 128) * -1)
-                                : response[12] + (response[13] * 0.1);
-  const float humidity = response[14] + (response[15] * 0.1);
+  const float temperature = ((response[12] + (response[13] * 0.1f)) > 128)
+                                ? (((response[12] + (response[13] * 0.1f)) - 128) * -1)
+                                : response[12] + (response[13] * 0.1f);
+  const float humidity = response[14] + (response[15] * 0.1f);
 
   ESP_LOGD(TAG, "Received CO₂: %u ppm", co2);
   if (this->co2_sensor_ != nullptr)

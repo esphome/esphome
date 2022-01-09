@@ -132,7 +132,7 @@ void APIConnection::loop() {
 
   if (state_subs_at_ != -1) {
     const auto &subs = this->parent_->get_state_subs();
-    if (state_subs_at_ >= subs.size()) {
+    if (state_subs_at_ >= (int) subs.size()) {
       state_subs_at_ = -1;
     } else {
       auto &it = subs[state_subs_at_];

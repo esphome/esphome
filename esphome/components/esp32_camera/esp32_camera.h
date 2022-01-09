@@ -67,6 +67,9 @@ class ESP32Camera : public Component, public EntityBase {
   void set_power_down_pin(uint8_t pin);
   void set_vertical_flip(bool vertical_flip);
   void set_horizontal_mirror(bool horizontal_mirror);
+  void set_aec2(bool aec2);
+  void set_ae_level(int ae_level);
+  void set_aec_value(uint32_t aec_value);
   void set_contrast(int contrast);
   void set_brightness(int brightness);
   void set_saturation(int saturation);
@@ -91,6 +94,9 @@ class ESP32Camera : public Component, public EntityBase {
   camera_config_t config_{};
   bool vertical_flip_{true};
   bool horizontal_mirror_{true};
+  bool aec2_{false};
+  int ae_level_{0};
+  uint32_t aec_value_{300};
   int contrast_{0};
   int brightness_{0};
   int saturation_{0};

@@ -9,8 +9,8 @@ static const char *const TAG = "remote.midea";
 uint8_t MideaData::calc_cs_() const {
   uint8_t cs = 0;
   for (const uint8_t *it = this->data(); it != this->data() + OFFSET_CS; ++it)
-    cs -= reverse_bits_8(*it);
-  return reverse_bits_8(cs);
+    cs -= reverse_bits(*it);
+  return reverse_bits(cs);
 }
 
 bool MideaData::check_compliment(const MideaData &rhs) const {
