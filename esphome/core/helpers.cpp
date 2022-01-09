@@ -286,9 +286,7 @@ uint32_t random_uint32() {
 #error "No random source available for this configuration."
 #endif
 }
-float random_float() {
-  return static_cast<float>(random_uint32()) / static_cast<float>(UINT32_MAX);
-}
+float random_float() { return static_cast<float>(random_uint32()) / static_cast<float>(UINT32_MAX); }
 void random_bytes(uint8_t *data, size_t len) {
 #ifdef USE_ESP32
   esp_fill_random(data, len);
