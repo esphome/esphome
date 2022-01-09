@@ -17,7 +17,7 @@ from .. import hbridge_ns
 CODEOWNERS = ["@WeekendWarrior"]
 
 
-HBridgeFan = hbridge_ns.class_("HBridgeFan", fan.Fan)
+HBridgeFan = hbridge_ns.class_("HBridgeFan", cg.Component, fan.Fan)
 
 DecayMode = hbridge_ns.enum("DecayMode")
 DECAY_MODE_OPTIONS = {

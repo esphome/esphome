@@ -28,7 +28,7 @@ void FanCall::perform() {
   if (this->speed_.has_value())
     ESP_LOGD(TAG, "  Speed: %d", *this->speed_);
   if (this->direction_.has_value())
-    ESP_LOGD(TAG, "  Direction: %s", *this->direction_ == FAN_DIRECTION_FORWARD ? "Forward" : "Reverse");
+    ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(*this->direction_)));
 
   this->parent_.control(*this);
 }
@@ -37,6 +37,13 @@ void FanCall::validate_() {
 
   if (this->speed_.has_value())
     this->speed_ = clamp(*this->speed_, 1, traits.supported_speed_count());
+
+  if (this->binary_state_.has_value() && *this->binary_state_) {
+    // when turning on, if current speed is zero, set speed to 100%
+    if (traits.supports_speed() && !this->parent_.state && this->parent_.speed == 0) {
+      this->speed_ = traits.supported_speed_count();
+    }
+  }
 }
 
 // This whole method is deprecated, don't warn about usage of deprecated methods inside of it.
@@ -81,15 +88,23 @@ FanCall Fan::make_call() { return FanCall(*this); }
 
 void Fan::add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
 void Fan::publish_state() {
-  ESP_LOGD(TAG, "'%s' - Sending state:", this->name_.c_str());
-  // TODO
+  auto traits = this->get_traits();
 
-  this->save_state_();
+  ESP_LOGD(TAG, "'%s' - Sending state:", this->name_.c_str());
+  ESP_LOGD(TAG, "  State: %s", ONOFF(this->state));
+  if (traits.supports_speed())
+    ESP_LOGD(TAG, "  Speed: %d", this->speed);
+  if (traits.supports_oscillation())
+    ESP_LOGD(TAG, "  Oscillating: %s", YESNO(this->oscillating));
+  if (traits.supports_direction())
+    ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(this->direction)));
+
   this->state_callback_.call();
+  this->save_state_();
 }
 
 // Random 32-bit value, change this every time the layout of the FanRestoreState struct changes.
-constexpr uint32_t RESTORE_STATE_VERSION = 0x00000000;
+constexpr uint32_t RESTORE_STATE_VERSION = 0x71700ABA;
 optional<FanRestoreState> Fan::restore_state_() {
   this->rtc_ = global_preferences->make_preference<FanRestoreState>(this->get_object_id_hash() ^ RESTORE_STATE_VERSION);
   FanRestoreState recovered{};
@@ -107,7 +122,6 @@ void Fan::save_state_() {
 }
 
 void Fan::dump_traits_(const char *tag, const char *prefix) {
-  ESP_LOGCONFIG(tag, "Fan '%s':", this->get_name().c_str());
   if (this->get_traits().supports_speed()) {
     ESP_LOGCONFIG(tag, "%s  Speed: YES", prefix);
     ESP_LOGCONFIG(tag, "%s  Speed count: %d", prefix, this->get_traits().supported_speed_count());

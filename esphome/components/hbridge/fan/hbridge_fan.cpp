@@ -40,17 +40,18 @@ fan::FanTraits HBridgeFan::get_traits() {
   return fan::FanTraits(this->oscillating_ != nullptr, true, true, this->speed_count_);
 }
 void HBridgeFan::control(const fan::FanCall &call) {
-  float speed = 0.0f;
-  if (call.get_state().value_or(this->state)) {
-    speed = static_cast<float>(call.get_speed().value_or(this->speed)) / static_cast<float>(this->speed_count_);
-  }
+  if (call.get_state().has_value())
+    this->state = *call.get_state();
+  if (call.get_speed().has_value())
+    this->speed = *call.get_speed();
+  if (call.get_direction().has_value())
+    this->direction = *call.get_direction();
 
+  float speed = this->state ? static_cast<float>(this->speed) / static_cast<float>(this->speed_count_) : 0.0f;
   if (speed == 0.0f) {  // off means idle
     (this->enable_ == nullptr) ? this->set_hbridge_levels_(speed, speed)
                                : this->set_hbridge_levels_(speed, speed, speed);
-    return;
-  }
-  if (this->direction == fan::FAN_DIRECTION_FORWARD) {
+  } else if (this->direction == fan::FAN_DIRECTION_FORWARD) {
     if (this->decay_mode_ == DECAY_MODE_SLOW) {
       (this->enable_ == nullptr) ? this->set_hbridge_levels_(1.0f - speed, 1.0f)
                                  : this->set_hbridge_levels_(1.0f - speed, 1.0f, 1.0f);
@@ -67,6 +68,8 @@ void HBridgeFan::control(const fan::FanCall &call) {
                                  : this->set_hbridge_levels_(1.0f, 0.0f, speed);
     }
   }
+
+  this->publish_state();
 }
 
 }  // namespace hbridge

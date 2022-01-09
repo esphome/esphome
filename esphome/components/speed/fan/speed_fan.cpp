@@ -12,15 +12,18 @@ fan::FanTraits SpeedFan::get_traits() {
   return fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_);
 }
 void SpeedFan::control(const fan::FanCall &call) {
-  {
-    float speed = 0.0f;
-    if (call.get_state().value_or(this->state)) {
-      speed = static_cast<float>(call.get_speed().value_or(this->speed)) / static_cast<float>(this->speed_count_);
-    }
+  if (call.get_state().has_value() || call.get_speed().has_value()) {
+    if (call.get_state().has_value())
+      this->state = *call.get_state();
+    if (call.get_speed().has_value())
+      this->speed = *call.get_speed();
+
+    float speed = this->state ? static_cast<float>(this->speed) / static_cast<float>(this->speed_count_) : 0.0f;
     this->output_->set_level(speed);
   }
 
   if (this->oscillating_ != nullptr && call.get_oscillating().has_value()) {
+    this->oscillating = *call.get_oscillating();
     if (*call.get_oscillating()) {
       this->oscillating_->turn_on();
     } else {
@@ -29,12 +32,15 @@ void SpeedFan::control(const fan::FanCall &call) {
   }
 
   if (this->direction_ != nullptr && call.get_direction().has_value()) {
+    this->direction = *call.get_direction();
     if (*call.get_direction() == fan::FAN_DIRECTION_REVERSE) {
       this->direction_->turn_on();
     } else {
       this->direction_->turn_off();
     }
   }
+
+  this->publish_state();
 }
 
 }  // namespace speed
