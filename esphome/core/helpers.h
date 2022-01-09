@@ -92,11 +92,6 @@ float random_float();
 
 void fill_random(uint8_t *data, size_t len);
 
-void fast_random_set_seed(uint32_t seed);
-uint32_t fast_random_32();
-uint16_t fast_random_16();
-uint8_t fast_random_8();
-
 /// Applies gamma correction with the provided gamma to value.
 float gamma_correct(float value, float gamma);
 /// Reverts gamma correction with the provided gamma to value.

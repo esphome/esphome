@@ -87,22 +87,6 @@ void fill_random(uint8_t *data, size_t len) {
 #endif
 }
 
-static uint32_t fast_random_seed = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-void fast_random_set_seed(uint32_t seed) { fast_random_seed = seed; }
-uint32_t fast_random_32() {
-  fast_random_seed = (fast_random_seed * 2654435769ULL) + 40503ULL;
-  return fast_random_seed;
-}
-uint16_t fast_random_16() {
-  uint32_t rand32 = fast_random_32();
-  return (rand32 & 0xFFFF) + (rand32 >> 16);
-}
-uint8_t fast_random_8() {
-  uint32_t rand32 = fast_random_32();
-  return (rand32 & 0xFF) + ((rand32 >> 8) & 0xFF);
-}
-
 float gamma_correct(float value, float gamma) {
   if (value <= 0.0f)
     return 0.0f;
