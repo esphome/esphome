@@ -2122,6 +2122,8 @@ display:
       mcp23xxx: mcp23017_hub
       number: 2
     intensity: 3
+    inverted: true
+    length: 4
     lambda: |-
       it.print("1234");
   - platform: pcd8544

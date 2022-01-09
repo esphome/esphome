@@ -2,6 +2,7 @@
 #include "esphome/core/defines.h"
 #include <cstdio>
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstring>
 
@@ -129,18 +130,6 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
   snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
   return std::string(tmp);
 }
-std::string uint64_to_string(uint64_t num) {
-  char buffer[17];
-  auto *address16 = reinterpret_cast<uint16_t *>(&num);
-  snprintf(buffer, sizeof(buffer), "%04X%04X%04X%04X", address16[3], address16[2], address16[1], address16[0]);
-  return std::string(buffer);
-}
-std::string uint32_to_string(uint32_t num) {
-  char buffer[9];
-  auto *address16 = reinterpret_cast<uint16_t *>(&num);
-  snprintf(buffer, sizeof(buffer), "%04X%04X", address16[1], address16[0]);
-  return std::string(buffer);
-}
 
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   if (on == nullptr && strcasecmp(str, "on") == 0)
@@ -187,63 +176,6 @@ void delay_microseconds_safe(uint32_t us) {  // avoids CPU locks that could trig
     ;
 }
 
-uint8_t reverse_bits_8(uint8_t x) {
-  x = ((x & 0xAA) >> 1) | ((x & 0x55) << 1);
-  x = ((x & 0xCC) >> 2) | ((x & 0x33) << 2);
-  x = ((x & 0xF0) >> 4) | ((x & 0x0F) << 4);
-  return x;
-}
-
-uint16_t reverse_bits_16(uint16_t x) {
-  return uint16_t(reverse_bits_8(x & 0xFF) << 8) | uint16_t(reverse_bits_8(x >> 8));
-}
-std::string to_string(const std::string &val) { return val; }
-std::string to_string(int val) {
-  char buf[64];
-  sprintf(buf, "%d", val);
-  return buf;
-}
-std::string to_string(long val) {  // NOLINT
-  char buf[64];
-  sprintf(buf, "%ld", val);
-  return buf;
-}
-std::string to_string(long long val) {  // NOLINT
-  char buf[64];
-  sprintf(buf, "%lld", val);
-  return buf;
-}
-std::string to_string(unsigned val) {  // NOLINT
-  char buf[64];
-  sprintf(buf, "%u", val);
-  return buf;
-}
-std::string to_string(unsigned long val) {  // NOLINT
-  char buf[64];
-  sprintf(buf, "%lu", val);
-  return buf;
-}
-std::string to_string(unsigned long long val) {  // NOLINT
-  char buf[64];
-  sprintf(buf, "%llu", val);
-  return buf;
-}
-std::string to_string(float val) {
-  char buf[64];
-  sprintf(buf, "%f", val);
-  return buf;
-}
-std::string to_string(double val) {
-  char buf[64];
-  sprintf(buf, "%f", val);
-  return buf;
-}
-std::string to_string(long double val) {
-  char buf[64];
-  sprintf(buf, "%Lf", val);
-  return buf;
-}
-
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
   for (char c : str) {
@@ -254,10 +186,6 @@ uint32_t fnv1_hash(const std::string &str) {
 }
 bool str_equals_case_insensitive(const std::string &a, const std::string &b) {
   return strcasecmp(a.c_str(), b.c_str()) == 0;
-}
-
-template<uint32_t> uint32_t reverse_bits(uint32_t x) {
-  return uint32_t(reverse_bits_16(x & 0xFFFF) << 16) | uint32_t(reverse_bits_16(x >> 16));
 }
 
 static int high_freq_num_requests = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -275,17 +203,6 @@ void HighFrequencyLoopRequester::stop() {
   this->started_ = false;
 }
 bool HighFrequencyLoopRequester::is_high_frequency() { return high_freq_num_requests > 0; }
-
-template<typename T> T clamp(const T val, const T min, const T max) {
-  if (val < min)
-    return min;
-  if (val > max)
-    return max;
-  return val;
-}
-template uint8_t clamp(uint8_t, uint8_t, uint8_t);
-template float clamp(float, float, float);
-template int clamp(int, int, int);
 
 float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
 
@@ -407,6 +324,16 @@ std::string str_until(const char *str, char ch) {
   return pos == nullptr ? std::string(str) : std::string(str, pos - str);
 }
 std::string str_until(const std::string &str, char ch) { return str.substr(0, str.find(ch)); }
+// wrapper around std::transform to run safely on functions from the ctype.h header
+// see https://en.cppreference.com/w/cpp/string/byte/toupper#Notes
+template<int (*fn)(int)> std::string str_ctype_transform(const std::string &str) {
+  std::string result;
+  result.resize(str.length());
+  std::transform(str.begin(), str.end(), result.begin(), [](unsigned char ch) { return fn(ch); });
+  return result;
+}
+std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::toupper>(str); }
+std::string str_upper_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
 std::string str_snake_case(const std::string &str) {
   std::string result;
   result.resize(str.length());

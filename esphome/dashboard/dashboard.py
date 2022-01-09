@@ -601,7 +601,7 @@ class MainRequestHandler(BaseHandler):
         begin = bool(self.get_argument("begin", False))
 
         self.render(
-            get_template_path("index"),
+            "index.template.html",
             begin=begin,
             **template_args(),
             login_enabled=settings.using_password,
@@ -778,7 +778,7 @@ class LoginHandler(BaseHandler):
 
     def render_login_page(self, error=None):
         self.render(
-            get_template_path("login"),
+            "login.template.html",
             error=error,
             hassio=settings.using_hassio_auth,
             has_username=bool(settings.username),
@@ -872,10 +872,6 @@ def get_base_frontend_path():
     return os.path.abspath(os.path.join(os.getcwd(), static_path, "esphome_dashboard"))
 
 
-def get_template_path(template_name):
-    return os.path.join(get_base_frontend_path(), f"{template_name}.template.html")
-
-
 def get_static_path(*args):
     return os.path.join(get_base_frontend_path(), "static", *args)
 
@@ -933,6 +929,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
         "cookie_secret": settings.cookie_secret,
         "log_function": log_function,
         "websocket_ping_interval": 30.0,
+        "template_path": get_base_frontend_path(),
     }
     rel = settings.relative_url
     app = tornado.web.Application(

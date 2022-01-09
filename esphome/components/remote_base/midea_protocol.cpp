@@ -17,9 +17,9 @@ static const int32_t FOOTER_SPACE_US = 10 * TICK_US;
 
 uint8_t MideaData::calc_cs_() const {
   uint8_t cs = 0;
-  for (unsigned idx = 0; idx < OFFSET_CS; idx++)
-    cs -= reverse_bits_8(this->data_[idx]);
-  return reverse_bits_8(cs);
+  for (uint8_t idx = 0; idx < OFFSET_CS; idx++)
+    cs -= reverse_bits(this->data_[idx]);
+  return reverse_bits(cs);
 }
 
 bool MideaData::is_compliment(const MideaData &rhs) const {
