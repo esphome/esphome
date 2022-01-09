@@ -1718,6 +1718,9 @@ climate:
     name: HeatpumpIR Climate
     min_temperature: 18
     max_temperature: 30
+  - platform: midea_ir
+    name: Midea IR
+    use_fahrenheit: true
   - platform: midea
     on_state:
       logger.log: "State changed!"

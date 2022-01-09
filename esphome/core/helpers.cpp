@@ -378,7 +378,7 @@ std::string format_hex(const uint8_t *data, size_t length) {
   }
   return ret;
 }
-std::string format_hex(std::vector<uint8_t> data) { return format_hex(data.data(), data.size()); }
+std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
 
 static char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
 std::string format_hex_pretty(const uint8_t *data, size_t length) {
@@ -396,6 +396,6 @@ std::string format_hex_pretty(const uint8_t *data, size_t length) {
     return ret + " (" + to_string(length) + ")";
   return ret;
 }
-std::string format_hex_pretty(std::vector<uint8_t> data) { return format_hex_pretty(data.data(), data.size()); }
+std::string format_hex_pretty(const std::vector<uint8_t> &data) { return format_hex_pretty(data.data(), data.size()); }
 
 }  // namespace esphome

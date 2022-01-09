@@ -110,6 +110,11 @@ void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation,
 /// Convert hue (0-360) & saturation/value percentage (0-1) to RGB floats (0-1)
 void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green, float &blue);
 
+/// Convert degrees Celsius to degrees Fahrenheit.
+static inline float celsius_to_fahrenheit(float value) { return value * 1.8f + 32.0f; }
+/// Convert degrees Fahrenheit to degrees Celsius.
+static inline float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.8f; }
+
 /***
  * An interrupt helper class.
  *
@@ -491,7 +496,7 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
 /// Format the byte array \p data of length \p len in lowercased hex.
 std::string format_hex(const uint8_t *data, size_t length);
 /// Format the vector \p data in lowercased hex.
-std::string format_hex(std::vector<uint8_t> data);
+std::string format_hex(const std::vector<uint8_t> &data);
 /// Format an unsigned integer in lowercased hex, starting with the most significant byte.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
   val = convert_big_endian(val);
@@ -501,7 +506,7 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::stri
 /// Format the byte array \p data of length \p len in pretty-printed, human-readable hex.
 std::string format_hex_pretty(const uint8_t *data, size_t length);
 /// Format the vector \p data in pretty-printed, human-readable hex.
-std::string format_hex_pretty(std::vector<uint8_t> data);
+std::string format_hex_pretty(const std::vector<uint8_t> &data);
 /// Format an unsigned integer in pretty-printed, human-readable hex, starting with the most significant byte.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex_pretty(T val) {
   val = convert_big_endian(val);
