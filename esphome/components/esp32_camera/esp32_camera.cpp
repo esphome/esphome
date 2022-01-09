@@ -49,9 +49,6 @@ void ESP32Camera::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP32 Camera:");
   ESP_LOGCONFIG(TAG, "  Name: %s", this->name_.c_str());
   ESP_LOGCONFIG(TAG, "  Internal: %s", YESNO(this->internal_));
-#ifdef USE_ARDUINO
-  ESP_LOGCONFIG(TAG, "  Board Has PSRAM: %s", YESNO(psramFound()));
-#endif  // USE_ARDUINO
   ESP_LOGCONFIG(TAG, "  Data Pins: D0:%d D1:%d D2:%d D3:%d D4:%d D5:%d D6:%d D7:%d", conf.pin_d0, conf.pin_d1,
                 conf.pin_d2, conf.pin_d3, conf.pin_d4, conf.pin_d5, conf.pin_d6, conf.pin_d7);
   ESP_LOGCONFIG(TAG, "  VSYNC Pin: %d", conf.pin_vsync);
@@ -136,6 +133,13 @@ void ESP32Camera::loop() {
     this->current_image_.reset();
   }
 
+  // request idle image every idle_update_interval
+  const uint32_t now = millis();
+  if (this->idle_update_interval_ != 0 && now - this->last_idle_request_ > this->idle_update_interval_) {
+    this->last_idle_request_ = now;
+    this->request_image(IDLE);
+  }
+
   // Check if we should fetch a new image
   if (!this->has_requested_image_())
     return;
@@ -143,7 +147,6 @@ void ESP32Camera::loop() {
     // image is still in use
     return;
   }
-  const uint32_t now = millis();
   if (now - this->last_update_ <= this->max_update_interval_)
     return;
 
@@ -160,12 +163,12 @@ void ESP32Camera::loop() {
     xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
     return;
   }
-  this->current_image_ = std::make_shared<CameraImage>(fb);
+  this->current_image_ = std::make_shared<CameraImage>(fb, this->single_requesters_ | this->stream_requesters_);
 
   ESP_LOGD(TAG, "Got Image: len=%u", fb->len);
   this->new_image_callback_.call(this->current_image_);
   this->last_update_ = now;
-  this->single_requester_ = false;
+  this->single_requesters_ = 0;
 }
 void ESP32Camera::framebuffer_task(void *pv) {
   while (true) {
@@ -261,24 +264,10 @@ void ESP32Camera::set_brightness(int brightness) { this->brightness_ = brightnes
 void ESP32Camera::set_saturation(int saturation) { this->saturation_ = saturation; }
 float ESP32Camera::get_setup_priority() const { return setup_priority::DATA; }
 uint32_t ESP32Camera::hash_base() { return 3010542557UL; }
-void ESP32Camera::request_image() { this->single_requester_ = true; }
-void ESP32Camera::request_stream() { this->last_stream_request_ = millis(); }
-bool ESP32Camera::has_requested_image_() const {
-  if (this->single_requester_)
-    // single request
-    return true;
-
-  uint32_t now = millis();
-  if (now - this->last_stream_request_ < 5000)
-    // stream request
-    return true;
-
-  if (this->idle_update_interval_ != 0 && now - this->last_update_ > this->idle_update_interval_)
-    // idle update
-    return true;
-
-  return false;
-}
+void ESP32Camera::request_image(CameraRequester requester) { this->single_requesters_ |= 1 << requester; }
+void ESP32Camera::start_stream(CameraRequester requester) { this->stream_requesters_ |= 1 << requester; }
+void ESP32Camera::stop_stream(CameraRequester requester) { this->stream_requesters_ &= ~(1 << requester); }
+bool ESP32Camera::has_requested_image_() const { return this->single_requesters_ || this->stream_requesters_; }
 bool ESP32Camera::can_return_image_() const { return this->current_image_.use_count() == 1; }
 void ESP32Camera::set_max_update_interval(uint32_t max_update_interval) {
   this->max_update_interval_ = max_update_interval;
@@ -307,7 +296,10 @@ uint8_t *CameraImageReader::peek_data_buffer() { return this->image_->get_data_b
 camera_fb_t *CameraImage::get_raw_buffer() { return this->buffer_; }
 uint8_t *CameraImage::get_data_buffer() { return this->buffer_->buf; }
 size_t CameraImage::get_data_length() { return this->buffer_->len; }
-CameraImage::CameraImage(camera_fb_t *buffer) : buffer_(buffer) {}
+bool CameraImage::was_requested_by(CameraRequester requester) const {
+  return (this->requesters_ & (1 << requester)) != 0;
+}
+CameraImage::CameraImage(camera_fb_t *buffer, uint8_t requesters) : buffer_(buffer), requesters_(requesters) {}
 
 }  // namespace esp32_camera
 }  // namespace esphome

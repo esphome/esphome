@@ -12,6 +12,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c", "esp32"]
+AUTO_LOAD = ["psram"]
 
 CONF_DISPLAY_DATA_0_PIN = "display_data_0_pin"
 CONF_DISPLAY_DATA_1_PIN = "display_data_1_pin"
@@ -179,5 +180,3 @@ async def to_code(config):
 
     display_data_7 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_7_PIN])
     cg.add(var.set_display_data_7_pin(display_data_7))
-
-    cg.add_build_flag("-DBOARD_HAS_PSRAM")

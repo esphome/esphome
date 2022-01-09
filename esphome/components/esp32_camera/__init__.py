@@ -19,6 +19,8 @@ from esphome.cpp_helpers import setup_entity
 
 DEPENDENCIES = ["esp32"]
 
+AUTO_LOAD = ["psram"]
+
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
 ESP32CameraFrameSize = esp32_camera_ns.enum("ESP32CameraFrameSize")
@@ -153,9 +155,7 @@ async def to_code(config):
     cg.add(var.set_frame_size(config[CONF_RESOLUTION]))
 
     cg.add_define("USE_ESP32_CAMERA")
-    cg.add_build_flag("-DBOARD_HAS_PSRAM")
 
     if CORE.using_esp_idf:
         cg.add_library("espressif/esp32-camera", "1.0.0")
         add_idf_sdkconfig_option("CONFIG_RTCIO_SUPPORT_RTC_GPIO_DESC", True)
-        add_idf_sdkconfig_option("CONFIG_ESP32_SPIRAM_SUPPORT", True)
