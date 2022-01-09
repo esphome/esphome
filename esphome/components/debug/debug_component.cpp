@@ -301,7 +301,7 @@ void DebugComponent::update() {
 
   if (this->block_sensor_ != nullptr) {
 #if defined(USE_ESP8266)
-    // NOLINT(readability-static-accessed-through-instance)
+    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     this->block_sensor_->publish_state(ESP.getMaxFreeBlockSize());
 #elif defined(USE_ESP32)
     this->block_sensor_->publish_state(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
@@ -310,7 +310,7 @@ void DebugComponent::update() {
 
 #if defined(USE_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
   if (this->fragmentation_sensor_ != nullptr) {
-    // NOLINT(readability-static-accessed-through-instance)
+    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     this->fragmentation_sensor_->publish_state(ESP.getHeapFragmentation());
   }
 #endif
