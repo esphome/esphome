@@ -1,21 +1,20 @@
 #include "debug_component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/version.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
+
 #include <esp_heap_caps.h>
 #include <esp_system.h>
-#endif
 
-#ifdef USE_ESP32
 #if ESP_IDF_VERSION_MAJOR >= 4
 #include <esp32/rom/rtc.h>
 #else
 #include <rom/rtc.h>
 #endif
-#endif
+
+#endif // USE_ESP32
 
 #ifdef USE_ARDUINO
 #include <Esp.h>
@@ -27,9 +26,9 @@ namespace debug {
 static const char *const TAG = "debug";
 
 static uint32_t get_free_heap() {
-#ifdef USE_ARDUINO
+#if defined(USE_ESP8266)
   return ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
-#elif defined(USE_ESP_IDF)
+#elif defined(USE_ESP32)
   return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
 #endif
 }
@@ -296,13 +295,17 @@ void DebugComponent::update() {
     this->free_sensor_->publish_state(get_free_heap());
   }
 
+  if (this->block_sensor_ != nullptr) {
+#if defined(USE_ESP8266)
+    this->block_sensor_->publish_state(ESP.getMaxFreeBlockSize());
+#elif defined(USE_ESP32)
+    this->block_sensor_->publish_state(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+#endif
+  }
+
 #if defined(USE_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
   if (this->fragmentation_sensor_ != nullptr) {
     this->fragmentation_sensor_->publish_state(ESP.getHeapFragmentation());
-  }
-
-  if (this->block_sensor_ != nullptr) {
-    this->block_sensor_->publish_state(ESP.getMaxFreeBlockSize());
   }
 #endif
 

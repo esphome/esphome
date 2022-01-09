@@ -18,9 +18,9 @@ class DebugComponent : public PollingComponent {
 
   void set_device_info_sensor(text_sensor::TextSensor *device_info) { device_info_ = device_info; }
   void set_free_sensor(sensor::Sensor *free_sensor) { free_sensor_ = free_sensor; }
-#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
-  void set_fragmentation_sensor(sensor::Sensor *fragmentation_sensor) { fragmentation_sensor_ = fragmentation_sensor; }
   void set_block_sensor(sensor::Sensor *block_sensor) { block_sensor_ = block_sensor; }
+#if defined(USE_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
+  void set_fragmentation_sensor(sensor::Sensor *fragmentation_sensor) { fragmentation_sensor_ = fragmentation_sensor; }
 #endif
   void set_loop_time_sensor(sensor::Sensor *loop_time_sensor) { loop_time_sensor_ = loop_time_sensor; }
 
@@ -32,9 +32,9 @@ class DebugComponent : public PollingComponent {
 
   text_sensor::TextSensor *device_info_{nullptr};
   sensor::Sensor *free_sensor_{nullptr};
-#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
-  sensor::Sensor *fragmentation_sensor_{nullptr};
   sensor::Sensor *block_sensor_{nullptr};
+#if defined(USE_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
+  sensor::Sensor *fragmentation_sensor_{nullptr};
 #endif
   sensor::Sensor *loop_time_sensor_{nullptr};
 };
