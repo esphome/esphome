@@ -186,17 +186,6 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   std::vector<std::function<void(Ts...)>> callbacks_;
 };
 
-// https://stackoverflow.com/a/37161919/8924614
-template<class T, class... Args>
-struct is_callable  // NOLINT
-{
-  template<class U> static auto test(U *p) -> decltype((*p)(std::declval<Args>()...), void(), std::true_type());
-
-  template<class U> static auto test(...) -> decltype(std::false_type());
-
-  static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
-};
-
 void delay_microseconds_safe(uint32_t us);
 
 template<typename T> class Deduplicator {
@@ -272,6 +261,18 @@ template<typename T, typename Compare> constexpr const T &clamp(const T &v, cons
 template<typename T> constexpr const T &clamp(const T &v, const T &lo, const T &hi) {
   return clamp(v, lo, hi, std::less<T>{});
 }
+#endif
+
+// std::is_invocable from C++17
+#if __cpp_lib_is_invocable >= 201703
+using std::is_invocable;
+#else
+// https://stackoverflow.com/a/37161919/8924614
+template<class T, class... Args> struct is_invocable {
+  template<class U> static auto test(U *p) -> decltype((*p)(std::declval<Args>()...), void(), std::true_type());
+  template<class U> static auto test(...) -> decltype(std::false_type());
+  static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
+};
 #endif
 
 // std::bit_cast from C++20
