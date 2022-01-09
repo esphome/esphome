@@ -8,11 +8,11 @@ namespace kalman_combinator {
 
 void KalmanCombinatorComponent::dump_config() {
   ESP_LOGCONFIG("kalman_combinator", "Kalman Combinator:");
-  ESP_LOGCONFIG("kalman_combinator", "  Update variance per ms: %f", this->update_variance_);
+  ESP_LOGCONFIG("kalman_combinator", "  Update variance: %f per ms", this->update_variance_value_);
   ESP_LOGCONFIG("kalman_combinator", "  Sensors:");
   for (const auto &sensor : this->sensors_) {
     auto &entity = *sensor.first;
-    ESP_LOGCONFIG("kalman_combinator", "    - %s", entity.get_object_id().c_str());
+    ESP_LOGCONFIG("kalman_combinator", "    - %s", entity.get_name().c_str());
   }
 }
 
@@ -31,15 +31,14 @@ void KalmanCombinatorComponent::add_source(Sensor *sensor, float stddev) {
   this->add_source(sensor, std::function<float(float)>{[stddev](float) -> float { return stddev; }});
 }
 
-void KalmanCombinatorComponent::update_() {
+void KalmanCombinatorComponent::update_variance_() {
   uint32_t now = millis();
-  if (now != this->last_update_) {
-    // Variance increases by update_variance_ each second
-    auto dt = now - this->last_update_;
-    auto dv = this->update_variance_ * dt;
-    this->variance_ += dv;
-    this->last_update_ = now;
-  }
+
+  // Variance increases by update_variance_ each millisecond
+  auto dt = now - this->last_update_;
+  auto dv = this->update_variance_value_ * dt;
+  this->variance_ += dv;
+  this->last_update_ = now;
 }
 
 void KalmanCombinatorComponent::correct_(float value, float stddev) {
@@ -56,8 +55,7 @@ void KalmanCombinatorComponent::correct_(float value, float stddev) {
     return;
   }
 
-  // Update the variance
-  this->update_();
+  this->update_variance_();
 
   // Combine two gaussian distributions mu1+-var1, mu2+-var2 to a new one around mu
   // Use the value with the smaller variance as mu1 to prevent precision errors
