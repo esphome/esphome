@@ -268,7 +268,7 @@ template<typename T> constexpr const T &clamp(const T &v, const T &lo, const T &
 using std::is_invocable;
 #else
 // https://stackoverflow.com/a/37161919/8924614
-template<class T, class... Args> struct is_invocable {
+template<class T, class... Args> struct is_invocable {  // NOLINT(readability-identifier-naming)
   template<class U> static auto test(U *p) -> decltype((*p)(std::declval<Args>()...), void(), std::true_type());
   template<class U> static auto test(...) -> decltype(std::false_type());
   static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
