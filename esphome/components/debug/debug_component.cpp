@@ -46,9 +46,9 @@ void DebugComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Debug component:");
   LOG_TEXT_SENSOR("  ", "Device info", this->device_info_);
   LOG_SENSOR("  ", "Free space on heap", this->free_sensor_);
+  LOG_SENSOR("  ", "Largest free heap block", this->block_sensor_);
 #if defined(USE_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
   LOG_SENSOR("  ", "Heap fragmentation", this->fragmentation_sensor_);
-  LOG_SENSOR("  ", "Largest free heap block", this->block_sensor_);
 #endif
 
   ESP_LOGD(TAG, "ESPHome version %s", ESPHOME_VERSION);
@@ -86,6 +86,7 @@ void DebugComponent::dump_config() {
   // NOLINTNEXTLINE(readability-static-accessed-through-instance)
   ESP_LOGD(TAG, "Flash Chip: Size=%ukB Speed=%uMHz Mode=%s", ESP.getFlashChipSize() / 1024,
            ESP.getFlashChipSpeed() / 1000000, flash_mode);
+  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
   device_info += "|Flash: " + to_string(ESP.getFlashChipSize() / 1024) +
                  "kB Speed:" + to_string(ESP.getFlashChipSpeed() / 1000000) + "MHz Mode:";
   device_info += flash_mode;
@@ -297,6 +298,7 @@ void DebugComponent::update() {
 
   if (this->block_sensor_ != nullptr) {
 #if defined(USE_ESP8266)
+    // NOLINT(readability-static-accessed-through-instance)
     this->block_sensor_->publish_state(ESP.getMaxFreeBlockSize());
 #elif defined(USE_ESP32)
     this->block_sensor_->publish_state(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
@@ -305,6 +307,7 @@ void DebugComponent::update() {
 
 #if defined(USE_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
   if (this->fragmentation_sensor_ != nullptr) {
+    // NOLINT(readability-static-accessed-through-instance)
     this->fragmentation_sensor_->publish_state(ESP.getHeapFragmentation());
   }
 #endif

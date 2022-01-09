@@ -3,16 +3,16 @@ import esphome.codegen as cg
 from esphome.components import sensor, text_sensor
 from esphome.const import (
     CONF_ID,
-    ICON_COUNTER,
     CONF_DEVICE,
     CONF_FREE,
     CONF_FRAGMENTATION,
     CONF_BLOCK,
     CONF_LOOP_TIME,
     UNIT_MILLISECOND,
-    ICON_TIMER,
-    UNIT_COUNTS,
+    UNIT_PERCENT,
     UNIT_BYTES,
+    ICON_COUNTER,
+    ICON_TIMER,
     DEVICE_CLASS_EMPTY,
 )
 
@@ -38,7 +38,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_FRAGMENTATION): cv.All(
             cv.only_on_esp8266,
             cv.require_framework_version(esp8266_arduino=cv.Version(2, 5, 2)),
-            sensor.sensor_schema(UNIT_COUNTS, ICON_COUNTER, 1, DEVICE_CLASS_EMPTY),
+            sensor.sensor_schema(UNIT_PERCENT, ICON_COUNTER, 1, DEVICE_CLASS_EMPTY),
         ),
         cv.Optional(CONF_LOOP_TIME): sensor.sensor_schema(
             UNIT_MILLISECOND, ICON_TIMER, 1, DEVICE_CLASS_EMPTY
