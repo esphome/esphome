@@ -17,7 +17,7 @@
 #include <rom/rtc.h>
 #endif
 
-#endif // USE_ESP32
+#endif  // USE_ESP32
 
 #ifdef USE_ARDUINO
 #include <Esp.h>
