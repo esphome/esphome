@@ -47,7 +47,7 @@ async def to_code(config):
     cg.add(var.set_clear_screen(config[CONF_CLEAR]))
     cg.add(var.set_temperature(config[CONF_TEMPERATURE]))
     cg.add(var.set_landscape(config[CONF_LANDSCAPE]))
-    cg.add(var.set_landscape(config[CONF_POWER_OFF_DELAY_ENABLED]))
+    cg.add(var.set_power_off_delay_enabled(config[CONF_POWER_OFF_DELAY_ENABLED]))
     cg.add_library("https://github.com/vroland/epdiy.git", None)
     cg.add_build_flag("-DBOARD_HAS_PSRAM")
     cg.add_build_flag("-DCONFIG_EPD_DISPLAY_TYPE_ED047TC1")
