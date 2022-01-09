@@ -1,5 +1,8 @@
 #include "debug_component.h"
+
+#include <algorithm>
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/version.h"
 
@@ -286,7 +289,7 @@ void DebugComponent::loop() {
   if (this->loop_time_sensor_ != nullptr) {
     uint32_t now = millis();
     uint32_t loop_time = now - this->last_loop_timetag_;
-    this->max_loop_time_ = max(this->max_loop_time_, loop_time);
+    this->max_loop_time_ = std::max(this->max_loop_time_, loop_time);
     this->last_loop_timetag_ = now;
   }
 }
