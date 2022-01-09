@@ -26,6 +26,14 @@ namespace debug {
 
 static const char *const TAG = "debug";
 
+static uint32_t get_free_heap() {
+#ifdef USE_ARDUINO
+  return ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
+#elif defined(USE_ESP_IDF)
+  return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+#endif
+}
+
 void DebugComponent::dump_config() {
   std::string device_info;
   device_info.reserve(256);
@@ -36,10 +44,10 @@ void DebugComponent::dump_config() {
   return;
 #endif
 
-  ESP_LOGCONFIG(TAG, "DebugComponent:");
+  ESP_LOGCONFIG(TAG, "Debug component:");
   LOG_TEXT_SENSOR("  ", "Device info", this->device_info_);
   LOG_SENSOR("  ", "Free space on heap", this->free_sensor_);
-#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
+#if defined(USE_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
   LOG_SENSOR("  ", "Heap fragmentation", this->fragmentation_sensor_);
   LOG_SENSOR("  ", "Largest free heap block", this->block_sensor_);
 #endif
@@ -47,11 +55,7 @@ void DebugComponent::dump_config() {
   ESP_LOGD(TAG, "ESPHome version %s", ESPHOME_VERSION);
   device_info += ESPHOME_VERSION;
 
-#ifdef USE_ARDUINO
-  this->free_heap_ = ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
-#elif defined(USE_ESP_IDF)
-  this->free_heap_ = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-#endif
+  this->free_heap_ = get_free_heap();
   ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
 
 #ifdef USE_ARDUINO
@@ -270,6 +274,14 @@ void DebugComponent::dump_config() {
 }
 
 void DebugComponent::loop() {
+  // log when free heap space has halved
+  uint32_t new_free_heap = get_free_heap();
+  if (new_free_heap < this->free_heap_ / 2) {
+    this->free_heap_ = new_free_heap;
+    ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
+    this->status_momentary_warning("heap", 1000);
+  }
+
   // calculate loop time - from last call to this one
   if (this->loop_time_sensor_ != nullptr) {
     uint32_t now = millis();
@@ -280,22 +292,11 @@ void DebugComponent::loop() {
 }
 
 void DebugComponent::update() {
-#ifdef USE_ARDUINO
-  uint32_t new_free_heap = ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
-#elif defined(USE_ESP_IDF)
-  uint32_t new_free_heap = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-#endif
-  if (new_free_heap < this->free_heap_ / 2) {
-    this->free_heap_ = new_free_heap;
-    ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
-    this->status_momentary_warning("heap", 1000);
-  }
-
   if (this->free_sensor_ != nullptr) {
-    this->free_sensor_->publish_state(new_free_heap);
+    this->free_sensor_->publish_state(get_free_heap());
   }
 
-#if defined(ARDUINO_ARCH_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
+#if defined(USE_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
   if (this->fragmentation_sensor_ != nullptr) {
     this->fragmentation_sensor_->publish_state(ESP.getHeapFragmentation());
   }
