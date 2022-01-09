@@ -4,8 +4,11 @@ from esphome.components import sensor
 from esphome.const import (
     CONF_ID,
     CONF_SOURCE,
-    CONF_UNIT_OF_MEASUREMENT,
+    CONF_ACCURACY_DECIMALS,
     CONF_DEVICE_CLASS,
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
+    CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core.entity_helpers import inherit_property_from
 
@@ -37,24 +40,31 @@ CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
     }
 )
 
+# Inherit some sensor values from the first source, for both the state and the error value
+properties_to_inherit = [
+    CONF_ACCURACY_DECIMALS,
+    CONF_DEVICE_CLASS,
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
+    CONF_UNIT_OF_MEASUREMENT,
+    # CONF_STATE_CLASS could also be inherited, but might lead to unexpected behaviour with "total_increasing"
+]
+inherit_schema_for_state = [
+    inherit_property_from(property, [CONF_SOURCES, 0, CONF_SOURCE])
+    for property in properties_to_inherit
+]
+inherit_schema_for_std_dev = [
+    inherit_property_from([CONF_STD_DEV, property], [CONF_SOURCES, 0, CONF_SOURCE])
+    for property in properties_to_inherit
+]
+
 FINAL_VALIDATE_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(KalmanCombinatorComponent),
-            cv.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string,
-            cv.Optional(CONF_DEVICE_CLASS): cv.string,
-            cv.Required(CONF_SOURCES): sources_schema,
-        },
+    CONFIG_SCHEMA.extend(
+        {cv.Required(CONF_ID): cv.use_id(KalmanCombinatorComponent)},
         extra=cv.ALLOW_EXTRA,
     ),
-    inherit_property_from(CONF_UNIT_OF_MEASUREMENT, [CONF_SOURCES, 0, CONF_SOURCE]),
-    inherit_property_from(CONF_DEVICE_CLASS, [CONF_SOURCES, 0, CONF_SOURCE]),
-    inherit_property_from(
-        [CONF_STD_DEV, CONF_UNIT_OF_MEASUREMENT], [CONF_SOURCES, 0, CONF_SOURCE]
-    ),
-    inherit_property_from(
-        [CONF_STD_DEV, CONF_DEVICE_CLASS], [CONF_SOURCES, 0, CONF_SOURCE]
-    ),
+    *inherit_schema_for_state,
+    *inherit_schema_for_std_dev,
 )
 
 
