@@ -86,12 +86,11 @@ void DebugComponent::dump_config() {
     default:
       flash_mode = "UNKNOWN";
   }
-  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-  ESP_LOGD(TAG, "Flash Chip: Size=%ukB Speed=%uMHz Mode=%s", ESP.getFlashChipSize() / 1024,
-           ESP.getFlashChipSpeed() / 1000000, flash_mode);
-  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-  device_info += "|Flash: " + to_string(ESP.getFlashChipSize() / 1024) +
-                 "kB Speed:" + to_string(ESP.getFlashChipSpeed() / 1000000) + "MHz Mode:";
+  ESP_LOGD(TAG, "Flash Chip: Size=%ukB Speed=%uMHz Mode=%s",
+           ESP.getFlashChipSize() / 1024,                                                   // NOLINT
+           ESP.getFlashChipSpeed() / 1000000, flash_mode);                                  // NOLINT
+  device_info += "|Flash: " + to_string(ESP.getFlashChipSize() / 1024) +                    // NOLINT
+                 "kB Speed:" + to_string(ESP.getFlashChipSpeed() / 1000000) + "MHz Mode:";  // NOLINT
   device_info += flash_mode;
 #endif  // USE_ARDUINO
 
