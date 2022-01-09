@@ -1,8 +1,13 @@
 #include "mqtt_component.h"
+
+#ifdef USE_MQTT
+
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/version.h"
+
+#include "mqtt_const.h"
 
 namespace esphome {
 namespace mqtt {
@@ -12,7 +17,7 @@ static const char *const TAG = "mqtt.component";
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
-  std::string sanitized_name = sanitize_string_allowlist(App.get_name(), HOSTNAME_CHARACTER_ALLOWLIST);
+  std::string sanitized_name = str_sanitize(App.get_name());
   return discovery_info.prefix + "/" + this->component_type() + "/" + sanitized_name + "/" +
          this->get_default_object_id_() + "/config";
 }
@@ -58,52 +63,76 @@ bool MQTTComponent::send_discovery_() {
 
   return global_mqtt_client->publish_json(
       this->get_discovery_topic_(discovery_info),
-      [this](JsonObject &root) {
+      [this](JsonObject root) {
         SendDiscoveryConfig config;
         config.state_topic = true;
         config.command_topic = true;
 
         this->send_discovery(root, config);
 
-        std::string name = this->friendly_name();
-        root["name"] = name;
+        // Fields from EntityBase
+        root[MQTT_NAME] = this->friendly_name();
+        if (this->is_disabled_by_default())
+          root[MQTT_ENABLED_BY_DEFAULT] = false;
+        if (!this->get_icon().empty())
+          root[MQTT_ICON] = this->get_icon();
+
+        switch (this->get_entity()->get_entity_category()) {
+          case ENTITY_CATEGORY_NONE:
+            break;
+          case ENTITY_CATEGORY_CONFIG:
+            root[MQTT_ENTITY_CATEGORY] = "config";
+            break;
+          case ENTITY_CATEGORY_DIAGNOSTIC:
+            root[MQTT_ENTITY_CATEGORY] = "diagnostic";
+            break;
+        }
+
         if (config.state_topic)
-          root["state_topic"] = this->get_state_topic_();
+          root[MQTT_STATE_TOPIC] = this->get_state_topic_();
         if (config.command_topic)
-          root["command_topic"] = this->get_command_topic_();
+          root[MQTT_COMMAND_TOPIC] = this->get_command_topic_();
 
         if (this->availability_ == nullptr) {
           if (!global_mqtt_client->get_availability().topic.empty()) {
-            root["availability_topic"] = global_mqtt_client->get_availability().topic;
+            root[MQTT_AVAILABILITY_TOPIC] = global_mqtt_client->get_availability().topic;
             if (global_mqtt_client->get_availability().payload_available != "online")
-              root["payload_available"] = global_mqtt_client->get_availability().payload_available;
+              root[MQTT_PAYLOAD_AVAILABLE] = global_mqtt_client->get_availability().payload_available;
             if (global_mqtt_client->get_availability().payload_not_available != "offline")
-              root["payload_not_available"] = global_mqtt_client->get_availability().payload_not_available;
+              root[MQTT_PAYLOAD_NOT_AVAILABLE] = global_mqtt_client->get_availability().payload_not_available;
           }
         } else if (!this->availability_->topic.empty()) {
-          root["availability_topic"] = this->availability_->topic;
+          root[MQTT_AVAILABILITY_TOPIC] = this->availability_->topic;
           if (this->availability_->payload_available != "online")
-            root["payload_available"] = this->availability_->payload_available;
+            root[MQTT_PAYLOAD_AVAILABLE] = this->availability_->payload_available;
           if (this->availability_->payload_not_available != "offline")
-            root["payload_not_available"] = this->availability_->payload_not_available;
+            root[MQTT_PAYLOAD_NOT_AVAILABLE] = this->availability_->payload_not_available;
         }
 
         const std::string &node_name = App.get_name();
         std::string unique_id = this->unique_id();
         if (!unique_id.empty()) {
-          root["unique_id"] = unique_id;
+          root[MQTT_UNIQUE_ID] = unique_id;
         } else {
-          // default to almost-unique ID. It's a hack but the only way to get that
-          // gorgeous device registry view.
-          root["unique_id"] = "ESP" + this->component_type() + this->get_default_object_id_();
+          const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
+          if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
+            char friendly_name_hash[9];
+            sprintf(friendly_name_hash, "%08x", fnv1_hash(this->friendly_name()));
+            friendly_name_hash[8] = 0;  // ensure the hash-string ends with null
+            root[MQTT_UNIQUE_ID] = get_mac_address() + "-" + this->component_type() + "-" + friendly_name_hash;
+          } else {
+            // default to almost-unique ID. It's a hack but the only way to get that
+            // gorgeous device registry view.
+            root[MQTT_UNIQUE_ID] = "ESP" + this->component_type() + this->get_default_object_id_();
+          }
         }
 
-        JsonObject &device_info = root.createNestedObject("device");
-        device_info["identifiers"] = get_mac_address();
-        device_info["name"] = node_name;
-        device_info["sw_version"] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();
-        device_info["model"] = ESPHOME_BOARD;
-        device_info["manufacturer"] = "espressif";
+        JsonObject device_info = root.createNestedObject(MQTT_DEVICE);
+        device_info[MQTT_DEVICE_IDENTIFIERS] = get_mac_address();
+        device_info[MQTT_DEVICE_NAME] = node_name;
+        device_info[MQTT_DEVICE_SW_VERSION] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();
+        device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
+        device_info[MQTT_DEVICE_MANUFACTURER] = "espressif";
       },
       0, discovery_info.retain);
 }
@@ -115,7 +144,7 @@ bool MQTTComponent::is_discovery_enabled() const {
 }
 
 std::string MQTTComponent::get_default_object_id_() const {
-  return sanitize_string_allowlist(to_lowercase_underscore(this->friendly_name()), HOSTNAME_CHARACTER_ALLOWLIST);
+  return str_sanitize(str_snake_case(this->friendly_name()));
 }
 
 void MQTTComponent::subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos) {
@@ -139,8 +168,7 @@ void MQTTComponent::set_custom_command_topic(const std::string &custom_command_t
 
 void MQTTComponent::set_availability(std::string topic, std::string payload_available,
                                      std::string payload_not_available) {
-  delete this->availability_;
-  this->availability_ = new Availability();
+  this->availability_ = make_unique<Availability>();
   this->availability_->topic = std::move(topic);
   this->availability_->payload_available = std::move(payload_available);
   this->availability_->payload_not_available = std::move(payload_not_available);
@@ -187,9 +215,23 @@ void MQTTComponent::call_loop() {
     this->schedule_resend_state();
   }
 }
+void MQTTComponent::call_dump_config() {
+  if (this->is_internal())
+    return;
+
+  this->dump_config();
+}
 void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
 std::string MQTTComponent::unique_id() { return ""; }
 bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
 
+// Pull these properties from EntityBase if not overridden
+std::string MQTTComponent::friendly_name() const { return this->get_entity()->get_name(); }
+std::string MQTTComponent::get_icon() const { return this->get_entity()->get_icon(); }
+bool MQTTComponent::is_disabled_by_default() const { return this->get_entity()->is_disabled_by_default(); }
+bool MQTTComponent::is_internal() { return this->get_entity()->is_internal(); }
+
 }  // namespace mqtt
 }  // namespace esphome
+
+#endif  // USE_MQTT

@@ -4,8 +4,21 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/version.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP_IDF
+#include <esp_heap_caps.h>
+#include <esp_system.h>
+#endif
+
+#ifdef USE_ESP32
+#if ESP_IDF_VERSION_MAJOR >= 4
+#include <esp32/rom/rtc.h>
+#else
 #include <rom/rtc.h>
+#endif
+#endif
+
+#ifdef USE_ARDUINO
+#include <Esp.h>
 #endif
 
 namespace esphome {
@@ -34,11 +47,16 @@ void DebugComponent::dump_config() {
   ESP_LOGD(TAG, "ESPHome version %s", ESPHOME_VERSION);
   device_info += ESPHOME_VERSION;
 
-  this->free_heap_ = ESP.getFreeHeap();
+#ifdef USE_ARDUINO
+  this->free_heap_ = ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
+#elif defined(USE_ESP_IDF)
+  this->free_heap_ = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+#endif
   ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
 
+#ifdef USE_ARDUINO
   const char *flash_mode;
-  switch (ESP.getFlashChipMode()) {
+  switch (ESP.getFlashChipMode()) {  // NOLINT(readability-static-accessed-through-instance)
     case FM_QIO:
       flash_mode = "QIO";
       break;
@@ -51,7 +69,7 @@ void DebugComponent::dump_config() {
     case FM_DOUT:
       flash_mode = "DOUT";
       break;
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
     case FM_FAST_READ:
       flash_mode = "FAST_READ";
       break;
@@ -62,13 +80,15 @@ void DebugComponent::dump_config() {
     default:
       flash_mode = "UNKNOWN";
   }
+  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
   ESP_LOGD(TAG, "Flash Chip: Size=%ukB Speed=%uMHz Mode=%s", ESP.getFlashChipSize() / 1024,
            ESP.getFlashChipSpeed() / 1000000, flash_mode);
   device_info += "|Flash: " + to_string(ESP.getFlashChipSize() / 1024) +
                  "kB Speed:" + to_string(ESP.getFlashChipSpeed() / 1000000) + "MHz Mode:";
   device_info += flash_mode;
+#endif  // USE_ARDUINO
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   esp_chip_info_t info;
   esp_chip_info(&info);
   const char *model;
@@ -97,7 +117,7 @@ void DebugComponent::dump_config() {
     info.features &= ~CHIP_FEATURE_BT;
   }
   if (info.features)
-    features += "Other:" + uint64_to_string(info.features);
+    features += "Other:" + format_hex(info.features);
   ESP_LOGD(TAG, "Chip: Model=%s, Features=%s Cores=%u, Revision=%u", model, features.c_str(), info.cores,
            info.revision);
   device_info += "|Chip: ";
@@ -111,10 +131,10 @@ void DebugComponent::dump_config() {
   device_info += "|ESP-IDF: ";
   device_info += esp_get_idf_version();
 
-  std::string mac = uint64_to_string(ESP.getEfuseMac());
+  std::string mac = get_mac_address_pretty();
   ESP_LOGD(TAG, "EFuse MAC: %s", mac.c_str());
   device_info += "|EFuse MAC: ";
-  device_info += mac.c_str();
+  device_info += mac;
 
   const char *reset_reason;
   switch (rtc_get_reset_reason(0)) {
@@ -216,7 +236,7 @@ void DebugComponent::dump_config() {
   device_info += wakeup_reason;
 #endif
 
-#ifdef ARDUINO_ARCH_ESP8266
+#if defined(USE_ESP8266) && !defined(CLANG_TIDY)
   ESP_LOGD(TAG, "Chip ID: 0x%08X", ESP.getChipId());
   ESP_LOGD(TAG, "SDK Version: %s", ESP.getSdkVersion());
   ESP_LOGD(TAG, "Core Version: %s", ESP.getCoreVersion().c_str());
@@ -226,7 +246,7 @@ void DebugComponent::dump_config() {
   ESP_LOGD(TAG, "Reset Reason: %s", ESP.getResetReason().c_str());
   ESP_LOGD(TAG, "Reset Info: %s", ESP.getResetInfo().c_str());
 
-  device_info += "|Chip: 0x" + uint32_to_string(ESP.getChipId());
+  device_info += "|Chip: 0x" + format_hex(ESP.getChipId());
   device_info += "|SDK: ";
   device_info += ESP.getSdkVersion();
   device_info += "|Core: ";
@@ -235,7 +255,7 @@ void DebugComponent::dump_config() {
   device_info += to_string(ESP.getBootVersion());
   device_info += "|Mode: " + to_string(ESP.getBootMode());
   device_info += "|CPU: " + to_string(ESP.getCpuFreqMHz());
-  device_info += "|Flash: 0x" + uint32_to_string(ESP.getFlashChipId());
+  device_info += "|Flash: 0x" + format_hex(ESP.getFlashChipId());
   device_info += "|Reset: ";
   device_info += ESP.getResetReason().c_str();
   device_info += "|";
@@ -260,7 +280,11 @@ void DebugComponent::loop() {
 }
 
 void DebugComponent::update() {
-  uint32_t new_free_heap = ESP.getFreeHeap();
+#ifdef USE_ARDUINO
+  uint32_t new_free_heap = ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
+#elif defined(USE_ESP_IDF)
+  uint32_t new_free_heap = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+#endif
   if (new_free_heap < this->free_heap_ / 2) {
     this->free_heap_ = new_free_heap;
     ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);

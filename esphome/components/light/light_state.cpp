@@ -8,7 +8,8 @@ namespace light {
 
 static const char *const TAG = "light";
 
-LightState::LightState(const std::string &name, LightOutput *output) : Nameable(name), output_(output) {}
+LightState::LightState(const std::string &name, LightOutput *output) : EntityBase(name), output_(output) {}
+LightState::LightState(LightOutput *output) : output_(output) {}
 
 LightTraits LightState::get_traits() { return this->output_->get_traits(); }
 LightCall LightState::turn_on() { return this->make_call().set_state(true); }
@@ -53,7 +54,7 @@ void LightState::setup() {
     case LIGHT_RESTORE_DEFAULT_ON:
     case LIGHT_RESTORE_INVERTED_DEFAULT_OFF:
     case LIGHT_RESTORE_INVERTED_DEFAULT_ON:
-      this->rtc_ = global_preferences.make_preference<LightStateRTCState>(this->get_object_id_hash());
+      this->rtc_ = global_preferences->make_preference<LightStateRTCState>(this->get_object_id_hash());
       // Attempt to load from preferences, else fall back to default values
       if (!this->rtc_.load(&recovered)) {
         recovered.state = false;
@@ -121,6 +122,9 @@ void LightState::loop() {
     }
 
     if (this->transformer_->is_finished()) {
+      // if the transition has written directly to the output, current_values is outdated, so update it
+      this->current_values = this->transformer_->get_target_values();
+
       this->transformer_->stop();
       this->transformer_ = nullptr;
       this->target_state_reached_callback_.call();
@@ -157,6 +161,11 @@ void LightState::add_new_target_state_reached_callback(std::function<void()> &&s
 void LightState::set_default_transition_length(uint32_t default_transition_length) {
   this->default_transition_length_ = default_transition_length;
 }
+uint32_t LightState::get_default_transition_length() const { return this->default_transition_length_; }
+void LightState::set_flash_transition_length(uint32_t flash_transition_length) {
+  this->flash_transition_length_ = flash_transition_length;
+}
+uint32_t LightState::get_flash_transition_length() const { return this->flash_transition_length_; }
 void LightState::set_gamma_correct(float gamma_correct) { this->gamma_correct_ = gamma_correct; }
 void LightState::set_restore_mode(LightRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 bool LightState::supports_effects() { return !this->effects_.empty(); }
@@ -223,22 +232,28 @@ void LightState::stop_effect_() {
   this->active_effect_index_ = 0;
 }
 
-void LightState::start_transition_(const LightColorValues &target, uint32_t length) {
+void LightState::start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values) {
   this->transformer_ = this->output_->create_default_transition();
   this->transformer_->setup(this->current_values, target, length);
-  this->remote_values = target;
+
+  if (set_remote_values) {
+    this->remote_values = target;
+  }
 }
 
-void LightState::start_flash_(const LightColorValues &target, uint32_t length) {
+void LightState::start_flash_(const LightColorValues &target, uint32_t length, bool set_remote_values) {
   LightColorValues end_colors = this->remote_values;
   // If starting a flash if one is already happening, set end values to end values of current flash
   // Hacky but works
   if (this->transformer_ != nullptr)
-    end_colors = this->transformer_->get_target_values();
+    end_colors = this->transformer_->get_start_values();
 
   this->transformer_ = make_unique<LightFlashTransformer>(*this);
   this->transformer_->setup(end_colors, target, length);
-  this->remote_values = target;
+
+  if (set_remote_values) {
+    this->remote_values = target;
+  };
 }
 
 void LightState::set_immediately_(const LightColorValues &target, bool set_remote_values) {

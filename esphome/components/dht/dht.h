@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
@@ -35,7 +36,7 @@ class DHT : public PollingComponent {
    */
   void set_dht_model(DHTModel model);
 
-  void set_pin(GPIOPin *pin) { pin_ = pin; }
+  void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void set_model(DHTModel model) { model_ = model; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
@@ -51,7 +52,7 @@ class DHT : public PollingComponent {
  protected:
   bool read_sensor_(float *temperature, float *humidity, bool report_errors);
 
-  GPIOPin *pin_;
+  InternalGPIOPin *pin_;
   DHTModel model_{DHT_MODEL_AUTO_DETECT};
   bool is_auto_detect_{false};
   sensor::Sensor *temperature_sensor_{nullptr};

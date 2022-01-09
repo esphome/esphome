@@ -64,7 +64,7 @@ bool Nextion::check_connect_() {
   if (response.empty() || response.find("comok") == std::string::npos) {
 #ifdef NEXTION_PROTOCOL_LOG
     ESP_LOGN(TAG, "Bad connect request %s", response.c_str());
-    for (int i = 0; i < response.length(); i++) {
+    for (size_t i = 0; i < response.length(); i++) {
       ESP_LOGN(TAG, "response %s %d %d %c", response.c_str(), i, response[i], response[i]);
     }
 #endif
@@ -266,9 +266,9 @@ bool Nextion::remove_from_q_(bool report_empty) {
     if (component->get_variable_name() == "sleep_wake") {
       this->is_sleeping_ = false;
     }
-    delete component;
+    delete component;  // NOLINT(cppcoreguidelines-owning-memory)
   }
-  delete nb;
+  delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
   this->nextion_queue_.pop_front();
   return true;
 }
@@ -329,6 +329,7 @@ void Nextion::process_nextion_commands_() {
 
         break;
       case 0x02:  // invalid Component ID or name was used
+        ESP_LOGW(TAG, "Nextion reported component ID or name invalid!");
         this->remove_from_q_();
         break;
       case 0x03:  // invalid Page ID or name was used
@@ -369,8 +370,8 @@ void Nextion::process_nextion_commands_() {
 
               found = index;
 
-              delete component;
-              delete nb;
+              delete component;  // NOLINT(cppcoreguidelines-owning-memory)
+              delete nb;         // NOLINT(cppcoreguidelines-owning-memory)
 
               break;
             }
@@ -387,6 +388,7 @@ void Nextion::process_nextion_commands_() {
         }
         break;
       case 0x1A:  // variable name invalid
+        ESP_LOGW(TAG, "Nextion reported variable name invalid!");
         this->remove_from_q_();
 
         break;
@@ -480,7 +482,7 @@ void Nextion::process_nextion_commands_() {
           component->set_state_from_string(to_process, true, false);
         }
 
-        delete nb;
+        delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
         this->nextion_queue_.pop_front();
 
         break;
@@ -526,7 +528,7 @@ void Nextion::process_nextion_commands_() {
           component->set_state_from_int(value, true, false);
         }
 
-        delete nb;
+        delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
         this->nextion_queue_.pop_front();
 
         break;
@@ -563,11 +565,10 @@ void Nextion::process_nextion_commands_() {
       // FF FF FF - End
       case 0x90: {  // Switched component
         std::string variable_name;
-        uint8_t index = 0;
 
         // Get variable name
-        index = to_process.find('\0');
-        if (static_cast<char>(index) == std::string::npos || (to_process_length - index - 1) < 1) {
+        auto index = to_process.find('\0');
+        if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad switch component data received for 0x90 event!");
           ESP_LOGN(TAG, "to_process %s %zu %d", to_process.c_str(), to_process_length, index);
           break;
@@ -591,10 +592,9 @@ void Nextion::process_nextion_commands_() {
       // FF FF FF - End
       case 0x91: {  // Sensor component
         std::string variable_name;
-        uint8_t index = 0;
 
-        index = to_process.find('\0');
-        if (static_cast<char>(index) == std::string::npos || (to_process_length - index - 1) != 4) {
+        auto index = to_process.find('\0');
+        if (index == std::string::npos || (to_process_length - index - 1) != 4) {
           ESP_LOGE(TAG, "Bad sensor component data received for 0x91 event!");
           ESP_LOGN(TAG, "to_process %s %zu %d", to_process.c_str(), to_process_length, index);
           break;
@@ -626,11 +626,10 @@ void Nextion::process_nextion_commands_() {
       case 0x92: {  // Text Sensor Component
         std::string variable_name;
         std::string text_value;
-        uint8_t index = 0;
 
         // Get variable name
-        index = to_process.find('\0');
-        if (static_cast<char>(index) == std::string::npos || (to_process_length - index - 1) < 1) {
+        auto index = to_process.find('\0');
+        if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad text sensor component data received for 0x92 event!");
           ESP_LOGN(TAG, "to_process %s %zu %d", to_process.c_str(), to_process_length, index);
           break;
@@ -660,11 +659,10 @@ void Nextion::process_nextion_commands_() {
       // FF FF FF - End
       case 0x93: {  // Binary Sensor component
         std::string variable_name;
-        uint8_t index = 0;
 
         // Get variable name
-        index = to_process.find('\0');
-        if (static_cast<char>(index) == std::string::npos || (to_process_length - index - 1) < 1) {
+        auto index = to_process.find('\0');
+        if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad binary sensor component data received for 0x92 event!");
           ESP_LOGN(TAG, "to_process %s %zu %d", to_process.c_str(), to_process_length, index);
           break;
@@ -707,8 +705,8 @@ void Nextion::process_nextion_commands_() {
                                                  component->get_wave_buffer().begin() + buffer_to_send);
             }
             found = index;
-            delete component;
-            delete nb;
+            delete component;  // NOLINT(cppcoreguidelines-owning-memory)
+            delete nb;         // NOLINT(cppcoreguidelines-owning-memory)
             break;
           }
           ++index;
@@ -736,7 +734,7 @@ void Nextion::process_nextion_commands_() {
   uint32_t ms = millis();
 
   if (!this->nextion_queue_.empty() && this->nextion_queue_.front()->queue_time + this->max_q_age_ms_ < ms) {
-    for (int i = 0; i < this->nextion_queue_.size(); i++) {
+    for (size_t i = 0; i < this->nextion_queue_.size(); i++) {
       NextionComponentBase *component = this->nextion_queue_[i]->component;
       if (this->nextion_queue_[i]->queue_time + this->max_q_age_ms_ < ms) {
         if (this->nextion_queue_[i]->queue_time == 0)
@@ -754,12 +752,13 @@ void Nextion::process_nextion_commands_() {
           if (component->get_variable_name() == "sleep_wake") {
             this->is_sleeping_ = false;
           }
-          delete component;
+          delete component;  // NOLINT(cppcoreguidelines-owning-memory)
         }
 
-        delete this->nextion_queue_[i];
+        delete this->nextion_queue_[i];  // NOLINT(cppcoreguidelines-owning-memory)
 
         this->nextion_queue_.erase(this->nextion_queue_.begin() + i);
+        i--;
 
       } else {
         break;
@@ -911,8 +910,10 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
  * @param variable_name Name for the queue
  */
 void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   nextion::NextionQueue *nextion_queue = new nextion::NextionQueue;
 
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   nextion_queue->component = new nextion::NextionComponentBase;
   nextion_queue->component->set_variable_name(variable_name);
 
@@ -1043,6 +1044,7 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   if ((!this->is_setup() && !this->ignore_is_setup_))
     return;
 
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   nextion::NextionQueue *nextion_queue = new nextion::NextionQueue;
 
   nextion_queue->component = component;
@@ -1070,8 +1072,10 @@ void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
   if ((!this->is_setup() && !this->ignore_is_setup_) || this->is_sleeping())
     return;
 
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   nextion::NextionQueue *nextion_queue = new nextion::NextionQueue;
 
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   nextion_queue->component = new nextion::NextionComponentBase;
   nextion_queue->queue_time = millis();
 

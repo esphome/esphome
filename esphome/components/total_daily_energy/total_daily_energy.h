@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/time/real_time_clock.h"
 
@@ -16,6 +17,7 @@ enum TotalDailyEnergyMethod {
 
 class TotalDailyEnergy : public sensor::Sensor, public Component {
  public:
+  void set_restore(bool restore) { restore_ = restore; }
   void set_min_save_interval(uint32_t min_interval) { this->min_save_interval_ = min_interval; }
   void set_time(time::RealTimeClock *time) { time_ = time; }
   void set_parent(Sensor *parent) { parent_ = parent; }
@@ -24,7 +26,6 @@ class TotalDailyEnergy : public sensor::Sensor, public Component {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
   std::string unit_of_measurement() override { return this->parent_->get_unit_of_measurement() + "h"; }
-  std::string icon() override { return this->parent_->get_icon(); }
   int8_t accuracy_decimals() override { return this->parent_->get_accuracy_decimals() + 2; }
   void loop() override;
 
@@ -41,6 +42,7 @@ class TotalDailyEnergy : public sensor::Sensor, public Component {
   uint32_t last_update_{0};
   uint32_t last_save_{0};
   uint32_t min_save_interval_{0};
+  bool restore_;
   float total_energy_{0.0f};
   float last_power_state_{0.0f};
 };

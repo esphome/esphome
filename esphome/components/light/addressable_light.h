@@ -19,6 +19,15 @@ namespace light {
 
 using ESPColor ESPDEPRECATED("esphome::light::ESPColor is deprecated, use esphome::Color instead.", "v1.21") = Color;
 
+/// Convert the color information from a `LightColorValues` object to a `Color` object (does not apply brightness).
+Color color_from_light_color_values(LightColorValues val);
+
+/// Use a custom state class for addressable lights, to allow type system to discriminate between addressable and
+/// non-addressable lights.
+class AddressableLightState : public LightState {
+  using LightState::LightState;
+};
+
 class AddressableLight : public LightOutput, public Component {
  public:
   virtual int32_t size() const = 0;
@@ -77,8 +86,8 @@ class AddressableLight : public LightOutput, public Component {
 
   void mark_shown_() {
 #ifdef USE_POWER_SUPPLY
-    for (auto c : *this) {
-      if (c.get().is_on()) {
+    for (const auto &c : *this) {
+      if (c.get_red_raw() > 0 || c.get_green_raw() > 0 || c.get_blue_raw() > 0 || c.get_white_raw() > 0) {
         this->power_.request();
         return;
       }

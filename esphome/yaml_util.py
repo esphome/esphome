@@ -183,9 +183,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                         raise yaml.constructor.ConstructorError(
                             "While constructing a mapping",
                             node.start_mark,
-                            "Expected a mapping for merging, but found {}".format(
-                                type(item)
-                            ),
+                            f"Expected a mapping for merging, but found {type(item)}",
                             value_node.start_mark,
                         )
                     merge_pairs.extend(item.items())
@@ -193,8 +191,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                 raise yaml.constructor.ConstructorError(
                     "While constructing a mapping",
                     node.start_mark,
-                    "Expected a mapping or list of mappings for merging, "
-                    "but found {}".format(type(value)),
+                    f"Expected a mapping or list of mappings for merging, but found {type(value)}",
                     value_node.start_mark,
                 )
 
@@ -332,9 +329,10 @@ ESPHomeLoader.add_constructor("!lambda", ESPHomeLoader.construct_lambda)
 ESPHomeLoader.add_constructor("!force", ESPHomeLoader.construct_force)
 
 
-def load_yaml(fname):
-    _SECRET_VALUES.clear()
-    _SECRET_CACHE.clear()
+def load_yaml(fname, clear_secrets=True):
+    if clear_secrets:
+        _SECRET_VALUES.clear()
+        _SECRET_CACHE.clear()
     return _load_yaml_internal(fname)
 
 

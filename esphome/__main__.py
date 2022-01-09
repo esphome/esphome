@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_PORT,
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
+    SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.helpers import indent
@@ -72,7 +73,7 @@ def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api
         if default == "OTA":
             return CORE.address
     if show_mqtt and "mqtt" in CORE.config:
-        options.append(("MQTT ({})".format(CORE.config["mqtt"][CONF_BROKER]), "MQTT"))
+        options.append((f"MQTT ({CORE.config['mqtt'][CONF_BROKER]})", "MQTT"))
         if default == "OTA":
             return "MQTT"
     if default is not None:
@@ -144,6 +145,8 @@ def wrap_to_code(name, comp):
         if comp.config_schema is not None:
             conf_str = yaml_util.dump(conf)
             conf_str = conf_str.replace("//", "")
+            # remove tailing \ to avoid multi-line comment warning
+            conf_str = conf_str.replace("\\\n", "\n")
             cg.add(cg.LineComment(indent(conf_str)))
         await coro(conf)
 
@@ -180,16 +183,37 @@ def compile_program(args, config):
     from esphome import platformio_api
 
     _LOGGER.info("Compiling app...")
-    return platformio_api.run_compile(config, CORE.verbose)
+    rc = platformio_api.run_compile(config, CORE.verbose)
+    if rc != 0:
+        return rc
+    idedata = platformio_api.get_idedata(config)
+    return 0 if idedata is not None else 1
 
 
 def upload_using_esptool(config, port):
-    path = CORE.firmware_bin
+    from esphome import platformio_api
+
     first_baudrate = config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
         "upload_speed", 460800
     )
 
     def run_esptool(baud_rate):
+        idedata = platformio_api.get_idedata(config)
+
+        firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
+        flash_images = [
+            platformio_api.FlashImage(
+                path=idedata.firmware_bin_path, offset=firmware_offset
+            ),
+            *idedata.extra_flash_images,
+        ]
+
+        mcu = "esp8266"
+        if CORE.is_esp32:
+            from esphome.components.esp32 import get_esp32_variant
+
+            mcu = get_esp32_variant().lower()
+
         cmd = [
             "esptool.py",
             "--before",
@@ -198,14 +222,17 @@ def upload_using_esptool(config, port):
             "hard_reset",
             "--baud",
             str(baud_rate),
-            "--chip",
-            "esp8266",
             "--port",
             port,
+            "--chip",
+            mcu,
             "write_flash",
-            "0x0",
-            path,
+            "-z",
+            "--flash_size",
+            "detect",
         ]
+        for img in flash_images:
+            cmd += [img.offset, img.path]
 
         if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
             import esptool
@@ -229,11 +256,7 @@ def upload_using_esptool(config, port):
 def upload_program(config, args, host):
     # if upload is to a serial port use platformio, otherwise assume ota
     if get_port_type(host) == "SERIAL":
-        from esphome import platformio_api
-
-        if CORE.is_esp8266:
-            return upload_using_esptool(config, host)
-        return platformio_api.run_upload(config, CORE.verbose, host)
+        return upload_using_esptool(config, host)
 
     from esphome import espota2
 
@@ -245,7 +268,7 @@ def upload_program(config, args, host):
 
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
-    password = ota_conf[CONF_PASSWORD]
+    password = ota_conf.get(CONF_PASSWORD, "")
     return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
 
 
@@ -256,7 +279,7 @@ def show_logs(config, args, port):
         run_miniterm(config, port)
         return 0
     if get_port_type(port) == "NETWORK" and "api" in config:
-        from esphome.api.client import run_logs
+        from esphome.components.api.client import run_logs
 
         return run_logs(config, port)
     if get_port_type(port) == "MQTT" and "mqtt" in config:
@@ -415,32 +438,47 @@ def command_update_all(args):
         click.echo(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
-        print("Updating {}".format(color(Fore.CYAN, f)))
+        print(f"Updating {color(Fore.CYAN, f)}")
         print("-" * twidth)
         print()
         rc = run_external_process(
             "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
         )
         if rc == 0:
-            print_bar("[{}] {}".format(color(Fore.BOLD_GREEN, "SUCCESS"), f))
+            print_bar(f"[{color(Fore.BOLD_GREEN, 'SUCCESS')}] {f}")
             success[f] = True
         else:
-            print_bar("[{}] {}".format(color(Fore.BOLD_RED, "ERROR"), f))
+            print_bar(f"[{color(Fore.BOLD_RED, 'ERROR')}] {f}")
             success[f] = False
 
         print()
         print()
         print()
 
-    print_bar("[{}]".format(color(Fore.BOLD_WHITE, "SUMMARY")))
+    print_bar(f"[{color(Fore.BOLD_WHITE, 'SUMMARY')}]")
     failed = 0
     for f in files:
         if success[f]:
-            print("  - {}: {}".format(f, color(Fore.GREEN, "SUCCESS")))
+            print(f"  - {f}: {color(Fore.GREEN, 'SUCCESS')}")
         else:
-            print("  - {}: {}".format(f, color(Fore.BOLD_RED, "FAILED")))
+            print(f"  - {f}: {color(Fore.BOLD_RED, 'FAILED')}")
             failed += 1
     return failed
+
+
+def command_idedata(args, config):
+    from esphome import platformio_api
+    import json
+
+    logging.disable(logging.INFO)
+    logging.disable(logging.WARNING)
+
+    idedata = platformio_api.get_idedata(config)
+    if idedata is None:
+        return 1
+
+    print(json.dumps(idedata.raw, indent=2) + "\n")
+    return 0
 
 
 PRE_CONFIG_ACTIONS = {
@@ -460,6 +498,7 @@ POST_CONFIG_ACTIONS = {
     "clean-mqtt": command_clean_mqtt,
     "mqtt-fingerprint": command_mqtt_fingerprint,
     "clean": command_clean,
+    "idedata": command_idedata,
 }
 
 
@@ -483,75 +522,9 @@ def parse_args(argv):
         metavar=("key", "value"),
     )
 
-    # Keep backward compatibility with the old command line format of
-    # esphome <config> <command>.
-    #
-    # Unfortunately this can't be done by adding another configuration argument to the
-    # main config parser, as argparse is greedy when parsing arguments, so in regular
-    # usage it'll eat the command as the configuration argument and error out out
-    # because it can't parse the configuration as a command.
-    #
-    # Instead, construct an ad-hoc parser for the old format that doesn't actually
-    # process the arguments, but parses them enough to let us figure out if the old
-    # format is used. In that case, swap the command and configuration in the arguments
-    # and continue on with the normal parser (after raising a deprecation warning).
-    #
-    # Disable argparse's built-in help option and add it manually to prevent this
-    # parser from printing the help messagefor the old format when invoked with -h.
-    compat_parser = argparse.ArgumentParser(parents=[options_parser], add_help=False)
-    compat_parser.add_argument("-h", "--help")
-    compat_parser.add_argument("configuration", nargs="*")
-    compat_parser.add_argument(
-        "command",
-        choices=[
-            "config",
-            "compile",
-            "upload",
-            "logs",
-            "run",
-            "clean-mqtt",
-            "wizard",
-            "mqtt-fingerprint",
-            "version",
-            "clean",
-            "dashboard",
-            "vscode",
-            "update-all",
-        ],
-    )
-
-    # on Python 3.9+ we can simply set exit_on_error=False in the constructor
-    def _raise(x):
-        raise argparse.ArgumentError(None, x)
-
-    compat_parser.error = _raise
-
-    deprecated_argv_suggestion = None
-
-    if ["dashboard", "config"] == argv[1:3] or ["version"] == argv[1:2]:
-        # this is most likely meant in new-style arg format. do not try compat parsing
-        pass
-    else:
-        try:
-            result, unparsed = compat_parser.parse_known_args(argv[1:])
-            last_option = len(argv) - len(unparsed) - 1 - len(result.configuration)
-            unparsed = [
-                "--device" if arg in ("--upload-port", "--serial-port") else arg
-                for arg in unparsed
-            ]
-            argv = (
-                argv[0:last_option] + [result.command] + result.configuration + unparsed
-            )
-            deprecated_argv_suggestion = argv
-        except argparse.ArgumentError:
-            # This is not an old-style command line, so we don't have to do anything.
-            pass
-
-    # And continue on with regular parsing
     parser = argparse.ArgumentParser(
         description=f"ESPHome v{const.__version__}", parents=[options_parser]
     )
-    parser.set_defaults(deprecated_argv_suggestion=deprecated_argv_suggestion)
 
     mqtt_options = argparse.ArgumentParser(add_help=False)
     mqtt_options.add_argument("--topic", help="Manually set the MQTT topic.")
@@ -636,10 +609,7 @@ def parse_args(argv):
         "wizard",
         help="A helpful setup wizard that will guide you through setting up ESPHome.",
     )
-    parser_wizard.add_argument(
-        "configuration",
-        help="Your YAML configuration file.",
-    )
+    parser_wizard.add_argument("configuration", help="Your YAML configuration file.")
 
     parser_fingerprint = subparsers.add_parser(
         "mqtt-fingerprint", help="Get the SSL fingerprint from a MQTT broker."
@@ -661,14 +631,19 @@ def parse_args(argv):
         "dashboard", help="Create a simple web server for a dashboard."
     )
     parser_dashboard.add_argument(
-        "configuration",
-        help="Your YAML configuration file directory.",
+        "configuration", help="Your YAML configuration file directory."
     )
     parser_dashboard.add_argument(
         "--port",
         help="The HTTP port to open connections on. Defaults to 6052.",
         type=int,
         default=6052,
+    )
+    parser_dashboard.add_argument(
+        "--address",
+        help="The address to bind to.",
+        type=str,
+        default="0.0.0.0",
     )
     parser_dashboard.add_argument(
         "--username",
@@ -701,21 +676,107 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file directories.", nargs="+"
     )
 
-    return parser.parse_args(argv[1:])
+    parser_idedata = subparsers.add_parser("idedata")
+    parser_idedata.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs=1
+    )
+
+    # Keep backward compatibility with the old command line format of
+    # esphome <config> <command>.
+    #
+    # Unfortunately this can't be done by adding another configuration argument to the
+    # main config parser, as argparse is greedy when parsing arguments, so in regular
+    # usage it'll eat the command as the configuration argument and error out out
+    # because it can't parse the configuration as a command.
+    #
+    # Instead, if parsing using the current format fails, construct an ad-hoc parser
+    # that doesn't actually process the arguments, but parses them enough to let us
+    # figure out if the old format is used. In that case, swap the command and
+    # configuration in the arguments and retry with the normal parser (and raise
+    # a deprecation warning).
+    arguments = argv[1:]
+
+    # On Python 3.9+ we can simply set exit_on_error=False in the constructor
+    def _raise(x):
+        raise argparse.ArgumentError(None, x)
+
+    # First, try new-style parsing, but don't exit in case of failure
+    try:
+        # duplicate parser so that we can use the original one to raise errors later on
+        current_parser = argparse.ArgumentParser(add_help=False, parents=[parser])
+        current_parser.set_defaults(deprecated_argv_suggestion=None)
+        current_parser.error = _raise
+        return current_parser.parse_args(arguments)
+    except argparse.ArgumentError:
+        pass
+
+    # Second, try compat parsing and rearrange the command-line if it succeeds
+    # Disable argparse's built-in help option and add it manually to prevent this
+    # parser from printing the help messagefor the old format when invoked with -h.
+    compat_parser = argparse.ArgumentParser(parents=[options_parser], add_help=False)
+    compat_parser.add_argument("-h", "--help", action="store_true")
+    compat_parser.add_argument("configuration", nargs="*")
+    compat_parser.add_argument(
+        "command",
+        choices=[
+            "config",
+            "compile",
+            "upload",
+            "logs",
+            "run",
+            "clean-mqtt",
+            "wizard",
+            "mqtt-fingerprint",
+            "version",
+            "clean",
+            "dashboard",
+            "vscode",
+            "update-all",
+        ],
+    )
+
+    try:
+        compat_parser.error = _raise
+        result, unparsed = compat_parser.parse_known_args(argv[1:])
+        last_option = len(arguments) - len(unparsed) - 1 - len(result.configuration)
+        unparsed = [
+            "--device" if arg in ("--upload-port", "--serial-port") else arg
+            for arg in unparsed
+        ]
+        arguments = (
+            arguments[0:last_option]
+            + [result.command]
+            + result.configuration
+            + unparsed
+        )
+        deprecated_argv_suggestion = arguments
+    except argparse.ArgumentError:
+        # old-style parsing failed, don't suggest any argument
+        deprecated_argv_suggestion = None
+
+    # Finally, run the new-style parser again with the possibly swapped arguments,
+    # and let it error out if the command is unparsable.
+    parser.set_defaults(deprecated_argv_suggestion=deprecated_argv_suggestion)
+    return parser.parse_args(arguments)
 
 
 def run_esphome(argv):
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
 
-    setup_log(args.verbose, args.quiet)
+    setup_log(
+        args.verbose,
+        args.quiet,
+        # Show timestamp for dashboard access logs
+        args.command == "dashboard",
+    )
     if args.deprecated_argv_suggestion is not None and args.command != "vscode":
         _LOGGER.warning(
             "Calling ESPHome with the configuration before the command is deprecated "
             "and will be removed in the future. "
         )
         _LOGGER.warning("Please instead use:")
-        _LOGGER.warning("   esphome %s", " ".join(args.deprecated_argv_suggestion[1:]))
+        _LOGGER.warning("   esphome %s", " ".join(args.deprecated_argv_suggestion))
 
     if sys.version_info < (3, 7, 0):
         _LOGGER.error(
@@ -732,12 +793,16 @@ def run_esphome(argv):
             return 1
 
     for conf_path in args.configuration:
+        if any(os.path.basename(conf_path) == x for x in SECRETS_FILES):
+            _LOGGER.warning("Skipping secrets file %s", conf_path)
+            continue
+
         CORE.config_path = conf_path
         CORE.dashboard = args.dashboard
 
         config = read_config(dict(args.substitution) if args.substitution else {})
         if config is None:
-            return 1
+            return 2
         CORE.config = config
 
         if args.command not in POST_CONFIG_ACTIONS:

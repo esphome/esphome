@@ -13,9 +13,8 @@ from esphome.const import (
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
     ICON_CURRENT_AC,
-    LAST_RESET_TYPE_AUTO,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_NONE,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_DEGREES,
     UNIT_HERTZ,
@@ -94,13 +93,12 @@ PV_SENSORS = {
     CONF_VOLTAGE_SAMPLED_BY_SECONDARY_CPU: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=0,
-        device_class=DEVICE_CLASS_POWER,
+        device_class=DEVICE_CLASS_VOLTAGE,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_INSULATION_OF_P_TO_GROUND: sensor.sensor_schema(
         unit_of_measurement=UNIT_KOHM,
         accuracy_decimals=0,
-        device_class=DEVICE_CLASS_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
 }
@@ -136,32 +134,29 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_REACTIVE_POWER): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ENERGY_PRODUCTION_DAY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_ENERGY,
-                state_class=STATE_CLASS_MEASUREMENT,
-                last_reset_type=LAST_RESET_TYPE_AUTO,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_TOTAL_ENERGY_PRODUCTION): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ENERGY,
-                state_class=STATE_CLASS_MEASUREMENT,
-                last_reset_type=LAST_RESET_TYPE_AUTO,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_TOTAL_GENERATION_TIME): sensor.sensor_schema(
                 unit_of_measurement=UNIT_HOURS,
                 accuracy_decimals=0,
-                state_class=STATE_CLASS_NONE,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_TODAY_GENERATION_TIME): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MINUTE,
                 accuracy_decimals=0,
-                state_class=STATE_CLASS_NONE,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_INVERTER_MODULE_TEMP): sensor.sensor_schema(
                 unit_of_measurement=UNIT_DEGREES,

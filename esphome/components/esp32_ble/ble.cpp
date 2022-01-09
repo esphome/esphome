@@ -1,16 +1,20 @@
-#include "ble.h"
+#ifdef USE_ESP32
 
+#include "ble.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
-
-#ifdef ARDUINO_ARCH_ESP32
 
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <esp_bt_main.h>
 #include <esp_bt.h>
+#include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_gap_ble_api.h>
+
+#ifdef USE_ARDUINO
+#include <esp32-hal-bt.h>
+#endif
 
 namespace esphome {
 namespace esp32_ble {
@@ -27,7 +31,7 @@ void ESP32BLE::setup() {
     return;
   }
 
-  this->advertising_ = new BLEAdvertising();
+  this->advertising_ = new BLEAdvertising();  // NOLINT(cppcoreguidelines-owning-memory)
 
   this->advertising_->set_scan_response(true);
   this->advertising_->set_min_preferred_interval(0x06);
@@ -52,10 +56,37 @@ bool ESP32BLE::ble_setup_() {
     return false;
   }
 
+#ifdef USE_ARDUINO
   if (!btStart()) {
     ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
     return false;
   }
+#else
+  if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
+    // start bt controller
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
+      esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+      err = esp_bt_controller_init(&cfg);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bt_controller_init failed: %s", esp_err_to_name(err));
+        return false;
+      }
+      while (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE)
+        ;
+    }
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
+      err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bt_controller_enable failed: %s", esp_err_to_name(err));
+        return false;
+      }
+    }
+    if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
+      ESP_LOGE(TAG, "esp bt controller enable failed");
+      return false;
+    }
+  }
+#endif
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 
@@ -123,25 +154,25 @@ void ESP32BLE::loop() {
   BLEEvent *ble_event = this->ble_events_.pop();
   while (ble_event != nullptr) {
     switch (ble_event->type_) {
-      case ble_event->GATTS:
+      case BLEEvent::GATTS:
         this->real_gatts_event_handler_(ble_event->event_.gatts.gatts_event, ble_event->event_.gatts.gatts_if,
                                         &ble_event->event_.gatts.gatts_param);
         break;
-      case ble_event->GAP:
+      case BLEEvent::GAP:
         this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
         break;
       default:
         break;
     }
-    delete ble_event;
+    delete ble_event;  // NOLINT(cppcoreguidelines-owning-memory)
     ble_event = this->ble_events_.pop();
   }
 }
 
 void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  BLEEvent *new_event = new BLEEvent(event, param);
+  BLEEvent *new_event = new BLEEvent(event, param);  // NOLINT(cppcoreguidelines-owning-memory)
   global_ble->ble_events_.push(new_event);
-}
+}  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void ESP32BLE::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   ESP_LOGV(TAG, "(BLE) gap_event_handler - %d", event);
@@ -153,9 +184,9 @@ void ESP32BLE::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap
 
 void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) {
-  BLEEvent *new_event = new BLEEvent(event, gatts_if, param);
+  BLEEvent *new_event = new BLEEvent(event, gatts_if, param);  // NOLINT(cppcoreguidelines-owning-memory)
   global_ble->ble_events_.push(new_event);
-}
+}  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void ESP32BLE::real_gatts_event_handler_(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                          esp_ble_gatts_cb_param_t *param) {
@@ -174,7 +205,7 @@ float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 
 void ESP32BLE::dump_config() { ESP_LOGCONFIG(TAG, "ESP32 BLE:"); }
 
-ESP32BLE *global_ble = nullptr;
+ESP32BLE *global_ble = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esp32_ble
 }  // namespace esphome

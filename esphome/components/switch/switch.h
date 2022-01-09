@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
 
@@ -9,7 +10,7 @@ namespace switch_ {
 
 #define LOG_SWITCH(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, (obj)->get_name().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
     if (!(obj)->get_icon().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
     } \
@@ -26,7 +27,7 @@ namespace switch_ {
  * A switch is basically just a combination of a binary sensor (for reporting switch values)
  * and a write_state method that writes a state to the hardware.
  */
-class Switch : public Nameable {
+class Switch : public EntityBase {
  public:
   explicit Switch();
   explicit Switch(const std::string &name);
@@ -70,12 +71,6 @@ class Switch : public Nameable {
    */
   void set_inverted(bool inverted);
 
-  /// Set the icon for this switch. "" for no icon.
-  void set_icon(const std::string &icon);
-
-  /// Get the icon for this switch. Using icon() if not manually set
-  std::string get_icon();
-
   /** Set callback for state changes.
    *
    * @param callback The void(bool) callback.
@@ -104,17 +99,7 @@ class Switch : public Nameable {
    */
   virtual void write_state(bool state) = 0;
 
-  /** Override this to set the Home Assistant icon for this switch.
-   *
-   * Return "" to disable this feature.
-   *
-   * @return The icon of this switch, for example "mdi:fan".
-   */
-  virtual std::string icon();  // NOLINT
-
   uint32_t hash_base() override;
-
-  optional<std::string> icon_{};  ///< The icon shown here. Not set means use default from switch. Empty means no icon.
 
   CallbackManager<void(bool)> state_callback_{};
   bool inverted_{false};

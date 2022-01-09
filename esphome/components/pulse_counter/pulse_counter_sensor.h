@@ -1,11 +1,12 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
 #include <driver/pcnt.h>
+#define HAS_PCNT
 #endif
 
 namespace esphome {
@@ -17,30 +18,28 @@ enum PulseCounterCountMode {
   PULSE_COUNTER_DECREMENT,
 };
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef HAS_PCNT
 using pulse_counter_t = int16_t;
-#endif
-#ifdef ARDUINO_ARCH_ESP8266
+#else
 using pulse_counter_t = int32_t;
 #endif
 
 struct PulseCounterStorage {
-  bool pulse_counter_setup(GPIOPin *pin);
+  bool pulse_counter_setup(InternalGPIOPin *pin);
   pulse_counter_t read_raw_value();
 
   static void gpio_intr(PulseCounterStorage *arg);
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifndef HAS_PCNT
   volatile pulse_counter_t counter{0};
   volatile uint32_t last_pulse{0};
 #endif
 
-  GPIOPin *pin;
-#ifdef ARDUINO_ARCH_ESP32
+  InternalGPIOPin *pin;
+#ifdef HAS_PCNT
   pcnt_unit_t pcnt_unit;
-#endif
-#ifdef ARDUINO_ARCH_ESP8266
-  ISRInternalGPIOPin *isr_pin;
+#else
+  ISRInternalGPIOPin isr_pin;
 #endif
   PulseCounterCountMode rising_edge_mode{PULSE_COUNTER_INCREMENT};
   PulseCounterCountMode falling_edge_mode{PULSE_COUNTER_DISABLE};
@@ -50,7 +49,7 @@ struct PulseCounterStorage {
 
 class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
  public:
-  void set_pin(GPIOPin *pin) { pin_ = pin; }
+  void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void set_rising_edge_mode(PulseCounterCountMode mode) { storage_.rising_edge_mode = mode; }
   void set_falling_edge_mode(PulseCounterCountMode mode) { storage_.falling_edge_mode = mode; }
   void set_filter_us(uint32_t filter) { storage_.filter_us = filter; }
@@ -63,15 +62,12 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   void dump_config() override;
 
  protected:
-  GPIOPin *pin_;
+  InternalGPIOPin *pin_;
   PulseCounterStorage storage_;
-  uint32_t current_total_ = 0;
+  uint32_t last_time_{0};
+  uint32_t current_total_{0};
   sensor::Sensor *total_sensor_;
 };
-
-#ifdef ARDUINO_ARCH_ESP32
-extern pcnt_unit_t next_pcnt_unit;
-#endif
 
 }  // namespace pulse_counter
 }  // namespace esphome

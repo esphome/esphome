@@ -19,6 +19,9 @@ from esphome.const import (
     CONF_PM_10_0UM,
     CONF_TEMPERATURE,
     CONF_TYPE,
+    DEVICE_CLASS_PM1,
+    DEVICE_CLASS_PM10,
+    DEVICE_CLASS_PM25,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
@@ -39,30 +42,30 @@ PMSX003Sensor = pmsx003_ns.class_("PMSX003Sensor", sensor.Sensor)
 TYPE_PMSX003 = "PMSX003"
 TYPE_PMS5003T = "PMS5003T"
 TYPE_PMS5003ST = "PMS5003ST"
+TYPE_PMS5003S = "PMS5003S"
 
 PMSX003Type = pmsx003_ns.enum("PMSX003Type")
 PMSX003_TYPES = {
     TYPE_PMSX003: PMSX003Type.PMSX003_TYPE_X003,
     TYPE_PMS5003T: PMSX003Type.PMSX003_TYPE_5003T,
     TYPE_PMS5003ST: PMSX003Type.PMSX003_TYPE_5003ST,
+    TYPE_PMS5003S: PMSX003Type.PMSX003_TYPE_5003S,
 }
 
 SENSORS_TO_TYPE = {
-    CONF_PM_1_0: [TYPE_PMSX003, TYPE_PMS5003ST],
-    CONF_PM_2_5: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST],
-    CONF_PM_10_0: [TYPE_PMSX003, TYPE_PMS5003ST],
+    CONF_PM_1_0: [TYPE_PMSX003, TYPE_PMS5003ST, TYPE_PMS5003S],
+    CONF_PM_2_5: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
+    CONF_PM_10_0: [TYPE_PMSX003, TYPE_PMS5003ST, TYPE_PMS5003S],
     CONF_TEMPERATURE: [TYPE_PMS5003T, TYPE_PMS5003ST],
     CONF_HUMIDITY: [TYPE_PMS5003T, TYPE_PMS5003ST],
-    CONF_FORMALDEHYDE: [TYPE_PMS5003ST],
+    CONF_FORMALDEHYDE: [TYPE_PMS5003ST, TYPE_PMS5003S],
 }
 
 
 def validate_pmsx003_sensors(value):
     for key, types in SENSORS_TO_TYPE.items():
         if key in value and value[CONF_TYPE] not in types:
-            raise cv.Invalid(
-                "{} does not have {} sensor!".format(value[CONF_TYPE], key)
-            )
+            raise cv.Invalid(f"{value[CONF_TYPE]} does not have {key} sensor!")
     return value
 
 
@@ -75,19 +78,19 @@ CONFIG_SCHEMA = (
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 0,
-                DEVICE_CLASS_EMPTY,
+                DEVICE_CLASS_PM1,
             ),
             cv.Optional(CONF_PM_2_5_STD): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 0,
-                DEVICE_CLASS_EMPTY,
+                DEVICE_CLASS_PM25,
             ),
             cv.Optional(CONF_PM_10_0_STD): sensor.sensor_schema(
                 UNIT_MICROGRAMS_PER_CUBIC_METER,
                 ICON_CHEMICAL_WEAPON,
                 0,
-                DEVICE_CLASS_EMPTY,
+                DEVICE_CLASS_PM10,
             ),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,

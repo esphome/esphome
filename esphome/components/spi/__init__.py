@@ -10,7 +10,7 @@ from esphome.const import (
     CONF_SPI_ID,
     CONF_CS_PIN,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import coroutine_with_priority, CORE
 
 CODEOWNERS = ["@esphome/core"]
 spi_ns = cg.esphome_ns.namespace("spi")
@@ -45,6 +45,11 @@ async def to_code(config):
     if CONF_MOSI_PIN in config:
         mosi = await cg.gpio_pin_expression(config[CONF_MOSI_PIN])
         cg.add(var.set_mosi(mosi))
+
+    if CORE.is_esp32 and CORE.using_arduino:
+        cg.add_library("SPI", None)
+    if CORE.is_esp8266:
+        cg.add_library("SPI", None)
 
 
 def spi_device_schema(cs_pin_required=True):

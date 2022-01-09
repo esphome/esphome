@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include <vector>
 #include "mbedtls/ccm.h"
@@ -15,7 +15,7 @@ static const char *const TAG = "xiaomi_ble";
 bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result) {
   // motion detection, 1 byte, 8-bit unsigned integer
   if ((value_type == 0x03) && (value_length == 1)) {
-    result.has_motion = (data[0]) ? true : false;
+    result.has_motion = data[0];
   }
   // temperature, 2 bytes, 16-bit signed integer (LE), 0.1 °C
   else if ((value_type == 0x04) && (value_length == 2)) {
@@ -31,7 +31,7 @@ bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_l
   else if (((value_type == 0x07) || (value_type == 0x0F)) && (value_length == 3)) {
     const uint32_t illuminance = uint32_t(data[0]) | (uint32_t(data[1]) << 8) | (uint32_t(data[2]) << 16);
     result.illuminance = illuminance;
-    result.is_light = (illuminance == 100) ? true : false;
+    result.is_light = illuminance == 100;
     if (value_type == 0x0F)
       result.has_motion = true;
   }
@@ -62,7 +62,7 @@ bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_l
   }
   // on/off state, 1 byte, 8-bit unsigned integer
   else if ((value_type == 0x12) && (value_length == 1)) {
-    result.is_active = (data[0]) ? true : false;
+    result.is_active = data[0];
   }
   // mosquito tablet, 1 byte, 8-bit unsigned integer, 1 %
   else if ((value_type == 0x13) && (value_length == 1)) {
@@ -72,7 +72,7 @@ bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_l
   else if ((value_type == 0x17) && (value_length == 4)) {
     const uint32_t idle_time = encode_uint32(data[3], data[2], data[1], data[0]);
     result.idle_time = idle_time / 60.0f;
-    result.has_motion = (idle_time) ? false : true;
+    result.has_motion = !idle_time;
   } else {
     return false;
   }
@@ -81,7 +81,7 @@ bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_l
 }
 
 bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult &result) {
-  result.has_encryption = (message[0] & 0x08) ? true : false;  // update encryption status
+  result.has_encryption = message[0] & 0x08;  // update encryption status
   if (result.has_encryption) {
     ESP_LOGVV(TAG, "parse_xiaomi_message(): payload is encrypted, stop reading message.");
     return false;
@@ -136,9 +136,9 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   }
 
   auto raw = service_data.data;
-  result.has_data = (raw[0] & 0x40) ? true : false;
-  result.has_capability = (raw[0] & 0x20) ? true : false;
-  result.has_encryption = (raw[0] & 0x08) ? true : false;
+  result.has_data = raw[0] & 0x40;
+  result.has_capability = raw[0] & 0x20;
+  result.has_encryption = raw[0] & 0x08;
 
   if (!result.has_data) {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): service data has no DATA flag.");
@@ -171,10 +171,8 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     result.type = XiaomiParseResult::TYPE_MUE4094RT;
     result.name = "MUE4094RT";
     result.raw_offset -= 6;
-  } else if ((raw[2] == 0x47) && (raw[3] == 0x03)) {  // ClearGrass-branded, round body, e-ink display
-    result.type = XiaomiParseResult::TYPE_CGG1;
-    result.name = "CGG1";
-  } else if ((raw[2] == 0x48) && (raw[3] == 0x0B)) {  // Qingping-branded, round body, e-ink display — with bindkeys
+  } else if ((raw[2] == 0x47 && raw[3] == 0x03) ||  // ClearGrass-branded, round body, e-ink display
+             (raw[2] == 0x48 && raw[3] == 0x0B)) {  // Qingping-branded, round body, e-ink display — with bindkeys
     result.type = XiaomiParseResult::TYPE_CGG1;
     result.name = "CGG1";
   } else if ((raw[2] == 0xbc) && (raw[3] == 0x03)) {  // VegTrug Grow Care Garden
@@ -219,7 +217,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
 bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, const uint64_t &address) {
   if (!((raw.size() == 19) || ((raw.size() >= 22) && (raw.size() <= 24)))) {
     ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): data packet has wrong size (%d)!", raw.size());
-    ESP_LOGVV(TAG, "  Packet : %s", hexencode(raw.data(), raw.size()).c_str());
+    ESP_LOGVV(TAG, "  Packet : %s", format_hex_pretty(raw.data(), raw.size()).c_str());
     return false;
   }
 
@@ -276,12 +274,12 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
     memcpy(mac_address + 4, mac_reverse + 1, 1);
     memcpy(mac_address + 5, mac_reverse, 1);
     ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): authenticated decryption failed.");
-    ESP_LOGVV(TAG, "  MAC address : %s", hexencode(mac_address, 6).c_str());
-    ESP_LOGVV(TAG, "       Packet : %s", hexencode(raw.data(), raw.size()).c_str());
-    ESP_LOGVV(TAG, "          Key : %s", hexencode(vector.key, vector.keysize).c_str());
-    ESP_LOGVV(TAG, "           Iv : %s", hexencode(vector.iv, vector.ivsize).c_str());
-    ESP_LOGVV(TAG, "       Cipher : %s", hexencode(vector.ciphertext, vector.datasize).c_str());
-    ESP_LOGVV(TAG, "          Tag : %s", hexencode(vector.tag, vector.tagsize).c_str());
+    ESP_LOGVV(TAG, "  MAC address : %s", format_hex_pretty(mac_address, 6).c_str());
+    ESP_LOGVV(TAG, "       Packet : %s", format_hex_pretty(raw.data(), raw.size()).c_str());
+    ESP_LOGVV(TAG, "          Key : %s", format_hex_pretty(vector.key, vector.keysize).c_str());
+    ESP_LOGVV(TAG, "           Iv : %s", format_hex_pretty(vector.iv, vector.ivsize).c_str());
+    ESP_LOGVV(TAG, "       Cipher : %s", format_hex_pretty(vector.ciphertext, vector.datasize).c_str());
+    ESP_LOGVV(TAG, "          Tag : %s", format_hex_pretty(vector.tag, vector.tagsize).c_str());
     mbedtls_ccm_free(&ctx);
     return false;
   }
@@ -297,7 +295,7 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
   raw[0] &= ~0x08;
 
   ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): authenticated decryption passed.");
-  ESP_LOGVV(TAG, "  Plaintext : %s, Packet : %d", hexencode(raw.data() + cipher_pos, vector.datasize).c_str(),
+  ESP_LOGVV(TAG, "  Plaintext : %s, Packet : %d", format_hex_pretty(raw.data() + cipher_pos, vector.datasize).c_str(),
             static_cast<int>(raw[4]));
 
   mbedtls_ccm_free(&ctx);

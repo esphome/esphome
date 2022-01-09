@@ -1,6 +1,7 @@
 #include "tm1637.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace tm1637 {
@@ -129,7 +130,9 @@ void TM1637Display::setup() {
 }
 void TM1637Display::dump_config() {
   ESP_LOGCONFIG(TAG, "TM1637:");
-  ESP_LOGCONFIG(TAG, "  INTENSITY: %d", this->intensity_);
+  ESP_LOGCONFIG(TAG, "  Intensity: %d", this->intensity_);
+  ESP_LOGCONFIG(TAG, "  Inverted: %d", this->inverted_);
+  ESP_LOGCONFIG(TAG, "  Length: %d", this->length_);
   LOG_PIN("  CLK Pin: ", this->clk_pin_);
   LOG_PIN("  DIO Pin: ", this->dio_pin_);
   LOG_UPDATE_INTERVAL(this);
@@ -146,16 +149,16 @@ void TM1637Display::update() {
 float TM1637Display::get_setup_priority() const { return setup_priority::PROCESSOR; }
 void TM1637Display::bit_delay_() { delayMicroseconds(100); }
 void TM1637Display::start_() {
-  this->dio_pin_->pin_mode(OUTPUT);
+  this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->bit_delay_();
 }
 
 void TM1637Display::stop_() {
-  this->dio_pin_->pin_mode(OUTPUT);
+  this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
   bit_delay_();
-  this->clk_pin_->pin_mode(INPUT);
+  this->clk_pin_->pin_mode(gpio::FLAG_INPUT);
   bit_delay_();
-  this->dio_pin_->pin_mode(INPUT);
+  this->dio_pin_->pin_mode(gpio::FLAG_INPUT);
   bit_delay_();
 }
 
@@ -172,8 +175,14 @@ void TM1637Display::display() {
   this->send_byte_(TM1637_I2C_COMM2);
 
   // Write the data bytes
-  for (auto b : this->buffer_) {
-    this->send_byte_(b);
+  if (this->inverted_) {
+    for (int8_t i = this->length_ - 1; i >= 0; i--) {
+      this->send_byte_(this->buffer_[i]);
+    }
+  } else {
+    for (auto b : this->buffer_) {
+      this->send_byte_(b);
+    }
   }
 
   this->stop_();
@@ -189,39 +198,39 @@ bool TM1637Display::send_byte_(uint8_t b) {
   // 8 Data Bits
   for (uint8_t i = 0; i < 8; i++) {
     // CLK low
-    this->clk_pin_->pin_mode(OUTPUT);
+    this->clk_pin_->pin_mode(gpio::FLAG_OUTPUT);
     this->bit_delay_();
 
     // Set data bit
     if (data & 0x01)
-      this->dio_pin_->pin_mode(INPUT);
+      this->dio_pin_->pin_mode(gpio::FLAG_INPUT);
     else
-      this->dio_pin_->pin_mode(OUTPUT);
+      this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
 
     this->bit_delay_();
 
     // CLK high
-    this->clk_pin_->pin_mode(INPUT);
+    this->clk_pin_->pin_mode(gpio::FLAG_INPUT);
     this->bit_delay_();
     data = data >> 1;
   }
 
   // Wait for acknowledge
   // CLK to zero
-  this->clk_pin_->pin_mode(OUTPUT);
-  this->dio_pin_->pin_mode(INPUT);
+  this->clk_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->dio_pin_->pin_mode(gpio::FLAG_INPUT);
   this->bit_delay_();
 
   // CLK to high
-  this->clk_pin_->pin_mode(INPUT);
+  this->clk_pin_->pin_mode(gpio::FLAG_INPUT);
   this->bit_delay_();
   uint8_t ack = this->dio_pin_->digital_read();
   if (ack == 0) {
-    this->dio_pin_->pin_mode(OUTPUT);
+    this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
   }
 
   this->bit_delay_();
-  this->clk_pin_->pin_mode(OUTPUT);
+  this->clk_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->bit_delay_();
 
   return ack;
@@ -233,21 +242,34 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
   for (; *str != '\0'; str++) {
     uint8_t data = TM1637_UNKNOWN_CHAR;
     if (*str >= ' ' && *str <= '~')
-      data = pgm_read_byte(&TM1637_ASCII_TO_RAW[*str - ' ']);
+      data = progmem_read_byte(&TM1637_ASCII_TO_RAW[*str - ' ']);
 
     if (data == TM1637_UNKNOWN_CHAR) {
       ESP_LOGW(TAG, "Encountered character '%c' with no TM1637 representation while translating string!", *str);
     }
     // Remap segments, for compatibility with MAX7219 segment definition which is
     // XABCDEFG, but TM1637 is // XGFEDCBA
-    data = ((data & 0x80) ? 0x80 : 0) |  // no move X
-           ((data & 0x40) ? 0x1 : 0) |   // A
-           ((data & 0x20) ? 0x2 : 0) |   // B
-           ((data & 0x10) ? 0x4 : 0) |   // C
-           ((data & 0x8) ? 0x8 : 0) |    // D
-           ((data & 0x4) ? 0x10 : 0) |   // E
-           ((data & 0x2) ? 0x20 : 0) |   // F
-           ((data & 0x1) ? 0x40 : 0);    // G
+    if (this->inverted_) {
+      // XABCDEFG > XGCBAFED
+      data = ((data & 0x80) ? 0x80 : 0) |  // no move X
+             ((data & 0x40) ? 0x8 : 0) |   // A
+             ((data & 0x20) ? 0x10 : 0) |  // B
+             ((data & 0x10) ? 0x20 : 0) |  // C
+             ((data & 0x8) ? 0x1 : 0) |    // D
+             ((data & 0x4) ? 0x2 : 0) |    // E
+             ((data & 0x2) ? 0x4 : 0) |    // F
+             ((data & 0x1) ? 0x40 : 0);    // G
+    } else {
+      // XABCDEFG > XGFEDCBA
+      data = ((data & 0x80) ? 0x80 : 0) |  // no move X
+             ((data & 0x40) ? 0x1 : 0) |   // A
+             ((data & 0x20) ? 0x2 : 0) |   // B
+             ((data & 0x10) ? 0x4 : 0) |   // C
+             ((data & 0x8) ? 0x8 : 0) |    // D
+             ((data & 0x4) ? 0x10 : 0) |   // E
+             ((data & 0x2) ? 0x20 : 0) |   // F
+             ((data & 0x1) ? 0x40 : 0);    // G
+    }
     if (*str == '.') {
       if (pos != start_pos)
         pos--;

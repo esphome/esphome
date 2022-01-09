@@ -1,4 +1,5 @@
 #include "rtttl.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -158,7 +159,7 @@ void Rtttl::loop() {
   // Now play the note
   if (note) {
     auto note_index = (scale - 4) * 12 + note;
-    if (note_index < 0 || note_index >= sizeof(NOTES)) {
+    if (note_index < 0 || note_index >= (int) sizeof(NOTES)) {
       ESP_LOGE(TAG, "Note out of valid range");
       return;
     }

@@ -14,7 +14,7 @@ void NTC::setup() {
 void NTC::dump_config() { LOG_SENSOR("", "NTC Sensor", this) }
 float NTC::get_setup_priority() const { return setup_priority::DATA; }
 void NTC::process_(float value) {
-  if (isnan(value)) {
+  if (std::isnan(value)) {
     this->publish_state(NAN);
     return;
   }

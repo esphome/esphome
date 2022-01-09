@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 #include "cover_traits.h"
@@ -13,7 +14,7 @@ const extern float COVER_CLOSED;
 
 #define LOG_COVER(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, (obj)->get_name().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
     auto traits_ = (obj)->get_traits(); \
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
@@ -29,7 +30,7 @@ class CoverCall {
  public:
   CoverCall(Cover *parent);
 
-  /// Set the command as a string, "STOP", "OPEN", "CLOSE".
+  /// Set the command as a string, "STOP", "OPEN", "CLOSE", "TOGGLE".
   CoverCall &set_command(const char *command);
   /// Set the command to open the cover.
   CoverCall &set_command_open();
@@ -37,6 +38,8 @@ class CoverCall {
   CoverCall &set_command_close();
   /// Set the command to stop the cover.
   CoverCall &set_command_stop();
+  /// Set the command to toggle the cover.
+  CoverCall &set_command_toggle();
   /// Set the call to a certain target position.
   CoverCall &set_position(float position);
   /// Set the call to a certain target tilt.
@@ -50,6 +53,7 @@ class CoverCall {
   const optional<float> &get_position() const;
   bool get_stop() const;
   const optional<float> &get_tilt() const;
+  const optional<bool> &get_toggle() const;
 
  protected:
   void validate_();
@@ -58,6 +62,7 @@ class CoverCall {
   bool stop_{false};
   optional<float> position_{};
   optional<float> tilt_{};
+  optional<bool> toggle_{};
 };
 
 /// Struct used to store the restored state of a cover
@@ -103,7 +108,7 @@ const char *cover_operation_to_str(CoverOperation op);
  * to control all values of the cover. Also implement get_traits() to return what operations
  * the cover supports.
  */
-class Cover : public Nameable {
+class Cover : public EntityBase {
  public:
   explicit Cover();
   explicit Cover(const std::string &name);

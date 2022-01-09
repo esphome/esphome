@@ -1,4 +1,4 @@
-import codecs
+import colorama
 import os.path
 import re
 import subprocess
@@ -11,13 +11,18 @@ temp_folder = os.path.join(root_path, ".temp")
 temp_header_file = os.path.join(temp_folder, "all-include.cpp")
 
 
-def shlex_quote(s):
-    if not s:
-        return "''"
-    if re.search(r"[^\w@%+=:,./-]", s) is None:
-        return s
+def styled(color, msg, reset=True):
+    prefix = ''.join(color) if isinstance(color, tuple) else color
+    suffix = colorama.Style.RESET_ALL if reset else ''
+    return prefix + msg + suffix
 
-    return "'" + s.replace("'", "'\"'\"'") + "'"
+
+def print_error_for_file(file, body):
+    print(styled(colorama.Fore.GREEN, "### File ") + styled((colorama.Fore.GREEN, colorama.Style.BRIGHT), file))
+    print()
+    if body is not None:
+        print(body)
+        print()
 
 
 def build_all_include():
@@ -92,6 +97,16 @@ def filter_changed(files):
     return files
 
 
+def filter_grep(files, value):
+    matched = []
+    for file in files:
+        with open(file, "r") as handle:
+            contents = handle.read()
+        if value in contents:
+            matched.append(file)
+    return matched
+
+
 def git_ls_files(patterns=None):
     command = ["git", "ls-files", "-s"]
     if patterns is not None:
@@ -105,20 +120,32 @@ def git_ls_files(patterns=None):
 def load_idedata(environment):
     platformio_ini = Path(root_path) / "platformio.ini"
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
+    changed = False
     if not platformio_ini.is_file() or not temp_idedata.is_file():
         changed = True
     elif platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime:
         changed = True
-    else:
-        changed = False
+
+    if "idf" in environment:
+        # remove full sdkconfig when the defaults have changed so that it is regenerated
+        default_sdkconfig = Path(root_path) / "sdkconfig.defaults"
+        temp_sdkconfig = Path(temp_folder) / f"sdkconfig-{environment}"
+
+        if not temp_sdkconfig.is_file():
+            changed = True
+        elif default_sdkconfig.stat().st_mtime >= temp_sdkconfig.stat().st_mtime:
+            temp_sdkconfig.unlink()
+            changed = True
 
     if not changed:
         return json.loads(temp_idedata.read_text())
+
+    # ensure temp directory exists before running pio, as it writes sdkconfig to it
+    Path(temp_folder).mkdir(exist_ok=True)
 
     stdout = subprocess.check_output(["pio", "run", "-t", "idedata", "-e", environment])
     match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
     data = json.loads(match.group())
 
-    temp_idedata.parent.mkdir(exist_ok=True)
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
     return data

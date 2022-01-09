@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 import esphome.final_validate as fv
 from esphome import automation
 from esphome.automation import Condition
-from esphome.components.network import add_mdns_library
 from esphome.const import (
     CONF_AP,
     CONF_BSSID,
@@ -24,7 +23,6 @@ from esphome.const import (
     CONF_STATIC_IP,
     CONF_SUBNET,
     CONF_USE_ADDRESS,
-    CONF_ENABLE_MDNS,
     CONF_PRIORITY,
     CONF_IDENTITY,
     CONF_CERTIFICATE_AUTHORITY,
@@ -34,6 +32,7 @@ from esphome.const import (
     CONF_EAP,
 )
 from esphome.core import CORE, HexInt, coroutine_with_priority
+from esphome.components.network import IPAddress
 from . import wpa2_eap
 
 
@@ -41,7 +40,6 @@ AUTO_LOAD = ["network"]
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
-IPAddress = cg.global_ns.class_("IPAddress")
 ManualIP = wifi_ns.struct("ManualIP")
 WiFiComponent = wifi_ns.class_("WiFiComponent", cg.Component)
 WiFiAP = wifi_ns.struct("WiFiAP")
@@ -142,7 +140,8 @@ def final_validate(config):
     has_sta = bool(config.get(CONF_NETWORKS, True))
     has_ap = CONF_AP in config
     has_improv = "esp32_improv" in fv.full_config.get()
-    if (not has_sta) and (not has_ap) and (not has_improv):
+    has_improv_serial = "improv_serial" in fv.full_config.get()
+    if not (has_sta or has_ap or has_improv or has_improv_serial):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create."
         )
@@ -155,18 +154,24 @@ def final_validate_power_esp32_ble(value):
         # WiFi should be in modem sleep (!=NONE) with BLE coexistence
         # https://docs.espressif.com/projects/esp-idf/en/v3.3.5/api-guides/wifi.html#station-sleep
         return
-    framework_version = fv.get_arduino_framework_version()
-    if framework_version not in (None, "dev") and framework_version < "1.0.5":
-        # Only frameworks 1.0.5+ impacted
-        return
-    full = fv.full_config.get()
     for conflicting in [
         "esp32_ble",
         "esp32_ble_beacon",
         "esp32_ble_server",
         "esp32_ble_tracker",
     ]:
-        if conflicting in full:
+        if conflicting not in fv.full_config.get():
+            continue
+
+        try:
+            # Only arduino 1.0.5+ and esp-idf impacted
+            cv.require_framework_version(
+                esp32_arduino=cv.Version(1, 0, 5),
+                esp_idf=cv.Version(4, 0, 0),
+            )(None)
+        except cv.Invalid:
+            pass
+        else:
             raise cv.Invalid(
                 f"power_save_mode NONE is incompatible with {conflicting}. "
                 f"Please remove the power save mode. See also "
@@ -216,10 +221,22 @@ def _validate(config):
             raise cv.Invalid("Fast connect can only be used with one network!")
 
     if CONF_USE_ADDRESS not in config:
+        use_address = CORE.name + config[CONF_DOMAIN]
         if CONF_MANUAL_IP in config:
             use_address = str(config[CONF_MANUAL_IP][CONF_STATIC_IP])
-        else:
-            use_address = CORE.name + config[CONF_DOMAIN]
+        elif CONF_NETWORKS in config:
+            ips = set(
+                str(net[CONF_MANUAL_IP][CONF_STATIC_IP])
+                for net in config[CONF_NETWORKS]
+                if CONF_MANUAL_IP in net
+            )
+            if len(ips) > 1:
+                raise cv.Invalid(
+                    "Must specify use_address when using multiple static IP addresses."
+                )
+            if len(ips) == 1:
+                use_address = next(iter(ips))
+
         config[CONF_USE_ADDRESS] = use_address
 
     return config
@@ -236,7 +253,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
             cv.Optional(CONF_AP): WIFI_NETWORK_AP,
-            cv.Optional(CONF_ENABLE_MDNS, default=True): cv.boolean,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
@@ -248,6 +264,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=10.0, max=20.5)
+            ),
+            cv.Optional("enable_mdns"): cv.invalid(
+                "This option has been removed. Please use the [disabled] option under the "
+                "new mdns component instead."
             ),
         }
     ),
@@ -326,7 +346,8 @@ async def to_code(config):
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     for network in config.get(CONF_NETWORKS, []):
-        cg.add(var.add_sta(wifi_network(network, config.get(CONF_MANUAL_IP))))
+        ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
+        cg.add(var.add_sta(wifi_network(network, ip_config)))
 
     if CONF_AP in config:
         conf = config[CONF_AP]
@@ -342,11 +363,10 @@ async def to_code(config):
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
+    elif CORE.is_esp32 and CORE.using_arduino:
+        cg.add_library("WiFi", None)
 
     cg.add_define("USE_WIFI")
-
-    if config[CONF_ENABLE_MDNS]:
-        add_mdns_library()
 
     # Register at end for OTA safe mode
     await cg.register_component(var, config)

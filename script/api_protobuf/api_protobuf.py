@@ -649,7 +649,7 @@ def build_message_type(desc):
             o += f" {dump[0]} "
         else:
             o += "\n"
-            o += f"  char buffer[64];\n"
+            o += f"  __attribute__((unused)) char buffer[64];\n"
             o += f'  out.append("{desc.name} {{\\n");\n'
             o += indent("\n".join(dump)) + "\n"
             o += f'  out.append("}}");\n'
@@ -778,9 +778,9 @@ def build_service_message_type(mt):
         hout += f"bool {func}(const {mt.name} &msg);\n"
         cout += f"bool {class_name}::{func}(const {mt.name} &msg) {{\n"
         if log:
-            cout += f'#ifdef HAS_PROTO_MESSAGE_DUMP\n'
+            cout += f"#ifdef HAS_PROTO_MESSAGE_DUMP\n"
             cout += f'  ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
-            cout += f'#endif\n'
+            cout += f"#endif\n"
         # cout += f'  this->set_nodelay({str(nodelay).lower()});\n'
         cout += f"  return this->send_message_<{mt.name}>(msg, {id_});\n"
         cout += f"}}\n"
@@ -794,9 +794,9 @@ def build_service_message_type(mt):
         case += f"{mt.name} msg;\n"
         case += f"msg.decode(msg_data, msg_size);\n"
         if log:
-            case += f'#ifdef HAS_PROTO_MESSAGE_DUMP\n'
+            case += f"#ifdef HAS_PROTO_MESSAGE_DUMP\n"
             case += f'ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
-            case += f'#endif\n'
+            case += f"#endif\n"
         case += f"this->{func}(msg);\n"
         if ifdef is not None:
             case += f"#endif\n"

@@ -1,5 +1,6 @@
 #include "tsl2591.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace tsl2591 {
@@ -362,7 +363,7 @@ float TSL2591Component::get_calculated_lux(uint16_t full_spectrum, uint16_t infr
   // For the curious "cpl" is counts per lux, a term used in AMS application notes.
   float cpl = (atime * again) / (this->device_factor_ * this->glass_attenuation_factor_);
   float lux = (((float) full_spectrum - (float) infrared)) * (1.0F - ((float) infrared / (float) full_spectrum)) / cpl;
-  return max(lux, 0.0F);
+  return std::max(lux, 0.0F);
 }
 
 }  // namespace tsl2591
