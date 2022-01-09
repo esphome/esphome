@@ -42,8 +42,7 @@ def inherit_unit_of_measurement(uom, config):
     suffix = config[CONF_TIME_UNIT]
     if uom.endswith("/" + suffix):
         return uom[0 : -len("/" + suffix)]
-    else:
-        return uom + suffix
+    return uom + suffix
 
 
 def inherit_accuracy_decimals(decimals, config):
