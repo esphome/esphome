@@ -23,10 +23,6 @@ class KalmanCombinatorComponent : public Component, public sensor::Sensor {
   }
   void set_std_dev_sensor(Sensor *sensor) { this->std_dev_sensor_ = sensor; }
 
- protected:
-  std::string device_class() override;
-  std::string unit_of_measurement() override;
-
  private:
   void update_();
   void correct_(float value, float stddev);

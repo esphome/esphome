@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_ID, CONF_SOURCE
+from esphome.const import (
+    CONF_ID,
+    CONF_SOURCE,
+    CONF_UNIT_OF_MEASUREMENT,
+    CONF_DEVICE_CLASS,
+)
+from esphome.core.entity_helpers import inherit_property_from
 
 kalman_combinator_ns = cg.esphome_ns.namespace("kalman_combinator")
 KalmanCombinatorComponent = kalman_combinator_ns.class_(
@@ -32,6 +38,26 @@ CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
         ),
         cv.Optional(CONF_STD_DEV): sensor.SENSOR_SCHEMA,
     }
+)
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(KalmanCombinatorComponent),
+            cv.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string,
+            cv.Optional(CONF_DEVICE_CLASS): cv.string,
+            cv.Required(CONF_SOURCES): sources_schema,
+        },
+        extra=cv.ALLOW_EXTRA,
+    ),
+    inherit_property_from(CONF_UNIT_OF_MEASUREMENT, [CONF_SOURCES, 0, CONF_SOURCE]),
+    inherit_property_from(CONF_DEVICE_CLASS, [CONF_SOURCES, 0, CONF_SOURCE]),
+    inherit_property_from(
+        [CONF_STD_DEV, CONF_UNIT_OF_MEASUREMENT], [CONF_SOURCES, 0, CONF_SOURCE]
+    ),
+    inherit_property_from(
+        [CONF_STD_DEV, CONF_DEVICE_CLASS], [CONF_SOURCES, 0, CONF_SOURCE]
+    ),
 )
 
 

@@ -21,26 +21,6 @@ void KalmanCombinatorComponent::setup() {
     const auto stddev = sensor.second;
     sensor.first->add_on_state_callback([this, stddev](float x) -> void { this->correct_(x, stddev(x)); });
   }
-
-  if (this->std_dev_sensor_) {
-    auto &s = *this->std_dev_sensor_;
-    if (s.get_unit_of_measurement() == std::string("")) {
-      s.set_unit_of_measurement(this->get_unit_of_measurement());
-    }
-    if (s.get_device_class() == std::string("")) {
-      s.set_device_class(this->get_device_class());
-    }
-  }
-}
-
-std::string KalmanCombinatorComponent::device_class() {
-  return this->device_class_.value_or(!this->sensors_.empty() ? this->sensors_[0].first->get_device_class()
-                                                              : std::string(""));
-}
-
-std::string KalmanCombinatorComponent::unit_of_measurement() {
-  return this->unit_of_measurement_.value_or(
-      !this->sensors_.empty() ? this->sensors_[0].first->get_unit_of_measurement() : std::string(""));
 }
 
 void KalmanCombinatorComponent::add_source(Sensor *sensor, std::function<float(float)> const &stddev) {
