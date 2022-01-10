@@ -1,6 +1,6 @@
 #include "nspanel.h"
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_ESP32
 
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/application.h"
@@ -103,11 +103,11 @@ bool NSPanel::process_data_() {
   ESP_LOGD(TAG, "Received NSPanel: Type=0x%02X PAYLOAD=%s RAW=[%s]", type, message.c_str(),
            hexencode(message_data, length).c_str());
 #endif
-  json::parse_json(message, [this, type, message](JsonObject &root) { this->process_command_(type, root, message); });
+  json::parse_json(message, [this, type, message](JsonObject root) { this->process_command_(type, root, message); });
   return false;
 }
 
-void NSPanel::process_command_(uint8_t type, JsonObject &root, const std::string &message) {
+void NSPanel::process_command_(uint8_t type, JsonObject root, const std::string &message) {
   uint8_t id = uint8_t(root["id"]);
   auto widget = this->widgets_[id - 1];
 
@@ -117,7 +117,7 @@ void NSPanel::process_command_(uint8_t type, JsonObject &root, const std::string
 
         auto params = root["params"];
 
-        auto &switches = params["switches"].as<JsonArray>();
+        auto switches = params["switches"].as<JsonArray>();
 
         for (auto switch_object : switches) {
           uint8_t item_index = uint8_t(switch_object["outlet"]);
@@ -138,12 +138,12 @@ void NSPanel::process_command_(uint8_t type, JsonObject &root, const std::string
 }
 
 void NSPanel::control_switch(GroupItem &item, bool state) {
-  std::string json_str = json::build_json([item, state](JsonObject &root) {
-    JsonObject &relation = root.createNestedObject("relation");
+  std::string json_str = json::build_json([item, state](JsonObject root) {
+    JsonObject relation = root.createNestedObject("relation");
     relation["id"] = to_string(item.widget_id);
-    JsonObject &params = relation.createNestedObject("params");
-    JsonArray &switches = params.createNestedArray("switches");
-    JsonObject &switch_object = switches.createNestedObject();
+    JsonObject params = relation.createNestedObject("params");
+    JsonArray switches = params.createNestedArray("switches");
+    JsonObject switch_object = switches.createNestedObject();
     switch_object["switch"] = state ? "on" : "off";
     switch_object["outlet"] = item.id;
   });
@@ -152,12 +152,12 @@ void NSPanel::control_switch(GroupItem &item, bool state) {
 }
 
 void NSPanel::send_relay_states_() {
-  std::string json_str = json::build_json([this](JsonObject &root) {
-    JsonArray &switches = root.createNestedArray("switches");
-    JsonObject &one = switches.createNestedObject();
+  std::string json_str = json::build_json([this](JsonObject root) {
+    JsonArray switches = root.createNestedArray("switches");
+    JsonObject one = switches.createNestedObject();
     one["outlet"] = 0;
     one["switch"] = this->relay_1_->state ? "on" : "off";
-    JsonObject &two = switches.createNestedObject();
+    JsonObject two = switches.createNestedObject();
     two["outlet"] = 1;
     two["switch"] = this->relay_2_->state ? "on" : "off";
   });
@@ -168,7 +168,7 @@ void NSPanel::send_time_() {
   auto time = this->time_->now();
   if (!time.is_valid())
     return;
-  std::string json_str = json::build_json([time](JsonObject &root) {
+  std::string json_str = json::build_json([time](JsonObject root) {
     root["year"] = time.year;
     root["mon"] = time.month;
     root["day"] = time.day_of_month;
@@ -180,7 +180,7 @@ void NSPanel::send_time_() {
 }
 
 void NSPanel::send_temperature_(float temperature) {
-  std::string json_str = json::build_json([this, temperature](JsonObject &root) {
+  std::string json_str = json::build_json([this, temperature](JsonObject root) {
     root["temperature"] = temperature;
     root["tempUnit"] = this->temperature_celsius_ ? 0 : 1;
   });
@@ -188,7 +188,7 @@ void NSPanel::send_temperature_(float temperature) {
 }
 
 void NSPanel::send_eco_mode_(bool eco_mode) {
-  std::string json_str = json::build_json([eco_mode](JsonObject &root) { root["HMI_dimOpen"] = eco_mode ? 1 : 0; });
+  std::string json_str = json::build_json([eco_mode](JsonObject root) { root["HMI_dimOpen"] = eco_mode ? 1 : 0; });
   this->send_json_command(0x87, json_str);
 }
 
@@ -206,7 +206,7 @@ void NSPanel::send_wifi_state_() {
   } else {
     if (!last_connected_ || this->last_wifi_sent_at_ + 60000 < now) {
       rssi = (wifi::global_wifi_component->wifi_rssi() * -1) / 20.0f;
-      std::string json_str = json::build_json([rssi](JsonObject &root) {
+      std::string json_str = json::build_json([rssi](JsonObject root) {
         root["wifiState"] = "connected";
         root["rssiLevel"] = rssi;
       });
@@ -218,9 +218,9 @@ void NSPanel::send_wifi_state_() {
 }
 
 void NSPanel::send_weather_data(WeatherIcon icon, int8_t temperature, int8_t min, int8_t max) {
-  std::string json_str = json::build_json([icon, temperature, min, max](JsonObject &root) {
+  std::string json_str = json::build_json([icon, temperature, min, max](JsonObject root) {
     root["HMI_weather"] = (uint8_t) icon;
-    JsonObject &outdoor = root.createNestedObject("HMI_outdoorTemp");
+    JsonObject outdoor = root.createNestedObject("HMI_outdoorTemp");
     outdoor["current"] = temperature;
     root["range"] = (to_string(min) + "," + to_string(max)).substr(0, 5);
   });
@@ -233,7 +233,7 @@ void NSPanel::send_all_widgets_() {
     auto widget = this->widgets_[i - 1];
     switch (widget.type) {
       case EMPTY: {
-        std::string json_str = json::build_json([i](JsonObject &root) {
+        std::string json_str = json::build_json([i](JsonObject root) {
           root["index"] = i;
           root["type"] = "delete";
         });
@@ -241,9 +241,9 @@ void NSPanel::send_all_widgets_() {
         break;
       }
       case DEVICE: {
-        std::string resource = json::build_json([i, widget](JsonObject &root) {
-          JsonArray &resources = root.createNestedArray("HMI_resources");
-          JsonObject &r = resources.createNestedObject();
+        std::string resource = json::build_json([i, widget](JsonObject root) {
+          JsonArray resources = root.createNestedArray("HMI_resources");
+          JsonObject r = resources.createNestedObject();
           r["index"] = i;
           r["ctype"] = "device";
           r["id"] = to_string(i);
@@ -251,14 +251,14 @@ void NSPanel::send_all_widgets_() {
         });
         this->send_json_command(0x86, resource);
 
-        std::string relation = json::build_json([i, widget](JsonObject &root) {
-          JsonArray &relations = root.createNestedArray("relation");
-          JsonObject &r = relations.createNestedObject();
+        std::string relation = json::build_json([i, widget](JsonObject root) {
+          JsonArray relations = root.createNestedArray("relation");
+          JsonObject r = relations.createNestedObject();
           r["ctype"] = "device";
           r["id"] = to_string(i);
           r["name"] = widget.name.substr(0, 7);
           r["online"] = true;
-          JsonObject &p = r.createNestedObject("params");
+          JsonObject p = r.createNestedObject("params");
           p["switch"] = "on";
         });
         this->send_json_command(0x86, relation);
@@ -266,9 +266,9 @@ void NSPanel::send_all_widgets_() {
         break;
       }
       case GROUP: {
-        std::string resource = json::build_json([i, widget](JsonObject &root) {
-          JsonArray &resources = root.createNestedArray("HMI_resources");
-          JsonObject &r = resources.createNestedObject();
+        std::string resource = json::build_json([i, widget](JsonObject root) {
+          JsonArray resources = root.createNestedArray("HMI_resources");
+          JsonObject r = resources.createNestedObject();
           r["index"] = i;
           r["ctype"] = "group";
           r["id"] = to_string(i);
@@ -276,21 +276,21 @@ void NSPanel::send_all_widgets_() {
         });
         this->send_json_command(0x86, resource);
 
-        std::string relation = json::build_json([i, widget](JsonObject &root) {
-          JsonArray &relation_list = root.createNestedArray("relation");
-          JsonObject &relation = relation_list.createNestedObject();
+        std::string relation = json::build_json([i, widget](JsonObject root) {
+          JsonArray relation_list = root.createNestedArray("relation");
+          JsonObject relation = relation_list.createNestedObject();
           relation["ctype"] = "group";
           relation["id"] = to_string(i);
           relation["name"] = widget.name;
           relation["online"] = true;
-          JsonObject &params = relation.createNestedObject("params");
+          JsonObject params = relation.createNestedObject("params");
           if (widget.items.size() == 1) {
             params["switch"] = "on";
           } else {
-            JsonArray &switches_list = params.createNestedArray("switches");
+            JsonArray switches_list = params.createNestedArray("switches");
             for (size_t j = 0; j < widget.items.size(); j++) {
               GroupItem item = widget.items[j];
-              JsonObject &item_obj = switches_list.createNestedObject();
+              JsonObject item_obj = switches_list.createNestedObject();
               item_obj["outlet"] = j;
               item_obj["name"] = item.name;
             }
@@ -301,18 +301,18 @@ void NSPanel::send_all_widgets_() {
         break;
       }
       case SCENE: {
-        std::string resource = json::build_json([i, widget](JsonObject &root) {
-          JsonArray &resources = root.createNestedArray("HMI_resources");
-          JsonObject &r = resources.createNestedObject();
+        std::string resource = json::build_json([i, widget](JsonObject root) {
+          JsonArray resources = root.createNestedArray("HMI_resources");
+          JsonObject r = resources.createNestedObject();
           r["index"] = i;
           r["ctype"] = "scene";
           r["id"] = to_string(i);
         });
         this->send_json_command(0x86, resource);
 
-        std::string relation = json::build_json([i, widget](JsonObject &root) {
-          JsonArray &relations = root.createNestedArray("relation");
-          JsonObject &r = relations.createNestedObject();
+        std::string relation = json::build_json([i, widget](JsonObject root) {
+          JsonArray relations = root.createNestedArray("relation");
+          JsonObject r = relations.createNestedObject();
           r["ctype"] = "scene";
           r["id"] = to_string(i);
           r["name"] = widget.name.substr(0, 7);
@@ -365,4 +365,4 @@ uint16_t NSPanel::crc16(const uint8_t *data, uint16_t len) {
 }  // namespace nspanel
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_ESP32

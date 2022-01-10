@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_ESP32
 
 #include <utility>
 
@@ -154,4 +154,4 @@ class NSPanel : public Component, public uart::UARTDevice {
 }  // namespace nspanel
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_ESP32
