@@ -64,45 +64,6 @@ void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
 
 std::string generate_hostname(const std::string &base) { return base + std::string("-") + get_mac_address(); }
 
-uint32_t random_uint32() {
-#ifdef USE_ESP32
-  return esp_random();
-#elif defined(USE_ESP8266)
-  return os_random();
-#endif
-}
-
-double random_double() { return random_uint32() / double(UINT32_MAX); }
-
-float random_float() { return float(random_double()); }
-
-void fill_random(uint8_t *data, size_t len) {
-#if defined(USE_ESP_IDF) || defined(USE_ESP32_FRAMEWORK_ARDUINO)
-  esp_fill_random(data, len);
-#elif defined(USE_ESP8266)
-  int err = os_get_random(data, len);
-  assert(err == 0);
-#else
-#error "No random source for this system config"
-#endif
-}
-
-static uint32_t fast_random_seed = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-void fast_random_set_seed(uint32_t seed) { fast_random_seed = seed; }
-uint32_t fast_random_32() {
-  fast_random_seed = (fast_random_seed * 2654435769ULL) + 40503ULL;
-  return fast_random_seed;
-}
-uint16_t fast_random_16() {
-  uint32_t rand32 = fast_random_32();
-  return (rand32 & 0xFFFF) + (rand32 >> 16);
-}
-uint8_t fast_random_8() {
-  uint32_t rand32 = fast_random_32();
-  return (rand32 & 0xFF) + ((rand32 >> 8) & 0xFF);
-}
-
 float gamma_correct(float value, float gamma) {
   if (value <= 0.0f)
     return 0.0f;
@@ -313,6 +274,30 @@ IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 #endif
 
 // ---------------------------------------------------------------------------------------------------------------------
+
+// Mathematics
+
+uint32_t random_uint32() {
+#ifdef USE_ESP32
+  return esp_random();
+#elif defined(USE_ESP8266)
+  return os_random();
+#else
+#error "No random source available for this configuration."
+#endif
+}
+float random_float() { return static_cast<float>(random_uint32()) / static_cast<float>(UINT32_MAX); }
+void random_bytes(uint8_t *data, size_t len) {
+#ifdef USE_ESP32
+  esp_fill_random(data, len);
+#elif defined(USE_ESP8266)
+  if (os_get_random(data, len) != 0) {
+    ESP_LOGE(TAG, "Failed to generate random bytes!");
+  }
+#else
+#error "No random source available for this configuration."
+#endif
+}
 
 // Strings
 

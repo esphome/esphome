@@ -78,25 +78,6 @@ template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...
 }
 #endif
 
-/// Return a random 32 bit unsigned integer.
-uint32_t random_uint32();
-
-/** Returns a random double between 0 and 1.
- *
- * Note: This function probably doesn't provide a truly uniform distribution.
- */
-double random_double();
-
-/// Returns a random float between 0 and 1. Essentially just casts random_double() to a float.
-float random_float();
-
-void fill_random(uint8_t *data, size_t len);
-
-void fast_random_set_seed(uint32_t seed);
-uint32_t fast_random_32();
-uint16_t fast_random_16();
-uint8_t fast_random_8();
-
 /// Applies gamma correction with the provided gamma to value.
 float gamma_correct(float value, float gamma);
 /// Reverts gamma correction with the provided gamma to value.
@@ -301,6 +282,18 @@ constexpr uint8_t byteswap(uint8_t n) { return n; }
 constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
 constexpr uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
 constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+
+///@}
+
+/// @name Mathematics
+///@{
+
+/// Return a random 32-bit unsigned integer.
+uint32_t random_uint32();
+/// Return a random float between 0 and 1.
+float random_float();
+/// Generate \p len number of random bytes.
+void random_bytes(uint8_t *data, size_t len);
 
 ///@}
 
