@@ -34,7 +34,6 @@ struct Transaction {
   size_t read_len;
 };
 
-
 class I2CBus {
  public:
   /// Most I2C (and SMBus) bus transactions follow the process of
@@ -43,11 +42,10 @@ class I2CBus {
   /// released (stop sent), rather a restart is sent keeping the command/reply atomic.
   /// Adopting this method means in the future the transactions can be queued and
   /// serviced on interrupts.
-  virtual ErrorCode write_read(Transaction* t) = 0;
+  virtual ErrorCode write_read(Transaction *t) = 0;
   /// Single treaded method
-  virtual ErrorCode write_read(uint8_t address, 
-      const uint8_t *write_buffer, size_t write_len,
-      uint8_t *read_buffer, size_t read_len) {
+  virtual ErrorCode write_read(uint8_t address, const uint8_t *write_buffer, size_t write_len, uint8_t *read_buffer,
+                               size_t read_len) {
     Transaction ta;
     ta.device_address = address;
     ta.write_buf = write_buffer;
