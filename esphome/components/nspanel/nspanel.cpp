@@ -6,7 +6,6 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/util.h"
-#include "esphome/core/version.h"
 
 namespace esphome {
 namespace nspanel {
@@ -96,13 +95,8 @@ bool NSPanel::process_data_() {
     ESP_LOGD(TAG, "Received success response");
     return false;
   }
-#if ESPHOME_VERSION_CODE >= VERSION_CODE(2022, 1, 0)
   ESP_LOGD(TAG, "Received NSPanel: Type=0x%02X PAYLOAD=%s RAW=[%s]", type, message.c_str(),
            format_hex_pretty(message_data, length).c_str());
-#else
-  ESP_LOGD(TAG, "Received NSPanel: Type=0x%02X PAYLOAD=%s RAW=[%s]", type, message.c_str(),
-           hexencode(message_data, length).c_str());
-#endif
   json::parse_json(message, [this, type, message](JsonObject root) { this->process_command_(type, root, message); });
   return false;
 }
