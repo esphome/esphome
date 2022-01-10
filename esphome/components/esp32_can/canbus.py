@@ -5,6 +5,7 @@ from esphome.components import canbus
 from esphome.const import CONF_ID, CONF_RX_PIN, CONF_TX_PIN
 from esphome.components.canbus import CanbusComponent, CanSpeed, CONF_BIT_RATE
 
+CODEOWNERS = ["@Sympatron"]
 DEPENDENCIES = ["esp32"]
 
 esp32_can_ns = cg.esphome_ns.namespace("esp32_can")
