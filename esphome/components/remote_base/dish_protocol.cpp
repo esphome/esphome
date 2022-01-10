@@ -6,8 +6,8 @@ namespace remote_base {
 
 static const char *const TAG = "remote.dish";
 
-static const uint32_t HEADER_HIGH_US = 400;
-static const uint32_t HEADER_LOW_US = 6100;
+static const uint32_t HEADER_MARK_US = 400;
+static const uint32_t HEADER_SPACE_US = 6100;
 static const uint32_t BIT_MARK_US = 400;
 static const uint32_t BIT_ONE_SPACE_US = 1700;
 static const uint32_t BIT_ZERO_SPACE_US = 2800;
@@ -18,7 +18,7 @@ void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
   dst->reserve(REMOTE_DATA_SIZE);
 
   // HEADER
-  dst->item(HEADER_HIGH_US, HEADER_LOW_US);
+  dst->item(HEADER_MARK_US, HEADER_SPACE_US);
 
   //  Typically a DISH device needs to get a command a total of
   //  at least 4 times to accept it.
@@ -34,7 +34,7 @@ void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
       dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
 
     // FOOTER
-    dst->item(HEADER_HIGH_US, HEADER_LOW_US);
+    dst->item(HEADER_MARK_US, HEADER_SPACE_US);
   }
 }
 
@@ -49,14 +49,14 @@ optional<DishData> DishProtocol::decode(RemoteReceiveData src) {
       .command = 0,
   };
 
-  if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US) || !decode_data(src, data))
+  if (!src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) || !decode_data(src, data))
     return {};
 
   for (unsigned j = 0; j < 6; j++)
     if (!src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US))
       return {};
 
-  if (!src.expect_mark(HEADER_HIGH_US))
+  if (!src.expect_mark(HEADER_MARK_US))
     return {};
 
   data.address++;

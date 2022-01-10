@@ -6,8 +6,8 @@ namespace remote_base {
 
 static const char *const TAG = "remote.sony";
 
-static const uint32_t HEADER_HIGH_US = 2400;
-static const uint32_t HEADER_LOW_US = 600;
+static const uint32_t HEADER_MARK_US = 2400;
+static const uint32_t HEADER_SPACE_US = 600;
 static const uint32_t BIT_ONE_HIGH_US = 1200;
 static const uint32_t BIT_ZERO_HIGH_US = 600;
 static const uint32_t BIT_LOW_US = 600;
@@ -16,7 +16,7 @@ void SonyProtocol::encode(RemoteTransmitData *dst, const SonyData &data) {
   dst->set_carrier_frequency(40000);
   dst->reserve(2 + data.nbits * 2u);
 
-  dst->item(HEADER_HIGH_US, HEADER_LOW_US);
+  dst->item(HEADER_MARK_US, HEADER_SPACE_US);
 
   for (uint32_t mask = 1UL << (data.nbits - 1); mask != 0; mask >>= 1) {
     if (data.data & mask)
@@ -30,7 +30,7 @@ optional<SonyData> SonyProtocol::decode(RemoteReceiveData src) {
       .data = 0,
       .nbits = 0,
   };
-  if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
+  if (!src.expect_item(HEADER_MARK_US, HEADER_SPACE_US))
     return {};
 
   for (; out.nbits < 20; out.nbits++) {

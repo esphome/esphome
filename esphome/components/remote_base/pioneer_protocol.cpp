@@ -6,8 +6,8 @@ namespace remote_base {
 
 static const char *const TAG = "remote.pioneer";
 
-static const uint32_t HEADER_HIGH_US = 9000;
-static const uint32_t HEADER_LOW_US = 4500;
+static const uint32_t HEADER_MARK_US = 9000;
+static const uint32_t HEADER_SPACE_US = 4500;
 static const uint32_t BIT_MARK_US = 560;
 static const uint32_t BIT_ONE_SPACE_US = 1690;
 static const uint32_t BIT_ZERO_SPACE_US = 560;
@@ -45,14 +45,14 @@ void PioneerProtocol::encode(RemoteTransmitData *dst, const PioneerData &data) {
   dst->set_carrier_frequency(40000);
   dst->reserve(data.rc_code_2 ? ((68 * 2) + 1) : 68);
 
-  dst->item(HEADER_HIGH_US, HEADER_LOW_US);
+  dst->item(HEADER_MARK_US, HEADER_SPACE_US);
   encode_data_msb<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, address1);
   encode_data_msb<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, command1);
   dst->mark(BIT_MARK_US);
 
   if (data.rc_code_2 != 0) {
     dst->space(TRAILER_SPACE_US);
-    dst->item(HEADER_HIGH_US, HEADER_LOW_US);
+    dst->item(HEADER_MARK_US, HEADER_SPACE_US);
     encode_data_msb<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, address2);
     encode_data_msb<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, command2);
     dst->mark(BIT_MARK_US);
@@ -67,7 +67,7 @@ optional<PioneerData> PioneerProtocol::decode(RemoteReceiveData src) {
       .rc_code_1 = 0,
       .rc_code_2 = 0,
   };
-  if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
+  if (!src.expect_item(HEADER_MARK_US, HEADER_SPACE_US))
     return {};
 
   if (!decode_data_msb<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, address1))

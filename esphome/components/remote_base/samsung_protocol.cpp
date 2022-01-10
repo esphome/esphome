@@ -7,19 +7,19 @@ namespace remote_base {
 
 static const char *const TAG = "remote.samsung";
 
-static const uint32_t HEADER_HIGH_US = 4500;
-static const uint32_t HEADER_LOW_US = 4500;
+static const uint32_t HEADER_MARK_US = 4500;
+static const uint32_t HEADER_SPACE_US = 4500;
 static const uint32_t BIT_MARK_US = 560;
 static const uint32_t BIT_ONE_SPACE_US = 1690;
 static const uint32_t BIT_ZERO_SPACE_US = 560;
-static const uint32_t FOOTER_HIGH_US = 560;
-static const uint32_t FOOTER_LOW_US = 560;
+static const uint32_t FOOTER_MARK_US = 560;
+static const uint32_t FOOTER_SPACE_US = 560;
 
 void SamsungProtocol::encode(RemoteTransmitData *dst, const SamsungData &data) {
   dst->set_carrier_frequency(38000);
   dst->reserve(4 + data.nbits * 2u);
 
-  dst->item(HEADER_HIGH_US, HEADER_LOW_US);
+  dst->item(HEADER_MARK_US, HEADER_SPACE_US);
 
   for (uint8_t bit = data.nbits; bit > 0; bit--) {
     if ((data.data >> (bit - 1)) & 1)
@@ -28,14 +28,14 @@ void SamsungProtocol::encode(RemoteTransmitData *dst, const SamsungData &data) {
       dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
   }
 
-  dst->item(FOOTER_HIGH_US, FOOTER_LOW_US);
+  dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
 }
 optional<SamsungData> SamsungProtocol::decode(RemoteReceiveData src) {
   SamsungData out{
       .data = 0,
       .nbits = 0,
   };
-  if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
+  if (!src.expect_item(HEADER_MARK_US, HEADER_SPACE_US))
     return {};
 
   for (out.nbits = 0; out.nbits < 64; out.nbits++) {
@@ -44,7 +44,7 @@ optional<SamsungData> SamsungProtocol::decode(RemoteReceiveData src) {
     } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
       out.data = (out.data << 1) | 0;
     } else if (out.nbits >= 31) {
-      if (!src.expect_mark(FOOTER_HIGH_US))
+      if (!src.expect_mark(FOOTER_MARK_US))
         return {};
       return out;
     } else {
@@ -52,7 +52,7 @@ optional<SamsungData> SamsungProtocol::decode(RemoteReceiveData src) {
     }
   }
 
-  if (!src.expect_mark(FOOTER_HIGH_US))
+  if (!src.expect_mark(FOOTER_MARK_US))
     return {};
   return out;
 }
