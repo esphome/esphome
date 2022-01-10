@@ -125,7 +125,7 @@ class NSPanel : public Component, public uart::UARTDevice {
   static uint16_t crc16(const uint8_t *data, uint16_t len);
 
   bool process_data_();
-  void process_command_(uint8_t type, JsonObject &root, const std::string &message);
+  void process_command_(uint8_t type, JsonObject root, const std::string &message);
 
   void send_relay_states_();
   void send_time_();
