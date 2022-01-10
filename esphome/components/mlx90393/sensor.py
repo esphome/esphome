@@ -4,8 +4,10 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
     UNIT_MICROTESLA,
+    UNIT_CELSIUS,
     STATE_CLASS_MEASUREMENT,
     ICON_MAGNET,
+    ICON_THERMOMETER,
     CONF_GAIN,
     CONF_RESOLUTION,
     CONF_OVERSAMPLING,
@@ -46,6 +48,24 @@ CONF_Y_AXIS = "y_axis"
 CONF_Z_AXIS = "z_axis"
 CONF_DRDY_PIN = "drdy_pin"
 
+
+def mlx90393_axis_schema(default_resolution: str):
+    return sensor.sensor_schema(
+        unit_of_measurement=UNIT_MICROTESLA,
+        accuracy_decimals=0,
+        icon=ICON_MAGNET,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ).extend(
+        cv.Schema(
+            {
+                cv.Optional(CONF_RESOLUTION, default=default_resolution): cv.enum(
+                    RESOLUTION, upper=True, space="_"
+                )
+            }
+        )
+    )
+
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -56,65 +76,26 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_DRDY_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_OVERSAMPLING, default=2): cv.int_range(min=0, max=3),
             cv.Optional(CONF_FILTER, default=6): cv.int_range(min=0, max=7),
-            cv.Optional(CONF_X_AXIS): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROTESLA,
-                accuracy_decimals=0,
-                icon=ICON_MAGNET,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(
-                cv.Schema(
-                    {
-                        cv.Optional(CONF_RESOLUTION, default="19BIT"): cv.enum(
-                            RESOLUTION, upper=True, space="_"
-                        )
-                    }
-                )
-            ),
-            cv.Optional(CONF_Y_AXIS): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROTESLA,
-                accuracy_decimals=0,
-                icon=ICON_MAGNET,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(
-                cv.Schema(
-                    {
-                        cv.Optional(CONF_RESOLUTION, default="19BIT"): cv.enum(
-                            RESOLUTION, upper=True, space="_"
-                        )
-                    }
-                )
-            ),
-            cv.Optional(CONF_Z_AXIS): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROTESLA,
-                accuracy_decimals=0,
-                icon=ICON_MAGNET,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(
-                cv.Schema(
-                    {
-                        cv.Optional(CONF_RESOLUTION, default="16BIT"): cv.enum(
-                            RESOLUTION, upper=True, space="_"
-                        )
-                    }
-                )
-            ),
+            cv.Optional(CONF_X_AXIS): mlx90393_axis_schema("19BIT"),
+            cv.Optional(CONF_Y_AXIS): mlx90393_axis_schema("19BIT"),
+            cv.Optional(CONF_Z_AXIS): mlx90393_axis_schema("16BIT"),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROTESLA,
-                accuracy_decimals=0,
-                icon=ICON_MAGNET,
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=1,
+                icon=ICON_THERMOMETER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 cv.Schema(
                     {
-                        cv.Optional(CONF_RESOLUTION, default="16BIT"): cv.enum(
-                            RESOLUTION, upper=True, space="_"
-                        )
+                        cv.Optional(CONF_OVERSAMPLING, default=0): cv.int_range(
+                            min=0, max=3
+                        ),
                     }
                 )
             ),
         },
     )
-    .extend(cv.polling_component_schema("1s"))
+    .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x0C))
 )
 
@@ -146,6 +127,10 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_Z_AXIS])
         cg.add(var.set_z_sensor(sens))
         cg.add(var.set_resolution(2, RESOLUTION[config[CONF_Z_AXIS][CONF_RESOLUTION]]))
+    if CONF_TEMPERATURE in config:
+        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
+        cg.add(var.set_t_sensor(sens))
+        cg.add(var.set_t_oversampling(config[CONF_TEMPERATURE][CONF_OVERSAMPLING]))
     if CONF_DRDY_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_DRDY_PIN])
         cg.add(var.set_drdy_gpio(pin))

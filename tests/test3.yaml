@@ -683,8 +683,10 @@ sensor:
       name: "mlxyaxis"
     z_axis:
       name: "mlxzaxis"
+      resolution: 17BIT
     temperature:
       name: "mlxtemp"
+      oversampling: 2
 time:
   - platform: homeassistant
 

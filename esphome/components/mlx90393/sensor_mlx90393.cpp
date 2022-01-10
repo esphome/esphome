@@ -42,6 +42,8 @@ void MLX90393Cls::setup() {
   this->mlx_.setOverSampling(this->osr_);
 
   this->mlx_.setDigitalFiltering(this->filter_);
+
+  this->mlx_.setTemperatureOverSampling(this->osr2_);
 }
 
 void MLX90393Cls::dump_config() {
@@ -57,6 +59,7 @@ void MLX90393Cls::dump_config() {
   LOG_SENSOR("  ", "X Axis", this->x_sensor_);
   LOG_SENSOR("  ", "Y Axis", this->y_sensor_);
   LOG_SENSOR("  ", "Z Axis", this->z_sensor_);
+  LOG_SENSOR("  ", "Temperature", this->t_sensor_);
 }
 
 float MLX90393Cls::get_setup_priority() const { return setup_priority::DATA; }
@@ -74,6 +77,9 @@ void MLX90393Cls::update() {
     }
     if (this->z_sensor_ != nullptr) {
       this->z_sensor_->publish_state(data.z);
+    }
+    if (this->t_sensor_ != nullptr) {
+      this->t_sensor_->publish_state(data.t);
     }
     this->status_clear_warning();
   } else {
