@@ -503,7 +503,7 @@ bool Inkplate6::partial_update_() {
 
   this->partial_updates_++;
 
-  uint16_t pos = this->get_buffer_length_() - 1;
+  uint32_t pos = this->get_buffer_length_() - 1;
   uint32_t send;
   uint8_t data;
   uint8_t diffw, diffb;
