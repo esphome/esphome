@@ -33,6 +33,17 @@ def ensure_option_map():
     return validator
 
 
+def unique_mapping():
+    def validator(value):
+        all_values = list(value.values())
+        unique_values = set(value.values())
+        if len(all_values) != len(unique_values):
+            raise cv.Invalid("Mapping values must be unique.")
+        return value
+
+    return validator
+
+
 CONFIG_SCHEMA = cv.All(
     select.SELECT_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
         {
@@ -42,7 +53,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_REGISTER_COUNT, default=1): cv.int_range(1, 4),
             cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
             cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
-            cv.Required(CONF_OPTIONSMAP): ensure_option_map(),
+            cv.Required(CONF_OPTIONSMAP): cv.All(ensure_option_map(), unique_mapping()),
         }
     ),
 )
@@ -50,6 +61,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     options_map = config[CONF_OPTIONSMAP]
+
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_ADDRESS],
