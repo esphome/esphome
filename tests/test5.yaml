@@ -72,6 +72,9 @@ output:
     channel: 0
     max_power: 0.8
 
+  - platform: mcp47a1
+    id: output_mcp47a1
+
 demo:
 
 esp32_ble:
@@ -179,6 +182,15 @@ sensor:
     uart_id: uart2
     co2:
       name: CO2 Sensor
+
+  - platform: bmp3xx
+    temperature:
+      name: "BMP Temperature"
+      oversampling: 16x
+    pressure:
+      name: "BMP Pressure"
+    address: 0x77
+    iir_filter: 2X
 
 script:
   - id: automation_test
