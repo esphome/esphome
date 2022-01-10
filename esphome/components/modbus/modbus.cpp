@@ -21,10 +21,13 @@ void Modbus::loop() {
   }
   // stop blocking new send commands after send_wait_time_ ms regardless if a response has been received since then
   if (now - this->last_send_ > send_wait_time_) {
-    waiting_for_response = false;
+    waiting_for_response_ = false;
+    this->rx_buffer_.clear();
   }
-  if (!waiting_for_response && !request_queue_.empty()) {
+  if (!waiting_for_response_ && !request_queue_.empty()) {
     auto &request = request_queue_.front();
+    // Clear the buffer before sending a new request
+    this->rx_buffer_.clear();
     this->send_raw(request, true);
     request_queue_.pop();
   }
@@ -61,7 +64,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   // Dump stray bytes from uart
   // Since modbus devices don't send data without a request
   // this shouldn't happen in theory but helps remove sproadic transmission errors
-  if (!waiting_for_response) {
+  if (!waiting_for_response_) {
     ESP_LOGW(TAG, "Modbus received unexpected Byte %d (0X%x) discarding it", byte, byte);
     return false;
   }
@@ -111,9 +114,8 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     return false;
   }
   std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + data_offset + data_len);
-  // If no direct callback was provided fallback scanning for a matching device
   bool found = this->dispatch_to_device_(address, function_code, raw[2], data);
-  waiting_for_response = false;
+  waiting_for_response_ = false;
   if (!found) {
     ESP_LOGW(TAG, "Got Modbus frame from unknown address 0x%02X! ", address);
   }
@@ -171,27 +173,7 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
       data.push_back(payload[i]);
     }
   }
-  ESP_LOGVV(TAG, "Modbus enqueue: %s", format_hex_pretty(data).c_str());
-  if (!force_send) {
-    // move the payload (without CRC to outgoing queue)
-    request_queue_.push(std::move(data));
-  } else {
-    auto crc = crc16(data.data(), data.size());
-    data.push_back(crc >> 0);
-    data.push_back(crc >> 8);
-
-    if (this->flow_control_pin_ != nullptr)
-      this->flow_control_pin_->digital_write(true);
-
-    this->write_array(data);
-    this->flush();
-
-    if (this->flow_control_pin_ != nullptr)
-      this->flow_control_pin_->digital_write(false);
-    waiting_for_response = true;
-    last_send_ = millis();
-    ESP_LOGV(TAG, "Modbus write: %s", format_hex_pretty(data).c_str());
-  }
+  this->send_raw(data, force_send);
 }
 
 // send modbus request directly without enqueuing.
@@ -208,6 +190,7 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload, bool force_send) {
     return;
   }
   if (!force_send) {
+    ESP_LOGVV(TAG, "Modbus enqueue: %s", format_hex_pretty(payload).c_str());
     request_queue_.push(payload);
     return;
   }
@@ -221,7 +204,7 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload, bool force_send) {
   this->flush();
   if (this->flow_control_pin_ != nullptr)
     this->flow_control_pin_->digital_write(false);
-  waiting_for_response = true;
+  waiting_for_response_ = true;
   ESP_LOGV(TAG, "Modbus write raw: %s", format_hex_pretty(payload).c_str());
   last_send_ = millis();
 }
@@ -234,7 +217,7 @@ bool Modbus::dispatch_to_device_(uint8_t address, uint8_t function_code, uint8_t
       // Is it an error response?
       if ((function_code & 0x80) == 0x80) {
         ESP_LOGD(TAG, "Modbus error function code: 0x%X exception: %d", function_code, exception_code);
-        if (waiting_for_response) {
+        if (waiting_for_response_) {
           device->on_modbus_error(function_code & 0x7F, exception_code);
         } else {
           // Ignore modbus exception not related to a pending command

@@ -8,9 +8,6 @@ namespace modbus {
 
 class ModbusDevice;
 
-using on_modbus_data_callback_t = std::function<void(uint8_t address, uint8_t function_code, uint8_t exception_code,
-                                                     const std::vector<uint8_t> &data)>;
-
 class Modbus : public uart::UARTDevice, public Component {
  public:
   Modbus() = default;
@@ -31,10 +28,12 @@ class Modbus : public uart::UARTDevice, public Component {
             uint8_t payload_len = 0, const uint8_t *payload = nullptr, bool force_send = false);
   void send_raw(const std::vector<uint8_t> &payload, bool force_send = false);
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
-  bool waiting_for_response{false};
   void set_send_wait_time(uint16_t time_in_ms) { send_wait_time_ = time_in_ms; }
+  bool waiting_for_response() { return waiting_for_response_; }
 
  protected:
+  bool waiting_for_response_{false};
+
   bool dispatch_to_device_(uint8_t address, uint8_t function_code, uint8_t exception_code,
                            const std::vector<uint8_t> &data);
   bool parse_modbus_byte_(uint8_t byte);
@@ -68,7 +67,7 @@ class ModbusDevice {
   }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, use_send_direct_); }
   // If more than one device is connected sending a new command before a response is received should be blocked
-  bool waiting_for_response() { return parent_->waiting_for_response; }
+  bool waiting_for_response() { return parent_->waiting_for_response(); }
 
  protected:
   friend Modbus;
