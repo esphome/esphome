@@ -16,8 +16,8 @@ class EKTF2232Button : public binary_sensor::BinarySensor, public TouchListener 
     this->y_max_ = y_max;
   }
 
-  void touch(TouchPoint tp);
-  void release();
+  void touch(TouchPoint tp) override;
+  void release() override;
 
  protected:
   int16_t x_min_, x_max_, y_min_, y_max_;

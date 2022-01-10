@@ -12,7 +12,7 @@ struct EKTF2232TouchscreenStore {
   volatile bool touch;
   ISRInternalGPIOPin pin;
 
-  static void gpio_intr(EKTF2232TouchscreenStore *arg);
+  static void gpio_intr(EKTF2232TouchscreenStore *store);
 };
 
 struct TouchPoint {
