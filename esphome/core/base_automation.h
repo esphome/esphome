@@ -224,6 +224,39 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   std::tuple<Ts...> var_{};
 };
 
+template<typename... Ts> class RepeatAction : public Action<Ts...> {
+ public:
+  TEMPLATABLE_VALUE(uint32_t, count)
+
+  void add_then(const std::vector<Action<Ts...> *> &actions) {
+    this->then_.add_actions(actions);
+    this->then_.add_action(new LambdaAction<Ts...>([this](Ts... x) {
+      this->iteration_++;
+      if (this->iteration_ == this->count_.value(x...))
+        this->play_next_tuple_(this->var_);
+      else
+        this->then_.play_tuple(this->var_);
+    }));
+  }
+
+  void play_complex(Ts... x) override {
+    this->num_running_++;
+    this->var_ = std::make_tuple(x...);
+    this->iteration_ = 0;
+    this->then_.play_tuple(this->var_);
+  }
+
+  void play(Ts... x) override { /* ignore - see play_complex */
+  }
+
+  void stop() override { this->then_.stop(); }
+
+ protected:
+  uint32_t iteration_;
+  ActionList<Ts...> then_;
+  std::tuple<Ts...> var_;
+};
+
 template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Component {
  public:
   WaitUntilAction(Condition<Ts...> *condition) : condition_(condition) {}

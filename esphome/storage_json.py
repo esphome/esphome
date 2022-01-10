@@ -41,6 +41,7 @@ class StorageJSON:
         esphome_version,
         src_version,
         address,
+        web_port,
         target_platform,
         build_path,
         firmware_bin_path,
@@ -60,6 +61,9 @@ class StorageJSON:
         self.src_version = src_version  # type: int
         # Address of the ESP, for example livingroom.local or a static IP
         self.address = address  # type: str
+        # Web server port of the ESP, for example 80
+        assert web_port is None or isinstance(web_port, int)
+        self.web_port = web_port  # type: int
         # The type of ESP in use, either ESP32 or ESP8266
         self.target_platform = target_platform  # type: str
         # The absolute path to the platformio project
@@ -78,6 +82,7 @@ class StorageJSON:
             "esphome_version": self.esphome_version,
             "src_version": self.src_version,
             "address": self.address,
+            "web_port": self.web_port,
             "esp_platform": self.target_platform,
             "build_path": self.build_path,
             "firmware_bin_path": self.firmware_bin_path,
@@ -101,6 +106,7 @@ class StorageJSON:
             esphome_version=const.__version__,
             src_version=1,
             address=esph.address,
+            web_port=esph.web_port,
             target_platform=esph.target_platform,
             build_path=esph.build_path,
             firmware_bin_path=esph.firmware_bin,
@@ -117,6 +123,7 @@ class StorageJSON:
             esphome_version=const.__version__,
             src_version=1,
             address=address,
+            web_port=None,
             target_platform=esp_platform,
             build_path=None,
             firmware_bin_path=None,
@@ -135,6 +142,7 @@ class StorageJSON:
         )
         src_version = storage.get("src_version")
         address = storage.get("address")
+        web_port = storage.get("web_port")
         esp_platform = storage.get("esp_platform")
         build_path = storage.get("build_path")
         firmware_bin_path = storage.get("firmware_bin_path")
@@ -146,6 +154,7 @@ class StorageJSON:
             esphome_version,
             src_version,
             address,
+            web_port,
             esp_platform,
             build_path,
             firmware_bin_path,

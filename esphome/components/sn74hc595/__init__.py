@@ -60,7 +60,7 @@ SN74HC595_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(SN74HC595GPIOPin),
         cv.Required(CONF_SN74HC595): cv.use_id(SN74HC595Component),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=7),
+        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=31),
         cv.Optional(CONF_MODE, default={}): cv.All(
             {
                 cv.Optional(CONF_OUTPUT, default=True): cv.All(
