@@ -1,6 +1,6 @@
 # Source https://github.com/letscontrolit/ESPEasy/pull/3845#issuecomment-1005864664
 
-import subprocess
+import esptool
 
 # pylint: disable=E0602
 Import("env")  # noqa
@@ -14,11 +14,15 @@ def esp32_create_combined_bin(source, target, env):
     sections = env.subst(env.get("FLASH_EXTRA_IMAGES"))
     firmware_name = env.subst("$BUILD_DIR/${PROGNAME}.bin")
     chip = env.get("BOARD_MCU")
+    flash_size = env.BoardConfig().get("upload.flash_size")
     cmd = [
-        "esptool.py",
         "--chip",
         chip,
         "merge_bin",
+        "-o",
+        new_file_name,
+        "--flash_size",
+        flash_size,
     ]
     print("    Offset | File")
     for section in sections:
@@ -29,9 +33,10 @@ def esp32_create_combined_bin(source, target, env):
     print(f" - {hex(app_offset)} | {firmware_name}")
     cmd += [hex(app_offset), firmware_name]
 
-    cmd += ["-o", new_file_name]
-
-    subprocess.run(cmd, check=False)
+    print()
+    print(f"Using esptool.py arguments: {' '.join(cmd)}")
+    print()
+    esptool.main(cmd)
 
 
 # pylint: disable=E0602
