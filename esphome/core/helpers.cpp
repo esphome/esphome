@@ -2,6 +2,7 @@
 #include "esphome/core/defines.h"
 #include <cstdio>
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstring>
 
@@ -63,45 +64,6 @@ void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
 
 std::string generate_hostname(const std::string &base) { return base + std::string("-") + get_mac_address(); }
 
-uint32_t random_uint32() {
-#ifdef USE_ESP32
-  return esp_random();
-#elif defined(USE_ESP8266)
-  return os_random();
-#endif
-}
-
-double random_double() { return random_uint32() / double(UINT32_MAX); }
-
-float random_float() { return float(random_double()); }
-
-void fill_random(uint8_t *data, size_t len) {
-#if defined(USE_ESP_IDF) || defined(USE_ESP32_FRAMEWORK_ARDUINO)
-  esp_fill_random(data, len);
-#elif defined(USE_ESP8266)
-  int err = os_get_random(data, len);
-  assert(err == 0);
-#else
-#error "No random source for this system config"
-#endif
-}
-
-static uint32_t fast_random_seed = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-void fast_random_set_seed(uint32_t seed) { fast_random_seed = seed; }
-uint32_t fast_random_32() {
-  fast_random_seed = (fast_random_seed * 2654435769ULL) + 40503ULL;
-  return fast_random_seed;
-}
-uint16_t fast_random_16() {
-  uint32_t rand32 = fast_random_32();
-  return (rand32 & 0xFFFF) + (rand32 >> 16);
-}
-uint8_t fast_random_8() {
-  uint32_t rand32 = fast_random_32();
-  return (rand32 & 0xFF) + ((rand32 >> 8) & 0xFF);
-}
-
 float gamma_correct(float value, float gamma) {
   if (value <= 0.0f)
     return 0.0f;
@@ -128,18 +90,6 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
   char tmp[32];  // should be enough, but we should maybe improve this at some point.
   snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
   return std::string(tmp);
-}
-std::string uint64_to_string(uint64_t num) {
-  char buffer[17];
-  auto *address16 = reinterpret_cast<uint16_t *>(&num);
-  snprintf(buffer, sizeof(buffer), "%04X%04X%04X%04X", address16[3], address16[2], address16[1], address16[0]);
-  return std::string(buffer);
-}
-std::string uint32_to_string(uint32_t num) {
-  char buffer[9];
-  auto *address16 = reinterpret_cast<uint16_t *>(&num);
-  snprintf(buffer, sizeof(buffer), "%04X%04X", address16[1], address16[0]);
-  return std::string(buffer);
 }
 
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
@@ -187,17 +137,6 @@ void delay_microseconds_safe(uint32_t us) {  // avoids CPU locks that could trig
     ;
 }
 
-uint8_t reverse_bits_8(uint8_t x) {
-  x = ((x & 0xAA) >> 1) | ((x & 0x55) << 1);
-  x = ((x & 0xCC) >> 2) | ((x & 0x33) << 2);
-  x = ((x & 0xF0) >> 4) | ((x & 0x0F) << 4);
-  return x;
-}
-
-uint16_t reverse_bits_16(uint16_t x) {
-  return uint16_t(reverse_bits_8(x & 0xFF) << 8) | uint16_t(reverse_bits_8(x >> 8));
-}
-
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
   for (char c : str) {
@@ -208,10 +147,6 @@ uint32_t fnv1_hash(const std::string &str) {
 }
 bool str_equals_case_insensitive(const std::string &a, const std::string &b) {
   return strcasecmp(a.c_str(), b.c_str()) == 0;
-}
-
-template<uint32_t> uint32_t reverse_bits(uint32_t x) {
-  return uint32_t(reverse_bits_16(x & 0xFFFF) << 16) | uint32_t(reverse_bits_16(x >> 16));
 }
 
 static int high_freq_num_requests = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -229,17 +164,6 @@ void HighFrequencyLoopRequester::stop() {
   this->started_ = false;
 }
 bool HighFrequencyLoopRequester::is_high_frequency() { return high_freq_num_requests > 0; }
-
-template<typename T> T clamp(const T val, const T min, const T max) {
-  if (val < min)
-    return min;
-  if (val > max)
-    return max;
-  return val;
-}
-template uint8_t clamp(uint8_t, uint8_t, uint8_t);
-template float clamp(float, float, float);
-template int clamp(int, int, int);
 
 float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
 
@@ -351,6 +275,30 @@ IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 
 // ---------------------------------------------------------------------------------------------------------------------
 
+// Mathematics
+
+uint32_t random_uint32() {
+#ifdef USE_ESP32
+  return esp_random();
+#elif defined(USE_ESP8266)
+  return os_random();
+#else
+#error "No random source available for this configuration."
+#endif
+}
+float random_float() { return static_cast<float>(random_uint32()) / static_cast<float>(UINT32_MAX); }
+void random_bytes(uint8_t *data, size_t len) {
+#ifdef USE_ESP32
+  esp_fill_random(data, len);
+#elif defined(USE_ESP8266)
+  if (os_get_random(data, len) != 0) {
+    ESP_LOGE(TAG, "Failed to generate random bytes!");
+  }
+#else
+#error "No random source available for this configuration."
+#endif
+}
+
 // Strings
 
 std::string str_truncate(const std::string &str, size_t length) {
@@ -361,6 +309,16 @@ std::string str_until(const char *str, char ch) {
   return pos == nullptr ? std::string(str) : std::string(str, pos - str);
 }
 std::string str_until(const std::string &str, char ch) { return str.substr(0, str.find(ch)); }
+// wrapper around std::transform to run safely on functions from the ctype.h header
+// see https://en.cppreference.com/w/cpp/string/byte/toupper#Notes
+template<int (*fn)(int)> std::string str_ctype_transform(const std::string &str) {
+  std::string result;
+  result.resize(str.length());
+  std::transform(str.begin(), str.end(), result.begin(), [](unsigned char ch) { return fn(ch); });
+  return result;
+}
+std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::toupper>(str); }
+std::string str_upper_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
 std::string str_snake_case(const std::string &str) {
   std::string result;
   result.resize(str.length());
@@ -405,7 +363,7 @@ std::string format_hex(const uint8_t *data, size_t length) {
   }
   return ret;
 }
-std::string format_hex(std::vector<uint8_t> data) { return format_hex(data.data(), data.size()); }
+std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
 
 static char format_hex_pretty_char(uint8_t v) { return v >= 10 ? 'A' + (v - 10) : '0' + v; }
 std::string format_hex_pretty(const uint8_t *data, size_t length) {
@@ -423,6 +381,6 @@ std::string format_hex_pretty(const uint8_t *data, size_t length) {
     return ret + " (" + to_string(length) + ")";
   return ret;
 }
-std::string format_hex_pretty(std::vector<uint8_t> data) { return format_hex_pretty(data.data(), data.size()); }
+std::string format_hex_pretty(const std::vector<uint8_t> &data) { return format_hex_pretty(data.data(), data.size()); }
 
 }  // namespace esphome
