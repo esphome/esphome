@@ -25,10 +25,9 @@ class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90
   void set_t_sensor(sensor::Sensor *t_sensor) { t_sensor_ = t_sensor; }
 
   void set_oversampling(uint8_t osr) { osr_ = osr; }
-  void set_t_oversampling(uint8_t osr2) {osr2_ = osr2; }
+  void set_t_oversampling(uint8_t osr2) { osr2_ = osr2; }
   void set_resolution(uint8_t xyz, uint8_t res) { resolutions_[xyz] = res; }
   void set_filter(uint8_t filter) { filter_ = filter; }
-
   void set_gain(uint8_t gain_sel) { gain_ = gain_sel; }
 
   // overrides for MLX library
