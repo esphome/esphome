@@ -42,7 +42,7 @@ void ModbusSelect::control(const std::string &value) {
     ESP_LOGV(TAG, "Set selection to %llu", mapping);
 
     ModbusCommandItem write_cmd;
-    if (this->register_count == 1) {
+    if ((this->register_count == 1) && (!this->use_write_multiple_)) {
       write_cmd =
           ModbusCommandItem::create_write_single_command(parent_, this->write_address, static_cast<uint16_t>(mapping));
     } else {

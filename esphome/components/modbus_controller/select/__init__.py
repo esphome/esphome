@@ -10,6 +10,7 @@ from ..const import (
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_COUNT,
     CONF_SKIP_UPDATES,
+    CONF_USE_WRITE_MULTIPLE,
 )
 
 DEPENDENCIES = ["modbus_controller"]
@@ -54,6 +55,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
             cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
             cv.Required(CONF_OPTIONSMAP): cv.All(ensure_option_map(), unique_mapping()),
+            cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
         }
     ),
 )
@@ -77,3 +79,4 @@ async def to_code(config):
     parent = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
     cg.add(parent.add_sensor_item(var))
     cg.add(var.set_parent(parent))
+    cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))

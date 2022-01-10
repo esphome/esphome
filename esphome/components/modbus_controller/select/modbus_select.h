@@ -24,8 +24,10 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
     this->mapping = mapping;
   }
 
-  void dump_config() override;
   void set_parent(ModbusController *const parent) { this->parent_ = parent; }
+  void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
+
+  void dump_config() override;
   void parse_and_publish(const std::vector<uint8_t> &data) override;
   void control(const std::string &value) override;
 
@@ -33,6 +35,7 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
   const uint16_t write_address;
   std::vector<uint64_t> mapping;
   ModbusController *parent_;
+  bool use_write_multiple_{false};
 };
 
 }  // namespace modbus_controller
