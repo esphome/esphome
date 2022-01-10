@@ -8,9 +8,9 @@ static const char *const TAG = "remote.panasonic";
 
 static const uint32_t HEADER_HIGH_US = 3502;
 static const uint32_t HEADER_LOW_US = 1750;
-static const uint32_t BIT_HIGH_US = 502;
-static const uint32_t BIT_ZERO_LOW_US = 400;
-static const uint32_t BIT_ONE_LOW_US = 1244;
+static const uint32_t BIT_MARK_US = 502;
+static const uint32_t BIT_ZERO_SPACE_US = 400;
+static const uint32_t BIT_ONE_SPACE_US = 1244;
 
 void PanasonicProtocol::encode(RemoteTransmitData *dst, const PanasonicData &data) {
   dst->reserve(100);
@@ -20,18 +20,18 @@ void PanasonicProtocol::encode(RemoteTransmitData *dst, const PanasonicData &dat
   uint32_t mask;
   for (mask = 1UL << 15; mask != 0; mask >>= 1) {
     if (data.address & mask)
-      dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
+      dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
     else
-      dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+      dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
   }
 
   for (mask = 1UL << 31; mask != 0; mask >>= 1) {
     if (data.command & mask)
-      dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
+      dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
     else
-      dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+      dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
   }
-  dst->mark(BIT_HIGH_US);
+  dst->mark(BIT_MARK_US);
 }
 optional<PanasonicData> PanasonicProtocol::decode(RemoteReceiveData src) {
   PanasonicData out{
@@ -43,9 +43,9 @@ optional<PanasonicData> PanasonicProtocol::decode(RemoteReceiveData src) {
 
   uint32_t mask;
   for (mask = 1UL << 15; mask != 0; mask >>= 1) {
-    if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
+    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
       out.address |= mask;
-    } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
+    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
       out.address &= ~mask;
     } else {
       return {};
@@ -53,9 +53,9 @@ optional<PanasonicData> PanasonicProtocol::decode(RemoteReceiveData src) {
   }
 
   for (mask = 1UL << 31; mask != 0; mask >>= 1) {
-    if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
+    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
       out.command |= mask;
-    } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
+    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
       out.command &= ~mask;
     } else {
       return {};

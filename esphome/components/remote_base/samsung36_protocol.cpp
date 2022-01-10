@@ -10,9 +10,9 @@ static const uint8_t NBITS = 78;
 
 static const uint32_t HEADER_HIGH_US = 4500;
 static const uint32_t HEADER_LOW_US = 4500;
-static const uint32_t BIT_HIGH_US = 500;
-static const uint32_t BIT_ONE_LOW_US = 1500;
-static const uint32_t BIT_ZERO_LOW_US = 500;
+static const uint32_t BIT_MARK_US = 500;
+static const uint32_t BIT_ONE_SPACE_US = 1500;
+static const uint32_t BIT_ZERO_SPACE_US = 500;
 static const uint32_t MIDDLE_HIGH_US = 500;
 static const uint32_t MIDDLE_LOW_US = 4500;
 static const uint32_t FOOTER_HIGH_US = 500;
@@ -28,9 +28,9 @@ void Samsung36Protocol::encode(RemoteTransmitData *dst, const Samsung36Data &dat
   // send first 16 bits
   for (uint32_t mask = 1UL << 15; mask != 0; mask >>= 1) {
     if (data.address & mask) {
-      dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
+      dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
     } else {
-      dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+      dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
     }
   }
 
@@ -40,9 +40,9 @@ void Samsung36Protocol::encode(RemoteTransmitData *dst, const Samsung36Data &dat
   // send last 20 bits
   for (uint32_t mask = 1UL << 19; mask != 0; mask >>= 1) {
     if (data.command & mask) {
-      dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
+      dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
     } else {
-      dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+      dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
     }
   }
 
@@ -67,9 +67,9 @@ optional<Samsung36Data> Samsung36Protocol::decode(RemoteReceiveData src) {
   // get the first 16 bits
   for (uint8_t i = 0; i < 16; i++) {
     out.address <<= 1UL;
-    if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
+    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
       out.address |= 1UL;
-    } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
+    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
       out.address |= 0UL;
     } else {
       return {};
@@ -84,9 +84,9 @@ optional<Samsung36Data> Samsung36Protocol::decode(RemoteReceiveData src) {
   // get the last 20 bits
   for (uint8_t i = 0; i < 20; i++) {
     out.command <<= 1UL;
-    if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
+    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
       out.command |= 1UL;
-    } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
+    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
       out.command |= 0UL;
     } else {
       return {};

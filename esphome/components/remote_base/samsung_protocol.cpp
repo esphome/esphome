@@ -9,9 +9,9 @@ static const char *const TAG = "remote.samsung";
 
 static const uint32_t HEADER_HIGH_US = 4500;
 static const uint32_t HEADER_LOW_US = 4500;
-static const uint32_t BIT_HIGH_US = 560;
-static const uint32_t BIT_ONE_LOW_US = 1690;
-static const uint32_t BIT_ZERO_LOW_US = 560;
+static const uint32_t BIT_MARK_US = 560;
+static const uint32_t BIT_ONE_SPACE_US = 1690;
+static const uint32_t BIT_ZERO_SPACE_US = 560;
 static const uint32_t FOOTER_HIGH_US = 560;
 static const uint32_t FOOTER_LOW_US = 560;
 
@@ -23,9 +23,9 @@ void SamsungProtocol::encode(RemoteTransmitData *dst, const SamsungData &data) {
 
   for (uint8_t bit = data.nbits; bit > 0; bit--) {
     if ((data.data >> (bit - 1)) & 1)
-      dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
+      dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
     else
-      dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+      dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
   }
 
   dst->item(FOOTER_HIGH_US, FOOTER_LOW_US);
@@ -39,9 +39,9 @@ optional<SamsungData> SamsungProtocol::decode(RemoteReceiveData src) {
     return {};
 
   for (out.nbits = 0; out.nbits < 64; out.nbits++) {
-    if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
+    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
       out.data = (out.data << 1) | 1;
-    } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
+    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
       out.data = (out.data << 1) | 0;
     } else if (out.nbits >= 31) {
       if (!src.expect_mark(FOOTER_HIGH_US))

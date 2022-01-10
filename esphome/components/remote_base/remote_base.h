@@ -360,5 +360,65 @@ template<typename T, typename D> class RemoteReceiverDumper : public RemoteRecei
   using prefix##Dumper = RemoteReceiverDumper<prefix##Protocol, prefix##Data>;
 #define DECLARE_REMOTE_PROTOCOL(prefix) DECLARE_REMOTE_PROTOCOL_(prefix)
 
+template<typename T, size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us>
+void encode_data_msb(RemoteTransmitData *dst, const T &src) {
+  static_assert(nbits > 0 && nbits <= sizeof(T) * 8);
+  for (T mask = 1 << (nbits - 1); mask != 0; mask >>= 1)
+    dst->item(mark_us, (src & mask) ? space_one_us : space_zero_us);
+}
+
+template<typename T, size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us>
+void encode_data_lsb(RemoteTransmitData *dst, const T &src) {
+  static_assert(nbits > 0 && nbits <= sizeof(T) * 8);
+  for (T mask = 1 << 0; mask != 1 << nbits; mask <<= 1)
+    dst->item(mark_us, (src & mask) ? space_one_us : space_zero_us);
+}
+
+template<typename T, size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us>
+bool decode_data_msb(RemoteReceiveData &src, T &dst) {
+  static_assert(nbits > 0 && nbits <= sizeof(T) * 8);
+  for (T mask = 1 << (nbits - 1); mask != 0; mask >>= 1) {
+    if (!src.expect_mark(mark_us))
+      return false;
+    if (src.expect_space(space_one_us))
+      dst |= mask;
+    else if (!src.expect_space(space_zero_us))
+      return false;
+  }
+  return true;
+}
+
+template<typename T, size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us>
+bool decode_data_lsb(RemoteReceiveData &src, T &dst) {
+  static_assert(nbits > 0 && nbits <= sizeof(T) * 8);
+  for (T mask = 1 << 0; mask != 1 << nbits; mask <<= 1) {
+    if (!src.expect_mark(mark_us))
+      return false;
+    if (src.expect_space(space_one_us))
+      dst |= mask;
+    else if (!src.expect_space(space_zero_us))
+      return false;
+  }
+  return true;
+}
+
+template<typename T, size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us>
+bool check_data_msb(RemoteReceiveData &src, const T &data) {
+  static_assert(nbits > 0 && nbits <= sizeof(T) * 8);
+  for (T mask = 1 << (nbits - 1); mask != 0; mask >>= 1)
+    if (!src.expect_item(mark_us, (data & mask) ? space_one_us : space_zero_us))
+      return false;
+  return true;
+}
+
+template<typename T, size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us>
+bool check_data_lsb(RemoteReceiveData &src, const T &dst) {
+  static_assert(nbits > 0 && nbits <= sizeof(T) * 8);
+  for (T mask = 1 << 0; mask != 1 << nbits; mask <<= 1)
+    if (!src.expect_item(mark_us, (data & mask) ? space_one_us : space_zero_us))
+      return false;
+  return true;
+}
+
 }  // namespace remote_base
 }  // namespace esphome

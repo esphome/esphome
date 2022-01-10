@@ -23,11 +23,9 @@ static void encode_data(RemoteTransmitData *dst, CoolixData src) {
     // Grab a bytes worth of data.
     const uint8_t byte = src >> shift;
     // Normal
-    for (uint8_t mask = 1 << 7; mask; mask >>= 1)
-      dst->item(BIT_MARK_US, (byte & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
+    encode_data_msb<uint8_t, 8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, byte);
     // Inverted
-    for (uint8_t mask = 1 << 7; mask; mask >>= 1)
-      dst->item(BIT_MARK_US, (byte & mask) ? BIT_ZERO_SPACE_US : BIT_ONE_SPACE_US);
+    encode_data_msb<uint8_t, 8, BIT_MARK_US, BIT_ZERO_SPACE_US, BIT_ONE_SPACE_US>(dst, byte);
     // Data end
     if (shift == 0)
       break;
@@ -49,19 +47,11 @@ static bool decode_data(RemoteReceiveData &src, CoolixData &dst) {
   uint32_t data = 0;
   for (unsigned n = 3;; data <<= 8) {
     // Read byte
-    for (uint32_t mask = 1 << 7; mask; mask >>= 1) {
-      if (!src.expect_mark(BIT_MARK_US))
-        return false;
-      if (src.expect_space(BIT_ONE_SPACE_US))
-        data |= mask;
-      else if (!src.expect_space(BIT_ZERO_SPACE_US))
-        return false;
-    }
+    if (!decode_data_msb<uint32_t, 8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, data))
+      return false;
     // Check for inverse byte
-    for (uint32_t mask = 1 << 7; mask; mask >>= 1) {
-      if (!src.expect_item(BIT_MARK_US, (data & mask) ? BIT_ZERO_SPACE_US : BIT_ONE_SPACE_US))
-        return false;
-    }
+    if (!check_data_msb<uint32_t, 8, BIT_MARK_US, BIT_ZERO_SPACE_US, BIT_ONE_SPACE_US>(src, data))
+      return false;
     // Checking the end of reading
     if (--n == 0) {
       dst = data;

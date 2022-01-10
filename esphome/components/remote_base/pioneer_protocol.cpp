@@ -8,9 +8,9 @@ static const char *const TAG = "remote.pioneer";
 
 static const uint32_t HEADER_HIGH_US = 9000;
 static const uint32_t HEADER_LOW_US = 4500;
-static const uint32_t BIT_HIGH_US = 560;
-static const uint32_t BIT_ONE_LOW_US = 1690;
-static const uint32_t BIT_ZERO_LOW_US = 560;
+static const uint32_t BIT_MARK_US = 560;
+static const uint32_t BIT_ONE_SPACE_US = 1690;
+static const uint32_t BIT_ZERO_SPACE_US = 560;
 static const uint32_t TRAILER_SPACE_US = 25500;
 
 void PioneerProtocol::encode(RemoteTransmitData *dst, const PioneerData &data) {
@@ -52,38 +52,38 @@ void PioneerProtocol::encode(RemoteTransmitData *dst, const PioneerData &data) {
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
   for (uint32_t mask = 1UL << 15; mask; mask >>= 1) {
     if (address1 & mask)
-      dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
+      dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
     else
-      dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+      dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
   }
 
   for (uint32_t mask = 1UL << 15; mask; mask >>= 1) {
     if (command1 & mask)
-      dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
+      dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
     else
-      dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+      dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
   }
 
-  dst->mark(BIT_HIGH_US);
+  dst->mark(BIT_MARK_US);
 
   if (data.rc_code_2 != 0) {
     dst->space(TRAILER_SPACE_US);
     dst->item(HEADER_HIGH_US, HEADER_LOW_US);
     for (uint32_t mask = 1UL << 15; mask; mask >>= 1) {
       if (address2 & mask)
-        dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
+        dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
       else
-        dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+        dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
     }
 
     for (uint32_t mask = 1UL << 15; mask; mask >>= 1) {
       if (command2 & mask)
-        dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
+        dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
       else
-        dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+        dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
     }
 
-    dst->mark(BIT_HIGH_US);
+    dst->mark(BIT_MARK_US);
   }
 }
 optional<PioneerData> PioneerProtocol::decode(RemoteReceiveData src) {
@@ -98,9 +98,9 @@ optional<PioneerData> PioneerProtocol::decode(RemoteReceiveData src) {
     return {};
 
   for (uint32_t mask = 1UL << 15; mask != 0; mask >>= 1) {
-    if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
+    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
       address1 |= mask;
-    } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
+    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
       address1 &= ~mask;
     } else {
       return {};
@@ -108,16 +108,16 @@ optional<PioneerData> PioneerProtocol::decode(RemoteReceiveData src) {
   }
 
   for (uint32_t mask = 1UL << 15; mask != 0; mask >>= 1) {
-    if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
+    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
       command1 |= mask;
-    } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
+    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
       command1 &= ~mask;
     } else {
       return {};
     }
   }
 
-  if (!src.expect_mark(BIT_HIGH_US))
+  if (!src.expect_mark(BIT_MARK_US))
     return {};
 
   if ((address1 >> 8) != ((~address1) & 0xff))
