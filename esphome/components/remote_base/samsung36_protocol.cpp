@@ -6,8 +6,6 @@ namespace remote_base {
 
 static const char *const TAG = "remote.samsung36";
 
-static const uint8_t NBITS = 78;
-
 static const uint32_t HEADER_HIGH_US = 4500;
 static const uint32_t HEADER_LOW_US = 4500;
 static const uint32_t BIT_MARK_US = 500;
@@ -17,37 +15,21 @@ static const uint32_t MIDDLE_HIGH_US = 500;
 static const uint32_t MIDDLE_LOW_US = 4500;
 static const uint32_t FOOTER_HIGH_US = 500;
 static const uint32_t FOOTER_LOW_US = 59000;
+static const size_t REMOTE_DATA_SIZE = 2 + 2 * 16 + 2 + 2 * 20 + 2;
 
 void Samsung36Protocol::encode(RemoteTransmitData *dst, const Samsung36Data &data) {
   dst->set_carrier_frequency(38000);
-  dst->reserve(NBITS);
-
+  dst->reserve(REMOTE_DATA_SIZE);
   // send header
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
-
   // send first 16 bits
-  for (uint32_t mask = 1UL << 15; mask != 0; mask >>= 1) {
-    if (data.address & mask) {
-      dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
-    } else {
-      dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
-    }
-  }
-
+  encode_data_msb<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.address);
   // send middle header
   dst->item(MIDDLE_HIGH_US, MIDDLE_LOW_US);
-
   // send last 20 bits
-  for (uint32_t mask = 1UL << 19; mask != 0; mask >>= 1) {
-    if (data.command & mask) {
-      dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
-    } else {
-      dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
-    }
-  }
-
+  encode_data_msb<uint32_t, 20, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.command);
   // footer
-  dst->item(FOOTER_HIGH_US, FOOTER_LOW_US);
+  dst->mark(FOOTER_HIGH_US);
 }
 
 optional<Samsung36Data> Samsung36Protocol::decode(RemoteReceiveData src) {
@@ -56,45 +38,33 @@ optional<Samsung36Data> Samsung36Protocol::decode(RemoteReceiveData src) {
       .command = 0,
   };
 
+  // check if we have enough bits
+  if (!src.has_size(REMOTE_DATA_SIZE))
+    return {};
+
   // check if header matches
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
 
-  // check if we have enough bits
-  if (src.size() != NBITS)
-    return {};
-
   // get the first 16 bits
-  for (uint8_t i = 0; i < 16; i++) {
-    out.address <<= 1UL;
-    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
-      out.address |= 1UL;
-    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
-      out.address |= 0UL;
-    } else {
-      return {};
-    }
-  }
+  if (!decode_data_msb<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, out.address))
+    return {};
 
   // check if the middle mark matches
-  if (!src.expect_item(MIDDLE_HIGH_US, MIDDLE_LOW_US)) {
+  if (!src.expect_item(MIDDLE_HIGH_US, MIDDLE_LOW_US))
     return {};
-  }
 
   // get the last 20 bits
-  for (uint8_t i = 0; i < 20; i++) {
-    out.command <<= 1UL;
-    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
-      out.command |= 1UL;
-    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
-      out.command |= 0UL;
-    } else {
-      return {};
-    }
-  }
+  if (!decode_data_msb<uint32_t, 20, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, out.command))
+    return {};
+
+  // check footer
+  if (!src.expect_mark(BIT_MARK_US))
+    return {};
 
   return out;
 }
+
 void Samsung36Protocol::dump(const Samsung36Data &data) {
   ESP_LOGD(TAG, "Received Samsung36: address=0x%04X, command=0x%08X", data.address, data.command);
 }

@@ -18,29 +18,17 @@ static const uint16_t PACKET_SPACE = 5500;
 
 void ToshibaAcProtocol::encode(RemoteTransmitData *dst, const ToshibaAcData &data) {
   dst->set_carrier_frequency(38000);
-  dst->reserve((3 + (48 * 2)) * 3);
+  dst->reserve(3 * (2 + 2 * 48 + 2));
 
   for (uint8_t repeat = 0; repeat < 2; repeat++) {
     dst->item(HEADER_HIGH_US, HEADER_LOW_US);
-    for (uint8_t bit = 48; bit > 0; bit--) {
-      dst->mark(BIT_MARK_US);
-      if ((data.rc_code_1 >> (bit - 1)) & 1)
-        dst->space(BIT_ONE_SPACE_US);
-      else
-        dst->space(BIT_ZERO_SPACE_US);
-    }
+    encode_data_msb<uint64_t, 48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.rc_code_1);
     dst->item(FOOTER_HIGH_US, FOOTER_LOW_US);
   }
 
   if (data.rc_code_2 != 0) {
     dst->item(HEADER_HIGH_US, HEADER_LOW_US);
-    for (uint8_t bit = 48; bit > 0; bit--) {
-      dst->mark(BIT_MARK_US);
-      if ((data.rc_code_2 >> (bit - 1)) & 1)
-        dst->space(BIT_ONE_SPACE_US);
-      else
-        dst->space(BIT_ZERO_SPACE_US);
-    }
+    encode_data_msb<uint64_t, 48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.rc_code_2);
     dst->item(FOOTER_HIGH_US, FOOTER_LOW_US);
   }
 }
@@ -54,50 +42,32 @@ optional<ToshibaAcData> ToshibaAcProtocol::decode(RemoteReceiveData src) {
   // *** Packet 1
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
-  for (uint8_t bit_counter = 0; bit_counter < 48; bit_counter++) {
-    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
-      packet = (packet << 1) | 1;
-    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
-      packet = (packet << 1) | 0;
-    } else {
-      return {};
-    }
-  }
-  if (!src.expect_item(FOOTER_HIGH_US, PACKET_SPACE))
+  if (!decode_data_msb<uint64_t, 48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, packet))
+    return {};
+  if (!src.expect_item(FOOTER_HIGH_US, FOOTER_LOW_US))
     return {};
 
   // *** Packet 2
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
-  for (uint8_t bit_counter = 0; bit_counter < 48; bit_counter++) {
-    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
-      out.rc_code_1 = (out.rc_code_1 << 1) | 1;
-    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
-      out.rc_code_1 = (out.rc_code_1 << 1) | 0;
-    } else {
-      return {};
-    }
-  }
+  if (!decode_data_msb<uint64_t, 48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, out.rc_code_1))
+    return {};
+  if (!src.expect_mark(FOOTER_HIGH_US))
+    return {};
   // The first two packets must match
   if (packet != out.rc_code_1)
     return {};
   // The third packet isn't always present
-  if (!src.expect_item(FOOTER_HIGH_US, PACKET_SPACE))
+  if (!src.expect_space(FOOTER_LOW_US))
     return out;
 
   // *** Packet 3
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
-  for (uint8_t bit_counter = 0; bit_counter < 48; bit_counter++) {
-    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
-      out.rc_code_2 = (out.rc_code_2 << 1) | 1;
-    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
-      out.rc_code_2 = (out.rc_code_2 << 1) | 0;
-    } else {
-      return {};
-    }
-  }
-
+  if (!decode_data_msb<uint64_t, 48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, out.rc_code_2))
+    return {};
+  if (!src.expect_mark(FOOTER_HIGH_US))
+    return {};
   return out;
 }
 

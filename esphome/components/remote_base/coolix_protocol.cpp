@@ -6,14 +6,14 @@ namespace remote_base {
 
 static const char *const TAG = "remote.coolix";
 
-static const int32_t TICK_US = 560;
-static const int32_t HEADER_MARK_US = 8 * TICK_US;
-static const int32_t HEADER_SPACE_US = 8 * TICK_US;
-static const int32_t BIT_MARK_US = 1 * TICK_US;
-static const int32_t BIT_ONE_SPACE_US = 3 * TICK_US;
-static const int32_t BIT_ZERO_SPACE_US = 1 * TICK_US;
-static const int32_t FOOTER_MARK_US = 1 * TICK_US;
-static const int32_t FOOTER_SPACE_US = 10 * TICK_US;
+static const uint32_t TICK_US = 560;
+static const uint32_t HEADER_MARK_US = 8 * TICK_US;
+static const uint32_t HEADER_SPACE_US = 8 * TICK_US;
+static const uint32_t BIT_MARK_US = 1 * TICK_US;
+static const uint32_t BIT_ONE_SPACE_US = 3 * TICK_US;
+static const uint32_t BIT_ZERO_SPACE_US = 1 * TICK_US;
+static const uint32_t FOOTER_MARK_US = 1 * TICK_US;
+static const uint32_t FOOTER_SPACE_US = 10 * TICK_US;
 static const size_t REMOTE_DATA_SIZE = 2 + 2 * 48 + 2 + 2 + 2 * 48 + 2;
 
 static void encode_data(RemoteTransmitData *dst, const CoolixData &src) {
@@ -50,7 +50,7 @@ static bool decode_data(RemoteReceiveData &src, CoolixData &dst) {
     if (!decode_data_msb<uint32_t, 8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, data))
       return false;
     // Check for inverse byte
-    if (!check_data_msb<uint32_t, 8, BIT_MARK_US, BIT_ZERO_SPACE_US, BIT_ONE_SPACE_US>(src, data))
+    if (!equal_data_msb<uint32_t, 8, BIT_MARK_US, BIT_ZERO_SPACE_US, BIT_ONE_SPACE_US>(src, data))
       return false;
     // Checking the end of reading
     if (--n == 0) {
