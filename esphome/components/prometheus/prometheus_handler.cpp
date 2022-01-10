@@ -7,7 +7,7 @@ namespace esphome {
 namespace prometheus {
 
 void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
-  AsyncResponseStream *stream = req->beginResponseStream("text/plain");
+  AsyncResponseStream *stream = req->beginResponseStream("text/plain; version=0.0.4; charset=utf-8");
 
 #ifdef USE_SENSOR
   this->sensor_type_(stream);

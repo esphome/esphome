@@ -329,6 +329,7 @@ void Nextion::process_nextion_commands_() {
 
         break;
       case 0x02:  // invalid Component ID or name was used
+        ESP_LOGW(TAG, "Nextion reported component ID or name invalid!");
         this->remove_from_q_();
         break;
       case 0x03:  // invalid Page ID or name was used
@@ -387,6 +388,7 @@ void Nextion::process_nextion_commands_() {
         }
         break;
       case 0x1A:  // variable name invalid
+        ESP_LOGW(TAG, "Nextion reported variable name invalid!");
         this->remove_from_q_();
 
         break;

@@ -69,7 +69,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   uint8_t data_len = raw[2];
   uint8_t data_offset = 3;
   // the response for write command mirrors the requests and data startes at offset 2 instead of 3 for read commands
-  if (function_code == 0x5 || function_code == 0x06 || function_code == 0x10) {
+  if (function_code == 0x5 || function_code == 0x06 || function_code == 0xF || function_code == 0x10) {
     data_offset = 2;
     data_len = 4;
   }

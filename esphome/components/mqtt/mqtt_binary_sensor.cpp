@@ -29,7 +29,7 @@ MQTTBinarySensorComponent::MQTTBinarySensorComponent(binary_sensor::BinarySensor
   }
 }
 
-void MQTTBinarySensorComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+void MQTTBinarySensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   if (!this->binary_sensor_->get_device_class().empty())
     root[MQTT_DEVICE_CLASS] = this->binary_sensor_->get_device_class();
   if (this->binary_sensor_->is_status_binary_sensor())
