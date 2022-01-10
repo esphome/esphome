@@ -1300,7 +1300,7 @@ daly_bms:
   uart_id: uart1
 
 cd74hc4067:
-  pin_s0: D0
-  pin_s1: D1
-  pin_s2: D2
-  pin_s3: D3
+  pin_s0: GPIO12
+  pin_s1: GPIO13
+  pin_s2: GPIO14
+  pin_s3: GPIO15

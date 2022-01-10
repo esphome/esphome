@@ -4,12 +4,11 @@ from esphome.components import sensor, voltage_sampler
 from esphome.const import (
     CONF_ID,
     CONF_SENSOR,
-    CONF_NAME,
     CONF_NUMBER,
     ICON_FLASH,
-    UNIT_WATT,
+    UNIT_VOLT,
     STATE_CLASS_MEASUREMENT,
-    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_VOLTAGE,
 )
 from . import cd74hc4067_ns, CD74HC4067Component
 
@@ -26,9 +25,9 @@ CONF_CD74HC4067_ID = "cd74hc4067_id"
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        unit_of_measurement=UNIT_WATT,
+        unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=3,
-        device_class=DEVICE_CLASS_POWER,
+        device_class=DEVICE_CLASS_VOLTAGE,
         state_class=STATE_CLASS_MEASUREMENT,
         icon=ICON_FLASH,
     )
@@ -46,11 +45,11 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_CD74HC4067_ID])
-    var = cg.new_Pvariable(
-        config[CONF_ID], parent, config[CONF_NAME], config[CONF_NUMBER]
-    )
+
+    var = cg.new_Pvariable(config[CONF_ID], parent)
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
+    cg.add(var.set_pin(config[CONF_NUMBER]))
 
     sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_source(sens))

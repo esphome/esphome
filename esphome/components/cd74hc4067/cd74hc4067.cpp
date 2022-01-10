@@ -17,8 +17,8 @@ void CD74HC4067Component::setup() {
   this->pin_s3_->setup();
 
   // set other pin, so that activate_pin will really switch
-  active_pin_ = 1;
-  activate_pin(0);
+  this->active_pin_ = 1;
+  this->activate_pin(0);
 }
 
 void CD74HC4067Component::dump_config() {
@@ -27,11 +27,11 @@ void CD74HC4067Component::dump_config() {
   LOG_PIN("  S1 Pin: ", this->pin_s1_);
   LOG_PIN("  S2 Pin: ", this->pin_s2_);
   LOG_PIN("  S3 Pin: ", this->pin_s3_);
-  ESP_LOGCONFIG(TAG, "switch delay: %d", switch_delay_);
+  ESP_LOGCONFIG(TAG, "switch delay: %d", this->switch_delay_);
 }
 
 void CD74HC4067Component::activate_pin(uint8_t pin) {
-  if (active_pin_ != pin) {
+  if (this->active_pin_ != pin) {
     ESP_LOGD(TAG, "switch to input %d", pin);
 
     static int mux_channel[16][4] = {
@@ -57,30 +57,24 @@ void CD74HC4067Component::activate_pin(uint8_t pin) {
     this->pin_s2_->digital_write(mux_channel[pin][2]);
     this->pin_s3_->digital_write(mux_channel[pin][3]);
     // small delay is needed to let the multiplexer switch
-    delay(switch_delay_);
-    active_pin_ = pin;
+    delay(this->switch_delay_);
+    this->active_pin_ = pin;
   }
 }
 
-CD74HC4067Sensor::CD74HC4067Sensor(CD74HC4067Component *parent, const std::string &name, uint8_t pin)
-    : PollingComponent(1000), parent_(parent), pin_(pin) {
-  this->set_name(name);
-}
-void CD74HC4067Sensor::setup() { LOG_SENSOR("", "Setting up CD74HC4067 Multiplexer Channel", this); }
+CD74HC4067Sensor::CD74HC4067Sensor(CD74HC4067Component *parent) : PollingComponent(1000), parent_(parent) {}
 
 void CD74HC4067Sensor::update() {
   float value_v = this->sample();
   this->publish_state(value_v);
 }
 
-float CD74HC4067Sensor::get_setup_priority() const { return parent_->get_setup_priority() - 1.0f; }
+float CD74HC4067Sensor::get_setup_priority() const { return this->parent_->get_setup_priority() - 1.0f; }
 
 float CD74HC4067Sensor::sample() {
   this->parent_->activate_pin(pin_);
-  return source_->sample();
+  return this->source_->sample();
 }
-
-std::string CD74HC4067Sensor::unique_id() { return get_mac_address() + "-" + to_string(pin_); }
 
 void CD74HC4067Sensor::dump_config() {
   LOG_SENSOR(TAG, "Multiplexer Sensor", this);

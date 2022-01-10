@@ -42,20 +42,17 @@ class CD74HC4067Component : public Component {
 
 class CD74HC4067Sensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:
-  CD74HC4067Sensor(CD74HC4067Component *parent, const std::string &name, uint8_t pin);
+  CD74HC4067Sensor(CD74HC4067Component *parent);
 
-  void setup() override;
   void update() override;
 
   void dump_config() override;
   /// `HARDWARE_LATE` setup priority.
   float get_setup_priority() const override;
   void set_pin(uint8_t pin) { this->pin_ = pin; }
-  void set_source(voltage_sampler::VoltageSampler *source) { source_ = source; }
+  void set_source(voltage_sampler::VoltageSampler *source) { this->source_ = source; }
 
   float sample() override;
-
-  std::string unique_id() override;
 
  protected:
   CD74HC4067Component *parent_;
