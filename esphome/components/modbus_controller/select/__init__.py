@@ -13,7 +13,7 @@ from ..const import (
 )
 
 DEPENDENCIES = ["modbus_controller"]
-CODEOWNERS = ["@stegm"]
+CODEOWNERS = ["@martgras", "@stegm"]
 CONF_OPTIONSMAP = "optionsmap"
 
 ModbusSelect = modbus_controller_ns.class_(
