@@ -1,8 +1,5 @@
 #include "modbus_select.h"
-
 #include "esphome/core/log.h"
-
-#include <sstream>
 
 namespace esphome {
 namespace modbus_controller {
@@ -13,8 +10,7 @@ void ModbusSelect::dump_config() { LOG_SELECT(TAG, "Modbus Controller Select", t
 
 void ModbusSelect::parse_and_publish(const std::vector<uint8_t> &data) {
   uint64_t value = 0;
-  auto it = data.cbegin();
-  it + this->offset;
+  auto it = data.cbegin() + this->offset;
   size_t count = this->get_register_size();
   while ((it != data.cend()) && (count > 0)) {
     value <<= 8;

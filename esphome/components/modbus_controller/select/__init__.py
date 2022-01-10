@@ -1,15 +1,10 @@
-from esphome.components import select
-import esphome.config_validation as cv
 import esphome.codegen as cg
-
-
+import esphome.config_validation as cv
+from esphome.components import select
 from esphome.const import CONF_ADDRESS, CONF_ID
 from esphome.jsonschema import jschema_composite
-from .. import (
-    modbus_controller_ns,
-    ModbusController,
-    SensorItem,
-)
+
+from .. import ModbusController, SensorItem, modbus_controller_ns
 from ..const import (
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
@@ -44,7 +39,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ModbusSelect),
             cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
             cv.Required(CONF_ADDRESS): cv.positive_int,
-            cv.Optional(CONF_REGISTER_COUNT, default=1): cv.int_range(1, 8),
+            cv.Optional(CONF_REGISTER_COUNT, default=1): cv.int_range(1, 4),
             cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
             cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
             cv.Required(CONF_OPTIONSMAP): ensure_option_map(),
