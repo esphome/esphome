@@ -1,0 +1,11 @@
+esphome:
+  name: test
+  platform: ESP32
+  board: nodemcu-32s
+
+deep_sleep:
+  id: deepsleep
+  sleep_duration: 1min
+  run_duration:
+    default: 10s
+    gpio_wakeup_reason: 30s

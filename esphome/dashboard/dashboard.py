@@ -27,7 +27,7 @@ import tornado.process
 import tornado.web
 import tornado.websocket
 
-from esphome import const, platformio_api, util
+from esphome import const, platformio_api, util, yaml_util
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -601,7 +601,7 @@ class MainRequestHandler(BaseHandler):
         begin = bool(self.get_argument("begin", False))
 
         self.render(
-            get_template_path("index"),
+            "index.template.html",
             begin=begin,
             **template_args(),
             login_enabled=settings.using_password,
@@ -778,7 +778,7 @@ class LoginHandler(BaseHandler):
 
     def render_login_page(self, error=None):
         self.render(
-            get_template_path("login"),
+            "login.template.html",
             error=error,
             hassio=settings.using_hassio_auth,
             has_username=bool(settings.username),
@@ -836,6 +836,28 @@ class LogoutHandler(BaseHandler):
         self.redirect("./login")
 
 
+class SecretKeysRequestHandler(BaseHandler):
+    @authenticated
+    def get(self):
+
+        filename = None
+
+        for secret_filename in const.SECRETS_FILES:
+            relative_filename = settings.rel_path(secret_filename)
+            if os.path.isfile(relative_filename):
+                filename = relative_filename
+                break
+
+        if filename is None:
+            self.send_error(404)
+            return
+
+        secret_keys = list(yaml_util.load_yaml(filename, clear_secrets=False))
+
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(secret_keys))
+
+
 def get_base_frontend_path():
     if ENV_DEV not in os.environ:
         import esphome_dashboard
@@ -848,10 +870,6 @@ def get_base_frontend_path():
 
     # This path can be relative, so resolve against the root or else templates don't work
     return os.path.abspath(os.path.join(os.getcwd(), static_path, "esphome_dashboard"))
-
-
-def get_template_path(template_name):
-    return os.path.join(get_base_frontend_path(), f"{template_name}.template.html")
 
 
 def get_static_path(*args):
@@ -911,6 +929,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
         "cookie_secret": settings.cookie_secret,
         "log_function": log_function,
         "websocket_ping_interval": 30.0,
+        "template_path": get_base_frontend_path(),
     }
     rel = settings.relative_url
     app = tornado.web.Application(
@@ -939,6 +958,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}static/(.*)", StaticFileHandler, {"path": get_static_path()}),
             (f"{rel}devices", ListDevicesHandler),
             (f"{rel}import", ImportRequestHandler),
+            (f"{rel}secret_keys", SecretKeysRequestHandler),
         ],
         **app_settings,
     )

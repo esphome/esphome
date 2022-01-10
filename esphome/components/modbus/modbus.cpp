@@ -69,7 +69,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   uint8_t data_len = raw[2];
   uint8_t data_offset = 3;
   // the response for write command mirrors the requests and data startes at offset 2 instead of 3 for read commands
-  if (function_code == 0x5 || function_code == 0x06 || function_code == 0x10) {
+  if (function_code == 0x5 || function_code == 0x06 || function_code == 0xF || function_code == 0x10) {
     data_offset = 2;
     data_len = 4;
   }
@@ -181,7 +181,7 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
     this->flow_control_pin_->digital_write(false);
   waiting_for_response = address;
   last_send_ = millis();
-  ESP_LOGV(TAG, "Modbus write: %s", hexencode(data).c_str());
+  ESP_LOGV(TAG, "Modbus write: %s", format_hex_pretty(data).c_str());
 }
 
 // Helper function for lambdas
@@ -202,7 +202,7 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   if (this->flow_control_pin_ != nullptr)
     this->flow_control_pin_->digital_write(false);
   waiting_for_response = payload[0];
-  ESP_LOGV(TAG, "Modbus write raw: %s", hexencode(payload).c_str());
+  ESP_LOGV(TAG, "Modbus write raw: %s", format_hex_pretty(payload).c_str());
   last_send_ = millis();
 }
 

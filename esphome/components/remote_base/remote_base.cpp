@@ -33,7 +33,7 @@ void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
   uint32_t buffer_offset = 0;
   buffer_offset += sprintf(buffer, "Sending times=%u wait=%ums: ", send_times, send_wait);
 
-  for (int32_t i = 0; i < vec.size(); i++) {
+  for (size_t i = 0; i < vec.size(); i++) {
     const int32_t value = vec[i];
     const uint32_t remaining_length = sizeof(buffer) - buffer_offset;
     int written;

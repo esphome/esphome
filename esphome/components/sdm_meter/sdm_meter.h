@@ -37,6 +37,7 @@ class SDMMeter : public PollingComponent, public modbus::ModbusDevice {
     this->phases_[phase].setup = true;
     this->phases_[phase].phase_angle_sensor_ = phase_angle_sensor;
   }
+  void set_total_power_sensor(sensor::Sensor *total_power_sensor) { this->total_power_sensor_ = total_power_sensor; }
   void set_frequency_sensor(sensor::Sensor *frequency_sensor) { this->frequency_sensor_ = frequency_sensor; }
   void set_import_active_energy_sensor(sensor::Sensor *import_active_energy_sensor) {
     this->import_active_energy_sensor_ = import_active_energy_sensor;
@@ -69,6 +70,7 @@ class SDMMeter : public PollingComponent, public modbus::ModbusDevice {
     sensor::Sensor *phase_angle_sensor_{nullptr};
   } phases_[3];
   sensor::Sensor *frequency_sensor_{nullptr};
+  sensor::Sensor *total_power_sensor_{nullptr};
   sensor::Sensor *import_active_energy_sensor_{nullptr};
   sensor::Sensor *export_active_energy_sensor_{nullptr};
   sensor::Sensor *import_reactive_energy_sensor_{nullptr};

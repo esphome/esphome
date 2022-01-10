@@ -174,9 +174,6 @@ APIError APINoiseFrameHelper::loop() {
  * errno API_ERROR_HANDSHAKE_PACKET_LEN: Packet too big for this phase.
  */
 APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
-  int err;
-  APIError aerr;
-
   if (frame == nullptr) {
     HELPER_LOG("Bad argument for try_read_frame_");
     return APIError::BAD_ARG;
@@ -200,7 +197,7 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
       return APIError::CONNECTION_CLOSED;
     }
     rx_header_buf_len_ += received;
-    if (received != to_read) {
+    if ((size_t) received != to_read) {
       // not a full read
       return APIError::WOULD_BLOCK;
     }
@@ -247,7 +244,7 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
       return APIError::CONNECTION_CLOSED;
     }
     rx_buf_len_ += received;
-    if (received != to_read) {
+    if ((size_t) received != to_read) {
       // not all read
       return APIError::WOULD_BLOCK;
     }
@@ -255,7 +252,7 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
 
   // uncomment for even more debugging
 #ifdef HELPER_LOG_PACKETS
-  ESP_LOGVV(TAG, "Received frame: %s", hexencode(rx_buf_).c_str());
+  ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(rx_buf_).c_str());
 #endif
   frame->msg = std::move(rx_buf_);
   // consume msg
@@ -544,13 +541,13 @@ APIError APINoiseFrameHelper::try_send_tx_buf_() {
 APIError APINoiseFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
   if (iovcnt == 0)
     return APIError::OK;
-  int err;
   APIError aerr;
 
   size_t total_write_len = 0;
   for (int i = 0; i < iovcnt; i++) {
 #ifdef HELPER_LOG_PACKETS
-    ESP_LOGVV(TAG, "Sending raw: %s", hexencode(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len).c_str());
+    ESP_LOGVV(TAG, "Sending raw: %s",
+              format_hex_pretty(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len).c_str());
 #endif
     total_write_len += iov[i].iov_len;
   }
@@ -584,7 +581,7 @@ APIError APINoiseFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
     state_ = State::FAILED;
     HELPER_LOG("Socket write failed with errno %d", errno);
     return APIError::SOCKET_WRITE_FAILED;
-  } else if (sent != total_write_len) {
+  } else if ((size_t) sent != total_write_len) {
     // partially sent, add end to tx_buf
     size_t to_consume = sent;
     for (int i = 0; i < iovcnt; i++) {
@@ -724,7 +721,7 @@ APIError APINoiseFrameHelper::shutdown(int how) {
 }
 extern "C" {
 // declare how noise generates random bytes (here with a good HWRNG based on the RF system)
-void noise_rand_bytes(void *output, size_t len) { esphome::fill_random(reinterpret_cast<uint8_t *>(output), len); }
+void noise_rand_bytes(void *output, size_t len) { esphome::random_bytes(reinterpret_cast<uint8_t *>(output), len); }
 }
 #endif  // USE_API_NOISE
 
@@ -778,9 +775,6 @@ APIError APIPlaintextFrameHelper::loop() {
  * error API_ERROR_BAD_INDICATOR: Bad indicator byte at start of frame.
  */
 APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
-  int err;
-  APIError aerr;
-
   if (frame == nullptr) {
     HELPER_LOG("Bad argument for try_read_frame_");
     return APIError::BAD_ARG;
@@ -854,7 +848,7 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
       return APIError::CONNECTION_CLOSED;
     }
     rx_buf_len_ += received;
-    if (received != to_read) {
+    if ((size_t) received != to_read) {
       // not all read
       return APIError::WOULD_BLOCK;
     }
@@ -862,7 +856,7 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
 
   // uncomment for even more debugging
 #ifdef HELPER_LOG_PACKETS
-  ESP_LOGVV(TAG, "Received frame: %s", hexencode(rx_buf_).c_str());
+  ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(rx_buf_).c_str());
 #endif
   frame->msg = std::move(rx_buf_);
   // consume msg
@@ -874,7 +868,6 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
 }
 
 APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
-  int err;
   APIError aerr;
 
   if (state_ != State::DATA) {
@@ -894,9 +887,6 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
 }
 bool APIPlaintextFrameHelper::can_write_without_blocking() { return state_ == State::DATA && tx_buf_.empty(); }
 APIError APIPlaintextFrameHelper::write_packet(uint16_t type, const uint8_t *payload, size_t payload_len) {
-  int err;
-  APIError aerr;
-
   if (state_ != State::DATA) {
     return APIError::BAD_STATE;
   }
@@ -940,13 +930,13 @@ APIError APIPlaintextFrameHelper::try_send_tx_buf_() {
 APIError APIPlaintextFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
   if (iovcnt == 0)
     return APIError::OK;
-  int err;
   APIError aerr;
 
   size_t total_write_len = 0;
   for (int i = 0; i < iovcnt; i++) {
 #ifdef HELPER_LOG_PACKETS
-    ESP_LOGVV(TAG, "Sending raw: %s", hexencode(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len).c_str());
+    ESP_LOGVV(TAG, "Sending raw: %s",
+              format_hex_pretty(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len).c_str());
 #endif
     total_write_len += iov[i].iov_len;
   }
@@ -980,7 +970,7 @@ APIError APIPlaintextFrameHelper::write_raw_(const struct iovec *iov, int iovcnt
     state_ = State::FAILED;
     HELPER_LOG("Socket write failed with errno %d", errno);
     return APIError::SOCKET_WRITE_FAILED;
-  } else if (sent != total_write_len) {
+  } else if ((size_t) sent != total_write_len) {
     // partially sent, add end to tx_buf
     size_t to_consume = sent;
     for (int i = 0; i < iovcnt; i++) {

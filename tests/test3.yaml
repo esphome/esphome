@@ -227,7 +227,9 @@ spi:
 
 uart:
   - id: uart1
-    tx_pin: GPIO1
+    tx_pin:
+      number: GPIO1
+      inverted: yes
     rx_pin: GPIO3
     baud_rate: 115200
   - id: uart2
@@ -356,6 +358,11 @@ sensor:
       - filter_out: NAN
       - sliding_window_moving_average:
       - exponential_moving_average:
+      - quantile:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
+          quantile: .8
       - lambda: 'return 0;'
       - delta: 100
       - throttle: 100ms
@@ -448,15 +455,30 @@ sensor:
     active_power_b:
       name: ADE7953 Active Power B
       id: ade7953_active_power_b
+  - platform: bl0940
+    uart_id: uart3
+    voltage:
+      name: 'BL0940 Voltage'
+    current:
+      name: 'BL0940 Current'
+    power:
+      name: 'BL0940 Power'
+    energy:
+      name: 'BL0940 Energy'
+    internal_temperature:
+      name: 'BL0940 Internal temperature'
+    external_temperature:
+      name: 'BL0940 External temperature'
   - platform: pzem004t
     uart_id: uart3
     voltage:
-      name: 'PZEM00T Voltage'
+      name: 'PZEM004T Voltage'
     current:
       name: 'PZEM004T Current'
     power:
       name: 'PZEM004T Power'
   - platform: pzemac
+    id: pzemac1
     voltage:
       name: 'PZEMAC Voltage'
     current:
@@ -755,6 +777,11 @@ binary_sensor:
     on_press:
       then:
         - cover.toggle: time_based_cover
+  - platform: template
+    id: 'pzemac_reset_energy'
+    on_press:
+      then:
+        - pzemac.reset_energy: pzemac1
 
 globals:
   - id: my_global_string
@@ -1313,6 +1340,7 @@ dsmr:
   max_telegram_length: 1000
   request_pin: D5
   request_interval: 20s
+  receive_timeout: 100ms
 
 daly_bms:
   update_interval: 20s

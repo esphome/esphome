@@ -118,7 +118,7 @@ void TeleInfo::loop() {
        *
        */
       while ((buf_finger = static_cast<char *>(memchr(buf_finger, (int) 0xa, buf_index_ - 1))) &&
-             ((buf_finger - buf_) < buf_index_)) {
+             ((buf_finger - buf_) < buf_index_)) {  // NOLINT(clang-diagnostic-sign-compare)
         /*
          * Make sure timesamp is nullified between each tag as some tags don't
          * have a timestamp

@@ -101,7 +101,7 @@ void DebugComponent::dump_config() {
     info.features &= ~CHIP_FEATURE_BT;
   }
   if (info.features)
-    features += "Other:" + uint64_to_string(info.features);
+    features += "Other:" + format_hex(info.features);
   ESP_LOGD(TAG, "Chip: Model=%s, Features=%s Cores=%u, Revision=%u", model, features.c_str(), info.cores,
            info.revision);
 

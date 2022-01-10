@@ -231,7 +231,7 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
       // frame header
       if (byte != 0x27)
         return false;
-    } else if (pos == 3) {
+    } else if (pos == 3) {  // NOLINT(bugprone-branch-clone)
       // frame header
       if (byte != 0x00)
         return false;
