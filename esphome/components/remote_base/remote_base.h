@@ -25,7 +25,7 @@ class RemoteTransmitData {
     this->space(space);
   }
 
-  void reserve(uint32_t len) { this->data_.reserve(len); }
+  void reserve(size_t len) { this->data_.reserve(len); }
 
   void set_carrier_frequency(uint32_t carrier_frequency) { this->carrier_frequency_ = carrier_frequency; }
 
@@ -122,7 +122,9 @@ class RemoteReceiveData {
 
   int32_t operator[](uint32_t index) const { return this->pos(index); }
 
-  int32_t size() const { return this->data_->size(); }
+  size_t size() const { return this->data_->size(); }
+
+  bool has_size(size_t len) const { return this->size() == len; }
 
   std::vector<int32_t> *get_raw_data() { return this->data_; }
 

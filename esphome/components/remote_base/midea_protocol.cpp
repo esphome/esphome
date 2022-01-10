@@ -14,6 +14,7 @@ static const int32_t BIT_ONE_SPACE_US = 3 * TICK_US;
 static const int32_t BIT_ZERO_SPACE_US = 1 * TICK_US;
 static const int32_t FOOTER_MARK_US = 1 * TICK_US;
 static const int32_t FOOTER_SPACE_US = 10 * TICK_US;
+static const size_t REMOTE_DATA_SIZE = 2 + 2 * 48 + 2 + 2 + 2 * 48 + 2;
 
 uint8_t MideaData::calc_cs_() const {
   uint8_t cs = 0;
@@ -29,7 +30,7 @@ bool MideaData::is_compliment(const MideaData &rhs) const {
 
 void MideaProtocol::encode(RemoteTransmitData *dst, const MideaData &src) {
   dst->set_carrier_frequency(38000);
-  dst->reserve(2 + 48 * 2 + 2 + 2 + 48 * 2 + 1);
+  dst->reserve(REMOTE_DATA_SIZE);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
   for (unsigned idx = 0; idx < 6; idx++)
     for (uint8_t mask = 1 << 7; mask; mask >>= 1)
@@ -60,7 +61,7 @@ static bool decode_data(RemoteReceiveData &src, MideaData &dst) {
 
 optional<MideaData> MideaProtocol::decode(RemoteReceiveData src) {
   MideaData out, inv;
-  if (src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && decode_data(src, out) && out.is_valid() &&
+  if (src.has_size(REMOTE_DATA_SIZE) && src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && decode_data(src, out) && out.is_valid() &&
       src.expect_item(FOOTER_MARK_US, FOOTER_SPACE_US) && src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) &&
       decode_data(src, inv) && src.expect_mark(FOOTER_MARK_US) && out.is_compliment(inv))
     return out;
