@@ -4,72 +4,69 @@ import esphome.codegen as cg
 
 
 from esphome.const import CONF_ADDRESS, CONF_ID
+from esphome.jsonschema import jschema_composite
 from .. import (
-    add_modbus_base_properties,
     modbus_controller_ns,
-    modbus_calc_properties,
-    validate_modbus_register,
-    ModbusItemBaseSchema,
+    ModbusController,
     SensorItem,
-    MODBUS_REGISTER_TYPE,
-    SENSOR_VALUE_TYPE,
 )
 from ..const import (
-    CONF_BITMASK,
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_COUNT,
-    CONF_RESPONSE_SIZE,
     CONF_SKIP_UPDATES,
-    CONF_REGISTER_TYPE,
-    CONF_VALUE_TYPE,
 )
 
 DEPENDENCIES = ["modbus_controller"]
 CODEOWNERS = ["@stegm"]
-
+CONF_OPTIONSMAP = "optionsmap"
 
 ModbusSelect = modbus_controller_ns.class_(
     "ModbusSelect", cg.Component, select.Select, SensorItem
 )
 
 
+@jschema_composite
+def ensure_option_map():
+    def validator(value):
+        cv.check_not_templatable(value)
+        option = cv.All(cv.string_strict)
+        mapping = cv.All(cv.int_range(0, 2 ** 64))
+        options_map_schema = cv.Schema({option: mapping})
+        return options_map_schema(value)
+
+    return validator
+
+
 CONFIG_SCHEMA = cv.All(
-    select.SELECT_SCHEMA.extend(cv.COMPONENT_SCHEMA)
-    .extend(ModbusItemBaseSchema)
-    .extend(
+    select.SELECT_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
         {
             cv.GenerateID(): cv.declare_id(ModbusSelect),
-            cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
-            cv.Optional(CONF_REGISTER_COUNT, default=0): cv.positive_int,
-            cv.Optional(CONF_RESPONSE_SIZE, default=2): cv.positive_int,
-            cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
+            cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
+            cv.Required(CONF_ADDRESS): cv.positive_int,
+            cv.Optional(CONF_REGISTER_COUNT, default=1): cv.int_range(1, 8),
+            cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
+            cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
+            cv.Required(CONF_OPTIONSMAP): ensure_option_map(),
         }
     ),
-    validate_modbus_register,
 )
 
 
 async def to_code(config):
-    byte_offset, reg_count = modbus_calc_properties(config)
+    options_map = config[CONF_OPTIONSMAP]
     var = cg.new_Pvariable(
         config[CONF_ID],
-        config[CONF_REGISTER_TYPE],
         config[CONF_ADDRESS],
-        byte_offset,
-        config[CONF_BITMASK],
-        config[CONF_VALUE_TYPE],
-        reg_count,
-        config[CONF_RESPONSE_SIZE],
+        config[CONF_REGISTER_COUNT],
         config[CONF_SKIP_UPDATES],
         config[CONF_FORCE_NEW_RANGE],
+        list(options_map.values()),
     )
 
     await cg.register_component(var, config)
-    await select.register_select(var, config, options=[])  # TODO
+    await select.register_select(var, config, options=list(options_map.keys()))
 
-    paren = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
-    cg.add(paren.add_sensor_item(var))
-    await add_modbus_base_properties(
-        var, config, ModbusSelect, cg.std_string, cg.std_string
-    )
+    parent = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
+    cg.add(parent.add_sensor_item(var))
+    cg.add(var.set_parent(parent))

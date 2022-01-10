@@ -9,22 +9,30 @@ namespace modbus_controller {
 
 class ModbusSelect : public Component, public select::Select, public SensorItem {
  public:
-  ModbusSelect(ModbusRegisterType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
-               SensorValueType value_type, uint8_t register_count, uint16_t response_bytes, uint8_t skip_updates, bool force_new_range)
-      : Component(), select::Select() {
-    this->register_type = register_type;
+  ModbusSelect(uint16_t start_address, uint8_t register_count, uint8_t skip_updates, bool force_new_range,
+               std::vector<uint64_t> mapping)
+      : Component(), select::Select(), write_address(start_address) {
+    this->register_type = ModbusRegisterType::HOLDING;
     this->start_address = start_address;
-    this->offset = offset;
-    this->bitmask = bitmask;
-    this->sensor_value_type = value_type;
+    this->offset = 0;
+    this->bitmask = 0xFFFFFFFF;
+    this->sensor_value_type = SensorValueType::RAW;
     this->register_count = register_count;
-    this->response_bytes = response_bytes;
+    this->response_bytes = 0;
     this->skip_updates = skip_updates;
     this->force_new_range = force_new_range;
+    this->mapping = mapping;
   }
 
-  void parse_and_publish(const std::vector<uint8_t> &data) override {}
-  void control(const std::string &value) override {}
+  void dump_config() override;
+  void set_parent(ModbusController *const parent) { this->parent_ = parent; }
+  void parse_and_publish(const std::vector<uint8_t> &data) override;
+  void control(const std::string &value) override;
+
+ protected:
+  const uint16_t write_address;
+  std::vector<uint64_t> mapping;
+  ModbusController *parent_;
 };
 
 }  // namespace modbus_controller
