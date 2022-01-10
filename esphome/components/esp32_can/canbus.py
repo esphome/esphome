@@ -30,9 +30,9 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield canbus.register_canbus(var, config)
+    await canbus.register_canbus(var, config)
 
     cg.add(var.set_rx(config[CONF_RX_PIN]))
     cg.add(var.set_tx(config[CONF_TX_PIN]))
