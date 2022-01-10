@@ -77,8 +77,8 @@ float CD74HC4067Sensor::sample() {
 }
 
 void CD74HC4067Sensor::dump_config() {
-  LOG_SENSOR(TAG, "Multiplexer Sensor", this);
-  ESP_LOGCONFIG(TAG, "CD74HC4067 Pin: %u", this->pin_);
+  LOG_SENSOR(TAG, "CD74HC4067 Sensor", this);
+  ESP_LOGCONFIG(TAG, "  Pin: %u", this->pin_);
   LOG_UPDATE_INTERVAL(this);
 }
 
