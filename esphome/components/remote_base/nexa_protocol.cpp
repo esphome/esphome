@@ -219,7 +219,6 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
       out.level |= 0x00;
     } else {
       // This should not happen...failed command
-      // return {};
       break;
     }
   }
