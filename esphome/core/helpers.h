@@ -58,15 +58,6 @@ class HighFrequencyLoopRequester {
   bool started_{false};
 };
 
-/** Clamp the value between min and max.
- *
- * @param val The value.
- * @param min The minimum value.
- * @param max The maximum value.
- * @return val clamped in between min and max.
- */
-template<typename T> T clamp(T val, T min, T max);
-
 /** Linearly interpolate between end start and end by completion.
  *
  * @tparam T The input/output typename.
@@ -87,25 +78,6 @@ template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...
 }
 #endif
 
-/// Return a random 32 bit unsigned integer.
-uint32_t random_uint32();
-
-/** Returns a random double between 0 and 1.
- *
- * Note: This function probably doesn't provide a truly uniform distribution.
- */
-double random_double();
-
-/// Returns a random float between 0 and 1. Essentially just casts random_double() to a float.
-float random_float();
-
-void fill_random(uint8_t *data, size_t len);
-
-void fast_random_set_seed(uint32_t seed);
-uint32_t fast_random_32();
-uint16_t fast_random_16();
-uint8_t fast_random_8();
-
 /// Applies gamma correction with the provided gamma to value.
 float gamma_correct(float value, float gamma);
 /// Reverts gamma correction with the provided gamma to value.
@@ -114,20 +86,15 @@ float gamma_uncorrect(float value, float gamma);
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
 
-/// Convert a uint64_t to a hex string
-std::string uint64_to_string(uint64_t num);
-
-/// Convert a uint32_t to a hex string
-std::string uint32_to_string(uint32_t num);
-
-uint8_t reverse_bits_8(uint8_t x);
-uint16_t reverse_bits_16(uint16_t x);
-uint32_t reverse_bits_32(uint32_t x);
-
 /// Convert RGB floats (0-1) to hue (0-360) & saturation/value percentage (0-1)
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
 /// Convert hue (0-360) & saturation/value percentage (0-1) to RGB floats (0-1)
 void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green, float &blue);
+
+/// Convert degrees Celsius to degrees Fahrenheit.
+static inline float celsius_to_fahrenheit(float value) { return value * 1.8f + 32.0f; }
+/// Convert degrees Fahrenheit to degrees Celsius.
+static inline float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.8f; }
 
 /***
  * An interrupt helper class.
@@ -205,17 +172,6 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   std::vector<std::function<void(Ts...)>> callbacks_;
 };
 
-// https://stackoverflow.com/a/37161919/8924614
-template<class T, class... Args>
-struct is_callable  // NOLINT
-{
-  template<class U> static auto test(U *p) -> decltype((*p)(std::declval<Args>()...), void(), std::true_type());
-
-  template<class U> static auto test(...) -> decltype(std::false_type());
-
-  static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
-};
-
 void delay_microseconds_safe(uint32_t us);
 
 template<typename T> class Deduplicator {
@@ -281,6 +237,30 @@ using std::is_trivially_copyable;
 template<typename T> struct is_trivially_copyable : public std::integral_constant<bool, true> {};
 #endif
 
+// std::clamp from C++17
+#if __cpp_lib_clamp >= 201603
+using std::clamp;
+#else
+template<typename T, typename Compare> constexpr const T &clamp(const T &v, const T &lo, const T &hi, Compare comp) {
+  return comp(v, lo) ? lo : comp(hi, v) ? hi : v;
+}
+template<typename T> constexpr const T &clamp(const T &v, const T &lo, const T &hi) {
+  return clamp(v, lo, hi, std::less<T>{});
+}
+#endif
+
+// std::is_invocable from C++17
+#if __cpp_lib_is_invocable >= 201703
+using std::is_invocable;
+#else
+// https://stackoverflow.com/a/37161919/8924614
+template<class T, class... Args> struct is_invocable {  // NOLINT(readability-identifier-naming)
+  template<class U> static auto test(U *p) -> decltype((*p)(std::declval<Args>()...), void(), std::true_type());
+  template<class U> static auto test(...) -> decltype(std::false_type());
+  static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
+};
+#endif
+
 // std::bit_cast from C++20
 #if __cpp_lib_bit_cast >= 201806
 using std::bit_cast;
@@ -302,6 +282,18 @@ constexpr uint8_t byteswap(uint8_t n) { return n; }
 constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
 constexpr uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
 constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+
+///@}
+
+/// @name Mathematics
+///@{
+
+/// Return a random 32-bit unsigned integer.
+uint32_t random_uint32();
+/// Return a random float between 0 and 1.
+float random_float();
+/// Generate \p len number of random bytes.
+void random_bytes(uint8_t *data, size_t len);
 
 ///@}
 
@@ -343,6 +335,23 @@ inline std::array<uint8_t, sizeof(T)> decode_value(T val) {
   return ret;
 }
 
+/// Reverse the order of 8 bits.
+inline uint8_t reverse_bits(uint8_t x) {
+  x = ((x & 0xAA) >> 1) | ((x & 0x55) << 1);
+  x = ((x & 0xCC) >> 2) | ((x & 0x33) << 2);
+  x = ((x & 0xF0) >> 4) | ((x & 0x0F) << 4);
+  return x;
+}
+/// Reverse the order of 16 bits.
+inline uint16_t reverse_bits(uint16_t x) {
+  return (reverse_bits(static_cast<uint8_t>(x & 0xFF)) << 8) | reverse_bits(static_cast<uint8_t>((x >> 8) & 0xFF));
+}
+/// Reverse the order of 32 bits.
+inline uint32_t reverse_bits(uint32_t x) {
+  return (reverse_bits(static_cast<uint16_t>(x & 0xFFFF)) << 16) |
+         reverse_bits(static_cast<uint16_t>((x >> 16) & 0xFFFF));
+}
+
 /// Convert a value between host byte order and big endian (most significant byte first) order.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr T convert_big_endian(T val) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
@@ -369,6 +378,10 @@ std::string str_until(const char *str, char ch);
 /// Extract the part of the string until either the first occurence of the specified character, or the end.
 std::string str_until(const std::string &str, char ch);
 
+/// Convert the string to lower case.
+std::string str_lower_case(const std::string &str);
+/// Convert the string to upper case.
+std::string str_upper_case(const std::string &str);
 /// Convert the string to snake case (lowercase with underscores).
 std::string str_snake_case(const std::string &str);
 
@@ -476,7 +489,7 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
 /// Format the byte array \p data of length \p len in lowercased hex.
 std::string format_hex(const uint8_t *data, size_t length);
 /// Format the vector \p data in lowercased hex.
-std::string format_hex(std::vector<uint8_t> data);
+std::string format_hex(const std::vector<uint8_t> &data);
 /// Format an unsigned integer in lowercased hex, starting with the most significant byte.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
   val = convert_big_endian(val);
@@ -486,7 +499,7 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::stri
 /// Format the byte array \p data of length \p len in pretty-printed, human-readable hex.
 std::string format_hex_pretty(const uint8_t *data, size_t length);
 /// Format the vector \p data in pretty-printed, human-readable hex.
-std::string format_hex_pretty(std::vector<uint8_t> data);
+std::string format_hex_pretty(const std::vector<uint8_t> &data);
 /// Format an unsigned integer in pretty-printed, human-readable hex, starting with the most significant byte.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex_pretty(T val) {
   val = convert_big_endian(val);

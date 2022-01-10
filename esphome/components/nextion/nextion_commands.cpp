@@ -171,7 +171,7 @@ void Nextion::set_component_coordinates(const char *component, int x, int y) {
 
 // Drawing
 void Nextion::display_picture(int picture_id, int x_start, int y_start) {
-  this->add_no_result_to_queue_with_printf_("display_picture", "pic %d %d %d", x_start, y_start, picture_id);
+  this->add_no_result_to_queue_with_printf_("display_picture", "pic %d, %d, %d", x_start, y_start, picture_id);
 }
 
 void Nextion::fill_area(int x1, int y1, int width, int height, const char *color) {
