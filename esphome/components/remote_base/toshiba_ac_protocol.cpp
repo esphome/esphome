@@ -33,6 +33,10 @@ void ToshibaAcProtocol::encode(RemoteTransmitData *dst, const ToshibaAcData &dat
   }
 }
 
+static bool decode_data(RemoteReceiveData &src, uint64_t &dst) {
+  return decode_data_msb<uint64_t, 48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst);
+}
+
 optional<ToshibaAcData> ToshibaAcProtocol::decode(RemoteReceiveData src) {
   uint64_t packet = 0;
   ToshibaAcData out{
@@ -42,7 +46,7 @@ optional<ToshibaAcData> ToshibaAcProtocol::decode(RemoteReceiveData src) {
   // *** Packet 1
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
-  if (!decode_data_msb<uint64_t, 48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, packet))
+  if (!decode_data(src, packet))
     return {};
   if (!src.expect_item(FOOTER_HIGH_US, FOOTER_LOW_US))
     return {};
@@ -50,7 +54,7 @@ optional<ToshibaAcData> ToshibaAcProtocol::decode(RemoteReceiveData src) {
   // *** Packet 2
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
-  if (!decode_data_msb<uint64_t, 48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, out.rc_code_1))
+  if (!decode_data(src, out.rc_code_1))
     return {};
   if (!src.expect_mark(FOOTER_HIGH_US))
     return {};
@@ -64,7 +68,7 @@ optional<ToshibaAcData> ToshibaAcProtocol::decode(RemoteReceiveData src) {
   // *** Packet 3
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
-  if (!decode_data_msb<uint64_t, 48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, out.rc_code_2))
+  if (!decode_data(src, out.rc_code_2))
     return {};
   if (!src.expect_mark(FOOTER_HIGH_US))
     return {};
