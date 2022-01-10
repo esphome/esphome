@@ -6,8 +6,8 @@ namespace mlx90393 {
 
 static const char *const TAG = "mlx90393";
 
-bool MLX90393Cls::transceive(const uint8_t *request, size_t request_size, uint8_t *response,  // NOLINT
-                             size_t response_size) {                                          // NOLINT
+bool MLX90393Cls::transceive(const uint8_t *request, size_t request_size, uint8_t *response,
+                             size_t response_size) {
   i2c::ErrorCode e = this->write(request, request_size);
   if (e != i2c::ErrorCode::ERROR_OK) {
     return false;
