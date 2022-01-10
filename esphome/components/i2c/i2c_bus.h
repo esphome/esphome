@@ -26,8 +26,37 @@ struct WriteBuffer {
   size_t len;
 };
 
+struct Transaction {
+  uint8_t device_address;
+  const uint8_t *write_buf;
+  size_t write_len;
+  uint8_t *read_buf;
+  size_t read_len;
+};
+
+
 class I2CBus {
  public:
+  /// Most I2C (and SMBus) bus transactions follow the process of
+  /// writing the command request to the device,
+  /// then retreiving (reading) the reply. Between write and read the bus is not
+  /// released (stop sent), rather a restart is sent keeping the command/reply atomic.
+  /// Adopting this method means in the future the transactions can be queued and
+  /// serviced on interrupts.
+  virtual ErrorCode write_read(Transaction* t) = 0;
+  /// Single treaded method
+  virtual ErrorCode write_read(uint8_t address, 
+      const uint8_t *write_buffer, size_t write_len,
+      uint8_t *read_buffer, size_t read_len) {
+    Transaction ta;
+    ta.device_address = address;
+    ta.write_buf = write_buffer;
+    ta.write_len = write_len;
+    ta.read_buf = read_buffer;
+    ta.read_len = read_len;
+    return write_read(&ta);
+  }
+
   virtual ErrorCode read(uint8_t address, uint8_t *buffer, size_t len) {
     ReadBuffer buf;
     buf.data = buffer;

@@ -28,14 +28,15 @@ static const char *const TAG = "mlx90614.sensor";
 #define MLX90614_ID4 0x3F
 
 void MLX90614Component::setup() {
-  uint8_t address = this->address_;
-  ESP_LOGI(TAG, "Setting up MLX90614 sensor at I2C address 0x%02X", address);
-  uint8_t id;
-  if (!this->read_byte(MLX90614_TA, &id)) {
+  ESP_LOGI(TAG, "Setting up MLX90614 sensor at I2C address 0x%02X", this->address_);
+  uint8_t id[4];
+  uint8_t reg = MLX90614_ID1;
+  if (this->bus_->write_read(this->address_, &reg, 1, id, 4) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Failed I2C read during setup()");
     this->mark_failed();
     return;
   }
+  ESP_LOGD(TAG, "ID: 0x%02X%02X%02X%02X", id[0], id[1], id[2], id[3]);
 }
 
 void MLX90614Component::dump_config() {
@@ -43,20 +44,24 @@ void MLX90614Component::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MLX90614 failed earlier, during setup");
+    ESP_LOGE(TAG, "Communication with MLX90614 failed earlier during setup");
     return;
   }
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Target Temperature", this->temperature_target_);
-  LOG_SENSOR("  ", "Reference Temperature", this->temperature_reference_);
+  if (this->temperature_target_) {
+    LOG_SENSOR("  ", "Target Temperature", this->temperature_target_);
+  }
+  if (this->temperature_reference_) {
+    LOG_SENSOR("  ", "Reference Temperature", this->temperature_reference_);
+  }
 }
 
 void MLX90614Component::update() {
   if (this->temperature_target_ != nullptr) {
     float objtemp = read_temp_register_(MLX90614_TOBJ1);
     this->temperature_target_->publish_state(objtemp);
-  } 
-  if (this->this->temperature_reference_ != nullptr) {
+  }
+  if (this->temperature_reference_ != nullptr) {
     float ambtemp = read_temp_register_(MLX90614_TA);
     temperature_reference_->publish_state(ambtemp);
   }
@@ -66,20 +71,11 @@ void MLX90614Component::update() {
 // -------- Protected ---------------------------
 
 float MLX90614Component::read_temp_register_(uint8_t reg) {
-  uint16_t raw;
-  if (this->write(&reg, 1) != i2c::ERROR_OK) {
+  uint8_t r[2];
+  if (this->bus_->write_read(this->address_, &reg, 1, r, 2) != i2c::ERROR_OK) {
     this->status_set_warning();
-    return;
   }
-  delay(50);  // NOLINT
-  if (this->read(reinterpret_cast<uint8_t *>(&raw), 2) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    return;
-  }
-  raw = i2c::i2ctohs(raw);
-  // Bad reading if MSB of raw is 1. TODO: Check for errors?
-  float temp;
-  temp = (float) raw;
+  float temp = (float) ((uint16_t) r[1] << 8 | r[0]);
   temp *= .02;
   temp -= 273.15;
   return temp;

@@ -18,15 +18,14 @@ class MLX90614Component : public PollingComponent, public i2c::I2CDevice {
   /// Update the sensor values (temperature+humidity).
   void update() override;
 
-  //float get_setup_priority() const { return setup_priority::DATA; }
-  //float get_setup_priority() const override;
+  float get_setup_priority() const { return setup_priority::DATA; }
 
  protected:
   float read_temp_register_(uint8_t reg);
 
   sensor::Sensor *temperature_target_{nullptr};
   sensor::Sensor *temperature_reference_{nullptr};
-
+};
 
 }  // namespace mlx90614
 }  // namespace esphome
