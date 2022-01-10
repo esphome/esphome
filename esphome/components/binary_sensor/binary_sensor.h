@@ -75,6 +75,7 @@ class BinarySensor : public EntityBase {
   // ========== OVERRIDE METHODS ==========
   // (You'll only need this when creating your own custom binary sensor)
   /// Get the default device class for this sensor, or empty string for no default.
+  ESPDEPRECATED("device_class() is deprecated, set property during config validation instead.", "2022.01")
   virtual std::string device_class();
 
  protected:
