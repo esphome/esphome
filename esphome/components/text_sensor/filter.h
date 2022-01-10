@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 #include <queue>
 #include <utility>
+#include <map>
 
 namespace esphome {
 namespace text_sensor {
@@ -106,6 +107,16 @@ class SubstituteFilter : public Filter {
  protected:
   std::vector<std::string> from_strings_;
   std::vector<std::string> to_strings_;
+};
+
+/// A filter that maps values from one set to another
+class MapFilter : public Filter {
+ public:
+  MapFilter(std::map<std::string, std::string> mappings) : mappings_(std::move(mappings)) {}
+  optional<std::string> new_value(std::string value) override;
+
+ protected:
+  std::map<std::string, std::string> mappings_;
 };
 
 }  // namespace text_sensor

@@ -9,6 +9,7 @@ import json
 import logging
 import multiprocessing
 import os
+from pathlib import Path
 import secrets
 import shutil
 import subprocess
@@ -26,7 +27,7 @@ import tornado.process
 import tornado.web
 import tornado.websocket
 
-from esphome import const, util
+from esphome import const, platformio_api, util, yaml_util
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -398,23 +399,83 @@ class DownloadBinaryRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
-        # pylint: disable=no-value-for-parameter
-        storage_path = ext_storage_path(settings.config_dir, configuration)
-        storage_json = StorageJSON.load(storage_path)
-        if storage_json is None:
-            self.send_error()
+        type = self.get_argument("type", "firmware.bin")
+
+        if type == "firmware.bin":
+            storage_path = ext_storage_path(settings.config_dir, configuration)
+            storage_json = StorageJSON.load(storage_path)
+            if storage_json is None:
+                self.send_error(404)
+                return
+            filename = f"{storage_json.name}.bin"
+            path = storage_json.firmware_bin_path
+
+        else:
+            args = ["esphome", "idedata", settings.rel_path(configuration)]
+            rc, stdout, _ = run_system_command(*args)
+
+            if rc != 0:
+                self.send_error(404 if rc == 2 else 500)
+                return
+
+            idedata = platformio_api.IDEData(json.loads(stdout))
+
+            found = False
+            for image in idedata.extra_flash_images:
+                if image.path.endswith(type):
+                    path = image.path
+                    filename = type
+                    found = True
+                    break
+
+            if not found:
+                self.send_error(404)
+                return
+
+        self.set_header("Content-Type", "application/octet-stream")
+        self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
+        if not Path(path).is_file():
+            self.send_error(404)
             return
 
-        path = storage_json.firmware_bin_path
-        self.set_header("Content-Type", "application/octet-stream")
-        filename = f"{storage_json.name}.bin"
-        self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
         with open(path, "rb") as f:
             while True:
                 data = f.read(16384)
                 if not data:
                     break
                 self.write(data)
+        self.finish()
+
+
+class ManifestRequestHandler(BaseHandler):
+    @authenticated
+    @bind_config
+    def get(self, configuration=None):
+        args = ["esphome", "idedata", settings.rel_path(configuration)]
+        rc, stdout, _ = run_system_command(*args)
+
+        if rc != 0:
+            self.send_error(404 if rc == 2 else 500)
+            return
+
+        idedata = platformio_api.IDEData(json.loads(stdout))
+
+        firmware_offset = "0x10000" if idedata.extra_flash_images else "0x0"
+        flash_images = [
+            {
+                "path": f"./download.bin?configuration={configuration}&type=firmware.bin",
+                "offset": firmware_offset,
+            }
+        ] + [
+            {
+                "path": f"./download.bin?configuration={configuration}&type={os.path.basename(image.path)}",
+                "offset": image.offset,
+            }
+            for image in idedata.extra_flash_images
+        ]
+
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps(flash_images))
         self.finish()
 
 
@@ -447,6 +508,12 @@ class DashboardEntry:
         if self.storage is None:
             return None
         return self.storage.address
+
+    @property
+    def web_port(self):
+        if self.storage is None:
+            return None
+        return self.storage.web_port
 
     @property
     def name(self):
@@ -508,6 +575,7 @@ class ListDevicesHandler(BaseHandler):
                             "path": entry.path,
                             "comment": entry.comment,
                             "address": entry.address,
+                            "web_port": entry.web_port,
                             "target_platform": entry.target_platform,
                         }
                         for entry in entries
@@ -533,10 +601,10 @@ class MainRequestHandler(BaseHandler):
         begin = bool(self.get_argument("begin", False))
 
         self.render(
-            get_template_path("index"),
+            "index.template.html",
             begin=begin,
             **template_args(),
-            login_enabled=settings.using_auth,
+            login_enabled=settings.using_password,
         )
 
 
@@ -582,7 +650,7 @@ class MDNSStatusThread(threading.Thread):
 class PingStatusThread(threading.Thread):
     def run(self):
         with multiprocessing.Pool(processes=8) as pool:
-            while not STOP_EVENT.is_set():
+            while not STOP_EVENT.wait(2):
                 # Only do pings if somebody has the dashboard open
 
                 def callback(ret):
@@ -710,7 +778,7 @@ class LoginHandler(BaseHandler):
 
     def render_login_page(self, error=None):
         self.render(
-            get_template_path("login"),
+            "login.template.html",
             error=error,
             hassio=settings.using_hassio_auth,
             has_username=bool(settings.username),
@@ -768,6 +836,28 @@ class LogoutHandler(BaseHandler):
         self.redirect("./login")
 
 
+class SecretKeysRequestHandler(BaseHandler):
+    @authenticated
+    def get(self):
+
+        filename = None
+
+        for secret_filename in const.SECRETS_FILES:
+            relative_filename = settings.rel_path(secret_filename)
+            if os.path.isfile(relative_filename):
+                filename = relative_filename
+                break
+
+        if filename is None:
+            self.send_error(404)
+            return
+
+        secret_keys = list(yaml_util.load_yaml(filename, clear_secrets=False))
+
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(secret_keys))
+
+
 def get_base_frontend_path():
     if ENV_DEV not in os.environ:
         import esphome_dashboard
@@ -780,10 +870,6 @@ def get_base_frontend_path():
 
     # This path can be relative, so resolve against the root or else templates don't work
     return os.path.abspath(os.path.join(os.getcwd(), static_path, "esphome_dashboard"))
-
-
-def get_template_path(template_name):
-    return os.path.join(get_base_frontend_path(), f"{template_name}.template.html")
 
 
 def get_static_path(*args):
@@ -843,6 +929,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
         "cookie_secret": settings.cookie_secret,
         "log_function": log_function,
         "websocket_ping_interval": 30.0,
+        "template_path": get_base_frontend_path(),
     }
     rel = settings.relative_url
     app = tornado.web.Application(
@@ -862,6 +949,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}info", InfoRequestHandler),
             (f"{rel}edit", EditRequestHandler),
             (f"{rel}download.bin", DownloadBinaryRequestHandler),
+            (f"{rel}manifest.json", ManifestRequestHandler),
             (f"{rel}serial-ports", SerialPortRequestHandler),
             (f"{rel}ping", PingRequestHandler),
             (f"{rel}delete", DeleteRequestHandler),
@@ -870,6 +958,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}static/(.*)", StaticFileHandler, {"path": get_static_path()}),
             (f"{rel}devices", ListDevicesHandler),
             (f"{rel}import", ImportRequestHandler),
+            (f"{rel}secret_keys", SecretKeysRequestHandler),
         ],
         **app_settings,
     )
@@ -901,16 +990,17 @@ def start_web_server(args):
         server.add_socket(socket)
     else:
         _LOGGER.info(
-            "Starting dashboard web server on port %s and configuration dir %s...",
+            "Starting dashboard web server on http://%s:%s and configuration dir %s...",
+            args.address,
             args.port,
             settings.config_dir,
         )
-        app.listen(args.port)
+        app.listen(args.port, args.address)
 
         if args.open_ui:
             import webbrowser
 
-            webbrowser.open(f"localhost:{args.port}")
+            webbrowser.open(f"http://{args.address}:{args.port}")
 
     if settings.status_use_ping:
         status_thread = PingStatusThread()

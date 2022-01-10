@@ -20,18 +20,16 @@ class MQTTSwitchComponent : public mqtt::MQTTComponent {
   void setup() override;
   void dump_config() override;
 
-  void send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) override;
+  void send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) override;
 
   bool send_initial_state() override;
-  bool is_internal() override;
 
   bool publish_state(bool state);
 
  protected:
-  std::string friendly_name() const override;
-
   /// "switch" component type.
   std::string component_type() const override;
+  const EntityBase *get_entity() const override;
 
   switch_::Switch *switch_;
 };

@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "mqtt_client.h"
 
 namespace esphome {
@@ -69,11 +70,11 @@ class MQTTComponent : public Component {
   void call_dump_config() override;
 
   /// Send discovery info the Home Assistant, override this.
-  virtual void send_discovery(JsonObject &root, SendDiscoveryConfig &config) = 0;
+  virtual void send_discovery(JsonObject root, SendDiscoveryConfig &config) = 0;
 
   virtual bool send_initial_state() = 0;
 
-  virtual bool is_internal() = 0;
+  virtual bool is_internal();
 
   /// Set whether state message should be retained.
   void set_retain(bool retain);
@@ -148,8 +149,10 @@ class MQTTComponent : public Component {
    */
   std::string get_default_topic_for_(const std::string &suffix) const;
 
-  /// Get the friendly name of this MQTT component.
-  virtual std::string friendly_name() const = 0;
+  /**
+   * Gets the Entity served by this MQTT component.
+   */
+  virtual const EntityBase *get_entity() const = 0;
 
   /** A unique ID for this MQTT component, empty for no unique id. See unique ID requirements:
    * https://developers.home-assistant.io/docs/en/entity_registry_index.html#unique-id-requirements
@@ -157,6 +160,15 @@ class MQTTComponent : public Component {
    * @return The unique id as a string.
    */
   virtual std::string unique_id();
+
+  /// Get the friendly name of this MQTT component.
+  virtual std::string friendly_name() const;
+
+  /// Get the icon field of this component
+  virtual std::string get_icon() const;
+
+  /// Get whether the underlying Entity is disabled by default
+  virtual bool is_disabled_by_default() const;
 
   /// Get the MQTT topic that new states will be shared to.
   const std::string get_state_topic_() const;

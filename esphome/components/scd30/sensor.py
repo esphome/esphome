@@ -1,3 +1,4 @@
+from esphome import core
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
@@ -6,6 +7,7 @@ from esphome.const import (
     CONF_HUMIDITY,
     CONF_TEMPERATURE,
     CONF_CO2,
+    CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
@@ -18,7 +20,7 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 
 scd30_ns = cg.esphome_ns.namespace("scd30")
-SCD30Component = scd30_ns.class_("SCD30Component", cg.PollingComponent, i2c.I2CDevice)
+SCD30Component = scd30_ns.class_("SCD30Component", cg.Component, i2c.I2CDevice)
 
 CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
 CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
@@ -55,9 +57,15 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION, default=0): cv.pressure,
             cv.Optional(CONF_TEMPERATURE_OFFSET): cv.temperature,
+            cv.Optional(CONF_UPDATE_INTERVAL, default="60s"): cv.All(
+                cv.positive_time_period_seconds,
+                cv.Range(
+                    min=core.TimePeriod(seconds=1), max=core.TimePeriod(seconds=1800)
+                ),
+            ),
         }
     )
-    .extend(cv.polling_component_schema("60s"))
+    .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(0x61))
 )
 
@@ -80,6 +88,8 @@ async def to_code(config):
 
     if CONF_TEMPERATURE_OFFSET in config:
         cg.add(var.set_temperature_offset(config[CONF_TEMPERATURE_OFFSET]))
+
+    cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
 
     if CONF_CO2 in config:
         sens = await sensor.new_sensor(config[CONF_CO2])

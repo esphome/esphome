@@ -7,7 +7,7 @@ namespace text_sensor {
 static const char *const TAG = "text_sensor";
 
 TextSensor::TextSensor() : TextSensor("") {}
-TextSensor::TextSensor(const std::string &name) : Nameable(name) {}
+TextSensor::TextSensor(const std::string &name) : EntityBase(name) {}
 
 void TextSensor::publish_state(const std::string &state) {
   this->raw_state = state;
@@ -62,19 +62,11 @@ void TextSensor::add_on_raw_state_callback(std::function<void(std::string)> call
 std::string TextSensor::get_state() const { return this->state; }
 std::string TextSensor::get_raw_state() const { return this->raw_state; }
 void TextSensor::internal_send_state_to_frontend(const std::string &state) {
-  this->state = this->raw_state;
+  this->state = state;
   this->has_state_ = true;
   ESP_LOGD(TAG, "'%s': Sending state '%s'", this->name_.c_str(), state.c_str());
   this->callback_.call(state);
 }
-
-void TextSensor::set_icon(const std::string &icon) { this->icon_ = icon; }
-std::string TextSensor::get_icon() {
-  if (this->icon_.has_value())
-    return *this->icon_;
-  return this->icon();
-}
-std::string TextSensor::icon() { return ""; }
 
 std::string TextSensor::unique_id() { return ""; }
 bool TextSensor::has_state() { return this->has_state_; }

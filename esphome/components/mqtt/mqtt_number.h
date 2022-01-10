@@ -25,18 +25,16 @@ class MQTTNumberComponent : public mqtt::MQTTComponent {
   void setup() override;
   void dump_config() override;
 
-  void send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) override;
+  void send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) override;
 
   bool send_initial_state() override;
-  bool is_internal() override;
 
   bool publish_state(float value);
 
  protected:
   /// Override for MQTTComponent, returns "number".
   std::string component_type() const override;
-
-  std::string friendly_name() const override;
+  const EntityBase *get_entity() const override;
 
   number::Number *number_;
 };

@@ -22,7 +22,7 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
   MQTT_COMPONENT_CUSTOM_TOPIC(speed, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(speed, state)
 
-  void send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) override;
+  void send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) override;
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -39,10 +39,8 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
 
   fan::FanState *get_state() const;
 
-  bool is_internal() override;
-
  protected:
-  std::string friendly_name() const override;
+  const EntityBase *get_entity() const override;
 
   fan::FanState *state_;
 };

@@ -6,10 +6,15 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_idf_version.h>
+#include <esp_task_wdt.h>
 #include <soc/rtc.h>
 
 #if ESP_IDF_VERSION_MAJOR >= 4
 #include <hal/cpu_hal.h>
+#endif
+
+#ifdef USE_ARDUINO
+#include <esp32-hal.h>
 #endif
 
 void setup();
@@ -21,11 +26,7 @@ void IRAM_ATTR HOT yield() { vPortYield(); }
 uint32_t IRAM_ATTR HOT millis() { return (uint32_t)(esp_timer_get_time() / 1000ULL); }
 void IRAM_ATTR HOT delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
 uint32_t IRAM_ATTR HOT micros() { return (uint32_t) esp_timer_get_time(); }
-void IRAM_ATTR HOT delayMicroseconds(uint32_t us) {
-  auto start = (uint64_t) esp_timer_get_time();
-  while (((uint64_t) esp_timer_get_time()) - start < us)
-    ;
-}
+void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 void arch_restart() {
   esp_restart();
   // restart() doesn't always end execution
@@ -33,24 +34,24 @@ void arch_restart() {
     yield();
   }
 }
-void IRAM_ATTR HOT arch_feed_wdt() {
-#ifdef USE_ARDUINO
-#if CONFIG_ARDUINO_RUNNING_CORE == 0
-#ifdef CONFIG_TASK_WDT_CHECK_IDLE_TASK_CPU0
-  // ESP32 uses "Task Watchdog" which is hooked to the FreeRTOS idle task.
-  // To cause the Watchdog to be triggered we need to put the current task
-  // to sleep to get the idle task scheduled.
-  delay(1);
-#endif
-#endif
-#endif  // USE_ARDUINO
 
-#ifdef USE_ESP_IDF
-#ifdef CONFIG_TASK_WDT_CHECK_IDLE_TASK_CPU0
-  delay(1);
+void arch_init() {
+  // Enable the task watchdog only on the loop task (from which we're currently running)
+#if defined(USE_ESP_IDF)
+  esp_task_wdt_add(nullptr);
+  // Idle task watchdog is disabled on ESP-IDF
+#elif defined(USE_ARDUINO)
+  enableLoopWDT();
+  // Disable idle task watchdog on the core we're using (Arduino pins the task to a core)
+#if defined(CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0) && CONFIG_ARDUINO_RUNNING_CORE == 0
+  disableCore0WDT();
 #endif
-#endif  // USE_ESP_IDF
+#if defined(CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1) && CONFIG_ARDUINO_RUNNING_CORE == 1
+  disableCore1WDT();
+#endif
+#endif
 }
+void IRAM_ATTR HOT arch_feed_wdt() { esp_task_wdt_reset(); }
 
 uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
 uint32_t arch_get_cpu_cycle_count() {

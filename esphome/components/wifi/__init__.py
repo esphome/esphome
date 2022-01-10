@@ -140,7 +140,8 @@ def final_validate(config):
     has_sta = bool(config.get(CONF_NETWORKS, True))
     has_ap = CONF_AP in config
     has_improv = "esp32_improv" in fv.full_config.get()
-    if (not has_sta) and (not has_ap) and (not has_improv):
+    has_improv_serial = "improv_serial" in fv.full_config.get()
+    if not (has_sta or has_ap or has_improv or has_improv_serial):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create."
         )
@@ -159,8 +160,15 @@ def final_validate_power_esp32_ble(value):
         "esp32_ble_server",
         "esp32_ble_tracker",
     ]:
+        if conflicting not in fv.full_config.get():
+            continue
+
         try:
-            cv.require_framework_version(esp32_arduino=cv.Version(1, 0, 5))(None)
+            # Only arduino 1.0.5+ and esp-idf impacted
+            cv.require_framework_version(
+                esp32_arduino=cv.Version(1, 0, 5),
+                esp_idf=cv.Version(4, 0, 0),
+            )(None)
         except cv.Invalid:
             pass
         else:
@@ -213,10 +221,22 @@ def _validate(config):
             raise cv.Invalid("Fast connect can only be used with one network!")
 
     if CONF_USE_ADDRESS not in config:
+        use_address = CORE.name + config[CONF_DOMAIN]
         if CONF_MANUAL_IP in config:
             use_address = str(config[CONF_MANUAL_IP][CONF_STATIC_IP])
-        else:
-            use_address = CORE.name + config[CONF_DOMAIN]
+        elif CONF_NETWORKS in config:
+            ips = set(
+                str(net[CONF_MANUAL_IP][CONF_STATIC_IP])
+                for net in config[CONF_NETWORKS]
+                if CONF_MANUAL_IP in net
+            )
+            if len(ips) > 1:
+                raise cv.Invalid(
+                    "Must specify use_address when using multiple static IP addresses."
+                )
+            if len(ips) == 1:
+                use_address = next(iter(ips))
+
         config[CONF_USE_ADDRESS] = use_address
 
     return config
@@ -326,7 +346,8 @@ async def to_code(config):
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     for network in config.get(CONF_NETWORKS, []):
-        cg.add(var.add_sta(wifi_network(network, config.get(CONF_MANUAL_IP))))
+        ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
+        cg.add(var.add_sta(wifi_network(network, ip_config)))
 
     if CONF_AP in config:
         conf = config[CONF_AP]
@@ -342,6 +363,8 @@ async def to_code(config):
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
+    elif CORE.is_esp32 and CORE.using_arduino:
+        cg.add_library("WiFi", None)
 
     cg.add_define("USE_WIFI")
 

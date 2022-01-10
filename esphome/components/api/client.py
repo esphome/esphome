@@ -23,7 +23,6 @@ async def async_run_logs(config, address):
     _LOGGER.info("Starting log output from %s using esphome API", address)
     zc = zeroconf.Zeroconf()
     cli = APIClient(
-        asyncio.get_event_loop(),
         address,
         port,
         password,

@@ -45,6 +45,8 @@ bool ATCMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device
       this->battery_voltage_->publish_state(*res->battery_voltage);
     success = true;
   }
+  if (this->signal_strength_ != nullptr)
+    this->signal_strength_->publish_state(device.get_rssi());
 
   return success;
 }

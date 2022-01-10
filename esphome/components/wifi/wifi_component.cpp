@@ -239,8 +239,6 @@ void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &pa
   sta.set_ssid(ssid);
   sta.set_password(password);
   this->set_sta(sta);
-
-  this->start_scanning();
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
@@ -349,6 +347,7 @@ const LogString *get_signal_bars(int8_t rssi) {
 void WiFiComponent::print_connect_params_() {
   bssid_t bssid = wifi_bssid();
 
+  ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
   ESP_LOGCONFIG(TAG, "  SSID: " LOG_SECRET("'%s'"), wifi_ssid().c_str());
   ESP_LOGCONFIG(TAG, "  IP Address: %s", wifi_sta_ip().str().c_str());
   ESP_LOGCONFIG(TAG, "  BSSID: " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X"), bssid[0], bssid[1], bssid[2], bssid[3],

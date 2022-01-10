@@ -78,6 +78,7 @@ void RemoteReceiverComponent::loop() {
     if (this->temp_.empty())
       return;
 
+    this->temp_.push_back(-this->idle_us_);
     this->call_listeners_dumpers_();
   }
 }
@@ -86,9 +87,10 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
   uint32_t prev_length = 0;
   this->temp_.clear();
   int32_t multiplier = this->pin_->is_inverted() ? -1 : 1;
+  size_t item_count = len / sizeof(rmt_item32_t);
 
   ESP_LOGVV(TAG, "START:");
-  for (size_t i = 0; i < len; i++) {
+  for (size_t i = 0; i < item_count; i++) {
     if (item[i].level0) {
       ESP_LOGVV(TAG, "%u A: ON %uus (%u ticks)", i, this->to_microseconds_(item[i].duration0), item[i].duration0);
     } else {
@@ -102,8 +104,8 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
   }
   ESP_LOGVV(TAG, "\n");
 
-  this->temp_.reserve(len / 4);
-  for (size_t i = 0; i < len; i++) {
+  this->temp_.reserve(item_count * 2);  // each RMT item has 2 pulses
+  for (size_t i = 0; i < item_count; i++) {
     if (item[i].duration0 == 0u) {
       // Do nothing
     } else if (bool(item[i].level0) == prev_level) {
@@ -120,10 +122,6 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
       prev_length = item[i].duration0;
     }
 
-    if (this->to_microseconds_(prev_length) > this->idle_us_) {
-      break;
-    }
-
     if (item[i].duration1 == 0u) {
       // Do nothing
     } else if (bool(item[i].level1) == prev_level) {
@@ -138,10 +136,6 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
       }
       prev_level = bool(item[i].level1);
       prev_length = item[i].duration1;
-    }
-
-    if (this->to_microseconds_(prev_length) > this->idle_us_) {
-      break;
     }
   }
   if (prev_length > 0) {

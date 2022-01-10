@@ -59,7 +59,7 @@ from esphome import codegen as cg
         "NAN",
         "esphome_ns",
         "App",
-        "Nameable",
+        "EntityBase",
         "Component",
         "ComponentPtr",
         # from cpp_types
@@ -68,8 +68,7 @@ from esphome import codegen as cg
         "optional",
         "arduino_json_ns",
         "JsonObject",
-        "JsonObjectRef",
-        "JsonObjectConstRef",
+        "JsonObjectConst",
         "Controller",
         "GPIOPin",
     ),
