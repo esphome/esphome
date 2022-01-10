@@ -1191,6 +1191,7 @@ MIDEA_SCHEMA = cv.Schema(
     }
 )
 
+
 @register_binary_sensor("midea", MideaBinarySensor, MIDEA_SCHEMA)
 def midea_binary_sensor(var, config):
     cg.add(var.set_code(config[CONF_CODE]))
