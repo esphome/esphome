@@ -38,17 +38,18 @@ void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
   }
 }
 
+static bool decode_data(RemoteReceiveData &src, DishData &dst) {
+  return decode_data_msb<uint8_t, 6, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.command) &&
+         decode_data_lsb<uint8_t, 4, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.address);
+}
+
 optional<DishData> DishProtocol::decode(RemoteReceiveData src) {
   DishData data{
-    .address = 0,
-    .command = 0
+      .address = 0,
+      .command = 0,
   };
 
-  if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
-    return {};
-  if (!decode_data_msb<uint8_t, 6, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, data.command))
-    return {};
-  if (!decode_data_lsb<uint8_t, 4, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, data.address))
+  if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US) || !decode_data(src, data))
     return {};
 
   for (unsigned j = 0; j < 6; j++)

@@ -14,17 +14,10 @@ static const uint32_t BIT_ZERO_SPACE_US = 550;
 
 void LGProtocol::encode(RemoteTransmitData *dst, const LGData &data) {
   dst->set_carrier_frequency(38000);
-  dst->reserve(2 + data.nbits * 2u);
-
+  dst->reserve(2 + 2 * data.nbits + 2);
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
-
-  for (uint32_t mask = 1UL << (data.nbits - 1); mask != 0; mask >>= 1) {
-    if (data.data & mask)
-      dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
-    else
-      dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
-  }
-
+  for (uint32_t mask = 1UL << (data.nbits - 1); mask != 0; mask >>= 1)
+    dst->item(BIT_MARK_US, (data.data & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
   dst->mark(BIT_MARK_US);
 }
 
@@ -47,9 +40,9 @@ optional<LGData> LGProtocol::decode(RemoteReceiveData src) {
       return {};
     }
   }
-
   return out;
 }
+
 void LGProtocol::dump(const LGData &data) {
   ESP_LOGD(TAG, "Received LG: data=0x%08X, nbits=%d", data.data, data.nbits);
 }

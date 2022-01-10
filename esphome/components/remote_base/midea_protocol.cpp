@@ -33,38 +33,31 @@ void MideaProtocol::encode(RemoteTransmitData *dst, const MideaData &src) {
   dst->reserve(REMOTE_DATA_SIZE);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
   for (unsigned idx = 0; idx < 6; idx++)
-    for (uint8_t mask = 1 << 7; mask; mask >>= 1)
-      dst->item(BIT_MARK_US, (src[idx] & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
+    encode_data_msb<uint8_t, 8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, src[idx]);
   dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
   for (unsigned idx = 0; idx < 6; idx++)
-    for (uint8_t mask = 1 << 7; mask; mask >>= 1)
-      dst->item(BIT_MARK_US, (src[idx] & mask) ? BIT_ZERO_SPACE_US : BIT_ONE_SPACE_US);
+    encode_data_msb<uint8_t, 8, BIT_MARK_US, BIT_ZERO_SPACE_US, BIT_ONE_SPACE_US>(dst, src[idx]);
   dst->mark(FOOTER_MARK_US);
 }
 
 static bool decode_data(RemoteReceiveData &src, MideaData &dst) {
   for (unsigned idx = 0; idx < 6; idx++) {
     uint8_t data = 0;
-    for (uint8_t mask = 1 << 7; mask; mask >>= 1) {
-      if (!src.expect_mark(BIT_MARK_US))
-        return false;
-      if (src.expect_space(BIT_ONE_SPACE_US))
-        data |= mask;
-      else if (!src.expect_space(BIT_ZERO_SPACE_US))
-        return false;
-    }
+    if (!decode_data_msb<uint8_t, 8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, data))
+      return false;
     dst[idx] = data;
   }
   return true;
 }
 
 optional<MideaData> MideaProtocol::decode(RemoteReceiveData src) {
-  MideaData out, inv;
-  if (src.has_size(REMOTE_DATA_SIZE) && src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && decode_data(src, out) && out.is_valid() &&
-      src.expect_item(FOOTER_MARK_US, FOOTER_SPACE_US) && src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) &&
-      decode_data(src, inv) && src.expect_mark(FOOTER_MARK_US) && out.is_compliment(inv))
-    return out;
+  MideaData first, second;
+  if (src.has_size(REMOTE_DATA_SIZE) && src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && decode_data(src, first) &&
+      first.is_valid() && src.expect_item(FOOTER_MARK_US, FOOTER_SPACE_US) &&
+      src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && decode_data(src, second) && src.expect_mark(FOOTER_MARK_US) &&
+      first.is_compliment(second))
+    return first;
   return {};
 }
 

@@ -16,7 +16,7 @@ static const int32_t FOOTER_MARK_US = 1 * TICK_US;
 static const int32_t FOOTER_SPACE_US = 10 * TICK_US;
 static const size_t REMOTE_DATA_SIZE = 2 + 2 * 48 + 2 + 2 + 2 * 48 + 2;
 
-static void encode_data(RemoteTransmitData *dst, CoolixData src) {
+static void encode_data(RemoteTransmitData *dst, const CoolixData &src) {
   //   Break data into bytes, starting at the Most Significant
   //   Byte. Each byte then being sent normal, then followed inverted.
   for (unsigned shift = 16;; shift -= 8) {
@@ -62,9 +62,10 @@ static bool decode_data(RemoteReceiveData &src, CoolixData &dst) {
 
 optional<CoolixData> CoolixProtocol::decode(RemoteReceiveData data) {
   CoolixData first, second;
-  if (data.has_size(REMOTE_DATA_SIZE) && data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && decode_data(data, first) &&
-      data.expect_item(FOOTER_MARK_US, FOOTER_SPACE_US) && data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) &&
-      decode_data(data, second) && data.expect_mark(FOOTER_MARK_US) && first == second)
+  if (data.has_size(REMOTE_DATA_SIZE) && data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) &&
+      decode_data(data, first) && data.expect_item(FOOTER_MARK_US, FOOTER_SPACE_US) &&
+      data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && decode_data(data, second) &&
+      data.expect_mark(FOOTER_MARK_US) && first == second)
     return first;
   return {};
 }

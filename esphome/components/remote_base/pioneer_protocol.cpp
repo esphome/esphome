@@ -42,50 +42,23 @@ void PioneerProtocol::encode(RemoteTransmitData *dst, const PioneerData &data) {
   command1 = (command1 << 8) | ((~command1) & 0xff);
   command2 = (command2 << 8) | ((~command2) & 0xff);
 
-  if (data.rc_code_2 == 0)
-    dst->reserve(68);
-  else
-    dst->reserve((68 * 2) + 1);
-
   dst->set_carrier_frequency(40000);
+  dst->reserve(data.rc_code_2 ? ((68 * 2) + 1) : 68);
 
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
-  for (uint32_t mask = 1UL << 15; mask; mask >>= 1) {
-    if (address1 & mask)
-      dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
-    else
-      dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
-  }
-
-  for (uint32_t mask = 1UL << 15; mask; mask >>= 1) {
-    if (command1 & mask)
-      dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
-    else
-      dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
-  }
-
+  encode_data_msb<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, address1);
+  encode_data_msb<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, command1);
   dst->mark(BIT_MARK_US);
 
   if (data.rc_code_2 != 0) {
     dst->space(TRAILER_SPACE_US);
     dst->item(HEADER_HIGH_US, HEADER_LOW_US);
-    for (uint32_t mask = 1UL << 15; mask; mask >>= 1) {
-      if (address2 & mask)
-        dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
-      else
-        dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
-    }
-
-    for (uint32_t mask = 1UL << 15; mask; mask >>= 1) {
-      if (command2 & mask)
-        dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
-      else
-        dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
-    }
-
+    encode_data_msb<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, address2);
+    encode_data_msb<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, command2);
     dst->mark(BIT_MARK_US);
   }
 }
+
 optional<PioneerData> PioneerProtocol::decode(RemoteReceiveData src) {
   uint16_t address1 = 0;
   uint16_t command1 = 0;
@@ -97,25 +70,11 @@ optional<PioneerData> PioneerProtocol::decode(RemoteReceiveData src) {
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
 
-  for (uint32_t mask = 1UL << 15; mask != 0; mask >>= 1) {
-    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
-      address1 |= mask;
-    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
-      address1 &= ~mask;
-    } else {
-      return {};
-    }
-  }
+  if (!decode_data_msb<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, address1))
+    return {};
 
-  for (uint32_t mask = 1UL << 15; mask != 0; mask >>= 1) {
-    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
-      command1 |= mask;
-    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
-      command1 &= ~mask;
-    } else {
-      return {};
-    }
-  }
+  if (!decode_data_msb<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, command1))
+    return {};
 
   if (!src.expect_mark(BIT_MARK_US))
     return {};
@@ -139,6 +98,7 @@ optional<PioneerData> PioneerProtocol::decode(RemoteReceiveData src) {
 
   return data;
 }
+
 void PioneerProtocol::dump(const PioneerData &data) {
   if (data.rc_code_2 == 0)
     ESP_LOGD(TAG, "Received Pioneer: rc_code_X=0x%04X", data.rc_code_1);

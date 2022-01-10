@@ -15,8 +15,7 @@ static const int32_t BIT_ZERO_SPACE_US = 1 * TICK_US;
 static const size_t REMOTE_DATA_SIZE = 2 + 2 * 16 + 2 * 16 + 2;
 
 static void encode_data(RemoteTransmitData *dst, uint16_t src) {
-  for (uint16_t mask = 1 << 0; mask; mask <<= 1)
-    dst->item(BIT_MARK_US, (src & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
+  encode_data_lsb<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, src);
 }
 
 void NECProtocol::encode(RemoteTransmitData *dst, const NECData &data) {
@@ -29,17 +28,7 @@ void NECProtocol::encode(RemoteTransmitData *dst, const NECData &data) {
 }
 
 static bool decode_data(RemoteReceiveData &src, uint16_t &dst) {
-  uint16_t data = 0;
-  for (uint16_t mask = 1 << 0; mask; mask <<= 1) {
-    if (!src.expect_mark(BIT_MARK_US))
-      return false;
-    if (src.expect_space(BIT_ONE_SPACE_US))
-      data |= mask;
-    else if (!src.expect_space(BIT_ZERO_SPACE_US))
-      return false;
-  }
-  dst = data;
-  return true;
+  return decode_data_lsb<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst);
 }
 
 optional<NECData> NECProtocol::decode(RemoteReceiveData src) {
