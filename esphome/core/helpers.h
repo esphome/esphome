@@ -78,25 +78,6 @@ template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...
 }
 #endif
 
-/// Return a random 32 bit unsigned integer.
-uint32_t random_uint32();
-
-/** Returns a random double between 0 and 1.
- *
- * Note: This function probably doesn't provide a truly uniform distribution.
- */
-double random_double();
-
-/// Returns a random float between 0 and 1. Essentially just casts random_double() to a float.
-float random_float();
-
-void fill_random(uint8_t *data, size_t len);
-
-void fast_random_set_seed(uint32_t seed);
-uint32_t fast_random_32();
-uint16_t fast_random_16();
-uint8_t fast_random_8();
-
 /// Applies gamma correction with the provided gamma to value.
 float gamma_correct(float value, float gamma);
 /// Reverts gamma correction with the provided gamma to value.
@@ -109,6 +90,11 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
 /// Convert hue (0-360) & saturation/value percentage (0-1) to RGB floats (0-1)
 void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green, float &blue);
+
+/// Convert degrees Celsius to degrees Fahrenheit.
+static inline float celsius_to_fahrenheit(float value) { return value * 1.8f + 32.0f; }
+/// Convert degrees Fahrenheit to degrees Celsius.
+static inline float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.8f; }
 
 /***
  * An interrupt helper class.
@@ -184,17 +170,6 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
 
  protected:
   std::vector<std::function<void(Ts...)>> callbacks_;
-};
-
-// https://stackoverflow.com/a/37161919/8924614
-template<class T, class... Args>
-struct is_callable  // NOLINT
-{
-  template<class U> static auto test(U *p) -> decltype((*p)(std::declval<Args>()...), void(), std::true_type());
-
-  template<class U> static auto test(...) -> decltype(std::false_type());
-
-  static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
 };
 
 void delay_microseconds_safe(uint32_t us);
@@ -274,6 +249,18 @@ template<typename T> constexpr const T &clamp(const T &v, const T &lo, const T &
 }
 #endif
 
+// std::is_invocable from C++17
+#if __cpp_lib_is_invocable >= 201703
+using std::is_invocable;
+#else
+// https://stackoverflow.com/a/37161919/8924614
+template<class T, class... Args> struct is_invocable {  // NOLINT(readability-identifier-naming)
+  template<class U> static auto test(U *p) -> decltype((*p)(std::declval<Args>()...), void(), std::true_type());
+  template<class U> static auto test(...) -> decltype(std::false_type());
+  static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
+};
+#endif
+
 // std::bit_cast from C++20
 #if __cpp_lib_bit_cast >= 201806
 using std::bit_cast;
@@ -295,6 +282,18 @@ constexpr uint8_t byteswap(uint8_t n) { return n; }
 constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
 constexpr uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
 constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+
+///@}
+
+/// @name Mathematics
+///@{
+
+/// Return a random 32-bit unsigned integer.
+uint32_t random_uint32();
+/// Return a random float between 0 and 1.
+float random_float();
+/// Generate \p len number of random bytes.
+void random_bytes(uint8_t *data, size_t len);
 
 ///@}
 
@@ -490,7 +489,7 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
 /// Format the byte array \p data of length \p len in lowercased hex.
 std::string format_hex(const uint8_t *data, size_t length);
 /// Format the vector \p data in lowercased hex.
-std::string format_hex(std::vector<uint8_t> data);
+std::string format_hex(const std::vector<uint8_t> &data);
 /// Format an unsigned integer in lowercased hex, starting with the most significant byte.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
   val = convert_big_endian(val);
@@ -500,7 +499,7 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::stri
 /// Format the byte array \p data of length \p len in pretty-printed, human-readable hex.
 std::string format_hex_pretty(const uint8_t *data, size_t length);
 /// Format the vector \p data in pretty-printed, human-readable hex.
-std::string format_hex_pretty(std::vector<uint8_t> data);
+std::string format_hex_pretty(const std::vector<uint8_t> &data);
 /// Format an unsigned integer in pretty-printed, human-readable hex, starting with the most significant byte.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex_pretty(T val) {
   val = convert_big_endian(val);
