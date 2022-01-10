@@ -71,7 +71,7 @@ ErrorCode ArduinoI2CBus::write_read(Transaction *t) {
   }
   wire_->beginTransmission(t->device_address);
   if (t->write_len != 0) {
-    size_t ret = wire_->write(t->write_buf, t->write_len);
+    wire_->write(t->write_buf, t->write_len);
     wire_->endTransmission(false);  // no stop sent
   }
   size_t ret = wire_->requestFrom(t->device_address, t->read_len);
