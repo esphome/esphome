@@ -9,16 +9,12 @@ namespace binary {
 
 class BinaryLightOutput : public light::LightOutput {
  public:
-  void set_output(output::BinaryOutput *output) { 
+  void set_output(output::BinaryOutput *output) {
     this->output_ = output;
 
-    this->output_->add_on_state_callback([this] (bool state) {
-      this->state_callback_.call(state);
-    });
+    this->output_->add_on_state_callback([this](bool state) { this->state_callback_.call(state); });
   }
-  void add_on_state_callback(std::function<void(bool)> &&callback) {
-    this->state_callback_.add(std::move(callback));
-  }
+  void add_on_state_callback(std::function<void(bool)> &&callback) { this->state_callback_.add(std::move(callback)); }
 
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();

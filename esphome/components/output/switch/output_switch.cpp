@@ -30,9 +30,7 @@ void OutputSwitch::write_state(bool state) {
 void OutputSwitch::set_output(BinaryOutput *output) {
   output_ = output;
 
-  output_->add_on_state_callback([this] (bool state) {
-    this->publish_state(state);
-  });
+  output_->add_on_state_callback([this](bool state) { this->publish_state(state); });
 }
 
 }  // namespace output

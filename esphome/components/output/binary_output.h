@@ -49,9 +49,7 @@ class BinaryOutput {
     this->state_callback_.call(this->inverted_);
   }
 
-  void add_on_state_callback(std::function<void(bool)> &&callback) {
-    this->state_callback_.add(std::move(callback));
-  }
+  void add_on_state_callback(std::function<void(bool)> &&callback) { this->state_callback_.add(std::move(callback)); }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)

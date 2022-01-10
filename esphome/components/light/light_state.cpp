@@ -9,7 +9,7 @@ namespace light {
 static const char *const TAG = "light";
 
 LightState::LightState(const std::string &name, LightOutput *output) : EntityBase(name), output_(output) {
-  this->output_->add_on_state_callback([this] (bool state) {
+  this->output_->add_on_state_callback([this](bool state) {
     auto call = this->make_call();
     call.set_state(state);
     call.perform();
@@ -18,7 +18,7 @@ LightState::LightState(const std::string &name, LightOutput *output) : EntityBas
   });
 }
 LightState::LightState(LightOutput *output) : output_(output) {
-  this->output_->add_on_state_callback([this] (bool state) {
+  this->output_->add_on_state_callback([this](bool state) {
     auto call = this->make_call();
     call.set_state(state);
     call.perform();
