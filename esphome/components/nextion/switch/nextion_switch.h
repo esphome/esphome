@@ -8,10 +8,7 @@ namespace esphome {
 namespace nextion {
 class NextionSwitch;
 
-class NextionSwitch : public NextionComponent,
-                      public switch_::Switch,
-                      public PollingComponent,
-                      public std::enable_shared_from_this<NextionSwitch> {
+class NextionSwitch : public NextionComponent, public switch_::Switch, public PollingComponent {
  public:
   NextionSwitch(NextionBase *nextion) { this->nextion_ = nextion; }
 

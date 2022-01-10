@@ -7,9 +7,11 @@ from esphome.const import (
     CONF_ABOVE,
     CONF_BELOW,
     CONF_ID,
+    CONF_MODE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
     CONF_TRIGGER_ID,
+    CONF_UNIT_OF_MEASUREMENT,
     CONF_MQTT_ID,
     CONF_VALUE,
 )
@@ -39,10 +41,17 @@ NumberInRangeCondition = number_ns.class_(
     "NumberInRangeCondition", automation.Condition
 )
 
+NumberMode = number_ns.enum("NumberMode")
+
+NUMBER_MODES = {
+    "AUTO": NumberMode.NUMBER_MODE_AUTO,
+    "BOX": NumberMode.NUMBER_MODE_BOX,
+    "SLIDER": NumberMode.NUMBER_MODE_SLIDER,
+}
+
 icon = cv.icon
 
-
-NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
+NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
         cv.GenerateID(): cv.declare_id(Number),
@@ -59,6 +68,8 @@ NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
             },
             cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
         ),
+        cv.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string_strict,
+        cv.Optional(CONF_MODE, default="AUTO"): cv.enum(NUMBER_MODES, upper=True),
     }
 )
 
@@ -72,6 +83,8 @@ async def setup_number_core_(
     cg.add(var.traits.set_max_value(max_value))
     if step is not None:
         cg.add(var.traits.set_step(step))
+
+    cg.add(var.traits.set_mode(config[CONF_MODE]))
 
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -87,6 +100,8 @@ async def setup_number_core_(
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
+    if CONF_UNIT_OF_MEASUREMENT in config:
+        cg.add(var.traits.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)

@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_PORT,
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
+    SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.helpers import indent
@@ -144,6 +145,8 @@ def wrap_to_code(name, comp):
         if comp.config_schema is not None:
             conf_str = yaml_util.dump(conf)
             conf_str = conf_str.replace("//", "")
+            # remove tailing \ to avoid multi-line comment warning
+            conf_str = conf_str.replace("\\\n", "\n")
             cg.add(cg.LineComment(indent(conf_str)))
         await coro(conf)
 
@@ -180,7 +183,11 @@ def compile_program(args, config):
     from esphome import platformio_api
 
     _LOGGER.info("Compiling app...")
-    return platformio_api.run_compile(config, CORE.verbose)
+    rc = platformio_api.run_compile(config, CORE.verbose)
+    if rc != 0:
+        return rc
+    idedata = platformio_api.get_idedata(config)
+    return 0 if idedata is not None else 1
 
 
 def upload_using_esptool(config, port):
@@ -196,8 +203,7 @@ def upload_using_esptool(config, port):
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
         flash_images = [
             platformio_api.FlashImage(
-                path=idedata.firmware_bin_path,
-                offset=firmware_offset,
+                path=idedata.firmware_bin_path, offset=firmware_offset
             ),
             *idedata.extra_flash_images,
         ]
@@ -222,6 +228,8 @@ def upload_using_esptool(config, port):
             mcu,
             "write_flash",
             "-z",
+            "--flash_size",
+            "detect",
         ]
         for img in flash_images:
             cmd += [img.offset, img.path]
@@ -458,6 +466,21 @@ def command_update_all(args):
     return failed
 
 
+def command_idedata(args, config):
+    from esphome import platformio_api
+    import json
+
+    logging.disable(logging.INFO)
+    logging.disable(logging.WARNING)
+
+    idedata = platformio_api.get_idedata(config)
+    if idedata is None:
+        return 1
+
+    print(json.dumps(idedata.raw, indent=2) + "\n")
+    return 0
+
+
 PRE_CONFIG_ACTIONS = {
     "wizard": command_wizard,
     "version": command_version,
@@ -475,6 +498,7 @@ POST_CONFIG_ACTIONS = {
     "clean-mqtt": command_clean_mqtt,
     "mqtt-fingerprint": command_mqtt_fingerprint,
     "clean": command_clean,
+    "idedata": command_idedata,
 }
 
 
@@ -585,10 +609,7 @@ def parse_args(argv):
         "wizard",
         help="A helpful setup wizard that will guide you through setting up ESPHome.",
     )
-    parser_wizard.add_argument(
-        "configuration",
-        help="Your YAML configuration file.",
-    )
+    parser_wizard.add_argument("configuration", help="Your YAML configuration file.")
 
     parser_fingerprint = subparsers.add_parser(
         "mqtt-fingerprint", help="Get the SSL fingerprint from a MQTT broker."
@@ -610,14 +631,19 @@ def parse_args(argv):
         "dashboard", help="Create a simple web server for a dashboard."
     )
     parser_dashboard.add_argument(
-        "configuration",
-        help="Your YAML configuration file directory.",
+        "configuration", help="Your YAML configuration file directory."
     )
     parser_dashboard.add_argument(
         "--port",
         help="The HTTP port to open connections on. Defaults to 6052.",
         type=int,
         default=6052,
+    )
+    parser_dashboard.add_argument(
+        "--address",
+        help="The address to bind to.",
+        type=str,
+        default="0.0.0.0",
     )
     parser_dashboard.add_argument(
         "--username",
@@ -648,6 +674,11 @@ def parse_args(argv):
     parser_update = subparsers.add_parser("update-all")
     parser_update.add_argument(
         "configuration", help="Your YAML configuration file directories.", nargs="+"
+    )
+
+    parser_idedata = subparsers.add_parser("idedata")
+    parser_idedata.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs=1
     )
 
     # Keep backward compatibility with the old command line format of
@@ -733,7 +764,12 @@ def run_esphome(argv):
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
 
-    setup_log(args.verbose, args.quiet)
+    setup_log(
+        args.verbose,
+        args.quiet,
+        # Show timestamp for dashboard access logs
+        args.command == "dashboard",
+    )
     if args.deprecated_argv_suggestion is not None and args.command != "vscode":
         _LOGGER.warning(
             "Calling ESPHome with the configuration before the command is deprecated "
@@ -757,12 +793,16 @@ def run_esphome(argv):
             return 1
 
     for conf_path in args.configuration:
+        if any(os.path.basename(conf_path) == x for x in SECRETS_FILES):
+            _LOGGER.warning("Skipping secrets file %s", conf_path)
+            continue
+
         CORE.config_path = conf_path
         CORE.dashboard = args.dashboard
 
         config = read_config(dict(args.substitution) if args.substitution else {})
         if config is None:
-            return 1
+            return 2
         CORE.config = config
 
         if args.command not in POST_CONFIG_ACTIONS:

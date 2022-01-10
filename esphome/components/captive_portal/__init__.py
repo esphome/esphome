@@ -36,3 +36,5 @@ async def to_code(config):
     if CORE.is_esp32:
         cg.add_library("DNSServer", None)
         cg.add_library("WiFi", None)
+    if CORE.is_esp8266:
+        cg.add_library("DNSServer", None)

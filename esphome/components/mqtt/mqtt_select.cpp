@@ -1,6 +1,8 @@
 #include "mqtt_select.h"
 #include "esphome/core/log.h"
 
+#include "mqtt_const.h"
+
 #ifdef USE_MQTT
 #ifdef USE_SELECT
 
@@ -30,10 +32,10 @@ void MQTTSelectComponent::dump_config() {
 std::string MQTTSelectComponent::component_type() const { return "select"; }
 const EntityBase *MQTTSelectComponent::get_entity() const { return this->select_; }
 
-void MQTTSelectComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+void MQTTSelectComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   const auto &traits = select_->traits;
   // https://www.home-assistant.io/integrations/select.mqtt/
-  JsonArray &options = root.createNestedArray("options");
+  JsonArray options = root.createNestedArray(MQTT_OPTIONS);
   for (const auto &option : traits.get_options())
     options.add(option);
 
