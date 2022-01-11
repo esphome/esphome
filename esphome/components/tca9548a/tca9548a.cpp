@@ -6,6 +6,12 @@ namespace tca9548a {
 
 static const char *const TAG = "tca9548a";
 
+i2c::ErrorCode write_read(i2c::Transaction *t) {
+  // TODO: Implement function to handle a transaction (write and read from I2C bus without
+  // releasing the bus)
+  return i2c::ERROR_UNKNOWN;
+}
+
 i2c::ErrorCode TCA9548AChannel::readv(uint8_t address, i2c::ReadBuffer *buffers, size_t cnt) {
   auto err = parent_->switch_to_channel(channel_);
   if (err != i2c::ERROR_OK)
