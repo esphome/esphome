@@ -138,7 +138,7 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
     }
   }
   if (!std::isnan(this->gridspacing_x_) && (this->gridspacing_x_ > 0)) {
-    int n = this->duration_ / this->gridspacing_x_;
+    int n = (this->duration_ / this->gridspacing_x_) + 1;
     // Restrict drawing too many gridlines
     if (n > 20) {
       while (n > 20) {
@@ -146,7 +146,7 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
       }
       ESP_LOGW(TAG, "Graphing reducing x-scale to prevent too many gridlines");
     }
-    for (int i = 0; i <= n; i++) {
+    for (int i = 0; i < n; i++) {
       for (uint32_t y = 0; y < this->height_; y += 2) {
         buff->draw_pixel_at(x_offset + i * (this->width_ - 1) / n, y_offset + y, color);
       }
