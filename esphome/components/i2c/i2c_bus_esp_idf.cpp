@@ -74,7 +74,7 @@ void IDFI2CBus::dump_config() {
   }
 }
 
-ErrorCode write_read(Transaction *t) {
+ErrorCode IDFI2CBus::write_read(Transaction *t) {
   // TODO: Implement function to handle a transaction (write and read from I2C bus without
   // releasing the bus)
   return ERROR_UNKNOWN;
