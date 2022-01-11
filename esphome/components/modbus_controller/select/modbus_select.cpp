@@ -65,8 +65,6 @@ void ModbusSelect::control(const std::string &value) {
       mapval = this->mapping_[idx];
     }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
     auto it = data.begin();
     uint64_t remaining = mapval.value();
     ESP_LOGD(TAG, "Create payload for %llu", remaining);
@@ -74,7 +72,6 @@ void ModbusSelect::control(const std::string &value) {
       it = data.insert(it, static_cast<uint16_t>(remaining & 0xFFFF));
       remaining >>= 16;
     }
-#pragma GCC diagnostic pop
   }
 
   ModbusCommandItem write_cmd;
