@@ -58,6 +58,7 @@ esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @jesserockz
 esphome/components/esp32_ble_server/* @jesserockz
 esphome/components/esp32_camera_web_server/* @ayufan
+esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_improv/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/exposure_notifications/* @OttoWinter
