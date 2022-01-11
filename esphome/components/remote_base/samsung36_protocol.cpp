@@ -23,11 +23,11 @@ void Samsung36Protocol::encode(RemoteTransmitData *dst, const Samsung36Data &dat
   // send header
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
   // send first 16 bits
-  encode_data_msb<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.address);
+  msb::encode<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.address);
   // send middle header
   dst->item(MIDDLE_HIGH_US, MIDDLE_LOW_US);
   // send last 20 bits
-  encode_data_msb<uint32_t, 20, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.command);
+  msb::encode<uint32_t, 20, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.command);
   // footer
   dst->mark(FOOTER_MARK_US);
 }
@@ -47,7 +47,7 @@ optional<Samsung36Data> Samsung36Protocol::decode(RemoteReceiveData src) {
     return {};
 
   // get the first 16 bits
-  if (!decode_data_msb<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, out.address))
+  if (!msb::decode<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, out.address))
     return {};
 
   // check if the middle mark matches
@@ -55,7 +55,7 @@ optional<Samsung36Data> Samsung36Protocol::decode(RemoteReceiveData src) {
     return {};
 
   // get the last 20 bits
-  if (!decode_data_msb<uint32_t, 20, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, out.command))
+  if (!msb::decode<uint32_t, 20, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, out.command))
     return {};
 
   // check footer

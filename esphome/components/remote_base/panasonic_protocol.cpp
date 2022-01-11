@@ -17,14 +17,14 @@ void PanasonicProtocol::encode(RemoteTransmitData *dst, const PanasonicData &dat
   dst->set_carrier_frequency(35000);
   dst->reserve(REMOTE_DATA_SIZE);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  encode_data_msb<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.address);
-  encode_data_msb<uint32_t, 32, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.command);
+  msb::encode<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.address);
+  msb::encode<uint32_t, 32, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.command);
   dst->mark(BIT_MARK_US);
 }
 
 static bool decode_data(RemoteReceiveData &src, PanasonicData &dst) {
-  return decode_data_msb<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.address) &&
-         decode_data_msb<uint32_t, 32, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.command);
+  return msb::decode<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.address) &&
+         msb::decode<uint32_t, 32, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.command);
 }
 
 optional<PanasonicData> PanasonicProtocol::decode(RemoteReceiveData src) {

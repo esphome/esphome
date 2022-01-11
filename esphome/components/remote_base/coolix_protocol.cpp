@@ -23,9 +23,9 @@ static void encode_data(RemoteTransmitData *dst, const CoolixData &src) {
     // Grab a bytes worth of data.
     const uint8_t byte = src >> shift;
     // Normal
-    encode_data_msb<uint8_t, 8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, byte);
+    msb::encode<uint8_t, 8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, byte);
     // Inverted
-    encode_data_msb<uint8_t, 8, BIT_MARK_US, BIT_ZERO_SPACE_US, BIT_ONE_SPACE_US>(dst, byte);
+    msb::encode<uint8_t, 8, BIT_MARK_US, BIT_ZERO_SPACE_US, BIT_ONE_SPACE_US>(dst, byte);
     // Data end
     if (shift == 0)
       break;
@@ -47,10 +47,10 @@ static bool decode_data(RemoteReceiveData &src, CoolixData &dst) {
   uint32_t data = 0;
   for (unsigned n = 3;; data <<= 8) {
     // Read byte
-    if (!decode_data_msb<uint32_t, 8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, data))
+    if (!msb::decode<uint32_t, 8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, data))
       return false;
     // Check for inverse byte
-    if (!equal_data_msb<uint32_t, 8, BIT_MARK_US, BIT_ZERO_SPACE_US, BIT_ONE_SPACE_US>(src, data))
+    if (!msb::equal<uint32_t, 8, BIT_MARK_US, BIT_ZERO_SPACE_US, BIT_ONE_SPACE_US>(src, data))
       return false;
     // Checking the end of reading
     if (--n == 0) {

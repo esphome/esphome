@@ -46,15 +46,15 @@ void PioneerProtocol::encode(RemoteTransmitData *dst, const PioneerData &data) {
   dst->reserve(data.rc_code_2 ? ((68 * 2) + 1) : 68);
 
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  encode_data_msb<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, address1);
-  encode_data_msb<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, command1);
+  msb::encode<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, address1);
+  msb::encode<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, command1);
   dst->mark(BIT_MARK_US);
 
   if (data.rc_code_2 != 0) {
     dst->space(TRAILER_SPACE_US);
     dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-    encode_data_msb<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, address2);
-    encode_data_msb<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, command2);
+    msb::encode<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, address2);
+    msb::encode<uint32_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, command2);
     dst->mark(BIT_MARK_US);
   }
 }
@@ -70,10 +70,10 @@ optional<PioneerData> PioneerProtocol::decode(RemoteReceiveData src) {
   if (!src.expect_item(HEADER_MARK_US, HEADER_SPACE_US))
     return {};
 
-  if (!decode_data_msb<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, address1))
+  if (!msb::decode<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, address1))
     return {};
 
-  if (!decode_data_msb<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, command1))
+  if (!msb::decode<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, command1))
     return {};
 
   if (!src.expect_mark(BIT_MARK_US))

@@ -33,18 +33,18 @@ void MideaProtocol::encode(RemoteTransmitData *dst, const MideaData &src) {
   dst->reserve(REMOTE_DATA_SIZE);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
   for (unsigned idx = 0; idx < 6; idx++)
-    encode_data_msb<uint8_t, 8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, src[idx]);
+    msb::encode<uint8_t, 8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, src[idx]);
   dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
   for (unsigned idx = 0; idx < 6; idx++)
-    encode_data_msb<uint8_t, 8, BIT_MARK_US, BIT_ZERO_SPACE_US, BIT_ONE_SPACE_US>(dst, src[idx]);
+    msb::encode<uint8_t, 8, BIT_MARK_US, BIT_ZERO_SPACE_US, BIT_ONE_SPACE_US>(dst, src[idx]);
   dst->mark(FOOTER_MARK_US);
 }
 
 static bool decode_data(RemoteReceiveData &src, MideaData &dst) {
   for (unsigned idx = 0; idx < 6; idx++) {
     uint8_t data = 0;
-    if (!decode_data_msb<uint8_t, 8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, data))
+    if (!msb::decode<uint8_t, 8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, data))
       return false;
     dst[idx] = data;
   }
