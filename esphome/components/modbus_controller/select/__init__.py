@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import select
-from esphome.const import CONF_ADDRESS, CONF_ID
+from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA
 from esphome.jsonschema import jschema_composite
 
 from .. import ModbusController, SensorItem, modbus_controller_ns
@@ -11,6 +11,7 @@ from ..const import (
     CONF_REGISTER_COUNT,
     CONF_SKIP_UPDATES,
     CONF_USE_WRITE_MULTIPLE,
+    CONF_WRITE_LAMBDA,
 )
 
 DEPENDENCIES = ["modbus_controller"]
@@ -56,6 +57,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
             cv.Required(CONF_OPTIONSMAP): cv.All(ensure_option_map(), unique_mapping()),
             cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
         }
     ),
 )
@@ -80,3 +83,30 @@ async def to_code(config):
     cg.add(parent.add_sensor_item(var))
     cg.add(var.set_parent(parent))
     cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
+
+    if CONF_LAMBDA in config:
+        template_ = await cg.process_lambda(
+            config[CONF_LAMBDA],
+            [
+                (ModbusSelect.operator("ptr"), "item"),
+                (cg.uint64, "x"),
+                (
+                    cg.std_vector.template(cg.uint8).operator("const").operator("ref"),
+                    "data",
+                ),
+            ],
+            return_type=cg.optional.template(cg.std_string),
+        )
+        cg.add(var.set_template(template_))
+
+    if CONF_WRITE_LAMBDA in config:
+        template_ = await cg.process_lambda(
+            config[CONF_WRITE_LAMBDA],
+            [
+                (ModbusSelect.operator("ptr"), "item"),
+                (cg.std_string, "x"),
+                (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
+            ],
+            return_type=cg.optional.template(cg.uint64),
+        )
+        cg.add(var.set_write_template(template_))
