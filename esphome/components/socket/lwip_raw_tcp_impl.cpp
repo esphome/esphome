@@ -183,11 +183,23 @@ class LWIPRawImpl : public Socket {
       errno = EINVAL;
       return -1;
     }
-    struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(name);
-    addr->sin_family = AF_INET;
-    *addrlen = addr->sin_len = sizeof(struct sockaddr_in);
-    addr->sin_port = pcb_->remote_port;
-    addr->sin_addr.s_addr = pcb_->remote_ip.addr;
+    auto family = name->sa_family;
+    if (family == AF_INET) {
+      struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(name);
+      addr->sin_family = AF_INET;
+      *addrlen = addr->sin_len = sizeof(struct sockaddr_in);
+      addr->sin_port = pcb_->remote_port;
+      inet_addr_from_ip4addr(&addr->sin_addr, ip_2_ip4(&pcb_->remote_ip));
+    }
+#if LWIP_IPV6
+    else if (family == AF_INET6) {
+      struct sockaddr_in6 *addr = reinterpret_cast<struct sockaddr_in6 *>(name);
+      addr->sin6_family = AF_INET6;
+      *addrlen = addr->sin6_len = sizeof(struct sockaddr_in6);
+      addr->sin6_port = pcb_->remote_port;
+      inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&pcb_->remote_ip));
+    }
+#endif
     return 0;
   }
   std::string getpeername() override {
@@ -195,10 +207,15 @@ class LWIPRawImpl : public Socket {
       errno = ECONNRESET;
       return "";
     }
-    char buffer[24];
-    uint32_t ip4 = pcb_->remote_ip.addr;
-    snprintf(buffer, sizeof(buffer), "%d.%d.%d.%d", (ip4 >> 0) & 0xFF, (ip4 >> 8) & 0xFF, (ip4 >> 16) & 0xFF,
-             (ip4 >> 24) & 0xFF);
+    char buffer[50];
+    if (IP_IS_V4_VAL(pcb_->remote_ip)) {
+      inet_ntoa_r(pcb_->remote_ip, buffer, sizeof(buffer));
+    }
+#if LWIP_IPV6
+    else if (IP_IS_V6_VAL(pcb_->remote_ip)) {
+      inet6_ntoa_r(pcb_->remote_ip, buffer, sizeof(buffer));
+    }
+#endif
     return std::string(buffer);
   }
   int getsockname(struct sockaddr *name, socklen_t *addrlen) override {
@@ -214,11 +231,23 @@ class LWIPRawImpl : public Socket {
       errno = EINVAL;
       return -1;
     }
-    struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(name);
-    addr->sin_family = AF_INET;
-    *addrlen = addr->sin_len = sizeof(struct sockaddr_in);
-    addr->sin_port = pcb_->local_port;
-    addr->sin_addr.s_addr = pcb_->local_ip.addr;
+    auto family = name->sa_family;
+    if (family == AF_INET) {
+      struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(name);
+      addr->sin_family = AF_INET;
+      *addrlen = addr->sin_len = sizeof(struct sockaddr_in);
+      addr->sin_port = pcb_->local_port;
+      inet_addr_from_ip4addr(&addr->sin_addr, ip_2_ip4(&pcb_->local_ip));
+    }
+#if LWIP_IPV6
+    else if (family == AF_INET6) {
+      struct sockaddr_in6 *addr = reinterpret_cast<struct sockaddr_in6 *>(name);
+      addr->sin6_family = AF_INET6;
+      *addrlen = addr->sin6_len = sizeof(struct sockaddr_in6);
+      addr->sin6_port = pcb_->remote_port;
+      inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&pcb_->remote_ip));
+    }
+#endif
     return 0;
   }
   std::string getsockname() override {
@@ -226,10 +255,15 @@ class LWIPRawImpl : public Socket {
       errno = ECONNRESET;
       return "";
     }
-    char buffer[24];
-    uint32_t ip4 = pcb_->local_ip.addr;
-    snprintf(buffer, sizeof(buffer), "%d.%d.%d.%d", (ip4 >> 0) & 0xFF, (ip4 >> 8) & 0xFF, (ip4 >> 16) & 0xFF,
-             (ip4 >> 24) & 0xFF);
+    char buffer[50];
+    if (IP_IS_V4_VAL(pcb_->local_ip)) {
+      inet_ntoa_r(pcb_->local_ip, buffer, sizeof(buffer));
+    }
+#if LWIP_IPV6
+    else if (IP_IS_V6_VAL(pcb_->local_ip)) {
+      inet6_ntoa_r(pcb_->local_ip, buffer, sizeof(buffer));
+    }
+#endif
     return std::string(buffer);
   }
   int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override {
