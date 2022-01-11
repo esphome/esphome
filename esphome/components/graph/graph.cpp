@@ -146,7 +146,7 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
       }
       ESP_LOGW(TAG, "Graphing reducing x-scale to prevent too many gridlines");
     }
-    float xspc = (this->width_-1) / this->duration_; 
+    float xspc = (this->width_ - 1) / this->duration_;
     for (uint32_t y = 0; y < this->height_; y += 2) {
       for (int i = 0; i <= n; i++) {
         buff->draw_pixel_at(x_offset + this->width_ - i * this->gridspacing_x_ * xspc, y_offset + y, color);
@@ -179,12 +179,12 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
     std::stringstream ss1;
     ss1 << std::fixed << std::setprecision(0) << ymax;
     std::string valstr = ss1.str();
-    buff->printf(x_offset-3, y_offset, font, color, TextAlign::CENTER_RIGHT, "%s", valstr.c_str());
+    buff->printf(x_offset - 3, y_offset, font, color, TextAlign::CENTER_RIGHT, "%s", valstr.c_str());
 
     std::stringstream ss2;
     ss2 << std::fixed << std::setprecision(0) << ymin;
     valstr = ss2.str();
-    buff->printf(x_offset-3, y_offset+this->height_, font, color, TextAlign::CENTER_RIGHT, "%s", valstr.c_str());
+    buff->printf(x_offset - 3, y_offset + this->height_, font, color, TextAlign::CENTER_RIGHT, "%s", valstr.c_str());
   }
 }
 

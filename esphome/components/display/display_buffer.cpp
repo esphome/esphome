@@ -238,7 +238,7 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
 
 #ifdef USE_GRAPH
 void DisplayBuffer::graph(int x, int y, graph::Graph *graph, Color color_on, Font *font) {
-   graph->draw(this, x, y, color_on, font); 
+  graph->draw(this, x, y, color_on, font);
 }
 void DisplayBuffer::legend(int x, int y, graph::Graph *graph, Color color_on) {
   graph->draw_legend(this, x, y, color_on);
