@@ -19,6 +19,8 @@ class IDFI2CBus : public I2CBus, public Component {
  public:
   void setup() override;
   void dump_config() override;
+
+  ErrorCode write_read(Transaction *t) override;
   ErrorCode readv(uint8_t address, ReadBuffer *buffers, size_t cnt) override;
   ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t cnt) override;
   float get_setup_priority() const override { return setup_priority::BUS; }
