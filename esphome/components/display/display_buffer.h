@@ -285,8 +285,9 @@ class DisplayBuffer {
    * @param y The y coordinate of the upper left corner.
    * @param graph The graph id to draw
    * @param color_on The color to replace in binary images for the on bits.
+   * @param font Adds y-axis value labels if font is specified.
    */
-  void graph(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON);
+  void graph(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON, Font *font = nullptr);
 
   /** Draw the `legend` for graph with the top-left corner at [x,y] to the screen.
    *
