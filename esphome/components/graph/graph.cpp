@@ -146,7 +146,7 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
       }
       ESP_LOGW(TAG, "Graphing reducing x-scale to prevent too many gridlines");
     }
-    float xspc = ((float)this->width_ - 1) / this->duration_;
+    float xspc = ((float) this->width_ - 1) / this->duration_;
     for (uint32_t y = 0; y < this->height_; y += 2) {
       for (int i = 0; i <= n; i++) {
         buff->draw_pixel_at(x_offset + this->width_ - i * this->gridspacing_x_ * xspc, y_offset + y, color);
