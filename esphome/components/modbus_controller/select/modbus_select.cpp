@@ -31,10 +31,10 @@ void ModbusSelect::parse_and_publish(const std::vector<uint8_t> &data) {
   }
 
   if (!new_state.has_value()) {
-    auto map_it = std::find(this->mapping.cbegin(), this->mapping.cend(), value);
+    auto map_it = std::find(this->mapping_.cbegin(), this->mapping_.cend(), value);
 
-    if (map_it != this->mapping.cend()) {
-      size_t idx = std::distance(this->mapping.cbegin(), map_it);
+    if (map_it != this->mapping_.cend()) {
+      size_t idx = std::distance(this->mapping_.cbegin(), map_it);
       new_state = this->traits.get_options()[idx];
     } else {
       ESP_LOGE(TAG, "No option found for mapping %llu", value);
@@ -62,7 +62,7 @@ void ModbusSelect::control(const std::string &value) {
       auto options = this->traits.get_options();
       auto opt_it = std::find(options.cbegin(), options.cend(), value);
       size_t idx = std::distance(options.cbegin(), opt_it);
-      mapval = this->mapping[idx];
+      mapval = this->mapping_[idx];
     }
 
 #pragma GCC diagnostic push
@@ -79,10 +79,10 @@ void ModbusSelect::control(const std::string &value) {
 
   ModbusCommandItem write_cmd;
   if ((this->register_count == 1) && (!this->use_write_multiple_)) {
-    write_cmd = ModbusCommandItem::create_write_single_command(parent_, this->write_address, data[0]);
+    write_cmd = ModbusCommandItem::create_write_single_command(parent_, this->write_address_, data[0]);
   } else {
     write_cmd =
-        ModbusCommandItem::create_write_multiple_command(parent_, this->write_address, this->register_count, data);
+        ModbusCommandItem::create_write_multiple_command(parent_, this->write_address_, this->register_count, data);
   }
 
   parent_->queue_command(write_cmd);

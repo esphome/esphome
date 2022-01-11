@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/components/modbus_controller/modbus_controller.h"
 #include "esphome/components/select/select.h"
 #include "esphome/core/component.h"
@@ -11,7 +13,7 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
  public:
   ModbusSelect(uint16_t start_address, uint8_t register_count, uint8_t skip_updates, bool force_new_range,
                std::vector<uint64_t> mapping)
-      : Component(), select::Select(), write_address(start_address) {
+      : Component(), select::Select(), write_address_(start_address) {
     this->register_type = ModbusRegisterType::HOLDING;  // not configurable
     this->start_address = start_address;
     this->offset = 0;                                // not configurable
@@ -21,7 +23,7 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
     this->response_bytes = 0;  // not configurable
     this->skip_updates = skip_updates;
     this->force_new_range = force_new_range;
-    this->mapping = mapping;
+    this->mapping_ = std::move(mapping);
   }
 
   using transform_func_t = std::function<optional<std::string>(ModbusSelect *, uint64_t, const std::vector<uint8_t> &)>;
@@ -38,8 +40,8 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
   void control(const std::string &value) override;
 
  protected:
-  const uint16_t write_address;
-  std::vector<uint64_t> mapping;
+  const uint16_t write_address_;
+  std::vector<uint64_t> mapping_;
   ModbusController *parent_;
   bool use_write_multiple_{false};
   optional<transform_func_t> transform_func_;
