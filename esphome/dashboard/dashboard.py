@@ -410,7 +410,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path
 
-        elif type == "firmware-combined.bin":
+        elif type == "firmware-factory.bin":
             storage_path = ext_storage_path(settings.config_dir, configuration)
             storage_json = StorageJSON.load(storage_path)
             if storage_json is None:
@@ -418,7 +418,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 return
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path.replace(
-                "firmware.bin", "firmware-combined.bin"
+                "firmware.bin", "firmware-factory.bin"
             )
 
         else:
