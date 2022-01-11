@@ -62,7 +62,7 @@ void CD74HC4067Component::activate_pin(uint8_t pin) {
   }
 }
 
-CD74HC4067Sensor::CD74HC4067Sensor(CD74HC4067Component *parent) : PollingComponent(1000), parent_(parent) {}
+CD74HC4067Sensor::CD74HC4067Sensor(CD74HC4067Component *parent) : parent_(parent) {}
 
 void CD74HC4067Sensor::update() {
   float value_v = this->sample();
@@ -72,7 +72,7 @@ void CD74HC4067Sensor::update() {
 float CD74HC4067Sensor::get_setup_priority() const { return this->parent_->get_setup_priority() - 1.0f; }
 
 float CD74HC4067Sensor::sample() {
-  this->parent_->activate_pin(pin_);
+  this->parent_->activate_pin(this->pin_);
   return this->source_->sample();
 }
 
