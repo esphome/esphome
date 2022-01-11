@@ -10,7 +10,7 @@ def esp32_create_combined_bin(source, target, env):
     print("Generating combined binary for serial flashing")
     app_offset = 0x10000
 
-    new_file_name = env.subst("$BUILD_DIR/${PROGNAME}-combined.bin")
+    new_file_name = env.subst("$BUILD_DIR/${PROGNAME}-factory.bin")
     sections = env.subst(env.get("FLASH_EXTRA_IMAGES"))
     firmware_name = env.subst("$BUILD_DIR/${PROGNAME}.bin")
     chip = env.get("BOARD_MCU")
