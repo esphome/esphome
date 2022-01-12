@@ -74,6 +74,12 @@ void IDFI2CBus::dump_config() {
   }
 }
 
+ErrorCode IDFI2CBus::write_read(Transaction *t) {
+  // TODO: Implement function to handle a transaction (write and read from I2C bus without
+  // releasing the bus)
+  return ERROR_UNKNOWN;
+}
+
 ErrorCode IDFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
   // logging is only enabled with vv level, if warnings are shown the caller
   // should log them

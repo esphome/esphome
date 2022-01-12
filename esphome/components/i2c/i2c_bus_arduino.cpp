@@ -64,6 +64,26 @@ void ArduinoI2CBus::dump_config() {
   }
 }
 
+ErrorCode ArduinoI2CBus::write_read(Transaction *t) {
+  if (!initialized_) {
+    ESP_LOGVV(TAG, "i2c bus not initialized!");
+    return ERROR_NOT_INITIALIZED;
+  }
+  wire_->beginTransmission(t->device_address);
+  if (t->write_len != 0) {
+    wire_->write(t->write_buf, t->write_len);
+    wire_->endTransmission(false);  // no stop sent
+  }
+  size_t ret = wire_->requestFrom(t->device_address, t->read_len);
+  if (ret != t->read_len) {
+    ESP_LOGVV(TAG, "RX %u from %02X failed with error %u", t->read_len, t->device_address, ret);
+    return ERROR_TIMEOUT;
+  }
+  for (size_t j = 0; j < t->read_len; j++)
+    t->read_buf[j] = wire_->read();
+  return ERROR_OK;
+}
+
 ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
   // logging is only enabled with vv level, if warnings are shown the caller
   // should log them
