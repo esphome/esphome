@@ -3,6 +3,7 @@ from pathlib import Path
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components.packages import validate_source_shorthand
+from esphome.wizard import wizard_file
 from esphome.yaml_util import dump
 
 
@@ -36,48 +37,6 @@ wifi:
   password: !secret wifi_password
 """
 
-ESPHOME_WEB_COMMON = (
-    """# Enable logging
-logger:
-
-# Enable Home Assistant API
-api:
-
-# Allow OTA updates
-ota:"""
-    + WIFI_CONFIG
-    + """  ap: {}
-
-# In combination with the `ap` this allows the user
-# to provision wifi credentials to the device via WiFi AP.
-captive_portal:
-
-web_server:
-"""
-)
-
-ESPHOME_WEB_CONFIG_ESP32 = (
-    """
-esphome:
-  name: "${name}"
-  platform: ESP32
-  board: esp32dev
-
-"""
-    + ESPHOME_WEB_COMMON
-)
-
-ESPHOME_WEB_CONFIG_ESP8266 = (
-    """
-esphome:
-  name: "${name}"
-  platform: ESP8266
-  board: esp01_1m
-
-"""
-    + ESPHOME_WEB_COMMON
-)
-
 
 async def to_code(config):
     cg.add_define("USE_DASHBOARD_IMPORT")
@@ -92,9 +51,13 @@ def import_config(path: str, name: str, project_name: str, import_url: str) -> N
 
     if project_name == "esphome.web":
         p.write_text(
-            f"substitutions:\n  name: {name}\n" + ESPHOME_WEB_CONFIG_ESP32
-            if "esp32" in import_url
-            else ESPHOME_WEB_CONFIG_ESP8266,
+            wizard_file(
+                name=name,
+                platform="ESP32" if "esp32" in import_url else "ESP8266",
+                board="esp32dev" if "esp32" in import_url else "esp01_1m",
+                ssid="!secret wifi_ssid",
+                psk="!secret wifi_password",
+            ),
             encoding="utf8",
         )
     else:
