@@ -23,31 +23,6 @@ void IntegrationSensor::setup() {
   this->sensor_->add_on_state_callback([this](float state) { this->process_sensor_value_(state); });
 }
 void IntegrationSensor::dump_config() { LOG_SENSOR("", "Integration Sensor", this); }
-std::string IntegrationSensor::unit_of_measurement() {
-  std::string suffix;
-  switch (this->time_) {
-    case INTEGRATION_SENSOR_TIME_MILLISECOND:
-      suffix = "ms";
-      break;
-    case INTEGRATION_SENSOR_TIME_SECOND:
-      suffix = "s";
-      break;
-    case INTEGRATION_SENSOR_TIME_MINUTE:
-      suffix = "min";
-      break;
-    case INTEGRATION_SENSOR_TIME_HOUR:
-      suffix = "h";
-      break;
-    case INTEGRATION_SENSOR_TIME_DAY:
-      suffix = "d";
-      break;
-  }
-  std::string base = this->sensor_->get_unit_of_measurement();
-  if (str_endswith(base, "/" + suffix)) {
-    return base.substr(0, base.size() - suffix.size() - 1);
-  }
-  return base + suffix;
-}
 void IntegrationSensor::process_sensor_value_(float value) {
   const uint32_t now = millis();
   const double old_value = this->last_value_;

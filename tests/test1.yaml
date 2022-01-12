@@ -657,6 +657,15 @@ sensor:
         name: 'INA3221 Channel 1 Shunt Voltage'
     update_interval: 15s
     i2c_id: i2c_bus
+  - platform: kalman_combinator
+    name: "Kalman-filtered temperature"
+    process_std_dev: 0.00139
+    sources:
+      - source: scd30_temperature
+        error: !lambda |-
+          return 0.4 + std::abs(x - 25) * 0.023;
+      - source: scd4x_temperature
+        error: 1.5
   - platform: htu21d
     temperature:
       name: 'Living Room Temperature 6'
@@ -820,6 +829,7 @@ sensor:
     co2:
       name: 'Living Room CO2 9'
     temperature:
+      id: scd30_temperature
       name: 'Living Room Temperature 9'
     humidity:
       name: 'Living Room Humidity 9'
@@ -834,6 +844,7 @@ sensor:
     co2:
       name: "SCD4X CO2"
     temperature:
+      id: scd4x_temperature
       name: "SCD4X Temperature"
     humidity:
       name: "SCD4X Humidity"
@@ -1707,6 +1718,9 @@ climate:
     name: HeatpumpIR Climate
     min_temperature: 18
     max_temperature: 30
+  - platform: midea_ir
+    name: Midea IR
+    use_fahrenheit: true
   - platform: midea
     on_state:
       logger.log: "State changed!"
@@ -2458,6 +2472,11 @@ text_sensor:
           id: glob_int
           value: '0'
       - canbus.send:
+          canbus_id: mcp2515_can
+          can_id: 23
+          data: [0x10, 0x20, 0x30]
+      - canbus.send:
+          canbus_id: esp32_internal_can
           can_id: 23
           data: [0x10, 0x20, 0x30]
   - platform: template
@@ -2495,7 +2514,27 @@ rtttl:
 
 canbus:
   - platform: mcp2515
+    id: mcp2515_can
     cs_pin: GPIO17
+    can_id: 4
+    bit_rate: 50kbps
+    on_frame:
+      - can_id: 500
+        then:
+          - lambda: |-
+              std::string b(x.begin(), x.end());
+              ESP_LOGD("canid 500", "%s", &b[0] );
+      - can_id: 23
+        then:
+          - if:
+              condition:
+                lambda: 'return x[0] == 0x11;'
+              then:
+                light.toggle: ${roomname}_lights
+  - platform: esp32_can
+    id: esp32_internal_can
+    rx_pin: GPIO04
+    tx_pin: GPIO05
     can_id: 4
     bit_rate: 50kbps
     on_frame:

@@ -28,13 +28,16 @@ esphome/components/b_parasite/* @rbaron
 esphome/components/ballu/* @bazuchan
 esphome/components/bang_bang/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
+esphome/components/bl0940/* @tobias-
 esphome/components/ble_client/* @buxtronix
 esphome/components/bme680_bsec/* @trvrnrth
+esphome/components/bmp3xx/* @martgras
 esphome/components/button/* @esphome/core
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/cap1188/* @MrEditor97
 esphome/components/captive_portal/* @OttoWinter
 esphome/components/ccs811/* @habbie
+esphome/components/cd74hc4067/* @asoehlke
 esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/color_temperature/* @jesserockz
@@ -55,6 +58,7 @@ esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @jesserockz
 esphome/components/esp32_ble_server/* @jesserockz
 esphome/components/esp32_camera_web_server/* @ayufan
+esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_improv/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/exposure_notifications/* @OttoWinter
@@ -81,6 +85,7 @@ esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter
 esphome/components/interval/* @esphome/core
 esphome/components/json/* @OttoWinter
+esphome/components/kalman_combinator/* @Cat-Ion
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
 esphome/components/logger/* @esphome/core
@@ -94,10 +99,13 @@ esphome/components/mcp23x08_base/* @jesserockz
 esphome/components/mcp23x17_base/* @jesserockz
 esphome/components/mcp23xxx_base/* @jesserockz
 esphome/components/mcp2515/* @danielschramm @mvturnho
+esphome/components/mcp3204/* @rsumner
+esphome/components/mcp47a1/* @jesserockz
 esphome/components/mcp9808/* @k7hpn
 esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
 esphome/components/midea/* @dudanov
+esphome/components/midea_ir/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
 esphome/components/modbus_controller/* @martgras
 esphome/components/modbus_controller/binary_sensor/* @martgras
@@ -125,6 +133,7 @@ esphome/components/pn532_i2c/* @OttoWinter @jesserockz
 esphome/components/pn532_spi/* @OttoWinter @jesserockz
 esphome/components/power_supply/* @esphome/core
 esphome/components/preferences/* @esphome/core
+esphome/components/psram/* @esphome/core
 esphome/components/pulse_meter/* @stevebaxter
 esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/rc522/* @glmnet
