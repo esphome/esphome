@@ -30,7 +30,7 @@ void MQTTButtonComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, true);
 }
 
-void MQTTButtonComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+void MQTTButtonComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   config.state_topic = false;
   if (!this->button_->get_device_class().empty())
     root[MQTT_DEVICE_CLASS] = this->button_->get_device_class();

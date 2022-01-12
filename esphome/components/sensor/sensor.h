@@ -151,15 +151,19 @@ class Sensor : public EntityBase {
 
  protected:
   /// Override this to set the default unit of measurement.
+  ESPDEPRECATED("unit_of_measurement() is deprecated, set property during config validation instead.", "2022.01")
   virtual std::string unit_of_measurement();  // NOLINT
 
   /// Override this to set the default accuracy in decimals.
+  ESPDEPRECATED("accuracy_decimals() is deprecated, set property during config validation instead.", "2022.01")
   virtual int8_t accuracy_decimals();  // NOLINT
 
   /// Override this to set the default device class.
+  ESPDEPRECATED("device_class() is deprecated, set property during config validation instead.", "2022.01")
   virtual std::string device_class();  // NOLINT
 
   /// Override this to set the default state class.
+  ESPDEPRECATED("state_class() is deprecated, set property during config validation instead.", "2022.01")
   virtual StateClass state_class();  // NOLINT
 
   uint32_t hash_base() override;
