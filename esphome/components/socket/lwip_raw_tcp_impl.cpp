@@ -73,9 +73,9 @@ class LWIPRawImpl : public Socket {
     }
     ip_addr_t ip;
     in_port_t port;
-    auto family = name->sa_family;
+    family_ = name->sa_family;
 #if LWIP_IPV6
-    if (family == AF_INET) {
+    if (family_ == AF_INET) {
       if (addrlen < sizeof(sockaddr_in)) {
         errno = EINVAL;
         return -1;
@@ -85,7 +85,7 @@ class LWIPRawImpl : public Socket {
       ip.type = IPADDR_TYPE_V4;
       ip.u_addr.ip4.addr = addr4->sin_addr.s_addr;
       LWIP_LOG("tcp_bind(%p ip=%s port=%u)", pcb_, ip4addr_ntoa(&ip.u_addr.ip4), port);
-    } else if (family == AF_INET6) {
+    } else if (family_ == AF_INET6) {
       if (addrlen < sizeof(sockaddr_in6)) {
         errno = EINVAL;
         return -1;
@@ -100,7 +100,7 @@ class LWIPRawImpl : public Socket {
       return -1;
     }
 #else
-    if (family != AF_INET) {
+    if (family_ != AF_INET) {
       errno = EINVAL;
       return -1;
     }
@@ -183,8 +183,7 @@ class LWIPRawImpl : public Socket {
       errno = EINVAL;
       return -1;
     }
-    auto family = name->sa_family;
-    if (family == AF_INET) {
+    if (family_ == AF_INET) {
       struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(name);
       addr->sin_family = AF_INET;
       *addrlen = addr->sin_len = sizeof(struct sockaddr_in);
@@ -192,7 +191,7 @@ class LWIPRawImpl : public Socket {
       inet_addr_from_ip4addr(&addr->sin_addr, ip_2_ip4(&pcb_->remote_ip));
     }
 #if LWIP_IPV6
-    else if (family == AF_INET6) {
+    else if (family_ == AF_INET6) {
       struct sockaddr_in6 *addr = reinterpret_cast<struct sockaddr_in6 *>(name);
       addr->sin6_family = AF_INET6;
       *addrlen = addr->sin6_len = sizeof(struct sockaddr_in6);
@@ -231,8 +230,7 @@ class LWIPRawImpl : public Socket {
       errno = EINVAL;
       return -1;
     }
-    auto family = name->sa_family;
-    if (family == AF_INET) {
+    if (family_ == AF_INET) {
       struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(name);
       addr->sin_family = AF_INET;
       *addrlen = addr->sin_len = sizeof(struct sockaddr_in);
@@ -240,7 +238,7 @@ class LWIPRawImpl : public Socket {
       inet_addr_from_ip4addr(&addr->sin_addr, ip_2_ip4(&pcb_->local_ip));
     }
 #if LWIP_IPV6
-    else if (family == AF_INET6) {
+    else if (family_ == AF_INET6) {
       struct sockaddr_in6 *addr = reinterpret_cast<struct sockaddr_in6 *>(name);
       addr->sin6_family = AF_INET6;
       *addrlen = addr->sin6_len = sizeof(struct sockaddr_in6);
@@ -592,6 +590,7 @@ class LWIPRawImpl : public Socket {
   // don't use lwip nodelay flag, it sometimes causes reconnect
   // instead use it for determining whether to call lwip_output
   bool nodelay_ = false;
+  sa_family_t family_ = 0;
 };
 
 std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
