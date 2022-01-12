@@ -362,7 +362,7 @@ template<typename T, typename D> class RemoteReceiverDumper : public RemoteRecei
 
 namespace msb {
 
-template<typename T, size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us>
+template<size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us, typename T>
 void encode(RemoteTransmitData *dst, const T &src) {
   static_assert(std::is_integral<T>::value, "T must be an integer.");
   static_assert(nbits > 0 && nbits <= sizeof(T) * 8, "Invalid number of bits.");
@@ -370,7 +370,7 @@ void encode(RemoteTransmitData *dst, const T &src) {
     dst->item(mark_us, (src & mask) ? space_one_us : space_zero_us);
 }
 
-template<typename T, size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us>
+template<size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us, typename T>
 bool decode(RemoteReceiveData &src, T &dst) {
   static_assert(std::is_integral<T>::value, "T must be an integer.");
   static_assert(nbits > 0 && nbits <= sizeof(T) * 8, "Invalid number of bits.");
@@ -385,7 +385,7 @@ bool decode(RemoteReceiveData &src, T &dst) {
   return true;
 }
 
-template<typename T, size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us>
+template<size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us, typename T>
 bool equal(RemoteReceiveData &src, const T &data) {
   static_assert(std::is_integral<T>::value, "T must be an integer.");
   static_assert(nbits > 0 && nbits <= sizeof(T) * 8, "Invalid number of bits.");
@@ -399,7 +399,7 @@ bool equal(RemoteReceiveData &src, const T &data) {
 
 namespace lsb {
 
-template<typename T, size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us>
+template<size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us, typename T>
 void encode(RemoteTransmitData *dst, const T &src) {
   static_assert(std::is_integral<T>::value, "T must be an integer.");
   static_assert(nbits > 0 && nbits <= sizeof(T) * 8, "Invalid number of bits.");
@@ -407,7 +407,7 @@ void encode(RemoteTransmitData *dst, const T &src) {
     dst->item(mark_us, (src & mask) ? space_one_us : space_zero_us);
 }
 
-template<typename T, size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us>
+template<size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us, typename T>
 bool decode(RemoteReceiveData &src, T &dst) {
   static_assert(std::is_integral<T>::value, "T must be an integer.");
   static_assert(nbits > 0 && nbits <= sizeof(T) * 8, "Invalid number of bits.");
@@ -422,7 +422,7 @@ bool decode(RemoteReceiveData &src, T &dst) {
   return true;
 }
 
-template<typename T, size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us>
+template<size_t nbits, uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us, typename T>
 bool equal(RemoteReceiveData &src, const T &data) {
   static_assert(std::is_integral<T>::value, "T must be an integer.");
   static_assert(nbits > 0 && nbits <= sizeof(T) * 8, "Invalid number of bits.");

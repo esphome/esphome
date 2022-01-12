@@ -22,19 +22,19 @@ void ToshibaAcProtocol::encode(RemoteTransmitData *dst, const ToshibaAcData &dat
 
   for (uint8_t repeat = 0; repeat < 2; repeat++) {
     dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-    msb::encode<uint64_t, 48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.rc_code_1);
+    msb::encode<48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.rc_code_1);
     dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
   }
 
   if (data.rc_code_2 != 0) {
     dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-    msb::encode<uint64_t, 48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.rc_code_2);
+    msb::encode<48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.rc_code_2);
     dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
   }
 }
 
 static bool decode_data(RemoteReceiveData &src, uint64_t &dst) {
-  return msb::decode<uint64_t, 48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst);
+  return msb::decode<48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst);
 }
 
 optional<ToshibaAcData> ToshibaAcProtocol::decode(RemoteReceiveData src) {

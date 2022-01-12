@@ -18,7 +18,7 @@ void JVCProtocol::encode(RemoteTransmitData *dst, const JVCData &data) {
   dst->set_carrier_frequency(38000);
   dst->reserve(REMOTE_DATA_SIZE);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  msb::encode<uint32_t, NBITS, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.data);
+  msb::encode<NBITS, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.data);
   dst->mark(BIT_MARK_US);
 }
 
@@ -27,7 +27,7 @@ optional<JVCData> JVCProtocol::decode(RemoteReceiveData src) {
       .data = 0,
   };
   if (src.has_size(REMOTE_DATA_SIZE) && src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) &&
-      msb::decode<uint32_t, NBITS, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, out.data) &&
+      msb::decode<NBITS, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, out.data) &&
       src.expect_mark(BIT_MARK_US))
     return out;
   return {};

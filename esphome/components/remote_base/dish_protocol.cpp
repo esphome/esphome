@@ -24,10 +24,10 @@ void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
   //  at least 4 times to accept it.
   for (unsigned i = 0; i < 4; i++) {
     // COMMAND (function, 6 bits, in MSB)
-    msb::encode<uint8_t, 6, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.command);
+    msb::encode<6, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.command);
 
     // ADDRESS (unit code, 4 bits, in LSB)
-    lsb::encode<uint8_t, 4, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.address - 1);
+    lsb::encode<4, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.address - 1);
 
     // PADDING (6 zeroes)
     for (unsigned j = 0; j < 6; j++)
@@ -39,8 +39,8 @@ void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
 }
 
 static bool decode_data(RemoteReceiveData &src, DishData &dst) {
-  return msb::decode<uint8_t, 6, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.command) &&
-         lsb::decode<uint8_t, 4, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.address);
+  return msb::decode<6, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.command) &&
+         lsb::decode<4, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.address);
 }
 
 optional<DishData> DishProtocol::decode(RemoteReceiveData src) {

@@ -18,14 +18,14 @@ void NECProtocol::encode(RemoteTransmitData *dst, const NECData &data) {
   dst->set_carrier_frequency(38000);
   dst->reserve(REMOTE_DATA_SIZE);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  lsb::encode<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.address);
-  lsb::encode<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.command);
+  lsb::encode<16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.address);
+  lsb::encode<16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.command);
   dst->mark(BIT_MARK_US);
 }
 
 static bool decode_data(RemoteReceiveData &src, NECData &dst) {
-  return lsb::decode<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.address) &&
-         lsb::decode<uint16_t, 16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.command);
+  return lsb::decode<16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.address) &&
+         lsb::decode<16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.command);
 }
 
 optional<NECData> NECProtocol::decode(RemoteReceiveData src) {
