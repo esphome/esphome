@@ -210,7 +210,10 @@ Cover::Cover() : Cover("") {}
 std::string Cover::get_device_class() {
   if (this->device_class_override_.has_value())
     return *this->device_class_override_;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return this->device_class();
+#pragma GCC diagnostic pop
 }
 bool Cover::is_fully_open() const { return this->position == COVER_OPEN; }
 bool Cover::is_fully_closed() const { return this->position == COVER_CLOSED; }

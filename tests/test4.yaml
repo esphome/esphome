@@ -65,6 +65,9 @@ sx1509:
   - id: sx1509_hub
     address: 0x3E
 
+mcp3204:
+  cs_pin: GPIO23
+
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
@@ -215,6 +218,9 @@ sensor:
       - or:
         - throttle: "20min"
         - delta: 0.02
+  - platform: mcp3204
+    name: "MCP3204 Pin 1"
+    number: 1
 
 #
 # platform sensor.apds9960 requires component apds9960
@@ -413,6 +419,7 @@ display:
     reset_pin: GPIO23
     model: 2.90in
     full_update_every: 30
+    reset_duration: 200ms
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
@@ -440,7 +447,13 @@ display:
     wakeup_pin: GPIO1
     vcom_pin: GPIO1
 
-
+number:
+  - platform: tuya
+    id: tuya_number
+    number_datapoint: 102
+    min_value: 0
+    max_value: 17
+    step: 1
 
 text_sensor:
   - platform: pipsolar
@@ -524,3 +537,7 @@ xpt2046:
 button:
   - platform: restart
     name: Restart Button
+  - platform: safe_mode
+    name: Safe Mode Button
+  - platform: shutdown
+    name: Shutdown Button

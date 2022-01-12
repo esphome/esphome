@@ -172,7 +172,7 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
     if CONF_JSON in config:
         json_ = config[CONF_JSON]
         if isinstance(json_, Lambda):
-            args_ = args + [(cg.JsonObjectRef, "root")]
+            args_ = args + [(cg.JsonObject, "root")]
             lambda_ = await cg.process_lambda(json_, args_, return_type=cg.void)
             cg.add(var.set_json(lambda_))
         else:

@@ -211,7 +211,7 @@ uint16_t SGP40Component::measure_raw_() {
     ESP_LOGD(TAG, "write error");
     return UINT16_MAX;
   }
-  delay(250);  // NOLINT
+  delay(30);
   uint16_t raw_data[1];
 
   if (!this->read_data_(raw_data, 1)) {
