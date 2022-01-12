@@ -22,18 +22,24 @@
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
 #ifdef USE_CLIMATE
 #include "esphome/components/climate/climate.h"
 #endif
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
 
 namespace esphome {
 
 class Controller {
  public:
-  void setup_controller();
+  void setup_controller(bool include_internal = false);
 #ifdef USE_BINARY_SENSOR
   virtual void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state){};
 #endif
@@ -60,6 +66,9 @@ class Controller {
 #endif
 #ifdef USE_NUMBER
   virtual void on_number_update(number::Number *obj, float state){};
+#endif
+#ifdef USE_SELECT
+  virtual void on_select_update(select::Select *obj, const std::string &state){};
 #endif
 };
 

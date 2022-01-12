@@ -31,6 +31,9 @@ class InitialStateIterator : public ComponentIterator {
 #ifdef USE_SWITCH
   bool on_switch(switch_::Switch *a_switch) override;
 #endif
+#ifdef USE_BUTTON
+  bool on_button(button::Button *button) override { return true; };
+#endif
 #ifdef USE_TEXT_SENSOR
   bool on_text_sensor(text_sensor::TextSensor *text_sensor) override;
 #endif
@@ -39,6 +42,9 @@ class InitialStateIterator : public ComponentIterator {
 #endif
 #ifdef USE_NUMBER
   bool on_number(number::Number *number) override;
+#endif
+#ifdef USE_SELECT
+  bool on_select(select::Select *select) override;
 #endif
  protected:
   APIConnection *client_;

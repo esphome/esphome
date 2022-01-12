@@ -8,13 +8,10 @@ static const char *const TAG = "mcp4725";
 
 void MCP4725::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MCP4725 (0x%02X)...", this->address_);
-
-  this->raw_begin_transmission();
-
-  if (!this->raw_end_transmission()) {
+  auto err = this->write(nullptr, 0);
+  if (err != i2c::ERROR_OK) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
-
     return;
   }
 }

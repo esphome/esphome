@@ -1,11 +1,14 @@
+#ifdef USE_ARDUINO
+
 #include "wled_light_effect.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <WiFi.h>
 #endif
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #endif
@@ -40,14 +43,15 @@ void WLEDLightEffect::stop() {
 
 void WLEDLightEffect::blank_all_leds_(light::AddressableLight &it) {
   for (int led = it.size(); led-- > 0;) {
-    it[led].set(COLOR_BLACK);
+    it[led].set(Color::BLACK);
   }
+  it.schedule_show();
 }
 
 void WLEDLightEffect::apply(light::AddressableLight &it, const Color &current_color) {
   // Init UDP lazily
   if (!udp_) {
-    udp_.reset(new WiFiUDP());
+    udp_ = make_unique<WiFiUDP>();
 
     if (!udp_->begin(port_)) {
       ESP_LOGW(TAG, "Cannot bind WLEDLightEffect to %d.", port_);
@@ -134,6 +138,7 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
     blank_at_ = millis() + DEFAULT_BLANK_TIME;
   }
 
+  it.schedule_show();
   return true;
 }
 
@@ -243,3 +248,5 @@ bool WLEDLightEffect::parse_dnrgb_frame_(light::AddressableLight &it, const uint
 
 }  // namespace wled
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

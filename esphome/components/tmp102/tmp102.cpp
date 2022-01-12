@@ -1,5 +1,6 @@
 #include "tmp102.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace tmp102 {
@@ -28,10 +29,16 @@ void TMP102Component::dump_config() {
 
 void TMP102Component::update() {
   uint16_t raw_temperature;
-  if (!this->read_byte_16(TMP102_REGISTER_TEMPERATURE, &raw_temperature, 50)) {
+  if (this->write(&TMP102_REGISTER_TEMPERATURE, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
+  delay(50);  // NOLINT
+  if (this->read(reinterpret_cast<uint8_t *>(&raw_temperature), 2) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
+  raw_temperature = i2c::i2ctohs(raw_temperature);
 
   raw_temperature = raw_temperature >> 4;
   float temperature = raw_temperature * TMP102_CONVERSION_FACTOR;

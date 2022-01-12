@@ -6,9 +6,6 @@ from esphome.const import (
     CONF_QOS,
     CONF_TOPIC,
     STATE_CLASS_NONE,
-    UNIT_EMPTY,
-    ICON_EMPTY,
-    DEVICE_CLASS_EMPTY,
 )
 from .. import mqtt_subscribe_ns
 
@@ -21,7 +18,8 @@ MQTTSubscribeSensor = mqtt_subscribe_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        UNIT_EMPTY, ICON_EMPTY, 1, DEVICE_CLASS_EMPTY, STATE_CLASS_NONE
+        accuracy_decimals=1,
+        state_class=STATE_CLASS_NONE,
     )
     .extend(
         {

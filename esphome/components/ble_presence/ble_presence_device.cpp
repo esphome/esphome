@@ -1,7 +1,7 @@
 #include "ble_presence_device.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace ble_presence {

@@ -16,6 +16,7 @@ class WaveshareEPaper : public PollingComponent,
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
+  void set_reset_duration(uint32_t reset_duration) { this->reset_duration_ = reset_duration; }
 
   void command(uint8_t value);
   void data(uint8_t value);
@@ -45,13 +46,14 @@ class WaveshareEPaper : public PollingComponent,
   void reset_() {
     if (this->reset_pin_ != nullptr) {
       this->reset_pin_->digital_write(false);
-      delay(200);  // NOLINT
+      delay(reset_duration_);  // NOLINT
       this->reset_pin_->digital_write(true);
       delay(200);  // NOLINT
     }
   }
 
   uint32_t get_buffer_length_();
+  uint32_t reset_duration_{200};
 
   void start_command_();
   void end_command_();
@@ -61,7 +63,7 @@ class WaveshareEPaper : public PollingComponent,
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *dc_pin_;
   GPIOPin *busy_pin_{nullptr};
-  virtual int idle_timeout_() { return 1000; }  // NOLINT(readability-identifier-naming)
+  virtual uint32_t idle_timeout_() { return 1000u; }  // NOLINT(readability-identifier-naming)
 };
 
 enum WaveshareEPaperTypeAModel {
@@ -73,6 +75,7 @@ enum WaveshareEPaperTypeAModel {
   TTGO_EPAPER_2_13_IN,
   TTGO_EPAPER_2_13_IN_B73,
   TTGO_EPAPER_2_13_IN_B1,
+  TTGO_EPAPER_2_13_IN_B74,
 };
 
 class WaveshareEPaperTypeA : public WaveshareEPaper {
@@ -109,12 +112,13 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   uint32_t full_update_every_{30};
   uint32_t at_update_{0};
   WaveshareEPaperTypeAModel model_;
-  int idle_timeout_() override;
+  uint32_t idle_timeout_() override;
 };
 
 enum WaveshareEPaperTypeBModel {
   WAVESHARE_EPAPER_2_7_IN = 0,
   WAVESHARE_EPAPER_4_2_IN,
+  WAVESHARE_EPAPER_4_2_IN_B_V2,
   WAVESHARE_EPAPER_7_5_IN,
   WAVESHARE_EPAPER_7_5_INV2,
 };
@@ -202,6 +206,34 @@ class WaveshareEPaper4P2In : public WaveshareEPaper {
   int get_height_internal() override;
 };
 
+class WaveshareEPaper4P2InBV2 : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND VCOM AND DATA INTERVAL SETTING
+    this->command(0x50);
+    this->data(0xF7);  // border floating
+
+    // COMMAND POWER OFF
+    this->command(0x02);
+    this->wait_until_idle_();
+
+    // COMMAND DEEP SLEEP
+    this->command(0x07);
+    this->data(0xA5);  // check code
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
 class WaveshareEPaper5P8In : public WaveshareEPaper {
  public:
   void initialize() override;
@@ -248,6 +280,29 @@ class WaveshareEPaper7P5In : public WaveshareEPaper {
   int get_height_internal() override;
 };
 
+class WaveshareEPaper7P5InBC : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND POWER OFF
+    this->command(0x02);
+    this->wait_until_idle_();
+    // COMMAND DEEP SLEEP
+    this->command(0x07);
+    this->data(0xA5);  // check byte
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
 class WaveshareEPaper7P5InV2 : public WaveshareEPaper {
  public:
   void initialize() override;
@@ -269,6 +324,34 @@ class WaveshareEPaper7P5InV2 : public WaveshareEPaper {
   int get_width_internal() override;
 
   int get_height_internal() override;
+};
+
+class WaveshareEPaper2P13InDKE : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND POWER DOWN
+    this->command(0x10);
+    this->data(0x01);
+    // cannot wait until idle here, the device no longer responds
+  }
+
+  void set_full_update_every(uint32_t full_update_every);
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  uint32_t idle_timeout_() override;
+
+  uint32_t full_update_every_{30};
+  uint32_t at_update_{0};
 };
 
 }  // namespace waveshare_epaper

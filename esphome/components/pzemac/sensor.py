@@ -1,5 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
+from esphome.automation import maybe_simple_id
 from esphome.components import sensor, modbus
 from esphome.const import (
     CONF_CURRENT,
@@ -9,21 +11,18 @@ from esphome.const import (
     CONF_VOLTAGE,
     CONF_FREQUENCY,
     CONF_POWER_FACTOR,
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_ENERGY,
-    ICON_EMPTY,
     ICON_CURRENT_AC,
-    LAST_RESET_TYPE_AUTO,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_HERTZ,
     UNIT_VOLT,
     UNIT_AMPERE,
     UNIT_WATT,
-    UNIT_EMPTY,
     UNIT_WATT_HOURS,
 )
 
@@ -32,50 +31,67 @@ AUTO_LOAD = ["modbus"]
 pzemac_ns = cg.esphome_ns.namespace("pzemac")
 PZEMAC = pzemac_ns.class_("PZEMAC", cg.PollingComponent, modbus.ModbusDevice)
 
+# Actions
+ResetEnergyAction = pzemac_ns.class_("ResetEnergyAction", automation.Action)
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PZEMAC),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT, ICON_EMPTY, 1, DEVICE_CLASS_VOLTAGE, STATE_CLASS_MEASUREMENT
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-                UNIT_AMPERE,
-                ICON_EMPTY,
-                3,
-                DEVICE_CLASS_CURRENT,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_AMPERE,
+                accuracy_decimals=3,
+                device_class=DEVICE_CLASS_CURRENT,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_POWER): sensor.sensor_schema(
-                UNIT_WATT, ICON_EMPTY, 2, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT
+                unit_of_measurement=UNIT_WATT,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ENERGY): sensor.sensor_schema(
-                UNIT_WATT_HOURS,
-                ICON_EMPTY,
-                0,
-                DEVICE_CLASS_ENERGY,
-                STATE_CLASS_MEASUREMENT,
-                LAST_RESET_TYPE_AUTO,
+                unit_of_measurement=UNIT_WATT_HOURS,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
-                UNIT_HERTZ,
-                ICON_CURRENT_AC,
-                1,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_HERTZ,
+                icon=ICON_CURRENT_AC,
+                accuracy_decimals=1,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
-                UNIT_EMPTY,
-                ICON_EMPTY,
-                2,
-                DEVICE_CLASS_POWER_FACTOR,
-                STATE_CLASS_MEASUREMENT,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_POWER_FACTOR,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(modbus.modbus_device_schema(0x01))
 )
+
+
+@automation.register_action(
+    "pzemac.reset_energy",
+    ResetEnergyAction,
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(PZEMAC),
+        }
+    ),
+)
+async def reset_energy_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 async def to_code(config):

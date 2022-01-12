@@ -27,6 +27,9 @@ bool ListEntitiesIterator::on_sensor(sensor::Sensor *sensor) { return this->clie
 #ifdef USE_SWITCH
 bool ListEntitiesIterator::on_switch(switch_::Switch *a_switch) { return this->client_->send_switch_info(a_switch); }
 #endif
+#ifdef USE_BUTTON
+bool ListEntitiesIterator::on_button(button::Button *button) { return this->client_->send_button_info(button); }
+#endif
 #ifdef USE_TEXT_SENSOR
 bool ListEntitiesIterator::on_text_sensor(text_sensor::TextSensor *text_sensor) {
   return this->client_->send_text_sensor_info(text_sensor);
@@ -53,6 +56,10 @@ bool ListEntitiesIterator::on_climate(climate::Climate *climate) { return this->
 
 #ifdef USE_NUMBER
 bool ListEntitiesIterator::on_number(number::Number *number) { return this->client_->send_number_info(number); }
+#endif
+
+#ifdef USE_SELECT
+bool ListEntitiesIterator::on_select(select::Select *select) { return this->client_->send_select_info(select); }
 #endif
 
 }  // namespace api

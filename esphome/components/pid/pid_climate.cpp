@@ -37,7 +37,7 @@ void PIDClimate::control(const climate::ClimateCall &call) {
 
   // If switching to off mode, set output immediately
   if (this->mode == climate::CLIMATE_MODE_OFF)
-    this->handle_non_auto_mode_();
+    this->write_output_(0.0f);
 
   this->publish_state();
 }
@@ -98,18 +98,9 @@ void PIDClimate::write_output_(float value) {
   }
   this->pid_computed_callback_.call();
 }
-void PIDClimate::handle_non_auto_mode_() {
-  // in non-auto mode, switch directly to appropriate action
-  //  - OFF mode -> Output at 0%
-  if (this->mode == climate::CLIMATE_MODE_OFF) {
-    this->write_output_(0.0);
-  } else {
-    assert(false);
-  }
-}
 void PIDClimate::update_pid_() {
   float value;
-  if (isnan(this->current_temperature) || isnan(this->target_temperature)) {
+  if (std::isnan(this->current_temperature) || std::isnan(this->target_temperature)) {
     // if any control parameters are nan, turn off all outputs
     value = 0.0;
   } else {
@@ -135,7 +126,7 @@ void PIDClimate::update_pid_() {
   }
 
   if (this->mode == climate::CLIMATE_MODE_OFF) {
-    this->handle_non_auto_mode_();
+    this->write_output_(0.0);
   } else {
     this->write_output_(value);
   }

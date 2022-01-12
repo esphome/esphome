@@ -4,23 +4,25 @@ from esphome import pins
 from esphome.const import (
     CONF_FREQUENCY,
     CONF_ID,
-    CONF_NAME,
     CONF_PIN,
     CONF_SCL,
     CONF_SDA,
-    ESP_PLATFORM_ESP32,
     CONF_DATA_PINS,
     CONF_RESET_PIN,
     CONF_RESOLUTION,
     CONF_BRIGHTNESS,
     CONF_CONTRAST,
 )
+from esphome.core import CORE
+from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.cpp_helpers import setup_entity
 
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
-DEPENDENCIES = ["api"]
+DEPENDENCIES = ["esp32"]
+
+AUTO_LOAD = ["psram"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
-ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.Nameable)
+ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
 ESP32CameraFrameSize = esp32_camera_ns.enum("ESP32CameraFrameSize")
 FRAME_SIZES = {
     "160X120": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_160X120,
@@ -57,22 +59,26 @@ CONF_IDLE_FRAMERATE = "idle_framerate"
 CONF_JPEG_QUALITY = "jpeg_quality"
 CONF_VERTICAL_FLIP = "vertical_flip"
 CONF_HORIZONTAL_MIRROR = "horizontal_mirror"
+CONF_AEC2 = "aec2"
+CONF_AE_LEVEL = "ae_level"
+CONF_AEC_VALUE = "aec_value"
 CONF_SATURATION = "saturation"
 CONF_TEST_PATTERN = "test_pattern"
 
 camera_range_param = cv.int_range(min=-2, max=2)
 
-CONFIG_SCHEMA = cv.Schema(
+CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(ESP32Camera),
-        cv.Required(CONF_NAME): cv.string,
-        cv.Required(CONF_DATA_PINS): cv.All([pins.input_pin], cv.Length(min=8, max=8)),
-        cv.Required(CONF_VSYNC_PIN): pins.input_pin,
-        cv.Required(CONF_HREF_PIN): pins.input_pin,
-        cv.Required(CONF_PIXEL_CLOCK_PIN): pins.input_pin,
+        cv.Required(CONF_DATA_PINS): cv.All(
+            [pins.internal_gpio_input_pin_number], cv.Length(min=8, max=8)
+        ),
+        cv.Required(CONF_VSYNC_PIN): pins.internal_gpio_input_pin_number,
+        cv.Required(CONF_HREF_PIN): pins.internal_gpio_input_pin_number,
+        cv.Required(CONF_PIXEL_CLOCK_PIN): pins.internal_gpio_input_pin_number,
         cv.Required(CONF_EXTERNAL_CLOCK): cv.Schema(
             {
-                cv.Required(CONF_PIN): pins.output_pin,
+                cv.Required(CONF_PIN): pins.internal_gpio_input_pin_number,
                 cv.Optional(CONF_FREQUENCY, default="20MHz"): cv.All(
                     cv.frequency, cv.one_of(20e6, 10e6)
                 ),
@@ -80,12 +86,12 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Required(CONF_I2C_PINS): cv.Schema(
             {
-                cv.Required(CONF_SDA): pins.output_pin,
-                cv.Required(CONF_SCL): pins.output_pin,
+                cv.Required(CONF_SDA): pins.internal_gpio_output_pin_number,
+                cv.Required(CONF_SCL): pins.internal_gpio_output_pin_number,
             }
         ),
-        cv.Optional(CONF_RESET_PIN): pins.output_pin,
-        cv.Optional(CONF_POWER_DOWN_PIN): pins.output_pin,
+        cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_POWER_DOWN_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_MAX_FRAMERATE, default="10 fps"): cv.All(
             cv.framerate, cv.Range(min=0, min_included=False, max=60)
         ),
@@ -101,6 +107,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_SATURATION, default=0): camera_range_param,
         cv.Optional(CONF_VERTICAL_FLIP, default=True): cv.boolean,
         cv.Optional(CONF_HORIZONTAL_MIRROR, default=True): cv.boolean,
+        cv.Optional(CONF_AEC2, default=False): cv.boolean,
+        cv.Optional(CONF_AE_LEVEL, default=0): camera_range_param,
+        cv.Optional(CONF_AEC_VALUE, default=300): cv.int_range(min=0, max=1200),
         cv.Optional(CONF_TEST_PATTERN, default=False): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -115,6 +124,9 @@ SETTERS = {
     CONF_JPEG_QUALITY: "set_jpeg_quality",
     CONF_VERTICAL_FLIP: "set_vertical_flip",
     CONF_HORIZONTAL_MIRROR: "set_horizontal_mirror",
+    CONF_AEC2: "set_aec2",
+    CONF_AE_LEVEL: "set_ae_level",
+    CONF_AEC_VALUE: "set_aec_value",
     CONF_CONTRAST: "set_contrast",
     CONF_BRIGHTNESS: "set_brightness",
     CONF_SATURATION: "set_saturation",
@@ -123,7 +135,8 @@ SETTERS = {
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    var = cg.new_Pvariable(config[CONF_ID])
+    await setup_entity(var, config)
     await cg.register_component(var, config)
 
     for key, setter in SETTERS.items():
@@ -142,4 +155,7 @@ async def to_code(config):
     cg.add(var.set_frame_size(config[CONF_RESOLUTION]))
 
     cg.add_define("USE_ESP32_CAMERA")
-    cg.add_build_flag("-DBOARD_HAS_PSRAM")
+
+    if CORE.using_esp_idf:
+        cg.add_library("espressif/esp32-camera", "1.0.0")
+        add_idf_sdkconfig_option("CONFIG_RTCIO_SUPPORT_RTC_GPIO_DESC", True)

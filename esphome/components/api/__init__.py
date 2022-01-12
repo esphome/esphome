@@ -1,3 +1,5 @@
+import base64
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -6,6 +8,7 @@ from esphome.const import (
     CONF_DATA,
     CONF_DATA_TEMPLATE,
     CONF_ID,
+    CONF_KEY,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_REBOOT_TIMEOUT,
@@ -19,7 +22,7 @@ from esphome.const import (
 from esphome.core import coroutine_with_priority
 
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["async_tcp"]
+AUTO_LOAD = ["socket"]
 CODEOWNERS = ["@OttoWinter"]
 
 api_ns = cg.esphome_ns.namespace("api")
@@ -41,6 +44,22 @@ SERVICE_ARG_NATIVE_TYPES = {
     "float[]": cg.std_vector.template(float),
     "string[]": cg.std_vector.template(cg.std_string),
 }
+CONF_ENCRYPTION = "encryption"
+
+
+def validate_encryption_key(value):
+    value = cv.string_strict(value)
+    try:
+        decoded = base64.b64decode(value, validate=True)
+    except ValueError as err:
+        raise cv.Invalid("Invalid key format, please check it's using base64") from err
+
+    if len(decoded) != 32:
+        raise cv.Invalid("Encryption key must be base64 and 32 bytes long")
+
+    # Return original data for roundtrip conversion
+    return value
+
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -61,6 +80,11 @@ CONFIG_SCHEMA = cv.Schema(
                         ),
                     }
                 ),
+            }
+        ),
+        cv.Optional(CONF_ENCRYPTION): cv.Schema(
+            {
+                cv.Required(CONF_KEY): validate_encryption_key,
             }
         ),
     }
@@ -91,6 +115,15 @@ async def to_code(config):
         )
         cg.add(var.register_user_service(trigger))
         await automation.build_automation(trigger, func_args, conf)
+
+    if CONF_ENCRYPTION in config:
+        conf = config[CONF_ENCRYPTION]
+        decoded = base64.b64decode(conf[CONF_KEY])
+        cg.add(var.set_noise_psk(list(decoded)))
+        cg.add_define("USE_API_NOISE")
+        cg.add_library("esphome/noise-c", "0.1.4")
+    else:
+        cg.add_define("USE_API_PLAINTEXT")
 
     cg.add_define("USE_API")
     cg.add_global(api_ns.using)
