@@ -43,6 +43,7 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
   stream->print(obj->get_name().c_str());
   stream->print("</td><td></td><td>");
   stream->print(action.c_str());
+
   if (action_func) {
     action_func(*stream, obj);
   }
@@ -238,6 +239,12 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   for (auto *obj : App.get_covers())
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "cover", "<button>Open</button><button>Stop</button><button>Close</button>");
+#endif
+
+#ifdef USE_CLIMATE
+  for (auto *obj : App.get_climates())
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "climate", "<button>Cool</button><button>Off</button><button>+</button><button>-</button>");
 #endif
 
 #ifdef USE_NUMBER
@@ -758,7 +765,12 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     auto call = obj->make_call();
     if (request->hasParam("targettemperature")) {
       String target_temp = request->getParam("targettemperature")->value();
-      call.set_target_temperature(target_temp.toInt());
+      if(target_temp == "+"){
+        call.set_target_temperature(obj->target_temperature+1);
+      } else if(target_temp == "-"){
+        call.set_target_temperature(obj->target_temperature-1);
+      } else
+        call.set_target_temperature(target_temp.toInt());
     }
     if (request->hasParam("fanmode")) {
       String fan_mode = request->getParam("fanmode")->value();
@@ -775,7 +787,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
   request->send(404);
 }
 std::string WebServer::climate_json(climate::Climate *obj) {
-  std::string toreturn = json::build_json([obj](JsonObject &root) {
+  return json::build_json([obj](JsonObject root) {
     root["id"] = "climate-" + obj->get_object_id();
     root["mode"] = int(obj->mode);
     if(obj->mode != climate::CLIMATE_MODE_OFF){
@@ -786,11 +798,32 @@ std::string WebServer::climate_json(climate::Climate *obj) {
       root["current_temperature"] = "--";
     }
     root["fanmode"] = int(*obj->fan_mode);
+    switch (int(obj->mode)) {
+      case climate::CLIMATE_MODE_OFF:
+        root["state"] = "OFF | "+to_string(int(obj->target_temperature));
+        break;
+      case climate::CLIMATE_MODE_HEAT_COOL:
+        root["state"] = "HEAT_COOL | "+to_string(int(obj->target_temperature));
+        break;
+      case climate::CLIMATE_MODE_AUTO:
+        root["state"] = "AUTO | "+to_string(int(obj->target_temperature));
+        break;
+      case climate::CLIMATE_MODE_COOL:
+        root["state"] = "COOL | "+to_string(int(obj->target_temperature));
+        break;
+      case climate::CLIMATE_MODE_HEAT:
+        root["state"] = "HEAT | "+to_string(int(obj->target_temperature));
+        break;
+      case climate::CLIMATE_MODE_FAN_ONLY:
+        root["state"] = "FAN_ONLY | "+to_string(int(obj->target_temperature));
+        break;
+      case climate::CLIMATE_MODE_DRY:
+        root["state"] = "DRY | "+to_string(int(obj->target_temperature));
+        break;
+      default:
+        root["state"] = "UNKNOWN";
+    }
   });
-  for(int i=0; i<toreturn.size(); i++){
-    if(toreturn[i] == '"') toreturn[i] = '+';
-  }
-  return toreturn;
 }
 #endif
 
