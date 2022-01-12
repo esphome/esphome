@@ -52,9 +52,6 @@ void Inkplate6::setup() {
                           });
   delay(1);
   this->wakeup_pin_->digital_write(false);
-
-  this->clean();
-  this->display();
 }
 
 void Inkplate6::initialize_() {
@@ -352,18 +349,18 @@ void Inkplate6::display1b_() {
     vscan_start_();
     for (int i = 0, im = this->get_height_internal(); i < im; i++) {
       buffer_value = *(buffer_ptr--);
-      data = LUTB[(buffer_value >> 4) & 0x0F];
+      data = this->model_ == INKPLATE_6_PLUS ? LUTW[(~buffer_value >> 4) & 0x0F] : LUTB[(buffer_value >> 4) & 0x0F];
       hscan_start_(this->pin_lut_[data]);
-      data = LUTB[buffer_value & 0x0F];
+      data = this->model_ == INKPLATE_6_PLUS ? LUTW[(~buffer_value) & 0x0F] : LUTB[buffer_value & 0x0F];
       GPIO.out_w1ts = this->pin_lut_[data] | clock;
       GPIO.out_w1tc = data_mask | clock;
 
       for (int j = 0, jm = (this->get_width_internal() / 8) - 1; j < jm; j++) {
         buffer_value = *(buffer_ptr--);
-        data = LUTB[(buffer_value >> 4) & 0x0F];
+        data = this->model_ == INKPLATE_6_PLUS ? LUTW[(~buffer_value >> 4) & 0x0F] : LUTB[(buffer_value >> 4) & 0x0F];
         GPIO.out_w1ts = this->pin_lut_[data] | clock;
         GPIO.out_w1tc = data_mask | clock;
-        data = LUTB[buffer_value & 0x0F];
+        data = this->model_ == INKPLATE_6_PLUS ? LUTW[(~buffer_value) & 0x0F] : LUTB[buffer_value & 0x0F];
         GPIO.out_w1ts = this->pin_lut_[data] | clock;
         GPIO.out_w1tc = data_mask | clock;
       }
@@ -379,18 +376,18 @@ void Inkplate6::display1b_() {
   vscan_start_();
   for (int i = 0, im = this->get_height_internal(); i < im; i++) {
     buffer_value = *(buffer_ptr--);
-    data = LUT2[(buffer_value >> 4) & 0x0F];
+    data = this->model_ == INKPLATE_6_PLUS ? LUTB[(buffer_value >> 4) & 0x0F] : LUT2[(buffer_value >> 4) & 0x0F];
     hscan_start_(this->pin_lut_[data] | clock);
-    data = LUT2[buffer_value & 0x0F];
+    data = this->model_ == INKPLATE_6_PLUS ? LUTB[buffer_value & 0x0F] : LUT2[buffer_value & 0x0F];
     GPIO.out_w1ts = this->pin_lut_[data] | clock;
     GPIO.out_w1tc = data_mask | clock;
 
     for (int j = 0, jm = (this->get_width_internal() / 8) - 1; j < jm; j++) {
       buffer_value = *(buffer_ptr--);
-      data = LUT2[(buffer_value >> 4) & 0x0F];
+      data = this->model_ == INKPLATE_6_PLUS ? LUTB[(buffer_value >> 4) & 0x0F] : LUT2[(buffer_value >> 4) & 0x0F];
       GPIO.out_w1ts = this->pin_lut_[data] | clock;
       GPIO.out_w1tc = data_mask | clock;
-      data = LUT2[buffer_value & 0x0F];
+      data = this->model_ == INKPLATE_6_PLUS ? LUTB[buffer_value & 0x0F] : LUT2[buffer_value & 0x0F];
       GPIO.out_w1ts = this->pin_lut_[data] | clock;
       GPIO.out_w1tc = data_mask | clock;
     }
@@ -504,15 +501,14 @@ bool Inkplate6::partial_update_() {
   this->partial_updates_++;
 
   uint32_t pos = this->get_buffer_length_() - 1;
-  uint32_t send;
   uint8_t data;
   uint8_t diffw, diffb;
   uint32_t n = (this->get_buffer_length_() * 2) - 1;
 
   for (int i = 0, im = this->get_height_internal(); i < im; i++) {
     for (int j = 0, jm = (this->get_width_internal() / 8); j < jm; j++) {
-      diffw = (this->buffer_[pos] ^ this->partial_buffer_[pos]) & ~(this->partial_buffer_[pos]);
-      diffb = (this->buffer_[pos] ^ this->partial_buffer_[pos]) & this->partial_buffer_[pos];
+      diffw = this->buffer_[pos] & ~(this->partial_buffer_[pos]);
+      diffb = ~(this->buffer_[pos]) & this->partial_buffer_[pos];
       pos--;
       this->partial_buffer_2_[n--] = LUTW[diffw >> 4] & LUTB[diffb >> 4];
       this->partial_buffer_2_[n--] = LUTW[diffw & 0x0F] & LUTB[diffb & 0x0F];
@@ -528,17 +524,13 @@ bool Inkplate6::partial_update_() {
     const uint8_t *data_ptr = &this->partial_buffer_2_[(this->get_buffer_length_() * 2) - 1];
     for (int i = 0; i < this->get_height_internal(); i++) {
       data = *(data_ptr--);
-      send = ((data & 0b00000011) << 4) | (((data & 0b00001100) >> 2) << 18) | (((data & 0b00010000) >> 4) << 23) |
-             (((data & 0b11100000) >> 5) << 25);
-      hscan_start_(send);
+      hscan_start_(this->pin_lut_[data]);
       for (int j = 0, jm = (this->get_width_internal() / 4) - 1; j < jm; j++) {
         data = *(data_ptr--);
-        send = ((data & 0b00000011) << 4) | (((data & 0b00001100) >> 2) << 18) | (((data & 0b00010000) >> 4) << 23) |
-               (((data & 0b11100000) >> 5) << 25) | clock;
-        GPIO.out_w1ts = send;
-        GPIO.out_w1tc = send;
+        GPIO.out_w1ts = this->pin_lut_[data] | clock;
+        GPIO.out_w1tc = data_mask | clock;
       }
-      GPIO.out_w1ts = send;
+      GPIO.out_w1ts = clock;
       GPIO.out_w1tc = data_mask | clock;
       vscan_end_();
     }
@@ -634,13 +626,13 @@ void Inkplate6::clean_fast_(uint8_t c, uint8_t rep) {
       hscan_start_(send);
       GPIO.out_w1ts = send | clock;
       GPIO.out_w1tc = clock;
-      for (int j = 0; j < this->get_width_internal() / 8; j++) {
+      for (int j = 0; j < (this->get_width_internal() / 8) - 1; j++) {
         GPIO.out_w1ts = clock;
         GPIO.out_w1tc = clock;
         GPIO.out_w1ts = clock;
         GPIO.out_w1tc = clock;
       }
-      GPIO.out_w1ts = clock;
+      GPIO.out_w1ts = send | clock;
       GPIO.out_w1tc = clock;
       vscan_end_();
     }
