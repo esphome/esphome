@@ -34,7 +34,8 @@ void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
 
 static bool decode_data(RemoteReceiveData &src, DishData &dst) {
   return msb::decode<6, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.command) &&
-         lsb::decode<4, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.address);
+         lsb::decode<4, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.address) &&
+         msb::equal<6, BIT_MARK_US, 0, BIT_ZERO_SPACE_US>(src, 0);
 }
 
 optional<DishData> DishProtocol::decode(RemoteReceiveData src) {
@@ -42,11 +43,8 @@ optional<DishData> DishProtocol::decode(RemoteReceiveData src) {
       .address = 0,
       .command = 0,
   };
-  if (!src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) || !decode_data(src, data))
-    return {};
-  if (!msb::equal<6, BIT_MARK_US, 0, BIT_ZERO_SPACE_US>(src, 0))
-    return {};
-  if (!src.expect_mark(HEADER_MARK_US))
+  if (!src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) || !decode_data(src, data) ||
+      !src.expect_mark(HEADER_MARK_US))
     return {};
   data.address++;
   return data;

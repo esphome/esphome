@@ -8,9 +8,9 @@ static const char *const TAG = "remote.sony";
 
 static const uint32_t HEADER_MARK_US = 2400;
 static const uint32_t HEADER_SPACE_US = 600;
-static const uint32_t BIT_ONE_HIGH_US = 1200;
-static const uint32_t BIT_ZERO_HIGH_US = 600;
-static const uint32_t BIT_LOW_US = 600;
+static const uint32_t BIT_ONE_MARK_US = 1200;
+static const uint32_t BIT_ZERO_MARK_US = 600;
+static const uint32_t BIT_SPACE_US = 600;
 
 void SonyProtocol::encode(RemoteTransmitData *dst, const SonyData &data) {
   dst->set_carrier_frequency(40000);
@@ -20,9 +20,9 @@ void SonyProtocol::encode(RemoteTransmitData *dst, const SonyData &data) {
 
   for (uint32_t mask = 1UL << (data.nbits - 1); mask != 0; mask >>= 1) {
     if (data.data & mask)
-      dst->item(BIT_ONE_HIGH_US, BIT_LOW_US);
+      dst->item(BIT_ONE_MARK_US, BIT_SPACE_US);
     else
-      dst->item(BIT_ZERO_HIGH_US, BIT_LOW_US);
+      dst->item(BIT_ZERO_MARK_US, BIT_SPACE_US);
   }
 }
 optional<SonyData> SonyProtocol::decode(RemoteReceiveData src) {
@@ -35,9 +35,9 @@ optional<SonyData> SonyProtocol::decode(RemoteReceiveData src) {
 
   for (; out.nbits < 20; out.nbits++) {
     uint32_t bit;
-    if (src.expect_mark(BIT_ONE_HIGH_US)) {
+    if (src.expect_mark(BIT_ONE_MARK_US)) {
       bit = 1;
-    } else if (src.expect_mark(BIT_ZERO_HIGH_US)) {
+    } else if (src.expect_mark(BIT_ZERO_MARK_US)) {
       bit = 0;
     } else if (out.nbits == 12 || out.nbits == 15) {
       return out;
@@ -46,9 +46,9 @@ optional<SonyData> SonyProtocol::decode(RemoteReceiveData src) {
     }
 
     out.data = (out.data << 1UL) | bit;
-    if (src.expect_space(BIT_LOW_US)) {
+    if (src.expect_space(BIT_SPACE_US)) {
       // nothing needs to be done
-    } else if (src.peek_space_at_least(BIT_LOW_US)) {
+    } else if (src.peek_space_at_least(BIT_SPACE_US)) {
       out.nbits += 1;
       if (out.nbits == 12 || out.nbits == 15 || out.nbits == 20)
         return out;

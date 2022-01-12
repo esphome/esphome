@@ -11,10 +11,9 @@ static const uint32_t HEADER_SPACE_US = 4500;
 static const uint32_t BIT_MARK_US = 500;
 static const uint32_t BIT_ONE_SPACE_US = 1500;
 static const uint32_t BIT_ZERO_SPACE_US = 500;
-static const uint32_t MIDDLE_HIGH_US = 500;
-static const uint32_t MIDDLE_LOW_US = 4500;
+static const uint32_t MIDDLE_MARK_US = 500;
+static const uint32_t MIDDLE_SPACE_US = 4500;
 static const uint32_t FOOTER_MARK_US = 500;
-static const uint32_t FOOTER_SPACE_US = 59000;
 static const size_t REMOTE_DATA_SIZE = 2 + 2 * 16 + 2 + 2 * 20 + 2;
 
 void Samsung36Protocol::encode(RemoteTransmitData *dst, const Samsung36Data &data) {
@@ -25,7 +24,7 @@ void Samsung36Protocol::encode(RemoteTransmitData *dst, const Samsung36Data &dat
   // send first 16 bits
   msb::encode<16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.address);
   // send middle header
-  dst->item(MIDDLE_HIGH_US, MIDDLE_LOW_US);
+  dst->item(MIDDLE_MARK_US, MIDDLE_SPACE_US);
   // send last 20 bits
   msb::encode<20, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.command);
   // footer
@@ -51,7 +50,7 @@ optional<Samsung36Data> Samsung36Protocol::decode(RemoteReceiveData src) {
     return {};
 
   // check if the middle mark matches
-  if (!src.expect_item(MIDDLE_HIGH_US, MIDDLE_LOW_US))
+  if (!src.expect_item(MIDDLE_MARK_US, MIDDLE_SPACE_US))
     return {};
 
   // get the last 20 bits
