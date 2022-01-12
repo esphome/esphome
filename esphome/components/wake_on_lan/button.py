@@ -11,16 +11,12 @@ WakeOnLanButton = wake_on_lan_ns.class_("WakeOnLanButton", button.Button, cg.Com
 
 DEPENDENCIES = ["wifi"]
 
-CONFIG_SCHEMA = (
-    button.BUTTON_SCHEMA
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(
-        cv.Schema(
-            {
-                cv.Required(CONF_TARGET_MAC_ADDRESS): cv.mac_address,
-                cv.GenerateID(): cv.declare_id(WakeOnLanButton),
-            }
-        )
+CONFIG_SCHEMA = button.BUTTON_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
+    cv.Schema(
+        {
+            cv.Required(CONF_TARGET_MAC_ADDRESS): cv.mac_address,
+            cv.GenerateID(): cv.declare_id(WakeOnLanButton),
+        }
     )
 )
 
