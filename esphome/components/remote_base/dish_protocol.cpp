@@ -43,8 +43,7 @@ optional<DishData> DishProtocol::decode(RemoteReceiveData src) {
       .address = 0,
       .command = 0,
   };
-  if (!src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) || !decode_data(src, data) ||
-      !src.expect_mark(HEADER_MARK_US))
+  if (!src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) || !decode_data(src, data) || !src.expect_mark(HEADER_MARK_US))
     return {};
   data.address++;
   return data;
