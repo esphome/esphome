@@ -180,12 +180,6 @@ void TCS34725Component::update() {
     return;
   }
 
-  // May need to fix endianness as the data read over I2C is big-endian, but most ESP platforms are little-endian
-  raw_c = i2c::i2ctohs(raw_c);
-  raw_r = i2c::i2ctohs(raw_r);
-  raw_g = i2c::i2ctohs(raw_g);
-  raw_b = i2c::i2ctohs(raw_b);
-
   const float channel_c = raw_c / 655.35f;
   const float channel_r = raw_r / 655.35f;
   const float channel_g = raw_g / 655.35f;
