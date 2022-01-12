@@ -4,22 +4,8 @@
 #include "esphome/core/helpers.h"
 #include <ESPAsyncTCP.h>
 #include "SyncClient.h"
-#include <cppQueue.h>
-#define  IMPLEMENTATION  FIFO
-#include <ArduinoJson.h>
 
 const int TCP_PORT = 20000;
-char newcommand[200];
-char receivedmsg[100];
-bool alreadyconnected = false;
-char tosend[30];
-AsyncClient EventSession;
-bool hasauthenticated = false;
-bool ismh202 = false
-cppQueue  messages(sizeof(Light), 100, IMPLEMENTATION);
-StaticJsonBuffer<4000> jsonBuffer;
-JsonObject& doc = jsonBuffer.createObject();
-char msg[128];
 
 std::string calculated_psw(int psw, const char* nonce){
   bool flag = true;

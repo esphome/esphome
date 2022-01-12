@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/components/cover/cover.h"
 #include "esphome/core/hal.h"
-#include <Regexp.h>
 
 namespace esphome {
 namespace myhomecover {
