@@ -19,8 +19,8 @@ CONFIG_SCHEMA = cv.All(
                 cv.GenerateID(): cv.declare_id(WakeOnLanButton),
             }
         ),
-        cv.only_with_arduino,
-    )
+    ),
+    cv.only_with_arduino,
 )
 
 
