@@ -12,7 +12,7 @@ WakeOnLanButton = wake_on_lan_ns.class_("WakeOnLanButton", button.Button, cg.Com
 DEPENDENCIES = ["wifi"]
 
 CONFIG_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(button.BUTTON_SCHEMA)
+    button.BUTTON_SCHEMA
     .extend(cv.COMPONENT_SCHEMA)
     .extend(
         cv.Schema(
