@@ -1,0 +1,21 @@
+esphome:
+  name: test
+  platform: ESP8266
+  board: d1_mini_lite
+
+wifi:
+  ssid: SomeNetwork
+  password: SomePassword
+
+button:
+  - platform: wake_on_lan
+    target_mac_address: 12:34:56:78:90:ab
+    name: wol_test_1
+    id: wol_1
+    internal: true
+  - platform: wake_on_lan
+    target_mac_address: 12:34:56:78:90:ab
+    name: wol_test_2
+    id: wol_2
+    internal: false
+  
