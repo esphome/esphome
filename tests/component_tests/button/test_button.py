@@ -38,7 +38,7 @@ def test_button_config_value_internal_set(generate_main):
 
     # When
     main_cpp = generate_main(
-        "tests/component_tests/binary_sensor/test_binary_sensor.yaml"
+        "tests/component_tests/button/test_button.yaml"
     )
 
     # Then
