@@ -86,12 +86,12 @@ bool PVVXMiThermometer::parse_message_(const std::vector<uint8_t> &message, Pars
   uint16_t    battery_mv;     // mV                [10,11]
   uint8_t     battery_level;  // 0..100 %          [12]
   uint8_t     counter;        // measurement count [13]
-  uint8_t     flags;          // GPIO_TRG pin (marking "reset" on circuit board) flags: 
-                              // bit0: Reed Switch, input
-                              // bit1: GPIO_TRG pin output value (pull Up/Down)
-                              // bit2: Output GPIO_TRG pin is controlled according to the set parameters
-                              // bit3: Temperature trigger event
-                              // bit4: Humidity trigger event
+  uint8_t     flags;          // details below     [14]                    
+                              // flags bit0: Reed Switch, input
+                              // flags bit1: GPIO_TRG pin output value (pull Up/Down)
+                              // flags bit2: Output GPIO_TRG pin is controlled according to the set parameters
+                              // flags bit3: Temperature trigger event
+                              // flags bit4: Humidity trigger event
   */
 
   const uint8_t *data = message.data();
