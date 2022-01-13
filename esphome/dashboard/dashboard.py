@@ -416,7 +416,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
             if storage_json is None:
                 self.send_error(404)
                 return
-            filename = f"{storage_json.name}.bin"
+            filename = f"{storage_json.name}-factory.bin"
             path = storage_json.firmware_bin_path.replace(
                 "firmware.bin", "firmware-factory.bin"
             )
