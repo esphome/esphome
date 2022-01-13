@@ -19,7 +19,7 @@ from esphome.const import (
     CONF_TX_BUFFER_SIZE,
 )
 from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority
-from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32 import get_esp32_variant, add_idf_sdkconfig_option
 from esphome.components.esp32.const import VARIANT_ESP32S2, VARIANT_ESP32C3
 
 CODEOWNERS = ["@esphome/core"]
@@ -56,7 +56,7 @@ LOG_LEVEL_SEVERITY = [
 
 ESP32_REDUCED_VARIANTS = [VARIANT_ESP32C3, VARIANT_ESP32S2]
 
-UART_SELECTION_ESP32_REDUCED = ["UART0", "UART1"]
+UART_SELECTION_ESP32_REDUCED = ["UART0", "UART1", "USB_CDC"]
 
 UART_SELECTION_ESP32 = ["UART0", "UART1", "UART2"]
 
@@ -67,6 +67,7 @@ HARDWARE_UART_TO_UART_SELECTION = {
     "UART0_SWAP": logger_ns.UART_SELECTION_UART0_SWAP,
     "UART1": logger_ns.UART_SELECTION_UART1,
     "UART2": logger_ns.UART_SELECTION_UART2,
+    "USB_CDC": logger_ns.UART_SELECTION_USB_CDC,
 }
 
 HARDWARE_UART_TO_SERIAL = {
@@ -184,6 +185,11 @@ async def to_code(config):
         cg.add_build_flag("-DENABLE_I2C_DEBUG_BUFFER")
     if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH):
         cg.add_build_flag("-DUSE_STORE_LOG_STR_IN_FLASH")
+    if config.get(CONF_HARDWARE_UART) == "USB_CDC":
+        if CORE.using_esp_idf:
+            add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
+        else:
+            raise EsphomeError("USB_CDC is only supported in esp-idf platform.")
 
     # Register at end for safe mode
     await cg.register_component(log, config)

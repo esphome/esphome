@@ -27,6 +27,9 @@ enum UARTSelection {
 #if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2)
   UART_SELECTION_UART2,
 #endif
+#if defined(CONFIG_ESP_CONSOLE_USB_CDC)
+  UART_SELECTION_USB_CDC,
+#endif
 #ifdef USE_ESP8266
   UART_SELECTION_UART0_SWAP,
 #endif

@@ -116,8 +116,12 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
     this->hw_serial_->println(msg);
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
+#ifdef CONFIG_ESP_CONSOLE_USB_CDC
+    puts(msg);
+#else
     uart_write_bytes(uart_num_, msg, strlen(msg));
     uart_write_bytes(uart_num_, "\n", 1);
+#endif
 #endif
   }
 
@@ -161,6 +165,9 @@ void Logger::pre_setup() {
     }
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
+#if defined(CONFIG_ESP_CONSOLE_USB_CDC)
+    uart_num_ = -1;
+#else
     uart_num_ = UART_NUM_0;
     switch (uart_) {
       case UART_SELECTION_UART0:
@@ -185,6 +192,7 @@ void Logger::pre_setup() {
     const int uart_buffer_size = tx_buffer_size_;
     // Install UART driver using an event queue here
     uart_driver_install(uart_num_, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
+#endif
 #endif
 
 #ifdef USE_ARDUINO
