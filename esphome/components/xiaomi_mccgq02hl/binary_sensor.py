@@ -13,6 +13,9 @@ from esphome.const import (
     ICON_BATTERY,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_LIGHT,
+    DEVICE_CLASS_OPENING,
+    STATE_CLASS_MEASUREMENT,
+    ENTITY_CATEGORY_DIAGNOSTIC
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -39,13 +42,15 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_OPEN): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
                 {
-                    cv.Optional(
-                        CONF_DEVICE_CLASS, default="opening"
-                    ): binary_sensor.device_class,
+                    cv.Optional(CONF_DEVICE_CLASS, default=DEVICE_CLASS_OPENING): binary_sensor.device_class,
                 }
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_BATTERY, 0, DEVICE_CLASS_BATTERY
+                unit_of_measurement=UNIT_PERCENT,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_BATTERY,
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
     )
