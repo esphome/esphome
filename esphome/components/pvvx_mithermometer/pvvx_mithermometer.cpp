@@ -15,6 +15,7 @@ void PVVXMiThermometer::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
   LOG_SENSOR("  ", "Flag Value", this->flag_value_);
+  LOG_BINARY_SENSOR("  ","Reed Switch", this->reed_switch_);
 }
 
 bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
