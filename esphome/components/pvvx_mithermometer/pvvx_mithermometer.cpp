@@ -119,9 +119,9 @@ bool PVVXMiThermometer::parse_message_(const std::vector<uint8_t> &message, Pars
 
   // uint8_t     battery_level;  // 0..100 %          [12]
   result.flag_value = int(data[14]);
- 
-  result.reed_switch = int(data[14]) & 1; // (result.flag_value & 1);
-  //result.reed_switch = flag_value_bits.reed_switch;
+  
+  // Checking bit 0 on flag byte [14]
+  result.reed_switch = int(data[14]) & 1;
   return true;
 }
 
