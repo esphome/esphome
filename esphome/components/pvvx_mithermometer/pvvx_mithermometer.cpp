@@ -14,6 +14,7 @@ void PVVXMiThermometer::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
+  LOG_SENSOR("  ", "Flag Value", this->flag_value_);
 }
 
 bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -43,6 +44,10 @@ bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
       this->battery_level_->publish_state(*res->battery_level);
     if (res->battery_voltage.has_value() && this->battery_voltage_ != nullptr)
       this->battery_voltage_->publish_state(*res->battery_voltage);
+    if (res->flag_value.has_value() && this->flag_value_ != nullptr)
+      this->flag_value_->publish_state(*res->flag_value);
+    if (res->reed_switch.has_value() && this->reed_switch_ != nullptr)
+      this->reed_switch_->publish_state(*res->reed_switch);
     success = true;
   }
 
@@ -80,7 +85,12 @@ bool PVVXMiThermometer::parse_message_(const std::vector<uint8_t> &message, Pars
   uint16_t    battery_mv;     // mV                [10,11]
   uint8_t     battery_level;  // 0..100 %          [12]
   uint8_t     counter;        // measurement count [13]
-  uint8_t     flags;  [14]
+  uint8_t     flags;          // GPIO_TRG pin (marking "reset" on circuit board) flags: 
+                              // bit0: Reed Switch, input
+                              // bit1: GPIO_TRG pin output value (pull Up/Down)
+                              // bit2: Output GPIO_TRG pin is controlled according to the set parameters
+                              // bit3: Temperature trigger event
+                              // bit4: Humidity trigger event
   */
 
   const uint8_t *data = message.data();
@@ -106,6 +116,11 @@ bool PVVXMiThermometer::parse_message_(const std::vector<uint8_t> &message, Pars
   // uint8_t     battery_level;  // 0..100 %          [12]
   result.battery_level = uint8_t(data[12]);
 
+  // uint8_t     battery_level;  // 0..100 %          [12]
+  result.flag_value = int(data[14]);
+ 
+  result.reed_switch = int(data[14]) & 1; // (result.flag_value & 1);
+  //result.reed_switch = flag_value_bits.reed_switch;
   return true;
 }
 
@@ -129,6 +144,13 @@ bool PVVXMiThermometer::report_results_(const optional<ParseResult> &result, con
   if (result->battery_voltage.has_value()) {
     ESP_LOGD(TAG, "  Battery Voltage: %.3f V", *result->battery_voltage);
   }
+  if (result->flag_value.has_value()) {
+    ESP_LOGD(TAG, "  Flag Value: %u", *result->flag_value);
+  }
+  if (result->reed_switch.has_value()) {
+    ESP_LOGD(TAG, "  Reed Switch: %s",ONOFF(*result->reed_switch));
+  }
+
 
   return true;
 }

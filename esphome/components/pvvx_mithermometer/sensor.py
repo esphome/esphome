@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import sensor, esp32_ble_tracker
+from esphome.components import sensor, binary_sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BATTERY_VOLTAGE,
@@ -19,9 +19,13 @@ from esphome.const import (
     UNIT_VOLT,
 )
 
+CONF_FLAG_VALUE = "flag_value"
+CONF_REED_SWITCH = "reed_switch"
+
 CODEOWNERS = ["@pasiz"]
 
 DEPENDENCIES = ["esp32_ble_tracker"]
+AUTO_LOAD = ["binary_sensor"]
 
 pvvx_mithermometer_ns = cg.esphome_ns.namespace("pvvx_mithermometer")
 PVVXMiThermometer = pvvx_mithermometer_ns.class_(
@@ -59,6 +63,10 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
+            cv.Optional(CONF_FLAG_VALUE): sensor.sensor_schema(
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_REED_SWITCH): binary_sensor.BINARY_SENSOR_SCHEMA,
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
@@ -85,3 +93,9 @@ async def to_code(config):
     if CONF_BATTERY_VOLTAGE in config:
         sens = await sensor.new_sensor(config[CONF_BATTERY_VOLTAGE])
         cg.add(var.set_battery_voltage(sens))
+    if CONF_FLAG_VALUE in config:
+        sens = await sensor.new_sensor(config[CONF_FLAG_VALUE])
+        cg.add(var.set_flag_value(sens))
+    if CONF_REED_SWITCH in config:
+        sens = await binary_sensor.new_binary_sensor(config[CONF_REED_SWITCH])
+        cg.add(var.set_reed_switch(sens))
