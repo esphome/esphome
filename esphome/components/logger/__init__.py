@@ -67,6 +67,7 @@ HARDWARE_UART_TO_UART_SELECTION = {
     "UART0_SWAP": logger_ns.UART_SELECTION_UART0_SWAP,
     "UART1": logger_ns.UART_SELECTION_UART1,
     "UART2": logger_ns.UART_SELECTION_UART2,
+    "STDOUT": logger_ns.UART_SELECTION_STDOUT,
 }
 
 HARDWARE_UART_TO_SERIAL = {
@@ -80,6 +81,10 @@ is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 
 def uart_selection(value):
+    if value.upper() == "STDOUT":
+        if CORE.using_esp_idf:
+            return "STDOUT"
+        raise EsphomeError("Only esp-idf platform supports STDOUT device.")
     if CORE.is_esp32:
         if get_esp32_variant() in ESP32_REDUCED_VARIANTS:
             return cv.one_of(*UART_SELECTION_ESP32_REDUCED, upper=True)(value)

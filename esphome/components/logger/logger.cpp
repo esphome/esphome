@@ -116,8 +116,12 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
     this->hw_serial_->println(msg);
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
-    uart_write_bytes(uart_num_, msg, strlen(msg));
-    uart_write_bytes(uart_num_, "\n", 1);
+    if (uart_ == UART_SELECTION_STDOUT) {
+      puts(msg);
+    } else {
+      uart_write_bytes(uart_num_, msg, strlen(msg));
+      uart_write_bytes(uart_num_, "\n", 1);
+    }
 #endif
   }
 
@@ -174,17 +178,24 @@ void Logger::pre_setup() {
         uart_num_ = UART_NUM_2;
         break;
 #endif
+#if defined(USE_ESP_IDF)
+      case UART_SELECTION_STDOUT:
+        uart_num_ = -1;
+        break;
+#endif
     }
-    uart_config_t uart_config{};
-    uart_config.baud_rate = (int) baud_rate_;
-    uart_config.data_bits = UART_DATA_8_BITS;
-    uart_config.parity = UART_PARITY_DISABLE;
-    uart_config.stop_bits = UART_STOP_BITS_1;
-    uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-    uart_param_config(uart_num_, &uart_config);
-    const int uart_buffer_size = tx_buffer_size_;
-    // Install UART driver using an event queue here
-    uart_driver_install(uart_num_, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
+    if (uart_num_ >= 0) {
+      uart_config_t uart_config{};
+      uart_config.baud_rate = (int) baud_rate_;
+      uart_config.data_bits = UART_DATA_8_BITS;
+      uart_config.parity = UART_PARITY_DISABLE;
+      uart_config.stop_bits = UART_STOP_BITS_1;
+      uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+      uart_param_config(uart_num_, &uart_config);
+      const int uart_buffer_size = tx_buffer_size_;
+      // Install UART driver using an event queue here
+      uart_driver_install(uart_num_, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
+    }
 #endif
 
 #ifdef USE_ARDUINO
@@ -224,7 +235,7 @@ void Logger::add_on_log_callback(std::function<void(int, const char *, const cha
 float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
 const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
 #ifdef USE_ESP32
-const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART2"};
+const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART2", "STDOUT"};
 #endif
 #ifdef USE_ESP8266
 const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
