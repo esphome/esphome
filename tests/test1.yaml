@@ -2581,7 +2581,7 @@ hdmi_cec:
   address: 0x05
   promiscuous_mode: false
   physical_address: 0x4000
-  pin: 4
+  pin: 5
   on_message:
     - opcode: 0xC3
       source: 0x00

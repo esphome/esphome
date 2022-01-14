@@ -105,8 +105,8 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add_library(
-        "",
-        "",
+        None,
+        None,
         "https://github.com/s-moch/CEC.git#bfbc1ac4ea3419af3943851de582a80dde0d67aa",
     )
     cg.add(var.set_address([config[CONF_ADDRESS]]))
