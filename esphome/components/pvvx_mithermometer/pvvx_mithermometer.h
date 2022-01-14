@@ -31,7 +31,7 @@ class PVVXMiThermometer : public Component, public esp32_ble_tracker::ESPBTDevic
   void set_battery_voltage(sensor::Sensor *battery_voltage) { battery_voltage_ = battery_voltage; }
   void set_flag_value(sensor::Sensor *flag_value) { flag_value_ = flag_value; }
   void set_reed_switch(binary_sensor::BinarySensor *reed_switch) { reed_switch_ = reed_switch; }
- 
+
  protected:
   uint64_t address_;
   sensor::Sensor *temperature_{nullptr};

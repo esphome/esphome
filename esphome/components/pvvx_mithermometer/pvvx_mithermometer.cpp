@@ -15,7 +15,7 @@ void PVVXMiThermometer::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
   LOG_SENSOR("  ", "Flag Value", this->flag_value_);
-  LOG_BINARY_SENSOR("  ","Reed Switch", this->reed_switch_);
+  LOG_BINARY_SENSOR("  ", "Reed Switch", this->reed_switch_);
 }
 
 bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -117,7 +117,7 @@ bool PVVXMiThermometer::parse_message_(const std::vector<uint8_t> &message, Pars
   // uint8_t     battery_level;  // 0..100 %          [12]
   result.battery_level = uint8_t(data[12]);
 
-  // uint8_t     battery_level;  // 0..100 %          [12]
+  // uint8_t     int value of flag;  // 0..100 %          [12]
   result.flag_value = int(data[14]);
   
   // Checking bit 0 on flag byte [14]
@@ -149,9 +149,8 @@ bool PVVXMiThermometer::report_results_(const optional<ParseResult> &result, con
     ESP_LOGD(TAG, "  Flag Value: %u", *result->flag_value);
   }
   if (result->reed_switch.has_value()) {
-    ESP_LOGD(TAG, "  Reed Switch: %s",ONOFF(*result->reed_switch));
+    ESP_LOGD(TAG, "  Reed Switch: %s", ONOFF(*result->reed_switch));
   }
-
 
   return true;
 }

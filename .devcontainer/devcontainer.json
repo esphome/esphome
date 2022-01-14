@@ -11,16 +11,13 @@
   ],
   "appPort": 6052,
   "extensions": [
-    // python
-    "ms-python.python",
-    "visualstudioexptteam.vscodeintellicode",
-    // yaml
-    "redhat.vscode-yaml",
-    // cpp
-    "ms-vscode.cpptools",
-    // editorconfig
-    "editorconfig.editorconfig",
-  ],
+	"ms-python.python",
+	"visualstudioexptteam.vscodeintellicode",
+	"redhat.vscode-yaml",
+	"ms-vscode.cpptools",
+	"editorconfig.editorconfig",
+	"xaver.clang-format"
+],
   "settings": {
     "python.languageServer": "Pylance",
     "python.pythonPath": "/usr/bin/python3",
