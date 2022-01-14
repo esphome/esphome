@@ -11,8 +11,8 @@
   ],
   "appPort": 6052,
   "extensions": [
-	"ms-python.python",
-	"visualstudioexptteam.vscodeintellicode",
+  "ms-python.python",
+  "visualstudioexptteam.vscodeintellicode",
 	"redhat.vscode-yaml",
 	"ms-vscode.cpptools",
 	"editorconfig.editorconfig",

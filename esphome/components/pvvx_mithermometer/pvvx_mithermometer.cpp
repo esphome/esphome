@@ -119,7 +119,7 @@ bool PVVXMiThermometer::parse_message_(const std::vector<uint8_t> &message, Pars
 
   // uint8_t     int value of flag;  // 0..100 %          [12]
   result.flag_value = int(data[14]);
-  
+
   // Checking bit 0 on flag byte [14]
   result.reed_switch = int(data[14]) & 1;
   return true;
