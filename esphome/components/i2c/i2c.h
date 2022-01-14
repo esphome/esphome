@@ -12,23 +12,23 @@ namespace i2c {
 #define LOG_I2C_DEVICE(this) ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
 
 class I2CDevice;
-class I2CRegister {
+template<typename TRegisterAddress = uint8_t, typename TRegisterValue = uint8_t> class I2CRegister {
  public:
-  I2CRegister &operator=(uint8_t value);
-  I2CRegister &operator&=(uint8_t value);
-  I2CRegister &operator|=(uint8_t value);
+  I2CRegister<TRegisterAddress, TRegisterValue> &operator=(TRegisterValue value);
+  I2CRegister<TRegisterAddress, TRegisterValue> &operator&=(TRegisterValue value);
+  I2CRegister<TRegisterAddress, TRegisterValue> &operator|=(TRegisterValue value);
 
-  explicit operator uint8_t() const { return get(); }
+  explicit operator TRegisterValue() const { return get(); }
 
-  uint8_t get() const;
+  TRegisterValue get() const;
 
  protected:
   friend class I2CDevice;
 
-  I2CRegister(I2CDevice *parent, uint8_t a_register) : parent_(parent), register_(a_register) {}
+  I2CRegister(I2CDevice *parent, TRegisterAddress a_register) : parent_(parent), register_(a_register) {}
 
   I2CDevice *parent_;
-  uint8_t register_;
+  TRegisterAddress register_;
 };
 
 // like ntohs/htons but without including networking headers.
@@ -43,7 +43,10 @@ class I2CDevice {
   void set_i2c_address(uint8_t address) { address_ = address; }
   void set_i2c_bus(I2CBus *bus) { bus_ = bus; }
 
-  I2CRegister reg(uint8_t a_register) { return {this, a_register}; }
+  template<typename TRegisterValue = uint8_t, typename TRegisterAddress = uint8_t>
+  I2CRegister<TRegisterAddress, TRegisterValue> reg(TRegisterAddress a_register) {
+    return {this, a_register};
+  }
 
   ErrorCode read(uint8_t *data, size_t len) { return bus_->read(address_, data, len); }
   ErrorCode read_register(uint8_t a_register, uint8_t *data, size_t len) {

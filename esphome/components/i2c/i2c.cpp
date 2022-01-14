@@ -15,24 +15,33 @@ bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t
   return write_register(a_register, reinterpret_cast<const uint8_t *>(temp.get()), len * 2) == ERROR_OK;
 }
 
-I2CRegister &I2CRegister::operator=(uint8_t value) {
-  this->parent_->write_register(this->register_, &value, 1);
-  return *this;
-}
-I2CRegister &I2CRegister::operator&=(uint8_t value) {
-  value &= get();
-  this->parent_->write_register(this->register_, &value, 1);
-  return *this;
-}
-I2CRegister &I2CRegister::operator|=(uint8_t value) {
-  value |= get();
-  this->parent_->write_register(this->register_, &value, 1);
+template<typename TRegisterAddress, typename TRegisterValue>
+I2CRegister<TRegisterAddress, TRegisterValue> &I2CRegister<TRegisterAddress, TRegisterValue>::operator=(
+    TRegisterValue value) {
+  this->parent_->write_register(this->register_, &value);
   return *this;
 }
 
-uint8_t I2CRegister::get() const {
-  uint8_t value = 0x00;
-  this->parent_->read_register(this->register_, &value, 1);
+template<typename TRegisterAddress, typename TRegisterValue>
+I2CRegister<TRegisterAddress, TRegisterValue> &I2CRegister<TRegisterAddress, TRegisterValue>::operator&=(
+    TRegisterValue value) {
+  value &= get();
+  this->parent_->write_register(this->register_, &value);
+  return *this;
+}
+
+template<typename TRegisterAddress, typename TRegisterValue>
+I2CRegister<TRegisterAddress, TRegisterValue> &I2CRegister<TRegisterAddress, TRegisterValue>::operator|=(
+    TRegisterValue value) {
+  value |= get();
+  this->parent_->write_register(this->register_, &value);
+  return *this;
+}
+
+template<typename TRegisterAddress, typename TRegisterValue>
+TRegisterValue I2CRegister<TRegisterAddress, TRegisterValue>::get() const {
+  TRegisterValue value = 0x00;
+  this->parent_->read_register(this->register_, &value);
   return value;
 }
 
