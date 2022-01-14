@@ -1,4 +1,5 @@
 #include "panasonic_protocol.h"
+#include "helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -13,18 +14,19 @@ static const uint32_t BIT_ZERO_SPACE_US = 400;
 static const uint32_t BIT_ONE_SPACE_US = 1244;
 static const size_t REMOTE_DATA_SIZE = 2 + 2 * 16 + 2 * 32 + 2;
 
+USE_SPACE_MSB_CODEC(codec)
+
 void PanasonicProtocol::encode(RemoteTransmitData *dst, const PanasonicData &data) {
   dst->set_carrier_frequency(35000);
   dst->reserve(REMOTE_DATA_SIZE);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  msb::encode<16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.address);
-  msb::encode<32, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.command);
+  codec::encode(dst, data.address);
+  codec::encode(dst, data.command);
   dst->mark(BIT_MARK_US);
 }
 
 static bool decode_data(RemoteReceiveData &src, PanasonicData &dst) {
-  return msb::decode<16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.address) &&
-         msb::decode<32, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.command);
+  return codec::decode(src, dst.address) == 16 && codec::decode(src, dst.command) == 32;
 }
 
 optional<PanasonicData> PanasonicProtocol::decode(RemoteReceiveData src) {

@@ -1,4 +1,5 @@
 #include "toshiba_ac_protocol.h"
+#include "helpers.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
@@ -16,25 +17,27 @@ static const uint32_t FOOTER_MARK_US = 560;
 static const uint32_t FOOTER_SPACE_US = 4500;
 static const uint16_t PACKET_SPACE = 5500;
 
+USE_SPACE_MSB_CODEC(codec)
+
 void ToshibaAcProtocol::encode(RemoteTransmitData *dst, const ToshibaAcData &data) {
   dst->set_carrier_frequency(38000);
   dst->reserve(3 * (2 + 2 * 48 + 2));
 
   for (uint8_t repeat = 0; repeat < 2; repeat++) {
     dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-    msb::encode<48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.rc_code_1);
+    codec::encode(dst, data.rc_code_1, 48);
     dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
   }
 
   if (data.rc_code_2 != 0) {
     dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-    msb::encode<48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.rc_code_2);
+    codec::encode(dst, data.rc_code_2, 48);
     dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
   }
 }
 
 static bool decode_data(RemoteReceiveData &src, uint64_t &dst) {
-  return msb::decode<48, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst);
+  return codec::decode(src, dst, 48) == 48;
 }
 
 optional<ToshibaAcData> ToshibaAcProtocol::decode(RemoteReceiveData src) {

@@ -1,4 +1,5 @@
 #include "samsung36_protocol.h"
+#include "helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -16,17 +17,19 @@ static const uint32_t MIDDLE_SPACE_US = 4500;
 static const uint32_t FOOTER_MARK_US = 500;
 static const size_t REMOTE_DATA_SIZE = 2 + 2 * 16 + 2 + 2 * 20 + 2;
 
+USE_SPACE_MSB_CODEC(codec)
+
 void Samsung36Protocol::encode(RemoteTransmitData *dst, const Samsung36Data &data) {
   dst->set_carrier_frequency(38000);
   dst->reserve(REMOTE_DATA_SIZE);
   // send header
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
   // send first 16 bits
-  msb::encode<16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.address);
+  codec::encode(dst, data.address);
   // send middle header
   dst->item(MIDDLE_MARK_US, MIDDLE_SPACE_US);
   // send last 20 bits
-  msb::encode<20, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.command);
+  codec::encode(dst, data.command, 20);
   // footer
   dst->mark(FOOTER_MARK_US);
 }
@@ -46,7 +49,7 @@ optional<Samsung36Data> Samsung36Protocol::decode(RemoteReceiveData src) {
     return {};
 
   // get the first 16 bits
-  if (!msb::decode<16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, out.address))
+  if (codec::decode(src, out.address) != 16)
     return {};
 
   // check if the middle mark matches
@@ -54,7 +57,7 @@ optional<Samsung36Data> Samsung36Protocol::decode(RemoteReceiveData src) {
     return {};
 
   // get the last 20 bits
-  if (!msb::decode<20, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, out.command))
+  if (codec::decode(src, out.command, 20) != 20)
     return {};
 
   // check footer

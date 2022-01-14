@@ -1,4 +1,5 @@
 #include "coolix_protocol.h"
+#include "helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -16,6 +17,8 @@ static const uint32_t FOOTER_MARK_US = 1 * TICK_US;
 static const uint32_t FOOTER_SPACE_US = 10 * TICK_US;
 static const size_t REMOTE_DATA_SIZE = 2 + 2 * 48 + 2 + 2 + 2 * 48 + 2;
 
+USE_SPACE_MSB_CODEC(codec)
+
 static void encode_data(RemoteTransmitData *dst, const CoolixData &src) {
   //   Break data into bytes, starting at the Most Significant
   //   Byte. Each byte then being sent normal, then followed inverted.
@@ -23,9 +26,9 @@ static void encode_data(RemoteTransmitData *dst, const CoolixData &src) {
     // Grab a bytes worth of data.
     const uint8_t byte = src >> shift;
     // Normal
-    msb::encode<8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, byte);
+    codec::encode(dst, byte);
     // Inverted
-    msb::encode<8, BIT_MARK_US, BIT_ZERO_SPACE_US, BIT_ONE_SPACE_US>(dst, byte);
+    codec::inv::encode(dst, byte);
     // Data end
     if (shift == 0)
       break;
@@ -47,10 +50,10 @@ static bool decode_data(RemoteReceiveData &src, CoolixData &dst) {
   uint32_t data = 0;
   for (unsigned n = 3;; data <<= 8) {
     // Read byte
-    if (!msb::decode<8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, data))
+    if (codec::decode(src, data, 8) != 8)
       return false;
     // Check for inverse byte
-    if (!msb::equal<8, BIT_MARK_US, BIT_ZERO_SPACE_US, BIT_ONE_SPACE_US>(src, data))
+    if (!codec::inv::equal(src, data, 8))
       return false;
     // Checking the end of reading
     if (--n == 0) {

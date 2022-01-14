@@ -1,4 +1,5 @@
 #include "lg_protocol.h"
+#include "helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -12,10 +13,13 @@ static const uint32_t BIT_MARK_US = 600;
 static const uint32_t BIT_ONE_SPACE_US = 1600;
 static const uint32_t BIT_ZERO_SPACE_US = 550;
 
+USE_SPACE_MSB_CODEC(codec)
+
 void LGProtocol::encode(RemoteTransmitData *dst, const LGData &data) {
   dst->set_carrier_frequency(38000);
   dst->reserve(2 + 2 * data.nbits + 2);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
+  codec::encode(dst, data.data, data.nbits);
   for (uint32_t mask = 1UL << (data.nbits - 1); mask != 0; mask >>= 1)
     dst->item(BIT_MARK_US, (data.data & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
   dst->mark(BIT_MARK_US);
@@ -28,19 +32,10 @@ optional<LGData> LGProtocol::decode(RemoteReceiveData src) {
   };
   if (!src.expect_item(HEADER_MARK_US, HEADER_SPACE_US))
     return {};
-
-  for (out.nbits = 0; out.nbits < 32; out.nbits++) {
-    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
-      out.data = (out.data << 1) | 1;
-    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
-      out.data = (out.data << 1) | 0;
-    } else if (out.nbits == 28) {
-      return out;
-    } else {
-      return {};
-    }
-  }
-  return out;
+  const size_t nbits = codec::decode(src, out.data);
+  if (nbits == 28 || nbits == 32)
+    return out;
+  return {};
 }
 
 void LGProtocol::dump(const LGData &data) {

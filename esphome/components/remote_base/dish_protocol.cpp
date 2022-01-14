@@ -1,4 +1,5 @@
 #include "dish_protocol.h"
+#include "helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -13,6 +14,8 @@ static const uint32_t BIT_ONE_SPACE_US = 1700;
 static const uint32_t BIT_ZERO_SPACE_US = 2800;
 static const size_t REMOTE_DATA_SIZE = 2 + 4 * (2 * 6 + 2 * 4 + 2 * 6 + 2);
 
+USE_SPACE_CODEC(codec)
+
 void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
   dst->set_carrier_frequency(57600);
   dst->reserve(REMOTE_DATA_SIZE);
@@ -22,20 +25,20 @@ void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
   //  at least 4 times to accept it.
   for (unsigned i = 0; i < 4; i++) {
     // COMMAND (function, 6 bits, in MSB)
-    msb::encode<6, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.command);
+    codec::msb::encode(dst, data.command, 6);
     // ADDRESS (unit code, 4 bits, in LSB)
-    lsb::encode<4, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.address - 1);
+    codec::lsb::encode(dst, data.address - 1, 4);
     // PADDING (6 zero bits)
-    msb::encode<6, BIT_MARK_US, 0, BIT_ZERO_SPACE_US>(dst, 0);
+    codec::msb::encode(dst, 0, 6);
     // FOOTER
     dst->item(HEADER_MARK_US, HEADER_SPACE_US);
   }
 }
 
 static bool decode_data(RemoteReceiveData &src, DishData &dst) {
-  return msb::decode<6, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.command) &&
-         lsb::decode<4, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, dst.address) &&
-         msb::equal<6, BIT_MARK_US, 0, BIT_ZERO_SPACE_US>(src, 0);
+  return codec::msb::decode(src, dst.command, 6) == 6 &&
+         codec::lsb::decode(src, dst.address, 4) == 4 &&
+         codec::msb::equal(src, 0, 6);
 }
 
 optional<DishData> DishProtocol::decode(RemoteReceiveData src) {

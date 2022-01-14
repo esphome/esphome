@@ -1,4 +1,5 @@
 #include "samsung_protocol.h"
+#include "helpers.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
@@ -15,47 +16,33 @@ static const uint32_t BIT_ZERO_SPACE_US = 560;
 static const uint32_t FOOTER_MARK_US = 560;
 static const uint32_t FOOTER_SPACE_US = 560;
 
+USE_SPACE_MSB_CODEC(codec)
+
 void SamsungProtocol::encode(RemoteTransmitData *dst, const SamsungData &data) {
   dst->set_carrier_frequency(38000);
   dst->reserve(4 + data.nbits * 2u);
-
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-
-  for (uint8_t bit = data.nbits; bit > 0; bit--) {
-    if ((data.data >> (bit - 1)) & 1)
-      dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
-    else
-      dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
-  }
-
+  codec::encode(dst, data.data, data.nbits);
   dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
 }
+
 optional<SamsungData> SamsungProtocol::decode(RemoteReceiveData src) {
   SamsungData out{
       .data = 0,
       .nbits = 0,
   };
+
   if (!src.expect_item(HEADER_MARK_US, HEADER_SPACE_US))
     return {};
 
-  for (out.nbits = 0; out.nbits < 64; out.nbits++) {
-    if (src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US)) {
-      out.data = (out.data << 1) | 1;
-    } else if (src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US)) {
-      out.data = (out.data << 1) | 0;
-    } else if (out.nbits >= 31) {
-      if (!src.expect_mark(FOOTER_MARK_US))
-        return {};
-      return out;
-    } else {
-      return {};
-    }
-  }
+  out.nbits = codec::decode(src, out.data);
 
-  if (!src.expect_mark(FOOTER_MARK_US))
+  if (out.nbits < 32 || !src.expect_mark(FOOTER_MARK_US))
     return {};
+
   return out;
 }
+
 void SamsungProtocol::dump(const SamsungData &data) {
   ESP_LOGD(TAG, "Received Samsung: data=0x%" PRIX64 ", nbits=%d", data.data, data.nbits);
 }

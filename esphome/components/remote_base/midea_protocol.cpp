@@ -1,4 +1,5 @@
 #include "midea_protocol.h"
+#include "helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -15,6 +16,8 @@ static const uint32_t BIT_ZERO_SPACE_US = 1 * TICK_US;
 static const uint32_t FOOTER_MARK_US = 1 * TICK_US;
 static const uint32_t FOOTER_SPACE_US = 10 * TICK_US;
 static const size_t REMOTE_DATA_SIZE = 2 + 2 * 48 + 2 + 2 + 2 * 48 + 2;
+
+USE_SPACE_MSB_CODEC(codec)
 
 uint8_t MideaData::calc_cs_() const {
   uint8_t cs = 0;
@@ -33,21 +36,18 @@ void MideaProtocol::encode(RemoteTransmitData *dst, const MideaData &src) {
   dst->reserve(REMOTE_DATA_SIZE);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
   for (unsigned idx = 0; idx < 6; idx++)
-    msb::encode<8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, src[idx]);
+    codec::encode(dst, src[idx]);
   dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
   for (unsigned idx = 0; idx < 6; idx++)
-    msb::encode<8, BIT_MARK_US, BIT_ZERO_SPACE_US, BIT_ONE_SPACE_US>(dst, src[idx]);
+    codec::inv::encode(dst, src[idx]);
   dst->mark(FOOTER_MARK_US);
 }
 
 static bool decode_data(RemoteReceiveData &src, MideaData &dst) {
-  for (unsigned idx = 0; idx < 6; idx++) {
-    uint8_t data = 0;
-    if (!msb::decode<8, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, data))
+  for (unsigned idx = 0; idx < 6; idx++)
+    if (codec::decode(src, dst[idx]) != 8)
       return false;
-    dst[idx] = data;
-  }
   return true;
 }
 

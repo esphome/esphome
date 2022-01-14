@@ -1,4 +1,5 @@
 #include "pioneer_protocol.h"
+#include "helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -12,6 +13,8 @@ static const uint32_t BIT_MARK_US = 560;
 static const uint32_t BIT_ONE_SPACE_US = 1690;
 static const uint32_t BIT_ZERO_SPACE_US = 560;
 static const uint32_t TRAILER_SPACE_US = 25500;
+
+USE_SPACE_MSB_CODEC(codec)
 
 void PioneerProtocol::encode(RemoteTransmitData *dst, const PioneerData &data) {
   uint32_t address1 = ((data.rc_code_1 & 0xff00) | (~(data.rc_code_1 >> 8) & 0xff));
@@ -46,15 +49,15 @@ void PioneerProtocol::encode(RemoteTransmitData *dst, const PioneerData &data) {
   dst->reserve(data.rc_code_2 ? ((68 * 2) + 1) : 68);
 
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  msb::encode<16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, address1);
-  msb::encode<16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, command1);
+  codec::encode(dst, address1, 16);
+  codec::encode(dst, command1, 16);
   dst->mark(BIT_MARK_US);
 
   if (data.rc_code_2 != 0) {
     dst->space(TRAILER_SPACE_US);
     dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-    msb::encode<16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, address2);
-    msb::encode<16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, command2);
+    codec::encode(dst, address2, 16);
+    codec::encode(dst, command2, 16);
     dst->mark(BIT_MARK_US);
   }
 }
@@ -70,10 +73,10 @@ optional<PioneerData> PioneerProtocol::decode(RemoteReceiveData src) {
   if (!src.expect_item(HEADER_MARK_US, HEADER_SPACE_US))
     return {};
 
-  if (!msb::decode<16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, address1))
+  if (codec::decode(src, address1) != 16)
     return {};
 
-  if (!msb::decode<16, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, command1))
+  if (codec::decode(src, command1) != 16)
     return {};
 
   if (!src.expect_mark(BIT_MARK_US))

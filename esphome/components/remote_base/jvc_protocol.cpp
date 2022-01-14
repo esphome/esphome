@@ -1,4 +1,5 @@
 #include "jvc_protocol.h"
+#include "helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -14,11 +15,13 @@ static const uint32_t BIT_ONE_SPACE_US = 1725;
 static const uint32_t BIT_ZERO_SPACE_US = 525;
 static const size_t REMOTE_DATA_SIZE = 2 + 2 * NBITS + 2;
 
+USE_SPACE_MSB_CODEC(codec)
+
 void JVCProtocol::encode(RemoteTransmitData *dst, const JVCData &data) {
   dst->set_carrier_frequency(38000);
   dst->reserve(REMOTE_DATA_SIZE);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  msb::encode<NBITS, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(dst, data.data);
+  codec::encode(dst, data.data, NBITS);
   dst->mark(BIT_MARK_US);
 }
 
@@ -27,7 +30,7 @@ optional<JVCData> JVCProtocol::decode(RemoteReceiveData src) {
       .data = 0,
   };
   if (src.has_size(REMOTE_DATA_SIZE) && src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) &&
-      msb::decode<NBITS, BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>(src, out.data) &&
+      codec::decode(src, out.data, NBITS) == NBITS &&
       src.expect_mark(BIT_MARK_US))
     return out;
   return {};
