@@ -247,6 +247,8 @@ sensor:
       name: 'PVVX Battery-Level'
     battery_voltage:
       name: 'PVVX Battery-Voltage'
+    reed_switch:
+      name: 'PVVX Reed-Switch'
   - platform: inkbird_ibsth1_mini
     mac_address: 38:81:D7:0A:9C:11
     temperature:
