@@ -27,16 +27,53 @@ struct FanStateRTCState {
 };
 
 void FanState::setup() {
-  this->rtc_ = global_preferences->make_preference<FanStateRTCState>(this->get_object_id_hash());
-  FanStateRTCState recovered{};
-  if (!this->rtc_.load(&recovered))
-    return;
-
   auto call = this->make_call();
-  call.set_state(recovered.state);
-  call.set_speed(recovered.speed);
-  call.set_oscillating(recovered.oscillating);
-  call.set_direction(recovered.direction);
+  FanStateRTCState recovered{};
+
+  switch (this->restore_mode_) {
+    case FAN_RESTORE_DEFAULT_OFF:
+    case FAN_RESTORE_DEFAULT_ON:
+    case FAN_RESTORE_INVERTED_DEFAULT_OFF:
+    case FAN_RESTORE_INVERTED_DEFAULT_ON:
+      this->rtc_ = global_preferences->make_preference<FanStateRTCState>(this->get_object_id_hash());
+      if (!this->rtc_.load(&recovered)) {
+        if (this->restore_mode_ == FAN_RESTORE_DEFAULT_ON ||
+            this->restore_mode_ == FAN_RESTORE_INVERTED_DEFAULT_ON) {
+          call.set_state(true);
+        } else {
+          call.set_state(false);
+        }
+      } else {
+        if (this->restore_mode_ == FAN_RESTORE_INVERTED_DEFAULT_OFF ||
+            this->restore_mode_ == FAN_RESTORE_INVERTED_DEFAULT_ON) {
+          call.set_state(!recovered.state);
+        } else {
+          call.set_state(recovered.state);
+        }
+
+        call.set_speed(recovered.speed);
+        call.set_oscillating(recovered.oscillating);
+        call.set_direction(recovered.direction);
+      }
+      break;
+    case FAN_ALWAYS_OFF:
+    case FAN_ALWAYS_ON:
+      if (this->restore_mode_ == FAN_ALWAYS_OFF) {
+        call.set_state(false);
+      } else if (this->restore_mode_ == FAN_ALWAYS_ON) {
+        call.set_state(true);
+      }
+
+      this->rtc_ = global_preferences->make_preference<FanStateRTCState>(this->get_object_id_hash());
+      if (this->rtc_.load(&recovered)) {
+        call.set_speed(recovered.speed);
+        call.set_oscillating(recovered.oscillating);
+        call.set_direction(recovered.direction);
+      }
+
+      break;
+  }
+
   call.perform();
 }
 float FanState::get_setup_priority() const { return setup_priority::DATA - 1.0f; }
