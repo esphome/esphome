@@ -20,6 +20,14 @@
 #define ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
+// Various functions can be constexpr in C++14, but not in C++11 (because their body isn't just a return statement).
+// Define a substitute constexpr keyword for those functions, until we can drop C++11 support.
+#if __cplusplus >= 201402L
+#define constexpr14 constexpr
+#else
+#define constexpr14 inline  // constexpr implies inline
+#endif
+
 namespace esphome {
 
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
@@ -78,25 +86,6 @@ template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...
 }
 #endif
 
-/// Return a random 32 bit unsigned integer.
-uint32_t random_uint32();
-
-/** Returns a random double between 0 and 1.
- *
- * Note: This function probably doesn't provide a truly uniform distribution.
- */
-double random_double();
-
-/// Returns a random float between 0 and 1. Essentially just casts random_double() to a float.
-float random_float();
-
-void fill_random(uint8_t *data, size_t len);
-
-void fast_random_set_seed(uint32_t seed);
-uint32_t fast_random_32();
-uint16_t fast_random_16();
-uint8_t fast_random_8();
-
 /// Applies gamma correction with the provided gamma to value.
 float gamma_correct(float value, float gamma);
 /// Reverts gamma correction with the provided gamma to value.
@@ -109,6 +98,11 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
 /// Convert hue (0-360) & saturation/value percentage (0-1) to RGB floats (0-1)
 void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green, float &blue);
+
+/// Convert degrees Celsius to degrees Fahrenheit.
+static inline float celsius_to_fahrenheit(float value) { return value * 1.8f + 32.0f; }
+/// Convert degrees Fahrenheit to degrees Celsius.
+static inline float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.8f; }
 
 /***
  * An interrupt helper class.
@@ -184,17 +178,6 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
 
  protected:
   std::vector<std::function<void(Ts...)>> callbacks_;
-};
-
-// https://stackoverflow.com/a/37161919/8924614
-template<class T, class... Args>
-struct is_callable  // NOLINT
-{
-  template<class U> static auto test(U *p) -> decltype((*p)(std::declval<Args>()...), void(), std::true_type());
-
-  template<class U> static auto test(...) -> decltype(std::false_type());
-
-  static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
 };
 
 void delay_microseconds_safe(uint32_t us);
@@ -274,6 +257,18 @@ template<typename T> constexpr const T &clamp(const T &v, const T &lo, const T &
 }
 #endif
 
+// std::is_invocable from C++17
+#if __cpp_lib_is_invocable >= 201703
+using std::is_invocable;
+#else
+// https://stackoverflow.com/a/37161919/8924614
+template<class T, class... Args> struct is_invocable {  // NOLINT(readability-identifier-naming)
+  template<class U> static auto test(U *p) -> decltype((*p)(std::declval<Args>()...), void(), std::true_type());
+  template<class U> static auto test(...) -> decltype(std::false_type());
+  static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
+};
+#endif
+
 // std::bit_cast from C++20
 #if __cpp_lib_bit_cast >= 201806
 using std::bit_cast;
@@ -290,11 +285,33 @@ To bit_cast(const From &src) {
 }
 #endif
 
-// std::byteswap is from C++23 and technically should be a template, but this will do for now.
-constexpr uint8_t byteswap(uint8_t n) { return n; }
-constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
-constexpr uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
-constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+// std::byteswap from C++23
+template<typename T> constexpr14 T byteswap(T n) {
+  T m;
+  for (size_t i = 0; i < sizeof(T); i++)
+    reinterpret_cast<uint8_t *>(&m)[i] = reinterpret_cast<uint8_t *>(&n)[sizeof(T) - 1 - i];
+  return m;
+}
+template<> constexpr14 uint8_t byteswap(uint8_t n) { return n; }
+template<> constexpr14 uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
+template<> constexpr14 uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
+template<> constexpr14 uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+template<> constexpr14 int8_t byteswap(int8_t n) { return n; }
+template<> constexpr14 int16_t byteswap(int16_t n) { return __builtin_bswap16(n); }
+template<> constexpr14 int32_t byteswap(int32_t n) { return __builtin_bswap32(n); }
+template<> constexpr14 int64_t byteswap(int64_t n) { return __builtin_bswap64(n); }
+
+///@}
+
+/// @name Mathematics
+///@{
+
+/// Return a random 32-bit unsigned integer.
+uint32_t random_uint32();
+/// Return a random float between 0 and 1.
+float random_float();
+/// Generate \p len number of random bytes.
+void random_bytes(uint8_t *data, size_t len);
 
 ///@}
 
@@ -312,7 +329,8 @@ constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, ui
 }
 
 /// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> inline T encode_value(const uint8_t *bytes) {
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+constexpr14 T encode_value(const uint8_t *bytes) {
   T val = 0;
   for (size_t i = 0; i < sizeof(T); i++) {
     val <<= 8;
@@ -322,12 +340,12 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> inline T 
 }
 /// Encode a value from its constituent bytes (from most to least significant) in an std::array with length sizeof(T).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-inline T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
+constexpr14 T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
   return encode_value<T>(bytes.data());
 }
 /// Decode a value into its constituent bytes (from most to least significant).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-inline std::array<uint8_t, sizeof(T)> decode_value(T val) {
+constexpr14 std::array<uint8_t, sizeof(T)> decode_value(T val) {
   std::array<uint8_t, sizeof(T)> ret{};
   for (size_t i = sizeof(T); i > 0; i--) {
     ret[i - 1] = val & 0xFF;
@@ -354,11 +372,20 @@ inline uint32_t reverse_bits(uint32_t x) {
 }
 
 /// Convert a value between host byte order and big endian (most significant byte first) order.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr T convert_big_endian(T val) {
+template<typename T> constexpr14 T convert_big_endian(T val) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   return byteswap(val);
 #else
   return val;
+#endif
+}
+
+/// Convert a value between host byte order and little endian (least significant byte first) order.
+template<typename T> constexpr14 T convert_little_endian(T val) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  return val;
+#else
+  return byteswap(val);
 #endif
 }
 
@@ -490,7 +517,7 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
 /// Format the byte array \p data of length \p len in lowercased hex.
 std::string format_hex(const uint8_t *data, size_t length);
 /// Format the vector \p data in lowercased hex.
-std::string format_hex(std::vector<uint8_t> data);
+std::string format_hex(const std::vector<uint8_t> &data);
 /// Format an unsigned integer in lowercased hex, starting with the most significant byte.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
   val = convert_big_endian(val);
@@ -500,7 +527,7 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::stri
 /// Format the byte array \p data of length \p len in pretty-printed, human-readable hex.
 std::string format_hex_pretty(const uint8_t *data, size_t length);
 /// Format the vector \p data in pretty-printed, human-readable hex.
-std::string format_hex_pretty(std::vector<uint8_t> data);
+std::string format_hex_pretty(const std::vector<uint8_t> &data);
 /// Format an unsigned integer in pretty-printed, human-readable hex, starting with the most significant byte.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex_pretty(T val) {
   val = convert_big_endian(val);
@@ -513,7 +540,7 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::stri
 ///@{
 
 /// Remap a number from one range to another.
-template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
+template<typename T, typename U> constexpr T remap(U value, U min, U max, T min_out, T max_out) {
   return (value - min) * (max_out - min_out) / (max - min) + min_out;
 }
 

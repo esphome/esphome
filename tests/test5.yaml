@@ -72,6 +72,9 @@ output:
     channel: 0
     max_power: 0.8
 
+  - platform: mcp47a1
+    id: output_mcp47a1
+
 demo:
 
 esp32_ble:
