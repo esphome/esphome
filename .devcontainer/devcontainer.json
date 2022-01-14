@@ -13,10 +13,10 @@
   "extensions": [
   "ms-python.python",
   "visualstudioexptteam.vscodeintellicode",
-	"redhat.vscode-yaml",
-	"ms-vscode.cpptools",
-	"editorconfig.editorconfig",
-	"xaver.clang-format"
+  "redhat.vscode-yaml",
+  "ms-vscode.cpptools",
+  "editorconfig.editorconfig",
+  "xaver.clang-format"
 ],
   "settings": {
     "python.languageServer": "Pylance",
