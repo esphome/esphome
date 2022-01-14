@@ -1355,3 +1355,20 @@ cd74hc4067:
   pin_s1: GPIO13
   pin_s2: GPIO14
   pin_s3: GPIO15
+
+hdmi_cec:
+  address: 0x05
+  promiscuous_mode: false
+  physical_address: 0x4000
+  pin: 4
+  on_message:
+    - opcode: 0xC3
+      source: 0x00
+      destination: 0x05
+      then:
+        - hdmi_cec.send:
+            destination: 0x0
+            data: [ 0xC1 ]
+    - data: [0x44, 0x41]
+      then:
+        - logger.log: "Volume up"
