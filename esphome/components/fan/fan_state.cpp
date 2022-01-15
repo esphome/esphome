@@ -37,8 +37,7 @@ void FanState::setup() {
     case FAN_RESTORE_INVERTED_DEFAULT_ON:
       this->rtc_ = global_preferences->make_preference<FanStateRTCState>(this->get_object_id_hash());
       if (!this->rtc_.load(&recovered)) {
-        if (this->restore_mode_ == FAN_RESTORE_DEFAULT_ON ||
-            this->restore_mode_ == FAN_RESTORE_INVERTED_DEFAULT_ON) {
+        if (this->restore_mode_ == FAN_RESTORE_DEFAULT_ON || this->restore_mode_ == FAN_RESTORE_INVERTED_DEFAULT_ON) {
           call.set_state(true);
         } else {
           call.set_state(false);
