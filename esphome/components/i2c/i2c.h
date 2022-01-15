@@ -43,7 +43,7 @@ class I2CDevice {
   void set_i2c_address(uint8_t address) { address_ = address; }
   void set_i2c_bus(I2CBus *bus) { bus_ = bus; }
 
-  I2CRegister<> reg(uint8_t a_register) { return {this, a_register}; }
+  I2CRegister<uint8_t, uint8_t> reg(uint8_t a_register) { return {this, a_register}; }
 
   template<typename TRegisterValue = uint8_t, typename TRegisterAddress = uint8_t>
   I2CRegister<TRegisterAddress, TRegisterValue> reg(TRegisterAddress a_register) {
