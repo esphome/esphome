@@ -1,10 +1,14 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+
+#ifdef USE_MQTT
+
+#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/log.h"
 #include "esphome/components/json/json_util.h"
+#include "esphome/components/network/ip_address.h"
 #include <AsyncMqttClient.h>
 #include "lwip/ip_addr.h"
 
@@ -16,7 +20,7 @@ namespace mqtt {
  * First parameter is the topic, the second one is the payload.
  */
 using mqtt_callback_t = std::function<void(const std::string &, const std::string &)>;
-using mqtt_json_callback_t = std::function<void(const std::string &, JsonObject &)>;
+using mqtt_json_callback_t = std::function<void(const std::string &, JsonObject)>;
 
 /// internal struct for MQTT messages.
 struct MQTTMessage {
@@ -51,6 +55,12 @@ struct Availability {
   std::string payload_not_available;
 };
 
+/// available discovery unique_id generators
+enum MQTTDiscoveryUniqueIdGenerator {
+  MQTT_LEGACY_UNIQUE_ID_GENERATOR = 0,
+  MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR,
+};
+
 /** Internal struct for MQTT Home Assistant discovery
  *
  * See <a href="https://www.home-assistant.io/docs/mqtt/discovery/">MQTT Discovery</a>.
@@ -59,6 +69,7 @@ struct MQTTDiscoveryInfo {
   std::string prefix;  ///< The Home Assistant discovery prefix. Empty means disabled.
   bool retain;         ///< Whether to retain discovery messages.
   bool clean;
+  MQTTDiscoveryUniqueIdGenerator unique_id_generator;
 };
 
 enum MQTTClientState {
@@ -94,9 +105,11 @@ class MQTTClientComponent : public Component {
    *
    * See <a href="https://www.home-assistant.io/docs/mqtt/discovery/">MQTT Discovery</a>.
    * @param prefix The Home Assistant discovery prefix.
+   * @param unique_id_generator Controls how UniqueId is generated.
    * @param retain Whether to retain discovery messages.
    */
-  void set_discovery_info(std::string &&prefix, bool retain, bool clean = false);
+  void set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator, bool retain,
+                          bool clean = false);
   /// Get Home Assistant discovery info.
   const MQTTDiscoveryInfo &get_discovery_info() const;
   /// Globally disable Home Assistant discovery.
@@ -157,7 +170,16 @@ class MQTTClientComponent : public Component {
    * received.
    * @param qos The QoS of this subscription.
    */
-  void subscribe_json(const std::string &topic, mqtt_json_callback_t callback, uint8_t qos = 0);
+  void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
+
+  /** Unsubscribe from an MQTT topic.
+   *
+   * If multiple existing subscriptions to the same topic exist, all of them will be removed.
+   *
+   * @param topic The topic to unsubscribe from.
+   * Must match the topic in the original subscribe or subscribe_json call exactly.
+   */
+  void unsubscribe(const std::string &topic);
 
   /** Publish a MQTTMessage
    *
@@ -217,7 +239,7 @@ class MQTTClientComponent : public Component {
   void start_connect_();
   void start_dnslookup_();
   void check_dnslookup_();
-#if defined(ARDUINO_ARCH_ESP8266) && LWIP_VERSION_MAJOR == 1
+#if defined(USE_ESP8266) && LWIP_VERSION_MAJOR == 1
   static void dns_found_callback(const char *name, ip_addr_t *ipaddr, void *callback_arg);
 #else
   static void dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
@@ -250,12 +272,13 @@ class MQTTClientComponent : public Component {
   };
   std::string topic_prefix_{};
   MQTTMessage log_message_;
+  std::string payload_buffer_;
   int log_level_{ESPHOME_LOG_LEVEL};
 
   std::vector<MQTTSubscription> subscriptions_;
   AsyncMqttClient mqtt_client_;
   MQTTClientState state_{MQTT_CLIENT_DISCONNECTED};
-  IPAddress ip_;
+  network::IPAddress ip_;
   bool dns_resolved_{false};
   bool dns_resolve_error_{false};
   std::vector<MQTTComponent *> children_;
@@ -265,11 +288,11 @@ class MQTTClientComponent : public Component {
   optional<AsyncMqttClientDisconnectReason> disconnect_reason_{};
 };
 
-extern MQTTClientComponent *global_mqtt_client;
+extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 class MQTTMessageTrigger : public Trigger<std::string>, public Component {
  public:
-  explicit MQTTMessageTrigger(const std::string &topic);
+  explicit MQTTMessageTrigger(std::string topic);
 
   void set_qos(uint8_t qos);
   void set_payload(const std::string &payload);
@@ -283,11 +306,11 @@ class MQTTMessageTrigger : public Trigger<std::string>, public Component {
   optional<std::string> payload_;
 };
 
-class MQTTJsonMessageTrigger : public Trigger<const JsonObject &> {
+class MQTTJsonMessageTrigger : public Trigger<JsonObjectConst> {
  public:
   explicit MQTTJsonMessageTrigger(const std::string &topic, uint8_t qos) {
     global_mqtt_client->subscribe_json(
-        topic, [this](const std::string &topic, JsonObject &root) { this->trigger(root); }, qos);
+        topic, [this](const std::string &topic, JsonObject root) { this->trigger(root); }, qos);
   }
 };
 
@@ -315,7 +338,7 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint8_t, qos)
   TEMPLATABLE_VALUE(bool, retain)
 
-  void set_payload(std::function<void(Ts..., JsonObject &)> payload) { this->payload_ = payload; }
+  void set_payload(std::function<void(Ts..., JsonObject)> payload) { this->payload_ = payload; }
 
   void play(Ts... x) override {
     auto f = std::bind(&MQTTPublishJsonAction<Ts...>::encode_, this, x..., std::placeholders::_1);
@@ -326,8 +349,8 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
   }
 
  protected:
-  void encode_(Ts... x, JsonObject &root) { this->payload_(x..., root); }
-  std::function<void(Ts..., JsonObject &)> payload_;
+  void encode_(Ts... x, JsonObject root) { this->payload_(x..., root); }
+  std::function<void(Ts..., JsonObject)> payload_;
   MQTTClientComponent *parent_;
 };
 
@@ -342,3 +365,5 @@ template<typename... Ts> class MQTTConnectedCondition : public Condition<Ts...> 
 
 }  // namespace mqtt
 }  // namespace esphome
+
+#endif  // USE_MQTT

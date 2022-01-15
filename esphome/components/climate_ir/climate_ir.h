@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/components/remote_transmitter/remote_transmitter.h"
@@ -19,16 +21,16 @@ namespace climate_ir {
 class ClimateIR : public climate::Climate, public Component, public remote_base::RemoteReceiverListener {
  public:
   ClimateIR(float minimum_temperature, float maximum_temperature, float temperature_step = 1.0f,
-            bool supports_dry = false, bool supports_fan_only = false,
-            std::vector<climate::ClimateFanMode> fan_modes = {},
-            std::vector<climate::ClimateSwingMode> swing_modes = {}) {
+            bool supports_dry = false, bool supports_fan_only = false, std::set<climate::ClimateFanMode> fan_modes = {},
+            std::set<climate::ClimateSwingMode> swing_modes = {}, std::set<climate::ClimatePreset> presets = {}) {
     this->minimum_temperature_ = minimum_temperature;
     this->maximum_temperature_ = maximum_temperature;
     this->temperature_step_ = temperature_step;
     this->supports_dry_ = supports_dry;
     this->supports_fan_only_ = supports_fan_only;
-    this->fan_modes_ = fan_modes;
-    this->swing_modes_ = swing_modes;
+    this->fan_modes_ = std::move(fan_modes);
+    this->swing_modes_ = std::move(swing_modes);
+    this->presets_ = std::move(presets);
   }
 
   void setup() override;
@@ -58,8 +60,9 @@ class ClimateIR : public climate::Climate, public Component, public remote_base:
   bool supports_heat_{true};
   bool supports_dry_{false};
   bool supports_fan_only_{false};
-  std::vector<climate::ClimateFanMode> fan_modes_ = {};
-  std::vector<climate::ClimateSwingMode> swing_modes_ = {};
+  std::set<climate::ClimateFanMode> fan_modes_ = {};
+  std::set<climate::ClimateSwingMode> swing_modes_ = {};
+  std::set<climate::ClimatePreset> presets_ = {};
 
   remote_transmitter::RemoteTransmitterComponent *transmitter_;
   sensor::Sensor *sensor_{nullptr};

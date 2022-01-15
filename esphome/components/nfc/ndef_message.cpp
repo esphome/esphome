@@ -3,22 +3,19 @@
 namespace esphome {
 namespace nfc {
 
-static const char *TAG = "nfc.ndef_message";
+static const char *const TAG = "nfc.ndef_message";
 
 NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "Building NdefMessage with %zu bytes", data.size());
   uint8_t index = 0;
   while (index <= data.size()) {
     uint8_t tnf_byte = data[index++];
-    bool me = tnf_byte & 0x40;
-    bool sr = tnf_byte & 0x10;
-    bool il = tnf_byte & 0x08;
-    uint8_t tnf = tnf_byte & 0x07;
+    bool me = tnf_byte & 0x40;      // Message End bit (is set if this is the last record of the message)
+    bool sr = tnf_byte & 0x10;      // Short record bit (is set if payload size is less or equal to 255 bytes)
+    bool il = tnf_byte & 0x08;      // ID length bit (is set if ID Length field exists)
+    uint8_t tnf = tnf_byte & 0x07;  // Type Name Format
 
     ESP_LOGVV(TAG, "me=%s, sr=%s, il=%s, tnf=%d", YESNO(me), YESNO(sr), YESNO(il), tnf);
-
-    auto record = new NdefRecord();
-    record->set_tnf(tnf);
 
     uint8_t type_length = data[index++];
     uint32_t payload_length = 0;
@@ -38,64 +35,65 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
     ESP_LOGVV(TAG, "Lengths: type=%d, payload=%d, id=%d", type_length, payload_length, id_length);
 
     std::string type_str(data.begin() + index, data.begin() + index + type_length);
-    record->set_type(type_str);
+
     index += type_length;
 
+    std::string id_str = "";
     if (il) {
-      std::string id_str(data.begin() + index, data.begin() + index + id_length);
-      record->set_id(id_str);
+      id_str = std::string(data.begin() + index, data.begin() + index + id_length);
       index += id_length;
     }
 
-    uint8_t payload_identifier = 0x00;
-    if (type_str == "U") {
-      payload_identifier = data[index++];
-      payload_length -= 1;
+    std::vector<uint8_t> payload_data(data.begin() + index, data.begin() + index + payload_length);
+
+    std::unique_ptr<NdefRecord> record;
+
+    // Based on tnf and type, create a more specific NdefRecord object
+    // constructed from the payload data
+    if (tnf == TNF_WELL_KNOWN && type_str == "U") {
+      record = make_unique<NdefRecordUri>(payload_data);
+    } else if (tnf == TNF_WELL_KNOWN && type_str == "T") {
+      record = make_unique<NdefRecordText>(payload_data);
+    } else {
+      // Could not recognize the record, so store as generic one.
+      record = make_unique<NdefRecord>(payload_data);
+      record->set_tnf(tnf);
+      record->set_type(type_str);
     }
 
-    std::string payload_str(data.begin() + index, data.begin() + index + payload_length);
+    record->set_id(id_str);
 
-    if (payload_identifier > 0x00 && payload_identifier <= PAYLOAD_IDENTIFIERS_COUNT) {
-      payload_str.insert(0, PAYLOAD_IDENTIFIERS[payload_identifier]);
-    }
-
-    record->set_payload(payload_str);
     index += payload_length;
 
-    this->add_record(record);
     ESP_LOGV(TAG, "Adding record type %s = %s", record->get_type().c_str(), record->get_payload().c_str());
+    this->add_record(std::move(record));
 
     if (me)
       break;
   }
 }
 
-bool NdefMessage::add_record(NdefRecord *record) {
+bool NdefMessage::add_record(std::unique_ptr<NdefRecord> record) {
   if (this->records_.size() >= MAX_NDEF_RECORDS) {
     ESP_LOGE(TAG, "Too many records. Max: %d", MAX_NDEF_RECORDS);
     return false;
   }
-  this->records_.push_back(record);
+  this->records_.emplace_back(std::move(record));
   return true;
 }
 
 bool NdefMessage::add_text_record(const std::string &text) { return this->add_text_record(text, "en"); };
 
 bool NdefMessage::add_text_record(const std::string &text, const std::string &encoding) {
-  std::string payload = to_string(text.length()) + encoding + text;
-  auto r = new NdefRecord(TNF_WELL_KNOWN, "T", payload);
-  return this->add_record(r);
+  return this->add_record(make_unique<NdefRecordText>(encoding, text));
 }
 
-bool NdefMessage::add_uri_record(const std::string &uri) {
-  auto r = new NdefRecord(TNF_WELL_KNOWN, "U", uri);
-  return this->add_record(r);
-}
+bool NdefMessage::add_uri_record(const std::string &uri) { return this->add_record(make_unique<NdefRecordUri>(uri)); }
 
 std::vector<uint8_t> NdefMessage::encode() {
   std::vector<uint8_t> data;
 
-  for (uint8_t i = 0; i < this->records_.size(); i++) {
+  for (size_t i = 0; i < this->records_.size(); i++) {
     auto encoded_record = this->records_[i]->encode(i == 0, (i + 1) == this->records_.size());
     data.insert(data.end(), encoded_record.begin(), encoded_record.end());
   }

@@ -1,178 +1,166 @@
-# THESE JOBS ARE COPIED IN release.yml and release-dev.yml
-# PLEASE ALSO UPDATE THOSE FILES WHEN CHANGING LINES HERE
 name: CI
 
 on:
   push:
-    # On dev branch release-dev already performs CI checks
-    # On other branches the `pull_request` trigger will be used
-    branches: [beta, master]
+    branches: [dev, beta, release]
 
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  lint-clang-format:
+  ci:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
-    # cpp lint job runs with esphome-lint docker image so that clang-format-*
-    # doesn't have to be installed
-    container: esphome/esphome-lint:latest
-    steps:
-      - uses: actions/checkout@v2
-      # Cache platformio intermediary files (like libraries etc)
-      # Note: platformio platform versions should be cached via the esphome-lint image
-      - name: Cache Platformio
-        uses: actions/cache@v1
-        with:
-          path: .pio
-          key: lint-cpp-pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            lint-cpp-pio-
-      # Set up the pio project so that the cpp checks know how files are compiled
-      # (build flags, libraries etc)
-      - name: Set up platformio environment
-        run: pio init --ide atom
-
-      - name: Run clang-format
-        run: script/clang-format -i
-      - name: Suggest changes
-        run: script/ci-suggest-changes
-
-  lint-clang-tidy:
-    runs-on: ubuntu-latest
-    # cpp lint job runs with esphome-lint docker image so that clang-format-*
-    # doesn't have to be installed
-    container: esphome/esphome-lint:latest
-    # Split clang-tidy check into 4 jobs. Each one will check 1/4th of the .cpp files
     strategy:
       fail-fast: false
       matrix:
-        split: [1, 2, 3, 4]
-    steps:
-      - uses: actions/checkout@v2
-      # Cache platformio intermediary files (like libraries etc)
-      # Note: platformio platform versions should be cached via the esphome-lint image
-      - name: Cache Platformio
-        uses: actions/cache@v1
-        with:
-          path: .pio
-          key: lint-cpp-pio-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            lint-cpp-pio-
-      # Set up the pio project so that the cpp checks know how files are compiled
-      # (build flags, libraries etc)
-      - name: Set up platformio environment
-        run: pio init --ide atom
+        include:
+          - id: ci-custom
+            name: Run script/ci-custom
+          - id: lint-python
+            name: Run script/lint-python
+          - id: test
+            file: tests/test1.yaml
+            name: Test tests/test1.yaml
+            pio_cache_key: test1
+          - id: test
+            file: tests/test2.yaml
+            name: Test tests/test2.yaml
+            pio_cache_key: test2
+          - id: test
+            file: tests/test3.yaml
+            name: Test tests/test3.yaml
+            pio_cache_key: test3
+          - id: test
+            file: tests/test4.yaml
+            name: Test tests/test4.yaml
+            pio_cache_key: test4
+          - id: test
+            file: tests/test5.yaml
+            name: Test tests/test5.yaml
+            pio_cache_key: test5
+          - id: pytest
+            name: Run pytest
+          - id: clang-format
+            name: Run script/clang-format
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP8266
+            options: --environment esp8266-arduino-tidy --grep USE_ESP8266
+            pio_cache_key: tidyesp8266
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 1/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 1
+            pio_cache_key: tidyesp32
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 2/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 2
+            pio_cache_key: tidyesp32
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 3/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 3
+            pio_cache_key: tidyesp32
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 Arduino 4/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 4
+            pio_cache_key: tidyesp32
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 IDF
+            options: --environment esp32-idf-tidy --grep USE_ESP_IDF
+            pio_cache_key: tidyesp32-idf
 
-
-      - name: Register problem matchers
-        run: |
-          echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
-          echo "::add-matcher::.github/workflows/matchers/gcc.json"
-      - name: Run clang-tidy
-        run: script/clang-tidy --all-headers --fix --split-num 4 --split-at ${{ matrix.split }}
-      - name: Suggest changes
-        run: script/ci-suggest-changes
-
-  lint-python:
-    # Don't use the esphome-lint docker image because it may contain outdated requirements.
-    # This way, all dependencies are cached via the cache action.
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python
         uses: actions/setup-python@v2
+        id: python
         with:
           python-version: '3.7'
-      - name: Cache pip modules
-        uses: actions/cache@v1
+
+      - name: Cache virtualenv
+        uses: actions/cache@v2
         with:
-          path: ~/.cache/pip
-          key: esphome-pip-3.7-${{ hashFiles('setup.py') }}
+          path: .venv
+          key: venv-${{ steps.python.outputs.python-version }}-${{ hashFiles('requirements*.txt') }}
           restore-keys: |
-            esphome-pip-3.7-
-      - name: Set up python environment
-        run: script/setup
+            venv-${{ steps.python.outputs.python-version }}-
+
+      - name: Set up virtualenv
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -U pip
+          pip install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
+          pip install -e .
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
+          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> $GITHUB_ENV
+
+      # Use per check platformio cache because checks use different parts
+      - name: Cache platformio
+        uses: actions/cache@v2
+        with:
+          path: ~/.platformio
+          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
+        if: matrix.id == 'test' || matrix.id == 'clang-tidy'
+
+      - name: Install clang tools
+        run: |
+          sudo apt-get install \
+              clang-format-11 \
+              clang-tidy-11
+        if: matrix.id == 'clang-tidy' || matrix.id == 'clang-format'
 
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/ci-custom.json"
           echo "::add-matcher::.github/workflows/matchers/lint-python.json"
           echo "::add-matcher::.github/workflows/matchers/python.json"
+          echo "::add-matcher::.github/workflows/matchers/pytest.json"
+          echo "::add-matcher::.github/workflows/matchers/gcc.json"
+          echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+
       - name: Lint Custom
-        run: script/ci-custom.py
+        run: |
+          script/ci-custom.py
+          script/build_codeowners.py --check
+        if: matrix.id == 'ci-custom'
+
       - name: Lint Python
         run: script/lint-python
-      - name: Lint CODEOWNERS
-        run: script/build_codeowners.py --check
+        if: matrix.id == 'lint-python'
 
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-          test:
-          - test1
-          - test2
-          - test3
-          - test4
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.7'
-      - name: Cache pip modules
-        uses: actions/cache@v1
-        with:
-          path: ~/.cache/pip
-          key: esphome-pip-3.7-${{ hashFiles('setup.py') }}
-          restore-keys: |
-            esphome-pip-3.7-
-      # Use per test platformio cache because tests have different platform versions
-      - name: Cache ~/.platformio
-        uses: actions/cache@v1
-        with:
-          path: ~/.platformio
-          key: test-home-platformio-${{ matrix.test }}-${{ hashFiles('esphome/core_config.py') }}
-          restore-keys: |
-            test-home-platformio-${{ matrix.test }}-
-      - name: Set up environment
-        run: script/setup
+      - run: esphome compile ${{ matrix.file }}
+        if: matrix.id == 'test'
+        env:
+          # Also cache libdeps, store them in a ~/.platformio subfolder
+          PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
 
-
-      - name: Register problem matchers
-        run: |
-          echo "::add-matcher::.github/workflows/matchers/gcc.json"
-          echo "::add-matcher::.github/workflows/matchers/python.json"
-      - run: esphome tests/${{ matrix.test }}.yaml compile
-
-  pytest:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.7'
-      - name: Cache pip modules
-        uses: actions/cache@v1
-        with:
-          path: ~/.cache/pip
-          key: esphome-pip-3.7-${{ hashFiles('setup.py') }}
-          restore-keys: |
-            esphome-pip-3.7-
-      - name: Set up environment
-        run: script/setup
-      - name: Install Github Actions annotator
-        run: pip install pytest-github-actions-annotate-failures
-
-      - name: Register problem matchers
-        run: |
-          echo "::add-matcher::.github/workflows/matchers/python.json"
       - name: Run pytest
         run: |
-          pytest \
-            -qq \
-            --durations=10 \
-            -o console_output_style=count \
-            tests
+          pytest -vv --tb=native tests
+        if: matrix.id == 'pytest'
+
+      # Also run git-diff-index so that the step is marked as failed on formatting errors,
+      # since clang-format doesn't do anything but change files if -i is passed.
+      - name: Run clang-format
+        run: |
+          script/clang-format -i
+          git diff-index --quiet HEAD --
+        if: matrix.id == 'clang-format'
+
+      - name: Run clang-tidy
+        run: |
+          script/clang-tidy --all-headers --fix ${{ matrix.options }}
+        if: matrix.id == 'clang-tidy'
+        env:
+          # Also cache libdeps, store them in a ~/.platformio subfolder
+          PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
+
+      - name: Suggested changes
+        run: script/ci-suggest-changes
+        if: always() && (matrix.id == 'clang-tidy' || matrix.id == 'clang-format')

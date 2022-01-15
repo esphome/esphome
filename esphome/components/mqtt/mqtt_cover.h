@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #include "mqtt_component.h"
 
+#ifdef USE_MQTT
 #ifdef USE_COVER
 
 #include "esphome/components/cover/cover.h"
@@ -15,7 +16,7 @@ class MQTTCoverComponent : public mqtt::MQTTComponent {
   explicit MQTTCoverComponent(cover::Cover *cover);
 
   void setup() override;
-  void send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) override;
+  void send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) override;
 
   MQTT_COMPONENT_CUSTOM_TOPIC(position, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(position, state)
@@ -23,7 +24,6 @@ class MQTTCoverComponent : public mqtt::MQTTComponent {
   MQTT_COMPONENT_CUSTOM_TOPIC(tilt, state)
 
   bool send_initial_state() override;
-  bool is_internal() override;
 
   bool publish_state();
 
@@ -31,7 +31,7 @@ class MQTTCoverComponent : public mqtt::MQTTComponent {
 
  protected:
   std::string component_type() const override;
-  std::string friendly_name() const override;
+  const EntityBase *get_entity() const override;
 
   cover::Cover *cover_;
 };
@@ -40,3 +40,4 @@ class MQTTCoverComponent : public mqtt::MQTTComponent {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

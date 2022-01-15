@@ -4,9 +4,10 @@
 namespace esphome {
 namespace pzemac {
 
-static const char *TAG = "pzemac";
+static const char *const TAG = "pzemac";
 
 static const uint8_t PZEM_CMD_READ_IN_REGISTERS = 0x04;
+static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
 static const uint8_t PZEM_REGISTER_COUNT = 10;  // 10x 16-bit registers
 
 void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
@@ -71,6 +72,13 @@ void PZEMAC::dump_config() {
   LOG_SENSOR("", "Energy", this->energy_sensor_);
   LOG_SENSOR("", "Frequency", this->frequency_sensor_);
   LOG_SENSOR("", "Power Factor", this->power_factor_sensor_);
+}
+
+void PZEMAC::reset_energy_() {
+  std::vector<uint8_t> cmd;
+  cmd.push_back(this->address_);
+  cmd.push_back(PZEM_CMD_RESET_ENERGY);
+  this->send_raw(cmd);
 }
 
 }  // namespace pzemac

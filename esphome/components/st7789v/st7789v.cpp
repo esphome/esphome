@@ -4,7 +4,7 @@
 namespace esphome {
 namespace st7789v {
 
-static const char *TAG = "st7789v";
+static const char *const TAG = "st7789v";
 
 void ST7789V::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SPI ST7789V...");
@@ -197,26 +197,26 @@ void ST7789V::write_data_(uint8_t value) {
 }
 
 void ST7789V::write_addr_(uint16_t addr1, uint16_t addr2) {
-  static uint8_t BYTE[4];
-  BYTE[0] = (addr1 >> 8) & 0xFF;
-  BYTE[1] = addr1 & 0xFF;
-  BYTE[2] = (addr2 >> 8) & 0xFF;
-  BYTE[3] = addr2 & 0xFF;
+  static uint8_t byte[4];
+  byte[0] = (addr1 >> 8) & 0xFF;
+  byte[1] = addr1 & 0xFF;
+  byte[2] = (addr2 >> 8) & 0xFF;
+  byte[3] = addr2 & 0xFF;
 
   this->dc_pin_->digital_write(true);
-  this->write_array(BYTE, 4);
+  this->write_array(byte, 4);
 }
 
 void ST7789V::write_color_(uint16_t color, uint16_t size) {
-  static uint8_t BYTE[1024];
+  static uint8_t byte[1024];
   int index = 0;
   for (int i = 0; i < size; i++) {
-    BYTE[index++] = (color >> 8) & 0xFF;
-    BYTE[index++] = color & 0xFF;
+    byte[index++] = (color >> 8) & 0xFF;
+    byte[index++] = color & 0xFF;
   }
 
   this->dc_pin_->digital_write(true);
-  return write_array(BYTE, size * 2);
+  return write_array(byte, size * 2);
 }
 
 int ST7789V::get_height_internal() {
@@ -263,7 +263,7 @@ void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 
-  auto color565 = color.to_rgb_565();
+  auto color565 = display::ColorUtil::color_to_565(color);
 
   uint16_t pos = (x + y * this->get_width_internal()) * 2;
   this->buffer_[pos++] = (color565 >> 8) & 0xff;

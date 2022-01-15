@@ -4,7 +4,7 @@
 namespace esphome {
 namespace mcp2515 {
 
-static const char *TAG = "mcp2515";
+static const char *const TAG = "mcp2515";
 
 const struct MCP2515::TxBnRegs MCP2515::TXB[N_TXBUFFERS] = {{MCP_TXB0CTRL, MCP_TXB0SIDH, MCP_TXB0DATA},
                                                             {MCP_TXB1CTRL, MCP_TXB1SIDH, MCP_TXB1DATA},
@@ -113,7 +113,7 @@ uint8_t MCP2515::get_status_() {
 canbus::Error MCP2515::set_mode_(const CanctrlReqopMode mode) {
   modify_register_(MCP_CANCTRL, CANCTRL_REQOP, mode);
 
-  unsigned long end_time = millis() + 10;
+  uint32_t end_time = millis() + 10;
   bool mode_match = false;
   while (millis() < end_time) {
     uint8_t new_mode = read_register_(MCP_CANSTAT);
@@ -127,9 +127,6 @@ canbus::Error MCP2515::set_mode_(const CanctrlReqopMode mode) {
 }
 
 canbus::Error MCP2515::set_clk_out_(const CanClkOut divisor) {
-  canbus::Error res;
-  uint8_t cfg3;
-
   if (divisor == CLKOUT_DISABLE) {
     /* Turn off CLKEN */
     modify_register_(MCP_CANCTRL, CANCTRL_CLKEN, 0x00);
@@ -600,9 +597,9 @@ canbus::Error MCP2515::set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clo
   }
 
   if (set) {
-    set_register_(MCP_CNF1, cfg1);
-    set_register_(MCP_CNF2, cfg2);
-    set_register_(MCP_CNF3, cfg3);
+    set_register_(MCP_CNF1, cfg1);  // NOLINT
+    set_register_(MCP_CNF2, cfg2);  // NOLINT
+    set_register_(MCP_CNF3, cfg3);  // NOLINT
     return canbus::ERROR_OK;
   } else {
     return canbus::ERROR_FAIL;

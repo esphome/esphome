@@ -1,0 +1,177 @@
+from typing import Optional
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome import automation
+from esphome.components import mqtt
+from esphome.const import (
+    CONF_ABOVE,
+    CONF_BELOW,
+    CONF_ID,
+    CONF_MODE,
+    CONF_ON_VALUE,
+    CONF_ON_VALUE_RANGE,
+    CONF_TRIGGER_ID,
+    CONF_UNIT_OF_MEASUREMENT,
+    CONF_MQTT_ID,
+    CONF_VALUE,
+)
+from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_helpers import setup_entity
+
+CODEOWNERS = ["@esphome/core"]
+IS_PLATFORM_COMPONENT = True
+
+number_ns = cg.esphome_ns.namespace("number")
+Number = number_ns.class_("Number", cg.EntityBase)
+NumberPtr = Number.operator("ptr")
+
+# Triggers
+NumberStateTrigger = number_ns.class_(
+    "NumberStateTrigger", automation.Trigger.template(cg.float_)
+)
+ValueRangeTrigger = number_ns.class_(
+    "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
+)
+
+# Actions
+NumberSetAction = number_ns.class_("NumberSetAction", automation.Action)
+
+# Conditions
+NumberInRangeCondition = number_ns.class_(
+    "NumberInRangeCondition", automation.Condition
+)
+
+NumberMode = number_ns.enum("NumberMode")
+
+NUMBER_MODES = {
+    "AUTO": NumberMode.NUMBER_MODE_AUTO,
+    "BOX": NumberMode.NUMBER_MODE_BOX,
+    "SLIDER": NumberMode.NUMBER_MODE_SLIDER,
+}
+
+icon = cv.icon
+
+NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
+    {
+        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
+        cv.GenerateID(): cv.declare_id(Number),
+        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NumberStateTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
+                cv.Optional(CONF_ABOVE): cv.float_,
+                cv.Optional(CONF_BELOW): cv.float_,
+            },
+            cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+        ),
+        cv.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string_strict,
+        cv.Optional(CONF_MODE, default="AUTO"): cv.enum(NUMBER_MODES, upper=True),
+    }
+)
+
+
+async def setup_number_core_(
+    var, config, *, min_value: float, max_value: float, step: Optional[float]
+):
+    await setup_entity(var, config)
+
+    cg.add(var.traits.set_min_value(min_value))
+    cg.add(var.traits.set_max_value(max_value))
+    if step is not None:
+        cg.add(var.traits.set_step(step))
+
+    cg.add(var.traits.set_mode(config[CONF_MODE]))
+
+    for conf in config.get(CONF_ON_VALUE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(float, "x")], conf)
+    for conf in config.get(CONF_ON_VALUE_RANGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await cg.register_component(trigger, conf)
+        if CONF_ABOVE in conf:
+            template_ = await cg.templatable(conf[CONF_ABOVE], [(float, "x")], float)
+            cg.add(trigger.set_min(template_))
+        if CONF_BELOW in conf:
+            template_ = await cg.templatable(conf[CONF_BELOW], [(float, "x")], float)
+            cg.add(trigger.set_max(template_))
+        await automation.build_automation(trigger, [(float, "x")], conf)
+
+    if CONF_UNIT_OF_MEASUREMENT in config:
+        cg.add(var.traits.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
+    if CONF_MQTT_ID in config:
+        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+        await mqtt.register_mqtt_component(mqtt_, config)
+
+
+async def register_number(
+    var, config, *, min_value: float, max_value: float, step: Optional[float] = None
+):
+    if not CORE.has_id(config[CONF_ID]):
+        var = cg.Pvariable(config[CONF_ID], var)
+    cg.add(cg.App.register_number(var))
+    await setup_number_core_(
+        var, config, min_value=min_value, max_value=max_value, step=step
+    )
+
+
+async def new_number(
+    config, *, min_value: float, max_value: float, step: Optional[float] = None
+):
+    var = cg.new_Pvariable(config[CONF_ID])
+    await register_number(
+        var, config, min_value=min_value, max_value=max_value, step=step
+    )
+    return var
+
+
+NUMBER_IN_RANGE_CONDITION_SCHEMA = cv.All(
+    {
+        cv.Required(CONF_ID): cv.use_id(Number),
+        cv.Optional(CONF_ABOVE): cv.float_,
+        cv.Optional(CONF_BELOW): cv.float_,
+    },
+    cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+)
+
+
+@automation.register_condition(
+    "number.in_range", NumberInRangeCondition, NUMBER_IN_RANGE_CONDITION_SCHEMA
+)
+async def number_in_range_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(condition_id, template_arg, paren)
+
+    if CONF_ABOVE in config:
+        cg.add(var.set_min(config[CONF_ABOVE]))
+    if CONF_BELOW in config:
+        cg.add(var.set_max(config[CONF_BELOW]))
+
+    return var
+
+
+@coroutine_with_priority(40.0)
+async def to_code(config):
+    cg.add_define("USE_NUMBER")
+    cg.add_global(number_ns.using)
+
+
+@automation.register_action(
+    "number.set",
+    NumberSetAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(Number),
+            cv.Required(CONF_VALUE): cv.templatable(cv.float_),
+        }
+    ),
+)
+async def number_set_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_VALUE], args, float)
+    cg.add(var.set_value(template_))
+    return var

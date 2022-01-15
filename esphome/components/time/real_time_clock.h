@@ -1,11 +1,11 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/automation.h"
-#include <stdlib.h>
-#include <time.h>
 #include <bitset>
+#include <cstdlib>
+#include <ctime>
 
 namespace esphome {
 namespace time {
@@ -30,13 +30,10 @@ struct ESPTime {
   uint8_t month;
   /// year
   uint16_t year;
-  /// daylight savings time flag
+  /// daylight saving time flag
   bool is_dst;
-  union {
-    ESPDEPRECATED(".time is deprecated, use .timestamp instead") time_t time;
-    /// unix epoch time (seconds since UTC Midnight January 1, 1970)
-    time_t timestamp;
-  };
+  /// unix epoch time (seconds since UTC Midnight January 1, 1970)
+  time_t timestamp;
 
   /** Convert this ESPTime struct to a null-terminated c string buffer as specified by the format argument.
    * Up to buffer_len bytes are written.
@@ -127,11 +124,17 @@ class RealTimeClock : public PollingComponent {
 
   void call_setup() override;
 
+  void add_on_time_sync_callback(std::function<void()> callback) {
+    this->time_sync_callback_.add(std::move(callback));
+  };
+
  protected:
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
 
   std::string timezone_{};
+
+  CallbackManager<void()> time_sync_callback_;
 };
 
 template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {

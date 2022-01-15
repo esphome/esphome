@@ -1,10 +1,11 @@
 #include "ina219.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace ina219 {
 
-static const char *TAG = "ina219";
+static const char *const TAG = "ina219";
 
 // | A0   | A1   | Address |
 // | GND  | GND  | 0x40    |
@@ -149,7 +150,7 @@ float INA219Component::get_setup_priority() const { return setup_priority::DATA;
 void INA219Component::update() {
   if (this->bus_voltage_sensor_ != nullptr) {
     uint16_t raw_bus_voltage;
-    if (!this->read_byte_16(INA219_REGISTER_BUS_VOLTAGE, &raw_bus_voltage, 1)) {
+    if (!this->read_byte_16(INA219_REGISTER_BUS_VOLTAGE, &raw_bus_voltage)) {
       this->status_set_warning();
       return;
     }
@@ -160,8 +161,9 @@ void INA219Component::update() {
 
   if (this->shunt_voltage_sensor_ != nullptr) {
     uint16_t raw_shunt_voltage;
-    if (!this->read_byte_16(INA219_REGISTER_SHUNT_VOLTAGE, &raw_shunt_voltage, 1)) {
+    if (!this->read_byte_16(INA219_REGISTER_SHUNT_VOLTAGE, &raw_shunt_voltage)) {
       this->status_set_warning();
+      return;
     }
     float shunt_voltage_mv = int16_t(raw_shunt_voltage) * 0.01f;
     this->shunt_voltage_sensor_->publish_state(shunt_voltage_mv / 1000.0f);
@@ -169,7 +171,7 @@ void INA219Component::update() {
 
   if (this->current_sensor_ != nullptr) {
     uint16_t raw_current;
-    if (!this->read_byte_16(INA219_REGISTER_CURRENT, &raw_current, 1)) {
+    if (!this->read_byte_16(INA219_REGISTER_CURRENT, &raw_current)) {
       this->status_set_warning();
       return;
     }
@@ -179,7 +181,7 @@ void INA219Component::update() {
 
   if (this->power_sensor_ != nullptr) {
     uint16_t raw_power;
-    if (!this->read_byte_16(INA219_REGISTER_POWER, &raw_power, 1)) {
+    if (!this->read_byte_16(INA219_REGISTER_POWER, &raw_power)) {
       this->status_set_warning();
       return;
     }

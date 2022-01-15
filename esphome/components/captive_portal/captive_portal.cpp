@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "captive_portal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -6,7 +8,7 @@
 namespace esphome {
 namespace captive_portal {
 
-static const char *TAG = "captive_portal";
+static const char *const TAG = "captive_portal";
 
 void CaptivePortal::handle_index(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
@@ -64,32 +66,12 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   ESP_LOGI(TAG, "Captive Portal Requested WiFi Settings Change:");
   ESP_LOGI(TAG, "  SSID='%s'", ssid.c_str());
   ESP_LOGI(TAG, "  Password=" LOG_SECRET("'%s'"), psk.c_str());
-  this->override_sta_(ssid, psk);
+  wifi::global_wifi_component->save_wifi_sta(ssid, psk);
+  wifi::global_wifi_component->start_scanning();
   request->redirect("/?save=true");
 }
-void CaptivePortal::override_sta_(const std::string &ssid, const std::string &password) {
-  CaptivePortalSettings save{};
-  strcpy(save.ssid, ssid.c_str());
-  strcpy(save.password, password.c_str());
-  this->pref_.save(&save);
 
-  wifi::WiFiAP sta{};
-  sta.set_ssid(ssid);
-  sta.set_password(password);
-  wifi::global_wifi_component->set_sta(sta);
-}
-
-void CaptivePortal::setup() {
-  // Hash with compilation time
-  // This ensures the AP override is not applied for OTA
-  uint32_t hash = fnv1_hash(App.get_compilation_time());
-  this->pref_ = global_preferences.make_preference<CaptivePortalSettings>(hash, true);
-
-  CaptivePortalSettings save{};
-  if (this->pref_.load(&save)) {
-    this->override_sta_(save.ssid, save.password);
-  }
-}
+void CaptivePortal::setup() {}
 void CaptivePortal::start() {
   this->base_->init();
   if (!this->initialized_) {
@@ -97,26 +79,19 @@ void CaptivePortal::start() {
     this->base_->add_ota_handler();
   }
 
-  this->dns_server_ = new DNSServer();
+  this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
-  IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
-  this->dns_server_->start(53, "*", ip);
+  network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
+  this->dns_server_->start(53, "*", (uint32_t) ip);
 
   this->base_->get_server()->onNotFound([this](AsyncWebServerRequest *req) {
-    bool not_found = false;
-    if (!this->active_) {
-      not_found = true;
-    } else if (req->host() == wifi::global_wifi_component->wifi_soft_ap_ip().toString()) {
-      not_found = true;
-    }
-
-    if (not_found) {
+    if (!this->active_ || req->host().c_str() == wifi::global_wifi_component->wifi_soft_ap_ip().str()) {
       req->send(404, "text/html", "File not found");
       return;
     }
 
-    auto url = "http://" + wifi::global_wifi_component->wifi_soft_ap_ip().toString();
-    req->redirect(url);
+    auto url = "http://" + wifi::global_wifi_component->wifi_soft_ap_ip().str();
+    req->redirect(url.c_str());
   });
 
   this->initialized_ = true;
@@ -168,7 +143,9 @@ float CaptivePortal::get_setup_priority() const {
 }
 void CaptivePortal::dump_config() { ESP_LOGCONFIG(TAG, "Captive Portal:"); }
 
-CaptivePortal *global_captive_portal = nullptr;
+CaptivePortal *global_captive_portal = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace captive_portal
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

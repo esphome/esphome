@@ -1,11 +1,12 @@
 #include "pca9685_output.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace pca9685 {
 
-static const char *TAG = "pca9685";
+static const char *const TAG = "pca9685";
 
 const uint8_t PCA9685_MODE_INVERTED = 0x10;
 const uint8_t PCA9685_MODE_OUTPUT_ONACK = 0x08;
@@ -123,11 +124,11 @@ void PCA9685Output::loop() {
   this->update_ = false;
 }
 
-PCA9685Channel *PCA9685Output::create_channel(uint8_t channel) {
-  this->min_channel_ = std::min(this->min_channel_, channel);
-  this->max_channel_ = std::max(this->max_channel_, channel);
-  auto *c = new PCA9685Channel(this, channel);
-  return c;
+void PCA9685Output::register_channel(PCA9685Channel *channel) {
+  auto c = channel->channel_;
+  this->min_channel_ = std::min(this->min_channel_, c);
+  this->max_channel_ = std::max(this->max_channel_, c);
+  channel->set_parent(this);
 }
 
 void PCA9685Channel::write_state(float state) {

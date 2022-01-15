@@ -4,7 +4,15 @@
 namespace esphome {
 namespace pzem004t {
 
-static const char *TAG = "pzem004t";
+static const char *const TAG = "pzem004t";
+
+void PZEM004T::setup() {
+  // Clear UART buffer
+  while (this->available())
+    this->read();
+  // Set module address
+  this->write_state_(SET_ADDRESS);
+}
 
 void PZEM004T::loop() {
   const uint32_t now = millis();

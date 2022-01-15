@@ -1,17 +1,24 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
+#include "esphome/components/json/json_util.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include <list>
 #include <map>
-#include "esphome/core/component.h"
-#include "esphome/core/automation.h"
-#include "esphome/components/json/json_util.h"
+#include <utility>
+#include <memory>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <HTTPClient.h>
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include <ESP8266HTTPClient.h>
+#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
 #include <WiFiClientSecure.h>
+#endif
 #endif
 
 namespace esphome {
@@ -22,6 +29,8 @@ struct Header {
   const char *value;
 };
 
+class HttpRequestResponseTrigger;
+
 class HttpRequestComponent : public Component {
  public:
   void dump_config() override;
@@ -31,9 +40,9 @@ class HttpRequestComponent : public Component {
   void set_method(const char *method) { this->method_ = method; }
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
-  void set_body(std::string body) { this->body_ = body; }
-  void set_headers(std::list<Header> headers) { this->headers_ = headers; }
-  void send();
+  void set_body(const std::string &body) { this->body_ = body; }
+  void set_headers(std::list<Header> headers) { this->headers_ = std::move(headers); }
+  void send(const std::vector<HttpRequestResponseTrigger *> &response_triggers);
   void close();
   const char *get_string();
 
@@ -47,10 +56,12 @@ class HttpRequestComponent : public Component {
   uint16_t timeout_{5000};
   std::string body_;
   std::list<Header> headers_;
-#ifdef ARDUINO_ARCH_ESP8266
-  WiFiClient *wifi_client_{nullptr};
-  BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
-  WiFiClient *get_wifi_client_();
+#ifdef USE_ESP8266
+  std::shared_ptr<WiFiClient> wifi_client_;
+#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
+  std::shared_ptr<BearSSL::WiFiClientSecure> wifi_client_secure_;
+#endif
+  std::shared_ptr<WiFiClient> get_wifi_client_();
 #endif
 };
 
@@ -67,7 +78,9 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
 
   void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.insert({key, value}); }
 
-  void set_json(std::function<void(Ts..., JsonObject &)> json_func) { this->json_func_ = json_func; }
+  void set_json(std::function<void(Ts..., JsonObject)> json_func) { this->json_func_ = json_func; }
+
+  void register_response_trigger(HttpRequestResponseTrigger *trigger) { this->response_triggers_.push_back(trigger); }
 
   void play(Ts... x) override {
     this->parent_->set_url(this->url_.value(x...));
@@ -100,23 +113,31 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       }
       this->parent_->set_headers(headers);
     }
-    this->parent_->send();
+    this->parent_->send(this->response_triggers_);
     this->parent_->close();
   }
 
  protected:
-  void encode_json_(Ts... x, JsonObject &root) {
+  void encode_json_(Ts... x, JsonObject root) {
     for (const auto &item : this->json_) {
       auto val = item.second;
       root[item.first] = val.value(x...);
     }
   }
-  void encode_json_func_(Ts... x, JsonObject &root) { this->json_func_(x..., root); }
+  void encode_json_func_(Ts... x, JsonObject root) { this->json_func_(x..., root); }
   HttpRequestComponent *parent_;
   std::map<const char *, TemplatableValue<const char *, Ts...>> headers_{};
   std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
-  std::function<void(Ts..., JsonObject &)> json_func_{nullptr};
+  std::function<void(Ts..., JsonObject)> json_func_{nullptr};
+  std::vector<HttpRequestResponseTrigger *> response_triggers_;
+};
+
+class HttpRequestResponseTrigger : public Trigger<int> {
+ public:
+  void process(int status_code) { this->trigger(status_code); }
 };
 
 }  // namespace http_request
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

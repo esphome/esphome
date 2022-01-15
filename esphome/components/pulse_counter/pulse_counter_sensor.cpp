@@ -4,19 +4,19 @@
 namespace esphome {
 namespace pulse_counter {
 
-static const char *TAG = "pulse_counter";
+static const char *const TAG = "pulse_counter";
 
-const char *EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
+const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
 
-#ifdef ARDUINO_ARCH_ESP8266
-void ICACHE_RAM_ATTR PulseCounterStorage::gpio_intr(PulseCounterStorage *arg) {
+#ifndef HAS_PCNT
+void IRAM_ATTR PulseCounterStorage::gpio_intr(PulseCounterStorage *arg) {
   const uint32_t now = micros();
   const bool discard = now - arg->last_pulse < arg->filter_us;
   arg->last_pulse = now;
   if (discard)
     return;
 
-  PulseCounterCountMode mode = arg->isr_pin->digital_read() ? arg->rising_edge_mode : arg->falling_edge_mode;
+  PulseCounterCountMode mode = arg->isr_pin.digital_read() ? arg->rising_edge_mode : arg->falling_edge_mode;
   switch (mode) {
     case PULSE_COUNTER_DISABLE:
       break;
@@ -28,11 +28,11 @@ void ICACHE_RAM_ATTR PulseCounterStorage::gpio_intr(PulseCounterStorage *arg) {
       break;
   }
 }
-bool PulseCounterStorage::pulse_counter_setup(GPIOPin *pin) {
+bool PulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   this->pin = pin;
   this->pin->setup();
   this->isr_pin = this->pin->to_isr();
-  this->pin->attach_interrupt(PulseCounterStorage::gpio_intr, this, CHANGE);
+  this->pin->attach_interrupt(PulseCounterStorage::gpio_intr, this, gpio::INTERRUPT_ANY_EDGE);
   return true;
 }
 pulse_counter_t PulseCounterStorage::read_raw_value() {
@@ -43,12 +43,13 @@ pulse_counter_t PulseCounterStorage::read_raw_value() {
 }
 #endif
 
-#ifdef ARDUINO_ARCH_ESP32
-bool PulseCounterStorage::pulse_counter_setup(GPIOPin *pin) {
+#ifdef HAS_PCNT
+bool PulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
+  static pcnt_unit_t next_pcnt_unit = PCNT_UNIT_0;
   this->pin = pin;
   this->pin->setup();
   this->pcnt_unit = next_pcnt_unit;
-  next_pcnt_unit = pcnt_unit_t(int(next_pcnt_unit) + 1);  // NOLINT
+  next_pcnt_unit = pcnt_unit_t(int(next_pcnt_unit) + 1);
 
   ESP_LOGCONFIG(TAG, "    PCNT Unit Number: %u", this->pcnt_unit);
 
@@ -95,7 +96,7 @@ bool PulseCounterStorage::pulse_counter_setup(GPIOPin *pin) {
   }
 
   if (this->filter_us != 0) {
-    uint16_t filter_val = std::min(this->filter_us * 80u, 1023u);
+    uint16_t filter_val = std::min(static_cast<unsigned int>(this->filter_us * 80u), 1023u);
     ESP_LOGCONFIG(TAG, "    Filter Value: %uus (val=%u)", this->filter_us, filter_val);
     error = pcnt_set_filter_value(this->pcnt_unit, filter_val);
     if (error != ESP_OK) {
@@ -154,21 +155,21 @@ void PulseCounterSensor::dump_config() {
 
 void PulseCounterSensor::update() {
   pulse_counter_t raw = this->storage_.read_raw_value();
-  float value = (60000.0f * raw) / float(this->get_update_interval());  // per minute
-
-  ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
-  this->publish_state(value);
+  uint32_t now = millis();
+  if (this->last_time_ != 0) {
+    uint32_t interval = now - this->last_time_;
+    float value = (60000.0f * raw) / float(interval);  // per minute
+    ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
+    this->publish_state(value);
+  }
 
   if (this->total_sensor_ != nullptr) {
     current_total_ += raw;
     ESP_LOGD(TAG, "'%s': Total : %i pulses", this->get_name().c_str(), current_total_);
     this->total_sensor_->publish_state(current_total_);
   }
+  this->last_time_ = now;
 }
-
-#ifdef ARDUINO_ARCH_ESP32
-pcnt_unit_t next_pcnt_unit = PCNT_UNIT_0;
-#endif
 
 }  // namespace pulse_counter
 }  // namespace esphome

@@ -1,10 +1,11 @@
 #include "endstop_cover.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace endstop {
 
-static const char *TAG = "endstop.cover";
+static const char *const TAG = "endstop.cover";
 
 using namespace esphome::cover;
 

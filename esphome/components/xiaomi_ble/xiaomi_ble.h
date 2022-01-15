@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace xiaomi_ble {
@@ -18,10 +18,13 @@ struct XiaomiParseResult {
     TYPE_CGG1,
     TYPE_LYWSD03MMC,
     TYPE_CGD1,
+    TYPE_CGDK2,
     TYPE_JQJCY01YM,
     TYPE_MUE4094RT,
     TYPE_WX08ZM,
-    TYPE_MJYD02YLA
+    TYPE_MJYD02YLA,
+    TYPE_MHOC401,
+    TYPE_CGPR1
   } type;
   std::string name;
   optional<float> temperature;

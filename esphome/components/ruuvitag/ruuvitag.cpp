@@ -1,12 +1,12 @@
 #include "ruuvitag.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace ruuvitag {
 
-static const char *TAG = "ruuvitag";
+static const char *const TAG = "ruuvitag";
 
 void RuuviTag::dump_config() {
   ESP_LOGCONFIG(TAG, "RuuviTag");

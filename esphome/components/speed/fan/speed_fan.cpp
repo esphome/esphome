@@ -1,10 +1,11 @@
 #include "speed_fan.h"
+#include "esphome/components/fan/fan_helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace speed {
 
-static const char *TAG = "speed.fan";
+static const char *const TAG = "speed.fan";
 
 void SpeedFan::dump_config() {
   ESP_LOGCONFIG(TAG, "Fan '%s':", this->fan_->get_name().c_str());
@@ -16,7 +17,7 @@ void SpeedFan::dump_config() {
   }
 }
 void SpeedFan::setup() {
-  auto traits = fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr);
+  auto traits = fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_);
   this->fan_->set_traits(traits);
   this->fan_->add_on_state_callback([this]() { this->next_update_ = true; });
 }
@@ -29,12 +30,7 @@ void SpeedFan::loop() {
   {
     float speed = 0.0f;
     if (this->fan_->state) {
-      if (this->fan_->speed == fan::FAN_SPEED_LOW)
-        speed = this->low_speed_;
-      else if (this->fan_->speed == fan::FAN_SPEED_MEDIUM)
-        speed = this->medium_speed_;
-      else if (this->fan_->speed == fan::FAN_SPEED_HIGH)
-        speed = this->high_speed_;
+      speed = static_cast<float>(this->fan_->speed) / static_cast<float>(this->speed_count_);
     }
     ESP_LOGD(TAG, "Setting speed: %.2f", speed);
     this->output_->set_level(speed);
@@ -60,7 +56,10 @@ void SpeedFan::loop() {
     ESP_LOGD(TAG, "Setting reverse direction: %s", ONOFF(enable));
   }
 }
-float SpeedFan::get_setup_priority() const { return setup_priority::DATA; }
+
+// We need a higher priority than the FanState component to make sure that the traits are set
+// when that component sets itself up.
+float SpeedFan::get_setup_priority() const { return fan_->get_setup_priority() + 1.0f; }
 
 }  // namespace speed
 }  // namespace esphome

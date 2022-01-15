@@ -1,7 +1,0 @@
-FROM esphome/esphome-lint-base:2.6.0
-
-COPY requirements.txt requirements_test.txt /
-RUN pip3 install --no-cache-dir -r /requirements.txt -r /requirements_test.txt
-
-VOLUME ["/esphome"]
-WORKDIR /esphome

@@ -2,14 +2,14 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace remote_transmitter {
 
-static const char *TAG = "remote_transmitter";
+static const char *const TAG = "remote_transmitter";
 
-void RemoteTransmitterComponent::setup() {}
+void RemoteTransmitterComponent::setup() { this->configure_rmt_(); }
 
 void RemoteTransmitterComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Remote Transmitter...");
@@ -27,7 +27,7 @@ void RemoteTransmitterComponent::dump_config() {
   }
 }
 
-void RemoteTransmitterComponent::configure_rmt() {
+void RemoteTransmitterComponent::configure_rmt_() {
   rmt_config_t c{};
 
   this->config_rmt(c);
@@ -50,6 +50,7 @@ void RemoteTransmitterComponent::configure_rmt() {
   } else {
     c.tx_config.carrier_level = RMT_CARRIER_LEVEL_LOW;
     c.tx_config.idle_level = RMT_IDLE_LEVEL_HIGH;
+    this->inverted_ = true;
   }
 
   esp_err_t error = rmt_config(&c);
@@ -76,7 +77,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
 
   if (this->current_carrier_frequency_ != this->temp_.get_carrier_frequency()) {
     this->current_carrier_frequency_ = this->temp_.get_carrier_frequency();
-    this->configure_rmt();
+    this->configure_rmt_();
   }
 
   this->rmt_temp_.clear();
@@ -88,17 +89,17 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     bool level = val >= 0;
     if (!level)
       val = -val;
-    val = this->from_microseconds(static_cast<uint32_t>(val));
+    val = this->from_microseconds_(static_cast<uint32_t>(val));
 
     do {
-      int32_t item = std::min(val, 32767);
+      int32_t item = std::min(val, int32_t(32767));
       val -= item;
 
       if (rmt_i % 2 == 0) {
-        rmt_item.level0 = static_cast<uint32_t>(level);
+        rmt_item.level0 = static_cast<uint32_t>(level ^ this->inverted_);
         rmt_item.duration0 = static_cast<uint32_t>(item);
       } else {
-        rmt_item.level1 = static_cast<uint32_t>(level);
+        rmt_item.level1 = static_cast<uint32_t>(level ^ this->inverted_);
         rmt_item.duration1 = static_cast<uint32_t>(item);
         this->rmt_temp_.push_back(rmt_item);
       }
@@ -112,7 +113,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     this->rmt_temp_.push_back(rmt_item);
   }
 
-  for (uint16_t i = 0; i < send_times; i++) {
+  for (uint32_t i = 0; i < send_times; i++) {
     esp_err_t error = rmt_write_items(this->channel_, this->rmt_temp_.data(), this->rmt_temp_.size(), true);
     if (error != ESP_OK) {
       ESP_LOGW(TAG, "rmt_write_items failed: %s", esp_err_to_name(error));
@@ -120,10 +121,8 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     } else {
       this->status_clear_warning();
     }
-    if (i + 1 < send_times) {
-      delay(send_wait / 1000UL);
-      delayMicroseconds(send_wait % 1000UL);
-    }
+    if (i + 1 < send_times)
+      delayMicroseconds(send_wait);
   }
 }
 

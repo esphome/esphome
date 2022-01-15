@@ -5,7 +5,7 @@ namespace esphome {
 
 namespace binary_sensor {
 
-static const char *TAG = "binary_sensor";
+static const char *const TAG = "binary_sensor";
 
 void BinarySensor::add_on_state_callback(std::function<void(bool)> &&callback) {
   this->state_callback_.add(std::move(callback));
@@ -42,13 +42,16 @@ void BinarySensor::send_state_internal(bool state, bool is_initial) {
   }
 }
 std::string BinarySensor::device_class() { return ""; }
-BinarySensor::BinarySensor(const std::string &name) : Nameable(name), state(false) {}
+BinarySensor::BinarySensor(const std::string &name) : EntityBase(name), state(false) {}
 BinarySensor::BinarySensor() : BinarySensor("") {}
 void BinarySensor::set_device_class(const std::string &device_class) { this->device_class_ = device_class; }
 std::string BinarySensor::get_device_class() {
   if (this->device_class_.has_value())
     return *this->device_class_;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return this->device_class();
+#pragma GCC diagnostic pop
 }
 void BinarySensor::add_filter(Filter *filter) {
   filter->parent_ = this;
@@ -61,7 +64,7 @@ void BinarySensor::add_filter(Filter *filter) {
     last_filter->next_ = filter;
   }
 }
-void BinarySensor::add_filters(std::vector<Filter *> filters) {
+void BinarySensor::add_filters(const std::vector<Filter *> &filters) {
   for (Filter *filter : filters) {
     this->add_filter(filter);
   }

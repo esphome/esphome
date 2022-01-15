@@ -4,7 +4,7 @@
 namespace esphome {
 namespace cover {
 
-static const char *TAG = "cover";
+static const char *const TAG = "cover";
 
 const float COVER_OPEN = 1.0f;
 const float COVER_CLOSED = 0.0f;
@@ -31,7 +31,7 @@ const char *cover_operation_to_str(CoverOperation op) {
   }
 }
 
-Cover::Cover(const std::string &name) : Nameable(name), position{COVER_OPEN} {}
+Cover::Cover(const std::string &name) : EntityBase(name), position{COVER_OPEN} {}
 
 uint32_t Cover::hash_base() { return 1727367479UL; }
 
@@ -43,6 +43,8 @@ CoverCall &CoverCall::set_command(const char *command) {
     this->set_command_close();
   } else if (strcasecmp(command, "STOP") == 0) {
     this->set_command_stop();
+  } else if (strcasecmp(command, "TOGGLE") == 0) {
+    this->set_command_toggle();
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
   }
@@ -58,6 +60,10 @@ CoverCall &CoverCall::set_command_close() {
 }
 CoverCall &CoverCall::set_command_stop() {
   this->stop_ = true;
+  return *this;
+}
+CoverCall &CoverCall::set_command_toggle() {
+  this->toggle_ = true;
   return *this;
 }
 CoverCall &CoverCall::set_position(float position) {
@@ -85,10 +91,14 @@ void CoverCall::perform() {
   if (this->tilt_.has_value()) {
     ESP_LOGD(TAG, "  Tilt: %.0f%%", *this->tilt_ * 100.0f);
   }
+  if (this->toggle_.has_value()) {
+    ESP_LOGD(TAG, "  Command: TOGGLE");
+  }
   this->parent_->control(*this);
 }
 const optional<float> &CoverCall::get_position() const { return this->position_; }
 const optional<float> &CoverCall::get_tilt() const { return this->tilt_; }
+const optional<bool> &CoverCall::get_toggle() const { return this->toggle_; }
 void CoverCall::validate_() {
   auto traits = this->parent_->get_traits();
   if (this->position_.has_value()) {
@@ -111,6 +121,12 @@ void CoverCall::validate_() {
       this->tilt_ = clamp(tilt, 0.0f, 1.0f);
     }
   }
+  if (this->toggle_.has_value()) {
+    if (!traits.get_supports_toggle()) {
+      ESP_LOGW(TAG, "'%s' - This cover device does not support toggle!", this->parent_->get_name().c_str());
+      this->toggle_.reset();
+    }
+  }
   if (this->stop_) {
     if (this->position_.has_value()) {
       ESP_LOGW(TAG, "Cannot set position when stopping a cover!");
@@ -119,6 +135,10 @@ void CoverCall::validate_() {
     if (this->tilt_.has_value()) {
       ESP_LOGW(TAG, "Cannot set tilt when stopping a cover!");
       this->tilt_.reset();
+    }
+    if (this->toggle_.has_value()) {
+      ESP_LOGW(TAG, "Cannot set toggle when stopping a cover!");
+      this->toggle_.reset();
     }
   }
 }
@@ -180,7 +200,7 @@ void Cover::publish_state(bool save) {
   }
 }
 optional<CoverRestoreState> Cover::restore_state_() {
-  this->rtc_ = global_preferences.make_preference<CoverRestoreState>(this->get_object_id_hash());
+  this->rtc_ = global_preferences->make_preference<CoverRestoreState>(this->get_object_id_hash());
   CoverRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
     return {};
@@ -190,7 +210,10 @@ Cover::Cover() : Cover("") {}
 std::string Cover::get_device_class() {
   if (this->device_class_override_.has_value())
     return *this->device_class_override_;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return this->device_class();
+#pragma GCC diagnostic pop
 }
 bool Cover::is_fully_open() const { return this->position == COVER_OPEN; }
 bool Cover::is_fully_closed() const { return this->position == COVER_CLOSED; }

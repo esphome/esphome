@@ -1,12 +1,12 @@
 #include "atc_mithermometer.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace atc_mithermometer {
 
-static const char *TAG = "atc_mithermometer";
+static const char *const TAG = "atc_mithermometer";
 
 void ATCMiThermometer::dump_config() {
   ESP_LOGCONFIG(TAG, "ATC MiThermometer");
@@ -25,14 +25,14 @@ bool ATCMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device
 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
-    auto res = parse_header(service_data);
-    if (res->is_duplicate) {
+    auto res = parse_header_(service_data);
+    if (!res.has_value()) {
       continue;
     }
-    if (!(parse_message(service_data.data, *res))) {
+    if (!(parse_message_(service_data.data, *res))) {
       continue;
     }
-    if (!(report_results(res, device.address_str()))) {
+    if (!(report_results_(res, device.address_str()))) {
       continue;
     }
     if (res->temperature.has_value() && this->temperature_ != nullptr)
@@ -45,15 +45,13 @@ bool ATCMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device
       this->battery_voltage_->publish_state(*res->battery_voltage);
     success = true;
   }
+  if (this->signal_strength_ != nullptr)
+    this->signal_strength_->publish_state(device.get_rssi());
 
-  if (!success) {
-    return false;
-  }
-
-  return true;
+  return success;
 }
 
-optional<ParseResult> ATCMiThermometer::parse_header(const esp32_ble_tracker::ServiceData &service_data) {
+optional<ParseResult> ATCMiThermometer::parse_header_(const esp32_ble_tracker::ServiceData &service_data) {
   ParseResult result;
   if (!service_data.uuid.contains(0x1A, 0x18)) {
     ESP_LOGVV(TAG, "parse_header(): no service data UUID magic bytes.");
@@ -64,17 +62,15 @@ optional<ParseResult> ATCMiThermometer::parse_header(const esp32_ble_tracker::Se
 
   static uint8_t last_frame_count = 0;
   if (last_frame_count == raw[12]) {
-    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
-    result.is_duplicate = true;
+    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%hhu).", last_frame_count);
     return {};
   }
   last_frame_count = raw[12];
-  result.is_duplicate = false;
 
   return result;
 }
 
-bool ATCMiThermometer::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
+bool ATCMiThermometer::parse_message_(const std::vector<uint8_t> &message, ParseResult &result) {
   // Byte 0-5 mac in correct order
   // Byte 6-7 Temperature in uint16
   // Byte 8 Humidity in percent
@@ -107,7 +103,7 @@ bool ATCMiThermometer::parse_message(const std::vector<uint8_t> &message, ParseR
   return true;
 }
 
-bool ATCMiThermometer::report_results(const optional<ParseResult> &result, const std::string &address) {
+bool ATCMiThermometer::report_results_(const optional<ParseResult> &result, const std::string &address) {
   if (!result.has_value()) {
     ESP_LOGVV(TAG, "report_results(): no results available.");
     return false;

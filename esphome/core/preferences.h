@@ -1,109 +1,62 @@
 #pragma once
 
-#include <string>
+#include <cstring>
+#include <cstdint>
 
-#include "esphome/core/esphal.h"
-#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 
-class ESPPreferenceObject {
+class ESPPreferenceBackend {
  public:
-  ESPPreferenceObject();
-  ESPPreferenceObject(size_t offset, size_t length, uint32_t type);
-
-  template<typename T> bool save(T *src);
-
-  template<typename T> bool load(T *dest);
-
-  bool is_initialized() const;
-
- protected:
-  friend class ESPPreferences;
-
-  bool save_();
-  bool load_();
-  bool save_internal_();
-  bool load_internal_();
-
-  uint32_t calculate_crc_() const;
-
-  size_t offset_;
-  size_t length_words_;
-  uint32_t type_;
-  uint32_t *data_;
-#ifdef ARDUINO_ARCH_ESP8266
-  bool in_flash_{false};
-#endif
+  virtual bool save(const uint8_t *data, size_t len) = 0;
+  virtual bool load(uint8_t *data, size_t len) = 0;
 };
 
-#ifdef ARDUINO_ARCH_ESP8266
-#ifdef USE_ESP8266_PREFERENCES_FLASH
-static bool DEFAULT_IN_FLASH = true;
-#else
-static bool DEFAULT_IN_FLASH = false;
-#endif
-#endif
+class ESPPreferenceObject {
+ public:
+  ESPPreferenceObject() = default;
+  ESPPreferenceObject(ESPPreferenceBackend *backend) : backend_(backend) {}
 
-#ifdef ARDUINO_ARCH_ESP32
-static bool DEFAULT_IN_FLASH = true;
-#endif
+  template<typename T> bool save(const T *src) {
+    if (backend_ == nullptr)
+      return false;
+    return backend_->save(reinterpret_cast<const uint8_t *>(src), sizeof(T));
+  }
+
+  template<typename T> bool load(T *dest) {
+    if (backend_ == nullptr)
+      return false;
+    return backend_->load(reinterpret_cast<uint8_t *>(dest), sizeof(T));
+  }
+
+ protected:
+  ESPPreferenceBackend *backend_{nullptr};
+};
 
 class ESPPreferences {
  public:
-  ESPPreferences();
-  void begin();
-  ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash = DEFAULT_IN_FLASH);
-  template<typename T> ESPPreferenceObject make_preference(uint32_t type, bool in_flash = DEFAULT_IN_FLASH);
+  virtual ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) = 0;
+  virtual ESPPreferenceObject make_preference(size_t length, uint32_t type) = 0;
 
-#ifdef ARDUINO_ARCH_ESP8266
-  /** On the ESP8266, we can't override the first 128 bytes during OTA uploads
-   * as the eboot parameters are stored there. Writing there during an OTA upload
-   * would invalidate applying the new firmware. During normal operation, we use
-   * this part of the RTC user memory, but stop writing to it during OTA uploads.
+  /**
+   * Commit pending writes to flash.
    *
-   * @param prevent Whether to prevent writing to the first 32 words of RTC user memory.
+   * @return true if write is successful.
    */
-  void prevent_write(bool prevent);
-  bool is_prevent_write();
-#endif
+  virtual bool sync() = 0;
 
- protected:
-  friend ESPPreferenceObject;
+  template<typename T, enable_if_t<is_trivially_copyable<T>::value, bool> = true>
+  ESPPreferenceObject make_preference(uint32_t type, bool in_flash) {
+    return this->make_preference(sizeof(T), type, in_flash);
+  }
 
-  uint32_t current_offset_;
-#ifdef ARDUINO_ARCH_ESP32
-  uint32_t nvs_handle_;
-#endif
-#ifdef ARDUINO_ARCH_ESP8266
-  void save_esp8266_flash_();
-  bool prevent_write_{false};
-  uint32_t *flash_storage_;
-  uint32_t current_flash_offset_;
-#endif
+  template<typename T, enable_if_t<is_trivially_copyable<T>::value, bool> = true>
+  ESPPreferenceObject make_preference(uint32_t type) {
+    return this->make_preference(sizeof(T), type);
+  }
 };
 
-extern ESPPreferences global_preferences;
-
-template<typename T> ESPPreferenceObject ESPPreferences::make_preference(uint32_t type, bool in_flash) {
-  return this->make_preference((sizeof(T) + 3) / 4, type, in_flash);
-}
-
-template<typename T> bool ESPPreferenceObject::save(T *src) {
-  if (!this->is_initialized())
-    return false;
-  memset(this->data_, 0, this->length_words_ * 4);
-  memcpy(this->data_, src, sizeof(T));
-  return this->save_();
-}
-
-template<typename T> bool ESPPreferenceObject::load(T *dest) {
-  memset(this->data_, 0, this->length_words_ * 4);
-  if (!this->load_())
-    return false;
-
-  memcpy(dest, this->data_, sizeof(T));
-  return true;
-}
+extern ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

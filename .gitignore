@@ -13,6 +13,9 @@ __pycache__/
 # Intellij Idea
 .idea
 
+# Vim
+*.swp
+
 # Hide some OS X stuff
 .DS_Store
 .AppleDouble
@@ -99,8 +102,7 @@ CMakeLists.txt
 .idea/**/dynamic.xml
 
 # CMake
-cmake-build-debug/
-cmake-build-release/
+cmake-build-*/
 
 CMakeCache.txt
 CMakeFiles
@@ -120,4 +122,8 @@ config/
 tests/build/
 tests/.esphome/
 /.temp-clang-tidy.cpp
+/.temp/
 .pio/
+
+sdkconfig.*
+!sdkconfig.defaults

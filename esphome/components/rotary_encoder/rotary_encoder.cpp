@@ -5,7 +5,7 @@
 namespace esphome {
 namespace rotary_encoder {
 
-static const char *TAG = "rotary_encoder";
+static const char *const TAG = "rotary_encoder";
 
 // based on https://github.com/jkDesignDE/MechInputs/blob/master/QEIx4.cpp
 static const uint8_t STATE_LUT_MASK = 0x1C;  // clears upper counter increment/decrement bits and pin states
@@ -82,12 +82,12 @@ static const uint16_t DRAM_ATTR STATE_LOOKUP_TABLE[32] = {
     STATE_CW | STATE_S3                                // 0x1F: stay here
 };
 
-void ICACHE_RAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore *arg) {
+void IRAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore *arg) {
   // Forget upper bits and add pin states
   uint8_t input_state = arg->state & STATE_LUT_MASK;
-  if (arg->pin_a->digital_read())
+  if (arg->pin_a.digital_read())
     input_state |= STATE_PIN_A_HIGH;
-  if (arg->pin_b->digital_read())
+  if (arg->pin_b.digital_read())
     input_state |= STATE_PIN_B_HIGH;
 
   int8_t rotation_dir = 0;
@@ -125,6 +125,22 @@ void ICACHE_RAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensor
 
 void RotaryEncoderSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Rotary Encoder '%s'...", this->name_.c_str());
+
+  int32_t initial_value = 0;
+  switch (this->restore_mode_) {
+    case ROTARY_ENCODER_RESTORE_DEFAULT_ZERO:
+      this->rtc_ = global_preferences->make_preference<int32_t>(this->get_object_id_hash());
+      if (!this->rtc_.load(&initial_value)) {
+        initial_value = 0;
+      }
+      break;
+    case ROTARY_ENCODER_ALWAYS_ZERO:
+      initial_value = 0;
+      break;
+  }
+  this->store_.counter = initial_value;
+  this->store_.last_read = initial_value;
+
   this->pin_a_->setup();
   this->store_.pin_a = this->pin_a_->to_isr();
   this->pin_b_->setup();
@@ -134,14 +150,26 @@ void RotaryEncoderSensor::setup() {
     this->pin_i_->setup();
   }
 
-  this->pin_a_->attach_interrupt(RotaryEncoderSensorStore::gpio_intr, &this->store_, CHANGE);
-  this->pin_b_->attach_interrupt(RotaryEncoderSensorStore::gpio_intr, &this->store_, CHANGE);
+  this->pin_a_->attach_interrupt(RotaryEncoderSensorStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
+  this->pin_b_->attach_interrupt(RotaryEncoderSensorStore::gpio_intr, &this->store_, gpio::INTERRUPT_ANY_EDGE);
 }
 void RotaryEncoderSensor::dump_config() {
   LOG_SENSOR("", "Rotary Encoder", this);
   LOG_PIN("  Pin A: ", this->pin_a_);
   LOG_PIN("  Pin B: ", this->pin_b_);
   LOG_PIN("  Pin I: ", this->pin_i_);
+
+  const LogString *restore_mode = LOG_STR("");
+  switch (this->restore_mode_) {
+    case ROTARY_ENCODER_RESTORE_DEFAULT_ZERO:
+      restore_mode = LOG_STR("Restore (Defaults to zero)");
+      break;
+    case ROTARY_ENCODER_ALWAYS_ZERO:
+      restore_mode = LOG_STR("Always zero");
+      break;
+  }
+  ESP_LOGCONFIG(TAG, "  Restore Mode: %s", LOG_STR_ARG(restore_mode));
+
   switch (this->store_.resolution) {
     case ROTARY_ENCODER_1_PULSE_PER_CYCLE:
       ESP_LOGCONFIG(TAG, "  Resolution: 1 Pulse Per Cycle");
@@ -157,13 +185,14 @@ void RotaryEncoderSensor::dump_config() {
 void RotaryEncoderSensor::loop() {
   std::array<int8_t, 8> rotation_events;
   bool rotation_events_overflow;
-  ets_intr_lock();
-  rotation_events = this->store_.rotation_events;
-  rotation_events_overflow = this->store_.rotation_events_overflow;
+  {
+    InterruptLock lock;
+    rotation_events = this->store_.rotation_events;
+    rotation_events_overflow = this->store_.rotation_events_overflow;
 
-  this->store_.rotation_events.fill(0);
-  this->store_.rotation_events_overflow = false;
-  ets_intr_unlock();
+    this->store_.rotation_events.fill(0);
+    this->store_.rotation_events_overflow = false;
+  }
 
   if (rotation_events_overflow) {
     ESP_LOGW(TAG, "Captured more rotation events than expected");
@@ -188,13 +217,20 @@ void RotaryEncoderSensor::loop() {
     this->store_.counter = 0;
   }
   int counter = this->store_.counter;
-  if (this->store_.last_read != counter) {
+  if (this->store_.last_read != counter || this->publish_initial_value_) {
+    if (this->restore_mode_ == ROTARY_ENCODER_RESTORE_DEFAULT_ZERO) {
+      this->rtc_.save(&counter);
+    }
     this->store_.last_read = counter;
     this->publish_state(counter);
+    this->publish_initial_value_ = false;
   }
 }
 
 float RotaryEncoderSensor::get_setup_priority() const { return setup_priority::DATA; }
+void RotaryEncoderSensor::set_restore_mode(RotaryEncoderRestoreMode restore_mode) {
+  this->restore_mode_ = restore_mode;
+}
 void RotaryEncoderSensor::set_resolution(RotaryEncoderResolution mode) { this->store_.resolution = mode; }
 void RotaryEncoderSensor::set_min_value(int32_t min_value) { this->store_.min_value = min_value; }
 void RotaryEncoderSensor::set_max_value(int32_t max_value) { this->store_.max_value = max_value; }

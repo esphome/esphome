@@ -6,7 +6,7 @@
 namespace esphome {
 namespace max31865 {
 
-static const char* TAG = "max31865";
+static const char *const TAG = "max31865";
 
 void MAX31865Sensor::update() {
   // Check new faults since last measurement
@@ -156,7 +156,7 @@ void MAX31865Sensor::write_register_(uint8_t reg, uint8_t value) {
   ESP_LOGVV(TAG, "write_register_ 0x%02X: 0x%02X", reg, value);
 }
 
-const uint8_t MAX31865Sensor::read_register_(uint8_t reg) {
+uint8_t MAX31865Sensor::read_register_(uint8_t reg) {
   this->enable();
   this->write_byte(reg);
   const uint8_t value(this->read_byte());
@@ -165,7 +165,7 @@ const uint8_t MAX31865Sensor::read_register_(uint8_t reg) {
   return value;
 }
 
-const uint16_t MAX31865Sensor::read_register_16_(uint8_t reg) {
+uint16_t MAX31865Sensor::read_register_16_(uint8_t reg) {
   this->enable();
   this->write_byte(reg);
   const uint8_t msb(this->read_byte());
@@ -176,7 +176,7 @@ const uint16_t MAX31865Sensor::read_register_16_(uint8_t reg) {
   return value;
 }
 
-float MAX31865Sensor::calc_temperature_(const float& rtd_ratio) {
+float MAX31865Sensor::calc_temperature_(float rtd_ratio) {
   // Based loosely on Adafruit's library: https://github.com/adafruit/Adafruit_MAX31865
   // Mainly based on formulas provided by Analog:
   // http://www.analog.com/media/en/technical-documentation/application-notes/AN709_0.pdf
@@ -203,16 +203,16 @@ float MAX31865Sensor::calc_temperature_(const float& rtd_ratio) {
     rtd_resistance *= 100;
   }
   float rpoly = rtd_resistance;
-  float neg_temp = -242.02;
-  neg_temp += 2.2228 * rpoly;
+  float neg_temp = -242.02f;
+  neg_temp += 2.2228f * rpoly;
   rpoly *= rtd_resistance;  // square
-  neg_temp += 2.5859e-3 * rpoly;
+  neg_temp += 2.5859e-3f * rpoly;
   rpoly *= rtd_resistance;  // ^3
-  neg_temp -= 4.8260e-6 * rpoly;
+  neg_temp -= 4.8260e-6f * rpoly;
   rpoly *= rtd_resistance;  // ^4
-  neg_temp -= 2.8183e-8 * rpoly;
+  neg_temp -= 2.8183e-8f * rpoly;
   rpoly *= rtd_resistance;  // ^5
-  neg_temp += 1.5243e-10 * rpoly;
+  neg_temp += 1.5243e-10f * rpoly;
   return neg_temp;
 }
 

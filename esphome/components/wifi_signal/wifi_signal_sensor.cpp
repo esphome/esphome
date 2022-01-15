@@ -4,7 +4,7 @@
 namespace esphome {
 namespace wifi_signal {
 
-static const char *TAG = "wifi_signal.sensor";
+static const char *const TAG = "wifi_signal.sensor";
 
 void WiFiSignalSensor::dump_config() { LOG_SENSOR("", "WiFi Signal", this); }
 

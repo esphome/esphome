@@ -1,7 +1,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
@@ -9,7 +9,7 @@
 
 namespace esphome {
 
-static const char *TAG = "app";
+static const char *const TAG = "app";
 
 void Application::register_component_(Component *comp) {
   if (comp == nullptr) {
@@ -19,7 +19,7 @@ void Application::register_component_(Component *comp) {
 
   for (auto *c : this->components_) {
     if (comp == c) {
-      ESP_LOGW(TAG, "Component already registered! (%p)", c);
+      ESP_LOGW(TAG, "Component %s already registered! (%p)", c->get_component_source(), c);
       return;
     }
   }
@@ -37,6 +37,7 @@ void Application::setup() {
 
     component->call();
     this->scheduler.process_to_add();
+    this->feed_wdt();
     if (component->can_proceed())
       continue;
 
@@ -46,10 +47,12 @@ void Application::setup() {
     do {
       uint32_t new_app_state = STATUS_LED_WARNING;
       this->scheduler.call();
+      this->feed_wdt();
       for (uint32_t j = 0; j <= i; j++) {
         this->components_[j]->call();
         new_app_state |= this->components_[j]->get_component_state();
         this->app_state_ |= new_app_state;
+        this->feed_wdt();
       }
       this->app_state_ = new_app_state;
       yield();
@@ -59,28 +62,22 @@ void Application::setup() {
   ESP_LOGI(TAG, "setup() finished successfully!");
   this->schedule_dump_config();
   this->calculate_looping_components_();
-
-  // Dummy function to link some symbols into the binary.
-  force_link_symbols();
 }
 void Application::loop() {
   uint32_t new_app_state = 0;
-  const uint32_t start = millis();
 
   this->scheduler.call();
+  this->feed_wdt();
   for (Component *component : this->looping_components_) {
-    component->call();
+    {
+      WarnIfComponentBlockingGuard guard{component};
+      component->call();
+    }
     new_app_state |= component->get_component_state();
     this->app_state_ |= new_app_state;
     this->feed_wdt();
   }
   this->app_state_ = new_app_state;
-
-  const uint32_t end = millis();
-  if (end - start > 200) {
-    ESP_LOGV(TAG, "A component took a long time in a loop() cycle (%.2f s).", (end - start) / 1e3f);
-    ESP_LOGV(TAG, "Components should block for at most 20-30ms in loop().");
-  }
 
   const uint32_t now = millis();
 
@@ -100,27 +97,25 @@ void Application::loop() {
   }
   this->last_loop_ = now;
 
-  if (this->dump_config_at_ >= 0 && this->dump_config_at_ < this->components_.size()) {
+  if (this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
       ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
+#ifdef ESPHOME_PROJECT_NAME
+      ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
+#endif
     }
 
-    this->components_[this->dump_config_at_]->dump_config();
+    this->components_[this->dump_config_at_]->call_dump_config();
     this->dump_config_at_++;
   }
 }
 
-void ICACHE_RAM_ATTR HOT Application::feed_wdt() {
-  static uint32_t LAST_FEED = 0;
-  uint32_t now = millis();
-  if (now - LAST_FEED > 3) {
-#ifdef ARDUINO_ARCH_ESP8266
-    ESP.wdtFeed();
-#endif
-#ifdef ARDUINO_ARCH_ESP32
-    yield();
-#endif
-    LAST_FEED = now;
+void IRAM_ATTR HOT Application::feed_wdt() {
+  static uint32_t last_feed = 0;
+  uint32_t now = micros();
+  if (now - last_feed > 3000) {
+    arch_feed_wdt();
+    last_feed = now;
 #ifdef USE_STATUS_LED
     if (status_led::global_status_led != nullptr) {
       status_led::global_status_led->call();
@@ -132,11 +127,7 @@ void Application::reboot() {
   ESP_LOGI(TAG, "Forcing a reboot...");
   for (auto *comp : this->components_)
     comp->on_shutdown();
-  ESP.restart();
-  // restart() doesn't always end execution
-  while (true) {
-    yield();
-  }
+  arch_restart();
 }
 void Application::safe_reboot() {
   ESP_LOGI(TAG, "Rebooting safely...");
@@ -144,11 +135,7 @@ void Application::safe_reboot() {
     comp->on_safe_shutdown();
   for (auto *comp : this->components_)
     comp->on_shutdown();
-  ESP.restart();
-  // restart() doesn't always end execution
-  while (true) {
-    yield();
-  }
+  arch_restart();
 }
 
 void Application::calculate_looping_components_() {
@@ -158,6 +145,6 @@ void Application::calculate_looping_components_() {
   }
 }
 
-Application App;
+Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome

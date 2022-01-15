@@ -1,0 +1,22 @@
+# ESP-IDF sdkconfig defaults used for development purposes only, not used during runtime. Used when PlatformIO is ran
+# directly from the source directory, e.g. by IDEs or for static analysis (clang-tidy). This should enable all flags
+# that are set by any component.
+
+# esp32
+CONFIG_COMPILER_OPTIMIZATION_DEFAULT=n
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+#CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_SINGLE_APP=n
+CONFIG_FREERTOS_HZ=1000
+CONFIG_ESP_TASK_WDT=y
+CONFIG_ESP_TASK_WDT_PANIC=y
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=n
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=n
+
+# esp32_ble
+CONFIG_BT_ENABLED=y
+
+# esp32_camera
+CONFIG_RTCIO_SUPPORT_RTC_GPIO_DESC=y
+CONFIG_ESP32_SPIRAM_SUPPORT=y
