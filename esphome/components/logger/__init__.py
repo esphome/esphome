@@ -54,13 +54,12 @@ LOG_LEVEL_SEVERITY = [
     "VERY_VERBOSE",
 ]
 
-ESP32_REDUCED_VARIANTS = [VARIANT_ESP32C3, VARIANT_ESP32S2]
-
-UART_SELECTION_ESP32_REDUCED = ["UART0", "UART1"]
-
-USB_CDC_ESP32_VARIANTS = [VARIANT_ESP32S2]
-
 UART_SELECTION_ESP32 = ["UART0", "UART1", "UART2"]
+
+UART_SELECTION_ESP32_VARIANTS = {
+    VARIANT_ESP32C3: ["UART0", "UART1"],
+    VARIANT_ESP32S2: ["UART0", "UART1", "USB_CDC"],
+}
 
 UART_SELECTION_ESP8266 = ["UART0", "UART0_SWAP", "UART1"]
 
@@ -84,11 +83,10 @@ is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 def uart_selection(value):
     if CORE.is_esp32:
-        if value.upper() == "USB_CDC":
-            return get_esp32_variant() in USB_CDC_ESP32_VARIANTS
-        if get_esp32_variant() in ESP32_REDUCED_VARIANTS:
-            return cv.one_of(*UART_SELECTION_ESP32_REDUCED, upper=True)(value)
-        return cv.one_of(*UART_SELECTION_ESP32, upper=True)(value)
+        uart_selection = UART_SELECTION_ESP32_VARIANTS.get(
+            get_esp32_variant(), UART_SELECTION_ESP32
+        )
+        return cv.one_of(*uart_selection, upper=True)(value)
     if CORE.is_esp8266:
         return cv.one_of(*UART_SELECTION_ESP8266, upper=True)(value)
     raise NotImplementedError
