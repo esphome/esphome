@@ -223,5 +223,3 @@ async def to_code(config):
                 )
 
             cg.add(var.set_widget(idx, widget_struct))
-
-    cg.add_define("USE_NSPANEL")
