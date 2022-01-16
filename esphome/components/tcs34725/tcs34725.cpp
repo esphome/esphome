@@ -97,7 +97,7 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
    *
    * (a) As light becomes brighter, the clear channel will tend to
    *     saturate first since R+G+B is approximately equal to C.
-   * (b) The TTCS34725 accumulates 1024 counts per 2.4ms of integration
+   * (b) The TCS34725 accumulates 1024 counts per 2.4ms of integration
    *     time, up to a maximum values of 65535. This means analog
    *     saturation can occur up to an integration time of 153.6ms
    *     (64*2.4ms=153.6ms).
