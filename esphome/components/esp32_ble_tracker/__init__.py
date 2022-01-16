@@ -18,7 +18,6 @@ from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
 
 DEPENDENCIES = ["esp32"]
-AUTO_LOAD = ["xiaomi_ble", "ruuvi_ble"]
 
 CONF_ESP32_BLE_ID = "esp32_ble_id"
 CONF_SCAN_PARAMETERS = "scan_parameters"

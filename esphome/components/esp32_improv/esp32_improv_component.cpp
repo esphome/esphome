@@ -11,6 +11,7 @@ namespace esphome {
 namespace esp32_improv {
 
 static const char *const TAG = "esp32_improv.component";
+static const char *const ESPHOME_MY_LINK = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
 
 ESP32ImprovComponent::ESP32ImprovComponent() { global_improv_component = this; }
 
@@ -124,9 +125,14 @@ void ESP32ImprovComponent::loop() {
         this->cancel_timeout("wifi-connect-timeout");
         this->set_state_(improv::STATE_PROVISIONED);
 
-        std::string url = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
-        std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, {url});
-        this->send_response(data);
+        std::vector<std::string> urls = {ESPHOME_MY_LINK};
+#ifdef USE_WEBSERVER
+        auto ip = wifi::global_wifi_component->wifi_sta_ip();
+        std::string webserver_url = "http://" + ip.str() + ":" + to_string(WEBSERVER_PORT);
+        urls.push_back(webserver_url);
+#endif
+        std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, urls);
+        this->send_response_(data);
         this->set_timeout("end-service", 1000, [this] {
           this->service_->stop();
           this->set_state_(improv::STATE_STOPPED);
@@ -181,7 +187,7 @@ void ESP32ImprovComponent::set_error_(improv::Error error) {
   }
 }
 
-void ESP32ImprovComponent::send_response(std::vector<uint8_t> &response) {
+void ESP32ImprovComponent::send_response_(std::vector<uint8_t> &response) {
   this->rpc_response_->set_value(response);
   if (this->state_ != improv::STATE_STOPPED)
     this->rpc_response_->notify();
@@ -213,7 +219,7 @@ void ESP32ImprovComponent::dump_config() {
 void ESP32ImprovComponent::process_incoming_data_() {
   uint8_t length = this->incoming_data_[1];
 
-  ESP_LOGD(TAG, "Processing bytes - %s", hexencode(this->incoming_data_).c_str());
+  ESP_LOGD(TAG, "Processing bytes - %s", format_hex_pretty(this->incoming_data_).c_str());
   if (this->incoming_data_.size() - 3 == length) {
     this->set_error_(improv::ERROR_NONE);
     improv::ImprovCommand command = improv::parse_improv_data(this->incoming_data_);

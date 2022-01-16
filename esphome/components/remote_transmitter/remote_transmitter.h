@@ -32,10 +32,13 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   void mark_(uint32_t on_time, uint32_t off_time, uint32_t usec);
 
   void space_(uint32_t usec);
+
+  void await_target_time_();
+  uint32_t target_time_;
 #endif
 
 #ifdef USE_ESP32
-  void configure_rmt();
+  void configure_rmt_();
 
   uint32_t current_carrier_frequency_{UINT32_MAX};
   bool initialized_{false};

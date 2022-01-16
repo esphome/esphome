@@ -31,7 +31,7 @@ void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_i
     }
     case ESP_GATTC_DISCONNECT_EVT: {
       this->logged_in_ = false;
-      this->node_state = espbt::ClientState::Idle;
+      this->node_state = espbt::ClientState::IDLE;
       if (this->battery_ != nullptr)
         this->battery_->publish_state(NAN);
       if (this->illuminance_ != nullptr)
@@ -54,7 +54,7 @@ void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_i
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      this->node_state = espbt::ClientState::Established;
+      this->node_state = espbt::ClientState::ESTABLISHED;
       this->update();
       break;
     }
@@ -93,7 +93,7 @@ void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_i
 }
 
 void Am43::update() {
-  if (this->node_state != espbt::ClientState::Established) {
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "[%s] Cannot poll, not connected", this->parent_->address_str().c_str());
     return;
   }

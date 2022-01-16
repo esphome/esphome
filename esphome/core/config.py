@@ -23,11 +23,13 @@ from esphome.const import (
     CONF_PLATFORMIO_OPTIONS,
     CONF_PRIORITY,
     CONF_PROJECT,
+    CONF_SOURCE,
     CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_VERSION,
     KEY_CORE,
     TARGET_PLATFORMS,
+    PLATFORM_ESP8266,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, walk_files
@@ -51,6 +53,24 @@ CONF_NAME_ADD_MAC_SUFFIX = "name_add_mac_suffix"
 
 
 VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
+
+
+def validate_hostname(config):
+    max_length = 31
+    if config[CONF_NAME_ADD_MAC_SUFFIX]:
+        max_length -= 7  # "-AABBCC" is appended when add mac suffix option is used
+    if len(config[CONF_NAME]) > max_length:
+        raise cv.Invalid(
+            f"Hostnames can only be {max_length} characters long", path=[CONF_NAME]
+        )
+    if "_" in config[CONF_NAME]:
+        _LOGGER.warning(
+            "'%s': Using the '_' (underscore) character in the hostname is discouraged "
+            "as it can cause problems with some DHCP and local name services. "
+            "For more information, see https://esphome.io/guides/faq.html#why-shouldn-t-i-use-underscores-in-my-device-name",
+            config[CONF_NAME],
+        )
+    return config
 
 
 def valid_include(value):
@@ -77,42 +97,47 @@ def valid_project_name(value: str):
 
 
 CONF_ESP8266_RESTORE_FROM_FLASH = "esp8266_restore_from_flash"
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_NAME): cv.hostname,
-        cv.Optional(CONF_COMMENT): cv.string,
-        cv.Required(CONF_BUILD_PATH): cv.string,
-        cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
-            {
-                cv.string_strict: cv.Any([cv.string], cv.string),
-            }
-        ),
-        cv.Optional(CONF_ON_BOOT): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger),
-                cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
-            }
-        ),
-        cv.Optional(CONF_ON_SHUTDOWN): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_LOOP): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
-            }
-        ),
-        cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
-        cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
-        cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
-        cv.Optional(CONF_PROJECT): cv.Schema(
-            {
-                cv.Required(CONF_NAME): cv.All(cv.string_strict, valid_project_name),
-                cv.Required(CONF_VERSION): cv.string_strict,
-            }
-        ),
-    }
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_NAME): cv.valid_name,
+            cv.Optional(CONF_COMMENT): cv.string,
+            cv.Required(CONF_BUILD_PATH): cv.string,
+            cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
+                {
+                    cv.string_strict: cv.Any([cv.string], cv.string),
+                }
+            ),
+            cv.Optional(CONF_ON_BOOT): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger),
+                    cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
+                }
+            ),
+            cv.Optional(CONF_ON_SHUTDOWN): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_LOOP): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
+                }
+            ),
+            cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
+            cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
+            cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
+            cv.Optional(CONF_PROJECT): cv.Schema(
+                {
+                    cv.Required(CONF_NAME): cv.All(
+                        cv.string_strict, valid_project_name
+                    ),
+                    cv.Required(CONF_VERSION): cv.string_strict,
+                }
+            ),
+        }
+    ),
+    validate_hostname,
 )
 
 PRELOAD_CONFIG_SCHEMA = cv.Schema(
@@ -140,7 +165,7 @@ def preload_core_config(config, result):
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
-        conf[CONF_BUILD_PATH] = CORE.name
+        conf[CONF_BUILD_PATH] = f".esphome/build/{CORE.name}"
     CORE.build_path = CORE.relative_config_path(conf[CONF_BUILD_PATH])
 
     has_oldstyle = CONF_PLATFORM in conf
@@ -181,10 +206,16 @@ def preload_core_config(config, result):
         if CONF_BOARD_FLASH_MODE in conf:
             plat_conf[CONF_BOARD_FLASH_MODE] = conf.pop(CONF_BOARD_FLASH_MODE)
         if CONF_ARDUINO_VERSION in conf:
-            plat_conf[CONF_FRAMEWORK] = {
-                CONF_TYPE: "arduino",
-                CONF_VERSION: conf.pop(CONF_ARDUINO_VERSION),
-            }
+            plat_conf[CONF_FRAMEWORK] = {}
+            if plat != PLATFORM_ESP8266:
+                plat_conf[CONF_FRAMEWORK][CONF_TYPE] = "arduino"
+
+            try:
+                if conf[CONF_ARDUINO_VERSION] not in ("recommended", "latest", "dev"):
+                    cv.Version.parse(conf[CONF_ARDUINO_VERSION])
+                plat_conf[CONF_FRAMEWORK][CONF_VERSION] = conf.pop(CONF_ARDUINO_VERSION)
+            except ValueError:
+                plat_conf[CONF_FRAMEWORK][CONF_SOURCE] = conf.pop(CONF_ARDUINO_VERSION)
         if CONF_BOARD in conf:
             plat_conf[CONF_BOARD] = conf.pop(CONF_BOARD)
         # Insert generated target platform config to main config
@@ -201,6 +232,32 @@ def include_file(path, basename):
     if ext in [".h", ".hpp", ".tcc"]:
         # Header, add include statement
         cg.add_global(cg.RawStatement(f'#include "{basename}"'))
+
+
+ARDUINO_GLUE_CODE = """\
+#define yield() esphome::yield()
+#define millis() esphome::millis()
+#define micros() esphome::micros()
+#define delay(x) esphome::delay(x)
+#define delayMicroseconds(x) esphome::delayMicroseconds(x)
+"""
+
+
+@coroutine_with_priority(-999.0)
+async def add_arduino_global_workaround():
+    # The Arduino framework defined these itself in the global
+    # namespace. For the esphome codebase that is not a problem,
+    # but when custom code
+    #   1. writes `millis()` for example AND
+    #   2. has `using namespace esphome;` like our guides suggest
+    # Then the compiler will complain that the call is ambiguous
+    # Define a hacky macro so that the call is never ambiguous
+    # and always uses the esphome namespace one.
+    # See also https://github.com/esphome/issues/issues/2510
+    # Priority -999 so that it runs before adding includes, as those
+    # also might reference these symbols
+    for line in ARDUINO_GLUE_CODE.splitlines():
+        cg.add_global(cg.RawStatement(line))
 
 
 @coroutine_with_priority(-1000.0)
@@ -247,6 +304,11 @@ async def _add_automations(config):
 @coroutine_with_priority(100.0)
 async def to_code(config):
     cg.add_global(cg.global_ns.namespace("esphome").using)
+    # These can be used by user lambdas, put them to default scope
+    cg.add_global(cg.RawExpression("using std::isnan"))
+    cg.add_global(cg.RawExpression("using std::min"))
+    cg.add_global(cg.RawExpression("using std::max"))
+
     cg.add(
         cg.App.pre_setup(
             config[CONF_NAME],
@@ -278,6 +340,9 @@ async def to_code(config):
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
+
+    if CORE.using_arduino:
+        CORE.add_job(add_arduino_global_workaround)
 
     if config[CONF_INCLUDES]:
         CORE.add_job(add_includes, config[CONF_INCLUDES])

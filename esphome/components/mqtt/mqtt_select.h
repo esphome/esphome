@@ -25,18 +25,16 @@ class MQTTSelectComponent : public mqtt::MQTTComponent {
   void setup() override;
   void dump_config() override;
 
-  void send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) override;
+  void send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) override;
 
   bool send_initial_state() override;
-  bool is_internal() override;
 
   bool publish_state(const std::string &value);
 
  protected:
   /// Override for MQTTComponent, returns "select".
   std::string component_type() const override;
-
-  std::string friendly_name() const override;
+  const EntityBase *get_entity() const override;
 
   select::Select *select_;
 };

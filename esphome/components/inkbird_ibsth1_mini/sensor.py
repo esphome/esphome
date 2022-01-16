@@ -9,6 +9,7 @@ from esphome.const import (
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -21,14 +22,14 @@ DEPENDENCIES = ["esp32_ble_tracker"]
 CONF_EXTERNAL_TEMPERATURE = "external_temperature"
 
 inkbird_ibsth1_mini_ns = cg.esphome_ns.namespace("inkbird_ibsth1_mini")
-InkbirdUBSTH1_MINI = inkbird_ibsth1_mini_ns.class_(
-    "InkbirdIBSTH1_MINI", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
+InkbirdIbstH1Mini = inkbird_ibsth1_mini_ns.class_(
+    "InkbirdIbstH1Mini", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
 )
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(InkbirdUBSTH1_MINI),
+            cv.GenerateID(): cv.declare_id(InkbirdIbstH1Mini),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
@@ -53,6 +54,7 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_BATTERY,
                 state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
     )

@@ -67,9 +67,9 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
   memset(&event, 0, sizeof(IDFWiFiEvent));
   event.event_base = event_base;
   event.event_id = event_id;
-  if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+  if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {  // NOLINT(bugprone-branch-clone)
     // no data
-  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_STOP) {
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_STOP) {  // NOLINT(bugprone-branch-clone)
     // no data
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_AUTHMODE_CHANGE) {
     memcpy(&event.data.sta_authmode_change, event_data, sizeof(wifi_event_sta_authmode_change_t));
@@ -79,13 +79,13 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
     memcpy(&event.data.sta_disconnected, event_data, sizeof(wifi_event_sta_disconnected_t));
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
     memcpy(&event.data.ip_got_ip, event_data, sizeof(ip_event_got_ip_t));
-  } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_LOST_IP) {
+  } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_LOST_IP) {  // NOLINT(bugprone-branch-clone)
     // no data
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_SCAN_DONE) {
     memcpy(&event.data.sta_scan_done, event_data, sizeof(wifi_event_sta_scan_done_t));
-  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_START) {
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_START) {  // NOLINT(bugprone-branch-clone)
     // no data
-  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STOP) {
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STOP) {  // NOLINT(bugprone-branch-clone)
     // no data
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_PROBEREQRECVED) {
     memcpy(&event.data.ap_probe_req_rx, event_data, sizeof(wifi_event_ap_probe_req_rx_t));
@@ -110,6 +110,12 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
 }
 
 void WiFiComponent::wifi_pre_setup_() {
+#ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
+  uint8_t mac[6];
+  get_mac_address_raw(mac);
+  set_mac_address(mac);
+  ESP_LOGV(TAG, "Use EFuse MAC without checking CRC: %s", get_mac_address_pretty().c_str());
+#endif
   esp_err_t err = esp_netif_init();
   if (err != ERR_OK) {
     ESP_LOGE(TAG, "esp_netif_init failed: %s", esp_err_to_name(err));
@@ -369,13 +375,20 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
         ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_password failed! %d", err);
       }
     }
-    esp_wpa2_config_t wpa2_config = WPA2_CONFIG_INIT_DEFAULT();
-    err = esp_wifi_sta_wpa2_ent_enable(&wpa2_config);
+    err = esp_wifi_sta_wpa2_ent_enable();
     if (err != ESP_OK) {
       ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_enable failed! %d", err);
     }
   }
 #endif  // USE_WIFI_WPA2_EAP
+
+  // Reset flags, do this _before_ wifi_station_connect as the callback method
+  // may be called from wifi_station_connect
+  s_sta_connecting = true;
+  s_sta_connected = false;
+  s_sta_got_ip = false;
+  s_sta_connect_error = false;
+  s_sta_connect_not_found = false;
 
   err = esp_wifi_connect();
   if (err != ESP_OK) {
@@ -383,11 +396,6 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     return false;
   }
 
-  s_sta_connecting = true;
-  s_sta_connected = false;
-  s_sta_got_ip = false;
-  s_sta_connect_error = false;
-  s_sta_connect_not_found = false;
   return true;
 }
 
@@ -422,7 +430,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
 
   err = tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA);
-  if (err != ESP_OK) {
+  if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
     ESP_LOGV(TAG, "tcpip_adapter_dhcpc_stop failed: %s", esp_err_to_name(err));
     return false;
   }

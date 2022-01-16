@@ -77,7 +77,7 @@ void APIServer::setup() {
   this->last_connected_ = millis();
 
 #ifdef USE_ESP32_CAMERA
-  if (esp32_camera::global_esp32_camera != nullptr) {
+  if (esp32_camera::global_esp32_camera != nullptr && !esp32_camera::global_esp32_camera->is_internal()) {
     esp32_camera::global_esp32_camera->add_image_callback(
         [this](const std::shared_ptr<esp32_camera::CameraImage> &image) {
           for (auto &c : this->clients_)
@@ -133,6 +133,11 @@ void APIServer::loop() {
 void APIServer::dump_config() {
   ESP_LOGCONFIG(TAG, "API Server:");
   ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->port_);
+#ifdef USE_API_NOISE
+  ESP_LOGCONFIG(TAG, "  Using noise encryption: YES");
+#else
+  ESP_LOGCONFIG(TAG, "  Using noise encryption: NO");
+#endif
 }
 bool APIServer::uses_password() const { return !this->password_.empty(); }
 bool APIServer::check_password(const std::string &password) const {

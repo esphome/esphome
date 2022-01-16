@@ -25,7 +25,7 @@ class ESP8266GPIOPin : public InternalGPIOPin {
   bool is_inverted() const override { return inverted_; }
 
  protected:
-  void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
+  void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
 
   uint8_t pin_;
   bool inverted_;

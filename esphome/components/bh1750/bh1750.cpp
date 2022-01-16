@@ -71,7 +71,7 @@ void BH1750Sensor::update() {
 float BH1750Sensor::get_setup_priority() const { return setup_priority::DATA; }
 void BH1750Sensor::read_data_() {
   uint16_t raw_value;
-  if (!this->read(reinterpret_cast<uint8_t *>(&raw_value), 2)) {
+  if (this->read(reinterpret_cast<uint8_t *>(&raw_value), 2) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
@@ -79,6 +79,9 @@ void BH1750Sensor::read_data_() {
 
   float lx = float(raw_value) / 1.2f;
   lx *= 69.0f / this->measurement_duration_;
+  if (this->resolution_ == BH1750_RESOLUTION_0P5_LX) {
+    lx /= 2.0f;
+  }
   ESP_LOGD(TAG, "'%s': Got illuminance=%.1flx", this->get_name().c_str(), lx);
   this->publish_state(lx);
   this->status_clear_warning();

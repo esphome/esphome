@@ -1,11 +1,16 @@
+#include "nextion.h"
+
 #ifdef USE_NEXTION_TFT_UPLOAD
 
-#include "nextion.h"
 #include "esphome/core/application.h"
 #include "esphome/core/macros.h"
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
+
+#ifdef USE_ESP32
+#include <esp_heap_caps.h>
+#endif
 
 namespace esphome {
 namespace nextion {
@@ -94,7 +99,7 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
   }
   http->end();
   ESP_LOGN(TAG, "this->content_length_ %d sent %d", this->content_length_, sent);
-  for (uint32_t i = 0; i < range; i += 4096) {
+  for (int i = 0; i < range; i += 4096) {
     this->write_array(&this->transfer_buffer_[i], 4096);
     this->content_length_ -= 4096;
     ESP_LOGN(TAG, "this->content_length_ %d range %d range_end %d range_start %d", this->content_length_, range,
@@ -157,12 +162,8 @@ void Nextion::upload_tft() {
   if (!begin_status) {
     this->is_updating_ = false;
     ESP_LOGD(TAG, "connection failed");
-#ifdef USE_ESP32
-    if (psramFound())
-      free(this->transfer_buffer_);  // NOLINT
-    else
-#endif
-      delete this->transfer_buffer_;
+    ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    allocator.deallocate(this->transfer_buffer_, this->transfer_buffer_size_);
     return;
   } else {
     ESP_LOGD(TAG, "Connected");
@@ -237,7 +238,7 @@ void Nextion::upload_tft() {
   // The Nextion display will, if it's ready to accept data, send a 0x05 byte.
   ESP_LOGD(TAG, "Upgrade response is %s %zu", response.c_str(), response.length());
 
-  for (int i = 0; i < response.length(); i++) {
+  for (size_t i = 0; i < response.length(); i++) {
     ESP_LOGD(TAG, "Available %d : 0x%02X", i, response[i]);
   }
 
@@ -251,7 +252,7 @@ void Nextion::upload_tft() {
   // Nextion wants 4096 bytes at a time. Make chunk_size a multiple of 4096
 #ifdef USE_ESP32
   uint32_t chunk_size = 8192;
-  if (psramFound()) {
+  if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) > 0) {
     chunk_size = this->content_length_;
   } else {
     if (ESP.getFreeHeap() > 40960) {  // 32K to keep on hand
@@ -268,30 +269,18 @@ void Nextion::upload_tft() {
 #endif
 
   if (this->transfer_buffer_ == nullptr) {
-#ifdef USE_ESP32
-    if (psramFound()) {
-      ESP_LOGD(TAG, "Allocating PSRAM buffer size %d, Free PSRAM size is %u", chunk_size, ESP.getFreePsram());
-      this->transfer_buffer_ = (uint8_t *) ps_malloc(chunk_size);
-      if (this->transfer_buffer_ == nullptr) {
-        ESP_LOGE(TAG, "Could not allocate buffer size %d!", chunk_size);
-        this->upload_end_();
-      }
-    } else {
-#endif
-      // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-      ESP_LOGD(TAG, "Allocating buffer size %d, Heap size is %u", chunk_size, ESP.getFreeHeap());
-      this->transfer_buffer_ = new (std::nothrow) uint8_t[chunk_size];  // NOLINT(cppcoreguidelines-owning-memory)
-      if (this->transfer_buffer_ == nullptr) {                          // Try a smaller size
-        ESP_LOGD(TAG, "Could not allocate buffer size: %d trying 4096 instead", chunk_size);
-        chunk_size = 4096;
-        ESP_LOGD(TAG, "Allocating %d buffer", chunk_size);
-        this->transfer_buffer_ = new (std::nothrow) uint8_t[chunk_size];  // NOLINT(cppcoreguidelines-owning-memory)
+    ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
+    ESP_LOGD(TAG, "Allocating buffer size %d, Heap size is %u", chunk_size, ESP.getFreeHeap());
+    this->transfer_buffer_ = allocator.allocate(chunk_size);
+    if (this->transfer_buffer_ == nullptr) {  // Try a smaller size
+      ESP_LOGD(TAG, "Could not allocate buffer size: %d trying 4096 instead", chunk_size);
+      chunk_size = 4096;
+      ESP_LOGD(TAG, "Allocating %d buffer", chunk_size);
+      this->transfer_buffer_ = allocator.allocate(chunk_size);
 
-        if (!this->transfer_buffer_)
-          this->upload_end_();
-#ifdef USE_ESP32
-      }
-#endif
+      if (!this->transfer_buffer_)
+        this->upload_end_();
     }
 
     this->transfer_buffer_size_ = chunk_size;
@@ -329,7 +318,8 @@ void Nextion::upload_end_() {
 WiFiClient *Nextion::get_wifi_client_() {
   if (this->tft_url_.compare(0, 6, "https:") == 0) {
     if (this->wifi_client_secure_ == nullptr) {
-      this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();  // NOLINT(cppcoreguidelines-owning-memory)
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+      this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();
       this->wifi_client_secure_->setInsecure();
       this->wifi_client_secure_->setBufferSizes(512, 512);
     }
@@ -337,7 +327,8 @@ WiFiClient *Nextion::get_wifi_client_() {
   }
 
   if (this->wifi_client_ == nullptr) {
-    this->wifi_client_ = new WiFiClient();  // NOLINT(cppcoreguidelines-owning-memory)
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+    this->wifi_client_ = new WiFiClient();
   }
   return this->wifi_client_;
 }

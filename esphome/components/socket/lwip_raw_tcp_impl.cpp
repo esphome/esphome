@@ -257,7 +257,7 @@ class LWIPRawImpl : public Socket {
         errno = EINVAL;
         return -1;
       }
-      *reinterpret_cast<int *>(optval) = tcp_nagle_disabled(pcb_);
+      *reinterpret_cast<int *>(optval) = nodelay_;
       *optlen = 4;
       return 0;
     }
@@ -286,11 +286,7 @@ class LWIPRawImpl : public Socket {
         return -1;
       }
       int val = *reinterpret_cast<const int *>(optval);
-      if (val != 0) {
-        tcp_nagle_disable(pcb_);
-      } else {
-        tcp_nagle_enable(pcb_);
-      }
+      nodelay_ = val;
       return 0;
     }
 
@@ -324,8 +320,7 @@ class LWIPRawImpl : public Socket {
       return -1;
     }
     if (rx_closed_ && rx_buf_ == nullptr) {
-      errno = ECONNRESET;
-      return -1;
+      return 0;
     }
     if (len == 0) {
       return 0;
@@ -370,6 +365,11 @@ class LWIPRawImpl : public Socket {
       read += copysize;
     }
 
+    if (read == 0) {
+      errno = EWOULDBLOCK;
+      return -1;
+    }
+
     return read;
   }
   ssize_t readv(const struct iovec *iov, int iovcnt) override {
@@ -383,7 +383,7 @@ class LWIPRawImpl : public Socket {
         return err;
       }
       ret += err;
-      if (err != iov[i].iov_len)
+      if ((size_t) err != iov[i].iov_len)
         break;
     }
     return ret;
@@ -444,9 +444,11 @@ class LWIPRawImpl : public Socket {
     if (written == 0)
       // no need to output if nothing written
       return 0;
-    int err = internal_output();
-    if (err == -1)
-      return -1;
+    if (nodelay_) {
+      int err = internal_output();
+      if (err == -1)
+        return -1;
+    }
     return written;
   }
   ssize_t writev(const struct iovec *iov, int iovcnt) override {
@@ -460,15 +462,17 @@ class LWIPRawImpl : public Socket {
         return err;
       }
       written += err;
-      if (err != iov[i].iov_len)
+      if ((size_t) err != iov[i].iov_len)
         break;
     }
     if (written == 0)
       // no need to output if nothing written
       return 0;
-    int err = internal_output();
-    if (err == -1)
-      return -1;
+    if (nodelay_) {
+      int err = internal_output();
+      if (err == -1)
+        return -1;
+    }
     return written;
   }
   int setblocking(bool blocking) override {
@@ -550,6 +554,9 @@ class LWIPRawImpl : public Socket {
   bool rx_closed_ = false;
   pbuf *rx_buf_ = nullptr;
   size_t rx_buf_offset_ = 0;
+  // don't use lwip nodelay flag, it sometimes causes reconnect
+  // instead use it for determining whether to call lwip_output
+  bool nodelay_ = false;
 };
 
 std::unique_ptr<Socket> socket(int domain, int type, int protocol) {

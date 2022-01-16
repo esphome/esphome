@@ -1,8 +1,9 @@
 #pragma once
-#include <cstdint>
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/core/color.h"
 #include "esphome/core/component.h"
-#include "esphome/components/sensor/sensor.h"
+#include <cstdint>
+#include <utility>
 
 namespace esphome {
 
@@ -43,8 +44,8 @@ enum ValuePositionType {
 class GraphLegend {
  public:
   void init(Graph *g);
-  void set_name_font(display::Font *font) { this->font_label = font; }
-  void set_value_font(display::Font *font) { this->font_value = font; }
+  void set_name_font(display::Font *font) { this->font_label_ = font; }
+  void set_value_font(display::Font *font) { this->font_value_ = font; }
   void set_width(uint32_t width) { this->width_ = width; }
   void set_height(uint32_t height) { this->height_ = height; }
   void set_border(bool val) { this->border_ = val; }
@@ -61,8 +62,8 @@ class GraphLegend {
   ValuePositionType values_{VALUE_POSITION_TYPE_AUTO};
   bool units_{true};
   DirectionType direction_{DIRECTION_TYPE_AUTO};
-  display::Font *font_label{nullptr};
-  display::Font *font_value{nullptr};
+  display::Font *font_label_{nullptr};
+  display::Font *font_value_{nullptr};
   // Calculated values
   Graph *parent_{nullptr};
   //                      (x0)          (xs,ys)         (xs,ys)
@@ -72,12 +73,12 @@ class GraphLegend {
   //                          (0,yl)|   \-> VALUE1+units
   //                                v     (top_center)
   //                            LINE_SAMPLE
-  int x0{0};  // X-offset to centre of label text
-  int xs{0};  // X spacing between labels
-  int ys{0};  // Y spacing between labels
-  int yl{0};  // Y spacing from label to line sample
-  int xv{0};  // X distance between label to value text
-  int yv{0};  // Y distance between label to value text
+  int x0_{0};  // X-offset to centre of label text
+  int xs_{0};  // X spacing between labels
+  int ys_{0};  // Y spacing between labels
+  int yl_{0};  // Y spacing from label to line sample
+  int xv_{0};  // X distance between label to value text
+  int yv_{0};  // Y distance between label to value text
   friend Graph;
 };
 
@@ -106,7 +107,7 @@ class HistoryData {
 class GraphTrace {
  public:
   void init(Graph *g);
-  void set_name(std::string name) { name_ = name; }
+  void set_name(std::string name) { name_ = std::move(name); }
   void set_sensor(sensor::Sensor *sensor) { sensor_ = sensor; }
   uint8_t get_line_thickness() { return this->line_thickness_; }
   void set_line_thickness(uint8_t val) { this->line_thickness_ = val; }
@@ -114,7 +115,7 @@ class GraphTrace {
   void set_line_type(enum LineType val) { this->line_type_ = val; }
   Color get_line_color() { return this->line_color_; }
   void set_line_color(Color val) { this->line_color_ = val; }
-  const std::string get_name(void) { return name_; }
+  const std::string get_name() { return name_; }
   const HistoryData *get_tracedata() { return &data_; }
 
  protected:

@@ -360,15 +360,18 @@ void HOT WaveshareEPaperTypeA::display() {
 
   // COMMAND DISPLAY UPDATE CONTROL 2
   this->command(0x22);
-  if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2 || this->model_ == WAVESHARE_EPAPER_1_54_IN_V2) {
-    this->data(full_update ? 0xF7 : 0xFF);
-  } else if (this->model_ == TTGO_EPAPER_2_13_IN_B73) {
-    this->data(0xC7);
-  } else if (this->model_ == TTGO_EPAPER_2_13_IN_B74) {
-    // this->data(0xC7);
-    this->data(full_update ? 0xF7 : 0xFF);
-  } else {
-    this->data(0xC4);
+  switch (this->model_) {
+    case WAVESHARE_EPAPER_2_9_IN_V2:
+    case WAVESHARE_EPAPER_1_54_IN_V2:
+    case TTGO_EPAPER_2_13_IN_B74:
+      this->data(full_update ? 0xF7 : 0xFF);
+      break;
+    case TTGO_EPAPER_2_13_IN_B73:
+      this->data(0xC7);
+      break;
+    default:
+      this->data(0xC4);
+      break;
   }
 
   // COMMAND MASTER ACTIVATION
@@ -381,20 +384,14 @@ void HOT WaveshareEPaperTypeA::display() {
 int WaveshareEPaperTypeA::get_width_internal() {
   switch (this->model_) {
     case WAVESHARE_EPAPER_1_54_IN:
-      return 200;
     case WAVESHARE_EPAPER_1_54_IN_V2:
       return 200;
     case WAVESHARE_EPAPER_2_13_IN:
-      return 128;
     case TTGO_EPAPER_2_13_IN:
-      return 128;
     case TTGO_EPAPER_2_13_IN_B73:
     case TTGO_EPAPER_2_13_IN_B74:
-      return 128;
     case TTGO_EPAPER_2_13_IN_B1:
-      return 128;
     case WAVESHARE_EPAPER_2_9_IN:
-      return 128;
     case WAVESHARE_EPAPER_2_9_IN_V2:
       return 128;
   }
@@ -403,20 +400,15 @@ int WaveshareEPaperTypeA::get_width_internal() {
 int WaveshareEPaperTypeA::get_height_internal() {
   switch (this->model_) {
     case WAVESHARE_EPAPER_1_54_IN:
-      return 200;
     case WAVESHARE_EPAPER_1_54_IN_V2:
       return 200;
     case WAVESHARE_EPAPER_2_13_IN:
-      return 250;
     case TTGO_EPAPER_2_13_IN:
-      return 250;
     case TTGO_EPAPER_2_13_IN_B73:
     case TTGO_EPAPER_2_13_IN_B74:
-      return 250;
     case TTGO_EPAPER_2_13_IN_B1:
       return 250;
     case WAVESHARE_EPAPER_2_9_IN:
-      return 296;
     case WAVESHARE_EPAPER_2_9_IN_V2:
       return 296;
   }
@@ -433,11 +425,10 @@ void WaveshareEPaperTypeA::set_full_update_every(uint32_t full_update_every) {
   this->full_update_every_ = full_update_every;
 }
 
-int WaveshareEPaperTypeA::idle_timeout_() {
+uint32_t WaveshareEPaperTypeA::idle_timeout_() {
   switch (this->model_) {
     case TTGO_EPAPER_2_13_IN_B1:
       return 2500;
-      break;
     default:
       return WaveshareEPaper::idle_timeout_();
   }
@@ -646,7 +637,7 @@ void HOT WaveshareEPaper2P9InB::display() {
   this->command(0x13);
   delay(2);
   this->start_data_();
-  for (int i = 0; i < this->get_buffer_length_(); i++)
+  for (size_t i = 0; i < this->get_buffer_length_(); i++)
     this->write_byte(0x00);
   this->end_data_();
   delay(2);
@@ -825,7 +816,7 @@ void HOT WaveshareEPaper4P2InBV2::display() {
   // COMMAND DATA START TRANSMISSION 2 (RED data)
   this->command(0x13);
   this->start_data_();
-  for (int i = 0; i < this->get_buffer_length_(); i++)
+  for (size_t i = 0; i < this->get_buffer_length_(); i++)
     this->write_byte(0xFF);
   this->end_data_();
   delay(2);
@@ -1081,13 +1072,109 @@ void WaveshareEPaper7P5InV2::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+/* 7.50in-bc */
+void WaveshareEPaper7P5InBC::initialize() {
+  /* The command sequence is similar to the 7P5In display but differs in subtle ways
+  to allow for faster updates. */
+  // COMMAND POWER SETTING
+  this->command(0x01);
+  this->data(0x37);
+  this->data(0x00);
+
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  this->data(0xCF);
+  this->data(0x08);
+
+  // COMMAND PLL CONTROL
+  this->command(0x30);
+  this->data(0x3A);
+
+  // COMMAND VCM_DC_SETTING: all temperature range
+  this->command(0x82);
+  this->data(0x28);
+
+  // COMMAND BOOSTER SOFT START
+  this->command(0x06);
+  this->data(0xC7);
+  this->data(0xCC);
+  this->data(0x15);
+
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0x77);
+
+  // COMMAND TCON SETTING
+  this->command(0x60);
+  this->data(0x22);
+
+  // COMMAND FLASH CONTROL
+  this->command(0x65);
+  this->data(0x00);
+
+  // COMMAND RESOLUTION SETTING
+  this->command(0x61);
+  this->data(0x02);  // 640 >> 8
+  this->data(0x80);
+  this->data(0x01);  // 384 >> 8
+  this->data(0x80);
+
+  // COMMAND FLASH MODE
+  this->command(0xE5);
+  this->data(0x03);
+}
+
+void HOT WaveshareEPaper7P5InBC::display() {
+  // COMMAND DATA START TRANSMISSION 1
+  this->command(0x10);
+  this->start_data_();
+
+  for (size_t i = 0; i < this->get_buffer_length_(); i++) {
+    // A line of eight source pixels (each a bit in this byte)
+    uint8_t eight_pixels = this->buffer_[i];
+
+    for (uint8_t j = 0; j < 8; j += 2) {
+      /* For bichromatic displays, each byte represents two pixels. Each nibble encodes a pixel: 0=white, 3=black,
+      4=color. Therefore, e.g. 0x44 = two adjacent color pixels, 0x33 is two adjacent black pixels, etc. If you want
+      to draw using the color pixels, change '0x30' with '0x40' and '0x03' with '0x04' below. */
+      uint8_t left_nibble = (eight_pixels & 0x80) ? 0x30 : 0x00;
+      eight_pixels <<= 1;
+      uint8_t right_nibble = (eight_pixels & 0x80) ? 0x03 : 0x00;
+      eight_pixels <<= 1;
+      this->write_byte(left_nibble | right_nibble);
+    }
+    App.feed_wdt();
+  }
+  this->end_data_();
+
+  // Unlike the 7P5In display, we send the "power on" command here rather than during initialization
+  // COMMAND POWER ON
+  this->command(0x04);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+}
+
+int WaveshareEPaper7P5InBC::get_width_internal() { return 640; }
+
+int WaveshareEPaper7P5InBC::get_height_internal() { return 384; }
+
+void WaveshareEPaper7P5InBC::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.5in-bc");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 static const uint8_t LUT_SIZE_TTGO_DKE_PART = 153;
 
 static const uint8_t PART_UPDATE_LUT_TTGO_DKE[LUT_SIZE_TTGO_DKE_PART] = {
     0x0, 0x40, 0x0, 0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x80, 0x80, 0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
     0x0, 0x0,  0x0, 0x0, 0x40, 0x40, 0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x80, 0x0, 0x0,
     0x0, 0x0,  0x0, 0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
-    0xF, 0x0,  0x0, 0x0, 0x0,  0x0,  0x0,  0x1,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
+    0xF, 0x0,  0x0, 0x0, 0x0,  0x0,  0x0,  0x4,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
     0x0, 0x0,  0x0, 0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
     0x0, 0x0,  0x0, 0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
     0x0, 0x0,  0x1, 0x0, 0x0,  0x0,  0x0,  0x0,  0x0,  0x1,  0x0, 0x0, 0x0,  0x0,  0x0, 0x0, 0x0, 0x0,  0x0, 0x0,
@@ -1197,7 +1284,7 @@ void HOT WaveshareEPaper2P13InDKE::display() {
 
 int WaveshareEPaper2P13InDKE::get_width_internal() { return 128; }
 int WaveshareEPaper2P13InDKE::get_height_internal() { return 250; }
-int WaveshareEPaper2P13InDKE::idle_timeout_() { return 5000; }
+uint32_t WaveshareEPaper2P13InDKE::idle_timeout_() { return 5000; }
 void WaveshareEPaper2P13InDKE::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 2.13inDKE");

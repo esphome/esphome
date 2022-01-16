@@ -12,12 +12,15 @@ from string import ascii_letters, digits
 import voluptuous as vol
 
 from esphome import core
+import esphome.codegen as cg
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
     CONF_COMMAND_TOPIC,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
     CONF_NAME,
@@ -34,6 +37,9 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
     CONF_TYPE,
+    ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ENTITY_CATEGORY_NONE,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
@@ -290,9 +296,11 @@ def icon(value):
     value = string_strict(value)
     if not value:
         return value
-    if value.startswith("mdi:"):
+    if re.match("^[\\w\\-]+:[\\w\\-]+$", value):
         return value
-    raise Invalid('Icons should start with prefix "mdi:"')
+    raise Invalid(
+        'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
+    )
 
 
 def boolean(value):
@@ -902,21 +910,9 @@ def validate_bytes(value):
 
 def hostname(value):
     value = string(value)
-    warned_underscore = False
-    if len(value) > 63:
-        raise Invalid("Hostnames can only be 63 characters long")
-    for c in value:
-        if not (c.isalnum() or c in "-_"):
-            raise Invalid("Hostname can only have alphanumeric characters and -")
-        if c in "_" and not warned_underscore:
-            _LOGGER.warning(
-                "'%s': Using the '_' (underscore) character in the hostname is discouraged "
-                "as it can cause problems with some DHCP and local name services. "
-                "For more information, see https://esphome.io/guides/faq.html#why-shouldn-t-i-use-underscores-in-my-device-name",
-                value,
-            )
-            warned_underscore = True
-    return value
+    if re.match(r"^[a-z0-9-]{1,63}$", value, re.IGNORECASE) is not None:
+        return value
+    raise Invalid(f"Invalid hostname: {value}")
 
 
 def domain(value):
@@ -1405,7 +1401,7 @@ def typed_schema(schemas, **kwargs):
         if schema_option is None:
             raise Invalid(f"{key} not specified!")
         key_v = key_validator(schema_option)
-        value = schemas[key_v](value)
+        value = Schema(schemas[key_v])(value)
         value[key] = key_v
         return value
 
@@ -1476,7 +1472,7 @@ class OnlyWith(Optional):
         pass
 
 
-def _nameable_validator(config):
+def _entity_base_validator(config):
     if CONF_NAME not in config and CONF_ID not in config:
         raise Invalid("At least one of 'id:' or 'name:' is required!")
     if CONF_NAME not in config:
@@ -1562,6 +1558,17 @@ def maybe_simple_value(*validators, **kwargs):
     return validate
 
 
+_ENTITY_CATEGORIES = {
+    ENTITY_CATEGORY_NONE: cg.EntityCategory.ENTITY_CATEGORY_NONE,
+    ENTITY_CATEGORY_CONFIG: cg.EntityCategory.ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_DIAGNOSTIC: cg.EntityCategory.ENTITY_CATEGORY_DIAGNOSTIC,
+}
+
+
+def entity_category(value):
+    return enum(_ENTITY_CATEGORIES, lower=True)(value)
+
+
 MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(
     {
         Required(CONF_TOPIC): subscribe_topic,
@@ -1587,15 +1594,17 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     }
 )
 
-NAMEABLE_SCHEMA = Schema(
+ENTITY_BASE_SCHEMA = Schema(
     {
         Optional(CONF_NAME): string,
         Optional(CONF_INTERNAL): boolean,
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
+        Optional(CONF_ICON): icon,
+        Optional(CONF_ENTITY_CATEGORY): entity_category,
     }
 )
 
-NAMEABLE_SCHEMA.add_extra(_nameable_validator)
+ENTITY_BASE_SCHEMA.add_extra(_entity_base_validator)
 
 COMPONENT_SCHEMA = Schema({Optional(CONF_SETUP_PRIORITY): float_})
 
@@ -1676,6 +1685,25 @@ def version_number(value):
         return str(Version.parse(value))
     except ValueError as e:
         raise Invalid("Not a version number") from e
+
+
+def platformio_version_constraint(value):
+    # for documentation on valid version constraints:
+    # https://docs.platformio.org/en/latest/core/userguide/platforms/cmd_install.html#cmd-platform-install
+
+    value = string_strict(value)
+    constraints = []
+    for item in value.split(","):
+        # find and strip prefix operator
+        op = None
+        for test_op in ("^", "~", ">=", ">", "<=", "<", "!="):
+            if item.startswith(test_op):
+                op = test_op
+                item = item[len(test_op) :]
+                break
+
+        constraints.append((op, version_number(item)))
+    return constraints
 
 
 def require_framework_version(

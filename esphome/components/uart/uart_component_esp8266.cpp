@@ -13,7 +13,7 @@ namespace esphome {
 namespace uart {
 
 static const char *const TAG = "uart.arduino_esp8266";
-bool ESP8266UartComponent::serial0InUse = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint32_t ESP8266UartComponent::get_config() {
   uint32_t config = 0;
@@ -45,6 +45,11 @@ uint32_t ESP8266UartComponent::get_config() {
   else
     config |= UART_NB_STOP_BIT_2;
 
+  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted())
+    config |= BIT(22);
+  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted())
+    config |= BIT(19);
+
   return config;
 }
 
@@ -55,7 +60,7 @@ void ESP8266UartComponent::setup() {
   // is 1 we still want to use Serial.
   SerialConfig config = static_cast<SerialConfig>(get_config());
 
-  if (!ESP8266UartComponent::serial0InUse && (tx_pin_ == nullptr || tx_pin_->get_pin() == 1) &&
+  if (!ESP8266UartComponent::serial0_in_use && (tx_pin_ == nullptr || tx_pin_->get_pin() == 1) &&
       (rx_pin_ == nullptr || rx_pin_->get_pin() == 3)
 #ifdef USE_LOGGER
       // we will use UART0 if logger isn't using it in swapped mode
@@ -66,8 +71,8 @@ void ESP8266UartComponent::setup() {
     this->hw_serial_ = &Serial;
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
-    ESP8266UartComponent::serial0InUse = true;
-  } else if (!ESP8266UartComponent::serial0InUse && (tx_pin_ == nullptr || tx_pin_->get_pin() == 15) &&
+    ESP8266UartComponent::serial0_in_use = true;
+  } else if (!ESP8266UartComponent::serial0_in_use && (tx_pin_ == nullptr || tx_pin_->get_pin() == 15) &&
              (rx_pin_ == nullptr || rx_pin_->get_pin() == 13)
 #ifdef USE_LOGGER
              // we will use UART0 swapped if logger isn't using it in regular mode
@@ -79,7 +84,7 @@ void ESP8266UartComponent::setup() {
     this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
-    ESP8266UartComponent::serial0InUse = true;
+    ESP8266UartComponent::serial0_in_use = true;
   } else if ((tx_pin_ == nullptr || tx_pin_->get_pin() == 2) && (rx_pin_ == nullptr || rx_pin_->get_pin() == 8)) {
     this->hw_serial_ = &Serial1;
     this->hw_serial_->begin(this->baud_rate_, config);
@@ -130,9 +135,11 @@ void ESP8266UartComponent::write_array(const uint8_t *data, size_t len) {
     for (size_t i = 0; i < len; i++)
       this->sw_serial_->write_byte(data[i]);
   }
+#ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    ESP_LOGVV(TAG, "    Wrote 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
+    this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
   }
+#endif
 }
 bool ESP8266UartComponent::peek_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
@@ -153,10 +160,11 @@ bool ESP8266UartComponent::read_array(uint8_t *data, size_t len) {
     for (size_t i = 0; i < len; i++)
       data[i] = this->sw_serial_->read_byte();
   }
+#ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    ESP_LOGVV(TAG, "    Read 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
+    this->debug_callback_.call(UART_DIRECTION_RX, data[i]);
   }
-
+#endif
   return true;
 }
 int ESP8266UartComponent::available() {
@@ -206,9 +214,7 @@ void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
 
   /* If parity is enabled, just read it and ignore it. */
   /* TODO: Should we check parity? Or is it too slow for nothing added..*/
-  if (arg->parity_ == UART_CONFIG_PARITY_EVEN)
-    arg->read_bit_(&wait, start);
-  else if (arg->parity_ == UART_CONFIG_PARITY_ODD)
+  if (arg->parity_ == UART_CONFIG_PARITY_EVEN || arg->parity_ == UART_CONFIG_PARITY_ODD)
     arg->read_bit_(&wait, start);
 
   // Stop bit

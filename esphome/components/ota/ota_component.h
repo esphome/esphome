@@ -19,6 +19,7 @@ enum OTAResponseTypes {
   OTA_RESPONSE_BIN_MD5_OK = 67,
   OTA_RESPONSE_RECEIVE_OK = 68,
   OTA_RESPONSE_UPDATE_END_OK = 69,
+  OTA_RESPONSE_SUPPORTS_COMPRESSION = 70,
 
   OTA_RESPONSE_ERROR_MAGIC = 128,
   OTA_RESPONSE_ERROR_UPDATE_PREPARE = 129,
@@ -47,6 +48,10 @@ class OTAComponent : public Component {
   void set_port(uint16_t port);
 
   bool should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time);
+
+  /// Set to true if the next startup will enter safe mode
+  void set_safe_mode_pending(const bool &pending);
+  bool get_safe_mode_pending();
 
 #ifdef USE_OTA_STATE_CALLBACK
   void add_on_state_callback(std::function<void(OTAState, float, uint8_t)> &&callback);
@@ -88,6 +93,9 @@ class OTAComponent : public Component {
   uint32_t safe_mode_rtc_value_;
   uint8_t safe_mode_num_attempts_;
   ESPPreferenceObject rtc_;
+
+  static const uint32_t ENTER_SAFE_MODE_MAGIC =
+      0x5afe5afe;  ///< a magic number to indicate that safe mode should be entered on next boot
 
 #ifdef USE_OTA_STATE_CALLBACK
   CallbackManager<void(OTAState, float, uint8_t)> state_callback_{};

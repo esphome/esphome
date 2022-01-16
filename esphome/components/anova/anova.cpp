@@ -72,7 +72,7 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      this->node_state = espbt::ClientState::Established;
+      this->node_state = espbt::ClientState::ESTABLISHED;
       this->current_request_ = 0;
       this->update();
       break;
@@ -129,7 +129,7 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
 void Anova::set_unit_of_measurement(const char *unit) { this->fahrenheit_ = !strncmp(unit, "f", 1); }
 
 void Anova::update() {
-  if (this->node_state != espbt::ClientState::Established)
+  if (this->node_state != espbt::ClientState::ESTABLISHED)
     return;
 
   if (this->current_request_ < 2) {
