@@ -59,7 +59,8 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
   i2c::ErrorCode read_data_register_(uint8_t a_register, uint16_t &data) {
     uint8_t buffer[2];
     auto retval = this->read_register(a_register, buffer, 2);
-    data = (uint16_t(buffer[1]) << 8) | (uint16_t(buffer[0]) & 0xFF);
+    if (retval == i2c::ERROR_OK)
+      data = (uint16_t(buffer[1]) << 8) | (uint16_t(buffer[0]) & 0xFF);
     return retval;
   }
   i2c::ErrorCode write_config_register_(uint8_t a_register, uint8_t data) {
