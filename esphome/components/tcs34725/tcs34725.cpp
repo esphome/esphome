@@ -25,18 +25,18 @@ void TCS34725Component::setup() {
     this->mark_failed();
     return;
   }
-  if (this->write_config_register(TCS34725_REGISTER_ATIME, this->integration_reg_) != i2c::ERROR_OK ||
-      this->write_config_register(TCS34725_REGISTER_CONTROL, this->gain_reg_) != i2c::ERROR_OK) {
+  if (this->write_config_register_(TCS34725_REGISTER_ATIME, this->integration_reg_) != i2c::ERROR_OK ||
+      this->write_config_register_(TCS34725_REGISTER_CONTROL, this->gain_reg_) != i2c::ERROR_OK) {
     this->mark_failed();
     return;
   }
-  if (this->write_config_register(TCS34725_REGISTER_ENABLE, 0x01) !=
+  if (this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x01) !=
       i2c::ERROR_OK) {  // Power on (internal oscillator on)
     this->mark_failed();
     return;
   }
   delay(3);
-  if (this->write_config_register(TCS34725_REGISTER_ENABLE, 0x03) !=
+  if (this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x03) !=
       i2c::ERROR_OK) {  // Power on (internal oscillator on) + RGBC ADC Enable
     this->mark_failed();
     return;
@@ -173,19 +173,19 @@ void TCS34725Component::update() {
   uint16_t raw_g;
   uint16_t raw_b;
 
-  if (this->read_data_register(TCS34725_REGISTER_CDATAL, raw_c) != i2c::ERROR_OK) {
+  if (this->read_data_register_(TCS34725_REGISTER_CDATAL, raw_c) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
-  if (this->read_data_register(TCS34725_REGISTER_RDATAL, raw_r) != i2c::ERROR_OK) {
+  if (this->read_data_register_(TCS34725_REGISTER_RDATAL, raw_r) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
-  if (this->read_data_register(TCS34725_REGISTER_GDATAL, raw_g) != i2c::ERROR_OK) {
+  if (this->read_data_register_(TCS34725_REGISTER_GDATAL, raw_g) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
-  if (this->read_data_register(TCS34725_REGISTER_BDATAL, raw_b) != i2c::ERROR_OK) {
+  if (this->read_data_register_(TCS34725_REGISTER_BDATAL, raw_b) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
