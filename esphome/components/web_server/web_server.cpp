@@ -238,15 +238,15 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "number", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         number::Number *number = (number::Number *) obj;
-        stream.print("<input type=\"number\" min=\"");
+        stream.print(R"(<input type="number" min=")");
         stream.print(number->traits.get_min_value());
-        stream.print("\" max=\"");
+        stream.print(R"(" max=")");
         stream.print(number->traits.get_max_value());
-        stream.print("\" step=\"");
+        stream.print(R"(" step=")");
         stream.print(number->traits.get_step());
-        stream.print("\" value=\"");
+        stream.print(R"(" value=")");
         stream.print(number->state);
-        stream.print("\"/>");
+        stream.print(R"("/>)");
       });
 #endif
 
