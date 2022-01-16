@@ -20,6 +20,14 @@
 #define ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
 
+// Various functions can be constexpr in C++14, but not in C++11 (because their body isn't just a return statement).
+// Define a substitute constexpr keyword for those functions, until we can drop C++11 support.
+#if __cplusplus >= 201402L
+#define constexpr14 constexpr
+#else
+#define constexpr14 inline  // constexpr implies inline
+#endif
+
 namespace esphome {
 
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
@@ -277,11 +285,21 @@ To bit_cast(const From &src) {
 }
 #endif
 
-// std::byteswap is from C++23 and technically should be a template, but this will do for now.
-constexpr uint8_t byteswap(uint8_t n) { return n; }
-constexpr uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
-constexpr uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
-constexpr uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+// std::byteswap from C++23
+template<typename T> constexpr14 T byteswap(T n) {
+  T m;
+  for (size_t i = 0; i < sizeof(T); i++)
+    reinterpret_cast<uint8_t *>(&m)[i] = reinterpret_cast<uint8_t *>(&n)[sizeof(T) - 1 - i];
+  return m;
+}
+template<> constexpr14 uint8_t byteswap(uint8_t n) { return n; }
+template<> constexpr14 uint16_t byteswap(uint16_t n) { return __builtin_bswap16(n); }
+template<> constexpr14 uint32_t byteswap(uint32_t n) { return __builtin_bswap32(n); }
+template<> constexpr14 uint64_t byteswap(uint64_t n) { return __builtin_bswap64(n); }
+template<> constexpr14 int8_t byteswap(int8_t n) { return n; }
+template<> constexpr14 int16_t byteswap(int16_t n) { return __builtin_bswap16(n); }
+template<> constexpr14 int32_t byteswap(int32_t n) { return __builtin_bswap32(n); }
+template<> constexpr14 int64_t byteswap(int64_t n) { return __builtin_bswap64(n); }
 
 ///@}
 
@@ -311,7 +329,8 @@ constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, ui
 }
 
 /// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> inline T encode_value(const uint8_t *bytes) {
+template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+constexpr14 T encode_value(const uint8_t *bytes) {
   T val = 0;
   for (size_t i = 0; i < sizeof(T); i++) {
     val <<= 8;
@@ -321,12 +340,12 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> inline T 
 }
 /// Encode a value from its constituent bytes (from most to least significant) in an std::array with length sizeof(T).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-inline T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
+constexpr14 T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
   return encode_value<T>(bytes.data());
 }
 /// Decode a value into its constituent bytes (from most to least significant).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
-inline std::array<uint8_t, sizeof(T)> decode_value(T val) {
+constexpr14 std::array<uint8_t, sizeof(T)> decode_value(T val) {
   std::array<uint8_t, sizeof(T)> ret{};
   for (size_t i = sizeof(T); i > 0; i--) {
     ret[i - 1] = val & 0xFF;
@@ -353,11 +372,20 @@ inline uint32_t reverse_bits(uint32_t x) {
 }
 
 /// Convert a value between host byte order and big endian (most significant byte first) order.
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr T convert_big_endian(T val) {
+template<typename T> constexpr14 T convert_big_endian(T val) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   return byteswap(val);
 #else
   return val;
+#endif
+}
+
+/// Convert a value between host byte order and little endian (least significant byte first) order.
+template<typename T> constexpr14 T convert_little_endian(T val) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  return val;
+#else
+  return byteswap(val);
 #endif
 }
 
@@ -512,7 +540,7 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::stri
 ///@{
 
 /// Remap a number from one range to another.
-template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
+template<typename T, typename U> constexpr T remap(U value, U min, U max, T min_out, T max_out) {
   return (value - min) * (max_out - min_out) / (max - min) + min_out;
 }
 
