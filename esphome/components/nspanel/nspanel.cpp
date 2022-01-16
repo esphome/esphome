@@ -129,6 +129,7 @@ void NSPanel::process_command_(uint8_t type, JsonObject root, const std::string 
       ESP_LOGW(TAG, "Unsupported command received! 0x%02X - %s", type, message.c_str());
       break;
   }
+  this->json_message_trigger_->trigger(type, root);
 }
 
 void NSPanel::control_switch(GroupItem &item, bool state) {

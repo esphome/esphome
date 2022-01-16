@@ -120,6 +120,8 @@ class NSPanel : public Component, public uart::UARTDevice {
 
   void send_json_command(uint8_t type, const std::string &command);
 
+  Trigger<uint8_t, JsonObjectConst> *get_json_message_trigger() const { return this->json_message_trigger_; }
+
  protected:
   void send_nextion_command_(const std::string &command);
   static uint16_t crc16(const uint8_t *data, uint16_t len);
@@ -142,6 +144,8 @@ class NSPanel : public Component, public uart::UARTDevice {
 
   switch_::Switch *eco_mode_switch_;
   switch_::Switch *screen_power_switch_;
+
+  Trigger<uint8_t, JsonObjectConst> *json_message_trigger_{new Trigger<uint8_t, JsonObjectConst>()};
 
   Widget widgets_[8];
 

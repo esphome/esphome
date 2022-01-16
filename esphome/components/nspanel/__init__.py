@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_NAME,
     CONF_ON_CLICK,
+    CONF_ON_JSON_MESSAGE,
     CONF_TEMPERATURE,
     CONF_THEN,
     CONF_TIME_ID,
@@ -124,6 +125,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_WIDGETS): cv.All(
                 cv.ensure_list(WIDGET_SCHEMA), cv.Length(min=8, max=8)
             ),
+            cv.Optional(CONF_ON_JSON_MESSAGE): automation.validate_automation(
+                single=True
+            ),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -144,6 +148,16 @@ async def to_code(config):
         relays.append(await cg.get_variable(relay_id))
 
     cg.add(var.set_relays(*relays))
+
+    if CONF_ON_JSON_MESSAGE in config:
+        await automation.build_automation(
+            var.get_json_message_trigger(),
+            [
+                (cg.uint8, "type"),
+                (cg.JsonObjectConst, "root"),
+            ],
+            config[CONF_ON_JSON_MESSAGE],
+        )
 
     sens = await cg.get_variable(config[CONF_TEMPERATURE])
     cg.add(var.set_temperature_sensor(sens))
