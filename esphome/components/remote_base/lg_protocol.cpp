@@ -32,8 +32,8 @@ optional<LGData> LGProtocol::decode(RemoteReceiveData src) {
   };
   if (!src.expect_item(HEADER_MARK_US, HEADER_SPACE_US))
     return {};
-  const size_t nbits = codec::decode(src, out.data);
-  if (nbits == 28 || nbits == 32)
+  out.nbits = codec::decode(src, out.data);
+  if (out.nbits == 28 || out.nbits == 32)
     return out;
   return {};
 }
