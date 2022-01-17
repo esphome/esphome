@@ -48,7 +48,7 @@ void CoolixProtocol::encode(RemoteTransmitData *dst, const CoolixData &data) {
 
 static bool decode_data(RemoteReceiveData &src, CoolixData &dst) {
   uint32_t data = 0;
-  for (unsigned n = 3;; data <<= 8) {
+  for (unsigned n = 3;;) {
     // Read byte
     if (codec::decode(src, data, 8) != 8)
       return false;
