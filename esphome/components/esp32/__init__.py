@@ -417,7 +417,7 @@ def copy_files():
         )
 
     dir = os.path.dirname(__file__)
-    post_build_file = os.path.join(dir, "post_build.py")
+    post_build_file = os.path.join(dir, "post_build.py.script")
     copy_file_if_changed(
         post_build_file,
         CORE.relative_build_path("post_build.py"),
