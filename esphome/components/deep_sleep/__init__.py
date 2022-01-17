@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
-from esphome.core import CORE
 from esphome.const import (
     CONF_ID,
     CONF_MODE,
@@ -12,23 +11,13 @@ from esphome.const import (
     CONF_WAKEUP_PIN,
 )
 
-from .const import (  # noqa
-    KEY_ESP32,
-    KEY_VARIANT,
-    VARIANT_ESP32C3,
-)
-
-def get_esp32_variant():
-    return CORE.data[KEY_ESP32][KEY_VARIANT]
-
-
-def is_esp32c3():
-    return get_esp32_variant() == VARIANT_ESP32C3
+from esphome.core import CORE
+from esphome.components.esp32 import is_esp32c3
 
 def validate_pin_number(value):
     if CORE.is_esp32:
         valid_pins = [0, 2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 33, 34, 35, 36, 37, 38, 39]
-    if CORE.is_esp32c3:
+    if is_esp32c3:
         valid_pins = [0, 1, 2, 3, 4, 5]
     if value[CONF_NUMBER] not in valid_pins:
         raise cv.Invalid(
