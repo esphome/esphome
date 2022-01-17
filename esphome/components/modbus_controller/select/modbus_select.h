@@ -11,14 +11,14 @@ namespace modbus_controller {
 
 class ModbusSelect : public Component, public select::Select, public SensorItem {
  public:
-  ModbusSelect(uint16_t start_address, uint8_t register_count, uint8_t skip_updates, bool force_new_range,
-               std::vector<uint64_t> mapping)
+  ModbusSelect(SensorValueType sensor_value_type, uint16_t start_address, uint8_t register_count, uint8_t skip_updates,
+               bool force_new_range, std::vector<int64_t> mapping)
       : Component(), select::Select(), write_address_(start_address) {
     this->register_type = ModbusRegisterType::HOLDING;  // not configurable
+    this->sensor_value_type = sensor_value_type;
     this->start_address = start_address;
-    this->offset = 0;                                // not configurable
-    this->bitmask = 0xFFFFFFFF;                      // not configurable
-    this->sensor_value_type = SensorValueType::RAW;  // not configurable
+    this->offset = 0;            // not configurable
+    this->bitmask = 0xFFFFFFFF;  // not configurable
     this->register_count = register_count;
     this->response_bytes = 0;  // not configurable
     this->skip_updates = skip_updates;
@@ -26,9 +26,9 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
     this->mapping_ = std::move(mapping);
   }
 
-  using transform_func_t = std::function<optional<std::string>(ModbusSelect *, uint64_t, const std::vector<uint8_t> &)>;
+  using transform_func_t = std::function<optional<std::string>(ModbusSelect *, int64_t, const std::vector<uint8_t> &)>;
   using write_transform_func_t =
-      std::function<optional<uint64_t>(ModbusSelect *, std::string, std::vector<uint16_t> &)>;
+      std::function<optional<int64_t>(ModbusSelect *, std::string, std::vector<uint16_t> &, bool &)>;
 
   void set_parent(ModbusController *const parent) { this->parent_ = parent; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
@@ -41,7 +41,7 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
 
  protected:
   const uint16_t write_address_;
-  std::vector<uint64_t> mapping_;
+  std::vector<int64_t> mapping_;
   ModbusController *parent_;
   bool use_write_multiple_{false};
   optional<transform_func_t> transform_func_;

@@ -63,6 +63,7 @@ from esphome.cpp_types import (  # noqa
     uint32,
     uint64,
     int32,
+    int64,
     const_char_ptr,
     NAN,
     esphome_ns,

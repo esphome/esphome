@@ -4,13 +4,20 @@ from esphome.components import select
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA
 from esphome.jsonschema import jschema_composite
 
-from .. import ModbusController, SensorItem, modbus_controller_ns
+from .. import (
+    SENSOR_VALUE_TYPE,
+    TYPE_REGISTER_MAP,
+    ModbusController,
+    SensorItem,
+    modbus_controller_ns,
+)
 from ..const import (
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_COUNT,
     CONF_SKIP_UPDATES,
     CONF_USE_WRITE_MULTIPLE,
+    CONF_VALUE_TYPE,
     CONF_WRITE_LAMBDA,
 )
 
@@ -28,23 +35,38 @@ def ensure_option_map():
     def validator(value):
         cv.check_not_templatable(value)
         option = cv.All(cv.string_strict)
-        mapping = cv.All(cv.int_range(0, 2 ** 64))
+        mapping = cv.All(cv.int_range(-(2 ** 63), 2 ** 63 - 1))
         options_map_schema = cv.Schema({option: mapping})
-        return options_map_schema(value)
+        value = options_map_schema(value)
 
-    return validator
-
-
-def unique_mapping():
-    def validator(value):
         all_values = list(value.values())
         unique_values = set(value.values())
         if len(all_values) != len(unique_values):
             raise cv.Invalid("Mapping values must be unique.")
+
         return value
 
     return validator
 
+
+def register_count_value_type_min():
+    def validator(value):
+        reg_count = value.get(CONF_REGISTER_COUNT)
+        if reg_count is not None:
+            value_type = value[CONF_VALUE_TYPE]
+            min_register_count = TYPE_REGISTER_MAP[value_type]
+            if min_register_count > reg_count:
+                raise cv.Invalid(
+                    f"Value type {value_type} needs at least {min_register_count} registers"
+                )
+        return value
+
+    return validator
+
+
+INTEGER_SENSOR_VALUE_TYPE = {
+    key: value for key, value in SENSOR_VALUE_TYPE.items() if not key.startswith("FP")
+}
 
 CONFIG_SCHEMA = cv.All(
     select.SELECT_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
@@ -52,25 +74,35 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ModbusSelect),
             cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
             cv.Required(CONF_ADDRESS): cv.positive_int,
-            cv.Optional(CONF_REGISTER_COUNT, default=1): cv.int_range(1, 4),
+            cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(
+                INTEGER_SENSOR_VALUE_TYPE
+            ),
+            cv.Optional(CONF_REGISTER_COUNT): cv.positive_int,
             cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
             cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
-            cv.Required(CONF_OPTIONSMAP): cv.All(ensure_option_map(), unique_mapping()),
+            cv.Required(CONF_OPTIONSMAP): ensure_option_map(),
             cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
-        }
+        },
     ),
+    register_count_value_type_min(),
 )
 
 
 async def to_code(config):
+    value_type = config[CONF_VALUE_TYPE]
+    reg_count = config.get(CONF_REGISTER_COUNT)
+    if reg_count is None:
+        reg_count = TYPE_REGISTER_MAP[value_type]
+
     options_map = config[CONF_OPTIONSMAP]
 
     var = cg.new_Pvariable(
         config[CONF_ID],
+        value_type,
         config[CONF_ADDRESS],
-        config[CONF_REGISTER_COUNT],
+        reg_count,
         config[CONF_SKIP_UPDATES],
         config[CONF_FORCE_NEW_RANGE],
         list(options_map.values()),
@@ -89,7 +121,7 @@ async def to_code(config):
             config[CONF_LAMBDA],
             [
                 (ModbusSelect.operator("ptr"), "item"),
-                (cg.uint64, "x"),
+                (cg.int64, "x"),
                 (
                     cg.std_vector.template(cg.uint8).operator("const").operator("ref"),
                     "data",
@@ -106,7 +138,8 @@ async def to_code(config):
                 (ModbusSelect.operator("ptr"), "item"),
                 (cg.std_string, "x"),
                 (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
+                (cg.bool_.operator("ref"), "skip_update"),
             ],
-            return_type=cg.optional.template(cg.uint64),
+            return_type=cg.optional.template(cg.int64),
         )
         cg.add(var.set_write_template(template_))
