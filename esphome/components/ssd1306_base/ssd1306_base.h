@@ -57,6 +57,7 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   void init_reset_();
 
   bool is_sh1106_() const;
+  bool is_sh1107_() const;
   bool is_ssd1305_() const;
 
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
