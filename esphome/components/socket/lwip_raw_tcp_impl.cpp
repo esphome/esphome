@@ -28,7 +28,7 @@ static const char *const TAG = "socket.lwip";
 
 class LWIPRawImpl : public Socket {
  public:
-  LWIPRawImpl(struct tcp_pcb *pcb) : pcb_(pcb) {}
+  LWIPRawImpl(sa_family_t family, struct tcp_pcb *pcb) : pcb_(pcb), family_(family) {}
   ~LWIPRawImpl() override {
     if (pcb_ != nullptr) {
       LWIP_LOG("tcp_abort(%p)", pcb_);
@@ -73,7 +73,6 @@ class LWIPRawImpl : public Socket {
     }
     ip_addr_t ip;
     in_port_t port;
-    family_ = name->sa_family;
 #if LWIP_IPV6
     if (family_ == AF_INET) {
       if (addrlen < sizeof(sockaddr_in)) {
@@ -196,7 +195,15 @@ class LWIPRawImpl : public Socket {
       addr->sin6_family = AF_INET6;
       *addrlen = addr->sin6_len = sizeof(struct sockaddr_in6);
       addr->sin6_port = pcb_->remote_port;
-      inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&pcb_->remote_ip));
+
+      // AF_INET6 sockets are bound to IPv4 as well, so we must convert any IPv4 address from clients to IPv6 addresses.
+      if (IP_IS_V4_VAL(pcb_->remote_ip)) {
+        ip_addr_t mapped;
+        ip4_2_ipv4_mapped_ipv6(ip_2_ip6(&mapped), ip_2_ip4(&pcb_->remote_ip));
+        inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&mapped));
+      } else {
+        inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&pcb_->remote_ip));
+      }
     }
 #endif
     return 0;
@@ -242,8 +249,16 @@ class LWIPRawImpl : public Socket {
       struct sockaddr_in6 *addr = reinterpret_cast<struct sockaddr_in6 *>(name);
       addr->sin6_family = AF_INET6;
       *addrlen = addr->sin6_len = sizeof(struct sockaddr_in6);
-      addr->sin6_port = pcb_->remote_port;
-      inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&pcb_->remote_ip));
+      addr->sin6_port = pcb_->local_port;
+
+      // AF_INET6 sockets are bound to IPv4 as well, so we must convert any IPv4 address from clients to IPv6 addresses.
+      if (IP_IS_V4_VAL(pcb_->local_ip)) {
+        ip_addr_t mapped;
+        ip4_2_ipv4_mapped_ipv6(ip_2_ip6(&mapped), ip_2_ip4(&pcb_->local_ip));
+        inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&mapped));
+      } else {
+        inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&pcb_->local_ip));
+      }
     }
 #endif
     return 0;
@@ -530,7 +545,7 @@ class LWIPRawImpl : public Socket {
       // nothing to do here, we just don't push it to the queue
       return ERR_OK;
     }
-    auto sock = make_unique<LWIPRawImpl>(newpcb);
+    auto sock = make_unique<LWIPRawImpl>(family_, newpcb);
     sock->init();
     accepted_sockets_.push(std::move(sock));
     return ERR_OK;
@@ -597,7 +612,7 @@ std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
   auto *pcb = tcp_new();
   if (pcb == nullptr)
     return nullptr;
-  auto *sock = new LWIPRawImpl(pcb);  // NOLINT(cppcoreguidelines-owning-memory)
+  auto *sock = new LWIPRawImpl((sa_family_t) domain, pcb);  // NOLINT(cppcoreguidelines-owning-memory)
   sock->init();
   return std::unique_ptr<Socket>{sock};
 }
