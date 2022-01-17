@@ -5,10 +5,10 @@ namespace esphome {
 namespace remote_base {
 
 /// Template helper class for space-encoded data.
-template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class space { // NOLINT
+template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class space {  // NOLINT
  public:
   /// Template helper class for space-encoded data with MSB bit order.
-  class msb { // NOLINT
+  class msb {  // NOLINT
    public:
     /// Encode data by space with MSB bit order.
     template<typename T> static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
@@ -43,7 +43,7 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
       return true;
     }
     /// Inner class for inverse template functions
-    class inv { // NOLINT
+    class inv {  // NOLINT
      public:
       /// Inverse encode data by space with MSB bit order.
       template<typename T>
@@ -81,7 +81,7 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
       }
     };
   };
-  class lsb { // NOLINT
+  class lsb {  // NOLINT
    public:
     /// Encode data by space with LSB bit order.
     template<typename T> static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
@@ -121,7 +121,7 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
       return true;
     }
     /// Inner class for inverse template functions
-    class inv { // NOLINT
+    class inv {  // NOLINT
      public:
       /// Inverse encode data by space with LSB bit order.
       template<typename T>
@@ -167,10 +167,10 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
 };
 
 /// Template helper class for mark-encoded data.
-template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class mark { // NOLINT
+template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class mark {  // NOLINT
  public:
   /// Template helper class for mark-encoded data with MSB bit order.
-  class msb { // NOLINT
+  class msb {  // NOLINT
    public:
     /// Encode data by mark with MSB bit order.
     template<typename T> static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
@@ -205,7 +205,7 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
       return true;
     }
     /// Inner class for inverse template functions
-    class inv { // NOLINT
+    class inv {  // NOLINT
      public:
       /// Inverse encode data by mark with MSB bit order.
       template<typename T>
@@ -243,7 +243,7 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
       }
     };
   };
-  class lsb { // NOLINT
+  class lsb {  // NOLINT
    public:
     /// Encode data by mark with LSB bit order.
     template<typename T> static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
@@ -283,7 +283,7 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
       return true;
     }
     /// Inner class for inverse template functions
-    class inv { // NOLINT
+    class inv {  // NOLINT
      public:
       /// Inverse encode data by mark with LSB bit order.
       template<typename T>
