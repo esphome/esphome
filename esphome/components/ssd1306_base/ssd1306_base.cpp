@@ -63,8 +63,18 @@ void SSD1306::setup() {
   // Set start line at line 0 (0x40)
   this->command(SSD1306_COMMAND_SET_START_LINE | 0x00);
 
-  // SSD1305 does not have charge pump
-  if (!this->is_ssd1305_()) {
+  
+  if (this->is_ssd1305_()) {
+    // SSD1305 does not have charge pump
+  } else if (this->is_sh1107_()) {
+    // SH1107 charge pump command is (0xAD)
+    // See www.displayfuture.com/Display/datasheet/controller/SH1107.pdf pg. 32
+    this->command(0xAD);
+    if (this->external_vcc_)
+      this->command(0x8A);
+    else
+      this->command(0x8B);
+  } else {
     // Enable charge pump (0x8D)
     this->command(SSD1306_COMMAND_CHARGE_PUMP);
     if (this->external_vcc_) {
@@ -182,6 +192,9 @@ void SSD1306::display() {
 bool SSD1306::is_sh1106_() const {
   return this->model_ == SH1106_MODEL_96_16 || this->model_ == SH1106_MODEL_128_32 ||
          this->model_ == SH1106_MODEL_128_64;
+}
+bool SSD1306::is_sh1107_() const {
+  return this->model_ == SH1107_MODEL_128_64;
 }
 bool SSD1306::is_ssd1305_() const {
   return this->model_ == SSD1305_MODEL_128_64 || this->model_ == SSD1305_MODEL_128_64;
