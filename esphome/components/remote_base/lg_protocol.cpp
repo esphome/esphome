@@ -13,7 +13,7 @@ static const uint32_t BIT_MARK_US = 600;
 static const uint32_t BIT_ONE_SPACE_US = 1600;
 static const uint32_t BIT_ZERO_SPACE_US = 550;
 
-USE_SPACE_MSB_CODEC(codec)
+DECLARE_SPACE_MSB_CODEC(codec)
 
 void LGProtocol::encode(RemoteTransmitData *dst, const LGData &data) {
   dst->set_carrier_frequency(38000);

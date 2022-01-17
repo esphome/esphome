@@ -15,7 +15,7 @@ static const uint32_t BIT_ONE_SPACE_US = 3 * TICK_US;
 static const uint32_t BIT_ZERO_SPACE_US = 1 * TICK_US;
 static const size_t REMOTE_DATA_SIZE = 2 + 2 * 16 + 2 * 16 + 2;
 
-USE_SPACE_LSB_CODEC(codec)
+DECLARE_SPACE_LSB_CODEC(codec)
 
 void NECProtocol::encode(RemoteTransmitData *dst, const NECData &data) {
   dst->set_carrier_frequency(38000);

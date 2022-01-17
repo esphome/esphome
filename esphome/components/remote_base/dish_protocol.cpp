@@ -14,7 +14,7 @@ static const uint32_t BIT_ONE_SPACE_US = 1700;
 static const uint32_t BIT_ZERO_SPACE_US = 2800;
 static const size_t REMOTE_DATA_SIZE = 2 + 4 * (2 * 6 + 2 * 4 + 2 * 6 + 2);
 
-USE_SPACE_CODEC(codec)
+DECLARE_SPACE_CODEC(codec)
 
 void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
   dst->set_carrier_frequency(57600);

@@ -15,7 +15,7 @@ static const uint32_t BIT_ONE_SPACE_US = 1725;
 static const uint32_t BIT_ZERO_SPACE_US = 525;
 static const size_t REMOTE_DATA_SIZE = 2 + 2 * NBITS + 2;
 
-USE_SPACE_MSB_CODEC(codec)
+DECLARE_SPACE_MSB_CODEC(codec)
 
 void JVCProtocol::encode(RemoteTransmitData *dst, const JVCData &data) {
   dst->set_carrier_frequency(38000);

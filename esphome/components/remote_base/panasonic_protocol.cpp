@@ -14,7 +14,7 @@ static const uint32_t BIT_ZERO_SPACE_US = 400;
 static const uint32_t BIT_ONE_SPACE_US = 1244;
 static const size_t REMOTE_DATA_SIZE = 2 + 2 * 16 + 2 * 32 + 2;
 
-USE_SPACE_MSB_CODEC(codec)
+DECLARE_SPACE_MSB_CODEC(codec)
 
 void PanasonicProtocol::encode(RemoteTransmitData *dst, const PanasonicData &data) {
   dst->set_carrier_frequency(35000);

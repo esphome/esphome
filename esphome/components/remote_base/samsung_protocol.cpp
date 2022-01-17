@@ -16,7 +16,7 @@ static const uint32_t BIT_ZERO_SPACE_US = 560;
 static const uint32_t FOOTER_MARK_US = 560;
 static const uint32_t FOOTER_SPACE_US = 560;
 
-USE_SPACE_MSB_CODEC(codec)
+DECLARE_SPACE_MSB_CODEC(codec)
 
 void SamsungProtocol::encode(RemoteTransmitData *dst, const SamsungData &data) {
   dst->set_carrier_frequency(38000);

@@ -17,7 +17,7 @@ static const uint32_t FOOTER_MARK_US = 1 * TICK_US;
 static const uint32_t FOOTER_SPACE_US = 10 * TICK_US;
 static const size_t REMOTE_DATA_SIZE = 2 + 2 * 48 + 2 + 2 + 2 * 48 + 2;
 
-USE_SPACE_MSB_CODEC(codec)
+DECLARE_SPACE_MSB_CODEC(codec)
 
 static void encode_data(RemoteTransmitData *dst, const CoolixData &src) {
   //   Break data into bytes, starting at the Most Significant

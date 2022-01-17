@@ -17,7 +17,7 @@ static const uint32_t FOOTER_MARK_US = 560;
 static const uint32_t FOOTER_SPACE_US = 4500;
 static const uint16_t PACKET_SPACE = 5500;
 
-USE_SPACE_MSB_CODEC(codec)
+DECLARE_SPACE_MSB_CODEC(codec)
 
 void ToshibaAcProtocol::encode(RemoteTransmitData *dst, const ToshibaAcData &data) {
   dst->set_carrier_frequency(38000);

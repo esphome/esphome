@@ -17,7 +17,7 @@ static const uint32_t MIDDLE_SPACE_US = 4500;
 static const uint32_t FOOTER_MARK_US = 500;
 static const size_t REMOTE_DATA_SIZE = 2 + 2 * 16 + 2 + 2 * 20 + 2;
 
-USE_SPACE_MSB_CODEC(codec)
+DECLARE_SPACE_MSB_CODEC(codec)
 
 void Samsung36Protocol::encode(RemoteTransmitData *dst, const Samsung36Data &data) {
   dst->set_carrier_frequency(38000);

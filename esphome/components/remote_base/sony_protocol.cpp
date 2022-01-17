@@ -13,7 +13,7 @@ static const uint32_t BIT_ONE_MARK_US = 1200;
 static const uint32_t BIT_ZERO_MARK_US = 600;
 static const uint32_t BIT_SPACE_US = 600;
 
-USE_MARK_MSB_CODEC(codec)
+DECLARE_MARK_MSB_CODEC(codec)
 
 void SonyProtocol::encode(RemoteTransmitData *dst, const SonyData &data) {
   dst->set_carrier_frequency(40000);

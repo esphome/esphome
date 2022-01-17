@@ -14,7 +14,7 @@ static const uint32_t BIT_ONE_SPACE_US = 1690;
 static const uint32_t BIT_ZERO_SPACE_US = 560;
 static const uint32_t TRAILER_SPACE_US = 25500;
 
-USE_SPACE_MSB_CODEC(codec)
+DECLARE_SPACE_MSB_CODEC(codec)
 
 void PioneerProtocol::encode(RemoteTransmitData *dst, const PioneerData &data) {
   uint32_t address1 = ((data.rc_code_1 & 0xff00) | (~(data.rc_code_1 >> 8) & 0xff));
