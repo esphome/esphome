@@ -9,7 +9,7 @@ wake_on_lan_ns = cg.esphome_ns.namespace("wake_on_lan")
 
 WakeOnLanButton = wake_on_lan_ns.class_("WakeOnLanButton", button.Button, cg.Component)
 
-DEPENDENCIES = ["wifi"]
+DEPENDENCIES = ["network"]
 
 CONFIG_SCHEMA = cv.All(
     button.BUTTON_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
