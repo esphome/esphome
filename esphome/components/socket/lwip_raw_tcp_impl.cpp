@@ -178,34 +178,7 @@ class LWIPRawImpl : public Socket {
       errno = EINVAL;
       return -1;
     }
-    if (*addrlen < sizeof(struct sockaddr_in)) {
-      errno = EINVAL;
-      return -1;
-    }
-    if (family_ == AF_INET) {
-      struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(name);
-      addr->sin_family = AF_INET;
-      *addrlen = addr->sin_len = sizeof(struct sockaddr_in);
-      addr->sin_port = pcb_->remote_port;
-      inet_addr_from_ip4addr(&addr->sin_addr, ip_2_ip4(&pcb_->remote_ip));
-    }
-#if LWIP_IPV6
-    else if (family_ == AF_INET6) {
-      struct sockaddr_in6 *addr = reinterpret_cast<struct sockaddr_in6 *>(name);
-      addr->sin6_family = AF_INET6;
-      *addrlen = addr->sin6_len = sizeof(struct sockaddr_in6);
-      addr->sin6_port = pcb_->remote_port;
-
-      // AF_INET6 sockets are bound to IPv4 as well, so we must convert any IPv4 address from clients to IPv6 addresses.
-      if (IP_IS_V4_VAL(pcb_->remote_ip)) {
-        ip_addr_t mapped;
-        ip4_2_ipv4_mapped_ipv6(ip_2_ip6(&mapped), ip_2_ip4(&pcb_->remote_ip));
-        inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&mapped));
-      } else {
-        inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&pcb_->remote_ip));
-      }
-    }
-#endif
+    this->ip2sockaddr_(&pcb_->local_ip, pcb_->local_port, name, addrlen);
     return 0;
   }
   std::string getpeername() override {
@@ -233,34 +206,7 @@ class LWIPRawImpl : public Socket {
       errno = EINVAL;
       return -1;
     }
-    if (*addrlen < sizeof(struct sockaddr_in)) {
-      errno = EINVAL;
-      return -1;
-    }
-    if (family_ == AF_INET) {
-      struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(name);
-      addr->sin_family = AF_INET;
-      *addrlen = addr->sin_len = sizeof(struct sockaddr_in);
-      addr->sin_port = pcb_->local_port;
-      inet_addr_from_ip4addr(&addr->sin_addr, ip_2_ip4(&pcb_->local_ip));
-    }
-#if LWIP_IPV6
-    else if (family_ == AF_INET6) {
-      struct sockaddr_in6 *addr = reinterpret_cast<struct sockaddr_in6 *>(name);
-      addr->sin6_family = AF_INET6;
-      *addrlen = addr->sin6_len = sizeof(struct sockaddr_in6);
-      addr->sin6_port = pcb_->local_port;
-
-      // AF_INET6 sockets are bound to IPv4 as well, so we must convert any IPv4 address from clients to IPv6 addresses.
-      if (IP_IS_V4_VAL(pcb_->local_ip)) {
-        ip_addr_t mapped;
-        ip4_2_ipv4_mapped_ipv6(ip_2_ip6(&mapped), ip_2_ip4(&pcb_->local_ip));
-        inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&mapped));
-      } else {
-        inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&pcb_->local_ip));
-      }
-    }
-#endif
+    this->ip2sockaddr_(&pcb_->local_ip, pcb_->local_port, name, addrlen);
     return 0;
   }
   std::string getsockname() override {
@@ -597,6 +543,46 @@ class LWIPRawImpl : public Socket {
   }
 
  protected:
+  int ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen) {
+    if (family_ == AF_INET) {
+      if (*addrlen < sizeof(struct sockaddr_in)) {
+        errno = EINVAL;
+        return -1;
+      }
+
+      struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(name);
+      addr->sin_family = AF_INET;
+      *addrlen = addr->sin_len = sizeof(struct sockaddr_in);
+      addr->sin_port = port;
+      inet_addr_from_ip4addr(&addr->sin_addr, ip_2_ip4(ip));
+      return 0;
+    }
+#if LWIP_IPV6
+    else if (family_ == AF_INET6) {
+      if (*addrlen < sizeof(struct sockaddr_in6)) {
+        errno = EINVAL;
+        return -1;
+      }
+
+      struct sockaddr_in6 *addr = reinterpret_cast<struct sockaddr_in6 *>(name);
+      addr->sin6_family = AF_INET6;
+      *addrlen = addr->sin6_len = sizeof(struct sockaddr_in6);
+      addr->sin6_port = port;
+
+      // AF_INET6 sockets are bound to IPv4 as well, so we may encounter IPv4 addresses that must be converted to IPv6.
+      if (IP_IS_V4(ip)) {
+        ip_addr_t mapped;
+        ip4_2_ipv4_mapped_ipv6(ip_2_ip6(&mapped), ip_2_ip4(ip));
+        inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&mapped));
+      } else {
+        inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(ip));
+      }
+      return 0;
+    }
+#endif
+    return -1;
+  }
+
   struct tcp_pcb *pcb_;
   std::queue<std::unique_ptr<LWIPRawImpl>> accepted_sockets_;
   bool rx_closed_ = false;
