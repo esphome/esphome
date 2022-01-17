@@ -4,6 +4,8 @@
 namespace esphome {
 namespace remote_base {
 
+/* clang-format off */
+
 /// Template helper class for space-encoded data.
 template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class space {
  public:
@@ -52,8 +54,8 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
         for (T mask = static_cast<T>(1ULL << (nbits - 1)); mask != 0; mask >>= 1)
           dst->item(mark_us, (src & mask) ? space_zero_us : space_one_us);
       }
-      /// Decodes inverted space-encoded data in MSB bit order. The data is shifted left by the specified number of bits.
-      /// Returns the number of decoded bits.
+      /// Decodes inverted space-encoded data in MSB bit order. The data is shifted left by the specified number of
+      /// bits. Returns the number of decoded bits.
       template<typename T> static size_t decode(RemoteReceiveData &src, T &dst, const size_t nbits = sizeof(T) * 8) {
         static_assert(std::is_integral<T>::value, "T must be an integer.");
         size_t cnt = 0;
@@ -130,8 +132,8 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
         for (T mask = 1 << 0; mask != static_cast<T>(1ULL << nbits); mask <<= 1)
           dst->item(mark_us, (src & mask) ? space_zero_us : space_one_us);
       }
-      /// Decodes inverted space-encoded data in LSB bit order. The data is shifted left by the specified number of bits.
-      /// Returns the number of decoded bits.
+      /// Decodes inverted space-encoded data in LSB bit order. The data is shifted left by the specified number of
+      /// bits. Returns the number of decoded bits.
       template<typename T> static size_t decode(RemoteReceiveData &src, T &dst, const size_t nbits = sizeof(T) * 8) {
         static_assert(std::is_integral<T>::value, "T must be an integer.");
         constexpr size_t MAX_BITS = sizeof(T) * 8;
@@ -335,6 +337,8 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
 #define USE_MARK_CODEC(name) using name = mark<BIT_SPACE_US, BIT_ONE_MARK_US, BIT_ZERO_MARK_US>;
 #define USE_MARK_MSB_CODEC(name) using name = mark<BIT_SPACE_US, BIT_ONE_MARK_US, BIT_ZERO_MARK_US>::msb;
 #define USE_MARK_LSB_CODEC(name) using name = mark<BIT_SPACE_US, BIT_ONE_MARK_US, BIT_ZERO_MARK_US>::lsb;
+
+/* clang-format on */
 
 }  // namespace remote_base
 }  // namespace esphome
