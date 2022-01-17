@@ -63,8 +63,10 @@ SSD1306_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
         cv.Optional(CONF_EXTERNAL_VCC): cv.boolean,
         cv.Optional(CONF_FLIP_X, default=True): cv.boolean,
         cv.Optional(CONF_FLIP_Y, default=True): cv.boolean,
-        cv.Optional(CONF_OFFSET_X, default=0): cv.int_range(min=-32, max=32),
-        cv.Optional(CONF_OFFSET_Y, default=0): cv.int_range(min=-32, max=32),
+        # Offsets determine shifts of memory location to LCD rows/columns,
+        # and this family of controllers supports up to 128x128 screens
+        cv.Optional(CONF_OFFSET_X, default=0): cv.int_range(min=0, max=128),
+        cv.Optional(CONF_OFFSET_Y, default=0): cv.int_range(min=0, max=128),
         cv.Optional(CONF_INVERT, default=False): cv.boolean,
     }
 ).extend(cv.polling_component_schema("1s"))
