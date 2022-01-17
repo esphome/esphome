@@ -4,23 +4,24 @@
 namespace esphome {
 namespace remote_base {
 
-/// Template helper class for data coded by space
+/// Template helper class for space-encoded data.
 template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class space {
  public:
-  /// Helper class for data coded by space in MSB bit order
+  /// Template helper class for space-encoded data with MSB bit order.
   class msb {
    public:
-    /// Encode data by space in MSB bit order
+    /// Encode data by space with MSB bit order.
     template<typename T> static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
       static_assert(std::is_integral<T>::value, "T must be an integer.");
       for (T mask = static_cast<T>(1ULL << (nbits - 1)); mask != 0; mask >>= 1)
         dst->item(mark_us, (src & mask) ? space_one_us : space_zero_us);
     }
-    /// Decode data by space in MSB bit order. Return number of decoded bits.
+    /// Decodes space-encoded data in MSB bit order. The data is shifted left by the specified number of bits.
+    /// Returns the number of decoded bits.
     template<typename T> static size_t decode(RemoteReceiveData &src, T &dst, const size_t nbits = sizeof(T) * 8) {
       static_assert(std::is_integral<T>::value, "T must be an integer.");
-      size_t bit = 0;
-      for (; bit != nbits; bit++) {
+      size_t cnt = 0;
+      for (; cnt != nbits; cnt++) {
         if (!src.expect_mark(mark_us))
           break;
         if (src.expect_space(space_one_us))
@@ -30,9 +31,10 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
         else
           break;
       }
-      return bit;
+      return cnt;
     }
-    /// Decode and compare data by space in MSB bit order. Return true if data equals.
+    /// Decodes and compares space-encoded data in MSB bit order.
+    /// Returns true if data equals.
     template<typename T> static bool equal(RemoteReceiveData &src, const T &data, const size_t nbits = sizeof(T) * 8) {
       static_assert(std::is_integral<T>::value, "T must be an integer.");
       for (T mask = static_cast<T>(1ULL << (nbits - 1)); mask != 0; mask >>= 1)
@@ -40,31 +42,35 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
           return false;
       return true;
     }
-    /// Inverse functions
+    /// Inner class for inverse template functions
     class inv {
      public:
-      /// Inverted encode data by space in MSB bit order
+      /// Inverse encode data by space with MSB bit order.
       template<typename T>
       static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
         static_assert(std::is_integral<T>::value, "T must be an integer.");
         for (T mask = static_cast<T>(1ULL << (nbits - 1)); mask != 0; mask >>= 1)
           dst->item(mark_us, (src & mask) ? space_zero_us : space_one_us);
       }
-      /// Inverted decode data by space in MSB bit order. Return number of decoded bits.
+      /// Decodes inverted space-encoded data in MSB bit order. The data is shifted left by the specified number of bits.
+      /// Returns the number of decoded bits.
       template<typename T> static size_t decode(RemoteReceiveData &src, T &dst, const size_t nbits = sizeof(T) * 8) {
         static_assert(std::is_integral<T>::value, "T must be an integer.");
-        size_t bit = 0;
-        for (; bit != nbits; dst <<= 1, bit++) {
+        size_t cnt = 0;
+        for (; cnt != nbits; cnt++) {
           if (!src.expect_mark(mark_us))
             break;
           if (src.expect_space(space_zero_us))
-            dst |= 1;
-          else if (!src.expect_space(space_one_us))
+            dst = (dst << 1) | 1;
+          else if (src.expect_space(space_one_us))
+            dst = (dst << 1) | 0;
+          else
             break;
         }
-        return bit;
+        return cnt;
       }
-      /// Inverted decode and compare data by space in MSB bit order. Return true if data equals.
+      /// Decodes and compares inverted space-encoded data in MSB bit order.
+      /// Returns true if data equals.
       template<typename T>
       static bool equal(RemoteReceiveData &src, const T &data, const size_t nbits = sizeof(T) * 8) {
         static_assert(std::is_integral<T>::value, "T must be an integer.");
@@ -77,30 +83,36 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
   };
   class lsb {
    public:
+    /// Encode data by space with LSB bit order.
     template<typename T> static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
       static_assert(std::is_integral<T>::value, "T must be an integer.");
       for (T mask = 1 << 0; mask != static_cast<T>(1ULL << nbits); mask <<= 1)
         dst->item(mark_us, (src & mask) ? space_one_us : space_zero_us);
     }
+    /// Decodes space-encoded data in LSB bit order. The data is shifted left by the specified number of bits.
+    /// Returns the number of decoded bits.
     template<typename T> static size_t decode(RemoteReceiveData &src, T &dst, const size_t nbits = sizeof(T) * 8) {
       static_assert(std::is_integral<T>::value, "T must be an integer.");
-      const T mask = static_cast<T>(1ULL << (sizeof(T) * 8 - 1));
+      constexpr size_t MAX_BITS = sizeof(T) * 8;
+      constexpr T MASK = static_cast<T>(1ULL << (MAX_BITS - 1));
       T data = 0;
-      size_t bit = 0;
-      for (; bit != nbits; bit++) {
+      size_t cnt = 0;
+      for (; cnt != nbits; cnt++) {
         if (!src.expect_mark(mark_us))
           break;
         if (src.expect_space(space_one_us))
-          data = (data >> 1) | mask;
+          data = (data >> 1) | MASK;
         else if (src.expect_space(space_zero_us))
           data = (data >> 1) | 0;
         else
           break;
       }
-      if (bit > 0)
-        dst = (dst << bit) | (data >> (sizeof(T) * 8 - bit));
-      return bit;
+      if (cnt != 0)
+        dst = (dst << cnt) | (data >> (MAX_BITS - cnt));
+      return cnt;
     }
+    /// Decodes and compares space-encoded data in LSB bit order.
+    /// Returns true if data equals.
     template<typename T> static bool equal(RemoteReceiveData &src, const T &data, const size_t nbits = sizeof(T) * 8) {
       static_assert(std::is_integral<T>::value, "T must be an integer.");
       for (T mask = 1 << 0; mask != static_cast<T>(1ULL << nbits); mask <<= 1)
@@ -108,33 +120,40 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
           return false;
       return true;
     }
+    /// Inner class for inverse template functions
     class inv {
      public:
+      /// Inverse encode data by space with LSB bit order.
       template<typename T>
       static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
         static_assert(std::is_integral<T>::value, "T must be an integer.");
         for (T mask = 1 << 0; mask != static_cast<T>(1ULL << nbits); mask <<= 1)
           dst->item(mark_us, (src & mask) ? space_zero_us : space_one_us);
       }
+      /// Decodes inverted space-encoded data in LSB bit order. The data is shifted left by the specified number of bits.
+      /// Returns the number of decoded bits.
       template<typename T> static size_t decode(RemoteReceiveData &src, T &dst, const size_t nbits = sizeof(T) * 8) {
         static_assert(std::is_integral<T>::value, "T must be an integer.");
-        const T mask = static_cast<T>(1ULL << (sizeof(T) * 8 - 1));
+        constexpr size_t MAX_BITS = sizeof(T) * 8;
+        constexpr T MASK = static_cast<T>(1ULL << (MAX_BITS - 1));
         T data = 0;
-        size_t bit = 0;
-        for (; bit != nbits; bit++) {
+        size_t cnt = 0;
+        for (; cnt != nbits; cnt++) {
           if (!src.expect_mark(mark_us))
             break;
           if (src.expect_space(space_zero_us))
-            data = (data >> 1) | mask;
+            data = (data >> 1) | MASK;
           else if (src.expect_space(space_one_us))
             data = (data >> 1) | 0;
           else
             break;
         }
-        if (bit > 0)
-          dst = (dst << bit) | (data >> (sizeof(T) * 8 - bit));
-        return bit;
+        if (cnt != 0)
+          dst = (dst << cnt) | (data >> (MAX_BITS - cnt));
+        return cnt;
       }
+      /// Decodes and compares inverted space-encoded data in LSB bit order.
+      /// Returns true if data equals.
       template<typename T>
       static bool equal(RemoteReceiveData &src, const T &data, const size_t nbits = sizeof(T) * 8) {
         static_assert(std::is_integral<T>::value, "T must be an integer.");
@@ -147,28 +166,37 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
   };
 };
 
+/// Template helper class for mark-encoded data.
 template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class mark {
  public:
+  /// Template helper class for mark-encoded data with MSB bit order.
   class msb {
    public:
+    /// Encode data by mark with MSB bit order.
     template<typename T> static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
       static_assert(std::is_integral<T>::value, "T must be an integer.");
       for (T mask = static_cast<T>(1ULL << (nbits - 1)); mask != 0; mask >>= 1)
         dst->item((src & mask) ? mark_one_us : mark_zero_us, space_us);
     }
+    /// Decodes mark-encoded data in MSB bit order. The data is shifted left by the specified number of bits.
+    /// Returns the number of decoded bits.
     template<typename T> static size_t decode(RemoteReceiveData &src, T &dst, const size_t nbits = sizeof(T) * 8) {
       static_assert(std::is_integral<T>::value, "T must be an integer.");
-      size_t bit = 0;
-      for (; bit != nbits; dst <<= 1, bit++) {
+      size_t cnt = 0;
+      for (; cnt != nbits; cnt++) {
         if (src.expect_mark(mark_one_us))
-          dst |= 1;
-        else if (!src.expect_mark(mark_zero_us))
+          dst = (dst << 1) | 1;
+        else if (src.expect_mark(mark_zero_us))
+          dst = (dst << 1) | 0;
+        else
           break;
         if (!src.expect_space(space_us))
           break;
       }
-      return bit;
+      return cnt;
     }
+    /// Decodes and compares mark-encoded data in MSB bit order.
+    /// Returns true if data equals.
     template<typename T> static bool equal(RemoteReceiveData &src, const T &data, const size_t nbits = sizeof(T) * 8) {
       static_assert(std::is_integral<T>::value, "T must be an integer.");
       for (T mask = static_cast<T>(1ULL << (nbits - 1)); mask != 0; mask >>= 1)
@@ -176,31 +204,122 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
           return false;
       return true;
     }
+    /// Inner class for inverse template functions
     class inv {
      public:
+      /// Inverse encode data by mark with MSB bit order.
       template<typename T>
       static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
         static_assert(std::is_integral<T>::value, "T must be an integer.");
         for (T mask = static_cast<T>(1ULL << (nbits - 1)); mask != 0; mask >>= 1)
           dst->item((src & mask) ? mark_zero_us : mark_one_us, space_us);
       }
+      /// Decodes inverted mark-encoded data in MSB bit order. The data is shifted left by the specified number of bits.
+      /// Returns the number of decoded bits.
       template<typename T> static size_t decode(RemoteReceiveData &src, T &dst, const size_t nbits = sizeof(T) * 8) {
         static_assert(std::is_integral<T>::value, "T must be an integer.");
-        size_t bit = 0;
-        for (; bit != nbits; dst <<= 1, bit++) {
+        size_t cnt = 0;
+        for (; cnt != nbits; cnt++) {
           if (src.expect_mark(mark_zero_us))
-            dst |= 1;
-          else if (!src.expect_mark(mark_one_us))
+            dst = (dst << 1) | 1;
+          else if (src.expect_mark(mark_one_us))
+            dst = (dst << 1) | 0;
+          else
             break;
           if (!src.expect_space(space_us))
             break;
         }
-        return bit;
+        return cnt;
       }
+      /// Decodes and compares inverted mark-encoded data in MSB bit order.
+      /// Returns true if data equals.
       template<typename T>
       static bool equal(RemoteReceiveData &src, const T &data, const size_t nbits = sizeof(T) * 8) {
         static_assert(std::is_integral<T>::value, "T must be an integer.");
         for (T mask = static_cast<T>(1ULL << (nbits - 1)); mask != 0; mask >>= 1)
+          if (!src.expect_item((data & mask) ? mark_zero_us : mark_one_us, space_us))
+            return false;
+        return true;
+      }
+    };
+  };
+  class lsb {
+   public:
+    /// Encode data by mark with LSB bit order.
+    template<typename T> static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
+      static_assert(std::is_integral<T>::value, "T must be an integer.");
+      for (T mask = 1 << 0; mask != static_cast<T>(1ULL << nbits); mask <<= 1)
+        dst->item((src & mask) ? mark_one_us : mark_zero_us, space_us);
+    }
+    /// Decodes mark-encoded data in LSB bit order. The data is shifted left by the specified number of bits.
+    /// Returns the number of decoded bits.
+    template<typename T> static size_t decode(RemoteReceiveData &src, T &dst, const size_t nbits = sizeof(T) * 8) {
+      static_assert(std::is_integral<T>::value, "T must be an integer.");
+      constexpr size_t MAX_BITS = sizeof(T) * 8;
+      constexpr T MASK = static_cast<T>(1ULL << (MAX_BITS - 1));
+      T data = 0;
+      size_t cnt = 0;
+      for (; cnt != nbits; cnt++) {
+        if (src.expect_mark(mark_one_us))
+          data = (data >> 1) | MASK;
+        else if (src.expect_mark(mark_zero_us))
+          data = (data >> 1) | 0;
+        else
+          break;
+        if (!src.expect_space(space_us))
+          break;
+      }
+      if (cnt != 0)
+        dst = (dst << cnt) | (data >> (MAX_BITS - cnt));
+      return cnt;
+    }
+    /// Decodes and compares mark-encoded data in LSB bit order.
+    /// Returns true if data equals.
+    template<typename T> static bool equal(RemoteReceiveData &src, const T &data, const size_t nbits = sizeof(T) * 8) {
+      static_assert(std::is_integral<T>::value, "T must be an integer.");
+      for (T mask = 1 << 0; mask != static_cast<T>(1ULL << nbits); mask <<= 1)
+        if (!src.expect_item((data & mask) ? mark_one_us : mark_zero_us, space_us))
+          return false;
+      return true;
+    }
+    /// Inner class for inverse template functions
+    class inv {
+     public:
+      /// Inverse encode data by mark with LSB bit order.
+      template<typename T>
+      static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
+        static_assert(std::is_integral<T>::value, "T must be an integer.");
+        for (T mask = 1 << 0; mask != static_cast<T>(1ULL << nbits); mask <<= 1)
+          dst->item((src & mask) ? mark_zero_us : mark_one_us, space_us);
+      }
+      /// Decodes inverted mark-encoded data in LSB bit order. The data is shifted left by the specified number of bits.
+      /// Returns the number of decoded bits.
+      template<typename T> static size_t decode(RemoteReceiveData &src, T &dst, const size_t nbits = sizeof(T) * 8) {
+        static_assert(std::is_integral<T>::value, "T must be an integer.");
+        constexpr size_t MAX_BITS = sizeof(T) * 8;
+        constexpr T MASK = static_cast<T>(1ULL << (MAX_BITS - 1));
+        T data = 0;
+        size_t cnt = 0;
+        for (; cnt != nbits; cnt++) {
+          if (src.expect_mark(mark_zero_us))
+            data = (data >> 1) | MASK;
+          else if (src.expect_mark(mark_one_us))
+            data = (data >> 1) | 0;
+          else
+            break;
+          if (!src.expect_space(space_us))
+            break;
+        }
+        if (cnt != 0)
+          dst = (dst << cnt) | (data >> (MAX_BITS - cnt));
+        return cnt;
+      }
+      /// Decodes and compares inverted mark-encoded data in LSB bit order.
+      /// Returns true if data equals.
+      template<typename T>
+      static bool equal(RemoteReceiveData &src, const T &data, const size_t nbits = sizeof(T) * 8) {
+        static_assert(std::is_integral<T>::value, "T must be an integer.");
+        for (T mask = 1 << 0; mask != static_cast<T>(1ULL << nbits); mask <<= 1)
           if (!src.expect_item((data & mask) ? mark_zero_us : mark_one_us, space_us))
             return false;
         return true;
