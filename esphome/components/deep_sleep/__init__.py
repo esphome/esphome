@@ -14,10 +14,10 @@ from esphome.const import (
 
 def validate_pin_number(value):
     if CORE.is_esp32:
-		valid_pins = [0, 2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 33, 34, 35, 36, 37, 38, 39]
+        valid_pins = [0, 2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 33, 34, 35, 36, 37, 38, 39]
     if CORE.is_esp32c3:
-		valid_pins = [0, 1, 2, 3, 4, 5]
-	if value[CONF_NUMBER] not in valid_pins:
+        valid_pins = [0, 1, 2, 3, 4, 5]
+    if value[CONF_NUMBER] not in valid_pins:
         raise cv.Invalid(
             f"Only pins {', '.join(str(x) for x in valid_pins)} support wakeup"
         )

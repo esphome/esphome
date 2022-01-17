@@ -104,7 +104,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 
   App.run_safe_shutdown_hooks();
 
-#if defefined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
   if (this->wakeup_pin_ != nullptr) {
