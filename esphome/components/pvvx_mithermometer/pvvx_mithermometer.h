@@ -15,8 +15,8 @@ struct ParseResult {
   optional<float> humidity;
   optional<float> battery_level;
   optional<float> battery_voltage;
-  optional<int> flag_value;
-  optional<bool> reed_switch;
+  optional<uint8_t> flag_value;
+  optional<bool> p8_gnd;
   int raw_offset;
 };
 class PVVXMiThermometer : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
@@ -29,8 +29,7 @@ class PVVXMiThermometer : public Component, public esp32_ble_tracker::ESPBTDevic
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
   void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }
   void set_battery_voltage(sensor::Sensor *battery_voltage) { battery_voltage_ = battery_voltage; }
-  void set_flag_value(sensor::Sensor *flag_value) { flag_value_ = flag_value; }
-  void set_reed_switch(binary_sensor::BinarySensor *reed_switch) { reed_switch_ = reed_switch; }
+  void set_p8_gnd(binary_sensor::BinarySensor *p8_gnd) { p8_gnd_ = p8_gnd; }
 
  protected:
   uint64_t address_;
@@ -38,8 +37,7 @@ class PVVXMiThermometer : public Component, public esp32_ble_tracker::ESPBTDevic
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
   sensor::Sensor *battery_voltage_{nullptr};
-  sensor::Sensor *flag_value_{nullptr};
-  binary_sensor::BinarySensor *reed_switch_{nullptr};
+  binary_sensor::BinarySensor *p8_gnd_{nullptr};
 
   optional<ParseResult> parse_header_(const esp32_ble_tracker::ServiceData &service_data);
   bool parse_message_(const std::vector<uint8_t> &message, ParseResult &result);

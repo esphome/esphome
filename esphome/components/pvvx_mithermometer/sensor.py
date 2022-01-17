@@ -20,7 +20,7 @@ from esphome.const import (
 )
 
 CONF_FLAG_VALUE = "flag_value"
-CONF_REED_SWITCH = "reed_switch"
+CONF_P8_GND = "p8_gnd"
 
 CODEOWNERS = ["@pasiz"]
 
@@ -63,10 +63,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
-            cv.Optional(CONF_FLAG_VALUE): sensor.sensor_schema(
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ),
-            cv.Optional(CONF_REED_SWITCH): binary_sensor.BINARY_SENSOR_SCHEMA,
+            cv.Optional(CONF_P8_GND): binary_sensor.BINARY_SENSOR_SCHEMA,
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
@@ -93,9 +90,6 @@ async def to_code(config):
     if CONF_BATTERY_VOLTAGE in config:
         sens = await sensor.new_sensor(config[CONF_BATTERY_VOLTAGE])
         cg.add(var.set_battery_voltage(sens))
-    if CONF_FLAG_VALUE in config:
-        sens = await sensor.new_sensor(config[CONF_FLAG_VALUE])
-        cg.add(var.set_flag_value(sens))
-    if CONF_REED_SWITCH in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_REED_SWITCH])
-        cg.add(var.set_reed_switch(sens))
+    if CONF_P8_GND in config:
+        sens = await binary_sensor.new_binary_sensor(config[CONF_P8_GND])
+        cg.add(var.set_p8_gnd(sens))

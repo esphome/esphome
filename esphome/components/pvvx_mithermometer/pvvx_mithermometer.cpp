@@ -14,8 +14,7 @@ void PVVXMiThermometer::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
-  LOG_SENSOR("  ", "Flag Value", this->flag_value_);
-  LOG_BINARY_SENSOR("  ", "Reed Switch", this->reed_switch_);
+  LOG_BINARY_SENSOR("  ", "P8 Gnd", this->p8_gnd_);
 }
 
 bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -45,10 +44,8 @@ bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
       this->battery_level_->publish_state(*res->battery_level);
     if (res->battery_voltage.has_value() && this->battery_voltage_ != nullptr)
       this->battery_voltage_->publish_state(*res->battery_voltage);
-    if (res->flag_value.has_value() && this->flag_value_ != nullptr)
-      this->flag_value_->publish_state(*res->flag_value);
-    if (res->reed_switch.has_value() && this->reed_switch_ != nullptr)
-      this->reed_switch_->publish_state(*res->reed_switch);
+    if (res->p8_gnd.has_value() && this->p8_gnd_ != nullptr)
+      this->p8_gnd_->publish_state(*res->p8_gnd);
     success = true;
   }
 
@@ -86,7 +83,7 @@ bool PVVXMiThermometer::parse_message_(const std::vector<uint8_t> &message, Pars
   uint16_t    battery_mv;     // mV                [10,11]
   uint8_t     battery_level;  // 0..100 %          [12]
   uint8_t     counter;        // measurement count [13]
-  int         flags;          // details below     [14]
+  unit8_t     flags;          // details below     [14]
                               // flags bit0: Reed Switch, input
                               // flags bit1: GPIO_TRG pin output value (pull Up/Down)
                               // flags bit2: Output GPIO_TRG pin is controlled according to the set parameters
@@ -118,10 +115,10 @@ bool PVVXMiThermometer::parse_message_(const std::vector<uint8_t> &message, Pars
   result.battery_level = uint8_t(data[12]);
 
   // int         flag_value      //                   [14]
-  result.flag_value = int(data[14]);
+  result.flag_value = uint8_t(data[14]);
 
   // Checking bit 0 on flag byte [14]
-  result.reed_switch = int(data[14]) & 1;
+  result.p8_gnd = int(data[14]) & 1;
   return true;
 }
 
@@ -148,8 +145,8 @@ bool PVVXMiThermometer::report_results_(const optional<ParseResult> &result, con
   if (result->flag_value.has_value()) {
     ESP_LOGD(TAG, "  Flag Value: %u", *result->flag_value);
   }
-  if (result->reed_switch.has_value()) {
-    ESP_LOGD(TAG, "  Reed Switch: %s", ONOFF(*result->reed_switch));
+  if (result->p8_gnd.has_value()) {
+    ESP_LOGD(TAG, "  P8 Gnd %s", ONOFF(*result->p8_gnd));
   }
 
   return true;
