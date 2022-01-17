@@ -27,8 +27,7 @@ void NECProtocol::encode(RemoteTransmitData *dst, const NECData &data) {
 }
 
 static bool decode_data(RemoteReceiveData &src, NECData &dst) {
-  return codec::decode(src, dst.address) == 16 &&
-         codec::decode(src, dst.command) == 16;
+  return codec::decode(src, dst.address) == 16 && codec::decode(src, dst.command) == 16;
 }
 
 optional<NECData> NECProtocol::decode(RemoteReceiveData src) {

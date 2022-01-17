@@ -30,8 +30,7 @@ optional<JVCData> JVCProtocol::decode(RemoteReceiveData src) {
       .data = 0,
   };
   if (src.has_size(REMOTE_DATA_SIZE) && src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) &&
-      codec::decode(src, out.data, NBITS) == NBITS &&
-      src.expect_mark(BIT_MARK_US))
+      codec::decode(src, out.data, NBITS) == NBITS && src.expect_mark(BIT_MARK_US))
     return out;
   return {};
 }

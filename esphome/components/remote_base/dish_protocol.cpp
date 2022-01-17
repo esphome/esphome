@@ -36,8 +36,7 @@ void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
 }
 
 static bool decode_data(RemoteReceiveData &src, DishData &dst) {
-  return codec::msb::decode(src, dst.command, 6) == 6 &&
-         codec::lsb::decode(src, dst.address, 4) == 4 &&
+  return codec::msb::decode(src, dst.command, 6) == 6 && codec::lsb::decode(src, dst.address, 4) == 4 &&
          codec::msb::equal(src, 0, 6);
 }
 

@@ -36,9 +36,7 @@ void ToshibaAcProtocol::encode(RemoteTransmitData *dst, const ToshibaAcData &dat
   }
 }
 
-static bool decode_data(RemoteReceiveData &src, uint64_t &dst) {
-  return codec::decode(src, dst, 48) == 48;
-}
+static bool decode_data(RemoteReceiveData &src, uint64_t &dst) { return codec::decode(src, dst, 48) == 48; }
 
 optional<ToshibaAcData> ToshibaAcProtocol::decode(RemoteReceiveData src) {
   uint64_t packet = 0;
