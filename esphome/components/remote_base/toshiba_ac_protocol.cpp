@@ -63,7 +63,7 @@ optional<ToshibaAcData> ToshibaAcProtocol::decode(RemoteReceiveData src) {
   if (packet != out.rc_code_1)
     return {};
   // The third packet isn't always present
-  if (!src.expect_space(FOOTER_SPACE_US))
+  if (!src.expect_item(FOOTER_MARK_US, FOOTER_SPACE_US))
     return out;
 
   // *** Packet 3
