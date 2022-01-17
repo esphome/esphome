@@ -47,10 +47,10 @@ class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90
   sensor::Sensor *y_sensor_{nullptr};
   sensor::Sensor *z_sensor_{nullptr};
   sensor::Sensor *t_sensor_{nullptr};
-  uint8_t gain_ = 0;
-  uint8_t osr_ = 0;
+  uint8_t gain_;
+  uint8_t osr_;
   uint8_t osr2_ = 0;
-  uint8_t filter_ = 0;
+  uint8_t filter_;
   uint8_t resolutions_[3] = {0};
   GPIOPin *drdy_pin_ = nullptr;
 };

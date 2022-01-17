@@ -108,12 +108,9 @@ async def to_code(config):
     if CONF_DRDY_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_DRDY_PIN])
         cg.add(var.set_drdy_pin(pin))
-    if CONF_GAIN in config:
-        cg.add(var.set_gain(GAIN[config[CONF_GAIN]]))
-    if CONF_OVERSAMPLING in config:
-        cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
-    if CONF_FILTER in config:
-        cg.add(var.set_filter(config[CONF_FILTER]))
+    cg.add(var.set_gain(GAIN[config[CONF_GAIN]]))
+    cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
+    cg.add(var.set_filter(config[CONF_FILTER]))
 
     if CONF_X_AXIS in config:
         sens = await sensor.new_sensor(config[CONF_X_AXIS])
