@@ -93,22 +93,22 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
     /// Returns the number of decoded bits.
     template<typename T> static size_t decode(RemoteReceiveData &src, T &dst, const size_t nbits = sizeof(T) * 8) {
       static_assert(std::is_integral<T>::value, "T must be an integer.");
-      constexpr size_t MAX_BITS = sizeof(T) * 8;
-      constexpr T MASK = static_cast<T>(1ULL << (MAX_BITS - 1));
+      constexpr size_t max_bits = sizeof(T) * 8;
+      constexpr T mask = static_cast<T>(1ULL << (max_bits - 1));
       T data = 0;
       size_t cnt = 0;
       for (; cnt != nbits; cnt++) {
         if (!src.expect_mark(mark_us))
           break;
         if (src.expect_space(space_one_us))
-          data = (data >> 1) | MASK;
+          data = (data >> 1) | mask;
         else if (src.expect_space(space_zero_us))
           data = (data >> 1) | 0;
         else
           break;
       }
       if (cnt != 0)
-        dst = (dst << cnt) | (data >> (MAX_BITS - cnt));
+        dst = (dst << cnt) | (data >> (max_bits - cnt));
       return cnt;
     }
     /// Decodes and compares space-encoded data in LSB bit order.
@@ -134,22 +134,22 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
       /// bits. Returns the number of decoded bits.
       template<typename T> static size_t decode(RemoteReceiveData &src, T &dst, const size_t nbits = sizeof(T) * 8) {
         static_assert(std::is_integral<T>::value, "T must be an integer.");
-        constexpr size_t MAX_BITS = sizeof(T) * 8;
-        constexpr T MASK = static_cast<T>(1ULL << (MAX_BITS - 1));
+        constexpr size_t max_bits = sizeof(T) * 8;
+        constexpr T mask = static_cast<T>(1ULL << (max_bits - 1));
         T data = 0;
         size_t cnt = 0;
         for (; cnt != nbits; cnt++) {
           if (!src.expect_mark(mark_us))
             break;
           if (src.expect_space(space_zero_us))
-            data = (data >> 1) | MASK;
+            data = (data >> 1) | mask;
           else if (src.expect_space(space_one_us))
             data = (data >> 1) | 0;
           else
             break;
         }
         if (cnt != 0)
-          dst = (dst << cnt) | (data >> (MAX_BITS - cnt));
+          dst = (dst << cnt) | (data >> (max_bits - cnt));
         return cnt;
       }
       /// Decodes and compares inverted space-encoded data in LSB bit order.
@@ -255,13 +255,13 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
     /// Returns the number of decoded bits.
     template<typename T> static size_t decode(RemoteReceiveData &src, T &dst, const size_t nbits = sizeof(T) * 8) {
       static_assert(std::is_integral<T>::value, "T must be an integer.");
-      constexpr size_t MAX_BITS = sizeof(T) * 8;
-      constexpr T MASK = static_cast<T>(1ULL << (MAX_BITS - 1));
+      constexpr size_t max_bits = sizeof(T) * 8;
+      constexpr T mask = static_cast<T>(1ULL << (max_bits - 1));
       T data = 0;
       size_t cnt = 0;
       for (; cnt != nbits; cnt++) {
         if (src.expect_mark(mark_one_us))
-          data = (data >> 1) | MASK;
+          data = (data >> 1) | mask;
         else if (src.expect_mark(mark_zero_us))
           data = (data >> 1) | 0;
         else
@@ -270,7 +270,7 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
           break;
       }
       if (cnt != 0)
-        dst = (dst << cnt) | (data >> (MAX_BITS - cnt));
+        dst = (dst << cnt) | (data >> (max_bits - cnt));
       return cnt;
     }
     /// Decodes and compares mark-encoded data in LSB bit order.
@@ -296,13 +296,13 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
       /// Returns the number of decoded bits.
       template<typename T> static size_t decode(RemoteReceiveData &src, T &dst, const size_t nbits = sizeof(T) * 8) {
         static_assert(std::is_integral<T>::value, "T must be an integer.");
-        constexpr size_t MAX_BITS = sizeof(T) * 8;
-        constexpr T MASK = static_cast<T>(1ULL << (MAX_BITS - 1));
+        constexpr size_t max_bits = sizeof(T) * 8;
+        constexpr T mask = static_cast<T>(1ULL << (max_bits - 1));
         T data = 0;
         size_t cnt = 0;
         for (; cnt != nbits; cnt++) {
           if (src.expect_mark(mark_zero_us))
-            data = (data >> 1) | MASK;
+            data = (data >> 1) | mask;
           else if (src.expect_mark(mark_one_us))
             data = (data >> 1) | 0;
           else
@@ -311,7 +311,7 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
             break;
         }
         if (cnt != 0)
-          dst = (dst << cnt) | (data >> (MAX_BITS - cnt));
+          dst = (dst << cnt) | (data >> (max_bits - cnt));
         return cnt;
       }
       /// Decodes and compares inverted mark-encoded data in LSB bit order.
@@ -329,15 +329,12 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
 };
 
 // NOLINTBEGIN
-
 #define USE_SPACE_CODEC(name) using name = space<BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>;
 #define USE_SPACE_MSB_CODEC(name) using name = space<BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>::msb;
 #define USE_SPACE_LSB_CODEC(name) using name = space<BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>::lsb;
-
 #define USE_MARK_CODEC(name) using name = mark<BIT_SPACE_US, BIT_ONE_MARK_US, BIT_ZERO_MARK_US>;
 #define USE_MARK_MSB_CODEC(name) using name = mark<BIT_SPACE_US, BIT_ONE_MARK_US, BIT_ZERO_MARK_US>::msb;
 #define USE_MARK_LSB_CODEC(name) using name = mark<BIT_SPACE_US, BIT_ONE_MARK_US, BIT_ZERO_MARK_US>::lsb;
-
 // NOLINTEND
 
 }  // namespace remote_base
