@@ -4,13 +4,11 @@
 namespace esphome {
 namespace remote_base {
 
-/* clang-format off */
-
 /// Template helper class for space-encoded data.
-template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class space {
+template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class space { // NOLINT
  public:
   /// Template helper class for space-encoded data with MSB bit order.
-  class msb {
+  class msb { // NOLINT
    public:
     /// Encode data by space with MSB bit order.
     template<typename T> static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
@@ -45,7 +43,7 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
       return true;
     }
     /// Inner class for inverse template functions
-    class inv {
+    class inv { // NOLINT
      public:
       /// Inverse encode data by space with MSB bit order.
       template<typename T>
@@ -83,7 +81,7 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
       }
     };
   };
-  class lsb {
+  class lsb { // NOLINT
    public:
     /// Encode data by space with LSB bit order.
     template<typename T> static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
@@ -123,7 +121,7 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
       return true;
     }
     /// Inner class for inverse template functions
-    class inv {
+    class inv { // NOLINT
      public:
       /// Inverse encode data by space with LSB bit order.
       template<typename T>
@@ -169,10 +167,10 @@ template<uint32_t mark_us, uint32_t space_one_us, uint32_t space_zero_us> class 
 };
 
 /// Template helper class for mark-encoded data.
-template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class mark {
+template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class mark { // NOLINT
  public:
   /// Template helper class for mark-encoded data with MSB bit order.
-  class msb {
+  class msb { // NOLINT
    public:
     /// Encode data by mark with MSB bit order.
     template<typename T> static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
@@ -207,7 +205,7 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
       return true;
     }
     /// Inner class for inverse template functions
-    class inv {
+    class inv { // NOLINT
      public:
       /// Inverse encode data by mark with MSB bit order.
       template<typename T>
@@ -245,7 +243,7 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
       }
     };
   };
-  class lsb {
+  class lsb { // NOLINT
    public:
     /// Encode data by mark with LSB bit order.
     template<typename T> static void encode(RemoteTransmitData *dst, const T &src, const size_t nbits = sizeof(T) * 8) {
@@ -285,7 +283,7 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
       return true;
     }
     /// Inner class for inverse template functions
-    class inv {
+    class inv { // NOLINT
      public:
       /// Inverse encode data by mark with LSB bit order.
       template<typename T>
@@ -330,6 +328,8 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
   };
 };
 
+// NOLINTBEGIN
+
 #define USE_SPACE_CODEC(name) using name = space<BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>;
 #define USE_SPACE_MSB_CODEC(name) using name = space<BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>::msb;
 #define USE_SPACE_LSB_CODEC(name) using name = space<BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>::lsb;
@@ -338,7 +338,7 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
 #define USE_MARK_MSB_CODEC(name) using name = mark<BIT_SPACE_US, BIT_ONE_MARK_US, BIT_ZERO_MARK_US>::msb;
 #define USE_MARK_LSB_CODEC(name) using name = mark<BIT_SPACE_US, BIT_ONE_MARK_US, BIT_ZERO_MARK_US>::lsb;
 
-/* clang-format on */
+// NOLINTEND
 
 }  // namespace remote_base
 }  // namespace esphome
