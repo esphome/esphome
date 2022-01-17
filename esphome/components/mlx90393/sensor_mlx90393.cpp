@@ -38,11 +38,11 @@ void MLX90393Cls::setup() {
 
   this->mlx_.setResolution(this->resolutions_[0], this->resolutions_[1], this->resolutions_[2]);
 
-  this->mlx_.setOverSampling(this->osr_);
+  this->mlx_.setOverSampling(this->oversampling_);
 
   this->mlx_.setDigitalFiltering(this->filter_);
 
-  this->mlx_.setTemperatureOverSampling(this->osr2_);
+  this->mlx_.setTemperatureOverSampling(this->temperature_oversampling_);
 }
 
 void MLX90393Cls::dump_config() {

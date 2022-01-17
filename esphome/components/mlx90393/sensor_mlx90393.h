@@ -24,8 +24,8 @@ class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90
   void set_z_sensor(sensor::Sensor *z_sensor) { z_sensor_ = z_sensor; }
   void set_t_sensor(sensor::Sensor *t_sensor) { t_sensor_ = t_sensor; }
 
-  void set_oversampling(uint8_t osr) { osr_ = osr; }
-  void set_t_oversampling(uint8_t osr2) { osr2_ = osr2; }
+  void set_oversampling(uint8_t osr) { oversampling_ = osr; }
+  void set_t_oversampling(uint8_t osr2) { temperature_oversampling_ = osr2; }
   void set_resolution(uint8_t xyz, uint8_t res) { resolutions_[xyz] = res; }
   void set_filter(uint8_t filter) { filter_ = filter; }
   void set_gain(uint8_t gain_sel) { gain_ = gain_sel; }
@@ -48,8 +48,8 @@ class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90
   sensor::Sensor *z_sensor_{nullptr};
   sensor::Sensor *t_sensor_{nullptr};
   uint8_t gain_;
-  uint8_t osr_;
-  uint8_t osr2_ = 0;
+  uint8_t oversampling_;
+  uint8_t temperature_oversampling_ = 0;
   uint8_t filter_;
   uint8_t resolutions_[3] = {0};
   GPIOPin *drdy_pin_ = nullptr;
