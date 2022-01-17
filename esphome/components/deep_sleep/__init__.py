@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE
 from esphome.const import (
     CONF_ID,
     CONF_MODE,
@@ -12,6 +12,18 @@ from esphome.const import (
     CONF_WAKEUP_PIN,
 )
 
+from .const import (  # noqa
+    KEY_ESP32,
+    KEY_VARIANT,
+    VARIANT_ESP32C3,
+)
+
+def get_esp32_variant():
+    return CORE.data[KEY_ESP32][KEY_VARIANT]
+
+
+def is_esp32c3():
+    return get_esp32_variant() == VARIANT_ESP32C3
 
 def validate_pin_number(value):
     if CORE.is_esp32:
