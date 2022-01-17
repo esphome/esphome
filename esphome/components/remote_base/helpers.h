@@ -328,14 +328,18 @@ template<uint32_t space_us, uint32_t mark_one_us, uint32_t mark_zero_us> class m
   };
 };
 
-// NOLINTBEGIN
+// NOLINTNEXTLINE
 #define USE_SPACE_CODEC(name) using name = space<BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>;
+// NOLINTNEXTLINE
 #define USE_SPACE_MSB_CODEC(name) using name = space<BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>::msb;
+// NOLINTNEXTLINE
 #define USE_SPACE_LSB_CODEC(name) using name = space<BIT_MARK_US, BIT_ONE_SPACE_US, BIT_ZERO_SPACE_US>::lsb;
+// NOLINTNEXTLINE
 #define USE_MARK_CODEC(name) using name = mark<BIT_SPACE_US, BIT_ONE_MARK_US, BIT_ZERO_MARK_US>;
+// NOLINTNEXTLINE
 #define USE_MARK_MSB_CODEC(name) using name = mark<BIT_SPACE_US, BIT_ONE_MARK_US, BIT_ZERO_MARK_US>::msb;
+// NOLINTNEXTLINE
 #define USE_MARK_LSB_CODEC(name) using name = mark<BIT_SPACE_US, BIT_ONE_MARK_US, BIT_ZERO_MARK_US>::lsb;
-// NOLINTEND
 
 }  // namespace remote_base
 }  // namespace esphome
