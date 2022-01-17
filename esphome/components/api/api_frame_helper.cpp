@@ -1,6 +1,7 @@
 #include "api_frame_helper.h"
 
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "proto.h"
 #include <cstring>
@@ -721,7 +722,12 @@ APIError APINoiseFrameHelper::shutdown(int how) {
 }
 extern "C" {
 // declare how noise generates random bytes (here with a good HWRNG based on the RF system)
-void noise_rand_bytes(void *output, size_t len) { esphome::random_bytes(reinterpret_cast<uint8_t *>(output), len); }
+void noise_rand_bytes(void *output, size_t len) {
+  if (!esphome::random_bytes(reinterpret_cast<uint8_t *>(output), len)) {
+    ESP_LOGE(TAG, "Failed to acquire random bytes, rebooting!");
+    arch_restart();
+  }
+}
 }
 #endif  // USE_API_NOISE
 
