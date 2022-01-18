@@ -15,7 +15,7 @@ from esphome.const import (
 
 from esphome.core import CORE
 from esphome.components.esp32 import get_esp32_variant
-from esphome.components.esp32 import (
+from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
 )
