@@ -195,7 +195,14 @@ class SPIComponent : public Component {
   void enable(GPIOPin *cs) {
 #ifdef USE_SPI_ARDUINO_BACKEND
     if (this->hw_spi_ != nullptr) {
-      uint8_t data_mode = (uint8_t(CLOCK_POLARITY) << 1) | uint8_t(CLOCK_PHASE);
+      uint8_t data_mode = SPI_MODE0;
+      if (!CLOCK_POLARITY && CLOCK_PHASE) {
+        data_mode = SPI_MODE1;
+      } else if (CLOCK_POLARITY && !CLOCK_PHASE) {
+        data_mode = SPI_MODE2;
+      } else if (CLOCK_POLARITY && CLOCK_PHASE) {
+        data_mode = SPI_MODE3;
+      }
       SPISettings settings(DATA_RATE, BIT_ORDER, data_mode);
       this->hw_spi_->beginTransaction(settings);
     } else {

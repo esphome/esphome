@@ -1,11 +1,22 @@
 {
   "problemMatcher": [
     {
+      "owner": "black",
+      "severity": "error",
+      "pattern": [
+        {
+          "regexp": "^(.*): (Please format this file with the black formatter)",
+          "file": 1,
+          "message": 2
+        }
+      ]
+    },
+    {
       "owner": "flake8",
       "severity": "error",
       "pattern": [
           {
-          "regexp": "^(.*):(\\d+) - ([EFCDNW]\\d{3}.*)$",
+          "regexp": "^(.*):(\\d+): ([EFCDNW]\\d{3}.*)$",
           "file": 1,
           "line": 2,
           "message": 3
@@ -17,7 +28,7 @@
       "severity": "error",
       "pattern": [
         {
-          "regexp": "^(.*):(\\d+) - (\\[[EFCRW]\\d{4}\\(.*\\),.*\\].*)$",
+          "regexp": "^(.*):(\\d+): (\\[[EFCRW]\\d{4}\\(.*\\),.*\\].*)$",
           "file": 1,
           "line": 2,
           "message": 3

@@ -107,9 +107,9 @@ def validate_supports(value):
         raise cv.Invalid(
             "Open-drain only works with output mode", [CONF_MODE, CONF_OPEN_DRAIN]
         )
-    if is_pullup and num == 0:
+    if is_pullup and num == 16:
         raise cv.Invalid(
-            "GPIO Pin 0 does not support pullup pin mode. "
+            "GPIO Pin 16 does not support pullup pin mode. "
             "Please choose another pin.",
             [CONF_MODE, CONF_PULLUP],
         )

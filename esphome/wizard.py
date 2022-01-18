@@ -45,14 +45,26 @@ OTA_BIG = r"""       ____ _______
 
 BASE_CONFIG = """esphome:
   name: {name}
-  platform: {platform}
-  board: {board}
+"""
 
+LOGGER_API_CONFIG = """
 # Enable logging
 logger:
 
 # Enable Home Assistant API
 api:
+"""
+
+ESP8266_CONFIG = """
+esp8266:
+  board: {board}
+"""
+
+ESP32_CONFIG = """
+esp32:
+  board: {board}
+  framework:
+    type: arduino
 """
 
 
@@ -71,6 +83,14 @@ def wizard_file(**kwargs):
 
     config = BASE_CONFIG.format(**kwargs)
 
+    config += (
+        ESP8266_CONFIG.format(**kwargs)
+        if kwargs["platform"] == "ESP8266"
+        else ESP32_CONFIG.format(**kwargs)
+    )
+
+    config += LOGGER_API_CONFIG
+
     # Configure API
     if "password" in kwargs:
         config += f"  password: \"{kwargs['password']}\"\n"
@@ -86,12 +106,11 @@ def wizard_file(**kwargs):
     config += "\n\nwifi:\n"
 
     if "ssid" in kwargs:
-        # pylint: disable=consider-using-f-string
-        config += """  ssid: "{ssid}"
-  password: "{psk}"
-""".format(
-            **kwargs
-        )
+        if kwargs["ssid"].startswith("!secret"):
+            template = "  ssid: {ssid}\n  password: {psk}\n"
+        else:
+            template = """  ssid: "{ssid}"\n  password: "{psk}"\n"""
+        config += template.format(**kwargs)
     else:
         config += """  # ssid: "My SSID"
   # password: "mypassword"
@@ -140,7 +159,6 @@ if get_bool_env(ENV_QUICKWIZARD):
 
     def sleep(time):
         pass
-
 
 else:
     from time import sleep
@@ -367,10 +385,9 @@ def wizard(path):
     )
     safe_print()
     safe_print("Next steps:")
+    safe_print("  > Follow the rest of the getting started guide:")
     safe_print(
-        '  > Check your Home Assistant "integrations" screen. If all goes well, you '
-        "should see your ESP being discovered automatically."
+        "  > https://esphome.io/guides/getting_started_command_line.html#adding-some-features"
     )
-    safe_print("  > Then follow the rest of the getting started guide:")
-    safe_print("  > https://esphome.io/guides/getting_started_command_line.html")
+    safe_print("  > to learn how to customize ESPHome and install it to your device.")
     return 0

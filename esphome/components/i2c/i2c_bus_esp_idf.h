@@ -36,7 +36,6 @@ class IDFI2CBus : public I2CBus, public Component {
 
  protected:
   i2c_port_t port_;
-  bool scan_;
   uint8_t sda_pin_;
   bool sda_pullup_enabled_;
   uint8_t scl_pin_;

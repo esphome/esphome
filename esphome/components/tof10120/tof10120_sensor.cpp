@@ -50,7 +50,7 @@ void TOF10120Sensor::update() {
     ESP_LOGW(TAG, "Distance measurement out of range");
     this->publish_state(NAN);
   } else {
-    this->publish_state(distance_mm / 1000.0);
+    this->publish_state(distance_mm / 1000.0f);
   }
   this->status_clear_warning();
 }

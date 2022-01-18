@@ -75,10 +75,10 @@ from esphome.cpp_types import (  # noqa
     optional,
     arduino_json_ns,
     JsonObject,
-    JsonObjectRef,
-    JsonObjectConstRef,
+    JsonObjectConst,
     Controller,
     GPIOPin,
     InternalGPIOPin,
     gpio_Flags,
+    EntityCategory,
 )

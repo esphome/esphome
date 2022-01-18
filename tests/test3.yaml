@@ -227,7 +227,9 @@ spi:
 
 uart:
   - id: uart1
-    tx_pin: GPIO1
+    tx_pin:
+      number: GPIO1
+      inverted: yes
     rx_pin: GPIO3
     baud_rate: 115200
   - id: uart2
@@ -250,6 +252,12 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
+  - id: uart7
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 38400
+    # Specifically added for testing debug with no options at all.
+    debug:
 
 modbus:
   uart_id: uart1
@@ -263,6 +271,8 @@ logger:
   hardware_uart: UART1
   level: DEBUG
   esp8266_store_log_strings_in_flash: true
+
+improv_serial:
 
 deep_sleep:
   run_duration: 20s
@@ -348,6 +358,11 @@ sensor:
       - filter_out: NAN
       - sliding_window_moving_average:
       - exponential_moving_average:
+      - quantile:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
+          quantile: .8
       - lambda: 'return 0;'
       - delta: 100
       - throttle: 100ms
@@ -363,6 +378,10 @@ sensor:
             - 400 -> 500
             - -50 -> -1000
             - -100 -> -10000
+  - platform: cd74hc4067
+    id: cd74hc4067_0
+    number: 0
+    sensor: my_sensor
   - platform: resistance
     sensor: my_sensor
     configuration: DOWNSTREAM
@@ -403,7 +422,7 @@ sensor:
       name: Illuminance
     color_temperature:
       name: Color Temperature
-    integration_time: 700ms
+    integration_time: 614ms
     gain: 60x
   - platform: custom
     lambda: |-
@@ -440,15 +459,30 @@ sensor:
     active_power_b:
       name: ADE7953 Active Power B
       id: ade7953_active_power_b
+  - platform: bl0940
+    uart_id: uart3
+    voltage:
+      name: 'BL0940 Voltage'
+    current:
+      name: 'BL0940 Current'
+    power:
+      name: 'BL0940 Power'
+    energy:
+      name: 'BL0940 Energy'
+    internal_temperature:
+      name: 'BL0940 Internal temperature'
+    external_temperature:
+      name: 'BL0940 External temperature'
   - platform: pzem004t
     uart_id: uart3
     voltage:
-      name: 'PZEM00T Voltage'
+      name: 'PZEM004T Voltage'
     current:
       name: 'PZEM004T Current'
     power:
       name: 'PZEM004T Power'
   - platform: pzemac
+    id: pzemac1
     voltage:
       name: 'PZEMAC Voltage'
     current:
@@ -549,6 +583,18 @@ sensor:
       name: 'PMS Humidity'
     formaldehyde:
       name: 'PMS Formaldehyde Concentration'
+  - platform: cse7761
+    uart_id: uart7
+    voltage:
+      name: 'CSE7761 Voltage'
+    current_1:
+      name: 'CSE7761 Current 1'
+    current_2:
+      name: 'CSE7761 Current 2'
+    active_power_1:
+      name: 'CSE7761 Active Power 1'
+    active_power_2:
+      name: 'CSE7761 Active Power 2'
   - platform: cse7766
     uart_id: uart3
     voltage:
@@ -735,6 +781,11 @@ binary_sensor:
     on_press:
       then:
         - cover.toggle: time_based_cover
+  - platform: template
+    id: 'pzemac_reset_energy'
+    on_press:
+      then:
+        - pzemac.reset_energy: pzemac1
 
 globals:
   - id: my_global_string
@@ -1150,7 +1201,7 @@ servo:
 ttp229_lsf:
 
 ttp229_bsf:
-  sdo_pin: D0
+  sdo_pin: D2
   scl_pin: D1
 
 sim800l:
@@ -1290,7 +1341,17 @@ fingerprint_grow:
 dsmr:
   decryption_key: 00112233445566778899aabbccddeeff
   uart_id: uart6
+  max_telegram_length: 1000
+  request_pin: D5
+  request_interval: 20s
+  receive_timeout: 100ms
 
 daly_bms:
   update_interval: 20s
   uart_id: uart1
+
+cd74hc4067:
+  pin_s0: GPIO12
+  pin_s1: GPIO13
+  pin_s2: GPIO14
+  pin_s3: GPIO15

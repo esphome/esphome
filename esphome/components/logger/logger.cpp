@@ -153,13 +153,9 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART1:
         this->hw_serial_ = &Serial1;
         break;
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2)
       case UART_SELECTION_UART2:
-#if !CONFIG_IDF_TARGET_ESP32S2 && !CONFIG_IDF_TARGET_ESP32C3
-        // FIXME: Validate in config that UART2 can't be set for ESP32-S2 (only has
-        // UART0-UART1)
         this->hw_serial_ = &Serial2;
-#endif
         break;
 #endif
     }
@@ -173,9 +169,11 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART1:
         uart_num_ = UART_NUM_1;
         break;
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2)
       case UART_SELECTION_UART2:
         uart_num_ = UART_NUM_2;
         break;
+#endif
     }
     uart_config_t uart_config{};
     uart_config.baud_rate = (int) baud_rate_;
@@ -223,7 +221,7 @@ UARTSelection Logger::get_uart() const { return this->uart_; }
 void Logger::add_on_log_callback(std::function<void(int, const char *, const char *)> &&callback) {
   this->log_callback_.add(std::move(callback));
 }
-float Logger::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
+float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
 const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
 #ifdef USE_ESP32
 const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART2"};
