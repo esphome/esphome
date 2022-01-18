@@ -2,6 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
 from esphome.const import (
+    CONF_ATTENUATION,
+    CONF_RAW,
     CONF_ID,
     CONF_MODE,
     CONF_NUMBER,
@@ -12,38 +14,40 @@ from esphome.const import (
 )
 
 from esphome.core import CORE
-from esphome.components.esp32 import is_esp32c3
+from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C3,
+)
 
+WAKEUP_PINS = {
+    VARIANT_ESP32: [0, 2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 33, 34, 35, 36, 37, 38, 39],
+    VARIANT_ESP32C3: [0, 1, 2, 3, 4, 5]
+}
 
 def validate_pin_number(value):
-    if CORE.is_esp32:
-        valid_pins = [
-            0,
-            2,
-            4,
-            12,
-            13,
-            14,
-            15,
-            25,
-            26,
-            27,
-            32,
-            33,
-            34,
-            35,
-            36,
-            37,
-            38,
-            39,
-        ]
-    if is_esp32c3():
-        valid_pins = [0, 1, 2, 3, 4, 5]
+    valid_pins = WAKEUP_PINS.get(get_esp32_variant(), VARIANT_ESP32)
     if value[CONF_NUMBER] not in valid_pins:
         raise cv.Invalid(
             f"Only pins {', '.join(str(x) for x in valid_pins)} support wakeup"
         )
     return value
+
+
+def validate_config(config):
+    if (
+        config[CONF_RAW] 
+        and get_esp32_variant() == VARIANT_ESP32C3 
+        and config.get(CONF_ESP32_EXT1_WAKEUP, None) != None
+    ):
+        raise cv.Invalid("ESP32-C3 does not support wakeup from touch.")
+    if (
+        config[CONF_RAW] 
+        and get_esp32_variant() == VARIANT_ESP32C3 
+        and config.get(CONF_TOUCH_WAKEUP, None) != None
+    ):
+        raise cv.Invalid("ESP32-C3 does not support wakeup from ext1")
+    return config
 
 
 deep_sleep_ns = cg.esphome_ns.namespace("deep_sleep")
