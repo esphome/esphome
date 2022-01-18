@@ -60,11 +60,11 @@ class I2CDevice {
 
   template<typename TRegisterAddress, typename TRegisterValue>
   ErrorCode read_register(TRegisterAddress a_register, TRegisterValue data) {
-    uint8_t *reg = reinterpret_cast<uint8_t *>(&a_register);
+    uint8_t *reg = reinterpret_cast<uint8_t *>(convert_big_endian(&a_register));
     ErrorCode err = this->write(reg, sizeof(reg));
     if (err != ERROR_OK)
       return err;
-    uint8_t *data2 = reinterpret_cast<uint8_t *>(&data);
+    uint8_t *data2 = reinterpret_cast<uint8_t *>(convert_big_endian(&data));
     return this->read(data2, sizeof(data2));
   }
 
@@ -81,9 +81,9 @@ class I2CDevice {
   template<typename TRegisterAddress, typename TRegisterValue>
   ErrorCode write_register(TRegisterAddress a_register, TRegisterValue data) {
     WriteBuffer buffers[2];
-    buffers[0].data = reinterpret_cast<uint8_t *>(&a_register);
+    buffers[0].data = reinterpret_cast<uint8_t *>(convert_big_endian(&a_register));
     buffers[0].len = sizeof(buffers[0].data);
-    buffers[1].data = reinterpret_cast<uint8_t *>(&data);
+    buffers[1].data = reinterpret_cast<uint8_t *>(convert_big_endian(&data));
     buffers[1].len = sizeof(buffers[1].data);
     return bus_->writev(address_, buffers, 2);
   }
