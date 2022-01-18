@@ -95,7 +95,7 @@ void BME680Component::setup() {
   this->calibration_.t3 = cal1[3];
 
   this->calibration_.h1 = cal2[2] << 4 | (cal2[1] & 0x0F);
-  this->calibration_.h2 = cal2[0] << 4 | cal2[1];
+  this->calibration_.h2 = cal2[0] << 4 | cal2[1] >> 4;
   this->calibration_.h3 = cal2[3];
   this->calibration_.h4 = cal2[4];
   this->calibration_.h5 = cal2[5];
