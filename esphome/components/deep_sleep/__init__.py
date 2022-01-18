@@ -38,13 +38,13 @@ def validate_config(config):
     if (
         config[CONF_RAW] 
         and get_esp32_variant() == VARIANT_ESP32C3 
-        and config.get(CONF_ESP32_EXT1_WAKEUP, None) != None
+        and config.get(CONF_ESP32_EXT1_WAKEUP, None) is not None
     ):
         raise cv.Invalid("ESP32-C3 does not support wakeup from touch.")
     if (
         config[CONF_RAW] 
         and get_esp32_variant() == VARIANT_ESP32C3 
-        and config.get(CONF_TOUCH_WAKEUP, None) != None
+        and config.get(CONF_TOUCH_WAKEUP, None) is not None
     ):
         raise cv.Invalid("ESP32-C3 does not support wakeup from ext1")
     return config
