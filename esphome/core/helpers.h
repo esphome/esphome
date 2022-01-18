@@ -311,7 +311,7 @@ uint32_t random_uint32();
 /// Return a random float between 0 and 1.
 float random_float();
 /// Generate \p len number of random bytes.
-void random_bytes(uint8_t *data, size_t len);
+bool random_bytes(uint8_t *data, size_t len);
 
 ///@}
 
