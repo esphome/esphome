@@ -287,13 +287,12 @@ uint32_t random_uint32() {
 #endif
 }
 float random_float() { return static_cast<float>(random_uint32()) / static_cast<float>(UINT32_MAX); }
-void random_bytes(uint8_t *data, size_t len) {
+bool random_bytes(uint8_t *data, size_t len) {
 #ifdef USE_ESP32
   esp_fill_random(data, len);
+  return true;
 #elif defined(USE_ESP8266)
-  if (os_get_random(data, len) != 0) {
-    ESP_LOGE(TAG, "Failed to generate random bytes!");
-  }
+  return os_get_random(data, len) == 0;
 #else
 #error "No random source available for this configuration."
 #endif
