@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
 from esphome.const import (
-    CONF_ATTENUATION,
     CONF_RAW,
     CONF_ID,
     CONF_MODE,
@@ -13,7 +12,6 @@ from esphome.const import (
     CONF_WAKEUP_PIN,
 )
 
-from esphome.core import CORE
 from esphome.components.esp32 import get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
@@ -21,9 +19,29 @@ from esphome.components.esp32.const import (
 )
 
 WAKEUP_PINS = {
-    VARIANT_ESP32: [0, 2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 33, 34, 35, 36, 37, 38, 39],
-    VARIANT_ESP32C3: [0, 1, 2, 3, 4, 5]
+    VARIANT_ESP32: [
+        0,
+        2,
+        4,
+        12,
+        13,
+        14,
+        15,
+        25,
+        26,
+        27,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+    ],
+    VARIANT_ESP32C3: [0, 1, 2, 3, 4, 5],
 }
+
 
 def validate_pin_number(value):
     valid_pins = WAKEUP_PINS.get(get_esp32_variant(), VARIANT_ESP32)
@@ -36,14 +54,14 @@ def validate_pin_number(value):
 
 def validate_config(config):
     if (
-        config[CONF_RAW] 
-        and get_esp32_variant() == VARIANT_ESP32C3 
+        config[CONF_RAW]
+        and get_esp32_variant() == VARIANT_ESP32C3
         and config.get(CONF_ESP32_EXT1_WAKEUP, None) is not None
     ):
         raise cv.Invalid("ESP32-C3 does not support wakeup from touch.")
     if (
-        config[CONF_RAW] 
-        and get_esp32_variant() == VARIANT_ESP32C3 
+        config[CONF_RAW]
+        and get_esp32_variant() == VARIANT_ESP32C3
         and config.get(CONF_TOUCH_WAKEUP, None) is not None
     ):
         raise cv.Invalid("ESP32-C3 does not support wakeup from ext1")
