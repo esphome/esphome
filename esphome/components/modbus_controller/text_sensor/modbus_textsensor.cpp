@@ -14,18 +14,18 @@ void ModbusTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Modbus Controller Te
 void ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   std::ostringstream output;
   uint8_t max_items = this->response_bytes;
+  uint8_t index = this->offset;
   char buffer[4];
-  bool add_comma = false;
-  for (auto b : data) {
+  while ((max_items != 0) && index < data.size()) {
+    uint8_t b = data[index];
     switch (this->encode_) {
       case RawEncoding::HEXBYTES:
         sprintf(buffer, "%02x", b);
         output << buffer;
         break;
       case RawEncoding::COMMA:
-        sprintf(buffer, add_comma ? ",%d" : "%d", b);
+        sprintf(buffer, index != this->offset ? ",%d" : "%d", b);
         output << buffer;
-        add_comma = true;
         break;
       // Anything else no encoding
       case RawEncoding::NONE:
@@ -33,9 +33,8 @@ void ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
         output << (char) b;
         break;
     }
-    if (--max_items == 0) {
-      break;
-    }
+
+    index++;
   }
 
   auto result = output.str();
