@@ -1345,3 +1345,9 @@ dsmr:
 daly_bms:
   update_interval: 20s
   uart_id: uart1
+
+button:
+  - platform: wake_on_lan
+    target_mac_address: 12:34:56:78:90:ab
+    name: wol_test_1
+    id: wol_1
