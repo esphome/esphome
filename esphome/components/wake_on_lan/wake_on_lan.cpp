@@ -9,6 +9,7 @@ namespace esphome {
 namespace wake_on_lan {
 
 static const char *const TAG = "wake_on_lan.button";
+static const uint8_t PREFIX[6] = {255, 255, 255, 255, 255, 255};
 
 void WakeOnLanButton::set_macaddr(uint8_t a, uint8_t b, uint8_t c, uint8_t d, uint8_t e, uint8_t f) {
   macaddr_[0] = a;
@@ -40,9 +41,7 @@ void WakeOnLanButton::press_action() {
 #endif
 
   if (begin_status) {
-    uint8_t prefix[6] = {255, 255, 255, 255, 255, 255};
-
-    this->udp_client_.write(prefix, 6);
+    this->udp_client_.write(PREFIX, 6);
     for (size_t i = 0; i < 16; i++) {
       this->udp_client_.write(macaddr_, 6);
     }
