@@ -73,7 +73,6 @@ class SonoffD1Output : public light::LightOutput, public uart::UARTDevice, publi
   int remap_(int value, int min, int max, int min_out, int max_out);
   uint8_t calc_checksum_(const uint8_t *cmd, size_t len);
   void populate_checksum_(uint8_t *cmd, size_t len);
-  char *dump_cmd_(const uint8_t *cmd, size_t len);
   void skip_command_();
   bool read_command_(uint8_t *cmd, size_t &len);
   bool read_ack_(const uint8_t *cmd, size_t len);

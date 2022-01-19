@@ -66,15 +66,6 @@ void SonoffD1Output::populate_checksum_(uint8_t *cmd, const size_t len) {
   cmd[len - 1] = this->calc_checksum_(cmd, len);
 }
 
-char *SonoffD1Output::dump_cmd_(const uint8_t *cmd, const size_t len) {
-  static char dump[20 * 3 + 1] = {0};
-  auto ptr = &dump[0];
-  for (unsigned int i = 0; i < len; i++) {
-    ptr += sprintf(ptr, "%02X:", cmd[i]);
-  }
-  return &dump[0];
-}
-
 void SonoffD1Output::skip_command_() {
   unsigned int garbage = 0;
   // Read out everything from the UART FIFO
@@ -100,21 +91,21 @@ bool SonoffD1Output::read_command_(uint8_t *cmd, size_t &len) {
   // Read a minimal packet
   if (this->read_array(cmd, 6)) {
     ESP_LOGV(TAG, "[%04d] Reading from dimmer:", this->write_count_);
-    ESP_LOGV(TAG, "[%04d] %s", this->write_count_, this->dump_cmd_(cmd, 6));
+    ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty(cmd, 6).c_str());
 
     if (cmd[0] != 0xAA || cmd[1] != 0x55) {
       ESP_LOGW(TAG, "[%04d] RX: wrong header (%x%x, must be AA55)", this->write_count_, cmd[0], cmd[1]);
       this->skip_command_();
       return false;
     }
-    if ((cmd[5] + 7 /*mandatory header + suffix length*/) > len) {
+    if ((cmd[5] + 7 /*mandatory header + crc suffix length*/) > len) {
       ESP_LOGW(TAG, "[%04d] RX: Payload length is unexpected (%d, max expected %d)", this->write_count_, cmd[5],
                len - 7);
       this->skip_command_();
       return false;
     }
     if (this->read_array(&cmd[6], cmd[5] + 1 /*checksum suffix*/)) {
-      ESP_LOGV(TAG, "[%04d] %s", this->write_count_, this->dump_cmd_(&cmd[6], cmd[5] + 1));
+      ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty(&cmd[6], cmd[5] + 1).c_str());
 
       // Check the checksum
       uint8_t valid_checksum = this->calc_checksum_(cmd, cmd[5] + 7);
@@ -156,7 +147,7 @@ bool SonoffD1Output::read_ack_(const uint8_t *cmd, const size_t len) {
   } else {
     ESP_LOGW(TAG, "[%04d] Unexpected acknowledge received (possible clash of RF/HA commands), expected ack was:",
              this->write_count_);
-    ESP_LOGW(TAG, "[%04d] %s", this->write_count_, this->dump_cmd_(ref_buffer, sizeof(ref_buffer)));
+    ESP_LOGW(TAG, "[%04d] %s", this->write_count_, format_hex_pretty(ref_buffer, sizeof(ref_buffer)).c_str());
   }
   return false;
 }
@@ -181,7 +172,7 @@ bool SonoffD1Output::write_command_(uint8_t *cmd, const size_t len, bool needs_a
   uint32_t retries = 100;
   do {
     ESP_LOGV(TAG, "[%04d] Writing to the dimmer:", this->write_count_);
-    ESP_LOGV(TAG, "[%04d] %s", this->write_count_, this->dump_cmd_(cmd, len));
+    ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty(cmd, len).c_str());
     this->write_array(cmd, len);
     this->write_count_++;
     if (!needs_ack)
