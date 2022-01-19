@@ -2,7 +2,8 @@
 
 #include <cstring>
 #include <cstdint>
-#include <type_traits>
+
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 
@@ -45,20 +46,12 @@ class ESPPreferences {
    */
   virtual bool sync() = 0;
 
-#ifndef USE_ESP8266
-  template<typename T, typename std::enable_if<std::is_trivially_copyable<T>::value, bool>::type = true>
-#else
-  // esp8266 toolchain doesn't have is_trivially_copyable
-  template<typename T>
-#endif
+  template<typename T, enable_if_t<is_trivially_copyable<T>::value, bool> = true>
   ESPPreferenceObject make_preference(uint32_t type, bool in_flash) {
     return this->make_preference(sizeof(T), type, in_flash);
   }
-#ifndef USE_ESP8266
-  template<typename T, typename std::enable_if<std::is_trivially_copyable<T>::value, bool>::type = true>
-#else
-  template<typename T>
-#endif
+
+  template<typename T, enable_if_t<is_trivially_copyable<T>::value, bool> = true>
   ESPPreferenceObject make_preference(uint32_t type) {
     return this->make_preference(sizeof(T), type);
   }

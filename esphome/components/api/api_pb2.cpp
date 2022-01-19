@@ -266,6 +266,18 @@ template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::Climate
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode value) {
+  switch (value) {
+    case enums::NUMBER_MODE_AUTO:
+      return "NUMBER_MODE_AUTO";
+    case enums::NUMBER_MODE_BOX:
+      return "NUMBER_MODE_BOX";
+    case enums::NUMBER_MODE_SLIDER:
+      return "NUMBER_MODE_SLIDER";
+    default:
+      return "UNKNOWN";
+  }
+}
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -279,7 +291,7 @@ bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) 
 void HelloRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->client_info); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void HelloRequest::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("HelloRequest {\n");
   out.append("  client_info: ");
   out.append("'").append(this->client_info).append("'");
@@ -318,7 +330,7 @@ void HelloResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void HelloResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("HelloResponse {\n");
   out.append("  api_version_major: ");
   sprintf(buffer, "%u", this->api_version_major);
@@ -349,7 +361,7 @@ bool ConnectRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value
 void ConnectRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->password); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ConnectRequest::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ConnectRequest {\n");
   out.append("  password: ");
   out.append("'").append(this->password).append("'");
@@ -370,7 +382,7 @@ bool ConnectResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
 void ConnectResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->invalid_password); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ConnectResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ConnectResponse {\n");
   out.append("  invalid_password: ");
   out.append(YESNO(this->invalid_password));
@@ -464,7 +476,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("DeviceInfoResponse {\n");
   out.append("  uses_password: ");
   out.append(YESNO(this->uses_password));
@@ -588,7 +600,7 @@ void ListEntitiesBinarySensorResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ListEntitiesBinarySensorResponse {\n");
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
@@ -660,7 +672,7 @@ void BinarySensorStateResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BinarySensorStateResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("BinarySensorStateResponse {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -754,7 +766,7 @@ void ListEntitiesCoverResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesCoverResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ListEntitiesCoverResponse {\n");
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
@@ -844,7 +856,7 @@ void CoverStateResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void CoverStateResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("CoverStateResponse {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -927,7 +939,7 @@ void CoverCommandRequest::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void CoverCommandRequest::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("CoverCommandRequest {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -1043,7 +1055,7 @@ void ListEntitiesFanResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesFanResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ListEntitiesFanResponse {\n");
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
@@ -1139,7 +1151,7 @@ void FanStateResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void FanStateResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("FanStateResponse {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -1240,7 +1252,7 @@ void FanCommandRequest::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void FanCommandRequest::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("FanCommandRequest {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -1391,7 +1403,7 @@ void ListEntitiesLightResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesLightResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ListEntitiesLightResponse {\n");
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
@@ -1549,7 +1561,7 @@ void LightStateResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void LightStateResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("LightStateResponse {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -1772,7 +1784,7 @@ void LightCommandRequest::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void LightCommandRequest::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("LightCommandRequest {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -1983,7 +1995,7 @@ void ListEntitiesSensorResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesSensorResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ListEntitiesSensorResponse {\n");
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
@@ -2072,7 +2084,7 @@ void SensorStateResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void SensorStateResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("SensorStateResponse {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -2152,7 +2164,7 @@ void ListEntitiesSwitchResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesSwitchResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ListEntitiesSwitchResponse {\n");
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
@@ -2215,7 +2227,7 @@ void SwitchStateResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void SwitchStateResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("SwitchStateResponse {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -2254,7 +2266,7 @@ void SwitchCommandRequest::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void SwitchCommandRequest::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("SwitchCommandRequest {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -2324,7 +2336,7 @@ void ListEntitiesTextSensorResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ListEntitiesTextSensorResponse {\n");
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
@@ -2394,7 +2406,7 @@ void TextSensorStateResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void TextSensorStateResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("TextSensorStateResponse {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -2431,7 +2443,7 @@ void SubscribeLogsRequest::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeLogsRequest::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("SubscribeLogsRequest {\n");
   out.append("  level: ");
   out.append(proto_enum_to_string<enums::LogLevel>(this->level));
@@ -2474,7 +2486,7 @@ void SubscribeLogsResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeLogsResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("SubscribeLogsResponse {\n");
   out.append("  level: ");
   out.append(proto_enum_to_string<enums::LogLevel>(this->level));
@@ -2516,7 +2528,7 @@ void HomeassistantServiceMap::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void HomeassistantServiceMap::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("HomeassistantServiceMap {\n");
   out.append("  key: ");
   out.append("'").append(this->key).append("'");
@@ -2575,7 +2587,7 @@ void HomeassistantServiceResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void HomeassistantServiceResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("HomeassistantServiceResponse {\n");
   out.append("  service: ");
   out.append("'").append(this->service).append("'");
@@ -2631,7 +2643,7 @@ void SubscribeHomeAssistantStateResponse::encode(ProtoWriteBuffer buffer) const 
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("SubscribeHomeAssistantStateResponse {\n");
   out.append("  entity_id: ");
   out.append("'").append(this->entity_id).append("'");
@@ -2668,7 +2680,7 @@ void HomeAssistantStateResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void HomeAssistantStateResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("HomeAssistantStateResponse {\n");
   out.append("  entity_id: ");
   out.append("'").append(this->entity_id).append("'");
@@ -2701,7 +2713,7 @@ bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
 void GetTimeResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_fixed32(1, this->epoch_seconds); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void GetTimeResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("GetTimeResponse {\n");
   out.append("  epoch_seconds: ");
   sprintf(buffer, "%u", this->epoch_seconds);
@@ -2736,7 +2748,7 @@ void ListEntitiesServicesArgument::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesServicesArgument::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ListEntitiesServicesArgument {\n");
   out.append("  name: ");
   out.append("'").append(this->name).append("'");
@@ -2781,7 +2793,7 @@ void ListEntitiesServicesResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesServicesResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ListEntitiesServicesResponse {\n");
   out.append("  name: ");
   out.append("'").append(this->name).append("'");
@@ -2875,7 +2887,7 @@ void ExecuteServiceArgument::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ExecuteServiceArgument::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ExecuteServiceArgument {\n");
   out.append("  bool_: ");
   out.append(YESNO(this->bool_));
@@ -2956,7 +2968,7 @@ void ExecuteServiceRequest::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ExecuteServiceRequest::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ExecuteServiceRequest {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -3028,7 +3040,7 @@ void ListEntitiesCameraResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesCameraResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ListEntitiesCameraResponse {\n");
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
@@ -3098,7 +3110,7 @@ void CameraImageResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void CameraImageResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("CameraImageResponse {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -3135,7 +3147,7 @@ void CameraImageRequest::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void CameraImageRequest::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("CameraImageRequest {\n");
   out.append("  single: ");
   out.append(YESNO(this->single));
@@ -3281,7 +3293,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ListEntitiesClimateResponse {\n");
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
@@ -3468,7 +3480,7 @@ void ClimateStateResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ClimateStateResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ClimateStateResponse {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -3656,7 +3668,7 @@ void ClimateCommandRequest::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ClimateCommandRequest::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ClimateCommandRequest {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -3758,6 +3770,10 @@ bool ListEntitiesNumberResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       this->entity_category = value.as_enum<enums::EntityCategory>();
       return true;
     }
+    case 12: {
+      this->mode = value.as_enum<enums::NumberMode>();
+      return true;
+    }
     default:
       return false;
   }
@@ -3778,6 +3794,10 @@ bool ListEntitiesNumberResponse::decode_length(uint32_t field_id, ProtoLengthDel
     }
     case 5: {
       this->icon = value.as_string();
+      return true;
+    }
+    case 11: {
+      this->unit_of_measurement = value.as_string();
       return true;
     }
     default:
@@ -3817,10 +3837,12 @@ void ListEntitiesNumberResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(8, this->step);
   buffer.encode_bool(9, this->disabled_by_default);
   buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
+  buffer.encode_string(11, this->unit_of_measurement);
+  buffer.encode_enum<enums::NumberMode>(12, this->mode);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesNumberResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ListEntitiesNumberResponse {\n");
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
@@ -3865,6 +3887,14 @@ void ListEntitiesNumberResponse::dump_to(std::string &out) const {
   out.append("  entity_category: ");
   out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
+
+  out.append("  unit_of_measurement: ");
+  out.append("'").append(this->unit_of_measurement).append("'");
+  out.append("\n");
+
+  out.append("  mode: ");
+  out.append(proto_enum_to_string<enums::NumberMode>(this->mode));
+  out.append("\n");
   out.append("}");
 }
 #endif
@@ -3899,7 +3929,7 @@ void NumberStateResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void NumberStateResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("NumberStateResponse {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -3937,7 +3967,7 @@ void NumberCommandRequest::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void NumberCommandRequest::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("NumberCommandRequest {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -4015,7 +4045,7 @@ void ListEntitiesSelectResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesSelectResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("ListEntitiesSelectResponse {\n");
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
@@ -4091,7 +4121,7 @@ void SelectStateResponse::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void SelectStateResponse::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("SelectStateResponse {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -4134,7 +4164,7 @@ void SelectCommandRequest::encode(ProtoWriteBuffer buffer) const {
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void SelectCommandRequest::dump_to(std::string &out) const {
-  char buffer[64];
+  __attribute__((unused)) char buffer[64];
   out.append("SelectCommandRequest {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
@@ -4143,6 +4173,127 @@ void SelectCommandRequest::dump_to(std::string &out) const {
 
   out.append("  state: ");
   out.append("'").append(this->state).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool ListEntitiesButtonResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 6: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    case 7: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesButtonResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->object_id = value.as_string();
+      return true;
+    }
+    case 3: {
+      this->name = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->unique_id = value.as_string();
+      return true;
+    }
+    case 5: {
+      this->icon = value.as_string();
+      return true;
+    }
+    case 8: {
+      this->device_class = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesButtonResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 2: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ListEntitiesButtonResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name);
+  buffer.encode_string(4, this->unique_id);
+  buffer.encode_string(5, this->icon);
+  buffer.encode_bool(6, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(7, this->entity_category);
+  buffer.encode_string(8, this->device_class);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ListEntitiesButtonResponse::dump_to(std::string &out) const {
+  char buffer[64];
+  out.append("ListEntitiesButtonResponse {\n");
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id).append("'");
+  out.append("\n");
+
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  unique_id: ");
+  out.append("'").append(this->unique_id).append("'");
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool ButtonCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ButtonCommandRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_fixed32(1, this->key); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ButtonCommandRequest::dump_to(std::string &out) const {
+  char buffer[64];
+  out.append("ButtonCommandRequest {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }

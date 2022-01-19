@@ -2,8 +2,9 @@ from dataclasses import dataclass
 from typing import Union
 from pathlib import Path
 import logging
+import os
 
-from esphome.helpers import write_file_if_changed
+from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
@@ -295,6 +296,8 @@ async def to_code(config):
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
 
+    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_platformio_option("framework", "espidf")
         cg.add_build_flag("-DUSE_ESP_IDF")
@@ -311,8 +314,15 @@ async def to_code(config):
         )
         add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
         add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_SIZE", True)
+
         # Increase freertos tick speed from 100Hz to 1kHz so that delay() resolution is 1ms
         add_idf_sdkconfig_option("CONFIG_FREERTOS_HZ", 1000)
+
+        # Setup watchdog
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
 
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
 
@@ -405,3 +415,10 @@ def copy_files():
             CORE.relative_build_path("partitions.csv"),
             IDF_PARTITIONS_CSV,
         )
+
+    dir = os.path.dirname(__file__)
+    post_build_file = os.path.join(dir, "post_build.py.script")
+    copy_file_if_changed(
+        post_build_file,
+        CORE.relative_build_path("post_build.py"),
+    )

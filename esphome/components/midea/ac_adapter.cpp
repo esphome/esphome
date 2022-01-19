@@ -1,10 +1,11 @@
 #ifdef USE_ARDUINO
 
 #include "esphome/core/log.h"
-#include "adapter.h"
+#include "ac_adapter.h"
 
 namespace esphome {
 namespace midea {
+namespace ac {
 
 const char *const Constants::TAG = "midea";
 const std::string Constants::FREEZE_PROTECTION = "freeze protection";
@@ -171,6 +172,7 @@ void Converters::to_climate_traits(ClimateTraits &traits, const dudanov::midea::
     traits.add_supported_custom_preset(Constants::FREEZE_PROTECTION);
 }
 
+}  // namespace ac
 }  // namespace midea
 }  // namespace esphome
 

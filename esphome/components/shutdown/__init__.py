@@ -1,1 +1,1 @@
-CODEOWNERS = ["@esphome/core"]
+CODEOWNERS = ["@esphome/core", "@jsuanet"]

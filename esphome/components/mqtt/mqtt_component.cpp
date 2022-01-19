@@ -63,7 +63,7 @@ bool MQTTComponent::send_discovery_() {
 
   return global_mqtt_client->publish_json(
       this->get_discovery_topic_(discovery_info),
-      [this](JsonObject &root) {
+      [this](JsonObject root) {
         SendDiscoveryConfig config;
         config.state_topic = true;
         config.command_topic = true;
@@ -114,12 +114,20 @@ bool MQTTComponent::send_discovery_() {
         if (!unique_id.empty()) {
           root[MQTT_UNIQUE_ID] = unique_id;
         } else {
-          // default to almost-unique ID. It's a hack but the only way to get that
-          // gorgeous device registry view.
-          root[MQTT_UNIQUE_ID] = "ESP" + this->component_type() + this->get_default_object_id_();
+          const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
+          if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
+            char friendly_name_hash[9];
+            sprintf(friendly_name_hash, "%08x", fnv1_hash(this->friendly_name()));
+            friendly_name_hash[8] = 0;  // ensure the hash-string ends with null
+            root[MQTT_UNIQUE_ID] = get_mac_address() + "-" + this->component_type() + "-" + friendly_name_hash;
+          } else {
+            // default to almost-unique ID. It's a hack but the only way to get that
+            // gorgeous device registry view.
+            root[MQTT_UNIQUE_ID] = "ESP" + this->component_type() + this->get_default_object_id_();
+          }
         }
 
-        JsonObject &device_info = root.createNestedObject(MQTT_DEVICE);
+        JsonObject device_info = root.createNestedObject(MQTT_DEVICE);
         device_info[MQTT_DEVICE_IDENTIFIERS] = get_mac_address();
         device_info[MQTT_DEVICE_NAME] = node_name;
         device_info[MQTT_DEVICE_SW_VERSION] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();

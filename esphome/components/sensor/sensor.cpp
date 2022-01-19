@@ -24,7 +24,10 @@ Sensor::Sensor() : Sensor("") {}
 std::string Sensor::get_unit_of_measurement() {
   if (this->unit_of_measurement_.has_value())
     return *this->unit_of_measurement_;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return this->unit_of_measurement();
+#pragma GCC diagnostic pop
 }
 void Sensor::set_unit_of_measurement(const std::string &unit_of_measurement) {
   this->unit_of_measurement_ = unit_of_measurement;
@@ -34,7 +37,10 @@ std::string Sensor::unit_of_measurement() { return ""; }
 int8_t Sensor::get_accuracy_decimals() {
   if (this->accuracy_decimals_.has_value())
     return *this->accuracy_decimals_;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return this->accuracy_decimals();
+#pragma GCC diagnostic pop
 }
 void Sensor::set_accuracy_decimals(int8_t accuracy_decimals) { this->accuracy_decimals_ = accuracy_decimals; }
 int8_t Sensor::accuracy_decimals() { return 0; }
@@ -42,7 +48,10 @@ int8_t Sensor::accuracy_decimals() { return 0; }
 std::string Sensor::get_device_class() {
   if (this->device_class_.has_value())
     return *this->device_class_;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return this->device_class();
+#pragma GCC diagnostic pop
 }
 void Sensor::set_device_class(const std::string &device_class) { this->device_class_ = device_class; }
 std::string Sensor::device_class() { return ""; }
@@ -51,7 +60,10 @@ void Sensor::set_state_class(StateClass state_class) { this->state_class_ = stat
 StateClass Sensor::get_state_class() {
   if (this->state_class_.has_value())
     return *this->state_class_;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return this->state_class();
+#pragma GCC diagnostic pop
 }
 StateClass Sensor::state_class() { return StateClass::STATE_CLASS_NONE; }
 

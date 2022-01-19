@@ -45,6 +45,11 @@ uint32_t ESP8266UartComponent::get_config() {
   else
     config |= UART_NB_STOP_BIT_2;
 
+  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted())
+    config |= BIT(22);
+  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted())
+    config |= BIT(19);
+
   return config;
 }
 
@@ -209,9 +214,7 @@ void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
 
   /* If parity is enabled, just read it and ignore it. */
   /* TODO: Should we check parity? Or is it too slow for nothing added..*/
-  if (arg->parity_ == UART_CONFIG_PARITY_EVEN)
-    arg->read_bit_(&wait, start);
-  else if (arg->parity_ == UART_CONFIG_PARITY_ODD)
+  if (arg->parity_ == UART_CONFIG_PARITY_EVEN || arg->parity_ == UART_CONFIG_PARITY_ODD)
     arg->read_bit_(&wait, start);
 
   // Stop bit
