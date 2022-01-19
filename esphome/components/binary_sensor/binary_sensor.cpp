@@ -48,7 +48,10 @@ void BinarySensor::set_device_class(const std::string &device_class) { this->dev
 std::string BinarySensor::get_device_class() {
   if (this->device_class_.has_value())
     return *this->device_class_;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return this->device_class();
+#pragma GCC diagnostic pop
 }
 void BinarySensor::add_filter(Filter *filter) {
   filter->parent_ = this;

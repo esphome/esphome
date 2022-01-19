@@ -410,6 +410,17 @@ class DownloadBinaryRequestHandler(BaseHandler):
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path
 
+        elif type == "firmware-factory.bin":
+            storage_path = ext_storage_path(settings.config_dir, configuration)
+            storage_json = StorageJSON.load(storage_path)
+            if storage_json is None:
+                self.send_error(404)
+                return
+            filename = f"{storage_json.name}-factory.bin"
+            path = storage_json.firmware_bin_path.replace(
+                "firmware.bin", "firmware-factory.bin"
+            )
+
         else:
             args = ["esphome", "idedata", settings.rel_path(configuration)]
             rc, stdout, _ = run_system_command(*args)
@@ -434,6 +445,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
         self.set_header("Content-Type", "application/octet-stream")
         self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.set_header("Cache-Control", "no-cache")
         if not Path(path).is_file():
             self.send_error(404)
             return

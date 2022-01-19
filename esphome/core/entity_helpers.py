@@ -3,7 +3,7 @@ import esphome.final_validate as fv
 from esphome.const import CONF_ID
 
 
-def inherit_property_from(property_to_inherit, parent_id_property):
+def inherit_property_from(property_to_inherit, parent_id_property, transform=None):
     """Validator that inherits a configuration property from another entity, for use with FINAL_VALIDATE_SCHEMA.
     If a property is already set, it will not be inherited.
     Keyword arguments:
@@ -47,7 +47,10 @@ def inherit_property_from(property_to_inherit, parent_id_property):
                 this_config = _walk_config(
                     fconf.get_config_for_path(path), property_path
                 )
-                this_config[property] = parent_config[property]
+                value = parent_config[property]
+                if transform:
+                    value = transform(value, config)
+                this_config[property] = value
 
         return config
 
