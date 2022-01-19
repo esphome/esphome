@@ -43,6 +43,8 @@ void TSL2591Component::disable_if_power_saving_() {
 }
 
 void TSL2591Component::setup() {
+  if (this->component_gain_ == TSL2591_CGAIN_AUTO)
+    this->gain_ = TSL2591_GAIN_MED;
   uint8_t address = this->address_;
   ESP_LOGI(TAG, "Setting up TSL2591 sensor at I2C address 0x%02X", address);
   uint8_t id;
@@ -73,25 +75,29 @@ void TSL2591Component::dump_config() {
   }
 
   ESP_LOGCONFIG(TAG, "  Name: %s", this->name_);
-  TSL2591Gain raw_gain = this->gain_;
+  TSL2591ComponentGain raw_gain = this->component_gain_;
   int gain = 0;
   std::string gain_word = "unknown";
   switch (raw_gain) {
-    case TSL2591_GAIN_LOW:
+    case TSL2591_CGAIN_LOW:
       gain = 1;
       gain_word = "low";
       break;
-    case TSL2591_GAIN_MED:
+    case TSL2591_CGAIN_MED:
       gain = 25;
       gain_word = "medium";
       break;
-    case TSL2591_GAIN_HIGH:
+    case TSL2591_CGAIN_HIGH:
       gain = 400;
       gain_word = "high";
       break;
-    case TSL2591_GAIN_MAX:
+    case TSL2591_CGAIN_MAX:
       gain = 9500;
       gain_word = "maximum";
+      break;
+    case TSL2591_CGAIN_AUTO:
+      gain = -1;
+      gain_word = "auto";
       break;
   }
   ESP_LOGCONFIG(TAG, "  Gain: %dx (%s)", gain, gain_word.c_str());
@@ -128,6 +134,9 @@ void TSL2591Component::process_update_() {
   }
   if (this->calculated_lux_sensor_ != nullptr) {
     this->calculated_lux_sensor_->publish_state(lux);
+  }
+  if (this->component_gain_ == TSL2591_CGAIN_AUTO) {
+    this->automatic_gain_update(full);
   }
   this->status_clear_warning();
 }
@@ -183,7 +192,7 @@ void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_t
   this->integration_time_ = integration_time;
 }
 
-void TSL2591Component::set_gain(TSL2591Gain gain) { this->gain_ = gain; }
+void TSL2591Component::set_gain(TSL2591ComponentGain gain) { this->component_gain_ = gain; }
 
 void TSL2591Component::set_device_and_glass_attenuation_factors(float device_factor, float glass_attenuation_factor) {
   this->device_factor_ = device_factor;
@@ -364,6 +373,52 @@ float TSL2591Component::get_calculated_lux(uint16_t full_spectrum, uint16_t infr
   float cpl = (atime * again) / (this->device_factor_ * this->glass_attenuation_factor_);
   float lux = (((float) full_spectrum - (float) infrared)) * (1.0F - ((float) infrared / (float) full_spectrum)) / cpl;
   return std::max(lux, 0.0F);
+}
+
+/** Calculates and updates the sensor gain setting, trying to keep the full spectrum counts near
+ *  the middle of the range
+ * 
+ *  It's hard to tell how far down to turn the gain when it's at the top of the scale, so decrease
+ *  the gain by up to 2 steps if it's near the top to be sure we get a good reading next time.
+ *  Increase gain by max 2 steps per reading.
+ * 
+ *  @param full_spectrum The ADC reading for TSL2591 channel 0.
+ * 
+ *  1/3 FS = 21,845
+ */
+void TSL2591Component::automatic_gain_update(uint16_t full_spectrum) {
+  TSL2591Gain new_gain = this->gain_;
+  switch (this->gain_) {
+    case TSL2591_GAIN_LOW:
+      if (full_spectrum < 54) // 1/3 FS / GAIN_HIGH
+        new_gain = TSL2591_GAIN_HIGH;
+      else if (full_spectrum < 875) // 1/3 FS / GAIN_MED
+        new_gain = TSL2591_GAIN_MED;
+      break;
+    case TSL2591_GAIN_MED:
+      if (full_spectrum < 57) // 1/3 FS / (GAIN_MAX/GAIN_MED)
+        new_gain = TSL2591_GAIN_MAX;
+      else if (full_spectrum < 1365) // 1/3 FS / (GAIN_HIGH/GAIN_MED)
+        new_gain = TSL2591_GAIN_HIGH;
+      else if (full_spectrum > 62000) // 2/3 FS / (GAIN_LOW/GAIN_MED) clipped to 95% FS
+        new_gain = TSL2591_GAIN_LOW;
+      break;
+    case TSL2591_GAIN_HIGH:
+      if (full_spectrum < 920) // 1/3 FS / (GAIN_MAX/GAIN_HIGH)
+        new_gain = TSL2591_GAIN_MAX;
+      else if (full_spectrum > 62000) // 2/3 FS / (GAIN_MED/GAIN_HIGH) clipped to 95% FS
+        new_gain = TSL2591_GAIN_LOW;
+      break;
+    case TSL2591_GAIN_MAX:
+      if (full_spectrum > 62000) // 2/3 FS / (GAIN_MED/GAIN_HIGH) clipped to 95% FS
+        new_gain = TSL2591_GAIN_MED;
+      break;
+  }
+
+  if (this->gain_ != new_gain) {
+    this->gain_ = new_gain;
+    this->set_integration_time_and_gain(this->integration_time_, this->gain_);
+  }
 }
 
 }  // namespace tsl2591

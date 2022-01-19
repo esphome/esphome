@@ -21,6 +21,19 @@ enum TSL2591IntegrationTime {
   TSL2591_INTEGRATION_TIME_600MS = 0b101,
 };
 
+/** Enum listing all gain settings for the TSL2591 component.
+ *
+ * Enum constants are used by the component to allow auto gain, not directly to registers
+ * Higher values are better for low light situations, but can increase noise.
+ */
+enum TSL2591ComponentGain {
+  TSL2591_CGAIN_LOW,   // 1x
+  TSL2591_CGAIN_MED,   // 25x
+  TSL2591_CGAIN_HIGH,  // 400x
+  TSL2591_CGAIN_MAX,   // 9500x
+  TSL2591_CGAIN_AUTO
+};
+
 /** Enum listing all gain settings for the TSL2591.
  *
  * Specific values of the enum constants are register values taken from the TSL2591 datasheet.
@@ -200,6 +213,13 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    */
   void disable();
 
+  /** Updates the gain setting based on the most recent full spectrum reading
+   *
+   * This gets called on update and tries to keep the ADC readings in the middle of the range
+   */
+
+  void automatic_gain_update(uint16_t full_spectrum);
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these. They're for ESPHome integration use.)
   /** Used by ESPHome framework. */
@@ -213,7 +233,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   /** Used by ESPHome framework. Does NOT actually set the value on the device. */
   void set_integration_time(TSL2591IntegrationTime integration_time);
   /** Used by ESPHome framework. Does NOT actually set the value on the device. */
-  void set_gain(TSL2591Gain gain);
+  void set_gain(TSL2591ComponentGain gain);
   /** Used by ESPHome framework. */
   void setup() override;
   /** Used by ESPHome framework. */
@@ -230,6 +250,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *visible_sensor_;
   sensor::Sensor *calculated_lux_sensor_;
   TSL2591IntegrationTime integration_time_;
+  TSL2591ComponentGain component_gain_;
   TSL2591Gain gain_;
   bool power_save_mode_enabled_;
   float device_factor_;
