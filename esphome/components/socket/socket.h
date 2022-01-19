@@ -40,7 +40,7 @@ class Socket {
 
 std::unique_ptr<Socket> socket(int domain, int type, int protocol);
 std::unique_ptr<Socket> socket_ip(int type, int protocol);
-void set_sockaddr_any(struct sockaddr *addr, uint16_t port);
+socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
 
 }  // namespace socket
 }  // namespace esphome
