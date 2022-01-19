@@ -4,23 +4,20 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
 from esphome.const import (
-    CONF_ICON,
     CONF_ID,
-    CONF_INTERNAL,
     CONF_ON_VALUE,
     CONF_OPTION,
     CONF_TRIGGER_ID,
-    CONF_NAME,
     CONF_MQTT_ID,
-    ICON_EMPTY,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
 select_ns = cg.esphome_ns.namespace("select")
-Select = select_ns.class_("Select", cg.Nameable)
+Select = select_ns.class_("Select", cg.EntityBase)
 SelectPtr = Select.operator("ptr")
 
 # Triggers
@@ -33,12 +30,10 @@ SelectSetAction = select_ns.class_("SelectSetAction", automation.Action)
 
 icon = cv.icon
 
-
-SELECT_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
+SELECT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSelectComponent),
         cv.GenerateID(): cv.declare_id(Select),
-        cv.Optional(CONF_ICON, default=ICON_EMPTY): icon,
         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SelectStateTrigger),
@@ -49,11 +44,8 @@ SELECT_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend(
 
 
 async def setup_select_core_(var, config, *, options: List[str]):
-    cg.add(var.set_name(config[CONF_NAME]))
-    if CONF_INTERNAL in config:
-        cg.add(var.set_internal(config[CONF_INTERNAL]))
+    await setup_entity(var, config)
 
-    cg.add(var.traits.set_icon(config[CONF_ICON]))
     cg.add(var.traits.set_options(options))
 
     for conf in config.get(CONF_ON_VALUE, []):
@@ -97,6 +89,6 @@ async def to_code(config):
 async def select_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_OPTION], args, str)
+    template_ = await cg.templatable(config[CONF_OPTION], args, cg.std_string)
     cg.add(var.set_option(template_))
     return var

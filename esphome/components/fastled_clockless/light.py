@@ -31,6 +31,7 @@ CHIPSETS = [
     "GW6205_400",
     "LPD1886",
     "LPD1886_8BIT",
+    "SM16703",
 ]
 
 
@@ -44,10 +45,11 @@ CONFIG_SCHEMA = cv.All(
     fastled_base.BASE_SCHEMA.extend(
         {
             cv.Required(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
-            cv.Required(CONF_PIN): pins.output_pin,
+            cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
         }
     ),
     _validate,
+    cv.only_with_arduino,
 )
 
 

@@ -473,7 +473,11 @@ class TestLibrary:
             ("__eq__", core.Library(name="libfoo", version="1.2.3"), True),
             ("__eq__", core.Library(name="libfoo", version="1.2.4"), False),
             ("__eq__", core.Library(name="libbar", version="1.2.3"), False),
-            ("__eq__", core.Library(name="libbar", version=None, repository="file:///test"), False),
+            (
+                "__eq__",
+                core.Library(name="libbar", version=None, repository="file:///test"),
+                False,
+            ),
             ("__eq__", 1000, NotImplemented),
             ("__eq__", "1000", NotImplemented),
             ("__eq__", True, NotImplemented),
@@ -527,13 +531,13 @@ class TestEsphomeCore:
         assert target.address == "4.3.2.1"
 
     def test_is_esp32(self, target):
-        target.esp_platform = "ESP32"
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
 
         assert target.is_esp32 is True
         assert target.is_esp8266 is False
 
     def test_is_esp8266(self, target):
-        target.esp_platform = "ESP8266"
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp8266"}
 
         assert target.is_esp32 is False
         assert target.is_esp8266 is True

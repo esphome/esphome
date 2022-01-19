@@ -3,11 +3,11 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <driver/rmt.h>
 #endif
 
@@ -116,6 +116,16 @@ class RemoteReceiveData {
     return false;
   }
 
+  bool expect_pulse_with_gap(uint32_t mark, uint32_t space) {
+    if (this->peek_mark(mark, 0) && this->peek_space_at_least(space, 1)) {
+      this->advance(2);
+      return true;
+    }
+    return false;
+  }
+
+  uint32_t get_index() { return index_; }
+
   void reset() { this->index_ = 0; }
 
   int32_t pos(uint32_t index) const { return (*this->data_)[index]; }
@@ -146,13 +156,13 @@ template<typename T> class RemoteProtocol {
 
 class RemoteComponentBase {
  public:
-  explicit RemoteComponentBase(GPIOPin *pin) : pin_(pin){};
+  explicit RemoteComponentBase(InternalGPIOPin *pin) : pin_(pin){};
 
  protected:
-  GPIOPin *pin_;
+  InternalGPIOPin *pin_;
 };
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 class RemoteRMTChannel {
  public:
   explicit RemoteRMTChannel(uint8_t mem_block_num = 1);
@@ -161,11 +171,11 @@ class RemoteRMTChannel {
   void set_clock_divider(uint8_t clock_divider) { this->clock_divider_ = clock_divider; }
 
  protected:
-  uint32_t from_microseconds(uint32_t us) {
+  uint32_t from_microseconds_(uint32_t us) {
     const uint32_t ticks_per_ten_us = 80000000u / this->clock_divider_ / 100000u;
     return us * ticks_per_ten_us / 10;
   }
-  uint32_t to_microseconds(uint32_t ticks) {
+  uint32_t to_microseconds_(uint32_t ticks) {
     const uint32_t ticks_per_ten_us = 80000000u / this->clock_divider_ / 100000u;
     return (ticks * 10) / ticks_per_ten_us;
   }
@@ -178,7 +188,7 @@ class RemoteRMTChannel {
 
 class RemoteTransmitterBase : public RemoteComponentBase {
  public:
-  RemoteTransmitterBase(GPIOPin *pin) : RemoteComponentBase(pin) {}
+  RemoteTransmitterBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
   class TransmitCall {
    public:
     explicit TransmitCall(RemoteTransmitterBase *parent) : parent_(parent) {}
@@ -221,7 +231,7 @@ class RemoteReceiverDumperBase {
 
 class RemoteReceiverBase : public RemoteComponentBase {
  public:
-  RemoteReceiverBase(GPIOPin *pin) : RemoteComponentBase(pin) {}
+  RemoteReceiverBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
   void register_listener(RemoteReceiverListener *listener) { this->listeners_.push_back(listener); }
   void register_dumper(RemoteReceiverDumperBase *dumper) {
     if (dumper->is_secondary()) {

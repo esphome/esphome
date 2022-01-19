@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "captive_portal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -65,6 +67,7 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   ESP_LOGI(TAG, "  SSID='%s'", ssid.c_str());
   ESP_LOGI(TAG, "  Password=" LOG_SECRET("'%s'"), psk.c_str());
   wifi::global_wifi_component->save_wifi_sta(ssid, psk);
+  wifi::global_wifi_component->start_scanning();
   request->redirect("/?save=true");
 }
 
@@ -76,26 +79,19 @@ void CaptivePortal::start() {
     this->base_->add_ota_handler();
   }
 
-  this->dns_server_ = new DNSServer();
+  this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
-  IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
-  this->dns_server_->start(53, "*", ip);
+  network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
+  this->dns_server_->start(53, "*", (uint32_t) ip);
 
   this->base_->get_server()->onNotFound([this](AsyncWebServerRequest *req) {
-    bool not_found = false;
-    if (!this->active_) {
-      not_found = true;
-    } else if (req->host() == wifi::global_wifi_component->wifi_soft_ap_ip().toString()) {
-      not_found = true;
-    }
-
-    if (not_found) {
+    if (!this->active_ || req->host().c_str() == wifi::global_wifi_component->wifi_soft_ap_ip().str()) {
       req->send(404, "text/html", "File not found");
       return;
     }
 
-    auto url = "http://" + wifi::global_wifi_component->wifi_soft_ap_ip().toString();
-    req->redirect(url);
+    auto url = "http://" + wifi::global_wifi_component->wifi_soft_ap_ip().str();
+    req->redirect(url.c_str());
   });
 
   this->initialized_ = true;
@@ -151,3 +147,5 @@ CaptivePortal *global_captive_portal = nullptr;  // NOLINT(cppcoreguidelines-avo
 
 }  // namespace captive_portal
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

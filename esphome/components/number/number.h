@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -8,9 +9,12 @@ namespace number {
 
 #define LOG_NUMBER(prefix, type, obj) \
   if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, (obj)->get_name().c_str()); \
-    if (!(obj)->traits.get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->traits.get_icon().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+    if (!(obj)->get_icon().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
+    } \
+    if (!(obj)->traits.get_unit_of_measurement().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, (obj)->traits.get_unit_of_measurement().c_str()); \
     } \
   }
 
@@ -32,6 +36,12 @@ class NumberCall {
   optional<float> value_;
 };
 
+enum NumberMode : uint8_t {
+  NUMBER_MODE_AUTO = 0,
+  NUMBER_MODE_BOX = 1,
+  NUMBER_MODE_SLIDER = 2,
+};
+
 class NumberTraits {
  public:
   void set_min_value(float min_value) { min_value_ = min_value; }
@@ -40,21 +50,29 @@ class NumberTraits {
   float get_max_value() const { return max_value_; }
   void set_step(float step) { step_ = step; }
   float get_step() const { return step_; }
-  void set_icon(std::string icon) { icon_ = std::move(icon); }
-  const std::string &get_icon() const { return icon_; }
+
+  /// Get the unit of measurement, using the manual override if set.
+  std::string get_unit_of_measurement();
+  /// Manually set the unit of measurement.
+  void set_unit_of_measurement(const std::string &unit_of_measurement);
+
+  // Get/set the frontend mode.
+  NumberMode get_mode() const { return this->mode_; }
+  void set_mode(NumberMode mode) { this->mode_ = mode; }
 
  protected:
   float min_value_ = NAN;
   float max_value_ = NAN;
   float step_ = NAN;
-  std::string icon_;
+  optional<std::string> unit_of_measurement_;  ///< Unit of measurement override
+  NumberMode mode_{NUMBER_MODE_AUTO};
 };
 
 /** Base-class for all numbers.
  *
  * A number can use publish_state to send out a new value.
  */
-class Number : public Nameable {
+class Number : public EntityBase {
  public:
   float state;
 

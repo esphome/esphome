@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 
+#ifdef USE_MQTT
 #ifdef USE_CLIMATE
 
 #include "esphome/components/climate/climate.h"
@@ -13,9 +14,8 @@ namespace mqtt {
 class MQTTClimateComponent : public mqtt::MQTTComponent {
  public:
   MQTTClimateComponent(climate::Climate *device);
-  void send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) override;
+  void send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) override;
   bool send_initial_state() override;
-  bool is_internal() override;
   std::string component_type() const override;
   void setup() override;
 
@@ -37,7 +37,7 @@ class MQTTClimateComponent : public mqtt::MQTTComponent {
   MQTT_COMPONENT_CUSTOM_TOPIC(swing_mode, command)
 
  protected:
-  std::string friendly_name() const override;
+  const EntityBase *get_entity() const override;
 
   bool publish_state_();
 
@@ -48,3 +48,4 @@ class MQTTClimateComponent : public mqtt::MQTTComponent {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

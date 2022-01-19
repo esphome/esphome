@@ -3,6 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import light, output
 from esphome.const import (
     CONF_BLUE,
+    CONF_COLOR_INTERLOCK,
+    CONF_CONSTANT_BRIGHTNESS,
     CONF_GREEN,
     CONF_RED,
     CONF_OUTPUT_ID,
@@ -15,8 +17,6 @@ from esphome.const import (
 rgbww_ns = cg.esphome_ns.namespace("rgbww")
 RGBWWLightOutput = rgbww_ns.class_("RGBWWLightOutput", light.LightOutput)
 
-CONF_CONSTANT_BRIGHTNESS = "constant_brightness"
-CONF_COLOR_INTERLOCK = "color_interlock"
 
 CONFIG_SCHEMA = cv.All(
     light.RGB_LIGHT_SCHEMA.extend(

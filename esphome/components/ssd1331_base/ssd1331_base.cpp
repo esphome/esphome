@@ -7,8 +7,6 @@ namespace ssd1331_base {
 
 static const char *const TAG = "ssd1331";
 
-static const uint16_t BLACK = 0;
-static const uint16_t WHITE = 0xffff;
 static const uint16_t SSD1331_COLORMASK = 0xffff;
 static const uint8_t SSD1331_MAX_CONTRASTA = 0x91;
 static const uint8_t SSD1331_MAX_CONTRASTB = 0x50;
@@ -78,9 +76,9 @@ void SSD1331::setup() {
   this->command(SSD1331_MASTERCURRENT);  // 0x87
   this->command(0x06);
   set_brightness(this->brightness_);
-  this->fill(BLACK);  // clear display - ensures we do not see garbage at power-on
-  this->display();    // ...write buffer, which actually clears the display's memory
-  this->turn_on();    // display ON
+  this->fill(Color::BLACK);  // clear display - ensures we do not see garbage at power-on
+  this->display();           // ...write buffer, which actually clears the display's memory
+  this->turn_on();           // display ON
 }
 void SSD1331::display() {
   this->command(SSD1331_SETCOLUMN);  // set column address

@@ -6,6 +6,10 @@ from esphome.const import (
     CONF_PM_2_5,
     CONF_PM_10_0,
     CONF_PM_1_0,
+    DEVICE_CLASS_AQI,
+    DEVICE_CLASS_PM1,
+    DEVICE_CLASS_PM10,
+    DEVICE_CLASS_PM25,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     ICON_CHEMICAL_WEAPON,
@@ -45,24 +49,28 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM1,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM25,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM10,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AQI): sensor.sensor_schema(
                 unit_of_measurement=UNIT_INDEX,
                 icon=ICON_CHEMICAL_WEAPON,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_AQI,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
@@ -100,6 +108,3 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_AQI])
         cg.add(var.set_aqi_sensor(sens))
         cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))
-
-    # https://platformio.org/lib/show/6306/Grove%20-%20Laser%20PM2.5%20Sensor%20HM3301
-    cg.add_library("6306", "1.0.3")
