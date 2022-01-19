@@ -178,15 +178,14 @@ class LWIPRawImpl : public Socket {
       errno = EINVAL;
       return -1;
     }
-    this->ip2sockaddr_(&pcb_->local_ip, pcb_->local_port, name, addrlen);
-    return 0;
+    return this->ip2sockaddr_(&pcb_->local_ip, pcb_->local_port, name, addrlen);
   }
   std::string getpeername() override {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return "";
     }
-    char buffer[50];
+    char buffer[50] = {};
     if (IP_IS_V4_VAL(pcb_->remote_ip)) {
       inet_ntoa_r(pcb_->remote_ip, buffer, sizeof(buffer));
     }
@@ -206,15 +205,14 @@ class LWIPRawImpl : public Socket {
       errno = EINVAL;
       return -1;
     }
-    this->ip2sockaddr_(&pcb_->local_ip, pcb_->local_port, name, addrlen);
-    return 0;
+    return this->ip2sockaddr_(&pcb_->local_ip, pcb_->local_port, name, addrlen);
   }
   std::string getsockname() override {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return "";
     }
-    char buffer[50];
+    char buffer[50] = {};
     if (IP_IS_V4_VAL(pcb_->local_ip)) {
       inet_ntoa_r(pcb_->local_ip, buffer, sizeof(buffer));
     }
