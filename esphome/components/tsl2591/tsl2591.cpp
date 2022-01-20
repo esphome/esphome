@@ -377,44 +377,44 @@ float TSL2591Component::get_calculated_lux(uint16_t full_spectrum, uint16_t infr
 
 /** Calculates and updates the sensor gain setting, trying to keep the full spectrum counts near
  *  the middle of the range
- * 
+ *
  *  It's hard to tell how far down to turn the gain when it's at the top of the scale, so decrease
  *  the gain by up to 2 steps if it's near the top to be sure we get a good reading next time.
  *  Increase gain by max 2 steps per reading.
- * 
+ *
  *  If integration time is 100 MS, divide the upper thresholds by 2 to account for ADC saturation
- * 
+ *
  *  @param full_spectrum The ADC reading for TSL2591 channel 0.
- * 
+ *
  *  1/3 FS = 21,845
  */
 void TSL2591Component::automatic_gain_update(uint16_t full_spectrum) {
   TSL2591Gain new_gain = this->gain_;
   uint fs_divider = (this->integration_time_ == TSL2591_INTEGRATION_TIME_100MS) ? 2 : 1;
-  
+
   switch (this->gain_) {
     case TSL2591_GAIN_LOW:
-      if (full_spectrum < 54) // 1/3 FS / GAIN_HIGH
+      if (full_spectrum < 54)  // 1/3 FS / GAIN_HIGH
         new_gain = TSL2591_GAIN_HIGH;
-      else if (full_spectrum < 875) // 1/3 FS / GAIN_MED
+      else if (full_spectrum < 875)  // 1/3 FS / GAIN_MED
         new_gain = TSL2591_GAIN_MED;
       break;
     case TSL2591_GAIN_MED:
-      if (full_spectrum < 57) // 1/3 FS / (GAIN_MAX/GAIN_MED)
+      if (full_spectrum < 57)  // 1/3 FS / (GAIN_MAX/GAIN_MED)
         new_gain = TSL2591_GAIN_MAX;
-      else if (full_spectrum < 1365) // 1/3 FS / (GAIN_HIGH/GAIN_MED)
+      else if (full_spectrum < 1365)  // 1/3 FS / (GAIN_HIGH/GAIN_MED)
         new_gain = TSL2591_GAIN_HIGH;
-      else if (full_spectrum > 62000/fs_divider) // 2/3 FS / (GAIN_LOW/GAIN_MED) clipped to 95% FS
+      else if (full_spectrum > 62000/fs_divider)  // 2/3 FS / (GAIN_LOW/GAIN_MED) clipped to 95% FS
         new_gain = TSL2591_GAIN_LOW;
       break;
     case TSL2591_GAIN_HIGH:
-      if (full_spectrum < 920) // 1/3 FS / (GAIN_MAX/GAIN_HIGH)
+      if (full_spectrum < 920)  // 1/3 FS / (GAIN_MAX/GAIN_HIGH)
         new_gain = TSL2591_GAIN_MAX;
-      else if (full_spectrum > 62000/fs_divider) // 2/3 FS / (GAIN_MED/GAIN_HIGH) clipped to 95% FS
+      else if (full_spectrum > 62000/fs_divider)  // 2/3 FS / (GAIN_MED/GAIN_HIGH) clipped to 95% FS
         new_gain = TSL2591_GAIN_LOW;
       break;
     case TSL2591_GAIN_MAX:
-      if (full_spectrum > 62000/fs_divider) // 2/3 FS / (GAIN_MED/GAIN_HIGH) clipped to 95% FS
+      if (full_spectrum > 62000/fs_divider)  // 2/3 FS / (GAIN_MED/GAIN_HIGH) clipped to 95% FS
         new_gain = TSL2591_GAIN_MED;
       break;
   }
@@ -423,6 +423,7 @@ void TSL2591Component::automatic_gain_update(uint16_t full_spectrum) {
     this->gain_ = new_gain;
     this->set_integration_time_and_gain(this->integration_time_, this->gain_);
   }
+  ESP_LOGD(TAG, "Gain setting: %d", this->gain_);
 }
 
 }  // namespace tsl2591
