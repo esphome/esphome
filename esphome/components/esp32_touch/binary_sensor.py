@@ -54,6 +54,8 @@ TOUCH_PADS = {
 def validate_touch_pad(value):
     value = gpio.validate_gpio_pin(value)
     variant = get_esp32_variant()
+    if variant not in TOUCH_PADS:
+        raise cv.Invalid(f"{variant} not supported")
     if value not in TOUCH_PADS[variant]:
         raise cv.Invalid(f"{variant} doesn't support ADC on pin {value}")
     return value
