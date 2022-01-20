@@ -102,7 +102,7 @@ bool NSPanel::process_data_() {
 }
 
 void NSPanel::process_command_(uint8_t type, JsonObject root, const std::string &message) {
-  std::string id_str = root["id"];
+  const char *id_str = root["id"];
   optional<uint8_t> id = parse_number<uint8_t>(id_str);
   if (id.has_value() && id < 8) {
     auto widget = this->widgets_[*id - 1];
