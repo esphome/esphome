@@ -118,7 +118,7 @@ bool PVVXMiThermometer::parse_message_(const std::vector<uint8_t> &message, Pars
   result.flag_value = uint8_t(data[14]);
 
   // Checking bit 0 on flag byte [14]
-  result.p8_gnd = int(data[14]) & 1;
+  result.p8_gnd = uint8_t(data[14]) & 1;
   return true;
 }
 
