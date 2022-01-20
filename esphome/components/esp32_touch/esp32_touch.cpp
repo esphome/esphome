@@ -25,7 +25,6 @@ void ESP32TouchComponent::setup() {
   touch_pad_denoise_enable();
   touch_pad_set_idle_channel_connect(TOUCH_PAD_IDLE_CH_CONNECT_DEFAULT);
   touch_pad_set_fsm_mode(TOUCH_FSM_MODE_TIMER);
-  touch_pad_fsm_start();
 #else
   if (this->iir_filter_enabled_()) {
     touch_pad_filter_start(this->iir_filter_);
@@ -52,7 +51,7 @@ void ESP32TouchComponent::setup() {
 
   
   
-  
+  touch_pad_fsm_start();  
 #endif
 }
 
