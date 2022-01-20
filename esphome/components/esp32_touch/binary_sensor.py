@@ -11,10 +11,7 @@ from . import esp32_touch_ns, ESP32TouchComponent
 from esphome.components.esp32 import get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
-    VARIANT_ESP32C3,
-    VARIANT_ESP32H2,
     VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
 )
 
 DEPENDENCIES = ["esp32_touch", "esp32"]
@@ -57,10 +54,8 @@ TOUCH_PADS = {
 def validate_touch_pad(value):
     value = gpio.validate_gpio_pin(value)
     variant = get_esp32_variant()
-    #if value not in TOUCH_PADS:
     if value not in TOUCH_PADS[variant]:
         raise cv.Invalid(f"{variant} doesn't support ADC on pin {value}")
-        #raise cv.Invalid(f"Pin {value} does not support touch pads.")
     return value
 
 
