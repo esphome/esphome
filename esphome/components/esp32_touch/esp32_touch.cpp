@@ -120,11 +120,11 @@ void ESP32TouchComponent::loop() {
   const uint32_t now = millis();
   bool should_print = this->setup_mode_ && now - this->setup_mode_last_log_print_ > 250;
   for (auto *child : this->children_) {
-    uint16_t value;
-
 #if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)
+    uint32_t value;
     touch_pad_read_raw_data(child->get_touch_pad(), &value);
 #else
+    uint16_t value;
     if (this->iir_filter_enabled_()) {
       touch_pad_read_filtered(child->get_touch_pad(), &value);
     } else {
