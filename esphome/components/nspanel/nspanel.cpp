@@ -163,11 +163,19 @@ void NSPanel::send_time_() {
   auto time = this->time_->now();
   if (!time.is_valid())
     return;
+  uint8_t hour = time.hour;
+  if (this->use_12_hour_time_) {
+    if (hour > 12)
+      hour -= 12;
+    if (hour == 0)
+      hour = 12;
+  }
+
   std::string json_str = json::build_json([time](JsonObject root) {
     root["year"] = time.year;
     root["mon"] = time.month;
     root["day"] = time.day_of_month;
-    root["hour"] = time.hour;
+    root["hour"] = hour;
     root["min"] = time.minute;
     root["week"] = time.day_of_week - 1;
   });

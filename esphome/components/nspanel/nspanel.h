@@ -89,6 +89,8 @@ class NSPanel : public Component, public uart::UARTDevice {
     this->time_->add_on_time_sync_callback([this]() { this->send_time_(); });
   }
 
+  void set_12_hour_time(bool use_12_hour_time) { this->use_12_hour_time_ = use_12_hour_time; }
+
   void set_relays(switch_::Switch *relay_1, switch_::Switch *relay_2) {
     this->relay_1_ = relay_1;
     this->relay_2_ = relay_2;
@@ -150,6 +152,7 @@ class NSPanel : public Component, public uart::UARTDevice {
   Widget widgets_[8];
 
   bool temperature_celsius_;
+  bool use_12_hour_time_;
 
   bool last_connected_{true};
   uint32_t last_wifi_sent_at_{0};

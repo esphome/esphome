@@ -35,6 +35,7 @@ CONF_SCREEN_POWER_SWITCH = "screen_power_switch"
 CONF_TEMPERATURE_UNIT_CELSIUS = "temperature_unit_celsius"
 CONF_UIID = "uiid"
 CONF_WIDGETS = "widgets"
+CONF_12_HOUR_TIME = "12_hour_time"
 
 DEVICE = "device"
 EMPTY = "empty"
@@ -128,6 +129,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_JSON_MESSAGE): automation.validate_automation(
                 single=True
             ),
+            cv.Optional(CONF_12_HOUR_TIME, default=False): cv.boolean,
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -142,6 +144,7 @@ async def to_code(config):
 
     time_ = await cg.get_variable(config[CONF_TIME_ID])
     cg.add(var.set_time(time_))
+    cg.add(var.set_12_hour_time(config[CONF_12_HOUR_TIME]))
 
     relays = []
     for relay_id in config[CONF_RELAYS]:
