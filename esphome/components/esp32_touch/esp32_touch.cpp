@@ -16,7 +16,6 @@ void ESP32TouchComponent::setup() {
 
 #if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)
   //touch_pad_filter_enable();
-  touch_pad_fsm_start();
 #else
   if (this->iir_filter_enabled_()) {
     touch_pad_filter_start(this->iir_filter_);
@@ -30,10 +29,27 @@ void ESP32TouchComponent::setup() {
     // Disable interrupt threshold
 #if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)
     touch_pad_config(child->get_touch_pad());
+    touch_pad_set_cnt_mode(child->get_touch_pad(), TOUCH_PAD_SLOPE_DEFAULT, TOUCH_PAD_TIE_OPT_DEFAULT);
 #else
     touch_pad_config(child->get_touch_pad(), 0);
 #endif
   }
+
+#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)
+  touch_pad_set_meas_time(TOUCH_PAD_SLEEP_CYCLE_DEFAULT, TOUCH_PAD_SLEEP_CYCLE_DEFAULT);
+  touch_pad_set_voltage(TOUCH_PAD_HIGH_VOLTAGE_THRESHOLD, TOUCH_PAD_LOW_VOLTAGE_THRESHOLD, TOUCH_PAD_ATTEN_VOLTAGE_THRESHOLD);
+  touch_pad_set_idle_channel_connect(TOUCH_PAD_IDLE_CH_CONNECT_DEFAULT);
+
+  touch_pad_denoise_t denoise = {
+        /* The bits to be cancelled are determined according to the noise level. */
+        .grade = TOUCH_PAD_DENOISE_BIT4,
+        .cap_level = TOUCH_PAD_DENOISE_CAP_L4,
+  };
+  touch_pad_denoise_set_config(&denoise);
+  touch_pad_denoise_enable();
+  touch_pad_set_fsm_mode(TOUCH_FSM_MODE_TIMER);
+  touch_pad_fsm_start();
+#endif
 }
 
 void ESP32TouchComponent::dump_config() {
