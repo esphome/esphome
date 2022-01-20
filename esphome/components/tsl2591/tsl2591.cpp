@@ -404,17 +404,17 @@ void TSL2591Component::automatic_gain_update(uint16_t full_spectrum) {
         new_gain = TSL2591_GAIN_MAX;
       else if (full_spectrum < 1365)  // 1/3 FS / (GAIN_HIGH/GAIN_MED)
         new_gain = TSL2591_GAIN_HIGH;
-      else if (full_spectrum > 62000/fs_divider)  // 2/3 FS / (GAIN_LOW/GAIN_MED) clipped to 95% FS
+      else if (full_spectrum > 62000 / fs_divider)  // 2/3 FS / (GAIN_LOW/GAIN_MED) clipped to 95% FS
         new_gain = TSL2591_GAIN_LOW;
       break;
     case TSL2591_GAIN_HIGH:
       if (full_spectrum < 920)  // 1/3 FS / (GAIN_MAX/GAIN_HIGH)
         new_gain = TSL2591_GAIN_MAX;
-      else if (full_spectrum > 62000/fs_divider)  // 2/3 FS / (GAIN_MED/GAIN_HIGH) clipped to 95% FS
+      else if (full_spectrum > 62000 / fs_divider)  // 2/3 FS / (GAIN_MED/GAIN_HIGH) clipped to 95% FS
         new_gain = TSL2591_GAIN_LOW;
       break;
     case TSL2591_GAIN_MAX:
-      if (full_spectrum > 62000/fs_divider)  // 2/3 FS / (GAIN_MED/GAIN_HIGH) clipped to 95% FS
+      if (full_spectrum > 62000 / fs_divider)  // 2/3 FS / (GAIN_MED/GAIN_HIGH) clipped to 95% FS
         new_gain = TSL2591_GAIN_MED;
       break;
   }
