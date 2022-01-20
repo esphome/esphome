@@ -164,7 +164,7 @@ void NSPanel::send_time_() {
   if (!time.is_valid())
     return;
 
-  std::string json_str = json::build_json([time](JsonObject root) {
+  std::string json_str = json::build_json([this, time](JsonObject root) {
     uint8_t hour = time.hour;
     if (this->use_12_hour_time_) {
       if (hour > 12)
