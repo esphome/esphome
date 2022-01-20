@@ -15,7 +15,11 @@ void ESP32TouchComponent::setup() {
   touch_pad_init();
 
   if (this->iir_filter_enabled_()) {
+#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)
+    touch_pad_filter_enable(this->iir_filter_);
+#else
     touch_pad_filter_start(this->iir_filter_);
+#endif
   }
 
   touch_pad_set_meas_time(this->sleep_cycle_, this->meas_cycle_);
