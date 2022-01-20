@@ -14,13 +14,13 @@ void ESP32TouchComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ESP32 Touch Hub...");
   touch_pad_init();
 
-  if (this->iir_filter_enabled_()) {
 #if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)
-    touch_pad_filter_enable(this->iir_filter_);
+  touch_pad_filter_enable();
 #else
+  if (this->iir_filter_enabled_()) {
     touch_pad_filter_start(this->iir_filter_);
-#endif
   }
+#endif
 
   touch_pad_set_meas_time(this->sleep_cycle_, this->meas_cycle_);
   touch_pad_set_voltage(this->high_voltage_reference_, this->low_voltage_reference_, this->voltage_attenuation_);
@@ -151,15 +151,15 @@ void ESP32TouchComponent::loop() {
 void ESP32TouchComponent::on_shutdown() {
   bool is_wakeup_source = false;
 
-  if (this->iir_filter_enabled_()) {
 #if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)    
-    touch_pad_fsm_stop();
-    touch_pad_filter_disable();
+  touch_pad_fsm_stop();
+  touch_pad_filter_disable();
 #else
+  if (this->iir_filter_enabled_()) {
     touch_pad_filter_stop();
     touch_pad_filter_delete();
-#endif
   }
+#endif
 
   for (auto *child : this->children_) {
     if (child->get_wakeup_threshold() != 0) {
