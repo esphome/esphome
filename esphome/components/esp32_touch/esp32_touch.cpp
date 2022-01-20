@@ -15,7 +15,8 @@ void ESP32TouchComponent::setup() {
   touch_pad_init();
 
 #if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)
-  touch_pad_filter_enable();
+  //touch_pad_filter_enable();
+  touch_pad_fsm_start();
 #else
   if (this->iir_filter_enabled_()) {
     touch_pad_filter_start(this->iir_filter_);
