@@ -14,9 +14,7 @@ void ESP32TouchComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ESP32 Touch Hub...");
   touch_pad_init();
 
-#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)
-  //touch_pad_filter_enable();
-#else
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32S2)
   if (this->iir_filter_enabled_()) {
     touch_pad_filter_start(this->iir_filter_);
   }
