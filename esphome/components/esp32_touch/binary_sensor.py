@@ -8,6 +8,14 @@ from esphome.const import (
 )
 from esphome.components.esp32 import gpio
 from . import esp32_touch_ns, ESP32TouchComponent
+from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
 
 DEPENDENCIES = ["esp32_touch", "esp32"]
 
@@ -15,40 +23,44 @@ CONF_ESP32_TOUCH_ID = "esp32_touch_id"
 CONF_WAKEUP_THRESHOLD = "wakeup_threshold"
 
 TOUCH_PADS = {
-#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)    
-    1: cg.global_ns.TOUCH_PAD_NUM0,
-    2: cg.global_ns.TOUCH_PAD_NUM1,
-    3: cg.global_ns.TOUCH_PAD_NUM2,
-    4: cg.global_ns.TOUCH_PAD_NUM3,
-    5: cg.global_ns.TOUCH_PAD_NUM4,
-    6: cg.global_ns.TOUCH_PAD_NUM5,
-    7: cg.global_ns.TOUCH_PAD_NUM6,
-    8: cg.global_ns.TOUCH_PAD_NUM7,
-    9: cg.global_ns.TOUCH_PAD_NUM8,
-    10: cg.global_ns.TOUCH_PAD_NUM9,
-    11: cg.global_ns.TOUCH_PAD_NUM10,
-    12: cg.global_ns.TOUCH_PAD_NUM11,
-    13: cg.global_ns.TOUCH_PAD_NUM12,
-    14: cg.global_ns.TOUCH_PAD_NUM13,
-#else
-    4: cg.global_ns.TOUCH_PAD_NUM0,
-    0: cg.global_ns.TOUCH_PAD_NUM1,
-    2: cg.global_ns.TOUCH_PAD_NUM2,
-    15: cg.global_ns.TOUCH_PAD_NUM3,
-    13: cg.global_ns.TOUCH_PAD_NUM4,
-    12: cg.global_ns.TOUCH_PAD_NUM5,
-    14: cg.global_ns.TOUCH_PAD_NUM6,
-    27: cg.global_ns.TOUCH_PAD_NUM7,
-    33: cg.global_ns.TOUCH_PAD_NUM8,
-    32: cg.global_ns.TOUCH_PAD_NUM9,
-#endif
+    VARIANT_ESP32: {
+        4: cg.global_ns.TOUCH_PAD_NUM0,
+        0: cg.global_ns.TOUCH_PAD_NUM1,
+        2: cg.global_ns.TOUCH_PAD_NUM2,
+        15: cg.global_ns.TOUCH_PAD_NUM3,
+        13: cg.global_ns.TOUCH_PAD_NUM4,
+        12: cg.global_ns.TOUCH_PAD_NUM5,
+        14: cg.global_ns.TOUCH_PAD_NUM6,
+        27: cg.global_ns.TOUCH_PAD_NUM7,
+        33: cg.global_ns.TOUCH_PAD_NUM8,
+        32: cg.global_ns.TOUCH_PAD_NUM9,
+    },
+    VARIANT_ESP32S2: {
+        1: cg.global_ns.TOUCH_PAD_NUM0,
+        2: cg.global_ns.TOUCH_PAD_NUM1,
+        3: cg.global_ns.TOUCH_PAD_NUM2,
+        4: cg.global_ns.TOUCH_PAD_NUM3,
+        5: cg.global_ns.TOUCH_PAD_NUM4,
+        6: cg.global_ns.TOUCH_PAD_NUM5,
+        7: cg.global_ns.TOUCH_PAD_NUM6,
+        8: cg.global_ns.TOUCH_PAD_NUM7,
+        9: cg.global_ns.TOUCH_PAD_NUM8,
+        10: cg.global_ns.TOUCH_PAD_NUM9,
+        11: cg.global_ns.TOUCH_PAD_NUM10,
+        12: cg.global_ns.TOUCH_PAD_NUM11,
+        13: cg.global_ns.TOUCH_PAD_NUM12,
+        14: cg.global_ns.TOUCH_PAD_NUM13,
+    },
 }
 
 
 def validate_touch_pad(value):
     value = gpio.validate_gpio_pin(value)
-    if value not in TOUCH_PADS:
-        raise cv.Invalid(f"Pin {value} does not support touch pads.")
+    variant = get_esp32_variant()
+    #if value not in TOUCH_PADS:
+    if value not in TOUCH_PADS[variant]:
+        raise cv.Invalid(f"{variant} doesn't support ADC on pin {value}")
+        #raise cv.Invalid(f"Pin {value} does not support touch pads.")
     return value
 
 
