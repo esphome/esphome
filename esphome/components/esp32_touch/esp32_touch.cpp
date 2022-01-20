@@ -35,13 +35,14 @@ void ESP32TouchComponent::setup() {
 
 #if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)
   touch_pad_set_meas_time(TOUCH_PAD_SLEEP_CYCLE_DEFAULT, TOUCH_PAD_SLEEP_CYCLE_DEFAULT);
-  touch_pad_set_voltage(TOUCH_PAD_HIGH_VOLTAGE_THRESHOLD, TOUCH_PAD_LOW_VOLTAGE_THRESHOLD, TOUCH_PAD_ATTEN_VOLTAGE_THRESHOLD);
+  touch_pad_set_voltage(TOUCH_PAD_HIGH_VOLTAGE_THRESHOLD, TOUCH_PAD_LOW_VOLTAGE_THRESHOLD,
+                        TOUCH_PAD_ATTEN_VOLTAGE_THRESHOLD);
   touch_pad_set_idle_channel_connect(TOUCH_PAD_IDLE_CH_CONNECT_DEFAULT);
 
   touch_pad_denoise_t denoise = {
-        /* The bits to be cancelled are determined according to the noise level. */
-        .grade = TOUCH_PAD_DENOISE_BIT4,
-        .cap_level = TOUCH_PAD_DENOISE_CAP_L4,
+    /* The bits to be cancelled are determined according to the noise level. */
+    .grade = TOUCH_PAD_DENOISE_BIT4,
+    .cap_level = TOUCH_PAD_DENOISE_CAP_L4,
   };
   touch_pad_denoise_set_config(&denoise);
   touch_pad_denoise_enable();
@@ -166,7 +167,7 @@ void ESP32TouchComponent::loop() {
 void ESP32TouchComponent::on_shutdown() {
   bool is_wakeup_source = false;
 
-#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)    
+#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)
   touch_pad_fsm_stop();
   touch_pad_filter_disable();
 #else
