@@ -35,17 +35,20 @@ static const uint8_t SSD1306_COMMAND_INVERSE_DISPLAY = 0xA7;
 static const uint8_t SSD1305_COMMAND_SET_BRIGHTNESS = 0x82;
 static const uint8_t SSD1305_COMMAND_SET_AREA_COLOR = 0xD8;
 
+static const uint8_t SH1107_COMMAND_SET_START_LINE = 0xDC;
+static const uint8_t SH1107_COMMAND_CHARGE_PUMP = 0xAD;
+
 void SSD1306::setup() {
   this->init_internal_(this->get_buffer_length_());
 
   // SH1107 resources
   //
-  // Datasheet v2.3
+  // Datasheet v2.3:
   // www.displayfuture.com/Display/datasheet/controller/SH1107.pdf
   // Adafruit C++ driver: 
-  // https://github.com/adafruit/Adafruit_SH110x/blob/master/Adafruit_SH1107.cpp
+  // github.com/adafruit/Adafruit_SH110x
   // Adafruit CircuitPython driver:
-  // https://github.com/adafruit/Adafruit_CircuitPython_DisplayIO_SH1107/blob/main/adafruit_displayio_sh1107.py
+  // github.com/adafruit/Adafruit_CircuitPython_DisplayIO_SH1107
 
   // Turn off display during initialization (0xAE)
   this->command(SSD1306_COMMAND_DISPLAY_OFF);
@@ -74,7 +77,7 @@ void SSD1306::setup() {
    
   if (this->is_sh1107_()) {
     // Set start line at line 0 (0xDC)
-    this->command(0xDC);
+    this->command(SH1107_COMMAND_SET_START_LINE);
     this->command(0x00);
   } else {
     // Set start line at line 0 (0x40)
@@ -84,9 +87,8 @@ void SSD1306::setup() {
   if (this->is_ssd1305_()) {
     // SSD1305 does not have charge pump
   } else if (this->is_sh1107_()) {
-    // SH1107 charge pump command is (0xAD)
-    
-    this->command(0xAD);
+    // Enable charge pump (0xAD)
+    this->command(SH1107_COMMAND_CHARGE_PUMP);
     if (this->external_vcc_)
       this->command(0x8A);
     else
@@ -111,26 +113,27 @@ void SSD1306::setup() {
   // Y flip mode (0xC0, 0xC8)
   this->command(SSD1306_COMMAND_COM_SCAN_INC | (this->flip_y_ << 3));
 
-  // Set pin configuration (0xDA)
-  this->command(SSD1306_COMMAND_SET_COM_PINS);
-  switch (this->model_) {
-    case SSD1306_MODEL_128_32:
-    case SH1106_MODEL_128_32:
-    case SSD1306_MODEL_96_16:
-    case SH1106_MODEL_96_16:
-      this->command(0x02);
-      break;
-    case SSD1306_MODEL_128_64:
-    case SH1106_MODEL_128_64:
-    case SSD1306_MODEL_64_48:
-    case SSD1306_MODEL_64_32:
-    case SH1106_MODEL_64_48:
-    case SH1107_MODEL_128_64:
-    case SSD1305_MODEL_128_32:
-    case SSD1305_MODEL_128_64:
-    case SSD1306_MODEL_72_40:
+  if (!this->is_sh1107_()) {
+    // Set pin configuration (0xDA)
+    this->command(SSD1306_COMMAND_SET_COM_PINS);
+    switch (this->model_) {
+      case SSD1306_MODEL_128_32:
+      case SH1106_MODEL_128_32:
+      case SSD1306_MODEL_96_16:
+      case SH1106_MODEL_96_16:
+        this->command(0x02);
+        break;
+      case SSD1306_MODEL_128_64:
+      case SH1106_MODEL_128_64:
+      case SSD1306_MODEL_64_48:
+      case SSD1306_MODEL_64_32:
+      case SH1106_MODEL_64_48:    
+      case SSD1305_MODEL_128_32:
+      case SSD1305_MODEL_128_64:
+      case SSD1306_MODEL_72_40:
       this->command(0x12);
-      break;
+        break;
+    }
   }
 
   // Pre-charge period (0xD9)
