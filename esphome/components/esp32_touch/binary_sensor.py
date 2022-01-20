@@ -76,9 +76,10 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
 
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_ESP32_TOUCH_ID])
+    variant = get_esp32_variant()
     var = cg.new_Pvariable(
         config[CONF_ID],
-        TOUCH_PADS[config[CONF_PIN]],
+        TOUCH_PADS[variant][config[CONF_PIN]],
         config[CONF_THRESHOLD],
         config[CONF_WAKEUP_THRESHOLD],
     )
