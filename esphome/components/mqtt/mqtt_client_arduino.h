@@ -7,7 +7,7 @@
 namespace esphome {
 namespace mqtt {
 
-class MQTTArduinoClient : public MqttClientBase {
+class MQTTArduinoClient : public MQTTClientBase {
  public:
   virtual ~MQTTArduinoClient() = default;
   void set_keep_alive(uint16_t keep_alive) final { mqtt_client_.setKeepAlive(keep_alive); }

@@ -1,7 +1,7 @@
 #pragma once
 
 ///
-/// Mirror the public interface of MqttClientBase using esp-idf
+/// Mirror the public interface of MQTTClientBase using esp-idf
 ///
 
 #include <string>
@@ -25,20 +25,6 @@ enum class MqttEvent {
   MQTT_EVENT_DELETED,
 };
 
-struct MqttEventT {
-  char *data;              /*!< Data associated with this event */
-  int data_len;            /*!< Length of the data for this event */
-  int total_data_len;      /*!< Total length of the data (longer data are supplied with multiple events) */
-  int current_data_offset; /*!< Actual offset for the data associated with this event */
-  char *topic;             /*!< Topic associated with this event */
-  int topic_len;           /*!< Length of the topic for this event associated with this event */
-  int msg_id;              /*!< MQTT messaged id of message */
-  int session_present;     /*!< MQTT session_present flag for connection event */
-  bool retain;             /*!< Retained flag of the message associated with this event */
-  int qos;                 /*!< qos of the messages associated with this event */
-  bool dup;                /*!< dup flag of the message associated with this event */
-};
-
 enum class MqttClientDisconnectReason : int8_t {
   TCP_DISCONNECTED = 0,
   MQTT_UNACCEPTABLE_PROTOCOL_VERSION = 1,
@@ -58,14 +44,7 @@ struct MQTTMessage {
   bool retain;
 };
 
-struct MqttClientMessageProperties {
-  uint8_t qos;
-  // dup is only supported by the Arduino MQTT library, not ESP-IDF. It is a no-op on ESP-IDF.
-  bool dup;
-  bool retain;
-};
-
-class MqttClientBase {
+class MQTTClientBase {
  public:
   using on_connect_callback_t = std::function<void(bool session_present)>;
   using on_disconnect_callback_t = std::function<void(MqttClientDisconnectReason reason)>;

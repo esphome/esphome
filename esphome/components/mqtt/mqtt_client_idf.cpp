@@ -46,7 +46,27 @@ bool MqttIdfClient::initialize_() {
   } else {
     mqtt_cfg_.transport = MQTT_TRANSPORT_OVER_TCP;
   }
-
+  // Create task to dispatch mqtt events
+  // Create a common task for all instances (although currently esphome creates only 1)
+  // Waits for semaphore signal to process new messages
+  if (esphome::mqtt::MqttIdfClient::event_mux == nullptr) {
+    esphome::mqtt::MqttIdfClient::event_mux = xSemaphoreCreateBinary();
+    xTaskCreatePinnedToCore(
+        [](void *this_ptr) {
+          while (true) {
+            xSemaphoreTake(event_mux, portMAX_DELAY);
+            ESP_LOGVV(TAG, "received mqtt event - dipatching to instance");
+            MqttIdfClient *instance = static_cast<MqttIdfClient *>(this_ptr);
+            if (!mqtt_events.empty()) {
+              auto &event = mqtt_events.front();
+              // dispatch to instance
+              instance->mqtt_event_handler_(event);
+              mqtt_events.pop();
+            }
+          }
+        },
+        "mqtt_event_handler", 4096, this, 1, nullptr, xPortGetCoreID());
+  }
   auto mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
   if (mqtt_client) {
     handler_.reset(mqtt_client);
@@ -59,10 +79,9 @@ bool MqttIdfClient::initialize_() {
   return false;
 }
 
-void MqttIdfClient::mqtt_event_handler_(esp_event_base_t base, int32_t event_id, void *event_data) {
-  auto *event = static_cast<esp_mqtt_event_t *>(event_data);
-  ESP_LOGV(TAG, "Event dispatched from event loop base=%s, event_id=%d", base, event_id);
-  switch (event->event_id) {
+void MqttIdfClient::mqtt_event_handler_(const esp_mqtt_event_t &event) {
+  ESP_LOGV(TAG, "Event dispatched from event loop event_id=%d", event.event_id);
+  switch (event.event_id) {
     case MQTT_EVENT_BEFORE_CONNECT:
       ESP_LOGV(TAG, "MQTT_EVENT_BEFORE_CONNECT");
       break;
@@ -85,54 +104,54 @@ void MqttIdfClient::mqtt_event_handler_(esp_event_base_t base, int32_t event_id,
       break;
 
     case MQTT_EVENT_SUBSCRIBED:
-      ESP_LOGV(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
-      // hardocde QoS to 0. QoS is not used in this context but required to mirror the AsyncMqtt interface
+      ESP_LOGV(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event.msg_id);
+      // hardcode QoS to 0. QoS is not used in this context but required to mirror the AsyncMqtt interface
       for (auto &callback : this->on_subscribe_) {
-        callback((int) event->msg_id, 0);
+        callback((int) event.msg_id, 0);
       }
       break;
     case MQTT_EVENT_UNSUBSCRIBED:
-      ESP_LOGV(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
+      ESP_LOGV(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event.msg_id);
       for (auto &callback : this->on_unsubscribe_) {
-        callback((int) event->msg_id);
+        callback((int) event.msg_id);
       }
       break;
     case MQTT_EVENT_PUBLISHED:
-      ESP_LOGV(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+      ESP_LOGV(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event.msg_id);
       for (auto &callback : this->on_publish_) {
-        callback((int) event->msg_id);
+        callback((int) event.msg_id);
       }
       break;
     case MQTT_EVENT_DATA: {
       static std::string topic;
-      if (event->topic) {
+      if (event.topic) {
         // not 0 terminated - create a string from it
-        topic = std::string(event->topic, event->topic_len);
+        topic = std::string(event.topic, event.topic_len);
       }
       ESP_LOGV(TAG, "MQTT_EVENT_DATA %s", topic.c_str());
-      auto data_len = event->data_len;
+      auto data_len = event.data_len;
       if (data_len == 0)
-        data_len = strlen(event->data);
+        data_len = strlen(event.data);
       for (auto &callback : this->on_message_) {
-        callback(event->topic ? const_cast<char *>(topic.c_str()) : nullptr, event->data, data_len,
-                 event->current_data_offset, event->total_data_len);
+        callback(event.topic ? const_cast<char *>(topic.c_str()) : nullptr, event.data, data_len,
+                 event.current_data_offset, event.total_data_len);
       }
     } break;
     case MQTT_EVENT_ERROR:
       ESP_LOGE(TAG, "MQTT_EVENT_ERROR");
-      if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
-        ESP_LOGE(TAG, "Last error code reported from esp-tls: 0x%x", event->error_handle->esp_tls_last_esp_err);
-        ESP_LOGE(TAG, "Last tls stack error number: 0x%x", event->error_handle->esp_tls_stack_err);
-        ESP_LOGE(TAG, "Last captured errno : %d (%s)", event->error_handle->esp_transport_sock_errno,
-                 strerror(event->error_handle->esp_transport_sock_errno));
-      } else if (event->error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
-        ESP_LOGE(TAG, "Connection refused error: 0x%x", event->error_handle->connect_return_code);
+      if (event.error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
+        ESP_LOGE(TAG, "Last error code reported from esp-tls: 0x%x", event.error_handle->esp_tls_last_esp_err);
+        ESP_LOGE(TAG, "Last tls stack error number: 0x%x", event.error_handle->esp_tls_stack_err);
+        ESP_LOGE(TAG, "Last captured errno : %d (%s)", event.error_handle->esp_transport_sock_errno,
+                 strerror(event.error_handle->esp_transport_sock_errno));
+      } else if (event.error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
+        ESP_LOGE(TAG, "Connection refused error: 0x%x", event.error_handle->connect_return_code);
       } else {
-        ESP_LOGE(TAG, "Unknown error type: 0x%x", event->error_handle->error_type);
+        ESP_LOGE(TAG, "Unknown error type: 0x%x", event.error_handle->error_type);
       }
       break;
     default:
-      ESP_LOGV(TAG, "Other event id:%d", event->event_id);
+      ESP_LOGV(TAG, "Other event id:%d", event.event_id);
       break;
   }
 }
@@ -140,9 +159,18 @@ void MqttIdfClient::mqtt_event_handler_(esp_event_base_t base, int32_t event_id,
 /// static - Dispatch event to instance method
 void MqttIdfClient::mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
   MqttIdfClient *instance = static_cast<MqttIdfClient *>(handler_args);
-  if (instance)
-    instance->mqtt_event_handler_(base, event_id, event_data);
+  if (instance) {
+    // Signal task that a new event was received
+    auto event = *static_cast<esp_mqtt_event_t *>(event_data);
+    mqtt_events.push(event);
+    ESP_LOGD(TAG, "New event - signal semaphore");
+    xSemaphoreGive(event_mux);
+  }
 }
+
+// static memebers
+SemaphoreHandle_t MqttIdfClient::event_mux{nullptr};      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+std::queue<esp_mqtt_event_t> MqttIdfClient::mqtt_events;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace mqtt
 }  // namespace esphome

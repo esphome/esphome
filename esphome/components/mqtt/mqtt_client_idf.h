@@ -6,7 +6,7 @@
 
 #ifdef USE_ESP_IDF
 #include <string>
-#include <map>
+#include <queue>
 #include <mqtt_client.h>
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/helpers.h"
@@ -15,7 +15,7 @@
 namespace esphome {
 namespace mqtt {
 
-class MqttIdfClient : public MqttClientBase {
+class MqttIdfClient : public MQTTClientBase {
  public:
   static const size_t MQTT_BUFFER_SIZE = 4096;
 
@@ -79,7 +79,7 @@ class MqttIdfClient : public MqttClientBase {
    */
   uint16_t publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain,
                    uint16_t message_id) final {
-#if defined IDF_MQTT_USE_ENQUEUE
+#if defined MQTT_IDF_USE_ENQUEUE
     // use the non-blocking version
     // it can delay sending a couple of seconds but won't block
     auto status = map_status_(esp_mqtt_client_enqueue(handler_.get(), topic, payload, length, qos, retain, true));
@@ -91,7 +91,7 @@ class MqttIdfClient : public MqttClientBase {
     return status;
   }
   uint16_t publish(const MQTTMessage &message) override {
-#if defined IDF_MQTT_USE_ENQUEUE
+#if defined MQTT_IDF_USE_ENQUEUE
     // use the non-blocking version
     // it can delay sending a couple of seconds but won't block
     auto status = map_status_(esp_mqtt_client_enqueue(handler_.get(), message.topic.c_str(), message.payload.c_str(),
@@ -121,7 +121,7 @@ class MqttIdfClient : public MqttClientBase {
     return status;
   }
   bool initialize_();
-  void mqtt_event_handler_(esp_event_base_t base, int32_t event_id, void *event_data);
+  void mqtt_event_handler_(const esp_mqtt_event_t &event);
   static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 
   struct MqttClientDeleter {
@@ -156,6 +156,10 @@ class MqttIdfClient : public MqttClientBase {
   std::vector<on_unsubscribe_callback_t> on_unsubscribe_;
   std::vector<on_message_callback_t> on_message_;
   std::vector<on_publish_uer_callback_t> on_publish_;
+
+  // static members for event dispatching
+  static SemaphoreHandle_t event_mux;               // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  static std::queue<esp_mqtt_event_t> mqtt_events;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 
 }  // namespace mqtt

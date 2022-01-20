@@ -40,15 +40,12 @@ from esphome.const import (
     CONF_USERNAME,
     CONF_WILL_MESSAGE,
 )
-from esphome.core import coroutine_with_priority, CORE, KEY_CORE
+from esphome.core import coroutine_with_priority, CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
 
 DEPENDENCIES = ["network"]
 
-if KEY_CORE in CORE.data and CORE.using_esp_idf:
-    AUTO_LOAD = ["json"]
-else:
-    AUTO_LOAD = ["json", "async_tcp"]
+AUTO_LOAD = ["json"]
 
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
@@ -241,9 +238,16 @@ def exp_mqtt_message(config):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-
-    # https://github.com/OttoWinter/async-mqtt-client/blob/master/library.json
-    cg.add_library("ottowinter/AsyncMqttClient-esphome", "0.8.6")
+    # Add required libraries for arduino
+    if CORE.using_arduino:
+        # https://github.com/OttoWinter/async-mqtt-client/blob/master/library.json
+        cg.add_library("ottowinter/AsyncMqttClient-esphome", "0.8.6")
+        if CORE.is_esp32:
+            # https://github.com/esphome/AsyncTCP/blob/master/library.json
+            cg.add_library("esphome/AsyncTCP-esphome", "1.2.2")
+        elif CORE.is_esp8266:
+            # https://github.com/OttoWinter/ESPAsyncTCP
+            cg.add_library("ottowinter/ESPAsyncTCP-esphome", "1.2.3")
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
 
@@ -318,13 +322,14 @@ async def to_code(config):
     # esp-idf only
     if CONF_CERTIFICATE_AUTHORITY in config:
         cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
-        cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+        if CONF_SKIP_CERT_CN_CHECK in config:
+            cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
         # prevent error -0x428e
         # See https://github.com/espressif/esp-idf/issues/139
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_HARDWARE_MPI", False)
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
-        cg.add_define("IDF_MQTT_USE_ENQUEUE")
+        cg.add_define("MQTT_IDF_USE_ENQUEUE")
     # end esp-idf
     for conf in config.get(CONF_ON_MESSAGE, []):
         trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC])
