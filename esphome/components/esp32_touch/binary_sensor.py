@@ -7,12 +7,12 @@ from esphome.const import (
     CONF_ID,
 )
 from esphome.components.esp32 import gpio
-from . import esp32_touch_ns, ESP32TouchComponent
 from esphome.components.esp32 import get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32S2,
 )
+from . import esp32_touch_ns, ESP32TouchComponent
 
 DEPENDENCIES = ["esp32_touch", "esp32"]
 
