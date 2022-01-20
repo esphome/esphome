@@ -102,32 +102,35 @@ bool NSPanel::process_data_() {
 }
 
 void NSPanel::process_command_(uint8_t type, JsonObject root, const std::string &message) {
-  uint8_t id = uint8_t(root["id"]);
-  auto widget = this->widgets_[id - 1];
+  std::string id_str = root["id"];
+  optional<uint8_t> id = parse_number<uint8_t>(id_str);
+  if (id.has_value() && id < 8) {
+    auto widget = this->widgets_[*id - 1];
 
-  switch (type) {
-    case 0x86: {
-      if (root.containsKey("ctype") && strcasecmp(root["ctype"], "group") == 0) {  // Group
+    switch (type) {
+      case 0x86: {
+        if (root.containsKey("ctype") && strcasecmp(root["ctype"], "group") == 0) {  // Group
 
-        auto params = root["params"];
+          auto params = root["params"];
 
-        auto switches = params["switches"].as<JsonArray>();
+          auto switches = params["switches"].as<JsonArray>();
 
-        for (auto switch_object : switches) {
-          uint8_t item_index = uint8_t(switch_object["outlet"]);
-          bool on = parse_on_off(switch_object["switch"]) == PARSE_ON;
-          auto trigger = widget.items[item_index].trigger;
-          trigger->trigger(on);
+          for (auto switch_object : switches) {
+            uint8_t item_index = uint8_t(switch_object["outlet"]);
+            bool on = parse_on_off(switch_object["switch"]) == PARSE_ON;
+            auto trigger = widget.items[item_index].trigger;
+            trigger->trigger(on);
+          }
+
+        } else {  // Scene
+          widget.trigger->trigger();
         }
-
-      } else {  // Scene
-        widget.trigger->trigger();
+        break;
       }
-      break;
+      default:
+        ESP_LOGW(TAG, "Unsupported command received! 0x%02X - %s", type, message.c_str());
+        break;
     }
-    default:
-      ESP_LOGW(TAG, "Unsupported command received! 0x%02X - %s", type, message.c_str());
-      break;
   }
   this->json_message_trigger_->trigger(type, root);
 }
