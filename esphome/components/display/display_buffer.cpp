@@ -213,7 +213,6 @@ void DisplayBuffer::vprintf_(int x, int y, Font *font, Color color, TextAlign al
 void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color color_off) {
   switch (image->get_type()) {
     case IMAGE_TYPE_BINARY:
-    case IMAGE_TYPE_TRANSPARENT_BINARY:
       for (int img_x = 0; img_x < image->get_width(); img_x++) {
         for (int img_y = 0; img_y < image->get_height(); img_y++) {
           this->draw_pixel_at(x + img_x, y + img_y, image->get_pixel(img_x, img_y) ? color_on : color_off);
@@ -231,6 +230,14 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
       for (int img_x = 0; img_x < image->get_width(); img_x++) {
         for (int img_y = 0; img_y < image->get_height(); img_y++) {
           this->draw_pixel_at(x + img_x, y + img_y, image->get_color_pixel(img_x, img_y));
+        }
+      }
+      break;
+    case IMAGE_TYPE_TRANSPARENT_BINARY:
+      for (int img_x = 0; img_x < image->get_width(); img_x++) {
+        for (int img_y = 0; img_y < image->get_height(); img_y++) {
+          if (image->get_pixel(img_x, img_y))
+            this->draw_pixel_at(x + img_x, y + img_y, color_on);
         }
       }
       break;
