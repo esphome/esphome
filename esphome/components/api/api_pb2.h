@@ -147,6 +147,7 @@ class HelloResponse : public ProtoMessage {
   uint32_t api_version_major{0};
   uint32_t api_version_minor{0};
   std::string server_info{};
+  std::string name{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

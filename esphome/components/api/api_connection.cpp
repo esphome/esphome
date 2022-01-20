@@ -766,6 +766,8 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
   resp.api_version_major = 1;
   resp.api_version_minor = 6;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
+  resp.name = App.get_name();
+
   this->connection_state_ = ConnectionState::CONNECTED;
   return resp;
 }

@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/application.h"
 #include "proto.h"
 #include <cstring>
 
@@ -302,9 +303,16 @@ APIError APINoiseFrameHelper::state_action_() {
   }
   if (state_ == State::SERVER_HELLO) {
     // send server hello
-    uint8_t msg[1];
-    msg[0] = 0x01;  // chosen proto
-    aerr = write_frame_(msg, 1);
+    std::vector<uint8_t> msg;
+    // chosen proto
+    msg.push_back(0x01);
+
+    // node name, terminated by null byte
+    const std::string &name = App.get_name();
+    const uint8_t *name_ptr = reinterpret_cast<const uint8_t *>(name.c_str());
+    msg.insert(msg.end(), name_ptr, name_ptr + name.size() + 1);
+
+    aerr = write_frame_(msg.data(), msg.size());
     if (aerr != APIError::OK)
       return aerr;
 
