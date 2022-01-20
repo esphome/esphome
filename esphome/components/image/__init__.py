@@ -24,6 +24,7 @@ IMAGE_TYPE = {
     "BINARY": ImageType.IMAGE_TYPE_BINARY,
     "GRAYSCALE": ImageType.IMAGE_TYPE_GRAYSCALE,
     "RGB24": ImageType.IMAGE_TYPE_RGB24,
+    "TRANSPARENT_BINARY": ImageType.IMAGE_TYPE_TRANSPARENT_BINARY,
 }
 
 Image_ = display.display_ns.class_("Image")
@@ -95,6 +96,17 @@ async def to_code(config):
         for y in range(height):
             for x in range(width):
                 if image.getpixel((x, y)):
+                    continue
+                pos = x + y * width8
+                data[pos // 8] |= 0x80 >> (pos % 8)
+
+    elif config[CONF_TYPE] == "TRANSPARENT_BINARY":
+        image = image.convert("RGBA")
+        width8 = ((width + 7) // 8) * 8
+        data = [0 for _ in range(height * width8 // 8)]
+        for y in range(height):
+            for x in range(width):
+                if not image.getpixel((x, y))[3]:
                     continue
                 pos = x + y * width8
                 data[pos // 8] |= 0x80 >> (pos % 8)
