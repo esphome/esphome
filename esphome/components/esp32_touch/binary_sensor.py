@@ -15,6 +15,22 @@ CONF_ESP32_TOUCH_ID = "esp32_touch_id"
 CONF_WAKEUP_THRESHOLD = "wakeup_threshold"
 
 TOUCH_PADS = {
+#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)    
+    1: cg.global_ns.TOUCH_PAD_NUM0,
+    2: cg.global_ns.TOUCH_PAD_NUM1,
+    3: cg.global_ns.TOUCH_PAD_NUM2,
+    4: cg.global_ns.TOUCH_PAD_NUM3,
+    5: cg.global_ns.TOUCH_PAD_NUM4,
+    6: cg.global_ns.TOUCH_PAD_NUM5,
+    7: cg.global_ns.TOUCH_PAD_NUM6,
+    8: cg.global_ns.TOUCH_PAD_NUM7,
+    9: cg.global_ns.TOUCH_PAD_NUM8,
+    10: cg.global_ns.TOUCH_PAD_NUM9,
+    11: cg.global_ns.TOUCH_PAD_NUM10,
+    12: cg.global_ns.TOUCH_PAD_NUM11,
+    13: cg.global_ns.TOUCH_PAD_NUM12,
+    14: cg.global_ns.TOUCH_PAD_NUM13,
+#else
     4: cg.global_ns.TOUCH_PAD_NUM0,
     0: cg.global_ns.TOUCH_PAD_NUM1,
     2: cg.global_ns.TOUCH_PAD_NUM2,
@@ -25,6 +41,7 @@ TOUCH_PADS = {
     27: cg.global_ns.TOUCH_PAD_NUM7,
     33: cg.global_ns.TOUCH_PAD_NUM8,
     32: cg.global_ns.TOUCH_PAD_NUM9,
+#endif
 }
 
 

@@ -27,7 +27,11 @@ void ESP32TouchComponent::setup() {
 
   for (auto *child : this->children_) {
     // Disable interrupt threshold
+#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)
+    touch_pad_config(child->get_touch_pad());
+#else
     touch_pad_config(child->get_touch_pad(), 0);
+#endif
   }
 }
 
@@ -117,11 +121,16 @@ void ESP32TouchComponent::loop() {
   bool should_print = this->setup_mode_ && now - this->setup_mode_last_log_print_ > 250;
   for (auto *child : this->children_) {
     uint16_t value;
+
+#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)
+    touch_pad_read_raw_data(child->get_touch_pad(), &value);
+#else
     if (this->iir_filter_enabled_()) {
       touch_pad_read_filtered(child->get_touch_pad(), &value);
     } else {
       touch_pad_read(child->get_touch_pad(), &value);
     }
+#endif
 
     child->value_ = value;
     child->publish_state(value < child->get_threshold());
@@ -143,8 +152,13 @@ void ESP32TouchComponent::on_shutdown() {
   bool is_wakeup_source = false;
 
   if (this->iir_filter_enabled_()) {
+#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)    
+    touch_pad_fsm_stop();
+    touch_pad_filter_disable();
+#else
     touch_pad_filter_stop();
     touch_pad_filter_delete();
+#endif
   }
 
   for (auto *child : this->children_) {
@@ -156,7 +170,11 @@ void ESP32TouchComponent::on_shutdown() {
       }
 
       // No filter available when using as wake-up source.
+#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)    
+      touch_pad_config(child->get_touch_pad());
+#else
       touch_pad_config(child->get_touch_pad(), child->get_wakeup_threshold());
+#endif
     }
   }
 
