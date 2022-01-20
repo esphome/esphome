@@ -91,6 +91,8 @@ class MQTTComponent : public Component {
   void set_custom_state_topic(const std::string &custom_state_topic);
   /// Set a custom command topic. Set to "" for default behavior.
   void set_custom_command_topic(const std::string &custom_command_topic);
+  /// Set whether command message should be retained.
+  void set_command_retain(bool command_retain);
 
   /// MQTT_COMPONENT setup priority.
   float get_setup_priority() const override;
@@ -189,6 +191,7 @@ class MQTTComponent : public Component {
  protected:
   std::string custom_state_topic_{};
   std::string custom_command_topic_{};
+  bool command_retain_{false};
   bool retain_{true};
   bool discovery_enabled_{true};
   std::unique_ptr<Availability> availability_;
