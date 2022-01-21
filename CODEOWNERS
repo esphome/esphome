@@ -89,6 +89,7 @@ esphome/components/json/* @OttoWinter
 esphome/components/kalman_combinator/* @Cat-Ion
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
+esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
 esphome/components/logger/* @esphome/core
 esphome/components/ltr390/* @sjtrny
 esphome/components/max7219digit/* @rspaargaren
