@@ -48,7 +48,7 @@ void WakeOnLanButton::press_action() {
     end_status = this->udp_client_.endPacket();
   }
   if (!begin_status || end_status) {
-    ESP_LOGE(TAG, "Sending Wake On Lan Packet Failed!");
+    ESP_LOGE(TAG, "Sending Wake-on-LAN Packet Failed!");
   }
 }
 
