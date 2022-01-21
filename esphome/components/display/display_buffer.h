@@ -341,14 +341,14 @@ class DisplayBuffer {
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
 
+  virtual int get_height_internal() = 0;
+  virtual int get_width_internal() = 0;
+  DisplayRotation get_rotation() const { return this->rotation_; }
+
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
 
   virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
-
-  virtual int get_height_internal() = 0;
-
-  virtual int get_width_internal() = 0;
 
   void init_internal_(uint32_t buffer_length);
 

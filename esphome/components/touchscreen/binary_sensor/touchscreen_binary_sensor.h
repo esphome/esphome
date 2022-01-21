@@ -1,12 +1,12 @@
 #pragma once
 
-#include "../ektf2232.h"
+#include "../touchscreen.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
 namespace esphome {
-namespace ektf2232 {
+namespace touchscreen {
 
-class EKTF2232Button : public binary_sensor::BinarySensor, public TouchListener {
+class TouchscreenBinarySensor : public binary_sensor::BinarySensor, public TouchListener {
  public:
   /// Set the touch screen area where the button will detect the touch.
   void set_area(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max) {
@@ -23,5 +23,5 @@ class EKTF2232Button : public binary_sensor::BinarySensor, public TouchListener 
   int16_t x_min_, x_max_, y_min_, y_max_;
 };
 
-}  // namespace ektf2232
+}  // namespace touchscreen
 }  // namespace esphome

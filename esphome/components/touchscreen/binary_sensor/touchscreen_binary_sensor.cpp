@@ -1,9 +1,9 @@
-#include "ektf2232_binary_sensor.h"
+#include "touchscreen_binary_sensor.h"
 
 namespace esphome {
-namespace ektf2232 {
+namespace touchscreen {
 
-void EKTF2232Button::touch(TouchPoint tp) {
+void TouchscreenBinarySensor::touch(TouchPoint tp) {
   bool touched = (tp.x >= this->x_min_ && tp.x <= this->x_max_ && tp.y >= this->y_min_ && tp.y <= this->y_max_);
 
   if (touched) {
@@ -13,7 +13,7 @@ void EKTF2232Button::touch(TouchPoint tp) {
   }
 }
 
-void EKTF2232Button::release() { this->publish_state(false); }
+void TouchscreenBinarySensor::release() { this->publish_state(false); }
 
-}  // namespace ektf2232
+}  // namespace touchscreen
 }  // namespace esphome
