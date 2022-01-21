@@ -81,32 +81,33 @@ ENUM_SPECIAL_EFFECT = {
     "SEPIA": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_SEPIA,
 }
 
+# pin assignment
 CONF_VSYNC_PIN = "vsync_pin"
 CONF_HREF_PIN = "href_pin"
 CONF_PIXEL_CLOCK_PIN = "pixel_clock_pin"
 CONF_EXTERNAL_CLOCK = "external_clock"
 CONF_I2C_PINS = "i2c_pins"
 CONF_POWER_DOWN_PIN = "power_down_pin"
-
+# image
 CONF_JPEG_QUALITY = "jpeg_quality"
 CONF_VERTICAL_FLIP = "vertical_flip"
 CONF_HORIZONTAL_MIRROR = "horizontal_mirror"
 CONF_SATURATION = "saturation"
 CONF_SPECIAL_EFFECT = "special_effect"
-
+# exposure
 CONF_AEC_MODE = "aec_mode"
 CONF_AEC2 = "aec2"
 CONF_AE_LEVEL = "ae_level"
 CONF_AEC_VALUE = "aec_value"
-
+# gains
 CONF_AGC_MODE = "agc_mode"
 CONF_AGC_VALUE = "agc_value"
 CONF_AGC_GAIN_CAILING = "agc_gain_ceiling"
-
+# white balance
 CONF_WHITE_BALANCE_MODE = "wb_mode"
-
+# test pattern
 CONF_TEST_PATTERN = "test_pattern"
-
+# framerates
 CONF_MAX_FRAMERATE = "max_framerate"
 CONF_IDLE_FRAMERATE = "idle_framerate"
 

@@ -27,23 +27,8 @@ void ESP32Camera::setup() {
     return;
   }
 
-  /* set camera parameters */
-  sensor_t *s = esp_camera_sensor_get();
-  s->set_vflip(s, this->vertical_flip_);
-  s->set_hmirror(s, this->horizontal_mirror_);
-  s->set_aec2(s, this->aec2_);            // 0 = disable , 1 = enable
-  s->set_ae_level(s, this->ae_level_);    // -2 to 2
-  s->set_aec_value(s, this->aec_value_);  // 0 to 1200
-  s->set_contrast(s, this->contrast_);
-  s->set_brightness(s, this->brightness_);
-  s->set_saturation(s, this->saturation_);
-  s->set_colorbar(s, this->test_pattern_);
-  s->set_gainceiling(s, (gainceiling_t) this->agc_gain_ceiling_);
-  s->set_exposure_ctrl(s, (bool) this->aec_mode_);
-  s->set_gain_ctrl(s, (bool) this->agc_mode_);
-  s->set_agc_gain(s, (int) this->agc_value_);             // 0 to 30
-  s->set_wb_mode(s, (int) this->wb_mode_);                // 0 to 4
-  s->set_special_effect(s, (int) this->special_effect_);  // 0 to 6
+  /* initialize camera parameters */
+  this->update_camera_parameters();
 
   /* initialize RTOS */
   this->framebuffer_get_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
@@ -120,8 +105,8 @@ void ESP32Camera::dump_config() {
   ESP_LOGCONFIG(TAG, "  Saturation: %d", st.saturation);
   ESP_LOGCONFIG(TAG, "  Vertical Flip: %s", ONOFF(st.vflip));
   ESP_LOGCONFIG(TAG, "  Horizontal Mirror: %s", ONOFF(st.hmirror));
-  // ESP_LOGCONFIG(TAG, "  Special Effect: %u", st.special_effect);
-  // ESP_LOGCONFIG(TAG, "  White Balance Mode: %u", st.wb_mode);
+  ESP_LOGCONFIG(TAG, "  Special Effect: %u", st.special_effect);
+  ESP_LOGCONFIG(TAG, "  White Balance Mode: %u", st.wb_mode);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance: %u", st.awb);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance Gain: %u", st.awb_gain);
   ESP_LOGCONFIG(TAG, "  Auto Exposure Control: %u", st.aec);
@@ -283,9 +268,6 @@ void ESP32Camera::set_agc_value(uint8_t agc_value) { this->agc_value_ = agc_valu
 void ESP32Camera::set_agc_gain_ceiling(ESP32AecGainCeiling gain_ceiling) { this->agc_gain_ceiling_ = gain_ceiling; }
 /* set white balance */
 void ESP32Camera::set_wb_mode(ESP32WhiteBalanceMode mode) { this->wb_mode_ = mode; }
-void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&f) {
-  this->new_image_callback_.add(std::move(f));
-}
 /* set test mode */
 void ESP32Camera::set_test_pattern(bool test_pattern) { this->test_pattern_ = test_pattern; }
 /* set fps */
@@ -297,9 +279,35 @@ void ESP32Camera::set_idle_update_interval(uint32_t idle_update_interval) {
 }
 
 /* ---------------- public API (specific) ---------------- */
-void ESP32Camera::start_stream(CameraRequester requester) { this->stream_requesters_ |= 1 << requester; }
-void ESP32Camera::stop_stream(CameraRequester requester) { this->stream_requesters_ &= ~(1 << requester); }
-void ESP32Camera::request_image(CameraRequester requester) { this->single_requesters_ |= 1 << requester; }
+void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&f) {
+  this->new_image_callback_.add(std::move(f));
+}
+void ESP32Camera::start_stream(CameraRequester requester) { this->stream_requesters_ |= (1U << requester); }
+void ESP32Camera::stop_stream(CameraRequester requester) { this->stream_requesters_ &= ~(1U << requester); }
+void ESP32Camera::request_image(CameraRequester requester) { this->single_requesters_ |= (1U << requester); }
+void ESP32Camera::update_camera_parameters(void) {
+  sensor_t *s = esp_camera_sensor_get();
+  /* update image */
+  s->set_vflip(s, this->vertical_flip_);
+  s->set_hmirror(s, this->horizontal_mirror_);
+  s->set_contrast(s, this->contrast_);
+  s->set_brightness(s, this->brightness_);
+  s->set_saturation(s, this->saturation_);
+  s->set_special_effect(s, (int) this->special_effect_);  // 0 to 6
+  /* update exposure */
+  s->set_exposure_ctrl(s, (bool) this->aec_mode_);
+  s->set_aec2(s, this->aec2_);            // 0 = disable , 1 = enable
+  s->set_ae_level(s, this->ae_level_);    // -2 to 2
+  s->set_aec_value(s, this->aec_value_);  // 0 to 1200
+  /* update gains */
+  s->set_gain_ctrl(s, (bool) this->agc_mode_);
+  s->set_agc_gain(s, (int) this->agc_value_);             // 0 to 30
+  s->set_gainceiling(s, (gainceiling_t) this->agc_gain_ceiling_);
+  /* update white balance mode */
+  s->set_wb_mode(s, (int) this->wb_mode_);                // 0 to 4
+  /* update test patern */
+  s->set_colorbar(s, this->test_pattern_);
+}
 
 /* ---------------- Internal methods ---------------- */
 uint32_t ESP32Camera::hash_base() { return 3010542557UL; }

@@ -143,6 +143,7 @@ class ESP32Camera : public Component, public EntityBase {
   void start_stream(CameraRequester requester);
   void stop_stream(CameraRequester requester);
   void request_image(CameraRequester requester);
+  void update_camera_parameters(void);
 
  protected:
   /* internal methods */
