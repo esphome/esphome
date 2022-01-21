@@ -199,3 +199,12 @@ script:
           count: 5
           then:
             - logger.log: "looping!"
+
+ektf2232:
+  interrupt_pin: GPIO36
+  rts_pin: GPIO5
+  rotation: 90
+  on_touch:
+    - logger.log:
+        format: Touch at (%d, %d)
+        args: ["touch.x", "touch.y"]
