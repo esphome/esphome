@@ -21,7 +21,7 @@ void WakeOnLanButton::set_macaddr(uint8_t a, uint8_t b, uint8_t c, uint8_t d, ui
 }
 
 void WakeOnLanButton::dump_config() {
-  ESP_LOGCONFIG(TAG, "wake_on_lan:");
+  LOG_BUTTON("", "Wake-on-LAN Button", this);
   ESP_LOGCONFIG(TAG, "  Target MAC address: %02X:%02X:%02X:%02X:%02X:%02X", macaddr_[0], macaddr_[1], macaddr_[2],
                 macaddr_[3], macaddr_[4], macaddr_[5]);
 }
