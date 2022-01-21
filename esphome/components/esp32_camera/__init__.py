@@ -23,6 +23,7 @@ AUTO_LOAD = ["psram"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
+
 ESP32CameraFrameSize = esp32_camera_ns.enum("ESP32CameraFrameSize")
 FRAME_SIZES = {
     "160X120": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_160X120,
@@ -61,6 +62,24 @@ ENUM_GAIN_CONTROL_MODE = {
     "MANUAL": ESP32GainControlMode.ESP32_GC_MODE_MANU,
     "AUTO": ESP32GainControlMode.ESP32_GC_MODE_AUTO,
 }
+ESP32WhiteBalanceMode = esp32_camera_ns.enum("ESP32WhiteBalanceMode")
+ENUM_WHITE_BALANCE_MODE = {
+    "AUTO": ESP32WhiteBalanceMode.ESP32_WB_MODE_AUTO,
+    "SUNNY": ESP32WhiteBalanceMode.ESP32_WB_MODE_SUNNY,
+    "CLOUDY": ESP32WhiteBalanceMode.ESP32_WB_MODE_CLOUDY,
+    "OFFICE": ESP32WhiteBalanceMode.ESP32_WB_MODE_OFFICE,
+    "HOME": ESP32WhiteBalanceMode.ESP32_WB_MODE_HOME,
+}
+ESP32SpecialEffect = esp32_camera_ns.enum("ESP32SpecialEffect")
+ENUM_SPECIAL_EFFECT = {
+    "NONE": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_NONE,
+    "NEGATIF": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_NEGATIF,
+    "GRAYSCALE": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_GRAYSCALE,
+    "RED_TINT": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_RED_TINT,
+    "GREEN_TINT": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_GREEN_TINT,
+    "BLUE_TINT": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_BLUE_TINT,
+    "SEPIA": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_SEPIA,
+}
 
 CONF_VSYNC_PIN = "vsync_pin"
 CONF_HREF_PIN = "href_pin"
@@ -83,6 +102,8 @@ CONF_AGC_GAIN_CAILING = "agc_gain_ceiling"
 CONF_AGC_MODE = "agc_mode"
 CONF_AEC_MODE = "aec_mode"
 CONF_AGC_VALUE = "agc_value"
+CONF_WHITE_BALANCE_MODE = "wb_mode"
+CONF_SPECIAL_EFFECT = "special_effect"
 
 camera_range_param = cv.int_range(min=-2, max=2)
 
@@ -140,6 +161,12 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
             ENUM_GAIN_CONTROL_MODE, upper=True
         ),
         cv.Optional(CONF_AGC_VALUE, default=0): cv.int_range(min=0, max=30),
+        cv.Optional(CONF_WHITE_BALANCE_MODE, default="AUTO"): cv.enum(
+            ENUM_WHITE_BALANCE_MODE, upper=True
+        ),
+        cv.Optional(CONF_SPECIAL_EFFECT, default="NONE"): cv.enum(
+            ENUM_SPECIAL_EFFECT, upper=True
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -164,6 +191,8 @@ SETTERS = {
     CONF_AGC_MODE: "set_agc_mode",
     CONF_AEC_MODE: "set_aec_mode",
     CONF_AGC_VALUE: "set_agc_value",
+    CONF_WHITE_BALANCE_MODE: "set_wb_mode",
+    CONF_SPECIAL_EFFECT: "set_special_effect",
 }
 
 

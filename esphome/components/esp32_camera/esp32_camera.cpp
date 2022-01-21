@@ -33,10 +33,12 @@ void ESP32Camera::setup() {
   s->set_brightness(s, this->brightness_);
   s->set_saturation(s, this->saturation_);
   s->set_colorbar(s, this->test_pattern_);
-  s->set_gainceiling(s, (gainceiling_t)this->agc_gain_ceiling_);
-  s->set_exposure_ctrl(s, (bool)this->aec_mode_);
-  s->set_gain_ctrl(s, (bool)this->agc_mode_);
-  s->set_agc_gain(s, this->agc_value_);  // 0 to 30
+  s->set_gainceiling(s, (gainceiling_t) this->agc_gain_ceiling_);
+  s->set_exposure_ctrl(s, (bool) this->aec_mode_);
+  s->set_gain_ctrl(s, (bool) this->agc_mode_);
+  s->set_agc_gain(s, (int) this->agc_value_);             // 0 to 30
+  s->set_wb_mode(s, (int) this->wb_mode_);                // 0 to 4
+  s->set_special_effect(s, (int) this->special_effect_);  // 0 to 6
 
   this->framebuffer_get_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
   this->framebuffer_return_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
@@ -285,6 +287,8 @@ void ESP32Camera::set_agc_gain_ceiling(ESP32AecGainCeiling gain_ceiling) { this-
 void ESP32Camera::set_agc_mode(ESP32GainControlMode mode) { this->agc_mode_ = mode; }
 void ESP32Camera::set_aec_mode(ESP32GainControlMode mode) { this->aec_mode_ = mode; }
 void ESP32Camera::set_agc_value(uint8_t agc_value) { this->agc_value_ = agc_value; }
+void ESP32Camera::set_wb_mode(ESP32WhiteBalanceMode mode) { this->wb_mode_ = mode; }
+void ESP32Camera::set_special_effect(ESP32SpecialEffect effect) { this->special_effect_ = effect; }
 
 ESP32Camera *global_esp32_camera;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

@@ -43,31 +43,49 @@ class CameraImageReader {
 };
 
 enum ESP32CameraFrameSize {
- ESP32_CAMERA_SIZE_160X120,    // QQVGA
- ESP32_CAMERA_SIZE_176X144,    // QCIF
- ESP32_CAMERA_SIZE_240X176,    // HQVGA
- ESP32_CAMERA_SIZE_320X240,    // QVGA
- ESP32_CAMERA_SIZE_400X296,    // CIF
- ESP32_CAMERA_SIZE_640X480,    // VGA
- ESP32_CAMERA_SIZE_800X600,    // SVGA
- ESP32_CAMERA_SIZE_1024X768,   // XGA
- ESP32_CAMERA_SIZE_1280X1024,  // SXGA
- ESP32_CAMERA_SIZE_1600X1200,  // UXGA
+  ESP32_CAMERA_SIZE_160X120,    // QQVGA
+  ESP32_CAMERA_SIZE_176X144,    // QCIF
+  ESP32_CAMERA_SIZE_240X176,    // HQVGA
+  ESP32_CAMERA_SIZE_320X240,    // QVGA
+  ESP32_CAMERA_SIZE_400X296,    // CIF
+  ESP32_CAMERA_SIZE_640X480,    // VGA
+  ESP32_CAMERA_SIZE_800X600,    // SVGA
+  ESP32_CAMERA_SIZE_1024X768,   // XGA
+  ESP32_CAMERA_SIZE_1280X1024,  // SXGA
+  ESP32_CAMERA_SIZE_1600X1200,  // UXGA
 };
 
 enum ESP32AecGainCeiling {
- ESP32_GAINCEILING_2X = GAINCEILING_2X,
- ESP32_GAINCEILING_4X = GAINCEILING_4X,
- ESP32_GAINCEILING_8X = GAINCEILING_8X,
- ESP32_GAINCEILING_16X = GAINCEILING_16X,
- ESP32_GAINCEILING_32X = GAINCEILING_32X,
- ESP32_GAINCEILING_64X = GAINCEILING_64X,
- ESP32_GAINCEILING_128X = GAINCEILING_128X,
+  ESP32_GAINCEILING_2X = GAINCEILING_2X,
+  ESP32_GAINCEILING_4X = GAINCEILING_4X,
+  ESP32_GAINCEILING_8X = GAINCEILING_8X,
+  ESP32_GAINCEILING_16X = GAINCEILING_16X,
+  ESP32_GAINCEILING_32X = GAINCEILING_32X,
+  ESP32_GAINCEILING_64X = GAINCEILING_64X,
+  ESP32_GAINCEILING_128X = GAINCEILING_128X,
 };
 
 enum ESP32GainControlMode {
- ESP32_GC_MODE_MANU = false,
- ESP32_GC_MODE_AUTO = true,
+  ESP32_GC_MODE_MANU = false,
+  ESP32_GC_MODE_AUTO = true,
+};
+
+enum ESP32WhiteBalanceMode {
+  ESP32_WB_MODE_AUTO = 0U,
+  ESP32_WB_MODE_SUNNY = 1U,
+  ESP32_WB_MODE_CLOUDY = 2U,
+  ESP32_WB_MODE_OFFICE = 3U,
+  ESP32_WB_MODE_HOME = 4U,
+};
+
+enum ESP32SpecialEffect {
+  ESP32_SPECIAL_EFFECT_NONE = 0U,
+  ESP32_SPECIAL_EFFECT_NEGATIF = 1U,
+  ESP32_SPECIAL_EFFECT_GRAYSCALE = 2U,
+  ESP32_SPECIAL_EFFECT_RED_TINT = 3U,
+  ESP32_SPECIAL_EFFECT_GREEN_TINT = 4U,
+  ESP32_SPECIAL_EFFECT_BLUE_TINT = 5U,
+  ESP32_SPECIAL_EFFECT_SEPIA = 6U,
 };
 
 class ESP32Camera : public Component, public EntityBase {
@@ -99,6 +117,8 @@ class ESP32Camera : public Component, public EntityBase {
   void set_agc_mode(ESP32GainControlMode mode);
   void set_aec_mode(ESP32GainControlMode mode);
   void set_agc_value(uint8_t agc_value);
+  void set_wb_mode(ESP32WhiteBalanceMode mode);
+  void set_special_effect(ESP32SpecialEffect effect);
 
   void setup() override;
   void loop() override;
@@ -127,9 +147,11 @@ class ESP32Camera : public Component, public EntityBase {
   int saturation_{0};
   bool test_pattern_{false};
   ESP32AecGainCeiling agc_gain_ceiling_{ESP32_GAINCEILING_2X};
-  ESP32GainControlMode aec_mode_{ESP32GainControlMode::ESP32_GC_MODE_AUTO};
-  ESP32GainControlMode agc_mode_{ESP32GainControlMode::ESP32_GC_MODE_AUTO};
+  ESP32GainControlMode aec_mode_{ESP32_GC_MODE_AUTO};
+  ESP32GainControlMode agc_mode_{ESP32_GC_MODE_AUTO};
   uint8_t agc_value_{0};
+  ESP32WhiteBalanceMode wb_mode_{ESP32_WB_MODE_AUTO};
+  ESP32SpecialEffect special_effect_{ESP32_SPECIAL_EFFECT_NONE};
 
   esp_err_t init_error_{ESP_OK};
   std::shared_ptr<CameraImage> current_image_;
