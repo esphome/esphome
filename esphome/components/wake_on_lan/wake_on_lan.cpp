@@ -27,7 +27,7 @@ void WakeOnLanButton::dump_config() {
 }
 
 void WakeOnLanButton::press_action() {
-  ESP_LOGI(TAG, "Sending Wake On Lan Packet...");
+  ESP_LOGI(TAG, "Sending Wake-on-LAN Packet...");
   bool begin_status = false;
   bool end_status = false;
   uint32_t interface = esphome::network::get_ip_address();
