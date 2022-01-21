@@ -34,6 +34,9 @@ void ESP32Camera::setup() {
   s->set_saturation(s, this->saturation_);
   s->set_colorbar(s, this->test_pattern_);
   s->set_gainceiling(s, (gainceiling_t)this->agc_gain_ceiling_);
+  s->set_exposure_ctrl(s, (bool)this->aec_mode_);
+  s->set_gain_ctrl(s, (bool)this->agc_mode_);
+  s->set_agc_gain(s, this->agc_value_);  // 0 to 30
 
   this->framebuffer_get_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
   this->framebuffer_return_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
@@ -112,12 +115,12 @@ void ESP32Camera::dump_config() {
   // ESP_LOGCONFIG(TAG, "  White Balance Mode: %u", st.wb_mode);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance: %u", st.awb);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance Gain: %u", st.awb_gain);
-  // ESP_LOGCONFIG(TAG, "  Auto Exposure Control: %u", st.aec);
+  ESP_LOGCONFIG(TAG, "  Auto Exposure Control: %u", st.aec);
   ESP_LOGCONFIG(TAG, "  Auto Exposure Control 2: %u", st.aec2);
   ESP_LOGCONFIG(TAG, "  Auto Exposure Level: %d", st.ae_level);
   ESP_LOGCONFIG(TAG, "  Auto Exposure Value: %u", st.aec_value);
-  // ESP_LOGCONFIG(TAG, "  AGC: %u", st.agc);
-  // ESP_LOGCONFIG(TAG, "  AGC Gain: %u", st.agc_gain);
+  ESP_LOGCONFIG(TAG, "  AGC: %u", st.agc);
+  ESP_LOGCONFIG(TAG, "  AGC Gain: %u", st.agc_gain);
   ESP_LOGCONFIG(TAG, "  Gain Ceiling: %u", st.gainceiling);
   // ESP_LOGCONFIG(TAG, "  BPC: %u", st.bpc);
   // ESP_LOGCONFIG(TAG, "  WPC: %u", st.wpc);
@@ -279,6 +282,9 @@ void ESP32Camera::set_idle_update_interval(uint32_t idle_update_interval) {
 }
 void ESP32Camera::set_test_pattern(bool test_pattern) { this->test_pattern_ = test_pattern; }
 void ESP32Camera::set_agc_gain_ceiling(ESP32AecGainCeiling gain_ceiling) { this->agc_gain_ceiling_ = gain_ceiling; }
+void ESP32Camera::set_agc_mode(ESP32GainControlMode mode) { this->agc_mode_ = mode; }
+void ESP32Camera::set_aec_mode(ESP32GainControlMode mode) { this->aec_mode_ = mode; }
+void ESP32Camera::set_agc_value(uint8_t agc_value) { this->agc_value_ = agc_value; }
 
 ESP32Camera *global_esp32_camera;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

@@ -56,6 +56,11 @@ ENUM_GAIN_CEILING = {
     "64X": ESP32AecGainCeiling.ESP32_GAINCEILING_64X,
     "128X": ESP32AecGainCeiling.ESP32_GAINCEILING_128X,
 }
+ESP32GainControlMode = esp32_camera_ns.enum("ESP32GainControlMode")
+ENUM_GAIN_CONTROL_MODE = {
+    "MANUAL": ESP32GainControlMode.ESP32_GC_MODE_MANU,
+    "AUTO": ESP32GainControlMode.ESP32_GC_MODE_AUTO,
+}
 
 CONF_VSYNC_PIN = "vsync_pin"
 CONF_HREF_PIN = "href_pin"
@@ -75,6 +80,9 @@ CONF_AEC_VALUE = "aec_value"
 CONF_SATURATION = "saturation"
 CONF_TEST_PATTERN = "test_pattern"
 CONF_AGC_GAIN_CAILING = "agc_gain_ceiling"
+CONF_AGC_MODE = "agc_mode"
+CONF_AEC_MODE = "aec_mode"
+CONF_AGC_VALUE = "agc_value"
 
 camera_range_param = cv.int_range(min=-2, max=2)
 
@@ -125,6 +133,13 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         cv.Optional(CONF_AGC_GAIN_CAILING, default="2X"): cv.enum(
             ENUM_GAIN_CEILING, upper=True
         ),
+        cv.Optional(CONF_AGC_MODE, default="AUTO"): cv.enum(
+            ENUM_GAIN_CONTROL_MODE, upper=True
+        ),
+        cv.Optional(CONF_AEC_MODE, default="AUTO"): cv.enum(
+            ENUM_GAIN_CONTROL_MODE, upper=True
+        ),
+        cv.Optional(CONF_AGC_VALUE, default=0): cv.int_range(min=0, max=30),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -146,6 +161,9 @@ SETTERS = {
     CONF_SATURATION: "set_saturation",
     CONF_TEST_PATTERN: "set_test_pattern",
     CONF_AGC_GAIN_CAILING: "set_agc_gain_ceiling",
+    CONF_AGC_MODE: "set_agc_mode",
+    CONF_AEC_MODE: "set_aec_mode",
+    CONF_AGC_VALUE: "set_agc_value",
 }
 
 

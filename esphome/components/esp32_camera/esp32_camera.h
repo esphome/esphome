@@ -65,11 +65,15 @@ enum ESP32AecGainCeiling {
  ESP32_GAINCEILING_128X = GAINCEILING_128X,
 };
 
+enum ESP32GainControlMode {
+ ESP32_GC_MODE_MANU = false,
+ ESP32_GC_MODE_AUTO = true,
+};
+
 class ESP32Camera : public Component, public EntityBase {
  public:
   ESP32Camera(const std::string &name);
   ESP32Camera();
-
   void set_data_pins(std::array<uint8_t, 8> pins);
   void set_vsync_pin(uint8_t pin);
   void set_href_pin(uint8_t pin);
@@ -92,6 +96,9 @@ class ESP32Camera : public Component, public EntityBase {
   void set_idle_update_interval(uint32_t idle_update_interval);
   void set_test_pattern(bool test_pattern);
   void set_agc_gain_ceiling(ESP32AecGainCeiling gain_ceiling);
+  void set_agc_mode(ESP32GainControlMode mode);
+  void set_aec_mode(ESP32GainControlMode mode);
+  void set_agc_value(uint8_t agc_value);
 
   void setup() override;
   void loop() override;
@@ -120,6 +127,9 @@ class ESP32Camera : public Component, public EntityBase {
   int saturation_{0};
   bool test_pattern_{false};
   ESP32AecGainCeiling agc_gain_ceiling_{ESP32_GAINCEILING_2X};
+  ESP32GainControlMode aec_mode_{ESP32GainControlMode::ESP32_GC_MODE_AUTO};
+  ESP32GainControlMode agc_mode_{ESP32GainControlMode::ESP32_GC_MODE_AUTO};
+  uint8_t agc_value_{0};
 
   esp_err_t init_error_{ESP_OK};
   std::shared_ptr<CameraImage> current_image_;
