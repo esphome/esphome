@@ -43,22 +43,33 @@ class CameraImageReader {
 };
 
 enum ESP32CameraFrameSize {
-  ESP32_CAMERA_SIZE_160X120,    // QQVGA
-  ESP32_CAMERA_SIZE_176X144,    // QCIF
-  ESP32_CAMERA_SIZE_240X176,    // HQVGA
-  ESP32_CAMERA_SIZE_320X240,    // QVGA
-  ESP32_CAMERA_SIZE_400X296,    // CIF
-  ESP32_CAMERA_SIZE_640X480,    // VGA
-  ESP32_CAMERA_SIZE_800X600,    // SVGA
-  ESP32_CAMERA_SIZE_1024X768,   // XGA
-  ESP32_CAMERA_SIZE_1280X1024,  // SXGA
-  ESP32_CAMERA_SIZE_1600X1200,  // UXGA
+ ESP32_CAMERA_SIZE_160X120,    // QQVGA
+ ESP32_CAMERA_SIZE_176X144,    // QCIF
+ ESP32_CAMERA_SIZE_240X176,    // HQVGA
+ ESP32_CAMERA_SIZE_320X240,    // QVGA
+ ESP32_CAMERA_SIZE_400X296,    // CIF
+ ESP32_CAMERA_SIZE_640X480,    // VGA
+ ESP32_CAMERA_SIZE_800X600,    // SVGA
+ ESP32_CAMERA_SIZE_1024X768,   // XGA
+ ESP32_CAMERA_SIZE_1280X1024,  // SXGA
+ ESP32_CAMERA_SIZE_1600X1200,  // UXGA
+};
+
+enum ESP32AecGainCeiling {
+ ESP32_GAINCEILING_2X = GAINCEILING_2X,
+ ESP32_GAINCEILING_4X = GAINCEILING_4X,
+ ESP32_GAINCEILING_8X = GAINCEILING_8X,
+ ESP32_GAINCEILING_16X = GAINCEILING_16X,
+ ESP32_GAINCEILING_32X = GAINCEILING_32X,
+ ESP32_GAINCEILING_64X = GAINCEILING_64X,
+ ESP32_GAINCEILING_128X = GAINCEILING_128X,
 };
 
 class ESP32Camera : public Component, public EntityBase {
  public:
   ESP32Camera(const std::string &name);
   ESP32Camera();
+
   void set_data_pins(std::array<uint8_t, 8> pins);
   void set_vsync_pin(uint8_t pin);
   void set_href_pin(uint8_t pin);
@@ -80,6 +91,8 @@ class ESP32Camera : public Component, public EntityBase {
   void set_max_update_interval(uint32_t max_update_interval);
   void set_idle_update_interval(uint32_t idle_update_interval);
   void set_test_pattern(bool test_pattern);
+  void set_agc_gain_ceiling(ESP32AecGainCeiling gain_ceiling);
+
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -106,6 +119,7 @@ class ESP32Camera : public Component, public EntityBase {
   int brightness_{0};
   int saturation_{0};
   bool test_pattern_{false};
+  ESP32AecGainCeiling agc_gain_ceiling_{ESP32_GAINCEILING_2X};
 
   esp_err_t init_error_{ESP_OK};
   std::shared_ptr<CameraImage> current_image_;

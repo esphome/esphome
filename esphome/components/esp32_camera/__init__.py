@@ -46,6 +46,16 @@ FRAME_SIZES = {
     "1600X1200": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1600X1200,
     "UXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1600X1200,
 }
+ESP32AecGainCeiling = esp32_camera_ns.enum("ESP32AecGainCeiling")
+ENUM_GAIN_CEILING = {
+    "2X": ESP32AecGainCeiling.ESP32_GAINCEILING_2X,
+    "4X": ESP32AecGainCeiling.ESP32_GAINCEILING_4X,
+    "8X": ESP32AecGainCeiling.ESP32_GAINCEILING_8X,
+    "16X": ESP32AecGainCeiling.ESP32_GAINCEILING_16X,
+    "32X": ESP32AecGainCeiling.ESP32_GAINCEILING_32X,
+    "64X": ESP32AecGainCeiling.ESP32_GAINCEILING_64X,
+    "128X": ESP32AecGainCeiling.ESP32_GAINCEILING_128X,
+}
 
 CONF_VSYNC_PIN = "vsync_pin"
 CONF_HREF_PIN = "href_pin"
@@ -64,6 +74,7 @@ CONF_AE_LEVEL = "ae_level"
 CONF_AEC_VALUE = "aec_value"
 CONF_SATURATION = "saturation"
 CONF_TEST_PATTERN = "test_pattern"
+CONF_AGC_GAIN_CAILING = "agc_gain_ceiling"
 
 camera_range_param = cv.int_range(min=-2, max=2)
 
@@ -111,6 +122,9 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         cv.Optional(CONF_AE_LEVEL, default=0): camera_range_param,
         cv.Optional(CONF_AEC_VALUE, default=300): cv.int_range(min=0, max=1200),
         cv.Optional(CONF_TEST_PATTERN, default=False): cv.boolean,
+        cv.Optional(CONF_AGC_GAIN_CAILING, default="2X"): cv.enum(
+            ENUM_GAIN_CEILING, upper=True
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -131,6 +145,7 @@ SETTERS = {
     CONF_BRIGHTNESS: "set_brightness",
     CONF_SATURATION: "set_saturation",
     CONF_TEST_PATTERN: "set_test_pattern",
+    CONF_AGC_GAIN_CAILING: "set_agc_gain_ceiling",
 }
 
 

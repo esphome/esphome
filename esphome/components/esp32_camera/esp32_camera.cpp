@@ -33,6 +33,8 @@ void ESP32Camera::setup() {
   s->set_brightness(s, this->brightness_);
   s->set_saturation(s, this->saturation_);
   s->set_colorbar(s, this->test_pattern_);
+  s->set_gainceiling(s, (gainceiling_t)this->agc_gain_ceiling_);
+
   this->framebuffer_get_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
   this->framebuffer_return_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
   xTaskCreatePinnedToCore(&ESP32Camera::framebuffer_task,
@@ -116,7 +118,7 @@ void ESP32Camera::dump_config() {
   ESP_LOGCONFIG(TAG, "  Auto Exposure Value: %u", st.aec_value);
   // ESP_LOGCONFIG(TAG, "  AGC: %u", st.agc);
   // ESP_LOGCONFIG(TAG, "  AGC Gain: %u", st.agc_gain);
-  // ESP_LOGCONFIG(TAG, "  Gain Ceiling: %u", st.gainceiling);
+  ESP_LOGCONFIG(TAG, "  Gain Ceiling: %u", st.gainceiling);
   // ESP_LOGCONFIG(TAG, "  BPC: %u", st.bpc);
   // ESP_LOGCONFIG(TAG, "  WPC: %u", st.wpc);
   // ESP_LOGCONFIG(TAG, "  RAW_GMA: %u", st.raw_gma);
@@ -276,6 +278,7 @@ void ESP32Camera::set_idle_update_interval(uint32_t idle_update_interval) {
   this->idle_update_interval_ = idle_update_interval;
 }
 void ESP32Camera::set_test_pattern(bool test_pattern) { this->test_pattern_ = test_pattern; }
+void ESP32Camera::set_agc_gain_ceiling(ESP32AecGainCeiling gain_ceiling) { this->agc_gain_ceiling_ = gain_ceiling; }
 
 ESP32Camera *global_esp32_camera;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
