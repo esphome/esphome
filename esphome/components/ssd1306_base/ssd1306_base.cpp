@@ -105,7 +105,9 @@ void SSD1306::setup() {
 
   // Set addressing mode to horizontal (0x20)
   this->command(SSD1306_COMMAND_MEMORY_MODE);
-  this->command(0x00);
+  if (!this->is_sh1107_())
+    // SH1107 memory mode is a 1 byte command
+    this->command(0x00);
 
   // X flip mode (0xA0, 0xA1)
   this->command(SSD1306_COMMAND_SEGRE_MAP | this->flip_x_);
