@@ -8,10 +8,16 @@
 namespace esphome {
 namespace pulse_meter {
 
+enum PulseMeterInternalFilterMode {
+  PULSE_METER_EDGE = 0,
+  PULSE_METER_PULSE,
+};
+
 class PulseMeterSensor : public sensor::Sensor, public Component {
  public:
   void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
   void set_filter_us(uint32_t filter) { this->filter_us_ = filter; }
+  void set_filter_mode(PulseMeterInternalFilterMode  mode) { this->filter_mode_ = mode; }
   void set_timeout_us(uint32_t timeout) { this->timeout_us_ = timeout; }
   void set_total_sensor(sensor::Sensor *sensor) { this->total_sensor_ = sensor; }
 
@@ -30,6 +36,7 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   uint32_t filter_us_ = 0;
   uint32_t timeout_us_ = 1000000UL * 60UL * 5UL;
   sensor::Sensor *total_sensor_ = nullptr;
+  PulseMeterInternalFilterMode filter_mode_{PULSE_METER_EDGE};
 
   Deduplicator<uint32_t> pulse_width_dedupe_;
   Deduplicator<uint32_t> total_dedupe_;
