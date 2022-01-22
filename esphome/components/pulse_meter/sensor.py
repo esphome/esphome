@@ -23,10 +23,12 @@ CODEOWNERS = ["@stevebaxter", "@cstaahl"]
 
 pulse_meter_ns = cg.esphome_ns.namespace("pulse_meter")
 
-PulseMeterInternalFilterMode = pulse_meter_ns.enum("PulseMeterInternalFilterMode")
+PulseMeterInternalFilterMode = pulse_meter_ns.enum(
+    "PulseMeterSensor::InternalFilterMode", True
+)
 FILTER_MODES = {
-    "EDGE": PulseMeterInternalFilterMode.PULSE_METER_EDGE,
-    "PULSE": PulseMeterInternalFilterMode.PULSE_METER_PULSE,
+    "EDGE": PulseMeterInternalFilterMode.FILTER_EDGE,
+    "PULSE": PulseMeterInternalFilterMode.FILTER_PULSE,
 }
 
 PulseMeterSensor = pulse_meter_ns.class_(

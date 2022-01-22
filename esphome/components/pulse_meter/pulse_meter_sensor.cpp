@@ -19,7 +19,7 @@ void PulseMeterSensor::loop() {
   const uint32_t now = micros();
 
   // Check to see if we should filter this edge out
-  if (this->filter_mode_ == PULSE_METER_EDGE) {
+  if (this->filter_mode_ == FILTER_EDGE) {
     if ((this->last_detected_edge_us_ - this->last_valid_edge_us_) >= this->filter_us_) {
       // Don't measure the first valid pulse (we need at least two pulses to measure the width)
       if (this->last_valid_edge_us_ != 0) {
@@ -46,7 +46,9 @@ void PulseMeterSensor::loop() {
   // If we've exceeded our timeout interval without receiving any pulses, assume 0 pulses/min until
   // we get at least two valid pulses.
   const uint32_t time_since_valid_edge_us = now - this->last_valid_edge_us_;
-  if ((this->last_valid_edge_us_ != 0) && (time_since_valid_edge_us > this->timeout_us_) && (this->pulse_width_us_ != 0)) {
+
+  if ((this->last_valid_edge_us_ != 0) && (time_since_valid_edge_us > this->timeout_us_) &&
+      (this->pulse_width_us_ != 0)) {
     ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", time_since_valid_edge_us / 1000000);
     this->pulse_width_us_ = 0;
   }
@@ -76,7 +78,7 @@ void PulseMeterSensor::set_total_pulses(uint32_t pulses) { this->total_pulses_ =
 void PulseMeterSensor::dump_config() {
   LOG_SENSOR("", "Pulse Meter", this);
   LOG_PIN("  Pin: ", this->pin_);
-  if (this->filter_mode_ == PULSE_METER_EDGE) {
+  if (this->filter_mode_ == FILTER_EDGE) {
     ESP_LOGCONFIG(TAG, "  Filtering rising edges less than %u µs apart", this->filter_us_);
   } else {
     ESP_LOGCONFIG(TAG, "  Filtering pulses shorter than %u µs", this->filter_us_);
@@ -91,7 +93,7 @@ void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
   const uint32_t now = micros();
 
   // We only look at rising edges in EDGE mode, and all edges in PULSE mode
-  if (sensor->filter_mode_ == PULSE_METER_EDGE) {
+  if (sensor->filter_mode_ == FILTER_EDGE) {
     if (sensor->isr_pin_.digital_read()) {
       sensor->last_detected_edge_us_ = now;
     }
