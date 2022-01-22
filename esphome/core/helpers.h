@@ -176,6 +176,9 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
       cb(args...);
   }
 
+  /// Call all callbacks in this manager.
+  void operator()(Ts... args) { call(args...); }
+
  protected:
   std::vector<std::function<void(Ts...)>> callbacks_;
 };
