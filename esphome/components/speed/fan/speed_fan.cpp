@@ -7,6 +7,9 @@ namespace speed {
 
 static const char *const TAG = "speed.fan";
 
+void SpeedFan::setup() {
+  this->restore_state_().to_call(*this).perform();
+}
 void SpeedFan::dump_config() { LOG_FAN("", "Speed Fan", this); }
 fan::FanTraits SpeedFan::get_traits() {
   return fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_);

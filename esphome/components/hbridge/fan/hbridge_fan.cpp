@@ -28,6 +28,9 @@ fan::FanCall HBridgeFan::brake() {
   return this->make_call().set_state(false);
 }
 
+void HBridgeFan::setup() {
+  this->restore_state_().to_call(*this).perform();
+}
 void HBridgeFan::dump_config() {
   LOG_FAN("", "H-Bridge Fan", this);
   if (this->decay_mode_ == DECAY_MODE_SLOW) {

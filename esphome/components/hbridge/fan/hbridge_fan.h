@@ -21,6 +21,7 @@ class HBridgeFan : public Component, public fan::Fan {
   void set_pin_b(output::FloatOutput *pin_b) { pin_b_ = pin_b; }
   void set_enable_pin(output::FloatOutput *enable) { enable_ = enable; }
 
+  void setup() override;
   void dump_config() override;
   fan::FanTraits get_traits() override;
 

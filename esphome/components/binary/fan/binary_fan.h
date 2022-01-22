@@ -9,6 +9,7 @@ namespace binary {
 
 class BinaryFan : public Component, public fan::Fan {
  public:
+  void setup() override;
   void dump_config() override;
 
   void set_output(output::BinaryOutput *output) { this->output_ = output; }

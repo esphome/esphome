@@ -40,6 +40,8 @@ void TuyaFan::setup() {
       this->publish_state();
     });
   }
+
+  this->restore_state_().to_call(*this).perform();
 }
 
 void TuyaFan::dump_config() {
