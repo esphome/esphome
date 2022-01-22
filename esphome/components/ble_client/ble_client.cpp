@@ -391,7 +391,7 @@ BLEDescriptor *BLECharacteristic::get_descriptor(uint16_t uuid) {
 void BLECharacteristic::write_value(uint8_t *new_val, int16_t new_val_size) {
   auto client = this->service->client;
   auto status = esp_ble_gattc_write_char(client->gattc_if, client->conn_id, this->handle, new_val_size, new_val,
-                                         ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+                                         ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     ESP_LOGW(TAG, "Error sending write value to BLE gattc server, status=%d", status);
   }
