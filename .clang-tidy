@@ -68,7 +68,6 @@ Checks: >-
   -modernize-use-nodiscard,
   -mpi-*,
   -objc-*,
-  -readability-braces-around-statements,
   -readability-const-return-type,
   -readability-convert-member-functions-to-static,
   -readability-else-after-return,
@@ -114,6 +113,8 @@ CheckOptions:
     value:           'make_unique'
   - key:             modernize-make-unique.MakeSmartPtrFunctionHeader
     value:           'esphome/core/helpers.h'
+  - key:             readability-braces-around-statements.ShortStatementLines
+    value:           2
   - key:             readability-identifier-naming.LocalVariableCase
     value:           'lower_case'
   - key:             readability-identifier-naming.ClassCase

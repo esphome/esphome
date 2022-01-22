@@ -91,64 +91,74 @@ void WebServer::setup() {
     client->send("", "ping", millis(), 30000);
 
 #ifdef USE_SENSOR
-    for (auto *obj : App.get_sensors())
+    for (auto *obj : App.get_sensors()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->sensor_json(obj, obj->state).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_SWITCH
-    for (auto *obj : App.get_switches())
+    for (auto *obj : App.get_switches()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->switch_json(obj, obj->state).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_BINARY_SENSOR
-    for (auto *obj : App.get_binary_sensors())
+    for (auto *obj : App.get_binary_sensors()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->binary_sensor_json(obj, obj->state).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_FAN
-    for (auto *obj : App.get_fans())
+    for (auto *obj : App.get_fans()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->fan_json(obj).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_LIGHT
-    for (auto *obj : App.get_lights())
+    for (auto *obj : App.get_lights()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->light_json(obj).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_TEXT_SENSOR
-    for (auto *obj : App.get_text_sensors())
+    for (auto *obj : App.get_text_sensors()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->text_sensor_json(obj, obj->state).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_COVER
-    for (auto *obj : App.get_covers())
+    for (auto *obj : App.get_covers()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->cover_json(obj).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_NUMBER
-    for (auto *obj : App.get_numbers())
+    for (auto *obj : App.get_numbers()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->number_json(obj, obj->state).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_SELECT
-    for (auto *obj : App.get_selects())
+    for (auto *obj : App.get_selects()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->select_json(obj, obj->state).c_str(), "state");
+    }
 #endif
   });
 
 #ifdef USE_LOGGER
-  if (logger::global_logger != nullptr)
+  if (logger::global_logger != nullptr) {
     logger::global_logger->add_on_log_callback(
         [this](int level, const char *tag, const char *message) { this->events_.send(message, "log", millis()); });
+  }
 #endif
   this->base_->add_handler(&this->events_);
   this->base_->add_handler(this);
@@ -187,15 +197,17 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   stream->addHeader("Access-Control-Allow-Origin", "*");
 
 #ifdef USE_SENSOR
-  for (auto *obj : App.get_sensors())
+  for (auto *obj : App.get_sensors()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "sensor", "");
+  }
 #endif
 
 #ifdef USE_SWITCH
-  for (auto *obj : App.get_switches())
+  for (auto *obj : App.get_switches()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "switch", "<button>Toggle</button>");
+  }
 #endif
 
 #ifdef USE_BUTTON
@@ -204,38 +216,43 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  for (auto *obj : App.get_binary_sensors())
+  for (auto *obj : App.get_binary_sensors()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "binary_sensor", "");
+  }
 #endif
 
 #ifdef USE_FAN
-  for (auto *obj : App.get_fans())
+  for (auto *obj : App.get_fans()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "fan", "<button>Toggle</button>");
+  }
 #endif
 
 #ifdef USE_LIGHT
-  for (auto *obj : App.get_lights())
+  for (auto *obj : App.get_lights()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "light", "<button>Toggle</button>");
+  }
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  for (auto *obj : App.get_text_sensors())
+  for (auto *obj : App.get_text_sensors()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "text_sensor", "");
+  }
 #endif
 
 #ifdef USE_COVER
-  for (auto *obj : App.get_covers())
+  for (auto *obj : App.get_covers()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "cover", "<button>Open</button><button>Close</button>");
+  }
 #endif
 
 #ifdef USE_NUMBER
-  for (auto *obj : App.get_numbers())
-    if (this->include_internal_ || !obj->is_internal())
+  for (auto *obj : App.get_numbers()) {
+    if (this->include_internal_ || !obj->is_internal()) {
       write_row(stream, obj, "number", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         number::Number *number = (number::Number *) obj;
         stream.print(R"(<input type="number" min=")");
@@ -248,11 +265,13 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
         stream.print(number->state);
         stream.print(R"("/>)");
       });
+    }
+  }
 #endif
 
 #ifdef USE_SELECT
-  for (auto *obj : App.get_selects())
-    if (this->include_internal_ || !obj->is_internal())
+  for (auto *obj : App.get_selects()) {
+    if (this->include_internal_ || !obj->is_internal()) {
       write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         select::Select *select = (select::Select *) obj;
         stream.print("<select>");
@@ -264,6 +283,8 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
         }
         stream.print("</select>");
       });
+    }
+  }
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "

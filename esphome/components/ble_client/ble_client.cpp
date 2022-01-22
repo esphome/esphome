@@ -252,9 +252,10 @@ float BLEClient::parse_char_value(uint8_t *value, uint16_t length) {
 }
 
 BLEService *BLEClient::get_service(espbt::ESPBTUUID uuid) {
-  for (auto svc : this->services_)
+  for (auto svc : this->services_) {
     if (svc->uuid == uuid)
       return svc;
+  }
   return nullptr;
 }
 
@@ -272,19 +273,24 @@ BLECharacteristic *BLEClient::get_characteristic(uint16_t service, uint16_t chr)
 }
 
 BLEDescriptor *BLEClient::get_config_descriptor(uint16_t handle) {
-  for (auto &svc : this->services_)
-    for (auto &chr : svc->characteristics)
-      if (chr->handle == handle)
-        for (auto &desc : chr->descriptors)
+  for (auto &svc : this->services_) {
+    for (auto &chr : svc->characteristics) {
+      if (chr->handle == handle) {
+        for (auto &desc : chr->descriptors) {
           if (desc->uuid == espbt::ESPBTUUID::from_uint16(0x2902))
             return desc;
+        }
+      }
+    }
+  }
   return nullptr;
 }
 
 BLECharacteristic *BLEService::get_characteristic(espbt::ESPBTUUID uuid) {
-  for (auto &chr : this->characteristics)
+  for (auto &chr : this->characteristics) {
     if (chr->uuid == uuid)
       return chr;
+  }
   return nullptr;
 }
 
@@ -379,9 +385,10 @@ void BLECharacteristic::parse_descriptors() {
 }
 
 BLEDescriptor *BLECharacteristic::get_descriptor(espbt::ESPBTUUID uuid) {
-  for (auto &desc : this->descriptors)
+  for (auto &desc : this->descriptors) {
     if (desc->uuid == uuid)
       return desc;
+  }
   return nullptr;
 }
 BLEDescriptor *BLECharacteristic::get_descriptor(uint16_t uuid) {

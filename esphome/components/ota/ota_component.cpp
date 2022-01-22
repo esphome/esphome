@@ -452,10 +452,11 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
 
   bool is_manual_safe_mode = this->safe_mode_rtc_value_ == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC;
 
-  if (is_manual_safe_mode)
+  if (is_manual_safe_mode) {
     ESP_LOGI(TAG, "Safe mode has been entered manually");
-  else
+  } else {
     ESP_LOGCONFIG(TAG, "There have been %u suspected unsuccessful boot attempts.", this->safe_mode_rtc_value_);
+  }
 
   if (this->safe_mode_rtc_value_ >= num_attempts || is_manual_safe_mode) {
     this->clean_rtc();

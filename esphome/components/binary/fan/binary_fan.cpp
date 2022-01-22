@@ -28,10 +28,11 @@ void BinaryFan::loop() {
 
   {
     bool enable = this->fan_->state;
-    if (enable)
+    if (enable) {
       this->output_->turn_on();
-    else
+    } else {
       this->output_->turn_off();
+    }
     ESP_LOGD(TAG, "Setting binary state: %s", ONOFF(enable));
   }
 

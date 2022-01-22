@@ -20,10 +20,11 @@ class ModbusBinarySensor : public Component, public binary_sensor::BinarySensor,
     this->skip_updates = skip_updates;
     this->force_new_range = force_new_range;
 
-    if (register_type == ModbusRegisterType::COIL || register_type == ModbusRegisterType::DISCRETE_INPUT)
+    if (register_type == ModbusRegisterType::COIL || register_type == ModbusRegisterType::DISCRETE_INPUT) {
       this->register_count = offset + 1;
-    else
+    } else {
       this->register_count = 1;
+    }
   }
 
   void parse_and_publish(const std::vector<uint8_t> &data) override;
