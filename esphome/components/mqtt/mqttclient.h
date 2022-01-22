@@ -128,8 +128,8 @@ class MQTTClientComponent : public Component {
   void add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint);
 #endif
 #ifdef USE_ESP_IDF
-  void set_ca_certificate(const char *cert) { this->mqtt_client_.set_ca_certificate(cert); }
-  void set_skip_cert_cn_check(bool skip_check) { this->mqtt_client_.set_skip_cert_cn_check(skip_check); }
+  void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
+  void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
 #endif
   const Availability &get_availability();
 
@@ -277,9 +277,9 @@ class MQTTClientComponent : public Component {
 
   std::vector<MQTTSubscription> subscriptions_;
 #ifdef USE_ESP_IDF
-  MQTTBackendIDF mqtt_client_;
+  MQTTBackendIDF mqtt_backend_;
 #else
-  MQTTBackendArduino mqtt_client_;
+  MQTTBackendArduino mqtt_backend_;
 #endif
 
   MQTTClientState state_{MQTT_CLIENT_DISCONNECTED};
