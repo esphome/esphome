@@ -265,7 +265,7 @@ void ESP32Camera::set_aec_value(uint32_t aec_value) { this->aec_value_ = aec_val
 /* set gains parameters */
 void ESP32Camera::set_agc_mode(ESP32GainControlMode mode) { this->agc_mode_ = mode; }
 void ESP32Camera::set_agc_value(uint8_t agc_value) { this->agc_value_ = agc_value; }
-void ESP32Camera::set_agc_gain_ceiling(ESP32AecGainCeiling gain_ceiling) { this->agc_gain_ceiling_ = gain_ceiling; }
+void ESP32Camera::set_agc_gain_ceiling(ESP32AgcGainCeiling gain_ceiling) { this->agc_gain_ceiling_ = gain_ceiling; }
 /* set white balance */
 void ESP32Camera::set_wb_mode(ESP32WhiteBalanceMode mode) { this->wb_mode_ = mode; }
 /* set test mode */
@@ -285,7 +285,7 @@ void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<CameraIm
 void ESP32Camera::start_stream(CameraRequester requester) { this->stream_requesters_ |= (1U << requester); }
 void ESP32Camera::stop_stream(CameraRequester requester) { this->stream_requesters_ &= ~(1U << requester); }
 void ESP32Camera::request_image(CameraRequester requester) { this->single_requesters_ |= (1U << requester); }
-void ESP32Camera::update_camera_parameters(void) {
+void ESP32Camera::update_camera_parameters() {
   sensor_t *s = esp_camera_sensor_get();
   /* update image */
   s->set_vflip(s, this->vertical_flip_);
@@ -301,10 +301,10 @@ void ESP32Camera::update_camera_parameters(void) {
   s->set_aec_value(s, this->aec_value_);  // 0 to 1200
   /* update gains */
   s->set_gain_ctrl(s, (bool) this->agc_mode_);
-  s->set_agc_gain(s, (int) this->agc_value_);             // 0 to 30
+  s->set_agc_gain(s, (int) this->agc_value_);  // 0 to 30
   s->set_gainceiling(s, (gainceiling_t) this->agc_gain_ceiling_);
   /* update white balance mode */
-  s->set_wb_mode(s, (int) this->wb_mode_);                // 0 to 4
+  s->set_wb_mode(s, (int) this->wb_mode_);  // 0 to 4
   /* update test patern */
   s->set_colorbar(s, this->test_pattern_);
 }

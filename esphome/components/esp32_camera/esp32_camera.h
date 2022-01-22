@@ -30,7 +30,7 @@ enum ESP32CameraFrameSize {
   ESP32_CAMERA_SIZE_1600X1200,  // UXGA
 };
 
-enum ESP32AecGainCeiling {
+enum ESP32AgcGainCeiling {
   ESP32_GAINCEILING_2X = GAINCEILING_2X,
   ESP32_GAINCEILING_4X = GAINCEILING_4X,
   ESP32_GAINCEILING_8X = GAINCEILING_8X,
@@ -124,7 +124,7 @@ class ESP32Camera : public Component, public EntityBase {
   /* -- gains */
   void set_agc_mode(ESP32GainControlMode mode);
   void set_agc_value(uint8_t agc_value);
-  void set_agc_gain_ceiling(ESP32AecGainCeiling gain_ceiling);
+  void set_agc_gain_ceiling(ESP32AgcGainCeiling gain_ceiling);
   /* -- white balance */
   void set_wb_mode(ESP32WhiteBalanceMode mode);
   /* -- test */
@@ -143,7 +143,7 @@ class ESP32Camera : public Component, public EntityBase {
   void start_stream(CameraRequester requester);
   void stop_stream(CameraRequester requester);
   void request_image(CameraRequester requester);
-  void update_camera_parameters(void);
+  void update_camera_parameters();
 
  protected:
   /* internal methods */
@@ -171,7 +171,7 @@ class ESP32Camera : public Component, public EntityBase {
   /* -- gains */
   ESP32GainControlMode agc_mode_{ESP32_GC_MODE_AUTO};
   uint8_t agc_value_{0};
-  ESP32AecGainCeiling agc_gain_ceiling_{ESP32_GAINCEILING_2X};
+  ESP32AgcGainCeiling agc_gain_ceiling_{ESP32_GAINCEILING_2X};
   /* -- white balance */
   ESP32WhiteBalanceMode wb_mode_{ESP32_WB_MODE_AUTO};
   /* -- Test */

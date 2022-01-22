@@ -52,18 +52,18 @@ ENUM_GAIN_CONTROL_MODE = {
     "MANUAL": ESP32GainControlMode.ESP32_GC_MODE_MANU,
     "AUTO": ESP32GainControlMode.ESP32_GC_MODE_AUTO,
 }
-ESP32AecGainCeiling = esp32_camera_ns.enum("ESP32AecGainCeiling")
+ESP32AgcGainCeiling = esp32_camera_ns.enum("ESP32AgcGainCeiling")
 ENUM_GAIN_CEILING = {
-    "2X": ESP32AecGainCeiling.ESP32_GAINCEILING_2X,
-    "4X": ESP32AecGainCeiling.ESP32_GAINCEILING_4X,
-    "8X": ESP32AecGainCeiling.ESP32_GAINCEILING_8X,
-    "16X": ESP32AecGainCeiling.ESP32_GAINCEILING_16X,
-    "32X": ESP32AecGainCeiling.ESP32_GAINCEILING_32X,
-    "64X": ESP32AecGainCeiling.ESP32_GAINCEILING_64X,
-    "128X": ESP32AecGainCeiling.ESP32_GAINCEILING_128X,
+    "2X": ESP32AgcGainCeiling.ESP32_GAINCEILING_2X,
+    "4X": ESP32AgcGainCeiling.ESP32_GAINCEILING_4X,
+    "8X": ESP32AgcGainCeiling.ESP32_GAINCEILING_8X,
+    "16X": ESP32AgcGainCeiling.ESP32_GAINCEILING_16X,
+    "32X": ESP32AgcGainCeiling.ESP32_GAINCEILING_32X,
+    "64X": ESP32AgcGainCeiling.ESP32_GAINCEILING_64X,
+    "128X": ESP32AgcGainCeiling.ESP32_GAINCEILING_128X,
 }
 ESP32WhiteBalanceMode = esp32_camera_ns.enum("ESP32WhiteBalanceMode")
-ENUM_WHITE_BALANCE_MODE = {
+ENUM_WB_MODE = {
     "AUTO": ESP32WhiteBalanceMode.ESP32_WB_MODE_AUTO,
     "SUNNY": ESP32WhiteBalanceMode.ESP32_WB_MODE_SUNNY,
     "CLOUDY": ESP32WhiteBalanceMode.ESP32_WB_MODE_CLOUDY,
@@ -102,9 +102,9 @@ CONF_AEC_VALUE = "aec_value"
 # gains
 CONF_AGC_MODE = "agc_mode"
 CONF_AGC_VALUE = "agc_value"
-CONF_AGC_GAIN_CAILING = "agc_gain_ceiling"
+CONF_AGC_GAIN_CEILING = "agc_gain_ceiling"
 # white balance
-CONF_WHITE_BALANCE_MODE = "wb_mode"
+CONF_WB_MODE = "wb_mode"
 # test pattern
 CONF_TEST_PATTERN = "test_pattern"
 # framerates
@@ -164,13 +164,11 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
             ENUM_GAIN_CONTROL_MODE, upper=True
         ),
         cv.Optional(CONF_AGC_VALUE, default=0): cv.int_range(min=0, max=30),
-        cv.Optional(CONF_AGC_GAIN_CAILING, default="2X"): cv.enum(
+        cv.Optional(CONF_AGC_GAIN_CEILING, default="2X"): cv.enum(
             ENUM_GAIN_CEILING, upper=True
         ),
         # white balance
-        cv.Optional(CONF_WHITE_BALANCE_MODE, default="AUTO"): cv.enum(
-            ENUM_WHITE_BALANCE_MODE, upper=True
-        ),
+        cv.Optional(CONF_WB_MODE, default="AUTO"): cv.enum(ENUM_WB_MODE, upper=True),
         # test pattern
         cv.Optional(CONF_TEST_PATTERN, default=False): cv.boolean,
         # framerates
@@ -207,9 +205,9 @@ SETTERS = {
     # gains
     CONF_AGC_MODE: "set_agc_mode",
     CONF_AGC_VALUE: "set_agc_value",
-    CONF_AGC_GAIN_CAILING: "set_agc_gain_ceiling",
+    CONF_AGC_GAIN_CEILING: "set_agc_gain_ceiling",
     # white balance
-    CONF_WHITE_BALANCE_MODE: "set_wb_mode",
+    CONF_WB_MODE: "set_wb_mode",
     # test pattern
     CONF_TEST_PATTERN: "set_test_pattern",
 }
