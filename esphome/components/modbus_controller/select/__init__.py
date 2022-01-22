@@ -120,7 +120,7 @@ async def to_code(config):
         template_ = await cg.process_lambda(
             config[CONF_LAMBDA],
             [
-                (ModbusSelect.operator("ptr"), "item"),
+                (ModbusSelect.operator("cptr"), "item"),
                 (cg.int64, "x"),
                 (
                     cg.std_vector.template(cg.uint8).operator("const").operator("ref"),
@@ -135,8 +135,8 @@ async def to_code(config):
         template_ = await cg.process_lambda(
             config[CONF_WRITE_LAMBDA],
             [
-                (ModbusSelect.operator("ptr"), "item"),
-                (cg.std_string, "x"),
+                (ModbusSelect.operator("cptr"), "item"),
+                (cg.std_string.operator("const").operator("ref"), "x"),
                 (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
                 (cg.bool_.operator("ref"), "skip_update"),
             ],
