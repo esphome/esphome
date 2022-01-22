@@ -20,6 +20,7 @@ namespace esphome {
 namespace api {
 
 static const char *const TAG = "api.connection";
+static const int ESP32_CAMERA_STOP_STREAM = 5000;
 
 APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
     : parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
@@ -704,7 +705,9 @@ void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage>
     return;
   if (this->image_reader_.available())
     return;
-  this->image_reader_.set_image(std::move(image));
+  if (image->was_requested_by(esphome::esp32_camera::API_REQUESTER) ||
+      image->was_requested_by(esphome::esp32_camera::IDLE))
+    this->image_reader_.set_image(std::move(image));
 }
 bool APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
   ListEntitiesCameraResponse msg;
@@ -722,9 +725,14 @@ void APIConnection::camera_image(const CameraImageRequest &msg) {
     return;
 
   if (msg.single)
-    esp32_camera::global_esp32_camera->request_image();
-  if (msg.stream)
-    esp32_camera::global_esp32_camera->request_stream();
+    esp32_camera::global_esp32_camera->request_image(esphome::esp32_camera::API_REQUESTER);
+  if (msg.stream) {
+    esp32_camera::global_esp32_camera->start_stream(esphome::esp32_camera::API_REQUESTER);
+
+    App.scheduler.set_timeout(this->parent_, "api_esp32_camera_stop_stream", ESP32_CAMERA_STOP_STREAM, []() {
+      esp32_camera::global_esp32_camera->stop_stream(esphome::esp32_camera::API_REQUESTER);
+    });
+  }
 }
 #endif
 
@@ -758,6 +766,8 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
   resp.api_version_major = 1;
   resp.api_version_minor = 6;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
+  resp.name = App.get_name();
+
   this->connection_state_ = ConnectionState::CONNECTED;
   return resp;
 }

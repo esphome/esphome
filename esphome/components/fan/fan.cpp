@@ -105,11 +105,32 @@ void Fan::publish_state() {
 
 // Random 32-bit value, change this every time the layout of the FanRestoreState struct changes.
 constexpr uint32_t RESTORE_STATE_VERSION = 0x71700ABA;
-optional<FanRestoreState> Fan::restore_state_() {
-  this->rtc_ = global_preferences->make_preference<FanRestoreState>(this->get_object_id_hash() ^ RESTORE_STATE_VERSION);
+FanRestoreState Fan::restore_state_() {
   FanRestoreState recovered{};
-  if (!this->rtc_.load(&recovered))
-    return {};
+  this->rtc_ = global_preferences->make_preference<FanRestoreState>(this->get_object_id_hash() ^ RESTORE_STATE_VERSION);
+  bool restored = this->rtc_.load(&recovered);
+
+  switch (this->restore_mode_) {
+    case FAN_RESTORE_INVERTED_DEFAULT_OFF:
+      recovered.state = restored ? !recovered.state : false;
+      break;
+    case FAN_RESTORE_INVERTED_DEFAULT_ON:
+      recovered.state = restored ? !recovered.state : true;
+      break;
+    case FAN_RESTORE_DEFAULT_OFF:
+      recovered.state = restored ? recovered.state : false;
+      break;
+    case FAN_RESTORE_DEFAULT_ON:
+      recovered.state = restored ? recovered.state : true;
+      break;
+    case FAN_ALWAYS_OFF:
+      recovered.state = false;
+      break;
+    case FAN_ALWAYS_ON:
+      recovered.state = true;
+      break;
+  }
+
   return recovered;
 }
 void Fan::save_state_() {

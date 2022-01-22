@@ -14,15 +14,19 @@ namespace esp32_camera {
 
 class ESP32Camera;
 
+enum CameraRequester { IDLE, API_REQUESTER, WEB_REQUESTER };
+
 class CameraImage {
  public:
-  CameraImage(camera_fb_t *buffer);
+  CameraImage(camera_fb_t *buffer, uint8_t requester);
   camera_fb_t *get_raw_buffer();
   uint8_t *get_data_buffer();
   size_t get_data_length();
+  bool was_requested_by(CameraRequester requester) const;
 
  protected:
   camera_fb_t *buffer_;
+  uint8_t requesters_;
 };
 
 class CameraImageReader {
@@ -81,8 +85,9 @@ class ESP32Camera : public Component, public EntityBase {
   void dump_config() override;
   void add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&f);
   float get_setup_priority() const override;
-  void request_stream();
-  void request_image();
+  void start_stream(CameraRequester requester);
+  void stop_stream(CameraRequester requester);
+  void request_image(CameraRequester requester);
 
  protected:
   uint32_t hash_base() override;
@@ -104,13 +109,14 @@ class ESP32Camera : public Component, public EntityBase {
 
   esp_err_t init_error_{ESP_OK};
   std::shared_ptr<CameraImage> current_image_;
-  uint32_t last_stream_request_{0};
-  bool single_requester_{false};
+  uint8_t single_requesters_{0};
+  uint8_t stream_requesters_{0};
   QueueHandle_t framebuffer_get_queue_;
   QueueHandle_t framebuffer_return_queue_;
   CallbackManager<void(std::shared_ptr<CameraImage>)> new_image_callback_;
   uint32_t max_update_interval_{1000};
   uint32_t idle_update_interval_{15000};
+  uint32_t last_idle_request_{0};
   uint32_t last_update_{0};
 };
 

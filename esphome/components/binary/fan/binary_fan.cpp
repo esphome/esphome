@@ -6,7 +6,7 @@ namespace binary {
 
 static const char *const TAG = "binary.fan";
 
-void binary::BinaryFan::dump_config() { LOG_FAN("", "Binary Fan", this); }
+void BinaryFan::dump_config() { LOG_FAN("", "Binary Fan", this); }
 fan::FanTraits BinaryFan::get_traits() {
   return fan::FanTraits(this->oscillating_ != nullptr, false, this->direction_ != nullptr, 0);
 }

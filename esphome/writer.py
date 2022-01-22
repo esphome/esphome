@@ -290,6 +290,11 @@ def copy_src_tree():
 
         copy_files()
 
+    elif CORE.is_esp8266:
+        from esphome.components.esp8266 import copy_files
+
+        copy_files()
+
 
 def generate_defines_h():
     define_content_l = [x.as_macro for x in CORE.defines]

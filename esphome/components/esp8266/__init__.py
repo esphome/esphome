@@ -1,4 +1,5 @@
 import logging
+import os
 
 from esphome.const import (
     CONF_BOARD,
@@ -14,6 +15,7 @@ from esphome.const import (
 from esphome.core import CORE, coroutine_with_priority
 import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.helpers import copy_file_if_changed
 
 from .const import CONF_RESTORE_FROM_FLASH, KEY_BOARD, KEY_ESP8266, esp8266_ns
 from .boards import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
@@ -158,6 +160,8 @@ async def to_code(config):
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "ESP8266")
 
+    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
+
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
@@ -210,3 +214,14 @@ async def to_code(config):
 
         if ld_script is not None:
             cg.add_platformio_option("board_build.ldscript", ld_script)
+
+
+# Called by writer.py
+def copy_files():
+
+    dir = os.path.dirname(__file__)
+    post_build_file = os.path.join(dir, "post_build.py.script")
+    copy_file_if_changed(
+        post_build_file,
+        CORE.relative_build_path("post_build.py"),
+    )

@@ -109,7 +109,7 @@ void ModbusController::queue_command(const ModbusCommandItem &command) {
   // not very effective but the queue is never really large
   for (auto &item : command_queue_) {
     if (item->register_address == command.register_address && item->register_count == command.register_count &&
-        item->register_type == command.register_type) {
+        item->register_type == command.register_type && item->function_code == command.function_code) {
       ESP_LOGW(TAG, "Duplicate modbus command found");
       // update the payload of the queued command
       // replaces a previous command

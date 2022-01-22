@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2022.1.0-dev"
+__version__ = "2022.2.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -685,6 +685,7 @@ CONF_TOLERANCE = "tolerance"
 CONF_TOPIC = "topic"
 CONF_TOPIC_PREFIX = "topic_prefix"
 CONF_TOTAL = "total"
+CONF_TOTAL_POWER = "total_power"
 CONF_TRACES = "traces"
 CONF_TRANSITION_LENGTH = "transition_length"
 CONF_TRIGGER_ID = "trigger_id"
