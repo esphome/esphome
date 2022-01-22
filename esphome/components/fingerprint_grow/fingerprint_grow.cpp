@@ -281,8 +281,8 @@ void FingerprintGrowComponent::led_control(bool state) {
   if (state) {
     this->data_ = {LED_ON};
   } else {
-    this->data_ = { LED_OFF }
-  };
+    this->data_ = {LED_OFF};
+  }
   switch (this->send_command_()) {
     case OK:
       ESP_LOGD(TAG, "LED set");

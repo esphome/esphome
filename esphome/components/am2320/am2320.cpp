@@ -23,8 +23,9 @@ uint16_t crc_16(uint8_t *ptr, uint8_t length) {
       if ((crc & 0x01) != 0) {
         crc >>= 1;
         crc ^= 0xA001;
-      } else
+      } else {
         crc >>= 1;
+      }
     }
   }
   return crc;
