@@ -64,10 +64,6 @@ def get_esp32_variant():
     return CORE.data[KEY_ESP32][KEY_VARIANT]
 
 
-def is_esp32c3():
-    return get_esp32_variant() == VARIANT_ESP32C3
-
-
 def only_on_variant(*, supported=None, unsupported=None):
     """Config validator for features only available on some ESP32 variants."""
     if supported is not None and not isinstance(supported, list):
