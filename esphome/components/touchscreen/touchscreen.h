@@ -43,6 +43,7 @@ class Touchscreen {
   void register_listener(TouchListener *listener) { this->touch_listeners_.push_back(listener); }
 
  protected:
+  /// Call this function to send touch points to the `on_touch` listener and the binary_sensors.
   void send_touch_(TouchPoint tp);
 
   uint16_t display_width_;
