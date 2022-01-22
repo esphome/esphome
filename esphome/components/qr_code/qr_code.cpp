@@ -3,23 +3,14 @@
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
 
-// The definition of these macro must be temporarily disabled to avoid conflicts
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#undef HIGH
-#undef LOW
-#endif
-
 namespace esphome {
 namespace qr_code {
 
 static const char *const TAG = "qr_code";
 
-void QrCode::setup() { this->generate_qr_code(); }
-
 void QrCode::dump_config() {
   ESP_LOGCONFIG(TAG, "QR code:");
   ESP_LOGCONFIG(TAG, "  Value: '%s'", this->value_.c_str());
-  ESP_LOGCONFIG(TAG, "  Scale: %d", this->scale_);
 }
 
 void QrCode::set_value(const std::string &value) {
@@ -27,19 +18,22 @@ void QrCode::set_value(const std::string &value) {
   this->needs_update_ = true;
 }
 
-void QrCode::set_scale(int scale) { this->scale_ = scale; }
-
-void QrCode::set_ecc(Ecc ecc) {
-  this->error_correction_level_ = (qrcodegen::QrCode::Ecc) ecc;
+void QrCode::set_ecc(qrcodegen_Ecc ecc) {
+  this->ecc_ = ecc;
   this->needs_update_ = true;
 }
 
 void QrCode::generate_qr_code() {
   ESP_LOGV(TAG, "Generating QR code...");
-  this->qr_ = qrcodegen::QrCode::encodeText(this->value_.c_str(), this->error_correction_level_);
+  uint8_t tempbuffer_[qrcodegen_BUFFER_LEN_MAX];
+
+  if (!qrcodegen_encodeText(this->value_.c_str(), tempbuffer_, this->qr_, this->ecc_, qrcodegen_VERSION_MIN,
+                            qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true)) {
+    ESP_LOGE(TAG, "Failed to generate QR code");
+  }
 }
 
-void QrCode::draw(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
+void QrCode::draw(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color, int scale) {
   ESP_LOGV(TAG, "Drawing QR code at (%d, %d)", x_offset, y_offset);
 
   if (this->needs_update_) {
@@ -47,11 +41,11 @@ void QrCode::draw(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_of
     this->needs_update_ = false;
   }
 
-  uint8_t qrcode_width = this->qr_.getSize();
+  uint8_t qrcode_width = qrcodegen_getSize(this->qr_);
 
-  for (int y = 0; y < qrcode_width * this->scale_; y++) {
-    for (int x = 0; x < qrcode_width * this->scale_; x++) {
-      if (this->qr_.getModule(x / this->scale_, y / this->scale_)) {
+  for (int y = 0; y < qrcode_width * scale; y++) {
+    for (int x = 0; x < qrcode_width * scale; x++) {
+      if (qrcodegen_getModule(this->qr_, x / scale, y / scale)) {
         buff->draw_pixel_at(x_offset + x, y_offset + y, color);
       }
     }

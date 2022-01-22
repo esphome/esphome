@@ -4,13 +4,7 @@
 
 #include <cstdint>
 
-// The definition of these macro must be temporarily disabled to avoid conflicts
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#undef HIGH
-#undef LOW
-#endif
-
-#include "cpp/qrcodegen.hpp"
+#include "qrcodegen.h"
 
 namespace esphome {
 // forward declare DisplayBuffer
@@ -19,34 +13,22 @@ class DisplayBuffer;
 }  // namespace display
 
 namespace qr_code {
-
-enum Ecc {
-  ECC_LOW = 0,
-  ECC_MEDIUM = 1,
-  ECC_QUARTILE = 2,
-  ECC_HIGH = 3,
-};
-
 class QrCode : public Component {
  public:
-  void draw(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color);
+  void draw(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color, int scale);
 
-  void setup() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void dump_config() override;
 
   void set_value(const std::string &value);
-  void set_scale(int scale);
-  void set_ecc(Ecc ecc);
+  void set_ecc(qrcodegen_Ecc ecc);
 
   void generate_qr_code();
 
  protected:
-  qrcodegen::QrCode::Ecc error_correction_level_;
-  bool needs_update_ = true;
-  qrcodegen::QrCode qr_ = qrcodegen::QrCode::encodeText("", qrcodegen::QrCode::Ecc::LOW);
-  int scale_;
   std::string value_;
+  qrcodegen_Ecc ecc_;
+  bool needs_update_ = true;
+  uint8_t qr_[qrcodegen_BUFFER_LEN_MAX];
 };
 }  // namespace qr_code
 }  // namespace esphome

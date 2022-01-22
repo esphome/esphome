@@ -242,8 +242,8 @@ void DisplayBuffer::legend(int x, int y, graph::Graph *graph, Color color_on) {
 #endif  // USE_GRAPH
 
 #ifdef USE_QR_CODE
-void DisplayBuffer::qr_code(int x, int y, qr_code::QrCode *qrcode, Color color_on) {
-  qrcode->draw(this, x, y, color_on);
+void DisplayBuffer::qr_code(int x, int y, qr_code::QrCode *qrcode, Color color_on, int scale) {
+  qrcode->draw(this, x, y, color_on, scale);
 }
 #endif  // USE_QR_CODE
 

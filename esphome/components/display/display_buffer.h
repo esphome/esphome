@@ -314,7 +314,7 @@ class DisplayBuffer {
    * @param qr_code The qr_code to draw
    * @param color_on The color to replace in binary images for the on bits.
    */
-  void qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on = COLOR_ON);
+  void qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on = COLOR_ON, int scale = 1);
 #endif
 
   /** Get the text bounds of the given string.
