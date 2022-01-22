@@ -393,7 +393,7 @@ class ModbusCommandItem {
 
 class ModbusController : public PollingComponent, public modbus::ModbusDevice {
  public:
-  ModbusController(uint16_t throttle = 0) : modbus::ModbusDevice(), command_throttle_(throttle){};
+  ModbusController(uint16_t throttle = 0) : command_throttle_(throttle){};
   void dump_config() override;
   void loop() override;
   void setup() override;
