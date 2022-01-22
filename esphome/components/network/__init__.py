@@ -1,6 +1,5 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.core import coroutine_with_priority
 from esphome.components.esp32 import add_idf_sdkconfig_option
 
 from esphome.const import (
