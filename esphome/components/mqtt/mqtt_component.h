@@ -186,7 +186,6 @@ class MQTTComponent : public Component {
   /// Generate the Home Assistant MQTT discovery object id by automatically transforming the friendly name.
   std::string get_default_object_id_() const;
 
- protected:
   std::string custom_state_topic_{};
   std::string custom_command_topic_{};
   bool retain_{true};
