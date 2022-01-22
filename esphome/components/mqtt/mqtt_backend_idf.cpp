@@ -19,16 +19,16 @@ bool MQTTBackendIDF::initialize_() {
   mqtt_cfg_.keepalive = this->keep_alive_;
   mqtt_cfg_.disable_clean_session = !this->clean_session_;
 
-  if (this->username_.empty()) {
+  if (!this->username_.empty()) {
     mqtt_cfg_.username = this->username_.c_str();
-    if (this->password_.empty()) {
+    if (!this->password_.empty()) {
       mqtt_cfg_.password = this->password_.c_str();
     }
   }
 
   if (!this->lwt_topic_.empty()) {
     mqtt_cfg_.lwt_topic = this->lwt_topic_.c_str();
-    // this->mqtt_cfg_.lwt_qos = this->lwt_qos_;
+    this->mqtt_cfg_.lwt_qos = this->lwt_qos_;
     this->mqtt_cfg_.lwt_retain = this->lwt_retain_;
 
     if (!this->lwt_message_.empty()) {
