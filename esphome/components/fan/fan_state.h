@@ -20,6 +20,15 @@ enum ESPDEPRECATED("FanSpeed is deprecated.", "2021.9") FanSpeed {
 /// Simple enum to represent the direction of a fan
 enum FanDirection { FAN_DIRECTION_FORWARD = 0, FAN_DIRECTION_REVERSE = 1 };
 
+enum FanRestoreMode {
+  FAN_RESTORE_DEFAULT_OFF,
+  FAN_RESTORE_DEFAULT_ON,
+  FAN_ALWAYS_OFF,
+  FAN_ALWAYS_ON,
+  FAN_RESTORE_INVERTED_DEFAULT_OFF,
+  FAN_RESTORE_INVERTED_DEFAULT_ON,
+};
+
 class FanState;
 
 class FanStateCall {
@@ -81,6 +90,9 @@ class FanState : public EntityBase, public Component {
   /// Set the traits of this fan (i.e. what features it supports).
   void set_traits(const FanTraits &traits);
 
+  /// Set the restore mode of this fan
+  void set_restore_mode(FanRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
+
   /// The current ON/OFF state of the fan.
   bool state{false};
   /// The current oscillation state of the fan.
@@ -106,6 +118,9 @@ class FanState : public EntityBase, public Component {
   FanTraits traits_{};
   CallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;
+
+  /// Restore mode of the fan.
+  FanRestoreMode restore_mode_;
 };
 
 }  // namespace fan

@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_ON_TURN_ON,
     CONF_TRIGGER_ID,
     CONF_DIRECTION,
+    CONF_RESTORE_MODE,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -33,6 +34,16 @@ FanDirection = fan_ns.enum("FanDirection")
 FAN_DIRECTION_ENUM = {
     "FORWARD": FanDirection.FAN_DIRECTION_FORWARD,
     "REVERSE": FanDirection.FAN_DIRECTION_REVERSE,
+}
+
+FanRestoreMode = fan_ns.enum("FanRestoreMode")
+RESTORE_MODES = {
+    "RESTORE_DEFAULT_OFF": FanRestoreMode.FAN_RESTORE_DEFAULT_OFF,
+    "RESTORE_DEFAULT_ON": FanRestoreMode.FAN_RESTORE_DEFAULT_ON,
+    "ALWAYS_OFF": FanRestoreMode.FAN_ALWAYS_OFF,
+    "ALWAYS_ON": FanRestoreMode.FAN_ALWAYS_ON,
+    "RESTORE_INVERTED_DEFAULT_OFF": FanRestoreMode.FAN_RESTORE_INVERTED_DEFAULT_OFF,
+    "RESTORE_INVERTED_DEFAULT_ON": FanRestoreMode.FAN_RESTORE_INVERTED_DEFAULT_ON,
 }
 
 # Actions
@@ -51,6 +62,9 @@ FanIsOffCondition = fan_ns.class_("FanIsOffCondition", automation.Condition.temp
 FAN_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(FanState),
+        cv.Optional(CONF_RESTORE_MODE, default="restore_default_off"): cv.enum(
+            RESTORE_MODES, upper=True, space="_"
+        ),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTFanComponent),
         cv.Optional(CONF_OSCILLATION_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
@@ -91,6 +105,8 @@ FAN_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).exte
 
 async def setup_fan_core_(var, config):
     await setup_entity(var, config)
+
+    cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
