@@ -6,7 +6,13 @@
 namespace esphome {
 namespace fan {
 
-class ESPDEPRECATED("FanState is deprecated, use Fan instead.", "2022.1") FanState : public Fan, public Component {
+enum ESPDEPRECATED("LegacyFanDirection members are deprecated, use FanDirection instead.",
+                   "2022.2") LegacyFanDirection {
+  FAN_DIRECTION_FORWARD = 0,
+  FAN_DIRECTION_REVERSE = 1
+};
+
+class ESPDEPRECATED("FanState is deprecated, use Fan instead.", "2022.2") FanState : public Fan, public Component {
  public:
   FanState() = default;
   explicit FanState(const std::string &name) : Fan(name) {}

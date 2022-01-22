@@ -9,9 +9,9 @@ static const char *const TAG = "fan";
 
 const LogString *fan_direction_to_string(FanDirection direction) {
   switch (direction) {
-    case FAN_DIRECTION_FORWARD:
+    case FanDirection::FORWARD:
       return LOG_STR("FORWARD");
-    case FAN_DIRECTION_REVERSE:
+    case FanDirection::REVERSE:
       return LOG_STR("REVERSE");
     default:
       return LOG_STR("UNKNOWN");
@@ -43,6 +43,21 @@ void FanCall::validate_() {
     if (traits.supports_speed() && !this->parent_.state && this->parent_.speed == 0) {
       this->speed_ = traits.supported_speed_count();
     }
+  }
+
+  if (this->oscillating_.has_value() && !traits.supports_oscillation()) {
+    ESP_LOGW(TAG, "'%s' - This fan does not support oscillation!", this->parent_.get_name().c_str());
+    this->oscillating_.reset();
+  }
+
+  if (this->speed_.has_value() && !traits.supports_speed()) {
+    ESP_LOGW(TAG, "'%s' - This fan does not support speeds!", this->parent_.get_name().c_str());
+    this->speed_.reset();
+  }
+
+  if (this->direction_.has_value() && !traits.supports_direction()) {
+    ESP_LOGW(TAG, "'%s' - This fan does not support directions!", this->parent_.get_name().c_str());
+    this->direction_.reset();
   }
 }
 
@@ -105,33 +120,35 @@ void Fan::publish_state() {
 
 // Random 32-bit value, change this every time the layout of the FanRestoreState struct changes.
 constexpr uint32_t RESTORE_STATE_VERSION = 0x71700ABA;
-FanRestoreState Fan::restore_state_() {
+optional<FanRestoreState> Fan::restore_state_() {
   FanRestoreState recovered{};
   this->rtc_ = global_preferences->make_preference<FanRestoreState>(this->get_object_id_hash() ^ RESTORE_STATE_VERSION);
   bool restored = this->rtc_.load(&recovered);
 
   switch (this->restore_mode_) {
-    case FAN_RESTORE_INVERTED_DEFAULT_OFF:
-      recovered.state = restored ? !recovered.state : false;
-      break;
-    case FAN_RESTORE_INVERTED_DEFAULT_ON:
-      recovered.state = restored ? !recovered.state : true;
-      break;
-    case FAN_RESTORE_DEFAULT_OFF:
-      recovered.state = restored ? recovered.state : false;
-      break;
-    case FAN_RESTORE_DEFAULT_ON:
-      recovered.state = restored ? recovered.state : true;
-      break;
-    case FAN_ALWAYS_OFF:
+    case FanRestoreMode::NO_RESTORE:
+      return {};
+    case FanRestoreMode::ALWAYS_OFF:
       recovered.state = false;
-      break;
-    case FAN_ALWAYS_ON:
+      return recovered;
+    case FanRestoreMode::ALWAYS_ON:
       recovered.state = true;
-      break;
+      return recovered;
+    case FanRestoreMode::RESTORE_DEFAULT_OFF:
+      recovered.state = restored ? recovered.state : false;
+      return recovered;
+    case FanRestoreMode::RESTORE_DEFAULT_ON:
+      recovered.state = restored ? recovered.state : true;
+      return recovered;
+    case FanRestoreMode::RESTORE_INVERTED_DEFAULT_OFF:
+      recovered.state = restored ? !recovered.state : false;
+      return recovered;
+    case FanRestoreMode::RESTORE_INVERTED_DEFAULT_ON:
+      recovered.state = restored ? !recovered.state : true;
+      return recovered;
   }
 
-  return recovered;
+  return {};
 }
 void Fan::save_state_() {
   FanRestoreState state{};

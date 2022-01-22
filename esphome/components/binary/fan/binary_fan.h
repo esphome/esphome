@@ -20,6 +20,7 @@ class BinaryFan : public Component, public fan::Fan {
 
  protected:
   void control(const fan::FanCall &call) override;
+  void write_state_();
 
   output::BinaryOutput *output_;
   output::BinaryOutput *oscillating_{nullptr};

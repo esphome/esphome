@@ -8,42 +8,37 @@ namespace speed {
 static const char *const TAG = "speed.fan";
 
 void SpeedFan::setup() {
-  this->restore_state_().to_call(*this).perform();
+  auto restore = this->restore_state_();
+  if (restore.has_value()) {
+    restore->apply(*this);
+    this->write_state_();
+  }
 }
 void SpeedFan::dump_config() { LOG_FAN("", "Speed Fan", this); }
 fan::FanTraits SpeedFan::get_traits() {
   return fan::FanTraits(this->oscillating_ != nullptr, true, this->direction_ != nullptr, this->speed_count_);
 }
 void SpeedFan::control(const fan::FanCall &call) {
-  if (call.get_state().has_value() || call.get_speed().has_value()) {
-    if (call.get_state().has_value())
-      this->state = *call.get_state();
-    if (call.get_speed().has_value())
-      this->speed = *call.get_speed();
-
-    float speed = this->state ? static_cast<float>(this->speed) / static_cast<float>(this->speed_count_) : 0.0f;
-    this->output_->set_level(speed);
-  }
-
-  if (this->oscillating_ != nullptr && call.get_oscillating().has_value()) {
+  if (call.get_state().has_value())
+    this->state = *call.get_state();
+  if (call.get_speed().has_value())
+    this->speed = *call.get_speed();
+  if (call.get_oscillating().has_value())
     this->oscillating = *call.get_oscillating();
-    if (*call.get_oscillating()) {
-      this->oscillating_->turn_on();
-    } else {
-      this->oscillating_->turn_off();
-    }
-  }
-
-  if (this->direction_ != nullptr && call.get_direction().has_value()) {
+  if (call.get_direction().has_value())
     this->direction = *call.get_direction();
-    if (*call.get_direction() == fan::FAN_DIRECTION_REVERSE) {
-      this->direction_->turn_on();
-    } else {
-      this->direction_->turn_off();
-    }
-  }
 
+  this->write_state_();
   this->publish_state();
+}
+void SpeedFan::write_state_() {
+  float speed = this->state ? static_cast<float>(this->speed) / static_cast<float>(this->speed_count_) : 0.0f;
+  this->output_->set_level(speed);
+
+  if (this->oscillating_ != nullptr)
+    this->oscillating_->set_state(this->oscillating);
+  if (this->direction_ != nullptr)
+    this->direction_->set_state(this->direction == fan::FanDirection::REVERSE);
 }
 
 }  // namespace speed

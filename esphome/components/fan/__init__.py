@@ -29,22 +29,22 @@ IS_PLATFORM_COMPONENT = True
 fan_ns = cg.esphome_ns.namespace("fan")
 Fan = fan_ns.class_("Fan", cg.EntityBase)
 FanState = fan_ns.class_("Fan", Fan, cg.Component)
-MakeFan = cg.Application.struct("MakeFan")
 
-FanDirection = fan_ns.enum("FanDirection")
+FanDirection = fan_ns.enum("FanDirection", is_class=True)
 FAN_DIRECTION_ENUM = {
-    "FORWARD": FanDirection.FAN_DIRECTION_FORWARD,
-    "REVERSE": FanDirection.FAN_DIRECTION_REVERSE,
+    "FORWARD": FanDirection.FORWARD,
+    "REVERSE": FanDirection.REVERSE,
 }
 
-FanRestoreMode = fan_ns.enum("FanRestoreMode")
+FanRestoreMode = fan_ns.enum("FanRestoreMode", is_class=True)
 RESTORE_MODES = {
-    "RESTORE_DEFAULT_OFF": FanRestoreMode.FAN_RESTORE_DEFAULT_OFF,
-    "RESTORE_DEFAULT_ON": FanRestoreMode.FAN_RESTORE_DEFAULT_ON,
-    "ALWAYS_OFF": FanRestoreMode.FAN_ALWAYS_OFF,
-    "ALWAYS_ON": FanRestoreMode.FAN_ALWAYS_ON,
-    "RESTORE_INVERTED_DEFAULT_OFF": FanRestoreMode.FAN_RESTORE_INVERTED_DEFAULT_OFF,
-    "RESTORE_INVERTED_DEFAULT_ON": FanRestoreMode.FAN_RESTORE_INVERTED_DEFAULT_ON,
+    "NO_RESTORE": FanRestoreMode.NO_RESTORE,
+    "ALWAYS_OFF": FanRestoreMode.ALWAYS_OFF,
+    "ALWAYS_ON": FanRestoreMode.ALWAYS_ON,
+    "RESTORE_DEFAULT_OFF": FanRestoreMode.RESTORE_DEFAULT_OFF,
+    "RESTORE_DEFAULT_ON": FanRestoreMode.RESTORE_DEFAULT_ON,
+    "RESTORE_INVERTED_DEFAULT_OFF": FanRestoreMode.RESTORE_INVERTED_DEFAULT_OFF,
+    "RESTORE_INVERTED_DEFAULT_ON": FanRestoreMode.RESTORE_INVERTED_DEFAULT_ON,
 }
 
 # Actions

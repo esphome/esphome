@@ -27,20 +27,16 @@ class HBridgeFan : public Component, public fan::Fan {
 
   fan::FanCall brake();
 
-  int get_speed_count() { return this->speed_count_; }
-  // update Hbridge without a triggered FanState change, eg. for acceleration/deceleration ramping
-  void internal_update() { this->next_update_ = true; }
-
  protected:
   output::FloatOutput *pin_a_;
   output::FloatOutput *pin_b_;
   output::FloatOutput *enable_{nullptr};
   output::BinaryOutput *oscillating_{nullptr};
-  bool next_update_{true};
   int speed_count_{};
   DecayMode decay_mode_{DECAY_MODE_SLOW};
 
   void control(const fan::FanCall &call) override;
+  void write_state_();
 
   void set_hbridge_levels_(float a_level, float b_level);
   void set_hbridge_levels_(float a_level, float b_level, float enable);
