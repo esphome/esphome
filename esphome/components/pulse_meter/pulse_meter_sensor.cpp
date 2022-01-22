@@ -46,9 +46,8 @@ void PulseMeterSensor::loop() {
   // If we've exceeded our timeout interval without receiving any pulses, assume 0 pulses/min until
   // we get at least two valid pulses.
   const uint32_t time_since_valid_edge_us = now - this->last_valid_edge_us_;
-  if ((this->last_valid_edge_us_ != 0) && (time_since_valid_edge_us > this->timeout_us_)) {
+  if ((this->last_valid_edge_us_ != 0) && (time_since_valid_edge_us > this->timeout_us_) && (this->pulse_width_us_ != 0)) {
     ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", time_since_valid_edge_us / 1000000);
-    this->last_valid_edge_us_ = 0;
     this->pulse_width_us_ = 0;
   }
 
