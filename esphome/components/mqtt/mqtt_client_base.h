@@ -72,17 +72,11 @@ class MQTTClientBase {
   virtual void disconnect() = 0;
   virtual uint16_t subscribe(const char *topic, uint8_t qos) = 0;
   virtual uint16_t unsubscribe(const char *topic) = 0;
-  virtual uint16_t publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain,
-                           uint16_t message_id) = 0;
-
-  uint16_t publish(const std::string &topic, const std::string &payload, uint8_t qos, bool retain,
-                   uint16_t message_id) {
-    return publish(topic.c_str(), payload.c_str(), payload.length(), qos, retain, message_id);
-  }
+  virtual uint16_t publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) = 0;
 
   virtual uint16_t publish(const MQTTMessage &message) {
-    return this->publish(message.topic.c_str(), message.payload.c_str(), message.payload.length(), message.qos,
-                         message.retain, 0);
+    return publish(message.topic.c_str(), message.payload.c_str(), message.payload.length(), message.qos,
+                   message.retain);
   }
 };
 

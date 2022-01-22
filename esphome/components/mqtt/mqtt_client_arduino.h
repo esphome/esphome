@@ -57,13 +57,12 @@ class MQTTArduinoClient : public MQTTClientBase {
   void disconnect() final { mqtt_client_.disconnect(true); }
   uint16_t subscribe(const char *topic, uint8_t qos) final { return mqtt_client_.subscribe(topic, qos); }
   uint16_t unsubscribe(const char *topic) final { return mqtt_client_.unsubscribe(topic); }
-  uint16_t publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain,
-                   uint16_t message_id) final {
-    return mqtt_client_.publish(topic, qos, retain, payload, length, false, message_id);
+  uint16_t publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) final {
+    return mqtt_client_.publish(topic, qos, retain, payload, length, false, 0);
   }
-  uint16_t publish(const MQTTMessage &msg) final {
-    return mqtt_client_.publish(msg.topic.c_str(), msg.qos, msg.retain, msg.payload.c_str(), msg.payload.length(),
-                                msg.retain, 0);
+  uint16_t publish(const MQTTMessage &message) final {
+    return publish(message.topic.c_str(), message.payload.c_str(), message.payload.length(), message.qos,
+                   message.retain);
   }
 
  protected:
