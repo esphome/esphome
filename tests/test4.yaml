@@ -334,9 +334,7 @@ binary_sensor:
     y_min: 0
     y_max: 100
     on_press:
-      - logger.log:
-          format: "Touch at (%d, %d)"
-          args: ["touch.x", "touch.y"]
+      - logger.log: "Touched"
 
 
 climate:
@@ -538,12 +536,12 @@ xpt2046:
     - lambda: |-
         ESP_LOGI("main", "args x=%d, y=%d, touched=%s", x, y, (touched ? "touch" : "release"));
         ESP_LOGI("main", "member x=%d, y=%d, touched=%d, x_raw=%d, y_raw=%d, z_raw=%d",
-            id(touchscreen).x,
-            id(touchscreen).y,
-            (int) id(touchscreen).touched,
-            id(touchscreen).x_raw,
-            id(touchscreen).y_raw,
-            id(touchscreen).z_raw
+            id(xpt_touchscreen).x,
+            id(xpt_touchscreen).y,
+            (int) id(xpt_touchscreen).touched,
+            id(xpt_touchscreen).x_raw,
+            id(xpt_touchscreen).y_raw,
+            id(xpt_touchscreen).z_raw
             );
 
 button:
