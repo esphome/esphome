@@ -140,7 +140,7 @@ class MqttIdfClient : public MQTTClientBase {
   std::vector<on_unsubscribe_callback_t> on_unsubscribe_;
   std::vector<on_message_callback_t> on_message_;
   std::vector<on_publish_uer_callback_t> on_publish_;
-  std::queue<esp_mqtt_event_t> mqtt_events;
+  std::queue<esp_mqtt_event_t> mqtt_events_;
 };
 
 }  // namespace mqtt

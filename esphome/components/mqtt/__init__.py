@@ -242,12 +242,7 @@ async def to_code(config):
     if CORE.using_arduino:
         # https://github.com/OttoWinter/async-mqtt-client/blob/master/library.json
         cg.add_library("ottowinter/AsyncMqttClient-esphome", "0.8.6")
-        if CORE.is_esp32:
-            # https://github.com/esphome/AsyncTCP/blob/master/library.json
-            cg.add_library("esphome/AsyncTCP-esphome", "1.2.2")
-        elif CORE.is_esp8266:
-            # https://github.com/OttoWinter/ESPAsyncTCP
-            cg.add_library("ottowinter/ESPAsyncTCP-esphome", "1.2.3")
+
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
 

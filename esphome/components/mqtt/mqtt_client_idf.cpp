@@ -61,10 +61,10 @@ bool MqttIdfClient::initialize_() {
 void MqttIdfClient::loop() {
   // process new events
   // handle only 1 message per loop iteration
-  if (!mqtt_events.empty()) {
-    auto &event = mqtt_events.front();
+  if (!mqtt_events_.empty()) {
+    auto &event = mqtt_events_.front();
     mqtt_event_handler_(event);
-    mqtt_events.pop();
+    mqtt_events_.pop();
   }
 }
 
@@ -151,7 +151,7 @@ void MqttIdfClient::mqtt_event_handler(void *handler_args, esp_event_base_t base
   // queue event to decouple processing
   if (instance) {
     auto event = *static_cast<esp_mqtt_event_t *>(event_data);
-    instance->mqtt_events.push(event);
+    instance->mqtt_events_.push(event);
   }
 }
 
