@@ -68,6 +68,28 @@ def is_esp32c3():
     return get_esp32_variant() == VARIANT_ESP32C3
 
 
+def only_on_variant(*, supported=None, unsupported=None):
+    """Config validator for features only available on some ESP32 variants."""
+    if supported is not None and not isinstance(supported, list):
+        supported = [supported]
+    if unsupported is not None and not isinstance(unsupported, list):
+        unsupported = [unsupported]
+
+    def validator_(obj):
+        variant = get_esp32_variant()
+        if supported is not None and variant not in supported:
+            raise cv.Invalid(
+                f"This feature is only available on {', '.join(supported)}"
+            )
+        if unsupported is not None and variant in unsupported:
+            raise cv.Invalid(
+                f"This feature is not available on {', '.join(unsupported)}"
+            )
+        return obj
+
+    return validator_
+
+
 @dataclass
 class RawSdkconfigValue:
     """An sdkconfig value that won't be auto-formatted"""
