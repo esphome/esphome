@@ -499,18 +499,8 @@ const char *get_auth_mode_str(uint8_t mode) {
   }
 }
 
-std::string format_ip4_addr(const esp_ip4_addr_t &ip) {
-  char buf[20];
-  snprintf(buf, sizeof(buf), "%u.%u.%u.%u", uint8_t(ip.addr >> 0), uint8_t(ip.addr >> 8), uint8_t(ip.addr >> 16),
-           uint8_t(ip.addr >> 24));
-  return buf;
-}
-std::string format_ip6_addr(const esp_ip6_addr_t &ip) {
-  char buf[50];
-
-  snprintf(buf, sizeof(buf), IPV6STR, IPV62STR(ip));
-  return buf;
-}
+std::string format_ip4_addr(const esp_ip4_addr_t &ip) { return str_snprintf(IPSTR, 15, IP2STR(&ip)); }
+std::string format_ip6_addr(const esp_ip6_addr_t &ip) { return str_snprintf(IPV6STR, 39, IPV62STR(ip)); }
 const char *get_disconnect_reason_str(uint8_t reason) {
   switch (reason) {
     case WIFI_REASON_AUTH_EXPIRE:
