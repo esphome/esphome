@@ -1,7 +1,7 @@
 #pragma once
 
 ///
-/// Mirror the public interface of MQTTClientBase using esp-idf
+/// Mirror the public interface of MQTTBackend using esp-idf
 ///
 
 #include <string>
@@ -44,7 +44,7 @@ struct MQTTMessage {
   bool retain;
 };
 
-class MQTTClientBase {
+class MQTTBackend {
  public:
   using on_connect_callback_t = std::function<void(bool session_present)>;
   using on_disconnect_callback_t = std::function<void(MqttClientDisconnectReason reason)>;

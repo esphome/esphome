@@ -1,6 +1,6 @@
 #ifdef USE_ESP_IDF
 #include <string>
-#include "mqtt_client_idf.h"
+#include "mqtt_backend_idf.h"
 #include "lwip/ip_addr.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
@@ -9,7 +9,7 @@ namespace esphome {
 namespace mqtt {
 static const char *const TAG = "mqtt.idf";
 
-bool MqttIdfClient::initialize_() {
+bool MQTTBackendIDF::initialize_() {
   mqtt_cfg_.user_context = (void *) this;
   mqtt_cfg_.buffer_size = MQTT_BUFFER_SIZE;
 
@@ -58,7 +58,7 @@ bool MqttIdfClient::initialize_() {
   return false;
 }
 
-void MqttIdfClient::loop() {
+void MQTTBackendIDF::loop() {
   // process new events
   // handle only 1 message per loop iteration
   if (!mqtt_events_.empty()) {
@@ -68,7 +68,7 @@ void MqttIdfClient::loop() {
   }
 }
 
-void MqttIdfClient::mqtt_event_handler_(const esp_mqtt_event_t &event) {
+void MQTTBackendIDF::mqtt_event_handler_(const esp_mqtt_event_t &event) {
   ESP_LOGV(TAG, "Event dispatched from event loop event_id=%d", event.event_id);
   switch (event.event_id) {
     case MQTT_EVENT_BEFORE_CONNECT:
@@ -146,8 +146,8 @@ void MqttIdfClient::mqtt_event_handler_(const esp_mqtt_event_t &event) {
 }
 
 /// static - Dispatch event to instance method
-void MqttIdfClient::mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
-  MqttIdfClient *instance = static_cast<MqttIdfClient *>(handler_args);
+void MQTTBackendIDF::mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
+  MQTTBackendIDF *instance = static_cast<MQTTBackendIDF *>(handler_args);
   // queue event to decouple processing
   if (instance) {
     auto event = *static_cast<esp_mqtt_event_t *>(event_data);

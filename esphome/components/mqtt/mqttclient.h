@@ -10,9 +10,9 @@
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/ip_address.h"
 #ifdef USE_ESP_IDF
-#include "mqtt_client_idf.h"
+#include "mqtt_backend_idf.h"
 #else
-#include "mqtt_client_arduino.h"
+#include "mqtt_backend_arduino.h"
 #endif
 #include "lwip/ip_addr.h"
 
@@ -277,9 +277,9 @@ class MQTTClientComponent : public Component {
 
   std::vector<MQTTSubscription> subscriptions_;
 #ifdef USE_ESP_IDF
-  MqttIdfClient mqtt_client_;
+  MQTTBackendIDF mqtt_client_;
 #else
-  MQTTArduinoClient mqtt_client_;
+  MQTTBackendArduino mqtt_client_;
 #endif
 
   MQTTClientState state_{MQTT_CLIENT_DISCONNECTED};

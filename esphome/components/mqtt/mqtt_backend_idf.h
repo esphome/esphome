@@ -1,7 +1,7 @@
 #pragma once
 
 ///
-/// Mirror the public interface of MqttIdfClient using esp-idf
+/// Mirror the public interface of MQTTBackendIDF using esp-idf
 ///
 
 #ifdef USE_ESP_IDF
@@ -10,12 +10,12 @@
 #include <mqtt_client.h>
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/helpers.h"
-#include "mqtt_client_base.h"
+#include "mqtt_backend.h"
 
 namespace esphome {
 namespace mqtt {
 
-class MqttIdfClient : public MQTTClientBase {
+class MQTTBackendIDF : public MQTTBackend {
  public:
   static const size_t MQTT_BUFFER_SIZE = 4096;
 

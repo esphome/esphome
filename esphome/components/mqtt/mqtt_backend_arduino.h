@@ -1,15 +1,15 @@
 #pragma once
 #if defined(USE_ARDUINO)
-#include "mqtt_client_base.h"
+#include "mqtt_backend.h"
 #include <AsyncMqttClient.h>
 #include "lwip/ip_addr.h"
 
 namespace esphome {
 namespace mqtt {
 
-class MQTTArduinoClient : public MQTTClientBase {
+class MQTTBackendArduino : public MQTTBackend {
  public:
-  virtual ~MQTTArduinoClient() = default;
+  virtual ~MQTTBackendArduino() = default;
   void set_keep_alive(uint16_t keep_alive) final { mqtt_client_.setKeepAlive(keep_alive); }
   void set_client_id(const char *client_id) final { mqtt_client_.setClientId(client_id); }
   void set_clean_session(bool clean_session) final { mqtt_client_.setCleanSession(clean_session); }

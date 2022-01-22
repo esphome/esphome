@@ -14,8 +14,8 @@ esp32:
 
 wifi:
   networks:
-    - ssid: 'MySSID'
-      password: 'password1'
+    - ssid: "MySSID"
+      password: "password1"
       manual_ip:
         static_ip: 192.168.1.23
         gateway: 192.168.1.1
@@ -39,7 +39,6 @@ uart:
 
 i2c:
 
-
 modbus:
   uart_id: uart1
   flow_control_pin: 5
@@ -50,6 +49,18 @@ modbus_controller:
     address: 0x2
     modbus_id: mod_bus1
 
+mqtt:
+  broker: test.mosquitto.org
+  port: 1883
+  discovery: true
+  discovery_prefix: homeassistant
+  idf_send_async: false
+  on_message:
+    topic: testing/sensor/testing_sensor/state
+    qos: 0
+    then:
+      - lambda: |-
+          ESP_LOGD("Mqtt Test","testing/sensor/testing_sensor/state=[%s]",x.c_str());
 
 binary_sensor:
   - platform: gpio
@@ -101,7 +112,7 @@ number:
     max_value: 100
     min_value: 0
     step: 5
-    unit_of_measurement: '%'
+    unit_of_measurement: "%"
     mode: slider
 
 select:
