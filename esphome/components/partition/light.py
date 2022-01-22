@@ -103,6 +103,7 @@ async def to_code(config):
                 await cg.get_variable(conf[CONF_SINGLE_LIGHT_ID]),
             )
             light_state = cg.new_Pvariable(conf[CONF_LIGHT_ID], "", wrapper)
+            cg.add(light_state.set_internal(True))
             await cg.register_component(light_state, conf)
             cg.add(cg.App.register_light(light_state))
             segments.append(AddressableSegment(light_state, 0, 1, False))
