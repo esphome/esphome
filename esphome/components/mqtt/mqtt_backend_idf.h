@@ -62,22 +62,20 @@ class MQTTBackendIDF : public MQTTBackend {
       esp_mqtt_client_disconnect(handler_.get());
   }
 
-  uint16_t subscribe(const char *topic, uint8_t qos) final {
-    return map_status_(esp_mqtt_client_subscribe(handler_.get(), topic, qos));
+  bool subscribe(const char *topic, uint8_t qos) final {
+    return esp_mqtt_client_subscribe(handler_.get(), topic, qos) != -1;
   }
-  uint16_t unsubscribe(const char *topic) final {
-    return map_status_(esp_mqtt_client_unsubscribe(handler_.get(), topic));
-  }
+  bool unsubscribe(const char *topic) final { return esp_mqtt_client_unsubscribe(handler_.get(), topic) != -1; }
 
-  uint16_t publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) final {
+  bool publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) final {
 #if defined(USE_MQTT_IDF_ENQUEUE)
     // use the non-blocking version
     // it can delay sending a couple of seconds but won't block
-    return map_status_(esp_mqtt_client_enqueue(handler_.get(), topic, payload, length, qos, retain, true));
+    return esp_mqtt_client_enqueue(handler_.get(), topic, payload, length, qos, retain, true) != -1;
 #else
     // might block for several seconds, either due to network timeout (10s)
     // or if publishing payloads longer than internal buffer (due to message fragmentation)
-    return map_status_(esp_mqtt_client_publish(handler_.get(), topic, payload, length, qos, retain));
+    return esp_mqtt_client_publish(handler_.get(), topic, payload, length, qos, retain) != -1;
 #endif
   }
   using MQTTBackend::publish;
@@ -88,15 +86,6 @@ class MQTTBackendIDF : public MQTTBackend {
   void set_skip_cert_cn_check(bool skip_check) { skip_cert_cn_check_ = skip_check; }
 
  protected:
-  // MqttClient uses 0 for an error and 1 for QoS 0 message ids
-  // idf ues -1 for error and 0 for QoS 0
-  inline uint16_t map_status_(int status) {
-    if (status == -1)
-      status = 0;
-    if (status == 0)
-      status = 1;
-    return status;
-  }
   bool initialize_();
   void mqtt_event_handler_(const esp_mqtt_event_t &event);
   static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);

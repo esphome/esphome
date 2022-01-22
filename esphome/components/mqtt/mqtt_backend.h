@@ -66,11 +66,11 @@ class MQTTBackend {
   virtual bool connected() const = 0;
   virtual void connect() = 0;
   virtual void disconnect() = 0;
-  virtual uint16_t subscribe(const char *topic, uint8_t qos) = 0;
-  virtual uint16_t unsubscribe(const char *topic) = 0;
-  virtual uint16_t publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) = 0;
+  virtual bool subscribe(const char *topic, uint8_t qos) = 0;
+  virtual bool unsubscribe(const char *topic) = 0;
+  virtual bool publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) = 0;
 
-  virtual uint16_t publish(const MQTTMessage &message) {
+  virtual bool publish(const MQTTMessage &message) {
     return publish(message.topic.c_str(), message.payload.c_str(), message.payload.length(), message.qos,
                    message.retain);
   }

@@ -307,10 +307,10 @@ bool MQTTClientComponent::subscribe_(const char *topic, uint8_t qos) {
   if (!this->is_connected())
     return false;
 
-  uint16_t ret = this->mqtt_client_.subscribe(topic, qos);
+  bool ret = this->mqtt_client_.subscribe(topic, qos);
   yield();
 
-  if (ret != 0) {
+  if (ret) {
     ESP_LOGV(TAG, "subscribe(topic='%s')", topic);
   } else {
     delay(5);
@@ -365,9 +365,9 @@ void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_js
 }
 
 void MQTTClientComponent::unsubscribe(const std::string &topic) {
-  uint16_t ret = this->mqtt_client_.unsubscribe(topic.c_str());
+  bool ret = this->mqtt_client_.unsubscribe(topic.c_str());
   yield();
-  if (ret != 0) {
+  if (ret) {
     ESP_LOGV(TAG, "unsubscribe(topic='%s')", topic.c_str());
   } else {
     delay(5);
@@ -400,16 +400,16 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
     return false;
   }
   bool logging_topic = this->log_message_.topic == message.topic;
-  uint16_t ret = this->mqtt_client_.publish(message);
+  bool ret = this->mqtt_client_.publish(message);
   delay(0);
-  if (ret == 0 && !logging_topic && this->is_connected()) {
+  if (!ret && !logging_topic && this->is_connected()) {
     delay(0);
     ret = this->mqtt_client_.publish(message);
     delay(0);
   }
 
   if (!logging_topic) {
-    if (ret != 0) {
+    if (ret) {
       ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d)", message.topic.c_str(), message.payload.c_str(),
                message.retain);
     } else {

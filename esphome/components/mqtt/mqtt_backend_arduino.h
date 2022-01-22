@@ -51,10 +51,10 @@ class MQTTBackendArduino : public MQTTBackend {
   bool connected() const final { return mqtt_client_.connected(); }
   void connect() final { mqtt_client_.connect(); }
   void disconnect() final { mqtt_client_.disconnect(true); }
-  uint16_t subscribe(const char *topic, uint8_t qos) final { return mqtt_client_.subscribe(topic, qos); }
-  uint16_t unsubscribe(const char *topic) final { return mqtt_client_.unsubscribe(topic); }
-  uint16_t publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) final {
-    return mqtt_client_.publish(topic, qos, retain, payload, length, false, 0);
+  bool subscribe(const char *topic, uint8_t qos) final { return mqtt_client_.subscribe(topic, qos) != 0; }
+  bool unsubscribe(const char *topic) final { return mqtt_client_.unsubscribe(topic) != 0; }
+  bool publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) final {
+    return mqtt_client_.publish(topic, qos, retain, payload, length, false, 0) != 0;
   }
   using MQTTBackend::publish;
 
