@@ -297,7 +297,7 @@ extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avo
 
 class MQTTMessageTrigger : public Trigger<std::string>, public Component {
  public:
-  explicit MQTTMessageTrigger(const std::string &topic);
+  explicit MQTTMessageTrigger(const std::string &topic);  // NOLINT(modernize-pass-by-value)
 
   void set_qos(uint8_t qos);
   void set_payload(const std::string &payload);
