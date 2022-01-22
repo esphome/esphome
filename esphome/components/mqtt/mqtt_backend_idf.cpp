@@ -1,12 +1,13 @@
 #ifdef USE_ESP_IDF
+
 #include <string>
 #include "mqtt_backend_idf.h"
-#include "lwip/ip_addr.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/network/ip_address.h"
+
 namespace esphome {
 namespace mqtt {
+
 static const char *const TAG = "mqtt.idf";
 
 bool MQTTBackendIDF::initialize_() {
@@ -54,8 +55,8 @@ bool MQTTBackendIDF::initialize_() {
     return true;
   } else {
     ESP_LOGE(TAG, "Failed to initialize IDF-MQTT");
+    return false;
   }
-  return false;
 }
 
 void MQTTBackendIDF::loop() {
@@ -88,7 +89,7 @@ void MQTTBackendIDF::mqtt_event_handler_(const esp_mqtt_event_t &event) {
       // TODO is there a way to get the disconnect reason?
       this->is_connected_ = false;
       for (auto &callback : this->on_disconnect_) {
-        callback(MqttClientDisconnectReason::TCP_DISCONNECTED);
+        callback(MQTTClientDisconnectReason::TCP_DISCONNECTED);
       }
       break;
 

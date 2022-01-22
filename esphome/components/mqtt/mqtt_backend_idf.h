@@ -1,10 +1,7 @@
 #pragma once
 
-///
-/// Mirror the public interface of MQTTBackendIDF using esp-idf
-///
-
 #ifdef USE_ESP_IDF
+
 #include <string>
 #include <queue>
 #include <mqtt_client.h>
@@ -52,7 +49,7 @@ class MQTTBackendIDF : public MQTTBackend {
     this->on_unsubscribe_.push_back(callback);
   }
   void set_on_message(const on_message_callback_t &callback) final { this->on_message_.push_back(callback); }
-  void set_on_publish(const on_publish_uer_callback_t &callback) final { this->on_publish_.push_back(callback); }
+  void set_on_publish(const on_publish_user_callback_t &callback) final { this->on_publish_.push_back(callback); }
   bool connected() const final { return this->is_connected_; }
 
   void connect() final {
@@ -73,21 +70,17 @@ class MQTTBackendIDF : public MQTTBackend {
   }
 
   uint16_t publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) final {
-#if defined MQTT_IDF_USE_ENQUEUE
+#if defined(USE_MQTT_IDF_ENQUEUE)
     // use the non-blocking version
     // it can delay sending a couple of seconds but won't block
-    auto status = map_status_(esp_mqtt_client_enqueue(handler_.get(), topic, payload, length, qos, retain, true));
+    return map_status_(esp_mqtt_client_enqueue(handler_.get(), topic, payload, length, qos, retain, true));
 #else
     // might block for several seconds, either due to network timeout (10s)
     // or if publishing payloads longer than internal buffer (due to message fragmentation)
-    auto status = map_status_(esp_mqtt_client_publish(handler_.get(), topic, payload, length, qos, retain));
+    return map_status_(esp_mqtt_client_publish(handler_.get(), topic, payload, length, qos, retain));
 #endif
-    return status;
   }
-  uint16_t publish(const MQTTMessage &message) final {
-    return publish(message.topic.c_str(), message.payload.c_str(), message.payload.length(), message.qos,
-                   message.retain);
-  }
+  using MQTTBackend::publish;
 
   void loop() final;
 
@@ -139,10 +132,11 @@ class MQTTBackendIDF : public MQTTBackend {
   std::vector<on_subscribe_callback_t> on_subscribe_;
   std::vector<on_unsubscribe_callback_t> on_unsubscribe_;
   std::vector<on_message_callback_t> on_message_;
-  std::vector<on_publish_uer_callback_t> on_publish_;
+  std::vector<on_publish_user_callback_t> on_publish_;
   std::queue<esp_mqtt_event_t> mqtt_events_;
 };
 
 }  // namespace mqtt
 }  // namespace esphome
+
 #endif

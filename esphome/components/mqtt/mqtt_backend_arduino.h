@@ -1,19 +1,18 @@
 #pragma once
-#if defined(USE_ARDUINO)
+
+#ifdef USE_ARDUINO
+
 #include "mqtt_backend.h"
 #include <AsyncMqttClient.h>
-#include "lwip/ip_addr.h"
 
 namespace esphome {
 namespace mqtt {
 
 class MQTTBackendArduino : public MQTTBackend {
  public:
-  virtual ~MQTTBackendArduino() = default;
   void set_keep_alive(uint16_t keep_alive) final { mqtt_client_.setKeepAlive(keep_alive); }
   void set_client_id(const char *client_id) final { mqtt_client_.setClientId(client_id); }
   void set_clean_session(bool clean_session) final { mqtt_client_.setCleanSession(clean_session); }
-  void set_max_topic_length(uint16_t max_topic_length) { mqtt_client_.setMaxTopicLength(max_topic_length); };
   void set_credentials(const char *username, const char *password) final {
     mqtt_client_.setCredentials(username, password);
   }
@@ -31,11 +30,10 @@ class MQTTBackendArduino : public MQTTBackend {
 
   void set_on_connect(const on_connect_callback_t &callback) final { this->mqtt_client_.onConnect(callback); }
   void set_on_disconnect(const on_disconnect_callback_t &callback) final {
-    std::function<void(AsyncMqttClientDisconnectReason)> async_callback =
-        [callback](AsyncMqttClientDisconnectReason reason) {
-          // int based enum so casting isn't a problem
-          callback(static_cast<MqttClientDisconnectReason>(reason));
-        };
+    auto async_callback = [callback](AsyncMqttClientDisconnectReason reason) {
+      // int based enum so casting isn't a problem
+      callback(static_cast<MQTTClientDisconnectReason>(reason));
+    };
     this->mqtt_client_.onDisconnect(async_callback);
   }
   void set_on_subscribe(const on_subscribe_callback_t &callback) final { this->mqtt_client_.onSubscribe(callback); }
@@ -43,14 +41,12 @@ class MQTTBackendArduino : public MQTTBackend {
     this->mqtt_client_.onUnsubscribe(callback);
   }
   void set_on_message(const on_message_callback_t &callback) final {
-    std::function<void(const char *topic, const char *payload, AsyncMqttClientMessageProperties async_properties,
-                       size_t len, size_t index, size_t total)>
-        async_callback = [callback](const char *topic, const char *payload,
-                                    AsyncMqttClientMessageProperties async_properties, size_t len, size_t index,
-                                    size_t total) { callback(topic, payload, len, index, total); };
+    auto async_callback = [callback](const char *topic, const char *payload,
+                                     AsyncMqttClientMessageProperties async_properties, size_t len, size_t index,
+                                     size_t total) { callback(topic, payload, len, index, total); };
     mqtt_client_.onMessage(async_callback);
   }
-  void set_on_publish(const on_publish_uer_callback_t &callback) final { this->mqtt_client_.onPublish(callback); }
+  void set_on_publish(const on_publish_user_callback_t &callback) final { this->mqtt_client_.onPublish(callback); }
 
   bool connected() const final { return mqtt_client_.connected(); }
   void connect() final { mqtt_client_.connect(); }
@@ -60,10 +56,7 @@ class MQTTBackendArduino : public MQTTBackend {
   uint16_t publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) final {
     return mqtt_client_.publish(topic, qos, retain, payload, length, false, 0);
   }
-  uint16_t publish(const MQTTMessage &message) final {
-    return publish(message.topic.c_str(), message.payload.c_str(), message.payload.length(), message.qos,
-                   message.retain);
-  }
+  using MQTTBackend::publish;
 
  protected:
   AsyncMqttClient mqtt_client_;

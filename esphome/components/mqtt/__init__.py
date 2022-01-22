@@ -160,11 +160,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
             cv.Optional(CONF_CLIENT_ID): cv.string,
-            cv.Optional(CONF_IDF_SEND_ASYNC): cv.All(cv.boolean, cv.only_with_esp_idf),
+            cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32_idf=False): cv.All(
+                cv.boolean, cv.only_with_esp_idf
+            ),
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
                 cv.string, cv.only_with_esp_idf
             ),
-            cv.Optional(CONF_SKIP_CERT_CN_CHECK): cv.All(
+            cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
             ),
             cv.Optional(CONF_DISCOVERY, default=True): cv.Any(
@@ -314,18 +316,20 @@ async def to_code(config):
     cg.add(var.set_keep_alive(config[CONF_KEEPALIVE]))
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
+
     # esp-idf only
     if CONF_CERTIFICATE_AUTHORITY in config:
         cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
-        if CONF_SKIP_CERT_CN_CHECK in config:
-            cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+        cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+
         # prevent error -0x428e
         # See https://github.com/espressif/esp-idf/issues/139
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_HARDWARE_MPI", False)
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
-        cg.add_define("MQTT_IDF_USE_ENQUEUE")
+        cg.add_define("USE_MQTT_IDF_ENQUEUE")
     # end esp-idf
+
     for conf in config.get(CONF_ON_MESSAGE, []):
         trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC])
         cg.add(trig.set_qos(conf[CONF_QOS]))

@@ -290,14 +290,14 @@ class MQTTClientComponent : public Component {
   uint32_t reboot_timeout_{300000};
   uint32_t connect_begin_;
   uint32_t last_connected_{0};
-  optional<MqttClientDisconnectReason> disconnect_reason_{};
+  optional<MQTTClientDisconnectReason> disconnect_reason_{};
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 class MQTTMessageTrigger : public Trigger<std::string>, public Component {
  public:
-  explicit MQTTMessageTrigger(const std::string &topic);  // NOLINT(modernize-pass-by-value)
+  explicit MQTTMessageTrigger(std::string topic);
 
   void set_qos(uint8_t qos);
   void set_payload(const std::string &payload);

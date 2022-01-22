@@ -26,6 +26,7 @@
 #define USE_LIGHT
 #define USE_LOGGER
 #define USE_MDNS
+#define USE_MQTT
 #define USE_NUMBER
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_CALLBACK
@@ -44,11 +45,15 @@
 #define USE_CAPTIVE_PORTAL
 #define USE_JSON
 #define USE_NEXTION_TFT_UPLOAD
-#define USE_MQTT
 #define USE_PROMETHEUS
 #define USE_WEBSERVER
 #define USE_WIFI_WPA2_EAP
 #define WEBSERVER_PORT 80  // NOLINT
+#endif
+
+// IDF-specific feature flags
+#ifdef USE_ESP_IDF
+#define USE_MQTT_IDF_ENQUEUE
 #endif
 
 // ESP32-specific feature flags

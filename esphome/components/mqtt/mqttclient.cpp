@@ -1,5 +1,4 @@
 #include "mqttclient.h"
-#define USE_MQTT
 
 #ifdef USE_MQTT
 
@@ -42,7 +41,7 @@ void MQTTClientComponent::setup() {
           this->payload_buffer_.clear();
         }
       });
-  this->mqtt_client_.set_on_disconnect([this](MqttClientDisconnectReason reason) {
+  this->mqtt_client_.set_on_disconnect([this](MQTTClientDisconnectReason reason) {
     this->state_ = MQTT_CLIENT_DISCONNECTED;
     this->disconnect_reason_ = reason;
   });
@@ -225,33 +224,34 @@ void MQTTClientComponent::check_connected() {
 }
 
 void MQTTClientComponent::loop() {
-  // Call the "drivers" loop first
+  // Call the backend loop first
   mqtt_client_.loop();
+
   if (this->disconnect_reason_.has_value()) {
     const LogString *reason_s;
     switch (*this->disconnect_reason_) {
-      case MqttClientDisconnectReason::TCP_DISCONNECTED:
+      case MQTTClientDisconnectReason::TCP_DISCONNECTED:
         reason_s = LOG_STR("TCP disconnected");
         break;
-      case MqttClientDisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
+      case MQTTClientDisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
         reason_s = LOG_STR("Unacceptable Protocol Version");
         break;
-      case MqttClientDisconnectReason::MQTT_IDENTIFIER_REJECTED:
+      case MQTTClientDisconnectReason::MQTT_IDENTIFIER_REJECTED:
         reason_s = LOG_STR("Identifier Rejected");
         break;
-      case MqttClientDisconnectReason::MQTT_SERVER_UNAVAILABLE:
+      case MQTTClientDisconnectReason::MQTT_SERVER_UNAVAILABLE:
         reason_s = LOG_STR("Server Unavailable");
         break;
-      case MqttClientDisconnectReason::MQTT_MALFORMED_CREDENTIALS:
+      case MQTTClientDisconnectReason::MQTT_MALFORMED_CREDENTIALS:
         reason_s = LOG_STR("Malformed Credentials");
         break;
-      case MqttClientDisconnectReason::MQTT_NOT_AUTHORIZED:
+      case MQTTClientDisconnectReason::MQTT_NOT_AUTHORIZED:
         reason_s = LOG_STR("Not Authorized");
         break;
-      case MqttClientDisconnectReason::ESP8266_NOT_ENOUGH_SPACE:
+      case MQTTClientDisconnectReason::ESP8266_NOT_ENOUGH_SPACE:
         reason_s = LOG_STR("Not Enough Space");
         break;
-      case MqttClientDisconnectReason::TLS_BAD_FINGERPRINT:
+      case MQTTClientDisconnectReason::TLS_BAD_FINGERPRINT:
         reason_s = LOG_STR("TLS Bad Fingerprint");
         break;
       default:
@@ -573,8 +573,7 @@ void MQTTClientComponent::add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZ
 MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // MQTTMessageTrigger
-MQTTMessageTrigger::MQTTMessageTrigger(const std::string &topic)  // NOLINT(modernize-pass-by-value)
-    : topic_(topic) {}                                            // NOLINT(modernize-pass-by-value)
+MQTTMessageTrigger::MQTTMessageTrigger(std::string topic) : topic_(std::move(topic)) {}
 void MQTTMessageTrigger::set_qos(uint8_t qos) { this->qos_ = qos; }
 void MQTTMessageTrigger::set_payload(const std::string &payload) { this->payload_ = payload; }
 void MQTTMessageTrigger::setup() {
