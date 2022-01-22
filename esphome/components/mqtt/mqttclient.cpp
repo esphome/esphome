@@ -190,7 +190,7 @@ void MQTTClientComponent::start_connect_() {
   this->mqtt_backend_.set_server((uint32_t) this->ip_, this->credentials_.port);
   if (!this->last_will_.topic.empty()) {
     this->mqtt_backend_.set_will(this->last_will_.topic.c_str(), this->last_will_.qos, this->last_will_.retain,
-                                this->last_will_.payload.c_str());
+                                 this->last_will_.payload.c_str());
   }
 
   this->mqtt_backend_.connect();

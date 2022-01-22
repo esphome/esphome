@@ -28,25 +28,31 @@ class MQTTBackendArduino : public MQTTBackend {
   void add_server_fingerprint(const uint8_t *fingerprint) { mqtt_client.addServerFingerprint(fingerprint); }
 #endif
 
-  void set_on_connect(const on_connect_callback_t &callback) final { this->mqtt_client_.onConnect(callback); }
-  void set_on_disconnect(const on_disconnect_callback_t &callback) final {
+  void set_on_connect(std::function<on_connect_callback_t> &&callback) final {
+    this->mqtt_client_.onConnect(std::move(callback));
+  }
+  void set_on_disconnect(std::function<on_disconnect_callback_t> &&callback) final {
     auto async_callback = [callback](AsyncMqttClientDisconnectReason reason) {
       // int based enum so casting isn't a problem
       callback(static_cast<MQTTClientDisconnectReason>(reason));
     };
-    this->mqtt_client_.onDisconnect(async_callback);
+    this->mqtt_client_.onDisconnect(std::move(async_callback));
   }
-  void set_on_subscribe(const on_subscribe_callback_t &callback) final { this->mqtt_client_.onSubscribe(callback); }
-  void set_on_unsubscribe(const on_unsubscribe_callback_t &callback) final {
-    this->mqtt_client_.onUnsubscribe(callback);
+  void set_on_subscribe(std::function<on_subscribe_callback_t> &&callback) final {
+    this->mqtt_client_.onSubscribe(std::move(callback));
   }
-  void set_on_message(const on_message_callback_t &callback) final {
+  void set_on_unsubscribe(std::function<on_unsubscribe_callback_t> &&callback) final {
+    this->mqtt_client_.onUnsubscribe(std::move(callback));
+  }
+  void set_on_message(std::function<on_message_callback_t> &&callback) final {
     auto async_callback = [callback](const char *topic, const char *payload,
                                      AsyncMqttClientMessageProperties async_properties, size_t len, size_t index,
                                      size_t total) { callback(topic, payload, len, index, total); };
-    mqtt_client_.onMessage(async_callback);
+    mqtt_client_.onMessage(std::move(async_callback));
   }
-  void set_on_publish(const on_publish_user_callback_t &callback) final { this->mqtt_client_.onPublish(callback); }
+  void set_on_publish(std::function<on_publish_user_callback_t> &&callback) final {
+    this->mqtt_client_.onPublish(std::move(callback));
+  }
 
   bool connected() const final { return mqtt_client_.connected(); }
   void connect() final { mqtt_client_.connect(); }

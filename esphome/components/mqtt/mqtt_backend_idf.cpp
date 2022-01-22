@@ -80,37 +80,27 @@ void MQTTBackendIDF::mqtt_event_handler_(const esp_mqtt_event_t &event) {
       ESP_LOGV(TAG, "MQTT_EVENT_CONNECTED");
       // TODO session present check
       this->is_connected_ = true;
-      for (auto &callback : this->on_connect_) {
-        callback(!mqtt_cfg_.disable_clean_session);
-      }
+      this->on_connect_.call(!mqtt_cfg_.disable_clean_session);
       break;
     case MQTT_EVENT_DISCONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_DISCONNECTED");
       // TODO is there a way to get the disconnect reason?
       this->is_connected_ = false;
-      for (auto &callback : this->on_disconnect_) {
-        callback(MQTTClientDisconnectReason::TCP_DISCONNECTED);
-      }
+      this->on_disconnect_.call(MQTTClientDisconnectReason::TCP_DISCONNECTED);
       break;
 
     case MQTT_EVENT_SUBSCRIBED:
       ESP_LOGV(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event.msg_id);
       // hardcode QoS to 0. QoS is not used in this context but required to mirror the AsyncMqtt interface
-      for (auto &callback : this->on_subscribe_) {
-        callback((int) event.msg_id, 0);
-      }
+      this->on_subscribe_.call((int) event.msg_id, 0);
       break;
     case MQTT_EVENT_UNSUBSCRIBED:
       ESP_LOGV(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event.msg_id);
-      for (auto &callback : this->on_unsubscribe_) {
-        callback((int) event.msg_id);
-      }
+      this->on_unsubscribe_.call((int) event.msg_id);
       break;
     case MQTT_EVENT_PUBLISHED:
       ESP_LOGV(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event.msg_id);
-      for (auto &callback : this->on_publish_) {
-        callback((int) event.msg_id);
-      }
+      this->on_publish_.call((int) event.msg_id);
       break;
     case MQTT_EVENT_DATA: {
       static std::string topic;
@@ -122,10 +112,8 @@ void MQTTBackendIDF::mqtt_event_handler_(const esp_mqtt_event_t &event) {
       auto data_len = event.data_len;
       if (data_len == 0)
         data_len = strlen(event.data);
-      for (auto &callback : this->on_message_) {
-        callback(event.topic ? const_cast<char *>(topic.c_str()) : nullptr, event.data, data_len,
-                 event.current_data_offset, event.total_data_len);
-      }
+      this->on_message_.call(event.topic ? const_cast<char *>(topic.c_str()) : nullptr, event.data, data_len,
+                             event.current_data_offset, event.total_data_len);
     } break;
     case MQTT_EVENT_ERROR:
       ESP_LOGE(TAG, "MQTT_EVENT_ERROR");

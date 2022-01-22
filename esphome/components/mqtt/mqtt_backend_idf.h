@@ -42,14 +42,24 @@ class MQTTBackendIDF : public MQTTBackend {
     this->host_ = host;
     this->port_ = port;
   }
-  void set_on_connect(const on_connect_callback_t &callback) final { this->on_connect_.push_back(callback); }
-  void set_on_disconnect(const on_disconnect_callback_t &callback) final { this->on_disconnect_.push_back(callback); }
-  void set_on_subscribe(const on_subscribe_callback_t &callback) final { this->on_subscribe_.push_back(callback); }
-  void set_on_unsubscribe(const on_unsubscribe_callback_t &callback) final {
-    this->on_unsubscribe_.push_back(callback);
+  void set_on_connect(std::function<on_connect_callback_t> &&callback) final {
+    this->on_connect_.add(std::move(callback));
   }
-  void set_on_message(const on_message_callback_t &callback) final { this->on_message_.push_back(callback); }
-  void set_on_publish(const on_publish_user_callback_t &callback) final { this->on_publish_.push_back(callback); }
+  void set_on_disconnect(std::function<on_disconnect_callback_t> &&callback) final {
+    this->on_disconnect_.add(std::move(callback));
+  }
+  void set_on_subscribe(std::function<on_subscribe_callback_t> &&callback) final {
+    this->on_subscribe_.add(std::move(callback));
+  }
+  void set_on_unsubscribe(std::function<on_unsubscribe_callback_t> &&callback) final {
+    this->on_unsubscribe_.add(std::move(callback));
+  }
+  void set_on_message(std::function<on_message_callback_t> &&callback) final {
+    this->on_message_.add(std::move(callback));
+  }
+  void set_on_publish(std::function<on_publish_user_callback_t> &&callback) final {
+    this->on_publish_.add(std::move(callback));
+  }
   bool connected() const final { return this->is_connected_; }
 
   void connect() final {
@@ -116,12 +126,12 @@ class MQTTBackendIDF : public MQTTBackend {
   bool skip_cert_cn_check_{false};
 
   // callbacks
-  std::vector<on_connect_callback_t> on_connect_;
-  std::vector<on_disconnect_callback_t> on_disconnect_;
-  std::vector<on_subscribe_callback_t> on_subscribe_;
-  std::vector<on_unsubscribe_callback_t> on_unsubscribe_;
-  std::vector<on_message_callback_t> on_message_;
-  std::vector<on_publish_user_callback_t> on_publish_;
+  CallbackManager<on_connect_callback_t> on_connect_;
+  CallbackManager<on_disconnect_callback_t> on_disconnect_;
+  CallbackManager<on_subscribe_callback_t> on_subscribe_;
+  CallbackManager<on_unsubscribe_callback_t> on_unsubscribe_;
+  CallbackManager<on_message_callback_t> on_message_;
+  CallbackManager<on_publish_user_callback_t> on_publish_;
   std::queue<esp_mqtt_event_t> mqtt_events_;
 };
 
