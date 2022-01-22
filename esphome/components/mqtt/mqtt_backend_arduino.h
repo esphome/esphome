@@ -8,7 +8,7 @@
 namespace esphome {
 namespace mqtt {
 
-class MQTTBackendArduino final : MQTTBackend {
+class MQTTBackendArduino final : public MQTTBackend {
  public:
   void set_keep_alive(uint16_t keep_alive) final { mqtt_client_.setKeepAlive(keep_alive); }
   void set_client_id(const char *client_id) final { mqtt_client_.setClientId(client_id); }

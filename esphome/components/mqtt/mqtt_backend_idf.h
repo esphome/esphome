@@ -12,7 +12,7 @@
 namespace esphome {
 namespace mqtt {
 
-class MQTTBackendIDF final : MQTTBackend {
+class MQTTBackendIDF final : public MQTTBackend {
  public:
   static const size_t MQTT_BUFFER_SIZE = 4096;
 
