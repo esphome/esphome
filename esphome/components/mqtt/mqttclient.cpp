@@ -225,6 +225,8 @@ void MQTTClientComponent::check_connected() {
 }
 
 void MQTTClientComponent::loop() {
+  // Call the "drivers" loop first
+  mqtt_client_.loop();
   if (this->disconnect_reason_.has_value()) {
     const LogString *reason_s;
     switch (*this->disconnect_reason_) {
@@ -572,7 +574,7 @@ MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-
 
 // MQTTMessageTrigger
 MQTTMessageTrigger::MQTTMessageTrigger(const std::string &topic)  // NOLINT(modernize-pass-by-value)
-    : topic_(std::move(topic)) {}
+    : topic_(topic) {}                                            // NOLINT(modernize-pass-by-value)
 void MQTTMessageTrigger::set_qos(uint8_t qos) { this->qos_ = qos; }
 void MQTTMessageTrigger::set_payload(const std::string &payload) { this->payload_ = payload; }
 void MQTTMessageTrigger::setup() {

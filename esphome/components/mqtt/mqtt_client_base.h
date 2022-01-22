@@ -78,6 +78,8 @@ class MQTTClientBase {
     return publish(message.topic.c_str(), message.payload.c_str(), message.payload.length(), message.qos,
                    message.retain);
   }
+  // called from MQTTClient::loop
+  virtual void loop(){};
 };
 
 }  // namespace mqtt

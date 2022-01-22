@@ -46,27 +46,6 @@ bool MqttIdfClient::initialize_() {
   } else {
     mqtt_cfg_.transport = MQTT_TRANSPORT_OVER_TCP;
   }
-  // Create task to dispatch mqtt events
-  // Create a common task for all instances (although currently esphome creates only 1)
-  // Waits for semaphore signal to process new messages
-  if (esphome::mqtt::MqttIdfClient::event_mux == nullptr) {
-    esphome::mqtt::MqttIdfClient::event_mux = xSemaphoreCreateBinary();
-    xTaskCreatePinnedToCore(
-        [](void *this_ptr) {
-          while (true) {
-            xSemaphoreTake(event_mux, portMAX_DELAY);
-            ESP_LOGVV(TAG, "received mqtt event - dipatching to instance");
-            MqttIdfClient *instance = static_cast<MqttIdfClient *>(this_ptr);
-            if (!mqtt_events.empty()) {
-              auto &event = mqtt_events.front();
-              // dispatch to instance
-              instance->mqtt_event_handler_(event);
-              mqtt_events.pop();
-            }
-          }
-        },
-        "mqtt_event_handler", 4096, this, 1, nullptr, xPortGetCoreID());
-  }
   auto mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
   if (mqtt_client) {
     handler_.reset(mqtt_client);
@@ -77,6 +56,16 @@ bool MqttIdfClient::initialize_() {
     ESP_LOGE(TAG, "Failed to initialize IDF-MQTT");
   }
   return false;
+}
+
+void MqttIdfClient::loop() {
+  // process new events
+  // handle only 1 message per loop iteration
+  if (!mqtt_events.empty()) {
+    auto &event = mqtt_events.front();
+    mqtt_event_handler_(event);
+    mqtt_events.pop();
+  }
 }
 
 void MqttIdfClient::mqtt_event_handler_(const esp_mqtt_event_t &event) {
@@ -159,18 +148,12 @@ void MqttIdfClient::mqtt_event_handler_(const esp_mqtt_event_t &event) {
 /// static - Dispatch event to instance method
 void MqttIdfClient::mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
   MqttIdfClient *instance = static_cast<MqttIdfClient *>(handler_args);
+  // queue event to decouple processing
   if (instance) {
-    // Signal task that a new event was received
     auto event = *static_cast<esp_mqtt_event_t *>(event_data);
-    mqtt_events.push(event);
-    ESP_LOGD(TAG, "New event - signal semaphore");
-    xSemaphoreGive(event_mux);
+    instance->mqtt_events.push(event);
   }
 }
-
-// static memebers
-SemaphoreHandle_t MqttIdfClient::event_mux{nullptr};      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-std::queue<esp_mqtt_event_t> MqttIdfClient::mqtt_events;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace mqtt
 }  // namespace esphome

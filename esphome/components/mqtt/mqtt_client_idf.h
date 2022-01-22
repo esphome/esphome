@@ -89,6 +89,8 @@ class MqttIdfClient : public MQTTClientBase {
                    message.retain);
   }
 
+  void loop() final;
+
   void set_ca_certificate(const std::string &cert) { ca_certificate_ = cert; }
   void set_skip_cert_cn_check(bool skip_check) { skip_cert_cn_check_ = skip_check; }
 
@@ -138,10 +140,7 @@ class MqttIdfClient : public MQTTClientBase {
   std::vector<on_unsubscribe_callback_t> on_unsubscribe_;
   std::vector<on_message_callback_t> on_message_;
   std::vector<on_publish_uer_callback_t> on_publish_;
-
-  // static members for event dispatching
-  static SemaphoreHandle_t event_mux;               // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-  static std::queue<esp_mqtt_event_t> mqtt_events;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  std::queue<esp_mqtt_event_t> mqtt_events;
 };
 
 }  // namespace mqtt
