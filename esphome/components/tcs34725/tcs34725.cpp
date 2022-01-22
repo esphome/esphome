@@ -136,7 +136,7 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   }
   /* Check for saturation and mark the sample as invalid if true */
   if (c >= sat) {
-    ESP_LOGW(TAG, "Saturation too high discarding sample = sat=.1%f clear = %d", sat, c);
+    ESP_LOGW(TAG, "Saturation too high, discarding sample with saturation %.1f and clear %d", sat, c);
     return;
   }
 
