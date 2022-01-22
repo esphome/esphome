@@ -18,6 +18,12 @@ void SlowPWMOutput::set_output_state_(bool new_state) {
     this->pin_->digital_write(new_state);
   }
   if (new_state != current_state_) {
+    if (this->pin_) {
+      ESP_LOGV(TAG, "Switching output pin %s to %s", this->pin_->dump_summary().c_str(), ONOFF(new_state));
+    } else {
+      ESP_LOGV(TAG, "Switching to %s", ONOFF(new_state));
+    }
+
     if (this->state_change_trigger_) {
       this->state_change_trigger_->trigger(new_state);
     }
@@ -29,10 +35,6 @@ void SlowPWMOutput::set_output_state_(bool new_state) {
         this->turn_off_trigger_->trigger();
     }
     current_state_ = new_state;
-    if (this->pin_)
-      ESP_LOGD(TAG, "Switching output pin %s to %s", this->pin_->dump_summary().c_str(), ONOFF(new_state));
-    else
-      ESP_LOGD(TAG, "Switching to %s", ONOFF(new_state));
   }
 }
 
@@ -58,7 +60,7 @@ void SlowPWMOutput::dump_config() {
   if (this->turn_off_trigger_)
     ESP_LOGCONFIG(TAG, "  Turn off automation configured");
   ESP_LOGCONFIG(TAG, "  Period: %d ms", this->period_);
-  ESP_LOGCONFIG(TAG, "  Restart a cycle on state change: %s", YESNO(this->restart_cycle_on_state_change_));
+  ESP_LOGCONFIG(TAG, "  Restart cycle on state change: %s", YESNO(this->restart_cycle_on_state_change_));
   LOG_FLOAT_OUTPUT(this);
 }
 
