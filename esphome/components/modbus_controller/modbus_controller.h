@@ -456,12 +456,7 @@ inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem
 
   float float_value;
   if (item.sensor_value_type == SensorValueType::FP32 || item.sensor_value_type == SensorValueType::FP32_R) {
-    union {
-      float float_value;
-      uint32_t raw;
-    } raw_to_float;
-    raw_to_float.raw = number;
-    float_value = raw_to_float.float_value;
+    float_value = bit_cast<float>(static_cast<uint32_t>(number));
   } else {
     float_value = static_cast<float>(number);
   }
@@ -473,12 +468,7 @@ inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value
   int64_t val;
 
   if (value_type == SensorValueType::FP32 || value_type == SensorValueType::FP32_R) {
-    union {
-      float float_value;
-      uint32_t raw;
-    } raw_to_float;
-    raw_to_float.float_value = value;
-    val = raw_to_float.raw;
+    val = bit_cast<uint32_t>(value);
   } else {
     val = llroundf(value);
   }
