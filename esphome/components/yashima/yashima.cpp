@@ -171,7 +171,7 @@ void YashimaClimate::transmit_state_() {
   remote_state[1] |= YASHIMA_TEMP_MAP_BYTE1[safecelsius - YASHIMA_TEMP_MIN];
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   data->set_carrier_frequency(YASHIMA_CARRIER_FREQUENCY);
 

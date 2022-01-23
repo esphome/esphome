@@ -302,7 +302,7 @@ class WiFiComponent : public Component {
   void wifi_scan_done_callback_();
 #endif
 #ifdef USE_ESP_IDF
-  void wifi_process_event_(IDFWiFiEvent *);
+  void wifi_process_event_(IDFWiFiEvent *data);
 #endif
 
   std::string use_address_;

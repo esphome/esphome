@@ -27,23 +27,24 @@ from esphome.cpp_helpers import setup_entity
 IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace("fan")
-FanState = fan_ns.class_("FanState", cg.EntityBase, cg.Component)
-MakeFan = cg.Application.struct("MakeFan")
+Fan = fan_ns.class_("Fan", cg.EntityBase)
+FanState = fan_ns.class_("Fan", Fan, cg.Component)
 
-FanDirection = fan_ns.enum("FanDirection")
+FanDirection = fan_ns.enum("FanDirection", is_class=True)
 FAN_DIRECTION_ENUM = {
-    "FORWARD": FanDirection.FAN_DIRECTION_FORWARD,
-    "REVERSE": FanDirection.FAN_DIRECTION_REVERSE,
+    "FORWARD": FanDirection.FORWARD,
+    "REVERSE": FanDirection.REVERSE,
 }
 
-FanRestoreMode = fan_ns.enum("FanRestoreMode")
+FanRestoreMode = fan_ns.enum("FanRestoreMode", is_class=True)
 RESTORE_MODES = {
-    "RESTORE_DEFAULT_OFF": FanRestoreMode.FAN_RESTORE_DEFAULT_OFF,
-    "RESTORE_DEFAULT_ON": FanRestoreMode.FAN_RESTORE_DEFAULT_ON,
-    "ALWAYS_OFF": FanRestoreMode.FAN_ALWAYS_OFF,
-    "ALWAYS_ON": FanRestoreMode.FAN_ALWAYS_ON,
-    "RESTORE_INVERTED_DEFAULT_OFF": FanRestoreMode.FAN_RESTORE_INVERTED_DEFAULT_OFF,
-    "RESTORE_INVERTED_DEFAULT_ON": FanRestoreMode.FAN_RESTORE_INVERTED_DEFAULT_ON,
+    "NO_RESTORE": FanRestoreMode.NO_RESTORE,
+    "ALWAYS_OFF": FanRestoreMode.ALWAYS_OFF,
+    "ALWAYS_ON": FanRestoreMode.ALWAYS_ON,
+    "RESTORE_DEFAULT_OFF": FanRestoreMode.RESTORE_DEFAULT_OFF,
+    "RESTORE_DEFAULT_ON": FanRestoreMode.RESTORE_DEFAULT_ON,
+    "RESTORE_INVERTED_DEFAULT_OFF": FanRestoreMode.RESTORE_INVERTED_DEFAULT_OFF,
+    "RESTORE_INVERTED_DEFAULT_ON": FanRestoreMode.RESTORE_INVERTED_DEFAULT_ON,
 }
 
 # Actions
@@ -61,8 +62,8 @@ FanIsOffCondition = fan_ns.class_("FanIsOffCondition", automation.Condition.temp
 
 FAN_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
-        cv.GenerateID(): cv.declare_id(FanState),
-        cv.Optional(CONF_RESTORE_MODE, default="restore_default_off"): cv.enum(
+        cv.GenerateID(): cv.declare_id(Fan),
+        cv.Optional(CONF_RESTORE_MODE, default="RESTORE_DEFAULT_OFF"): cv.enum(
             RESTORE_MODES, upper=True, space="_"
         ),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTFanComponent),
@@ -158,19 +159,19 @@ async def register_fan(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_fan(var))
-    await cg.register_component(var, config)
     await setup_fan_core_(var, config)
 
 
 async def create_fan_state(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await register_fan(var, config)
+    await cg.register_component(var, config)
     return var
 
 
 FAN_ACTION_SCHEMA = maybe_simple_id(
     {
-        cv.Required(CONF_ID): cv.use_id(FanState),
+        cv.Required(CONF_ID): cv.use_id(Fan),
     }
 )
 
@@ -192,7 +193,7 @@ async def fan_turn_off_to_code(config, action_id, template_arg, args):
     TurnOnAction,
     maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.use_id(FanState),
+            cv.Required(CONF_ID): cv.use_id(Fan),
             cv.Optional(CONF_OSCILLATING): cv.templatable(cv.boolean),
             cv.Optional(CONF_SPEED): cv.templatable(cv.int_range(1)),
             cv.Optional(CONF_DIRECTION): cv.templatable(
@@ -227,7 +228,7 @@ async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
     FanIsOnCondition,
     automation.maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.use_id(FanState),
+            cv.Required(CONF_ID): cv.use_id(Fan),
         }
     ),
 )
@@ -236,7 +237,7 @@ async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
     FanIsOffCondition,
     automation.maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.use_id(FanState),
+            cv.Required(CONF_ID): cv.use_id(Fan),
         }
     ),
 )

@@ -23,7 +23,7 @@ void DaikinClimate::transmit_state() {
   }
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
   data->set_carrier_frequency(DAIKIN_IR_FREQUENCY);
 
   data->mark(DAIKIN_HEADER_MARK);

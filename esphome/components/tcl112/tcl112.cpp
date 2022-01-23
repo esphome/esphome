@@ -121,7 +121,7 @@ void Tcl112Climate::transmit_state() {
            remote_state[13]);
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   data->set_carrier_frequency(38000);
 

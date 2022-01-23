@@ -104,7 +104,7 @@ void CoolixClimate::transmit_state() {
   ESP_LOGV(TAG, "Sending coolix code: 0x%06X", remote_state);
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
   remote_base::CoolixProtocol().encode(data, remote_state);
   transmit.perform();
 }

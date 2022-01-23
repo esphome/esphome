@@ -214,7 +214,7 @@ void HitachiClimate::transmit_state() {
   invert_byte_pairs(remote_state_ + 3, HITACHI_AC344_STATE_LENGTH - 3);
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
   data->set_carrier_frequency(HITACHI_AC344_FREQ);
 
   uint8_t repeat = 0;
