@@ -63,7 +63,7 @@ from esphome.jsonschema import (
     jschema_registry,
     jschema_typed,
 )
-
+from esphome.util import parse_esphome_version
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
@@ -1736,6 +1736,19 @@ def require_framework_version(
         if core_data[KEY_FRAMEWORK_VERSION] < required:
             raise Invalid(
                 f"This feature requires at least framework version {required}"
+            )
+        return value
+
+    return validator
+
+
+def require_esphome_version(*version):
+    def validator(value):
+        esphome_version = parse_esphome_version()
+        if esphome_version < version:
+            requires_version = f"{version[0]}.{version[1]}.{version[2]}"
+            raise Invalid(
+                f"This component requires at least ESPHome version {requires_version}"
             )
         return value
 
