@@ -337,9 +337,11 @@ async def to_code(config):
                 "CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", False
             )
 
-        cg.add_build_flag(
-            "-DUSE_ESP_IDF_VERSION_CODE=VERSION_CODE"
-            f"({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
+        cg.add_define(
+            "USE_ESP_IDF_VERSION_CODE",
+            cg.RawExpression(
+                f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
+            ),
         )
 
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
@@ -353,9 +355,11 @@ async def to_code(config):
 
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
 
-        cg.add_build_flag(
-            "-DUSE_ARDUINO_VERSION_CODE=VERSION_CODE"
-            f"({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
+        cg.add_define(
+            "USE_ARDUINO_VERSION_CODE",
+            cg.RawExpression(
+                f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
+            ),
         )
 
 

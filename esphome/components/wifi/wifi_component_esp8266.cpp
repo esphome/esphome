@@ -1,5 +1,5 @@
 #include "wifi_component.h"
-#include "esphome/core/macros.h"
+#include "esphome/core/defines.h"
 
 #ifdef USE_ESP8266
 

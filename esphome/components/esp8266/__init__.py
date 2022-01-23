@@ -199,6 +199,10 @@ async def to_code(config):
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
     ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    cg.add_define(
+        "USE_ARDUINO_VERSION_CODE",
+        cg.RawExpression(f"VERSION_CODE({ver.major}, {ver.minor}, {ver.patch})"),
+    )
 
     if config[CONF_BOARD] in ESP8266_FLASH_SIZES:
         flash_size = ESP8266_FLASH_SIZES[config[CONF_BOARD]]
@@ -216,9 +220,6 @@ async def to_code(config):
         if ld_script is not None:
             cg.add_platformio_option("board_build.ldscript", ld_script)
 
-    cg.add_build_flag(
-        f"-DUSE_ARDUINO_VERSION_CODE=ESPHOME_VERSION_CODE({ver.major}, {ver.minor}, {ver.patch})"
-    )
 
 # Called by writer.py
 def copy_files():

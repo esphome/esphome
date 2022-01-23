@@ -1,7 +1,7 @@
 #ifdef USE_ARDUINO
 
 #include "http_request.h"
-#include "esphome/core/macros.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
 

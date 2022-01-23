@@ -6,9 +6,8 @@
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 #include "WString.h"
+#include "esphome/core/defines.h"  // for USE_ARDUINO_VERSION_CODE
 #endif
-
-#include "esphome/core/macros.h"
 
 // Include ESP-IDF/Arduino based logging methods here so they don't undefine ours later
 #if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
@@ -18,8 +17,6 @@
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp32-hal-log.h>
 #endif
-
-#include "esphome/core/macros.h"
 
 namespace esphome {
 

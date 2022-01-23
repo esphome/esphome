@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/macros.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"

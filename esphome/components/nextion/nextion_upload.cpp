@@ -3,7 +3,7 @@
 #ifdef USE_NEXTION_TFT_UPLOAD
 
 #include "esphome/core/application.h"
-#include "esphome/core/macros.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
