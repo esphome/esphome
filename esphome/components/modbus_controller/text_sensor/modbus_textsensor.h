@@ -35,7 +35,6 @@ class ModbusTextSensor : public Component, public text_sensor::TextSensor, publi
  protected:
   optional<transform_func_t> transform_func_{nullopt};
 
- protected:
   RawEncoding encode_;
 };
 

@@ -76,7 +76,6 @@ Checks: >-
   -readability-isolate-declaration,
   -readability-magic-numbers,
   -readability-make-member-function-const,
-  -readability-redundant-access-specifiers,
   -readability-redundant-string-init,
   -readability-uppercase-literal-suffix,
   -readability-use-anyofallof,
