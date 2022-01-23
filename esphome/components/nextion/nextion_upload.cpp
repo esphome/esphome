@@ -32,12 +32,12 @@ int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
     range_end = this->tft_size_;
 
 #ifdef USE_ESP8266
-#if USE_ARDUINO_VERSION_CODE >= ESPHOME_VERSION_CODE(2, 7, 0)
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
   http->setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-#elif USE_ARDUINO_VERSION_CODE >= ESPHOME_VERSION_CODE(2, 6, 0)
+#elif USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
   http->setFollowRedirects(true);
 #endif
-#if USE_ARDUINO_VERSION_CODE >= ESPHOME_VERSION_CODE(2, 6, 0)
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
   http->setRedirectLimit(3);
 #endif
 #endif
@@ -148,12 +148,12 @@ void Nextion::upload_tft() {
   begin_status = http.begin(this->tft_url_.c_str());
 #endif
 #ifdef USE_ESP8266
-#if USE_ARDUINO_VERSION_CODE >= ESPHOME_VERSION_CODE(2, 7, 0)
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-#elif USE_ARDUINO_VERSION_CODE >= ESPHOME_VERSION_CODE(2, 6, 0)
+#elif USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
   http.setFollowRedirects(true);
 #endif
-#if USE_ARDUINO_VERSION_CODE >= ESPHOME_VERSION_CODE(2, 6, 0)
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
   http.setRedirectLimit(3);
 #endif
   begin_status = http.begin(*this->get_wifi_client_(), this->tft_url_.c_str());
