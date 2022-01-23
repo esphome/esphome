@@ -773,7 +773,7 @@ class MockObj(Expression):
             return MockObj(f"{self.base} &", "")
         if name == "ptr":
             return MockObj(f"{self.base} *", "")
-        if name == "cptr":
+        if name == "const_ptr":
             return MockObj(f"{self.base} *const", "")
         if name == "const":
             return MockObj(f"const {self.base}", "")
