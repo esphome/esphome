@@ -109,7 +109,7 @@ def _substitute_item(substitutions, item, path):
             if sub is not None:
                 item[k] = sub
         for old, new in replace_keys:
-            item[new] = merge_config(item.get(new), item.get(old))
+            item[new] = merge_config(item.get(old), item.get(new))
             del item[old]
     elif isinstance(item, str):
         sub = _expand_substitutions(substitutions, item, path)
