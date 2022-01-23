@@ -14,7 +14,7 @@ static const char *const TAG = "mqtt.fan";
 
 using namespace esphome::fan;
 
-MQTTFanComponent::MQTTFanComponent(Fan *state) : MQTTComponent(), state_(state) {}
+MQTTFanComponent::MQTTFanComponent(Fan *state) : state_(state) {}
 
 Fan *MQTTFanComponent::get_state() const { return this->state_; }
 std::string MQTTFanComponent::component_type() const { return "fan"; }

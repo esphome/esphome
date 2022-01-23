@@ -52,7 +52,7 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
 
  protected:
   virtual void execute(Ts... x) = 0;
-  template<int... S> void execute_(std::vector<ExecuteServiceArgument> args, seq<S...>) {
+  template<int... S> void execute_(std::vector<ExecuteServiceArgument> args, seq<S...> type) {
     this->execute((get_execute_arg_value<Ts>(args[S]))...);
   }
 
