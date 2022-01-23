@@ -125,7 +125,7 @@ def _run_idedata(config):
 
 def _load_idedata(config):
     platformio_ini = Path(CORE.relative_build_path("platformio.ini"))
-    temp_idedata = Path(CORE.relative_internal_path(CORE.name, "idedata.json"))
+    temp_idedata = Path(CORE.relative_internal_path("idedata", f"{CORE.name}.json"))
 
     changed = False
     if not platformio_ini.is_file() or not temp_idedata.is_file():

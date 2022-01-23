@@ -130,10 +130,13 @@ void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
   xSemaphoreTake(this->lock_, portMAX_DELAY);
   uart_write_bytes(this->uart_num_, data, len);
   xSemaphoreGive(this->lock_);
+#ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    ESP_LOGVV(TAG, "    Wrote 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
+    this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
   }
+#endif
 }
+
 bool IDFUARTComponent::peek_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
     return false;
@@ -152,6 +155,7 @@ bool IDFUARTComponent::peek_byte(uint8_t *data) {
   xSemaphoreGive(this->lock_);
   return true;
 }
+
 bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
   size_t length_to_read = len;
   if (!this->check_read_timeout_(len))
@@ -165,12 +169,12 @@ bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
   }
   if (length_to_read > 0)
     uart_read_bytes(this->uart_num_, data, length_to_read, 20 / portTICK_RATE_MS);
-
   xSemaphoreGive(this->lock_);
+#ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    ESP_LOGVV(TAG, "    Read 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
+    this->debug_callback_.call(UART_DIRECTION_RX, data[i]);
   }
-
+#endif
   return true;
 }
 

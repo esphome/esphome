@@ -1,4 +1,5 @@
 import logging
+import os
 
 from esphome.const import (
     CONF_BOARD,
@@ -14,6 +15,7 @@ from esphome.const import (
 from esphome.core import CORE, coroutine_with_priority
 import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.helpers import copy_file_if_changed
 
 from .const import CONF_RESTORE_FROM_FLASH, KEY_BOARD, KEY_ESP8266, esp8266_ns
 from .boards import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
@@ -63,7 +65,7 @@ RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 7, 4)
 # The platformio/espressif8266 version to use for arduino 2 framework versions
 #  - https://github.com/platformio/platform-espressif8266/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif8266
-ARDUINO_2_PLATFORM_VERSION = cv.Version(2, 6, 2)
+ARDUINO_2_PLATFORM_VERSION = cv.Version(2, 6, 3)
 # for arduino 3 framework versions
 ARDUINO_3_PLATFORM_VERSION = cv.Version(3, 2, 0)
 
@@ -93,12 +95,12 @@ def _arduino_check_versions(value):
     platform_version = value.get(CONF_PLATFORM_VERSION)
     if platform_version is None:
         if version >= cv.Version(3, 0, 0):
-            platform_version = ARDUINO_3_PLATFORM_VERSION
+            platform_version = _parse_platform_version(str(ARDUINO_3_PLATFORM_VERSION))
         elif version >= cv.Version(2, 5, 0):
-            platform_version = ARDUINO_2_PLATFORM_VERSION
+            platform_version = _parse_platform_version(str(ARDUINO_2_PLATFORM_VERSION))
         else:
-            platform_version = cv.Version(1, 8, 0)
-    value[CONF_PLATFORM_VERSION] = str(platform_version)
+            platform_version = _parse_platform_version(str(cv.Version(1, 8, 0)))
+    value[CONF_PLATFORM_VERSION] = platform_version
 
     if version != RECOMMENDED_ARDUINO_FRAMEWORK_VERSION:
         _LOGGER.warning(
@@ -109,13 +111,22 @@ def _arduino_check_versions(value):
     return value
 
 
+def _parse_platform_version(value):
+    try:
+        # if platform version is a valid version constraint, prefix the default package
+        cv.platformio_version_constraint(value)
+        return f"platformio/espressif8266 @ {value}"
+    except cv.Invalid:
+        return value
+
+
 CONF_PLATFORM_VERSION = "platform_version"
 ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
             cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): cv.string_strict,
+            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
         }
     ),
     _arduino_check_versions,
@@ -142,20 +153,23 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     cg.add(esp8266_ns.setup_preferences())
 
+    cg.add_platformio_option("lib_ldf_mode", "off")
+
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_ESP8266")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
+    cg.add_define("ESPHOME_VARIANT", "ESP8266")
+
+    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
     cg.add_build_flag("-DUSE_ESP8266_FRAMEWORK_ARDUINO")
+    cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
     cg.add_platformio_option(
         "platform_packages",
         [f"platformio/framework-arduinoespressif8266 @ {conf[CONF_SOURCE]}"],
-    )
-    cg.add_platformio_option(
-        "platform", f"platformio/espressif8266 @ {conf[CONF_PLATFORM_VERSION]}"
     )
 
     # Default for platformio is LWIP2_LOW_MEMORY with:
@@ -204,4 +218,14 @@ async def to_code(config):
 
     cg.add_build_flag(
         f"-DUSE_ARDUINO_VERSION_CODE=ESPHOME_VERSION_CODE({ver.major}, {ver.minor}, {ver.patch})"
+    )
+
+# Called by writer.py
+def copy_files():
+
+    dir = os.path.dirname(__file__)
+    post_build_file = os.path.join(dir, "post_build.py.script")
+    copy_file_if_changed(
+        post_build_file,
+        CORE.relative_build_path("post_build.py"),
     )

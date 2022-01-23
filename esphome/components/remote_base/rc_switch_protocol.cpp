@@ -101,10 +101,13 @@ bool RCSwitchBase::expect_sync(RemoteReceiveData &src) const {
     if (!src.peek_space(this->sync_low_, 1))
       return false;
   } else {
-    if (!src.peek_space(this->sync_high_))
+    // We cant peek a space at the beginning because signals starts with a low to high transition.
+    // this long space at the beginning is the separation between the transmissions itself, so it is actually
+    // added at the end kind of artificially (by the value given to "idle:" option by the user in the yaml)
+    if (!src.peek_mark(this->sync_low_))
       return false;
-    if (!src.peek_mark(this->sync_low_, 1))
-      return false;
+    src.advance(1);
+    return true;
   }
   src.advance(2);
   return true;

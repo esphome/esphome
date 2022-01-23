@@ -221,7 +221,7 @@ UARTSelection Logger::get_uart() const { return this->uart_; }
 void Logger::add_on_log_callback(std::function<void(int, const char *, const char *)> &&callback) {
   this->log_callback_.add(std::move(callback));
 }
-float Logger::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
+float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
 const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
 #ifdef USE_ESP32
 const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART2"};

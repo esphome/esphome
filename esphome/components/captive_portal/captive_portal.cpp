@@ -67,6 +67,7 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   ESP_LOGI(TAG, "  SSID='%s'", ssid.c_str());
   ESP_LOGI(TAG, "  Password=" LOG_SECRET("'%s'"), psk.c_str());
   wifi::global_wifi_component->save_wifi_sta(ssid, psk);
+  wifi::global_wifi_component->start_scanning();
   request->redirect("/?save=true");
 }
 
@@ -84,14 +85,7 @@ void CaptivePortal::start() {
   this->dns_server_->start(53, "*", (uint32_t) ip);
 
   this->base_->get_server()->onNotFound([this](AsyncWebServerRequest *req) {
-    bool not_found = false;
-    if (!this->active_) {
-      not_found = true;
-    } else if (req->host().c_str() == wifi::global_wifi_component->wifi_soft_ap_ip().str()) {
-      not_found = true;
-    }
-
-    if (not_found) {
+    if (!this->active_ || req->host().c_str() == wifi::global_wifi_component->wifi_soft_ap_ip().str()) {
       req->send(404, "text/html", "File not found");
       return;
     }

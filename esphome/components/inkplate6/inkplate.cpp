@@ -42,32 +42,32 @@ void Inkplate6::setup() {
   this->display();
 }
 void Inkplate6::initialize_() {
+  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   uint32_t buffer_size = this->get_buffer_length_();
+  if (buffer_size == 0)
+    return;
 
-  if (this->partial_buffer_ != nullptr) {
-    free(this->partial_buffer_);  // NOLINT
-  }
-  if (this->partial_buffer_2_ != nullptr) {
-    free(this->partial_buffer_2_);  // NOLINT
-  }
-  if (this->buffer_ != nullptr) {
-    free(this->buffer_);  // NOLINT
-  }
+  if (this->partial_buffer_ != nullptr)
+    allocator.deallocate(this->partial_buffer_, buffer_size);
+  if (this->partial_buffer_2_ != nullptr)
+    allocator.deallocate(this->partial_buffer_2_, buffer_size * 2);
+  if (this->buffer_ != nullptr)
+    allocator.deallocate(this->buffer_, buffer_size);
 
-  this->buffer_ = (uint8_t *) ps_malloc(buffer_size);
+  this->buffer_ = allocator.allocate(buffer_size);
   if (this->buffer_ == nullptr) {
     ESP_LOGE(TAG, "Could not allocate buffer for display!");
     this->mark_failed();
     return;
   }
   if (!this->greyscale_) {
-    this->partial_buffer_ = (uint8_t *) ps_malloc(buffer_size);
+    this->partial_buffer_ = allocator.allocate(buffer_size);
     if (this->partial_buffer_ == nullptr) {
       ESP_LOGE(TAG, "Could not allocate partial buffer for display!");
       this->mark_failed();
       return;
     }
-    this->partial_buffer_2_ = (uint8_t *) ps_malloc(buffer_size * 2);
+    this->partial_buffer_2_ = allocator.allocate(buffer_size * 2);
     if (this->partial_buffer_2_ == nullptr) {
       ESP_LOGE(TAG, "Could not allocate partial buffer 2 for display!");
       this->mark_failed();

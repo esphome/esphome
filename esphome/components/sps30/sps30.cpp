@@ -32,14 +32,11 @@ void SPS30Component::setup() {
       return;
     }
 
-    uint16_t raw_firmware_version[4];
-    if (!this->read_data_(raw_firmware_version, 4)) {
+    if (!this->read_data_(&raw_firmware_version_, 1)) {
       this->error_code_ = FIRMWARE_VERSION_READ_FAILED;
       this->mark_failed();
       return;
     }
-    ESP_LOGD(TAG, "  Firmware version v%0d.%02d", (raw_firmware_version[0] >> 8),
-             uint16_t(raw_firmware_version[0] & 0xFF));
     /// Serial number identification
     if (!this->write_command_(SPS30_CMD_GET_SERIAL_NUMBER)) {
       this->error_code_ = SERIAL_NUMBER_REQUEST_FAILED;
@@ -59,6 +56,8 @@ void SPS30Component::setup() {
       this->serial_number_[i * 2 + 1] = uint16_t(uint16_t(raw_serial_number[i] & 0xFF));
     }
     ESP_LOGD(TAG, "  Serial Number: '%s'", this->serial_number_);
+    this->status_clear_warning();
+    this->skipped_data_read_cycles_ = 0;
     this->start_continuous_measurement_();
   });
 }
@@ -93,10 +92,17 @@ void SPS30Component::dump_config() {
   }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Serial Number: '%s'", this->serial_number_);
-  LOG_SENSOR("  ", "PM1.0", this->pm_1_0_sensor_);
-  LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
-  LOG_SENSOR("  ", "PM4", this->pm_4_0_sensor_);
-  LOG_SENSOR("  ", "PM10", this->pm_10_0_sensor_);
+  ESP_LOGCONFIG(TAG, "  Firmware version v%0d.%0d", (raw_firmware_version_ >> 8),
+                uint16_t(raw_firmware_version_ & 0xFF));
+  LOG_SENSOR("  ", "PM1.0 Weight Concentration", this->pm_1_0_sensor_);
+  LOG_SENSOR("  ", "PM2.5 Weight Concentration", this->pm_2_5_sensor_);
+  LOG_SENSOR("  ", "PM4 Weight Concentration", this->pm_4_0_sensor_);
+  LOG_SENSOR("  ", "PM10 Weight Concentration", this->pm_10_0_sensor_);
+  LOG_SENSOR("  ", "PM1.0 Number Concentration", this->pmc_1_0_sensor_);
+  LOG_SENSOR("  ", "PM2.5 Number Concentration", this->pmc_2_5_sensor_);
+  LOG_SENSOR("  ", "PM4 Number Concentration", this->pmc_4_0_sensor_);
+  LOG_SENSOR("  ", "PM10 Number Concentration", this->pmc_10_0_sensor_);
+  LOG_SENSOR("  ", "PM typical size", this->pm_size_sensor_);
 }
 
 void SPS30Component::update() {
@@ -123,8 +129,8 @@ void SPS30Component::update() {
     return;
   }
 
-  uint16_t raw_read_status[1];
-  if (!this->read_data_(raw_read_status, 1) || raw_read_status[0] == 0x00) {
+  uint16_t raw_read_status;
+  if (!this->read_data_(&raw_read_status, 1) || raw_read_status == 0x00) {
     ESP_LOGD(TAG, "Sensor measurement not ready yet.");
     this->skipped_data_read_cycles_++;
     /// The following logic is required to address the cases when a sensor is quickly replaced before it's marked

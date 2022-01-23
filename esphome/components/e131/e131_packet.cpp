@@ -116,7 +116,7 @@ bool E131Component::packet_(const std::vector<uint8_t> &data, int &universe, E13
   if (data.size() < E131_MIN_PACKET_SIZE)
     return false;
 
-  auto sbuff = reinterpret_cast<const E131RawPacket *>(&data[0]);
+  auto *sbuff = reinterpret_cast<const E131RawPacket *>(&data[0]);
 
   if (memcmp(sbuff->acn_id, ACN_ID, sizeof(sbuff->acn_id)) != 0)
     return false;

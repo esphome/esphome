@@ -12,6 +12,8 @@ from esphome.const import (
     CONF_TYPE,
     CONF_EXTERNAL_COMPONENTS,
     CONF_PATH,
+    CONF_USERNAME,
+    CONF_PASSWORD,
 )
 from esphome.core import CORE
 from esphome import git, loader
@@ -27,6 +29,8 @@ TYPE_LOCAL = "local"
 GIT_SCHEMA = {
     cv.Required(CONF_URL): cv.url,
     cv.Optional(CONF_REF): cv.git_ref,
+    cv.Optional(CONF_USERNAME): cv.string,
+    cv.Optional(CONF_PASSWORD): cv.string,
 }
 LOCAL_SCHEMA = {
     cv.Required(CONF_PATH): cv.directory,
@@ -43,19 +47,27 @@ def validate_source_shorthand(value):
     # Regex for GitHub repo name with optional branch/tag
     # Note: git allows other branch/tag names as well, but never seen them used before
     m = re.match(
-        r"github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)(?:@([a-zA-Z0-9\-_.\./]+))?",
+        r"github://(?:([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)(?:@([a-zA-Z0-9\-_.\./]+))?|pr#([0-9]+))",
         value,
     )
     if m is None:
         raise cv.Invalid(
-            "Source is not a file system path or in expected github://username/name[@branch-or-tag] format!"
+            "Source is not a file system path, in expected github://username/name[@branch-or-tag] or github://pr#1234 format!"
         )
-    conf = {
-        CONF_TYPE: TYPE_GIT,
-        CONF_URL: f"https://github.com/{m.group(1)}/{m.group(2)}.git",
-    }
-    if m.group(3):
-        conf[CONF_REF] = m.group(3)
+    if m.group(4):
+        conf = {
+            CONF_TYPE: TYPE_GIT,
+            CONF_URL: "https://github.com/esphome/esphome.git",
+            CONF_REF: f"pull/{m.group(4)}/head",
+        }
+    else:
+        conf = {
+            CONF_TYPE: TYPE_GIT,
+            CONF_URL: f"https://github.com/{m.group(1)}/{m.group(2)}.git",
+        }
+        if m.group(3):
+            conf[CONF_REF] = m.group(3)
+
     return SOURCE_SCHEMA(conf)
 
 
@@ -91,6 +103,8 @@ def _process_git_config(config: dict, refresh) -> str:
         ref=config.get(CONF_REF),
         refresh=refresh,
         domain=DOMAIN,
+        username=config.get(CONF_USERNAME),
+        password=config.get(CONF_PASSWORD),
     )
 
     if (repo_dir / "esphome" / "components").is_dir():

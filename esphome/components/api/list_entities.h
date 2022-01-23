@@ -19,7 +19,7 @@ class ListEntitiesIterator : public ComponentIterator {
   bool on_cover(cover::Cover *cover) override;
 #endif
 #ifdef USE_FAN
-  bool on_fan(fan::FanState *fan) override;
+  bool on_fan(fan::Fan *fan) override;
 #endif
 #ifdef USE_LIGHT
   bool on_light(light::LightState *light) override;
@@ -29,6 +29,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #endif
 #ifdef USE_SWITCH
   bool on_switch(switch_::Switch *a_switch) override;
+#endif
+#ifdef USE_BUTTON
+  bool on_button(button::Button *button) override;
 #endif
 #ifdef USE_TEXT_SENSOR
   bool on_text_sensor(text_sensor::TextSensor *text_sensor) override;

@@ -1,6 +1,8 @@
 #include "mqtt_cover.h"
 #include "esphome/core/log.h"
 
+#include "mqtt_const.h"
+
 #ifdef USE_MQTT
 #ifdef USE_COVER
 
@@ -22,7 +24,7 @@ void MQTTCoverComponent::setup() {
   });
   if (traits.get_supports_position()) {
     this->subscribe(this->get_position_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto value = parse_float(payload);
+      auto value = parse_number<float>(payload);
       if (!value.has_value()) {
         ESP_LOGW(TAG, "Invalid position value: '%s'", payload.c_str());
         return;
@@ -34,7 +36,7 @@ void MQTTCoverComponent::setup() {
   }
   if (traits.get_supports_tilt()) {
     this->subscribe(this->get_tilt_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto value = parse_float(payload);
+      auto value = parse_number<float>(payload);
       if (!value.has_value()) {
         ESP_LOGW(TAG, "Invalid tilt value: '%s'", payload.c_str());
         return;
@@ -61,22 +63,22 @@ void MQTTCoverComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Tilt Command Topic: '%s'", this->get_tilt_command_topic().c_str());
   }
 }
-void MQTTCoverComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   if (!this->cover_->get_device_class().empty())
-    root["device_class"] = this->cover_->get_device_class();
+    root[MQTT_DEVICE_CLASS] = this->cover_->get_device_class();
 
   auto traits = this->cover_->get_traits();
   if (traits.get_is_assumed_state()) {
-    root["optimistic"] = true;
+    root[MQTT_OPTIMISTIC] = true;
   }
   if (traits.get_supports_position()) {
     config.state_topic = false;
-    root["position_topic"] = this->get_position_state_topic();
-    root["set_position_topic"] = this->get_position_command_topic();
+    root[MQTT_POSITION_TOPIC] = this->get_position_state_topic();
+    root[MQTT_SET_POSITION_TOPIC] = this->get_position_command_topic();
   }
   if (traits.get_supports_tilt()) {
-    root["tilt_status_topic"] = this->get_tilt_state_topic();
-    root["tilt_command_topic"] = this->get_tilt_command_topic();
+    root[MQTT_TILT_STATUS_TOPIC] = this->get_tilt_state_topic();
+    root[MQTT_TILT_COMMAND_TOPIC] = this->get_tilt_command_topic();
   }
   if (traits.get_supports_tilt() && !traits.get_supports_position()) {
     config.command_topic = false;

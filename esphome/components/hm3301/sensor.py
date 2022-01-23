@@ -84,7 +84,6 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x40)),
     _validate,
-    cv.only_with_arduino,
 )
 
 
@@ -109,6 +108,3 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_AQI])
         cg.add(var.set_aqi_sensor(sens))
         cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))
-
-    # https://platformio.org/lib/show/6306/Grove%20-%20Laser%20PM2.5%20Sensor%20HM3301
-    cg.add_library("seeed-studio/Grove - Laser PM2.5 Sensor HM3301", "1.0.3")

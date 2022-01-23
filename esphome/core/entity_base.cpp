@@ -26,12 +26,16 @@ void EntityBase::set_disabled_by_default(bool disabled_by_default) { this->disab
 const std::string &EntityBase::get_icon() const { return this->icon_; }
 void EntityBase::set_icon(const std::string &name) { this->icon_ = name; }
 
+// Entity Category
+EntityCategory EntityBase::get_entity_category() const { return this->entity_category_; }
+void EntityBase::set_entity_category(EntityCategory entity_category) { this->entity_category_ = entity_category; }
+
 // Entity Object ID
 const std::string &EntityBase::get_object_id() { return this->object_id_; }
 
 // Calculate Object ID Hash from Entity Name
 void EntityBase::calc_object_id_() {
-  this->object_id_ = sanitize_string_allowlist(to_lowercase_underscore(this->name_), HOSTNAME_CHARACTER_ALLOWLIST);
+  this->object_id_ = str_sanitize(str_snake_case(this->name_));
   // FNV-1 hash
   this->object_id_hash_ = fnv1_hash(this->object_id_);
 }

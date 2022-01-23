@@ -11,8 +11,8 @@ static const char *const TAG = "mqtt.text_sensor";
 
 using namespace esphome::text_sensor;
 
-MQTTTextSensor::MQTTTextSensor(TextSensor *sensor) : MQTTComponent(), sensor_(sensor) {}
-void MQTTTextSensor::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+MQTTTextSensor::MQTTTextSensor(TextSensor *sensor) : sensor_(sensor) {}
+void MQTTTextSensor::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   config.command_topic = false;
 }
 void MQTTTextSensor::setup() {

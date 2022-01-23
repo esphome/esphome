@@ -76,6 +76,7 @@ class ESP32Preferences : public ESPPreferences {
   uint32_t current_offset = 0;
 
   void open() {
+    nvs_flash_init();
     esp_err_t err = nvs_open("esphome", NVS_READWRITE, &nvs_handle);
     if (err == 0)
       return;

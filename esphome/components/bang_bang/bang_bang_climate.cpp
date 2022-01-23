@@ -80,21 +80,23 @@ void BangBangClimate::compute_state_() {
 
   climate::ClimateAction target_action;
   if (too_cold) {
-    // too cold -> enable heating if possible, else idle
-    if (this->supports_heat_)
+    // too cold -> enable heating if possible and enabled, else idle
+    if (this->supports_heat_ &&
+        (this->mode == climate::CLIMATE_MODE_HEAT_COOL || this->mode == climate::CLIMATE_MODE_HEAT))
       target_action = climate::CLIMATE_ACTION_HEATING;
     else
       target_action = climate::CLIMATE_ACTION_IDLE;
   } else if (too_hot) {
-    // too hot -> enable cooling if possible, else idle
-    if (this->supports_cool_)
+    // too hot -> enable cooling if possible and enabled, else idle
+    if (this->supports_cool_ &&
+        (this->mode == climate::CLIMATE_MODE_HEAT_COOL || this->mode == climate::CLIMATE_MODE_COOL))
       target_action = climate::CLIMATE_ACTION_COOLING;
     else
       target_action = climate::CLIMATE_ACTION_IDLE;
   } else {
     // neither too hot nor too cold -> in range
-    if (this->supports_cool_ && this->supports_heat_) {
-      // if supports both ends, go to idle action
+    if (this->supports_cool_ && this->supports_heat_ && this->mode == climate::CLIMATE_MODE_HEAT_COOL) {
+      // if supports both ends and both cooling and heating enabled, go to idle action
       target_action = climate::CLIMATE_ACTION_IDLE;
     } else {
       // else use current mode and don't change (hysteresis)

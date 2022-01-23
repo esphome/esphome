@@ -22,6 +22,9 @@
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
 #ifdef USE_CLIMATE
 #include "esphome/components/climate/climate.h"
 #endif
@@ -36,12 +39,12 @@ namespace esphome {
 
 class Controller {
  public:
-  void setup_controller();
+  void setup_controller(bool include_internal = false);
 #ifdef USE_BINARY_SENSOR
   virtual void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state){};
 #endif
 #ifdef USE_FAN
-  virtual void on_fan_update(fan::FanState *obj){};
+  virtual void on_fan_update(fan::Fan *obj){};
 #endif
 #ifdef USE_LIGHT
   virtual void on_light_update(light::LightState *obj){};

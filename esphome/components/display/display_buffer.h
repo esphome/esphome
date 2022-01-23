@@ -73,7 +73,12 @@ extern const Color COLOR_OFF;
 /// Turn the pixel ON.
 extern const Color COLOR_ON;
 
-enum ImageType { IMAGE_TYPE_BINARY = 0, IMAGE_TYPE_GRAYSCALE = 1, IMAGE_TYPE_RGB24 = 2 };
+enum ImageType {
+  IMAGE_TYPE_BINARY = 0,
+  IMAGE_TYPE_GRAYSCALE = 1,
+  IMAGE_TYPE_RGB24 = 2,
+  IMAGE_TYPE_TRANSPARENT_BINARY = 3,
+};
 
 enum DisplayRotation {
   DISPLAY_ROTATION_0_DEGREES = 0,
@@ -333,6 +338,9 @@ class DisplayBuffer {
   /// Internal method to set the display rotation with.
   void set_rotation(DisplayRotation rotation);
 
+  // Internal method to set display auto clearing.
+  void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
+
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
 
@@ -352,6 +360,7 @@ class DisplayBuffer {
   DisplayPage *page_{nullptr};
   DisplayPage *previous_page_{nullptr};
   std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
+  bool auto_clear_enabled_{true};
 };
 
 class DisplayPage {

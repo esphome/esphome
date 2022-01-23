@@ -203,16 +203,16 @@ float MAX31865Sensor::calc_temperature_(float rtd_ratio) {
     rtd_resistance *= 100;
   }
   float rpoly = rtd_resistance;
-  float neg_temp = -242.02;
-  neg_temp += 2.2228 * rpoly;
+  float neg_temp = -242.02f;
+  neg_temp += 2.2228f * rpoly;
   rpoly *= rtd_resistance;  // square
-  neg_temp += 2.5859e-3 * rpoly;
+  neg_temp += 2.5859e-3f * rpoly;
   rpoly *= rtd_resistance;  // ^3
-  neg_temp -= 4.8260e-6 * rpoly;
+  neg_temp -= 4.8260e-6f * rpoly;
   rpoly *= rtd_resistance;  // ^4
-  neg_temp -= 2.8183e-8 * rpoly;
+  neg_temp -= 2.8183e-8f * rpoly;
   rpoly *= rtd_resistance;  // ^5
-  neg_temp += 1.5243e-10 * rpoly;
+  neg_temp += 1.5243e-10f * rpoly;
   return neg_temp;
 }
 

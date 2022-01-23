@@ -14,6 +14,14 @@ CODEOWNERS = ["@Azimath"]
 sdp3x_ns = cg.esphome_ns.namespace("sdp3x")
 SDP3XComponent = sdp3x_ns.class_("SDP3XComponent", cg.PollingComponent, i2c.I2CDevice)
 
+
+MeasurementMode = sdp3x_ns.enum("MeasurementMode")
+MEASUREMENT_MODE = {
+    "mass_flow": MeasurementMode.MASS_FLOW_AVG,
+    "differential_pressure": MeasurementMode.DP_AVG,
+}
+CONF_MEASUREMENT_MODE = "measurement_mode"
+
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         unit_of_measurement=UNIT_HECTOPASCAL,
@@ -24,6 +32,9 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.GenerateID(): cv.declare_id(SDP3XComponent),
+            cv.Optional(
+                CONF_MEASUREMENT_MODE, default="differential_pressure"
+            ): cv.enum(MEASUREMENT_MODE),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -36,3 +47,4 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
     await sensor.register_sensor(var, config)
+    cg.add(var.set_measurement_mode(config[CONF_MEASUREMENT_MODE]))

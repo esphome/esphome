@@ -55,7 +55,7 @@ static inline bool esp_rtc_user_mem_write(uint32_t index, uint32_t value) {
 
 extern "C" uint32_t _SPIFFS_end;  // NOLINT
 
-static const uint32_t get_esp8266_flash_sector() {
+static uint32_t get_esp8266_flash_sector() {
   union {
     uint32_t *ptr;
     uint32_t uint;
@@ -63,7 +63,7 @@ static const uint32_t get_esp8266_flash_sector() {
   data.ptr = &_SPIFFS_end;
   return (data.uint - 0x40200000) / SPI_FLASH_SEC_SIZE;
 }
-static const uint32_t get_esp8266_flash_address() { return get_esp8266_flash_sector() * SPI_FLASH_SEC_SIZE; }
+static uint32_t get_esp8266_flash_address() { return get_esp8266_flash_sector() * SPI_FLASH_SEC_SIZE; }
 
 template<class It> uint32_t calculate_crc(It first, It last, uint32_t type) {
   uint32_t crc = type;

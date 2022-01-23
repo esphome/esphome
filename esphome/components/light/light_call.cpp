@@ -98,7 +98,7 @@ void LightCall::perform() {
     // EFFECT
     auto effect = this->effect_;
     const char *effect_s;
-    if (effect == 0)
+    if (effect == 0u)
       effect_s = "None";
     else
       effect_s = this->parent_->effects_[*this->effect_ - 1]->get_name().c_str();

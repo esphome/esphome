@@ -1,7 +1,0 @@
-comment: >-
-  https://github.com/esphome/esphome/issues/430
-issueConfigs:
-- content:
-  - "OTHERWISE THE ISSUE WILL BE CLOSED AUTOMATICALLY"
-
-caseInsensitive: false

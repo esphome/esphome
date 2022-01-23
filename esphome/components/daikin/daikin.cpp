@@ -23,7 +23,7 @@ void DaikinClimate::transmit_state() {
   }
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
   data->set_carrier_frequency(DAIKIN_IR_FREQUENCY);
 
   data->mark(DAIKIN_HEADER_MARK);
@@ -231,7 +231,7 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
       // frame header
       if (byte != 0x27)
         return false;
-    } else if (pos == 3) {
+    } else if (pos == 3) {  // NOLINT(bugprone-branch-clone)
       // frame header
       if (byte != 0x00)
         return false;
