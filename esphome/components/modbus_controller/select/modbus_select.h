@@ -13,7 +13,7 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
  public:
   ModbusSelect(SensorValueType sensor_value_type, uint16_t start_address, uint8_t register_count, uint8_t skip_updates,
                bool force_new_range, std::vector<int64_t> mapping)
-      : Component(), select::Select(), write_address_(start_address) {
+      : Component(), select::Select() {
     this->register_type = ModbusRegisterType::HOLDING;  // not configurable
     this->sensor_value_type = sensor_value_type;
     this->start_address = start_address;
@@ -40,7 +40,6 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
   void control(const std::string &value) override;
 
  protected:
-  const uint16_t write_address_;
   std::vector<int64_t> mapping_;
   ModbusController *parent_;
   bool use_write_multiple_{false};
