@@ -42,9 +42,11 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   Deduplicator<uint32_t> total_dedupe_;
 
   volatile uint32_t last_detected_edge_us_ = 0;
-  volatile uint32_t last_valid_edge_us_ = 0;
+  volatile uint32_t last_valid_low_edge_us_ = 0;
+  volatile uint32_t last_valid_high_edge_us_ = 0;
   volatile uint32_t pulse_width_us_ = 0;
   volatile uint32_t total_pulses_ = 0;
+  volatile bool sensor_is_high_ = false;
 };
 
 }  // namespace pulse_meter
