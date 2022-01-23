@@ -805,7 +805,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.project_version = ESPHOME_PROJECT_VERSION;
 #endif
 #ifdef USE_WEBSERVER
-  resp.webserver_port = WEBSERVER_PORT;
+  resp.webserver_port = USE_WEBSERVER_PORT;
 #endif
   return resp;
 }

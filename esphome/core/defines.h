@@ -47,8 +47,8 @@
 #define USE_MQTT
 #define USE_PROMETHEUS
 #define USE_WEBSERVER
+#define USE_WEBSERVER_PORT 80  // NOLINT
 #define USE_WIFI_WPA2_EAP
-#define WEBSERVER_PORT 80  // NOLINT
 #endif
 
 // ESP32-specific feature flags
