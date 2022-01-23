@@ -11,6 +11,10 @@ class SlowPWMOutput : public output::FloatOutput, public Component {
  public:
   void set_pin(GPIOPin *pin) { pin_ = pin; };
   void set_period(unsigned int period) { period_ = period; };
+  void set_restart_cycle_on_state_change(bool restart_cycle_on_state_change) {
+    restart_cycle_on_state_change_ = restart_cycle_on_state_change;
+  }
+
   /// Initialize pin
   void setup() override;
   void dump_config() override;
@@ -37,7 +41,7 @@ class SlowPWMOutput : public output::FloatOutput, public Component {
 
  protected:
   void loop() override;
-  void write_state(float state) override { state_ = state; }
+  void write_state(float state) override;
   /// turn on/off the configured output
   void set_output_state_(bool state);
 
@@ -48,7 +52,8 @@ class SlowPWMOutput : public output::FloatOutput, public Component {
   float state_{0};
   bool current_state_{false};
   unsigned int period_start_time_{0};
-  unsigned int period_{5000};
+  unsigned int period_;
+  bool restart_cycle_on_state_change_;
 };
 
 }  // namespace slow_pwm

@@ -95,6 +95,9 @@ message HelloResponse {
   // and only exists for debugging/logging purposes.
   // For example "ESPHome v1.10.0 on ESP8266"
   string server_info = 3;
+
+  // The name of the server (App.get_name())
+  string name = 4;
 }
 
 // Message sent at the beginning of each connection to authenticate the client

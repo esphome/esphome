@@ -35,7 +35,7 @@ std::string format_sockaddr(const struct sockaddr_storage &storage) {
 
 class BSDSocketImpl : public Socket {
  public:
-  BSDSocketImpl(int fd) : Socket(), fd_(fd) {}
+  BSDSocketImpl(int fd) : fd_(fd) {}
   ~BSDSocketImpl() override {
     if (!closed_) {
       close();  // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)

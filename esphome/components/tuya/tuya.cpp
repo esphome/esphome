@@ -208,7 +208,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 #ifdef USE_TIME
       if (this->time_id_.has_value()) {
         this->send_local_time_();
-        auto time_id = *this->time_id_;
+        auto *time_id = *this->time_id_;
         time_id->add_on_time_sync_callback([this] { this->send_local_time_(); });
       } else {
         ESP_LOGW(TAG, "LOCAL_TIME_QUERY is not handled because time is not configured");
@@ -414,7 +414,7 @@ void Tuya::send_wifi_status_() {
 #ifdef USE_TIME
 void Tuya::send_local_time_() {
   std::vector<uint8_t> payload;
-  auto time_id = *this->time_id_;
+  auto *time_id = *this->time_id_;
   time::ESPTime now = time_id->now();
   if (now.is_valid()) {
     uint8_t year = now.year - 2000;

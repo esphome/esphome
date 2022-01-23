@@ -28,7 +28,7 @@ void KalmanCombinatorComponent::add_source(Sensor *sensor, std::function<float(f
 }
 
 void KalmanCombinatorComponent::add_source(Sensor *sensor, float stddev) {
-  this->add_source(sensor, std::function<float(float)>{[stddev](float) -> float { return stddev; }});
+  this->add_source(sensor, std::function<float(float)>{[stddev](float x) -> float { return stddev; }});
 }
 
 void KalmanCombinatorComponent::update_variance_() {

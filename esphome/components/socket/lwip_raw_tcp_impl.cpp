@@ -28,7 +28,7 @@ static const char *const TAG = "socket.lwip";
 
 class LWIPRawImpl : public Socket {
  public:
-  LWIPRawImpl(struct tcp_pcb *pcb) : pcb_(pcb) {}
+  LWIPRawImpl(sa_family_t family, struct tcp_pcb *pcb) : pcb_(pcb), family_(family) {}
   ~LWIPRawImpl() override {
     if (pcb_ != nullptr) {
       LWIP_LOG("tcp_abort(%p)", pcb_);
@@ -73,10 +73,9 @@ class LWIPRawImpl : public Socket {
     }
     ip_addr_t ip;
     in_port_t port;
-    auto family = name->sa_family;
 #if LWIP_IPV6
-    if (family == AF_INET) {
-      if (addrlen < sizeof(sockaddr_in6)) {
+    if (family_ == AF_INET) {
+      if (addrlen < sizeof(sockaddr_in)) {
         errno = EINVAL;
         return -1;
       }
@@ -84,30 +83,31 @@ class LWIPRawImpl : public Socket {
       port = ntohs(addr4->sin_port);
       ip.type = IPADDR_TYPE_V4;
       ip.u_addr.ip4.addr = addr4->sin_addr.s_addr;
-
-    } else if (family == AF_INET6) {
-      if (addrlen < sizeof(sockaddr_in)) {
+      LWIP_LOG("tcp_bind(%p ip=%s port=%u)", pcb_, ip4addr_ntoa(&ip.u_addr.ip4), port);
+    } else if (family_ == AF_INET6) {
+      if (addrlen < sizeof(sockaddr_in6)) {
         errno = EINVAL;
         return -1;
       }
       auto *addr6 = reinterpret_cast<const sockaddr_in6 *>(name);
       port = ntohs(addr6->sin6_port);
-      ip.type = IPADDR_TYPE_V6;
+      ip.type = IPADDR_TYPE_ANY;
       memcpy(&ip.u_addr.ip6.addr, &addr6->sin6_addr.un.u8_addr, 16);
+      LWIP_LOG("tcp_bind(%p ip=%s port=%u)", pcb_, ip6addr_ntoa(&ip.u_addr.ip6), port);
     } else {
       errno = EINVAL;
       return -1;
     }
 #else
-    if (family != AF_INET) {
+    if (family_ != AF_INET) {
       errno = EINVAL;
       return -1;
     }
     auto *addr4 = reinterpret_cast<const sockaddr_in *>(name);
     port = ntohs(addr4->sin_port);
     ip.addr = addr4->sin_addr.s_addr;
-#endif
     LWIP_LOG("tcp_bind(%p ip=%u port=%u)", pcb_, ip.addr, port);
+#endif
     err_t err = tcp_bind(pcb_, &ip, port);
     if (err == ERR_USE) {
       LWIP_LOG("  -> err ERR_USE");
@@ -178,26 +178,22 @@ class LWIPRawImpl : public Socket {
       errno = EINVAL;
       return -1;
     }
-    if (*addrlen < sizeof(struct sockaddr_in)) {
-      errno = EINVAL;
-      return -1;
-    }
-    struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(name);
-    addr->sin_family = AF_INET;
-    *addrlen = addr->sin_len = sizeof(struct sockaddr_in);
-    addr->sin_port = pcb_->remote_port;
-    addr->sin_addr.s_addr = pcb_->remote_ip.addr;
-    return 0;
+    return this->ip2sockaddr_(&pcb_->local_ip, pcb_->local_port, name, addrlen);
   }
   std::string getpeername() override {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return "";
     }
-    char buffer[24];
-    uint32_t ip4 = pcb_->remote_ip.addr;
-    snprintf(buffer, sizeof(buffer), "%d.%d.%d.%d", (ip4 >> 0) & 0xFF, (ip4 >> 8) & 0xFF, (ip4 >> 16) & 0xFF,
-             (ip4 >> 24) & 0xFF);
+    char buffer[50] = {};
+    if (IP_IS_V4_VAL(pcb_->remote_ip)) {
+      inet_ntoa_r(pcb_->remote_ip, buffer, sizeof(buffer));
+    }
+#if LWIP_IPV6
+    else if (IP_IS_V6_VAL(pcb_->remote_ip)) {
+      inet6_ntoa_r(pcb_->remote_ip, buffer, sizeof(buffer));
+    }
+#endif
     return std::string(buffer);
   }
   int getsockname(struct sockaddr *name, socklen_t *addrlen) override {
@@ -209,26 +205,22 @@ class LWIPRawImpl : public Socket {
       errno = EINVAL;
       return -1;
     }
-    if (*addrlen < sizeof(struct sockaddr_in)) {
-      errno = EINVAL;
-      return -1;
-    }
-    struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(name);
-    addr->sin_family = AF_INET;
-    *addrlen = addr->sin_len = sizeof(struct sockaddr_in);
-    addr->sin_port = pcb_->local_port;
-    addr->sin_addr.s_addr = pcb_->local_ip.addr;
-    return 0;
+    return this->ip2sockaddr_(&pcb_->local_ip, pcb_->local_port, name, addrlen);
   }
   std::string getsockname() override {
     if (pcb_ == nullptr) {
       errno = ECONNRESET;
       return "";
     }
-    char buffer[24];
-    uint32_t ip4 = pcb_->local_ip.addr;
-    snprintf(buffer, sizeof(buffer), "%d.%d.%d.%d", (ip4 >> 0) & 0xFF, (ip4 >> 8) & 0xFF, (ip4 >> 16) & 0xFF,
-             (ip4 >> 24) & 0xFF);
+    char buffer[50] = {};
+    if (IP_IS_V4_VAL(pcb_->local_ip)) {
+      inet_ntoa_r(pcb_->local_ip, buffer, sizeof(buffer));
+    }
+#if LWIP_IPV6
+    else if (IP_IS_V6_VAL(pcb_->local_ip)) {
+      inet6_ntoa_r(pcb_->local_ip, buffer, sizeof(buffer));
+    }
+#endif
     return std::string(buffer);
   }
   int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override {
@@ -497,7 +489,7 @@ class LWIPRawImpl : public Socket {
       // nothing to do here, we just don't push it to the queue
       return ERR_OK;
     }
-    auto sock = make_unique<LWIPRawImpl>(newpcb);
+    auto sock = make_unique<LWIPRawImpl>(family_, newpcb);
     sock->init();
     accepted_sockets_.push(std::move(sock));
     return ERR_OK;
@@ -549,6 +541,46 @@ class LWIPRawImpl : public Socket {
   }
 
  protected:
+  int ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen) {
+    if (family_ == AF_INET) {
+      if (*addrlen < sizeof(struct sockaddr_in)) {
+        errno = EINVAL;
+        return -1;
+      }
+
+      struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(name);
+      addr->sin_family = AF_INET;
+      *addrlen = addr->sin_len = sizeof(struct sockaddr_in);
+      addr->sin_port = port;
+      inet_addr_from_ip4addr(&addr->sin_addr, ip_2_ip4(ip));
+      return 0;
+    }
+#if LWIP_IPV6
+    else if (family_ == AF_INET6) {
+      if (*addrlen < sizeof(struct sockaddr_in6)) {
+        errno = EINVAL;
+        return -1;
+      }
+
+      struct sockaddr_in6 *addr = reinterpret_cast<struct sockaddr_in6 *>(name);
+      addr->sin6_family = AF_INET6;
+      *addrlen = addr->sin6_len = sizeof(struct sockaddr_in6);
+      addr->sin6_port = port;
+
+      // AF_INET6 sockets are bound to IPv4 as well, so we may encounter IPv4 addresses that must be converted to IPv6.
+      if (IP_IS_V4(ip)) {
+        ip_addr_t mapped;
+        ip4_2_ipv4_mapped_ipv6(ip_2_ip6(&mapped), ip_2_ip4(ip));
+        inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&mapped));
+      } else {
+        inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(ip));
+      }
+      return 0;
+    }
+#endif
+    return -1;
+  }
+
   struct tcp_pcb *pcb_;
   std::queue<std::unique_ptr<LWIPRawImpl>> accepted_sockets_;
   bool rx_closed_ = false;
@@ -557,13 +589,14 @@ class LWIPRawImpl : public Socket {
   // don't use lwip nodelay flag, it sometimes causes reconnect
   // instead use it for determining whether to call lwip_output
   bool nodelay_ = false;
+  sa_family_t family_ = 0;
 };
 
 std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
   auto *pcb = tcp_new();
   if (pcb == nullptr)
     return nullptr;
-  auto *sock = new LWIPRawImpl(pcb);  // NOLINT(cppcoreguidelines-owning-memory)
+  auto *sock = new LWIPRawImpl((sa_family_t) domain, pcb);  // NOLINT(cppcoreguidelines-owning-memory)
   sock->init();
   return std::unique_ptr<Socket>{sock};
 }

@@ -197,7 +197,7 @@ void ToshibaClimate::transmit_generic_() {
 
   // Transmit
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   encode_(data, message, message_length, 1);
 
@@ -210,7 +210,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
       clamp<float>(this->target_temperature, TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN, TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX);
   float temp_adjd = temperature - TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   // Byte 0:  Header upper (0xB2)
   message[0] = RAC_PT1411HWRU_MESSAGE_HEADER0;
@@ -357,7 +357,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_temp_(const bool cs_state, const bo
     uint8_t message[RAC_PT1411HWRU_MESSAGE_LENGTH] = {0};
     float temperature = clamp<float>(this->current_temperature, 0.0, TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX + 1);
     auto transmit = this->transmitter_->transmit();
-    auto data = transmit.get_data();
+    auto *data = transmit.get_data();
     // "Comfort Sense" feature notes
     // IR Code: 0xBA45 xxXX yyYY
     // xx: Temperature in °C

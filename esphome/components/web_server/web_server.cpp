@@ -250,7 +250,18 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifdef USE_NUMBER
   for (auto *obj : App.get_numbers())
     if (this->include_internal_ || !obj->is_internal())
-      write_row(stream, obj, "number", "");
+      write_row(stream, obj, "number", "", [](AsyncResponseStream &stream, EntityBase *obj) {
+        number::Number *number = (number::Number *) obj;
+        stream.print(R"(<input type="number" min=")");
+        stream.print(number->traits.get_min_value());
+        stream.print(R"(" max=")");
+        stream.print(number->traits.get_max_value());
+        stream.print(R"(" step=")");
+        stream.print(number->traits.get_step());
+        stream.print(R"(" value=")");
+        stream.print(number->state);
+        stream.print(R"("/>)");
+      });
 #endif
 
 #ifdef USE_SELECT
@@ -443,8 +454,8 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
 #endif
 
 #ifdef USE_FAN
-void WebServer::on_fan_update(fan::FanState *obj) { this->events_.send(this->fan_json(obj).c_str(), "state"); }
-std::string WebServer::fan_json(fan::FanState *obj) {
+void WebServer::on_fan_update(fan::Fan *obj) { this->events_.send(this->fan_json(obj).c_str(), "state"); }
+std::string WebServer::fan_json(fan::Fan *obj) {
   return json::build_json([obj](JsonObject root) {
     root["id"] = "fan-" + obj->get_object_id();
     root["state"] = obj->state ? "ON" : "OFF";
@@ -473,7 +484,7 @@ std::string WebServer::fan_json(fan::FanState *obj) {
   });
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (fan::FanState *obj : App.get_fans()) {
+  for (fan::Fan *obj : App.get_fans()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -519,7 +530,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
             return;
         }
       }
-      this->defer([call]() { call.perform(); });
+      this->defer([call]() mutable { call.perform(); });
       request->send(200);
     } else if (match.method == "turn_off") {
       this->defer([obj]() { obj->turn_off().perform(); });
@@ -675,10 +686,15 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
       request->send(404);
       return;
     }
+
     auto call = obj->make_call();
 
-    if (request->hasParam("value")) 
-      call.set_value(request->getParam("value")->value().toFloat());
+    if (request->hasParam("value")) {
+      String value = request->getParam("value")->value();
+      optional<float> value_f = parse_number<float>(value.c_str());
+      if (value_f.has_value())
+        call.set_value(*value_f);
+    }
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
@@ -689,9 +705,8 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
 std::string WebServer::number_json(number::Number *obj, float value) {
   return json::build_json([obj, value](JsonObject root) {
     root["id"] = "number-" + obj->get_object_id();
-    char buffer[64];
-    snprintf(buffer, sizeof(buffer), "%f", value);
-    root["state"] = buffer;
+    std::string state = str_sprintf("%f", value);
+    root["state"] = state;
     root["value"] = value;
   });
 }
@@ -898,11 +913,6 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_CLIMATE
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "climate")
-    return true;
-#endif
-
-#ifdef USE_SELECT
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "select")
     return true;
 #endif
 
