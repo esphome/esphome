@@ -40,18 +40,21 @@ void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> 
 
   bool begin_status = false;
   const String url = this->url_.c_str();
+#if defined USE_ESP32 || defined ESP8266 && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
+#if defined USE_ESP32 || ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
+  if (this->follow_redirects_) {
+    this->client_.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+  } else {
+    this->client_.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+  }
+#else
+  this->client_.setFollowRedirects(this->follow_redirects_);
+#endif
+  this->client_.setRedirectLimit(this->redirect_limit_);
+#endif
 #ifdef USE_ESP32
   begin_status = this->client_.begin(url);
-#endif
-#ifdef USE_ESP8266
-#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
-  this->client_.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-#elif ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
-  this->client_.setFollowRedirects(true);
-#endif
-#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
-  this->client_.setRedirectLimit(3);
-#endif
+#elif USE_ESP8266
   begin_status = this->client_.begin(*this->get_wifi_client_(), url);
 #endif
 

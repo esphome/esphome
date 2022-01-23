@@ -40,18 +40,8 @@ class HttpRequestComponent : public Component {
   void set_method(const char *method) { this->method_ = method; }
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
-  void set_follow_redirects(bool follow_redirects) {
-    this->follow_redirects_ = follow_redirects;
-    if (follow_redirects) {
-      this->client_.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-    } else {
-      this->client_.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
-    }
-  }
-  void set_redirect_limit(uint16_t limit) {
-    this->redirect_limit_ = limit;
-    this->client_.setRedirectLimit(limit);
-  }
+  void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }
+  void set_redirect_limit(uint16_t limit) { this->redirect_limit_ = limit; }
   void set_body(const std::string &body) { this->body_ = body; }
   void set_headers(std::list<Header> headers) { this->headers_ = std::move(headers); }
   void send(const std::vector<HttpRequestResponseTrigger *> &response_triggers);

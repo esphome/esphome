@@ -73,8 +73,8 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(HttpRequestComponent),
             cv.Optional(CONF_USERAGENT, "ESPHome"): cv.string,
-            cv.Optional(CONF_FOLLOW_REDIRECTS, False): cv.boolean,
-            cv.Optional(CONF_REDIRECT_LIMIT, 10): cv.int_,
+            cv.Optional(CONF_FOLLOW_REDIRECTS, True): cv.boolean,
+            cv.Optional(CONF_REDIRECT_LIMIT, 3): cv.int_,
             cv.Optional(
                 CONF_TIMEOUT, default="5s"
             ): cv.positive_time_period_milliseconds,
