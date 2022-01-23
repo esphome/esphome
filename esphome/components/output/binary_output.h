@@ -32,10 +32,11 @@ class BinaryOutput {
 
   /// Enable or disable this binary output.
   virtual void set_state(bool state) {
-    if (state)
+    if (state) {
       this->turn_on();
-    else
+    } else {
       this->turn_off();
+    }
   }
 
   /// Enable this binary output.
