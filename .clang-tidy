@@ -78,7 +78,6 @@ Checks: >-
   -readability-make-member-function-const,
   -readability-named-parameter,
   -readability-redundant-access-specifiers,
-  -readability-redundant-member-init,
   -readability-redundant-string-init,
   -readability-uppercase-literal-suffix,
   -readability-use-anyofallof,
