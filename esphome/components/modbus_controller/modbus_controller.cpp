@@ -99,7 +99,7 @@ void ModbusController::on_register_data(ModbusRegisterType register_type, uint16
 
   // loop through all sensors with the same start address
   auto sensors = find_sensors_(register_type, start_address);
-  for (auto sensor : sensors) {
+  for (auto *sensor : sensors) {
     sensor->parse_and_publish(data);
   }
 }

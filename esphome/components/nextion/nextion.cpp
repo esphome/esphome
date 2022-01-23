@@ -688,7 +688,7 @@ void Nextion::process_nextion_commands_() {
         int index = 0;
         int found = -1;
         for (auto &nb : this->nextion_queue_) {
-          auto component = nb->component;
+          auto *component = nb->component;
           if (component->get_queue_type() == NextionQueueType::WAVEFORM_SENSOR) {
             size_t buffer_to_send = component->get_wave_buffer().size() < 255 ? component->get_wave_buffer().size()
                                                                               : 255;  // ADDT command can only send 255

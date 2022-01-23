@@ -33,7 +33,7 @@ struct SendDiscoveryConfig {
 \
  public: \
   void set_custom_##name##_##type##_topic(const std::string &topic) { this->custom_##name##_##type##_topic_ = topic; } \
-  const std::string get_##name##_##type##_topic() const { \
+  std::string get_##name##_##type##_topic() const { \
     if (this->custom_##name##_##type##_topic_.empty()) \
       return this->get_default_topic_for_(#name "/" #type); \
     return this->custom_##name##_##type##_topic_; \
@@ -171,10 +171,10 @@ class MQTTComponent : public Component {
   virtual bool is_disabled_by_default() const;
 
   /// Get the MQTT topic that new states will be shared to.
-  const std::string get_state_topic_() const;
+  std::string get_state_topic_() const;
 
   /// Get the MQTT topic for listening to commands.
-  const std::string get_command_topic_() const;
+  std::string get_command_topic_() const;
 
   bool is_connected_() const;
 

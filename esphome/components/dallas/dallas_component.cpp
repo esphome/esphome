@@ -52,7 +52,7 @@ void DallasComponent::setup() {
     this->found_sensors_.push_back(address);
   }
 
-  for (auto sensor : this->sensors_) {
+  for (auto *sensor : this->sensors_) {
     if (sensor->get_index().has_value()) {
       if (*sensor->get_index() >= this->found_sensors_.size()) {
         this->status_set_error();
