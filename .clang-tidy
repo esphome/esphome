@@ -69,7 +69,6 @@ Checks: >-
   -mpi-*,
   -objc-*,
   -readability-braces-around-statements,
-  -readability-const-return-type,
   -readability-convert-member-functions-to-static,
   -readability-else-after-return,
   -readability-function-cognitive-complexity,

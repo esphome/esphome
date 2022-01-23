@@ -27,13 +27,13 @@ std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) con
          "/" + suffix;
 }
 
-const std::string MQTTComponent::get_state_topic_() const {
+std::string MQTTComponent::get_state_topic_() const {
   if (this->custom_state_topic_.empty())
     return this->get_default_topic_for_("state");
   return this->custom_state_topic_;
 }
 
-const std::string MQTTComponent::get_command_topic_() const {
+std::string MQTTComponent::get_command_topic_() const {
   if (this->custom_command_topic_.empty())
     return this->get_default_topic_for_("command");
   return this->custom_command_topic_;
