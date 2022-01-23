@@ -13,7 +13,7 @@ static const char *const TAG = "mqtt.button";
 
 using namespace esphome::button;
 
-MQTTButtonComponent::MQTTButtonComponent(button::Button *button) : MQTTComponent(), button_(button) {}
+MQTTButtonComponent::MQTTButtonComponent(button::Button *button) : button_(button) {}
 
 void MQTTButtonComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {

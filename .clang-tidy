@@ -69,7 +69,6 @@ Checks: >-
   -mpi-*,
   -objc-*,
   -readability-braces-around-statements,
-  -readability-const-return-type,
   -readability-convert-member-functions-to-static,
   -readability-else-after-return,
   -readability-function-cognitive-complexity,
@@ -78,8 +77,6 @@ Checks: >-
   -readability-magic-numbers,
   -readability-make-member-function-const,
   -readability-named-parameter,
-  -readability-qualified-auto,
-  -readability-redundant-member-init,
   -readability-redundant-string-init,
   -readability-uppercase-literal-suffix,
   -readability-use-anyofallof,
@@ -159,3 +156,5 @@ CheckOptions:
     value:           'lower_case'
   - key:             readability-identifier-naming.VirtualMethodSuffix
     value:           ''
+  - key:             readability-qualified-auto.AddConstToQualified
+    value:           0

@@ -177,7 +177,7 @@ bool Component::has_overridden_loop() const {
   return loop_overridden || call_loop_overridden;
 }
 
-PollingComponent::PollingComponent(uint32_t update_interval) : Component(), update_interval_(update_interval) {}
+PollingComponent::PollingComponent(uint32_t update_interval) : update_interval_(update_interval) {}
 
 void PollingComponent::call_setup() {
   // Let the polling component subclass setup their HW.

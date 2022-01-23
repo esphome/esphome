@@ -284,7 +284,7 @@ class RemoteReceiverBinarySensorBase : public binary_sensor::BinarySensorInitial
                                        public Component,
                                        public RemoteReceiverListener {
  public:
-  explicit RemoteReceiverBinarySensorBase() : BinarySensorInitiallyOff() {}
+  explicit RemoteReceiverBinarySensorBase() {}
   void dump_config() override;
   virtual bool matches(RemoteReceiveData src) = 0;
   bool on_receive(RemoteReceiveData src) override {

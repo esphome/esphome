@@ -12,8 +12,7 @@ using value_to_data_t = std::function<float>(float);
 class ModbusNumber : public number::Number, public Component, public SensorItem {
  public:
   ModbusNumber(uint16_t start_address, uint8_t offset, uint32_t bitmask, SensorValueType value_type, int register_count,
-               uint8_t skip_updates, bool force_new_range)
-      : number::Number(), Component(), SensorItem() {
+               uint8_t skip_updates, bool force_new_range) {
     this->register_type = ModbusRegisterType::HOLDING;
     this->start_address = start_address;
     this->offset = offset;
