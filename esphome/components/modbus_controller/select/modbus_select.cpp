@@ -64,7 +64,10 @@ void ModbusSelect::control(const std::string &value) {
       ESP_LOGV(TAG, "Found value %lld for option '%s'", *mapval, value.c_str());
     }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
     number_to_payload(data, *mapval, this->sensor_value_type);
+#pragma GCC diagnostic pop
   } else {
     ESP_LOGV(TAG, "Using payload from write lambda");
   }
