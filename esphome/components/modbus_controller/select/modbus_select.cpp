@@ -45,16 +45,13 @@ void ModbusSelect::control(const std::string &value) {
   std::vector<uint16_t> data;
 
   if (this->write_transform_func_.has_value()) {
-    bool skip_update = false;
-    auto val = (*this->write_transform_func_)(this, value, data, skip_update);
-    if (skip_update) {
-      ESP_LOGD(TAG, "write lambda forces to skip update.");
-      return;
-    }
-
+    auto val = (*this->write_transform_func_)(this, value, data);
     if (val.has_value()) {
       mapval = *val;
-      ESP_LOGV(TAG, "write lambda returned mapping value %lld", *mapval);
+      ESP_LOGV(TAG, "write_lambda returned mapping value %lld", *mapval);
+    } else {
+      ESP_LOGD(TAG, "Communication handled by write_lambda - exiting control");
+      return;
     }
   }
 

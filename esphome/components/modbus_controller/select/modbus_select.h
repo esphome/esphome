@@ -27,8 +27,7 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
   }
 
   using transform_func_t = std::function<optional<std::string>(ModbusSelect *, int64_t, const std::vector<uint8_t> &)>;
-  using write_transform_func_t =
-      std::function<optional<int64_t>(ModbusSelect *, std::string, std::vector<uint16_t> &, bool &)>;
+  using write_transform_func_t = std::function<optional<int64_t>(ModbusSelect *, std::string, std::vector<uint16_t> &)>;
 
   void set_parent(ModbusController *const parent) { this->parent_ = parent; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
