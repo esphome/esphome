@@ -32,6 +32,7 @@ CONF_JSON = "json"
 CONF_VERIFY_SSL = "verify_ssl"
 CONF_ON_RESPONSE = "on_response"
 CONF_FOLLOW_REDIRECTS = "follow_redirects"
+CONF_REDIRECT_LIMIT = "redirect_limit"
 
 
 def validate_url(value):
@@ -73,6 +74,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(HttpRequestComponent),
             cv.Optional(CONF_USERAGENT, "ESPHome"): cv.string,
             cv.Optional(CONF_FOLLOW_REDIRECTS, False): cv.boolean,
+            cv.Optional(CONF_REDIRECT_LIMIT, 10): cv.int_,
             cv.Optional(
                 CONF_TIMEOUT, default="5s"
             ): cv.positive_time_period_milliseconds,
@@ -93,6 +95,8 @@ async def to_code(config):
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
     cg.add(var.set_follow_redirects(config[CONF_FOLLOW_REDIRECTS]))
+    cg.add(var.set_redirect_limit(config[CONF_REDIRECT_LIMIT]))
+
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
 

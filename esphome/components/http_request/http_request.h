@@ -42,8 +42,15 @@ class HttpRequestComponent : public Component {
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
   void set_follow_redirects(bool follow_redirects) {
       this->follow_redirects_ = follow_redirects;
-      if (follow_redirects)
+      if (follow_redirects) {
           this->client_.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+      } else {
+          this->client_.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+      }
+  }
+  void set_redirect_limit(uint16_t limit) {
+      this->redirect_limit_ = limit;
+      this->client_.setRedirectLimit(limit);
   }
   void set_body(const std::string &body) { this->body_ = body; }
   void set_headers(std::list<Header> headers) { this->headers_ = std::move(headers); }
@@ -57,8 +64,9 @@ class HttpRequestComponent : public Component {
   std::string last_url_;
   const char *method_;
   const char *useragent_{nullptr};
-  bool follow_redirects_;
   bool secure_;
+  bool follow_redirects_;
+  uint16_t redirect_limit_;
   uint16_t timeout_{5000};
   std::string body_;
   std::list<Header> headers_;
