@@ -175,7 +175,7 @@ void LgIrClimate::transmit_(uint32_t value) {
   ESP_LOGD(TAG, "Sending climate_lg_ir code: 0x%02X", value);
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   data->set_carrier_frequency(38000);
   data->reserve(2 + BITS * 2u);

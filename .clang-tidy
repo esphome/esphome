@@ -77,7 +77,6 @@ Checks: >-
   -readability-magic-numbers,
   -readability-make-member-function-const,
   -readability-named-parameter,
-  -readability-qualified-auto,
   -readability-redundant-access-specifiers,
   -readability-redundant-member-init,
   -readability-redundant-string-init,
@@ -159,3 +158,5 @@ CheckOptions:
     value:           'lower_case'
   - key:             readability-identifier-naming.VirtualMethodSuffix
     value:           ''
+  - key:             readability-qualified-auto.AddConstToQualified
+    value:           0
