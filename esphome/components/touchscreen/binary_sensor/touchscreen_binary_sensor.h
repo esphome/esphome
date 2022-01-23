@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../touchscreen.h"
+#include "esphome/components/touchscreen/touchscreen.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
 namespace esphome {
