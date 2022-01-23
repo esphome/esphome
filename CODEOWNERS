@@ -72,8 +72,10 @@ esphome/components/gps/* @coogle
 esphome/components/graph/* @synco
 esphome/components/growatt_solar/* @leeuwte
 esphome/components/havells_solar/* @sourabhjaiswal
-esphome/components/hbridge/fan/* @WeekendWarrior
-esphome/components/hbridge/light/* @DotNetDann
+esphome/components/hbridge/* @FaBjE
+esphome/components/hbridge/fan/* @FaBjE
+esphome/components/hbridge/light/* @FaBjE
+esphome/components/hbridge/switch/* @FaBjE
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter

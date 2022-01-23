@@ -2,34 +2,30 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.components import fan, output
+from esphome.components import fan, output, hbridge
 from esphome.const import (
     CONF_ID,
     CONF_SPEED_COUNT,
-    CONF_PIN_A,
-    CONF_PIN_B,
-    CONF_ENABLE_PIN,
     CONF_OSCILLATION_OUTPUT,
 )
-from .. import hbridge_ns, HBRIDGE_CONFIG_SCHEMA, hbridge_config_to_code
 
-
-CODEOWNERS = ["@WeekendWarrior"]
+CODEOWNERS = ["@FaBjE"]
 AUTO_LOAD = ["hbridge"]
 
-
-HBridgeFan = hbridge_ns.class_("HBridgeFan", cg.Component, fan.Fan)
+HBridgeFan = hbridge.hbridge_ns.class_("HBridgeFan", fan.FanState, hbridge.HBridge)
 
 CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
     {
+        cv.GenerateID(): cv.declare_id(HBridgeFan),
         cv.GenerateID(CONF_ID): cv.declare_id(HBridgeFan),
         cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
         cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_id(output.BinaryOutput),
     }
-).extend(cv.COMPONENT_SCHEMA).extend(HBRIDGE_CONFIG_SCHEMA)
+).extend(hbridge.HBRIDGE_CONFIG_SCHEMA)
 
 # Actions
-BrakeAction = hbridge_ns.class_("BrakeAction", automation.Action)
+BrakeAction = hbridge.hbridge_ns.class_("BrakeAction", automation.Action)
+
 
 @automation.register_action(
     "fan.hbridge.brake",
@@ -48,10 +44,10 @@ async def to_code(config):
     )
     await cg.register_component(var, config)
     await fan.register_fan(var, config)
-    
+
     if CONF_OSCILLATION_OUTPUT in config:
-       oscillation_output = await cg.get_variable(config[CONF_OSCILLATION_OUTPUT])
-       cg.add(var.set_oscillation_output(oscillation_output))
+        oscillation_output = await cg.get_variable(config[CONF_OSCILLATION_OUTPUT])
+        cg.add(var.set_oscillation_output(oscillation_output))
 
     # HBridge driver config
-    await hbridge_config_to_code(config, var)
+    await hbridge.hbridge_setup(config, var)

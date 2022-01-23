@@ -17,25 +17,22 @@ enum ValveActuatorRestoreMode {
   HBRIDGE_SWITCH_RESTORE_INVERTED_DEFAULT_ON,
 };
 
-class HBridgeSwitch : public switch_::Switch, public Component, public hbridge::HBridge {
+class HBridgeSwitch : public HBridge, public switch_::Switch {
  public:
-
-  //Config set functions
+  // Config set functions
   void set_switching_duration(uint32_t switching_duration) { this->switching_signal_duration_ = switching_duration; }
   void set_restore_mode(ValveActuatorRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 
-  //Component interfacing
+  // Component interfacing/overriding from HBridge base class
   void setup() override;
-  void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
  protected:
   void write_state(bool state) override;
 
-  ValveActuatorRestoreMode restore_mode_{HBRIDGE_SWITCH_RESTORE_DEFAULT_OFF}; 
-  uint32_t switching_signal_duration_{0}; //Default 0 milliseconds = forever
+  ValveActuatorRestoreMode restore_mode_{HBRIDGE_SWITCH_RESTORE_DEFAULT_OFF};
+  uint32_t switching_signal_duration_{0};  // Default 0 milliseconds = forever
 };
 
-}  // namespace valve_actuator
+}  // namespace hbridge
 }  // namespace esphome

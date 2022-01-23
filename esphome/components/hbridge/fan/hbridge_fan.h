@@ -9,16 +9,14 @@
 namespace esphome {
 namespace hbridge {
 
-
 class HBridgeFan : public hbridge::HBridge, public fan::Fan {
-
  public:
   HBridgeFan(int speed_count) : speed_count_(speed_count) {}
 
-  //Config set functions
-  void set_oscillation_output(output::BinaryOutput * output) { this->oscillating_output_ = output; }
+  // Config set functions
+  void set_oscillation_output(output::BinaryOutput *output) { this->oscillating_ = output; }
 
-  //Component interfacing
+  // Component interfacing
   void setup() override;
   void dump_config() override;
   fan::FanTraits get_traits() override;
@@ -33,7 +31,7 @@ class HBridgeFan : public hbridge::HBridge, public fan::Fan {
   void write_state_();
 };
 
-//Action template
+// Action template
 template<typename... Ts> class BrakeAction : public Action<Ts...> {
  public:
   explicit BrakeAction(HBridgeFan *parent) : parent_(parent) {}

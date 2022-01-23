@@ -10,10 +10,8 @@ namespace esphome {
 namespace hbridge {
 
 // Using PollingComponent as the updates are more consistent and reduces flickering
-class HBridgeLightOutput : public PollingComponent, public light::LightOutput, public hbridge::HBridge {
+class HBridgeLightOutput : public HBridge, public light::LightOutput {
  public:
-  HBridgeLightOutput() : PollingComponent(1) {}
-
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supported_color_modes({light::ColorMode::COLD_WARM_WHITE});
@@ -22,30 +20,30 @@ class HBridgeLightOutput : public PollingComponent, public light::LightOutput, p
     return traits;
   }
 
-  void setup() override { 
-    this->direction_a_update_ = false; 
+  // Component interfacing/overriding from HBridge base class
+  void setup() override {
+    this->direction_a_update_ = false;
     HBridge::setup();
   }
 
-  void loop() override { 
-    HBridge::loop();
-  }
+  void loop() override {
+    // This method runs every loop. This is a best-effort situation.
 
-  void update() override {
-    // This method runs around 60 times per second
-    // We cannot do the PWM ourselves so we are reliant on the hardware PWM
-
-    //Alternate updating/flashing each light direction
+    // Alternate updating/flashing each light direction
     if (!this->direction_a_update_) {  // First LED Direction
-      HBridge::set_output_state(HBRIDGE_MODE_DIRECTION_A, this->light_direction_a_duty_); //Use protected function to prevent a flood of debug prints
+      HBridge::set_output_state_(
+          HBridgeMode::DIRECTION_A,
+          this->light_direction_a_duty_);  // Use protected function to prevent a flood of debug prints
       this->direction_a_update_ = true;
     } else {  // Second LED Direction
-      HBridge::set_output_state(HBRIDGE_MODE_DIRECTION_B, this->light_direction_b_duty_); //Use protected function to prevent a flood of debug prints
+      HBridge::set_output_state_(
+          HBridgeMode::DIRECTION_B,
+          this->light_direction_b_duty_);  // Use protected function to prevent a flood of debug prints
       this->direction_a_update_ = false;
     }
-  }
 
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+    HBridge::loop();
+  }
 
   void write_state(light::LightState *state) override {
     state->current_values_as_cwww(&this->light_direction_a_duty_, &this->light_direction_b_duty_, false);

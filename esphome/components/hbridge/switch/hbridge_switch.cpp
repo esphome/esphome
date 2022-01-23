@@ -6,9 +6,8 @@ namespace hbridge {
 
 static const char *const TAG = "switch.hbridge";
 
-
 void HBridgeSwitch::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Valve Actuator: '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Setting up H-Bridge Switch: '%s'...", this->name_.c_str());
 
   bool initial_state = false;
   switch (this->restore_mode_) {
@@ -33,28 +32,25 @@ void HBridgeSwitch::setup() {
   }
 
   // write state before setup
-  if (initial_state)
+  if (initial_state) {
     this->turn_on();
-  else
+  } else {
     this->turn_off();
+  }
 
-  //Setup output pins
+  // Setup output pins
   HBridge::setup();
 
   // write after setup again for other IOs
-  if (initial_state)
+  if (initial_state) {
     this->turn_on();
-  else
+  } else {
     this->turn_off();
+  }
 }
-
-void HBridgeSwitch::loop() { 
-  HBridge::loop();
-}
-
 
 void HBridgeSwitch::dump_config() {
-  LOG_SWITCH("", "Switch", this);
+  LOG_SWITCH(TAG, "Switch", this);
   ESP_LOGCONFIG(TAG, "  Switching signal duration: %d", this->switching_signal_duration_);
 
   const LogString *restore_mode = LOG_STR("");
@@ -79,36 +75,37 @@ void HBridgeSwitch::dump_config() {
       break;
   }
   ESP_LOGCONFIG(TAG, "  Restore Mode: %s", LOG_STR_ARG(restore_mode));
+
+  // Also print base HBridge config
+  HBridge::dump_config();
 }
 
-
-void HBridgeSwitch::write_state(bool state) 
-{
+void HBridgeSwitch::write_state(bool state) {
   ESP_LOGCONFIG(TAG, "Set state: %d", state);
 
   // cancel any pending "state changes"
   this->cancel_timeout("switch_signal_timeout");
 
-  //Set HBridge output states to desired state (direction is relative, can be inverted by config or wiring)
-  if(state){
-    HBridge::set_state(HBRIDGE_MODE_DIRECTION_A, 1);
-  }
-  else{
-    HBridge::set_state(HBRIDGE_MODE_DIRECTION_B, 1);
+  // Set HBridge output states to desired state (direction is relative, can be inverted by config or wiring)
+  if (state) {
+    HBridge::set_state(HBridgeMode::DIRECTION_A, 1);
+  } else {
+    HBridge::set_state(HBridgeMode::DIRECTION_B, 1);
   }
 
-  //If we have a switching signal duration, set timeout to disable the signal after the duration
-  if(this->switching_signal_duration_ > 0){
-    this->set_timeout("switch_signal_timeout", this->switching_signal_duration_, [this, state] 
-    {
-      //Put actuator motor back to idle
-      HBridge::set_state(HBRIDGE_MODE_OFF, 1);
+  // If we have a switching signal duration, set timeout to disable the signal after the duration
+  if (this->switching_signal_duration_ > 0) {
+    this->set_timeout("switch_signal_timeout", this->switching_signal_duration_, [this, state] {
+      (void) state;
+
+      // Put actuator motor back to idle
+      HBridge::set_state(HBridgeMode::OFF, 1);
 
       ESP_LOGCONFIG(TAG, "Switching signal end (%dms)", this->switching_signal_duration_);
     });
   }
 
-  //Publish new state
+  // Publish new state
   this->publish_state(state);
 }
 

@@ -1,21 +1,20 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import light
-from esphome.const import CONF_OUTPUT_ID, CONF_PIN_A, CONF_PIN_B, CONF_ENABLE_PIN
-from .. import hbridge_ns, HBRIDGE_CONFIG_SCHEMA, hbridge_config_to_code
+from esphome.components import light, hbridge
+from esphome.const import CONF_OUTPUT_ID
 
-CODEOWNERS = ["@DotNetDann"]
+CODEOWNERS = ["@FaBjE"]
 AUTO_LOAD = ["hbridge"]
 
-HBridgeLightOutput = hbridge_ns.class_(
-    "HBridgeLightOutput", cg.PollingComponent, light.LightOutput
+HBridgeLightOutput = hbridge.hbridge_ns.class_(
+    "HBridgeLightOutput", light.LightOutput, hbridge.HBridge
 )
 
 CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
     {
         cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(HBridgeLightOutput),
     }
-).extend(HBRIDGE_CONFIG_SCHEMA)
+).extend(hbridge.HBRIDGE_CONFIG_SCHEMA)
 
 
 async def to_code(config):
@@ -24,4 +23,4 @@ async def to_code(config):
     await light.register_light(var, config)
 
     # HBridge driver config
-    await hbridge_config_to_code(config, var)
+    await hbridge.hbridge_setup(config, var)
