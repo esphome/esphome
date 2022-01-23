@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 from esphome.core import EsphomeError
+from esphome.config_helpers import merge_config
 
 from esphome import git, yaml_util
 from esphome.const import (
@@ -16,26 +17,6 @@ from esphome.const import (
 import esphome.config_validation as cv
 
 DOMAIN = CONF_PACKAGES
-
-
-def _merge_package(full_old, full_new):
-    def merge(old, new):
-        # pylint: disable=no-else-return
-        if isinstance(new, dict):
-            if not isinstance(old, dict):
-                return new
-            res = old.copy()
-            for k, v in new.items():
-                res[k] = merge(old[k], v) if k in old else v
-            return res
-        elif isinstance(new, list):
-            if not isinstance(old, list):
-                return new
-            return old + new
-
-        return new
-
-    return merge(full_old, full_new)
 
 
 def validate_git_package(config: dict):
@@ -167,7 +148,7 @@ def do_packages_pass(config: dict):
                     package_config = _process_base_package(package_config)
                 if isinstance(package_config, dict):
                     recursive_package = do_packages_pass(package_config)
-                config = _merge_package(recursive_package, config)
+                config = merge_config(recursive_package, config)
 
         del config[CONF_PACKAGES]
     return config

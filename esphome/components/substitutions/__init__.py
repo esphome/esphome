@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome import core
 from esphome.const import CONF_SUBSTITUTIONS
 from esphome.yaml_util import ESPHomeDataBase, make_data_base
-from esphome.components.packages import _merge_package
+from esphome.config_helpers import merge_config
 
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
@@ -109,7 +109,7 @@ def _substitute_item(substitutions, item, path):
             if sub is not None:
                 item[k] = sub
         for old, new in replace_keys:
-            item[new] = _merge_package(item.get(new), item.get(old))
+            item[new] = merge_config(item.get(new), item.get(old))
             del item[old]
     elif isinstance(item, str):
         sub = _expand_substitutions(substitutions, item, path)
