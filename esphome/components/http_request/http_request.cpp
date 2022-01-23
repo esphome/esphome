@@ -14,6 +14,7 @@ void HttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HTTP Request:");
   ESP_LOGCONFIG(TAG, "  Timeout: %ums", this->timeout_);
   ESP_LOGCONFIG(TAG, "  User-Agent: %s", this->useragent_);
+  ESP_LOGCONFIG(TAG, "  Follow Redirects: %d", this->follow_redirects_);
 }
 
 void HttpRequestComponent::set_url(std::string url) {
