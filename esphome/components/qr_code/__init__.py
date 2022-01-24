@@ -31,7 +31,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    cg.add_library("https://github.com/wjtje/QR-Code-generator-esphome", "1.7.0")
+    cg.add_library("wjtje/qr-code-generator-library", "^1.7.0")
 
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_value(config[CONF_VALUE]))
