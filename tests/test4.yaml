@@ -65,6 +65,9 @@ sx1509:
   - id: sx1509_hub
     address: 0x3E
 
+mcp3204:
+  cs_pin: GPIO23
+
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
@@ -215,6 +218,9 @@ sensor:
       - or:
         - throttle: "20min"
         - delta: 0.02
+  - platform: mcp3204
+    name: "MCP3204 Pin 1"
+    number: 1
 
 #
 # platform sensor.apds9960 requires component apds9960

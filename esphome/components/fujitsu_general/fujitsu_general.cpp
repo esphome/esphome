@@ -207,7 +207,7 @@ void FujitsuGeneralClimate::transmit_(uint8_t const *message, uint8_t length) {
   ESP_LOGV(TAG, "Transmit message length %d", length);
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   data->set_carrier_frequency(FUJITSU_GENERAL_CARRIER_FREQUENCY);
 

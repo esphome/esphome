@@ -378,6 +378,10 @@ sensor:
             - 400 -> 500
             - -50 -> -1000
             - -100 -> -10000
+  - platform: cd74hc4067
+    id: cd74hc4067_0
+    number: 0
+    sensor: my_sensor
   - platform: resistance
     sensor: my_sensor
     configuration: DOWNSTREAM
@@ -478,6 +482,7 @@ sensor:
     power:
       name: 'PZEM004T Power'
   - platform: pzemac
+    id: pzemac1
     voltage:
       name: 'PZEMAC Voltage'
     current:
@@ -776,6 +781,11 @@ binary_sensor:
     on_press:
       then:
         - cover.toggle: time_based_cover
+  - platform: template
+    id: 'pzemac_reset_energy'
+    on_press:
+      then:
+        - pzemac.reset_energy: pzemac1
 
 globals:
   - id: my_global_string
@@ -1138,6 +1148,7 @@ output:
     pin: GPIO5
     id: my_slow_pwm
     period: 15s
+    restart_cycle_on_state_change: false
   - platform: sm2135
     id: sm2135_0
     channel: 0
@@ -1339,3 +1350,19 @@ dsmr:
 daly_bms:
   update_interval: 20s
   uart_id: uart1
+
+button:
+  - platform: output
+    id: output_button
+    output: out
+    duration: 100ms
+  - platform: wake_on_lan
+    target_mac_address: 12:34:56:78:90:ab
+    name: wol_test_1
+    id: wol_1
+
+cd74hc4067:
+  pin_s0: GPIO12
+  pin_s1: GPIO13
+  pin_s2: GPIO14
+  pin_s3: GPIO15

@@ -319,6 +319,10 @@ bool HelloResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value)
       this->server_info = value.as_string();
       return true;
     }
+    case 4: {
+      this->name = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -327,6 +331,7 @@ void HelloResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(1, this->api_version_major);
   buffer.encode_uint32(2, this->api_version_minor);
   buffer.encode_string(3, this->server_info);
+  buffer.encode_string(4, this->name);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void HelloResponse::dump_to(std::string &out) const {
@@ -344,6 +349,10 @@ void HelloResponse::dump_to(std::string &out) const {
 
   out.append("  server_info: ");
   out.append("'").append(this->server_info).append("'");
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
   out.append("\n");
   out.append("}");
 }
