@@ -1352,6 +1352,10 @@ daly_bms:
   uart_id: uart1
 
 button:
+  - platform: output
+    id: output_button
+    output: out
+    duration: 100ms
   - platform: wake_on_lan
     target_mac_address: 12:34:56:78:90:ab
     name: wol_test_1
