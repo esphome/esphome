@@ -28,7 +28,6 @@ class BLEBinaryOutput : public output::BinaryOutput, public BLEClientNode, publi
   void set_require_response(bool response) { this->require_response_ = response; }
   bool is_response_required() const { return this->require_response_; }
 
-
  protected:
   void write_state(bool state) override;
   bool require_response_{false};
