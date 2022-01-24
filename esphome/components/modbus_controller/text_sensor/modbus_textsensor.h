@@ -12,8 +12,7 @@ enum class RawEncoding { NONE = 0, HEXBYTES = 1, COMMA = 2 };
 class ModbusTextSensor : public Component, public text_sensor::TextSensor, public SensorItem {
  public:
   ModbusTextSensor(ModbusRegisterType register_type, uint16_t start_address, uint8_t offset, uint8_t register_count,
-                   uint16_t response_bytes, RawEncoding encode, uint8_t skip_updates, bool force_new_range)
-      : Component() {
+                   uint16_t response_bytes, RawEncoding encode, uint8_t skip_updates, bool force_new_range) {
     this->register_type = register_type;
     this->start_address = start_address;
     this->offset = offset;
@@ -36,7 +35,6 @@ class ModbusTextSensor : public Component, public text_sensor::TextSensor, publi
  protected:
   optional<transform_func_t> transform_func_{nullopt};
 
- protected:
   RawEncoding encode_;
 };
 

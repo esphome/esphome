@@ -27,13 +27,13 @@ std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) con
          "/" + suffix;
 }
 
-const std::string MQTTComponent::get_state_topic_() const {
+std::string MQTTComponent::get_state_topic_() const {
   if (this->custom_state_topic_.empty())
     return this->get_default_topic_for_("state");
   return this->custom_state_topic_;
 }
 
-const std::string MQTTComponent::get_command_topic_() const {
+std::string MQTTComponent::get_command_topic_() const {
   if (this->custom_command_topic_.empty())
     return this->get_default_topic_for_("command");
   return this->custom_command_topic_;
@@ -92,6 +92,8 @@ bool MQTTComponent::send_discovery_() {
           root[MQTT_STATE_TOPIC] = this->get_state_topic_();
         if (config.command_topic)
           root[MQTT_COMMAND_TOPIC] = this->get_command_topic_();
+        if (this->command_retain_)
+          root[MQTT_COMMAND_RETAIN] = true;
 
         if (this->availability_ == nullptr) {
           if (!global_mqtt_client->get_availability().topic.empty()) {
@@ -165,6 +167,7 @@ void MQTTComponent::set_custom_state_topic(const std::string &custom_state_topic
 void MQTTComponent::set_custom_command_topic(const std::string &custom_command_topic) {
   this->custom_command_topic_ = custom_command_topic;
 }
+void MQTTComponent::set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }
 
 void MQTTComponent::set_availability(std::string topic, std::string payload_available,
                                      std::string payload_not_available) {

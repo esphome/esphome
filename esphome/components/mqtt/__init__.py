@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_BROKER,
     CONF_CLIENT_ID,
     CONF_COMMAND_TOPIC,
+    CONF_COMMAND_RETAIN,
     CONF_DISCOVERY,
     CONF_DISCOVERY_PREFIX,
     CONF_DISCOVERY_RETAIN,
@@ -392,6 +393,8 @@ async def register_mqtt_component(var, config):
         cg.add(var.set_custom_state_topic(config[CONF_STATE_TOPIC]))
     if CONF_COMMAND_TOPIC in config:
         cg.add(var.set_custom_command_topic(config[CONF_COMMAND_TOPIC]))
+    if CONF_COMMAND_RETAIN in config:
+        cg.add(var.set_command_retain(config[CONF_COMMAND_RETAIN]))
     if CONF_AVAILABILITY in config:
         availability = config[CONF_AVAILABILITY]
         if not availability:
