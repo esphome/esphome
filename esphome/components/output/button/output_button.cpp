@@ -14,9 +14,7 @@ void OutputButton::press_action() {
   this->output_->turn_on();
 
   // Use a named timeout so that it's automatically cancelled if button is pressed again before it's reset
-  this->set_timeout("reset", this->duration_, [this]() {
-    this->output_->turn_off();
-  });
+  this->set_timeout("reset", this->duration_, [this]() { this->output_->turn_off(); });
 }
 
 }  // namespace output
