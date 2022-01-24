@@ -26,6 +26,11 @@ class ModbusNumber : public number::Number, public Component, public SensorItem 
   void dump_config() override;
   void parse_and_publish(const std::vector<uint8_t> &data) override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  void set_update_interval(int) {
+    // update_interval is determined by modbus_controller
+    // ignore the value passed in
+    return;
+  }
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
   void set_write_multiply(float factor) { multiply_by_ = factor; }
 
