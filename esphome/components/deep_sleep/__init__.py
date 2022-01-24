@@ -44,7 +44,7 @@ WAKEUP_PINS = {
 
 
 def validate_pin_number(value):
-    valid_pins = WAKEUP_PINS.get(get_esp32_variant(), VARIANT_ESP32)
+    valid_pins = WAKEUP_PINS.get(get_esp32_variant(), WAKEUP_PINS[VARIANT_ESP32])
     if value[CONF_NUMBER] not in valid_pins:
         raise cv.Invalid(
             f"Only pins {', '.join(str(x) for x in valid_pins)} support wakeup"
@@ -53,17 +53,9 @@ def validate_pin_number(value):
 
 
 def validate_config(config):
-    if (
-        config[CONF_RAW]
-        and get_esp32_variant() == VARIANT_ESP32C3
-        and config.get(CONF_ESP32_EXT1_WAKEUP, None) is not None
-    ):
+    if get_esp32_variant() == VARIANT_ESP32C3 and CONF_ESP32_EXT1_WAKEUP in config:
         raise cv.Invalid("ESP32-C3 does not support wakeup from touch.")
-    if (
-        config[CONF_RAW]
-        and get_esp32_variant() == VARIANT_ESP32C3
-        and config.get(CONF_TOUCH_WAKEUP, None) is not None
-    ):
+    if get_esp32_variant() == VARIANT_ESP32C3 and CONF_TOUCH_WAKEUP in config:
         raise cv.Invalid("ESP32-C3 does not support wakeup from ext1")
     return config
 
