@@ -542,10 +542,11 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
 
         // case RAC_PT1411HWRU_MODE_DRY:
         case RAC_PT1411HWRU_MODE_FAN:
-          if ((message[4] >> 4) == RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY)
+          if ((message[4] >> 4) == RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY) {
             this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-          else
+          } else {
             this->mode = climate::CLIMATE_MODE_DRY;
+          }
           break;
 
         case RAC_PT1411HWRU_MODE_HEAT:

@@ -373,10 +373,11 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
 
   auto it = subscriptions_.begin();
   while (it != subscriptions_.end()) {
-    if (it->topic == topic)
+    if (it->topic == topic) {
       it = subscriptions_.erase(it);
-    else
+    } else {
       ++it;
+    }
   }
 }
 
@@ -484,9 +485,10 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
   // in an ISR.
   this->defer([this, topic, payload]() {
 #endif
-    for (auto &subscription : this->subscriptions_)
+    for (auto &subscription : this->subscriptions_) {
       if (topic_match(topic.c_str(), subscription.topic.c_str()))
         subscription.callback(topic, payload);
+    }
 #ifdef USE_ESP8266
   });
 #endif
