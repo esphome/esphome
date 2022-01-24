@@ -1742,11 +1742,11 @@ def require_framework_version(
     return validator
 
 
-def require_esphome_version(*version):
+def require_esphome_version(year, month, patch):
     def validator(value):
         esphome_version = parse_esphome_version()
-        if esphome_version < version:
-            requires_version = f"{version[0]}.{version[1]}.{version[2]}"
+        if esphome_version < (year, month, patch):
+            requires_version = f"{year}.{month}.{patch}"
             raise Invalid(
                 f"This component requires at least ESPHome version {requires_version}"
             )
