@@ -65,7 +65,10 @@ void ModbusSelect::control(const std::string &value) {
     }
 
 #pragma GCC diagnostic push
+#if !defined(__clang__)
+// ignores false-positive warning on mapval variable
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
     number_to_payload(data, *mapval, this->sensor_value_type);
 #pragma GCC diagnostic pop
   } else {
