@@ -63,9 +63,11 @@ class MQTTBackendIDF final : public MQTTBackend {
   bool connected() const final { return this->is_connected_; }
 
   void connect() final {
-    if (!is_initalized_)
-      if (initialize_())
+    if (!is_initalized_) {
+      if (initialize_()) {
         esp_mqtt_client_start(handler_.get());
+      }
+    }
   }
   void disconnect() final {
     if (is_initalized_)

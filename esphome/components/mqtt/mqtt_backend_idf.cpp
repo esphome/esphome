@@ -47,7 +47,7 @@ bool MQTTBackendIDF::initialize_() {
   } else {
     mqtt_cfg_.transport = MQTT_TRANSPORT_OVER_TCP;
   }
-  auto mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
+  auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
   if (mqtt_client) {
     handler_.reset(mqtt_client);
     is_initalized_ = true;
