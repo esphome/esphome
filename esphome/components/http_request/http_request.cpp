@@ -40,8 +40,8 @@ void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> 
 
   bool begin_status = false;
   const String url = this->url_.c_str();
-#if defined USE_ESP32 || defined ESP8266 && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
-#if defined USE_ESP32 || ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
+#if defined(USE_ESP32) || (defined(ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0))
+#if defined(USE_ESP32) || ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
   if (this->follow_redirects_) {
     this->client_.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
   } else {
