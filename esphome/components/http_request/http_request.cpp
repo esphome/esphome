@@ -52,9 +52,9 @@ void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> 
 #endif
   this->client_.setRedirectLimit(this->redirect_limit_);
 #endif
-#ifdef USE_ESP32
+#if defined(USE_ESP32)
   begin_status = this->client_.begin(url);
-#elif USE_ESP8266
+#elif defined(USE_ESP8266)
   begin_status = this->client_.begin(*this->get_wifi_client_(), url);
 #endif
 
