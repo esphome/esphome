@@ -39,6 +39,8 @@ def merge_config(full_old, full_new):
             if not isinstance(old, list):
                 return new
             return old + new
+        elif new is None:
+            return old
 
         return new
 
