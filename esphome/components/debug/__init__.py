@@ -29,19 +29,15 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_DEVICE): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {cv.GenerateID(): cv.declare_id(text_sensor.TextSensor)}
         ),
-        cv.Optional(CONF_FREE): sensor.sensor_schema(
-            UNIT_BYTES, ICON_COUNTER, 1, DEVICE_CLASS_EMPTY
-        ),
-        cv.Optional(CONF_BLOCK): cv.All(
-            sensor.sensor_schema(UNIT_BYTES, ICON_COUNTER, 1, DEVICE_CLASS_EMPTY),
-        ),
+        cv.Optional(CONF_FREE): sensor.sensor_schema(UNIT_BYTES, ICON_COUNTER, 0),
+        cv.Optional(CONF_BLOCK): sensor.sensor_schema(UNIT_BYTES, ICON_COUNTER, 0),
         cv.Optional(CONF_FRAGMENTATION): cv.All(
             cv.only_on_esp8266,
             cv.require_framework_version(esp8266_arduino=cv.Version(2, 5, 2)),
-            sensor.sensor_schema(UNIT_PERCENT, ICON_COUNTER, 1, DEVICE_CLASS_EMPTY),
+            sensor.sensor_schema(UNIT_PERCENT, ICON_COUNTER, 1),
         ),
         cv.Optional(CONF_LOOP_TIME): sensor.sensor_schema(
-            UNIT_MILLISECOND, ICON_TIMER, 1, DEVICE_CLASS_EMPTY
+            UNIT_MILLISECOND, ICON_TIMER, 1
         ),
     }
 ).extend(cv.polling_component_schema("60s"))
