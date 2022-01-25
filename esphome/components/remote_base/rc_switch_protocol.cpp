@@ -57,10 +57,11 @@ void RCSwitchBase::transmit(RemoteTransmitData *dst, uint64_t code, uint8_t len)
   dst->set_carrier_frequency(0);
   this->sync(dst);
   for (int16_t i = len - 1; i >= 0; i--) {
-    if (code & ((uint64_t) 1 << i))
+    if (code & ((uint64_t) 1 << i)) {
       this->one(dst);
-    else
+    } else {
       this->zero(dst);
+    }
   }
 }
 
@@ -148,10 +149,11 @@ void RCSwitchBase::simple_code_to_tristate(uint16_t code, uint8_t nbits, uint64_
   *out_code = 0;
   for (int8_t i = nbits - 1; i >= 0; i--) {
     *out_code <<= 2;
-    if (code & (1 << i))
+    if (code & (1 << i)) {
       *out_code |= 0b01;
-    else
+    } else {
       *out_code |= 0b00;
+    }
   }
 }
 void RCSwitchBase::type_a_code(uint8_t switch_group, uint8_t switch_device, bool state, uint64_t *out_code,

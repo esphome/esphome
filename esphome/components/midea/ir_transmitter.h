@@ -23,12 +23,12 @@ class IrFollowMeData : public IrData {
   }
 
   /* TEMPERATURE */
-  uint8_t temp() const { return this->data_[4] - 1; }
-  void set_temp(uint8_t val) { this->data_[4] = std::min(MAX_TEMP, val) + 1; }
+  uint8_t temp() const { return this->get_value_(4) - 1; }
+  void set_temp(uint8_t val) { this->set_value_(4, std::min(MAX_TEMP, val) + 1); }
 
   /* BEEPER */
-  bool beeper() const { return this->data_[3] & 128; }
-  void set_beeper(bool val) { this->set_value_(3, 1, 7, val); }
+  bool beeper() const { return this->get_value_(3, 128); }
+  void set_beeper(bool val) { this->set_mask_(3, val, 128); }
 
  protected:
   static const uint8_t MAX_TEMP = 37;

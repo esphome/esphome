@@ -13,7 +13,7 @@ namespace mqtt {
 
 class MQTTFanComponent : public mqtt::MQTTComponent {
  public:
-  explicit MQTTFanComponent(fan::FanState *state);
+  explicit MQTTFanComponent(fan::Fan *state);
 
   MQTT_COMPONENT_CUSTOM_TOPIC(oscillation, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(oscillation, state)
@@ -22,7 +22,7 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
   MQTT_COMPONENT_CUSTOM_TOPIC(speed, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(speed, state)
 
-  void send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) override;
+  void send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) override;
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -37,12 +37,12 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
   /// 'fan' component type for discovery.
   std::string component_type() const override;
 
-  fan::FanState *get_state() const;
+  fan::Fan *get_state() const;
 
  protected:
   const EntityBase *get_entity() const override;
 
-  fan::FanState *state_;
+  fan::Fan *state_;
 };
 
 }  // namespace mqtt

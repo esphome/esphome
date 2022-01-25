@@ -14,7 +14,7 @@
 namespace esphome {
 namespace esp32_camera_web_server {
 
-static const int IMAGE_REQUEST_TIMEOUT = 2000;
+static const int IMAGE_REQUEST_TIMEOUT = 5000;
 static const char *const TAG = "esp32_camera_web_server";
 
 #define PART_BOUNDARY "123456789000000000000987654321"
@@ -68,7 +68,7 @@ void CameraWebServer::setup() {
   httpd_register_uri_handler(this->httpd_, &uri);
 
   esp32_camera::global_esp32_camera->add_image_callback([this](std::shared_ptr<esp32_camera::CameraImage> image) {
-    if (this->running_) {
+    if (this->running_ && image->was_requested_by(esp32_camera::WEB_REQUESTER)) {
       this->image_ = std::move(image);
       xSemaphoreGive(this->semaphore_);
     }
@@ -87,10 +87,11 @@ void CameraWebServer::on_shutdown() {
 void CameraWebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP32 Camera Web Server:");
   ESP_LOGCONFIG(TAG, "  Port: %d", this->port_);
-  if (this->mode_ == STREAM)
+  if (this->mode_ == STREAM) {
     ESP_LOGCONFIG(TAG, "  Mode: stream");
-  else
+  } else {
     ESP_LOGCONFIG(TAG, "  Mode: snapshot");
+  }
 
   if (this->is_failed()) {
     ESP_LOGE(TAG, "  Setup Failed");
@@ -169,11 +170,9 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
   uint32_t last_frame = millis();
   uint32_t frames = 0;
 
-  while (res == ESP_OK && this->running_) {
-    if (esp32_camera::global_esp32_camera != nullptr) {
-      esp32_camera::global_esp32_camera->request_stream();
-    }
+  esp32_camera::global_esp32_camera->start_stream(esphome::esp32_camera::WEB_REQUESTER);
 
+  while (res == ESP_OK && this->running_) {
     auto image = this->wait_for_image_();
 
     if (!image) {
@@ -204,6 +203,8 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
     res = httpd_send_all(req, STREAM_ERROR, strlen(STREAM_ERROR));
   }
 
+  esp32_camera::global_esp32_camera->stop_stream(esphome::esp32_camera::WEB_REQUESTER);
+
   ESP_LOGI(TAG, "STREAM: closed. Frames: %u", frames);
 
   return res;
@@ -212,9 +213,7 @@ esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
 esp_err_t CameraWebServer::snapshot_handler_(struct httpd_req *req) {
   esp_err_t res = ESP_OK;
 
-  if (esp32_camera::global_esp32_camera != nullptr) {
-    esp32_camera::global_esp32_camera->request_image();
-  }
+  esp32_camera::global_esp32_camera->request_image(esphome::esp32_camera::WEB_REQUESTER);
 
   auto image = this->wait_for_image_();
 
@@ -233,9 +232,6 @@ esp_err_t CameraWebServer::snapshot_handler_(struct httpd_req *req) {
 
   httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
 
-  if (res == ESP_OK) {
-    res = httpd_resp_set_hdr(req, CONTENT_LENGTH, esphome::to_string(image->get_data_length()).c_str());
-  }
   if (res == ESP_OK) {
     res = httpd_resp_send(req, (const char *) image->get_data_buffer(), image->get_data_length());
   }

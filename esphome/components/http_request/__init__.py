@@ -31,6 +31,8 @@ CONF_BODY = "body"
 CONF_JSON = "json"
 CONF_VERIFY_SSL = "verify_ssl"
 CONF_ON_RESPONSE = "on_response"
+CONF_FOLLOW_REDIRECTS = "follow_redirects"
+CONF_REDIRECT_LIMIT = "redirect_limit"
 
 
 def validate_url(value):
@@ -71,6 +73,8 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(HttpRequestComponent),
             cv.Optional(CONF_USERAGENT, "ESPHome"): cv.string,
+            cv.Optional(CONF_FOLLOW_REDIRECTS, True): cv.boolean,
+            cv.Optional(CONF_REDIRECT_LIMIT, 3): cv.int_,
             cv.Optional(
                 CONF_TIMEOUT, default="5s"
             ): cv.positive_time_period_milliseconds,
@@ -90,6 +94,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
+    cg.add(var.set_follow_redirects(config[CONF_FOLLOW_REDIRECTS]))
+    cg.add(var.set_redirect_limit(config[CONF_REDIRECT_LIMIT]))
+
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
 
@@ -172,7 +179,7 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
     if CONF_JSON in config:
         json_ = config[CONF_JSON]
         if isinstance(json_, Lambda):
-            args_ = args + [(cg.JsonObjectRef, "root")]
+            args_ = args + [(cg.JsonObject, "root")]
             lambda_ = await cg.process_lambda(json_, args_, return_type=cg.void)
             cg.add(var.set_json(lambda_))
         else:
