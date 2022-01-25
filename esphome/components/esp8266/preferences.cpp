@@ -98,16 +98,18 @@ static bool load_from_flash(size_t offset, uint32_t *data, size_t len) {
 }
 
 static bool save_to_rtc(size_t offset, const uint32_t *data, size_t len) {
-  for (uint32_t i = 0; i < len; i++)
+  for (uint32_t i = 0; i < len; i++) {
     if (!esp_rtc_user_mem_write(offset + i, data[i]))
       return false;
+  }
   return true;
 }
 
 static bool load_from_rtc(size_t offset, uint32_t *data, size_t len) {
-  for (uint32_t i = 0; i < len; i++)
+  for (uint32_t i = 0; i < len; i++) {
     if (!esp_rtc_user_mem_read(offset + i, &data[i]))
       return false;
+  }
   return true;
 }
 

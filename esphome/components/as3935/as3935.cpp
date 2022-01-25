@@ -58,10 +58,11 @@ void AS3935Component::loop() {
 
 void AS3935Component::write_indoor(bool indoor) {
   ESP_LOGV(TAG, "Setting indoor to %d", indoor);
-  if (indoor)
+  if (indoor) {
     this->write_register(AFE_GAIN, GAIN_MASK, INDOOR, 1);
-  else
+  } else {
     this->write_register(AFE_GAIN, GAIN_MASK, OUTDOOR, 1);
+  }
 }
 // REG0x01, bits[3:0], manufacturer default: 0010 (2).
 // This setting determines the threshold for events that trigger the

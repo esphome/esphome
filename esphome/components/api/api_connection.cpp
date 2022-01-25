@@ -469,10 +469,11 @@ void APIConnection::switch_command(const SwitchCommandRequest &msg) {
   if (a_switch == nullptr)
     return;
 
-  if (msg.state)
+  if (msg.state) {
     a_switch->turn_on();
-  else
+  } else {
     a_switch->turn_off();
+  }
 }
 #endif
 
@@ -805,15 +806,16 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.project_version = ESPHOME_PROJECT_VERSION;
 #endif
 #ifdef USE_WEBSERVER
-  resp.webserver_port = WEBSERVER_PORT;
+  resp.webserver_port = USE_WEBSERVER_PORT;
 #endif
   return resp;
 }
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
-  for (auto &it : this->parent_->get_state_subs())
+  for (auto &it : this->parent_->get_state_subs()) {
     if (it.entity_id == msg.entity_id && it.attribute.value() == msg.attribute) {
       it.callback(msg.state);
     }
+  }
 }
 void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   bool found = false;

@@ -60,10 +60,11 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
     if (enables.tcc)
       budget_us += (timeouts.msrc_dss_tcc_us + tcc_overhead);
 
-    if (enables.dss)
+    if (enables.dss) {
       budget_us += 2 * (timeouts.msrc_dss_tcc_us + dss_overhead);
-    else if (enables.msrc)
+    } else if (enables.msrc) {
       budget_us += (timeouts.msrc_dss_tcc_us + msrc_overhead);
+    }
 
     if (enables.pre_range)
       budget_us += (timeouts.pre_range_us + pre_range_overhead);
@@ -191,12 +192,13 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
 
   uint8_t get_vcsel_pulse_period_(VcselPeriodType type) {
     uint8_t vcsel;
-    if (type == VCSEL_PERIOD_PRE_RANGE)
+    if (type == VCSEL_PERIOD_PRE_RANGE) {
       vcsel = reg(0x50).get();
-    else if (type == VCSEL_PERIOD_FINAL_RANGE)
+    } else if (type == VCSEL_PERIOD_FINAL_RANGE) {
       vcsel = reg(0x70).get();
-    else
+    } else {
       return 255;
+    }
 
     return (vcsel + 1) << 1;
   }

@@ -182,14 +182,15 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   bool set_ap = ap.has_value() ? *ap : current_ap;
 
   wifi_mode_t set_mode;
-  if (set_sta && set_ap)
+  if (set_sta && set_ap) {
     set_mode = WIFI_MODE_APSTA;
-  else if (set_sta && !set_ap)
+  } else if (set_sta && !set_ap) {
     set_mode = WIFI_MODE_STA;
-  else if (!set_sta && set_ap)
+  } else if (!set_sta && set_ap) {
     set_mode = WIFI_MODE_AP;
-  else
+  } else {
     set_mode = WIFI_MODE_NULL;
+  }
 
   if (current_mode == set_mode)
     return true;
