@@ -29,7 +29,7 @@ class XiaomiMHOC303 : public Component, public esp32_ble_tracker::ESPBTDeviceLis
   sensor::Sensor *battery_level_{nullptr};
 };
 
-}  // namespace xiaomi_lywsd02
+}  // namespace xiaomi_mhoc303
 }  // namespace esphome
 
 #endif
