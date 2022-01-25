@@ -91,9 +91,9 @@ class Switch : public EntityBase {
 
   bool is_inverted() const;
 
-  /// Get the device class, using the manual override if set.
+  /// Get the device class for this switch.
   std::string get_device_class();
-  /// Manually set the device class.
+  /// Set the Home Assistant device class for this switch.
   void set_device_class(const std::string &device_class);
 
  protected:
