@@ -80,9 +80,10 @@ void APIServer::setup() {
   if (esp32_camera::global_esp32_camera != nullptr && !esp32_camera::global_esp32_camera->is_internal()) {
     esp32_camera::global_esp32_camera->add_image_callback(
         [this](const std::shared_ptr<esp32_camera::CameraImage> &image) {
-          for (auto &c : this->clients_)
+          for (auto &c : this->clients_) {
             if (!c->remove_)
               c->send_camera_state(image);
+          }
         });
   }
 #endif
@@ -188,7 +189,7 @@ void APIServer::on_cover_update(cover::Cover *obj) {
 #endif
 
 #ifdef USE_FAN
-void APIServer::on_fan_update(fan::FanState *obj) {
+void APIServer::on_fan_update(fan::Fan *obj) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)

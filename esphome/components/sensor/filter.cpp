@@ -176,10 +176,11 @@ optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
     this->sum_ += value;
   }
   float average;
-  if (this->queue_.empty())
+  if (this->queue_.empty()) {
     average = 0.0f;
-  else
+  } else {
     average = this->sum_ / this->queue_.size();
+  }
   ESP_LOGVV(TAG, "SlidingWindowMovingAverageFilter(%p)::new_value(%f) -> %f", this, value, average);
 
   if (++this->send_at_ % this->send_every_ == 0) {
@@ -203,10 +204,11 @@ ExponentialMovingAverageFilter::ExponentialMovingAverageFilter(float alpha, size
     : send_every_(send_every), send_at_(send_every - 1), alpha_(alpha) {}
 optional<float> ExponentialMovingAverageFilter::new_value(float value) {
   if (!std::isnan(value)) {
-    if (this->first_value_)
+    if (this->first_value_) {
       this->accumulator_ = value;
-    else
+    } else {
       this->accumulator_ = (this->alpha_ * value) + (1.0f - this->alpha_) * this->accumulator_;
+    }
     this->first_value_ = false;
   }
 
@@ -274,25 +276,26 @@ FilterOutValueFilter::FilterOutValueFilter(float value_to_filter_out) : value_to
 
 optional<float> FilterOutValueFilter::new_value(float value) {
   if (std::isnan(this->value_to_filter_out_)) {
-    if (std::isnan(value))
+    if (std::isnan(value)) {
       return {};
-    else
+    } else {
       return value;
+    }
   } else {
     int8_t accuracy = this->parent_->get_accuracy_decimals();
     float accuracy_mult = powf(10.0f, accuracy);
     float rounded_filter_out = roundf(accuracy_mult * this->value_to_filter_out_);
     float rounded_value = roundf(accuracy_mult * value);
-    if (rounded_filter_out == rounded_value)
+    if (rounded_filter_out == rounded_value) {
       return {};
-    else
+    } else {
       return value;
+    }
   }
 }
 
 // ThrottleFilter
-ThrottleFilter::ThrottleFilter(uint32_t min_time_between_inputs)
-    : Filter(), min_time_between_inputs_(min_time_between_inputs) {}
+ThrottleFilter::ThrottleFilter(uint32_t min_time_between_inputs) : min_time_between_inputs_(min_time_between_inputs) {}
 optional<float> ThrottleFilter::new_value(float value) {
   const uint32_t now = millis();
   if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_) {

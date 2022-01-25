@@ -10,21 +10,22 @@ climate::ClimateTraits ClimateIR::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(this->sensor_ != nullptr);
   traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_HEAT_COOL});
-  if (supports_cool_)
+  if (this->supports_cool_)
     traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
-  if (supports_heat_)
+  if (this->supports_heat_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
-  if (supports_dry_)
+  if (this->supports_dry_)
     traits.add_supported_mode(climate::CLIMATE_MODE_DRY);
-  if (supports_fan_only_)
+  if (this->supports_fan_only_)
     traits.add_supported_mode(climate::CLIMATE_MODE_FAN_ONLY);
 
   traits.set_supports_two_point_target_temperature(false);
   traits.set_visual_min_temperature(this->minimum_temperature_);
   traits.set_visual_max_temperature(this->maximum_temperature_);
   traits.set_visual_temperature_step(this->temperature_step_);
-  traits.set_supported_fan_modes(fan_modes_);
-  traits.set_supported_swing_modes(swing_modes_);
+  traits.set_supported_fan_modes(this->fan_modes_);
+  traits.set_supported_swing_modes(this->swing_modes_);
+  traits.set_supported_presets(this->presets_);
   return traits;
 }
 
@@ -50,6 +51,7 @@ void ClimateIR::setup() {
         roundf(clamp(this->current_temperature, this->minimum_temperature_, this->maximum_temperature_));
     this->fan_mode = climate::CLIMATE_FAN_AUTO;
     this->swing_mode = climate::CLIMATE_SWING_OFF;
+    this->preset = climate::CLIMATE_PRESET_NONE;
   }
   // Never send nan to HA
   if (std::isnan(this->target_temperature))
@@ -65,6 +67,8 @@ void ClimateIR::control(const climate::ClimateCall &call) {
     this->fan_mode = *call.get_fan_mode();
   if (call.get_swing_mode().has_value())
     this->swing_mode = *call.get_swing_mode();
+  if (call.get_preset().has_value())
+    this->preset = *call.get_preset();
   this->transmit_state();
   this->publish_state();
 }
