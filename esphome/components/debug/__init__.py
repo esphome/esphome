@@ -13,7 +13,6 @@ from esphome.const import (
     UNIT_BYTES,
     ICON_COUNTER,
     ICON_TIMER,
-    DEVICE_CLASS_EMPTY,
 )
 
 CODEOWNERS = ["@OttoWinter"]
