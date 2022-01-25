@@ -107,9 +107,6 @@ class Switch : public EntityBase {
    */
   virtual void write_state(bool state) = 0;
 
-  /// Override this to set the default device class.
-  virtual std::string device_class();  // NOLINT
-
   uint32_t hash_base() override;
 
   CallbackManager<void(bool)> state_callback_{};
