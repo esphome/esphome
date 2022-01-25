@@ -16,7 +16,7 @@ CONF_TRANSITION_FULL_SHORT_DURATION = "transition_full_short_duration"
 
 HBRIDGE_CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(HBridge),
+        # cv.GenerateID(): cv.declare_id(HBridge),
         cv.Required(CONF_PIN_A): cv.use_id(output.FloatOutput),
         cv.Required(CONF_PIN_B): cv.use_id(output.FloatOutput),
         cv.Optional(CONF_ENABLE_PIN): cv.use_id(output.FloatOutput),
