@@ -61,6 +61,12 @@ enum MQTTDiscoveryUniqueIdGenerator {
   MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR,
 };
 
+/// available discovery object_id generators
+enum MQTTDiscoveryObjectIdGenerator {
+  MQTT_NONE_OBJECT_ID_GENERATOR = 0,
+  MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR,
+};
+
 /** Internal struct for MQTT Home Assistant discovery
  *
  * See <a href="https://www.home-assistant.io/docs/mqtt/discovery/">MQTT Discovery</a>.
@@ -70,6 +76,7 @@ struct MQTTDiscoveryInfo {
   bool retain;         ///< Whether to retain discovery messages.
   bool clean;
   MQTTDiscoveryUniqueIdGenerator unique_id_generator;
+  MQTTDiscoveryObjectIdGenerator object_id_generator;
 };
 
 enum MQTTClientState {
@@ -106,10 +113,11 @@ class MQTTClientComponent : public Component {
    * See <a href="https://www.home-assistant.io/docs/mqtt/discovery/">MQTT Discovery</a>.
    * @param prefix The Home Assistant discovery prefix.
    * @param unique_id_generator Controls how UniqueId is generated.
+   * @param object_id_generator Controls how ObjectId is generated.
    * @param retain Whether to retain discovery messages.
    */
-  void set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator, bool retain,
-                          bool clean = false);
+  void set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
+                          MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain, bool clean = false);
   /// Get Home Assistant discovery info.
   const MQTTDiscoveryInfo &get_discovery_info() const;
   /// Globally disable Home Assistant discovery.
