@@ -137,6 +137,7 @@ async def to_code(config):
             [
                 (ModbusSelect.operator("const_ptr"), "item"),
                 (cg.std_string.operator("const").operator("ref"), "x"),
+                (cg.int64, "value"),
                 (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
             ],
             return_type=cg.optional.template(cg.int64),

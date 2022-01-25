@@ -41,11 +41,16 @@ void ModbusSelect::parse_and_publish(const std::vector<uint8_t> &data) {
 }
 
 void ModbusSelect::control(const std::string &value) {
-  optional<int64_t> mapval;
+  auto options = this->traits.get_options();
+  auto opt_it = std::find(options.cbegin(), options.cend(), value);
+  size_t idx = std::distance(options.cbegin(), opt_it);
+  optional<int64_t> mapval = this->mapping_[idx];
+  ESP_LOGD(TAG, "Found value %lld for option '%s'", *mapval, value.c_str());
+
   std::vector<uint16_t> data;
 
   if (this->write_transform_func_.has_value()) {
-    auto val = (*this->write_transform_func_)(this, value, data);
+    auto val = (*this->write_transform_func_)(this, value, *mapval, data);
     if (val.has_value()) {
       mapval = *val;
       ESP_LOGV(TAG, "write_lambda returned mapping value %lld", *mapval);
@@ -56,21 +61,7 @@ void ModbusSelect::control(const std::string &value) {
   }
 
   if (data.empty()) {
-    if (!mapval.has_value()) {
-      auto options = this->traits.get_options();
-      auto opt_it = std::find(options.cbegin(), options.cend(), value);
-      size_t idx = std::distance(options.cbegin(), opt_it);
-      mapval = this->mapping_[idx];
-      ESP_LOGV(TAG, "Found value %lld for option '%s'", *mapval, value.c_str());
-    }
-
-#pragma GCC diagnostic push
-#if !defined(__clang__)
-// ignores false-positive warning on mapval variable
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
     number_to_payload(data, *mapval, this->sensor_value_type);
-#pragma GCC diagnostic pop
   } else {
     ESP_LOGV(TAG, "Using payload from write lambda");
   }
