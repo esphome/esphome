@@ -4,12 +4,12 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import CONF_ID
 
-from .. import ektf2232_ns, CONF_EKTF2232_ID, EKTF2232Touchscreen, TouchListener
+from .. import touchscreen_ns, CONF_TOUCHSCREEN_ID, Touchscreen, TouchListener
 
-DEPENDENCIES = ["ektf2232"]
+DEPENDENCIES = ["touchscreen"]
 
-EKTF2232Button = ektf2232_ns.class_(
-    "EKTF2232Button", binary_sensor.BinarySensor, TouchListener
+TouchscreenBinarySensor = touchscreen_ns.class_(
+    "TouchscreenBinarySensor", binary_sensor.BinarySensor, TouchListener
 )
 
 CONF_X_MIN = "x_min"
@@ -32,8 +32,8 @@ def validate_coords(config):
 CONFIG_SCHEMA = cv.All(
     binary_sensor.BINARY_SENSOR_SCHEMA.extend(
         {
-            cv.GenerateID(): cv.declare_id(EKTF2232Button),
-            cv.GenerateID(CONF_EKTF2232_ID): cv.use_id(EKTF2232Touchscreen),
+            cv.GenerateID(): cv.declare_id(TouchscreenBinarySensor),
+            cv.GenerateID(CONF_TOUCHSCREEN_ID): cv.use_id(Touchscreen),
             cv.Required(CONF_X_MIN): cv.int_range(min=0, max=2000),
             cv.Required(CONF_X_MAX): cv.int_range(min=0, max=2000),
             cv.Required(CONF_Y_MIN): cv.int_range(min=0, max=2000),
@@ -47,7 +47,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await binary_sensor.register_binary_sensor(var, config)
-    hub = await cg.get_variable(config[CONF_EKTF2232_ID])
+    hub = await cg.get_variable(config[CONF_TOUCHSCREEN_ID])
     cg.add(
         var.set_area(
             config[CONF_X_MIN],
