@@ -19,7 +19,7 @@ struct TouchPoint {
 class TouchListener {
  public:
   virtual void touch(TouchPoint tp) = 0;
-  virtual void release();
+  virtual void release() {}
 };
 
 enum TouchRotation {
