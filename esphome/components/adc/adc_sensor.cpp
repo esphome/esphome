@@ -17,7 +17,9 @@ namespace adc {
 static const char *const TAG = "adc";
 // 13 bits for S3 / 12 bit for all other esp32 variants
 // create a const to avoid the repated cast to enum
-static const adc_bits_width_t ADC_WIDTH_MAX_SOC_BITS = static_cast<adc_bits_width_t>(ADC_WIDTH_BIT_DEFAULT);
+#ifdef USE_ESP32
+static const adc_bits_width_t ADC_WIDTH_MAX_SOC_BITS = static_cast<adc_bits_width_t>(ADC_WIDTH_MAX - 1);
+#endif
 
 void ADCSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ADC '%s'...", this->get_name().c_str());
