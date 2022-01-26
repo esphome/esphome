@@ -106,7 +106,6 @@ def _format_framework_espidf_version(ver: cv.Version) -> str:
 #    The new version needs to be thoroughly validated before changing the
 #    recommended version as otherwise a bunch of devices could be bricked
 #  * For all constants below, update platformio.ini (in this repo)
-#    and platformio.ini/platformio-lint.ini in the esphome-docker-base repository
 
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
@@ -115,16 +114,16 @@ RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(1, 0, 6)
 # The platformio/espressif32 version to use for arduino frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ARDUINO_PLATFORM_VERSION = cv.Version(3, 3, 2)
+ARDUINO_PLATFORM_VERSION = cv.Version(3, 4, 0)
 
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 3, 0)
+RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 3, 2)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ESP_IDF_PLATFORM_VERSION = cv.Version(3, 3, 2)
+ESP_IDF_PLATFORM_VERSION = cv.Version(3, 4, 0)
 
 
 def _arduino_check_versions(value):
