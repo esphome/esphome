@@ -316,6 +316,13 @@ sensor:
     bus_voltage:
       name: "INA260 Voltage"
     update_interval: 60s
+  - platform: radon_eye_rd200
+    ble_client_id: radon_eye_ble_id
+    update_interval: 10min
+    radon:
+      name: "RD200 Radon"
+    radon_long_term:
+      name: "RD200 Radon Long Term"
 
 time:
   - platform: homeassistant
@@ -415,9 +422,13 @@ ble_client:
     id: airthings01
   - mac_address: 01:02:03:04:05:06
     id: airthingsmini01
+  - mac_address: 01:02:03:04:05:06
+    id: radon_eye_ble_id
 
 
 airthings_ble:
+
+radon_eye_ble:
 
 ruuvi_ble:
 
