@@ -140,10 +140,11 @@ void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color
   const uint32_t pos = (x + y * this->get_width_internal()) / 8u;
   const uint8_t subpos = x & 0x07;
   // flip logic
-  if (!color.is_on())
+  if (!color.is_on()) {
     this->buffer_[pos] |= 0x80 >> subpos;
-  else
+  } else {
     this->buffer_[pos] &= ~(0x80 >> subpos);
+  }
 }
 uint32_t WaveshareEPaper::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal() / 8u; }
 void WaveshareEPaper::start_command_() {
@@ -901,18 +902,20 @@ void HOT WaveshareEPaper5P8In::display() {
     uint8_t temp1 = this->buffer_[i];
     for (uint8_t j = 0; j < 8; j++) {
       uint8_t temp2;
-      if (temp1 & 0x80)
+      if (temp1 & 0x80) {
         temp2 = 0x03;
-      else
+      } else {
         temp2 = 0x00;
+      }
 
       temp2 <<= 4;
       temp1 <<= 1;
       j++;
-      if (temp1 & 0x80)
+      if (temp1 & 0x80) {
         temp2 |= 0x03;
-      else
+      } else {
         temp2 |= 0x00;
+      }
       temp1 <<= 1;
       this->write_byte(temp2);
     }
@@ -984,17 +987,19 @@ void HOT WaveshareEPaper7P5In::display() {
     uint8_t temp1 = this->buffer_[i];
     for (uint8_t j = 0; j < 8; j++) {
       uint8_t temp2;
-      if (temp1 & 0x80)
+      if (temp1 & 0x80) {
         temp2 = 0x03;
-      else
+      } else {
         temp2 = 0x00;
+      }
       temp2 <<= 4;
       temp1 <<= 1;
       j++;
-      if (temp1 & 0x80)
+      if (temp1 & 0x80) {
         temp2 |= 0x03;
-      else
+      } else {
         temp2 |= 0x00;
+      }
       temp1 <<= 1;
       this->write_byte(temp2);
     }
@@ -1187,10 +1192,11 @@ void HOT WaveshareEPaper2P13InDKE::display() {
   bool partial = this->at_update_ != 0;
   this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
 
-  if (partial)
+  if (partial) {
     ESP_LOGI(TAG, "Performing partial e-paper update.");
-  else
+  } else {
     ESP_LOGI(TAG, "Performing full e-paper update.");
+  }
 
   // start and set up data format
   this->command(0x12);

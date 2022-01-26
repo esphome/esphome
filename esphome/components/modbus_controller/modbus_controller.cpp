@@ -99,7 +99,7 @@ void ModbusController::on_register_data(ModbusRegisterType register_type, uint16
 
   // loop through all sensors with the same start address
   auto sensors = find_sensors_(register_type, start_address);
-  for (auto sensor : sensors) {
+  for (auto *sensor : sensors) {
     sensor->parse_and_publish(data);
   }
 }
@@ -109,7 +109,7 @@ void ModbusController::queue_command(const ModbusCommandItem &command) {
   // not very effective but the queue is never really large
   for (auto &item : command_queue_) {
     if (item->register_address == command.register_address && item->register_count == command.register_count &&
-        item->register_type == command.register_type) {
+        item->register_type == command.register_type && item->function_code == command.function_code) {
       ESP_LOGW(TAG, "Duplicate modbus command found");
       // update the payload of the queued command
       // replaces a previous command
@@ -440,7 +440,7 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
   cmd.modbusdevice = modbusdevice;
   cmd.function_code = ModbusFunctionCode::CUSTOM;
   if (handler == nullptr) {
-    cmd.on_data_func = [](ModbusRegisterType, uint16_t, const std::vector<uint8_t> &data) {
+    cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
       ESP_LOGI(TAG, "Custom Command sent");
     };
   } else {

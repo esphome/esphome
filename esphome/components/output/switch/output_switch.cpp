@@ -30,10 +30,11 @@ void OutputSwitch::setup() {
       break;
   }
 
-  if (initial_state)
+  if (initial_state) {
     this->turn_on();
-  else
+  } else {
     this->turn_off();
+  }
 }
 void OutputSwitch::write_state(bool state) {
   if (state) {

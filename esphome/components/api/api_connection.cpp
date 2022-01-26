@@ -255,7 +255,7 @@ void APIConnection::cover_command(const CoverCommandRequest &msg) {
 // Shut-up about usage of deprecated speed_level_to_enum/speed_enum_to_level functions for a bit.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-bool APIConnection::send_fan_state(fan::FanState *fan) {
+bool APIConnection::send_fan_state(fan::Fan *fan) {
   if (!this->state_subscription_)
     return false;
 
@@ -273,7 +273,7 @@ bool APIConnection::send_fan_state(fan::FanState *fan) {
     resp.direction = static_cast<enums::FanDirection>(fan->direction);
   return this->send_fan_state_response(resp);
 }
-bool APIConnection::send_fan_info(fan::FanState *fan) {
+bool APIConnection::send_fan_info(fan::Fan *fan) {
   auto traits = fan->get_traits();
   ListEntitiesFanResponse msg;
   msg.key = fan->get_object_id_hash();
@@ -290,7 +290,7 @@ bool APIConnection::send_fan_info(fan::FanState *fan) {
   return this->send_list_entities_fan_response(msg);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
-  fan::FanState *fan = App.get_fan_by_key(msg.key);
+  fan::Fan *fan = App.get_fan_by_key(msg.key);
   if (fan == nullptr)
     return;
 
@@ -469,10 +469,11 @@ void APIConnection::switch_command(const SwitchCommandRequest &msg) {
   if (a_switch == nullptr)
     return;
 
-  if (msg.state)
+  if (msg.state) {
     a_switch->turn_on();
-  else
+  } else {
     a_switch->turn_off();
+  }
 }
 #endif
 
@@ -766,6 +767,8 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
   resp.api_version_major = 1;
   resp.api_version_minor = 6;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
+  resp.name = App.get_name();
+
   this->connection_state_ = ConnectionState::CONNECTED;
   return resp;
 }
@@ -803,15 +806,16 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.project_version = ESPHOME_PROJECT_VERSION;
 #endif
 #ifdef USE_WEBSERVER
-  resp.webserver_port = WEBSERVER_PORT;
+  resp.webserver_port = USE_WEBSERVER_PORT;
 #endif
   return resp;
 }
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
-  for (auto &it : this->parent_->get_state_subs())
+  for (auto &it : this->parent_->get_state_subs()) {
     if (it.entity_id == msg.entity_id && it.attribute.value() == msg.attribute) {
       it.callback(msg.state);
     }
+  }
 }
 void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   bool found = false;

@@ -44,7 +44,7 @@ class APIServer : public Component, public Controller {
   void on_cover_update(cover::Cover *obj) override;
 #endif
 #ifdef USE_FAN
-  void on_fan_update(fan::FanState *obj) override;
+  void on_fan_update(fan::Fan *obj) override;
 #endif
 #ifdef USE_LIGHT
   void on_light_update(light::LightState *obj) override;

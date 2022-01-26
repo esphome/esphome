@@ -65,9 +65,9 @@ void ADCSensor::dump_config() {
 
 #ifdef USE_ESP32
   LOG_PIN("  Pin: ", pin_);
-  if (autorange_)
+  if (autorange_) {
     ESP_LOGCONFIG(TAG, " Attenuation: auto");
-  else
+  } else {
     switch (this->attenuation_) {
       case ADC_ATTEN_DB_0:
         ESP_LOGCONFIG(TAG, " Attenuation: 0db (max 1.1V)");
@@ -84,6 +84,7 @@ void ADCSensor::dump_config() {
       default:  // This is to satisfy the unused ADC_ATTEN_MAX
         break;
     }
+  }
 #endif  // USE_ESP32
   LOG_UPDATE_INTERVAL(this);
 }

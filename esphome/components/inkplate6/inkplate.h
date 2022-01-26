@@ -107,22 +107,24 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   void pins_as_outputs_();
 
   int get_width_internal() override {
-    if (this->model_ == INKPLATE_6)
+    if (this->model_ == INKPLATE_6) {
       return 800;
-    else if (this->model_ == INKPLATE_10)
+    } else if (this->model_ == INKPLATE_10) {
       return 1200;
-    else if (this->model_ == INKPLATE_6_PLUS)
+    } else if (this->model_ == INKPLATE_6_PLUS) {
       return 1024;
+    }
     return 0;
   }
 
   int get_height_internal() override {
-    if (this->model_ == INKPLATE_6)
+    if (this->model_ == INKPLATE_6) {
       return 600;
-    else if (this->model_ == INKPLATE_10)
+    } else if (this->model_ == INKPLATE_10) {
       return 825;
-    else if (this->model_ == INKPLATE_6_PLUS)
+    } else if (this->model_ == INKPLATE_6_PLUS) {
       return 758;
+    }
     return 0;
   }
 
