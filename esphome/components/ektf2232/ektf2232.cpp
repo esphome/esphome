@@ -68,9 +68,10 @@ void EKTF2232Touchscreen::loop() {
 
   uint8_t raw[8];
   this->read(raw, 8);
-  for (int i = 0; i < 8; i++)
+  for (int i = 0; i < 8; i++) {
     if (raw[7] & (1 << i))
       touch_count++;
+  }
 
   if (touch_count == 0) {
     for (auto *listener : this->touch_listeners_)

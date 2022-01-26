@@ -145,9 +145,10 @@ uint64_t ESPOneWire::search() {
     // read its complement
     bool cmp_id_bit = this->read_bit();
 
-    if (id_bit && cmp_id_bit)
+    if (id_bit && cmp_id_bit) {
       // No devices participating in search
       break;
+    }
 
     bool branch;
 
@@ -170,12 +171,13 @@ uint64_t ESPOneWire::search() {
       }
     }
 
-    if (branch)
+    if (branch) {
       // set bit
       this->rom_number8_()[rom_byte_number] |= rom_byte_mask;
-    else
+    } else {
       // clear bit
       this->rom_number8_()[rom_byte_number] &= ~rom_byte_mask;
+    }
 
     // choose/announce branch
     this->write_bit(branch);
@@ -190,9 +192,10 @@ uint64_t ESPOneWire::search() {
 
   if (id_bit_number >= 65) {
     this->last_discrepancy_ = last_zero;
-    if (this->last_discrepancy_ == 0)
+    if (this->last_discrepancy_ == 0) {
       // we're at root and have no choices left, so this was the last one.
       this->last_device_flag_ = true;
+    }
     search_result = true;
   }
 

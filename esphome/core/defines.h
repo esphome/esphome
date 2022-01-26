@@ -5,6 +5,8 @@
 //
 // This file is only used by static analyzers and IDEs.
 
+#include "esphome/core/macros.h"
+
 // Informative flags
 #define ESPHOME_BOARD "dummy_board"
 #define ESPHOME_PROJECT_NAME "dummy project"
@@ -47,8 +49,8 @@
 #define USE_MQTT
 #define USE_PROMETHEUS
 #define USE_WEBSERVER
+#define USE_WEBSERVER_PORT 80  // NOLINT
 #define USE_WIFI_WPA2_EAP
-#define WEBSERVER_PORT 80  // NOLINT
 #endif
 
 // ESP32-specific feature flags
@@ -60,13 +62,19 @@
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 
 #ifdef USE_ARDUINO
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(1, 0, 6)
 #define USE_ETHERNET
+#endif
+
+#ifdef USE_ESP_IDF
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(4, 3, 0)
 #endif
 #endif
 
 // ESP8266-specific feature flags
 #ifdef USE_ESP8266
 #define USE_ADC_SENSOR_VCC
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 0, 2)
 #define USE_ESP8266_PREFERENCES_FLASH
 #define USE_HTTP_REQUEST_ESP8266_HTTPS
 #define USE_SOCKET_IMPL_LWIP_TCP

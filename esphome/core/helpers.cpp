@@ -206,19 +206,21 @@ void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation,
   float min_color_value = std::min(std::min(red, green), blue);
   float delta = max_color_value - min_color_value;
 
-  if (delta == 0)
+  if (delta == 0) {
     hue = 0;
-  else if (max_color_value == red)
+  } else if (max_color_value == red) {
     hue = int(fmod(((60 * ((green - blue) / delta)) + 360), 360));
-  else if (max_color_value == green)
+  } else if (max_color_value == green) {
     hue = int(fmod(((60 * ((blue - red) / delta)) + 120), 360));
-  else if (max_color_value == blue)
+  } else if (max_color_value == blue) {
     hue = int(fmod(((60 * ((red - green) / delta)) + 240), 360));
+  }
 
-  if (max_color_value == 0)
+  if (max_color_value == 0) {
     saturation = 0;
-  else
+  } else {
     saturation = delta / max_color_value;
+  }
 
   value = max_color_value;
 }
@@ -339,14 +341,15 @@ size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
   uint8_t val;
   size_t chars = std::min(length, 2 * count);
   for (size_t i = 2 * count - chars; i < 2 * count; i++, str++) {
-    if (*str >= '0' && *str <= '9')
+    if (*str >= '0' && *str <= '9') {
       val = *str - '0';
-    else if (*str >= 'A' && *str <= 'F')
+    } else if (*str >= 'A' && *str <= 'F') {
       val = 10 + (*str - 'A');
-    else if (*str >= 'a' && *str <= 'f')
+    } else if (*str >= 'a' && *str <= 'f') {
       val = 10 + (*str - 'a');
-    else
+    } else {
       return 0;
+    }
     data[i >> 1] = !(i & 1) ? val << 4 : data[i >> 1] | val;
   }
   return chars;

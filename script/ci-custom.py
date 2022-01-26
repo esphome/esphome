@@ -596,6 +596,7 @@ def lint_inclusive_language(fname, match):
         "esphome/components/climate/climate.h",
         "esphome/components/cover/cover.h",
         "esphome/components/display/display_buffer.h",
+        "esphome/components/fan/fan.h",
         "esphome/components/i2c/i2c.h",
         "esphome/components/mqtt/mqtt_component.h",
         "esphome/components/number/number.h",

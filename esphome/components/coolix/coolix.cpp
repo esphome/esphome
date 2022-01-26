@@ -104,7 +104,7 @@ void CoolixClimate::transmit_state() {
   ESP_LOGV(TAG, "Sending coolix code: 0x%06X", remote_state);
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
   remote_base::CoolixProtocol().encode(data, remote_state);
   transmit.perform();
 }
@@ -125,34 +125,37 @@ bool CoolixClimate::on_coolix(climate::Climate *parent, remote_base::RemoteRecei
     parent->swing_mode =
         parent->swing_mode == climate::CLIMATE_SWING_OFF ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
   } else {
-    if ((remote_state & COOLIX_MODE_MASK) == COOLIX_HEAT)
+    if ((remote_state & COOLIX_MODE_MASK) == COOLIX_HEAT) {
       parent->mode = climate::CLIMATE_MODE_HEAT;
-    else if ((remote_state & COOLIX_MODE_MASK) == COOLIX_AUTO)
+    } else if ((remote_state & COOLIX_MODE_MASK) == COOLIX_AUTO) {
       parent->mode = climate::CLIMATE_MODE_HEAT_COOL;
-    else if ((remote_state & COOLIX_MODE_MASK) == COOLIX_DRY_FAN) {
-      if ((remote_state & COOLIX_FAN_MASK) == COOLIX_FAN_MODE_AUTO_DRY)
+    } else if ((remote_state & COOLIX_MODE_MASK) == COOLIX_DRY_FAN) {
+      if ((remote_state & COOLIX_FAN_MASK) == COOLIX_FAN_MODE_AUTO_DRY) {
         parent->mode = climate::CLIMATE_MODE_DRY;
-      else
+      } else {
         parent->mode = climate::CLIMATE_MODE_FAN_ONLY;
+      }
     } else
       parent->mode = climate::CLIMATE_MODE_COOL;
 
     // Fan Speed
     if ((remote_state & COOLIX_FAN_AUTO) == COOLIX_FAN_AUTO || parent->mode == climate::CLIMATE_MODE_HEAT_COOL ||
-        parent->mode == climate::CLIMATE_MODE_DRY)
+        parent->mode == climate::CLIMATE_MODE_DRY) {
       parent->fan_mode = climate::CLIMATE_FAN_AUTO;
-    else if ((remote_state & COOLIX_FAN_MIN) == COOLIX_FAN_MIN)
+    } else if ((remote_state & COOLIX_FAN_MIN) == COOLIX_FAN_MIN) {
       parent->fan_mode = climate::CLIMATE_FAN_LOW;
-    else if ((remote_state & COOLIX_FAN_MED) == COOLIX_FAN_MED)
+    } else if ((remote_state & COOLIX_FAN_MED) == COOLIX_FAN_MED) {
       parent->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-    else if ((remote_state & COOLIX_FAN_MAX) == COOLIX_FAN_MAX)
+    } else if ((remote_state & COOLIX_FAN_MAX) == COOLIX_FAN_MAX) {
       parent->fan_mode = climate::CLIMATE_FAN_HIGH;
+    }
 
     // Temperature
     uint8_t temperature_code = remote_state & COOLIX_TEMP_MASK;
-    for (uint8_t i = 0; i < COOLIX_TEMP_RANGE; i++)
+    for (uint8_t i = 0; i < COOLIX_TEMP_RANGE; i++) {
       if (COOLIX_TEMP_MAP[i] == temperature_code)
         parent->target_temperature = i + COOLIX_TEMP_MIN;
+    }
   }
   parent->publish_state();
 
