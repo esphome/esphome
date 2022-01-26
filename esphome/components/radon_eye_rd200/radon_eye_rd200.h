@@ -51,7 +51,6 @@ class RadonEyeRD200 : public PollingComponent, public ble_client::BLEClientNode 
     char chars[4];
     float number;
   };
-
 };
 
 }  // namespace radon_eye_rd200
