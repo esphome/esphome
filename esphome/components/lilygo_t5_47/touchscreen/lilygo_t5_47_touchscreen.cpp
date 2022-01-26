@@ -44,8 +44,11 @@ void LilygoT547Touchscreen::setup() {
 }
 
 void LilygoT547Touchscreen::loop() {
-  if (!this->store_.touch)
+  if (!this->store_.touch) {
+    for (auto *listener : this->touch_listeners_)
+      listener->release();
     return;
+  }
   this->store_.touch = false;
 
   uint8_t point = 0;
@@ -66,7 +69,11 @@ void LilygoT547Touchscreen::loop() {
 
   point = buffer[5] & 0xF;
 
-  if (point == 1) {
+  if (point == 0) {
+    for (auto *listener : this->touch_listeners_)
+      listener->release();
+    return;
+  } else if (point == 1) {
     err = this->write_register(TOUCH_REGISTER, READ_TOUCH, 1);
     ERROR_CHECK(err);
     err = this->read(&buffer[5], 2);
