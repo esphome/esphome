@@ -946,7 +946,7 @@ void WaveshareEPaper7P5InBV2::initialize() {
   this->data(0x3f);  // VDL=-15V
   // COMMAND POWER ON
   this->command(0x04);
-  delay(100); // NOLINT
+  delay(100);  // NOLINT
   this->wait_until_idle_();
   // COMMAND PANEL SETTING
   this->command(0x00);
