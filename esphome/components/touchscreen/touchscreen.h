@@ -38,7 +38,7 @@ class Touchscreen {
     this->rotation_ = static_cast<TouchRotation>(display->get_rotation());
   }
 
-  Trigger<TouchPoint> *get_touch_trigger() const { return this->touch_trigger_; }
+  Trigger<TouchPoint> *get_touch_trigger() { return &this->touch_trigger_; }
 
   void register_listener(TouchListener *listener) { this->touch_listeners_.push_back(listener); }
 
@@ -50,7 +50,7 @@ class Touchscreen {
   uint16_t display_height_;
   display::DisplayBuffer *display_;
   TouchRotation rotation_;
-  Trigger<TouchPoint> *touch_trigger_ = new Trigger<TouchPoint>();
+  Trigger<TouchPoint> touch_trigger_;
   std::vector<TouchListener *> touch_listeners_;
 };
 
