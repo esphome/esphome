@@ -75,8 +75,8 @@ void RadonEyeRD200::read_sensors_(uint8_t *value, uint16_t value_len) {
 
   // Example data
   // [13:08:47][D][radon_eye_rd200:107]: result bytes: 5010 85EBB940 00000000 00000000 2200 2500 0000
-  ESP_LOGD(TAG,"result bytes: %02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X %02X%02X %02X%02X",
-           value[0], value[1], value[2], value[3],  value[4], value[5], value[6], value[7], value[8], value[9],
+  ESP_LOGD(TAG, "result bytes: %02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X %02X%02X %02X%02X",
+           value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7], value[8], value[9],
            value[10], value[11], value[12], value[13], value[14], value[15], value[16], value[17], value[18],
            value[19]);
 
@@ -147,7 +147,7 @@ void RadonEyeRD200::write_query_message_() {
   ESP_LOGD(TAG, "writing 0x50 to write service");
   int request = 0x50;
   auto status = esp_ble_gattc_write_char_descr(this->parent()->gattc_if, this->parent()->conn_id, this->write_handle_,
-                                               sizeof(request), (uint8_t*)&request, ESP_GATT_WRITE_TYPE_NO_RSP,
+                                               sizeof(request), (uint8_t *) &request, ESP_GATT_WRITE_TYPE_NO_RSP,
                                                ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     ESP_LOGW(TAG, "Error sending write request for sensor, status=%d", status);
