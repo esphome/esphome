@@ -294,8 +294,8 @@ class WaveshareEPaper7P5InBV2 : public WaveshareEPaper {
     this->command(0x02);
     this->wait_until_idle_();
     // COMMAND DEEP SLEEP
-    this->command(0x07); // deep sleep
-    this->data(0xA5);    // check byte
+    this->command(0x07);  // deep sleep
+    this->data(0xA5);     // check byte
   }
 
  protected:

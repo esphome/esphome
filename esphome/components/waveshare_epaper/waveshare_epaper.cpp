@@ -941,20 +941,20 @@ void WaveshareEPaper7P5InBV2::initialize() {
   // COMMAND POWER SETTING
   this->command(0x01);
   this->data(0x07);
-  this->data(0x07); // VGH=20V,VGL=-20V
-  this->data(0x3f); // VDH=15V
-  this->data(0x3f); // VDL=-15V
+  this->data(0x07);  // VGH=20V,VGL=-20V
+  this->data(0x3f);  // VDH=15V
+  this->data(0x3f);  // VDL=-15V
   // COMMAND POWER ON
   this->command(0x04);
-  delay(100);
+  delay(100); // NOLINT
   this->wait_until_idle_();
   // COMMAND PANEL SETTING
   this->command(0x00);
-  this->data(0x0F); // KW3f, KWR-2F, BWROTP 0f, BWOTP 1f
-  this->command(0x61); // tres
-  this->data(0x03); // 800px
+  this->data(0x0F);     // KW3f, KWR-2F, BWROTP 0f, BWOTP 1f
+  this->command(0x61);  // tres
+  this->data(0x03);     // 800px
   this->data(0x20);
-  this->data(0x01); // 400px
+  this->data(0x01);  // 400px
   this->data(0xE0);
   this->command(0x15);
   this->data(0x00);
@@ -968,7 +968,7 @@ void WaveshareEPaper7P5InBV2::initialize() {
   // COMMAND RESOLUTION SETTING
   this->command(0x65);
   this->data(0x00);
-  this->data(0x00); // 800*480
+  this->data(0x00);  // 800*480
   this->data(0x00);
   this->data(0x00);
 }
