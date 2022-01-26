@@ -47,9 +47,9 @@ class RadonEyeRD200 : public PollingComponent, public ble_client::BLEClientNode 
   esp32_ble_tracker::ESPBTUUID sensors_write_characteristic_uuid_;
   esp32_ble_tracker::ESPBTUUID sensors_read_characteristic_uuid_;
 
-  union RadonValue{
-      char chars[4];
-      float number;
+  union RadonValue {
+    char chars[4];
+    float number;
   };
 
 };

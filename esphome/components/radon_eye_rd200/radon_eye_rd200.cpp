@@ -8,7 +8,7 @@ namespace radon_eye_rd200 {
 static const char *const TAG = "radon_eye_rd200";
 
 void RadonEyeRD200::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                                            esp_ble_gattc_cb_param_t *param) {
+                                        esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {
@@ -68,62 +68,61 @@ void RadonEyeRD200::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
 }
 
 void RadonEyeRD200::read_sensors_(uint8_t *value, uint16_t value_len) {
-  if (value_len <20)
-  {
-      ESP_LOGD(TAG, "Invalid read");
-      return;
+  if (value_len <20) {
+    ESP_LOGD(TAG, "Invalid read");
+    return;
   }
 
   // Example data
   // [13:08:47][D][radon_eye_rd200:107]: result bytes: 5010 85EBB940 00000000 00000000 2200 2500 0000
-  ESP_LOGD(TAG,"result bytes: %02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X %02X%02X %02X%02X", value[0],value[1],value[2],value[3], value[4],value[5],value[6],value[7], value[8],value[9],value[10],value[11], value[12],value[13],value[14],value[15], value[16],value[17],value[18],value[19]);
+  ESP_LOGD(TAG,"result bytes: %02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X %02X%02X %02X%02X",
+           value[0],value[1],value[2],value[3], value[4],value[5],value[6],value[7], value[8],value[9],
+           value[10],value[11], value[12],value[13],value[14],value[15], value[16],value[17],value[18],
+           value[19]);
 
-  if (value[0] != 0x50)
-  {
-      // This isn't a sensor reading.
-      return;
+  if (value[0] != 0x50) {
+    // This isn't a sensor reading.
+    return;
   }
 
   // Convert from pCi/L to Bq/m³
-  constexpr float CONVERT = 37.0;
+  constexpr float convert_to_bwpm3 = 37.0;
 
   RadonValue radon_value;
   radon_value.chars[0] = value[2];
   radon_value.chars[1] = value[3];
   radon_value.chars[2] = value[4];
   radon_value.chars[3] = value[5];
-  float radon_now = radon_value.number * CONVERT;
-  if (is_valid_radon_value_(radon_now))
-  {
-      radon_sensor_->publish_state(radon_now);
+  float radon_now = radon_value.number * convert_to_bwpm3;
+  if (is_valid_radon_value_(radon_now)) {
+    radon_sensor_->publish_state(radon_now);
   }
 
   radon_value.chars[0] = value[6];
   radon_value.chars[1] = value[7];
   radon_value.chars[2] = value[8];
   radon_value.chars[3] = value[9];
-  float radon_day = radon_value.number * CONVERT;
+  float radon_day = radon_value.number * convert_to_bwpm3;
 
   radon_value.chars[0] = value[10];
   radon_value.chars[1] = value[11];
   radon_value.chars[2] = value[12];
   radon_value.chars[3] = value[13];
-  float radon_month = radon_value.number * CONVERT;
+  float radon_month = radon_value.number * convert_to_bwpm3;
 
   if (is_valid_radon_value_(radon_month)) {
-      ESP_LOGD(TAG, "Radon Long Term based on month");
-      radon_long_term_sensor_->publish_state(radon_month);
+    ESP_LOGD(TAG, "Radon Long Term based on month");
+    radon_long_term_sensor_->publish_state(radon_month);
   }
   else if (is_valid_radon_value_(radon_day)) {
-      ESP_LOGD(TAG, "Radon Long Term based on day");
-      radon_long_term_sensor_->publish_state(radon_day);
+    ESP_LOGD(TAG, "Radon Long Term based on day");
+    radon_long_term_sensor_->publish_state(radon_day);
   }
 
-  ESP_LOGD(TAG, "  Measurements (Bq/m³) now: %0.03f, day: %0.03f, month: %0.03f",
-           radon_now, radon_day, radon_month);
+  ESP_LOGD(TAG, "  Measurements (Bq/m³) now: %0.03f, day: %0.03f, month: %0.03f", radon_now, radon_day, radon_month);
 
-  ESP_LOGD(TAG, "  Measurements (pCi/L) now: %0.03f, day: %0.03f, month: %0.03f",
-           radon_now / CONVERT, radon_day / CONVERT, radon_month / CONVERT);
+  ESP_LOGD(TAG, "  Measurements (pCi/L) now: %0.03f, day: %0.03f, month: %0.03f", radon_now / convert_to_bwpm3,
+           radon_day / convert_to_bwpm3, radon_month / convert_to_bwpm3);
 
   // This instance must not stay connected
   // so other clients can connect to it (e.g. the
@@ -131,9 +130,7 @@ void RadonEyeRD200::read_sensors_(uint8_t *value, uint16_t value_len) {
   parent()->set_enabled(false);
 }
 
-bool RadonEyeRD200::is_valid_radon_value_(float radon) {
-    return radon > 0.0 and radon < 37000;
-}
+bool RadonEyeRD200::is_valid_radon_value_(float radon) { return radon > 0.0 and radon < 37000; }
 
 void RadonEyeRD200::update() {
   if (this->node_state != esp32_ble_tracker::ClientState::ESTABLISHED) {
@@ -161,8 +158,8 @@ void RadonEyeRD200::write_query_message_() {
 }
 
 void RadonEyeRD200::request_read_values_() {
-  auto status =
-      esp_ble_gattc_read_char(this->parent()->gattc_if, this->parent()->conn_id, this->read_handle_, ESP_GATT_AUTH_REQ_NONE);
+  auto status = esp_ble_gattc_read_char(this->parent()->gattc_if, this->parent()->conn_id, this->read_handle_,
+                                        ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     ESP_LOGW(TAG, "Error sending read request for sensor, status=%d", status);
   }
