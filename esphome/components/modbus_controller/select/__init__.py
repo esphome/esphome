@@ -49,19 +49,16 @@ def ensure_option_map():
     return validator
 
 
-def register_count_value_type_min():
-    def validator(value):
-        reg_count = value.get(CONF_REGISTER_COUNT)
-        if reg_count is not None:
-            value_type = value[CONF_VALUE_TYPE]
-            min_register_count = TYPE_REGISTER_MAP[value_type]
-            if min_register_count > reg_count:
-                raise cv.Invalid(
-                    f"Value type {value_type} needs at least {min_register_count} registers"
-                )
-        return value
-
-    return validator
+def register_count_value_type_min(value):
+    reg_count = value.get(CONF_REGISTER_COUNT)
+    if reg_count is not None:
+        value_type = value[CONF_VALUE_TYPE]
+        min_register_count = TYPE_REGISTER_MAP[value_type]
+        if min_register_count > reg_count:
+            raise cv.Invalid(
+                f"Value type {value_type} needs at least {min_register_count} registers"
+            )
+    return value
 
 
 INTEGER_SENSOR_VALUE_TYPE = {
@@ -86,7 +83,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
         },
     ),
-    register_count_value_type_min(),
+    register_count_value_type_min,
 )
 
 
