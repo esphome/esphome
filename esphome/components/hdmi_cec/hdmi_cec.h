@@ -31,7 +31,7 @@ class HdmiCec : public Component, CEC_Device {
 
   // CEC_Device overrides
   bool LineState() override;                                                    // NOLINT(readability-identifier-naming)
-  void SetLineState(bool) override;                                             // NOLINT(readability-identifier-naming)
+  void SetLineState(bool state) override;                                       // NOLINT(readability-identifier-naming)
   void OnReady(int logical_address) override;                                   // NOLINT(readability-identifier-naming)
   void OnReceiveComplete(unsigned char *buffer, int count, bool ack) override;  // NOLINT(readability-identifier-naming)
   void OnTransmitComplete(unsigned char *buffer, int count,

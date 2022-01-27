@@ -74,7 +74,7 @@ void HdmiCec::OnReceiveComplete(unsigned char *buffer, int count, bool ack) {
   }
 
   uint8_t opcode = buffer[0];
-  for (auto trigger : this->triggers_) {
+  for (auto *trigger : this->triggers_) {
     if ((!trigger->opcode_.has_value() || (*trigger->opcode_ == opcode)) &&
         (!trigger->source_.has_value() || (*trigger->source_ == source)) &&
         (!trigger->destination_.has_value() || (*trigger->destination_ == destination)) &&
@@ -114,7 +114,7 @@ void HdmiCec::dump_config() {
 
 void HdmiCec::send_data(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data) {
   const uint8_t *buffer = reinterpret_cast<const uint8_t *>(data.data());
-  auto char_buffer = const_cast<unsigned char *>(buffer);
+  auto *char_buffer = const_cast<unsigned char *>(buffer);
 
   this->send_data_internal_(source, destination, char_buffer, data.size());
 }
