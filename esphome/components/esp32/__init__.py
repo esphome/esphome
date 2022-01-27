@@ -293,6 +293,8 @@ async def to_code(config):
 
     cg.add_platformio_option("lib_ldf_mode", "off")
 
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
 
@@ -335,6 +337,13 @@ async def to_code(config):
                 "CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", False
             )
 
+        cg.add_define(
+            "USE_ESP_IDF_VERSION_CODE",
+            cg.RawExpression(
+                f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
+            ),
+        )
+
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         cg.add_platformio_option("framework", "arduino")
         cg.add_build_flag("-DUSE_ARDUINO")
@@ -345,6 +354,13 @@ async def to_code(config):
         )
 
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
+
+        cg.add_define(
+            "USE_ARDUINO_VERSION_CODE",
+            cg.RawExpression(
+                f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
+            ),
+        )
 
 
 ARDUINO_PARTITIONS_CSV = """\
@@ -417,7 +433,7 @@ def copy_files():
         )
 
     dir = os.path.dirname(__file__)
-    post_build_file = os.path.join(dir, "post_build.py")
+    post_build_file = os.path.join(dir, "post_build.py.script")
     copy_file_if_changed(
         post_build_file,
         CORE.relative_build_path("post_build.py"),

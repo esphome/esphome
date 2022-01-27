@@ -16,7 +16,7 @@ bool ListEntitiesIterator::on_binary_sensor(binary_sensor::BinarySensor *binary_
 bool ListEntitiesIterator::on_cover(cover::Cover *cover) { return this->client_->send_cover_info(cover); }
 #endif
 #ifdef USE_FAN
-bool ListEntitiesIterator::on_fan(fan::FanState *fan) { return this->client_->send_fan_info(fan); }
+bool ListEntitiesIterator::on_fan(fan::Fan *fan) { return this->client_->send_fan_info(fan); }
 #endif
 #ifdef USE_LIGHT
 bool ListEntitiesIterator::on_light(light::LightState *light) { return this->client_->send_light_info(light); }

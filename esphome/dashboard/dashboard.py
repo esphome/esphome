@@ -445,6 +445,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
         self.set_header("Content-Type", "application/octet-stream")
         self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.set_header("Cache-Control", "no-cache")
         if not Path(path).is_file():
             self.send_error(404)
             return

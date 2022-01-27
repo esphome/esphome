@@ -169,7 +169,11 @@ class Cover : public EntityBase {
   friend CoverCall;
 
   virtual void control(const CoverCall &call) = 0;
-  ESPDEPRECATED("device_class() is deprecated, set property during config validation instead.", "2022.01")
+
+  /** Override this to set the default device class.
+   *
+   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
+   */
   virtual std::string device_class();
 
   optional<CoverRestoreState> restore_state_();

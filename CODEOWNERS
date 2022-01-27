@@ -54,6 +54,7 @@ esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
 esphome/components/ds1307/* @badbadc0ffee
 esphome/components/dsmr/* @glmnet @zuidwijk
+esphome/components/ektf2232/* @jesserockz
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @jesserockz
 esphome/components/esp32_ble_server/* @jesserockz
@@ -137,6 +138,7 @@ esphome/components/preferences/* @esphome/core
 esphome/components/psram/* @esphome/core
 esphome/components/pulse_meter/* @stevebaxter
 esphome/components/pvvx_mithermometer/* @pasiz
+esphome/components/qr_code/* @wjtje
 esphome/components/rc522/* @glmnet
 esphome/components/rc522_i2c/* @glmnet
 esphome/components/rc522_spi/* @glmnet
@@ -188,6 +190,7 @@ esphome/components/tmp102/* @timsavage
 esphome/components/tmp117/* @Azimath
 esphome/components/tof10120/* @wstrzalka
 esphome/components/toshiba/* @kbx81
+esphome/components/touchscreen/* @jesserockz
 esphome/components/tsl2591/* @wjcarpenter
 esphome/components/tuya/binary_sensor/* @jesserockz
 esphome/components/tuya/climate/* @jesserockz
@@ -198,8 +201,10 @@ esphome/components/tuya/text_sensor/* @dentra
 esphome/components/uart/* @esphome/core
 esphome/components/ultrasonic/* @OttoWinter
 esphome/components/version/* @esphome/core
+esphome/components/wake_on_lan/* @willwill2will54
 esphome/components/web_server_base/* @OttoWinter
 esphome/components/whirlpool/* @glmnet
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
+esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs
 esphome/components/xpt2046/* @numo68
