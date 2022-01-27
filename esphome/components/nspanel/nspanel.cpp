@@ -123,7 +123,7 @@ void NSPanel::process_command_(uint8_t type, JsonObject root, const std::string 
           for (auto switch_object : switches) {
             uint8_t item_index = uint8_t(switch_object["outlet"]);
             bool on = parse_on_off(switch_object["switch"]) == PARSE_ON;
-            auto trigger = widget.items[item_index].trigger;
+            auto *trigger = widget.items[item_index].trigger;
             trigger->trigger(on);
           }
 
