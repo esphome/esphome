@@ -61,7 +61,7 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/esp8266/Arduino/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-arduinoespressif8266
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 7, 4)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 0, 2)
 # The platformio/espressif8266 version to use for arduino 2 framework versions
 #  - https://github.com/platformio/platform-espressif8266/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif8266
@@ -198,10 +198,15 @@ async def to_code(config):
 
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
+    ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    cg.add_define(
+        "USE_ARDUINO_VERSION_CODE",
+        cg.RawExpression(f"VERSION_CODE({ver.major}, {ver.minor}, {ver.patch})"),
+    )
+
     if config[CONF_BOARD] in ESP8266_FLASH_SIZES:
         flash_size = ESP8266_FLASH_SIZES[config[CONF_BOARD]]
         ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
-        ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
 
         if ver <= cv.Version(2, 3, 0):
             # No ld script support
@@ -220,7 +225,7 @@ async def to_code(config):
 def copy_files():
 
     dir = os.path.dirname(__file__)
-    post_build_file = os.path.join(dir, "post_build.py")
+    post_build_file = os.path.join(dir, "post_build.py.script")
     copy_file_if_changed(
         post_build_file,
         CORE.relative_build_path("post_build.py"),
