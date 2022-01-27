@@ -33,9 +33,9 @@ const uint8_t DELONGHI_FAN_LOW = 0b11;
 const uint32_t DELONGHI_IR_FREQUENCY = 38000;
 const uint32_t DELONGHI_HEADER_MARK = 9000;
 const uint32_t DELONGHI_HEADER_SPACE = 4500;
-const uint32_t DELONGHI_BIT_MARK = 563;
-const uint32_t DELONGHI_ONE_SPACE = 1688;
-const uint32_t DELONGHI_ZERO_SPACE = 563;
+const uint32_t DELONGHI_BIT_MARK = 465;
+const uint32_t DELONGHI_ONE_SPACE = 1750;
+const uint32_t DELONGHI_ZERO_SPACE = 670;
 
 // State Frame size
 const uint8_t DELONGHI_STATE_FRAME_SIZE = 8;

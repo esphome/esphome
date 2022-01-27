@@ -7,7 +7,7 @@ namespace delonghi {
 static const char *const TAG = "delonghi.climate";
 
 void DelonghiClimate::transmit_state() {
-  uint8_t remote_state[DELONGHI_STATE_FRAME_SIZE];
+  uint8_t remote_state[DELONGHI_STATE_FRAME_SIZE] = {0};
   remote_state[0] = DELONGHI_ADDRESS;
   remote_state[1] = this->temperature_();
   remote_state[1] |= (this->fan_speed_())<<5;
