@@ -9,9 +9,9 @@
 #include "esphome/core/log.h"
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/ip_address.h"
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF)
 #include "mqtt_backend_idf.h"
-#else
+#elif defined(USE_ARDUINO)
 #include "mqtt_backend_arduino.h"
 #endif
 #include "lwip/ip_addr.h"
@@ -276,9 +276,9 @@ class MQTTClientComponent : public Component {
   int log_level_{ESPHOME_LOG_LEVEL};
 
   std::vector<MQTTSubscription> subscriptions_;
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF)
   MQTTBackendIDF mqtt_backend_;
-#else
+#elif defined(USE_ARDUINO)
   MQTTBackendArduino mqtt_backend_;
 #endif
 
