@@ -149,7 +149,11 @@ void ESP32TouchComponent::loop() {
 #endif
 
     child->value_ = value;
+#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S2)
+    child->publish_state(value >= child->get_threshold());
+#else
     child->publish_state(value < child->get_threshold());
+#endif
 
     if (should_print) {
       ESP_LOGD(TAG, "Touch Pad '%s' (T%u): %u", child->get_name().c_str(), child->get_touch_pad(), value);
