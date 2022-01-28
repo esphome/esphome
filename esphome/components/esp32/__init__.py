@@ -18,6 +18,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    __version__,
 )
 from esphome.core import CORE, HexInt
 import esphome.config_validation as cv
@@ -429,6 +430,14 @@ def copy_files():
         write_file_if_changed(
             CORE.relative_build_path("partitions.csv"),
             IDF_PARTITIONS_CSV,
+        )
+        # IDF build scripts look for version string to put in the build.
+        # However, if the build path does not have an initialized git repo,
+        # and no version.txt file exists, the CMake script fails for some setups.
+        # Fix by manually pasting a version.txt file, containing the ESPHome version
+        write_file_if_changed(
+            CORE.relative_build_path("version.txt"),
+            __version__,
         )
 
     dir = os.path.dirname(__file__)
