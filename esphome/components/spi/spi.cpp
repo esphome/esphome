@@ -55,13 +55,9 @@ void SPIComponent::setup() {
     }
   }
 #ifdef USE_ESP8266
-  if (clk_pin == 6 && miso_pin == 7 && mosi_pin == 8) {
-    // pass
-  } else if (clk_pin == 14 && (!has_miso || miso_pin == 12) && (!has_mosi || mosi_pin == 13)) {
-    // pass
-  } else {
+  if (!(clk_pin == 6 && miso_pin == 7 && mosi_pin == 8) &&
+      !(clk_pin == 14 && (!has_miso || miso_pin == 12) && (!has_mosi || mosi_pin == 13)))
     use_hw_spi = false;
-  }
 
   if (use_hw_spi) {
     this->hw_spi_ = &SPI;
@@ -133,10 +129,11 @@ uint8_t HOT SPIComponent::transfer_(uint8_t data) {
 
   for (uint8_t i = 0; i < 8; i++) {
     uint8_t shift;
-    if (BIT_ORDER == BIT_ORDER_MSB_FIRST)
+    if (BIT_ORDER == BIT_ORDER_MSB_FIRST) {
       shift = 7 - i;
-    else
+    } else {
       shift = i;
+    }
 
     if (CLOCK_PHASE == CLOCK_PHASE_LEADING) {
       // sampling on leading edge

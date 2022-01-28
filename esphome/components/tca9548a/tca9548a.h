@@ -24,6 +24,7 @@ class TCA9548AComponent : public Component, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
+  float get_setup_priority() const override { return setup_priority::IO; }
   void update();
 
   i2c::ErrorCode switch_to_channel(uint8_t channel);

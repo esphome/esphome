@@ -24,10 +24,11 @@ void ToshibaAcProtocol::encode(RemoteTransmitData *dst, const ToshibaAcData &dat
     dst->item(HEADER_HIGH_US, HEADER_LOW_US);
     for (uint8_t bit = 48; bit > 0; bit--) {
       dst->mark(BIT_HIGH_US);
-      if ((data.rc_code_1 >> (bit - 1)) & 1)
+      if ((data.rc_code_1 >> (bit - 1)) & 1) {
         dst->space(BIT_ONE_LOW_US);
-      else
+      } else {
         dst->space(BIT_ZERO_LOW_US);
+      }
     }
     dst->item(FOOTER_HIGH_US, FOOTER_LOW_US);
   }
@@ -36,10 +37,11 @@ void ToshibaAcProtocol::encode(RemoteTransmitData *dst, const ToshibaAcData &dat
     dst->item(HEADER_HIGH_US, HEADER_LOW_US);
     for (uint8_t bit = 48; bit > 0; bit--) {
       dst->mark(BIT_HIGH_US);
-      if ((data.rc_code_2 >> (bit - 1)) & 1)
+      if ((data.rc_code_2 >> (bit - 1)) & 1) {
         dst->space(BIT_ONE_LOW_US);
-      else
+      } else {
         dst->space(BIT_ZERO_LOW_US);
+      }
     }
     dst->item(FOOTER_HIGH_US, FOOTER_LOW_US);
   }
@@ -102,10 +104,11 @@ optional<ToshibaAcData> ToshibaAcProtocol::decode(RemoteReceiveData src) {
 }
 
 void ToshibaAcProtocol::dump(const ToshibaAcData &data) {
-  if (data.rc_code_2 != 0)
+  if (data.rc_code_2 != 0) {
     ESP_LOGD(TAG, "Received Toshiba AC: rc_code_1=0x%" PRIX64 ", rc_code_2=0x%" PRIX64, data.rc_code_1, data.rc_code_2);
-  else
+  } else {
     ESP_LOGD(TAG, "Received Toshiba AC: rc_code_1=0x%" PRIX64, data.rc_code_1);
+  }
 }
 
 }  // namespace remote_base

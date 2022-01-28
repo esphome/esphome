@@ -115,7 +115,7 @@ class GraphTrace {
   void set_line_type(enum LineType val) { this->line_type_ = val; }
   Color get_line_color() { return this->line_color_; }
   void set_line_color(Color val) { this->line_color_ = val; }
-  const std::string get_name() { return name_; }
+  std::string get_name() { return name_; }
   const HistoryData *get_tracedata() { return &data_; }
 
  protected:

@@ -66,7 +66,7 @@ class SGP40Component : public PollingComponent, public sensor::Sensor, public i2
   uint8_t generate_crc_(const uint8_t *data, uint8_t datalen);
   uint16_t measure_raw_();
   ESPPreferenceObject pref_;
-  int32_t seconds_since_last_store_;
+  uint32_t seconds_since_last_store_;
   SGP40Baselines baselines_storage_;
   VocAlgorithmParams voc_algorithm_params_;
   bool self_test_complete_;

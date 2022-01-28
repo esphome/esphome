@@ -145,7 +145,7 @@ void PN532::loop() {
 
   if (nfcid.size() == this->current_uid_.size()) {
     bool same_uid = false;
-    for (uint8_t i = 0; i < nfcid.size(); i++)
+    for (size_t i = 0; i < nfcid.size(); i++)
       same_uid |= nfcid[i] == this->current_uid_[i];
     if (same_uid)
       return;
@@ -367,7 +367,7 @@ bool PN532BinarySensor::process(std::vector<uint8_t> &data) {
   if (data.size() != this->uid_.size())
     return false;
 
-  for (uint8_t i = 0; i < data.size(); i++) {
+  for (size_t i = 0; i < data.size(); i++) {
     if (data[i] != this->uid_[i])
       return false;
   }

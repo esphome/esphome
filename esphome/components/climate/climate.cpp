@@ -440,7 +440,11 @@ void Climate::set_visual_max_temperature_override(float visual_max_temperature_o
 void Climate::set_visual_temperature_step_override(float visual_temperature_step_override) {
   this->visual_temperature_step_override_ = visual_temperature_step_override;
 }
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 Climate::Climate(const std::string &name) : EntityBase(name) {}
+#pragma GCC diagnostic pop
+
 Climate::Climate() : Climate("") {}
 ClimateCall Climate::make_call() { return ClimateCall(this); }
 

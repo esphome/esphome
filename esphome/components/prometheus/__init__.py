@@ -15,7 +15,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
             web_server_base.WebServerBase
         ),
-    }
+    },
+    cv.only_with_arduino,
 ).extend(cv.COMPONENT_SCHEMA)
 
 

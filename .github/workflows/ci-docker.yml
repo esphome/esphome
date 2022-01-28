@@ -17,6 +17,10 @@ on:
       - 'requirements*.txt'
       - 'platformio.ini'
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   check-docker:
     name: Build docker containers

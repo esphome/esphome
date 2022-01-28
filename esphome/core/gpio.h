@@ -70,6 +70,7 @@ class ISRInternalGPIOPin {
   bool digital_read();
   void digital_write(bool value);
   void clear_interrupt();
+  void pin_mode(gpio::Flags flags);
 
  protected:
   void *arg_ = nullptr;

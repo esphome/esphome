@@ -25,6 +25,7 @@ const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP
     {PROTOCOL_GREE, []() { return new GreeGenericHeatpumpIR(); }},                           // NOLINT
     {PROTOCOL_GREEYAA, []() { return new GreeYAAHeatpumpIR(); }},                            // NOLINT
     {PROTOCOL_GREEYAN, []() { return new GreeYANHeatpumpIR(); }},                            // NOLINT
+    {PROTOCOL_GREEYAC, []() { return new GreeYACHeatpumpIR(); }},                            // NOLINT
     {PROTOCOL_HISENSE_AUD, []() { return new HisenseHeatpumpIR(); }},                        // NOLINT
     {PROTOCOL_HITACHI, []() { return new HitachiHeatpumpIR(); }},                            // NOLINT
     {PROTOCOL_HYUNDAI, []() { return new HyundaiHeatpumpIR(); }},                            // NOLINT
@@ -61,6 +62,19 @@ void HeatpumpIRClimate::setup() {
   }
   this->heatpump_ir_ = protocol_constructor->second();
   climate_ir::ClimateIR::setup();
+  if (this->sensor_) {
+    this->sensor_->add_on_state_callback([this](float state) {
+      this->current_temperature = state;
+
+      IRSenderESPHome esp_sender(this->transmitter_);
+      this->heatpump_ir_->send(esp_sender, uint8_t(lround(this->current_temperature + 0.5)));
+
+      // current temperature changed, publish state
+      this->publish_state();
+    });
+    this->current_temperature = this->sensor_->state;
+  } else
+    this->current_temperature = NAN;
 }
 
 void HeatpumpIRClimate::transmit_state() {
@@ -171,8 +185,7 @@ void HeatpumpIRClimate::transmit_state() {
 
   temperature_cmd = (uint8_t) clamp(this->target_temperature, this->min_temperature_, this->max_temperature_);
 
-  IRSenderESPHome esp_sender(0, this->transmitter_);
-
+  IRSenderESPHome esp_sender(this->transmitter_);
   heatpump_ir_->send(esp_sender, power_mode_cmd, operating_mode_cmd, fan_speed_cmd, temperature_cmd, swing_v_cmd,
                      swing_h_cmd);
 }

@@ -79,6 +79,9 @@ void BH1750Sensor::read_data_() {
 
   float lx = float(raw_value) / 1.2f;
   lx *= 69.0f / this->measurement_duration_;
+  if (this->resolution_ == BH1750_RESOLUTION_0P5_LX) {
+    lx /= 2.0f;
+  }
   ESP_LOGD(TAG, "'%s': Got illuminance=%.1flx", this->get_name().c_str(), lx);
   this->publish_state(lx);
   this->status_clear_warning();

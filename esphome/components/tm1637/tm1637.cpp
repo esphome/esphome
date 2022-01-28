@@ -130,7 +130,9 @@ void TM1637Display::setup() {
 }
 void TM1637Display::dump_config() {
   ESP_LOGCONFIG(TAG, "TM1637:");
-  ESP_LOGCONFIG(TAG, "  INTENSITY: %d", this->intensity_);
+  ESP_LOGCONFIG(TAG, "  Intensity: %d", this->intensity_);
+  ESP_LOGCONFIG(TAG, "  Inverted: %d", this->inverted_);
+  ESP_LOGCONFIG(TAG, "  Length: %d", this->length_);
   LOG_PIN("  CLK Pin: ", this->clk_pin_);
   LOG_PIN("  DIO Pin: ", this->dio_pin_);
   LOG_UPDATE_INTERVAL(this);
@@ -173,8 +175,14 @@ void TM1637Display::display() {
   this->send_byte_(TM1637_I2C_COMM2);
 
   // Write the data bytes
-  for (auto b : this->buffer_) {
-    this->send_byte_(b);
+  if (this->inverted_) {
+    for (int8_t i = this->length_ - 1; i >= 0; i--) {
+      this->send_byte_(this->buffer_[i]);
+    }
+  } else {
+    for (auto b : this->buffer_) {
+      this->send_byte_(b);
+    }
   }
 
   this->stop_();
@@ -194,10 +202,11 @@ bool TM1637Display::send_byte_(uint8_t b) {
     this->bit_delay_();
 
     // Set data bit
-    if (data & 0x01)
+    if (data & 0x01) {
       this->dio_pin_->pin_mode(gpio::FLAG_INPUT);
-    else
+    } else {
       this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
+    }
 
     this->bit_delay_();
 
@@ -241,14 +250,27 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
     }
     // Remap segments, for compatibility with MAX7219 segment definition which is
     // XABCDEFG, but TM1637 is // XGFEDCBA
-    data = ((data & 0x80) ? 0x80 : 0) |  // no move X
-           ((data & 0x40) ? 0x1 : 0) |   // A
-           ((data & 0x20) ? 0x2 : 0) |   // B
-           ((data & 0x10) ? 0x4 : 0) |   // C
-           ((data & 0x8) ? 0x8 : 0) |    // D
-           ((data & 0x4) ? 0x10 : 0) |   // E
-           ((data & 0x2) ? 0x20 : 0) |   // F
-           ((data & 0x1) ? 0x40 : 0);    // G
+    if (this->inverted_) {
+      // XABCDEFG > XGCBAFED
+      data = ((data & 0x80) ? 0x80 : 0) |  // no move X
+             ((data & 0x40) ? 0x8 : 0) |   // A
+             ((data & 0x20) ? 0x10 : 0) |  // B
+             ((data & 0x10) ? 0x20 : 0) |  // C
+             ((data & 0x8) ? 0x1 : 0) |    // D
+             ((data & 0x4) ? 0x2 : 0) |    // E
+             ((data & 0x2) ? 0x4 : 0) |    // F
+             ((data & 0x1) ? 0x40 : 0);    // G
+    } else {
+      // XABCDEFG > XGFEDCBA
+      data = ((data & 0x80) ? 0x80 : 0) |  // no move X
+             ((data & 0x40) ? 0x1 : 0) |   // A
+             ((data & 0x20) ? 0x2 : 0) |   // B
+             ((data & 0x10) ? 0x4 : 0) |   // C
+             ((data & 0x8) ? 0x8 : 0) |    // D
+             ((data & 0x4) ? 0x10 : 0) |   // E
+             ((data & 0x2) ? 0x20 : 0) |   // F
+             ((data & 0x1) ? 0x40 : 0);    // G
+    }
     if (*str == '.') {
       if (pos != start_pos)
         pos--;
