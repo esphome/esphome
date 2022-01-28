@@ -10,11 +10,11 @@ void DelonghiClimate::transmit_state() {
   uint8_t remote_state[DELONGHI_STATE_FRAME_SIZE] = {0};
   remote_state[0] = DELONGHI_ADDRESS;
   remote_state[1] = this->temperature_();
-  remote_state[1] |= (this->fan_speed_())<<5;
+  remote_state[1] |= (this->fan_speed_()) << 5;
   remote_state[2] = this->operation_mode_();
   // Calculate checksum
-  for (int i = 0; i < DELONGHI_STATE_FRAME_SIZE-1; i++) {
-    remote_state[DELONGHI_STATE_FRAME_SIZE-1] += remote_state[i];
+  for (int i = 0; i < DELONGHI_STATE_FRAME_SIZE - 1; i++) {
+    remote_state[DELONGHI_STATE_FRAME_SIZE - 1] += remote_state[i];
   }
 
   auto transmit = this->transmitter_->transmit();
@@ -92,12 +92,12 @@ uint8_t DelonghiClimate::temperature_() {
     case climate::CLIMATE_MODE_DRY:
     case climate::CLIMATE_MODE_HEAT_COOL:
     case climate::CLIMATE_MODE_FAN_ONLY:
-    case climate::CLIMATE_MODE_OFF:    
+    case climate::CLIMATE_MODE_OFF:
     default:
       temperature = (uint8_t) roundf(this->target_temperature) - DELONGHI_TEMP_OFFSET_COOL;
   }
   if (temperature > 0x0F) {
-    temperature = 0x0F; // clamp maximum
+    temperature = 0x0F;  // clamp maximum
   }
   return temperature;
 }

@@ -9,10 +9,10 @@ namespace delonghi {
 const uint8_t DELONGHI_ADDRESS = 83;
 
 // Temperature
-const uint8_t DELONGHI_TEMP_MIN = 13;  // Celsius
-const uint8_t DELONGHI_TEMP_MAX = 32;  // Celsius
-const uint8_t DELONGHI_TEMP_OFFSET_COOL = 17; // Celsius
-const uint8_t DELONGHI_TEMP_OFFSET_HEAT = 12; // Celsius
+const uint8_t DELONGHI_TEMP_MIN = 13;          // Celsius
+const uint8_t DELONGHI_TEMP_MAX = 32;          // Celsius
+const uint8_t DELONGHI_TEMP_OFFSET_COOL = 17;  // Celsius
+const uint8_t DELONGHI_TEMP_OFFSET_HEAT = 12;  // Celsius
 
 // Modes
 const uint8_t DELONGHI_MODE_AUTO = 0b1000;
