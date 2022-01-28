@@ -18,15 +18,15 @@ void DelonghiClimate::transmit_state() {
   }
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
   data->set_carrier_frequency(DELONGHI_IR_FREQUENCY);
 
   data->mark(DELONGHI_HEADER_MARK);
   data->space(DELONGHI_HEADER_SPACE);
-  for (int i = 0; i < DELONGHI_STATE_FRAME_SIZE; i++) {
+  for (unsigned char b : remote_state) {
     for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
       data->mark(DELONGHI_BIT_MARK);
-      bool bit = remote_state[i] & mask;
+      bool bit = b & mask;
       data->space(bit ? DELONGHI_ONE_SPACE : DELONGHI_ZERO_SPACE);
     }
   }
@@ -107,8 +107,9 @@ bool DelonghiClimate::parse_state_frame_(const uint8_t frame[]) {
   for (int i = 0; i < (DELONGHI_STATE_FRAME_SIZE - 1); i++) {
     checksum += frame[i];
   }
-  if (frame[DELONGHI_STATE_FRAME_SIZE - 1] != checksum)
+  if (frame[DELONGHI_STATE_FRAME_SIZE - 1] != checksum) {
     return false;
+  }
   uint8_t mode = frame[2] & 0x0F;
   if (mode & DELONGHI_MODE_ON) {
     switch (mode & 0x0E) {
@@ -164,17 +165,18 @@ bool DelonghiClimate::on_receive(remote_base::RemoteReceiveData data) {
   for (uint8_t pos = 0; pos < DELONGHI_STATE_FRAME_SIZE; pos++) {
     uint8_t byte = 0;
     for (int8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(DELONGHI_BIT_MARK, DELONGHI_ONE_SPACE))
+      if (data.expect_item(DELONGHI_BIT_MARK, DELONGHI_ONE_SPACE)) {
         byte |= 1 << bit;
-      else if (!data.expect_item(DELONGHI_BIT_MARK, DELONGHI_ZERO_SPACE)) {
+      } else if (!data.expect_item(DELONGHI_BIT_MARK, DELONGHI_ZERO_SPACE)) {
         return false;
       }
     }
     state_frame[pos] = byte;
     if (pos == 0) {
       // frame header
-      if (byte != DELONGHI_ADDRESS)
+      if (byte != DELONGHI_ADDRESS) {
         return false;
+      }
     }
   }
   return this->parse_state_frame_(state_frame);

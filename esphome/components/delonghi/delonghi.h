@@ -60,5 +60,5 @@ class DelonghiClimate : public climate_ir::ClimateIR {
   bool parse_state_frame_(const uint8_t frame[]);
 };
 
-}  // namespace DELONGHI
+}  // namespace delonghi
 }  // namespace esphome
