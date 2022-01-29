@@ -45,7 +45,7 @@ class LockTraits {
   void set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 
   bool supports_state(LockState state) const { return supported_states_.count(state); }
-  const std::set<LockState> get_supported_states() const { return supported_states_; }
+  std::set<LockState> get_supported_states() const { return supported_states_; }
   void set_supported_states(std::set<LockState> states) { supported_states_ = std::move(states); }
   void add_supported_state(LockState state) { supported_states_.insert(state); }
 

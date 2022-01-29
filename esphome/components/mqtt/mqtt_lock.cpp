@@ -13,7 +13,7 @@ static const char *const TAG = "mqtt.lock";
 
 using namespace esphome::lock;
 
-MQTTLockComponent::MQTTLockComponent(lock::Lock *a_lock) : MQTTComponent(), lock_(a_lock) {}
+MQTTLockComponent::MQTTLockComponent(lock::Lock *a_lock) : lock_(a_lock) {}
 
 void MQTTLockComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {

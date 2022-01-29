@@ -154,9 +154,10 @@ void WebServer::setup() {
 #endif
 
 #ifdef USE_LOCK
-    for (auto *obj : App.get_locks())
+    for (auto *obj : App.get_locks()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->lock_json(obj, obj->state).c_str(), "state");
+    }
 #endif
   });
 
@@ -294,8 +295,8 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_LOCK
-  for (auto *obj : App.get_locks())
-    if (this->include_internal_ || !obj->is_internal())
+  for (auto *obj : App.get_locks()) {
+    if (this->include_internal_ || !obj->is_internal()) {
       write_row(stream, obj, "lock", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         lock::Lock *lock = (lock::Lock *) obj;
         stream.print("<button>Lock</button><button>Unlock</button>");
@@ -303,6 +304,8 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
           stream.print("<button>Open</button>");
         }
       });
+    }
+  }
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
