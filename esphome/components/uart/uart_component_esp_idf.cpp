@@ -16,10 +16,11 @@ static const char *const TAG = "uart.idf";
 
 uart_config_t IDFUARTComponent::get_config_() {
   uart_parity_t parity = UART_PARITY_DISABLE;
-  if (this->parity_ == UART_CONFIG_PARITY_EVEN)
+  if (this->parity_ == UART_CONFIG_PARITY_EVEN) {
     parity = UART_PARITY_EVEN;
-  else if (this->parity_ == UART_CONFIG_PARITY_ODD)
+  } else if (this->parity_ == UART_CONFIG_PARITY_ODD) {
     parity = UART_PARITY_ODD;
+  }
 
   uart_word_length_t data_bits;
   switch (this->data_bits_) {
@@ -141,9 +142,9 @@ bool IDFUARTComponent::peek_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
     return false;
   xSemaphoreTake(this->lock_, portMAX_DELAY);
-  if (this->has_peek_)
+  if (this->has_peek_) {
     *data = this->peek_byte_;
-  else {
+  } else {
     int len = uart_read_bytes(this->uart_num_, data, 1, 20 / portTICK_RATE_MS);
     if (len == 0) {
       *data = 0;

@@ -57,4 +57,4 @@ async def to_code(config):
 
     paren = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
     cg.add(paren.add_sensor_item(var))
-    await add_modbus_base_properties(var, config, ModbusBinarySensor, cg.float_, bool)
+    await add_modbus_base_properties(var, config, ModbusBinarySensor, bool, bool)

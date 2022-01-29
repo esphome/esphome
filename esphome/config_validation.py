@@ -17,6 +17,7 @@ from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
     CONF_COMMAND_TOPIC,
+    CONF_COMMAND_RETAIN,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ENTITY_CATEGORY,
@@ -62,7 +63,7 @@ from esphome.jsonschema import (
     jschema_registry,
     jschema_typed,
 )
-
+from esphome.util import parse_esphome_version
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
@@ -1591,6 +1592,7 @@ MQTT_COMPONENT_SCHEMA = Schema(
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     {
         Optional(CONF_COMMAND_TOPIC): All(requires_component("mqtt"), subscribe_topic),
+        Optional(CONF_COMMAND_RETAIN): All(requires_component("mqtt"), boolean),
     }
 )
 
@@ -1734,6 +1736,19 @@ def require_framework_version(
         if core_data[KEY_FRAMEWORK_VERSION] < required:
             raise Invalid(
                 f"This feature requires at least framework version {required}"
+            )
+        return value
+
+    return validator
+
+
+def require_esphome_version(year, month, patch):
+    def validator(value):
+        esphome_version = parse_esphome_version()
+        if esphome_version < (year, month, patch):
+            requires_version = f"{year}.{month}.{patch}"
+            raise Invalid(
+                f"This component requires at least ESPHome version {requires_version}"
             )
         return value
 

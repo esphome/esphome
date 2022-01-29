@@ -49,8 +49,8 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   void dial(const std::string &recipient);
 
  protected:
-  void send_cmd_(const std::string &);
-  void parse_cmd_(std::string);
+  void send_cmd_(const std::string &message);
+  void parse_cmd_(std::string message);
 
   std::string sender_;
   char read_buffer_[SIM800L_READ_BUFFER_LENGTH];

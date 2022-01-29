@@ -20,7 +20,7 @@ def find_all(a_str, sub):
         # Optimization: If str is not in whole text, then do not try
         # on each line
         return
-    for i, line in enumerate(a_str.split('\n')):
+    for i, line in enumerate(a_str.split("\n")):
         column = 0
         while True:
             column = line.find(sub, column)
@@ -667,7 +667,10 @@ run_checks(LINT_POST_CHECKS, "POST")
 for f, errs in sorted(errors.items()):
     bold = functools.partial(styled, colorama.Style.BRIGHT)
     bold_red = functools.partial(styled, (colorama.Style.BRIGHT, colorama.Fore.RED))
-    err_str = (f"{bold(f'{f}:{lineno}:{col}:')} {bold_red('lint:')} {msg}\n" for lineno, col, msg in errs)
+    err_str = (
+        f"{bold(f'{f}:{lineno}:{col}:')} {bold_red('lint:')} {msg}\n"
+        for lineno, col, msg in errs
+    )
     print_error_for_file(f, "\n".join(err_str))
 
 if args.print_slowest:

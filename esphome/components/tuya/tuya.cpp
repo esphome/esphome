@@ -33,20 +33,21 @@ void Tuya::dump_config() {
     return;
   }
   for (auto &info : this->datapoints_) {
-    if (info.type == TuyaDatapointType::RAW)
+    if (info.type == TuyaDatapointType::RAW) {
       ESP_LOGCONFIG(TAG, "  Datapoint %u: raw (value: %s)", info.id, format_hex_pretty(info.value_raw).c_str());
-    else if (info.type == TuyaDatapointType::BOOLEAN)
+    } else if (info.type == TuyaDatapointType::BOOLEAN) {
       ESP_LOGCONFIG(TAG, "  Datapoint %u: switch (value: %s)", info.id, ONOFF(info.value_bool));
-    else if (info.type == TuyaDatapointType::INTEGER)
+    } else if (info.type == TuyaDatapointType::INTEGER) {
       ESP_LOGCONFIG(TAG, "  Datapoint %u: int value (value: %d)", info.id, info.value_int);
-    else if (info.type == TuyaDatapointType::STRING)
+    } else if (info.type == TuyaDatapointType::STRING) {
       ESP_LOGCONFIG(TAG, "  Datapoint %u: string value (value: %s)", info.id, info.value_string.c_str());
-    else if (info.type == TuyaDatapointType::ENUM)
+    } else if (info.type == TuyaDatapointType::ENUM) {
       ESP_LOGCONFIG(TAG, "  Datapoint %u: enum (value: %d)", info.id, info.value_enum);
-    else if (info.type == TuyaDatapointType::BITMASK)
+    } else if (info.type == TuyaDatapointType::BITMASK) {
       ESP_LOGCONFIG(TAG, "  Datapoint %u: bitmask (value: %x)", info.id, info.value_bitmask);
-    else
+    } else {
       ESP_LOGCONFIG(TAG, "  Datapoint %u: unknown", info.id);
+    }
   }
   if ((this->gpio_status_ != -1) || (this->gpio_reset_ != -1)) {
     ESP_LOGCONFIG(TAG, "  GPIO Configuration: status: pin %d, reset: pin %d (not supported)", this->gpio_status_,
@@ -80,9 +81,10 @@ bool Tuya::validate_message_() {
 
   // Byte 4: LENGTH1
   // Byte 5: LENGTH2
-  if (at <= 5)
+  if (at <= 5) {
     // no validation for these fields
     return true;
+  }
 
   uint16_t length = (uint16_t(data[4]) << 8) | (uint16_t(data[5]));
 
@@ -208,7 +210,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 #ifdef USE_TIME
       if (this->time_id_.has_value()) {
         this->send_local_time_();
-        auto time_id = *this->time_id_;
+        auto *time_id = *this->time_id_;
         time_id->add_on_time_sync_callback([this] { this->send_local_time_(); });
       } else {
         ESP_LOGW(TAG, "LOCAL_TIME_QUERY is not handled because time is not configured");
@@ -318,9 +320,10 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   }
 
   // Run through listeners
-  for (auto &listener : this->listeners_)
+  for (auto &listener : this->listeners_) {
     if (listener.datapoint_id == datapoint.id)
       listener.on_datapoint(datapoint);
+  }
 }
 
 void Tuya::send_raw_command_(TuyaCommand command) {
@@ -414,7 +417,7 @@ void Tuya::send_wifi_status_() {
 #ifdef USE_TIME
 void Tuya::send_local_time_() {
   std::vector<uint8_t> payload;
-  auto time_id = *this->time_id_;
+  auto *time_id = *this->time_id_;
   time::ESPTime now = time_id->now();
   if (now.is_valid()) {
     uint8_t year = now.year - 2000;
@@ -488,9 +491,10 @@ void Tuya::force_set_bitmask_datapoint_value(uint8_t datapoint_id, uint32_t valu
 }
 
 optional<TuyaDatapoint> Tuya::get_datapoint_(uint8_t datapoint_id) {
-  for (auto &datapoint : this->datapoints_)
+  for (auto &datapoint : this->datapoints_) {
     if (datapoint.id == datapoint_id)
       return datapoint;
+  }
   return {};
 }
 
@@ -578,9 +582,10 @@ void Tuya::register_listener(uint8_t datapoint_id, const std::function<void(Tuya
   this->listeners_.push_back(listener);
 
   // Run through existing datapoints
-  for (auto &datapoint : this->datapoints_)
+  for (auto &datapoint : this->datapoints_) {
     if (datapoint.id == datapoint_id)
       func(datapoint);
+  }
 }
 
 TuyaInitState Tuya::get_init_state() { return this->init_state_; }

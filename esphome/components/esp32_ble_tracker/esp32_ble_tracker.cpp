@@ -58,11 +58,12 @@ void ESP32BLETracker::setup() {
 void ESP32BLETracker::loop() {
   BLEEvent *ble_event = this->ble_events_.pop();
   while (ble_event != nullptr) {
-    if (ble_event->type_)
+    if (ble_event->type_) {
       this->real_gattc_event_handler_(ble_event->event_.gattc.gattc_event, ble_event->event_.gattc.gattc_if,
                                       &ble_event->event_.gattc.gattc_param);
-    else
+    } else {
       this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
+    }
     delete ble_event;  // NOLINT(cppcoreguidelines-owning-memory)
     ble_event = this->ble_events_.pop();
   }
@@ -89,11 +90,12 @@ void ESP32BLETracker::loop() {
       device.parse_scan_rst(this->scan_result_buffer_[i]);
 
       bool found = false;
-      for (auto *listener : this->listeners_)
+      for (auto *listener : this->listeners_) {
         if (listener->parse_device(device))
           found = true;
+      }
 
-      for (auto *client : this->clients_)
+      for (auto *client : this->clients_) {
         if (client->parse_device(device)) {
           found = true;
           if (client->state() == ClientState::DISCOVERED) {
@@ -103,6 +105,7 @@ void ESP32BLETracker::loop() {
             }
           }
         }
+      }
 
       if (!found) {
         this->print_bt_device_info(device);

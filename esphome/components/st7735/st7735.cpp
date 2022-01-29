@@ -265,8 +265,8 @@ void ST7735::setup() {
     height_ == 0 ? height_ = ST7735_TFTHEIGHT_160 : height_;
     width_ == 0 ? width_ = ST7735_TFTWIDTH_80 : width_;
     display_init_(RCMD2GREEN160X80);
-    colstart_ = 24;
-    rowstart_ = 0;  // For default rotation 0
+    colstart_ == 0 ? colstart_ = 24 : colstart_;
+    rowstart_ == 0 ? rowstart_ = 0 : rowstart_;
   } else {
     // colstart, rowstart left at default '0' values
     display_init_(RCMD2RED);

@@ -16,8 +16,8 @@ namespace mdns {
 
 static const char *const TAG = "mdns";
 
-#ifndef WEBSERVER_PORT
-#define WEBSERVER_PORT 80  // NOLINT
+#ifndef USE_WEBSERVER_PORT
+#define USE_WEBSERVER_PORT 80  // NOLINT
 #endif
 
 void MDNSComponent::compile_records_() {
@@ -63,7 +63,7 @@ void MDNSComponent::compile_records_() {
     MDNSService service{};
     service.service_type = "_prometheus-http";
     service.proto = "_tcp";
-    service.port = WEBSERVER_PORT;
+    service.port = USE_WEBSERVER_PORT;
     this->services_.push_back(service);
   }
 #endif
@@ -74,7 +74,7 @@ void MDNSComponent::compile_records_() {
     MDNSService service{};
     service.service_type = "_http";
     service.proto = "_tcp";
-    service.port = WEBSERVER_PORT;
+    service.port = USE_WEBSERVER_PORT;
     service.txt_records.push_back({"version", ESPHOME_VERSION});
     this->services_.push_back(service);
   }
