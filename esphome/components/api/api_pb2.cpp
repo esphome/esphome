@@ -4574,6 +4574,66 @@ void ButtonCommandRequest::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool ListEntitiesTriggersResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->trigger = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesTriggersResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ListEntitiesTriggersResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_string(2, this->trigger);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ListEntitiesTriggersResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("ListEntitiesTriggersResponse {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  trigger: ");
+  out.append("'").append(this->trigger).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool HomeassistantTriggerResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->trigger = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void HomeassistantTriggerResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->trigger); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void HomeassistantTriggerResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("HomeassistantTriggerResponse {\n");
+  out.append("  trigger: ");
+  out.append("'").append(this->trigger).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
 
 }  // namespace api
 }  // namespace esphome

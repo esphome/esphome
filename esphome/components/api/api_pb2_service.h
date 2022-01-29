@@ -145,6 +145,8 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_BUTTON
   virtual void on_button_command_request(const ButtonCommandRequest &value){};
 #endif
+  bool send_list_entities_triggers_response(const ListEntitiesTriggersResponse &msg);
+  bool send_homeassistant_trigger_response(const HomeassistantTriggerResponse &msg);
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
