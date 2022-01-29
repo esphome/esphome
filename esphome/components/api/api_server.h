@@ -11,6 +11,7 @@
 #include "list_entities.h"
 #include "subscribe_state.h"
 #include "user_services.h"
+#include "user_triggers.h"
 #include "api_noise_context.h"
 
 namespace esphome {
@@ -71,7 +72,9 @@ class APIServer : public Component, public Controller {
   void on_lock_update(lock::Lock *obj) override;
 #endif
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
+  void send_homeassistant_trigger(const HomeassistantTriggerResponse &call);
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
+  void register_user_trigger(UserTriggerTrigger *trigger) { this->user_triggers_.push_back(trigger); }
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
 #endif
@@ -88,6 +91,7 @@ class APIServer : public Component, public Controller {
                                       std::function<void(std::string)> f);
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
+  const std::vector<UserTriggerDescriptor *> &get_user_triggers() const { return this->user_triggers_; }
 
  protected:
   std::unique_ptr<socket::Socket> socket_ = nullptr;
@@ -98,6 +102,7 @@ class APIServer : public Component, public Controller {
   std::string password_;
   std::vector<HomeAssistantStateSubscription> state_subs_;
   std::vector<UserServiceDescriptor *> user_services_;
+  std::vector<UserTriggerDescriptor *> user_triggers_;
 
 #ifdef USE_API_NOISE
   std::shared_ptr<APINoiseContext> noise_ctx_ = std::make_shared<APINoiseContext>();

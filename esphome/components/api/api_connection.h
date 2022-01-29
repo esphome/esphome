@@ -89,6 +89,11 @@ class APIConnection : public APIServerConnection {
       return;
     this->send_homeassistant_service_response(call);
   }
+  void send_homeassistant_trigger(const HomeassistantTriggerResponse &call) {
+    if (!this->service_call_subscription_)
+      return;
+    this->send_homeassistant_trigger_response(call);
+  }
 #ifdef USE_HOMEASSISTANT_TIME
   void send_time_request() {
     GetTimeRequest req;

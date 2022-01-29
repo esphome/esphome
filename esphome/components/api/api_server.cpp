@@ -282,6 +282,11 @@ void APIServer::send_homeassistant_service_call(const HomeassistantServiceRespon
     client->send_homeassistant_service_call(call);
   }
 }
+void APIServer::send_homeassistant_trigger(const HomeassistantTriggerResponse &call) {
+  for (auto &client : this->clients_) {
+    client->send_homeassistant_trigger(call);
+  }
+}
 APIServer::APIServer() { global_api_server = this; }
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                                std::function<void(std::string)> f) {

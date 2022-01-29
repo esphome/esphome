@@ -77,5 +77,22 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   std::vector<TemplatableKeyValuePair<Ts...>> variables_;
 };
 
+template<typename... Ts> class HomeAssistantExecuteTriggerAction : public Action<Ts...> {
+ public:
+  explicit HomeAssistantExecuteTriggerAction(APIServer *parent) : parent_(parent) {}
+
+  template<typename T> void set_trigger(T trigger) { this->trigger_ = trigger; }
+
+  void play(Ts... x) override {
+    HomeassistantTriggerResponse resp;
+    resp.trigger = this->trigger_.value(x...);
+    this->parent_->send_homeassistant_trigger(resp);
+  }
+
+ protected:
+  APIServer *parent_;
+  TemplatableStringValue<Ts...> trigger_{};
+};
+
 }  // namespace api
 }  // namespace esphome

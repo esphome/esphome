@@ -47,6 +47,7 @@ def register_condition(name, condition_type, schema):
 
 Action = cg.esphome_ns.class_("Action")
 Trigger = cg.esphome_ns.class_("Trigger")
+UserTrigger = cg.esphome_ns.class_("UserTrigger")
 ACTION_REGISTRY = Registry()
 Condition = cg.esphome_ns.class_("Condition")
 CONDITION_REGISTRY = Registry()

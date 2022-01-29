@@ -12,6 +12,7 @@ namespace api {
 
 class APIServer;
 class UserServiceDescriptor;
+class UserTriggerDescriptor;
 
 class ComponentIterator {
  public:
@@ -45,6 +46,7 @@ class ComponentIterator {
   virtual bool on_text_sensor(text_sensor::TextSensor *text_sensor) = 0;
 #endif
   virtual bool on_service(UserServiceDescriptor *service);
+  virtual bool on_trigger(UserTriggerDescriptor *trigger);
 #ifdef USE_ESP32_CAMERA
   virtual bool on_camera(esp32_camera::ESP32Camera *camera);
 #endif
@@ -91,6 +93,7 @@ class ComponentIterator {
     TEXT_SENSOR,
 #endif
     SERVICE,
+    TRIGGER,
 #ifdef USE_ESP32_CAMERA
     CAMERA,
 #endif

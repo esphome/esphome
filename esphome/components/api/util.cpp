@@ -1,6 +1,7 @@
 #include "util.h"
 #include "api_server.h"
 #include "user_services.h"
+#include "user_triggers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
@@ -146,12 +147,20 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
-    case IteratorState ::SERVICE:
+    case IteratorState::SERVICE:
       if (this->at_ >= this->server_->get_user_services().size()) {
         advance_platform = true;
       } else {
         auto *service = this->server_->get_user_services()[this->at_];
         success = this->on_service(service);
+      }
+      break;
+    case IteratorState::TRIGGER:
+      if (this->at_ >= this->server_->get_user_triggers().size()) {
+        advance_platform = true;
+      } else {
+        auto *trigger = this->server_->get_user_triggers()[this->at_];
+        success = this->on_trigger(trigger);
       }
       break;
 #ifdef USE_ESP32_CAMERA
@@ -245,6 +254,7 @@ void ComponentIterator::advance() {
 bool ComponentIterator::on_end() { return true; }
 bool ComponentIterator::on_begin() { return true; }
 bool ComponentIterator::on_service(UserServiceDescriptor *service) { return true; }
+bool ComponentIterator::on_trigger(UserTriggerDescriptor *trigger) { return true; }
 #ifdef USE_ESP32_CAMERA
 bool ComponentIterator::on_camera(esp32_camera::ESP32Camera *camera) { return true; }
 #endif

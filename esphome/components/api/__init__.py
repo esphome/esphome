@@ -13,13 +13,14 @@ from esphome.const import (
     CONF_PORT,
     CONF_REBOOT_TIMEOUT,
     CONF_SERVICE,
+    CONF_TRIGGER,
     CONF_VARIABLES,
     CONF_SERVICES,
     CONF_TRIGGER_ID,
     CONF_EVENT,
     CONF_TAG,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import ID, coroutine_with_priority
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["socket"]
@@ -30,9 +31,16 @@ APIServer = api_ns.class_("APIServer", cg.Component, cg.Controller)
 HomeAssistantServiceCallAction = api_ns.class_(
     "HomeAssistantServiceCallAction", automation.Action
 )
+HomeAssistantExecuteTriggerAction = api_ns.class_(
+    "HomeAssistantExecuteTriggerAction", automation.Action
+)
 APIConnectedCondition = api_ns.class_("APIConnectedCondition", Condition)
 
 UserServiceTrigger = api_ns.class_("UserServiceTrigger", automation.Trigger)
+
+UserTriggerTrigger = api_ns.class_("UserTriggerTrigger", automation.UserTrigger)
+added_triggers = set()
+
 ListEntitiesServicesArgument = api_ns.class_("ListEntitiesServicesArgument")
 SERVICE_ARG_NATIVE_TYPES = {
     "bool": bool,
@@ -229,6 +237,35 @@ async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, arg
     cg.add(var.set_service("esphome.tag_scanned"))
     templ = await cg.templatable(config[CONF_TAG], args, cg.std_string)
     cg.add(var.add_data("tag_id", templ))
+    return var
+
+
+HOMEASSISTANT_TRIGGER_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(APIServer),
+        cv.Required(CONF_TRIGGER): str,
+    }
+)
+
+
+@automation.register_action(
+    "homeassistant.trigger",
+    HomeAssistantExecuteTriggerAction,
+    HOMEASSISTANT_TRIGGER_ACTION_SCHEMA,
+)
+async def homeassistant_trigger_to_code(config, action_id, template_arg, args):
+    serv = await cg.get_variable(config[CONF_ID])
+    trigger = config[CONF_TRIGGER]
+    var = cg.new_Pvariable(action_id, template_arg, serv)
+    cg.add(var.set_trigger(trigger))
+    # Register triggers once
+    if trigger not in added_triggers:
+        descriptor = cg.new_Pvariable(
+            ID(action_id.id + "_trigger", type=UserTriggerTrigger),
+            trigger,
+        )
+        cg.add(serv.register_user_trigger(descriptor))
+        added_triggers.add(trigger)
     return var
 
 

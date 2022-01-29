@@ -46,6 +46,10 @@ bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
   auto resp = service->encode_list_service_response();
   return this->client_->send_list_entities_services_response(resp);
 }
+bool ListEntitiesIterator::on_trigger(UserTriggerDescriptor *service) {
+  auto resp = service->encode_list_trigger_response();
+  return this->client_->send_list_entities_triggers_response(resp);
+}
 
 #ifdef USE_ESP32_CAMERA
 bool ListEntitiesIterator::on_camera(esp32_camera::ESP32Camera *camera) {
