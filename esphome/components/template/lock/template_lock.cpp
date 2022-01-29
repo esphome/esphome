@@ -20,11 +20,12 @@ void TemplateLock::loop() {
 
   this->publish_state(*val);
 }
-void TemplateLock::write_state(LockState state) {
+void TemplateLock::control(const LockCall &call) {
   if (this->prev_trigger_ != nullptr) {
     this->prev_trigger_->stop_action();
   }
 
+  auto state = *call.get_state();
   if (state == LOCK_STATE_LOCKED) {
     this->prev_trigger_ = this->lock_trigger_;
     this->lock_trigger_->trigger();

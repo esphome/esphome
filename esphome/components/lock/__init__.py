@@ -19,6 +19,7 @@ IS_PLATFORM_COMPONENT = True
 lock_ns = cg.esphome_ns.namespace("lock")
 Lock = lock_ns.class_("Lock", cg.EntityBase)
 LockPtr = Lock.operator("ptr")
+LockCall = lock_ns.class_("LockCall")
 
 UnlockAction = lock_ns.class_("UnlockAction", automation.Action)
 LockAction = lock_ns.class_("LockAction", automation.Action)

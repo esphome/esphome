@@ -25,7 +25,7 @@ class TemplateLock : public lock::Lock, public Component {
   float get_setup_priority() const override;
 
  protected:
-  void write_state(lock::LockState state) override;
+  void control(const LockCall &call) override;
   void open_latch() override;
 
   optional<std::function<optional<LockState>()>> f_;

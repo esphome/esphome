@@ -15,7 +15,7 @@ class OutputLock : public lock::Lock, public Component {
   void dump_config() override;
 
  protected:
-  void write_state(lock::LockState state) override;
+  void control(const lock::LockCall &call) override;
 
   output::BinaryOutput *output_;
 };

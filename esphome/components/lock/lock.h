@@ -5,9 +5,12 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <set>
 
 namespace esphome {
 namespace lock {
+
+class Lock;
 
 #define LOG_LOCK(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -28,7 +31,7 @@ enum LockState : uint8_t {
   LOCK_STATE_LOCKING = 4,
   LOCK_STATE_UNLOCKING = 5
 };
-const char *lock_state_to_string(LockState mode);
+const char *lock_state_to_string(LockState state);
 
 class LockTraits {
  public:
@@ -41,10 +44,50 @@ class LockTraits {
   bool get_assumed_state() const { return this->assumed_state_; }
   void set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 
+  bool supports_state(LockState state) const { return supported_states_.count(state); }
+  const std::set<LockState> get_supported_states() const { return supported_states_; }
+  void set_supported_states(std::set<LockState> states) { supported_states_ = std::move(states); }
+  void add_supported_state(LockState state) { supported_states_.insert(state); }
+
  protected:
   bool supports_open_{false};
   bool requires_code_{false};
   bool assumed_state_{false};
+  std::set<LockState> supported_states_ = {LOCK_STATE_NONE, LOCK_STATE_LOCKED, LOCK_STATE_UNLOCKED};
+};
+
+/** This class is used to encode all control actions on a lock device.
+ *
+ * It is supposed to be used by all code that wishes to control a lock device (mqtt, api, lambda etc).
+ * Create an instance of this class by calling `id(lock_device).make_call();`. Then set all attributes
+ * with the `set_x` methods. Finally, to apply the changes call `.perform();`.
+ *
+ * The integration that implements the lock device receives this instance with the `control` method.
+ * It should check all the properties it implements and apply them as needed. It should do so by
+ * getting all properties it controls with the getter methods in this class. If the optional value is
+ * set (check with `.has_value()`) that means the user wants to control this property. Get the value
+ * of the optional with the star operator (`*call.get_state()`) and apply it.
+ */
+class LockCall {
+ public:
+  LockCall(Lock *parent) : parent_(parent) {}
+
+  /// Set the state of the lock device.
+  LockCall &set_state(LockState state);
+  /// Set the state of the lock device.
+  LockCall &set_state(optional<LockState> state);
+  /// Set the state of the lock device based on a string.
+  LockCall &set_state(const std::string &state);
+
+  void perform();
+
+  const optional<LockState> &get_state() const;
+
+ protected:
+  void validate_();
+
+  Lock *const parent_;
+  optional<LockState> state_;
 };
 
 /** Base class for all locks.
@@ -52,11 +95,21 @@ class LockTraits {
  * A lock is basically a switch with a combination of a binary sensor (for reporting lock values)
  * and a write_state method that writes a state to the hardware. Locks can also have an "open"
  * method to unlatch.
+ *
+ * For integrations: Integrations must implement the method control().
+ * Control will be called with the arguments supplied by the user and should be used
+ * to control all values of the lock.
  */
 class Lock : public EntityBase {
  public:
   explicit Lock();
   explicit Lock(const std::string &name);
+
+  /** Make a lock device control call, this is used to control the lock device, see the LockCall description
+   * for more info.
+   * @return A new LockCall instance targeting this lock device.
+   */
+  LockCall make_call();
 
   /** Publish a state to the front-end from the back-end.
    *
@@ -73,17 +126,17 @@ class Lock : public EntityBase {
 
   /** Turn this lock on. This is called by the front-end.
    *
-   * For implementing locks, please override write_state.
+   * For implementing locks, please override control.
    */
   void lock();
   /** Turn this lock off. This is called by the front-end.
    *
-   * For implementing locks, please override write_state.
+   * For implementing locks, please override control.
    */
   void unlock();
   /** Open (unlatch) this lock. This is called by the front-end.
    *
-   * For implementing locks, please override write_state.
+   * For implementing locks, please override control.
    */
   void open();
 
@@ -94,15 +147,7 @@ class Lock : public EntityBase {
   void add_on_state_callback(std::function<void()> &&callback);
 
  protected:
-  /** Write the given state to hardware. You should implement this
-   * abstract method if you want to create your own lock.
-   *
-   * In the implementation of this method, you should also call
-   * publish_state to acknowledge that the state was written to the hardware.
-   *
-   * @param state The state to write.
-   */
-  virtual void write_state(LockState state) = 0;
+  friend LockCall;
 
   /** Perform the open latch action with hardware. This method is optional to implement
    * when creating a new lock.
@@ -111,6 +156,16 @@ class Lock : public EntityBase {
    * publish_state with "unlock" to acknowledge that the state was written to the hardware.
    */
   virtual void open_latch() { unlock(); };
+
+  /** Control the lock device, this is a virtual method that each lock integration must implement.
+   *
+   * See more info in LockCall. The integration should check all of its values in this method and
+   * set them accordingly. At the end of the call, the integration must call `publish_state()` to
+   * notify the frontend of a changed state.
+   *
+   * @param call The LockCall instance encoding all attribute changes.
+   */
+  virtual void control(const LockCall &call) = 0;
 
   uint32_t hash_base() override;
 
