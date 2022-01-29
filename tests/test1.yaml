@@ -2538,6 +2538,10 @@ select:
       - two
     optimistic: true
 
+qr_code:
+  - id: homepage_qr
+    value: https://esphome.io/index.html
+
 lock:
   - platform: template
     id: test_lock1
