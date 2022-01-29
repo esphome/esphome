@@ -63,8 +63,7 @@ def to_code(config):
             config[CONF_CHARACTERISTIC_UUID]
         )
         cg.add(var.set_char_uuid128(uuid128))
-    if CONF_REQUIRE_RESPONSE in config:
-        cg.add(var.set_require_response(config[CONF_REQUIRE_RESPONSE]))
+    cg.add(var.set_require_response(config[CONF_REQUIRE_RESPONSE]))
     yield output.register_output(var, config)
     yield ble_client.register_ble_node(var, config)
     yield cg.register_component(var, config)
