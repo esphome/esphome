@@ -128,12 +128,13 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       if (message.compare(0, 5, "+CSQ:") == 0) {
         size_t comma = message.find(',', 6);
         if (comma != 6) {
-          int rssi_ = parse_number<int>(message.substr(6, comma - 6)).value_or(0);
+          int rssi = parse_number<int>(message.substr(6, comma - 6)).value_or(0);
 
-          if (this->rssi_sensor_ != nullptr)
-            this->rssi_sensor_->publish_state(rssi_);
-          else
-            ESP_LOGD(TAG, "RSSI: %d", rssi_);
+          if (this->rssi_sensor_ != nullptr) {
+            this->rssi_sensor_->publish_state(rssi);
+          } else {
+            ESP_LOGD(TAG, "RSSI: %d", rssi);
+          }
         }
       }
       this->expect_ack_ = true;
