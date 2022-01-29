@@ -54,13 +54,26 @@ jobs:
     # If this step fails, then you should remove it and run the build manually (see below)
     - name: Autobuild
       uses: github/codeql-action/autobuild@v1
+      if: matrix.language == 'python'
 
-    # ℹ️ Command-line programs to run using the OS shell.
-    # 📚 https://git.io/JvXDl
+    - name: Set up Python
+      if: matrix.language == 'cpp'
+      uses: actions/setup-python@v2
+      id: python
+      with:
+        python-version: '3.7'
 
-    # ✏️ If the Autobuild fails above, remove it and uncomment the following three lines
-    #    and modify them (or add more) to build your code if your project
-    #    uses a compiled language
+    - name: Build
+      if: matrix.language == 'cpp'
+      run: |
+        python -m venv .venv
+        source .venv/bin/activate
+        pip install -U pip
+        pip install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
+        pip install -e .
+        echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
+        echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> $GITHUB_ENV
+        esphome compile tests/test1.yaml
 
     #- run: |
     #   make bootstrap
