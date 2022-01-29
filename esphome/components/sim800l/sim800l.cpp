@@ -117,7 +117,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
           this->state_ = STATE_CREG;
         }
       }
-      this->registered_ = registered;
+      set_registered_(registered);
       break;
     }
     case STATE_CSQ:
@@ -128,8 +128,12 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       if (message.compare(0, 5, "+CSQ:") == 0) {
         size_t comma = message.find(',', 6);
         if (comma != 6) {
-          this->rssi_ = parse_number<int>(message.substr(6, comma - 6)).value_or(0);
-          ESP_LOGD(TAG, "RSSI: %d", this->rssi_);
+          int rssi_ = parse_number<int>(message.substr(6, comma - 6)).value_or(0);
+
+          if (this->rssi_sensor_ != nullptr)
+            this->rssi_sensor_->publish_state(rssi_);
+          else
+            ESP_LOGD(TAG, "RSSI: %d", rssi_);
         }
       }
       this->expect_ack_ = true;
@@ -201,7 +205,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         this->write(26);
         this->state_ = STATE_SENDINGSMS3;
       } else {
-        this->registered_ = false;
+        set_registered_(false);
         this->state_ = STATE_INIT;
         this->send_cmd_("AT+CMEE=2");
         this->write(26);
@@ -226,7 +230,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         this->state_ = STATE_INIT;
         this->dial_pending_ = false;
       } else {
-        this->registered_ = false;
+        this->set_registered_(false);
         this->state_ = STATE_INIT;
         this->send_cmd_("AT+CMEE=2");
         this->write(26);
@@ -277,13 +281,20 @@ void Sim800LComponent::send_sms(const std::string &recipient, const std::string 
 }
 void Sim800LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SIM800L:");
-  ESP_LOGCONFIG(TAG, "  RSSI: %d dB", this->rssi_);
+  LOG_BINARY_SENSOR("  ", "Registered", this->registered_binary_sensor_);
+  LOG_SENSOR("  ", "Rssi", this->rssi_sensor_);
 }
 void Sim800LComponent::dial(const std::string &recipient) {
   ESP_LOGD(TAG, "Dialing %s", recipient.c_str());
   this->recipient_ = recipient;
   this->dial_pending_ = true;
   this->update();
+}
+
+void Sim800LComponent::set_registered_(bool registered) {
+  this->registered_ = registered;
+  if (this->registered_binary_sensor_ != nullptr)
+    this->registered_binary_sensor_->publish_state(registered);
 }
 
 }  // namespace sim800l

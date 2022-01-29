@@ -3,6 +3,8 @@
 #include <utility>
 
 #include "esphome/core/component.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 
@@ -42,6 +44,10 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   void update() override;
   void loop() override;
   void dump_config() override;
+  void set_registered(binary_sensor::BinarySensor *registered_binary_sensor) {
+    registered_binary_sensor_ = registered_binary_sensor;
+  }
+  void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
   void add_on_sms_received_callback(std::function<void(std::string, std::string)> callback) {
     this->callback_.add(std::move(callback));
   }
@@ -51,7 +57,10 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
  protected:
   void send_cmd_(const std::string &message);
   void parse_cmd_(std::string message);
+  void set_registered_(bool registered);
 
+  binary_sensor::BinarySensor *registered_binary_sensor_{nullptr};
+  sensor::Sensor *rssi_sensor_{nullptr};
   std::string sender_;
   char read_buffer_[SIM800L_READ_BUFFER_LENGTH];
   size_t read_pos_{0};
@@ -60,7 +69,6 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   bool expect_ack_{false};
   sim800l::State state_{STATE_IDLE};
   bool registered_{false};
-  int rssi_{0};
 
   std::string recipient_;
   std::string outgoing_message_;

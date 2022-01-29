@@ -1,8 +1,18 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.const import CONF_ID, CONF_TRIGGER_ID
-from esphome.components import uart
+from esphome.const import (
+    CONF_DEVICE_CLASS,
+    CONF_ENTITY_CATEGORY,
+    CONF_ID,
+    CONF_TRIGGER_ID,
+    DEVICE_CLASS_CONNECTIVITY,
+    DEVICE_CLASS_SIGNAL_STRENGTH,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_DECIBEL_MILLIWATT,
+)
+from esphome.components import binary_sensor, sensor, uart
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@glmnet"]
@@ -22,12 +32,31 @@ Sim800LDialAction = sim800l_ns.class_("Sim800LDialAction", automation.Action)
 
 CONF_ON_SMS_RECEIVED = "on_sms_received"
 CONF_RECIPIENT = "recipient"
+CONF_REGISTERED = "registered"
+CONF_RSSI = "rssi"
 CONF_MESSAGE = "message"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Sim800LComponent),
+            cv.Optional(CONF_REGISTERED): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+                {
+                    cv.Optional(
+                        CONF_DEVICE_CLASS, default=DEVICE_CLASS_CONNECTIVITY
+                    ): binary_sensor.device_class,
+                    cv.Optional(
+                        CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_DIAGNOSTIC
+                    ): cv.entity_category,
+                }
+            ),
+            cv.Optional(CONF_RSSI): sensor.sensor_schema(
+                unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
             cv.Optional(CONF_ON_SMS_RECEIVED): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -49,6 +78,16 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+
+    if CONF_REGISTERED in config:
+        conf = config[CONF_REGISTERED]
+        sens = await binary_sensor.new_binary_sensor(conf)
+        cg.add(var.set_registered(sens))
+
+    if CONF_RSSI in config:
+        conf = config[CONF_RSSI]
+        sens = await sensor.new_sensor(conf)
+        cg.add(var.set_rssi_sensor(sens))
 
     for conf in config.get(CONF_ON_SMS_RECEIVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
