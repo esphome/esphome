@@ -73,7 +73,7 @@ jobs:
         pip install -e .
         echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
         echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> $GITHUB_ENV
-        esphome compile tests/test1.yaml
+        esphome compile tests/test3.yaml
 
     #- run: |
     #   make bootstrap
