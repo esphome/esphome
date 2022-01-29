@@ -71,9 +71,8 @@ jobs:
         pip install -U pip
         pip install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
         pip install -e .
-        echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
-        echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> $GITHUB_ENV
-        esphome compile tests/test3.yaml
+        script/build_all_include.py
+        pio run -e esp32-arduino
 
     #- run: |
     #   make bootstrap
