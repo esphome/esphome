@@ -20,7 +20,8 @@ namespace mqtt {
  * First parameter is the topic, the second one is the payload.
  */
 using mqtt_callback_t = std::function<void(const std::string &, const std::string &)>;
-using mqtt_raw_callback_t = std::function<void(const std::string &, char *payload, size_t len, size_t index, size_t total)>;
+using mqtt_raw_callback_t =
+    std::function<void(const std::string &, char *payload, size_t len, size_t index, size_t total)>;
 using mqtt_json_callback_t = std::function<void(const std::string &, JsonObject)>;
 
 /// internal struct for MQTT messages.

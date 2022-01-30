@@ -29,9 +29,8 @@ MQTTClientComponent::MQTTClientComponent() {
 void MQTTClientComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MQTT...");
   this->mqtt_client_.onMessage([this](char const *topic, char *payload, AsyncMqttClientMessageProperties properties,
-                                      size_t len, size_t index, size_t total) {
-    this->on_message(topic, payload, len, index, total);
-  });
+                                      size_t len, size_t index,
+                                      size_t total) { this->on_message(topic, payload, len, index, total); });
   this->mqtt_client_.onDisconnect([this](AsyncMqttClientDisconnectReason reason) {
     this->state_ = MQTT_CLIENT_DISCONNECTED;
     this->disconnect_reason_ = reason;

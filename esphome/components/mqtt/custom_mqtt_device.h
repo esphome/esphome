@@ -61,9 +61,9 @@ class CustomMQTTDevice {
   template<typename T> void subscribe(const std::string &topic, void (T::*callback)(), uint8_t qos = 0);
 
   template<typename T>
-  void subscribe_raw(const std::string &topic, void (T::*callback)(const std::string &, char *payload, size_t len, size_t index, size_t total),
-                 uint8_t qos = 0);
-
+  void subscribe_raw(const std::string &topic,
+                     void (T::*callback)(const std::string &, char *payload, size_t len, size_t index, size_t total),
+                     uint8_t qos = 0);
 
   /** Subscribe to an MQTT topic and call the callback if the payload can be decoded
    * as JSON with the given Quality of Service.
@@ -100,8 +100,7 @@ class CustomMQTTDevice {
   template<typename T>
   void subscribe_json(const std::string &topic, void (T::*callback)(const std::string &, JsonObject), uint8_t qos = 0);
 
-  template<typename T>
-  void subscribe_json(const std::string &topic, void (T::*callback)(JsonObject), uint8_t qos = 0);
+  template<typename T> void subscribe_json(const std::string &topic, void (T::*callback)(JsonObject), uint8_t qos = 0);
 
   /** Publish an MQTT message with the given payload and QoS and retain settings.
    *
@@ -209,8 +208,12 @@ template<typename T> void CustomMQTTDevice::subscribe(const std::string &topic, 
   global_mqtt_client->subscribe(topic, f, qos);
 }
 template<typename T>
-void CustomMQTTDevice::subscribe_raw(const std::string &topic, void (T::*callback)(const std::string &, char *payload, size_t len, size_t index, size_t total), uint8_t qos) {
-  auto f = std::bind(callback, (T *) this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5);
+void CustomMQTTDevice::subscribe_raw(const std::string &topic,
+                                     void (T::*callback)(const std::string &, char *payload, size_t len, size_t index,
+                                                         size_t total),
+                                     uint8_t qos) {
+  auto f = std::bind(callback, (T *) this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
+                     std::placeholders::_4, std::placeholders::_5);
   global_mqtt_client->subscribe_raw(topic, f, qos);
 }
 template<typename T>
