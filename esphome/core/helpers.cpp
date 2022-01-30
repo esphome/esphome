@@ -316,8 +316,8 @@ template<int (*fn)(int)> std::string str_ctype_transform(const std::string &str)
   std::transform(str.begin(), str.end(), result.begin(), [](unsigned char ch) { return fn(ch); });
   return result;
 }
-std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::toupper>(str); }
-std::string str_upper_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
+std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
+std::string str_upper_case(const std::string &str) { return str_ctype_transform<std::toupper>(str); }
 std::string str_snake_case(const std::string &str) {
   std::string result;
   result.resize(str.length());
