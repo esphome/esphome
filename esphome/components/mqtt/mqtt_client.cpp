@@ -324,18 +324,6 @@ void MQTTClientComponent::resubscribe_subscriptions_() {
 }
 
 void MQTTClientComponent::subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos) {
-  MQTTSubscription subscription{
-      .topic = topic,
-      .qos = qos,
-      .callback = std::move(callback),
-      .subscribed = false,
-      .resubscribe_timeout = 0,
-  };
-  this->resubscribe_subscription_(&subscription);
-  this->subscriptions_.push_back(subscription);
-}
-
-void MQTTClientComponent::subscribe(const std::string &topic, mqtt_string_callback_t callback, uint8_t qos) {
   auto f = [callback, this](const std::string &topic, char *payload, size_t len, size_t index, size_t total) {
     if (index == 0)
       this->payload_buffer_.reserve(total);
@@ -353,6 +341,18 @@ void MQTTClientComponent::subscribe(const std::string &topic, mqtt_string_callba
       .topic = topic,
       .qos = qos,
       .callback = f,
+      .subscribed = false,
+      .resubscribe_timeout = 0,
+  };
+  this->resubscribe_subscription_(&subscription);
+  this->subscriptions_.push_back(subscription);
+}
+
+void MQTTClientComponent::subscribe_raw(const std::string &topic, mqtt_raw_callback_t callback, uint8_t qos) {
+  MQTTSubscription subscription{
+      .topic = topic,
+      .qos = qos,
+      .callback = std::move(callback),
       .subscribed = false,
       .resubscribe_timeout = 0,
   };

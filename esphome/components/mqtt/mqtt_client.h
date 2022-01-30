@@ -19,8 +19,8 @@ namespace mqtt {
  *
  * First parameter is the topic, the second one is the payload.
  */
-using mqtt_callback_t = std::function<void(const std::string &, char *payload, size_t len, size_t index, size_t total)>;
-using mqtt_string_callback_t = std::function<void(const std::string &, const std::string &)>;
+using mqtt_callback_t = std::function<void(const std::string &, const std::string &)>;
+using mqtt_raw_callback_t = std::function<void(const std::string &, char *payload, size_t len, size_t index, size_t total)>;
 using mqtt_json_callback_t = std::function<void(const std::string &, JsonObject)>;
 
 /// internal struct for MQTT messages.
@@ -35,7 +35,7 @@ struct MQTTMessage {
 struct MQTTSubscription {
   std::string topic;
   uint8_t qos;
-  mqtt_callback_t callback;
+  mqtt_raw_callback_t callback;
   bool subscribed;
   uint32_t resubscribe_timeout;
 };
@@ -154,7 +154,7 @@ class MQTTClientComponent : public Component {
   void disable_log_message();
   bool is_log_message_enabled() const;
 
-  /** Subscribe to an MQTT topic and call callback when a partial message is received.
+  /** Subscribe to an MQTT topic and call callback when a complete message is received.
    *
    * @param topic The topic. Wildcards are currently not supported.
    * @param callback The callback function.
@@ -162,13 +162,13 @@ class MQTTClientComponent : public Component {
    */
   void subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos = 0);
 
-  /** Subscribe to an MQTT topic and call callback when a complete message is received.
+  /** Subscribe to an MQTT topic and call callback when a partial message is received.
    *
    * @param topic The topic. Wildcards are currently not supported.
    * @param callback The callback function.
    * @param qos The QoS of this subscription.
    */
-  void subscribe(const std::string &topic, mqtt_string_callback_t callback, uint8_t qos = 0);
+  void subscribe_raw(const std::string &topic, mqtt_raw_callback_t callback, uint8_t qos = 0);
 
   /** Subscribe to a MQTT topic and automatically parse JSON payload.
    *
