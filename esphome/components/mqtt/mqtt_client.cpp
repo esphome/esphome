@@ -30,17 +30,7 @@ void MQTTClientComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MQTT...");
   this->mqtt_client_.onMessage([this](char const *topic, char *payload, AsyncMqttClientMessageProperties properties,
                                       size_t len, size_t index, size_t total) {
-    if (index == 0)
-      this->payload_buffer_.reserve(total);
-
-    // append new payload, may contain incomplete MQTT message
-    this->payload_buffer_.append(payload, len);
-
-    // MQTT fully received
-    if (len + index == total) {
-      this->on_message(topic, this->payload_buffer_);
-      this->payload_buffer_.clear();
-    }
+    this->on_message(topic, payload, len, index, total);
   });
   this->mqtt_client_.onDisconnect([this](AsyncMqttClientDisconnectReason reason) {
     this->state_ = MQTT_CLIENT_DISCONNECTED;
@@ -345,9 +335,44 @@ void MQTTClientComponent::subscribe(const std::string &topic, mqtt_callback_t ca
   this->subscriptions_.push_back(subscription);
 }
 
+void MQTTClientComponent::subscribe(const std::string &topic, mqtt_string_callback_t callback, uint8_t qos) {
+  auto f = [callback, this](const std::string &topic, char *payload, size_t len, size_t index, size_t total) {
+    if (index == 0)
+      this->payload_buffer_.reserve(total);
+
+    // append new payload, may contain incomplete MQTT message
+    this->payload_buffer_.append(payload, len);
+
+    // MQTT fully received
+    if (len + index == total) {
+      callback(topic, this->payload_buffer_);
+      this->payload_buffer_.clear();
+    }
+  };
+  MQTTSubscription subscription{
+      .topic = topic,
+      .qos = qos,
+      .callback = f,
+      .subscribed = false,
+      .resubscribe_timeout = 0,
+  };
+  this->resubscribe_subscription_(&subscription);
+  this->subscriptions_.push_back(subscription);
+}
+
 void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
-  auto f = [callback](const std::string &topic, const std::string &payload) {
-    json::parse_json(payload, [topic, callback](JsonObject root) { callback(topic, root); });
+  auto f = [callback, this](const std::string &topic, char *payload, size_t len, size_t index, size_t total) {
+    if (index == 0)
+      this->payload_buffer_.reserve(total);
+
+    // append new payload, may contain incomplete MQTT message
+    this->payload_buffer_.append(payload, len);
+
+    // MQTT fully received
+    if (len + index == total) {
+      json::parse_json(this->payload_buffer_, [topic, callback](JsonObject root) { callback(topic, root); });
+      this->payload_buffer_.clear();
+    }
   };
   MQTTSubscription subscription{
       .topic = topic,
@@ -479,15 +504,15 @@ static bool topic_match(const char *message, const char *subscription) {
   return topic_match(message, subscription, *message != '\0' && *message != '$', false);
 }
 
-void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
+void MQTTClientComponent::on_message(const std::string &topic, char *payload, size_t len, size_t index, size_t total) {
 #ifdef USE_ESP8266
   // on ESP8266, this is called in LWiP thread; some components do not like running
   // in an ISR.
-  this->defer([this, topic, payload]() {
+  this->defer([this, topic, payload, len, index, total]() {
 #endif
     for (auto &subscription : this->subscriptions_) {
       if (topic_match(topic.c_str(), subscription.topic.c_str()))
-        subscription.callback(topic, payload);
+        subscription.callback(topic, payload, len, index, total);
     }
 #ifdef USE_ESP8266
   });
