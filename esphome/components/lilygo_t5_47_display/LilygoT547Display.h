@@ -5,8 +5,11 @@
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/hal.h"
 
+#ifndef EPD_DRIVER
+#define EPD_DRIVER
 #include "epd_driver.h"
 #include "epd_highlevel.h"
+#endif
 
 namespace esphome {
 namespace lilygo_t5_47_display {
