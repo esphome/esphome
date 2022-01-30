@@ -45,8 +45,9 @@ void LilygoT547Display::update() {
 }
 
 void LilygoT547Display::clear() {
-  epd_clear();
-  epd_hl_set_all_white(&this->hl);
+  epd_poweron();
+  epd_fullclear(&hl, this->temperature_);
+  epd_poweroff();
 }
 
 void LilygoT547Display::flush_screen_changes() {
