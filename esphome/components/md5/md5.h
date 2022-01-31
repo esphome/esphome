@@ -3,8 +3,8 @@
 #include "esphome/core/defines.h"
 
 #ifdef USE_ESP_IDF
-#include "esp32/rom/md5_hash.h"
-#define MD5_CTX_TYPE MD5Context
+#include "esp_rom_md5.h"
+#define MD5_CTX_TYPE md5_context_t
 #endif
 
 #if defined(USE_ARDUINO) && defined(USE_ESP32)
@@ -44,7 +44,7 @@ class MD5Digest {
   void get_hex(char *output);
 
   /// Compare the digest against a provided byte-encoded digest (16 bytes).
-  bool equals_bytes(const char *expected);
+  bool equals_bytes(const uint8_t *expected);
 
   /// Compare the digest against a provided hex-encoded digest (32 bytes).
   bool equals_hex(const char *expected);

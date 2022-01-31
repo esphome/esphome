@@ -37,6 +37,7 @@ void Application::setup() {
 
     component->call();
     this->scheduler.process_to_add();
+    this->feed_wdt();
     if (component->can_proceed())
       continue;
 
@@ -46,14 +47,15 @@ void Application::setup() {
     do {
       uint32_t new_app_state = STATUS_LED_WARNING;
       this->scheduler.call();
+      this->feed_wdt();
       for (uint32_t j = 0; j <= i; j++) {
         this->components_[j]->call();
         new_app_state |= this->components_[j]->get_component_state();
         this->app_state_ |= new_app_state;
+        this->feed_wdt();
       }
       this->app_state_ = new_app_state;
       yield();
-      this->feed_wdt();
     } while (!component->can_proceed());
   }
 
@@ -65,6 +67,7 @@ void Application::loop() {
   uint32_t new_app_state = 0;
 
   this->scheduler.call();
+  this->feed_wdt();
   for (Component *component : this->looping_components_) {
     {
       WarnIfComponentBlockingGuard guard{component};
@@ -94,7 +97,7 @@ void Application::loop() {
   }
   this->last_loop_ = now;
 
-  if (this->dump_config_at_ >= 0 && this->dump_config_at_ < this->components_.size()) {
+  if (this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
       ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
 #ifdef ESPHOME_PROJECT_NAME

@@ -45,6 +45,7 @@ constexpr const char *const MQTT_CLEANING_TEMPLATE = "cln_tpl";
 constexpr const char *const MQTT_COMMAND_OFF_TEMPLATE = "cmd_off_tpl";
 constexpr const char *const MQTT_COMMAND_ON_TEMPLATE = "cmd_on_tpl";
 constexpr const char *const MQTT_COMMAND_TOPIC = "cmd_t";
+constexpr const char *const MQTT_COMMAND_RETAIN = "ret";
 constexpr const char *const MQTT_COMMAND_TEMPLATE = "cmd_tpl";
 constexpr const char *const MQTT_CODE_ARM_REQUIRED = "cod_arm_req";
 constexpr const char *const MQTT_CODE_DISARM_REQUIRED = "cod_dis_req";
@@ -297,6 +298,7 @@ constexpr const char *const MQTT_CLEANING_TEMPLATE = "cleaning_template";
 constexpr const char *const MQTT_COMMAND_OFF_TEMPLATE = "command_off_template";
 constexpr const char *const MQTT_COMMAND_ON_TEMPLATE = "command_on_template";
 constexpr const char *const MQTT_COMMAND_TOPIC = "command_topic";
+constexpr const char *const MQTT_COMMAND_RETAIN = "retain";
 constexpr const char *const MQTT_COMMAND_TEMPLATE = "command_template";
 constexpr const char *const MQTT_CODE_ARM_REQUIRED = "code_arm_required";
 constexpr const char *const MQTT_CODE_DISARM_REQUIRED = "code_disarm_required";
@@ -514,6 +516,7 @@ constexpr const char *const MQTT_DEVICE_SUGGESTED_AREA = "suggested_area";
 
 // Additional MQTT fields where no abbreviation is defined in HA source
 constexpr const char *const MQTT_ENTITY_CATEGORY = "entity_category";
+constexpr const char *const MQTT_MODE = "mode";
 
 }  // namespace mqtt
 }  // namespace esphome

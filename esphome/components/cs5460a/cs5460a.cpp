@@ -102,8 +102,6 @@ void CS5460AComponent::hw_init_() {
 
 /* Doesn't reset the register values etc., just restarts the "computation cycle" */
 void CS5460AComponent::restart_() {
-  int cnt;
-
   this->enable();
   /* Stop running conversion, wake up if needed */
   this->write_byte(CMD_POWER_UP);

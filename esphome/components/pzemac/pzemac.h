@@ -1,11 +1,14 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
 namespace esphome {
 namespace pzemac {
+
+template<typename... Ts> class ResetEnergyAction;
 
 class PZEMAC : public PollingComponent, public modbus::ModbusDevice {
  public:
@@ -23,12 +26,25 @@ class PZEMAC : public PollingComponent, public modbus::ModbusDevice {
   void dump_config() override;
 
  protected:
+  template<typename... Ts> friend class ResetEnergyAction;
   sensor::Sensor *voltage_sensor_;
   sensor::Sensor *current_sensor_;
   sensor::Sensor *power_sensor_;
   sensor::Sensor *energy_sensor_;
   sensor::Sensor *frequency_sensor_;
   sensor::Sensor *power_factor_sensor_;
+
+  void reset_energy_();
+};
+
+template<typename... Ts> class ResetEnergyAction : public Action<Ts...> {
+ public:
+  ResetEnergyAction(PZEMAC *pzemac) : pzemac_(pzemac) {}
+
+  void play(Ts... x) override { this->pzemac_->reset_energy_(); }
+
+ protected:
+  PZEMAC *pzemac_;
 };
 
 }  // namespace pzemac
