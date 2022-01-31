@@ -40,6 +40,28 @@ namespace remote_base {
 
 static const char *const TAG = "remote.pronto";
 
+bool ProntoData::operator==(const ProntoData &rhs) const {
+  ESP_LOGD(TAG, "operator==");
+  ESP_LOGD(TAG, "this.data: %s", data.c_str());
+  ESP_LOGD(TAG, " rhs.data: %s", rhs.data.c_str());
+  std::vector<uint16_t> d1 = decode_pronto_(data);
+  std::vector<uint16_t> d2 = decode_pronto_(rhs.data);
+
+  if (d1.size() != d2.size()) {
+    return false;
+  }
+
+  uint16_t diff = 0;
+  for (size_t i = 0; i < d1.size(); ++i) {
+    int d = d2[i] - d1[i];
+    if (d > 3)
+      return false;
+    diff += d*d;
+  }
+
+  return diff <= 100;
+}
+
 // DO NOT EXPORT from this file
 static const uint16_t MICROSECONDS_T_MAX = 0xFFFFU;
 static const uint16_t LEARNED_TOKEN = 0x0000U;
@@ -108,7 +130,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::vector<uin
   }
 }
 
-void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &str) {
+std::vector<uint16_t> decode_pronto_(const std::string &str) {
   size_t len = str.length() / (DIGITS_IN_PRONTO_NUMBER + 1) + 1;
   std::vector<uint16_t> data;
   const char *p = str.c_str();
@@ -123,6 +145,12 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &st
     data.push_back(x);  // If input is conforming, there can be no overflow!
     p = *endptr;
   }
+
+  return data;
+}
+
+void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &str) {
+  std::vector<uint16_t> data = decode_pronto_(str);
   send_pronto_(dst, data);
 }
 
