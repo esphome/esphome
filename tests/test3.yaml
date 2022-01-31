@@ -1351,6 +1351,10 @@ daly_bms:
   update_interval: 20s
   uart_id: uart1
 
+qr_code:
+  - id: homepage_qr
+    value: https://esphome.io/index.html
+
 button:
   - platform: output
     id: output_button
