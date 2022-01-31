@@ -94,6 +94,8 @@ def wizard_file(**kwargs):
     # Configure API
     if "password" in kwargs:
         config += f"  password: \"{kwargs['password']}\"\n"
+    if "api_encryption_key" in kwargs:
+        config += f"  encryption:\n    key: \"{kwargs['api_encryption_key']}\"\n"
 
     # Configure OTA
     config += "\nota:\n"
@@ -159,6 +161,7 @@ if get_bool_env(ENV_QUICKWIZARD):
 
     def sleep(time):
         pass
+
 
 else:
     from time import sleep
