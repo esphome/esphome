@@ -81,7 +81,7 @@ async def to_code(config):
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(lock.Lock),
-            cv.Required(CONF_STATE): cv.templatable(LockState),
+            cv.Required(CONF_STATE): cv.templatable(validate_lock_state),
         }
     ),
 )
