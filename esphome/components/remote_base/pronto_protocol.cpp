@@ -44,22 +44,22 @@ bool ProntoData::operator==(const ProntoData &rhs) const {
   ESP_LOGD(TAG, "operator==");
   ESP_LOGD(TAG, "this.data: %s", data.c_str());
   ESP_LOGD(TAG, " rhs.data: %s", rhs.data.c_str());
-  std::vector<uint16_t> d1 = decode_pronto(data);
-  std::vector<uint16_t> d2 = decode_pronto(rhs.data);
+  std::vector<uint16_t> data1 = decode_pronto(data);
+  std::vector<uint16_t> data2 = decode_pronto(rhs.data);
 
-  if (d1.size() != d2.size()) {
+  if (data1.size() != data2.size()) {
     return false;
   }
 
-  uint16_t diff = 0;
-  for (size_t i = 0; i < d1.size(); ++i) {
-    int d = d2[i] - d1[i];
-    if (d > 3)
+  uint16_t total_diff = 0;
+  for (std::vector<uint16_t>::size_type i = 0; i < data1.size(); ++i) {
+    int diff = data2[i] - data1[i];
+    if (diff > 3)
       return false;
-    diff += d * d;
+    total_diff += diff * diff;
   }
 
-  return diff <= 100;
+  return total_diff <= 100;
 }
 
 // DO NOT EXPORT from this file
