@@ -6,7 +6,7 @@
 namespace esphome {
 namespace remote_base {
 
-std::vector<uint16_t> decode_pronto_(const std::string &str);
+std::vector<uint16_t> decode_pronto(const std::string &str);
 
 struct ProntoData {
   std::string data;
