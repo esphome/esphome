@@ -28,6 +28,7 @@ LOCK_STATES = {
 
 validate_lock_state = cv.enum(LOCK_STATES, upper=True)
 
+
 def validate(config):
     if not config[CONF_OPTIMISTIC] and (
         CONF_LOCK_ACTION not in config or CONF_UNLOCK_ACTION not in config
