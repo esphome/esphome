@@ -18,6 +18,15 @@ TemplateLock = template_ns.class_("TemplateLock", lock.Lock, cg.Component)
 
 LockState = template_ns.enum("LockState")
 
+LOCK_STATES = {
+    "LOCKED": LockState.LOCK_STATE_LOCKED,
+    "UNLOCKED": LockState.LOCK_STATE_UNLOCKED,
+    "JAMMED": LockState.LOCK_STATE_JAMMED,
+    "LOCKING": LockState.LOCK_STATE_LOCKING,
+    "UNLOCKING": LockState.LOCK_STATE_UNLOCKING,
+}
+
+validate_lock_state = cv.enum(LOCK_STATES, upper=True)
 
 def validate(config):
     if not config[CONF_OPTIMISTIC] and (
