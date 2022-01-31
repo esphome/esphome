@@ -12,6 +12,8 @@ from esphome.const import (
     CONF_TYPE,
     CONF_EXTERNAL_COMPONENTS,
     CONF_PATH,
+    CONF_USERNAME,
+    CONF_PASSWORD,
 )
 from esphome.core import CORE
 from esphome import git, loader
@@ -27,6 +29,8 @@ TYPE_LOCAL = "local"
 GIT_SCHEMA = {
     cv.Required(CONF_URL): cv.url,
     cv.Optional(CONF_REF): cv.git_ref,
+    cv.Optional(CONF_USERNAME): cv.string,
+    cv.Optional(CONF_PASSWORD): cv.string,
 }
 LOCAL_SCHEMA = {
     cv.Required(CONF_PATH): cv.directory,
@@ -99,6 +103,8 @@ def _process_git_config(config: dict, refresh) -> str:
         ref=config.get(CONF_REF),
         refresh=refresh,
         domain=DOMAIN,
+        username=config.get(CONF_USERNAME),
+        password=config.get(CONF_PASSWORD),
     )
 
     if (repo_dir / "esphome" / "components").is_dir():

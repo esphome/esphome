@@ -7,7 +7,7 @@ namespace esphome {
 namespace prometheus {
 
 void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
-  AsyncResponseStream *stream = req->beginResponseStream("text/plain");
+  AsyncResponseStream *stream = req->beginResponseStream("text/plain; version=0.0.4; charset=utf-8");
 
 #ifdef USE_SENSOR
   this->sensor_type_(stream);
@@ -127,7 +127,7 @@ void PrometheusHandler::fan_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_fan_speed GAUGE\n"));
   stream->print(F("#TYPE esphome_fan_oscillation GAUGE\n"));
 }
-void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::FanState *obj) {
+void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::Fan *obj) {
   if (obj->is_internal())
     return;
   stream->print(F("esphome_fan_failed{id=\""));

@@ -32,8 +32,8 @@ class APIConnection : public APIServerConnection {
   void cover_command(const CoverCommandRequest &msg) override;
 #endif
 #ifdef USE_FAN
-  bool send_fan_state(fan::FanState *fan);
-  bool send_fan_info(fan::FanState *fan);
+  bool send_fan_state(fan::Fan *fan);
+  bool send_fan_info(fan::Fan *fan);
   void fan_command(const FanCommandRequest &msg) override;
 #endif
 #ifdef USE_LIGHT
@@ -73,6 +73,10 @@ class APIConnection : public APIServerConnection {
   bool send_select_state(select::Select *select, std::string state);
   bool send_select_info(select::Select *select);
   void select_command(const SelectCommandRequest &msg) override;
+#endif
+#ifdef USE_BUTTON
+  bool send_button_info(button::Button *button);
+  void button_command(const ButtonCommandRequest &msg) override;
 #endif
   bool send_log_message(int level, const char *tag, const char *line);
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call) {

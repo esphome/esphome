@@ -649,7 +649,7 @@ def build_message_type(desc):
             o += f" {dump[0]} "
         else:
             o += "\n"
-            o += f"  char buffer[64];\n"
+            o += f"  __attribute__((unused)) char buffer[64];\n"
             o += f'  out.append("{desc.name} {{\\n");\n'
             o += indent("\n".join(dump)) + "\n"
             o += f'  out.append("}}");\n'

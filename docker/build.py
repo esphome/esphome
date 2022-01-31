@@ -32,6 +32,7 @@ parser.add_argument("--dry-run", action="store_true", help="Don't run any comman
 subparsers = parser.add_subparsers(help="Action to perform", dest="command", required=True)
 build_parser = subparsers.add_parser("build", help="Build the image")
 build_parser.add_argument("--push", help="Also push the images", action="store_true")
+build_parser.add_argument("--load", help="Load the docker image locally", action="store_true")
 manifest_parser = subparsers.add_parser("manifest", help="Create a manifest from already pushed images")
 
 
@@ -132,6 +133,8 @@ def main():
             cmd += ["--tag", img]
         if args.push:
             cmd += ["--push", "--cache-to", f"type=registry,ref={cache_img},mode=max"]
+        if args.load:
+            cmd += ["--load"]
 
         run_command(*cmd, ".")
     elif args.command == "manifest":

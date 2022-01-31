@@ -9,7 +9,7 @@ namespace esp8266 {
 static const char *const TAG = "esp8266";
 
 static int IRAM_ATTR flags_to_mode(gpio::Flags flags, uint8_t pin) {
-  if (flags == gpio::FLAG_INPUT) {
+  if (flags == gpio::FLAG_INPUT) {  // NOLINT(bugprone-branch-clone)
     return INPUT;
   } else if (flags == gpio::FLAG_OUTPUT) {
     return OUTPUT;

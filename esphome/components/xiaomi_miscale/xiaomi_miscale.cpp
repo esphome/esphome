@@ -87,12 +87,13 @@ bool XiaomiMiscale::parse_message_v1_(const std::vector<uint8_t> &message, Parse
 
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
   const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
-  if (data[0] == 0x22 || data[0] == 0xa2)
+  if (data[0] == 0x22 || data[0] == 0xa2) {
     result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
-  else if (data[0] == 0x12 || data[0] == 0xb2)
+  } else if (data[0] == 0x12 || data[0] == 0xb2) {
     result.weight = weight * 0.01f * 0.6f;  // unit 'jin'
-  else if (data[0] == 0x03 || data[0] == 0xb3)
+  } else if (data[0] == 0x03 || data[0] == 0xb3) {
     result.weight = weight * 0.01f * 0.453592f;  // unit 'lbs'
+  }
 
   return true;
 }
@@ -120,10 +121,11 @@ bool XiaomiMiscale::parse_message_v2_(const std::vector<uint8_t> &message, Parse
 
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
   const int16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
-  if (data[0] == 0x02)
+  if (data[0] == 0x02) {
     result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
-  else if (data[0] == 0x03)
+  } else if (data[0] == 0x03) {
     result.weight = weight * 0.01f * 0.453592f;  // unit 'lbs'
+  }
 
   if (has_impedance) {
     // impedance, 2 bytes, 16-bit

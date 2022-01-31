@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 from esphome.core import EsphomeError
+from esphome.config_helpers import merge_config
 
 from esphome import git, yaml_util
 from esphome.const import (
@@ -10,30 +11,12 @@ from esphome.const import (
     CONF_REF,
     CONF_REFRESH,
     CONF_URL,
+    CONF_USERNAME,
+    CONF_PASSWORD,
 )
 import esphome.config_validation as cv
 
 DOMAIN = CONF_PACKAGES
-
-
-def _merge_package(full_old, full_new):
-    def merge(old, new):
-        # pylint: disable=no-else-return
-        if isinstance(new, dict):
-            if not isinstance(old, dict):
-                return new
-            res = old.copy()
-            for k, v in new.items():
-                res[k] = merge(old[k], v) if k in old else v
-            return res
-        elif isinstance(new, list):
-            if not isinstance(old, list):
-                return new
-            return old + new
-
-        return new
-
-    return merge(full_old, full_new)
 
 
 def validate_git_package(config: dict):
@@ -93,6 +76,8 @@ BASE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_URL): cv.url,
+            cv.Optional(CONF_USERNAME): cv.string,
+            cv.Optional(CONF_PASSWORD): cv.string,
             cv.Exclusive(CONF_FILE, "files"): validate_yaml_filename,
             cv.Exclusive(CONF_FILES, "files"): cv.All(
                 cv.ensure_list(validate_yaml_filename),
@@ -124,6 +109,8 @@ def _process_base_package(config: dict) -> dict:
         ref=config.get(CONF_REF),
         refresh=config[CONF_REFRESH],
         domain=DOMAIN,
+        username=config.get(CONF_USERNAME),
+        password=config.get(CONF_PASSWORD),
     )
     files: str = config[CONF_FILES]
 
@@ -161,7 +148,7 @@ def do_packages_pass(config: dict):
                     package_config = _process_base_package(package_config)
                 if isinstance(package_config, dict):
                     recursive_package = do_packages_pass(package_config)
-                config = _merge_package(recursive_package, config)
+                config = merge_config(recursive_package, config)
 
         del config[CONF_PACKAGES]
     return config

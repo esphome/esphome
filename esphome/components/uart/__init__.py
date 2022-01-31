@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_UART_ID,
     CONF_DATA,
     CONF_RX_BUFFER_SIZE,
+    CONF_INVERTED,
     CONF_INVERT,
     CONF_TRIGGER_ID,
     CONF_SEQUENCE,
@@ -65,6 +66,19 @@ def validate_rx_pin(value):
     if CORE.is_esp8266 and value[CONF_NUMBER] >= 16:
         raise cv.Invalid("Pins GPIO16 and GPIO17 cannot be used as RX pins on ESP8266.")
     return value
+
+
+def validate_invert_esp32(config):
+    if (
+        CORE.is_esp32
+        and CONF_TX_PIN in config
+        and CONF_RX_PIN in config
+        and config[CONF_TX_PIN][CONF_INVERTED] != config[CONF_RX_PIN][CONF_INVERTED]
+    ):
+        raise cv.Invalid(
+            "Different invert values for TX and RX pin are not (yet) supported for ESP32."
+        )
+    return config
 
 
 def _uart_declare_type(value):
@@ -162,6 +176,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN),
+    validate_invert_esp32,
 )
 
 

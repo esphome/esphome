@@ -63,7 +63,7 @@ void MQTTCoverComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Tilt Command Topic: '%s'", this->get_tilt_command_topic().c_str());
   }
 }
-void MQTTCoverComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   if (!this->cover_->get_device_class().empty())
     root[MQTT_DEVICE_CLASS] = this->cover_->get_device_class();
 

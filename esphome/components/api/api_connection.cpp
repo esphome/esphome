@@ -20,6 +20,7 @@ namespace esphome {
 namespace api {
 
 static const char *const TAG = "api.connection";
+static const int ESP32_CAMERA_STOP_STREAM = 5000;
 
 APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
     : parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
@@ -132,7 +133,7 @@ void APIConnection::loop() {
 
   if (state_subs_at_ != -1) {
     const auto &subs = this->parent_->get_state_subs();
-    if (state_subs_at_ >= subs.size()) {
+    if (state_subs_at_ >= (int) subs.size()) {
       state_subs_at_ = -1;
     } else {
       auto &it = subs[state_subs_at_];
@@ -254,7 +255,7 @@ void APIConnection::cover_command(const CoverCommandRequest &msg) {
 // Shut-up about usage of deprecated speed_level_to_enum/speed_enum_to_level functions for a bit.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-bool APIConnection::send_fan_state(fan::FanState *fan) {
+bool APIConnection::send_fan_state(fan::Fan *fan) {
   if (!this->state_subscription_)
     return false;
 
@@ -272,7 +273,7 @@ bool APIConnection::send_fan_state(fan::FanState *fan) {
     resp.direction = static_cast<enums::FanDirection>(fan->direction);
   return this->send_fan_state_response(resp);
 }
-bool APIConnection::send_fan_info(fan::FanState *fan) {
+bool APIConnection::send_fan_info(fan::Fan *fan) {
   auto traits = fan->get_traits();
   ListEntitiesFanResponse msg;
   msg.key = fan->get_object_id_hash();
@@ -289,7 +290,7 @@ bool APIConnection::send_fan_info(fan::FanState *fan) {
   return this->send_list_entities_fan_response(msg);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
-  fan::FanState *fan = App.get_fan_by_key(msg.key);
+  fan::Fan *fan = App.get_fan_by_key(msg.key);
   if (fan == nullptr)
     return;
 
@@ -468,10 +469,11 @@ void APIConnection::switch_command(const SwitchCommandRequest &msg) {
   if (a_switch == nullptr)
     return;
 
-  if (msg.state)
+  if (msg.state) {
     a_switch->turn_on();
-  else
+  } else {
     a_switch->turn_off();
+  }
 }
 #endif
 
@@ -619,6 +621,8 @@ bool APIConnection::send_number_info(number::Number *number) {
   msg.icon = number->get_icon();
   msg.disabled_by_default = number->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(number->get_entity_category());
+  msg.unit_of_measurement = number->traits.get_unit_of_measurement();
+  msg.mode = static_cast<enums::NumberMode>(number->traits.get_mode());
 
   msg.min_value = number->traits.get_min_value();
   msg.max_value = number->traits.get_max_value();
@@ -674,13 +678,37 @@ void APIConnection::select_command(const SelectCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_BUTTON
+bool APIConnection::send_button_info(button::Button *button) {
+  ListEntitiesButtonResponse msg;
+  msg.key = button->get_object_id_hash();
+  msg.object_id = button->get_object_id();
+  msg.name = button->get_name();
+  msg.unique_id = get_default_unique_id("button", button);
+  msg.icon = button->get_icon();
+  msg.disabled_by_default = button->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(button->get_entity_category());
+  msg.device_class = button->get_device_class();
+  return this->send_list_entities_button_response(msg);
+}
+void APIConnection::button_command(const ButtonCommandRequest &msg) {
+  button::Button *button = App.get_button_by_key(msg.key);
+  if (button == nullptr)
+    return;
+
+  button->press();
+}
+#endif
+
 #ifdef USE_ESP32_CAMERA
 void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
   if (!this->state_subscription_)
     return;
   if (this->image_reader_.available())
     return;
-  this->image_reader_.set_image(std::move(image));
+  if (image->was_requested_by(esphome::esp32_camera::API_REQUESTER) ||
+      image->was_requested_by(esphome::esp32_camera::IDLE))
+    this->image_reader_.set_image(std::move(image));
 }
 bool APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
   ListEntitiesCameraResponse msg;
@@ -698,9 +726,14 @@ void APIConnection::camera_image(const CameraImageRequest &msg) {
     return;
 
   if (msg.single)
-    esp32_camera::global_esp32_camera->request_image();
-  if (msg.stream)
-    esp32_camera::global_esp32_camera->request_stream();
+    esp32_camera::global_esp32_camera->request_image(esphome::esp32_camera::API_REQUESTER);
+  if (msg.stream) {
+    esp32_camera::global_esp32_camera->start_stream(esphome::esp32_camera::API_REQUESTER);
+
+    App.scheduler.set_timeout(this->parent_, "api_esp32_camera_stop_stream", ESP32_CAMERA_STOP_STREAM, []() {
+      esp32_camera::global_esp32_camera->stop_stream(esphome::esp32_camera::API_REQUESTER);
+    });
+  }
 }
 #endif
 
@@ -734,6 +767,8 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
   resp.api_version_major = 1;
   resp.api_version_minor = 6;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
+  resp.name = App.get_name();
+
   this->connection_state_ = ConnectionState::CONNECTED;
   return resp;
 }
@@ -771,15 +806,16 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.project_version = ESPHOME_PROJECT_VERSION;
 #endif
 #ifdef USE_WEBSERVER
-  resp.webserver_port = WEBSERVER_PORT;
+  resp.webserver_port = USE_WEBSERVER_PORT;
 #endif
   return resp;
 }
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
-  for (auto &it : this->parent_->get_state_subs())
+  for (auto &it : this->parent_->get_state_subs()) {
     if (it.entity_id == msg.entity_id && it.attribute.value() == msg.attribute) {
       it.callback(msg.state);
     }
+  }
 }
 void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   bool found = false;

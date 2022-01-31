@@ -202,6 +202,7 @@ def write_platformio_project():
 
 DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
 #pragma once
+#include "esphome/core/macros.h"
 {}
 """
 VERSION_H_FORMAT = """\
@@ -287,6 +288,11 @@ def copy_src_tree():
 
     if CORE.is_esp32:
         from esphome.components.esp32 import copy_files
+
+        copy_files()
+
+    elif CORE.is_esp8266:
+        from esphome.components.esp8266 import copy_files
 
         copy_files()
 
