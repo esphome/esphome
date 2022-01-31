@@ -29,13 +29,11 @@ Lock::Lock() : Lock("") {}
 LockCall Lock::make_call() { return LockCall(this); }
 
 void Lock::lock() {
-  ESP_LOGD(TAG, "'%s' Locking.", this->get_name().c_str());
   auto call = this->make_call();
   call.set_state(LOCK_STATE_LOCKED);
   this->control(call);
 }
 void Lock::unlock() {
-  ESP_LOGD(TAG, "'%s' Unlocking.", this->get_name().c_str());
   auto call = this->make_call();
   call.set_state(LOCK_STATE_UNLOCKED);
   this->control(call);
