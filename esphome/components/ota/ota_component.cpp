@@ -281,6 +281,8 @@ void OTAComponent::handle_() {
     if (read == -1) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
         App.feed_wdt();
+        // yield to idle task to prevent wdt with high interference
+        yield();
         delay(1);
         continue;
       }
