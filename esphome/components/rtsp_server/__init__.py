@@ -27,6 +27,6 @@ async def to_code(config):
     camera = await cg.get_variable(config["camera"])
 
     cg.add_define("USE_ESPASYNCRTSP")
-    cg.add_library("ESPAsyncRTSPServer-esphome", "^0.1.3")
+    cg.add_library("crossan007/ESPAsyncRTSPServer-esphome", "0.1.3")
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_camera(camera))
