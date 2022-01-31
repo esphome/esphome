@@ -100,10 +100,11 @@ void LilygoT547Touchscreen::loop() {
   if (point) {
     uint8_t offset;
     for (int i = 0; i < point; i++) {
-      if (i == 0)
+      if (i == 0) {
         offset = 0;
-      else
+      } else {
         offset = 4;
+      }
 
       TouchPoint tp;
 
