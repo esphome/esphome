@@ -44,8 +44,8 @@ bool ProntoData::operator==(const ProntoData &rhs) const {
   ESP_LOGD(TAG, "operator==");
   ESP_LOGD(TAG, "this.data: %s", data.c_str());
   ESP_LOGD(TAG, " rhs.data: %s", rhs.data.c_str());
-  std::vector<uint16_t> d1 = decode_pronto_(data);
-  std::vector<uint16_t> d2 = decode_pronto_(rhs.data);
+  std::vector<uint16_t> d1 = decode_pronto(data);
+  std::vector<uint16_t> d2 = decode_pronto(rhs.data);
 
   if (d1.size() != d2.size()) {
     return false;
@@ -56,7 +56,7 @@ bool ProntoData::operator==(const ProntoData &rhs) const {
     int d = d2[i] - d1[i];
     if (d > 3)
       return false;
-    diff += d*d;
+    diff += d * d;
   }
 
   return diff <= 100;
@@ -130,7 +130,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::vector<uin
   }
 }
 
-std::vector<uint16_t> decode_pronto_(const std::string &str) {
+std::vector<uint16_t> decode_pronto(const std::string &str) {
   size_t len = str.length() / (DIGITS_IN_PRONTO_NUMBER + 1) + 1;
   std::vector<uint16_t> data;
   const char *p = str.c_str();
@@ -150,7 +150,7 @@ std::vector<uint16_t> decode_pronto_(const std::string &str) {
 }
 
 void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &str) {
-  std::vector<uint16_t> data = decode_pronto_(str);
+  std::vector<uint16_t> data = decode_pronto(str);
   send_pronto_(dst, data);
 }
 
