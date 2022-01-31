@@ -6,10 +6,12 @@
 namespace esphome {
 namespace remote_base {
 
+std::vector<uint16_t> decode_pronto_(const std::string &str);
+
 struct ProntoData {
   std::string data;
 
-  bool operator==(const ProntoData &rhs) const { return data == rhs.data; }
+  bool operator==(const ProntoData &rhs) const;
 };
 
 class ProntoProtocol : public RemoteProtocol<ProntoData> {
