@@ -52,7 +52,7 @@ bool ProntoData::operator==(const ProntoData &rhs) const {
   }
 
   uint16_t total_diff = 0;
-  for (std::vector<uint16_t>::size_type i = 0; i < data1.size(); ++i) {
+  for (unsigned int i = 0; i < data1.size(); ++i) {
     int diff = data2[i] - data1[i];
     if (diff > 3)
       return false;
