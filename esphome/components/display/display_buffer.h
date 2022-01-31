@@ -111,36 +111,36 @@ class DisplayBuffer {
   /// Fill the entire screen with the given color.
   virtual void fill(Color color);
   /// Clear the entire screen by filling it with OFF pixels.
-  void clear();
+  virtual void clear();
 
   /// Get the width of the image in pixels with rotation applied.
   int get_width();
   /// Get the height of the image in pixels with rotation applied.
   int get_height();
   /// Set a single pixel at the specified coordinates to the given color.
-  void draw_pixel_at(int x, int y, Color color = COLOR_ON);
+  virtual void draw_pixel_at(int x, int y, Color color = COLOR_ON);
 
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.
-  void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON);
+  virtual void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON);
 
   /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
-  void horizontal_line(int x, int y, int width, Color color = COLOR_ON);
+  virtual void horizontal_line(int x, int y, int width, Color color = COLOR_ON);
 
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-  void vertical_line(int x, int y, int height, Color color = COLOR_ON);
+  virtual void vertical_line(int x, int y, int height, Color color = COLOR_ON);
 
   /// Draw the outline of a rectangle with the top left point at [x1,y1] and the bottom right point at
   /// [x1+width,y1+height].
-  void rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
+  virtual void rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
 
   /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
-  void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
+  virtual void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
 
   /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
-  void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON);
+  virtual void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON);
 
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
-  void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON);
+  virtual void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
