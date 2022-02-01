@@ -56,12 +56,12 @@ extern "C" void resetPins() {  // NOLINT
   force_link_symbols();
 
   for (int i = 0; i < 16; i++) {
-    uint8_t mode = g_esp8266_gpio_initial_mode[i];
-    uint8_t level = g_esp8266_gpio_initial_level[i];
+    uint8_t mode = ESPHOME_ESP8266_GPIO_INITIAL_MODE[i];
+    uint8_t level = ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[i];
     if (mode != 255)
-      pinMode(i, mode);
+      pinMode(i, mode);  // NOLINT
     if (level != 255)
-      digitalWrite(i, level);
+      digitalWrite(i, level);  // NOLINT
   }
 }
 

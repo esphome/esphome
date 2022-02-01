@@ -1,4 +1,6 @@
 import logging
+from dataclasses import dataclass
+from typing import List
 
 from esphome.const import (
     CONF_ID,
@@ -15,8 +17,6 @@ from esphome import pins
 from esphome.core import CORE, coroutine_with_priority
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from dataclasses import dataclass
-from typing import List
 
 from . import boards
 from .const import KEY_BOARD, KEY_ESP8266, KEY_PIN_INITIAL_STATES, esp8266_ns
@@ -208,11 +208,11 @@ async def add_pin_initial_states_array():
 
     cg.add_global(
         cg.RawExpression(
-            f"const uint8_t g_esp8266_gpio_initial_mode[16] = {{{initial_modes_s}}}"
+            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_MODE[16] = {{{initial_modes_s}}}"
         )
     )
     cg.add_global(
         cg.RawExpression(
-            f"const uint8_t g_esp8266_gpio_initial_level[16] = {{{initial_levels_s}}}"
+            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[16] = {{{initial_levels_s}}}"
         )
     )
