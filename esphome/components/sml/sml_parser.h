@@ -45,9 +45,11 @@ class SmlFile {
 
 char check_sml_data(const bytes &buffer);
 
-uint16_t calc_crc16_x25(const uint8_t *buffer, size_t length);
+uint16_t calc_crc16_p1021(const bytes::const_iterator begin, const bytes::const_iterator end, uint16_t crcsum);
 
-uint16_t calc_crc16_kermit(const uint8_t *buffer, size_t length);
+uint16_t calc_crc16_x25(const bytes::const_iterator begin, const bytes::const_iterator end, uint16_t crcsum);
+
+uint16_t calc_crc16_kermit(const bytes::const_iterator begin, const bytes::const_iterator end, uint16_t crcsum);
 
 std::string bytes_repr(const bytes &buffer);
 
