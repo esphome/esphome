@@ -11,8 +11,10 @@ class DallasTemperatureSensor;
 
 class DallasComponent : public PollingComponent {
  public:
-  void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
-  void register_sensor(DallasTemperatureSensor *sensor);
+  explicit DallasComponent(ESPOneWireBase *one_wire);
+
+  DallasTemperatureSensor *get_sensor_by_address(uint64_t address, uint8_t resolution);
+  DallasTemperatureSensor *get_sensor_by_index(uint8_t index, uint8_t resolution);
 
   void setup() override;
   void dump_config() override;
@@ -23,8 +25,7 @@ class DallasComponent : public PollingComponent {
  protected:
   friend DallasTemperatureSensor;
 
-  InternalGPIOPin *pin_;
-  ESPOneWire *one_wire_;
+  ESPOneWireBase *one_wire_;
   std::vector<DallasTemperatureSensor *> sensors_;
   std::vector<uint64_t> found_sensors_;
 };
@@ -32,7 +33,8 @@ class DallasComponent : public PollingComponent {
 /// Internal class that helps us create multiple sensors for one Dallas hub.
 class DallasTemperatureSensor : public sensor::Sensor {
  public:
-  void set_parent(DallasComponent *parent) { parent_ = parent; }
+  DallasTemperatureSensor(uint64_t address, uint8_t resolution, DallasComponent *parent);
+
   /// Helper to get a pointer to the address as uint8_t.
   uint8_t *get_address8();
   /// Helper to create (and cache) the name for this sensor. For example "0xfe0000031f1eaf29".
