@@ -8,6 +8,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstring>
+#include <cstdarg>
 
 #if defined(USE_ESP8266)
 #include <osapi.h>
