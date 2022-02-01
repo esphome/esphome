@@ -528,7 +528,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         id_.type = type_
     decl = VariableDeclarationExpression(id_.type, "*", id_)
     CORE.add_global(decl)
-    assignment = AssignmentExpression(None, None, id_, rhs, obj)
+    assignment = AssignmentExpression(None, None, id_, rhs)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
