@@ -327,6 +327,21 @@ def boolean(value):
     )
 
 
+def null(value):
+    """Validate the given config option to be null.
+
+    This option allows a bunch of different ways of expressing boolean values:
+     - null
+     - '' (empty string)
+    """
+
+    if value is None:
+        return value
+    if isinstance(value, str) and value in (""):
+        return None
+    raise Invalid(f"Expected null value, but cannot convert {value} to null")
+
+
 @jschema_composite
 def ensure_list(*validators):
     """Validate this configuration option to be a list.

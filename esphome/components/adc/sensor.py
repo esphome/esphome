@@ -143,8 +143,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ADCSensor),
             cv.Required(CONF_PIN): validate_adc_pin,
             cv.Optional(CONF_RAW, default=False): cv.boolean,
-            cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(
-                cv.only_on_esp32, cv.enum(ATTENUATION_MODES, lower=True)
+            cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.Any(
+                cv.null,
+                cv.All(cv.only_on_esp32, cv.enum(ATTENUATION_MODES, lower=True)),
             ),
         }
     )
@@ -167,7 +168,7 @@ async def to_code(config):
     if CONF_RAW in config:
         cg.add(var.set_output_raw(config[CONF_RAW]))
 
-    if CONF_ATTENUATION in config:
+    if config.get(CONF_ATTENUATION) is not None:
         if config[CONF_ATTENUATION] == "auto":
             cg.add(var.set_autorange(cg.global_ns.true))
         else:

@@ -95,6 +95,17 @@ def test_boolean__invalid(value):
         config_validation.boolean(value)
 
 
+@pytest.mark.parametrize("value", (None, ""))
+def test_null__valid(value):
+    assert config_validation.null(value) is None
+
+
+@pytest.mark.parametrize("value", (false, true))
+def test_null__invalid(value):
+    with pytest.raises(Invalid, match="Expected null value"):
+        config_validation.null(value)
+
+
 # TODO: ensure_list
 @given(integers())
 def hex_int__valid(value):
