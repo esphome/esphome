@@ -70,6 +70,7 @@
 #ifdef USE_ESP_IDF
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(4, 3, 0)
 #endif
+#define USE_SOCKET_HAS_LWIP
 #endif
 
 // ESP8266-specific feature flags
@@ -79,6 +80,7 @@
 #define USE_ESP8266_PREFERENCES_FLASH
 #define USE_HTTP_REQUEST_ESP8266_HTTPS
 #define USE_SOCKET_IMPL_LWIP_TCP
+#define USE_SOCKET_HAS_LWIP
 #endif
 
 // Disabled feature flags

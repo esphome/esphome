@@ -7,7 +7,7 @@ namespace esphome {
 namespace socket {
 
 std::unique_ptr<Socket> socket_ip(int type, int protocol) {
-#if LWIP_IPV6
+#ifdef USE_SOCKET_IPV6
   return socket(AF_INET6, type, protocol);
 #else
   return socket(AF_INET, type, protocol);
@@ -15,7 +15,7 @@ std::unique_ptr<Socket> socket_ip(int type, int protocol) {
 }
 
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port) {
-#if LWIP_IPV6
+#if USE_SOCKET_IPV6
   if (addrlen < sizeof(sockaddr_in6)) {
     errno = EINVAL;
     return 0;
