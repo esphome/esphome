@@ -9,8 +9,7 @@
 #include "esphome/core/log.h"
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/ip_address.h"
-#include <AsyncMqttClient.h>
-#include "lwip/ip_addr.h"
+#include "mqtt_backend.h"
 
 namespace esphome {
 namespace mqtt {
@@ -74,7 +73,6 @@ struct MQTTDiscoveryInfo {
 
 enum MQTTClientState {
   MQTT_CLIENT_DISCONNECTED = 0,
-  MQTT_CLIENT_RESOLVING_ADDRESS,
   MQTT_CLIENT_CONNECTING,
   MQTT_CLIENT_CONNECTED,
 };
@@ -115,22 +113,6 @@ class MQTTClientComponent : public Component {
   /// Globally disable Home Assistant discovery.
   void disable_discovery();
   bool is_discovery_enabled() const;
-
-#if ASYNC_TCP_SSL_ENABLED
-  /** Add a SSL fingerprint to use for TCP SSL connections to the MQTT broker.
-   *
-   * To use this feature you first have to globally enable the `ASYNC_TCP_SSL_ENABLED` define flag.
-   * This function can be called multiple times and any certificate that matches any of the provided fingerprints
-   * will match. Calling this method will also automatically disable all non-ssl connections.
-   *
-   * @warning This is *not* secure and *not* how SSL is usually done. You'll have to add
-   *          a separate fingerprint for every certificate you use. Additionally, the hashing
-   *          algorithm used here due to the constraints of the MCU, SHA1, is known to be insecure.
-   *
-   * @param fingerprint The SSL fingerprint as a 20 value long std::array.
-   */
-  void add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint);
-#endif
 
   const Availability &get_availability();
 
@@ -237,13 +219,6 @@ class MQTTClientComponent : public Component {
  protected:
   /// Reconnect to the MQTT broker if not already connected.
   void start_connect_();
-  void start_dnslookup_();
-  void check_dnslookup_();
-#if defined(USE_ESP8266) && LWIP_VERSION_MAJOR == 1
-  static void dns_found_callback(const char *name, ip_addr_t *ipaddr, void *callback_arg);
-#else
-  static void dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
-#endif
 
   /// Re-calculate the availability property.
   void recalculate_availability_();
@@ -272,20 +247,18 @@ class MQTTClientComponent : public Component {
   };
   std::string topic_prefix_{};
   MQTTMessage log_message_;
-  std::string payload_buffer_;
   int log_level_{ESPHOME_LOG_LEVEL};
 
   std::vector<MQTTSubscription> subscriptions_;
-  AsyncMqttClient mqtt_client_;
   MQTTClientState state_{MQTT_CLIENT_DISCONNECTED};
-  network::IPAddress ip_;
-  bool dns_resolved_{false};
-  bool dns_resolve_error_{false};
   std::vector<MQTTComponent *> children_;
   uint32_t reboot_timeout_{300000};
   uint32_t connect_begin_;
   uint32_t last_connected_{0};
-  optional<AsyncMqttClientDisconnectReason> disconnect_reason_{};
+
+  std::unique_ptr<MQTTConnection> conn_;
+  ConnectParams conn_params_{};
+  MQTTSession sess_{};
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
