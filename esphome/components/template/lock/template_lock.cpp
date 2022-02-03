@@ -20,7 +20,7 @@ void TemplateLock::loop() {
 
   this->publish_state(*val);
 }
-void TemplateLock::control(const LockCall &call) {
+void TemplateLock::control(const lock::LockCall &call) {
   if (this->prev_trigger_ != nullptr) {
     this->prev_trigger_->stop_action();
   }
@@ -48,7 +48,7 @@ void TemplateLock::open_latch() {
     this->publish_state(LOCK_STATE_UNLOCKED);
 }
 void TemplateLock::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-void TemplateLock::set_state_lambda(std::function<optional<LockState>()> &&f) { this->f_ = f; }
+void TemplateLock::set_state_lambda(std::function<optional<lock::LockState>()> &&f) { this->f_ = f; }
 float TemplateLock::get_setup_priority() const { return setup_priority::HARDWARE; }
 Trigger<> *TemplateLock::get_lock_trigger() const { return this->lock_trigger_; }
 Trigger<> *TemplateLock::get_unlock_trigger() const { return this->unlock_trigger_; }

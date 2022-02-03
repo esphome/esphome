@@ -16,7 +16,7 @@ from .. import template_ns
 
 TemplateLock = template_ns.class_("TemplateLock", lock.Lock, cg.Component)
 
-LockState = template_ns.enum("LockState")
+LockState = lock.lock_ns.enum("LockState")
 
 LOCK_STATES = {
     "LOCKED": LockState.LOCK_STATE_LOCKED,
