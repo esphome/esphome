@@ -70,13 +70,7 @@ class LwipGetaddrinfoFuture : public GetaddrinfoFuture {
     struct addrinfo *ai = reinterpret_cast<struct addrinfo *>(storage);
     struct sockaddr_storage *sa = reinterpret_cast<struct sockaddr_storage *>(ai + 1);
 
-#if LWIP_IPV4 && LWIP_IPV6
-    bool isipv6 = result_->ipaddr.type == IPADDR_TYPE_V6;
-#elif LWIP_IPV4
-    bool isipv6 = false;
-#elif LWIP_IPV6
-    bool isipv6 = true;
-#endif
+    bool isipv6 = IP_IS_V6(result_->ipaddr);
 
     bool istcp = true;
     if ((hint_ai_socktype_ != 0 && hint_ai_socktype_ == SOCK_DGRAM) ||
