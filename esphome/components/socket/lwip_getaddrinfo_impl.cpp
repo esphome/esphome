@@ -174,7 +174,7 @@ std::unique_ptr<GetaddrinfoFuture> getaddrinfo_async(const char *node, const cha
 void freeaddrinfo(struct addrinfo *ai) {
   while (ai != nullptr) {
     struct addrinfo *next = ai->ai_next;
-    delete ai;
+    delete ai;  // NOLINT(cppcoreguidelines-owning-memory)
     ai = next;
   }
 }
