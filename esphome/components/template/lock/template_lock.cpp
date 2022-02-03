@@ -44,8 +44,6 @@ void TemplateLock::open_latch() {
   this->prev_trigger_ = this->open_trigger_;
   this->open_trigger_->trigger();
 
-  if (this->optimistic_)
-    this->publish_state(LOCK_STATE_UNLOCKED);
 }
 void TemplateLock::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 void TemplateLock::set_state_lambda(std::function<optional<lock::LockState>()> &&f) { this->f_ = f; }
