@@ -19,6 +19,8 @@ static const char *const TAG = "adc";
 // create a const to avoid the repated cast to enum
 #ifdef USE_ESP32
 static const adc_bits_width_t ADC_WIDTH_MAX_SOC_BITS = static_cast<adc_bits_width_t>(ADC_WIDTH_MAX - 1);
+static const int ADC_MAX = (2 ^ ADC_WIDTH_BIT_DEFAULT) - 1;
+static const int ADC_HALF = ADC_MAX >> 1;
 #endif
 
 void ADCSensor::setup() {
@@ -129,16 +131,16 @@ float ADCSensor::sample() {
     return mv / 1000.0f;
   }
 
-  int raw11, raw6 = 4095, raw2 = 4095, raw0 = 4095;
+  int raw11, raw6 = ADC_MAX, raw2 = ADC_MAX, raw0 = ADC_MAX;
   adc1_config_channel_atten(channel_, ADC_ATTEN_DB_11);
   raw11 = adc1_get_raw(channel_);
-  if (raw11 < 4095) {
+  if (raw11 < ADC_MAX) {
     adc1_config_channel_atten(channel_, ADC_ATTEN_DB_6);
     raw6 = adc1_get_raw(channel_);
-    if (raw6 < 4095) {
+    if (raw6 < ADC_MAX) {
       adc1_config_channel_atten(channel_, ADC_ATTEN_DB_2_5);
       raw2 = adc1_get_raw(channel_);
-      if (raw2 < 4095) {
+      if (raw2 < ADC_MAX) {
         adc1_config_channel_atten(channel_, ADC_ATTEN_DB_0);
         raw0 = adc1_get_raw(channel_);
       }
@@ -154,15 +156,15 @@ float ADCSensor::sample() {
   uint32_t mv2 = esp_adc_cal_raw_to_voltage(raw2, &cal_characteristics_[(int) ADC_ATTEN_DB_2_5]);
   uint32_t mv0 = esp_adc_cal_raw_to_voltage(raw0, &cal_characteristics_[(int) ADC_ATTEN_DB_0]);
 
-  // Contribution of each value, in range 0-2048
-  uint32_t c11 = std::min(raw11, 2048);
-  uint32_t c6 = 2048 - std::abs(raw6 - 2048);
-  uint32_t c2 = 2048 - std::abs(raw2 - 2048);
-  uint32_t c0 = std::min(4095 - raw0, 2048);
-  // max theoretical csum value is 2048*4 = 8192
+  // Contribution of each value, in range 0-2047 (12 bit ADC) or 0-4095 (13 bit ADC)
+  uint32_t c11 = std::min(raw11, ADC_HALF);
+  uint32_t c6 = ADC_HALF - std::abs(raw6 - ADC_HALF);
+  uint32_t c2 = ADC_HALF - std::abs(raw2 - ADC_HALF);
+  uint32_t c0 = std::min(ADC_MAX - raw0, ADC_HALF);
+  // max theoretical csum value is 4095*4 = 16380
   uint32_t csum = c11 + c6 + c2 + c0;
 
-  // each mv is max 3900; so max value is 3900*2048*4, fits in unsigned
+  // each mv is max 3900; so max value is 3900*4095*4, fits in unsigned
   uint32_t mv_scaled = (mv11 * c11) + (mv6 * c6) + (mv2 * c2) + (mv0 * c0);
   return mv_scaled / (float) (csum * 1000U);
 }
