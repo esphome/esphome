@@ -19,7 +19,7 @@ static const char *const TAG = "adc";
 // create a const to avoid the repated cast to enum
 #ifdef USE_ESP32
 static const adc_bits_width_t ADC_WIDTH_MAX_SOC_BITS = static_cast<adc_bits_width_t>(ADC_WIDTH_MAX - 1);
-static const int ADC_MAX = (2 ^ ADC_WIDTH_BIT_DEFAULT) - 1;
+static const int ADC_MAX = (2 ^ SOC_ADC_MAX_BITWIDTH) - 1;
 static const int ADC_HALF = ADC_MAX >> 1;
 #endif
 
