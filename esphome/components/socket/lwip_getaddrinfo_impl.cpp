@@ -178,6 +178,20 @@ void freeaddrinfo(struct addrinfo *ai) {
     ai = next;
   }
 }
+const char *gai_strerror(int errcode) {
+  switch (errcode) {
+    case EAI_BADFLAGS: return "badflags";
+    case EAI_NONAME: return "noname";
+    case EAI_AGAIN: return "again";
+    case EAI_FAMILY: return "family";
+    case EAI_SOCKTYPE: return "socktype";
+    case EAI_SERVICE: return "service";
+    case EAI_MEMORY: return "memory";
+    case EAI_SYSTEM: return "system";
+    case EAI_OVERFLOW: return "overflow";
+    default: return "unknown";
+  }
+}
 #endif
 
 #endif  // USE_SOCKET_HAS_LWIP

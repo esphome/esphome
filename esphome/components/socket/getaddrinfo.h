@@ -30,4 +30,5 @@ std::unique_ptr<GetaddrinfoFuture> getaddrinfo_async(const char *node, const cha
 
 #ifdef USE_ESP8266
 void freeaddrinfo(struct addrinfo *ai);
+const char *gai_strerror(int errcode);
 #endif
