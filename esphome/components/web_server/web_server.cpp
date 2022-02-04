@@ -991,7 +991,7 @@ void WebServer::on_lock_update(lock::Lock *obj) {
   this->events_.send(this->lock_json(obj, obj->state, DETAIL_STATE).c_str(), "state");
 }
 std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config) {
-  return json::build_json([obj, value](JsonObject root) {
+  return json::build_json([obj, value, start_config](JsonObject root) {
     set_json_icon_state_value(root, obj, "lock-" + obj->get_object_id(), lock::lock_state_to_string(value), value,
                               start_config);
   });
