@@ -21,9 +21,9 @@ class TM1651Display : public Component {
   void setup() override;
   void dump_config() override;
 
-  void set_level_percent(uint8_t);
-  void set_level(uint8_t);
-  void set_brightness(uint8_t);
+  void set_level_percent(uint8_t new_level);
+  void set_level(uint8_t new_level);
+  void set_brightness(uint8_t new_brightness);
 
   void turn_on();
   void turn_off();
@@ -39,8 +39,8 @@ class TM1651Display : public Component {
 
   void repaint_();
 
-  uint8_t calculate_level_(uint8_t);
-  uint8_t calculate_brightness_(uint8_t);
+  uint8_t calculate_level_(uint8_t new_level);
+  uint8_t calculate_brightness_(uint8_t new_brightness);
 };
 
 template<typename... Ts> class SetLevelPercentAction : public Action<Ts...>, public Parented<TM1651Display> {

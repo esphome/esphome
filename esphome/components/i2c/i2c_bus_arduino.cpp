@@ -16,10 +16,11 @@ void ArduinoI2CBus::setup() {
 
 #ifdef USE_ESP32
   static uint8_t next_bus_num = 0;
-  if (next_bus_num == 0)
+  if (next_bus_num == 0) {
     wire_ = &Wire;
-  else
+  } else {
     wire_ = new TwoWire(next_bus_num);  // NOLINT(cppcoreguidelines-owning-memory)
+  }
   next_bus_num++;
 #else
   wire_ = &Wire;  // NOLINT(cppcoreguidelines-prefer-member-initializer)
@@ -55,10 +56,11 @@ void ArduinoI2CBus::dump_config() {
       ESP_LOGI(TAG, "Found no i2c devices!");
     } else {
       for (const auto &s : scan_results_) {
-        if (s.second)
+        if (s.second) {
           ESP_LOGI(TAG, "Found i2c device at address 0x%02X", s.first);
-        else
+        } else {
           ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
+        }
       }
     }
   }

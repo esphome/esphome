@@ -17,9 +17,19 @@ import threading
 
 
 def clang_options(idedata):
-    cmd = [
-        # target 32-bit arch (this prevents size mismatch errors on a 64-bit host)
-        '-m32',
+    cmd = []
+
+    # extract target architecture from triplet in g++ filename
+    triplet = os.path.basename(idedata['cxx_path'])[:-4]
+    if triplet.startswith("xtensa-"):
+        # clang doesn't support Xtensa (yet?), so compile in 32-bit mode and pretend we're the Xtensa compiler
+        cmd.append('-m32')
+        cmd.append('-D__XTENSA__')
+    else:
+        cmd.append(f'--target={triplet}')
+
+    # set flags
+    cmd.extend([
         # disable built-in include directories from the host
         '-nostdinc',
         '-nostdinc++',
@@ -39,15 +49,13 @@ def clang_options(idedata):
         # suppress warning about attribute cannot be applied to type
         # https://github.com/esp8266/Arduino/pull/8258
         '-Ddeprecated(x)=',
-        # pretend we're an Xtensa compiler, which gates some features in the headers
-        '-D__XTENSA__',
         # allow to condition code on the presence of clang-tidy
         '-DCLANG_TIDY',
         # (esp-idf) Disable this header because they use asm with registers clang-tidy doesn't know
         '-D__XTENSA_API_H__',
         # (esp-idf) Fix __once_callable in some libstdc++ headers
         '-D_GLIBCXX_HAVE_TLS',
-    ]
+    ])
 
     # copy compiler flags, except those clang doesn't understand.
     cmd.extend(flag for flag in idedata['cxx_flags'].split(' ')
@@ -126,8 +134,8 @@ def main():
     parser.add_argument('-j', '--jobs', type=int,
                         default=multiprocessing.cpu_count(),
                         help='number of tidy instances to be run in parallel.')
-    parser.add_argument('-e', '--environment', default='esp32-tidy',
-                        help='the PlatformIO environment to run against (esp8266-tidy or esp32-tidy)')
+    parser.add_argument('-e', '--environment', default='esp32-arduino-tidy',
+                        help='the PlatformIO environment to use (as defined in platformio.ini)')
     parser.add_argument('files', nargs='*', default=[],
                         help='files to be processed (regex on path)')
     parser.add_argument('--fix', action='store_true', help='apply fix-its')

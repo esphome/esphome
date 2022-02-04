@@ -104,10 +104,11 @@ void Rtttl::loop() {
   // first, get note duration, if available
   uint8_t num = this->get_integer_();
 
-  if (num)
+  if (num) {
     note_duration_ = wholenote_ / num;
-  else
+  } else {
     note_duration_ = wholenote_ / default_duration_;  // we will need to check if we are a dotted note after
+  }
 
   uint8_t note;
 

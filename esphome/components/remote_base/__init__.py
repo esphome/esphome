@@ -27,6 +27,7 @@ from esphome.const import (
     CONF_CARRIER_FREQUENCY,
     CONF_RC_CODE_1,
     CONF_RC_CODE_2,
+    CONF_LEVEL,
 )
 from esphome.core import coroutine
 from esphome.jsonschema import jschema_extractor
@@ -232,6 +233,45 @@ async def build_dumpers(config):
         dumper = await cg.build_registry_entry(DUMPER_REGISTRY, conf)
         dumpers.append(dumper)
     return dumpers
+
+
+# Coolix
+(
+    CoolixData,
+    CoolixBinarySensor,
+    CoolixTrigger,
+    CoolixAction,
+    CoolixDumper,
+) = declare_protocol("Coolix")
+COOLIX_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_uint32_t})
+
+
+@register_binary_sensor("coolix", CoolixBinarySensor, COOLIX_SCHEMA)
+def coolix_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                CoolixData,
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("coolix", CoolixTrigger, CoolixData)
+def coolix_trigger(var, config):
+    pass
+
+
+@register_dumper("coolix", CoolixDumper)
+def coolix_dumper(var, config):
+    pass
+
+
+@register_action("coolix", CoolixAction, COOLIX_SCHEMA)
+async def coolix_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
+    cg.add(var.set_data(template_))
 
 
 # Dish
@@ -1122,6 +1162,58 @@ async def panasonic_action(var, config, args):
     cg.add(var.set_address(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint32)
     cg.add(var.set_command(template_))
+
+
+# Nexa
+NexaData, NexaBinarySensor, NexaTrigger, NexaAction, NexaDumper = declare_protocol(
+    "Nexa"
+)
+NEXA_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_DEVICE): cv.hex_uint32_t,
+        cv.Required(CONF_GROUP): cv.hex_uint8_t,
+        cv.Required(CONF_STATE): cv.hex_uint8_t,
+        cv.Required(CONF_CHANNEL): cv.hex_uint8_t,
+        cv.Required(CONF_LEVEL): cv.hex_uint8_t,
+    }
+)
+
+
+@register_binary_sensor("nexa", NexaBinarySensor, NEXA_SCHEMA)
+def nexa_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                NexaData,
+                ("device", config[CONF_DEVICE]),
+                ("group", config[CONF_GROUP]),
+                ("state", config[CONF_STATE]),
+                ("channel", config[CONF_CHANNEL]),
+                ("level", config[CONF_LEVEL]),
+            )
+        )
+    )
+
+
+@register_trigger("nexa", NexaTrigger, NexaData)
+def nexa_trigger(var, config):
+    pass
+
+
+@register_dumper("nexa", NexaDumper)
+def nexa_dumper(var, config):
+    pass
+
+
+@register_action("nexa", NexaAction, NEXA_SCHEMA)
+def nexa_action(var, config, args):
+    cg.add(var.set_device((yield cg.templatable(config[CONF_DEVICE], args, cg.uint32))))
+    cg.add(var.set_group((yield cg.templatable(config[CONF_GROUP], args, cg.uint8))))
+    cg.add(var.set_state((yield cg.templatable(config[CONF_STATE], args, cg.uint8))))
+    cg.add(
+        var.set_channel((yield cg.templatable(config[CONF_CHANNEL], args, cg.uint8)))
+    )
+    cg.add(var.set_level((yield cg.templatable(config[CONF_LEVEL], args, cg.uint8))))
 
 
 # Midea

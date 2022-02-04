@@ -9,7 +9,7 @@ from esphome.const import (
 )
 from .. import binary_ns
 
-BinaryFan = binary_ns.class_("BinaryFan", cg.Component)
+BinaryFan = binary_ns.class_("BinaryFan", fan.Fan, cg.Component)
 
 CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
     {
@@ -24,9 +24,8 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await cg.register_component(var, config)
+    await fan.register_fan(var, config)
 
-    fan_ = await fan.create_fan_state(config)
-    cg.add(var.set_fan(fan_))
     output_ = await cg.get_variable(config[CONF_OUTPUT])
     cg.add(var.set_output(output_))
 
