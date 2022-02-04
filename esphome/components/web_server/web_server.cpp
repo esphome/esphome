@@ -106,12 +106,14 @@ void WebServer::setup() {
     for (auto *obj : App.get_sensors()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->sensor_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_SWITCH
     for (auto *obj : App.get_switches()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->switch_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_BUTTON
@@ -123,18 +125,21 @@ void WebServer::setup() {
     for (auto *obj : App.get_binary_sensors()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->binary_sensor_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_FAN
     for (auto *obj : App.get_fans()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->fan_json(obj, DETAIL_ALL).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_LIGHT
     for (auto *obj : App.get_lights()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->light_json(obj, DETAIL_ALL).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_TEXT_SENSOR
@@ -162,21 +167,15 @@ void WebServer::setup() {
     for (auto *obj : App.get_selects()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->select_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_CLIMATE
-#if WEBSERVER_VERSION == 2
-    for (auto *obj : App.get_climates())
+    for (auto *obj : App.get_climates()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->climate_json(obj, DETAIL_ALL).c_str(), "state");
+    }
 #endif
-
-#ifdef USE_LOCK
-    for (auto *obj : App.get_locks()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->lock_json(obj, obj->state).c_str(), "state");
-#endif
-  });
 
 #ifdef USE_LOCK
     for (auto *obj : App.get_locks()) {
@@ -199,6 +198,7 @@ void WebServer::setup() {
 
   this->set_interval(10000, [this]() { this->events_.send("", "ping", millis(), 30000); });
 }
+
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
   ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->base_->get_port());
@@ -1255,13 +1255,6 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   }
 #endif
 }
-
-#ifdef USE_LOCK
-  if (match.domain == "lock") {
-    this->handle_lock_request(request, match);
-    return;
-  }
-#endif
 
 bool WebServer::isRequestHandlerTrivial() { return false; }
 
