@@ -170,6 +170,13 @@ void WebServer::setup() {
 #endif
   });
 
+#ifdef USE_LOCK
+    for (auto *obj : App.get_locks()) {
+      if (this->include_internal_ || !obj->is_internal())
+        client->send(this->lock_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
+    }
+#endif  
+
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr)
     logger::global_logger->add_on_log_callback(
@@ -292,6 +299,20 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
         }
         stream.print("</select>");
       });
+#endif
+
+#ifdef USE_LOCK
+  for (auto *obj : App.get_locks()) {
+    if (this->include_internal_ || !obj->is_internal()) {
+      write_row(stream, obj, "lock", "", [](AsyncResponseStream &stream, EntityBase *obj) {
+        lock::Lock *lock = (lock::Lock *) obj;
+        stream.print("<button>Lock</button><button>Unlock</button>");
+        if (lock->traits.get_supports_open()) {
+          stream.print("<button>Open</button>");
+        }
+      });
+    }
+  }
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
@@ -935,6 +956,41 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
 }
 #endif
 
+#ifdef USE_LOCK
+void WebServer::on_lock_update(lock::Lock *obj) {
+  this->events_.send(this->lock_json(obj, obj->state, DETAIL_STATE).c_str(), "state");
+}
+std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config) {
+  return json::build_json([obj, value](JsonObject root) {
+    set_json_icon_state_value(root, obj, "lock-" + obj->get_object_id(), lock::lock_state_to_string(value), value, start_config);
+  });
+}
+void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (lock::Lock *obj : App.get_locks()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->lock_json(obj, obj->state);
+      request->send(200, "text/json", data.c_str());
+    } else if (match.method == "lock") {
+      this->defer([obj]() { obj->lock(); });
+      request->send(200);
+    } else if (match.method == "unlock") {
+      this->defer([obj]() { obj->unlock(); });
+      request->send(200);
+    } else if (match.method == "open") {
+      this->defer([obj]() { obj->open(); });
+      request->send(200);
+    } else {
+      request->send(404);
+    }
+    return;
+  }
+  request->send(404);
+}
+#endif
+
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
@@ -1004,6 +1060,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_CLIMATE
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "climate")
+    return true;
+#endif
+
+#ifdef USE_LOCK
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "lock")
     return true;
 #endif
 
@@ -1107,6 +1168,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   }
 #endif
 }
+
+#ifdef USE_LOCK
+  if (match.domain == "lock") {
+    this->handle_lock_request(request, match);
+    return;
+  }
+#endif
 
 bool WebServer::isRequestHandlerTrivial() { return false; }
 
