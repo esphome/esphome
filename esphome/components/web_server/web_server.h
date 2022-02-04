@@ -206,7 +206,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the lock state with its value as a JSON string.
-  std::string lock_json(lock::Lock *obj, lock::LockState value);
+  std::string lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config);
 #endif
 
   /// Override the web handler's canHandle method.
