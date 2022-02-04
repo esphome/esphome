@@ -1002,7 +1002,7 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
       continue;
 
     if (request->method() == HTTP_GET) {
-      std::string data = this->lock_json(obj, obj->state);
+      std::string data = this->lock_json(obj, obj->state, DETAIL_STATE);
       request->send(200, "text/json", data.c_str());
     } else if (match.method == "lock") {
       this->defer([obj]() { obj->lock(); });
