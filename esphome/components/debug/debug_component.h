@@ -5,14 +5,14 @@
 #include "esphome/core/macros.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace text_sensor {
-class TextSensor;
-}
-namespace sensor {
-class Sensor;
-}
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
+namespace esphome {
 namespace debug {
 
 class DebugComponent : public PollingComponent {
