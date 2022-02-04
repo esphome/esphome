@@ -94,7 +94,7 @@ void WebServer::setup() {
 
   this->events_.onConnect([this](AsyncEventSourceClient *client) {
     // Configure reconnect timeout and send config
-  
+
     client->send(json::build_json([this](JsonObject root) {
                    root["title"] = App.get_name();
                    root["ota"] = this->allow_ota_;
@@ -542,9 +542,7 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
 #endif
 
 #ifdef USE_FAN
-void WebServer::on_fan_update(fan::Fan *obj) {
-  this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state");
-}
+void WebServer::on_fan_update(fan::Fan *obj) { this->events_.send(this->fan_json(obj, DETAIL_STATE).c_str(), "state"); }
 std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject root) {
     set_json_state_value(root, obj, "fan-" + obj->get_object_id(), obj->state ? "ON" : "OFF", obj->state, start_config);
@@ -811,10 +809,11 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
     char buffer[64];
     snprintf(buffer, sizeof(buffer), "%f", value);
     root["state"] = buffer;
-    if (isnan(value))
+    if (isnan(value)) {
       root["value"] = "\"NaN\"";
-    else
+    } else {
       root["value"] = value;
+    }
   });
 }
 #endif
@@ -993,44 +992,8 @@ void WebServer::on_lock_update(lock::Lock *obj) {
 }
 std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config) {
   return json::build_json([obj, value](JsonObject root) {
-    set_json_icon_state_value(root, obj, "lock-" + obj->get_object_id(), lock::lock_state_to_string(value), value, start_config);
-  });
-}
-void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (lock::Lock *obj : App.get_locks()) {
-    if (obj->get_object_id() != match.id)
-      continue;
-
-    if (request->method() == HTTP_GET) {
-      std::string data = this->lock_json(obj, obj->state);
-      request->send(200, "text/json", data.c_str());
-    } else if (match.method == "lock") {
-      this->defer([obj]() { obj->lock(); });
-      request->send(200);
-    } else if (match.method == "unlock") {
-      this->defer([obj]() { obj->unlock(); });
-      request->send(200);
-    } else if (match.method == "open") {
-      this->defer([obj]() { obj->open(); });
-      request->send(200);
-    } else {
-      request->send(404);
-    }
-    return;
-  }
-  request->send(404);
-}
-#endif
-
-#ifdef USE_LOCK
-void WebServer::on_lock_update(lock::Lock *obj) {
-  this->events_.send(this->lock_json(obj, obj->state).c_str(), "state");
-}
-std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value) {
-  return json::build_json([obj, value](JsonObject root) {
-    root["id"] = "lock-" + obj->get_object_id();
-    root["state"] = lock::lock_state_to_string(value);
-    root["value"] = value;
+    set_json_icon_state_value(root, obj, "lock-" + obj->get_object_id(), lock::lock_state_to_string(value), value,
+                              start_config);
   });
 }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
