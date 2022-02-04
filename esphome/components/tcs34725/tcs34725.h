@@ -56,6 +56,16 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
 
  protected:
+  i2c::ErrorCode read_data_register_(uint8_t a_register, uint16_t &data) {
+    uint8_t buffer[2];
+    auto retval = this->read_register(a_register, buffer, 2);
+    if (retval == i2c::ERROR_OK)
+      data = (uint16_t(buffer[1]) << 8) | (uint16_t(buffer[0]) & 0xFF);
+    return retval;
+  }
+  i2c::ErrorCode write_config_register_(uint8_t a_register, uint8_t data) {
+    return this->write_register(a_register, &data, 1);
+  }
   sensor::Sensor *clear_sensor_{nullptr};
   sensor::Sensor *red_sensor_{nullptr};
   sensor::Sensor *green_sensor_{nullptr};

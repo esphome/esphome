@@ -41,10 +41,11 @@ uint32_t ESP32ArduinoUARTComponent::get_config() {
    * tick_ref_always_on:27   select the clock.1：apb clock：ref_tick
    */
 
-  if (this->parity_ == UART_CONFIG_PARITY_EVEN)
+  if (this->parity_ == UART_CONFIG_PARITY_EVEN) {
     config |= UART_PARITY_EVEN | UART_PARITY_ENABLE;
-  else if (this->parity_ == UART_CONFIG_PARITY_ODD)
+  } else if (this->parity_ == UART_CONFIG_PARITY_ODD) {
     config |= UART_PARITY_ODD | UART_PARITY_ENABLE;
+  }
 
   switch (this->data_bits_) {
     case 5:
@@ -61,10 +62,11 @@ uint32_t ESP32ArduinoUARTComponent::get_config() {
       break;
   }
 
-  if (this->stop_bits_ == 1)
+  if (this->stop_bits_ == 1) {
     config |= UART_NB_STOP_BIT_1;
-  else
+  } else {
     config |= UART_NB_STOP_BIT_2;
+  }
 
   config |= UART_TICK_APB_CLOCK;
 

@@ -39,7 +39,7 @@ void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_i
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      auto chr = this->parent_->get_characteristic(AM43_SERVICE_UUID, AM43_CHARACTERISTIC_UUID);
+      auto *chr = this->parent_->get_characteristic(AM43_SERVICE_UUID, AM43_CHARACTERISTIC_UUID);
       if (chr == nullptr) {
         if (this->parent_->get_characteristic(AM43_TUYA_SERVICE_UUID, AM43_TUYA_CHARACTERISTIC_UUID) != nullptr) {
           ESP_LOGE(TAG, "[%s] Detected a Tuya AM43 which is not supported, sorry.",
@@ -75,13 +75,14 @@ void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_i
 
       if (this->current_sensor_ > 0) {
         if (this->illuminance_ != nullptr) {
-          auto packet = this->encoder_->get_light_level_request();
+          auto *packet = this->encoder_->get_light_level_request();
           auto status = esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_,
                                                  packet->length, packet->data, ESP_GATT_WRITE_TYPE_NO_RSP,
                                                  ESP_GATT_AUTH_REQ_NONE);
-          if (status)
+          if (status) {
             ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(),
                      status);
+          }
         }
         this->current_sensor_ = 0;
       }
@@ -99,7 +100,7 @@ void Am43::update() {
   }
   if (this->current_sensor_ == 0) {
     if (this->battery_ != nullptr) {
-      auto packet = this->encoder_->get_battery_level_request();
+      auto *packet = this->encoder_->get_battery_level_request();
       auto status =
           esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_, packet->length,
                                    packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
