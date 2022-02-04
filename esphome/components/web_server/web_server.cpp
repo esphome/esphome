@@ -94,7 +94,7 @@ void WebServer::setup() {
 
   this->events_.onConnect([this](AsyncEventSourceClient *client) {
     // Configure reconnect timeout and send config
-
+  
     client->send(json::build_json([this](JsonObject root) {
                    root["title"] = App.get_name();
                    root["ota"] = this->allow_ota_;
@@ -182,7 +182,8 @@ void WebServer::setup() {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->lock_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
     }
-#endif  
+#endif
+  });
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
@@ -198,7 +199,6 @@ void WebServer::setup() {
 
   this->set_interval(10000, [this]() { this->events_.send("", "ping", millis(), 30000); });
 }
-
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
   ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->base_->get_port());
@@ -327,20 +327,6 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
           stream.print("</option>");
         }
         stream.print("</select>");
-      });
-    }
-  }
-#endif
-
-#ifdef USE_LOCK
-  for (auto *obj : App.get_locks()) {
-    if (this->include_internal_ || !obj->is_internal()) {
-      write_row(stream, obj, "lock", "", [](AsyncResponseStream &stream, EntityBase *obj) {
-        lock::Lock *lock = (lock::Lock *) obj;
-        stream.print("<button>Lock</button><button>Unlock</button>");
-        if (lock->traits.get_supports_open()) {
-          stream.print("<button>Open</button>");
-        }
       });
     }
   }
@@ -1246,11 +1232,14 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_CLIMATE
   if (match.domain == "climate") {
     this->handle_climate_request(request, match);
+    return;
+  }
+#endif
 
 #ifdef USE_LOCK
   if (match.domain == "lock") {
     this->handle_lock_request(request, match);
-    
+
     return;
   }
 #endif
