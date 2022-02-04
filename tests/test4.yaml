@@ -65,6 +65,9 @@ sx1509:
   - id: sx1509_hub
     address: 0x3E
 
+mcp3204:
+  cs_pin: GPIO23
+
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
@@ -215,6 +218,9 @@ sensor:
       - or:
         - throttle: "20min"
         - delta: 0.02
+  - platform: mcp3204
+    name: "MCP3204 Pin 1"
+    number: 1
 
 #
 # platform sensor.apds9960 requires component apds9960
@@ -307,7 +313,7 @@ binary_sensor:
       then:
         - lambda: 'ESP_LOGI("ar1:", "%d", x);'
   - platform: xpt2046
-    xpt2046_id: touchscreen
+    xpt2046_id: xpt_touchscreen
     id: touch_key0
     x_min: 80
     x_max: 160
@@ -320,6 +326,16 @@ binary_sensor:
     pin:
       sx1509: sx1509_hub
       number: 3
+
+  - platform: touchscreen
+    id: touch_key1
+    x_min: 0
+    x_max: 100
+    y_min: 0
+    y_max: 100
+    on_press:
+      - logger.log: "Touched"
+
 
 climate:
   - platform: tuya
@@ -503,7 +519,7 @@ external_components:
   - source: ../esphome/components
     components: ["sntp"]
 xpt2046:
-  id: touchscreen
+  id: xpt_touchscreen
   cs_pin: 17
   irq_pin: 16
   update_interval: 50ms
@@ -520,12 +536,12 @@ xpt2046:
     - lambda: |-
         ESP_LOGI("main", "args x=%d, y=%d, touched=%s", x, y, (touched ? "touch" : "release"));
         ESP_LOGI("main", "member x=%d, y=%d, touched=%d, x_raw=%d, y_raw=%d, z_raw=%d",
-            id(touchscreen).x,
-            id(touchscreen).y,
-            (int) id(touchscreen).touched,
-            id(touchscreen).x_raw,
-            id(touchscreen).y_raw,
-            id(touchscreen).z_raw
+            id(xpt_touchscreen).x,
+            id(xpt_touchscreen).y,
+            (int) id(xpt_touchscreen).touched,
+            id(xpt_touchscreen).x_raw,
+            id(xpt_touchscreen).y_raw,
+            id(xpt_touchscreen).z_raw
             );
 
 button:
@@ -535,3 +551,13 @@ button:
     name: Safe Mode Button
   - platform: shutdown
     name: Shutdown Button
+
+touchscreen:
+  - platform: ektf2232
+    interrupt_pin: GPIO36
+    rts_pin: GPIO5
+    display: inkplate_display
+    on_touch:
+      - logger.log:
+          format: Touch at (%d, %d)
+          args: ["touch.x", "touch.y"]

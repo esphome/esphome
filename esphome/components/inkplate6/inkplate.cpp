@@ -42,32 +42,32 @@ void Inkplate6::setup() {
   this->display();
 }
 void Inkplate6::initialize_() {
+  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   uint32_t buffer_size = this->get_buffer_length_();
+  if (buffer_size == 0)
+    return;
 
-  if (this->partial_buffer_ != nullptr) {
-    free(this->partial_buffer_);  // NOLINT
-  }
-  if (this->partial_buffer_2_ != nullptr) {
-    free(this->partial_buffer_2_);  // NOLINT
-  }
-  if (this->buffer_ != nullptr) {
-    free(this->buffer_);  // NOLINT
-  }
+  if (this->partial_buffer_ != nullptr)
+    allocator.deallocate(this->partial_buffer_, buffer_size);
+  if (this->partial_buffer_2_ != nullptr)
+    allocator.deallocate(this->partial_buffer_2_, buffer_size * 2);
+  if (this->buffer_ != nullptr)
+    allocator.deallocate(this->buffer_, buffer_size);
 
-  this->buffer_ = (uint8_t *) ps_malloc(buffer_size);
+  this->buffer_ = allocator.allocate(buffer_size);
   if (this->buffer_ == nullptr) {
     ESP_LOGE(TAG, "Could not allocate buffer for display!");
     this->mark_failed();
     return;
   }
   if (!this->greyscale_) {
-    this->partial_buffer_ = (uint8_t *) ps_malloc(buffer_size);
+    this->partial_buffer_ = allocator.allocate(buffer_size);
     if (this->partial_buffer_ == nullptr) {
       ESP_LOGE(TAG, "Could not allocate partial buffer for display!");
       this->mark_failed();
       return;
     }
-    this->partial_buffer_2_ = (uint8_t *) ps_malloc(buffer_size * 2);
+    this->partial_buffer_2_ = allocator.allocate(buffer_size * 2);
     if (this->partial_buffer_2_ == nullptr) {
       ESP_LOGE(TAG, "Could not allocate partial buffer 2 for display!");
       this->mark_failed();
@@ -548,14 +548,15 @@ void Inkplate6::clean_fast_(uint8_t c, uint8_t rep) {
 
   eink_on_();
   uint8_t data = 0;
-  if (c == 0)  // White
+  if (c == 0) {  // White
     data = 0b10101010;
-  else if (c == 1)  // Black
+  } else if (c == 1) {  // Black
     data = 0b01010101;
-  else if (c == 2)  // Discharge
+  } else if (c == 2) {  // Discharge
     data = 0b00000000;
-  else if (c == 3)  // Skip
+  } else if (c == 3) {  // Skip
     data = 0b11111111;
+  }
 
   uint32_t send = ((data & 0b00000011) << 4) | (((data & 0b00001100) >> 2) << 18) | (((data & 0b00010000) >> 4) << 23) |
                   (((data & 0b11100000) >> 5) << 25);

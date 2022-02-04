@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/macros.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
@@ -18,7 +17,7 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiType.h>
 
-#if defined(USE_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
+#if defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
 extern "C" {
 #include <user_interface.h>
 };
@@ -228,23 +227,26 @@ class WiFiComponent : public Component {
   network::IPAddress wifi_soft_ap_ip();
 
   bool has_sta_priority(const bssid_t &bssid) {
-    for (auto &it : this->sta_priorities_)
+    for (auto &it : this->sta_priorities_) {
       if (it.bssid == bssid)
         return true;
+    }
     return false;
   }
   float get_sta_priority(const bssid_t bssid) {
-    for (auto &it : this->sta_priorities_)
+    for (auto &it : this->sta_priorities_) {
       if (it.bssid == bssid)
         return it.priority;
+    }
     return 0.0f;
   }
   void set_sta_priority(const bssid_t bssid, float priority) {
-    for (auto &it : this->sta_priorities_)
+    for (auto &it : this->sta_priorities_) {
       if (it.bssid == bssid) {
         it.priority = priority;
         return;
       }
+    }
     this->sta_priorities_.push_back(WiFiSTAPriority{
         .bssid = bssid,
         .priority = priority,
@@ -299,7 +301,7 @@ class WiFiComponent : public Component {
   void wifi_scan_done_callback_();
 #endif
 #ifdef USE_ESP_IDF
-  void wifi_process_event_(IDFWiFiEvent *);
+  void wifi_process_event_(IDFWiFiEvent *data);
 #endif
 
   std::string use_address_;

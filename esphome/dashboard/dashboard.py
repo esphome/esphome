@@ -410,6 +410,17 @@ class DownloadBinaryRequestHandler(BaseHandler):
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path
 
+        elif type == "firmware-factory.bin":
+            storage_path = ext_storage_path(settings.config_dir, configuration)
+            storage_json = StorageJSON.load(storage_path)
+            if storage_json is None:
+                self.send_error(404)
+                return
+            filename = f"{storage_json.name}-factory.bin"
+            path = storage_json.firmware_bin_path.replace(
+                "firmware.bin", "firmware-factory.bin"
+            )
+
         else:
             args = ["esphome", "idedata", settings.rel_path(configuration)]
             rc, stdout, _ = run_system_command(*args)
@@ -434,6 +445,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
         self.set_header("Content-Type", "application/octet-stream")
         self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.set_header("Cache-Control", "no-cache")
         if not Path(path).is_file():
             self.send_error(404)
             return
@@ -601,7 +613,7 @@ class MainRequestHandler(BaseHandler):
         begin = bool(self.get_argument("begin", False))
 
         self.render(
-            get_template_path("index"),
+            "index.template.html",
             begin=begin,
             **template_args(),
             login_enabled=settings.using_password,
@@ -778,7 +790,7 @@ class LoginHandler(BaseHandler):
 
     def render_login_page(self, error=None):
         self.render(
-            get_template_path("login"),
+            "login.template.html",
             error=error,
             hassio=settings.using_hassio_auth,
             has_username=bool(settings.username),
@@ -872,10 +884,6 @@ def get_base_frontend_path():
     return os.path.abspath(os.path.join(os.getcwd(), static_path, "esphome_dashboard"))
 
 
-def get_template_path(template_name):
-    return os.path.join(get_base_frontend_path(), f"{template_name}.template.html")
-
-
 def get_static_path(*args):
     return os.path.join(get_base_frontend_path(), "static", *args)
 
@@ -933,6 +941,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
         "cookie_secret": settings.cookie_secret,
         "log_function": log_function,
         "websocket_ping_interval": 30.0,
+        "template_path": get_base_frontend_path(),
     }
     rel = settings.relative_url
     app = tornado.web.Application(

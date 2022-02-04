@@ -129,10 +129,11 @@ uint8_t HOT SPIComponent::transfer_(uint8_t data) {
 
   for (uint8_t i = 0; i < 8; i++) {
     uint8_t shift;
-    if (BIT_ORDER == BIT_ORDER_MSB_FIRST)
+    if (BIT_ORDER == BIT_ORDER_MSB_FIRST) {
       shift = 7 - i;
-    else
+    } else {
       shift = i;
+    }
 
     if (CLOCK_PHASE == CLOCK_PHASE_LEADING) {
       // sampling on leading edge

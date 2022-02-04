@@ -278,10 +278,11 @@ void FingerprintGrowComponent::delete_all_fingerprints() {
 
 void FingerprintGrowComponent::led_control(bool state) {
   ESP_LOGD(TAG, "Setting LED");
-  if (state)
+  if (state) {
     this->data_ = {LED_ON};
-  else
+  } else {
     this->data_ = {LED_OFF};
+  }
   switch (this->send_command_()) {
     case OK:
       ESP_LOGD(TAG, "LED set");

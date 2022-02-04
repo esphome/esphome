@@ -47,11 +47,16 @@ MODBUS_FUNCTION_CODE = {
 
 ModbusRegisterType_ns = modbus_controller_ns.namespace("ModbusRegisterType")
 ModbusRegisterType = ModbusRegisterType_ns.enum("ModbusRegisterType")
-MODBUS_REGISTER_TYPE = {
+
+MODBUS_WRITE_REGISTER_TYPE = {
     "custom": ModbusRegisterType.CUSTOM,
     "coil": ModbusRegisterType.COIL,
-    "discrete_input": ModbusRegisterType.DISCRETE_INPUT,
     "holding": ModbusRegisterType.HOLDING,
+}
+
+MODBUS_REGISTER_TYPE = {
+    **MODBUS_WRITE_REGISTER_TYPE,
+    "discrete_input": ModbusRegisterType.DISCRETE_INPUT,
     "read": ModbusRegisterType.READ,
 }
 
