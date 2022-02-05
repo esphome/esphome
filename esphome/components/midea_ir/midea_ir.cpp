@@ -172,10 +172,11 @@ bool MideaIR::on_midea_(const MideaData &data) {
       this->target_temperature = status.get_temp();
     this->mode = status.get_mode();
     this->fan_mode = status.get_fan_mode();
-    if (status.get_sleep_preset())
+    if (status.get_sleep_preset()) {
       this->preset = climate::CLIMATE_PRESET_SLEEP;
-    else if (this->preset == climate::CLIMATE_PRESET_SLEEP)
+    } else if (this->preset == climate::CLIMATE_PRESET_SLEEP) {
       this->preset = climate::CLIMATE_PRESET_NONE;
+    }
     this->publish_state();
     return true;
   }

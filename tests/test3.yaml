@@ -1351,7 +1351,15 @@ daly_bms:
   update_interval: 20s
   uart_id: uart1
 
+qr_code:
+  - id: homepage_qr
+    value: https://esphome.io/index.html
+
 button:
+  - platform: output
+    id: output_button
+    output: out
+    duration: 100ms
   - platform: wake_on_lan
     target_mac_address: 12:34:56:78:90:ab
     name: wol_test_1

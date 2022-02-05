@@ -2,18 +2,17 @@
 
 #include <cmath>
 #include <cstring>
-
-#include <string>
 #include <functional>
-#include <vector>
 #include <memory>
+#include <string>
 #include <type_traits>
+#include <vector>
+
+#include "esphome/core/optional.h"
 
 #ifdef USE_ESP32
 #include <esp_heap_caps.h>
 #endif
-
-#include "esphome/core/optional.h"
 
 #define HOT __attribute__((hot))
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
@@ -30,209 +29,26 @@
 
 namespace esphome {
 
-/// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
-void get_mac_address_raw(uint8_t *mac);
-
-/// Get the device MAC address as a string, in lowercase hex notation.
-std::string get_mac_address();
-
-/// Get the device MAC address as a string, in colon-separated uppercase hex notation.
-std::string get_mac_address_pretty();
-
-#ifdef USE_ESP32
-/// Set the MAC address to use from the provided byte array (6 bytes).
-void set_mac_address(uint8_t *mac);
-#endif
-
-/// Compare string a to string b (ignoring case) and return whether they are equal.
-bool str_equals_case_insensitive(const std::string &a, const std::string &b);
-bool str_startswith(const std::string &full, const std::string &start);
-bool str_endswith(const std::string &full, const std::string &ending);
-
-/// snprintf-like function returning std::string with a given maximum length.
-std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t length, ...);
-
-/// sprintf-like function returning std::string.
-std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
-
-class HighFrequencyLoopRequester {
- public:
-  void start();
-  void stop();
-
-  static bool is_high_frequency();
-
- protected:
-  bool started_{false};
-};
-
-/** Linearly interpolate between end start and end by completion.
- *
- * @tparam T The input/output typename.
- * @param start The start value.
- * @param end The end value.
- * @param completion The completion. 0 is start value, 1 is end value.
- * @return The linearly interpolated value.
- */
-float lerp(float completion, float start, float end);
-
-// Not all platforms we support target C++14 yet, so we can't unconditionally use std::make_unique. Provide our own
-// implementation if needed, and otherwise pull std::make_unique into scope so that we have a uniform API.
-#if __cplusplus >= 201402L
-using std::make_unique;
-#else
-template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...args) {
-  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
-}
-#endif
-
-/// Applies gamma correction with the provided gamma to value.
-float gamma_correct(float value, float gamma);
-/// Reverts gamma correction with the provided gamma to value.
-float gamma_uncorrect(float value, float gamma);
-
-/// Create a string from a value and an accuracy in decimals.
-std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
-
-/// Convert RGB floats (0-1) to hue (0-360) & saturation/value percentage (0-1)
-void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
-/// Convert hue (0-360) & saturation/value percentage (0-1) to RGB floats (0-1)
-void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green, float &blue);
-
-/// Convert degrees Celsius to degrees Fahrenheit.
-static inline float celsius_to_fahrenheit(float value) { return value * 1.8f + 32.0f; }
-/// Convert degrees Fahrenheit to degrees Celsius.
-static inline float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.8f; }
-
-/***
- * An interrupt helper class.
- *
- * This behaves like std::lock_guard. As long as the value is visible in the current stack, all interrupts
- * (including flash reads) will be disabled.
- *
- * Please note all functions called when the interrupt lock must be marked IRAM_ATTR (loading code into
- * instruction cache is done via interrupts; disabling interrupts prevents data not already in cache from being
- * pulled from flash).
- *
- * Example:
- *
- * ```cpp
- * // interrupts are enabled
- * {
- *   InterruptLock lock;
- *   // do something
- *   // interrupts are disabled
- * }
- * // interrupts are enabled
- * ```
- */
-class InterruptLock {
- public:
-  InterruptLock();
-  ~InterruptLock();
-
- protected:
-#ifdef USE_ESP8266
-  uint32_t xt_state_;
-#endif
-};
-
-/// Calculate a crc8 of data with the provided data length.
-uint8_t crc8(uint8_t *data, uint8_t len);
-
-enum ParseOnOffState {
-  PARSE_NONE = 0,
-  PARSE_ON,
-  PARSE_OFF,
-  PARSE_TOGGLE,
-};
-
-ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const char *off = nullptr);
-
-// https://stackoverflow.com/questions/7858817/unpacking-a-tuple-to-call-a-matching-function-pointer/7858971#7858971
-template<int...> struct seq {};                                       // NOLINT
-template<int N, int... S> struct gens : gens<N - 1, N - 1, S...> {};  // NOLINT
-template<int... S> struct gens<0, S...> { using type = seq<S...>; };  // NOLINT
-
-template<bool B, class T = void> using enable_if_t = typename std::enable_if<B, T>::type;
-
-template<typename T, enable_if_t<!std::is_pointer<T>::value, int> = 0> T id(T value) { return value; }
-template<typename T, enable_if_t<std::is_pointer<T *>::value, int> = 0> T &id(T *value) { return *value; }
-
-template<typename... X> class CallbackManager;
-
-/** Simple helper class to allow having multiple subscribers to a signal.
- *
- * @tparam Ts The arguments for the callback, wrapped in void().
- */
-template<typename... Ts> class CallbackManager<void(Ts...)> {
- public:
-  /// Add a callback to the internal callback list.
-  void add(std::function<void(Ts...)> &&callback) { this->callbacks_.push_back(std::move(callback)); }
-
-  /// Call all callbacks in this manager.
-  void call(Ts... args) {
-    for (auto &cb : this->callbacks_)
-      cb(args...);
-  }
-
- protected:
-  std::vector<std::function<void(Ts...)>> callbacks_;
-};
-
-void delay_microseconds_safe(uint32_t us);
-
-template<typename T> class Deduplicator {
- public:
-  bool next(T value) {
-    if (this->has_value_) {
-      if (this->last_value_ == value)
-        return false;
-    }
-    this->has_value_ = true;
-    this->last_value_ = value;
-    return true;
-  }
-  bool has_value() const { return this->has_value_; }
-
- protected:
-  bool has_value_{false};
-  T last_value_{};
-};
-
-template<typename T> class Parented {
- public:
-  Parented() {}
-  Parented(T *parent) : parent_(parent) {}
-
-  T *get_parent() const { return parent_; }
-  void set_parent(T *parent) { parent_ = parent; }
-
- protected:
-  T *parent_{nullptr};
-};
-
-uint32_t fnv1_hash(const std::string &str);
-
-// ---------------------------------------------------------------------------------------------------------------------
-
 /// @name STL backports
 ///@{
+
+// Backports for various STL features we like to use. Pull in the STL implementation wherever available, to avoid
+// ambiguity and to provide a uniform API.
 
 // std::to_string() from C++11, available from libstdc++/g++ 8
 // See https://github.com/espressif/esp-idf/issues/1445
 #if _GLIBCXX_RELEASE >= 8
 using std::to_string;
 #else
-inline std::string to_string(int value) { return str_snprintf("%d", 32, value); }                   // NOLINT
-inline std::string to_string(long value) { return str_snprintf("%ld", 32, value); }                 // NOLINT
-inline std::string to_string(long long value) { return str_snprintf("%lld", 32, value); }           // NOLINT
-inline std::string to_string(unsigned value) { return str_snprintf("%u", 32, value); }              // NOLINT
-inline std::string to_string(unsigned long value) { return str_snprintf("%lu", 32, value); }        // NOLINT
-inline std::string to_string(unsigned long long value) { return str_snprintf("%llu", 32, value); }  // NOLINT
-inline std::string to_string(float value) { return str_snprintf("%f", 32, value); }
-inline std::string to_string(double value) { return str_snprintf("%f", 32, value); }
-inline std::string to_string(long double value) { return str_snprintf("%Lf", 32, value); }
+std::string to_string(int value);                 // NOLINT
+std::string to_string(long value);                // NOLINT
+std::string to_string(long long value);           // NOLINT
+std::string to_string(unsigned value);            // NOLINT
+std::string to_string(unsigned long value);       // NOLINT
+std::string to_string(unsigned long long value);  // NOLINT
+std::string to_string(float value);
+std::string to_string(double value);
+std::string to_string(long double value);
 #endif
 
 // std::is_trivially_copyable from C++11, implemented in libstdc++/g++ 5.1 (but minor releases can't be detected)
@@ -243,6 +59,22 @@ using std::is_trivially_copyable;
 // other variants that use a newer compiler anyway.
 // NOLINTNEXTLINE(readability-identifier-naming)
 template<typename T> struct is_trivially_copyable : public std::integral_constant<bool, true> {};
+#endif
+
+// std::make_unique() from C++14
+#if __cpp_lib_make_unique >= 201304
+using std::make_unique;
+#else
+template<typename T, typename... Args> std::unique_ptr<T> make_unique(Args &&...args) {
+  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
+#endif
+
+// std::enable_if_t from C++14
+#if __cplusplus >= 201402L
+using std::enable_if_t;
+#else
+template<bool B, class T = void> using enable_if_t = typename std::enable_if<B, T>::type;
 #endif
 
 // std::clamp from C++17
@@ -305,6 +137,20 @@ template<> constexpr14 int64_t byteswap(int64_t n) { return __builtin_bswap64(n)
 
 /// @name Mathematics
 ///@{
+
+/// Linearly interpolate between \p start and \p end by \p completion (between 0 and 1).
+float lerp(float completion, float start, float end);
+
+/// Remap \p value from the range (\p min, \p max) to (\p min_out, \p max_out).
+template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
+  return (value - min) * (max_out - min_out) / (max - min) + min_out;
+}
+
+/// Calculate a CRC-8 checksum of \p data with size \p len.
+uint8_t crc8(uint8_t *data, uint8_t len);
+
+/// Calculate a FNV-1 hash of \p str.
+uint32_t fnv1_hash(const std::string &str);
 
 /// Return a random 32-bit unsigned integer.
 uint32_t random_uint32();
@@ -394,6 +240,14 @@ template<typename T> constexpr14 T convert_little_endian(T val) {
 /// @name Strings
 ///@{
 
+/// Compare strings for equality in case-insensitive manner.
+bool str_equals_case_insensitive(const std::string &a, const std::string &b);
+
+/// Check whether a string starts with a value.
+bool str_startswith(const std::string &str, const std::string &start);
+/// Check whether a string ends with a value.
+bool str_endswith(const std::string &str, const std::string &end);
+
 /// Convert the value to a string (added as extra overload so that to_string() can be used on all stringifiable types).
 inline std::string to_string(const std::string &val) { return val; }
 
@@ -415,6 +269,12 @@ std::string str_snake_case(const std::string &str);
 
 /// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
 std::string str_sanitize(const std::string &str);
+
+/// snprintf-like function returning std::string of maximum length \p len (excluding null terminator).
+std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t len, ...);
+
+/// sprintf-like function returning std::string.
+std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
 
 ///@}
 
@@ -534,15 +394,181 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::stri
   return format_hex_pretty(reinterpret_cast<uint8_t *>(&val), sizeof(T));
 }
 
+/// Return values for parse_on_off().
+enum ParseOnOffState {
+  PARSE_NONE = 0,
+  PARSE_ON,
+  PARSE_OFF,
+  PARSE_TOGGLE,
+};
+/// Parse a string that contains either on, off or toggle.
+ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const char *off = nullptr);
+
+/// Create a string from a value and an accuracy in decimals.
+std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
+
 ///@}
 
-/// @name Number manipulation
+/// @name Colors
 ///@{
 
-/// Remap a number from one range to another.
-template<typename T, typename U> constexpr T remap(U value, U min, U max, T min_out, T max_out) {
-  return (value - min) * (max_out - min_out) / (max - min) + min_out;
-}
+/// Applies gamma correction of \p gamma to \p value.
+float gamma_correct(float value, float gamma);
+/// Reverts gamma correction of \p gamma to \p value.
+float gamma_uncorrect(float value, float gamma);
+
+/// Convert \p red, \p green and \p blue (all 0-1) values to \p hue (0-360), \p saturation (0-1) and \p value (0-1).
+void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
+/// Convert \p hue (0-360), \p saturation (0-1) and \p value (0-1) to \p red, \p green and \p blue (all 0-1).
+void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green, float &blue);
+
+///@}
+
+/// @name Units
+///@{
+
+/// Convert degrees Celsius to degrees Fahrenheit.
+constexpr float celsius_to_fahrenheit(float value) { return value * 1.8f + 32.0f; }
+/// Convert degrees Fahrenheit to degrees Celsius.
+constexpr float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.8f; }
+
+///@}
+
+/// @name Utilities
+/// @{
+
+template<typename... X> class CallbackManager;
+
+/** Helper class to allow having multiple subscribers to a callback.
+ *
+ * @tparam Ts The arguments for the callbacks, wrapped in void().
+ */
+template<typename... Ts> class CallbackManager<void(Ts...)> {
+ public:
+  /// Add a callback to the list.
+  void add(std::function<void(Ts...)> &&callback) { this->callbacks_.push_back(std::move(callback)); }
+
+  /// Call all callbacks in this manager.
+  void call(Ts... args) {
+    for (auto &cb : this->callbacks_)
+      cb(args...);
+  }
+
+  /// Call all callbacks in this manager.
+  void operator()(Ts... args) { call(args...); }
+
+ protected:
+  std::vector<std::function<void(Ts...)>> callbacks_;
+};
+
+/// Helper class to deduplicate items in a series of values.
+template<typename T> class Deduplicator {
+ public:
+  /// Feeds the next item in the series to the deduplicator and returns whether this is a duplicate.
+  bool next(T value) {
+    if (this->has_value_) {
+      if (this->last_value_ == value)
+        return false;
+    }
+    this->has_value_ = true;
+    this->last_value_ = value;
+    return true;
+  }
+  /// Returns whether this deduplicator has processed any items so far.
+  bool has_value() const { return this->has_value_; }
+
+ protected:
+  bool has_value_{false};
+  T last_value_{};
+};
+
+/// Helper class to easily give an object a parent of type \p T.
+template<typename T> class Parented {
+ public:
+  Parented() {}
+  Parented(T *parent) : parent_(parent) {}
+
+  /// Get the parent of this object.
+  T *get_parent() const { return parent_; }
+  /// Set the parent of this object.
+  void set_parent(T *parent) { parent_ = parent; }
+
+ protected:
+  T *parent_{nullptr};
+};
+
+/// @}
+
+/// @name System APIs
+///@{
+
+/** Helper class to disable interrupts.
+ *
+ * This behaves like std::lock_guard: as long as the object is alive, all interrupts are disabled.
+ *
+ * Please note all functions called when the interrupt lock must be marked IRAM_ATTR (loading code into
+ * instruction cache is done via interrupts; disabling interrupts prevents data not already in cache from being
+ * pulled from flash).
+ *
+ * Example usage:
+ *
+ * \code{.cpp}
+ * // interrupts are enabled
+ * {
+ *   InterruptLock lock;
+ *   // do something
+ *   // interrupts are disabled
+ * }
+ * // interrupts are enabled
+ * \endcode
+ */
+class InterruptLock {
+ public:
+  InterruptLock();
+  ~InterruptLock();
+
+ protected:
+#ifdef USE_ESP8266
+  uint32_t xt_state_;
+#endif
+};
+
+/** Helper class to request `loop()` to be called as fast as possible.
+ *
+ * Usually the ESPHome main loop runs at 60 Hz, sleeping in between invocations of `loop()` if necessary. When a higher
+ * execution frequency is necessary, you can use this class to make the loop run continuously without waiting.
+ */
+class HighFrequencyLoopRequester {
+ public:
+  /// Start running the loop continuously.
+  void start();
+  /// Stop running the loop continuously.
+  void stop();
+
+  /// Check whether the loop is running continuously.
+  static bool is_high_frequency();
+
+ protected:
+  bool started_{false};
+  static uint8_t num_requests;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+};
+
+/// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
+void get_mac_address_raw(uint8_t *mac);
+
+/// Get the device MAC address as a string, in lowercase hex notation.
+std::string get_mac_address();
+
+/// Get the device MAC address as a string, in colon-separated uppercase hex notation.
+std::string get_mac_address_pretty();
+
+#ifdef USE_ESP32
+/// Set the MAC address to use from the provided byte array (6 bytes).
+void set_mac_address(uint8_t *mac);
+#endif
+
+/// Delay for the given amount of microseconds, possibly yielding to other processes during the wait.
+void delay_microseconds_safe(uint32_t us);
 
 ///@}
 
@@ -590,6 +616,22 @@ template<class T> class ExternalRAMAllocator {
 };
 
 /// @}
+
+/// @name Internal functions
+///@{
+
+/** Helper function to make `id(var)` known from lambdas work in custom components.
+ *
+ * This function is not called from lambdas, the code generator replaces calls to it with the appropriate variable.
+ */
+template<typename T, enable_if_t<!std::is_pointer<T>::value, int> = 0> T id(T value) { return value; }
+/** Helper function to make `id(var)` known from lambdas work in custom components.
+ *
+ * This function is not called from lambdas, the code generator replaces calls to it with the appropriate variable.
+ */
+template<typename T, enable_if_t<std::is_pointer<T *>::value, int> = 0> T &id(T *value) { return *value; }
+
+///@}
 
 /// @name Deprecated functions
 ///@{

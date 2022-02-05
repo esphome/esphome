@@ -45,6 +45,12 @@ void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
     this->switch_row_(stream, obj);
 #endif
 
+#ifdef USE_LOCK
+  this->lock_type_(stream);
+  for (auto *obj : App.get_locks())
+    this->lock_row_(stream, obj);
+#endif
+
   req->send(stream);
 }
 
@@ -301,6 +307,30 @@ void PrometheusHandler::switch_row_(AsyncResponseStream *stream, switch_::Switch
   stream->print(F("\"} 0\n"));
   // Data itself
   stream->print(F("esphome_switch_value{id=\""));
+  stream->print(obj->get_object_id().c_str());
+  stream->print(F("\",name=\""));
+  stream->print(obj->get_name().c_str());
+  stream->print(F("\"} "));
+  stream->print(obj->state);
+  stream->print('\n');
+}
+#endif
+
+#ifdef USE_LOCK
+void PrometheusHandler::lock_type_(AsyncResponseStream *stream) {
+  stream->print(F("#TYPE esphome_lock_value GAUGE\n"));
+  stream->print(F("#TYPE esphome_lock_failed GAUGE\n"));
+}
+void PrometheusHandler::lock_row_(AsyncResponseStream *stream, lock::Lock *obj) {
+  if (obj->is_internal())
+    return;
+  stream->print(F("esphome_lock_failed{id=\""));
+  stream->print(obj->get_object_id().c_str());
+  stream->print(F("\",name=\""));
+  stream->print(obj->get_name().c_str());
+  stream->print(F("\"} 0\n"));
+  // Data itself
+  stream->print(F("esphome_lock_value{id=\""));
   stream->print(obj->get_object_id().c_str());
   stream->print(F("\",name=\""));
   stream->print(obj->get_name().c_str());

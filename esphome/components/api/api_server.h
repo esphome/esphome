@@ -67,6 +67,9 @@ class APIServer : public Component, public Controller {
 #ifdef USE_SELECT
   void on_select_update(select::Select *obj, const std::string &state) override;
 #endif
+#ifdef USE_LOCK
+  void on_lock_update(lock::Lock *obj) override;
+#endif
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #ifdef USE_HOMEASSISTANT_TIME

@@ -34,6 +34,9 @@
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
+#ifdef USE_LOCK
+#include "esphome/components/lock/lock.h"
+#endif
 
 namespace esphome {
 
@@ -69,6 +72,9 @@ class Controller {
 #endif
 #ifdef USE_SELECT
   virtual void on_select_update(select::Select *obj, const std::string &state){};
+#endif
+#ifdef USE_LOCK
+  virtual void on_lock_update(lock::Lock *obj){};
 #endif
 };
 

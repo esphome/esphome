@@ -58,8 +58,7 @@ def validate_modbus_number(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    number.NUMBER_SCHEMA.extend(ModbusItemBaseSchema)
-    .extend(
+    number.NUMBER_SCHEMA.extend(ModbusItemBaseSchema).extend(
         {
             cv.GenerateID(): cv.declare_id(ModbusNumber),
             cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
@@ -72,8 +71,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
             cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
         }
-    )
-    .extend(cv.polling_component_schema("60s")),
+    ),
     validate_min_max,
     validate_modbus_number,
 )

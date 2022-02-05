@@ -198,6 +198,9 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     result.name = "MJYD02YLA";
     if (raw.size() == 19)
       result.raw_offset -= 6;
+  } else if ((raw[2] == 0xd3) && (raw[3] == 0x06)) {  // rectangular body, e-ink display with alarm
+    result.type = XiaomiParseResult::TYPE_MHOC303;
+    result.name = "MHOC303";
   } else if ((raw[2] == 0x87) && (raw[3] == 0x03)) {  // square body, e-ink display
     result.type = XiaomiParseResult::TYPE_MHOC401;
     result.name = "MHOC401";
