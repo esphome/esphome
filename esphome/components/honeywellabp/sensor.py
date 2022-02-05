@@ -53,6 +53,7 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
 
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
@@ -68,6 +69,3 @@ async def to_code(config):
         conf = config[CONF_TEMPERATURE]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_temperature_sensor(sens))
-
-
-          

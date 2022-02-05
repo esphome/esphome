@@ -32,8 +32,6 @@ class HONEYWELLABPSensor : public sensor::Sensor,
   int temperature_count_ = 0;  // hold raw temperature data (11 - bit, 0 - 2048)
   sensor::Sensor *pressure_sensor_;
   sensor::Sensor *temperature_sensor_;
-
-// private:
   uint8_t readsensor_();
   uint8_t readstatus_();
   int rawpressure_();
