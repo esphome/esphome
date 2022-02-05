@@ -14,8 +14,8 @@ from esphome.const import (
 
 DEPENDENCIES = ["spi"]
 
-CONF_HONEYWELLABP_MIN_PRESSURE = "min_pressure"
-CONF_HONEYWELLABP_MAX_PRESSURE = "max_pressure"
+CONF_MIN_PRESSURE = "min_pressure"
+CONF_MAX_PRESSURE = "max_pressure"
 
 honeywellabp_ns = cg.esphome_ns.namespace("honeywellabp")
 HONEYWELLABPSensor = honeywellabp_ns.class_(
@@ -32,8 +32,8 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
-                    cv.Required(CONF_HONEYWELLABP_MIN_PRESSURE): cv.float_,
-                    cv.Required(CONF_HONEYWELLABP_MAX_PRESSURE): cv.float_,
+                    cv.Required(CONF_MIN_PRESSURE): cv.float_,
+                    cv.Required(CONF_MAX_PRESSURE): cv.float_,
                 }
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
@@ -59,8 +59,8 @@ async def to_code(config):
         conf = config[CONF_PRESSURE]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_pressure_sensor(sens))
-        cg.add(var.set_honeywellabp_min_pressure(conf[CONF_HONEYWELLABP_MIN_PRESSURE]))
-        cg.add(var.set_honeywellabp_max_pressure(conf[CONF_HONEYWELLABP_MAX_PRESSURE]))
+        cg.add(var.set_honeywellabp_min_pressure(conf[CONF_MIN_PRESSURE]))
+        cg.add(var.set_honeywellabp_max_pressure(conf[CONF_MAX_PRESSURE]))
 
     if CONF_TEMPERATURE in config:
         conf = config[CONF_TEMPERATURE]
