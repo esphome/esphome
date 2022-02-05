@@ -16,14 +16,14 @@ DEPENDENCIES = ["wifi"]
 
 wifi_info_ns = cg.esphome_ns.namespace("wifi_info")
 IPAddressWiFiInfo = wifi_info_ns.class_(
-    "IPAddressWiFiInfo", text_sensor.TextSensor, cg.Component
+    "IPAddressWiFiInfo", text_sensor.TextSensor, cg.PollingComponent
 )
 ScanResultsWiFiInfo = wifi_info_ns.class_(
     "ScanResultsWiFiInfo", text_sensor.TextSensor, cg.PollingComponent
 )
-SSIDWiFiInfo = wifi_info_ns.class_("SSIDWiFiInfo", text_sensor.TextSensor, cg.Component)
+SSIDWiFiInfo = wifi_info_ns.class_("SSIDWiFiInfo", text_sensor.TextSensor, cg.PollingComponent)
 BSSIDWiFiInfo = wifi_info_ns.class_(
-    "BSSIDWiFiInfo", text_sensor.TextSensor, cg.Component
+    "BSSIDWiFiInfo", text_sensor.TextSensor, cg.PollingComponent
 )
 MacAddressWifiInfo = wifi_info_ns.class_(
     "MacAddressWifiInfo", text_sensor.TextSensor, cg.Component
@@ -38,7 +38,7 @@ CONFIG_SCHEMA = cv.Schema(
                     CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_DIAGNOSTIC
                 ): cv.entity_category,
             }
-        ),
+        ).extend(cv.polling_component_schema("1s")),
         cv.Optional(CONF_SCAN_RESULTS): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(ScanResultsWiFiInfo),
@@ -54,7 +54,7 @@ CONFIG_SCHEMA = cv.Schema(
                     CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_DIAGNOSTIC
                 ): cv.entity_category,
             }
-        ),
+        ).extend(cv.polling_component_schema("1s")),
         cv.Optional(CONF_BSSID): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(BSSIDWiFiInfo),
@@ -62,7 +62,7 @@ CONFIG_SCHEMA = cv.Schema(
                     CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_DIAGNOSTIC
                 ): cv.entity_category,
             }
-        ),
+        ).extend(cv.polling_component_schema("1s")),
         cv.Optional(CONF_MAC_ADDRESS): text_sensor.TEXT_SENSOR_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(MacAddressWifiInfo),
