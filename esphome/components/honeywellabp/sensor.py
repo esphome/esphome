@@ -9,7 +9,7 @@ from esphome.const import (
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS
+    UNIT_CELSIUS,
 )
 
 DEPENDENCIES = ["spi"]
@@ -19,10 +19,7 @@ CONF_HONEYWELLABP_MAX_PRESSURE = "max_pressure"
 
 honeywellabp_ns = cg.esphome_ns.namespace("honeywellabp")
 HONEYWELLABPSensor = honeywellabp_ns.class_(
-    "HONEYWELLABPSensor",
-    sensor.Sensor,
-    cg.PollingComponent,
-    spi.SPIDevice
+    "HONEYWELLABPSensor", sensor.Sensor, cg.PollingComponent, spi.SPIDevice
 )
 
 CONFIG_SCHEMA = (
