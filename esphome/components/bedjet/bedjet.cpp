@@ -136,7 +136,7 @@ void Bedjet::control(const ClimateCall &call) {
 
   if (call.get_target_temperature().has_value()) {
     auto target_temp = *call.get_target_temperature();
-    auto pkt = this->codec_->get_set_target_temp_request(target_temp);
+    auto *pkt = this->codec_->get_set_target_temp_request(target_temp);
     auto status = this->write_bedjet_packet_(pkt);
 
     if (status) {
@@ -252,7 +252,7 @@ void Bedjet::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      auto chr = this->parent_->get_characteristic(BEDJET_SERVICE_UUID, BEDJET_COMMAND_UUID);
+      auto *chr = this->parent_->get_characteristic(BEDJET_SERVICE_UUID, BEDJET_COMMAND_UUID);
       if (chr == nullptr) {
         ESP_LOGW(TAG, "[%s] No control service found at device, not a BedJet..?", this->get_name().c_str());
         break;
@@ -269,7 +269,7 @@ void Bedjet::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
       // We also need to obtain the config descriptor for this handle.
       // Otherwise once we set node_state=Established, the parent will flush all handles/descriptors, and we won't be
       // able to look it up.
-      auto descr = this->parent_->get_config_descriptor(this->char_handle_status_);
+      auto *descr = this->parent_->get_config_descriptor(this->char_handle_status_);
       if (descr == nullptr) {
         ESP_LOGW(TAG, "No config descriptor for status handle 0x%x. Will not be able to receive status notifications",
                  this->char_handle_status_);
@@ -472,7 +472,7 @@ void Bedjet::send_local_time_() {
     ESP_LOGV(TAG, "[%s] Not connected, cannot send time.", this->get_name().c_str());
     return;
   }
-  auto time_id = *this->time_id_;
+  auto *time_id = *this->time_id_;
   time::ESPTime now = time_id->now();
   if (now.is_valid()) {
     uint8_t hour = now.hour;
@@ -491,7 +491,7 @@ void Bedjet::send_local_time_() {
 void Bedjet::setup_time_() {
   if (this->time_id_.has_value()) {
     this->send_local_time_();
-    auto time_id = *this->time_id_;
+    auto *time_id = *this->time_id_;
     time_id->add_on_time_sync_callback([this] { this->send_local_time_(); });
     time::ESPTime now = time_id->now();
     ESP_LOGD(TAG, "Using time component to set BedJet clock: %d:%02d", now.hour, now.minute);
@@ -553,7 +553,7 @@ bool Bedjet::update_status_() {
   if (converted_temp > 0)
     this->current_temperature = converted_temp;
 
-  auto fan_mode_name = bedjet_fan_step_to_fan_mode(status.fan_step);
+  const auto *fan_mode_name = bedjet_fan_step_to_fan_mode(status.fan_step);
   if (fan_mode_name != nullptr) {
     this->custom_fan_mode = *fan_mode_name;
   }
