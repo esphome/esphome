@@ -9,15 +9,14 @@
 namespace esphome {
 namespace honeywellabp {
 
-class HONEYWELLABPSensor : public sensor::Sensor,
-                           public PollingComponent,
+class HONEYWELLABPSensor : public PollingComponent,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                  spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_200KHZ> {
  public:
-  void setup() override;
-  void update() override;
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
+  void setup() override;
+  void update() override;
   float get_setup_priority() const override;
   void dump_config() override;
   void set_honeywellabp_min_pressure(float min_pressure);
