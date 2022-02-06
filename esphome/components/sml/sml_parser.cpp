@@ -7,8 +7,8 @@ namespace sml {
 
 SmlFile::SmlFile(bytes buffer) : buffer_(std::move(buffer)) {
   // extract messages
-  this->pos_ = 8;
-  while (this->pos_ + 8 < this->buffer_.size()) {
+  this->pos_ = 0;
+  while (this->pos_ < this->buffer_.size()) {
     if (this->buffer_[this->pos_] == 0x00)
       break;  // fill byte detected -> no more messages
 
@@ -31,7 +31,7 @@ bool SmlFile::setup_node(SmlNode *node) {
     this->pos_ += 1;
   }
 
-  if (this->pos_ + parse_length + 8 >= this->buffer_.size())
+  if (this->pos_ + parse_length >= this->buffer_.size())
     return false;
 
   node->type = type & 0x07;
@@ -73,34 +73,6 @@ std::vector<ObisInfo> SmlFile::get_obis_info() {
     }
   }
   return obis_info;
-}
-
-char check_sml_data(const bytes &buffer) {
-  if (buffer.size() < 2)
-    return CHECK_CRC16_FAILED;
-
-  uint16_t crc_received = (buffer.at(buffer.size() - 2) << 8) | buffer.at(buffer.size() - 1);
-  if (crc_received == calc_crc16_x25(buffer.begin(), buffer.end() - 2, 0))
-    return CHECK_CRC16_X25_SUCCESS;
-  else if (crc_received == calc_crc16_kermit(buffer.begin(), buffer.end() - 2, 0))
-    return CHECK_CRC16_KERMIT_SUCCESS;
-  return CHECK_CRC16_FAILED;
-}
-
-uint16_t calc_crc16_p1021(bytes::const_iterator begin, bytes::const_iterator end, uint16_t crcsum) {
-  for (auto it = begin; it != end; it++) {
-    crcsum = (crcsum >> 8) ^ CRC16_X25_TABLE[(crcsum & 0xff) ^ *it];
-  }
-  return crcsum;
-}
-
-uint16_t calc_crc16_x25(bytes::const_iterator begin, bytes::const_iterator end, uint16_t crcsum = 0) {
-  crcsum = calc_crc16_p1021(begin, end, crcsum ^ 0xffff) ^ 0xffff;
-  return (crcsum >> 8) | ((crcsum & 0xff) << 8);
-}
-
-uint16_t calc_crc16_kermit(bytes::const_iterator begin, bytes::const_iterator end, uint16_t crcsum = 0) {
-  return calc_crc16_p1021(begin, end, crcsum);
 }
 
 std::string bytes_repr(const bytes &buffer) {
