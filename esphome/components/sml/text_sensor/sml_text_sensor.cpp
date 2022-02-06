@@ -13,10 +13,11 @@ SmlTextSensor::SmlTextSensor(std::string server_id, std::string obis_code, SmlTy
 
 void SmlTextSensor::publish_val(const ObisInfo &obis_info) {
   uint8_t value_type;
-  if (this->format_ == SML_UNDEFINED)
+  if (this->format_ == SML_UNDEFINED) {
     value_type = obis_info.value_type;
-  else
+  } else {
     value_type = this->format_;
+  }
 
   switch (value_type) {
     case SML_HEX: {

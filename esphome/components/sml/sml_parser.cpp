@@ -37,9 +37,9 @@ bool SmlFile::setup_node(SmlNode *node) {
   node->type = type & 0x07;
   node->nodes.clear();
   node->value_bytes.clear();
-  if (this->buffer_[this->pos_] == 0x00)  // end of message
+  if (this->buffer_[this->pos_] == 0x00) {  // end of message
     this->pos_ += 1;
-  else if (is_list) {  // list
+  } else if (is_list) {  // list
     this->pos_ += 1;
     node->nodes.reserve(parse_length);
     for (size_t i = 0; i != parse_length; i++) {

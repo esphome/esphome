@@ -28,7 +28,7 @@ class Sml : public Component, public uart::UARTDevice {
   void process_sml_file_(const bytes &sml_data);
   void log_obis_info_(const std::vector<ObisInfo> &obis_info_vec);
   void publish_obis_info_(const std::vector<ObisInfo> &obis_info_vec);
-  char check_start_end_bytes_(uint8_t c);
+  char check_start_end_bytes_(uint8_t byte);
   void publish_value_(const ObisInfo &obis_info);
 
   // Serial parser
@@ -38,9 +38,9 @@ class Sml : public Component, public uart::UARTDevice {
 };
 
 bool check_sml_data(const bytes &buffer);
-uint16_t calc_crc16_p1021(const bytes::const_iterator begin, const bytes::const_iterator end, uint16_t crcsum);
-uint16_t calc_crc16_x25(const bytes::const_iterator begin, const bytes::const_iterator end, uint16_t crcsum);
-uint16_t calc_crc16_kermit(const bytes::const_iterator begin, const bytes::const_iterator end, uint16_t crcsum);
+uint16_t calc_crc16_p1021(bytes::const_iterator begin, bytes::const_iterator end, uint16_t crcsum);
+uint16_t calc_crc16_x25(bytes::const_iterator begin, bytes::const_iterator end, uint16_t crcsum);
+uint16_t calc_crc16_kermit(bytes::const_iterator begin, bytes::const_iterator end, uint16_t crcsum);
 
 uint8_t get_code(uint8_t byte);
 }  // namespace sml
