@@ -102,7 +102,7 @@ bool BedjetCodec::decode_notify(const uint8_t *data, uint16_t length) {
       ESP_LOGW(TAG, "Received potentially invalid packet (len %d):", length);
     }
   } else if (data[1] == PACKET_FORMAT_DEBUG || data[3] == PACKET_TYPE_DEBUG) {
-    // TODO: we're not sure what the format is for this.
+    // We don't actually know the packet format for this. Dump packets to log, in case a pattern presents itself.
     ESP_LOGV(TAG,
              "received DEBUG packet: set1=%01fF, set2=%01fF, air=%01fF;  [7]=%d, [8]=%d, [9]=%d, [10]=%d, [11]=%d, "
              "[12]=%d, [-1]=%d",

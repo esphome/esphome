@@ -203,8 +203,8 @@ void Bedjet::control(const ClimateCall &call) {
   }
 
   if (call.get_fan_mode().has_value()) {
-    // FIXME: climate fan mode only supports low/med/high, but the BedJet supports 5-100% increments.
-    //  We can still support a ClimateCall that requests low/med/high, and just translate it to a step increment here.
+    // Climate fan mode only supports low/med/high, but the BedJet supports 5-100% increments.
+    // We can still support a ClimateCall that requests low/med/high, and just translate it to a step increment here.
     auto fan_mode = *call.get_fan_mode();
     BedjetPacket *pkt;
     if (fan_mode == climate::CLIMATE_FAN_LOW) {
@@ -238,7 +238,6 @@ void Bedjet::control(const ClimateCall &call) {
         ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
       } else {
         this->force_refresh_ = true;
-        // TODO: we need to settle on low/med/high vs 5% increments
       }
     }
   }
@@ -558,7 +557,7 @@ bool Bedjet::update_status_() {
     this->custom_fan_mode = *fan_mode_name;
   }
 
-  // TODO: do we have any way to know if a particular preset is running (M1/2/3)? get biorhythm data?
+  // TODO: Get biorhythm data to determine which preset (M1-3) is running, if any.
   switch (status.mode) {
     case MODE_WAIT:  // Biorhythm "wait" step: device is idle
     case MODE_STANDBY:

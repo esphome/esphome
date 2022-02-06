@@ -68,9 +68,9 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
       });
     } else {
       traits.set_supported_custom_presets({
-          // TODO: we can fetch biodata from bedjet and set these names that way.
-          //  But then we have to invert the lookup in order to send the right preset.
-          //  For now, we can leave them as M1-3 to match the remote buttons.
+          // We could fetch biodata from bedjet and set these names that way.
+          // But then we have to invert the lookup in order to send the right preset.
+          // For now, we can leave them as M1-3 to match the remote buttons.
           "M1",
           "M2",
           "M3",
