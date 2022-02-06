@@ -13,13 +13,12 @@ const char END_BYTES_DETECTED = 2;
 SmlListener::SmlListener(std::string server_id, std::string obis_code)
     : server_id(std::move(server_id)), obis_code(std::move(obis_code)) {}
 
-char Sml::check_start_end_bytes_(char c) {
-  std::rotate(incoming_buffer_, incoming_buffer_ + 1, incoming_buffer_ + 8);
-  this->incoming_buffer_[7] = c;
+char Sml::check_start_end_bytes_(uint8_t byte) {
+  this->incoming_mask_ = (this->incoming_mask_ << 2) | get_code(byte);
 
-  if (memcmp(this->incoming_buffer_, START_BYTES, sizeof(START_BYTES)) == 0)
+  if (this->incoming_mask_ == START_MASK)
     return START_BYTES_DETECTED;
-  if (memcmp(this->incoming_buffer_, END_BYTES, sizeof(END_BYTES)) == 0)
+  if ((this->incoming_mask_ >> 6) == END_MASK)
     return END_BYTES_DETECTED;
   return 0;
 }
@@ -128,6 +127,19 @@ uint16_t calc_crc16_x25(bytes::const_iterator begin, bytes::const_iterator end, 
 
 uint16_t calc_crc16_kermit(bytes::const_iterator begin, bytes::const_iterator end, uint16_t crcsum = 0) {
   return calc_crc16_p1021(begin, end, crcsum);
+}
+
+uint8_t get_code(uint8_t byte) {
+  switch (byte) {
+    case 0x1b:
+      return 1;
+    case 0x01:
+      return 2;
+    case 0x1a:
+      return 3;
+    default:
+      return 0;
+  }
 }
 
 }  // namespace sml
