@@ -36,6 +36,15 @@ static uint8_t bedjet_fan_speed_to_step(const std::string &fan_step_percent) {
   return -1;
 }
 
+void Bedjet::upgrade_firmware() {
+  auto *pkt = this->codec_->get_button_request(MAGIC_UPDATE);
+  auto status = this->write_bedjet_packet_(pkt);
+
+  if (status) {
+    ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
+  }
+}
+
 void Bedjet::dump_config() {
   LOG_CLIMATE("", "BedJet Climate", this);
   auto traits = this->get_traits();

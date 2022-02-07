@@ -35,6 +35,9 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
   void set_status_timeout(uint32_t timeout) { this->timeout_ = timeout; }
 
+  /** Attempts to check for and apply firmware updates. */
+  void upgrade_firmware();
+
   climate::ClimateTraits traits() override {
     auto traits = climate::ClimateTraits();
     traits.set_supports_action(true);
