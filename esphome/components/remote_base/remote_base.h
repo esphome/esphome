@@ -116,6 +116,16 @@ class RemoteReceiveData {
     return false;
   }
 
+  bool expect_pulse_with_gap(uint32_t mark, uint32_t space) {
+    if (this->peek_mark(mark, 0) && this->peek_space_at_least(space, 1)) {
+      this->advance(2);
+      return true;
+    }
+    return false;
+  }
+
+  uint32_t get_index() { return index_; }
+
   void reset() { this->index_ = 0; }
 
   int32_t pos(uint32_t index) const { return (*this->data_)[index]; }
@@ -274,7 +284,7 @@ class RemoteReceiverBinarySensorBase : public binary_sensor::BinarySensorInitial
                                        public Component,
                                        public RemoteReceiverListener {
  public:
-  explicit RemoteReceiverBinarySensorBase() : BinarySensorInitiallyOff() {}
+  explicit RemoteReceiverBinarySensorBase() {}
   void dump_config() override;
   virtual bool matches(RemoteReceiveData src) = 0;
   bool on_receive(RemoteReceiveData src) override {

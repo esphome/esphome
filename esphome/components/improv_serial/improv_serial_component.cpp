@@ -24,6 +24,8 @@ void ImprovSerialComponent::setup() {
 
   if (wifi::global_wifi_component->has_sta()) {
     this->state_ = improv::STATE_PROVISIONED;
+  } else {
+    wifi::global_wifi_component->start_scanning();
   }
 }
 
@@ -95,7 +97,7 @@ std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv:
   std::vector<std::string> urls;
 #ifdef USE_WEBSERVER
   auto ip = wifi::global_wifi_component->wifi_sta_ip();
-  std::string webserver_url = "http://" + ip.str() + ":" + to_string(WEBSERVER_PORT);
+  std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
   urls.push_back(webserver_url);
 #endif
   std::vector<uint8_t> data = improv::build_rpc_response(command, urls, false);
@@ -111,58 +113,15 @@ std::vector<uint8_t> ImprovSerialComponent::build_version_info_() {
 bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
   size_t at = this->rx_buffer_.size();
   this->rx_buffer_.push_back(byte);
-  ESP_LOGD(TAG, "Improv Serial byte: 0x%02X", byte);
+  ESP_LOGV(TAG, "Improv Serial byte: 0x%02X", byte);
   const uint8_t *raw = &this->rx_buffer_[0];
-  if (at == 0)
-    return byte == 'I';
-  if (at == 1)
-    return byte == 'M';
-  if (at == 2)
-    return byte == 'P';
-  if (at == 3)
-    return byte == 'R';
-  if (at == 4)
-    return byte == 'O';
-  if (at == 5)
-    return byte == 'V';
 
-  if (at == 6)
-    return byte == IMPROV_SERIAL_VERSION;
-
-  if (at == 7)
-    return true;
-  uint8_t type = raw[7];
-
-  if (at == 8)
-    return true;
-  uint8_t data_len = raw[8];
-
-  if (at < 8 + data_len)
-    return true;
-
-  if (at == 8 + data_len)
-    return true;
-
-  if (at == 8 + data_len + 1) {
-    uint8_t checksum = 0x00;
-    for (size_t i = 0; i < at; i++)
-      checksum += raw[i];
-
-    if (checksum != byte) {
-      ESP_LOGW(TAG, "Error decoding Improv payload");
-      this->set_error_(improv::ERROR_INVALID_RPC);
-      return false;
-    }
-
-    if (type == TYPE_RPC) {
-      this->set_error_(improv::ERROR_NONE);
-      auto command = improv::parse_improv_data(&raw[9], data_len, false);
-      return this->parse_improv_payload_(command);
-    }
-  }
-
-  // If we got here then the command coming is is improv, but not an RPC command
-  return false;
+  return improv::parse_improv_serial_byte(
+      at, byte, raw, [this](improv::ImprovCommand command) -> bool { return this->parse_improv_payload_(command); },
+      [this](improv::Error error) -> void {
+        ESP_LOGW(TAG, "Error decoding Improv payload");
+        this->set_error_(error);
+      });
 }
 
 bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command) {
@@ -193,6 +152,27 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
     case improv::GET_DEVICE_INFO: {
       std::vector<uint8_t> info = this->build_version_info_();
       this->send_response_(info);
+      return true;
+    }
+    case improv::GET_WIFI_NETWORKS: {
+      std::vector<std::string> networks;
+      auto results = wifi::global_wifi_component->get_scan_result();
+      for (auto &scan : results) {
+        if (scan.get_is_hidden())
+          continue;
+        const std::string &ssid = scan.get_ssid();
+        if (std::find(networks.begin(), networks.end(), ssid) != networks.end())
+          continue;
+        // Send each ssid separately to avoid overflowing the buffer
+        std::vector<uint8_t> data = improv::build_rpc_response(
+            improv::GET_WIFI_NETWORKS, {ssid, str_sprintf("%d", scan.get_rssi()), YESNO(scan.get_with_auth())}, false);
+        this->send_response_(data);
+        networks.push_back(ssid);
+      }
+      // Send empty response to signify the end of the list.
+      std::vector<uint8_t> data =
+          improv::build_rpc_response(improv::GET_WIFI_NETWORKS, std::vector<std::string>{}, false);
+      this->send_response_(data);
       return true;
     }
     default: {
