@@ -38,7 +38,7 @@ class SelectCall {
 class SelectTraits {
  public:
   void set_options(std::vector<std::string> options) { this->options_ = std::move(options); }
-  const std::vector<std::string> get_options() const { return this->options_; }
+  std::vector<std::string> get_options() const { return this->options_; }
 
  protected:
   std::vector<std::string> options_;

@@ -1,3 +1,4 @@
+import typing
 from typing import Union, List
 
 import collections
@@ -240,6 +241,13 @@ def run_external_process(*cmd, **kwargs):
 
 def is_dev_esphome_version():
     return "dev" in const.__version__
+
+
+def parse_esphome_version() -> typing.Tuple[int, int, int]:
+    match = re.match(r"^(\d+).(\d+).(\d+)(-dev\d*|b\d*)?$", const.__version__)
+    if match is None:
+        raise ValueError(f"Failed to parse ESPHome version '{const.__version__}'")
+    return int(match.group(1)), int(match.group(2)), int(match.group(3))
 
 
 # Custom OrderedDict with nicer repr method for debugging
