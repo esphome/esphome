@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation, pins
 from esphome.components import i2c
-from esphome.const import CONF_ON_TAG, CONF_TRIGGER_ID, CONF_RESET_PIN
+from esphome.const import CONF_ON_TAG, CONF_TRIGGER_ID, CONF_RESET_PIN, CONF_GAIN
 
 CODEOWNERS = ["@glmnet"]
 AUTO_LOAD = ["binary_sensor"]
@@ -24,6 +24,7 @@ RC522_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RC522Trigger),
             }
         ),
+        cv.Optional(CONF_GAIN, default=4): cv.Range(min=0, max=7)
     }
 ).extend(cv.polling_component_schema("1s"))
 
@@ -39,3 +40,6 @@ async def setup_rc522(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_trigger(trigger))
         await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+
+    if CONF_GAIN in config:
+        cg.add(var.set_gain(config[CONF_GAIN]));

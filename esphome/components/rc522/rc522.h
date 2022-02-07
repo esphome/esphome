@@ -25,6 +25,7 @@ class RC522 : public PollingComponent {
   void register_trigger(RC522Trigger *trig) { this->triggers_.push_back(trig); }
 
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
+  void set_gain(uint8_t gain) { this->gain_ = gain; }
 
  protected:
   // Return codes from the functions in this class. Remember to update GetStatusCodeName() if you add more.
@@ -235,6 +236,7 @@ class RC522 : public PollingComponent {
   uint8_t error_counter_ = 0;  // to reset if unresponsive
   uint8_t rx_align_;
   uint8_t *valid_bits_;
+  uint8_t gain_ = 4;
 
   GPIOPin *reset_pin_{nullptr};
   uint8_t reset_count_{0};
