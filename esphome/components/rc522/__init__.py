@@ -42,4 +42,4 @@ async def setup_rc522(var, config):
         await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
     if CONF_GAIN in config:
-        cg.add(var.set_gain(config[CONF_GAIN]));
+        cg.add(var.set_gain(config[CONF_GAIN]))
