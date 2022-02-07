@@ -24,7 +24,7 @@ RC522_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RC522Trigger),
             }
         ),
-        cv.Optional(CONF_GAIN, default=4): cv.Range(min=0, max=7)
+        cv.Optional(CONF_GAIN, default=4): cv.Range(min=0, max=7),
     }
 ).extend(cv.polling_component_schema("1s"))
 
