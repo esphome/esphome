@@ -109,6 +109,7 @@ void RC522::dump_config() {
   }
 
   LOG_PIN("  RESET Pin: ", this->reset_pin_);
+  ESP_LOGCONFIG(TAG, "  Gain: %d", this->gain_);
 
   LOG_UPDATE_INTERVAL(this);
 
