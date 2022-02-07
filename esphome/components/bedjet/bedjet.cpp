@@ -40,8 +40,6 @@ void Bedjet::dump_config() {
   LOG_CLIMATE("", "BedJet Climate", this);
   auto traits = this->get_traits();
 
-  if (!BEDJET_DEBUG)
-    return;
   ESP_LOGCONFIG(TAG, "  Supported modes:");
   for (auto mode : traits.get_supported_modes()) {
     ESP_LOGCONFIG(TAG, "   - %s", LOG_STR_ARG(climate_mode_to_string(mode)));
@@ -177,16 +175,6 @@ void Bedjet::control(const ClimateCall &call) {
       pkt = this->codec_->get_button_request(BTN_M2);
     } else if (preset == "M3") {
       pkt = this->codec_->get_button_request(BTN_M3);
-    } else if (BEDJET_DEBUG) {
-      // When BEDJET_DEBUG is enabled, we can optionally offer some additional commands via "presets"
-      if (preset == "Update Firmware") {
-        // For debugging, this can check for a firmware update
-        pkt = this->codec_->get_button_request(MAGIC_UPDATE);
-      } else if (BEDJET_DEBUG && preset == "Debug On") {
-        pkt = this->codec_->get_button_request(MAGIC_DEBUG_ON);
-      } else if (BEDJET_DEBUG && preset == "Debug Off") {
-        pkt = this->codec_->get_button_request(MAGIC_DEBUG_OFF);
-      }
     } else {
       ESP_LOGW(TAG, "Unsupported preset: %s", preset.c_str());
       return;
@@ -296,22 +284,6 @@ void Bedjet::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
       this->set_notify_(true);
       if (this->time_id_.has_value()) {
         this->send_local_time_();
-      }
-
-      if (BEDJET_DEBUG) {
-        BedjetPacket *pkt = this->codec_->get_button_request(MAGIC_DEBUG_ON);
-        auto status = this->write_bedjet_packet_(pkt);
-        if (status) {
-          ESP_LOGW(TAG, "[%s] enabling debug mode failed, status=%d", this->get_name().c_str(), status);
-        } else {
-          ESP_LOGV(TAG, "[%s] enabling debug mode succeeded", this->get_name().c_str());
-        }
-      } else {
-        BedjetPacket *pkt = this->codec_->get_button_request(MAGIC_DEBUG_OFF);
-        auto status = this->write_bedjet_packet_(pkt);
-        if (status) {
-          ESP_LOGV(TAG, "[%s] disabling debug mode failed, status=%d", this->get_name().c_str(), status);
-        }
       }
       break;
     }
@@ -429,9 +401,7 @@ void Bedjet::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
       break;
     }
     default:
-      if (BEDJET_DEBUG) {
-        ESP_LOGV(TAG, "[%s] gattc unhandled event: enum=%d", this->get_name().c_str(), event);
-      }
+      ESP_LOGVV(TAG, "[%s] gattc unhandled event: enum=%d", this->get_name().c_str(), event);
       break;
   }
 }

@@ -55,27 +55,14 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
         // Climate doesn't have a "TURBO" mode, but we can use the BOOST preset instead.
         climate::CLIMATE_PRESET_BOOST,
     });
-    if (BEDJET_DEBUG) {
-      // In debug mode, use custom presets to handle custom commands
-      traits.set_supported_custom_presets({
-          "M1",
-          "M2",
-          "M3",
-
-          "Update Firmware",
-          "Debug On",
-          "Debug Off",
-      });
-    } else {
-      traits.set_supported_custom_presets({
-          // We could fetch biodata from bedjet and set these names that way.
-          // But then we have to invert the lookup in order to send the right preset.
-          // For now, we can leave them as M1-3 to match the remote buttons.
-          "M1",
-          "M2",
-          "M3",
-      });
-    }
+    traits.set_supported_custom_presets({
+        // We could fetch biodata from bedjet and set these names that way.
+        // But then we have to invert the lookup in order to send the right preset.
+        // For now, we can leave them as M1-3 to match the remote buttons.
+        "M1",
+        "M2",
+        "M3",
+    });
     traits.set_visual_min_temperature(19.0);
     traits.set_visual_max_temperature(43.0);
     traits.set_visual_temperature_step(1.0);
@@ -94,8 +81,6 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
   static const uint32_t MIN_NOTIFY_THROTTLE = 5000;
   static const uint32_t NOTIFY_WARN_THRESHOLD = 300000;
   static const uint32_t DEFAULT_STATUS_TIMEOUT = 900000;
-
-  static const bool BEDJET_DEBUG = false;
 
   uint8_t set_notify_(bool enable);
   uint8_t write_bedjet_packet_(BedjetPacket *pkt);
