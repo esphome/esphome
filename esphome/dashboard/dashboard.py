@@ -733,7 +733,7 @@ class EditRequestHandler(BaseHandler):
         content = ""
         if os.path.isfile(filename):
             # pylint: disable=no-value-for-parameter
-            with open(file=filename, mode="r", encoding="utf-8") as f:
+            with open(file=filename, encoding="utf-8") as f:
                 content = f.read()
         self.write(content)
 
