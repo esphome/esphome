@@ -84,7 +84,9 @@ void Bedjet::setup() {
     this->reset_state_();
   }
 
+#ifdef USE_TIME
   this->setup_time_();
+#endif
 }
 
 /** Resets states to defaults. */
@@ -291,9 +293,12 @@ void Bedjet::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
       this->node_state = espbt::ClientState::ESTABLISHED;
 
       this->set_notify_(true);
+
+#ifdef USE_TIME
       if (this->time_id_.has_value()) {
         this->send_local_time_();
       }
+#endif
       break;
     }
     case ESP_GATTC_WRITE_DESCR_EVT: {
@@ -444,6 +449,7 @@ uint8_t Bedjet::write_notify_config_descriptor_(bool enable) {
   return ESP_GATT_OK;
 }
 
+#ifdef USE_TIME
 /** Attempts to sync the local time (via `time_id`) to the BedJet device. */
 void Bedjet::send_local_time_() {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
@@ -477,6 +483,7 @@ void Bedjet::setup_time_() {
     ESP_LOGI(TAG, "`time_id` is not configured: will not sync BedJet clock.");
   }
 }
+#endif
 
 /** Writes one BedjetPacket to the BLE client on the BEDJET_COMMAND_UUID. */
 uint8_t Bedjet::write_bedjet_packet_(BedjetPacket *pkt) {

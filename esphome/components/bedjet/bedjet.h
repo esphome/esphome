@@ -3,10 +3,13 @@
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/climate/climate.h"
-#include "esphome/components/time/real_time_clock.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "bedjet_base.h"
+
+#ifdef USE_TIME
+#include "esphome/components/time/real_time_clock.h"
+#endif
 
 #ifdef USE_ESP32
 
@@ -32,7 +35,9 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
+#ifdef USE_TIME
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
+#endif
   void set_status_timeout(uint32_t timeout) { this->timeout_ = timeout; }
 
   /** Attempts to check for and apply firmware updates. */
@@ -75,9 +80,11 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
  protected:
   void control(const climate::ClimateCall &call) override;
 
+#ifdef USE_TIME
   void setup_time_();
   void send_local_time_();
   optional<time::RealTimeClock *> time_id_{};
+#endif
 
   uint32_t timeout_{DEFAULT_STATUS_TIMEOUT};
 
