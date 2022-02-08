@@ -413,8 +413,6 @@ void Pipsolar::loop() {
         this->state_ = STATE_IDLE;
         break;
       case POLLING_QT:
-        this->state_ = STATE_IDLE;
-        break;
       case POLLING_QMN:
         this->state_ = STATE_IDLE;
         break;
@@ -481,7 +479,7 @@ void Pipsolar::loop() {
         ESP_LOGD(TAG, "Decode QFLAG");
         // result like:"(EbkuvxzDajy"
         // get through all char: ignore first "(" Enable flag on 'E', Disable on 'D') else set the corresponding value
-        for (int i = 1; i < strlen(tmp); i++) {
+        for (size_t i = 1; i < strlen(tmp); i++) {
           switch (tmp[i]) {
             case 'E':
               enabled = true;
@@ -530,7 +528,7 @@ void Pipsolar::loop() {
         this->value_warnings_present_ = false;
         this->value_faults_present_ = true;
 
-        for (int i = 1; i < strlen(tmp); i++) {
+        for (size_t i = 1; i < strlen(tmp); i++) {
           enabled = tmp[i] == '1';
           switch (i) {
             case 1:
@@ -656,7 +654,7 @@ void Pipsolar::loop() {
             case 32:
               fc = tmp[i];
               fc += tmp[i + 1];
-              this->value_fault_code_ = strtol(fc.c_str(), nullptr, 10);
+              this->value_fault_code_ = parse_number<int>(fc).value_or(0);
               break;
             case 34:
               this->value_warnung_low_pv_energy_ = enabled;
@@ -910,10 +908,11 @@ uint16_t Pipsolar::crc_xmodem_update_(uint16_t crc, uint8_t data) {
   int i;
   crc = crc ^ ((uint16_t) data << 8);
   for (i = 0; i < 8; i++) {
-    if (crc & 0x8000)
+    if (crc & 0x8000) {
       crc = (crc << 1) ^ 0x1021;  //(polynomial = 0x1021)
-    else
+    } else {
       crc <<= 1;
+    }
   }
   return crc;
 }

@@ -1,6 +1,8 @@
 #include "mqtt_sensor.h"
 #include "esphome/core/log.h"
 
+#include "mqtt_const.h"
+
 #ifdef USE_MQTT
 #ifdef USE_SENSOR
 
@@ -15,7 +17,7 @@ static const char *const TAG = "mqtt.sensor";
 
 using namespace esphome::sensor;
 
-MQTTSensorComponent::MQTTSensorComponent(Sensor *sensor) : MQTTComponent(), sensor_(sensor) {}
+MQTTSensorComponent::MQTTSensorComponent(Sensor *sensor) : sensor_(sensor) {}
 
 void MQTTSensorComponent::setup() {
   this->sensor_->add_on_state_callback([this](float state) { this->publish_state(state); });
@@ -40,21 +42,21 @@ uint32_t MQTTSensorComponent::get_expire_after() const {
 void MQTTSensorComponent::set_expire_after(uint32_t expire_after) { this->expire_after_ = expire_after; }
 void MQTTSensorComponent::disable_expire_after() { this->expire_after_ = 0; }
 
-void MQTTSensorComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+void MQTTSensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   if (!this->sensor_->get_device_class().empty())
-    root["device_class"] = this->sensor_->get_device_class();
+    root[MQTT_DEVICE_CLASS] = this->sensor_->get_device_class();
 
   if (!this->sensor_->get_unit_of_measurement().empty())
-    root["unit_of_measurement"] = this->sensor_->get_unit_of_measurement();
+    root[MQTT_UNIT_OF_MEASUREMENT] = this->sensor_->get_unit_of_measurement();
 
   if (this->get_expire_after() > 0)
-    root["expire_after"] = this->get_expire_after() / 1000;
+    root[MQTT_EXPIRE_AFTER] = this->get_expire_after() / 1000;
 
   if (this->sensor_->get_force_update())
-    root["force_update"] = true;
+    root[MQTT_FORCE_UPDATE] = true;
 
   if (this->sensor_->get_state_class() != STATE_CLASS_NONE)
-    root["state_class"] = state_class_to_string(this->sensor_->get_state_class());
+    root[MQTT_STATE_CLASS] = state_class_to_string(this->sensor_->get_state_class());
 
   config.command_topic = false;
 }

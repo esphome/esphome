@@ -13,6 +13,7 @@ from esphome.const import (
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_LUX,
@@ -51,6 +52,7 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=3,
                 device_class=DEVICE_CLASS_VOLTAGE,
                 state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,

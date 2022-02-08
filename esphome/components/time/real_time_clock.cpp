@@ -35,7 +35,7 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   }
 
   auto time = this->now();
-  ESP_LOGD(TAG, "Synchronized time: %d-%d-%d %d:%d:%d", time.year, time.month, time.day_of_month, time.hour,
+  ESP_LOGD(TAG, "Synchronized time: %04d-%02d-%02d %02d:%02d:%02d", time.year, time.month, time.day_of_month, time.hour,
            time.minute, time.second);
 
   this->time_sync_callback_.call();
@@ -118,6 +118,23 @@ void ESPTime::increment_second() {
     return;
 
   // hour roll-over, increment day
+  increment_time_value(this->day_of_week, 1, 8);
+
+  if (increment_time_value(this->day_of_month, 1, days_in_month(this->month, this->year) + 1)) {
+    // day of month roll-over, increment month
+    increment_time_value(this->month, 1, 13);
+  }
+
+  uint16_t days_in_year = (this->year % 4 == 0) ? 366 : 365;
+  if (increment_time_value(this->day_of_year, 1, days_in_year + 1)) {
+    // day of year roll-over, increment year
+    this->year++;
+  }
+}
+void ESPTime::increment_day() {
+  this->timestamp += 86400;
+
+  // increment day
   increment_time_value(this->day_of_week, 1, 8);
 
   if (increment_time_value(this->day_of_month, 1, days_in_month(this->month, this->year) + 1)) {

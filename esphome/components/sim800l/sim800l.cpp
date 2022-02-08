@@ -128,7 +128,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       if (message.compare(0, 5, "+CSQ:") == 0) {
         size_t comma = message.find(',', 6);
         if (comma != 6) {
-          this->rssi_ = strtol(message.substr(6, comma - 6).c_str(), nullptr, 10);
+          this->rssi_ = parse_number<int>(message.substr(6, comma - 6)).value_or(0);
           ESP_LOGD(TAG, "RSSI: %d", this->rssi_);
         }
       }
@@ -146,7 +146,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         while (end != start) {
           item++;
           if (item == 1) {  // Slot Index
-            this->parse_index_ = strtol(message.substr(start, end - start).c_str(), nullptr, 10);
+            this->parse_index_ = parse_number<uint8_t>(message.substr(start, end - start)).value_or(0);
           }
           // item 2 = STATUS, usually "REC UNERAD"
           if (item == 3) {  // recipient

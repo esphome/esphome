@@ -38,10 +38,8 @@ CPP_BASE_FORMAT = (
     """"
 
 void setup() {
-  // ===== DO NOT EDIT ANYTHING BELOW THIS LINE =====
   """,
     """
-  // ========= YOU CAN EDIT AFTER THIS LINE =========
   App.setup();
 }
 
@@ -59,10 +57,8 @@ lib_deps =
 build_flags =
 upload_flags =
 
-; ===== DO NOT EDIT ANYTHING BELOW THIS LINE =====
 """,
     """
-; ========= YOU CAN EDIT AFTER THIS LINE =========
 
 """,
 )
@@ -102,61 +98,6 @@ def replace_file_content(text, pattern, repl):
     return content_new, count
 
 
-def migrate_src_version_0_to_1():
-    main_cpp = CORE.relative_build_path("src", "main.cpp")
-    if not os.path.isfile(main_cpp):
-        return
-
-    content = read_file(main_cpp)
-
-    if CPP_INCLUDE_BEGIN in content:
-        return
-
-    content, count = replace_file_content(content, r"\s*delay\((?:16|20)\);", "")
-    if count != 0:
-        _LOGGER.info(
-            "Migration: Removed %s occurrence of 'delay(16);' in %s", count, main_cpp
-        )
-
-    content, count = replace_file_content(content, r"using namespace esphomelib;", "")
-    if count != 0:
-        _LOGGER.info(
-            "Migration: Removed %s occurrence of 'using namespace esphomelib;' "
-            "in %s",
-            count,
-            main_cpp,
-        )
-
-    if CPP_INCLUDE_BEGIN not in content:
-        content, count = replace_file_content(
-            content,
-            r'#include "esphomelib/application.h"',
-            f"{CPP_INCLUDE_BEGIN}\n{CPP_INCLUDE_END}",
-        )
-        if count == 0:
-            _LOGGER.error(
-                "Migration failed. ESPHome 1.10.0 needs to have a new auto-generated "
-                "include section in the %s file. Please remove %s and let it be "
-                "auto-generated again.",
-                main_cpp,
-                main_cpp,
-            )
-        _LOGGER.info("Migration: Added include section to %s", main_cpp)
-
-    write_file_if_changed(main_cpp, content)
-
-
-def migrate_src_version(old, new):
-    if old == new:
-        return
-    if old > new:
-        _LOGGER.warning("The source version rolled backwards! Ignoring.")
-        return
-
-    if old == 0:
-        migrate_src_version_0_to_1()
-
-
 def storage_should_clean(old, new):  # type: (StorageJSON, StorageJSON) -> bool
     if old is None:
         return True
@@ -174,9 +115,6 @@ def update_storage_json():
     new = StorageJSON.from_esphome_core(CORE, old)
     if old == new:
         return
-
-    old_src_version = old.src_version if old is not None else 0
-    migrate_src_version(old_src_version, new.src_version)
 
     if storage_should_clean(old, new):
         _LOGGER.info("Core config or version changed, cleaning build files...")
@@ -264,6 +202,7 @@ def write_platformio_project():
 
 DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
 #pragma once
+#include "esphome/core/macros.h"
 {}
 """
 VERSION_H_FORMAT = """\
@@ -277,12 +216,12 @@ VERSION_H_TARGET = "esphome/core/version.h"
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
-ESPHome automatically populates the esphome/ directory, and any
+ESPHome automatically populates the build directory, and any
 changes to this directory will be removed the next time esphome is
 run.
 
-For modifying esphome's core files, please use a development esphome install
-or use the custom_components folder.
+For modifying esphome's core files, please use a development esphome install,
+the custom_components folder or the external_components feature.
 """
 
 
@@ -339,9 +278,7 @@ def copy_src_tree():
     write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "defines.h"), generate_defines_h()
     )
-    write_file_if_changed(
-        CORE.relative_src_path("esphome", "README.txt"), ESPHOME_README_TXT
-    )
+    write_file_if_changed(CORE.relative_build_path("README.txt"), ESPHOME_README_TXT)
     write_file_if_changed(
         CORE.relative_src_path("esphome.h"), ESPHOME_H_FORMAT.format(include_s)
     )
@@ -351,6 +288,11 @@ def copy_src_tree():
 
     if CORE.is_esp32:
         from esphome.components.esp32 import copy_files
+
+        copy_files()
+
+    elif CORE.is_esp8266:
+        from esphome.components.esp8266 import copy_files
 
         copy_files()
 
@@ -413,11 +355,6 @@ GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
 # This is an example and may include too much for your use-case.
 # You can modify this file to suit your needs.
 /.esphome/
-**/.pioenvs/
-**/.piolibdeps/
-**/lib/
-**/src/
-**/platformio.ini
 /secrets.yaml
 """
 

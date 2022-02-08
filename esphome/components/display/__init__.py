@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import core, automation
 from esphome.automation import maybe_simple_id
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_ID,
     CONF_LAMBDA,
     CONF_PAGES,
@@ -79,6 +80,7 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
                 cv.Optional(CONF_TO): cv.use_id(DisplayPage),
             }
         ),
+        cv.Optional(CONF_AUTO_CLEAR_ENABLED, default=True): cv.boolean,
     }
 )
 
@@ -86,6 +88,10 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
 async def setup_display_core_(var, config):
     if CONF_ROTATION in config:
         cg.add(var.set_rotation(DISPLAY_ROTATIONS[config[CONF_ROTATION]]))
+
+    if CONF_AUTO_CLEAR_ENABLED in config:
+        cg.add(var.set_auto_clear(config[CONF_AUTO_CLEAR_ENABLED]))
+
     if CONF_PAGES in config:
         pages = []
         for conf in config[CONF_PAGES]:

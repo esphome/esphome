@@ -5,6 +5,12 @@
 
 namespace esphome {
 
+enum EntityCategory : uint8_t {
+  ENTITY_CATEGORY_NONE = 0,
+  ENTITY_CATEGORY_CONFIG = 1,
+  ENTITY_CATEGORY_DIAGNOSTIC = 2,
+};
+
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
@@ -31,6 +37,10 @@ class EntityBase {
   bool is_disabled_by_default() const;
   void set_disabled_by_default(bool disabled_by_default);
 
+  // Get/set the entity category.
+  EntityCategory get_entity_category() const;
+  void set_entity_category(EntityCategory entity_category);
+
   // Get/set this entity's icon
   const std::string &get_icon() const;
   void set_icon(const std::string &name);
@@ -45,6 +55,7 @@ class EntityBase {
   uint32_t object_id_hash_;
   bool internal_{false};
   bool disabled_by_default_{false};
+  EntityCategory entity_category_{ENTITY_CATEGORY_NONE};
 };
 
 }  // namespace esphome

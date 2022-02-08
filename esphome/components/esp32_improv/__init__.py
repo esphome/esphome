@@ -4,7 +4,7 @@ from esphome.components import binary_sensor, output, esp32_ble_server
 from esphome.const import CONF_ID
 
 
-AUTO_LOAD = ["binary_sensor", "output", "improv", "esp32_ble_server"]
+AUTO_LOAD = ["binary_sensor", "output", "esp32_ble_server"]
 CODEOWNERS = ["@jesserockz"]
 CONFLICTS_WITH = ["esp32_ble_tracker", "esp32_ble_beacon"]
 DEPENDENCIES = ["wifi", "esp32"]
@@ -56,6 +56,7 @@ async def to_code(config):
     cg.add(ble_server.register_service_component(var))
 
     cg.add_define("USE_IMPROV")
+    cg.add_library("esphome/Improv", "1.2.1")
 
     cg.add(var.set_identify_duration(config[CONF_IDENTIFY_DURATION]))
     cg.add(var.set_authorized_duration(config[CONF_AUTHORIZED_DURATION]))

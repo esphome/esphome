@@ -90,9 +90,7 @@ async def to_code(config):
         )
         cg.add(RawExpression(f"if ({condition}) return"))
 
-    if CORE.is_esp8266:
-        cg.add_library("Update", None)
-    elif CORE.is_esp32 and CORE.using_arduino:
+    if CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("Update", None)
 
     use_state_callback = False

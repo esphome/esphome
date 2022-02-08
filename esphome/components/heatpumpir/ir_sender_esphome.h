@@ -11,8 +11,8 @@ namespace heatpumpir {
 
 class IRSenderESPHome : public IRSender {
  public:
-  IRSenderESPHome(uint8_t pin, remote_transmitter::RemoteTransmitterComponent *transmitter)
-      : IRSender(pin), transmit_(transmitter->transmit()){};
+  IRSenderESPHome(remote_transmitter::RemoteTransmitterComponent *transmitter)
+      : IRSender(0), transmit_(transmitter->transmit()){};
   void setFrequency(int frequency) override;  // NOLINT(readability-identifier-naming)
   void space(int space_length) override;
   void mark(int mark_length) override;

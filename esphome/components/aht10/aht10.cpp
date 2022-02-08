@@ -73,13 +73,6 @@ void AHT10Component::update() {
   bool success = false;
   for (int i = 0; i < AHT10_ATTEMPTS; ++i) {
     ESP_LOGVV(TAG, "Attempt %d at %6u", i, millis());
-    delay_microseconds_accurate(4);
-
-    uint8_t reg = 0;
-    if (this->write(&reg, 1) != i2c::ERROR_OK) {
-      ESP_LOGD(TAG, "Communication with AHT10 failed, waiting...");
-      continue;
-    }
     delay(delay_ms);
     if (this->read(data, 6) != i2c::ERROR_OK) {
       ESP_LOGD(TAG, "Communication with AHT10 failed, waiting...");
@@ -117,12 +110,12 @@ void AHT10Component::update() {
   uint32_t raw_temperature = ((data[3] & 0x0F) << 16) | (data[4] << 8) | data[5];
   uint32_t raw_humidity = ((data[1] << 16) | (data[2] << 8) | data[3]) >> 4;
 
-  float temperature = ((200.0 * (float) raw_temperature) / 1048576.0) - 50.0;
+  float temperature = ((200.0f * (float) raw_temperature) / 1048576.0f) - 50.0f;
   float humidity;
   if (raw_humidity == 0) {  // unrealistic value
     humidity = NAN;
   } else {
-    humidity = (float) raw_humidity * 100.0 / 1048576.0;
+    humidity = (float) raw_humidity * 100.0f / 1048576.0f;
   }
 
   if (this->temperature_sensor_ != nullptr) {

@@ -69,7 +69,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   uint8_t data_len = raw[2];
   uint8_t data_offset = 3;
   // the response for write command mirrors the requests and data startes at offset 2 instead of 3 for read commands
-  if (function_code == 0x5 || function_code == 0x06 || function_code == 0x10) {
+  if (function_code == 0x5 || function_code == 0x06 || function_code == 0xF || function_code == 0x10) {
     data_offset = 2;
     data_len = 4;
   }
@@ -96,23 +96,27 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     ESP_LOGW(TAG, "Modbus CRC Check failed! %02X!=%02X", computed_crc, remote_crc);
     return false;
   }
-
-  waiting_for_response = 0;
   std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + data_offset + data_len);
-
   bool found = false;
   for (auto *device : this->devices_) {
     if (device->address_ == address) {
       // Is it an error response?
       if ((function_code & 0x80) == 0x80) {
-        ESP_LOGW(TAG, "Modbus error function code: 0x%X exception: %d", function_code, raw[2]);
-        device->on_modbus_error(function_code & 0x7F, raw[2]);
+        ESP_LOGD(TAG, "Modbus error function code: 0x%X exception: %d", function_code, raw[2]);
+        if (waiting_for_response != 0) {
+          device->on_modbus_error(function_code & 0x7F, raw[2]);
+        } else {
+          // Ignore modbus exception not related to a pending command
+          ESP_LOGD(TAG, "Ignoring Modbus error - not expecting a response");
+        }
       } else {
         device->on_modbus_data(data);
       }
       found = true;
     }
   }
+  waiting_for_response = 0;
+
   if (!found) {
     ESP_LOGW(TAG, "Got Modbus frame from unknown address 0x%02X! ", address);
   }
@@ -135,7 +139,9 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
                   uint8_t payload_len, const uint8_t *payload) {
   static const size_t MAX_VALUES = 128;
 
-  if (number_of_entities > MAX_VALUES) {
+  // Only check max number of registers for standard function codes
+  // Some devices use non standard codes like 0x43
+  if (number_of_entities > MAX_VALUES && function_code <= 0x10) {
     ESP_LOGE(TAG, "send too many values %d max=%zu", number_of_entities, MAX_VALUES);
     return;
   }
@@ -175,7 +181,7 @@ void Modbus::send(uint8_t address, uint8_t function_code, uint16_t start_address
     this->flow_control_pin_->digital_write(false);
   waiting_for_response = address;
   last_send_ = millis();
-  ESP_LOGV(TAG, "Modbus write: %s", hexencode(data).c_str());
+  ESP_LOGV(TAG, "Modbus write: %s", format_hex_pretty(data).c_str());
 }
 
 // Helper function for lambdas
@@ -196,6 +202,7 @@ void Modbus::send_raw(const std::vector<uint8_t> &payload) {
   if (this->flow_control_pin_ != nullptr)
     this->flow_control_pin_->digital_write(false);
   waiting_for_response = payload[0];
+  ESP_LOGV(TAG, "Modbus write raw: %s", format_hex_pretty(payload).c_str());
   last_send_ = millis();
 }
 

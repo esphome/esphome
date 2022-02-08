@@ -6,7 +6,7 @@
 #include "esphome/components/modbus/modbus.h"
 
 #include <list>
-#include <map>
+#include <set>
 #include <queue>
 #include <vector>
 
@@ -37,7 +37,7 @@ enum class ModbusFunctionCode {
   READ_FIFO_QUEUE = 0x18,                // not implemented
 };
 
-enum class ModbusRegisterType : int {
+enum class ModbusRegisterType : uint8_t {
   CUSTOM = 0x0,
   COIL = 0x01,
   DISCRETE_INPUT = 0x02,
@@ -61,15 +61,6 @@ enum class SensorValueType : uint8_t {
   FP32 = 0xC,
   FP32_R = 0xD
 };
-
-struct RegisterRange {
-  uint16_t start_address;
-  ModbusRegisterType register_type;
-  uint8_t register_count;
-  uint8_t skip_updates;  // the config value
-  uint64_t first_sensorkey;
-  uint8_t skip_updates_counter;  // the running value
-} __attribute__((packed));
 
 inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_type) {
   switch (reg_type) {
@@ -102,25 +93,11 @@ inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_
       return ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
       break;
     case ModbusRegisterType::READ:
-      return ModbusFunctionCode::CUSTOM;
-      break;
     default:
       return ModbusFunctionCode::CUSTOM;
       break;
   }
 }
-
-/** All sensors are stored in a map
- * to enable binary sensors for values encoded as bits in the same register the key of each sensor
- * the key is a 64 bit integer that combines the register properties
- * sensormap_ is sorted by this key. The key ensures the correct order when creating consequtive ranges
- * Format:  function_code (8 bit) | start address (16 bit)| offset (8bit)| bitmask (32 bit)
- */
-inline uint64_t calc_key(ModbusRegisterType register_type, uint16_t start_address, uint8_t offset = 0,
-                         uint32_t bitmask = 0) {
-  return uint64_t((uint16_t(register_type) << 24) + (uint32_t(start_address) << 8) + (offset & 0xFF)) << 32 | bitmask;
-}
-inline uint16_t register_from_key(uint64_t key) { return (key >> 40) & 0xFFFF; }
 
 inline uint8_t c_to_hex(char c) { return (c >= 'A') ? (c >= 'a') ? (c - 'a' + 10) : (c - 'A' + 10) : (c - '0'); }
 
@@ -218,82 +195,108 @@ inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
  */
 template<typename N> N mask_and_shift_by_rightbit(N data, uint32_t mask) {
   auto result = (mask & data);
-  if (result == 0) {
+  if (result == 0 || mask == 0xFFFFFFFF) {
     return result;
   }
-  for (int pos = 0; pos < sizeof(N) << 3; pos++) {
+  for (size_t pos = 0; pos < sizeof(N) << 3; pos++) {
     if ((mask & (1 << pos)) != 0)
       return result >> pos;
   }
   return 0;
 }
 
-/** convert float value to vector<uint16_t> suitable for sending
- * @param value float value to cconvert
+/** Convert float value to vector<uint16_t> suitable for sending
+ * @param data target for payload
+ * @param value float value to convert
  * @param value_type defines if 16/32 or FP32 is used
  * @return vector containing the modbus register words in correct order
  */
-std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type);
+void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueType value_type);
 
-/** convert vector<uint8_t> response payload to float
- * @param value float value to cconvert
+/** Convert vector<uint8_t> response payload to number.
+ * @param data payload with the data to convert
  * @param sensor_value_type defines if 16/32/64 bits or FP32 is used
  * @param offset offset to the data in data
  * @param bitmask bitmask used for masking and shifting
- * @return float version of the input
+ * @return 64-bit number of the payload
  */
-float payload_to_float(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
-                       uint32_t bitmask);
+int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
+                          uint32_t bitmask);
 
 class ModbusController;
 
-struct SensorItem {
+class SensorItem {
+ public:
+  virtual void parse_and_publish(const std::vector<uint8_t> &data) = 0;
+
+  void set_custom_data(const std::vector<uint8_t> &data) { custom_data = data; }
+  size_t virtual get_register_size() const {
+    if (register_type == ModbusRegisterType::COIL || register_type == ModbusRegisterType::DISCRETE_INPUT) {
+      return 1;
+    } else {  // if CONF_RESPONSE_BYTES is used override the default
+      return response_bytes > 0 ? response_bytes : register_count * 2;
+    }
+  }
+  // Override register size for modbus devices not using 1 register for one dword
+  void set_register_size(uint8_t register_size) { response_bytes = register_size; }
   ModbusRegisterType register_type;
   SensorValueType sensor_value_type;
   uint16_t start_address;
   uint32_t bitmask;
   uint8_t offset;
   uint8_t register_count;
+  uint8_t response_bytes{0};
   uint8_t skip_updates;
+  std::vector<uint8_t> custom_data{};
   bool force_new_range{false};
+};
 
-  virtual void parse_and_publish(const std::vector<uint8_t> &data) = 0;
-
-  uint64_t getkey() const { return calc_key(register_type, start_address, offset, bitmask); }
-
-  size_t virtual get_register_size() const {
-    size_t size = 0;
-    switch (sensor_value_type) {
-      case SensorValueType::BIT:
-        size = 1;
-        break;
-      case SensorValueType::U_WORD:
-      case SensorValueType::S_WORD:
-        size = 2;
-        break;
-      case SensorValueType::U_DWORD:
-      case SensorValueType::S_DWORD:
-      case SensorValueType::U_DWORD_R:
-      case SensorValueType::S_DWORD_R:
-      case SensorValueType::FP32:
-      case SensorValueType::FP32_R:
-        size = 4;
-        break;
-      case SensorValueType::U_QWORD:
-      case SensorValueType::U_QWORD_R:
-      case SensorValueType::S_QWORD:
-      case SensorValueType::S_QWORD_R:
-        size = 8;
-        break;
-      case SensorValueType::RAW:
-        size = this->register_count * 2;
+// ModbusController::create_register_ranges_ tries to optimize register range
+// for this the sensors must be ordered by register_type, start_address and bitmask
+class SensorItemsComparator {
+ public:
+  bool operator()(const SensorItem *lhs, const SensorItem *rhs) const {
+    // first sort according to register type
+    if (lhs->register_type != rhs->register_type) {
+      return lhs->register_type < rhs->register_type;
     }
-    return size;
+
+    // ensure that sensor with force_new_range set are before the others
+    if (lhs->force_new_range != rhs->force_new_range) {
+      return lhs->force_new_range > rhs->force_new_range;
+    }
+
+    // sort by start address
+    if (lhs->start_address != rhs->start_address) {
+      return lhs->start_address < rhs->start_address;
+    }
+
+    // sort by offset (ensures update of sensors in ascending order)
+    if (lhs->offset != rhs->offset) {
+      return lhs->offset < rhs->offset;
+    }
+
+    // The pointer to the sensor is used last to ensure that
+    // multiple sensors with the same values can be added with a stable sort order.
+    return lhs < rhs;
   }
 };
 
-struct ModbusCommandItem {
+using SensorSet = std::set<SensorItem *, SensorItemsComparator>;
+
+struct RegisterRange {
+  uint16_t start_address;
+  ModbusRegisterType register_type;
+  uint8_t register_count;
+  uint8_t skip_updates;          // the config value
+  SensorSet sensors;             // all sensors of this range
+  uint8_t skip_updates_counter;  // the running value
+};
+
+class ModbusCommandItem {
+ public:
   static const size_t MAX_PAYLOAD_BYTES = 240;
+  static const uint8_t MAX_SEND_REPEATS = 5;
   ModbusController *modbusdevice;
   uint16_t register_address;
   uint16_t register_count;
@@ -303,7 +306,9 @@ struct ModbusCommandItem {
       on_data_func;
   std::vector<uint8_t> payload = {};
   bool send();
-
+  // wrong commands (esp. custom commands) can block the send queue
+  // limit the number of repeats
+  uint8_t send_countdown{MAX_SEND_REPEATS};
   /// factory methods
   /** Create modbus read command
    *  Function code 02-04
@@ -344,11 +349,11 @@ struct ModbusCommandItem {
    * @param modbusdevice pointer to the device to execute the command
    * @param start_address modbus address of the first register to read
    * @param register_count number of registers to read
-   * @param values uint16_t array to be written to the registers
+   * @param value uint16_t single register value to write
    * @return ModbusCommandItem with the prepared command
    */
   static ModbusCommandItem create_write_single_command(ModbusController *modbusdevice, uint16_t start_address,
-                                                       int16_t value);
+                                                       uint16_t value);
   /** Create modbus write single registers command
    *  Function 05 (05hex) Write Single Coil
    * @param modbusdevice pointer to the device to execute the command
@@ -390,7 +395,7 @@ struct ModbusCommandItem {
 
 class ModbusController : public PollingComponent, public modbus::ModbusDevice {
  public:
-  ModbusController(uint16_t throttle = 0) : modbus::ModbusDevice(), command_throttle_(throttle){};
+  ModbusController(uint16_t throttle = 0) : command_throttle_(throttle){};
   void dump_config() override;
   void loop() override;
   void setup() override;
@@ -399,8 +404,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// queues a modbus command in the send queue
   void queue_command(const ModbusCommandItem &command);
   /// Registers a sensor with the controller. Called by esphomes code generator
-  void add_sensor_item(SensorItem *item) { sensormap_[item->getkey()] = item; }
-  /// called when a modbus response was prased without errors
+  void add_sensor_item(SensorItem *item) { sensorset_.insert(item); }
+  /// called when a modbus response was parsed without errors
   void on_modbus_data(const std::vector<uint8_t> &data) override;
   /// called when a modbus error response was received
   void on_modbus_error(uint8_t function_code, uint8_t exception_code) override;
@@ -416,6 +421,8 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
  protected:
   /// parse sensormap_ and create range of sequential addresses
   size_t create_register_ranges_();
+  // find register in sensormap. Returns iterator with all registers having the same start address
+  SensorSet find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const;
   /// submit the read command for the address range to the send queue
   void update_range_(RegisterRange &r);
   /// parse incoming modbus data
@@ -425,10 +432,9 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// get the number of queued modbus commands (should be mostly empty)
   size_t get_command_queue_length_() { return command_queue_.size(); }
   /// dump the parsed sensormap for diagnostics
-  void dump_sensormap_();
+  void dump_sensors_();
   /// Collection of all sensors for this component
-  /// see calc_key how the key is contructed
-  std::map<uint64_t, SensorItem *> sensormap_;
+  SensorSet sensorset_;
   /// Continous range of modbus registers
   std::vector<RegisterRange> register_ranges_;
   /// Hold the pending requests to be sent
@@ -441,13 +447,36 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   uint16_t command_throttle_;
 };
 
-/** convert vector<uint8_t> response payload to float
- * @param value float value to cconvert
+/** Convert vector<uint8_t> response payload to float.
+ * @param data payload with data
  * @param item SensorItem object
- * @return float version of the input
+ * @return float value of data
  */
 inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem &item) {
-  return payload_to_float(data, item.sensor_value_type, item.offset, item.bitmask);
+  int64_t number = payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask);
+
+  float float_value;
+  if (item.sensor_value_type == SensorValueType::FP32 || item.sensor_value_type == SensorValueType::FP32_R) {
+    float_value = bit_cast<float>(static_cast<uint32_t>(number));
+  } else {
+    float_value = static_cast<float>(number);
+  }
+
+  return float_value;
+}
+
+inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
+  int64_t val;
+
+  if (value_type == SensorValueType::FP32 || value_type == SensorValueType::FP32_R) {
+    val = bit_cast<uint32_t>(value);
+  } else {
+    val = llroundf(value);
+  }
+
+  std::vector<uint16_t> data;
+  number_to_payload(data, val, value_type);
+  return data;
 }
 
 }  // namespace modbus_controller

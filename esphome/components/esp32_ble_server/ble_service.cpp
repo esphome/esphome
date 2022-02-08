@@ -18,9 +18,10 @@ BLEService::~BLEService() {
 }
 
 BLECharacteristic *BLEService::get_characteristic(ESPBTUUID uuid) {
-  for (auto *chr : this->characteristics_)
+  for (auto *chr : this->characteristics_) {
     if (chr->get_uuid() == uuid)
       return chr;
+  }
   return nullptr;
 }
 

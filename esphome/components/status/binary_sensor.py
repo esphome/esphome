@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_ID, CONF_DEVICE_CLASS, DEVICE_CLASS_CONNECTIVITY
+from esphome.const import (
+    CONF_ENTITY_CATEGORY,
+    CONF_ID,
+    CONF_DEVICE_CLASS,
+    DEVICE_CLASS_CONNECTIVITY,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+)
 
 status_ns = cg.esphome_ns.namespace("status")
 StatusBinarySensor = status_ns.class_(
@@ -14,6 +20,9 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
         cv.Optional(
             CONF_DEVICE_CLASS, default=DEVICE_CLASS_CONNECTIVITY
         ): binary_sensor.device_class,
+        cv.Optional(
+            CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_DIAGNOSTIC
+        ): cv.entity_category,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/components/fan/fan_state.h"
+#include "esphome/components/fan/fan.h"
 
 namespace esphome {
 namespace demo {
@@ -13,11 +13,10 @@ enum class DemoFanType {
   TYPE_4,
 };
 
-class DemoFan : public Component {
+class DemoFan : public fan::Fan, public Component {
  public:
   void set_type(DemoFanType type) { type_ = type; }
-  void set_fan(fan::FanState *fan) { fan_ = fan; }
-  void setup() override {
+  fan::FanTraits get_traits() override {
     fan::FanTraits traits{};
 
     // oscillation
@@ -43,10 +42,23 @@ class DemoFan : public Component {
         break;
     }
 
-    this->fan_->set_traits(traits);
+    return traits;
   }
 
-  fan::FanState *fan_;
+ protected:
+  void control(const fan::FanCall &call) override {
+    if (call.get_state().has_value())
+      this->state = *call.get_state();
+    if (call.get_oscillating().has_value())
+      this->oscillating = *call.get_oscillating();
+    if (call.get_speed().has_value())
+      this->speed = *call.get_speed();
+    if (call.get_direction().has_value())
+      this->direction = *call.get_direction();
+
+    this->publish_state();
+  }
+
   DemoFanType type_;
 };
 

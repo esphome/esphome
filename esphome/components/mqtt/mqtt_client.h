@@ -20,7 +20,7 @@ namespace mqtt {
  * First parameter is the topic, the second one is the payload.
  */
 using mqtt_callback_t = std::function<void(const std::string &, const std::string &)>;
-using mqtt_json_callback_t = std::function<void(const std::string &, JsonObject &)>;
+using mqtt_json_callback_t = std::function<void(const std::string &, JsonObject)>;
 
 /// internal struct for MQTT messages.
 struct MQTTMessage {
@@ -55,6 +55,18 @@ struct Availability {
   std::string payload_not_available;
 };
 
+/// available discovery unique_id generators
+enum MQTTDiscoveryUniqueIdGenerator {
+  MQTT_LEGACY_UNIQUE_ID_GENERATOR = 0,
+  MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR,
+};
+
+/// available discovery object_id generators
+enum MQTTDiscoveryObjectIdGenerator {
+  MQTT_NONE_OBJECT_ID_GENERATOR = 0,
+  MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR,
+};
+
 /** Internal struct for MQTT Home Assistant discovery
  *
  * See <a href="https://www.home-assistant.io/docs/mqtt/discovery/">MQTT Discovery</a>.
@@ -63,6 +75,8 @@ struct MQTTDiscoveryInfo {
   std::string prefix;  ///< The Home Assistant discovery prefix. Empty means disabled.
   bool retain;         ///< Whether to retain discovery messages.
   bool clean;
+  MQTTDiscoveryUniqueIdGenerator unique_id_generator;
+  MQTTDiscoveryObjectIdGenerator object_id_generator;
 };
 
 enum MQTTClientState {
@@ -98,9 +112,12 @@ class MQTTClientComponent : public Component {
    *
    * See <a href="https://www.home-assistant.io/docs/mqtt/discovery/">MQTT Discovery</a>.
    * @param prefix The Home Assistant discovery prefix.
+   * @param unique_id_generator Controls how UniqueId is generated.
+   * @param object_id_generator Controls how ObjectId is generated.
    * @param retain Whether to retain discovery messages.
    */
-  void set_discovery_info(std::string &&prefix, bool retain, bool clean = false);
+  void set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
+                          MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain, bool clean = false);
   /// Get Home Assistant discovery info.
   const MQTTDiscoveryInfo &get_discovery_info() const;
   /// Globally disable Home Assistant discovery.
@@ -297,11 +314,11 @@ class MQTTMessageTrigger : public Trigger<std::string>, public Component {
   optional<std::string> payload_;
 };
 
-class MQTTJsonMessageTrigger : public Trigger<const JsonObject &> {
+class MQTTJsonMessageTrigger : public Trigger<JsonObjectConst> {
  public:
   explicit MQTTJsonMessageTrigger(const std::string &topic, uint8_t qos) {
     global_mqtt_client->subscribe_json(
-        topic, [this](const std::string &topic, JsonObject &root) { this->trigger(root); }, qos);
+        topic, [this](const std::string &topic, JsonObject root) { this->trigger(root); }, qos);
   }
 };
 
@@ -329,7 +346,7 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint8_t, qos)
   TEMPLATABLE_VALUE(bool, retain)
 
-  void set_payload(std::function<void(Ts..., JsonObject &)> payload) { this->payload_ = payload; }
+  void set_payload(std::function<void(Ts..., JsonObject)> payload) { this->payload_ = payload; }
 
   void play(Ts... x) override {
     auto f = std::bind(&MQTTPublishJsonAction<Ts...>::encode_, this, x..., std::placeholders::_1);
@@ -340,8 +357,8 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
   }
 
  protected:
-  void encode_(Ts... x, JsonObject &root) { this->payload_(x..., root); }
-  std::function<void(Ts..., JsonObject &)> payload_;
+  void encode_(Ts... x, JsonObject root) { this->payload_(x..., root); }
+  std::function<void(Ts..., JsonObject)> payload_;
   MQTTClientComponent *parent_;
 };
 

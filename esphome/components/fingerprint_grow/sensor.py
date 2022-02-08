@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_LAST_FINGER_ID,
     CONF_SECURITY_LEVEL,
     CONF_STATUS,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_ACCOUNT,
     ICON_ACCOUNT_CHECK,
     ICON_DATABASE,
@@ -26,30 +27,36 @@ CONFIG_SCHEMA = cv.Schema(
             icon=ICON_FINGERPRINT,
             accuracy_decimals=0,
             state_class=STATE_CLASS_NONE,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_STATUS): sensor.sensor_schema(
             accuracy_decimals=0,
             state_class=STATE_CLASS_NONE,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_CAPACITY): sensor.sensor_schema(
             icon=ICON_DATABASE,
             accuracy_decimals=0,
             state_class=STATE_CLASS_NONE,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_SECURITY_LEVEL): sensor.sensor_schema(
             icon=ICON_SECURITY,
             accuracy_decimals=0,
             state_class=STATE_CLASS_NONE,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_LAST_FINGER_ID): sensor.sensor_schema(
             icon=ICON_ACCOUNT,
             accuracy_decimals=0,
             state_class=STATE_CLASS_NONE,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_LAST_CONFIDENCE): sensor.sensor_schema(
             icon=ICON_ACCOUNT_CHECK,
             accuracy_decimals=0,
             state_class=STATE_CLASS_NONE,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
     }
 )

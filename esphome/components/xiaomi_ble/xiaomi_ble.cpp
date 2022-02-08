@@ -171,10 +171,8 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     result.type = XiaomiParseResult::TYPE_MUE4094RT;
     result.name = "MUE4094RT";
     result.raw_offset -= 6;
-  } else if ((raw[2] == 0x47) && (raw[3] == 0x03)) {  // ClearGrass-branded, round body, e-ink display
-    result.type = XiaomiParseResult::TYPE_CGG1;
-    result.name = "CGG1";
-  } else if ((raw[2] == 0x48) && (raw[3] == 0x0B)) {  // Qingping-branded, round body, e-ink display — with bindkeys
+  } else if ((raw[2] == 0x47 && raw[3] == 0x03) ||  // ClearGrass-branded, round body, e-ink display
+             (raw[2] == 0x48 && raw[3] == 0x0B)) {  // Qingping-branded, round body, e-ink display — with bindkeys
     result.type = XiaomiParseResult::TYPE_CGG1;
     result.name = "CGG1";
   } else if ((raw[2] == 0xbc) && (raw[3] == 0x03)) {  // VegTrug Grow Care Garden
@@ -200,6 +198,9 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     result.name = "MJYD02YLA";
     if (raw.size() == 19)
       result.raw_offset -= 6;
+  } else if ((raw[2] == 0xd3) && (raw[3] == 0x06)) {  // rectangular body, e-ink display with alarm
+    result.type = XiaomiParseResult::TYPE_MHOC303;
+    result.name = "MHOC303";
   } else if ((raw[2] == 0x87) && (raw[3] == 0x03)) {  // square body, e-ink display
     result.type = XiaomiParseResult::TYPE_MHOC401;
     result.name = "MHOC401";
@@ -219,7 +220,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
 bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, const uint64_t &address) {
   if (!((raw.size() == 19) || ((raw.size() >= 22) && (raw.size() <= 24)))) {
     ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): data packet has wrong size (%d)!", raw.size());
-    ESP_LOGVV(TAG, "  Packet : %s", hexencode(raw.data(), raw.size()).c_str());
+    ESP_LOGVV(TAG, "  Packet : %s", format_hex_pretty(raw.data(), raw.size()).c_str());
     return false;
   }
 
@@ -276,12 +277,12 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
     memcpy(mac_address + 4, mac_reverse + 1, 1);
     memcpy(mac_address + 5, mac_reverse, 1);
     ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): authenticated decryption failed.");
-    ESP_LOGVV(TAG, "  MAC address : %s", hexencode(mac_address, 6).c_str());
-    ESP_LOGVV(TAG, "       Packet : %s", hexencode(raw.data(), raw.size()).c_str());
-    ESP_LOGVV(TAG, "          Key : %s", hexencode(vector.key, vector.keysize).c_str());
-    ESP_LOGVV(TAG, "           Iv : %s", hexencode(vector.iv, vector.ivsize).c_str());
-    ESP_LOGVV(TAG, "       Cipher : %s", hexencode(vector.ciphertext, vector.datasize).c_str());
-    ESP_LOGVV(TAG, "          Tag : %s", hexencode(vector.tag, vector.tagsize).c_str());
+    ESP_LOGVV(TAG, "  MAC address : %s", format_hex_pretty(mac_address, 6).c_str());
+    ESP_LOGVV(TAG, "       Packet : %s", format_hex_pretty(raw.data(), raw.size()).c_str());
+    ESP_LOGVV(TAG, "          Key : %s", format_hex_pretty(vector.key, vector.keysize).c_str());
+    ESP_LOGVV(TAG, "           Iv : %s", format_hex_pretty(vector.iv, vector.ivsize).c_str());
+    ESP_LOGVV(TAG, "       Cipher : %s", format_hex_pretty(vector.ciphertext, vector.datasize).c_str());
+    ESP_LOGVV(TAG, "          Tag : %s", format_hex_pretty(vector.tag, vector.tagsize).c_str());
     mbedtls_ccm_free(&ctx);
     return false;
   }
@@ -297,7 +298,7 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
   raw[0] &= ~0x08;
 
   ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): authenticated decryption passed.");
-  ESP_LOGVV(TAG, "  Plaintext : %s, Packet : %d", hexencode(raw.data() + cipher_pos, vector.datasize).c_str(),
+  ESP_LOGVV(TAG, "  Plaintext : %s, Packet : %d", format_hex_pretty(raw.data() + cipher_pos, vector.datasize).c_str(),
             static_cast<int>(raw[4]));
 
   mbedtls_ccm_free(&ctx);

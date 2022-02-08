@@ -58,6 +58,18 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    */
   void set_js_include(const char *js_include);
 
+  /** Determine whether internal components should be displayed on the web server.
+   * Defaults to false.
+   *
+   * @param include_internal Whether internal components should be displayed.
+   */
+  void set_include_internal(bool include_internal) { include_internal_ = include_internal; }
+  /** Set whether or not the webserver should expose the OTA form and handler.
+   *
+   * @param allow_ota.
+   */
+  void set_allow_ota(bool allow_ota) { this->allow_ota_ = allow_ota; }
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup the internal web server and register handlers.
@@ -100,6 +112,11 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string switch_json(switch_::Switch *obj, bool value);
 #endif
 
+#ifdef USE_BUTTON
+  /// Handle a button request under '/button/<id>/press'.
+  void handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match);
+#endif
+
 #ifdef USE_BINARY_SENSOR
   void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) override;
 
@@ -111,13 +128,13 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_FAN
-  void on_fan_update(fan::FanState *obj) override;
+  void on_fan_update(fan::Fan *obj) override;
 
   /// Handle a fan request under '/fan/<id>/</turn_on/turn_off/toggle>'.
   void handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
   /// Dump the fan state as a JSON string.
-  std::string fan_json(fan::FanState *obj);
+  std::string fan_json(fan::Fan *obj);
 #endif
 
 #ifdef USE_LIGHT
@@ -168,6 +185,16 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string select_json(select::Select *obj, const std::string &value);
 #endif
 
+#ifdef USE_LOCK
+  void on_lock_update(lock::Lock *obj) override;
+
+  /// Handle a lock request under '/lock/<id>/</lock/unlock/open>'.
+  void handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the lock state with its value as a JSON string.
+  std::string lock_json(lock::Lock *obj, lock::LockState value);
+#endif
+
   /// Override the web handler's canHandle method.
   bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.
@@ -182,6 +209,8 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   const char *css_include_{nullptr};
   const char *js_url_{nullptr};
   const char *js_include_{nullptr};
+  bool include_internal_{false};
+  bool allow_ota_{true};
 };
 
 }  // namespace web_server

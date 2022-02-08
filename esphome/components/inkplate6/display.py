@@ -6,11 +6,13 @@ from esphome.const import (
     CONF_FULL_UPDATE_EVERY,
     CONF_ID,
     CONF_LAMBDA,
+    CONF_MODEL,
     CONF_PAGES,
     CONF_WAKEUP_PIN,
 )
 
 DEPENDENCIES = ["i2c", "esp32"]
+AUTO_LOAD = ["psram"]
 
 CONF_DISPLAY_DATA_0_PIN = "display_data_0_pin"
 CONF_DISPLAY_DATA_1_PIN = "display_data_1_pin"
@@ -40,6 +42,14 @@ Inkplate6 = inkplate6_ns.class_(
     "Inkplate6", cg.PollingComponent, i2c.I2CDevice, display.DisplayBuffer
 )
 
+InkplateModel = inkplate6_ns.enum("InkplateModel")
+
+MODELS = {
+    "inkplate_6": InkplateModel.INKPLATE_6,
+    "inkplate_10": InkplateModel.INKPLATE_10,
+    "inkplate_6_plus": InkplateModel.INKPLATE_6_PLUS,
+}
+
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         {
@@ -47,6 +57,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_GREYSCALE, default=False): cv.boolean,
             cv.Optional(CONF_PARTIAL_UPDATING, default=True): cv.boolean,
             cv.Optional(CONF_FULL_UPDATE_EVERY, default=10): cv.uint32_t,
+            cv.Optional(CONF_MODEL, default="inkplate_6"): cv.enum(
+                MODELS, lower=True, space="_"
+            ),
             # Control pins
             cv.Required(CONF_CKV_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_GMOD_PIN): pins.gpio_output_pin_schema,
@@ -110,6 +123,8 @@ async def to_code(config):
     cg.add(var.set_partial_updating(config[CONF_PARTIAL_UPDATING]))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
 
+    cg.add(var.set_model(config[CONF_MODEL]))
+
     ckv = await cg.gpio_pin_expression(config[CONF_CKV_PIN])
     cg.add(var.set_ckv_pin(ckv))
 
@@ -166,5 +181,3 @@ async def to_code(config):
 
     display_data_7 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_7_PIN])
     cg.add(var.set_display_data_7_pin(display_data_7))
-
-    cg.add_build_flag("-DBOARD_HAS_PSRAM")

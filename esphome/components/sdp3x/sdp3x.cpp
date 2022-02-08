@@ -1,5 +1,6 @@
 #include "sdp3x.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -10,6 +11,7 @@ static const uint8_t SDP3X_SOFT_RESET[2] = {0x00, 0x06};
 static const uint8_t SDP3X_READ_ID1[2] = {0x36, 0x7C};
 static const uint8_t SDP3X_READ_ID2[2] = {0xE1, 0x02};
 static const uint8_t SDP3X_START_DP_AVG[2] = {0x36, 0x15};
+static const uint8_t SDP3X_START_MASS_FLOW_AVG[2] = {0x36, 0x03};
 static const uint8_t SDP3X_STOP_MEAS[2] = {0x3F, 0xF9};
 
 void SDP3XComponent::update() { this->read_pressure_(); }
@@ -25,46 +27,69 @@ void SDP3XComponent::setup() {
     ESP_LOGW(TAG, "Soft Reset SDP3X failed!");  // This sometimes fails for no good reason
   }
 
-  delay_microseconds_accurate(20000);
+  this->set_timeout(20, [this] {
+    if (this->write(SDP3X_READ_ID1, 2) != i2c::ERROR_OK) {
+      ESP_LOGE(TAG, "Read ID1 SDP3X failed!");
+      this->mark_failed();
+      return;
+    }
+    if (this->write(SDP3X_READ_ID2, 2) != i2c::ERROR_OK) {
+      ESP_LOGE(TAG, "Read ID2 SDP3X failed!");
+      this->mark_failed();
+      return;
+    }
 
-  if (this->write(SDP3X_READ_ID1, 2) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Read ID1 SDP3X failed!");
-    this->mark_failed();
-    return;
-  }
-  if (this->write(SDP3X_READ_ID2, 2) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Read ID2 SDP3X failed!");
-    this->mark_failed();
-    return;
-  }
+    uint8_t data[18];
+    if (this->read(data, 18) != i2c::ERROR_OK) {
+      ESP_LOGE(TAG, "Read ID SDP3X failed!");
+      this->mark_failed();
+      return;
+    }
+    if (!(check_crc_(&data[0], 2, data[2]) && check_crc_(&data[3], 2, data[5]))) {
+      ESP_LOGE(TAG, "CRC ID SDP3X failed!");
+      this->mark_failed();
+      return;
+    }
 
-  uint8_t data[18];
-  if (this->read(data, 18) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Read ID SDP3X failed!");
-    this->mark_failed();
-    return;
-  }
+    // SDP8xx
+    // ref:
+    // https://www.sensirion.com/fileadmin/user_upload/customers/sensirion/Dokumente/8_Differential_Pressure/Datasheets/Sensirion_Differential_Pressure_Datasheet_SDP8xx_Digital.pdf
+    if (data[2] == 0x02) {
+      switch (data[3]) {
+        case 0x01:  // SDP800-500Pa
+          ESP_LOGCONFIG(TAG, "Sensor is SDP800-500Pa");
+          break;
+        case 0x0A:  // SDP810-500Pa
+          ESP_LOGCONFIG(TAG, "Sensor is SDP810-500Pa");
+          break;
+        case 0x04:  // SDP801-500Pa
+          ESP_LOGCONFIG(TAG, "Sensor is SDP801-500Pa");
+          break;
+        case 0x0D:  // SDP811-500Pa
+          ESP_LOGCONFIG(TAG, "Sensor is SDP811-500Pa");
+          break;
+        case 0x02:  // SDP800-125Pa
+          ESP_LOGCONFIG(TAG, "Sensor is SDP800-125Pa");
+          break;
+        case 0x0B:  // SDP810-125Pa
+          ESP_LOGCONFIG(TAG, "Sensor is SDP810-125Pa");
+          break;
+      }
+    } else if (data[2] == 0x01) {
+      if (data[3] == 0x01) {
+        ESP_LOGCONFIG(TAG, "Sensor is SDP31-500Pa");
+      } else if (data[3] == 0x02) {
+        ESP_LOGCONFIG(TAG, "Sensor is SDP32-125Pa");
+      }
+    }
 
-  if (!(check_crc_(&data[0], 2, data[2]) && check_crc_(&data[3], 2, data[5]))) {
-    ESP_LOGE(TAG, "CRC ID SDP3X failed!");
-    this->mark_failed();
-    return;
-  }
-
-  if (data[3] == 0x01) {
-    ESP_LOGCONFIG(TAG, "SDP3X is SDP31");
-    pressure_scale_factor_ = 60.0f * 100.0f;  // Scale factors converted to hPa per count
-  } else if (data[3] == 0x02) {
-    ESP_LOGCONFIG(TAG, "SDP3X is SDP32");
-    pressure_scale_factor_ = 240.0f * 100.0f;
-  }
-
-  if (this->write(SDP3X_START_DP_AVG, 2) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Start Measurements SDP3X failed!");
-    this->mark_failed();
-    return;
-  }
-  ESP_LOGCONFIG(TAG, "SDP3X started!");
+    if (this->write(measurement_mode_ == DP_AVG ? SDP3X_START_DP_AVG : SDP3X_START_MASS_FLOW_AVG, 2) != i2c::ERROR_OK) {
+      ESP_LOGE(TAG, "Start Measurements SDP3X failed!");
+      this->mark_failed();
+      return;
+    }
+    ESP_LOGCONFIG(TAG, "SDP3X started!");
+  });
 }
 void SDP3XComponent::dump_config() {
   LOG_SENSOR("  ", "SDP3X", this);
@@ -90,8 +115,12 @@ void SDP3XComponent::read_pressure_() {
   }
 
   int16_t pressure_raw = encode_uint16(data[0], data[1]);
-  float pressure = pressure_raw / pressure_scale_factor_;
-  ESP_LOGV(TAG, "Got raw pressure=%d, scale factor =%.3f ", pressure_raw, pressure_scale_factor_);
+  int16_t temperature_raw = encode_uint16(data[3], data[4]);
+  int16_t scale_factor_raw = encode_uint16(data[6], data[7]);
+  // scale factor is in Pa - convert to hPa
+  float pressure = pressure_raw / (scale_factor_raw * 100.0f);
+  ESP_LOGV(TAG, "Got raw pressure=%d, raw scale factor =%d, raw temperature=%d ", pressure_raw, scale_factor_raw,
+           temperature_raw);
   ESP_LOGD(TAG, "Got Pressure=%.3f hPa", pressure);
 
   this->publish_state(pressure);
@@ -109,10 +138,11 @@ bool SDP3XComponent::check_crc_(const uint8_t data[], uint8_t size, uint8_t chec
   for (int i = 0; i < size; i++) {
     crc ^= (data[i]);
     for (uint8_t bit = 8; bit > 0; --bit) {
-      if (crc & 0x80)
+      if (crc & 0x80) {
         crc = (crc << 1) ^ 0x31;
-      else
+      } else {
         crc = (crc << 1);
+      }
     }
   }
 

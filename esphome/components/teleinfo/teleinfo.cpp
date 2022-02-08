@@ -118,7 +118,7 @@ void TeleInfo::loop() {
        *
        */
       while ((buf_finger = static_cast<char *>(memchr(buf_finger, (int) 0xa, buf_index_ - 1))) &&
-             ((buf_finger - buf_) < buf_index_)) {
+             ((buf_finger - buf_) < buf_index_)) {  // NOLINT(clang-diagnostic-sign-compare)
         /*
          * Make sure timesamp is nullified between each tag as some tags don't
          * have a timestamp
@@ -141,21 +141,22 @@ void TeleInfo::loop() {
         field_len = get_field(tag_, buf_finger, grp_end, separator_, MAX_TAG_SIZE);
         if (!field_len || field_len >= MAX_TAG_SIZE) {
           ESP_LOGE(TAG, "Invalid tag.");
-          break;
+          continue;
         }
 
         /* Advance buf_finger to after the tag and the separator. */
         buf_finger += field_len + 1;
 
         /*
-         * If there is two separators and the tag is not equal to "DATE",
-         * it means there is a timestamp to read first.
+         * If there is two separators and the tag is not equal to "DATE" or
+         * historical mode is not in use (separator_ != 0x20), it means there is a
+         * timestamp to read first.
          */
-        if (std::count(buf_finger, grp_end, separator_) == 2 && strcmp(tag_, "DATE") != 0) {
+        if (std::count(buf_finger, grp_end, separator_) == 2 && strcmp(tag_, "DATE") != 0 && separator_ != 0x20) {
           field_len = get_field(timestamp_, buf_finger, grp_end, separator_, MAX_TIMESTAMP_SIZE);
           if (!field_len || field_len >= MAX_TIMESTAMP_SIZE) {
-            ESP_LOGE(TAG, "Invalid Timestamp");
-            break;
+            ESP_LOGE(TAG, "Invalid timestamp for tag %s", timestamp_);
+            continue;
           }
 
           /* Advance buf_finger to after the first data and the separator. */
@@ -164,8 +165,8 @@ void TeleInfo::loop() {
 
         field_len = get_field(val_, buf_finger, grp_end, separator_, MAX_VAL_SIZE);
         if (!field_len || field_len >= MAX_VAL_SIZE) {
-          ESP_LOGE(TAG, "Invalid Value");
-          break;
+          ESP_LOGE(TAG, "Invalid value for tag %s", tag_);
+          continue;
         }
 
         /* Advance buf_finger to end of group */
@@ -178,7 +179,7 @@ void TeleInfo::loop() {
   }
 }
 void TeleInfo::publish_value_(const std::string &tag, const std::string &val) {
-  for (auto element : teleinfo_listeners_) {
+  for (auto *element : teleinfo_listeners_) {
     if (tag != element->tag)
       continue;
     element->publish_val(val);

@@ -4,7 +4,8 @@ from esphome.components import sensor, ble_client
 from esphome.const import (
     CONF_ID,
     CONF_BATTERY_LEVEL,
-    ICON_BATTERY,
+    DEVICE_CLASS_BATTERY,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     CONF_ILLUMINANCE,
     ICON_BRIGHTNESS_5,
     UNIT_PERCENT,
@@ -20,10 +21,15 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(Am43),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_BATTERY, 0
+                unit_of_measurement=UNIT_PERCENT,
+                device_class=DEVICE_CLASS_BATTERY,
+                accuracy_decimals=0,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                UNIT_PERCENT, ICON_BRIGHTNESS_5, 0
+                unit_of_measurement=UNIT_PERCENT,
+                icon=ICON_BRIGHTNESS_5,
+                accuracy_decimals=0,
             ),
         }
     )

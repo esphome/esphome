@@ -24,12 +24,22 @@ bool ModbusController::send_next_command_() {
   if ((last_send > this->command_throttle_) && !waiting_for_response() && !command_queue_.empty()) {
     auto &command = command_queue_.front();
 
-    ESP_LOGV(TAG, "Sending next modbus command to device %d register 0x%02X count %d", this->address_,
-             command->register_address, command->register_count);
-    command->send();
-    this->last_command_timestamp_ = millis();
-    if (!command->on_data_func) {  // No handler remove from queue directly after sending
+    // remove from queue if command was sent too often
+    if (command->send_countdown < 1) {
+      ESP_LOGD(
+          TAG,
+          "Modbus command to device=%d register=0x%02X countdown=%d no response received - removed from send queue",
+          this->address_, command->register_address, command->send_countdown);
       command_queue_.pop_front();
+    } else {
+      ESP_LOGV(TAG, "Sending next modbus command to device %d register 0x%02X count %d", this->address_,
+               command->register_address, command->register_count);
+      command->send();
+      this->last_command_timestamp_ = millis();
+      // remove from queue if no handler is defined
+      if (!command->on_data_func) {
+        command_queue_.pop_front();
+      }
     }
   }
   return (!command_queue_.empty());
@@ -69,30 +79,28 @@ void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_
   }
 }
 
+SensorSet ModbusController::find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const {
+  auto reg_it = find_if(begin(register_ranges_), end(register_ranges_), [=](RegisterRange const &r) {
+    return (r.start_address == start_address && r.register_type == register_type);
+  });
+
+  if (reg_it == register_ranges_.end()) {
+    ESP_LOGE(TAG, "No matching range for sensor found - start_address : 0x%X", start_address);
+  } else {
+    return reg_it->sensors;
+  }
+
+  // not found
+  return {};
+}
 void ModbusController::on_register_data(ModbusRegisterType register_type, uint16_t start_address,
                                         const std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "data for register address : 0x%X : ", start_address);
 
-  auto vec_it = find_if(begin(register_ranges_), end(register_ranges_), [=](RegisterRange const &r) {
-    return (r.start_address == start_address && r.register_type == register_type);
-  });
-
-  if (vec_it == register_ranges_.end()) {
-    ESP_LOGE(TAG, "Handle incoming data : No matching range for sensor found - start_address :  0x%X", start_address);
-    return;
-  }
-  auto map_it = sensormap_.find(vec_it->first_sensorkey);
-  if (map_it == sensormap_.end()) {
-    ESP_LOGE(TAG, "Handle incoming data : No sensor found in at start_address :  0x%X (0x%llX)", start_address,
-             vec_it->first_sensorkey);
-    return;
-  }
   // loop through all sensors with the same start address
-  while (map_it != sensormap_.end() && map_it->second->start_address == start_address) {
-    if (map_it->second->register_type == register_type) {
-      map_it->second->parse_and_publish(data);
-    }
-    map_it++;
+  auto sensors = find_sensors_(register_type, start_address);
+  for (auto *sensor : sensors) {
+    sensor->parse_and_publish(data);
   }
 }
 
@@ -101,8 +109,9 @@ void ModbusController::queue_command(const ModbusCommandItem &command) {
   // not very effective but the queue is never really large
   for (auto &item : command_queue_) {
     if (item->register_address == command.register_address && item->register_count == command.register_count &&
-        item->register_type == command.register_type) {
-      ESP_LOGW(TAG, "Duplicate modbus command found");
+        item->register_type == command.register_type && item->function_code == command.function_code) {
+      ESP_LOGW(TAG, "Duplicate modbus command found: type=0x%x address=%u count=%u",
+               static_cast<uint8_t>(command.register_type), command.register_address, command.register_count);
       // update the payload of the queued command
       // replaces a previous command
       item->payload = command.payload;
@@ -116,9 +125,24 @@ void ModbusController::update_range_(RegisterRange &r) {
   ESP_LOGV(TAG, "Range : %X Size: %x (%d) skip: %d", r.start_address, r.register_count, (int) r.register_type,
            r.skip_updates_counter);
   if (r.skip_updates_counter == 0) {
-    ModbusCommandItem command_item =
-        ModbusCommandItem::create_read_command(this, r.register_type, r.start_address, r.register_count);
-    queue_command(command_item);
+    // if a custom command is used the user supplied custom_data is only available in the SensorItem.
+    if (r.register_type == ModbusRegisterType::CUSTOM) {
+      auto sensors = this->find_sensors_(r.register_type, r.start_address);
+      if (!sensors.empty()) {
+        auto sensor = sensors.cbegin();
+        auto command_item = ModbusCommandItem::create_custom_command(
+            this, (*sensor)->custom_data,
+            [this](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
+              this->on_register_data(ModbusRegisterType::CUSTOM, start_address, data);
+            });
+        command_item.register_address = (*sensor)->start_address;
+        command_item.register_count = (*sensor)->register_count;
+        command_item.function_code = ModbusFunctionCode::CUSTOM;
+        queue_command(command_item);
+      }
+    } else {
+      queue_command(ModbusCommandItem::create_read_command(this, r.register_type, r.start_address, r.register_count));
+    }
     r.skip_updates_counter = r.skip_updates;  // reset counter to config value
   } else {
     r.skip_updates_counter--;
@@ -141,102 +165,110 @@ void ModbusController::update() {
   }
 }
 
-// walk through the sensors and determine the registerranges to read
+// walk through the sensors and determine the register ranges to read
 size_t ModbusController::create_register_ranges_() {
   register_ranges_.clear();
-  uint8_t n = 0;
-  if (sensormap_.empty()) {
+  if (sensorset_.empty()) {
+    ESP_LOGW(TAG, "No sensors registered");
     return 0;
   }
 
-  auto ix = sensormap_.begin();
-  auto prev = ix;
-  int total_register_count = 0;
-  uint16_t current_start_address = ix->second->start_address;
-  uint8_t buffer_offset = ix->second->offset;
-  uint8_t skip_updates = ix->second->skip_updates;
-  auto first_sensorkey = ix->second->getkey();
-  total_register_count = 0;
-  while (ix != sensormap_.end()) {
-    ESP_LOGV(TAG, "Register: 0x%X %d %d  0x%llx (%d) buffer_offset = %d (0x%X) skip=%u", ix->second->start_address,
-             ix->second->register_count, ix->second->offset, ix->second->getkey(), total_register_count, buffer_offset,
-             buffer_offset, ix->second->skip_updates);
-    // if this is a sequential address based on number of registers and address of previous sensor
-    // convert to an offset to the previous sensor (address 0x101 becomes address 0x100 offset 2 bytes)
-    if (!ix->second->force_new_range && total_register_count >= 0 &&
-        prev->second->register_type == ix->second->register_type &&
-        prev->second->start_address + total_register_count == ix->second->start_address &&
-        prev->second->start_address < ix->second->start_address) {
-      ix->second->start_address = prev->second->start_address;
-      ix->second->offset += prev->second->offset + prev->second->get_register_size();
+  // iterator is sorted see SensorItemsComparator for details
+  auto ix = sensorset_.begin();
+  RegisterRange r = {};
+  uint8_t buffer_offset = 0;
+  SensorItem *prev = nullptr;
+  while (ix != sensorset_.end()) {
+    SensorItem *curr = *ix;
 
-      // replace entry in sensormap_
-      auto const value = ix->second;
-      sensormap_.erase(ix);
-      sensormap_.insert({value->getkey(), value});
-      // move iterator back to new element
-      ix = sensormap_.find(value->getkey());  // next(prev, 1);
-    }
-    if (current_start_address != ix->second->start_address ||
-        //  ( prev->second->start_address + prev->second->offset != ix->second->start_address) ||
-        ix->second->register_type != prev->second->register_type) {
-      // Difference doesn't match so we have a gap
-      if (n > 0) {
-        RegisterRange r;
-        r.start_address = current_start_address;
-        r.register_count = total_register_count;
-        if (prev->second->register_type == ModbusRegisterType::COIL ||
-            prev->second->register_type == ModbusRegisterType::DISCRETE_INPUT) {
-          r.register_count = prev->second->offset + 1;
-        }
-        r.register_type = prev->second->register_type;
-        r.first_sensorkey = first_sensorkey;
-        r.skip_updates = skip_updates;
-        r.skip_updates_counter = 0;
-        ESP_LOGV(TAG, "Add range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
-        register_ranges_.push_back(r);
-      }
-      skip_updates = ix->second->skip_updates;
-      current_start_address = ix->second->start_address;
-      first_sensorkey = ix->second->getkey();
-      total_register_count = ix->second->register_count;
-      buffer_offset = ix->second->offset;
-      n = 1;
+    ESP_LOGV(TAG, "Register: 0x%X %d %d %d offset=%u skip=%u addr=%p", curr->start_address, curr->register_count,
+             curr->offset, curr->get_register_size(), curr->offset, curr->skip_updates, curr);
+
+    if (r.register_count == 0) {
+      // this is the first register in range
+      r.start_address = curr->start_address;
+      r.register_count = curr->register_count;
+      r.register_type = curr->register_type;
+      r.sensors.insert(curr);
+      r.skip_updates = curr->skip_updates;
+      r.skip_updates_counter = 0;
+      buffer_offset = curr->get_register_size();
+
+      ESP_LOGV(TAG, "Started new range");
     } else {
-      n++;
-      if (ix->second->offset != prev->second->offset || n == 1) {
-        total_register_count += ix->second->register_count;
-        buffer_offset += ix->second->get_register_size();
+      // this is not the first register in range so it might be possible
+      // to reuse the last register or extend the current range
+      if (!curr->force_new_range && r.register_type == curr->register_type &&
+          curr->register_type != ModbusRegisterType::CUSTOM) {
+        if (curr->start_address == (r.start_address + r.register_count - prev->register_count) &&
+            curr->register_count == prev->register_count && curr->get_register_size() == prev->get_register_size()) {
+          // this register can re-use the data from the previous register
+
+          // remove this sensore because start_address is changed (sort-order)
+          ix = sensorset_.erase(ix);
+
+          curr->start_address = r.start_address;
+          curr->offset += prev->offset;
+
+          sensorset_.insert(curr);
+          // move iterator backwards because it will be incremented later
+          ix--;
+
+          ESP_LOGV(TAG, "Re-use previous register - change to register: 0x%X %d offset=%u", curr->start_address,
+                   curr->register_count, curr->offset);
+        } else if (curr->start_address == (r.start_address + r.register_count)) {
+          // this register can extend the current range
+
+          // remove this sensore because start_address is changed (sort-order)
+          ix = sensorset_.erase(ix);
+
+          curr->start_address = r.start_address;
+          curr->offset += buffer_offset;
+          buffer_offset += curr->get_register_size();
+          r.register_count += curr->register_count;
+
+          sensorset_.insert(curr);
+          // move iterator backwards because it will be incremented later
+          ix--;
+
+          ESP_LOGV(TAG, "Extend range - change to register: 0x%X %d offset=%u", curr->start_address,
+                   curr->register_count, curr->offset);
+        }
       }
+    }
+
+    if (curr->start_address == r.start_address) {
       // use the lowest non zero value for the whole range
       // Because zero is the default value for skip_updates it is excluded from getting the min value.
-      if (ix->second->skip_updates != 0) {
-        if (skip_updates != 0) {
-          skip_updates = std::min(skip_updates, ix->second->skip_updates);
+      if (curr->skip_updates != 0) {
+        if (r.skip_updates != 0) {
+          r.skip_updates = std::min(r.skip_updates, curr->skip_updates);
         } else {
-          skip_updates = ix->second->skip_updates;
+          r.skip_updates = curr->skip_updates;
         }
       }
+
+      // add sensor to this range
+      r.sensors.insert(curr);
+
+      ix++;
+    } else {
+      ESP_LOGV(TAG, "Add range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
+      register_ranges_.push_back(r);
+      r = {};
+      buffer_offset = 0;
+      // do not increment the iterator here because the current sensor has to be re-evaluated
     }
-    prev = ix++;
+
+    prev = curr;
   }
-  // Add the last range
-  if (n > 0) {
-    RegisterRange r;
-    r.start_address = current_start_address;
-    //    r.register_count = prev->second->offset>>1 + prev->second->get_register_size();
-    r.register_count = total_register_count;
-    if (prev->second->register_type == ModbusRegisterType::COIL ||
-        prev->second->register_type == ModbusRegisterType::DISCRETE_INPUT) {
-      r.register_count = prev->second->offset + 1;
-    }
-    r.register_type = prev->second->register_type;
-    r.first_sensorkey = first_sensorkey;
-    r.skip_updates = skip_updates;
-    r.skip_updates_counter = 0;
+
+  if (r.register_count > 0) {
+    // Add the last range
     ESP_LOGV(TAG, "Add last range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
     register_ranges_.push_back(r);
   }
+
   return register_ranges_.size();
 }
 
@@ -245,9 +277,15 @@ void ModbusController::dump_config() {
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGCONFIG(TAG, "sensormap");
-  for (auto &it : sensormap_) {
-    ESP_LOGCONFIG("TAG", "  Sensor 0x%llX start=0x%X count=%d size=%d", it.second->getkey(), it.second->start_address,
-                  it.second->register_count, it.second->get_register_size());
+  for (auto &it : sensorset_) {
+    ESP_LOGCONFIG(TAG, " Sensor type=%zu start=0x%X offset=0x%X count=%d size=%d",
+                  static_cast<uint8_t>(it->register_type), it->start_address, it->offset, it->register_count,
+                  it->get_register_size());
+  }
+  ESP_LOGCONFIG(TAG, "ranges");
+  for (auto &it : register_ranges_) {
+    ESP_LOGCONFIG(TAG, "  Range type=%zu start=0x%X count=%d skip_updates=%d", static_cast<uint8_t>(it.register_type),
+                  it.start_address, it.register_count, it.skip_updates);
   }
 #endif
 }
@@ -271,11 +309,11 @@ void ModbusController::on_write_register_response(ModbusRegisterType register_ty
   ESP_LOGV(TAG, "Command ACK 0x%X %d ", get_data<uint16_t>(data, 0), get_data<int16_t>(data, 1));
 }
 
-void ModbusController::dump_sensormap_() {
-  ESP_LOGV("modbuscontroller.h", "sensormap");
-  for (auto &it : sensormap_) {
-    ESP_LOGV("modbuscontroller.h", "  Sensor 0x%llX start=0x%X count=%d size=%d", it.second->getkey(),
-             it.second->start_address, it.second->register_count, it.second->get_register_size());
+void ModbusController::dump_sensors_() {
+  ESP_LOGV(TAG, "sensors");
+  for (auto &it : sensorset_) {
+    ESP_LOGV(TAG, "  Sensor start=0x%X count=%d size=%d offset=%d", it->start_address, it->register_count,
+             it->get_register_size(), it->offset);
   }
 }
 
@@ -323,8 +361,9 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusControl
     modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
   };
   for (auto v : values) {
-    cmd.payload.push_back((v / 256) & 0xFF);
-    cmd.payload.push_back(v & 0xFF);
+    auto decoded_value = decode_value(v);
+    cmd.payload.push_back(decoded_value[0]);
+    cmd.payload.push_back(decoded_value[1]);
   }
   return cmd;
 }
@@ -379,7 +418,7 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusControlle
 }
 
 ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusController *modbusdevice, uint16_t start_address,
-                                                                 int16_t value) {
+                                                                 uint16_t value) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = ModbusRegisterType::HOLDING;
@@ -390,8 +429,10 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusControlle
                                          const std::vector<uint8_t> &data) {
     modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
   };
-  cmd.payload.push_back((value / 256) & 0xFF);
-  cmd.payload.push_back((value % 256) & 0xFF);
+
+  auto decoded_value = decode_value(value);
+  cmd.payload.push_back(decoded_value[0]);
+  cmd.payload.push_back(decoded_value[1]);
   return cmd;
 }
 
@@ -403,7 +444,7 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
   cmd.modbusdevice = modbusdevice;
   cmd.function_code = ModbusFunctionCode::CUSTOM;
   if (handler == nullptr) {
-    cmd.on_data_func = [](ModbusRegisterType, uint16_t, const std::vector<uint8_t> &data) {
+    cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
       ESP_LOGI(TAG, "Custom Command sent");
     };
   } else {
@@ -422,87 +463,74 @@ bool ModbusCommandItem::send() {
     modbusdevice->send_raw(this->payload);
   }
   ESP_LOGV(TAG, "Command sent %d 0x%X %d", uint8_t(this->function_code), this->register_address, this->register_count);
+  send_countdown--;
   return true;
 }
 
-std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
-  union {
-    float float_value;
-    uint32_t raw;
-  } raw_to_float;
-
-  std::vector<uint16_t> data;
-  int32_t val;
-
+void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueType value_type) {
   switch (value_type) {
     case SensorValueType::U_WORD:
     case SensorValueType::S_WORD:
-      // cast truncates the float do some rounding here
-      data.push_back(lroundf(value) & 0xFFFF);
+      data.push_back(value & 0xFFFF);
       break;
     case SensorValueType::U_DWORD:
     case SensorValueType::S_DWORD:
-      val = lroundf(value);
-      data.push_back((val & 0xFFFF0000) >> 16);
-      data.push_back(val & 0xFFFF);
+    case SensorValueType::FP32:
+    case SensorValueType::FP32_R:
+      data.push_back((value & 0xFFFF0000) >> 16);
+      data.push_back(value & 0xFFFF);
       break;
     case SensorValueType::U_DWORD_R:
     case SensorValueType::S_DWORD_R:
-      val = lroundf(value);
-      data.push_back(val & 0xFFFF);
-      data.push_back((val & 0xFFFF0000) >> 16);
+      data.push_back(value & 0xFFFF);
+      data.push_back((value & 0xFFFF0000) >> 16);
       break;
-    case SensorValueType::FP32:
-      raw_to_float.float_value = value;
-      data.push_back((raw_to_float.raw & 0xFFFF0000) >> 16);
-      data.push_back(raw_to_float.raw & 0xFFFF);
+    case SensorValueType::U_QWORD:
+    case SensorValueType::S_QWORD:
+      data.push_back((value & 0xFFFF000000000000) >> 48);
+      data.push_back((value & 0xFFFF00000000) >> 32);
+      data.push_back((value & 0xFFFF0000) >> 16);
+      data.push_back(value & 0xFFFF);
       break;
-    case SensorValueType::FP32_R:
-      raw_to_float.float_value = value;
-      data.push_back(raw_to_float.raw & 0xFFFF);
-      data.push_back((raw_to_float.raw & 0xFFFF0000) >> 16);
+    case SensorValueType::U_QWORD_R:
+    case SensorValueType::S_QWORD_R:
+      data.push_back(value & 0xFFFF);
+      data.push_back((value & 0xFFFF0000) >> 16);
+      data.push_back((value & 0xFFFF00000000) >> 32);
+      data.push_back((value & 0xFFFF000000000000) >> 48);
       break;
     default:
-      ESP_LOGE(TAG, "Invalid data type for modbus float to payload conversation");
+      ESP_LOGE(TAG, "Invalid data type for modbus number to payload conversation: %d",
+               static_cast<uint16_t>(value_type));
       break;
   }
-  return data;
 }
 
-float payload_to_float(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
-                       uint32_t bitmask) {
-  union {
-    float float_value;
-    uint32_t raw;
-  } raw_to_float;
-
+int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
+                          uint32_t bitmask) {
   int64_t value = 0;  // int64_t because it can hold signed and unsigned 32 bits
-  float result = NAN;
 
   switch (sensor_value_type) {
     case SensorValueType::U_WORD:
       value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, offset), bitmask);  // default is 0xFFFF ;
-      result = static_cast<float>(value);
       break;
     case SensorValueType::U_DWORD:
+    case SensorValueType::FP32:
       value = get_data<uint32_t>(data, offset);
       value = mask_and_shift_by_rightbit((uint32_t) value, bitmask);
-      result = static_cast<float>(value);
       break;
     case SensorValueType::U_DWORD_R:
+    case SensorValueType::FP32_R:
       value = get_data<uint32_t>(data, offset);
       value = static_cast<uint32_t>(value & 0xFFFF) << 16 | (value & 0xFFFF0000) >> 16;
       value = mask_and_shift_by_rightbit((uint32_t) value, bitmask);
-      result = static_cast<float>(value);
       break;
     case SensorValueType::S_WORD:
       value = mask_and_shift_by_rightbit(get_data<int16_t>(data, offset),
                                          bitmask);  // default is 0xFFFF ;
-      result = static_cast<float>(value);
       break;
     case SensorValueType::S_DWORD:
       value = mask_and_shift_by_rightbit(get_data<int32_t>(data, offset), bitmask);
-      result = static_cast<float>(value);
       break;
     case SensorValueType::S_DWORD_R: {
       value = get_data<uint32_t>(data, offset);
@@ -511,18 +539,14 @@ float payload_to_float(const std::vector<uint8_t> &data, SensorValueType sensor_
       uint32_t sign_bit = (value & 0x8000) << 16;
       value = mask_and_shift_by_rightbit(
           static_cast<int32_t>(((value & 0x7FFF) << 16 | (value & 0xFFFF0000) >> 16) | sign_bit), bitmask);
-      result = static_cast<float>(value);
     } break;
     case SensorValueType::U_QWORD:
       // Ignore bitmask for U_QWORD
       value = get_data<uint64_t>(data, offset);
-      result = static_cast<float>(value);
       break;
-
     case SensorValueType::S_QWORD:
       // Ignore bitmask for S_QWORD
       value = get_data<int64_t>(data, offset);
-      result = static_cast<float>(value);
       break;
     case SensorValueType::U_QWORD_R:
       // Ignore bitmask for U_QWORD
@@ -530,29 +554,16 @@ float payload_to_float(const std::vector<uint8_t> &data, SensorValueType sensor_
       value = static_cast<uint64_t>(value & 0xFFFF) << 48 | (value & 0xFFFF000000000000) >> 48 |
               static_cast<uint64_t>(value & 0xFFFF0000) << 32 | (value & 0x0000FFFF00000000) >> 32 |
               static_cast<uint64_t>(value & 0xFFFF00000000) << 16 | (value & 0x00000000FFFF0000) >> 16;
-      result = static_cast<float>(value);
       break;
-
     case SensorValueType::S_QWORD_R:
       // Ignore bitmask for S_QWORD
       value = get_data<int64_t>(data, offset);
-      result = static_cast<float>(value);
       break;
-    case SensorValueType::FP32:
-      raw_to_float.raw = get_data<uint32_t>(data, offset);
-      ESP_LOGD(TAG, "FP32 = 0x%08X => %f", raw_to_float.raw, raw_to_float.float_value);
-      result = raw_to_float.float_value;
-      break;
-    case SensorValueType::FP32_R: {
-      auto tmp = get_data<uint32_t>(data, offset);
-      raw_to_float.raw = static_cast<uint32_t>(tmp & 0xFFFF) << 16 | (tmp & 0xFFFF0000) >> 16;
-      ESP_LOGD(TAG, "FP32_R = 0x%08X => %f", raw_to_float.raw, raw_to_float.float_value);
-      result = raw_to_float.float_value;
-    } break;
+    case SensorValueType::RAW:
     default:
       break;
   }
-  return result;
+  return value;
 }
 
 }  // namespace modbus_controller

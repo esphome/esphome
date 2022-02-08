@@ -116,6 +116,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_BUTTON
+    case IteratorState::BUTTON:
+      if (this->at_ >= App.get_buttons().size()) {
+        advance_platform = true;
+      } else {
+        auto *button = App.get_buttons()[this->at_];
+        if (button->is_internal()) {
+          success = true;
+          break;
+        } else {
+          success = this->on_button(button);
+        }
+      }
+      break;
+#endif
 #ifdef USE_TEXT_SENSOR
     case IteratorState::TEXT_SENSOR:
       if (this->at_ >= App.get_text_sensors().size()) {
@@ -194,6 +209,21 @@ void ComponentIterator::advance() {
           break;
         } else {
           success = this->on_select(select);
+        }
+      }
+      break;
+#endif
+#ifdef USE_LOCK
+    case IteratorState::LOCK:
+      if (this->at_ >= App.get_locks().size()) {
+        advance_platform = true;
+      } else {
+        auto *a_lock = App.get_locks()[this->at_];
+        if (a_lock->is_internal()) {
+          success = true;
+          break;
+        } else {
+          success = this->on_lock(a_lock);
         }
       }
       break;

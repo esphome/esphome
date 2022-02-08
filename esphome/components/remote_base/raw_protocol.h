@@ -50,10 +50,11 @@ template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts
     if (this->code_static_ != nullptr) {
       for (size_t i = 0; i < this->code_static_len_; i++) {
         auto val = this->code_static_[i];
-        if (val < 0)
+        if (val < 0) {
           dst->space(static_cast<uint32_t>(-val));
-        else
+        } else {
           dst->mark(static_cast<uint32_t>(val));
+        }
       }
     } else {
       dst->set_data(this->code_func_(x...));
