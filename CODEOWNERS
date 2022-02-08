@@ -139,6 +139,8 @@ esphome/components/psram/* @esphome/core
 esphome/components/pulse_meter/* @stevebaxter
 esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/qr_code/* @wjtje
+esphome/components/radon_eye_ble/* @jeffeb3
+esphome/components/radon_eye_rd200/* @jeffeb3
 esphome/components/rc522/* @glmnet
 esphome/components/rc522_i2c/* @glmnet
 esphome/components/rc522_spi/* @glmnet
