@@ -19,7 +19,9 @@ IPAddressWiFiInfo = wifi_info_ns.class_(
 ScanResultsWiFiInfo = wifi_info_ns.class_(
     "ScanResultsWiFiInfo", text_sensor.TextSensor, cg.PollingComponent
 )
-SSIDWiFiInfo = wifi_info_ns.class_("SSIDWiFiInfo", text_sensor.TextSensor, cg.PollingComponent)
+SSIDWiFiInfo = wifi_info_ns.class_(
+    "SSIDWiFiInfo", text_sensor.TextSensor, cg.PollingComponent
+)
 BSSIDWiFiInfo = wifi_info_ns.class_(
     "BSSIDWiFiInfo", text_sensor.TextSensor, cg.PollingComponent
 )
@@ -43,7 +45,7 @@ CONFIG_SCHEMA = cv.Schema(
         ).extend(cv.polling_component_schema("1s")),
         cv.Optional(CONF_MAC_ADDRESS): text_sensor.text_sensor_schema(
             klass=MacAddressWifiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-        )
+        ),
     }
 )
 
