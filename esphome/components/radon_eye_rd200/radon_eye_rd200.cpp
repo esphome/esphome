@@ -111,7 +111,7 @@ void RadonEyeRD200::read_sensors_(uint8_t *value, uint16_t value_len) {
   float radon_month = radon_value.number * convert_to_bwpm3;
 
   if (is_valid_radon_value_(radon_month)) {
-    ESP_LOGD(TAG, "Radon Long Term based on month");
+    ESP_LOGV(TAG, "Radon Long Term based on month");
     radon_long_term_sensor_->publish_state(radon_month);
   } else if (is_valid_radon_value_(radon_day)) {
     ESP_LOGD(TAG, "Radon Long Term based on day");
