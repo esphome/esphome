@@ -346,6 +346,13 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   }
 #endif
 
+#ifdef USE_TEXT_SENSOR
+  for (auto *obj : App.get_climates()) {
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "climate", "");
+  }
+#endif
+
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
                   "REST API documentation.</p>"));
   if (this->allow_ota_) {
@@ -549,6 +556,8 @@ std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
     const auto traits = obj->get_traits();
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
+      root["speed_count"] = traits.supported_speed_count();
+      
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
       // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
@@ -856,8 +865,8 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
     set_json_state_value(root, obj, "select-" + obj->get_object_id(), value, value, start_config);
     if (start_config == DETAIL_ALL) {
       JsonArray opt = root.createNestedArray("option");
-      for (auto const &option : obj->traits.get_options()) {
-        opt.add(option.c_str());
+      for (auto &option : obj->traits.get_options()) {
+        opt.add(option);
       }
     }
   });
