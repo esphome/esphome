@@ -557,7 +557,7 @@ std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
       root["speed_count"] = traits.supported_speed_count();
-      
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
       // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
