@@ -696,6 +696,11 @@ def add_pin_registry():
 
     for mode in ("INPUT", "OUTPUT"):
         schema_name = f"PIN.GPIO_FULL_{mode}_PIN_SCHEMA"
+
+        # TODO: get pin definitions properly
+        if schema_name not in definitions:
+            definitions[schema_name] = {"type": ["object", "null"], JSC_PROPERTIES: {}}
+
         internal = definitions[schema_name]
         definitions[schema_name]["additionalItems"] = False
         definitions[f"PIN.{mode}_INTERNAL"] = internal
@@ -706,10 +711,11 @@ def add_pin_registry():
         definitions[schema_name] = {"oneOf": schemas, "type": ["string", "object"]}
 
         for k, v in pin_registry.items():
-            pin_jschema = get_jschema(f"PIN.{mode}_" + k, v[1])
-            if unref(pin_jschema):
-                pin_jschema["required"] = [k]
-                schemas.append(pin_jschema)
+            if isinstance(v[1], vol.validators.All):
+                pin_jschema = get_jschema(f"PIN.{mode}_" + k, v[1])
+                if unref(pin_jschema):
+                    pin_jschema["required"] = [k]
+                    schemas.append(pin_jschema)
 
 
 def dump_schema():
