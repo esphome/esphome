@@ -958,8 +958,8 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
       }
       if (traits.get_supports_swing_modes()) {
         JsonArray opt = root.createNestedArray("swing_modes");
-        //for (const esphome::climate::ClimateSwingMode &swing_mode: traits.get_supported_swing_modes())
-        //opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
+        // for (const esphome::climate::ClimateSwingMode &swing_mode: traits.get_supported_swing_modes())
+        // opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
       }
       if (traits.get_supports_presets() && obj->preset.has_value()) {
         JsonArray opt = root.createNestedArray("presets");
