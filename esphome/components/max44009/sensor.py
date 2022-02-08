@@ -9,6 +9,7 @@ from esphome.const import (
     UNIT_LUX,
 )
 
+CODEOWNERS = ["@berfenger"]
 DEPENDENCIES = ["i2c"]
 
 max44009_ns = cg.esphome_ns.namespace("max44009")
