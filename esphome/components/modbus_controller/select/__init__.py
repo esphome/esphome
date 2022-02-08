@@ -35,7 +35,7 @@ def ensure_option_map():
     def validator(value):
         cv.check_not_templatable(value)
         option = cv.All(cv.string_strict)
-        mapping = cv.All(cv.int_range(-(2 ** 63), 2 ** 63 - 1))
+        mapping = cv.All(cv.int_range(-(2**63), 2**63 - 1))
         options_map_schema = cv.Schema({option: mapping})
         value = options_map_schema(value)
 
