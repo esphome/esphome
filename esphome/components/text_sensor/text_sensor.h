@@ -58,6 +58,8 @@ class TextSensor : public EntityBase {
 
   void internal_send_state_to_frontend(const std::string &state);
 
+  void dump_config() override;
+
  protected:
   uint32_t hash_base() override;
 
