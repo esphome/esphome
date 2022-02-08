@@ -144,8 +144,8 @@ def get_bool_env(var, default=False):
     return bool(os.getenv(var, default))
 
 
-def is_hassio():
-    return get_bool_env("ESPHOME_IS_HASSIO")
+def is_ha_addon():
+    return get_bool_env("ESPHOME_IS_HA_ADDON")
 
 
 def walk_files(path):
