@@ -2037,6 +2037,10 @@ switch:
   - platform: template
     id: ble1_status
     optimistic: true
+  - platform: template
+    id: outlet_switch
+    optimistic: true
+    device_class: outlet
 
 fan:
   - platform: binary
@@ -2582,3 +2586,28 @@ select:
 qr_code:
   - id: homepage_qr
     value: https://esphome.io/index.html
+
+lock:
+  - platform: template
+    id: test_lock1
+    name: "Template Switch"
+    lambda: |-
+      if (id(binary_sensor1).state) {
+        return LOCK_STATE_LOCKED;
+      }else{
+        return LOCK_STATE_UNLOCKED;
+      }
+    optimistic: true
+    assumed_state: no
+    on_unlock:
+      - lock.template.publish:
+          id: test_lock1
+          state: !lambda "return LOCK_STATE_UNLOCKED;"
+    on_lock:
+      - lock.template.publish:
+          id: test_lock1
+          state: !lambda "return LOCK_STATE_LOCKED;"
+  - platform: output
+    name: "Generic Output Lock"
+    id: test_lock2
+    output: pca_6

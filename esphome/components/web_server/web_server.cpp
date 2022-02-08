@@ -152,6 +152,13 @@ void WebServer::setup() {
         client->send(this->select_json(obj, obj->state).c_str(), "state");
     }
 #endif
+
+#ifdef USE_LOCK
+    for (auto *obj : App.get_locks()) {
+      if (this->include_internal_ || !obj->is_internal())
+        client->send(this->lock_json(obj, obj->state).c_str(), "state");
+    }
+#endif
   });
 
 #ifdef USE_LOGGER
@@ -282,6 +289,20 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
           stream.print("</option>");
         }
         stream.print("</select>");
+      });
+    }
+  }
+#endif
+
+#ifdef USE_LOCK
+  for (auto *obj : App.get_locks()) {
+    if (this->include_internal_ || !obj->is_internal()) {
+      write_row(stream, obj, "lock", "", [](AsyncResponseStream &stream, EntityBase *obj) {
+        lock::Lock *lock = (lock::Lock *) obj;
+        stream.print("<button>Lock</button><button>Unlock</button>");
+        if (lock->traits.get_supports_open()) {
+          stream.print("<button>Open</button>");
+        }
       });
     }
   }
@@ -763,6 +784,43 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
 }
 #endif
 
+#ifdef USE_LOCK
+void WebServer::on_lock_update(lock::Lock *obj) {
+  this->events_.send(this->lock_json(obj, obj->state).c_str(), "state");
+}
+std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value) {
+  return json::build_json([obj, value](JsonObject root) {
+    root["id"] = "lock-" + obj->get_object_id();
+    root["state"] = lock::lock_state_to_string(value);
+    root["value"] = value;
+  });
+}
+void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (lock::Lock *obj : App.get_locks()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->lock_json(obj, obj->state);
+      request->send(200, "text/json", data.c_str());
+    } else if (match.method == "lock") {
+      this->defer([obj]() { obj->lock(); });
+      request->send(200);
+    } else if (match.method == "unlock") {
+      this->defer([obj]() { obj->unlock(); });
+      request->send(200);
+    } else if (match.method == "open") {
+      this->defer([obj]() { obj->open(); });
+      request->send(200);
+    } else {
+      request->send(404);
+    }
+    return;
+  }
+  request->send(404);
+}
+#endif
+
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
@@ -827,6 +885,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_SELECT
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "select")
+    return true;
+#endif
+
+#ifdef USE_LOCK
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "lock")
     return true;
 #endif
 
@@ -919,6 +982,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_SELECT
   if (match.domain == "select") {
     this->handle_select_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_LOCK
+  if (match.domain == "lock") {
+    this->handle_lock_request(request, match);
     return;
   }
 #endif
