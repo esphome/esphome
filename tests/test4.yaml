@@ -328,6 +328,7 @@ binary_sensor:
       number: 3
 
   - platform: touchscreen
+    touchscreen_id: lilygo_touchscreen
     id: touch_key1
     x_min: 0
     x_max: 100
@@ -556,6 +557,15 @@ touchscreen:
   - platform: ektf2232
     interrupt_pin: GPIO36
     rts_pin: GPIO5
+    display: inkplate_display
+    on_touch:
+      - logger.log:
+          format: Touch at (%d, %d)
+          args: ["touch.x", "touch.y"]
+
+  - platform: lilygo_t5_47
+    id: lilygo_touchscreen
+    interrupt_pin: GPIO36
     display: inkplate_display
     on_touch:
       - logger.log:

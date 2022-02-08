@@ -101,7 +101,7 @@ class Tuya : public Component, public uart::UARTDevice {
 
  protected:
   void handle_char_(uint8_t c);
-  void handle_datapoint_(const uint8_t *buffer, size_t len);
+  void handle_datapoints_(const uint8_t *buffer, size_t len);
   optional<TuyaDatapoint> get_datapoint_(uint8_t datapoint_id);
   bool validate_message_();
 

@@ -263,6 +263,15 @@ void APIServer::on_select_update(select::Select *obj, const std::string &state) 
 }
 #endif
 
+#ifdef USE_LOCK
+void APIServer::on_lock_update(lock::Lock *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_lock_state(obj, obj->state);
+}
+#endif
+
 float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 void APIServer::set_port(uint16_t port) { this->port_ = port; }
 APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

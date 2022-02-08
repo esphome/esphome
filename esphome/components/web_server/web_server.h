@@ -185,6 +185,16 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string select_json(select::Select *obj, const std::string &value);
 #endif
 
+#ifdef USE_LOCK
+  void on_lock_update(lock::Lock *obj) override;
+
+  /// Handle a lock request under '/lock/<id>/</lock/unlock/open>'.
+  void handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the lock state with its value as a JSON string.
+  std::string lock_json(lock::Lock *obj, lock::LockState value);
+#endif
+
   /// Override the web handler's canHandle method.
   bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.

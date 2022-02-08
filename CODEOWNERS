@@ -89,9 +89,12 @@ esphome/components/json/* @OttoWinter
 esphome/components/kalman_combinator/* @Cat-Ion
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
+esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
+esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/ltr390/* @sjtrny
 esphome/components/max7219digit/* @rspaargaren
+esphome/components/max9611/* @mckaymatthew
 esphome/components/mcp23008/* @jesserockz
 esphome/components/mcp23017/* @jesserockz
 esphome/components/mcp23s08/* @SenexCrenshaw @jesserockz
@@ -108,10 +111,12 @@ esphome/components/mdns/* @esphome/core
 esphome/components/midea/* @dudanov
 esphome/components/midea_ir/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
+esphome/components/mlx90393/* @functionpointer
 esphome/components/modbus_controller/* @martgras
 esphome/components/modbus_controller/binary_sensor/* @martgras
 esphome/components/modbus_controller/number/* @martgras
 esphome/components/modbus_controller/output/* @martgras
+esphome/components/modbus_controller/select/* @martgras @stegm
 esphome/components/modbus_controller/sensor/* @martgras
 esphome/components/modbus_controller/switch/* @martgras
 esphome/components/modbus_controller/text_sensor/* @martgras
@@ -138,6 +143,8 @@ esphome/components/psram/* @esphome/core
 esphome/components/pulse_meter/* @stevebaxter
 esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/qr_code/* @wjtje
+esphome/components/radon_eye_ble/* @jeffeb3
+esphome/components/radon_eye_rd200/* @jeffeb3
 esphome/components/rc522/* @glmnet
 esphome/components/rc522_i2c/* @glmnet
 esphome/components/rc522_spi/* @glmnet
