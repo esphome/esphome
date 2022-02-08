@@ -56,18 +56,19 @@ INTEGRATION_TIMES = {
     600: TSL2591IntegrationTime.TSL2591_INTEGRATION_TIME_600MS,
 }
 
-TSL2591Gain = tsl2591_ns.enum("TSL2591Gain")
+TSL2591ComponentGain = tsl2591_ns.enum("TSL2591ComponentGain")
 GAINS = {
-    "1X": TSL2591Gain.TSL2591_GAIN_LOW,
-    "LOW": TSL2591Gain.TSL2591_GAIN_LOW,
-    "25X": TSL2591Gain.TSL2591_GAIN_MED,
-    "MED": TSL2591Gain.TSL2591_GAIN_MED,
-    "MEDIUM": TSL2591Gain.TSL2591_GAIN_MED,
-    "400X": TSL2591Gain.TSL2591_GAIN_HIGH,
-    "HIGH": TSL2591Gain.TSL2591_GAIN_HIGH,
-    "9500X": TSL2591Gain.TSL2591_GAIN_MAX,
-    "MAX": TSL2591Gain.TSL2591_GAIN_MAX,
-    "MAXIMUM": TSL2591Gain.TSL2591_GAIN_MAX,
+    "1X": TSL2591ComponentGain.TSL2591_CGAIN_LOW,
+    "LOW": TSL2591ComponentGain.TSL2591_CGAIN_LOW,
+    "25X": TSL2591ComponentGain.TSL2591_CGAIN_MED,
+    "MED": TSL2591ComponentGain.TSL2591_CGAIN_MED,
+    "MEDIUM": TSL2591ComponentGain.TSL2591_CGAIN_MED,
+    "400X": TSL2591ComponentGain.TSL2591_CGAIN_HIGH,
+    "HIGH": TSL2591ComponentGain.TSL2591_CGAIN_HIGH,
+    "9500X": TSL2591ComponentGain.TSL2591_CGAIN_MAX,
+    "MAX": TSL2591ComponentGain.TSL2591_CGAIN_MAX,
+    "MAXIMUM": TSL2591ComponentGain.TSL2591_CGAIN_MAX,
+    "AUTO": TSL2591ComponentGain.TSL2591_CGAIN_AUTO,
 }
 
 
@@ -117,7 +118,7 @@ CONFIG_SCHEMA = (
                 CONF_INTEGRATION_TIME, default="100ms"
             ): validate_integration_time,
             cv.Optional(CONF_NAME, default="TLS2591"): cv.string,
-            cv.Optional(CONF_GAIN, default="MEDIUM"): cv.enum(GAINS, upper=True),
+            cv.Optional(CONF_GAIN, default="AUTO"): cv.enum(GAINS, upper=True),
             cv.Optional(CONF_POWER_SAVE_MODE, default=True): cv.boolean,
             cv.Optional(CONF_DEVICE_FACTOR, default=53.0): cv.float_with_unit(
                 "device_factor", "", True
