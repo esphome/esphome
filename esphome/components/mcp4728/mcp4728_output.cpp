@@ -8,9 +8,7 @@ namespace mcp4728 {
 
 static const char *const TAG = "mcp4728";
 
-void MCP4728Output::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MCP4728OutputComponent...");
-}
+void MCP4728Output::setup() { ESP_LOGCONFIG(TAG, "Setting up MCP4728OutputComponent..."); }
 
 void MCP4728Output::dump_config() {
   ESP_LOGCONFIG(TAG, "MCP4728:");
@@ -23,23 +21,25 @@ void MCP4728Output::dump_config() {
 void MCP4728Output::loop() {
   if (this->update_) {
     this->update_ = false;
-    if (this->eeprom_)
+    if (this->eeprom_) {
       this->seq_write_();
-    else
+    } else {
       this->multi_write_();
+    }
   }
 }
 
 void MCP4728Output::set_channel_value_(MCP4728ChannelIdx channel, uint16_t value) {
   uint8_t cn = 0;
-  if (channel == MCP4728_CHANNEL_A)
+  if (channel == MCP4728_CHANNEL_A) {
     cn = 'A';
-  else if (channel == MCP4728_CHANNEL_B)
+  } else if (channel == MCP4728_CHANNEL_B) {
     cn = 'B';
-  else if (channel == MCP4728_CHANNEL_C)
+  } else if (channel == MCP4728_CHANNEL_C) {
     cn = 'C';
-  else
+  } else {
     cn = 'D';
+  }
   ESP_LOGD(TAG, "Setting MCP4728 channel %c to %d!", cn, value);
   reg_[channel].data = value;
   this->update_ = true;
@@ -48,9 +48,9 @@ void MCP4728Output::set_channel_value_(MCP4728ChannelIdx channel, uint16_t value
 uint8_t MCP4728Output::multi_write_() {
   for (uint8_t i = 0; i < 4; ++i) {
     uint8_t wd[3];
-    wd[0] = ((uint8_t)CMD::MULTI_WRITE | (i << 1)) & 0xFE;
-    wd[1] = ((uint8_t)reg_[i].vref << 7) | ((uint8_t)reg_[i].pd << 5) |
-            ((uint8_t)reg_[i].gain << 4) | (reg_[i].data >> 8);
+    wd[0] = ((uint8_t) CMD::MULTI_WRITE | (i << 1)) & 0xFE;
+    wd[1] = ((uint8_t) reg_[i].vref << 7) | ((uint8_t) reg_[i].pd << 5) | ((uint8_t) reg_[i].gain << 4) |
+            (reg_[i].data >> 8);
     wd[2] = reg_[i].data & 0xFF;
     this->write(wd, sizeof(wd));
   }
@@ -59,10 +59,10 @@ uint8_t MCP4728Output::multi_write_() {
 
 uint8_t MCP4728Output::seq_write_() {
   uint8_t wd[9];
-  wd[0] = (uint8_t)CMD::SEQ_WRITE;
+  wd[0] = (uint8_t) CMD::SEQ_WRITE;
   for (uint8_t i = 0; i < 4; i++) {
-    wd[i * 2 + 1] = ((uint8_t)reg_[i].vref << 7) | ((uint8_t)reg_[i].pd << 5) |
-                    ((uint8_t)reg_[i].gain << 4) | (reg_[i].data >> 8);
+    wd[i * 2 + 1] = ((uint8_t) reg_[i].vref << 7) | ((uint8_t) reg_[i].pd << 5) | ((uint8_t) reg_[i].gain << 4) |
+                    (reg_[i].data >> 8);
     wd[i * 2 + 2] = reg_[i].data & 0xFF;
   }
   this->write(wd, sizeof(wd));
