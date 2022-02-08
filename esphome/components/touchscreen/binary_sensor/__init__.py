@@ -9,7 +9,11 @@ from .. import touchscreen_ns, CONF_TOUCHSCREEN_ID, Touchscreen, TouchListener
 DEPENDENCIES = ["touchscreen"]
 
 TouchscreenBinarySensor = touchscreen_ns.class_(
-    "TouchscreenBinarySensor", binary_sensor.BinarySensor, TouchListener
+    "TouchscreenBinarySensor",
+    binary_sensor.BinarySensor,
+    cg.Component,
+    TouchListener,
+    cg.Parented.template(Touchscreen),
 )
 
 CONF_X_MIN = "x_min"
@@ -39,7 +43,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_Y_MIN): cv.int_range(min=0, max=2000),
             cv.Required(CONF_Y_MAX): cv.int_range(min=0, max=2000),
         }
-    ),
+    ).extend(cv.COMPONENT_SCHEMA),
     validate_coords,
 )
 
@@ -47,7 +51,9 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await binary_sensor.register_binary_sensor(var, config)
-    hub = await cg.get_variable(config[CONF_TOUCHSCREEN_ID])
+    await cg.register_component(var, config)
+    await cg.register_parented(var, config[CONF_TOUCHSCREEN_ID])
+
     cg.add(
         var.set_area(
             config[CONF_X_MIN],
@@ -56,4 +62,3 @@ async def to_code(config):
             config[CONF_Y_MAX],
         )
     )
-    cg.add(hub.register_listener(var))

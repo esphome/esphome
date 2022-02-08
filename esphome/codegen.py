@@ -81,4 +81,5 @@ from esphome.cpp_types import (  # noqa
     InternalGPIOPin,
     gpio_Flags,
     EntityCategory,
+    Parented,
 )
