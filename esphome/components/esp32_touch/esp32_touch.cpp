@@ -1,6 +1,7 @@
 #ifdef USE_ESP32
 
 #include "esp32_touch.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -93,7 +94,6 @@ void ESP32TouchComponent::dump_config() {
 
   if (this->iir_filter_enabled_()) {
     ESP_LOGCONFIG(TAG, "    IIR Filter: %ums", this->iir_filter_);
-    touch_pad_filter_start(this->iir_filter_);
   } else {
     ESP_LOGCONFIG(TAG, "  IIR Filter DISABLED");
   }
@@ -125,6 +125,8 @@ void ESP32TouchComponent::loop() {
     if (should_print) {
       ESP_LOGD(TAG, "Touch Pad '%s' (T%u): %u", child->get_name().c_str(), child->get_touch_pad(), value);
     }
+
+    App.feed_wdt();
   }
 
   if (should_print) {
@@ -160,7 +162,7 @@ void ESP32TouchComponent::on_shutdown() {
 }
 
 ESP32TouchBinarySensor::ESP32TouchBinarySensor(touch_pad_t touch_pad, uint16_t threshold, uint16_t wakeup_threshold)
-    : BinarySensor(), touch_pad_(touch_pad), threshold_(threshold), wakeup_threshold_(wakeup_threshold) {}
+    : touch_pad_(touch_pad), threshold_(threshold), wakeup_threshold_(wakeup_threshold) {}
 
 }  // namespace esp32_touch
 }  // namespace esphome

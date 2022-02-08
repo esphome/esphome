@@ -8,12 +8,7 @@ namespace modbus_controller {
 static const char *const TAG = "modbus.number";
 
 void ModbusNumber::parse_and_publish(const std::vector<uint8_t> &data) {
-  union {
-    float float_value;
-    uint32_t raw;
-  } raw_to_float;
-
-  float result = payload_to_float(data, *this);
+  float result = payload_to_float(data, *this) / multiply_by_;
 
   // Is there a lambda registered
   // call it with the pre converted value and the raw data array
@@ -31,13 +26,8 @@ void ModbusNumber::parse_and_publish(const std::vector<uint8_t> &data) {
 }
 
 void ModbusNumber::control(float value) {
-  union {
-    float float_value;
-    uint32_t raw;
-  } raw_to_float;
-
   std::vector<uint16_t> data;
-  auto original_value = value;
+  float write_value = value;
   // Is there are lambda configured?
   if (this->write_transform_func_.has_value()) {
     // data is passed by reference
@@ -46,28 +36,34 @@ void ModbusNumber::control(float value) {
     auto val = (*this->write_transform_func_)(this, value, data);
     if (val.has_value()) {
       ESP_LOGV(TAG, "Value overwritten by lambda");
-      value = val.value();
+      write_value = val.value();
     } else {
       ESP_LOGV(TAG, "Communication handled by lambda - exiting control");
       return;
     }
   } else {
-    value = multiply_by_ * value;
+    write_value = multiply_by_ * write_value;
   }
 
   // lambda didn't set payload
   if (data.empty()) {
-    data = float_to_payload(value, this->sensor_value_type);
+    data = float_to_payload(write_value, this->sensor_value_type);
   }
 
   ESP_LOGD(TAG,
            "Updating register: connected Sensor=%s start address=0x%X register count=%d new value=%.02f (val=%.02f)",
-           this->get_name().c_str(), this->start_address, this->register_count, value, value);
+           this->get_name().c_str(), this->start_address, this->register_count, value, write_value);
 
   // Create and send the write command
-  auto write_cmd = ModbusCommandItem::create_write_multiple_command(parent_, this->start_address + this->offset,
-                                                                    this->register_count, data);
-
+  ModbusCommandItem write_cmd;
+  if (this->register_count == 1 && !this->use_write_multiple_) {
+    // since offset is in bytes and a register is 16 bits we get the start by adding offset/2
+    write_cmd =
+        ModbusCommandItem::create_write_single_command(parent_, this->start_address + this->offset / 2, data[0]);
+  } else {
+    write_cmd = ModbusCommandItem::create_write_multiple_command(parent_, this->start_address + this->offset / 2,
+                                                                 this->register_count, data);
+  }
   // publish new value
   write_cmd.on_data_func = [this, write_cmd, value](ModbusRegisterType register_type, uint16_t start_address,
                                                     const std::vector<uint8_t> &data) {

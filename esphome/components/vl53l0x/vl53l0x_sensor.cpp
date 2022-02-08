@@ -124,10 +124,11 @@ void VL53L0XSensor::setup() {
     uint8_t &val = ref_spad_map[i / 8];
     uint8_t mask = 1 << (i % 8);
 
-    if (i < first_spad_to_enable || spads_enabled == spad_count)
+    if (i < first_spad_to_enable || spads_enabled == spad_count) {
       val &= ~mask;
-    else if (val & mask)
+    } else if (val & mask) {
       spads_enabled += 1;
+    }
   }
 
   this->write_bytes(0xB0, ref_spad_map, 6);

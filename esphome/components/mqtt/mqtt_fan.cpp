@@ -14,9 +14,9 @@ static const char *const TAG = "mqtt.fan";
 
 using namespace esphome::fan;
 
-MQTTFanComponent::MQTTFanComponent(FanState *state) : MQTTComponent(), state_(state) {}
+MQTTFanComponent::MQTTFanComponent(Fan *state) : state_(state) {}
 
-FanState *MQTTFanComponent::get_state() const { return this->state_; }
+Fan *MQTTFanComponent::get_state() const { return this->state_; }
 std::string MQTTFanComponent::component_type() const { return "fan"; }
 const EntityBase *MQTTFanComponent::get_entity() const { return this->state_; }
 
@@ -71,7 +71,7 @@ void MQTTFanComponent::setup() {
   if (this->state_->get_traits().supports_speed()) {
     this->subscribe(this->get_speed_level_command_topic(),
                     [this](const std::string &topic, const std::string &payload) {
-                      optional<int> speed_level_opt = parse_int(payload);
+                      optional<int> speed_level_opt = parse_number<int>(payload);
                       if (speed_level_opt.has_value()) {
                         const int speed_level = speed_level_opt.value();
                         if (speed_level >= 0 && speed_level <= this->state_->get_traits().supported_speed_count()) {
@@ -120,7 +120,7 @@ void MQTTFanComponent::dump_config() {
 
 bool MQTTFanComponent::send_initial_state() { return this->publish_state(); }
 
-void MQTTFanComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+void MQTTFanComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   if (this->state_->get_traits().supports_oscillation()) {
     root[MQTT_OSCILLATION_COMMAND_TOPIC] = this->get_oscillation_command_topic();
     root[MQTT_OSCILLATION_STATE_TOPIC] = this->get_oscillation_state_topic();

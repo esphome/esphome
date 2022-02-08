@@ -66,7 +66,7 @@ def test_string_string__invalid(value):
         config_validation.string_strict(value)
 
 
-@given(builds(lambda v: "mdi:" + v, text()))
+@given(builds(lambda v: "mdi:" + v, text(alphabet=string.ascii_letters + string.digits + "-_", min_size=1, max_size=20)))
 @example("")
 def test_icon__valid(value):
     actual = config_validation.icon(value)
@@ -75,7 +75,7 @@ def test_icon__valid(value):
 
 
 def test_icon__invalid():
-    with pytest.raises(Invalid, match="Icons should start with prefix"):
+    with pytest.raises(Invalid, match="Icons must match the format "):
         config_validation.icon("foo")
 
 

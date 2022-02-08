@@ -21,12 +21,13 @@ void BangBangClimate::setup() {
     restore->to_call(this).perform();
   } else {
     // restore from defaults, change_away handles those for us
-    if (supports_cool_ && supports_heat_)
+    if (supports_cool_ && supports_heat_) {
       this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-    else if (supports_cool_)
+    } else if (supports_cool_) {
       this->mode = climate::CLIMATE_MODE_COOL;
-    else if (supports_heat_)
+    } else if (supports_heat_) {
       this->mode = climate::CLIMATE_MODE_HEAT;
+    }
     this->change_away_(false);
   }
 }
@@ -56,11 +57,12 @@ climate::ClimateTraits BangBangClimate::traits() {
   if (supports_cool_ && supports_heat_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
   traits.set_supports_two_point_target_temperature(true);
-  if (supports_away_)
+  if (supports_away_) {
     traits.set_supported_presets({
         climate::CLIMATE_PRESET_HOME,
         climate::CLIMATE_PRESET_AWAY,
     });
+  }
   traits.set_supports_action(true);
   return traits;
 }
@@ -80,21 +82,25 @@ void BangBangClimate::compute_state_() {
 
   climate::ClimateAction target_action;
   if (too_cold) {
-    // too cold -> enable heating if possible, else idle
-    if (this->supports_heat_)
+    // too cold -> enable heating if possible and enabled, else idle
+    if (this->supports_heat_ &&
+        (this->mode == climate::CLIMATE_MODE_HEAT_COOL || this->mode == climate::CLIMATE_MODE_HEAT)) {
       target_action = climate::CLIMATE_ACTION_HEATING;
-    else
+    } else {
       target_action = climate::CLIMATE_ACTION_IDLE;
+    }
   } else if (too_hot) {
-    // too hot -> enable cooling if possible, else idle
-    if (this->supports_cool_)
+    // too hot -> enable cooling if possible and enabled, else idle
+    if (this->supports_cool_ &&
+        (this->mode == climate::CLIMATE_MODE_HEAT_COOL || this->mode == climate::CLIMATE_MODE_COOL)) {
       target_action = climate::CLIMATE_ACTION_COOLING;
-    else
+    } else {
       target_action = climate::CLIMATE_ACTION_IDLE;
+    }
   } else {
     // neither too hot nor too cold -> in range
-    if (this->supports_cool_ && this->supports_heat_) {
-      // if supports both ends, go to idle action
+    if (this->supports_cool_ && this->supports_heat_ && this->mode == climate::CLIMATE_MODE_HEAT_COOL) {
+      // if supports both ends and both cooling and heating enabled, go to idle action
       target_action = climate::CLIMATE_ACTION_IDLE;
     } else {
       // else use current mode and don't change (hysteresis)
@@ -105,9 +111,10 @@ void BangBangClimate::compute_state_() {
   this->switch_to_action_(target_action);
 }
 void BangBangClimate::switch_to_action_(climate::ClimateAction action) {
-  if (action == this->action)
+  if (action == this->action) {
     // already in target mode
     return;
+  }
 
   if ((action == climate::CLIMATE_ACTION_OFF && this->action == climate::CLIMATE_ACTION_IDLE) ||
       (action == climate::CLIMATE_ACTION_IDLE && this->action == climate::CLIMATE_ACTION_OFF)) {

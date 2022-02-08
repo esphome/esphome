@@ -96,6 +96,7 @@ optional<bool> PMSX003Component::check_byte_() {
         length_matches = payload_length == 28 || payload_length == 20;
         break;
       case PMSX003_TYPE_5003T:
+      case PMSX003_TYPE_5003S:
         length_matches = payload_length == 28;
         break;
       case PMSX003_TYPE_5003ST:
@@ -133,20 +134,25 @@ optional<bool> PMSX003Component::check_byte_() {
 void PMSX003Component::parse_data_() {
   switch (this->type_) {
     case PMSX003_TYPE_5003ST: {
-      uint16_t formaldehyde = this->get_16_bit_uint_(28);
       float temperature = this->get_16_bit_uint_(30) / 10.0f;
       float humidity = this->get_16_bit_uint_(32) / 10.0f;
 
-      ESP_LOGD(TAG, "Got Temperature: %.1f°C, Humidity: %.1f%% Formaldehyde: %u µg/m^3", temperature, humidity,
-               formaldehyde);
+      ESP_LOGD(TAG, "Got Temperature: %.1f°C, Humidity: %.1f%%", temperature, humidity);
 
       if (this->temperature_sensor_ != nullptr)
         this->temperature_sensor_->publish_state(temperature);
       if (this->humidity_sensor_ != nullptr)
         this->humidity_sensor_->publish_state(humidity);
+      // The rest of the PMS5003ST matches the PMS5003S, continue on
+    }
+    case PMSX003_TYPE_5003S: {
+      uint16_t formaldehyde = this->get_16_bit_uint_(28);
+
+      ESP_LOGD(TAG, "Got Formaldehyde: %u µg/m^3", formaldehyde);
+
       if (this->formaldehyde_sensor_ != nullptr)
         this->formaldehyde_sensor_->publish_state(formaldehyde);
-      // The rest of the PMS5003ST matches the PMS5003, continue on
+      // The rest of the PMS5003S matches the PMS5003, continue on
     }
     case PMSX003_TYPE_X003: {
       uint16_t pm_1_0_std_concentration = this->get_16_bit_uint_(4);

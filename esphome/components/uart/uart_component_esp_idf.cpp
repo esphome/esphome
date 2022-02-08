@@ -16,10 +16,11 @@ static const char *const TAG = "uart.idf";
 
 uart_config_t IDFUARTComponent::get_config_() {
   uart_parity_t parity = UART_PARITY_DISABLE;
-  if (this->parity_ == UART_CONFIG_PARITY_EVEN)
+  if (this->parity_ == UART_CONFIG_PARITY_EVEN) {
     parity = UART_PARITY_EVEN;
-  else if (this->parity_ == UART_CONFIG_PARITY_ODD)
+  } else if (this->parity_ == UART_CONFIG_PARITY_ODD) {
     parity = UART_PARITY_ODD;
+  }
 
   uart_word_length_t data_bits;
   switch (this->data_bits_) {
@@ -130,17 +131,20 @@ void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
   xSemaphoreTake(this->lock_, portMAX_DELAY);
   uart_write_bytes(this->uart_num_, data, len);
   xSemaphoreGive(this->lock_);
+#ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    ESP_LOGVV(TAG, "    Wrote 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
+    this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
   }
+#endif
 }
+
 bool IDFUARTComponent::peek_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
     return false;
   xSemaphoreTake(this->lock_, portMAX_DELAY);
-  if (this->has_peek_)
+  if (this->has_peek_) {
     *data = this->peek_byte_;
-  else {
+  } else {
     int len = uart_read_bytes(this->uart_num_, data, 1, 20 / portTICK_RATE_MS);
     if (len == 0) {
       *data = 0;
@@ -152,6 +156,7 @@ bool IDFUARTComponent::peek_byte(uint8_t *data) {
   xSemaphoreGive(this->lock_);
   return true;
 }
+
 bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
   size_t length_to_read = len;
   if (!this->check_read_timeout_(len))
@@ -165,12 +170,12 @@ bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
   }
   if (length_to_read > 0)
     uart_read_bytes(this->uart_num_, data, length_to_read, 20 / portTICK_RATE_MS);
-
   xSemaphoreGive(this->lock_);
+#ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    ESP_LOGVV(TAG, "    Read 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
+    this->debug_callback_.call(UART_DIRECTION_RX, data[i]);
   }
-
+#endif
   return true;
 }
 

@@ -2,13 +2,11 @@
 
 #include "esphome/core/log.h"
 #include "air_conditioner.h"
-#include "adapter.h"
-#ifdef USE_REMOTE_TRANSMITTER
-#include "midea_ir.h"
-#endif
+#include "ac_adapter.h"
 
 namespace esphome {
 namespace midea {
+namespace ac {
 
 static void set_sensor(Sensor *sensor, float value) {
   if (sensor != nullptr && (!sensor->has_state() || sensor->get_raw_state() != value))
@@ -61,14 +59,16 @@ void AirConditioner::control(const ClimateCall &call) {
     ctrl.swingMode = Converters::to_midea_swing_mode(call.get_swing_mode().value());
   if (call.get_mode().has_value())
     ctrl.mode = Converters::to_midea_mode(call.get_mode().value());
-  if (call.get_preset().has_value())
+  if (call.get_preset().has_value()) {
     ctrl.preset = Converters::to_midea_preset(call.get_preset().value());
-  else if (call.get_custom_preset().has_value())
+  } else if (call.get_custom_preset().has_value()) {
     ctrl.preset = Converters::to_midea_preset(call.get_custom_preset().value());
-  if (call.get_fan_mode().has_value())
+  }
+  if (call.get_fan_mode().has_value()) {
     ctrl.fanMode = Converters::to_midea_fan_mode(call.get_fan_mode().value());
-  else if (call.get_custom_fan_mode().has_value())
+  } else if (call.get_custom_fan_mode().has_value()) {
     ctrl.fanMode = Converters::to_midea_fan_mode(call.get_custom_fan_mode().value());
+  }
   this->base_.control(ctrl);
 }
 
@@ -122,7 +122,7 @@ void AirConditioner::dump_config() {
 void AirConditioner::do_follow_me(float temperature, bool beeper) {
 #ifdef USE_REMOTE_TRANSMITTER
   IrFollowMeData data(static_cast<uint8_t>(lroundf(temperature)), beeper);
-  this->transmit_ir(data);
+  this->transmitter_.transmit(data);
 #else
   ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
 #endif
@@ -131,7 +131,7 @@ void AirConditioner::do_follow_me(float temperature, bool beeper) {
 void AirConditioner::do_swing_step() {
 #ifdef USE_REMOTE_TRANSMITTER
   IrSpecialData data(0x01);
-  this->transmit_ir(data);
+  this->transmitter_.transmit(data);
 #else
   ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
 #endif
@@ -143,13 +143,14 @@ void AirConditioner::do_display_toggle() {
   } else {
 #ifdef USE_REMOTE_TRANSMITTER
     IrSpecialData data(0x08);
-    this->transmit_ir(data);
+    this->transmitter_.transmit(data);
 #else
     ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
 #endif
   }
 }
 
+}  // namespace ac
 }  // namespace midea
 }  // namespace esphome
 

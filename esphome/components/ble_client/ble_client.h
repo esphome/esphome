@@ -59,7 +59,7 @@ class BLECharacteristic {
   void parse_descriptors();
   BLEDescriptor *get_descriptor(espbt::ESPBTUUID uuid);
   BLEDescriptor *get_descriptor(uint16_t uuid);
-
+  void write_value(uint8_t *new_val, int16_t new_val_size);
   BLEService *service;
 };
 
@@ -126,9 +126,10 @@ class BLEClient : public espbt::ESPBTClient, public Component {
   bool all_nodes_established_() {
     if (this->state() != espbt::ClientState::ESTABLISHED)
       return false;
-    for (auto &node : nodes_)
+    for (auto &node : nodes_) {
       if (node->node_state != espbt::ClientState::ESTABLISHED)
         return false;
+    }
     return true;
   }
 

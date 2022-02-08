@@ -61,6 +61,8 @@ extern const uint32_t STATUS_LED_OK;
 extern const uint32_t STATUS_LED_WARNING;
 extern const uint32_t STATUS_LED_ERROR;
 
+enum RetryResult { DONE, RETRY };
+
 class Component {
  public:
   /** Where the component's initialization should happen.
@@ -180,7 +182,35 @@ class Component {
    */
   bool cancel_interval(const std::string &name);  // NOLINT
 
-  void set_timeout(uint32_t timeout, std::function<void()> &&f);  // NOLINT
+  /** Set an retry function with a unique name. Empty name means no cancelling possible.
+   *
+   * This will call f. If f returns RetryResult::RETRY f is called again after initial_wait_time ms.
+   * f should return RetryResult::DONE if no repeat is required. The initial wait time will be increased
+   * by backoff_increase_factor for each iteration. Default is doubling the time between iterations
+   * Can be cancelled via cancel_retry().
+   *
+   * IMPORTANT: Do not rely on this having correct timing. This is only called from
+   * loop() and therefore can be significantly delayed.
+   *
+   * @param name The identifier for this retry function.
+   * @param initial_wait_time The time in ms before f is called again
+   * @param max_attempts The maximum number of retries
+   * @param f The function (or lambda) that should be called
+   * @param backoff_increase_factor time between retries is increased by this factor on every retry
+   * @see cancel_retry()
+   */
+  void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,  // NOLINT
+                 std::function<RetryResult()> &&f, float backoff_increase_factor = 1.0f);    // NOLINT
+
+  void set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult()> &&f,  // NOLINT
+                 float backoff_increase_factor = 1.0f);                                               // NOLINT
+
+  /** Cancel a retry function.
+   *
+   * @param name The identifier for this retry function.
+   * @return Whether a retry function was deleted.
+   */
+  bool cancel_retry(const std::string &name);  // NOLINT
 
   /** Set a timeout function with a unique name.
    *
@@ -197,6 +227,8 @@ class Component {
    * @see cancel_timeout()
    */
   void set_timeout(const std::string &name, uint32_t timeout, std::function<void()> &&f);  // NOLINT
+
+  void set_timeout(uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
   /** Cancel a timeout function.
    *

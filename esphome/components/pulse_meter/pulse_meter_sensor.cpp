@@ -35,7 +35,7 @@ void PulseMeterSensor::loop() {
       this->publish_state(0);
     } else {
       // Calculate pulses/min from the pulse width in ms
-      this->publish_state((60.0 * 1000.0) / pulse_width_ms);
+      this->publish_state((60.0f * 1000.0f) / pulse_width_ms);
     }
   }
 

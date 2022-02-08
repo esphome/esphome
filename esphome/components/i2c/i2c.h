@@ -1,6 +1,7 @@
 #pragma once
 
 #include "i2c_bus.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/optional.h"
 #include <array>
 #include <vector>
@@ -32,16 +33,8 @@ class I2CRegister {
 
 // like ntohs/htons but without including networking headers.
 // ("i2c" byte order is big-endian)
-inline uint16_t i2ctohs(uint16_t i2cshort) {
-  union {
-    uint16_t x;
-    uint8_t y[2];
-  } conv;
-  conv.x = i2cshort;
-  return ((uint16_t) conv.y[0] << 8) | ((uint16_t) conv.y[1] << 0);
-}
-
-inline uint16_t htoi2cs(uint16_t hostshort) { return i2ctohs(hostshort); }
+inline uint16_t i2ctohs(uint16_t i2cshort) { return convert_big_endian(i2cshort); }
+inline uint16_t htoi2cs(uint16_t hostshort) { return convert_big_endian(hostshort); }
 
 class I2CDevice {
  public:

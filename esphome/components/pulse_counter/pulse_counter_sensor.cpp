@@ -8,7 +8,7 @@ static const char *const TAG = "pulse_counter";
 
 const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
 
-#ifdef USE_ESP8266
+#ifndef HAS_PCNT
 void IRAM_ATTR PulseCounterStorage::gpio_intr(PulseCounterStorage *arg) {
   const uint32_t now = micros();
   const bool discard = now - arg->last_pulse < arg->filter_us;
@@ -43,7 +43,7 @@ pulse_counter_t PulseCounterStorage::read_raw_value() {
 }
 #endif
 
-#ifdef USE_ESP32
+#ifdef HAS_PCNT
 bool PulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   static pcnt_unit_t next_pcnt_unit = PCNT_UNIT_0;
   this->pin = pin;
@@ -96,7 +96,7 @@ bool PulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   }
 
   if (this->filter_us != 0) {
-    uint16_t filter_val = std::min(this->filter_us * 80u, 1023u);
+    uint16_t filter_val = std::min(static_cast<unsigned int>(this->filter_us * 80u), 1023u);
     ESP_LOGCONFIG(TAG, "    Filter Value: %uus (val=%u)", this->filter_us, filter_val);
     error = pcnt_set_filter_value(this->pcnt_unit, filter_val);
     if (error != ESP_OK) {
