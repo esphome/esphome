@@ -38,6 +38,10 @@ def default_url(config):
             config[CONF_JS_URL] = "https://oi.esphome.io/v2/www.js"
     return config
 
+def validate_local(config):
+    if CONF_LOCAL in config and config[CONF_VERSION] == 1:
+        raise cv.Invalid("'local' is not supported in version 1")
+    return config
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -69,6 +73,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
     default_url,
+    validate_local,
 )
 
 
@@ -84,7 +89,7 @@ async def to_code(config):
     cg.add(paren.set_port(config[CONF_PORT]))
     cg.add_define("USE_WEBSERVER")
     cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
-    cg.add_define("WEBSERVER_VERSION", config[CONF_VERSION])
+    cg.add_define("USE_WEBSERVER_VERSION", config[CONF_VERSION])
     cg.add(var.set_css_url(config[CONF_CSS_URL]))
     cg.add(var.set_js_url(config[CONF_JS_URL]))
     cg.add(var.set_allow_ota(config[CONF_OTA]))
@@ -92,15 +97,15 @@ async def to_code(config):
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
     if CONF_CSS_INCLUDE in config:
-        cg.add_define("WEBSERVER_CSS_INCLUDE")
+        cg.add_define("USE_WEBSERVER_CSS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
         with open(file=path, mode="r", encoding="utf-8") as myfile:
             cg.add(var.set_css_include(myfile.read()))
     if CONF_JS_INCLUDE in config:
-        cg.add_define("WEBSERVER_JS_INCLUDE")
+        cg.add_define("USE_WEBSERVER_JS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
         with open(file=path, mode="r", encoding="utf-8") as myfile:
             cg.add(var.set_js_include(myfile.read()))
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config:
-        cg.add_define("WEBSERVER_LOCAL")
+        cg.add_define("USE_WEBSERVER_LOCAL")

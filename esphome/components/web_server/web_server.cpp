@@ -33,7 +33,7 @@ namespace web_server {
 
 static const char *const TAG = "web_server";
 
-#if WEBSERVER_VERSION == 1
+#if USE_WEBSERVER_VERSION == 1
 void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
                const std::function<void(AsyncResponseStream &stream, EntityBase *obj)> &action_func = nullptr) {
   stream->print("<tr class=\"");
@@ -205,7 +205,7 @@ void WebServer::dump_config() {
 }
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 
-#ifdef WEBSERVER_LOCAL
+#ifdef USE_WEBSERVER_LOCAL
 #include "server_index.h"
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
@@ -217,7 +217,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
   // All content is controlled and created by user - so allowing all origins is fine here.
   stream->addHeader("Access-Control-Allow-Origin", "*");
-#if WEBSERVER_VERSION == 1
+#if USE_WEBSERVER_VERSION == 1
   const std::string &title = App.get_name();
   stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><meta "
                   "name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));
@@ -226,7 +226,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #else
   stream->print(F("<!DOCTYPE html><html><head><meta charset=UTF-8><link rel=icon href=data:>"));
 #endif
-#ifdef WEBSERVER_CSS_INCLUDE
+#ifdef USE_WEBSERVER_CSS_INCLUDE
   stream->print(F("<link rel=\"stylesheet\" href=\"/0.css\">"));
 #endif
   if (strlen(this->css_url_) > 0) {
@@ -235,7 +235,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     stream->print(F("\">"));
   }
   stream->print(F("</head><body>"));
-#if WEBSERVER_VERSION == 1
+#if USE_WEBSERVER_VERSION == 1
   stream->print(F("<article class=\"markdown-body\"><h1>"));
   stream->print(title.c_str());
   stream->print(F("</h1>"));
@@ -362,12 +362,12 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   }
   stream->print(F("<h2>Debug Log</h2><pre id=\"log\"></pre>"));
 #endif
-#ifdef WEBSERVER_JS_INCLUDE
+#ifdef USE_WEBSERVER_JS_INCLUDE
   if (this->js_include_ != nullptr) {
     stream->print(F("<script type=\"module\" src=\"/0.js\"></script>"));
   }
 #endif
-#if WEBSERVER_VERSION == 2
+#if USE_WEBSERVER_VERSION == 2
   stream->print(F("<esp-app></esp-app>"));
 #endif
   if (strlen(this->js_url_) > 0) {
@@ -375,7 +375,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     stream->print(this->js_url_);
     stream->print(F("\"></script>"));
   }
-#if WEBSERVER_VERSION == 1
+#if USE_WEBSERVER_VERSION == 1
   stream->print(F("</article></body></html>"));
 #else
   stream->print(F("</body></html>"));
@@ -384,7 +384,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   request->send(stream);
 }
 #endif
-#ifdef WEBSERVER_CSS_INCLUDE
+#ifdef USE_WEBSERVER_CSS_INCLUDE
 void WebServer::handle_css_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/css");
   if (this->css_include_ != nullptr) {
@@ -395,7 +395,7 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
 }
 #endif
 
-#ifdef WEBSERVER_JS_INCLUDE
+#ifdef USE_WEBSERVER_JS_INCLUDE
 void WebServer::handle_js_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/javascript");
   if (this->js_include_ != nullptr) {
@@ -794,14 +794,17 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
       return;
     }
 
+    auto call = obj->make_call();
     if (request->hasParam("value")) {
-      auto call = obj->make_call();
-      call.set_value(request->getParam("value")->value().toFloat());
-      call.perform();
-      this->defer([call]() mutable { call.perform(); });
-      request->send(200);
-      return;
+      String value = request->getParam("value")->value();
+      optional<float> value_f = parse_number<float>(value.c_str());
+      if (value_f.has_value())
+        call.set_value(*value_f);
     }
+
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
   }
   request->send(404);
 }
@@ -902,15 +905,24 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     }
 
     if (request->hasParam("target_temperature_high")) {
-      call.set_target_temperature_high(request->getParam("target_temperature_high")->value().toFloat());
+      String value = request->getParam("target_temperature_high")->value();
+      optional<float> value_f = parse_number<float>(value.c_str());
+      if (value_f.has_value())
+        call.set_target_temperature_high(*value_f);
     }
 
     if (request->hasParam("target_temperature_low")) {
-      call.set_target_temperature_low(request->getParam("target_temperature_low")->value().toFloat());
+      String value = request->getParam("target_temperature_low")->value();
+      optional<float> value_f = parse_number<float>(value.c_str());
+      if (value_f.has_value())
+        call.set_target_temperature_low(*value_f);
     }
 
     if (request->hasParam("target_temperature")) {
-      call.set_target_temperature(request->getParam("target_temperature")->value().toFloat());
+      String value = request->getParam("target_temperature")->value();
+      optional<float> value_f = parse_number<float>(value.c_str());
+      if (value_f.has_value())
+        call.set_target_temperature(*value_f);
     }
 
     this->defer([call]() mutable { call.perform(); });
@@ -945,9 +957,9 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
           opt.add(custom_fan_mode);
       }
       if (traits.get_supports_swing_modes()) {
-        // JsonArray opt = root.createNestedArray("swing_modes");
-        // for (auto swing_mode : traits.get_supported_swing_modes())
-        // opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
+        JsonArray opt = root.createNestedArray("swing_modes");
+        //for (const esphome::climate::ClimateSwingMode &swing_mode: traits.get_supported_swing_modes())
+        //opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
       }
       if (traits.get_supports_presets() && obj->preset.has_value()) {
         JsonArray opt = root.createNestedArray("presets");
@@ -1035,12 +1047,12 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
 
-#ifdef WEBSERVER_CSS_INCLUDE
+#ifdef USE_WEBSERVER_CSS_INCLUDE
   if (request->url() == "/0.css")
     return true;
 #endif
 
-#ifdef WEBSERVER_JS_INCLUDE
+#ifdef USE_WEBSERVER_JS_INCLUDE
   if (request->url() == "/0.js")
     return true;
 #endif
@@ -1116,14 +1128,14 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     return;
   }
 
-#ifdef WEBSERVER_CSS_INCLUDE
+#ifdef USE_WEBSERVER_CSS_INCLUDE
   if (request->url() == "/0.css") {
     this->handle_css_request(request);
     return;
   }
 #endif
 
-#ifdef WEBSERVER_JS_INCLUDE
+#ifdef USE_WEBSERVER_JS_INCLUDE
   if (request->url() == "/0.js") {
     this->handle_js_request(request);
     return;
