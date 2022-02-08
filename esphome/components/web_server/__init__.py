@@ -38,10 +38,12 @@ def default_url(config):
             config[CONF_JS_URL] = "https://oi.esphome.io/v2/www.js"
     return config
 
+
 def validate_local(config):
     if CONF_LOCAL in config and config[CONF_VERSION] == 1:
         raise cv.Invalid("'local' is not supported in version 1")
     return config
+
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -107,5 +109,5 @@ async def to_code(config):
         with open(file=path, mode="r", encoding="utf-8") as myfile:
             cg.add(var.set_js_include(myfile.read()))
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
-    if CONF_LOCAL in config:
+    if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
