@@ -95,7 +95,8 @@ bool HOT IRAM_ATTR ESPOneWire::read_bit() {
 
   // measure from start value directly, to get best accurate timing no matter
   // how long pin_mode/delayMicroseconds took
-  while (micros() - start < timing_constant);
+  while (micros() - start < timing_constant)
+    ;
 
   // sample bus to read bit from peer
   bool r = pin_.digital_read();
