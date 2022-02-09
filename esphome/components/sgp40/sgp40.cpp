@@ -229,10 +229,11 @@ uint8_t SGP40Component::generate_crc_(const uint8_t *data, uint8_t datalen) {
   for (uint8_t i = 0; i < datalen; i++) {
     crc ^= data[i];
     for (uint8_t b = 0; b < 8; b++) {
-      if (crc & 0x80)
+      if (crc & 0x80) {
         crc = (crc << 1) ^ SGP40_CRC8_POLYNOMIAL;
-      else
+      } else {
         crc <<= 1;
+      }
     }
   }
   return crc;
@@ -303,18 +304,20 @@ uint8_t SGP40Component::sht_crc_(uint8_t data1, uint8_t data2) {
 
   crc ^= data1;
   for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80)
+    if (crc & 0x80) {
       crc = (crc << 1) ^ 0x131;
-    else
+    } else {
       crc = (crc << 1);
+    }
   }
 
   crc ^= data2;
   for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80)
+    if (crc & 0x80) {
       crc = (crc << 1) ^ 0x131;
-    else
+    } else {
       crc = (crc << 1);
+    }
   }
 
   return crc;

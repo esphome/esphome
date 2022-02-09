@@ -40,7 +40,7 @@ void Anova::control(const ClimateCall &call) {
       ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
   }
   if (call.get_target_temperature().has_value()) {
-    auto pkt = this->codec_->get_set_target_temp_request(*call.get_target_temperature());
+    auto *pkt = this->codec_->get_set_target_temp_request(*call.get_target_temperature());
     auto status = esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_,
                                            pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
     if (status)
@@ -57,7 +57,7 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      auto chr = this->parent_->get_characteristic(ANOVA_SERVICE_UUID, ANOVA_CHARACTERISTIC_UUID);
+      auto *chr = this->parent_->get_characteristic(ANOVA_SERVICE_UUID, ANOVA_CHARACTERISTIC_UUID);
       if (chr == nullptr) {
         ESP_LOGW(TAG, "[%s] No control service found at device, not an Anova..?", this->get_name().c_str());
         ESP_LOGW(TAG, "[%s] Note, this component does not currently support Anova Nano.", this->get_name().c_str());
@@ -114,9 +114,10 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
           auto status =
               esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_, pkt->length,
                                        pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-          if (status)
+          if (status) {
             ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(),
                      status);
+          }
         }
       }
       break;
@@ -133,7 +134,7 @@ void Anova::update() {
     return;
 
   if (this->current_request_ < 2) {
-    auto pkt = this->codec_->get_read_device_status_request();
+    auto *pkt = this->codec_->get_read_device_status_request();
     if (this->current_request_ == 0)
       this->codec_->get_set_unit_request(this->fahrenheit_ ? 'f' : 'c');
     auto status = esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_,

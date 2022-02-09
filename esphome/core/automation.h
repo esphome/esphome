@@ -8,6 +8,11 @@
 
 namespace esphome {
 
+// https://stackoverflow.com/questions/7858817/unpacking-a-tuple-to-call-a-matching-function-pointer/7858971#7858971
+template<int...> struct seq {};                                       // NOLINT
+template<int N, int... S> struct gens : gens<N - 1, N - 1, S...> {};  // NOLINT
+template<int... S> struct gens<0, S...> { using type = seq<S...>; };  // NOLINT
+
 #define TEMPLATABLE_VALUE_(type, name) \
  protected: \
   TemplatableValue<type, Ts...> name##_{}; \

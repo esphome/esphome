@@ -31,14 +31,16 @@ void MideaProtocol::encode(RemoteTransmitData *dst, const MideaData &src) {
   dst->set_carrier_frequency(38000);
   dst->reserve(2 + 48 * 2 + 2 + 2 + 48 * 2 + 1);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  for (unsigned idx = 0; idx < 6; idx++)
+  for (unsigned idx = 0; idx < 6; idx++) {
     for (uint8_t mask = 1 << 7; mask; mask >>= 1)
       dst->item(BIT_MARK_US, (src[idx] & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
+  }
   dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  for (unsigned idx = 0; idx < 6; idx++)
+  for (unsigned idx = 0; idx < 6; idx++) {
     for (uint8_t mask = 1 << 7; mask; mask >>= 1)
       dst->item(BIT_MARK_US, (src[idx] & mask) ? BIT_ZERO_SPACE_US : BIT_ONE_SPACE_US);
+  }
   dst->mark(FOOTER_MARK_US);
 }
 
@@ -48,10 +50,11 @@ static bool decode_data(RemoteReceiveData &src, MideaData &dst) {
     for (uint8_t mask = 1 << 7; mask; mask >>= 1) {
       if (!src.expect_mark(BIT_MARK_US))
         return false;
-      if (src.expect_space(BIT_ONE_SPACE_US))
+      if (src.expect_space(BIT_ONE_SPACE_US)) {
         data |= mask;
-      else if (!src.expect_space(BIT_ZERO_SPACE_US))
+      } else if (!src.expect_space(BIT_ZERO_SPACE_US)) {
         return false;
+      }
     }
     dst[idx] = data;
   }

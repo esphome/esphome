@@ -8,9 +8,9 @@ ARG BASEIMGTYPE=docker
 FROM ghcr.io/hassio-addons/debian-base/amd64:5.2.3 AS base-hassio-amd64
 FROM ghcr.io/hassio-addons/debian-base/aarch64:5.2.3 AS base-hassio-arm64
 FROM ghcr.io/hassio-addons/debian-base/armv7:5.2.3 AS base-hassio-armv7
-FROM debian:bullseye-20211220-slim AS base-docker-amd64
-FROM debian:bullseye-20211220-slim AS base-docker-arm64
-FROM debian:bullseye-20211220-slim AS base-docker-armv7
+FROM debian:bullseye-20220125-slim AS base-docker-amd64
+FROM debian:bullseye-20220125-slim AS base-docker-arm64
+FROM debian:bullseye-20220125-slim AS base-docker-armv7
 
 # Use TARGETARCH/TARGETVARIANT defined by docker
 # https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
@@ -23,7 +23,7 @@ RUN \
         python3=3.9.2-3 \
         python3-pip=20.3.4-4 \
         python3-setuptools=52.0.0-4 \
-        python3-pil=8.1.2+dfsg-0.3 \
+        python3-pil=8.1.2+dfsg-0.3+deb11u1 \
         python3-cryptography=3.3.2-1 \
         iputils-ping=3:20210202-1 \
         git=1:2.30.2-1 \
@@ -102,7 +102,7 @@ RUN \
 ARG BUILD_VERSION=dev
 
 # Copy root filesystem
-COPY docker/hassio-rootfs/ /
+COPY docker/ha-addon-rootfs/ /
 
 # First install requirements to leverage caching when requirements don't change
 COPY requirements.txt requirements_optional.txt docker/platformio_install_deps.py platformio.ini /
