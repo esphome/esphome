@@ -28,6 +28,10 @@
 #include "esphome/components/climate/climate.h"
 #endif
 
+#ifdef USE_WEBSERVER_LOCAL
+#include "server_index.h"
+#endif
+
 namespace esphome {
 namespace web_server {
 
@@ -206,7 +210,6 @@ void WebServer::dump_config() {
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 
 #ifdef USE_WEBSERVER_LOCAL
-#include "server_index.h"
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
   response->addHeader("Content-Encoding", "gzip");
