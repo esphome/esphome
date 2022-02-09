@@ -275,9 +275,7 @@ def highlight(s):
     ],
 )
 def lint_no_defines(fname, match):
-    s = highlight(
-        "static const uint8_t {} = {};".format(match.group(1), match.group(2))
-    )
+    s = highlight(f"static const uint8_t {match.group(1)} = {match.group(2)};")
     return (
         "#define macros for integer constants are not allowed, please use "
         "{} style instead (replace uint8_t with the appropriate "
