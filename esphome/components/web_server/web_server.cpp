@@ -346,7 +346,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   }
 #endif
 
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_CLIMATE
   for (auto *obj : App.get_climates()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "climate", "");

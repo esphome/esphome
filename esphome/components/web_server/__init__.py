@@ -26,6 +26,7 @@ WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 
 
 def default_url(config):
+    config = config.copy()
     if config[CONF_VERSION] == 1:
         if not (CONF_CSS_URL in config):
             config[CONF_CSS_URL] = "https://esphome.io/_static/webserver-v1.min.css"
