@@ -14,10 +14,14 @@ CONF_BIT_RATE = "bit_rate"
 CONF_ON_FRAME = "on_frame"
 
 
-def validate_id(id_value, id_ext):
-    if not id_ext:
-        if id_value > 0x7FF:
-            raise cv.Invalid("Standard IDs must be 11 Bit (0x000-0x7ff / 0-2047)")
+def validate_id(config):
+    if CONF_CAN_ID in config:
+        id_value = config[CONF_CAN_ID]
+        id_ext = config[CONF_USE_EXTENDED_ID]
+        if not id_ext:
+            if id_value > 0x7FF:
+                raise cv.Invalid("Standard IDs must be 11 Bit (0x000-0x7ff / 0-2047)")
+    return config
 
 
 def validate_raw_data(value):
@@ -67,23 +71,18 @@ CANBUS_SCHEMA = cv.Schema(
         cv.Optional(CONF_ON_FRAME): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
-                cv.GenerateID(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
+                cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
                 cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
-                cv.Optional(CONF_ON_FRAME): automation.validate_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
-                        cv.GenerateID(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
-                        cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
-                    }
-                ),
-            }
+            },
+            validate_id,
         ),
-    }
+    },
 ).extend(cv.COMPONENT_SCHEMA)
+
+CANBUS_SCHEMA.add_extra(validate_id)
 
 
 async def setup_canbus_core_(var, config):
-    validate_id(config[CONF_CAN_ID], config[CONF_USE_EXTENDED_ID])
     await cg.register_component(var, config)
     cg.add(var.set_can_id([config[CONF_CAN_ID]]))
     cg.add(var.set_use_extended_id([config[CONF_USE_EXTENDED_ID]]))
@@ -92,7 +91,6 @@ async def setup_canbus_core_(var, config):
     for conf in config.get(CONF_ON_FRAME, []):
         can_id = conf[CONF_CAN_ID]
         ext_id = conf[CONF_USE_EXTENDED_ID]
-        validate_id(can_id, ext_id)
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, can_id, ext_id)
         await cg.register_component(trigger, conf)
         await automation.build_automation(
@@ -117,11 +115,11 @@ async def register_canbus(var, config):
             cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
             cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
         },
+        validate_id,
         key=CONF_DATA,
     ),
 )
 async def canbus_action_to_code(config, action_id, template_arg, args):
-    validate_id(config[CONF_CAN_ID], config[CONF_USE_EXTENDED_ID])
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_CANBUS_ID])
 

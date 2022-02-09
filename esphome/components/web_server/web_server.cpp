@@ -91,64 +91,81 @@ void WebServer::setup() {
     client->send("", "ping", millis(), 30000);
 
 #ifdef USE_SENSOR
-    for (auto *obj : App.get_sensors())
+    for (auto *obj : App.get_sensors()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->sensor_json(obj, obj->state).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_SWITCH
-    for (auto *obj : App.get_switches())
+    for (auto *obj : App.get_switches()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->switch_json(obj, obj->state).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_BINARY_SENSOR
-    for (auto *obj : App.get_binary_sensors())
+    for (auto *obj : App.get_binary_sensors()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->binary_sensor_json(obj, obj->state).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_FAN
-    for (auto *obj : App.get_fans())
+    for (auto *obj : App.get_fans()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->fan_json(obj).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_LIGHT
-    for (auto *obj : App.get_lights())
+    for (auto *obj : App.get_lights()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->light_json(obj).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_TEXT_SENSOR
-    for (auto *obj : App.get_text_sensors())
+    for (auto *obj : App.get_text_sensors()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->text_sensor_json(obj, obj->state).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_COVER
-    for (auto *obj : App.get_covers())
+    for (auto *obj : App.get_covers()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->cover_json(obj).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_NUMBER
-    for (auto *obj : App.get_numbers())
+    for (auto *obj : App.get_numbers()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->number_json(obj, obj->state).c_str(), "state");
+    }
 #endif
 
 #ifdef USE_SELECT
-    for (auto *obj : App.get_selects())
+    for (auto *obj : App.get_selects()) {
       if (this->include_internal_ || !obj->is_internal())
         client->send(this->select_json(obj, obj->state).c_str(), "state");
+    }
+#endif
+
+#ifdef USE_LOCK
+    for (auto *obj : App.get_locks()) {
+      if (this->include_internal_ || !obj->is_internal())
+        client->send(this->lock_json(obj, obj->state).c_str(), "state");
+    }
 #endif
   });
 
 #ifdef USE_LOGGER
-  if (logger::global_logger != nullptr)
+  if (logger::global_logger != nullptr) {
     logger::global_logger->add_on_log_callback(
         [this](int level, const char *tag, const char *message) { this->events_.send(message, "log", millis()); });
+  }
 #endif
   this->base_->add_handler(&this->events_);
   this->base_->add_handler(this);
@@ -187,15 +204,17 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   stream->addHeader("Access-Control-Allow-Origin", "*");
 
 #ifdef USE_SENSOR
-  for (auto *obj : App.get_sensors())
+  for (auto *obj : App.get_sensors()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "sensor", "");
+  }
 #endif
 
 #ifdef USE_SWITCH
-  for (auto *obj : App.get_switches())
+  for (auto *obj : App.get_switches()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "switch", "<button>Toggle</button>");
+  }
 #endif
 
 #ifdef USE_BUTTON
@@ -204,44 +223,62 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  for (auto *obj : App.get_binary_sensors())
+  for (auto *obj : App.get_binary_sensors()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "binary_sensor", "");
+  }
 #endif
 
 #ifdef USE_FAN
-  for (auto *obj : App.get_fans())
+  for (auto *obj : App.get_fans()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "fan", "<button>Toggle</button>");
+  }
 #endif
 
 #ifdef USE_LIGHT
-  for (auto *obj : App.get_lights())
+  for (auto *obj : App.get_lights()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "light", "<button>Toggle</button>");
+  }
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  for (auto *obj : App.get_text_sensors())
+  for (auto *obj : App.get_text_sensors()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "text_sensor", "");
+  }
 #endif
 
 #ifdef USE_COVER
-  for (auto *obj : App.get_covers())
+  for (auto *obj : App.get_covers()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "cover", "<button>Open</button><button>Close</button>");
+  }
 #endif
 
 #ifdef USE_NUMBER
-  for (auto *obj : App.get_numbers())
-    if (this->include_internal_ || !obj->is_internal())
-      write_row(stream, obj, "number", "");
+  for (auto *obj : App.get_numbers()) {
+    if (this->include_internal_ || !obj->is_internal()) {
+      write_row(stream, obj, "number", "", [](AsyncResponseStream &stream, EntityBase *obj) {
+        number::Number *number = (number::Number *) obj;
+        stream.print(R"(<input type="number" min=")");
+        stream.print(number->traits.get_min_value());
+        stream.print(R"(" max=")");
+        stream.print(number->traits.get_max_value());
+        stream.print(R"(" step=")");
+        stream.print(number->traits.get_step());
+        stream.print(R"(" value=")");
+        stream.print(number->state);
+        stream.print(R"("/>)");
+      });
+    }
+  }
 #endif
 
 #ifdef USE_SELECT
-  for (auto *obj : App.get_selects())
-    if (this->include_internal_ || !obj->is_internal())
+  for (auto *obj : App.get_selects()) {
+    if (this->include_internal_ || !obj->is_internal()) {
       write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         select::Select *select = (select::Select *) obj;
         stream.print("<select>");
@@ -253,6 +290,22 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
         }
         stream.print("</select>");
       });
+    }
+  }
+#endif
+
+#ifdef USE_LOCK
+  for (auto *obj : App.get_locks()) {
+    if (this->include_internal_ || !obj->is_internal()) {
+      write_row(stream, obj, "lock", "", [](AsyncResponseStream &stream, EntityBase *obj) {
+        lock::Lock *lock = (lock::Lock *) obj;
+        stream.print("<button>Lock</button><button>Unlock</button>");
+        if (lock->traits.get_supports_open()) {
+          stream.print("<button>Open</button>");
+        }
+      });
+    }
+  }
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
@@ -316,7 +369,7 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
   request->send(404);
 }
 std::string WebServer::sensor_json(sensor::Sensor *obj, float value) {
-  return json::build_json([obj, value](JsonObject &root) {
+  return json::build_json([obj, value](JsonObject root) {
     root["id"] = "sensor-" + obj->get_object_id();
     std::string state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
     if (!obj->get_unit_of_measurement().empty())
@@ -342,7 +395,7 @@ void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const
   request->send(404);
 }
 std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std::string &value) {
-  return json::build_json([obj, value](JsonObject &root) {
+  return json::build_json([obj, value](JsonObject root) {
     root["id"] = "text_sensor-" + obj->get_object_id();
     root["state"] = value;
     root["value"] = value;
@@ -355,7 +408,7 @@ void WebServer::on_switch_update(switch_::Switch *obj, bool state) {
   this->events_.send(this->switch_json(obj, state).c_str(), "state");
 }
 std::string WebServer::switch_json(switch_::Switch *obj, bool value) {
-  return json::build_json([obj, value](JsonObject &root) {
+  return json::build_json([obj, value](JsonObject root) {
     root["id"] = "switch-" + obj->get_object_id();
     root["state"] = value ? "ON" : "OFF";
     root["value"] = value;
@@ -390,8 +443,6 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
 #ifdef USE_BUTTON
 void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (button::Button *obj : App.get_buttons()) {
-    if (obj->is_internal())
-      continue;
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -412,7 +463,7 @@ void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool s
   this->events_.send(this->binary_sensor_json(obj, state).c_str(), "state");
 }
 std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool value) {
-  return json::build_json([obj, value](JsonObject &root) {
+  return json::build_json([obj, value](JsonObject root) {
     root["id"] = "binary_sensor-" + obj->get_object_id();
     root["state"] = value ? "ON" : "OFF";
     root["value"] = value;
@@ -431,9 +482,9 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
 #endif
 
 #ifdef USE_FAN
-void WebServer::on_fan_update(fan::FanState *obj) { this->events_.send(this->fan_json(obj).c_str(), "state"); }
-std::string WebServer::fan_json(fan::FanState *obj) {
-  return json::build_json([obj](JsonObject &root) {
+void WebServer::on_fan_update(fan::Fan *obj) { this->events_.send(this->fan_json(obj).c_str(), "state"); }
+std::string WebServer::fan_json(fan::Fan *obj) {
+  return json::build_json([obj](JsonObject root) {
     root["id"] = "fan-" + obj->get_object_id();
     root["state"] = obj->state ? "ON" : "OFF";
     root["value"] = obj->state;
@@ -461,7 +512,7 @@ std::string WebServer::fan_json(fan::FanState *obj) {
   });
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (fan::FanState *obj : App.get_fans()) {
+  for (fan::Fan *obj : App.get_fans()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -507,7 +558,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
             return;
         }
       }
-      this->defer([call]() { call.perform(); });
+      this->defer([call]() mutable { call.perform(); });
       request->send(200);
     } else if (match.method == "turn_off") {
       this->defer([obj]() { obj->turn_off().perform(); });
@@ -582,7 +633,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
   request->send(404);
 }
 std::string WebServer::light_json(light::LightState *obj) {
-  return json::build_json([obj](JsonObject &root) {
+  return json::build_json([obj](JsonObject root) {
     root["id"] = "light-" + obj->get_object_id();
     root["state"] = obj->remote_values.is_on() ? "ON" : "OFF";
     light::LightJSONSchema::dump_json(*obj, root);
@@ -634,7 +685,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
   request->send(404);
 }
 std::string WebServer::cover_json(cover::Cover *obj) {
-  return json::build_json([obj](JsonObject &root) {
+  return json::build_json([obj](JsonObject root) {
     root["id"] = "cover-" + obj->get_object_id();
     root["state"] = obj->is_fully_closed() ? "CLOSED" : "OPEN";
     root["value"] = obj->position;
@@ -654,18 +705,38 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
   for (auto *obj : App.get_numbers()) {
     if (obj->get_object_id() != match.id)
       continue;
-    std::string data = this->number_json(obj, obj->state);
-    request->send(200, "text/json", data.c_str());
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->number_json(obj, obj->state);
+      request->send(200, "text/json", data.c_str());
+      return;
+    }
+
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    if (request->hasParam("value")) {
+      String value = request->getParam("value")->value();
+      optional<float> value_f = parse_number<float>(value.c_str());
+      if (value_f.has_value())
+        call.set_value(*value_f);
+    }
+
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
     return;
   }
   request->send(404);
 }
 std::string WebServer::number_json(number::Number *obj, float value) {
-  return json::build_json([obj, value](JsonObject &root) {
+  return json::build_json([obj, value](JsonObject root) {
     root["id"] = "number-" + obj->get_object_id();
-    char buffer[64];
-    snprintf(buffer, sizeof(buffer), "%f", value);
-    root["state"] = buffer;
+    std::string state = str_sprintf("%f", value);
+    root["state"] = state;
     root["value"] = value;
   });
 }
@@ -705,11 +776,48 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
   request->send(404);
 }
 std::string WebServer::select_json(select::Select *obj, const std::string &value) {
-  return json::build_json([obj, value](JsonObject &root) {
+  return json::build_json([obj, value](JsonObject root) {
     root["id"] = "select-" + obj->get_object_id();
     root["state"] = value;
     root["value"] = value;
   });
+}
+#endif
+
+#ifdef USE_LOCK
+void WebServer::on_lock_update(lock::Lock *obj) {
+  this->events_.send(this->lock_json(obj, obj->state).c_str(), "state");
+}
+std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value) {
+  return json::build_json([obj, value](JsonObject root) {
+    root["id"] = "lock-" + obj->get_object_id();
+    root["state"] = lock::lock_state_to_string(value);
+    root["value"] = value;
+  });
+}
+void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (lock::Lock *obj : App.get_locks()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->lock_json(obj, obj->state);
+      request->send(200, "text/json", data.c_str());
+    } else if (match.method == "lock") {
+      this->defer([obj]() { obj->lock(); });
+      request->send(200);
+    } else if (match.method == "unlock") {
+      this->defer([obj]() { obj->unlock(); });
+      request->send(200);
+    } else if (match.method == "open") {
+      this->defer([obj]() { obj->open(); });
+      request->send(200);
+    } else {
+      request->send(404);
+    }
+    return;
+  }
+  request->send(404);
 }
 #endif
 
@@ -771,12 +879,17 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_NUMBER
-  if (request->method() == HTTP_GET && match.domain == "number")
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "number")
     return true;
 #endif
 
 #ifdef USE_SELECT
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "select")
+    return true;
+#endif
+
+#ifdef USE_LOCK
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "lock")
     return true;
 #endif
 
@@ -869,6 +982,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_SELECT
   if (match.domain == "select") {
     this->handle_select_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_LOCK
+  if (match.domain == "lock") {
+    this->handle_lock_request(request, match);
     return;
   }
 #endif

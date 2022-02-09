@@ -34,7 +34,6 @@ class ArduinoI2CBus : public I2CBus, public Component {
 
  protected:
   TwoWire *wire_;
-  bool scan_;
   uint8_t sda_pin_;
   uint8_t scl_pin_;
   uint32_t frequency_;

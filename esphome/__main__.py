@@ -145,6 +145,8 @@ def wrap_to_code(name, comp):
         if comp.config_schema is not None:
             conf_str = yaml_util.dump(conf)
             conf_str = conf_str.replace("//", "")
+            # remove tailing \ to avoid multi-line comment warning
+            conf_str = conf_str.replace("\\\n", "\n")
             cg.add(cg.LineComment(indent(conf_str)))
         await coro(conf)
 
@@ -659,7 +661,7 @@ def parse_args(argv):
         "--open-ui", help="Open the dashboard UI in a browser.", action="store_true"
     )
     parser_dashboard.add_argument(
-        "--hassio", help=argparse.SUPPRESS, action="store_true"
+        "--ha-addon", help=argparse.SUPPRESS, action="store_true"
     )
     parser_dashboard.add_argument(
         "--socket", help="Make the dashboard serve under a unix socket", type=str

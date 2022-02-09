@@ -16,6 +16,7 @@ class WaveshareEPaper : public PollingComponent,
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
+  void set_reset_duration(uint32_t reset_duration) { this->reset_duration_ = reset_duration; }
 
   void command(uint8_t value);
   void data(uint8_t value);
@@ -45,13 +46,14 @@ class WaveshareEPaper : public PollingComponent,
   void reset_() {
     if (this->reset_pin_ != nullptr) {
       this->reset_pin_->digital_write(false);
-      delay(200);  // NOLINT
+      delay(reset_duration_);  // NOLINT
       this->reset_pin_->digital_write(true);
       delay(200);  // NOLINT
     }
   }
 
   uint32_t get_buffer_length_();
+  uint32_t reset_duration_{200};
 
   void start_command_();
   void end_command_();
@@ -119,6 +121,7 @@ enum WaveshareEPaperTypeBModel {
   WAVESHARE_EPAPER_4_2_IN_B_V2,
   WAVESHARE_EPAPER_7_5_IN,
   WAVESHARE_EPAPER_7_5_INV2,
+  WAVESHARE_EPAPER_7_5_IN_B_V2,
 };
 
 class WaveshareEPaper2P7In : public WaveshareEPaper {
@@ -270,6 +273,29 @@ class WaveshareEPaper7P5In : public WaveshareEPaper {
     // COMMAND DEEP SLEEP
     this->command(0x07);
     this->data(0xA5);  // check byte
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
+class WaveshareEPaper7P5InBV2 : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND POWER OFF
+    this->command(0x02);
+    this->wait_until_idle_();
+    // COMMAND DEEP SLEEP
+    this->command(0x07);  // deep sleep
+    this->data(0xA5);     // check byte
   }
 
  protected:

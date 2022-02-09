@@ -1,7 +1,9 @@
 #include "api_frame_helper.h"
 
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/application.h"
 #include "proto.h"
 #include <cstring>
 
@@ -252,7 +254,7 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
 
   // uncomment for even more debugging
 #ifdef HELPER_LOG_PACKETS
-  ESP_LOGVV(TAG, "Received frame: %s", hexencode(rx_buf_).c_str());
+  ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(rx_buf_).c_str());
 #endif
   frame->msg = std::move(rx_buf_);
   // consume msg
@@ -301,9 +303,16 @@ APIError APINoiseFrameHelper::state_action_() {
   }
   if (state_ == State::SERVER_HELLO) {
     // send server hello
-    uint8_t msg[1];
-    msg[0] = 0x01;  // chosen proto
-    aerr = write_frame_(msg, 1);
+    std::vector<uint8_t> msg;
+    // chosen proto
+    msg.push_back(0x01);
+
+    // node name, terminated by null byte
+    const std::string &name = App.get_name();
+    const uint8_t *name_ptr = reinterpret_cast<const uint8_t *>(name.c_str());
+    msg.insert(msg.end(), name_ptr, name_ptr + name.size() + 1);
+
+    aerr = write_frame_(msg.data(), msg.size());
     if (aerr != APIError::OK)
       return aerr;
 
@@ -546,7 +555,8 @@ APIError APINoiseFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
   size_t total_write_len = 0;
   for (int i = 0; i < iovcnt; i++) {
 #ifdef HELPER_LOG_PACKETS
-    ESP_LOGVV(TAG, "Sending raw: %s", hexencode(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len).c_str());
+    ESP_LOGVV(TAG, "Sending raw: %s",
+              format_hex_pretty(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len).c_str());
 #endif
     total_write_len += iov[i].iov_len;
   }
@@ -720,7 +730,12 @@ APIError APINoiseFrameHelper::shutdown(int how) {
 }
 extern "C" {
 // declare how noise generates random bytes (here with a good HWRNG based on the RF system)
-void noise_rand_bytes(void *output, size_t len) { esphome::fill_random(reinterpret_cast<uint8_t *>(output), len); }
+void noise_rand_bytes(void *output, size_t len) {
+  if (!esphome::random_bytes(reinterpret_cast<uint8_t *>(output), len)) {
+    ESP_LOGE(TAG, "Failed to acquire random bytes, rebooting!");
+    arch_restart();
+  }
+}
 }
 #endif  // USE_API_NOISE
 
@@ -855,7 +870,7 @@ APIError APIPlaintextFrameHelper::try_read_frame_(ParsedFrame *frame) {
 
   // uncomment for even more debugging
 #ifdef HELPER_LOG_PACKETS
-  ESP_LOGVV(TAG, "Received frame: %s", hexencode(rx_buf_).c_str());
+  ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(rx_buf_).c_str());
 #endif
   frame->msg = std::move(rx_buf_);
   // consume msg
@@ -934,7 +949,8 @@ APIError APIPlaintextFrameHelper::write_raw_(const struct iovec *iov, int iovcnt
   size_t total_write_len = 0;
   for (int i = 0; i < iovcnt; i++) {
 #ifdef HELPER_LOG_PACKETS
-    ESP_LOGVV(TAG, "Sending raw: %s", hexencode(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len).c_str());
+    ESP_LOGVV(TAG, "Sending raw: %s",
+              format_hex_pretty(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len).c_str());
 #endif
     total_write_len += iov[i].iov_len;
   }

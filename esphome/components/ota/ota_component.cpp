@@ -36,7 +36,7 @@ std::unique_ptr<OTABackend> make_ota_backend() {
 }
 
 void OTAComponent::setup() {
-  server_ = socket::socket(AF_INET, SOCK_STREAM, 0);
+  server_ = socket::socket_ip(SOCK_STREAM, 0);
   if (server_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket.");
     this->mark_failed();
@@ -55,11 +55,14 @@ void OTAComponent::setup() {
     return;
   }
 
-  struct sockaddr_in server;
-  memset(&server, 0, sizeof(server));
-  server.sin_family = AF_INET;
-  server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
-  server.sin_port = htons(this->port_);
+  struct sockaddr_storage server;
+
+  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), htons(this->port_));
+  if (sl == 0) {
+    ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
 
   err = server_->bind((struct sockaddr *) &server, sizeof(server));
   if (err != 0) {
@@ -372,6 +375,7 @@ bool OTAComponent::readall_(uint8_t *buf, size_t len) {
     ssize_t read = this->client_->read(buf + at, len - at);
     if (read == -1) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        App.feed_wdt();
         delay(1);
         continue;
       }
@@ -383,6 +387,7 @@ bool OTAComponent::readall_(uint8_t *buf, size_t len) {
     } else {
       at += read;
     }
+    App.feed_wdt();
     delay(1);
   }
 
@@ -401,6 +406,7 @@ bool OTAComponent::writeall_(const uint8_t *buf, size_t len) {
     ssize_t written = this->client_->write(buf + at, len - at);
     if (written == -1) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        App.feed_wdt();
         delay(1);
         continue;
       }
@@ -409,6 +415,7 @@ bool OTAComponent::writeall_(const uint8_t *buf, size_t len) {
     } else {
       at += written;
     }
+    App.feed_wdt();
     delay(1);
   }
   return true;
@@ -448,10 +455,11 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
 
   bool is_manual_safe_mode = this->safe_mode_rtc_value_ == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC;
 
-  if (is_manual_safe_mode)
+  if (is_manual_safe_mode) {
     ESP_LOGI(TAG, "Safe mode has been entered manually");
-  else
+  } else {
     ESP_LOGCONFIG(TAG, "There have been %u suspected unsuccessful boot attempts.", this->safe_mode_rtc_value_);
+  }
 
   if (this->safe_mode_rtc_value_ >= num_attempts || is_manual_safe_mode) {
     this->clean_rtc();

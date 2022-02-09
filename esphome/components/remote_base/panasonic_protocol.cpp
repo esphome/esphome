@@ -19,17 +19,19 @@ void PanasonicProtocol::encode(RemoteTransmitData *dst, const PanasonicData &dat
 
   uint32_t mask;
   for (mask = 1UL << 15; mask != 0; mask >>= 1) {
-    if (data.address & mask)
+    if (data.address & mask) {
       dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-    else
+    } else {
       dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+    }
   }
 
   for (mask = 1UL << 31; mask != 0; mask >>= 1) {
-    if (data.command & mask)
+    if (data.command & mask) {
       dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-    else
+    } else {
       dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+    }
   }
   dst->mark(BIT_HIGH_US);
 }
