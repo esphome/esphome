@@ -202,10 +202,11 @@ bool TM1637Display::send_byte_(uint8_t b) {
     this->bit_delay_();
 
     // Set data bit
-    if (data & 0x01)
+    if (data & 0x01) {
       this->dio_pin_->pin_mode(gpio::FLAG_INPUT);
-    else
+    } else {
       this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
+    }
 
     this->bit_delay_();
 

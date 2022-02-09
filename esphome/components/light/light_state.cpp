@@ -145,10 +145,11 @@ void LightState::publish_state() { this->remote_values_callback_.call(); }
 
 LightOutput *LightState::get_output() const { return this->output_; }
 std::string LightState::get_effect_name() {
-  if (this->active_effect_index_ > 0)
+  if (this->active_effect_index_ > 0) {
     return this->effects_[this->active_effect_index_ - 1]->get_name();
-  else
+  } else {
     return "None";
+  }
 }
 
 void LightState::add_new_remote_values_callback(std::function<void()> &&send_callback) {
@@ -219,10 +220,11 @@ void LightState::start_effect_(uint32_t effect_index) {
   effect->start_internal();
 }
 LightEffect *LightState::get_active_effect_() {
-  if (this->active_effect_index_ == 0)
+  if (this->active_effect_index_ == 0) {
     return nullptr;
-  else
+  } else {
     return this->effects_[this->active_effect_index_ - 1];
+  }
 }
 void LightState::stop_effect_() {
   auto *effect = this->get_active_effect_();

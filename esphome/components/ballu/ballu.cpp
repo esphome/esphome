@@ -97,7 +97,7 @@ void BalluClimate::transmit_state() {
 
   // Send code
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   data->set_carrier_frequency(38000);
 
@@ -130,10 +130,10 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
   for (int i = 0; i < BALLU_STATE_LENGTH; i++) {
     // Read bit
     for (int j = 0; j < 8; j++) {
-      if (data.expect_item(BALLU_BIT_MARK, BALLU_ONE_SPACE))
+      if (data.expect_item(BALLU_BIT_MARK, BALLU_ONE_SPACE)) {
         remote_state[i] |= 1 << j;
 
-      else if (!data.expect_item(BALLU_BIT_MARK, BALLU_ZERO_SPACE)) {
+      } else if (!data.expect_item(BALLU_BIT_MARK, BALLU_ZERO_SPACE)) {
         ESP_LOGV(TAG, "Byte %d bit %d fail", i, j);
         return false;
       }

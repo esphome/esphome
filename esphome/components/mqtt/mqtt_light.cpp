@@ -28,7 +28,7 @@ void MQTTJSONLightComponent::setup() {
   this->state_->add_new_remote_values_callback([this, f]() { this->defer("send", f); });
 }
 
-MQTTJSONLightComponent::MQTTJSONLightComponent(LightState *state) : MQTTComponent(), state_(state) {}
+MQTTJSONLightComponent::MQTTJSONLightComponent(LightState *state) : state_(state) {}
 
 bool MQTTJSONLightComponent::publish_state_() {
   return this->publish_json(this->get_state_topic_(),

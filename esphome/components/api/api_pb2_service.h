@@ -130,6 +130,15 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_SELECT
   virtual void on_select_command_request(const SelectCommandRequest &value){};
 #endif
+#ifdef USE_LOCK
+  bool send_list_entities_lock_response(const ListEntitiesLockResponse &msg);
+#endif
+#ifdef USE_LOCK
+  bool send_lock_state_response(const LockStateResponse &msg);
+#endif
+#ifdef USE_LOCK
+  virtual void on_lock_command_request(const LockCommandRequest &value){};
+#endif
 #ifdef USE_BUTTON
   bool send_list_entities_button_response(const ListEntitiesButtonResponse &msg);
 #endif
@@ -181,6 +190,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_BUTTON
   virtual void button_command(const ButtonCommandRequest &msg) = 0;
 #endif
+#ifdef USE_LOCK
+  virtual void lock_command(const LockCommandRequest &msg) = 0;
+#endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
   void on_connect_request(const ConnectRequest &msg) override;
@@ -220,6 +232,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_BUTTON
   void on_button_command_request(const ButtonCommandRequest &msg) override;
+#endif
+#ifdef USE_LOCK
+  void on_lock_command_request(const LockCommandRequest &msg) override;
 #endif
 };
 
