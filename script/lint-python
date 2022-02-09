@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 
-from __future__ import print_function
-from helpers import styled, print_error_for_file, get_output, get_err, git_ls_files, filter_changed
+from helpers import (
+    styled,
+    print_error_for_file,
+    get_output,
+    get_err,
+    git_ls_files,
+    filter_changed,
+)
 import argparse
 import colorama
 import os
@@ -96,6 +102,21 @@ def main():
         msg = (":".join(line[2:])).strip()
         print_error(file_, linno, msg)
         errors += 1
+
+    PYUPGRADE_TARGET = "--py38-plus"
+    cmd = ["pyupgrade", PYUPGRADE_TARGET] + files
+    print()
+    print("Running pyupgrade...")
+    print()
+    log = get_err(*cmd)
+    for line in log.splitlines():
+        REWRITING = "Rewriting"
+        if line.startswith(REWRITING):
+            file_ = line[len(REWRITING) + 1 :]
+            print_error(
+                file_, None, f"Please run pyupgrade {PYUPGRADE_TARGET} on this file"
+            )
+            errors += 1
 
     sys.exit(errors)
 
