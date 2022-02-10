@@ -8,7 +8,14 @@ namespace mcp4728 {
 
 static const char *const TAG = "mcp4728";
 
-void MCP4728Component::setup() { ESP_LOGCONFIG(TAG, "Setting up MCP4728OutputComponent..."); }
+void MCP4728Component::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up MCP4728 (0x%02X)...", this->address_);
+  auto err = this->write(nullptr, 0);
+  if (err != i2c::ERROR_OK) {
+    this->mark_failed();
+    return;
+  }
+}
 
 void MCP4728Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MCP4728:");
@@ -54,7 +61,7 @@ void MCP4728Component::set_channel_value_(MCP4728ChannelIdx channel, uint16_t va
 }
 
 bool MCP4728Component::multi_write_() {
-  esphome::i2c::ErrorCode err[4];
+  i2c::ErrorCode err[4];
   for (uint8_t i = 0; i < 4; ++i) {
     uint8_t wd[3];
     wd[0] = ((uint8_t) CMD::MULTI_WRITE | (i << 1)) & 0xFE;
@@ -65,7 +72,7 @@ bool MCP4728Component::multi_write_() {
   }
   bool ok = true;
   for (auto & e : err) {
-    if (e != esphome::i2c::ErrorCode::ERROR_OK) {
+    if (e != i2c::ERROR_OK) {
       ok = false;
       break;
     }
@@ -81,8 +88,8 @@ bool MCP4728Component::seq_write_() {
                     (reg_[i].data >> 8);
     wd[i * 2 + 2] = reg_[i].data & 0xFF;
   }
-  esphome::i2c::ErrorCode err = this->write(wd, sizeof(wd));
-  return err == esphome::i2c::ErrorCode::ERROR_OK;
+  auto err = this->write(wd, sizeof(wd));
+  return err == i2c::ERROR_OK;
 }
 
 void MCP4728Component::select_vref_(MCP4728ChannelIdx channel, MCP4728Vref vref) {
