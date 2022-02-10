@@ -463,6 +463,13 @@ sensor:
     state_topic: livingroom/custom_state_topic
     measurement_duration: 31
     i2c_id: i2c_bus
+  - platform: max44009
+    name: "Outside Brightness 1"
+    internal: true
+    address: 0x4A
+    update_interval: 30s
+    mode: low_power
+    i2c_id: i2c_bus
   - platform: bme280
     temperature:
       name: "Outside Temperature"
