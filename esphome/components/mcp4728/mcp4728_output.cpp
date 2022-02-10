@@ -71,7 +71,7 @@ bool MCP4728Component::multi_write_() {
     err[i] = this->write(wd, sizeof(wd));
   }
   bool ok = true;
-  for (auto & e : err) {
+  for (auto &e : err) {
     if (e != i2c::ERROR_OK) {
       ok = false;
       break;
