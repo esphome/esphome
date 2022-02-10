@@ -72,7 +72,7 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   void dump_config() override;
 
   void display();
-  void clean();
+  void clear() override;
   void fill(Color color) override;
 
   void update() override;

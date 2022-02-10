@@ -588,8 +588,8 @@ void Inkplate6::vscan_end_() {
   delayMicroseconds(0);
 }
 
-void Inkplate6::clean() {
-  ESP_LOGV(TAG, "Clean called");
+void Inkplate6::clear() {
+  ESP_LOGV(TAG, "Clear called");
   uint32_t start_time = millis();
 
   eink_on_();
@@ -599,7 +599,7 @@ void Inkplate6::clean() {
   clean_fast_(0, 8);   // Black to Black
   clean_fast_(2, 1);   // Black to White
   clean_fast_(1, 10);  // White to White
-  ESP_LOGV(TAG, "Clean finished (%ums)", millis() - start_time);
+  ESP_LOGV(TAG, "Clear finished (%ums)", millis() - start_time);
 }
 
 void Inkplate6::clean_fast_(uint8_t c, uint8_t rep) {
