@@ -79,7 +79,7 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
     result.idle_time = idle_time / 60.0f;
     result.has_motion = !idle_time;
   } else if ((value_type == 0x1018) && (value_length == 1)) {
-    result.is_light == data[0];
+    result.is_light = data[0];
   } else {
     return false;
   }
