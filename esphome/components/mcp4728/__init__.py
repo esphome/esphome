@@ -6,16 +6,16 @@ from esphome.const import CONF_ID
 CODEOWNERS = ["@berfenger"]
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
-CONF_EEPROM = "eeprom"
+CONF_STORE_IN_EEPROM = "store_in_eeprom"
 
 mcp4728_ns = cg.esphome_ns.namespace("mcp4728")
-MCP4728Output = mcp4728_ns.class_("MCP4728Output", cg.Component, i2c.I2CDevice)
+MCP4728Component = mcp4728_ns.class_("MCP4728Component", cg.Component, i2c.I2CDevice)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(MCP4728Output),
-            cv.Optional(CONF_EEPROM, default=False): cv.boolean,
+            cv.GenerateID(): cv.declare_id(MCP4728Component),
+            cv.Optional(CONF_STORE_IN_EEPROM, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -24,6 +24,6 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_EEPROM])
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_STORE_IN_EEPROM])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

@@ -17,11 +17,29 @@ enum class CMD {
   SELECT_POWER_DOWN = 0xA0
 };
 
-enum MCP4728Vref { MCP4728_VREF_VDD, MCP4728_VREF_INTERNAL_2_8V };
-enum MCP4728PwrDown { MCP4728_PD_NORMAL, MCP4728_PD_GND_1KOHM, MCP4728_PD_GND_100KOHM, MCP4728_PD_GND_500KOHM };
-enum MCP4728Gain { MCP4728_GAIN_X1, MCP4728_GAIN_X2 };
+enum MCP4728Vref {
+  MCP4728_VREF_VDD = 0,
+  MCP4728_VREF_INTERNAL_2_8V = 1
+};
 
-enum MCP4728ChannelIdx { MCP4728_CHANNEL_A, MCP4728_CHANNEL_B, MCP4728_CHANNEL_C, MCP4728_CHANNEL_D };
+enum MCP4728PwrDown {
+  MCP4728_PD_NORMAL = 0,
+  MCP4728_PD_GND_1KOHM = 1,
+  MCP4728_PD_GND_100KOHM = 2,
+  MCP4728_PD_GND_500KOHM = 3
+};
+
+enum MCP4728Gain {
+  MCP4728_GAIN_X1 = 0,
+  MCP4728_GAIN_X2 = 1
+};
+
+enum MCP4728ChannelIdx {
+  MCP4728_CHANNEL_A = 0,
+  MCP4728_CHANNEL_B = 1,
+  MCP4728_CHANNEL_C = 2,
+  MCP4728_CHANNEL_D = 3
+  };
 
 struct DACInputData {
   MCP4728Vref vref;
@@ -33,9 +51,9 @@ struct DACInputData {
 class MCP4728Channel;
 
 /// MCP4728 float output component.
-class MCP4728Output : public Component, public i2c::I2CDevice {
+class MCP4728Component : public Component, public i2c::I2CDevice {
  public:
-  MCP4728Output(bool eeprom) : eeprom_(eeprom) {}
+  MCP4728Component(bool store_in_eeprom) : store_in_eeprom_(store_in_eeprom) {}
 
   void setup() override;
   void dump_config() override;
@@ -43,24 +61,23 @@ class MCP4728Output : public Component, public i2c::I2CDevice {
   void loop() override;
 
  protected:
-  enum ErrorCode { NONE = 0, COMMUNICATION_FAILED } error_code_{NONE};
   friend MCP4728Channel;
   void set_channel_value_(MCP4728ChannelIdx channel, uint16_t value);
-  uint8_t multi_write_();
-  uint8_t seq_write_();
+  bool multi_write_();
+  bool seq_write_();
   void select_vref_(MCP4728ChannelIdx channel, MCP4728Vref vref);
   void select_power_down_(MCP4728ChannelIdx channel, MCP4728PwrDown pd);
   void select_gain_(MCP4728ChannelIdx channel, MCP4728Gain gain);
 
  private:
   DACInputData reg_[4];
-  bool eeprom_ = false;
+  bool store_in_eeprom_ = false;
   bool update_ = false;
 };
 
 class MCP4728Channel : public output::FloatOutput {
  public:
-  MCP4728Channel(MCP4728Output *parent, MCP4728ChannelIdx channel, MCP4728Vref vref, MCP4728Gain gain,
+  MCP4728Channel(MCP4728Component *parent, MCP4728ChannelIdx channel, MCP4728Vref vref, MCP4728Gain gain,
                  MCP4728PwrDown pwrdown)
       : parent_(parent), channel_(channel), vref_(vref), gain_(gain), pwrdown_(pwrdown) {
     // update VREF
@@ -74,7 +91,7 @@ class MCP4728Channel : public output::FloatOutput {
  protected:
   void write_state(float state) override;
 
-  MCP4728Output *parent_;
+  MCP4728Component *parent_;
   MCP4728ChannelIdx channel_;
   MCP4728Vref vref_;
   MCP4728Gain gain_;
