@@ -457,7 +457,7 @@ xiaomi_ble:
 xiaomi_rtcgq02lm:
   - id: motion_rtcgq02lm
     mac_address: 01:02:03:04:05:06
-    bind_key: '48403ebe2d385db8d0c187f81e62cb64'
+    bindkey: '48403ebe2d385db8d0c187f81e62cb64'
 
 #esp32_ble_beacon:
 #  type: iBeacon
