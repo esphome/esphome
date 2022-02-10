@@ -64,8 +64,8 @@ bool MCP4728Component::multi_write_() {
     err[i] = this->write(wd, sizeof(wd));
   }
   bool ok = true;
-  for (uint8_t i = 0; i < 4; ++i) {
-    if (err[i] != esphome::i2c::ErrorCode::ERROR_OK) {
+  for (auto & e : err) {
+    if (e != esphome::i2c::ErrorCode::ERROR_OK) {
       ok = false;
       break;
     }
