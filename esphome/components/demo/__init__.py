@@ -37,12 +37,10 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     ICON_BLUETOOTH,
     ICON_BLUR,
-    ICON_EMPTY,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
-    UNIT_EMPTY,
     UNIT_PERCENT,
     UNIT_WATT_HOURS,
 )
@@ -339,7 +337,7 @@ CONFIG_SCHEMA = cv.Schema(
                 },
             ],
         ): [
-            sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 0)
+            sensor.sensor_schema(accuracy_decimals=0)
             .extend(cv.polling_component_schema("60s"))
             .extend(
                 {
@@ -378,12 +376,8 @@ CONFIG_SCHEMA = cv.Schema(
                 },
             ],
         ): [
-            text_sensor.TEXT_SENSOR_SCHEMA.extend(
+            text_sensor.text_sensor_schema(klass=DemoTextSensor).extend(
                 cv.polling_component_schema("60s")
-            ).extend(
-                {
-                    cv.GenerateID(): cv.declare_id(DemoTextSensor),
-                }
             )
         ],
     }
@@ -443,6 +437,5 @@ async def to_code(config):
         await switch.register_switch(var, conf)
 
     for conf in config[CONF_TEXT_SENSORS]:
-        var = cg.new_Pvariable(conf[CONF_ID])
+        var = await text_sensor.new_text_sensor(conf)
         await cg.register_component(var, conf)
-        await text_sensor.register_text_sensor(var, conf)

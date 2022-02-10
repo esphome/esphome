@@ -102,7 +102,7 @@ RUN \
 ARG BUILD_VERSION=dev
 
 # Copy root filesystem
-COPY docker/hassio-rootfs/ /
+COPY docker/ha-addon-rootfs/ /
 
 # First install requirements to leverage caching when requirements don't change
 COPY requirements.txt requirements_optional.txt docker/platformio_install_deps.py platformio.ini /
