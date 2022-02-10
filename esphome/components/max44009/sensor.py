@@ -35,7 +35,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(MAX44009Sensor),
             cv.Optional(CONF_MODE, default="low_power"): cv.enum(
-                MODE_OPTIONS, upper=False
+                MODE_OPTIONS, lower=True
             ),
         }
     )
