@@ -395,13 +395,17 @@ BLEDescriptor *BLECharacteristic::get_descriptor(uint16_t uuid) {
   return this->get_descriptor(espbt::ESPBTUUID::from_uint16(uuid));
 }
 
-void BLECharacteristic::write_value(uint8_t *new_val, int16_t new_val_size) {
+void BLECharacteristic::write_value(uint8_t *new_val, int16_t new_val_size, esp_gatt_write_type_t write_type) {
   auto *client = this->service->client;
   auto status = esp_ble_gattc_write_char(client->gattc_if, client->conn_id, this->handle, new_val_size, new_val,
-                                         ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+                                         write_type, ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     ESP_LOGW(TAG, "Error sending write value to BLE gattc server, status=%d", status);
   }
+}
+
+void BLECharacteristic::write_value(uint8_t *new_val, int16_t new_val_size) {
+  write_value(new_val, new_val_size, ESP_GATT_WRITE_TYPE_NO_RSP);
 }
 
 }  // namespace ble_client
