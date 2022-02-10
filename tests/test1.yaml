@@ -2374,7 +2374,7 @@ rc522_i2c:
 
 mcp4728:
   - id: mcp4728_dac
-    eeprom: False
+    store_in_eeprom: False
     address: 0x60
     i2c_id: i2c_bus
 
