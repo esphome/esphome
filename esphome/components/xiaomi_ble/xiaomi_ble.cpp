@@ -13,6 +13,7 @@ namespace xiaomi_ble {
 static const char *const TAG = "xiaomi_ble";
 
 bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result) {
+  // button pressed, 3 bytes, only byte 3 is used for supported devices so far
   if ((value_type == 0x1001) && (value_length == 3)) {
     result.button_press = data[2] == 0;
     return true;
