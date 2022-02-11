@@ -56,13 +56,15 @@ void Canbus::add_trigger(CanbusTrigger *trigger) {
 
 void Canbus::loop() {
   struct CanFrame can_message;
-  // readmessage
-  if (this->read_message(&can_message) == canbus::ERROR_OK) {
+  // read all messages until queue is empty
+  int message_counter = 0;
+  while (this->read_message(&can_message) == canbus::ERROR_OK) {
+    message_counter++;
     if (can_message.use_extended_id) {
-      ESP_LOGD(TAG, "received can message extended can_id=0x%x size=%d", can_message.can_id,
+      ESP_LOGD(TAG, "received can message (#%d) extended can_id=0x%x size=%d", message_counter, can_message.can_id,
                can_message.can_data_length_code);
     } else {
-      ESP_LOGD(TAG, "received can message std can_id=0x%x size=%d", can_message.can_id,
+      ESP_LOGD(TAG, "received can message (#%d) std can_id=0x%x size=%d", message_counter, can_message.can_id,
                can_message.can_data_length_code);
     }
 
