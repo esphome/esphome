@@ -65,7 +65,7 @@ CAN_SPEEDS = {
 CANBUS_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CanbusComponent),
-        cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
+        cv.Optional(CONF_CAN_ID, default=0): cv.int_range(min=0, max=0x1FFFFFFF),
         cv.Optional(CONF_BIT_RATE, default="125KBPS"): cv.enum(CAN_SPEEDS, upper=True),
         cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
         cv.Optional(CONF_ON_FRAME): automation.validate_automation(
