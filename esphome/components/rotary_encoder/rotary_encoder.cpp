@@ -138,6 +138,8 @@ void RotaryEncoderSensor::setup() {
       initial_value = 0;
       break;
   }
+  initial_value = clamp(initial_value, this->store_.min_value, this->store_.max_value);
+
   this->store_.counter = initial_value;
   this->store_.last_read = initial_value;
 

@@ -10,7 +10,7 @@ server {
     ssl_certificate_key /ssl/%%keyfile%%;
 
     # Clear Hass.io Ingress header
-    proxy_set_header X-Hassio-Ingress "";
+    proxy_set_header X-HA-Ingress "";
 
     # Redirect http requests to https on the same port.
     # https://rageagainstshell.com/2016/11/redirect-http-to-https-on-the-same-port-in-nginx/
