@@ -77,7 +77,7 @@ esphome/components/hbridge/light/* @DotNetDann
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
-esphome/components/honeywellabp/* @RudyBailey
+esphome/components/honeywellabp/* @RubyBailey
 esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/i2c/* @esphome/core
 esphome/components/improv_serial/* @esphome/core
