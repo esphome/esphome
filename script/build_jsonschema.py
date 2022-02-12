@@ -170,7 +170,7 @@ def get_logger_tags():
     ]
     for x in os.walk(CORE_COMPONENTS_PATH):
         for y in glob.glob(os.path.join(x[0], "*.cpp")):
-            with open(y, "r") as file:
+            with open(y) as file:
                 data = file.read()
                 match = pattern.search(data)
                 if match:

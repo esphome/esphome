@@ -111,12 +111,11 @@ bool MQTTComponent::send_discovery_() {
             root[MQTT_PAYLOAD_NOT_AVAILABLE] = this->availability_->payload_not_available;
         }
 
-        const std::string &node_name = App.get_name();
         std::string unique_id = this->unique_id();
+        const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
         if (!unique_id.empty()) {
           root[MQTT_UNIQUE_ID] = unique_id;
         } else {
-          const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
           if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
             char friendly_name_hash[9];
             sprintf(friendly_name_hash, "%08x", fnv1_hash(this->friendly_name()));
@@ -128,6 +127,10 @@ bool MQTTComponent::send_discovery_() {
             root[MQTT_UNIQUE_ID] = "ESP" + this->component_type() + this->get_default_object_id_();
           }
         }
+
+        const std::string &node_name = App.get_name();
+        if (discovery_info.object_id_generator == MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR)
+          root[MQTT_OBJECT_ID] = node_name + "_" + this->get_default_object_id_();
 
         JsonObject device_info = root.createNestedObject(MQTT_DEVICE);
         device_info[MQTT_DEVICE_IDENTIFIERS] = get_mac_address();
