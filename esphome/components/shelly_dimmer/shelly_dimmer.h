@@ -67,7 +67,7 @@ class ShellyDimmer : public Component, public light::LightOutput, public uart::U
   bool ready_{false};
   uint16_t brightness_;
 
- protected:
+ 
   /// Convert relative brightness into a dimmer brightness value.
   uint16_t convert_brightness_(float brightness);
 
