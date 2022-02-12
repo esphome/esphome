@@ -24,17 +24,19 @@ void MagiQuestProtocol::encode(RemoteTransmitData *dst, const MagiQuestData &dat
   dst->item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE);
   dst->item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE);
   for (uint32_t mask = 1 << 31; mask; mask >>= 1) {
-    if (data.wand_id & mask)
+    if (data.wand_id & mask) {
       dst->item(MAGIQUEST_ONE_MARK, MAGIQUEST_ONE_SPACE);
-    else
+    } else {
       dst->item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE);
+    }
   }
 
   for (uint16_t mask = 1 << 15; mask; mask >>= 1) {
-    if (data.magnitude & mask)
+    if (data.magnitude & mask) {
       dst->item(MAGIQUEST_ONE_MARK, MAGIQUEST_ONE_SPACE);
-    else
+    } else {
       dst->item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE);
+    }
   }
 
   dst->mark(MAGIQUEST_UNIT);
@@ -46,8 +48,9 @@ optional<MagiQuestData> MagiQuestProtocol::decode(RemoteReceiveData src) {
   };
   // Two start bits
   if (!src.expect_item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE) ||
-      !src.expect_item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE))
+      !src.expect_item(MAGIQUEST_ZERO_MARK, MAGIQUEST_ZERO_SPACE)) {
     return {};
+  }
 
   for (uint32_t mask = 1 << 31; mask; mask >>= 1) {
     if (src.expect_item(MAGIQUEST_ONE_MARK, MAGIQUEST_ONE_SPACE)) {
