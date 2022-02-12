@@ -56,6 +56,7 @@ struct IDFWiFiEvent {
     wifi_event_ap_probe_req_rx_t ap_probe_req_rx;
     wifi_event_bss_rssi_low_t bss_rssi_low;
     ip_event_got_ip_t ip_got_ip;
+    ip_event_got_ip6_t ip_got_ip6;
     ip_event_ap_staipassigned_t ip_ap_staipassigned;
   } data;
 };
@@ -79,6 +80,8 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
     memcpy(&event.data.sta_disconnected, event_data, sizeof(wifi_event_sta_disconnected_t));
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
     memcpy(&event.data.ip_got_ip, event_data, sizeof(ip_event_got_ip_t));
+  } else if (event_base == IP_EVENT && event_id == IP_EVENT_GOT_IP6) {
+    memcpy(&event.data.ip_got_ip6, event_data, sizeof(ip_event_got_ip6_t));
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_LOST_IP) {  // NOLINT(bugprone-branch-clone)
     // no data
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_SCAN_DONE) {
@@ -182,14 +185,15 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   bool set_ap = ap.has_value() ? *ap : current_ap;
 
   wifi_mode_t set_mode;
-  if (set_sta && set_ap)
+  if (set_sta && set_ap) {
     set_mode = WIFI_MODE_APSTA;
-  else if (set_sta && !set_ap)
+  } else if (set_sta && !set_ap) {
     set_mode = WIFI_MODE_STA;
-  else if (!set_sta && set_ap)
+  } else if (!set_sta && set_ap) {
     set_mode = WIFI_MODE_AP;
-  else
+  } else {
     set_mode = WIFI_MODE_NULL;
+  }
 
   if (current_mode == set_mode)
     return true;
@@ -496,12 +500,8 @@ const char *get_auth_mode_str(uint8_t mode) {
   }
 }
 
-std::string format_ip4_addr(const esp_ip4_addr_t &ip) {
-  char buf[20];
-  snprintf(buf, sizeof(buf), "%u.%u.%u.%u", uint8_t(ip.addr >> 0), uint8_t(ip.addr >> 8), uint8_t(ip.addr >> 16),
-           uint8_t(ip.addr >> 24));
-  return buf;
-}
+std::string format_ip4_addr(const esp_ip4_addr_t &ip) { return str_snprintf(IPSTR, 15, IP2STR(&ip)); }
+std::string format_ip6_addr(const esp_ip6_addr_t &ip) { return str_snprintf(IPV6STR, 39, IPV62STR(ip)); }
 const char *get_disconnect_reason_str(uint8_t reason) {
   switch (reason) {
     case WIFI_REASON_AUTH_EXPIRE:
@@ -634,9 +634,16 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
+#ifdef LWIP_IPV6_AUTOCONFIG
+    tcpip_adapter_create_ip6_linklocal(TCPIP_ADAPTER_IF_STA);
+#endif
     ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s", format_ip4_addr(it.ip_info.ip).c_str(),
              format_ip4_addr(it.ip_info.gw).c_str());
     s_sta_got_ip = true;
+
+  } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
+    const auto &it = data->data.ip_got_ip6;
+    ESP_LOGV(TAG, "Event: Got IPv6 address=%s", format_ip6_addr(it.ip6_info.ip).c_str());
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_LOST_IP) {
     ESP_LOGV(TAG, "Event: Lost IP");

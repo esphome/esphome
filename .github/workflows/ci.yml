@@ -51,26 +51,26 @@ jobs:
             name: Run script/clang-format
           - id: clang-tidy
             name: Run script/clang-tidy for ESP8266
-            options: --environment esp8266-tidy --grep USE_ESP8266
+            options: --environment esp8266-arduino-tidy --grep USE_ESP8266
             pio_cache_key: tidyesp8266
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 1/4
-            options: --environment esp32-tidy --split-num 4 --split-at 1
+            name: Run script/clang-tidy for ESP32 Arduino 1/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 1
             pio_cache_key: tidyesp32
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 2/4
-            options: --environment esp32-tidy --split-num 4 --split-at 2
+            name: Run script/clang-tidy for ESP32 Arduino 2/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 2
             pio_cache_key: tidyesp32
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 3/4
-            options: --environment esp32-tidy --split-num 4 --split-at 3
+            name: Run script/clang-tidy for ESP32 Arduino 3/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 3
             pio_cache_key: tidyesp32
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 4/4
-            options: --environment esp32-tidy --split-num 4 --split-at 4
+            name: Run script/clang-tidy for ESP32 Arduino 4/4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 4
             pio_cache_key: tidyesp32
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 esp-idf
+            name: Run script/clang-tidy for ESP32 IDF
             options: --environment esp32-idf-tidy --grep USE_ESP_IDF
             pio_cache_key: tidyesp32-idf
 
@@ -80,7 +80,7 @@ jobs:
         uses: actions/setup-python@v2
         id: python
         with:
-          python-version: '3.7'
+          python-version: '3.8'
 
       - name: Cache virtualenv
         uses: actions/cache@v2
