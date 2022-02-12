@@ -1307,6 +1307,21 @@ binary_sensor:
         ]
   - platform: as3935
     name: "Storm Alert"
+  - platform: analog_threshold
+    name: Analog Trheshold 1
+    sensor_id: template_sensor
+    threshold: 
+      upper: 110
+      lower: 90
+    delay: 
+      high: 0s
+      low: 10s
+  - platform: analog_threshold
+    name: Analog Trheshold 2
+    sensor_id: template_sensor
+    threshold: 100
+    delay: 10s
+    inverted: true
 
 pca9685:
   frequency: 500
