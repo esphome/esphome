@@ -352,11 +352,11 @@ void QMP6988Component::calculate_pressure_() {
     return;
   }
   p_read = (QMP6988_U32_t)((((QMP6988_U32_t)(a_data_uint8_tr[0])) << SHIFT_LEFT_16_POSITION) |
-                            (((QMP6988_U16_t)(a_data_uint8_tr[1])) << SHIFT_LEFT_8_POSITION) | (a_data_uint8_tr[2]));
+                           (((QMP6988_U16_t)(a_data_uint8_tr[1])) << SHIFT_LEFT_8_POSITION) | (a_data_uint8_tr[2]));
   p_raw = (QMP6988_S32_t)(p_read - SUBTRACTOR);
 
   t_read = (QMP6988_U32_t)((((QMP6988_U32_t)(a_data_uint8_tr[3])) << SHIFT_LEFT_16_POSITION) |
-                            (((QMP6988_U16_t)(a_data_uint8_tr[4])) << SHIFT_LEFT_8_POSITION) | (a_data_uint8_tr[5]));
+                           (((QMP6988_U16_t)(a_data_uint8_tr[4])) << SHIFT_LEFT_8_POSITION) | (a_data_uint8_tr[5]));
   t_raw = (QMP6988_S32_t)(t_read - SUBTRACTOR);
 
   t_int = this->get_compensated_temperature_(&(qmp6988_data_.ik), t_raw);

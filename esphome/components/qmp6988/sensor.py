@@ -80,6 +80,7 @@ CONFIG_SCHEMA = (
     .extend(i2c.i2c_device_schema(0x70))
 )
 
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -98,4 +99,3 @@ async def to_code(config):
         cg.add(var.set_pressure_oversampling(conf[CONF_OVERSAMPLING]))
 
     cg.add(var.set_iir_filter(config[CONF_IIR_FILTER]))
-    

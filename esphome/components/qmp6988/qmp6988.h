@@ -39,7 +39,7 @@ enum QMP6988IIRFilter {
   QMP6988_IIR_FILTER_32X = 0x05,
 };
 
-using qmp6988_cali_data_t = struct _qmp6988_cali_data {
+using qmp6988_cali_data_t = struct Qmp6988CaliData {
   QMP6988_S32_t COE_a0;
   QMP6988_S16_t COE_a1;
   QMP6988_S16_t COE_a2;
@@ -54,18 +54,18 @@ using qmp6988_cali_data_t = struct _qmp6988_cali_data {
   QMP6988_S16_t COE_bp3;
 };
 
-using qmp6988_fk_data_t = struct _qmp6988_fk_data {
+using qmp6988_fk_data_t = struct Qmp6988FkData {
   float a0, b00;
   float a1, a2, bt1, bt2, bp1, b11, bp2, b12, b21, bp3;
 };
 
-using qmp6988_ik_data_t = struct _qmp6988_ik_data {
+using qmp6988_ik_data_t = struct Qmp6988IkData {
   QMP6988_S32_t a0, b00;
   QMP6988_S32_t a1, a2;
   QMP6988_S64_t bt1, bt2, bp1, b11, bp2, b12, b21, bp3;
 };
 
-using qmp6988_data_t = struct _qmp6988_data {
+using qmp6988_data_t = struct Qmp6988Data {
   uint8_t chip_id;
   uint8_t power_mode;
   float temperature;
