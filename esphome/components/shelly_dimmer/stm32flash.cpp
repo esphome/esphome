@@ -197,7 +197,7 @@ static stm32_err_t stm32_send_command_timeout(const stm32_t *stm, const uint8_t 
     ESP_LOGD(TAG, "Got NACK from device on command 0x%02x", cmd);
   } else {
     ESP_LOGD(TAG, "Unexpected reply from device on command 0x%02x", cmd);
-}
+  }
   return STM32_ERR_UNKNOWN;
 }
 
@@ -343,7 +343,7 @@ stm32_t *stm32_init(uart::UARTDevice *stream, uint8_t flags, char init) {
   if ((stm->flags & STREAM_OPT_CMD_INIT) && init) {
     if (stm32_send_init_seq(stm) != STM32_ERR_OK)
       return nullptr;  // NOLINT
-}
+  }
   /* get the version and read protection status  */
   if (stm32_send_command(stm, STM32_CMD_GVR) != STM32_ERR_OK) {
     stm32_close(stm);
@@ -370,8 +370,8 @@ stm32_t *stm32_init(uart::UARTDevice *stream, uint8_t flags, char init) {
         len = stm->cmd_get_reply[i].length;
         break;
       }
-}
-}
+    }
+  }
   if (stm32_guess_len_cmd(stm, STM32_CMD_GET, buf, len) != STM32_ERR_OK)
     return nullptr;
   len = buf[0] + 1;
@@ -428,7 +428,7 @@ stm32_t *stm32_init(uart::UARTDevice *stream, uint8_t flags, char init) {
           ESP_LOGD(TAG, "GET returns unknown commands (0x%2x", val);
         } else {
           ESP_LOGD(TAG, ", 0x%2x", val);
-}
+        }
     }
   }
   if (new_cmds)
@@ -1006,8 +1006,8 @@ uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len) {
         crc = (crc << 1) ^ CRCPOLY_BE;
       } else {
         crc = (crc << 1);
-}
-}
+      }
+    }
   }
   return crc;
 }
