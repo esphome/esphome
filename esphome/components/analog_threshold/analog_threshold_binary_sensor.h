@@ -22,10 +22,7 @@ class AnalogThresholdBinarySensor : public Component, public binary_sensor::Bina
   void set_delay_high(uint32_t delay) { this->delay_high_ = delay; }
   void set_delay_low(uint32_t delay) { this->delay_low_ = delay; }
 
-  
-
  protected:
-
   bool is_above_() const;
 
   sensor::Sensor *sensor_{nullptr};
