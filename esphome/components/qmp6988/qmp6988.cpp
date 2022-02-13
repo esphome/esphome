@@ -166,9 +166,9 @@ int QMP6988Component::get_calibration_data_()
   qmp6988_data_.qmp6988_cali.COE_bp1 = (QMP6988_S16_t)(((a_data_uint8_tr[6]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[7]);
   qmp6988_data_.qmp6988_cali.COE_b11 = (QMP6988_S16_t)(((a_data_uint8_tr[8]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[9]);
   qmp6988_data_.qmp6988_cali.COE_bp2 = (QMP6988_S16_t)(((a_data_uint8_tr[10]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[11]);
-  qmp6988_data_.qmp6988_cali.COE_b12 = (QMP6988_S16_t)(((a_data_uint8_tr[12]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[13]);		
+  qmp6988_data_.qmp6988_cali.COE_b12 = (QMP6988_S16_t)(((a_data_uint8_tr[12]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[13]);
   qmp6988_data_.qmp6988_cali.COE_b21 = (QMP6988_S16_t)(((a_data_uint8_tr[14]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[15]);
-  qmp6988_data_.qmp6988_cali.COE_bp3 = (QMP6988_S16_t)(((a_data_uint8_tr[16]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[17]);			
+  qmp6988_data_.qmp6988_cali.COE_bp3 = (QMP6988_S16_t)(((a_data_uint8_tr[16]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[17]);		
 
   ESP_LOGV(TAG, "<-----------calibration data-------------->\r\n");
   ESP_LOGV(TAG, "COE_a0[%d]	COE_a1[%d]	COE_a2[%d]	COE_b00[%d]\r\n",
