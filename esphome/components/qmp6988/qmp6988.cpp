@@ -48,8 +48,8 @@ static const uint8_t QMP6988_CONFIG_REG_FILTER__POS = 0;
 static const uint8_t QMP6988_CONFIG_REG_FILTER__MSK = 0x07;
 static const uint8_t QMP6988_CONFIG_REG_FILTER__LEN = 3;
 
-static const uint8_t SUBTRACTOR = 8388608;
-	
+static const uint32_t SUBTRACTOR = 8388608;
+
 static const char *const TAG = "qmp6988";
 
 static const char *oversampling_to_str(QMP6988Oversampling oversampling) {
