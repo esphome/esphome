@@ -298,7 +298,7 @@ void QMP6988Component::set_power_mode_(int power_mode)
 }
 
 void QMP6988Component::write_filter_(unsigned char filter)
-{	
+{
   uint8_t data; 
 
   data = (filter&0x03);
