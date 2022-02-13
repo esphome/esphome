@@ -6,16 +6,17 @@
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 #include "WString.h"
+#include "esphome/core/defines.h"  // for USE_ARDUINO_VERSION_CODE
 #endif
 
-// Both the ESP-IDF and Arduino also define ESP_LOG* macros. Include them here, so that they won't
-// be reincluded later on and redefine our macros.
-#ifdef ARDUINO_ARCH_ESP32
+// Include ESP-IDF/Arduino based logging methods here so they don't undefine ours later
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
+#include <esp_err.h>
 #include <esp_log.h>
+#endif
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp32-hal-log.h>
 #endif
-
-#include "esphome/core/macros.h"
 
 namespace esphome {
 
@@ -29,7 +30,7 @@ namespace esphome {
 #define ESPHOME_LOG_LEVEL_VERY_VERBOSE 7
 
 #ifndef ESPHOME_LOG_LEVEL
-#define ESPHOME_LOG_LEVEL ESPHOME_LOG_LEVEL_DEBUG
+#define ESPHOME_LOG_LEVEL ESPHOME_LOG_LEVEL_NONE
 #endif
 
 #define ESPHOME_LOG_COLOR_BLACK "30"
@@ -58,7 +59,7 @@ void esp_log_vprintf_(int level, const char *tag, int line, const char *format, 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 void esp_log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
-#ifdef ARDUINO_ARCH_ESP32
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
 int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
@@ -172,7 +173,7 @@ struct LogString;
 
 #include <pgmspace.h>
 
-#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 0)
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 0)
 #define LOG_STR_ARG(s) ((PGM_P)(s))
 #else
 // Pre-Arduino 2.5, we can't pass a PSTR() to printf(). Emulate support by copying the message to a

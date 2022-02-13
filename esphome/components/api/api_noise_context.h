@@ -11,7 +11,7 @@ using psk_t = std::array<uint8_t, 32>;
 
 class APINoiseContext {
  public:
-  void set_psk(psk_t psk) { psk_ = std::move(psk); }
+  void set_psk(psk_t psk) { psk_ = psk; }
   const psk_t &get_psk() const { return psk_; }
 
  protected:

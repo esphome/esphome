@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace sn74hc595 {
@@ -41,14 +41,20 @@ class SN74HC595Component : public Component {
 /// Helper class to expose a SC74HC595 pin as an internal output GPIO pin.
 class SN74HC595GPIOPin : public GPIOPin {
  public:
-  SN74HC595GPIOPin(SN74HC595Component *parent, uint8_t pin, bool inverted = false);
-
-  void setup() override;
-  bool digital_read() override;
+  void setup() override {}
+  void pin_mode(gpio::Flags flags) override {}
+  bool digital_read() override { return false; }
   void digital_write(bool value) override;
+  std::string dump_summary() const override;
+
+  void set_parent(SN74HC595Component *parent) { parent_ = parent; }
+  void set_pin(uint8_t pin) { pin_ = pin; }
+  void set_inverted(bool inverted) { inverted_ = inverted; }
 
  protected:
   SN74HC595Component *parent_;
+  uint8_t pin_;
+  bool inverted_;
 };
 
 }  // namespace sn74hc595

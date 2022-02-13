@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/helpers.h"
+#include "esphome/core/hal.h"
 #include "light_color_values.h"
 
 namespace esphome {
@@ -9,6 +10,8 @@ namespace light {
 /// Base class for all light color transformers, such as transitions or flashes.
 class LightTransformer {
  public:
+  virtual ~LightTransformer() = default;
+
   void setup(const LightColorValues &start_values, const LightColorValues &target_values, uint32_t length) {
     this->start_time_ = millis();
     this->length_ = length;
@@ -36,7 +39,15 @@ class LightTransformer {
 
  protected:
   /// The progress of this transition, on a scale of 0 to 1.
-  float get_progress_() { return clamp((millis() - this->start_time_) / float(this->length_), 0.0f, 1.0f); }
+  float get_progress_() {
+    uint32_t now = esphome::millis();
+    if (now < this->start_time_)
+      return 0.0f;
+    if (now >= this->start_time_ + this->length_)
+      return 1.0f;
+
+    return clamp((now - this->start_time_) / float(this->length_), 0.0f, 1.0f);
+  }
 
   uint32_t start_time_;
   uint32_t length_;

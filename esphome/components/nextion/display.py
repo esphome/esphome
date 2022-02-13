@@ -8,7 +8,7 @@ from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_TRIGGER_ID,
 )
-
+from esphome.core import CORE
 from . import Nextion, nextion_ns, nextion_ref
 from .base_component import (
     CONF_ON_SLEEP,
@@ -33,7 +33,7 @@ CONFIG_SCHEMA = (
     display.BASIC_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(Nextion),
-            cv.Optional(CONF_TFT_URL): cv.string,
+            cv.Optional(CONF_TFT_URL): cv.All(cv.string, cv.only_with_arduino),
             cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
             cv.Optional(CONF_ON_SETUP): automation.validate_automation(
                 {
@@ -74,8 +74,11 @@ async def to_code(config):
         cg.add(var.set_writer(lambda_))
 
     if CONF_TFT_URL in config:
-        cg.add_define("USE_TFT_UPLOAD")
+        cg.add_define("USE_NEXTION_TFT_UPLOAD")
         cg.add(var.set_tft_url(config[CONF_TFT_URL]))
+        if CORE.is_esp32:
+            cg.add_library("WiFiClientSecure", None)
+            cg.add_library("HTTPClient", None)
 
     if CONF_TOUCH_SLEEP_TIMEOUT in config:
         cg.add(var.set_touch_sleep_timeout_internal(config[CONF_TOUCH_SLEEP_TIMEOUT]))

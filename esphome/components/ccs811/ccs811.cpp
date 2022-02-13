@@ -1,5 +1,6 @@
 #include "ccs811.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace ccs811 {
@@ -38,20 +39,21 @@ void CCS811Component::setup() {
   // set MEAS_MODE (page 5)
   uint8_t meas_mode = 0;
   uint32_t interval = this->get_update_interval();
-  if (interval >= 60 * 1000)
+  if (interval >= 60 * 1000) {
     meas_mode = 3 << 4;  // sensor takes a reading every 60 seconds
-  else if (interval >= 10 * 1000)
+  } else if (interval >= 10 * 1000) {
     meas_mode = 2 << 4;  // sensor takes a reading every 10 seconds
-  else if (interval >= 1 * 1000)
+  } else if (interval >= 1 * 1000) {
     meas_mode = 1 << 4;  // sensor takes a reading every second
-  else
+  } else {
     meas_mode = 4 << 4;  // sensor takes a reading every 250ms
+  }
 
   CHECKED_IO(this->write_byte(0x01, meas_mode))
 
   if (this->baseline_.has_value()) {
     // baseline available, write to sensor
-    this->write_bytes(0x11, decode_uint16(*this->baseline_));
+    this->write_bytes(0x11, decode_value(*this->baseline_));
   }
 
   auto hardware_version_data = this->read_bytes<1>(0x21);
@@ -85,8 +87,11 @@ void CCS811Component::setup() {
   }
 }
 void CCS811Component::update() {
-  if (!this->status_has_data_())
+  if (!this->status_has_data_()) {
+    ESP_LOGD(TAG, "Status indicates no data ready!");
     this->status_set_warning();
+    return;
+  }
 
   // page 12 - alg result data
   auto alg_data = this->read_bytes<4>(0x02);
@@ -124,12 +129,12 @@ void CCS811Component::send_env_data_() {
   float humidity = NAN;
   if (this->humidity_ != nullptr)
     humidity = this->humidity_->state;
-  if (isnan(humidity) || humidity < 0 || humidity > 100)
+  if (std::isnan(humidity) || humidity < 0 || humidity > 100)
     humidity = 50;
   float temperature = NAN;
   if (this->temperature_ != nullptr)
     temperature = this->temperature_->state;
-  if (isnan(temperature) || temperature < -25 || temperature > 50)
+  if (std::isnan(temperature) || temperature < -25 || temperature > 50)
     temperature = 25;
   // temperature has a 25° offset to allow negative temperatures
   temperature += 25;

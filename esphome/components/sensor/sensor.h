@@ -2,6 +2,7 @@
 
 #include "esphome/core/log.h"
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/filter.h"
 
@@ -14,7 +15,7 @@ namespace sensor {
     if (!(obj)->get_device_class().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
     } \
-    ESP_LOGCONFIG(TAG, "%s  State Class: '%s'", prefix, LOG_STR_ARG(state_class_to_string((obj)->get_state_class()))); \
+    ESP_LOGCONFIG(TAG, "%s  State Class: '%s'", prefix, state_class_to_string((obj)->get_state_class()).c_str()); \
     ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, (obj)->get_unit_of_measurement().c_str()); \
     ESP_LOGCONFIG(TAG, "%s  Accuracy Decimals: %d", prefix, (obj)->get_accuracy_decimals()); \
     if (!(obj)->get_icon().empty()) { \
@@ -37,13 +38,13 @@ enum StateClass : uint8_t {
   STATE_CLASS_TOTAL_INCREASING = 2,
 };
 
-const LogString *state_class_to_string(StateClass state_class);
+std::string state_class_to_string(StateClass state_class);
 
 /** Base-class for all sensors.
  *
  * A sensor has unit of measurement and can use publish_state to send out a new value with the specified accuracy.
  */
-class Sensor : public Nameable {
+class Sensor : public EntityBase {
  public:
   explicit Sensor();
   explicit Sensor(const std::string &name);
@@ -52,11 +53,6 @@ class Sensor : public Nameable {
   std::string get_unit_of_measurement();
   /// Manually set the unit of measurement.
   void set_unit_of_measurement(const std::string &unit_of_measurement);
-
-  /// Get the icon. Uses the manual override if specified or the default value instead.
-  std::string get_icon();
-  /// Manually set the icon, for example "mdi:flash".
-  void set_icon(const std::string &icon);
 
   /// Get the accuracy in decimals, using the manual override if set.
   int8_t get_accuracy_decimals();
@@ -154,19 +150,28 @@ class Sensor : public Nameable {
   void internal_send_state_to_frontend(float state);
 
  protected:
-  /// Override this to set the default unit of measurement.
+  /** Override this to set the default unit of measurement.
+   *
+   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
+   */
   virtual std::string unit_of_measurement();  // NOLINT
 
-  /// Override this to set the default icon.
-  virtual std::string icon();  // NOLINT
-
-  /// Override this to set the default accuracy in decimals.
+  /** Override this to set the default accuracy in decimals.
+   *
+   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
+   */
   virtual int8_t accuracy_decimals();  // NOLINT
 
-  /// Override this to set the default device class.
+  /** Override this to set the default device class.
+   *
+   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
+   */
   virtual std::string device_class();  // NOLINT
 
-  /// Override this to set the default state class.
+  /** Override this to set the default state class.
+   *
+   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
+   */
   virtual StateClass state_class();  // NOLINT
 
   uint32_t hash_base() override;
@@ -178,7 +183,6 @@ class Sensor : public Nameable {
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 
   optional<std::string> unit_of_measurement_;           ///< Unit of measurement override
-  optional<std::string> icon_;                          ///< Icon override
   optional<int8_t> accuracy_decimals_;                  ///< Accuracy in decimals override
   optional<std::string> device_class_;                  ///< Device class override
   optional<StateClass> state_class_{STATE_CLASS_NONE};  ///< State class override

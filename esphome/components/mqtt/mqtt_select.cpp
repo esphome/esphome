@@ -1,6 +1,9 @@
 #include "mqtt_select.h"
 #include "esphome/core/log.h"
 
+#include "mqtt_const.h"
+
+#ifdef USE_MQTT
 #ifdef USE_SELECT
 
 namespace esphome {
@@ -10,7 +13,7 @@ static const char *const TAG = "mqtt.select";
 
 using namespace esphome::select;
 
-MQTTSelectComponent::MQTTSelectComponent(Select *select) : MQTTComponent(), select_(select) {}
+MQTTSelectComponent::MQTTSelectComponent(Select *select) : select_(select) {}
 
 void MQTTSelectComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
@@ -27,14 +30,12 @@ void MQTTSelectComponent::dump_config() {
 }
 
 std::string MQTTSelectComponent::component_type() const { return "select"; }
+const EntityBase *MQTTSelectComponent::get_entity() const { return this->select_; }
 
-std::string MQTTSelectComponent::friendly_name() const { return this->select_->get_name(); }
-void MQTTSelectComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+void MQTTSelectComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   const auto &traits = select_->traits;
   // https://www.home-assistant.io/integrations/select.mqtt/
-  if (!traits.get_icon().empty())
-    root["icon"] = traits.get_icon();
-  JsonArray &options = root.createNestedArray("options");
+  JsonArray options = root.createNestedArray(MQTT_OPTIONS);
   for (const auto &option : traits.get_options())
     options.add(option);
 
@@ -47,7 +48,6 @@ bool MQTTSelectComponent::send_initial_state() {
     return true;
   }
 }
-bool MQTTSelectComponent::is_internal() { return this->select_->is_internal(); }
 bool MQTTSelectComponent::publish_state(const std::string &value) {
   return this->publish(this->get_state_topic_(), value);
 }
@@ -56,3 +56,4 @@ bool MQTTSelectComponent::publish_state(const std::string &value) {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

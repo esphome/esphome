@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/components/time/real_time_clock.h"
 #include "esphome/components/gps/gps.h"
@@ -22,3 +24,5 @@ class GPSTime : public time::RealTimeClock, public GPSListener {
 
 }  // namespace gps
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

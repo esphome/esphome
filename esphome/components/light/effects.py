@@ -141,7 +141,9 @@ def register_addressable_effect(
     },
 )
 async def lambda_effect_to_code(config, effect_id):
-    lambda_ = await cg.process_lambda(config[CONF_LAMBDA], [], return_type=cg.void)
+    lambda_ = await cg.process_lambda(
+        config[CONF_LAMBDA], [(bool, "initial_run")], return_type=cg.void
+    )
     return cg.new_Pvariable(
         effect_id, config[CONF_NAME], lambda_, config[CONF_UPDATE_INTERVAL]
     )
@@ -490,8 +492,7 @@ def validate_effects(allowed_effects):
             if key not in allowed_effects:
                 errors.append(
                     cv.Invalid(
-                        "The effect '{}' is not allowed for this "
-                        "light type".format(key),
+                        f"The effect '{key}' is not allowed for this light type",
                         [i],
                     )
                 )
@@ -500,8 +501,7 @@ def validate_effects(allowed_effects):
             if name in names:
                 errors.append(
                     cv.Invalid(
-                        "Found the effect name '{}' twice. All effects must have "
-                        "unique names".format(name),
+                        f"Found the effect name '{name}' twice. All effects must have unique names",
                         [i],
                     )
                 )

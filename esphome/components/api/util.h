@@ -27,7 +27,7 @@ class ComponentIterator {
   virtual bool on_cover(cover::Cover *cover) = 0;
 #endif
 #ifdef USE_FAN
-  virtual bool on_fan(fan::FanState *fan) = 0;
+  virtual bool on_fan(fan::Fan *fan) = 0;
 #endif
 #ifdef USE_LIGHT
   virtual bool on_light(light::LightState *light) = 0;
@@ -37,6 +37,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_SWITCH
   virtual bool on_switch(switch_::Switch *a_switch) = 0;
+#endif
+#ifdef USE_BUTTON
+  virtual bool on_button(button::Button *button) = 0;
 #endif
 #ifdef USE_TEXT_SENSOR
   virtual bool on_text_sensor(text_sensor::TextSensor *text_sensor) = 0;
@@ -53,6 +56,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_SELECT
   virtual bool on_select(select::Select *select) = 0;
+#endif
+#ifdef USE_LOCK
+  virtual bool on_lock(lock::Lock *a_lock) = 0;
 #endif
   virtual bool on_end();
 
@@ -78,6 +84,9 @@ class ComponentIterator {
 #ifdef USE_SWITCH
     SWITCH,
 #endif
+#ifdef USE_BUTTON
+    BUTTON,
+#endif
 #ifdef USE_TEXT_SENSOR
     TEXT_SENSOR,
 #endif
@@ -93,6 +102,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_SELECT
     SELECT,
+#endif
+#ifdef USE_LOCK
+    LOCK,
 #endif
     MAX,
   } state_{IteratorState::NONE};

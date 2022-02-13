@@ -1,7 +1,7 @@
 #include "xiaomi_jqjcy01ym.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace xiaomi_jqjcy01ym {

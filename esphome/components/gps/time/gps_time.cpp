@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "gps_time.h"
 #include "esphome/core/log.h"
 
@@ -32,3 +34,5 @@ void GPSTime::from_tiny_gps_(TinyGPSPlus &tiny_gps) {
 
 }  // namespace gps
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

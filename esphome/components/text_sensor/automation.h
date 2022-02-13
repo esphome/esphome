@@ -12,7 +12,14 @@ namespace text_sensor {
 class TextSensorStateTrigger : public Trigger<std::string> {
  public:
   explicit TextSensorStateTrigger(TextSensor *parent) {
-    parent->add_on_state_callback([this](std::string value) { this->trigger(std::move(value)); });
+    parent->add_on_state_callback([this](const std::string &value) { this->trigger(value); });
+  }
+};
+
+class TextSensorStateRawTrigger : public Trigger<std::string> {
+ public:
+  explicit TextSensorStateRawTrigger(TextSensor *parent) {
+    parent->add_on_raw_state_callback([this](const std::string &value) { this->trigger(value); });
   }
 };
 

@@ -1,17 +1,11 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
 namespace mcp23016 {
-
-/// Modes for MCP23016 pins
-enum MCP23016GPIOMode : uint8_t {
-  MCP23016_INPUT = INPUT,   // 0x00
-  MCP23016_OUTPUT = OUTPUT  // 0x01
-};
 
 enum MCP23016GPIORegisters {
   // 0 side
@@ -38,7 +32,7 @@ class MCP23016 : public Component, public i2c::I2CDevice {
 
   bool digital_read(uint8_t pin);
   void digital_write(uint8_t pin, bool value);
-  void pin_mode(uint8_t pin, uint8_t mode);
+  void pin_mode(uint8_t pin, gpio::Flags flags);
 
   float get_setup_priority() const override;
 
@@ -56,15 +50,22 @@ class MCP23016 : public Component, public i2c::I2CDevice {
 
 class MCP23016GPIOPin : public GPIOPin {
  public:
-  MCP23016GPIOPin(MCP23016 *parent, uint8_t pin, uint8_t mode, bool inverted = false);
-
   void setup() override;
-  void pin_mode(uint8_t mode) override;
+  void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
+  std::string dump_summary() const override;
+
+  void set_parent(MCP23016 *parent) { parent_ = parent; }
+  void set_pin(uint8_t pin) { pin_ = pin; }
+  void set_inverted(bool inverted) { inverted_ = inverted; }
+  void set_flags(gpio::Flags flags) { flags_ = flags; }
 
  protected:
   MCP23016 *parent_;
+  uint8_t pin_;
+  bool inverted_;
+  gpio::Flags flags_;
 };
 
 }  // namespace mcp23016

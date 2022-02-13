@@ -6,8 +6,8 @@ namespace pulse_width {
 
 static const char *const TAG = "pulse_width";
 
-void ICACHE_RAM_ATTR PulseWidthSensorStore::gpio_intr(PulseWidthSensorStore *arg) {
-  const bool new_level = arg->pin_->digital_read();
+void IRAM_ATTR PulseWidthSensorStore::gpio_intr(PulseWidthSensorStore *arg) {
+  const bool new_level = arg->pin_.digital_read();
   const uint32_t now = micros();
   if (new_level) {
     arg->last_rise_ = now;

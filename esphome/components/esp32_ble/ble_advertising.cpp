@@ -1,8 +1,11 @@
 #include "ble_advertising.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 #include "ble_uuid.h"
+#include <cstring>
+#include <cstdio>
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace esp32_ble {
@@ -37,6 +40,11 @@ void BLEAdvertising::add_service_uuid(ESPBTUUID uuid) { this->advertising_uuids_
 void BLEAdvertising::remove_service_uuid(ESPBTUUID uuid) {
   this->advertising_uuids_.erase(std::remove(this->advertising_uuids_.begin(), this->advertising_uuids_.end(), uuid),
                                  this->advertising_uuids_.end());
+}
+
+void BLEAdvertising::set_manufacturer_data(uint8_t *data, uint16_t size) {
+  this->advertising_data_.p_manufacturer_data = data;
+  this->advertising_data_.manufacturer_len = size;
 }
 
 void BLEAdvertising::start() {

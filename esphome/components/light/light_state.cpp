@@ -8,7 +8,8 @@ namespace light {
 
 static const char *const TAG = "light";
 
-LightState::LightState(const std::string &name, LightOutput *output) : Nameable(name), output_(output) {}
+LightState::LightState(const std::string &name, LightOutput *output) : EntityBase(name), output_(output) {}
+LightState::LightState(LightOutput *output) : output_(output) {}
 
 LightTraits LightState::get_traits() { return this->output_->get_traits(); }
 LightCall LightState::turn_on() { return this->make_call().set_state(true); }
@@ -53,7 +54,7 @@ void LightState::setup() {
     case LIGHT_RESTORE_DEFAULT_ON:
     case LIGHT_RESTORE_INVERTED_DEFAULT_OFF:
     case LIGHT_RESTORE_INVERTED_DEFAULT_ON:
-      this->rtc_ = global_preferences.make_preference<LightStateRTCState>(this->get_object_id_hash());
+      this->rtc_ = global_preferences->make_preference<LightStateRTCState>(this->get_object_id_hash());
       // Attempt to load from preferences, else fall back to default values
       if (!this->rtc_.load(&recovered)) {
         recovered.state = false;
@@ -121,6 +122,9 @@ void LightState::loop() {
     }
 
     if (this->transformer_->is_finished()) {
+      // if the transition has written directly to the output, current_values is outdated, so update it
+      this->current_values = this->transformer_->get_target_values();
+
       this->transformer_->stop();
       this->transformer_ = nullptr;
       this->target_state_reached_callback_.call();
@@ -141,10 +145,11 @@ void LightState::publish_state() { this->remote_values_callback_.call(); }
 
 LightOutput *LightState::get_output() const { return this->output_; }
 std::string LightState::get_effect_name() {
-  if (this->active_effect_index_ > 0)
+  if (this->active_effect_index_ > 0) {
     return this->effects_[this->active_effect_index_ - 1]->get_name();
-  else
+  } else {
     return "None";
+  }
 }
 
 void LightState::add_new_remote_values_callback(std::function<void()> &&send_callback) {
@@ -215,10 +220,11 @@ void LightState::start_effect_(uint32_t effect_index) {
   effect->start_internal();
 }
 LightEffect *LightState::get_active_effect_() {
-  if (this->active_effect_index_ == 0)
+  if (this->active_effect_index_ == 0) {
     return nullptr;
-  else
+  } else {
     return this->effects_[this->active_effect_index_ - 1];
+  }
 }
 void LightState::stop_effect_() {
   auto *effect = this->get_active_effect_();

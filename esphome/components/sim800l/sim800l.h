@@ -49,8 +49,8 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   void dial(const std::string &recipient);
 
  protected:
-  void send_cmd_(const std::string &);
-  void parse_cmd_(std::string);
+  void send_cmd_(const std::string &message);
+  void parse_cmd_(std::string message);
 
   std::string sender_;
   char read_buffer_[SIM800L_READ_BUFFER_LENGTH];
@@ -74,7 +74,7 @@ class Sim800LReceivedMessageTrigger : public Trigger<std::string, std::string> {
  public:
   explicit Sim800LReceivedMessageTrigger(Sim800LComponent *parent) {
     parent->add_on_sms_received_callback(
-        [this](std::string message, std::string sender) { this->trigger(std::move(message), std::move(sender)); });
+        [this](const std::string &message, const std::string &sender) { this->trigger(message, sender); });
   }
 };
 

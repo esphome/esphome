@@ -5,6 +5,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 #include "esphome/core/version.h"
+#include "esphome/core/hal.h"
+#include "esphome/components/network/util.h"
 #include <cerrno>
 
 #ifdef USE_LOGGER
@@ -22,7 +24,7 @@ static const char *const TAG = "api";
 void APIServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Home Assistant API server...");
   this->setup_controller();
-  socket_ = socket::socket(AF_INET, SOCK_STREAM, 0);
+  socket_ = socket::socket_ip(SOCK_STREAM, 0);
   if (socket_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket.");
     this->mark_failed();
@@ -41,13 +43,16 @@ void APIServer::setup() {
     return;
   }
 
-  struct sockaddr_in server;
-  memset(&server, 0, sizeof(server));
-  server.sin_family = AF_INET;
-  server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
-  server.sin_port = htons(this->port_);
+  struct sockaddr_storage server;
 
-  err = socket_->bind((struct sockaddr *) &server, sizeof(server));
+  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), htons(this->port_));
+  if (sl == 0) {
+    ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
+
+  err = socket_->bind((struct sockaddr *) &server, sl);
   if (err != 0) {
     ESP_LOGW(TAG, "Socket unable to bind: errno %d", errno);
     this->mark_failed();
@@ -75,12 +80,13 @@ void APIServer::setup() {
   this->last_connected_ = millis();
 
 #ifdef USE_ESP32_CAMERA
-  if (esp32_camera::global_esp32_camera != nullptr) {
+  if (esp32_camera::global_esp32_camera != nullptr && !esp32_camera::global_esp32_camera->is_internal()) {
     esp32_camera::global_esp32_camera->add_image_callback(
         [this](const std::shared_ptr<esp32_camera::CameraImage> &image) {
-          for (auto &c : this->clients_)
+          for (auto &c : this->clients_) {
             if (!c->remove_)
               c->send_camera_state(image);
+          }
         });
   }
 #endif
@@ -130,7 +136,12 @@ void APIServer::loop() {
 }
 void APIServer::dump_config() {
   ESP_LOGCONFIG(TAG, "API Server:");
-  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network_get_address().c_str(), this->port_);
+  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->port_);
+#ifdef USE_API_NOISE
+  ESP_LOGCONFIG(TAG, "  Using noise encryption: YES");
+#else
+  ESP_LOGCONFIG(TAG, "  Using noise encryption: NO");
+#endif
 }
 bool APIServer::uses_password() const { return !this->password_.empty(); }
 bool APIServer::check_password(const std::string &password) const {
@@ -181,7 +192,7 @@ void APIServer::on_cover_update(cover::Cover *obj) {
 #endif
 
 #ifdef USE_FAN
-void APIServer::on_fan_update(fan::FanState *obj) {
+void APIServer::on_fan_update(fan::Fan *obj) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
@@ -249,6 +260,15 @@ void APIServer::on_select_update(select::Select *obj, const std::string &state) 
     return;
   for (auto &c : this->clients_)
     c->send_select_state(obj, state);
+}
+#endif
+
+#ifdef USE_LOCK
+void APIServer::on_lock_update(lock::Lock *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_lock_state(obj, obj->state);
 }
 #endif
 

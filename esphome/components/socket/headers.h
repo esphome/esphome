@@ -7,10 +7,10 @@
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
 
 #define LWIP_INTERNAL
-#include <sys/types.h>
 #include "lwip/inet.h"
-#include <stdint.h>
-#include <errno.h>
+#include <cerrno>
+#include <cstdint>
+#include <sys/types.h>
 
 /* Address families.  */
 #define AF_UNSPEC 0
@@ -45,9 +45,10 @@
 
 #define SOL_SOCKET 0xfff /* options for socket level */
 
-typedef uint8_t sa_family_t;
-typedef uint16_t in_port_t;
+using sa_family_t = uint8_t;
+using in_port_t = uint16_t;
 
+// NOLINTNEXTLINE(readability-identifier-naming)
 struct sockaddr_in {
   uint8_t sin_len;
   sa_family_t sin_family;
@@ -57,6 +58,7 @@ struct sockaddr_in {
   char sin_zero[SIN_ZERO_LEN];
 };
 
+// NOLINTNEXTLINE(readability-identifier-naming)
 struct sockaddr_in6 {
   uint8_t sin6_len;          /* length of this structure    */
   sa_family_t sin6_family;   /* AF_INET6                    */
@@ -66,12 +68,14 @@ struct sockaddr_in6 {
   uint32_t sin6_scope_id;    /* Set of interfaces for scope */
 };
 
+// NOLINTNEXTLINE(readability-identifier-naming)
 struct sockaddr {
   uint8_t sa_len;
   sa_family_t sa_family;
   char sa_data[14];
 };
 
+// NOLINTNEXTLINE(readability-identifier-naming)
 struct sockaddr_storage {
   uint8_t s2_len;
   sa_family_t ss_family;
@@ -79,9 +83,15 @@ struct sockaddr_storage {
   uint32_t s2_data2[3];
   uint32_t s2_data3[3];
 };
-typedef uint32_t socklen_t;
+using socklen_t = uint32_t;
 
-#ifdef ARDUINO_ARCH_ESP8266
+// NOLINTNEXTLINE(readability-identifier-naming)
+struct iovec {
+  void *iov_base;
+  size_t iov_len;
+};
+
+#ifdef USE_ESP8266
 // arduino-esp8266 declares a global vars called INADDR_NONE/ANY which are invalid with the define
 #ifdef INADDR_ANY
 #undef INADDR_ANY
@@ -92,7 +102,7 @@ typedef uint32_t socklen_t;
 
 #define ESPHOME_INADDR_ANY ((uint32_t) 0x00000000UL)
 #define ESPHOME_INADDR_NONE ((uint32_t) 0xFFFFFFFFUL)
-#else  // !ARDUINO_ARCH_ESP8266
+#else  // !USE_ESP8266
 #define ESPHOME_INADDR_ANY INADDR_ANY
 #define ESPHOME_INADDR_NONE INADDR_NONE
 #endif
@@ -101,25 +111,26 @@ typedef uint32_t socklen_t;
 
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <unistd.h>
+#include <cstdint>
 #include <fcntl.h>
-#include <stdint.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <unistd.h>
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ARDUINO
 // arduino-esp32 declares a global var called INADDR_NONE which is replaced
 // by the define
 #ifdef INADDR_NONE
 #undef INADDR_NONE
 #endif
 // not defined for ESP32
-typedef uint32_t socklen_t;
+using socklen_t = uint32_t;
 
 #define ESPHOME_INADDR_ANY ((uint32_t) 0x00000000UL)
 #define ESPHOME_INADDR_NONE ((uint32_t) 0xFFFFFFFFUL)
-#else  // !ARDUINO_ARCH_ESP32
+#else  // !USE_ESP32
 #define ESPHOME_INADDR_ANY INADDR_ANY
 #define ESPHOME_INADDR_NONE INADDR_NONE
 #endif

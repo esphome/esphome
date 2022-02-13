@@ -4,24 +4,30 @@ from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import (
-    CONF_DISABLED_BY_DEFAULT,
-    CONF_ICON,
+    CONF_DEVICE_CLASS,
     CONF_ID,
-    CONF_INTERNAL,
     CONF_INVERTED,
+    CONF_MQTT_ID,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_TRIGGER_ID,
-    CONF_MQTT_ID,
-    CONF_NAME,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_OUTLET,
+    DEVICE_CLASS_SWITCH,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
+DEVICE_CLASSES = [
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_OUTLET,
+    DEVICE_CLASS_SWITCH,
+]
 
 switch_ns = cg.esphome_ns.namespace("switch_")
-Switch = switch_ns.class_("Switch", cg.Nameable)
+Switch = switch_ns.class_("Switch", cg.EntityBase)
 SwitchPtr = Switch.operator("ptr")
 
 ToggleAction = switch_ns.class_("ToggleAction", automation.Action)
@@ -39,10 +45,10 @@ SwitchTurnOffTrigger = switch_ns.class_(
 
 icon = cv.icon
 
-SWITCH_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
+
+SWITCH_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),
-        cv.Optional(CONF_ICON): icon,
         cv.Optional(CONF_INVERTED): cv.boolean,
         cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
             {
@@ -54,17 +60,14 @@ SWITCH_SCHEMA = cv.NAMEABLE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).exte
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOffTrigger),
             }
         ),
+        cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
     }
 )
 
 
 async def setup_switch_core_(var, config):
-    cg.add(var.set_name(config[CONF_NAME]))
-    cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
-    if CONF_INTERNAL in config:
-        cg.add(var.set_internal(config[CONF_INTERNAL]))
-    if CONF_ICON in config:
-        cg.add(var.set_icon(config[CONF_ICON]))
+    await setup_entity(var, config)
+
     if CONF_INVERTED in config:
         cg.add(var.set_inverted(config[CONF_INVERTED]))
     for conf in config.get(CONF_ON_TURN_ON, []):
@@ -77,6 +80,9 @@ async def setup_switch_core_(var, config):
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
+
+    if CONF_DEVICE_CLASS in config:
+        cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
 
 
 async def register_switch(var, config):

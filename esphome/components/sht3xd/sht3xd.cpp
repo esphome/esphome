@@ -82,18 +82,20 @@ uint8_t sht_crc(uint8_t data1, uint8_t data2) {
 
   crc ^= data1;
   for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80)
+    if (crc & 0x80) {
       crc = (crc << 1) ^ 0x131;
-    else
+    } else {
       crc = (crc << 1);
+    }
   }
 
   crc ^= data2;
   for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80)
+    if (crc & 0x80) {
       crc = (crc << 1) ^ 0x131;
-    else
+    } else {
       crc = (crc << 1);
+    }
   }
 
   return crc;
@@ -103,7 +105,7 @@ bool SHT3XDComponent::read_data_(uint16_t *data, uint8_t len) {
   const uint8_t num_bytes = len * 3;
   std::vector<uint8_t> buf(num_bytes);
 
-  if (!this->parent_->raw_receive(this->address_, buf.data(), num_bytes)) {
+  if (this->read(buf.data(), num_bytes) != i2c::ERROR_OK) {
     return false;
   }
 

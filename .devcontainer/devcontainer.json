@@ -1,7 +1,6 @@
 {
   "name": "ESPHome Dev",
-  "context": "..",
-  "dockerFile": "../docker/Dockerfile.dev",
+  "image": "esphome/esphome-lint:dev",
   "postCreateCommand": [
     "script/devcontainer-post-create"
   ],

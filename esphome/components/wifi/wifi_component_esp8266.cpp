@@ -1,7 +1,7 @@
 #include "wifi_component.h"
-#include "esphome/core/macros.h"
+#include "esphome/core/defines.h"
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 
 #include <user_interface.h>
 
@@ -20,7 +20,7 @@ extern "C" {
 #if LWIP_IPV6
 #include "lwip/netif.h"  // struct netif
 #endif
-#if ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
 #include "LwipDhcpServer.h"
 #define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
 #define wifi_softap_set_dhcps_lease_time(time) dhcpSoftAP.set_dhcps_lease_time(time)
@@ -30,7 +30,7 @@ extern "C" {
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/util.h"
 #include "esphome/core/application.h"
 
@@ -38,6 +38,12 @@ namespace esphome {
 namespace wifi {
 
 static const char *const TAG = "wifi_esp8266";
+
+static bool s_sta_connected = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_got_ip = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connect_error = false;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_connecting = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = wifi_get_opmode();
@@ -177,7 +183,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   return ret;
 }
 
-IPAddress WiFiComponent::wifi_sta_ip_() {
+network::IPAddress WiFiComponent::wifi_sta_ip() {
   if (!this->has_sta())
     return {};
   struct ip_info ip {};
@@ -232,7 +238,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     conf.bssid_set = 0;
   }
 
-#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
   if (ap.get_password().empty()) {
     conf.threshold.authmode = AUTH_OPEN;
   } else {
@@ -302,6 +308,14 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 #endif  // USE_WIFI_WPA2_EAP
 
   this->wifi_apply_hostname_();
+
+  // Reset flags, do this _before_ wifi_station_connect as the callback method
+  // may be called from wifi_station_connect
+  s_sta_connecting = true;
+  s_sta_connected = false;
+  s_sta_got_ip = false;
+  s_sta_connect_error = false;
+  s_sta_connect_not_found = false;
 
   ETS_UART_INTR_DISABLE();
   ret = wifi_station_connect();
@@ -453,6 +467,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       buf[it.ssid_len] = '\0';
       ESP_LOGV(TAG, "Event: Connected ssid='%s' bssid=%s channel=%u", buf, format_mac_addr(it.bssid).c_str(),
                it.channel);
+      s_sta_connected = true;
       break;
     }
     case EVENT_STAMODE_DISCONNECTED: {
@@ -462,10 +477,14 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       buf[it.ssid_len] = '\0';
       if (it.reason == REASON_NO_AP_FOUND) {
         ESP_LOGW(TAG, "Event: Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
+        s_sta_connect_not_found = true;
       } else {
         ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
                  format_mac_addr(it.bssid).c_str(), LOG_STR_ARG(get_disconnect_reason_str(it.reason)));
+        s_sta_connect_error = true;
       }
+      s_sta_connected = false;
+      s_sta_connecting = false;
       break;
     }
     case EVENT_STAMODE_AUTHMODE_CHANGE: {
@@ -487,6 +506,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       auto it = event->event_info.got_ip;
       ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s netmask=%s", format_ip_addr(it.ip).c_str(),
                format_ip_addr(it.gw).c_str(), format_ip_addr(it.mask).c_str());
+      s_sta_got_ip = true;
       break;
     }
     case EVENT_STAMODE_DHCP_TIMEOUT: {
@@ -508,7 +528,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       ESP_LOGVV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
       break;
     }
-#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
     case EVENT_OPMODE_CHANGED: {
       auto it = event->event_info.opmode_changed;
       ESP_LOGV(TAG, "Event: Changed Mode old=%s new=%s", LOG_STR_ARG(get_op_mode_str(it.old_opmode)),
@@ -563,21 +583,22 @@ void WiFiComponent::wifi_pre_setup_() {
   this->wifi_mode_(false, false);
 }
 
-wl_status_t WiFiComponent::wifi_sta_status_() {
+WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   station_status_t status = wifi_station_get_connect_status();
   switch (status) {
     case STATION_GOT_IP:
-      return WL_CONNECTED;
+      return WiFiSTAConnectStatus::CONNECTED;
     case STATION_NO_AP_FOUND:
-      return WL_NO_SSID_AVAIL;
+      return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
+      ;
     case STATION_CONNECT_FAIL:
     case STATION_WRONG_PASSWORD:
-      return WL_CONNECT_FAILED;
-    case STATION_IDLE:
-      return WL_IDLE_STATUS;
+      return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
     case STATION_CONNECTING:
+      return WiFiSTAConnectStatus::CONNECTING;
+    case STATION_IDLE:
     default:
-      return WL_DISCONNECTED;
+      return WiFiSTAConnectStatus::IDLE;
   }
 }
 bool WiFiComponent::wifi_scan_start_() {
@@ -593,7 +614,7 @@ bool WiFiComponent::wifi_scan_start_() {
   config.bssid = nullptr;
   config.channel = 0;
   config.show_hidden = 1;
-#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
   config.scan_type = WIFI_SCAN_TYPE_ACTIVE;
   if (first_scan) {
     config.scan_time.active.min = 100;
@@ -656,9 +677,9 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
     info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
   } else {
-    info.ip.addr = static_cast<uint32_t>(IPAddress(192, 168, 4, 1));
-    info.gw.addr = static_cast<uint32_t>(IPAddress(192, 168, 4, 1));
-    info.netmask.addr = static_cast<uint32_t>(IPAddress(255, 255, 255, 0));
+    info.ip.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
+    info.gw.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
+    info.netmask.addr = static_cast<uint32_t>(network::IPAddress(255, 255, 255, 0));
   }
 
   if (wifi_softap_dhcps_status() == DHCP_STARTED) {
@@ -672,18 +693,18 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     return false;
   }
 
-#if ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
   dhcpSoftAP.begin(&info);
 #endif
 
   struct dhcps_lease lease {};
-  IPAddress start_address = info.ip.addr;
+  network::IPAddress start_address = info.ip.addr;
   start_address[3] += 99;
   lease.start_ip.addr = static_cast<uint32_t>(start_address);
-  ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.toString().c_str());
+  ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.str().c_str());
   start_address[3] += 100;
   lease.end_ip.addr = static_cast<uint32_t>(start_address);
-  ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.toString().c_str());
+  ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str().c_str());
   if (!wifi_softap_set_dhcps_lease(&lease)) {
     ESP_LOGV(TAG, "Setting SoftAP DHCP lease failed!");
     return false;
@@ -746,11 +767,27 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
-IPAddress WiFiComponent::wifi_soft_ap_ip() {
+network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   struct ip_info ip {};
   wifi_get_ip_info(SOFTAP_IF, &ip);
   return {ip.ip.addr};
 }
+bssid_t WiFiComponent::wifi_bssid() {
+  bssid_t bssid{};
+  uint8_t *raw_bssid = WiFi.BSSID();
+  if (raw_bssid != nullptr) {
+    for (size_t i = 0; i < bssid.size(); i++)
+      bssid[i] = raw_bssid[i];
+  }
+  return bssid;
+}
+std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
+int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
+int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
+network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
+network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
+network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {WiFi.dnsIP(num)}; }
+void WiFiComponent::wifi_loop_() {}
 
 }  // namespace wifi
 }  // namespace esphome

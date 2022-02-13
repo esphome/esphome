@@ -20,8 +20,7 @@ GPIOLCDDisplay = lcd_gpio_ns.class_("GPIOLCDDisplay", lcd_base.LCDDisplay)
 def validate_pin_length(value):
     if len(value) != 4 and len(value) != 8:
         raise cv.Invalid(
-            "LCD Displays can either operate in 4-pin or 8-pin mode,"
-            "not {}-pin mode".format(len(value))
+            f"LCD Displays can either operate in 4-pin or 8-pin mode,not {len(value)}-pin mode"
         )
     return value
 
@@ -44,7 +43,7 @@ async def to_code(config):
     await lcd_base.setup_lcd_display(var, config)
     pins_ = []
     for conf in config[CONF_DATA_PINS]:
-        pins_.append((await cg.gpio_pin_expression(conf)))
+        pins_.append(await cg.gpio_pin_expression(conf))
     cg.add(var.set_data_pins(*pins_))
     enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
     cg.add(var.set_enable_pin(enable))

@@ -25,9 +25,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(RemoteReceiverComponent),
-            cv.Required(CONF_PIN): cv.All(
-                pins.internal_gpio_input_pin_schema, pins.validate_has_interrupt
-            ),
+            cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
             cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
             cv.Optional(CONF_TOLERANCE, default=25): cv.All(
                 cv.percentage_int, cv.Range(min=0)

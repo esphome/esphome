@@ -1,12 +1,14 @@
+#ifdef USE_ARDUINO
+
 #include "e131.h"
 #include "e131_addressable_light_effect.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 #include <WiFi.h>
 #endif
 
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #endif
@@ -95,7 +97,7 @@ bool E131Component::process_(int universe, const E131Packet &packet) {
 
   ESP_LOGV(TAG, "Received E1.31 packet for %d universe, with %d bytes", universe, packet.count);
 
-  for (auto light_effect : light_effects_) {
+  for (auto *light_effect : light_effects_) {
     handled = light_effect->process_(universe, packet) || handled;
   }
 
@@ -104,3 +106,5 @@ bool E131Component::process_(int universe, const E131Packet &packet) {
 
 }  // namespace e131
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

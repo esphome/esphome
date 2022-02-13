@@ -1,7 +1,7 @@
 #include "xiaomi_mue4094rt.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace xiaomi_mue4094rt {

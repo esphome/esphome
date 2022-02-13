@@ -26,12 +26,8 @@ ZyAuraSensor = zyaura_ns.class_("ZyAuraSensor", cg.PollingComponent)
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ZyAuraSensor),
-        cv.Required(CONF_CLOCK_PIN): cv.All(
-            pins.internal_gpio_input_pin_schema, pins.validate_has_interrupt
-        ),
-        cv.Required(CONF_DATA_PIN): cv.All(
-            pins.internal_gpio_input_pin_schema, pins.validate_has_interrupt
-        ),
+        cv.Required(CONF_CLOCK_PIN): cv.All(pins.internal_gpio_input_pin_schema),
+        cv.Required(CONF_DATA_PIN): cv.All(pins.internal_gpio_input_pin_schema),
         cv.Optional(CONF_CO2): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_MILLION,
             icon=ICON_MOLECULE_CO2,

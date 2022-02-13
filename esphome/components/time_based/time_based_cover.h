@@ -45,6 +45,7 @@ class TimeBasedCover : public cover::Cover, public Component {
   float target_position_{0};
   bool has_built_in_endstop_{false};
   bool assumed_state_{false};
+  cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
 };
 
 }  // namespace time_based

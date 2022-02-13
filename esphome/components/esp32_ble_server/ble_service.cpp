@@ -2,7 +2,7 @@
 #include "ble_server.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace esp32_ble_server {
@@ -18,9 +18,10 @@ BLEService::~BLEService() {
 }
 
 BLECharacteristic *BLEService::get_characteristic(ESPBTUUID uuid) {
-  for (auto *chr : this->characteristics_)
+  for (auto *chr : this->characteristics_) {
     if (chr->get_uuid() == uuid)
       return chr;
+  }
   return nullptr;
 }
 

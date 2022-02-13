@@ -21,9 +21,7 @@ async def async_run_logs(config, address):
     if CONF_ENCRYPTION in conf:
         noise_psk = conf[CONF_ENCRYPTION][CONF_KEY]
     _LOGGER.info("Starting log output from %s using esphome API", address)
-    zc = zeroconf.Zeroconf()
     cli = APIClient(
-        asyncio.get_event_loop(),
         address,
         port,
         password,

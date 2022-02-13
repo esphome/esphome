@@ -139,7 +139,7 @@ void BMP280Component::update() {
   this->set_timeout("data", uint32_t(ceilf(meas_time)), [this]() {
     int32_t t_fine = 0;
     float temperature = this->read_temperature_(&t_fine);
-    if (isnan(temperature)) {
+    if (std::isnan(temperature)) {
       ESP_LOGW(TAG, "Invalid temperature, cannot read pressure values.");
       this->status_set_warning();
       return;
@@ -161,9 +161,10 @@ float BMP280Component::read_temperature_(int32_t *t_fine) {
     return NAN;
   int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
   adc >>= 4;
-  if (adc == 0x80000)
+  if (adc == 0x80000) {
     // temperature was disabled
     return NAN;
+  }
 
   const int32_t t1 = this->calibration_.t1;
   const int32_t t2 = this->calibration_.t2;
@@ -183,9 +184,10 @@ float BMP280Component::read_pressure_(int32_t t_fine) {
     return NAN;
   int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
   adc >>= 4;
-  if (adc == 0x80000)
+  if (adc == 0x80000) {
     // pressure was disabled
     return NAN;
+  }
   const int64_t p1 = this->calibration_.p1;
   const int64_t p2 = this->calibration_.p2;
   const int64_t p3 = this->calibration_.p3;

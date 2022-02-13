@@ -46,7 +46,7 @@ void HOT esp_log_vprintf_(int level, const char *tag, int line, const __FlashStr
 }
 #endif
 
-#ifdef ARDUINO_ARCH_ESP32
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
 int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
 #ifdef USE_LOGGER
   auto *log = logger::global_logger;

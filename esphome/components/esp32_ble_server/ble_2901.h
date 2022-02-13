@@ -2,7 +2,7 @@
 
 #include "ble_descriptor.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace esp32_ble_server {

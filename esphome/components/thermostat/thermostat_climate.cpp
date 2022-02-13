@@ -18,8 +18,8 @@ void ThermostatClimate::setup() {
   // add a callback so that whenever the sensor state changes we can take action
   this->sensor_->add_on_state_callback([this](float state) {
     this->current_temperature = state;
-    // required action may have changed, recompute, refresh
-    this->switch_to_action_(this->compute_action_());
+    // required action may have changed, recompute, refresh, we'll publish_state() later
+    this->switch_to_action_(this->compute_action_(), false);
     this->switch_to_supplemental_action_(this->compute_supplemental_action_());
     // current temperature and possibly action changed, so publish the new state
     this->publish_state();
@@ -34,8 +34,8 @@ void ThermostatClimate::setup() {
     this->mode = this->default_mode_;
     this->change_away_(false);
   }
-  // refresh the climate action based on the restored settings
-  this->switch_to_action_(this->compute_action_());
+  // refresh the climate action based on the restored settings, we'll publish_state() later
+  this->switch_to_action_(this->compute_action_(), false);
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
   this->setup_complete_ = true;
   this->publish_state();
@@ -47,11 +47,11 @@ float ThermostatClimate::heat_deadband() { return this->heating_deadband_; }
 float ThermostatClimate::heat_overrun() { return this->heating_overrun_; }
 
 void ThermostatClimate::refresh() {
-  this->switch_to_mode_(this->mode);
-  this->switch_to_action_(this->compute_action_());
+  this->switch_to_mode_(this->mode, false);
+  this->switch_to_action_(this->compute_action_(), false);
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
-  this->switch_to_fan_mode_(this->fan_mode.value());
-  this->switch_to_swing_mode_(this->swing_mode);
+  this->switch_to_fan_mode_(this->fan_mode.value(), false);
+  this->switch_to_swing_mode_(this->swing_mode, false);
   this->check_temperature_change_trigger_();
   this->publish_state();
 }
@@ -88,17 +88,17 @@ climate::ClimateFanMode ThermostatClimate::locked_fan_mode() { return this->prev
 
 bool ThermostatClimate::hysteresis_valid() {
   if ((this->supports_cool_ || (this->supports_fan_only_ && this->supports_fan_only_cooling_)) &&
-      (isnan(this->cooling_deadband_) || isnan(this->cooling_overrun_)))
+      (std::isnan(this->cooling_deadband_) || std::isnan(this->cooling_overrun_)))
     return false;
 
-  if (this->supports_heat_ && (isnan(this->heating_deadband_) || isnan(this->heating_overrun_)))
+  if (this->supports_heat_ && (std::isnan(this->heating_deadband_) || std::isnan(this->heating_overrun_)))
     return false;
 
   return true;
 }
 
 void ThermostatClimate::validate_target_temperature() {
-  if (isnan(this->target_temperature)) {
+  if (std::isnan(this->target_temperature)) {
     this->target_temperature =
         ((this->get_traits().get_visual_max_temperature() - this->get_traits().get_visual_min_temperature()) / 2) +
         this->get_traits().get_visual_min_temperature();
@@ -121,7 +121,7 @@ void ThermostatClimate::validate_target_temperatures() {
 }
 
 void ThermostatClimate::validate_target_temperature_low() {
-  if (isnan(this->target_temperature_low)) {
+  if (std::isnan(this->target_temperature_low)) {
     this->target_temperature_low = this->get_traits().get_visual_min_temperature();
   } else {
     // target_temperature_low must not be lower than the visual minimum
@@ -129,9 +129,10 @@ void ThermostatClimate::validate_target_temperature_low() {
       this->target_temperature_low = this->get_traits().get_visual_min_temperature();
     // target_temperature_low must not be greater than the visual maximum minus set_point_minimum_differential_
     if (this->target_temperature_low >
-        this->get_traits().get_visual_max_temperature() - this->set_point_minimum_differential_)
+        this->get_traits().get_visual_max_temperature() - this->set_point_minimum_differential_) {
       this->target_temperature_low =
           this->get_traits().get_visual_max_temperature() - this->set_point_minimum_differential_;
+    }
     // if target_temperature_low is set greater than target_temperature_high, move up target_temperature_high
     if (this->target_temperature_low > this->target_temperature_high - this->set_point_minimum_differential_)
       this->target_temperature_high = this->target_temperature_low + this->set_point_minimum_differential_;
@@ -139,7 +140,7 @@ void ThermostatClimate::validate_target_temperature_low() {
 }
 
 void ThermostatClimate::validate_target_temperature_high() {
-  if (isnan(this->target_temperature_high)) {
+  if (std::isnan(this->target_temperature_high)) {
     this->target_temperature_high = this->get_traits().get_visual_max_temperature();
   } else {
     // target_temperature_high must not be lower than the visual maximum
@@ -147,9 +148,10 @@ void ThermostatClimate::validate_target_temperature_high() {
       this->target_temperature_high = this->get_traits().get_visual_max_temperature();
     // target_temperature_high must not be lower than the visual minimum plus set_point_minimum_differential_
     if (this->target_temperature_high <
-        this->get_traits().get_visual_min_temperature() + this->set_point_minimum_differential_)
+        this->get_traits().get_visual_min_temperature() + this->set_point_minimum_differential_) {
       this->target_temperature_high =
           this->get_traits().get_visual_min_temperature() + this->set_point_minimum_differential_;
+    }
     // if target_temperature_high is set less than target_temperature_low, move down target_temperature_low
     if (this->target_temperature_high < this->target_temperature_low + this->set_point_minimum_differential_)
       this->target_temperature_low = this->target_temperature_high - this->set_point_minimum_differential_;
@@ -245,7 +247,7 @@ climate::ClimateTraits ThermostatClimate::traits() {
 climate::ClimateAction ThermostatClimate::compute_action_(const bool ignore_timers) {
   auto target_action = climate::CLIMATE_ACTION_IDLE;
   // if any hysteresis values or current_temperature is not valid, we go to OFF;
-  if (isnan(this->current_temperature) || !this->hysteresis_valid()) {
+  if (std::isnan(this->current_temperature) || !this->hysteresis_valid()) {
     return climate::CLIMATE_ACTION_OFF;
   }
   // do not change the action if an "ON" timer is running
@@ -307,7 +309,7 @@ climate::ClimateAction ThermostatClimate::compute_action_(const bool ignore_time
 climate::ClimateAction ThermostatClimate::compute_supplemental_action_() {
   auto target_action = climate::CLIMATE_ACTION_IDLE;
   // if any hysteresis values or current_temperature is not valid, we go to OFF;
-  if (isnan(this->current_temperature) || !this->hysteresis_valid()) {
+  if (std::isnan(this->current_temperature) || !this->hysteresis_valid()) {
     return climate::CLIMATE_ACTION_OFF;
   }
 
@@ -346,11 +348,12 @@ climate::ClimateAction ThermostatClimate::compute_supplemental_action_() {
   return target_action;
 }
 
-void ThermostatClimate::switch_to_action_(climate::ClimateAction action) {
+void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool publish_state) {
   // setup_complete_ helps us ensure an action is called immediately after boot
-  if ((action == this->action) && this->setup_complete_)
+  if ((action == this->action) && this->setup_complete_) {
     // already in target mode
     return;
+  }
 
   if (((action == climate::CLIMATE_ACTION_OFF && this->action == climate::CLIMATE_ACTION_IDLE) ||
        (action == climate::CLIMATE_ACTION_IDLE && this->action == climate::CLIMATE_ACTION_OFF)) &&
@@ -358,6 +361,8 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action) {
     // switching from OFF to IDLE or vice-versa -- this is only a visual difference.
     // OFF means user manually disabled, IDLE means the temperature is in target range.
     this->action = action;
+    if (publish_state)
+      this->publish_state();
     return;
   }
 
@@ -371,10 +376,11 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action) {
         if (this->action == climate::CLIMATE_ACTION_COOLING)
           this->start_timer_(thermostat::TIMER_COOLING_OFF);
         if (this->action == climate::CLIMATE_ACTION_FAN) {
-          if (this->supports_fan_only_action_uses_fan_mode_timer_)
+          if (this->supports_fan_only_action_uses_fan_mode_timer_) {
             this->start_timer_(thermostat::TIMER_FAN_MODE);
-          else
+          } else {
             this->start_timer_(thermostat::TIMER_FANNING_OFF);
+          }
         }
         if (this->action == climate::CLIMATE_ACTION_HEATING)
           this->start_timer_(thermostat::TIMER_HEATING_OFF);
@@ -413,10 +419,11 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action) {
       break;
     case climate::CLIMATE_ACTION_FAN:
       if (this->fanning_action_ready_()) {
-        if (this->supports_fan_only_action_uses_fan_mode_timer_)
+        if (this->supports_fan_only_action_uses_fan_mode_timer_) {
           this->start_timer_(thermostat::TIMER_FAN_MODE);
-        else
+        } else {
           this->start_timer_(thermostat::TIMER_FANNING_ON);
+        }
         trig = this->fan_only_action_trigger_;
         ESP_LOGVV(TAG, "Switching to FAN_ONLY action");
         action_ready = true;
@@ -452,14 +459,17 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action) {
       ESP_LOGVV(TAG, "Calling FAN_ONLY action with HEATING/COOLING action");
       trig_fan->trigger();
     }
+    if (publish_state)
+      this->publish_state();
   }
 }
 
 void ThermostatClimate::switch_to_supplemental_action_(climate::ClimateAction action) {
   // setup_complete_ helps us ensure an action is called immediately after boot
-  if ((action == this->supplemental_action_) && this->setup_complete_)
+  if ((action == this->supplemental_action_) && this->setup_complete_) {
     // already in target mode
     return;
+  }
 
   switch (action) {
     case climate::CLIMATE_ACTION_OFF:
@@ -509,13 +519,16 @@ void ThermostatClimate::trigger_supplemental_action_() {
   }
 }
 
-void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
+void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode, bool publish_state) {
   // setup_complete_ helps us ensure an action is called immediately after boot
-  if ((fan_mode == this->prev_fan_mode_) && this->setup_complete_)
+  if ((fan_mode == this->prev_fan_mode_) && this->setup_complete_) {
     // already in target mode
     return;
+  }
 
   this->fan_mode = fan_mode;
+  if (publish_state)
+    this->publish_state();
 
   if (this->fan_mode_ready_()) {
     Trigger<> *trig = this->fan_mode_auto_trigger_;
@@ -574,11 +587,12 @@ void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
   }
 }
 
-void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode) {
+void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode, bool publish_state) {
   // setup_complete_ helps us ensure an action is called immediately after boot
-  if ((mode == this->prev_mode_) && this->setup_complete_)
+  if ((mode == this->prev_mode_) && this->setup_complete_) {
     // already in target mode
     return;
+  }
 
   if (this->prev_mode_trigger_ != nullptr) {
     this->prev_mode_trigger_->stop_action();
@@ -615,13 +629,16 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode) {
   this->mode = mode;
   this->prev_mode_ = mode;
   this->prev_mode_trigger_ = trig;
+  if (publish_state)
+    this->publish_state();
 }
 
-void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mode) {
+void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mode, bool publish_state) {
   // setup_complete_ helps us ensure an action is called immediately after boot
-  if ((swing_mode == this->prev_swing_mode_) && this->setup_complete_)
+  if ((swing_mode == this->prev_swing_mode_) && this->setup_complete_) {
     // already in target mode
     return;
+  }
 
   if (this->prev_swing_mode_trigger_ != nullptr) {
     this->prev_swing_mode_trigger_->stop_action();
@@ -652,6 +669,8 @@ void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mo
   this->swing_mode = swing_mode;
   this->prev_swing_mode_ = swing_mode;
   this->prev_swing_mode_trigger_ = trig;
+  if (publish_state)
+    this->publish_state();
 }
 
 bool ThermostatClimate::idle_action_ready_() {
@@ -1097,16 +1116,18 @@ Trigger<> *ThermostatClimate::get_temperature_change_trigger() const { return th
 void ThermostatClimate::dump_config() {
   LOG_CLIMATE("", "Thermostat", this);
   if (this->supports_heat_) {
-    if (this->supports_two_points_)
+    if (this->supports_two_points_) {
       ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
-    else
+    } else {
       ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature);
+    }
   }
   if ((this->supports_cool_) || (this->supports_fan_only_ && this->supports_fan_only_cooling_)) {
-    if (this->supports_two_points_)
+    if (this->supports_two_points_) {
       ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
-    else
+    } else {
       ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature);
+    }
   }
   if (this->supports_two_points_)
     ESP_LOGCONFIG(TAG, "  Minimum Set Point Differential: %.1f°C", this->set_point_minimum_differential_);
@@ -1176,18 +1197,20 @@ void ThermostatClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports AWAY mode: %s", YESNO(this->supports_away_));
   if (this->supports_away_) {
     if (this->supports_heat_) {
-      if (this->supports_two_points_)
+      if (this->supports_two_points_) {
         ESP_LOGCONFIG(TAG, "    Away Default Target Temperature Low: %.1f°C",
                       this->away_config_.default_temperature_low);
-      else
+      } else {
         ESP_LOGCONFIG(TAG, "    Away Default Target Temperature Low: %.1f°C", this->away_config_.default_temperature);
+      }
     }
     if ((this->supports_cool_) || (this->supports_fan_only_)) {
-      if (this->supports_two_points_)
+      if (this->supports_two_points_) {
         ESP_LOGCONFIG(TAG, "    Away Default Target Temperature High: %.1f°C",
                       this->away_config_.default_temperature_high);
-      else
+      } else {
         ESP_LOGCONFIG(TAG, "    Away Default Target Temperature High: %.1f°C", this->away_config_.default_temperature);
+      }
     }
   }
 }

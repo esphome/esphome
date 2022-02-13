@@ -4,7 +4,7 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace ble_presence {
@@ -93,8 +93,8 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
-  enum MATCH_TYPE { MATCH_BY_MAC_ADDRESS, MATCH_BY_SERVICE_UUID, MATCH_BY_IBEACON_UUID };
-  MATCH_TYPE match_by_;
+  enum MatchType { MATCH_BY_MAC_ADDRESS, MATCH_BY_SERVICE_UUID, MATCH_BY_IBEACON_UUID };
+  MatchType match_by_;
 
   bool found_{false};
 

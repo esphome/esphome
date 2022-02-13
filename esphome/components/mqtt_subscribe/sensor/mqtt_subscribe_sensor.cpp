@@ -1,4 +1,7 @@
 #include "mqtt_subscribe_sensor.h"
+
+#ifdef USE_MQTT
+
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -10,7 +13,7 @@ void MQTTSubscribeSensor::setup() {
   mqtt::global_mqtt_client->subscribe(
       this->topic_,
       [this](const std::string &topic, const std::string &payload) {
-        auto val = parse_float(payload);
+        auto val = parse_number<float>(payload);
         if (!val.has_value()) {
           ESP_LOGW(TAG, "Can't convert '%s' to number!", payload.c_str());
           this->publish_state(NAN);
@@ -31,3 +34,5 @@ void MQTTSubscribeSensor::dump_config() {
 
 }  // namespace mqtt_subscribe
 }  // namespace esphome
+
+#endif  // USE_MQTT

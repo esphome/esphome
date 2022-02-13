@@ -1,10 +1,11 @@
 #include "ble_descriptor.h"
 #include "ble_characteristic.h"
 #include "ble_service.h"
-
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#include <cstring>
+
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace esp32_ble_server {

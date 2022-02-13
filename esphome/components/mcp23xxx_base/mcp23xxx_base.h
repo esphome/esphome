@@ -1,25 +1,18 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace mcp23xxx_base {
 
 enum MCP23XXXInterruptMode : uint8_t { MCP23XXX_NO_INTERRUPT = 0, MCP23XXX_CHANGE, MCP23XXX_RISING, MCP23XXX_FALLING };
 
-/// Modes for MCP23XXX pins
-enum MCP23XXXGPIOMode : uint8_t {
-  MCP23XXX_INPUT = INPUT,                // 0x00
-  MCP23XXX_INPUT_PULLUP = INPUT_PULLUP,  // 0x02
-  MCP23XXX_OUTPUT = OUTPUT               // 0x01
-};
-
 class MCP23XXXBase : public Component {
  public:
   virtual bool digital_read(uint8_t pin);
   virtual void digital_write(uint8_t pin, bool value);
-  virtual void pin_mode(uint8_t pin, uint8_t mode);
+  virtual void pin_mode(uint8_t pin, gpio::Flags flags);
   virtual void pin_interrupt_mode(uint8_t pin, MCP23XXXInterruptMode interrupt_mode);
 
   void set_open_drain_ints(const bool value) { this->open_drain_ints_ = value; }
@@ -38,16 +31,23 @@ class MCP23XXXBase : public Component {
 
 class MCP23XXXGPIOPin : public GPIOPin {
  public:
-  MCP23XXXGPIOPin(MCP23XXXBase *parent, uint8_t pin, uint8_t mode, bool inverted = false,
-                  MCP23XXXInterruptMode interrupt_mode = MCP23XXX_NO_INTERRUPT);
-
   void setup() override;
-  void pin_mode(uint8_t mode) override;
+  void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
+  std::string dump_summary() const override;
+
+  void set_parent(MCP23XXXBase *parent) { parent_ = parent; }
+  void set_pin(uint8_t pin) { pin_ = pin; }
+  void set_inverted(bool inverted) { inverted_ = inverted; }
+  void set_flags(gpio::Flags flags) { flags_ = flags; }
+  void set_interrupt_mode(MCP23XXXInterruptMode interrupt_mode) { interrupt_mode_ = interrupt_mode; }
 
  protected:
   MCP23XXXBase *parent_;
+  uint8_t pin_;
+  bool inverted_;
+  gpio::Flags flags_;
   MCP23XXXInterruptMode interrupt_mode_;
 };
 

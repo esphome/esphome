@@ -3,7 +3,6 @@ from mock import Mock
 
 from esphome import cpp_helpers as ch
 from esphome import const
-from esphome.cpp_generator import MockObj
 
 
 @pytest.mark.asyncio
@@ -11,15 +10,6 @@ async def test_gpio_pin_expression__conf_is_none(monkeypatch):
     actual = await ch.gpio_pin_expression(None)
 
     assert actual is None
-
-
-@pytest.mark.asyncio
-async def test_gpio_pin_expression__new_pin(monkeypatch):
-    actual = await ch.gpio_pin_expression(
-        {const.CONF_NUMBER: 42, const.CONF_MODE: "input", const.CONF_INVERTED: False}
-    )
-
-    assert isinstance(actual, MockObj)
 
 
 @pytest.mark.asyncio

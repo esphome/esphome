@@ -71,7 +71,7 @@ void DHT::set_dht_model(DHTModel model) {
   this->model_ = model;
   this->is_auto_detect_ = model == DHT_MODEL_AUTO_DETECT;
 }
-bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool report_errors) {
+bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool report_errors) {
   *humidity = NAN;
   *temperature = NAN;
 
@@ -79,28 +79,27 @@ bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, 
   int8_t i = 0;
   uint8_t data[5] = {0, 0, 0, 0, 0};
 
+  this->pin_->digital_write(false);
+  this->pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->pin_->digital_write(false);
+
+  if (this->model_ == DHT_MODEL_DHT11) {
+    delayMicroseconds(18000);
+  } else if (this->model_ == DHT_MODEL_SI7021) {
+    delayMicroseconds(500);
+    this->pin_->digital_write(true);
+    delayMicroseconds(40);
+  } else if (this->model_ == DHT_MODEL_DHT22_TYPE2) {
+    delayMicroseconds(2000);
+  } else if (this->model_ == DHT_MODEL_AM2302) {
+    delayMicroseconds(1000);
+  } else {
+    delayMicroseconds(800);
+  }
+  this->pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+
   {
     InterruptLock lock;
-
-    this->pin_->digital_write(false);
-    this->pin_->pin_mode(OUTPUT);
-    this->pin_->digital_write(false);
-
-    if (this->model_ == DHT_MODEL_DHT11) {
-      delayMicroseconds(18000);
-    } else if (this->model_ == DHT_MODEL_SI7021) {
-      delayMicroseconds(500);
-      this->pin_->digital_write(true);
-      delayMicroseconds(40);
-    } else if (this->model_ == DHT_MODEL_DHT22_TYPE2) {
-      delayMicroseconds(2000);
-    } else if (this->model_ == DHT_MODEL_AM2302) {
-      delayMicroseconds(1000);
-    } else {
-      delayMicroseconds(800);
-    }
-    this->pin_->pin_mode(INPUT_PULLUP);
-
     // Host pull up 20-40us then DHT response 80us
     // Start waiting for initial rising edge at the center when we
     // expect the DHT response (30us+40us)
@@ -115,13 +114,16 @@ bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, 
       // Wait for rising edge
       while (!this->pin_->digital_read()) {
         if (micros() - start_time > 90) {
-          if (i < 0)
+          if (i < 0) {
             error_code = 1;
-          else
+          } else {
             error_code = 2;
+          }
           break;
         }
       }
+      if (error_code != 0)
+        break;
 
       start_time = micros();
       uint32_t end_time = start_time;
@@ -129,13 +131,16 @@ bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, 
       // Wait for falling edge
       while (this->pin_->digital_read()) {
         if ((end_time = micros()) - start_time > 90) {
-          if (i < 0)
+          if (i < 0) {
             error_code = 3;
-          else
+          } else {
             error_code = 4;
+          }
           break;
         }
       }
+      if (error_code != 0)
+        break;
 
       if (i < 0)
         continue;

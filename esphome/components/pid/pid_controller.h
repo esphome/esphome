@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace pid {
@@ -23,9 +23,9 @@ struct PIDController {
     // i(t) := K_i * \int_{0}^{t} e(t) dt
     accumulated_integral_ += error * dt * ki;
     // constrain accumulated integral value
-    if (!isnan(min_integral) && accumulated_integral_ < min_integral)
+    if (!std::isnan(min_integral) && accumulated_integral_ < min_integral)
       accumulated_integral_ = min_integral;
-    if (!isnan(max_integral) && accumulated_integral_ > max_integral)
+    if (!std::isnan(max_integral) && accumulated_integral_ > max_integral)
       accumulated_integral_ = max_integral;
     integral_term = accumulated_integral_;
 

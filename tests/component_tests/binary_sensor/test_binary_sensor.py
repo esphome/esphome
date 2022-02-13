@@ -30,7 +30,7 @@ def test_binary_sensor_sets_mandatory_fields(generate_main):
 
     # Then
     assert 'bs_1->set_name("test bs1");' in main_cpp
-    assert "bs_1->set_pin(new GPIOPin" in main_cpp
+    assert "bs_1->set_pin(" in main_cpp
 
 
 def test_binary_sensor_config_value_internal_set(generate_main):

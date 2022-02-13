@@ -1,9 +1,11 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include <memory>
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
 
 #include <TM1651.h>
@@ -13,23 +15,23 @@ namespace tm1651 {
 
 class TM1651Display : public Component {
  public:
-  void set_clk_pin(GPIOPin *pin) { clk_pin_ = pin; }
-  void set_dio_pin(GPIOPin *pin) { dio_pin_ = pin; }
+  void set_clk_pin(InternalGPIOPin *pin) { clk_pin_ = pin; }
+  void set_dio_pin(InternalGPIOPin *pin) { dio_pin_ = pin; }
 
   void setup() override;
   void dump_config() override;
 
-  void set_level_percent(uint8_t);
-  void set_level(uint8_t);
-  void set_brightness(uint8_t);
+  void set_level_percent(uint8_t new_level);
+  void set_level(uint8_t new_level);
+  void set_brightness(uint8_t new_brightness);
 
   void turn_on();
   void turn_off();
 
  protected:
   std::unique_ptr<TM1651> battery_display_;
-  GPIOPin *clk_pin_;
-  GPIOPin *dio_pin_;
+  InternalGPIOPin *clk_pin_;
+  InternalGPIOPin *dio_pin_;
   bool is_on_ = true;
 
   uint8_t brightness_;
@@ -37,8 +39,8 @@ class TM1651Display : public Component {
 
   void repaint_();
 
-  uint8_t calculate_level_(uint8_t);
-  uint8_t calculate_brightness_(uint8_t);
+  uint8_t calculate_level_(uint8_t new_level);
+  uint8_t calculate_brightness_(uint8_t new_brightness);
 };
 
 template<typename... Ts> class SetLevelPercentAction : public Action<Ts...>, public Parented<TM1651Display> {
@@ -83,3 +85,5 @@ template<typename... Ts> class TurnOffAction : public Action<Ts...>, public Pare
 
 }  // namespace tm1651
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

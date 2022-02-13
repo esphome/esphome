@@ -11,7 +11,7 @@ template<typename... Ts> class OpenAction : public Action<Ts...> {
  public:
   explicit OpenAction(Cover *cover) : cover_(cover) {}
 
-  void play(Ts... x) override { this->cover_->open(); }
+  void play(Ts... x) override { this->cover_->make_call().set_command_open().perform(); }
 
  protected:
   Cover *cover_;
@@ -21,7 +21,7 @@ template<typename... Ts> class CloseAction : public Action<Ts...> {
  public:
   explicit CloseAction(Cover *cover) : cover_(cover) {}
 
-  void play(Ts... x) override { this->cover_->close(); }
+  void play(Ts... x) override { this->cover_->make_call().set_command_close().perform(); }
 
  protected:
   Cover *cover_;
@@ -31,7 +31,17 @@ template<typename... Ts> class StopAction : public Action<Ts...> {
  public:
   explicit StopAction(Cover *cover) : cover_(cover) {}
 
-  void play(Ts... x) override { this->cover_->stop(); }
+  void play(Ts... x) override { this->cover_->make_call().set_command_stop().perform(); }
+
+ protected:
+  Cover *cover_;
+};
+
+template<typename... Ts> class ToggleAction : public Action<Ts...> {
+ public:
+  explicit ToggleAction(Cover *cover) : cover_(cover) {}
+
+  void play(Ts... x) override { this->cover_->make_call().set_command_toggle().perform(); }
 
  protected:
   Cover *cover_;
@@ -89,6 +99,7 @@ template<typename... Ts> class CoverIsOpenCondition : public Condition<Ts...> {
  protected:
   Cover *cover_;
 };
+
 template<typename... Ts> class CoverIsClosedCondition : public Condition<Ts...> {
  public:
   CoverIsClosedCondition(Cover *cover) : cover_(cover) {}
@@ -96,6 +107,28 @@ template<typename... Ts> class CoverIsClosedCondition : public Condition<Ts...> 
 
  protected:
   Cover *cover_;
+};
+
+class CoverOpenTrigger : public Trigger<> {
+ public:
+  CoverOpenTrigger(Cover *a_cover) {
+    a_cover->add_on_state_callback([this, a_cover]() {
+      if (a_cover->is_fully_open()) {
+        this->trigger();
+      }
+    });
+  }
+};
+
+class CoverClosedTrigger : public Trigger<> {
+ public:
+  CoverClosedTrigger(Cover *a_cover) {
+    a_cover->add_on_state_callback([this, a_cover]() {
+      if (a_cover->is_fully_closed()) {
+        this->trigger();
+      }
+    });
+  }
 };
 
 }  // namespace cover

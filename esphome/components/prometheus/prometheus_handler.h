@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/component.h"
@@ -50,7 +52,7 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   /// Return the type for prometheus
   void fan_type_(AsyncResponseStream *stream);
   /// Return the sensor state as prometheus data point
-  void fan_row_(AsyncResponseStream *stream, fan::FanState *obj);
+  void fan_row_(AsyncResponseStream *stream, fan::Fan *obj);
 #endif
 
 #ifdef USE_LIGHT
@@ -74,8 +76,17 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   void switch_row_(AsyncResponseStream *stream, switch_::Switch *obj);
 #endif
 
+#ifdef USE_LOCK
+  /// Return the type for prometheus
+  void lock_type_(AsyncResponseStream *stream);
+  /// Return the lock Values state as prometheus data point
+  void lock_row_(AsyncResponseStream *stream, lock::Lock *obj);
+#endif
+
   web_server_base::WebServerBase *base_;
 };
 
 }  // namespace prometheus
 }  // namespace esphome
+
+#endif  // USE_ARDUINO

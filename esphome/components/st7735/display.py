@@ -23,6 +23,7 @@ CONF_ROW_START = "row_start"
 CONF_COL_START = "col_start"
 CONF_EIGHT_BIT_COLOR = "eight_bit_color"
 CONF_USE_BGR = "use_bgr"
+CONF_INVERT_COLORS = "invert_colors"
 
 SPIST7735 = st7735_ns.class_(
     "ST7735", cg.PollingComponent, display.DisplayBuffer, spi.SPIDevice
@@ -58,6 +59,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_ROW_START): cv.int_,
             cv.Optional(CONF_EIGHT_BIT_COLOR, default=False): cv.boolean,
             cv.Optional(CONF_USE_BGR, default=False): cv.boolean,
+            cv.Optional(CONF_INVERT_COLORS, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -90,6 +92,7 @@ async def to_code(config):
         config[CONF_ROW_START],
         config[CONF_EIGHT_BIT_COLOR],
         config[CONF_USE_BGR],
+        config[CONF_INVERT_COLORS],
     )
     await setup_st7735(var, config)
     await spi.register_spi_device(var, config)

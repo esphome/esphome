@@ -71,6 +71,10 @@ class ILI9341Display : public PollingComponent,
   void start_data_();
   void end_data_();
 
+  uint8_t transfer_buffer_[64];
+
+  uint32_t buffer_to_transfer_(uint32_t pos, uint32_t sz);
+
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *led_pin_{nullptr};
   GPIOPin *dc_pin_;

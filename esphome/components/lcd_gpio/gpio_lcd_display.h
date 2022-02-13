@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/lcd_base/lcd_display.h"
 
 namespace esphome {

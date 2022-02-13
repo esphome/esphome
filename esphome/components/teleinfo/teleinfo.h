@@ -11,7 +11,8 @@ namespace teleinfo {
  */
 static const uint8_t MAX_TAG_SIZE = 64;
 static const uint16_t MAX_VAL_SIZE = 256;
-static const uint16_t MAX_BUF_SIZE = 1024;
+static const uint16_t MAX_BUF_SIZE = 2048;
+static const uint16_t MAX_TIMESTAMP_SIZE = 14;
 
 class TeleInfoListener {
  public:
@@ -36,6 +37,7 @@ class TeleInfo : public PollingComponent, public uart::UARTDevice {
   uint32_t buf_index_{0};
   char tag_[MAX_TAG_SIZE];
   char val_[MAX_VAL_SIZE];
+  char timestamp_[MAX_TIMESTAMP_SIZE];
   enum State {
     OFF,
     ON,

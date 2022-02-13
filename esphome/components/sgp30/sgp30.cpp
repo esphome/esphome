@@ -1,6 +1,8 @@
 #include "sgp30.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace sgp30 {
@@ -84,7 +86,7 @@ void SGP30Component::setup() {
   // Hash with compilation time
   // This ensures the baseline storage is cleared after OTA
   uint32_t hash = fnv1_hash(App.get_compilation_time());
-  this->pref_ = global_preferences.make_preference<SGP30Baselines>(hash, true);
+  this->pref_ = global_preferences->make_preference<SGP30Baselines>(hash, true);
 
   if (this->pref_.load(&this->baselines_storage_)) {
     ESP_LOGI(TAG, "Loaded eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", this->baselines_storage_.eco2,
@@ -145,8 +147,8 @@ void SGP30Component::read_iaq_baseline_() {
         // much
         if (this->store_baseline_ &&
             (this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL ||
-             abs(this->baselines_storage_.eco2 - this->eco2_baseline_) > MAXIMUM_STORAGE_DIFF ||
-             abs(this->baselines_storage_.tvoc - this->tvoc_baseline_) > MAXIMUM_STORAGE_DIFF)) {
+             (uint32_t) abs(this->baselines_storage_.eco2 - this->eco2_baseline_) > MAXIMUM_STORAGE_DIFF ||
+             (uint32_t) abs(this->baselines_storage_.tvoc - this->tvoc_baseline_) > MAXIMUM_STORAGE_DIFF)) {
           this->seconds_since_last_store_ = 0;
           this->baselines_storage_.eco2 = this->eco2_baseline_;
           this->baselines_storage_.tvoc = this->tvoc_baseline_;
@@ -172,7 +174,7 @@ void SGP30Component::send_env_data_() {
   float humidity = NAN;
   if (this->humidity_sensor_ != nullptr)
     humidity = this->humidity_sensor_->state;
-  if (isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
+  if (std::isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
     ESP_LOGW(TAG, "Compensation not possible yet: bad humidity data.");
     return;
   } else {
@@ -182,7 +184,7 @@ void SGP30Component::send_env_data_() {
   if (this->temperature_sensor_ != nullptr) {
     temperature = float(this->temperature_sensor_->state);
   }
-  if (isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
+  if (std::isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
     ESP_LOGW(TAG, "Compensation not possible yet: bad temperature value data.");
     return;
   } else {
@@ -218,9 +220,10 @@ void SGP30Component::write_iaq_baseline_(uint16_t eco2_baseline, uint16_t tvoc_b
   data[6] = sht_crc_(data[4], data[5]);
   if (!this->write_bytes(SGP30_CMD_SET_IAQ_BASELINE >> 8, data, 7)) {
     ESP_LOGE(TAG, "Error applying eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", eco2_baseline, tvoc_baseline);
-  } else
+  } else {
     ESP_LOGI(TAG, "Initial baselines applied successfully! eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", eco2_baseline,
              tvoc_baseline);
+  }
 }
 
 void SGP30Component::dump_config() {
@@ -313,18 +316,20 @@ uint8_t SGP30Component::sht_crc_(uint8_t data1, uint8_t data2) {
 
   crc ^= data1;
   for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80)
+    if (crc & 0x80) {
       crc = (crc << 1) ^ 0x131;
-    else
+    } else {
       crc = (crc << 1);
+    }
   }
 
   crc ^= data2;
   for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80)
+    if (crc & 0x80) {
       crc = (crc << 1) ^ 0x131;
-    else
+    } else {
       crc = (crc << 1);
+    }
   }
 
   return crc;
@@ -334,7 +339,7 @@ bool SGP30Component::read_data_(uint16_t *data, uint8_t len) {
   const uint8_t num_bytes = len * 3;
   std::vector<uint8_t> buf(num_bytes);
 
-  if (!this->parent_->raw_receive(this->address_, buf.data(), num_bytes)) {
+  if (this->read(buf.data(), num_bytes) != i2c::ERROR_OK) {
     return false;
   }
 

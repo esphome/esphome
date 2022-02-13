@@ -1,5 +1,6 @@
 #include "pmsa003i.h"
 #include "esphome/core/log.h"
+#include <cstring>
 
 namespace esphome {
 namespace pmsa003i {

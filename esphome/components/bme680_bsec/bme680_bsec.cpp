@@ -381,7 +381,7 @@ void BME680BSECComponent::delay_ms(uint32_t period) {
 
 void BME680BSECComponent::load_state_() {
   uint32_t hash = fnv1_hash("bme680_bsec_state_" + to_string(this->address_));
-  this->bsec_state_ = global_preferences.make_preference<uint8_t[BSEC_MAX_STATE_BLOB_SIZE]>(hash, true);
+  this->bsec_state_ = global_preferences->make_preference<uint8_t[BSEC_MAX_STATE_BLOB_SIZE]>(hash, true);
 
   uint8_t state[BSEC_MAX_STATE_BLOB_SIZE];
   if (this->bsec_state_.load(&state)) {

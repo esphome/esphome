@@ -3,9 +3,6 @@
 set -e
 
 cd "$(dirname "$0")/.."
-if [[ ! -e ".gcc-flags.json" ]]; then
-  pio init --ide atom
-fi
 
 set -x
 

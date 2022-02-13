@@ -1,7 +1,7 @@
 #include "esphome/core/component.h"
 
 #include "esphome/core/application.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <utility>
@@ -55,6 +55,15 @@ bool Component::cancel_interval(const std::string &name) {  // NOLINT
   return App.scheduler.cancel_interval(this, name);
 }
 
+void Component::set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
+                          std::function<RetryResult()> &&f, float backoff_increase_factor) {  // NOLINT
+  App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
+}
+
+bool Component::cancel_retry(const std::string &name) {  // NOLINT
+  return App.scheduler.cancel_retry(this, name);
+}
+
 void Component::set_timeout(const std::string &name, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
   return App.scheduler.set_timeout(this, name, timeout, std::move(f));
 }
@@ -64,8 +73,9 @@ bool Component::cancel_timeout(const std::string &name) {  // NOLINT
 }
 
 void Component::call_loop() { this->loop(); }
-
 void Component::call_setup() { this->setup(); }
+void Component::call_dump_config() { this->dump_config(); }
+
 uint32_t Component::get_component_state() const { return this->component_state_; }
 void Component::call() {
   uint32_t state = this->component_state_ & COMPONENT_STATE_MASK;
@@ -86,7 +96,7 @@ void Component::call() {
       // State loop: Call loop
       this->call_loop();
       break;
-    case COMPONENT_STATE_FAILED:
+    case COMPONENT_STATE_FAILED:  // NOLINT(bugprone-branch-clone)
       // State failed: Do nothing
       break;
     default:
@@ -119,6 +129,10 @@ void Component::set_timeout(uint32_t timeout, std::function<void()> &&f) {  // N
 void Component::set_interval(uint32_t interval, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_interval(this, "", interval, std::move(f));
 }
+void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult()> &&f,
+                          float backoff_increase_factor) {  // NOLINT
+  App.scheduler.set_retry(this, "", initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
+}
 bool Component::is_failed() { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
 bool Component::can_proceed() { return true; }
 bool Component::status_has_warning() { return this->component_state_ & STATUS_LED_WARNING; }
@@ -143,7 +157,7 @@ void Component::status_momentary_error(const std::string &name, uint32_t length)
 }
 void Component::dump_config() {}
 float Component::get_actual_setup_priority() const {
-  if (isnan(this->setup_priority_override_))
+  if (std::isnan(this->setup_priority_override_))
     return this->get_setup_priority();
   return this->setup_priority_override_;
 }
@@ -163,7 +177,7 @@ bool Component::has_overridden_loop() const {
   return loop_overridden || call_loop_overridden;
 }
 
-PollingComponent::PollingComponent(uint32_t update_interval) : Component(), update_interval_(update_interval) {}
+PollingComponent::PollingComponent(uint32_t update_interval) : update_interval_(update_interval) {}
 
 void PollingComponent::call_setup() {
   // Let the polling component subclass setup their HW.
@@ -175,26 +189,6 @@ void PollingComponent::call_setup() {
 
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
 void PollingComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
-
-const std::string &Nameable::get_name() const { return this->name_; }
-void Nameable::set_name(const std::string &name) {
-  this->name_ = name;
-  this->calc_object_id_();
-}
-Nameable::Nameable(std::string name) : name_(std::move(name)) { this->calc_object_id_(); }
-
-const std::string &Nameable::get_object_id() { return this->object_id_; }
-bool Nameable::is_internal() const { return this->internal_; }
-void Nameable::set_internal(bool internal) { this->internal_ = internal; }
-void Nameable::calc_object_id_() {
-  this->object_id_ = sanitize_string_allowlist(to_lowercase_underscore(this->name_), HOSTNAME_CHARACTER_ALLOWLIST);
-  // FNV-1 hash
-  this->object_id_hash_ = fnv1_hash(this->object_id_);
-}
-uint32_t Nameable::get_object_id_hash() { return this->object_id_hash_; }
-
-bool Nameable::is_disabled_by_default() const { return this->disabled_by_default_; }
-void Nameable::set_disabled_by_default(bool disabled_by_default) { this->disabled_by_default_ = disabled_by_default; }
 
 WarnIfComponentBlockingGuard::WarnIfComponentBlockingGuard(Component *component)
     : started_(millis()), component_(component) {}

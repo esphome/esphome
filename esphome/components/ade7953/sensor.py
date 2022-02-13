@@ -29,7 +29,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ADE7953),
-            cv.Optional(CONF_IRQ_PIN): pins.input_pin,
+            cv.Optional(CONF_IRQ_PIN): pins.internal_gpio_input_pin_schema,
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=1,
@@ -73,7 +73,8 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     if CONF_IRQ_PIN in config:
-        cg.add(var.set_irq_pin(config[CONF_IRQ_PIN]))
+        irq_pin = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
+        cg.add(var.set_irq_pin(irq_pin))
 
     for key in [
         CONF_VOLTAGE,

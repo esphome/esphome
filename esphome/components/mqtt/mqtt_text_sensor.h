@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 
+#ifdef USE_MQTT
 #ifdef USE_TEXT_SENSOR
 
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -14,7 +15,7 @@ class MQTTTextSensor : public mqtt::MQTTComponent {
  public:
   explicit MQTTTextSensor(text_sensor::TextSensor *sensor);
 
-  void send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) override;
+  void send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) override;
 
   void setup() override;
 
@@ -24,13 +25,9 @@ class MQTTTextSensor : public mqtt::MQTTComponent {
 
   bool send_initial_state() override;
 
-  bool is_internal() override;
-
  protected:
   std::string component_type() const override;
-
-  std::string friendly_name() const override;
-
+  const EntityBase *get_entity() const override;
   std::string unique_id() override;
 
   text_sensor::TextSensor *sensor_;
@@ -40,3 +37,4 @@ class MQTTTextSensor : public mqtt::MQTTComponent {
 }  // namespace esphome
 
 #endif
+#endif  // USE_MQTT

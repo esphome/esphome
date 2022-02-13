@@ -1,5 +1,6 @@
 #include "ina3221.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace ina3221 {
@@ -87,7 +88,7 @@ void INA3221Component::update() {
     float bus_voltage_v = NAN, current_a = NAN;
     uint16_t raw;
     if (channel.should_measure_bus_voltage()) {
-      if (!this->read_byte_16(ina3221_bus_voltage_register(i), &raw, 1)) {
+      if (!this->read_byte_16(ina3221_bus_voltage_register(i), &raw)) {
         this->status_set_warning();
         return;
       }
@@ -96,7 +97,7 @@ void INA3221Component::update() {
         channel.bus_voltage_sensor_->publish_state(bus_voltage_v);
     }
     if (channel.should_measure_shunt_voltage()) {
-      if (!this->read_byte_16(ina3221_shunt_voltage_register(i), &raw, 1)) {
+      if (!this->read_byte_16(ina3221_shunt_voltage_register(i), &raw)) {
         this->status_set_warning();
         return;
       }

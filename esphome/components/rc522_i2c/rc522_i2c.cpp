@@ -18,8 +18,9 @@ void RC522I2C::dump_config() {
 uint8_t RC522I2C::pcd_read_register(PcdRegister reg  ///< The register to read from. One of the PCD_Register enums.
 ) {
   uint8_t value;
-  read_byte(reg >> 1, &value);
-  ESP_LOGVV(TAG, "read_register_(%x) -> %x", reg, value);
+  if (!read_byte(reg >> 1, &value))
+    return 0;
+  ESP_LOGVV(TAG, "read_register_(%x) -> %u", reg, value);
   return value;
 }
 

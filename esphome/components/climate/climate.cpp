@@ -95,7 +95,7 @@ void ClimateCall::validate_() {
       ESP_LOGW(TAG, "  Cannot set target temperature for climate device "
                     "with two-point target temperature!");
       this->target_temperature_.reset();
-    } else if (isnan(target)) {
+    } else if (std::isnan(target)) {
       ESP_LOGW(TAG, "  Target temperature must not be NAN!");
       this->target_temperature_.reset();
     }
@@ -107,11 +107,11 @@ void ClimateCall::validate_() {
       this->target_temperature_high_.reset();
     }
   }
-  if (this->target_temperature_low_.has_value() && isnan(*this->target_temperature_low_)) {
+  if (this->target_temperature_low_.has_value() && std::isnan(*this->target_temperature_low_)) {
     ESP_LOGW(TAG, "  Target temperature low must not be NAN!");
     this->target_temperature_low_.reset();
   }
-  if (this->target_temperature_high_.has_value() && isnan(*this->target_temperature_high_)) {
+  if (this->target_temperature_high_.has_value() && std::isnan(*this->target_temperature_high_)) {
     ESP_LOGW(TAG, "  Target temperature low must not be NAN!");
     this->target_temperature_high_.reset();
   }
@@ -318,17 +318,23 @@ void Climate::add_on_state_callback(std::function<void()> &&callback) {
 static const uint32_t RESTORE_STATE_VERSION = 0x848EA6ADUL;
 
 optional<ClimateDeviceRestoreState> Climate::restore_state_() {
-  this->rtc_ =
-      global_preferences.make_preference<ClimateDeviceRestoreState>(this->get_object_id_hash() ^ RESTORE_STATE_VERSION);
+  this->rtc_ = global_preferences->make_preference<ClimateDeviceRestoreState>(this->get_object_id_hash() ^
+                                                                              RESTORE_STATE_VERSION);
   ClimateDeviceRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
     return {};
   return recovered;
 }
 void Climate::save_state_() {
+#if defined(USE_ESP_IDF) && !defined(CLANG_TIDY)
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
+#endif
   ClimateDeviceRestoreState state{};
   // initialize as zero to prevent random data on stack triggering erase
   memset(&state, 0, sizeof(ClimateDeviceRestoreState));
+#if USE_ESP_IDF && !defined(CLANG_TIDY)
+#pragma GCC diagnostic pop
+#endif
 
   state.mode = this->mode;
   auto traits = this->get_traits();
@@ -434,7 +440,11 @@ void Climate::set_visual_max_temperature_override(float visual_max_temperature_o
 void Climate::set_visual_temperature_step_override(float visual_temperature_step_override) {
   this->visual_temperature_step_override_ = visual_temperature_step_override;
 }
-Climate::Climate(const std::string &name) : Nameable(name) {}
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+Climate::Climate(const std::string &name) : EntityBase(name) {}
+#pragma GCC diagnostic pop
+
 Climate::Climate() : Climate("") {}
 ClimateCall Climate::make_call() { return ClimateCall(this); }
 

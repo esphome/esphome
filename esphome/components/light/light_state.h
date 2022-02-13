@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/preferences.h"
 #include "light_call.h"
@@ -26,10 +27,12 @@ enum LightRestoreMode {
 /** This class represents the communication layer between the front-end MQTT layer and the
  * hardware output layer.
  */
-class LightState : public Nameable, public Component {
+class LightState : public EntityBase, public Component {
  public:
   /// Construct this LightState using the provided traits and name.
   LightState(const std::string &name, LightOutput *output);
+
+  LightState(LightOutput *output);
 
   LightTraits get_traits();
 

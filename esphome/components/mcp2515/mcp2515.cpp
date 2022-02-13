@@ -127,9 +127,6 @@ canbus::Error MCP2515::set_mode_(const CanctrlReqopMode mode) {
 }
 
 canbus::Error MCP2515::set_clk_out_(const CanClkOut divisor) {
-  canbus::Error res;
-  uint8_t cfg3;
-
   if (divisor == CLKOUT_DISABLE) {
     /* Turn off CLKEN */
     modify_register_(MCP_CANCTRL, CANCTRL_CLKEN, 0x00);

@@ -1,7 +1,7 @@
 #include "am43_cover.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace am43 {
@@ -24,16 +24,17 @@ void Am43Component::setup() {
 }
 
 void Am43Component::loop() {
-  if (this->node_state == espbt::ClientState::Established && !this->logged_in_) {
-    auto packet = this->encoder_->get_send_pin_request(this->pin_);
+  if (this->node_state == espbt::ClientState::ESTABLISHED && !this->logged_in_) {
+    auto *packet = this->encoder_->get_send_pin_request(this->pin_);
     auto status =
         esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_, packet->length,
                                  packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
     ESP_LOGI(TAG, "[%s] Logging into AM43", this->get_name().c_str());
-    if (status)
+    if (status) {
       ESP_LOGW(TAG, "[%s] Error writing set_pin to device, error = %d", this->get_name().c_str(), status);
-    else
+    } else {
       this->logged_in_ = true;
+    }
   }
 }
 
@@ -46,12 +47,12 @@ CoverTraits Am43Component::get_traits() {
 }
 
 void Am43Component::control(const CoverCall &call) {
-  if (this->node_state != espbt::ClientState::Established) {
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "[%s] Cannot send cover control, not connected", this->get_name().c_str());
     return;
   }
   if (call.get_stop()) {
-    auto packet = this->encoder_->get_stop_request();
+    auto *packet = this->encoder_->get_stop_request();
     auto status =
         esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_, packet->length,
                                  packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
@@ -63,7 +64,7 @@ void Am43Component::control(const CoverCall &call) {
 
     if (this->invert_position_)
       pos = 1 - pos;
-    auto packet = this->encoder_->get_set_position_request(100 - (uint8_t)(pos * 100));
+    auto *packet = this->encoder_->get_set_position_request(100 - (uint8_t)(pos * 100));
     auto status =
         esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_, packet->length,
                                  packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
@@ -80,7 +81,7 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      auto chr = this->parent_->get_characteristic(AM43_SERVICE_UUID, AM43_CHARACTERISTIC_UUID);
+      auto *chr = this->parent_->get_characteristic(AM43_SERVICE_UUID, AM43_CHARACTERISTIC_UUID);
       if (chr == nullptr) {
         if (this->parent_->get_characteristic(AM43_TUYA_SERVICE_UUID, AM43_TUYA_CHARACTERISTIC_UUID) != nullptr) {
           ESP_LOGE(TAG, "[%s] Detected a Tuya AM43 which is not supported, sorry.", this->get_name().c_str());
@@ -98,7 +99,7 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      this->node_state = espbt::ClientState::Established;
+      this->node_state = espbt::ClientState::ESTABLISHED;
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
@@ -120,7 +121,7 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       if (this->decoder_->has_pin_response()) {
         if (this->decoder_->pin_ok_) {
           ESP_LOGI(TAG, "[%s] AM43 pin accepted.", this->get_name().c_str());
-          auto packet = this->encoder_->get_position_request();
+          auto *packet = this->encoder_->get_position_request();
           auto status = esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_,
                                                  packet->length, packet->data, ESP_GATT_WRITE_TYPE_NO_RSP,
                                                  ESP_GATT_AUTH_REQ_NONE);

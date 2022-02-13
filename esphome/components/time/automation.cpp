@@ -1,5 +1,6 @@
 #include "automation.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace time {

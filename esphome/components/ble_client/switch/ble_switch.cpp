@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace ble_client {
@@ -21,10 +21,10 @@ void BLEClientSwitch::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
       this->publish_state(this->parent_->enabled);
       break;
     case ESP_GATTC_OPEN_EVT:
-      this->node_state = espbt::ClientState::Established;
+      this->node_state = espbt::ClientState::ESTABLISHED;
       break;
     case ESP_GATTC_DISCONNECT_EVT:
-      this->node_state = espbt::ClientState::Idle;
+      this->node_state = espbt::ClientState::IDLE;
       this->publish_state(this->parent_->enabled);
       break;
     default:

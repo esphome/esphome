@@ -7,19 +7,18 @@ from esphome.const import (
     CONF_FREQUENCY,
     CONF_ID,
     CONF_PIN,
-    ESP_PLATFORM_ESP32,
 )
 
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+DEPENDENCIES = ["esp32"]
 
 
 def calc_max_frequency(bit_depth):
-    return 80e6 / (2 ** bit_depth)
+    return 80e6 / (2**bit_depth)
 
 
 def calc_min_frequency(bit_depth):
-    max_div_num = ((2 ** 20) - 1) / 256.0
-    return 80e6 / (max_div_num * (2 ** bit_depth))
+    max_div_num = ((2**20) - 1) / 256.0
+    return 80e6 / (max_div_num * (2**bit_depth))
 
 
 def validate_frequency(value):
@@ -28,13 +27,11 @@ def validate_frequency(value):
     max_freq = calc_max_frequency(1)
     if value < min_freq:
         raise cv.Invalid(
-            "This frequency setting is not possible, please choose a higher "
-            "frequency (at least {}Hz)".format(int(min_freq))
+            f"This frequency setting is not possible, please choose a higher frequency (at least {int(min_freq)}Hz)"
         )
     if value > max_freq:
         raise cv.Invalid(
-            "This frequency setting is not possible, please choose a lower "
-            "frequency (at most {}Hz)".format(int(max_freq))
+            f"This frequency setting is not possible, please choose a lower frequency (at most {int(max_freq)}Hz)"
         )
     return value
 

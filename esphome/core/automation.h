@@ -8,6 +8,11 @@
 
 namespace esphome {
 
+// https://stackoverflow.com/questions/7858817/unpacking-a-tuple-to-call-a-matching-function-pointer/7858971#7858971
+template<int...> struct seq {};                                       // NOLINT
+template<int N, int... S> struct gens : gens<N - 1, N - 1, S...> {};  // NOLINT
+template<int... S> struct gens<0, S...> { using type = seq<S...>; };  // NOLINT
+
 #define TEMPLATABLE_VALUE_(type, name) \
  protected: \
   TemplatableValue<type, Ts...> name##_{}; \
@@ -17,14 +22,50 @@ namespace esphome {
 
 #define TEMPLATABLE_VALUE(type, name) TEMPLATABLE_VALUE_(type, name)
 
-#define TEMPLATABLE_STRING_VALUE_(name) \
- protected: \
-  TemplatableStringValue<Ts...> name##_{}; \
-\
- public: \
-  template<typename V> void set_##name(V name) { this->name##_ = name; }
+template<typename T, typename... X> class TemplatableValue {
+ public:
+  TemplatableValue() : type_(EMPTY) {}
 
-#define TEMPLATABLE_STRING_VALUE(name) TEMPLATABLE_STRING_VALUE_(name)
+  template<typename F, enable_if_t<!is_invocable<F, X...>::value, int> = 0>
+  TemplatableValue(F value) : type_(VALUE), value_(value) {}
+
+  template<typename F, enable_if_t<is_invocable<F, X...>::value, int> = 0>
+  TemplatableValue(F f) : type_(LAMBDA), f_(f) {}
+
+  bool has_value() { return this->type_ != EMPTY; }
+
+  T value(X... x) {
+    if (this->type_ == LAMBDA) {
+      return this->f_(x...);
+    }
+    // return value also when empty
+    return this->value_;
+  }
+
+  optional<T> optional_value(X... x) {
+    if (!this->has_value()) {
+      return {};
+    }
+    return this->value(x...);
+  }
+
+  T value_or(X... x, T default_value) {
+    if (!this->has_value()) {
+      return default_value;
+    }
+    return this->value(x...);
+  }
+
+ protected:
+  enum {
+    EMPTY,
+    VALUE,
+    LAMBDA,
+  } type_;
+
+  T value_{};
+  std::function<T(X...)> f_{};
+};
 
 /** Base class for all automation conditions.
  *

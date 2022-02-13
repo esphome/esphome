@@ -77,6 +77,8 @@ class ATM90E32Component : public PollingComponent,
     sensor::Sensor *power_factor_sensor_{nullptr};
     sensor::Sensor *forward_active_energy_sensor_{nullptr};
     sensor::Sensor *reverse_active_energy_sensor_{nullptr};
+    uint32_t cumulative_forward_active_energy_{0};
+    uint32_t cumulative_reverse_active_energy_{0};
   } phase_[3];
   sensor::Sensor *freq_sensor_{nullptr};
   sensor::Sensor *chip_temperature_sensor_{nullptr};

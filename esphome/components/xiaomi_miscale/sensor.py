@@ -8,6 +8,9 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_KILOGRAM,
     ICON_SCALE_BATHROOM,
+    UNIT_OHM,
+    CONF_IMPEDANCE,
+    ICON_OMEGA,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -28,6 +31,12 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=2,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_IMPEDANCE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_OHM,
+                icon=ICON_OMEGA,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
@@ -45,3 +54,6 @@ async def to_code(config):
     if CONF_WEIGHT in config:
         sens = await sensor.new_sensor(config[CONF_WEIGHT])
         cg.add(var.set_weight(sens))
+    if CONF_IMPEDANCE in config:
+        sens = await sensor.new_sensor(config[CONF_IMPEDANCE])
+        cg.add(var.set_impedance(sens))

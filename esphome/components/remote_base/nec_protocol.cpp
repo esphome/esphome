@@ -17,18 +17,20 @@ void NECProtocol::encode(RemoteTransmitData *dst, const NECData &data) {
   dst->set_carrier_frequency(38000);
 
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
-  for (uint32_t mask = 1UL << 15; mask; mask >>= 1) {
-    if (data.address & mask)
+  for (uint16_t mask = 1; mask; mask <<= 1) {
+    if (data.address & mask) {
       dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-    else
+    } else {
       dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+    }
   }
 
-  for (uint32_t mask = 1UL << 15; mask; mask >>= 1) {
-    if (data.command & mask)
+  for (uint16_t mask = 1; mask; mask <<= 1) {
+    if (data.command & mask) {
       dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-    else
+    } else {
       dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+    }
   }
 
   dst->mark(BIT_HIGH_US);
@@ -41,7 +43,7 @@ optional<NECData> NECProtocol::decode(RemoteReceiveData src) {
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
 
-  for (uint32_t mask = 1UL << 15; mask != 0; mask >>= 1) {
+  for (uint16_t mask = 1; mask; mask <<= 1) {
     if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
       data.address |= mask;
     } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
@@ -51,7 +53,7 @@ optional<NECData> NECProtocol::decode(RemoteReceiveData src) {
     }
   }
 
-  for (uint32_t mask = 1UL << 15; mask != 0; mask >>= 1) {
+  for (uint16_t mask = 1; mask; mask <<= 1) {
     if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
       data.command |= mask;
     } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {

@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/mcp23xxx_base/mcp23xxx_base.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 
 namespace esphome {
 namespace mcp23x17_base {
@@ -38,7 +38,7 @@ class MCP23X17Base : public mcp23xxx_base::MCP23XXXBase {
  public:
   bool digital_read(uint8_t pin) override;
   void digital_write(uint8_t pin, bool value) override;
-  void pin_mode(uint8_t pin, uint8_t mode) override;
+  void pin_mode(uint8_t pin, gpio::Flags flags) override;
   void pin_interrupt_mode(uint8_t pin, mcp23xxx_base::MCP23XXXInterruptMode interrupt_mode) override;
 
  protected:

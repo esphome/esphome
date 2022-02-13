@@ -28,7 +28,7 @@ GPSListener = gps_ns.class_("GPSListener")
 
 CONF_GPS_ID = "gps_id"
 MULTI_CONF = True
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(GPS),
@@ -64,7 +64,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("20s"))
-    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA),
+    cv.only_with_arduino,
 )
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("gps", require_rx=True)
 

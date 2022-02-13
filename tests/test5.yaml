@@ -1,16 +1,25 @@
 esphome:
   name: test5
-  platform: ESP32
-  board: nodemcu-32s
   build_path: build/test5
   project:
     name: esphome.test5_project
     version: "1.0.0"
 
+esp32:
+  board: nodemcu-32s
+  framework:
+    type: esp-idf
+    advanced:
+      ignore_efuse_mac_crc: true
+
 wifi:
   networks:
-    - ssid: 'MySSID'
-      password: 'password1'
+    - ssid: "MySSID"
+      password: "password1"
+      manual_ip:
+        static_ip: 192.168.1.23
+        gateway: 192.168.1.1
+        subnet: 255.255.255.0
 
 api:
 
@@ -30,14 +39,29 @@ uart:
 
 i2c:
 
-
 modbus:
   uart_id: uart1
+  flow_control_pin: 5
+  id: mod_bus1
+
+modbus_controller:
+  - id: modbus_controller_test
+    address: 0x2
+    modbus_id: mod_bus1
 
 binary_sensor:
   - platform: gpio
     pin: GPIO0
     id: io0_button
+    icon: mdi:gesture-tap-button
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_test
+    id: modbus_binsensortest
+    register_type: read
+    address: 0x3200
+    bitmask: 0x80 #(bit 8)
+    lambda: !lambda "{ return x ;}"
 
 tlc5947:
   data_pin: GPIO12
@@ -53,6 +77,17 @@ output:
     id: output_red
     channel: 0
     max_power: 0.8
+
+  - platform: mcp47a1
+    id: output_mcp47a1
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_test
+    id: modbus_output_test
+    lambda: |-
+      return x * 1.0 ;
+    address: 0x9001
+    value_type: U_WORD
 
 demo:
 
@@ -83,6 +118,19 @@ number:
     max_value: 100
     min_value: 0
     step: 5
+    unit_of_measurement: "%"
+    mode: slider
+
+  - id: modbus_numbertest
+    platform: modbus_controller
+    modbus_controller_id: modbus_controller_test
+    name: "ModbusNumber"
+    address: 0x9002
+    value_type: U_WORD
+    lambda: "return  x * 1.0; "
+    write_lambda: |-
+      return x * 1.0 ;
+    multiply: 1.0
 
 select:
   - platform: template
@@ -147,24 +195,39 @@ sensor:
       name: "SelecEM2M Maximum Demand Apparent Power"
       disabled_by_default: true
 
+  - id: modbus_sensortest
+    platform: modbus_controller
+    modbus_controller_id: modbus_controller_test
+    address: 0x331A
+    register_type: read
+    value_type: U_WORD
+
   - platform: t6615
     uart_id: uart2
     co2:
       name: CO2 Sensor
 
-display:
-  - platform: inkplate6
-    id: inkplate_display
-    greyscale: false
-    partial_updating: false
-    update_interval: 60s
+  - platform: bmp3xx
+    temperature:
+      name: "BMP Temperature"
+      oversampling: 16x
+    pressure:
+      name: "BMP Pressure"
+    address: 0x77
+    iir_filter: 2X
 
-    ckv_pin: GPIO1
-    sph_pin: GPIO1
-    gmod_pin: GPIO1
-    gpio0_enable_pin: GPIO1
-    oe_pin: GPIO1
-    spv_pin: GPIO1
-    powerup_pin: GPIO1
-    wakeup_pin: GPIO1
-    vcom_pin: GPIO1
+script:
+  - id: automation_test
+    then:
+      - repeat:
+          count: 5
+          then:
+            - logger.log: "looping!"
+
+switch:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_test
+    id: modbus_switch_test
+    register_type: coil
+    address: 2
+    bitmask: 1

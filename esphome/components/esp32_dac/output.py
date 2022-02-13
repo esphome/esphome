@@ -2,9 +2,9 @@ from esphome import pins
 from esphome.components import output
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ID, CONF_NUMBER, CONF_PIN, ESP_PLATFORM_ESP32
+from esphome.const import CONF_ID, CONF_NUMBER, CONF_PIN
 
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+DEPENDENCIES = ["esp32"]
 
 
 def valid_dac_pin(value):

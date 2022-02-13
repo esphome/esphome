@@ -1,17 +1,11 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
 namespace pcf8574 {
-
-/// Modes for PCF8574 pins
-enum PCF8574GPIOMode : uint8_t {
-  PCF8574_INPUT = INPUT,
-  PCF8574_OUTPUT = OUTPUT,
-};
 
 class PCF8574Component : public Component, public i2c::I2CDevice {
  public:
@@ -26,7 +20,7 @@ class PCF8574Component : public Component, public i2c::I2CDevice {
   /// Helper function to write the value of a pin.
   void digital_write(uint8_t pin, bool value);
   /// Helper function to set the pin mode of a pin.
-  void pin_mode(uint8_t pin, uint8_t mode);
+  void pin_mode(uint8_t pin, gpio::Flags flags);
 
   float get_setup_priority() const override;
 
@@ -49,15 +43,22 @@ class PCF8574Component : public Component, public i2c::I2CDevice {
 /// Helper class to expose a PCF8574 pin as an internal input GPIO pin.
 class PCF8574GPIOPin : public GPIOPin {
  public:
-  PCF8574GPIOPin(PCF8574Component *parent, uint8_t pin, uint8_t mode, bool inverted = false);
-
   void setup() override;
-  void pin_mode(uint8_t mode) override;
+  void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
+  std::string dump_summary() const override;
+
+  void set_parent(PCF8574Component *parent) { parent_ = parent; }
+  void set_pin(uint8_t pin) { pin_ = pin; }
+  void set_inverted(bool inverted) { inverted_ = inverted; }
+  void set_flags(gpio::Flags flags) { flags_ = flags; }
 
  protected:
   PCF8574Component *parent_;
+  uint8_t pin_;
+  bool inverted_;
+  gpio::Flags flags_;
 };
 
 }  // namespace pcf8574

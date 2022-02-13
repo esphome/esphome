@@ -1,9 +1,12 @@
 #include "mqtt_client.h"
+#define USE_MQTT
+
+#ifdef USE_MQTT
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/util.h"
+#include "esphome/components/network/util.h"
 #include <utility>
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -60,7 +63,7 @@ void MQTTClientComponent::setup() {
 void MQTTClientComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT:");
   ESP_LOGCONFIG(TAG, "  Server Address: %s:%u (%s)", this->credentials_.address.c_str(), this->credentials_.port,
-                this->ip_.toString().c_str());
+                this->ip_.str().c_str());
   ESP_LOGCONFIG(TAG, "  Username: " LOG_SECRET("'%s'"), this->credentials_.username.c_str());
   ESP_LOGCONFIG(TAG, "  Client ID: " LOG_SECRET("'%s'"), this->credentials_.client_id.c_str());
   if (!this->discovery_info_.prefix.empty()) {
@@ -87,11 +90,11 @@ void MQTTClientComponent::start_dnslookup_() {
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
   err_t err = dns_gethostbyname_addrtype(this->credentials_.address.c_str(), &addr,
                                          MQTTClientComponent::dns_found_callback, this, LWIP_DNS_ADDRTYPE_IPV4);
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   err_t err = dns_gethostbyname(this->credentials_.address.c_str(), &addr,
                                 esphome::mqtt::MQTTClientComponent::dns_found_callback, this);
 #endif
@@ -99,11 +102,11 @@ void MQTTClientComponent::start_dnslookup_() {
     case ERR_OK: {
       // Got IP immediately
       this->dns_resolved_ = true;
-#ifdef ARDUINO_ARCH_ESP32
-      this->ip_ = IPAddress(addr.u_addr.ip4.addr);
+#ifdef USE_ESP32
+      this->ip_ = addr.u_addr.ip4.addr;
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
-      this->ip_ = IPAddress(addr.addr);
+#ifdef USE_ESP8266
+      this->ip_ = addr.addr;
 #endif
       this->start_connect_();
       return;
@@ -116,7 +119,7 @@ void MQTTClientComponent::start_dnslookup_() {
     default:
     case ERR_ARG: {
       // error
-#if defined(ARDUINO_ARCH_ESP8266)
+#if defined(USE_ESP8266)
       ESP_LOGW(TAG, "Error resolving MQTT broker IP address: %ld", err);
 #else
       ESP_LOGW(TAG, "Error resolving MQTT broker IP address: %d", err);
@@ -143,10 +146,10 @@ void MQTTClientComponent::check_dnslookup_() {
     return;
   }
 
-  ESP_LOGD(TAG, "Resolved broker IP address to %s", this->ip_.toString().c_str());
+  ESP_LOGD(TAG, "Resolved broker IP address to %s", this->ip_.str().c_str());
   this->start_connect_();
 }
-#if defined(ARDUINO_ARCH_ESP8266) && LWIP_VERSION_MAJOR == 1
+#if defined(USE_ESP8266) && LWIP_VERSION_MAJOR == 1
 void MQTTClientComponent::dns_found_callback(const char *name, ip_addr_t *ipaddr, void *callback_arg) {
 #else
 void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg) {
@@ -155,18 +158,18 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
   if (ipaddr == nullptr) {
     a_this->dns_resolve_error_ = true;
   } else {
-#ifdef ARDUINO_ARCH_ESP32
-    a_this->ip_ = IPAddress(ipaddr->u_addr.ip4.addr);
+#ifdef USE_ESP32
+    a_this->ip_ = ipaddr->u_addr.ip4.addr;
 #endif
-#ifdef ARDUINO_ARCH_ESP8266
-    a_this->ip_ = IPAddress(ipaddr->addr);
+#ifdef USE_ESP8266
+    a_this->ip_ = ipaddr->addr;
 #endif
     a_this->dns_resolved_ = true;
   }
 }
 
 void MQTTClientComponent::start_connect_() {
-  if (!network_is_connected())
+  if (!network::is_connected())
     return;
 
   ESP_LOGI(TAG, "Connecting to MQTT...");
@@ -183,7 +186,7 @@ void MQTTClientComponent::start_connect_() {
 
   this->mqtt_client_.setCredentials(username, password);
 
-  this->mqtt_client_.setServer(this->ip_, this->credentials_.port);
+  this->mqtt_client_.setServer((uint32_t) this->ip_, this->credentials_.port);
   if (!this->last_will_.topic.empty()) {
     this->mqtt_client_.setWill(this->last_will_.topic.c_str(), this->last_will_.qos, this->last_will_.retain,
                                this->last_will_.payload.c_str(), this->last_will_.payload.length());
@@ -251,7 +254,7 @@ void MQTTClientComponent::loop() {
         reason_s = LOG_STR("Unknown");
         break;
     }
-    if (!network_is_connected()) {
+    if (!network::is_connected()) {
       reason_s = LOG_STR("WiFi disconnected");
     }
     ESP_LOGW(TAG, "MQTT Disconnected: %s.", LOG_STR_ARG(reason_s));
@@ -344,7 +347,7 @@ void MQTTClientComponent::subscribe(const std::string &topic, mqtt_callback_t ca
 
 void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
   auto f = [callback](const std::string &topic, const std::string &payload) {
-    json::parse_json(payload, [topic, callback](JsonObject &root) { callback(topic, root); });
+    json::parse_json(payload, [topic, callback](JsonObject root) { callback(topic, root); });
   };
   MQTTSubscription subscription{
       .topic = topic,
@@ -370,10 +373,11 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
 
   auto it = subscriptions_.begin();
   while (it != subscriptions_.end()) {
-    if (it->topic == topic)
+    if (it->topic == topic) {
       it = subscriptions_.erase(it);
-    else
+    } else {
       ++it;
+    }
   }
 }
 
@@ -414,9 +418,8 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
 }
 bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos,
                                        bool retain) {
-  size_t len;
-  const char *message = json::build_json(f, &len);
-  return this->publish(topic, message, len, qos, retain);
+  std::string message = json::build_json(f);
+  return this->publish(topic, message, qos, retain);
 }
 
 /** Check if the message topic matches the given subscription topic
@@ -477,15 +480,16 @@ static bool topic_match(const char *message, const char *subscription) {
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
-#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266
   // on ESP8266, this is called in LWiP thread; some components do not like running
   // in an ISR.
   this->defer([this, topic, payload]() {
 #endif
-    for (auto &subscription : this->subscriptions_)
+    for (auto &subscription : this->subscriptions_) {
       if (topic_match(topic.c_str(), subscription.topic.c_str()))
         subscription.callback(topic, payload);
-#ifdef ARDUINO_ARCH_ESP8266
+    }
+#ifdef USE_ESP8266
   });
 #endif
 }
@@ -533,8 +537,12 @@ void MQTTClientComponent::set_birth_message(MQTTMessage &&message) {
 
 void MQTTClientComponent::set_shutdown_message(MQTTMessage &&message) { this->shutdown_message_ = std::move(message); }
 
-void MQTTClientComponent::set_discovery_info(std::string &&prefix, bool retain, bool clean) {
+void MQTTClientComponent::set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
+                                             MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain,
+                                             bool clean) {
   this->discovery_info_.prefix = std::move(prefix);
+  this->discovery_info_.unique_id_generator = unique_id_generator;
+  this->discovery_info_.object_id_generator = object_id_generator;
   this->discovery_info_.retain = retain;
   this->discovery_info_.clean = clean;
 }
@@ -587,3 +595,5 @@ float MQTTMessageTrigger::get_setup_priority() const { return setup_priority::AF
 
 }  // namespace mqtt
 }  // namespace esphome
+
+#endif  // USE_MQTT

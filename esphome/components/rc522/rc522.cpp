@@ -28,7 +28,7 @@ std::string format_buffer(uint8_t *b, uint8_t len) {
 std::string format_uid(std::vector<uint8_t> &uid) {
   char buf[32];
   int offset = 0;
-  for (uint8_t i = 0; i < uid.size(); i++) {
+  for (size_t i = 0; i < uid.size(); i++) {
     const char *format = "%02X";
     if (i + 1 < uid.size())
       format = "%02X-";
@@ -43,14 +43,14 @@ void RC522::setup() {
 
   // First set the resetPowerDownPin as digital input, to check the MFRC522 power down mode.
   if (reset_pin_ != nullptr) {
-    reset_pin_->pin_mode(INPUT);
+    reset_pin_->pin_mode(gpio::FLAG_INPUT);
 
-    if (reset_pin_->digital_read() == LOW) {  // The MFRC522 chip is in power down mode.
+    if (!reset_pin_->digital_read()) {  // The MFRC522 chip is in power down mode.
       ESP_LOGV(TAG, "Power down mode detected. Hard resetting...");
-      reset_pin_->pin_mode(OUTPUT);     // Now set the resetPowerDownPin as digital output.
-      reset_pin_->digital_write(LOW);   // Make sure we have a clean LOW state.
+      reset_pin_->pin_mode(gpio::FLAG_OUTPUT);  // Now set the resetPowerDownPin as digital output.
+      reset_pin_->digital_write(false);         // Make sure we have a clean LOW state.
       delayMicroseconds(2);             // 8.8.1 Reset timing requirements says about 100ns. Let us be generous: 2μsl
-      reset_pin_->digital_write(HIGH);  // Exit power down mode. This triggers a hard reset.
+      reset_pin_->digital_write(true);  // Exit power down mode. This triggers a hard reset.
       // Section 8.8.2 in the datasheet says the oscillator start-up time is the start up time of the crystal + 37,74μs.
       // Let us be generous: 50ms.
       reset_timeout_ = millis();
@@ -139,10 +139,11 @@ void RC522::loop() {
 
   StatusCode status = STATUS_ERROR;  // For lint passing. TODO: refactor this
   if (awaiting_comm_) {
-    if (state_ == STATE_SELECT_SERIAL_DONE)
+    if (state_ == STATE_SELECT_SERIAL_DONE) {
       status = await_crc_();
-    else
+    } else {
       status = await_transceive_();
+    }
 
     if (status == STATUS_WAITING) {
       return;
@@ -210,11 +211,12 @@ void RC522::loop() {
     }
     case STATE_READ_SERIAL_DONE: {
       if (status != STATUS_OK || back_length_ != 3) {
-        if (status == STATUS_TIMEOUT)
+        if (status == STATUS_TIMEOUT) {
           ESP_LOGV(TAG, "STATE_READ_SERIAL_DONE -> TIMEOUT (no tag present) %d", status);
-        else
+        } else {
           ESP_LOGW(TAG, "Unexpected response. Read status is %d. Read bytes: %d (%s)", status, back_length_,
                    format_buffer(buffer_, 9).c_str());
+        }
 
         state_ = STATE_DONE;
         uid_idx_ = 0;
@@ -476,10 +478,10 @@ RC522::StatusCode RC522::await_crc_() {
 
 bool RC522BinarySensor::process(std::vector<uint8_t> &data) {
   bool result = true;
-  if (data.size() != this->uid_.size())
+  if (data.size() != this->uid_.size()) {
     result = false;
-  else {
-    for (uint8_t i = 0; i < data.size(); i++) {
+  } else {
+    for (size_t i = 0; i < data.size(); i++) {
       if (data[i] != this->uid_[i]) {
         result = false;
         break;

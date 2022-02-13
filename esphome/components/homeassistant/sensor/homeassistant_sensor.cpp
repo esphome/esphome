@@ -10,7 +10,7 @@ static const char *const TAG = "homeassistant.sensor";
 void HomeassistantSensor::setup() {
   api::global_api_server->subscribe_home_assistant_state(
       this->entity_id_, this->attribute_, [this](const std::string &state) {
-        auto val = parse_float(state);
+        auto val = parse_number<float>(state);
         if (!val.has_value()) {
           ESP_LOGW(TAG, "Can't convert '%s' to number!", state.c_str());
           this->publish_state(NAN);

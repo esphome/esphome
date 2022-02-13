@@ -27,6 +27,7 @@ from esphome.const import (
     CONF_CARRIER_FREQUENCY,
     CONF_RC_CODE_1,
     CONF_RC_CODE_2,
+    CONF_LEVEL,
 )
 from esphome.core import coroutine
 from esphome.jsonschema import jschema_extractor
@@ -234,6 +235,45 @@ async def build_dumpers(config):
     return dumpers
 
 
+# Coolix
+(
+    CoolixData,
+    CoolixBinarySensor,
+    CoolixTrigger,
+    CoolixAction,
+    CoolixDumper,
+) = declare_protocol("Coolix")
+COOLIX_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_uint32_t})
+
+
+@register_binary_sensor("coolix", CoolixBinarySensor, COOLIX_SCHEMA)
+def coolix_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                CoolixData,
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("coolix", CoolixTrigger, CoolixData)
+def coolix_trigger(var, config):
+    pass
+
+
+@register_dumper("coolix", CoolixDumper)
+def coolix_dumper(var, config):
+    pass
+
+
+@register_action("coolix", CoolixAction, COOLIX_SCHEMA)
+async def coolix_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
+    cg.add(var.set_data(template_))
+
+
 # Dish
 DishData, DishBinarySensor, DishTrigger, DishAction, DishDumper = declare_protocol(
     "Dish"
@@ -439,6 +479,49 @@ async def pioneer_action(var, config, args):
     cg.add(var.set_rc_code_2(template_))
 
 
+# Pronto
+(
+    ProntoData,
+    ProntoBinarySensor,
+    ProntoTrigger,
+    ProntoAction,
+    ProntoDumper,
+) = declare_protocol("Pronto")
+PRONTO_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_DATA): cv.string,
+    }
+)
+
+
+@register_binary_sensor("pronto", ProntoBinarySensor, PRONTO_SCHEMA)
+def pronto_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                ProntoData,
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("pronto", ProntoTrigger, ProntoData)
+def pronto_trigger(var, config):
+    pass
+
+
+@register_dumper("pronto", ProntoDumper)
+def pronto_dumper(var, config):
+    pass
+
+
+@register_action("pronto", ProntoAction, PRONTO_SCHEMA)
+async def pronto_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.std_string)
+    cg.add(var.set_data(template_))
+
+
 # Sony
 SonyData, SonyBinarySensor, SonyTrigger, SonyAction, SonyDumper = declare_protocol(
     "Sony"
@@ -491,8 +574,7 @@ def validate_raw_alternating(value):
         if i != 0:
             if this_negative == last_negative:
                 raise cv.Invalid(
-                    "Values must alternate between being positive and negative, "
-                    "please see index {} and {}".format(i, i + 1),
+                    f"Values must alternate between being positive and negative, please see index {i} and {i + 1}",
                     [i],
                 )
         last_negative = this_negative
@@ -619,13 +701,11 @@ def validate_rc_switch_code(value):
     for c in value:
         if c not in ("0", "1"):
             raise cv.Invalid(
-                "Invalid RCSwitch code character '{}'. Only '0' and '1' are allowed"
-                "".format(c)
+                f"Invalid RCSwitch code character '{c}'. Only '0' and '1' are allowed"
             )
     if len(value) > 64:
         raise cv.Invalid(
-            "Maximum length for RCSwitch codes is 64, code '{}' has length {}"
-            "".format(value, len(value))
+            f"Maximum length for RCSwitch codes is 64, code '{value}' has length {len(value)}"
         )
     if not value:
         raise cv.Invalid("RCSwitch code must not be empty")
@@ -638,14 +718,11 @@ def validate_rc_switch_raw_code(value):
     for c in value:
         if c not in ("0", "1", "x"):
             raise cv.Invalid(
-                "Invalid RCSwitch raw code character '{}'.Only '0', '1' and 'x' are allowed".format(
-                    c
-                )
+                f"Invalid RCSwitch raw code character '{c}'.Only '0', '1' and 'x' are allowed"
             )
     if len(value) > 64:
         raise cv.Invalid(
-            "Maximum length for RCSwitch raw codes is 64, code '{}' has length {}"
-            "".format(value, len(value))
+            f"Maximum length for RCSwitch raw codes is 64, code '{value}' has length {len(value)}"
         )
     if not value:
         raise cv.Invalid("RCSwitch raw code must not be empty")
@@ -770,7 +847,7 @@ async def rc_switch_raw_action(var, config, args):
         config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
     )
     cg.add(var.set_protocol(proto))
-    cg.add(var.set_code((await cg.templatable(config[CONF_CODE], args, cg.std_string))))
+    cg.add(var.set_code(await cg.templatable(config[CONF_CODE], args, cg.std_string)))
 
 
 @register_binary_sensor(
@@ -791,13 +868,11 @@ async def rc_switch_type_a_action(var, config, args):
         config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
     )
     cg.add(var.set_protocol(proto))
+    cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.std_string)))
     cg.add(
-        var.set_group((await cg.templatable(config[CONF_GROUP], args, cg.std_string)))
+        var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.std_string))
     )
-    cg.add(
-        var.set_device((await cg.templatable(config[CONF_DEVICE], args, cg.std_string)))
-    )
-    cg.add(var.set_state((await cg.templatable(config[CONF_STATE], args, bool))))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
 
 
 @register_binary_sensor(
@@ -820,13 +895,9 @@ async def rc_switch_type_b_action(var, config, args):
         config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
     )
     cg.add(var.set_protocol(proto))
-    cg.add(
-        var.set_address((await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)))
-    )
-    cg.add(
-        var.set_channel((await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)))
-    )
-    cg.add(var.set_state((await cg.templatable(config[CONF_STATE], args, bool))))
+    cg.add(var.set_address(await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)))
+    cg.add(var.set_channel(await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
 
 
 @register_binary_sensor(
@@ -855,11 +926,11 @@ async def rc_switch_type_c_action(var, config, args):
     )
     cg.add(var.set_protocol(proto))
     cg.add(
-        var.set_family((await cg.templatable(config[CONF_FAMILY], args, cg.std_string)))
+        var.set_family(await cg.templatable(config[CONF_FAMILY], args, cg.std_string))
     )
-    cg.add(var.set_group((await cg.templatable(config[CONF_GROUP], args, cg.uint8))))
-    cg.add(var.set_device((await cg.templatable(config[CONF_DEVICE], args, cg.uint8))))
-    cg.add(var.set_state((await cg.templatable(config[CONF_STATE], args, bool))))
+    cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.uint8)))
+    cg.add(var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.uint8)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
 
 
 @register_binary_sensor(
@@ -882,11 +953,9 @@ async def rc_switch_type_d_action(var, config, args):
         config[CONF_PROTOCOL], args, RCSwitchBase, to_exp=build_rc_switch_protocol
     )
     cg.add(var.set_protocol(proto))
-    cg.add(
-        var.set_group((await cg.templatable(config[CONF_GROUP], args, cg.std_string)))
-    )
-    cg.add(var.set_device((await cg.templatable(config[CONF_DEVICE], args, cg.uint8))))
-    cg.add(var.set_state((await cg.templatable(config[CONF_STATE], args, bool))))
+    cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.std_string)))
+    cg.add(var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.uint8)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
 
 
 @register_trigger("rc_switch", RCSwitchTrigger, RCSwitchData)
@@ -1087,6 +1156,58 @@ async def panasonic_action(var, config, args):
     cg.add(var.set_command(template_))
 
 
+# Nexa
+NexaData, NexaBinarySensor, NexaTrigger, NexaAction, NexaDumper = declare_protocol(
+    "Nexa"
+)
+NEXA_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_DEVICE): cv.hex_uint32_t,
+        cv.Required(CONF_GROUP): cv.hex_uint8_t,
+        cv.Required(CONF_STATE): cv.hex_uint8_t,
+        cv.Required(CONF_CHANNEL): cv.hex_uint8_t,
+        cv.Required(CONF_LEVEL): cv.hex_uint8_t,
+    }
+)
+
+
+@register_binary_sensor("nexa", NexaBinarySensor, NEXA_SCHEMA)
+def nexa_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                NexaData,
+                ("device", config[CONF_DEVICE]),
+                ("group", config[CONF_GROUP]),
+                ("state", config[CONF_STATE]),
+                ("channel", config[CONF_CHANNEL]),
+                ("level", config[CONF_LEVEL]),
+            )
+        )
+    )
+
+
+@register_trigger("nexa", NexaTrigger, NexaData)
+def nexa_trigger(var, config):
+    pass
+
+
+@register_dumper("nexa", NexaDumper)
+def nexa_dumper(var, config):
+    pass
+
+
+@register_action("nexa", NexaAction, NEXA_SCHEMA)
+def nexa_action(var, config, args):
+    cg.add(var.set_device((yield cg.templatable(config[CONF_DEVICE], args, cg.uint32))))
+    cg.add(var.set_group((yield cg.templatable(config[CONF_GROUP], args, cg.uint8))))
+    cg.add(var.set_state((yield cg.templatable(config[CONF_STATE], args, cg.uint8))))
+    cg.add(
+        var.set_channel((yield cg.templatable(config[CONF_CHANNEL], args, cg.uint8)))
+    )
+    cg.add(var.set_level((yield cg.templatable(config[CONF_LEVEL], args, cg.uint8))))
+
+
 # Midea
 MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_protocol(
     "Midea"
@@ -1098,15 +1219,13 @@ MIDEA_SCHEMA = cv.Schema(
             [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
             cv.Length(min=5, max=5),
         ),
-        cv.GenerateID(CONF_CODE_STORAGE_ID): cv.declare_id(cg.uint8),
     }
 )
 
 
 @register_binary_sensor("midea", MideaBinarySensor, MIDEA_SCHEMA)
 def midea_binary_sensor(var, config):
-    arr_ = cg.progmem_array(config[CONF_CODE_STORAGE_ID], config[CONF_CODE])
-    cg.add(var.set_code(arr_))
+    cg.add(var.set_code(config[CONF_CODE]))
 
 
 @register_trigger("midea", MideaTrigger, MideaData)
@@ -1125,5 +1244,4 @@ def midea_dumper(var, config):
     MIDEA_SCHEMA,
 )
 async def midea_action(var, config, args):
-    arr_ = cg.progmem_array(config[CONF_CODE_STORAGE_ID], config[CONF_CODE])
-    cg.add(var.set_code(arr_))
+    cg.add(var.set_code(config[CONF_CODE]))

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/esphal.h"
+#include "esphome/core/hal.h"
 #include "esphome/components/display/display_buffer.h"
 
 namespace esphome {
@@ -12,10 +12,14 @@ enum SSD1306Model {
   SSD1306_MODEL_128_64,
   SSD1306_MODEL_96_16,
   SSD1306_MODEL_64_48,
+  SSD1306_MODEL_64_32,
   SH1106_MODEL_128_32,
   SH1106_MODEL_128_64,
   SH1106_MODEL_96_16,
   SH1106_MODEL_64_48,
+  SH1107_MODEL_128_64,
+  SSD1305_MODEL_128_32,
+  SSD1305_MODEL_128_64,
 };
 
 class SSD1306 : public PollingComponent, public display::DisplayBuffer {
@@ -29,8 +33,15 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   void set_model(SSD1306Model model) { this->model_ = model; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_external_vcc(bool external_vcc) { this->external_vcc_ = external_vcc; }
+  void init_contrast(float contrast) { this->contrast_ = contrast; }
+  void set_contrast(float contrast);
   void init_brightness(float brightness) { this->brightness_ = brightness; }
   void set_brightness(float brightness);
+  void init_flip_x(bool flip_x) { this->flip_x_ = flip_x; }
+  void init_flip_y(bool flip_y) { this->flip_y_ = flip_y; }
+  void init_offset_x(uint8_t offset_x) { this->offset_x_ = offset_x; }
+  void init_offset_y(uint8_t offset_y) { this->offset_y_ = offset_y; }
+  void init_invert(bool invert) { this->invert_ = invert; }
   bool is_on();
   void turn_on();
   void turn_off();
@@ -43,6 +54,7 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   void init_reset_();
 
   bool is_sh1106_() const;
+  bool is_ssd1305_() const;
 
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
@@ -55,7 +67,13 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   GPIOPin *reset_pin_{nullptr};
   bool external_vcc_{false};
   bool is_on_{false};
+  float contrast_{1.0};
   float brightness_{1.0};
+  bool flip_x_{true};
+  bool flip_y_{true};
+  uint8_t offset_x_{0};
+  uint8_t offset_y_{0};
+  bool invert_{false};
 };
 
 }  // namespace ssd1306_base

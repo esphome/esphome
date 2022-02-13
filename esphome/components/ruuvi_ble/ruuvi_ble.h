@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace ruuvi_ble {
