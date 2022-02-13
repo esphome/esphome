@@ -39,7 +39,7 @@ enum QMP6988IIRFilter {
   QMP6988_IIR_FILTER_32X = 0x05,
 };
 
-typedef struct _qmp6988_cali_data {
+using qmp6988_cali_data_t = struct _qmp6988_cali_data {
   QMP6988_S32_t COE_a0;
   QMP6988_S16_t COE_a1;
   QMP6988_S16_t COE_a2;
@@ -52,20 +52,20 @@ typedef struct _qmp6988_cali_data {
   QMP6988_S16_t COE_b12;
   QMP6988_S16_t COE_b21;
   QMP6988_S16_t COE_bp3;
-} qmp6988_cali_data_t;
+};
 
-typedef struct _qmp6988_fk_data {
+using qmp6988_fk_data_t = struct _qmp6988_fk_data {
   float a0, b00;
   float a1, a2, bt1, bt2, bp1, b11, bp2, b12, b21, bp3;
-} qmp6988_fk_data_t;
+};
 
-typedef struct _qmp6988_ik_data {
+using qmp6988_ik_data_t = struct _qmp6988_ik_data {
   QMP6988_S32_t a0, b00;
   QMP6988_S32_t a1, a2;
   QMP6988_S64_t bt1, bt2, bp1, b11, bp2, b12, b21, bp3;
-} qmp6988_ik_data_t;
+};
 
-typedef struct _qmp6988_data {
+using qmp6988_data_t = struct _qmp6988_data {
   uint8_t chip_id;
   uint8_t power_mode;
   float temperature;
@@ -73,7 +73,7 @@ typedef struct _qmp6988_data {
   float altitude;
   qmp6988_cali_data_t qmp6988_cali;
   qmp6988_ik_data_t ik;
-} qmp6988_data_t;
+};
 
 class QMP6988Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -106,7 +106,7 @@ class QMP6988Component : public PollingComponent, public i2c::I2CDevice {
   void write_oversampling_pressure_(unsigned char oversampling_p);
   void write_filter_(unsigned char filter);
   uint8_t write_register_(uint8_t reg_add, uint8_t reg_dat);
-  uint8_t read_data_(uint8_t reg_add, unsigned char *Read, uint8_t num);
+  uint8_t read_data_(uint8_t reg_add, unsigned char *read, uint8_t num);
   void calculate_pressure_();
   void calculate_altitude_(float pressure, float temp);
 

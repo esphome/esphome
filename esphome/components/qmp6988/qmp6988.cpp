@@ -1,5 +1,5 @@
-#include <math.h>
 #include "qmp6988.h"
+#include <cmath>
 
 namespace esphome {
 namespace qmp6988 {
@@ -31,22 +31,22 @@ static const uint8_t QMP6988_SLEEP_MODE = 0x00;
 static const uint8_t QMP6988_FORCED_MODE = 0x01;
 static const uint8_t QMP6988_NORMAL_MODE = 0x03;
 
-static const uint8_t QMP6988_CTRLMEAS_REG_MODE__POS = 0;
-static const uint8_t QMP6988_CTRLMEAS_REG_MODE__MSK = 0x03;
-static const uint8_t QMP6988_CTRLMEAS_REG_MODE__LEN = 2;
+static const uint8_t QMP6988_CTRLMEAS_REG_MODE_POS = 0;
+static const uint8_t QMP6988_CTRLMEAS_REG_MODE_MSK = 0x03;
+static const uint8_t QMP6988_CTRLMEAS_REG_MODE_LEN = 2;
 
-static const uint8_t QMP6988_CTRLMEAS_REG_OSRST__POS = 5;
-static const uint8_t QMP6988_CTRLMEAS_REG_OSRST__MSK = 0xE0;
-static const uint8_t QMP6988_CTRLMEAS_REG_OSRST__LEN = 3;
+static const uint8_t QMP6988_CTRLMEAS_REG_OSRST_POS = 5;
+static const uint8_t QMP6988_CTRLMEAS_REG_OSRST_MSK = 0xE0;
+static const uint8_t QMP6988_CTRLMEAS_REG_OSRST_LEN = 3;
 
-static const uint8_t QMP6988_CTRLMEAS_REG_OSRSP__POS = 2;
-static const uint8_t QMP6988_CTRLMEAS_REG_OSRSP__MSK = 0x1C;
-static const uint8_t QMP6988_CTRLMEAS_REG_OSRSP__LEN = 3;
+static const uint8_t QMP6988_CTRLMEAS_REG_OSRSP_POS = 2;
+static const uint8_t QMP6988_CTRLMEAS_REG_OSRSP_MSK = 0x1C;
+static const uint8_t QMP6988_CTRLMEAS_REG_OSRSP_LEN = 3;
 
 static const uint8_t QMP6988_CONFIG_REG = 0xF1; /*IIR filter co-efficient setting Register*/
-static const uint8_t QMP6988_CONFIG_REG_FILTER__POS = 0;
-static const uint8_t QMP6988_CONFIG_REG_FILTER__MSK = 0x07;
-static const uint8_t QMP6988_CONFIG_REG_FILTER__LEN = 3;
+static const uint8_t QMP6988_CONFIG_REG_FILTER_POS = 0;
+static const uint8_t QMP6988_CONFIG_REG_FILTER_MSK = 0x07;
+static const uint8_t QMP6988_CONFIG_REG_FILTER_LEN = 3;
 
 static const uint32_t SUBTRACTOR = 8388608;
 
@@ -102,8 +102,8 @@ uint8_t QMP6988Component::write_register_(uint8_t reg_add, uint8_t reg_dat) {
   return 1;
 }
 
-uint8_t QMP6988Component::read_data_(uint8_t reg_add, unsigned char *Read, uint8_t num) {
-  if (this->read_register(reg_add, Read, num) != i2c::ERROR_OK) {
+uint8_t QMP6988Component::read_data_(uint8_t reg_add, unsigned char *read, uint8_t num) {
+  if (this->read_register(reg_add, read, num) != i2c::ERROR_OK) {
     return 0;
   }
 
@@ -140,38 +140,38 @@ int QMP6988Component::get_calibration_data_() {
   }
 
   qmp6988_data_.qmp6988_cali.COE_a0 =
-      (QMP6988_S32_t) (((a_data_uint8_tr[18] << SHIFT_LEFT_12_POSITION) |
+      (QMP6988_S32_t)(((a_data_uint8_tr[18] << SHIFT_LEFT_12_POSITION) |
                         (a_data_uint8_tr[19] << SHIFT_LEFT_4_POSITION) | (a_data_uint8_tr[24] & 0x0f))
                        << 12);
   qmp6988_data_.qmp6988_cali.COE_a0 = qmp6988_data_.qmp6988_cali.COE_a0 >> 12;
 
   qmp6988_data_.qmp6988_cali.COE_a1 =
-      (QMP6988_S16_t) (((a_data_uint8_tr[20]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[21]);
+      (QMP6988_S16_t)(((a_data_uint8_tr[20]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[21]);
   qmp6988_data_.qmp6988_cali.COE_a2 =
-      (QMP6988_S16_t) (((a_data_uint8_tr[22]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[23]);
+      (QMP6988_S16_t)(((a_data_uint8_tr[22]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[23]);
 
   qmp6988_data_.qmp6988_cali.COE_b00 =
-      (QMP6988_S32_t) (((a_data_uint8_tr[0] << SHIFT_LEFT_12_POSITION) | (a_data_uint8_tr[1] << SHIFT_LEFT_4_POSITION) |
+      (QMP6988_S32_t)(((a_data_uint8_tr[0] << SHIFT_LEFT_12_POSITION) | (a_data_uint8_tr[1] << SHIFT_LEFT_4_POSITION) |
                         ((a_data_uint8_tr[24] & 0xf0) >> SHIFT_RIGHT_4_POSITION))
                        << 12);
   qmp6988_data_.qmp6988_cali.COE_b00 = qmp6988_data_.qmp6988_cali.COE_b00 >> 12;
 
   qmp6988_data_.qmp6988_cali.COE_bt1 =
-      (QMP6988_S16_t) (((a_data_uint8_tr[2]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[3]);
+      (QMP6988_S16_t)(((a_data_uint8_tr[2]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[3]);
   qmp6988_data_.qmp6988_cali.COE_bt2 =
-      (QMP6988_S16_t) (((a_data_uint8_tr[4]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[5]);
+      (QMP6988_S16_t)(((a_data_uint8_tr[4]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[5]);
   qmp6988_data_.qmp6988_cali.COE_bp1 =
-      (QMP6988_S16_t) (((a_data_uint8_tr[6]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[7]);
+      (QMP6988_S16_t)(((a_data_uint8_tr[6]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[7]);
   qmp6988_data_.qmp6988_cali.COE_b11 =
-      (QMP6988_S16_t) (((a_data_uint8_tr[8]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[9]);
+      (QMP6988_S16_t)(((a_data_uint8_tr[8]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[9]);
   qmp6988_data_.qmp6988_cali.COE_bp2 =
-      (QMP6988_S16_t) (((a_data_uint8_tr[10]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[11]);
+      (QMP6988_S16_t)(((a_data_uint8_tr[10]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[11]);
   qmp6988_data_.qmp6988_cali.COE_b12 =
-      (QMP6988_S16_t) (((a_data_uint8_tr[12]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[13]);
+      (QMP6988_S16_t)(((a_data_uint8_tr[12]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[13]);
   qmp6988_data_.qmp6988_cali.COE_b21 =
-      (QMP6988_S16_t) (((a_data_uint8_tr[14]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[15]);
+      (QMP6988_S16_t)(((a_data_uint8_tr[14]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[15]);
   qmp6988_data_.qmp6988_cali.COE_bp3 =
-      (QMP6988_S16_t) (((a_data_uint8_tr[16]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[17]);
+      (QMP6988_S16_t)(((a_data_uint8_tr[16]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[17]);
 
   ESP_LOGV(TAG, "<-----------calibration data-------------->\r\n");
   ESP_LOGV(TAG, "COE_a0[%d] COE_a1[%d] COE_a2[%d] COE_b00[%d]\r\n", qmp6988_data_.qmp6988_cali.COE_a0,
@@ -216,7 +216,7 @@ QMP6988_S16_t QMP6988Component::get_compensated_temperature_(qmp6988_ik_data_t *
   wk2 = ((QMP6988_S64_t) ik->a2 * (QMP6988_S64_t) dt) >> 14;  // 30Q47+24-1=53 (39Q33)
   wk2 = (wk2 * (QMP6988_S64_t) dt) >> 10;                     // 39Q33+24-1=62 (52Q23)
   wk2 = ((wk1 + wk2) / 32767) >> 19;                          // 54,52->55Q23 (20Q04)
-  ret = (QMP6988_S16_t) ((ik->a0 + wk2) >> 4);                // 21Q4 -> 17Q0
+  ret = (QMP6988_S16_t)((ik->a0 + wk2) >> 4);                // 21Q4 -> 17Q0
   return ret;
 }
 
@@ -339,10 +339,10 @@ void QMP6988Component::calculate_altitude_(float pressure, float temp) {
 
 void QMP6988Component::calculate_pressure_() {
   uint8_t err = 0;
-  QMP6988_U32_t P_read, T_read;
-  QMP6988_S32_t P_raw, T_raw;
+  QMP6988_U32_t p_read, t_read;
+  QMP6988_S32_t p_raw, t_raw;
   uint8_t a_data_uint8_tr[6] = {0};
-  QMP6988_S32_t T_int, P_int;
+  QMP6988_S32_t t_int, p_int;
   this->qmp6988_data_.temperature = 0;
   this->qmp6988_data_.pressure = 0;
 
@@ -351,19 +351,19 @@ void QMP6988Component::calculate_pressure_() {
     ESP_LOGE(TAG, "Error reading raw pressure/temp values");
     return;
   }
-  P_read = (QMP6988_U32_t) ((((QMP6988_U32_t) (a_data_uint8_tr[0])) << SHIFT_LEFT_16_POSITION) |
+  p_read = (QMP6988_U32_t)((((QMP6988_U32_t) (a_data_uint8_tr[0])) << SHIFT_LEFT_16_POSITION) |
                             (((QMP6988_U16_t) (a_data_uint8_tr[1])) << SHIFT_LEFT_8_POSITION) | (a_data_uint8_tr[2]));
-  P_raw = (QMP6988_S32_t) (P_read - SUBTRACTOR);
+  p_raw = (QMP6988_S32_t) (p_read - SUBTRACTOR);
 
-  T_read = (QMP6988_U32_t) ((((QMP6988_U32_t) (a_data_uint8_tr[3])) << SHIFT_LEFT_16_POSITION) |
+  t_read = (QMP6988_U32_t)((((QMP6988_U32_t) (a_data_uint8_tr[3])) << SHIFT_LEFT_16_POSITION) |
                             (((QMP6988_U16_t) (a_data_uint8_tr[4])) << SHIFT_LEFT_8_POSITION) | (a_data_uint8_tr[5]));
-  T_raw = (QMP6988_S32_t) (T_read - SUBTRACTOR);
+  t_raw = (QMP6988_S32_t) (t_read - SUBTRACTOR);
 
-  T_int = this->get_compensated_temperature_(&(qmp6988_data_.ik), T_raw);
-  P_int = this->get_compensated_pressure_(&(qmp6988_data_.ik), P_raw, T_int);
+  t_int = this->get_compensated_temperature_(&(qmp6988_data_.ik), t_raw);
+  p_int = this->get_compensated_pressure_(&(qmp6988_data_.ik), p_raw, t_int);
 
-  this->qmp6988_data_.temperature = (float) T_int / 256.0f;
-  this->qmp6988_data_.pressure = (float) P_int / 16.0f;
+  this->qmp6988_data_.temperature = (float) t_int / 256.0f;
+  this->qmp6988_data_.pressure = (float) p_int / 16.0f;
 }
 
 void QMP6988Component::setup() {
@@ -402,14 +402,14 @@ float QMP6988Component::get_setup_priority() const { return setup_priority::DATA
 
 void QMP6988Component::update() {
   this->calculate_pressure_();
-  float pressureHectopascals = this->qmp6988_data_.pressure / 100;
+  float pressurehectopascals = this->qmp6988_data_.pressure / 100;
   float temperature = this->qmp6988_data_.temperature;
 
-  ESP_LOGD(TAG, "Temperature=%.2f°C, Pressure=%.2fhPa", temperature, pressureHectopascals);
+  ESP_LOGD(TAG, "Temperature=%.2f°C, Pressure=%.2fhPa", temperature, pressurehectopascals);
   if (this->temperature_sensor_ != nullptr)
     this->temperature_sensor_->publish_state(temperature);
   if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressureHectopascals);
+    this->pressure_sensor_->publish_state(pressurehectopascals);
 }
 
 }  // namespace qmp6988

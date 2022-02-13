@@ -4,7 +4,6 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
     CONF_PRESSURE,
-    CONF_SIGNAL_STRENGTH,
     CONF_TEMPERATURE,
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_TEMPERATURE,
