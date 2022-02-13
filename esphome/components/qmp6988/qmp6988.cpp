@@ -171,11 +171,11 @@ int QMP6988Component::get_calibration_data_()
   qmp6988_data_.qmp6988_cali.COE_bp3 = (QMP6988_S16_t)(((a_data_uint8_tr[16]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[17]);
 
   ESP_LOGV(TAG, "<-----------calibration data-------------->\r\n");
-  ESP_LOGV(TAG, "COE_a0[%d]	COE_a1[%d]	COE_a2[%d]	COE_b00[%d]\r\n",
+  ESP_LOGV(TAG, "COE_a0[%d] COE_a1[%d] COE_a2[%d] COE_b00[%d]\r\n",
       qmp6988_data_.qmp6988_cali.COE_a0,qmp6988_data_.qmp6988_cali.COE_a1,qmp6988_data_.qmp6988_cali.COE_a2,qmp6988_data_.qmp6988_cali.COE_b00);
-  ESP_LOGV(TAG, "COE_bt1[%d]	COE_bt2[%d]	COE_bp1[%d]	COE_b11[%d]\r\n",
+  ESP_LOGV(TAG, "COE_bt1[%d] COE_bt2[%d] COE_bp1[%d] COE_b11[%d]\r\n",
       qmp6988_data_.qmp6988_cali.COE_bt1,qmp6988_data_.qmp6988_cali.COE_bt2,qmp6988_data_.qmp6988_cali.COE_bp1,qmp6988_data_.qmp6988_cali.COE_b11);
-  ESP_LOGV(TAG, "COE_bp2[%d]	COE_b12[%d]	COE_b21[%d]	COE_bp3[%d]\r\n",
+  ESP_LOGV(TAG, "COE_bp2[%d] COE_b12[%d] COE_b21[%d] COE_bp3[%d]\r\n",
       qmp6988_data_.qmp6988_cali.COE_bp2,qmp6988_data_.qmp6988_cali.COE_b12,qmp6988_data_.qmp6988_cali.COE_b21,qmp6988_data_.qmp6988_cali.COE_bp3);
   ESP_LOGV(TAG, "<-----------calibration data-------------->\r\n");
 
@@ -194,9 +194,9 @@ int QMP6988Component::get_calibration_data_()
   qmp6988_data_.ik.b21 = 13836L * (QMP6988_S64_t)qmp6988_data_.qmp6988_cali.COE_b21 + 79333336L; // 29Q60
   qmp6988_data_.ik.bp3 = 2915L * (QMP6988_S64_t)qmp6988_data_.qmp6988_cali.COE_bp3 + 157155561L; // 28Q65
   ESP_LOGV(TAG, "<----------- int calibration data -------------->\r\n");
-  ESP_LOGV(TAG, "a0[%d]	a1[%d] a2[%d] b00[%d]\r\n",qmp6988_data_.ik.a0,qmp6988_data_.ik.a1,qmp6988_data_.ik.a2,qmp6988_data_.ik.b00);
-  ESP_LOGV(TAG, "bt1[%lld]	bt2[%lld]	bp1[%lld]	b11[%lld]\r\n",qmp6988_data_.ik.bt1,qmp6988_data_.ik.bt2,qmp6988_data_.ik.bp1,qmp6988_data_.ik.b11);
-  ESP_LOGV(TAG, "bp2[%lld]	b12[%lld]	b21[%lld]	bp3[%lld]\r\n",qmp6988_data_.ik.bp2,qmp6988_data_.ik.b12,qmp6988_data_.ik.b21,qmp6988_data_.ik.bp3);
+  ESP_LOGV(TAG, "a0[%d] a1[%d] a2[%d] b00[%d]\r\n",qmp6988_data_.ik.a0,qmp6988_data_.ik.a1,qmp6988_data_.ik.a2,qmp6988_data_.ik.b00);
+  ESP_LOGV(TAG, "bt1[%lld] bt2[%lld] bp1[%lld] b11[%lld]\r\n",qmp6988_data_.ik.bt1,qmp6988_data_.ik.bt2,qmp6988_data_.ik.bp1,qmp6988_data_.ik.b11);
+  ESP_LOGV(TAG, "bp2[%lld] b12[%lld] b21[%lld] bp3[%lld]\r\n",qmp6988_data_.ik.bp2,qmp6988_data_.ik.b12,qmp6988_data_.ik.b21,qmp6988_data_.ik.bp3);
   ESP_LOGV(TAG, "<----------- int calibration data -------------->\r\n");
   return 1;
 }
