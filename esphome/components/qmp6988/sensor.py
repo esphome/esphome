@@ -43,8 +43,6 @@ IIR_FILTER_OPTIONS = {
     "32X": QMP6988IIRFilter.QMP6988_IIR_FILTER_32X,
 }
 
-
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -82,12 +80,10 @@ CONFIG_SCHEMA = (
     .extend(i2c.i2c_device_schema(0x70))
 )
 
-
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-
 
     if CONF_TEMPERATURE in config:
         conf = config[CONF_TEMPERATURE]
@@ -101,4 +97,5 @@ async def to_code(config):
         cg.add(var.set_pressure_sensor(sens))
         cg.add(var.set_pressure_oversampling(conf[CONF_OVERSAMPLING]))
 
-    cg.add(var.set_iir_filter(config[CONF_IIR_FILTER]))   
+    cg.add(var.set_iir_filter(config[CONF_IIR_FILTER]))
+    
