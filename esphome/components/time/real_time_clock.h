@@ -55,7 +55,7 @@ struct ESPTime {
 
   /// Check if all time fields of this ESPTime are in range.
   bool fields_in_range() const {
-    return this->second < 61 && this->minute < 60 && this->hour < 24 && this->day_of_week > 0 &&
+    return this->second < 60 && this->minute < 60 && this->hour < 24 && this->day_of_week > 0 &&
            this->day_of_week < 8 && this->day_of_month > 0 && this->day_of_month < 32 && this->day_of_year > 0 &&
            this->day_of_year < 367 && this->month > 0 && this->month < 13;
   }
