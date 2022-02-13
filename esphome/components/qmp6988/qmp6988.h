@@ -66,7 +66,6 @@ typedef struct _qmp6988_ik_data {
 } qmp6988_ik_data_t;
 
 typedef struct _qmp6988_data {
-  uint8_t slave;
   uint8_t chip_id;
   uint8_t power_mode;
   float temperature;

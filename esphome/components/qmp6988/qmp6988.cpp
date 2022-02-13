@@ -4,51 +4,51 @@
 namespace esphome {
 namespace qmp6988 {
 
-#define QMP6988_CHIP_ID							0x5C
+static const uint8_t QMP6988_CHIP_ID = 0x5C;
 
-#define QMP6988_CHIP_ID_REG					0xD1  /* Chip ID confirmation Register */
-#define QMP6988_RESET_REG						0xE0  /* Device reset register */
-#define QMP6988_DEVICE_STAT_REG			0xF3  /* Device state register */
-#define QMP6988_CTRLMEAS_REG				0xF4  /* Measurement Condition Control Register */
+static const uint8_t QMP6988_CHIP_ID_REG = 0xD1;  /* Chip ID confirmation Register */
+static const uint8_t QMP6988_RESET_REG = 0xE0;  /* Device reset register */
+static const uint8_t QMP6988_DEVICE_STAT_REG = 0xF3;  /* Device state register */
+static const uint8_t QMP6988_CTRLMEAS_REG = 0xF4;  /* Measurement Condition Control Register */
 /* data */
-#define QMP6988_PRESSURE_MSB_REG    0xF7  /* Pressure MSB Register */
-#define QMP6988_TEMPERATURE_MSB_REG 0xFA  /* Temperature MSB Reg */
+static const uint8_t QMP6988_PRESSURE_MSB_REG = 0xF7;  /* Pressure MSB Register */
+static const uint8_t QMP6988_TEMPERATURE_MSB_REG = 0xFA;  /* Temperature MSB Reg */
 
 /* compensation calculation */
-#define QMP6988_CALIBRATION_DATA_START    0xA0 /* QMP6988 compensation coefficients */
-#define QMP6988_CALIBRATION_DATA_LENGTH		25
+static const uint8_t QMP6988_CALIBRATION_DATA_START = 0xA0; /* QMP6988 compensation coefficients */
+static const uint8_t QMP6988_CALIBRATION_DATA_LENGTH = 25;
 
-#define SHIFT_RIGHT_4_POSITION 		4
-#define SHIFT_LEFT_2_POSITION			2
-#define SHIFT_LEFT_4_POSITION			4
-#define SHIFT_LEFT_5_POSITION			5
-#define SHIFT_LEFT_8_POSITION			8
-#define SHIFT_LEFT_12_POSITION		12
-#define SHIFT_LEFT_16_POSITION		16
+static const uint8_t SHIFT_RIGHT_4_POSITION = 4;
+static const uint8_t SHIFT_LEFT_2_POSITION = 2;
+static const uint8_t SHIFT_LEFT_4_POSITION = 4;
+static const uint8_t SHIFT_LEFT_5_POSITION = 5;
+static const uint8_t SHIFT_LEFT_8_POSITION = 8;
+static const uint8_t SHIFT_LEFT_12_POSITION = 12;
+static const uint8_t SHIFT_LEFT_16_POSITION = 16;
 
 /* power mode */
-#define QMP6988_SLEEP_MODE                0x00
-#define QMP6988_FORCED_MODE               0x01
-#define QMP6988_NORMAL_MODE               0x03
+static const uint8_t QMP6988_SLEEP_MODE = 0x00;
+static const uint8_t QMP6988_FORCED_MODE = 0x01;
+static const uint8_t QMP6988_NORMAL_MODE = 0x03;
 
-#define QMP6988_CTRLMEAS_REG_MODE__POS		0
-#define QMP6988_CTRLMEAS_REG_MODE__MSK		0x03
-#define QMP6988_CTRLMEAS_REG_MODE__LEN		2
+static const uint8_t QMP6988_CTRLMEAS_REG_MODE__POS = 0;
+static const uint8_t QMP6988_CTRLMEAS_REG_MODE__MSK = 0x03;
+static const uint8_t QMP6988_CTRLMEAS_REG_MODE__LEN = 2;
 
-#define QMP6988_CTRLMEAS_REG_OSRST__POS     5
-#define QMP6988_CTRLMEAS_REG_OSRST__MSK     0xE0
-#define QMP6988_CTRLMEAS_REG_OSRST__LEN     3
+static const uint8_t QMP6988_CTRLMEAS_REG_OSRST__POS = 5;
+static const uint8_t QMP6988_CTRLMEAS_REG_OSRST__MSK = 0xE0;
+static const uint8_t QMP6988_CTRLMEAS_REG_OSRST__LEN = 3;
 
-#define QMP6988_CTRLMEAS_REG_OSRSP__POS     2
-#define QMP6988_CTRLMEAS_REG_OSRSP__MSK     0x1C
-#define QMP6988_CTRLMEAS_REG_OSRSP__LEN     3
+static const uint8_t QMP6988_CTRLMEAS_REG_OSRSP__POS = 2;
+static const uint8_t QMP6988_CTRLMEAS_REG_OSRSP__MSK = 0x1C;
+static const uint8_t QMP6988_CTRLMEAS_REG_OSRSP__LEN = 3;
 
-#define QMP6988_CONFIG_REG                0xF1  /*IIR filter co-efficient setting Register*/
-#define QMP6988_CONFIG_REG_FILTER__POS		0
-#define QMP6988_CONFIG_REG_FILTER__MSK		0x07
-#define QMP6988_CONFIG_REG_FILTER__LEN		3
+static const uint8_t QMP6988_CONFIG_REG = 0xF1;  /*IIR filter co-efficient setting Register*/
+static const uint8_t QMP6988_CONFIG_REG_FILTER__POS = 0;
+static const uint8_t QMP6988_CONFIG_REG_FILTER__MSK = 0x07;
+static const uint8_t QMP6988_CONFIG_REG_FILTER__LEN = 3;
 
-#define SUBTRACTOR 8388608
+static const uint8_t SUBTRACTOR = 8388608;
 	
 static const char *const TAG = "qmp6988";
 
