@@ -268,7 +268,7 @@ void QMP6988Component::software_reset_() {
   }
   delay(10);
 
-  ret = this->write_register_(QMP6988_RESET_REG, 0x00);
+  this->write_register_(QMP6988_RESET_REG, 0x00);
 }
 
 void QMP6988Component::set_power_mode_(int power_mode) {
