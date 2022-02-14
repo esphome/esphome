@@ -22,7 +22,8 @@ void Canbus::dump_config() {
   }
 }
 
-void Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request, const std::vector<uint8_t> &data) {
+void Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
+                       const std::vector<uint8_t> &data) {
   struct CanFrame can_message;
 
   uint8_t size = static_cast<uint8_t>(data.size());

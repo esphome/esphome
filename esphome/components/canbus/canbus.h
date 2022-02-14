@@ -62,7 +62,8 @@ class Canbus : public Component {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
 
-  void send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request, const std::vector<uint8_t> &data);
+  void send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
+                 const std::vector<uint8_t> &data);
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
@@ -96,7 +97,9 @@ template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public P
 
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
 
-  void set_remote_transmission_request(bool remote_transmission_request) { this->remote_transmission_request_ = remote_transmission_request; }
+  void set_remote_transmission_request(bool remote_transmission_request) {
+    this->remote_transmission_request_ = remote_transmission_request;
+  }
 
   void play(Ts... x) override {
     auto can_id = this->can_id_.has_value() ? *this->can_id_ : this->parent_->can_id_;
