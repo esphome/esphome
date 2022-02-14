@@ -35,7 +35,7 @@ void TTP229LSFComponent::loop() {
   }
   touched = i2c::i2ctohs(touched);
   this->status_clear_warning();
-  touched = reverse_bits_16(touched);
+  touched = reverse_bits(touched);
   for (auto *channel : this->channels_) {
     channel->process(touched);
   }

@@ -10,14 +10,13 @@ namespace modbus_controller {
 class ModbusSwitch : public Component, public switch_::Switch, public SensorItem {
  public:
   ModbusSwitch(ModbusRegisterType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
-               bool force_new_range)
-      : Component(), switch_::Switch() {
+               uint8_t skip_updates, bool force_new_range) {
     this->register_type = register_type;
     this->start_address = start_address;
     this->offset = offset;
     this->bitmask = bitmask;
     this->sensor_value_type = SensorValueType::BIT;
-    this->skip_updates = 0;
+    this->skip_updates = skip_updates;
     this->register_count = 1;
     if (register_type == ModbusRegisterType::HOLDING || register_type == ModbusRegisterType::COIL) {
       this->start_address += offset;

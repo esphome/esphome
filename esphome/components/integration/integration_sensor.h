@@ -63,8 +63,6 @@ class IntegrationSensor : public sensor::Sensor, public Component {
     this->last_save_ = now;
     this->rtc_.save(&result_f);
   }
-  std::string unit_of_measurement() override;
-  int8_t accuracy_decimals() override { return this->sensor_->get_accuracy_decimals() + 2; }
 
   sensor::Sensor *sensor_;
   IntegrationSensorTime time_;

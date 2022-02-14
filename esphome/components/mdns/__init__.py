@@ -1,7 +1,7 @@
 from esphome.const import CONF_ID
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.core import CORE
+from esphome.core import CORE, coroutine_with_priority
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
@@ -29,6 +29,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+@coroutine_with_priority(55.0)
 async def to_code(config):
     if CORE.using_arduino:
         if CORE.is_esp32:

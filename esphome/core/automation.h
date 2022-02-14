@@ -8,6 +8,11 @@
 
 namespace esphome {
 
+// https://stackoverflow.com/questions/7858817/unpacking-a-tuple-to-call-a-matching-function-pointer/7858971#7858971
+template<int...> struct seq {};                                       // NOLINT
+template<int N, int... S> struct gens : gens<N - 1, N - 1, S...> {};  // NOLINT
+template<int... S> struct gens<0, S...> { using type = seq<S...>; };  // NOLINT
+
 #define TEMPLATABLE_VALUE_(type, name) \
  protected: \
   TemplatableValue<type, Ts...> name##_{}; \
@@ -21,10 +26,10 @@ template<typename T, typename... X> class TemplatableValue {
  public:
   TemplatableValue() : type_(EMPTY) {}
 
-  template<typename F, enable_if_t<!is_callable<F, X...>::value, int> = 0>
+  template<typename F, enable_if_t<!is_invocable<F, X...>::value, int> = 0>
   TemplatableValue(F value) : type_(VALUE), value_(value) {}
 
-  template<typename F, enable_if_t<is_callable<F, X...>::value, int> = 0>
+  template<typename F, enable_if_t<is_invocable<F, X...>::value, int> = 0>
   TemplatableValue(F f) : type_(LAMBDA), f_(f) {}
 
   bool has_value() { return this->type_ != EMPTY; }

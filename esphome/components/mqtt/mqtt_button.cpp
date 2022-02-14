@@ -13,7 +13,7 @@ static const char *const TAG = "mqtt.button";
 
 using namespace esphome::button;
 
-MQTTButtonComponent::MQTTButtonComponent(button::Button *button) : MQTTComponent(), button_(button) {}
+MQTTButtonComponent::MQTTButtonComponent(button::Button *button) : button_(button) {}
 
 void MQTTButtonComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
@@ -30,7 +30,7 @@ void MQTTButtonComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, true);
 }
 
-void MQTTButtonComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+void MQTTButtonComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   config.state_topic = false;
   if (!this->button_->get_device_class().empty())
     root[MQTT_DEVICE_CLASS] = this->button_->get_device_class();
