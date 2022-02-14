@@ -2499,6 +2499,16 @@ text_sensor:
           canbus_id: esp32_internal_can
           can_id: 23
           data: [0x10, 0x20, 0x30]
+      - canbus.send:
+          canbus_id: mcp2515_can
+          can_id: 24
+          remote_transmission_request: true
+          data: []
+      - canbus.send:
+          canbus_id: esp32_internal_can
+          can_id: 24
+          remote_transmission_request: true
+          data: []
   - platform: template
     name: Template Text Sensor
     id: ${textname}_text
