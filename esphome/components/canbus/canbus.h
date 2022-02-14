@@ -120,7 +120,8 @@ class CanbusTrigger : public Trigger<std::vector<uint8_t>, uint32_t>, public Com
   friend class Canbus;
 
  public:
-  explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id, const std::uint32_t can_id_mask, const bool use_extended_id)
+  explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id, const std::uint32_t can_id_mask,
+                         const bool use_extended_id)
       : parent_(parent), can_id_(can_id), can_id_mask_(can_id_mask), use_extended_id_(use_extended_id){};
   void setup() override { this->parent_->add_trigger(this); }
 
