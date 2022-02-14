@@ -103,7 +103,7 @@ async def setup_canbus_core_(var, config):
         await automation.build_automation(
             trigger,
             [(cg.std_vector.template(cg.uint8), "x"), (cg.uint32, "can_id")],
-            conf
+            conf,
         )
 
 
@@ -135,7 +135,6 @@ async def canbus_action_to_code(config, action_id, template_arg, args):
     if CONF_CAN_ID in config:
         can_id = await cg.templatable(config[CONF_CAN_ID], args, cg.uint32)
         cg.add(var.set_can_id(can_id))
-
     use_extended_id = await cg.templatable(
         config[CONF_USE_EXTENDED_ID], args, cg.uint32
     )
