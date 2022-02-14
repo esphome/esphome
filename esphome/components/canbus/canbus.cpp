@@ -76,7 +76,7 @@ void Canbus::loop() {
 
     // fire all triggers
     for (auto *trigger : this->triggers_) {
-      if ((trigger->can_id_ == (can_message.can_id & trigger->can_id_mask_)) && 
+      if ((trigger->can_id_ == (can_message.can_id & trigger->can_id_mask_)) &&
           (trigger->use_extended_id_ == can_message.use_extended_id)) {
         trigger->trigger(data, can_message.can_id);
       }

@@ -73,7 +73,9 @@ CANBUS_SCHEMA = cv.Schema(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
                 cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
-                cv.Optional(CONF_CAN_ID_MASK, default=0x1FFFFFFF): cv.int_range(min=0, max=0x1FFFFFFF),
+                cv.Optional(CONF_CAN_ID_MASK, default=0x1FFFFFFF): cv.int_range(
+                    min=0, max=0x1FFFFFFF
+                ),
                 cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
             },
             validate_id,
@@ -94,10 +96,14 @@ async def setup_canbus_core_(var, config):
         can_id = conf[CONF_CAN_ID]
         can_id_mask = conf[CONF_CAN_ID_MASK]
         ext_id = conf[CONF_USE_EXTENDED_ID]
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, can_id, can_id_mask, ext_id)
+        trigger = cg.new_Pvariable(
+            conf[CONF_TRIGGER_ID], var, can_id, can_id_mask, ext_id
+        )
         await cg.register_component(trigger, conf)
         await automation.build_automation(
-            trigger, [(cg.std_vector.template(cg.uint8), "x"), (cg.uint32, "can_id")], conf
+            trigger,
+            [(cg.std_vector.template(cg.uint8), "x"), (cg.uint32, "can_id")],
+            conf
         )
 
 
