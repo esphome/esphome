@@ -769,6 +769,17 @@ sensor:
           value: 12345
     total:
       name: "Pulse Meter Total"
+  - platform: qmp6988
+    temperature:
+      name: "Living Temperature QMP"
+      oversampling: 32x
+    pressure:
+      name: "Living Pressure QMP"
+      oversampling: 2x
+    address: 0x70
+    update_interval: 30s
+    iir_filter: 16x
+    i2c_id: i2c_bus
   - platform: rotary_encoder
     name: "Rotary Encoder"
     id: rotary_encoder1
