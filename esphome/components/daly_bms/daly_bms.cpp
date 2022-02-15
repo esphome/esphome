@@ -33,7 +33,7 @@ void DalyBmsComponent::update() {
   this->request_data_(DALY_REQUEST_MIN_MAX_TEMPERATURE);
   this->request_data_(DALY_REQUEST_MOS);
   this->request_data_(DALY_REQUEST_STATUS);
-//  this->request_data_(DALY_REQUEST_CELL_VOLTAGE);
+  this->request_data_(DALY_REQUEST_CELL_VOLTAGE);
   this->request_data_(DALY_REQUEST_TEMPERATURE);
 
   std::vector<uint8_t> get_battery_level_data;
