@@ -1,10 +1,10 @@
 from ast import Str
-from curses import has_key
 import json
 import argparse
 from lib2to3.pytree import convert
 import os
 from tokenize import Number
+import voluptuous as vol
 
 # NOTE: Cannot import other esphome components globally as a modification in jsonschema
 # is needed before modules are loaded
@@ -40,6 +40,7 @@ core = {}
 
 
 def get_component_names():
+    return ["esphome", "wifi"]
     return ["sensor", "dallas", "binary_sensor", "gpio", "template"]
     from esphome.loader import CORE_COMPONENTS_PATH
 
@@ -69,6 +70,7 @@ def load_components():
 load_components()
 
 # Import esphome after loading components (so schema is tracked)
+import esphome.core as esphome_core
 import esphome.config_validation as cv
 from esphome.loader import get_platform, ComponentManifest
 from esphome.helpers import write_file_if_changed
@@ -218,12 +220,35 @@ def convert_keys(converted, schema, info: ConvertInfo):
             if str(k) in info.platform_schema[S_SCHEMA][S_COMPONENT][S_CONFIG_VARS]:
                 continue
 
+        result = {}
+
         if isinstance(k, cv.GenerateID):
-            converted[S_CONFIG_VARS][str(k)] = {"type": "ID"}
-        elif isinstance(k, cv.Optional) or isinstance(k, cv.Required):
-            converted[S_CONFIG_VARS][str(k)] = {"raw": str(v)}
+            result["key"] = "GeneratedID"
+        elif isinstance(k, cv.Required):
+            result["key"] = "Optional"
+        elif isinstance(k, cv.Optional):
+            result["key"] = "Optional"
+        elif k == cv.string_strict:
+            # this is when the key is any string, e.g. platformio_options
+            converted["type"] = "dict"
+            return
         else:
             raise "Unexpected key type"
+
+        esphome_core.CORE.data = {
+            esphome_core.KEY_CORE: {esphome_core.KEY_TARGET_PLATFORM: "esp8266"}
+        }
+        if str(k.default) != "...":
+            default_value = k.default()
+            if default_value is not None:
+                result["default"] = str(default_value)
+        result["type"] = str(type(v))
+        result["raw"] = str(v)
+
+        if isinstance(v, vol.Schema):
+            result["schema"] = convert_schema(v.schema)
+
+        converted[S_CONFIG_VARS][str(k)] = result
 
 
 build_schema()
