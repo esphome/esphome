@@ -130,11 +130,15 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         if (comma != 6) {
           int rssi = parse_number<int>(message.substr(6, comma - 6)).value_or(0);
 
+#ifdef USE_SENSOR
           if (this->rssi_sensor_ != nullptr) {
             this->rssi_sensor_->publish_state(rssi);
           } else {
             ESP_LOGD(TAG, "RSSI: %d", rssi);
           }
+#else
+          ESP_LOGD(TAG, "RSSI: %d", rssi);
+#endif
         }
       }
       this->expect_ack_ = true;
@@ -282,8 +286,12 @@ void Sim800LComponent::send_sms(const std::string &recipient, const std::string 
 }
 void Sim800LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SIM800L:");
+#ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Registered", this->registered_binary_sensor_);
+#endif
+#ifdef USE_SENSOR
   LOG_SENSOR("  ", "Rssi", this->rssi_sensor_);
+#endif
 }
 void Sim800LComponent::dial(const std::string &recipient) {
   ESP_LOGD(TAG, "Dialing %s", recipient.c_str());
@@ -294,8 +302,10 @@ void Sim800LComponent::dial(const std::string &recipient) {
 
 void Sim800LComponent::set_registered_(bool registered) {
   this->registered_ = registered;
+#ifdef USE_BINARY_SENSOR
   if (this->registered_binary_sensor_ != nullptr)
     this->registered_binary_sensor_->publish_state(registered);
+#endif
 }
 
 }  // namespace sim800l

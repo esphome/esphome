@@ -2,9 +2,14 @@
 
 #include <utility>
 
+#include "esphome/core/defines.h"
 #include "esphome/core/component.h"
+#ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+#ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#endif
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 
@@ -44,10 +49,14 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   void update() override;
   void loop() override;
   void dump_config() override;
-  void set_registered(binary_sensor::BinarySensor *registered_binary_sensor) {
+#ifdef USE_BINARY_SENSOR
+  void set_registered_binary_sensor(binary_sensor::BinarySensor *registered_binary_sensor) {
     registered_binary_sensor_ = registered_binary_sensor;
   }
+#endif
+#ifdef USE_SENSOR
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
+#endif
   void add_on_sms_received_callback(std::function<void(std::string, std::string)> callback) {
     this->callback_.add(std::move(callback));
   }
@@ -59,8 +68,13 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   void parse_cmd_(std::string message);
   void set_registered_(bool registered);
 
+#ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *registered_binary_sensor_{nullptr};
+#endif
+
+#ifdef USE_SENSOR
   sensor::Sensor *rssi_sensor_{nullptr};
+#endif
   std::string sender_;
   char read_buffer_[SIM800L_READ_BUFFER_LENGTH];
   size_t read_pos_{0};
