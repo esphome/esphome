@@ -143,7 +143,7 @@ jobs:
     needs: [deploy-docker]
     steps:
       - env:
-          TOKEN: ${{ secrets.DEPLOY_HASSIO_TOKEN }}
+          TOKEN: ${{ secrets.DEPLOY_HA_ADDON_REPO_TOKEN }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           curl \
