@@ -167,7 +167,7 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
               }
             }
             break;
-          
+
           case DALY_REQUEST_CELL_VOLTAGE:
             switch (it[4]) {
               case 1:
