@@ -27,7 +27,6 @@ void DalyBmsComponent::dump_config() {
 }
 
 void DalyBmsComponent::update() {
-  ESP_LOGD(TAG,"Starting update");
   this->request_data_(DALY_REQUEST_BATTERY_LEVEL);
   this->request_data_(DALY_REQUEST_MIN_MAX_VOLTAGE);
   this->request_data_(DALY_REQUEST_MIN_MAX_TEMPERATURE);
