@@ -18,9 +18,7 @@ void message_to_debug_string(char *message, const unsigned char *buffer, int cou
   }
 }
 
-bool HdmiCec::LineState() {
-  return this->pin_->digital_read();
-}
+bool HdmiCec::LineState() { return this->pin_->digital_read(); }
 
 void HdmiCec::SetLineState(bool state) {
   if (state) {
