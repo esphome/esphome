@@ -170,6 +170,7 @@ class ESP32BLETracker : public Component {
   void set_scan_interval(uint32_t scan_interval) { scan_interval_ = scan_interval; }
   void set_scan_window(uint32_t scan_window) { scan_window_ = scan_window; }
   void set_scan_active(bool scan_active) { scan_active_ = scan_active; }
+  void set_filter_duplicates(bool filter_duplicates) { filter_duplicates_ = filter_duplicates; }
 
   /// Setup the FreeRTOS task and the Bluetooth stack.
   void setup() override;
@@ -221,6 +222,7 @@ class ESP32BLETracker : public Component {
   uint32_t scan_interval_;
   uint32_t scan_window_;
   bool scan_active_;
+  bool filter_duplicates_;
   SemaphoreHandle_t scan_result_lock_;
   SemaphoreHandle_t scan_end_lock_;
   size_t scan_result_index_{0};

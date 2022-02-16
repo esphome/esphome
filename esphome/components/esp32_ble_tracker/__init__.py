@@ -23,6 +23,7 @@ CONF_ESP32_BLE_ID = "esp32_ble_id"
 CONF_SCAN_PARAMETERS = "scan_parameters"
 CONF_WINDOW = "window"
 CONF_ACTIVE = "active"
+CONF_FILTER_DUPLICATES = "filter_duplicates"
 esp32_ble_tracker_ns = cg.esphome_ns.namespace("esp32_ble_tracker")
 ESP32BLETracker = esp32_ble_tracker_ns.class_("ESP32BLETracker", cg.Component)
 ESPBTClient = esp32_ble_tracker_ns.class_("ESPBTClient")
@@ -138,6 +139,7 @@ CONFIG_SCHEMA = cv.Schema(
                         CONF_WINDOW, default="30ms"
                     ): cv.positive_time_period_milliseconds,
                     cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
+                    cv.Optional(CONF_FILTER_DUPLICATES, default=False): cv.boolean,
                 }
             ),
             validate_scan_parameters,
@@ -186,6 +188,7 @@ async def to_code(config):
     cg.add(var.set_scan_interval(int(params[CONF_INTERVAL].total_milliseconds / 0.625)))
     cg.add(var.set_scan_window(int(params[CONF_WINDOW].total_milliseconds / 0.625)))
     cg.add(var.set_scan_active(params[CONF_ACTIVE]))
+    cg.add(var.set_filter_duplicates(params[CONF_FILTER_DUPLICATES]))
     for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if CONF_MAC_ADDRESS in conf:
