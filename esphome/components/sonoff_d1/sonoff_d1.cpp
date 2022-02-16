@@ -37,7 +37,7 @@
  *  M       01 04                                        - Version?
  *  M             00 0A                                  - Following data length (10 bytes)
  *  O                   01                               - Power state (00 = off, 01 = on, FF = ignore)
- *  O                      64                            - Dimmer percentage (01 to 64 = 1 to 100%)
+ *  O                      64                            - Dimmer percentage (01 to 64 = 1 to 100%, 0 - ignore)
  *  O                         FF FF FF FF FF FF FF FF    - Not used
  *  M                                                 6C - CRC over bytes 2 to F (Addition)
 \*********************************************************************************************/
@@ -169,7 +169,7 @@ bool SonoffD1Output::write_command_(uint8_t *cmd, const size_t len, bool needs_a
   }
   this->populate_checksum_(cmd, len);
 
-  uint32_t retries = 100;
+  uint32_t retries = 5;
   do {
     ESP_LOGV(TAG, "[%04d] Writing to the dimmer:", this->write_count_);
     ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty(cmd, len).c_str());
@@ -197,7 +197,7 @@ bool SonoffD1Output::control_dimmer_(const bool binary, const uint8_t brightness
 
   cmd[6] = binary;
   cmd[7] = this->remap_(brightness, 0, 100, this->min_value_, this->max_value_);
-  ESP_LOGI(TAG, "[%04d] Setting dimmer state to %s, raw brightness=%d", this->write_count_, binary ? "ON" : "OFF",
+  ESP_LOGI(TAG, "[%04d] Setting dimmer state to %s, raw brightness=%d", this->write_count_, ONOFF(binary),
            cmd[7]);
   return this->write_command_(cmd, sizeof(cmd));
 }
@@ -207,35 +207,42 @@ void SonoffD1Output::process_command_(const uint8_t *cmd, const size_t len) {
     uint8_t ack_buffer[7] = {0xAA, 0x55, cmd[2], cmd[3], 0x00, 0x00, 0x00};
     // Ack a command from RF to ESP to prevent repeating commands
     this->write_command_(ack_buffer, sizeof(ack_buffer), false);
-
-    ESP_LOGI(TAG, "[%04d] RF sets dimmer state to %s, raw brightness=%d", this->write_count_, cmd[6] ? "ON" : "OFF",
+    ESP_LOGI(TAG, "[%04d] RF sets dimmer state to %s, raw brightness=%d", this->write_count_, ONOFF(cmd[6]),
              cmd[7]);
     const uint8_t new_brightness = this->remap_(cmd[7], this->min_value_, this->max_value_, 0, 100);
-    if (!this->use_rm433_remote_) {
-      // Got light change state command.
-      // If RF remote is not used, this is a known ghost RF command
-      // Override it with previous settings
-      ESP_LOGI(TAG, "[%04d] Ghost command from RF detected, reverting", this->write_count_);
-      if (cmd[6] != this->last_binary_ || new_brightness != this->last_brightness_) {
-        this->control_dimmer_(this->last_binary_, this->last_brightness_);
-      }
-    } else {
-      this->last_binary_ = cmd[6];
-      this->last_brightness_ = new_brightness;
-      float brightness = 0.0f;
-      if (this->last_binary_) {
-        brightness = (float) this->last_brightness_ / 100.0f;
-      }
-      this->publish_state_(brightness);
+    const bool new_state = cmd[6];
+
+    // Got light change state command. In all cases we revert the command immediately
+    // since we want to rely on ESP controlled transitions
+    if (new_state != this->last_binary_ || new_brightness != this->last_brightness_) {
+      this->control_dimmer_(this->last_binary_, this->last_brightness_);
     }
+
+    if (!this->use_rm433_remote_) {
+      // If RF remote is not used, this is a known ghost RF command
+      ESP_LOGI(TAG, "[%04d] Ghost command from RF detected, reverted", this->write_count_);
+    } else {
+      // If remote is used, initiate transition to the new state
+      this->publish_state_(new_state, new_brightness);
+    }
+  } else {
+    ESP_LOGW(TAG, "[%04d] Unexpected command received", this->write_count_);
   }
 }
 
-void SonoffD1Output::publish_state_(const float brightness) {
+void SonoffD1Output::publish_state_(const bool is_on, const uint8_t brightness) {
   if (light_state_) {
-    ESP_LOGV(TAG, "Publishing new brightness %f", brightness);
+    ESP_LOGV(TAG, "Publishing new state: %s, brightness=%d", ONOFF(is_on), brightness);
     auto call = light_state_->make_call();
-    call.set_brightness(brightness);
+    call.set_state(is_on);
+    if(brightness != 0) {
+      // Brightness equal to 0 has a special meaning.
+      // D1 uses 0 as "previously set brightness".
+      // Usually zero brightness comes inside light ON command triggered by RF remote.
+      // Since we unconditionally override commands coming from RF remote in process_command_(),
+      // here we mimic the original behavior but with LightCall functionality
+      call.set_brightness((float)brightness / 100.0f);
+    }
     call.perform();
   }
 }
@@ -271,16 +278,15 @@ void SonoffD1Output::write_state(light::LightState *state) {
     } else {
       // Return to original value if failed to write to the dimmer
       // TODO: Test me, can be tested if high-voltage part is not connected
-      brightness = (float) this->last_brightness_ / 100.0f;
-      ESP_LOGW(TAG, "Returning state to the previous value %f", brightness);
-      this->publish_state_(brightness);
+      ESP_LOGW(TAG, "Failed to update the dimmer, publishing the previous state");
+      this->publish_state_(this->last_binary_, this->last_brightness_);
     }
   }
 }
 
 void SonoffD1Output::dump_config() {
   ESP_LOGCONFIG(TAG, "Sonoff D1 Dimmer: '%s'", this->light_state_ ? this->light_state_->get_name().c_str() : "");
-  ESP_LOGCONFIG(TAG, "  Use RM433 Remote: %s", this->use_rm433_remote_ ? "ON" : "OFF");
+  ESP_LOGCONFIG(TAG, "  Use RM433 Remote: %s", ONOFF(this->use_rm433_remote_));
   ESP_LOGCONFIG(TAG, "  Minimal brightness: %d", this->min_value_);
   ESP_LOGCONFIG(TAG, "  Maximal brightness: %d", this->max_value_);
 }

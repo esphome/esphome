@@ -79,7 +79,7 @@ class SonoffD1Output : public light::LightOutput, public uart::UARTDevice, publi
   bool write_command_(uint8_t *cmd, size_t len, bool needs_ack = true);
   bool control_dimmer_(bool binary, uint8_t brightness);
   void process_command_(const uint8_t *cmd, size_t len);
-  void publish_state_(float brightness);
+  void publish_state_(bool is_on, uint8_t brightness);
 };
 
 }  // namespace sonoff_d1
