@@ -96,8 +96,7 @@ async def hdmi_cec_action_to_code(config, action_id, template_arg, args):
 
 
 async def to_code(config):
-    rhs = HdmiCecComponent.new()
-    var = cg.Pvariable(config[CONF_ID], rhs)
+    var = cg.new_Pvariable(config[CONF_ID])
 
     if not CORE.has_id(config[CONF_ID]):
         var = cg.new_Pvariable(config[CONF_ID], var)
