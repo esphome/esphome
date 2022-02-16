@@ -11,7 +11,9 @@ DEPENDENCIES = ["debug"]
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_DEBUG_ID): cv.use_id(DebugComponent),
-        cv.Optional(CONF_DEVICE): text_sensor.text_sensor_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC),
+        cv.Optional(CONF_DEVICE): text_sensor.text_sensor_schema(
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        ),
     }
 )
 

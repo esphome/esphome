@@ -39,7 +39,7 @@ CONFIG_SCHEMA = {
             icon=ICON_COUNTER,
             accuracy_decimals=1,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-        )
+        ),
     ),
     cv.Optional(CONF_LOOP_TIME): sensor.sensor_schema(
         unit_of_measurement=UNIT_MILLISECOND,
