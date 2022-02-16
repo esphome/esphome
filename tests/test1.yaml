@@ -1077,7 +1077,21 @@ sensor:
     cs_pin:
       mcp23xxx: mcp23017_hub
       number: 14
-
+  - platform: max9611
+    i2c_id: i2c_bus
+    shunt_resistance: 0.2 ohm
+    gain: '1X'
+    voltage:
+      name: Max9611 Voltage
+    current:
+      name: Max9611 Current
+    power:
+      name: Max9611 Watts
+    temperature:
+      name: Max9611 Temp
+    update_interval: 1s
+  
+  
 esp32_touch:
   setup_mode: False
   iir_filter: 10ms
@@ -2037,6 +2051,10 @@ switch:
   - platform: template
     id: ble1_status
     optimistic: true
+  - platform: template
+    id: outlet_switch
+    optimistic: true
+    device_class: outlet
 
 fan:
   - platform: binary
@@ -2599,3 +2617,28 @@ hdmi_cec:
 qr_code:
   - id: homepage_qr
     value: https://esphome.io/index.html
+
+lock:
+  - platform: template
+    id: test_lock1
+    name: "Template Switch"
+    lambda: |-
+      if (id(binary_sensor1).state) {
+        return LOCK_STATE_LOCKED;
+      }else{
+        return LOCK_STATE_UNLOCKED;
+      }
+    optimistic: true
+    assumed_state: no
+    on_unlock:
+      - lock.template.publish:
+          id: test_lock1
+          state: !lambda "return LOCK_STATE_UNLOCKED;"
+    on_lock:
+      - lock.template.publish:
+          id: test_lock1
+          state: !lambda "return LOCK_STATE_LOCKED;"
+  - platform: output
+    name: "Generic Output Lock"
+    id: test_lock2
+    output: pca_6
