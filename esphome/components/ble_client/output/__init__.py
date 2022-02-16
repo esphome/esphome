@@ -1,13 +1,14 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import output, ble_client, esp32_ble_tracker
+from esphome.components import ble_client, esp32_ble_tracker, output
 from esphome.const import CONF_ID, CONF_SERVICE_UUID
-from .. import ble_client_ns
 
+from .. import ble_client_ns
 
 DEPENDENCIES = ["ble_client"]
 
 CONF_CHARACTERISTIC_UUID = "characteristic_uuid"
+CONF_REQUIRE_RESPONSE = "require_response"
 
 BLEBinaryOutput = ble_client_ns.class_(
     "BLEBinaryOutput", output.BinaryOutput, ble_client.BLEClientNode, cg.Component
@@ -19,6 +20,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_ID): cv.declare_id(BLEBinaryOutput),
             cv.Required(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
             cv.Required(CONF_CHARACTERISTIC_UUID): esp32_ble_tracker.bt_uuid,
+            cv.Optional(CONF_REQUIRE_RESPONSE, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -61,7 +63,7 @@ def to_code(config):
             config[CONF_CHARACTERISTIC_UUID]
         )
         cg.add(var.set_char_uuid128(uuid128))
-
+    cg.add(var.set_require_response(config[CONF_REQUIRE_RESPONSE]))
     yield output.register_output(var, config)
     yield ble_client.register_ble_node(var, config)
     yield cg.register_component(var, config)

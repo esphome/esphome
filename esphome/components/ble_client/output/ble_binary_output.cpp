@@ -32,7 +32,7 @@ void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
         break;
       }
 
-      auto chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
+      auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
       if (chr == nullptr) {
         ESP_LOGW(TAG, "[%s] Characteristic not found.", this->char_uuid_.to_string().c_str());
         break;
@@ -54,7 +54,7 @@ void BLEBinaryOutput::write_state(bool state) {
     return;
   }
 
-  auto chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
+  auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
   if (chr == nullptr) {
     ESP_LOGW(TAG, "[%s] Characteristic not found.  State update can not be written.",
              this->char_uuid_.to_string().c_str());
@@ -63,7 +63,11 @@ void BLEBinaryOutput::write_state(bool state) {
 
   uint8_t state_as_uint = (uint8_t) state;
   ESP_LOGV(TAG, "[%s] Write State: %d", this->char_uuid_.to_string().c_str(), state_as_uint);
-  chr->write_value(&state_as_uint, sizeof(state_as_uint));
+  if (this->require_response_) {
+    chr->write_value(&state_as_uint, sizeof(state_as_uint), ESP_GATT_WRITE_TYPE_RSP);
+  } else {
+    chr->write_value(&state_as_uint, sizeof(state_as_uint), ESP_GATT_WRITE_TYPE_NO_RSP);
+  }
 }
 
 }  // namespace ble_client

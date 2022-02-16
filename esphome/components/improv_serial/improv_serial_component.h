@@ -32,7 +32,7 @@ class ImprovSerialComponent : public Component {
   void loop() override;
   void dump_config() override;
 
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
  protected:
   bool parse_improv_serial_byte_(uint8_t byte);

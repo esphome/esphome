@@ -43,7 +43,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       this->handle = 0;
-      auto chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
+      auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
       if (chr == nullptr) {
         this->status_set_warning();
         this->publish_state(NAN);
@@ -53,7 +53,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       }
       this->handle = chr->handle;
       if (this->descr_uuid_.get_uuid().len > 0) {
-        auto descr = chr->get_descriptor(this->descr_uuid_);
+        auto *descr = chr->get_descriptor(this->descr_uuid_);
         if (descr == nullptr) {
           this->status_set_warning();
           this->publish_state(NAN);

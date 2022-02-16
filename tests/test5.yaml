@@ -14,8 +14,8 @@ esp32:
 
 wifi:
   networks:
-    - ssid: 'MySSID'
-      password: 'password1'
+    - ssid: "MySSID"
+      password: "password1"
       manual_ip:
         static_ip: 192.168.1.23
         gateway: 192.168.1.1
@@ -39,7 +39,6 @@ uart:
 
 i2c:
 
-
 modbus:
   uart_id: uart1
   flow_control_pin: 5
@@ -50,12 +49,19 @@ modbus_controller:
     address: 0x2
     modbus_id: mod_bus1
 
-
 binary_sensor:
   - platform: gpio
     pin: GPIO0
     id: io0_button
     icon: mdi:gesture-tap-button
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_test
+    id: modbus_binsensortest
+    register_type: read
+    address: 0x3200
+    bitmask: 0x80 #(bit 8)
+    lambda: !lambda "{ return x ;}"
 
 tlc5947:
   data_pin: GPIO12
@@ -74,6 +80,14 @@ output:
 
   - platform: mcp47a1
     id: output_mcp47a1
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_test
+    id: modbus_output_test
+    lambda: |-
+      return x * 1.0 ;
+    address: 0x9001
+    value_type: U_WORD
 
 demo:
 
@@ -104,8 +118,19 @@ number:
     max_value: 100
     min_value: 0
     step: 5
-    unit_of_measurement: '%'
+    unit_of_measurement: "%"
     mode: slider
+
+  - id: modbus_numbertest
+    platform: modbus_controller
+    modbus_controller_id: modbus_controller_test
+    name: "ModbusNumber"
+    address: 0x9002
+    value_type: U_WORD
+    lambda: "return  x * 1.0; "
+    write_lambda: |-
+      return x * 1.0 ;
+    multiply: 1.0
 
 select:
   - platform: template
@@ -170,8 +195,7 @@ sensor:
       name: "SelecEM2M Maximum Demand Apparent Power"
       disabled_by_default: true
 
-  - id: battery_voltage
-    name: "Battery voltage2"
+  - id: modbus_sensortest
     platform: modbus_controller
     modbus_controller_id: modbus_controller_test
     address: 0x331A
@@ -199,3 +223,11 @@ script:
           count: 5
           then:
             - logger.log: "looping!"
+
+switch:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_test
+    id: modbus_switch_test
+    register_type: coil
+    address: 2
+    bitmask: 1
