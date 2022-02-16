@@ -137,11 +137,11 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     this->swing_mode =
         this->swing_mode == climate::CLIMATE_SWING_OFF ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
   } else {
-    if ((remote_state & COMMAND_MASK) == COMMAND_AUTO)
+    if ((remote_state & COMMAND_MASK) == COMMAND_AUTO) {
       this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-    else if ((remote_state & COMMAND_MASK) == COMMAND_DRY_FAN)
+    } else if ((remote_state & COMMAND_MASK) == COMMAND_DRY_FAN) {
       this->mode = climate::CLIMATE_MODE_DRY;
-    else if ((remote_state & COMMAND_MASK) == COMMAND_HEAT) {
+    } else if ((remote_state & COMMAND_MASK) == COMMAND_HEAT) {
       this->mode = climate::CLIMATE_MODE_HEAT;
     } else {
       this->mode = climate::CLIMATE_MODE_COOL;
@@ -156,14 +156,15 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
     } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT ||
                this->mode == climate::CLIMATE_MODE_DRY) {
-      if ((remote_state & FAN_MASK) == FAN_AUTO)
+      if ((remote_state & FAN_MASK) == FAN_AUTO) {
         this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      else if ((remote_state & FAN_MASK) == FAN_MIN)
+      } else if ((remote_state & FAN_MASK) == FAN_MIN) {
         this->fan_mode = climate::CLIMATE_FAN_LOW;
-      else if ((remote_state & FAN_MASK) == FAN_MED)
+      } else if ((remote_state & FAN_MASK) == FAN_MED) {
         this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      else if ((remote_state & FAN_MASK) == FAN_MAX)
+      } else if ((remote_state & FAN_MASK) == FAN_MAX) {
         this->fan_mode = climate::CLIMATE_FAN_HIGH;
+      }
     }
   }
   this->publish_state();
@@ -175,7 +176,7 @@ void LgIrClimate::transmit_(uint32_t value) {
   ESP_LOGD(TAG, "Sending climate_lg_ir code: 0x%02X", value);
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   data->set_carrier_frequency(38000);
   data->reserve(2 + BITS * 2u);

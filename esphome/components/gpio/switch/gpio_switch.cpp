@@ -33,16 +33,18 @@ void GPIOSwitch::setup() {
   }
 
   // write state before setup
-  if (initial_state)
+  if (initial_state) {
     this->turn_on();
-  else
+  } else {
     this->turn_off();
+  }
   this->pin_->setup();
   // write after setup again for other IOs
-  if (initial_state)
+  if (initial_state) {
     this->turn_on();
-  else
+  } else {
     this->turn_off();
+  }
 }
 void GPIOSwitch::dump_config() {
   LOG_SWITCH("", "GPIO Switch", this);

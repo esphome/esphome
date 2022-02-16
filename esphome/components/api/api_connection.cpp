@@ -255,7 +255,7 @@ void APIConnection::cover_command(const CoverCommandRequest &msg) {
 // Shut-up about usage of deprecated speed_level_to_enum/speed_enum_to_level functions for a bit.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-bool APIConnection::send_fan_state(fan::FanState *fan) {
+bool APIConnection::send_fan_state(fan::Fan *fan) {
   if (!this->state_subscription_)
     return false;
 
@@ -273,7 +273,7 @@ bool APIConnection::send_fan_state(fan::FanState *fan) {
     resp.direction = static_cast<enums::FanDirection>(fan->direction);
   return this->send_fan_state_response(resp);
 }
-bool APIConnection::send_fan_info(fan::FanState *fan) {
+bool APIConnection::send_fan_info(fan::Fan *fan) {
   auto traits = fan->get_traits();
   ListEntitiesFanResponse msg;
   msg.key = fan->get_object_id_hash();
@@ -290,7 +290,7 @@ bool APIConnection::send_fan_info(fan::FanState *fan) {
   return this->send_list_entities_fan_response(msg);
 }
 void APIConnection::fan_command(const FanCommandRequest &msg) {
-  fan::FanState *fan = App.get_fan_by_key(msg.key);
+  fan::Fan *fan = App.get_fan_by_key(msg.key);
   if (fan == nullptr)
     return;
 
@@ -462,6 +462,7 @@ bool APIConnection::send_switch_info(switch_::Switch *a_switch) {
   msg.assumed_state = a_switch->assumed_state();
   msg.disabled_by_default = a_switch->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(a_switch->get_entity_category());
+  msg.device_class = a_switch->get_device_class();
   return this->send_list_entities_switch_response(msg);
 }
 void APIConnection::switch_command(const SwitchCommandRequest &msg) {
@@ -469,10 +470,11 @@ void APIConnection::switch_command(const SwitchCommandRequest &msg) {
   if (a_switch == nullptr)
     return;
 
-  if (msg.state)
+  if (msg.state) {
     a_switch->turn_on();
-  else
+  } else {
     a_switch->turn_off();
+  }
 }
 #endif
 
@@ -699,6 +701,49 @@ void APIConnection::button_command(const ButtonCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_LOCK
+bool APIConnection::send_lock_state(lock::Lock *a_lock, lock::LockState state) {
+  if (!this->state_subscription_)
+    return false;
+
+  LockStateResponse resp{};
+  resp.key = a_lock->get_object_id_hash();
+  resp.state = static_cast<enums::LockState>(state);
+  return this->send_lock_state_response(resp);
+}
+bool APIConnection::send_lock_info(lock::Lock *a_lock) {
+  ListEntitiesLockResponse msg;
+  msg.key = a_lock->get_object_id_hash();
+  msg.object_id = a_lock->get_object_id();
+  msg.name = a_lock->get_name();
+  msg.unique_id = get_default_unique_id("lock", a_lock);
+  msg.icon = a_lock->get_icon();
+  msg.assumed_state = a_lock->traits.get_assumed_state();
+  msg.disabled_by_default = a_lock->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(a_lock->get_entity_category());
+  msg.supports_open = a_lock->traits.get_supports_open();
+  msg.requires_code = a_lock->traits.get_requires_code();
+  return this->send_list_entities_lock_response(msg);
+}
+void APIConnection::lock_command(const LockCommandRequest &msg) {
+  lock::Lock *a_lock = App.get_lock_by_key(msg.key);
+  if (a_lock == nullptr)
+    return;
+
+  switch (msg.command) {
+    case enums::LOCK_UNLOCK:
+      a_lock->unlock();
+      break;
+    case enums::LOCK_LOCK:
+      a_lock->lock();
+      break;
+    case enums::LOCK_OPEN:
+      a_lock->open();
+      break;
+  }
+}
+#endif
+
 #ifdef USE_ESP32_CAMERA
 void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
   if (!this->state_subscription_)
@@ -766,6 +811,8 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
   resp.api_version_major = 1;
   resp.api_version_minor = 6;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
+  resp.name = App.get_name();
+
   this->connection_state_ = ConnectionState::CONNECTED;
   return resp;
 }
@@ -803,15 +850,16 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.project_version = ESPHOME_PROJECT_VERSION;
 #endif
 #ifdef USE_WEBSERVER
-  resp.webserver_port = WEBSERVER_PORT;
+  resp.webserver_port = USE_WEBSERVER_PORT;
 #endif
   return resp;
 }
 void APIConnection::on_home_assistant_state_response(const HomeAssistantStateResponse &msg) {
-  for (auto &it : this->parent_->get_state_subs())
+  for (auto &it : this->parent_->get_state_subs()) {
     if (it.entity_id == msg.entity_id && it.attribute.value() == msg.attribute) {
       it.callback(msg.state);
     }
+  }
 }
 void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   bool found = false;

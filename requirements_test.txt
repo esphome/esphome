@@ -1,12 +1,12 @@
 pylint==2.12.2
 flake8==4.0.1
-black==21.12b0
+black==22.1.0
 pre-commit
 
 # Unit tests
-pytest==6.2.5
+pytest==7.0.0
 pytest-cov==3.0.0
-pytest-mock==3.6.1
-pytest-asyncio==0.16.0
+pytest-mock==3.7.0
+pytest-asyncio==0.18.0
 asyncmock==0.4.2
 hypothesis==5.49.0

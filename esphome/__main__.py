@@ -661,7 +661,7 @@ def parse_args(argv):
         "--open-ui", help="Open the dashboard UI in a browser.", action="store_true"
     )
     parser_dashboard.add_argument(
-        "--hassio", help=argparse.SUPPRESS, action="store_true"
+        "--ha-addon", help=argparse.SUPPRESS, action="store_true"
     )
     parser_dashboard.add_argument(
         "--socket", help="Make the dashboard serve under a unix socket", type=str

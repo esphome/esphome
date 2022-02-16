@@ -46,5 +46,12 @@ void Switch::set_inverted(bool inverted) { this->inverted_ = inverted; }
 uint32_t Switch::hash_base() { return 3129890955UL; }
 bool Switch::is_inverted() const { return this->inverted_; }
 
+std::string Switch::get_device_class() {
+  if (this->device_class_.has_value())
+    return *this->device_class_;
+  return "";
+}
+void Switch::set_device_class(const std::string &device_class) { this->device_class_ = device_class; }
+
 }  // namespace switch_
 }  // namespace esphome
