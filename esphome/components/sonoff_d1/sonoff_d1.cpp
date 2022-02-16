@@ -197,8 +197,7 @@ bool SonoffD1Output::control_dimmer_(const bool binary, const uint8_t brightness
 
   cmd[6] = binary;
   cmd[7] = this->remap_(brightness, 0, 100, this->min_value_, this->max_value_);
-  ESP_LOGI(TAG, "[%04d] Setting dimmer state to %s, raw brightness=%d", this->write_count_, ONOFF(binary),
-           cmd[7]);
+  ESP_LOGI(TAG, "[%04d] Setting dimmer state to %s, raw brightness=%d", this->write_count_, ONOFF(binary), cmd[7]);
   return this->write_command_(cmd, sizeof(cmd));
 }
 
@@ -207,8 +206,7 @@ void SonoffD1Output::process_command_(const uint8_t *cmd, const size_t len) {
     uint8_t ack_buffer[7] = {0xAA, 0x55, cmd[2], cmd[3], 0x00, 0x00, 0x00};
     // Ack a command from RF to ESP to prevent repeating commands
     this->write_command_(ack_buffer, sizeof(ack_buffer), false);
-    ESP_LOGI(TAG, "[%04d] RF sets dimmer state to %s, raw brightness=%d", this->write_count_, ONOFF(cmd[6]),
-             cmd[7]);
+    ESP_LOGI(TAG, "[%04d] RF sets dimmer state to %s, raw brightness=%d", this->write_count_, ONOFF(cmd[6]), cmd[7]);
     const uint8_t new_brightness = this->remap_(cmd[7], this->min_value_, this->max_value_, 0, 100);
     const bool new_state = cmd[6];
 
@@ -235,13 +233,13 @@ void SonoffD1Output::publish_state_(const bool is_on, const uint8_t brightness) 
     ESP_LOGV(TAG, "Publishing new state: %s, brightness=%d", ONOFF(is_on), brightness);
     auto call = light_state_->make_call();
     call.set_state(is_on);
-    if(brightness != 0) {
+    if (brightness != 0) {
       // Brightness equal to 0 has a special meaning.
       // D1 uses 0 as "previously set brightness".
       // Usually zero brightness comes inside light ON command triggered by RF remote.
       // Since we unconditionally override commands coming from RF remote in process_command_(),
       // here we mimic the original behavior but with LightCall functionality
-      call.set_brightness((float)brightness / 100.0f);
+      call.set_brightness((float) brightness / 100.0f);
     }
     call.perform();
   }
