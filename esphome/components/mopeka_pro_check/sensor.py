@@ -27,6 +27,7 @@ TANK_TYPE_CUSTOM = "CUSTOM"
 
 UNIT_MILLIMETER = "mm"
 
+
 def small_distance(value):
     """small_distance is stored in mm"""
     meters = cv.distance(value)
