@@ -13,7 +13,7 @@ CONF_PIPSOLAR_ID = "pipsolar_id"
 pipsolar_ns = cg.esphome_ns.namespace("pipsolar")
 PipsolarComponent = pipsolar_ns.class_("Pipsolar", cg.Component)
 
-PIPSOLAR_COMPONENT_SCHEMA = cv.COMPONENT_SCHEMA.extend(
+PIPSOLAR_COMPONENT_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_PIPSOLAR_ID): cv.use_id(PipsolarComponent),
     }

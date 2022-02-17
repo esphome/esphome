@@ -68,9 +68,10 @@ void EKTF2232Touchscreen::loop() {
 
   uint8_t raw[8];
   this->read(raw, 8);
-  for (int i = 0; i < 8; i++)
+  for (int i = 0; i < 8; i++) {
     if (raw[7] & (1 << i))
       touch_count++;
+  }
 
   if (touch_count == 0) {
     for (auto *listener : this->touch_listeners_)
@@ -110,10 +111,7 @@ void EKTF2232Touchscreen::loop() {
         break;
     }
 
-    ESP_LOGV(TAG, "Touch %d: (x=%d, y=%d)", i, tp.x, tp.y);
-    this->touch_trigger_->trigger(tp);
-    for (auto *listener : this->touch_listeners_)
-      listener->touch(tp);
+    this->defer([this, tp]() { this->send_touch_(tp); });
   }
 }
 
