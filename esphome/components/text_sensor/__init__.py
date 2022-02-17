@@ -138,6 +138,7 @@ _UNDEF = object()
 
 def text_sensor_schema(
     klass: MockObjClass = _UNDEF,
+    *,
     icon: str = _UNDEF,
     entity_category: str = _UNDEF,
 ) -> cv.Schema:

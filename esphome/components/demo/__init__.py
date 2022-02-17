@@ -372,7 +372,7 @@ CONFIG_SCHEMA = cv.Schema(
                 },
             ],
         ): [
-            text_sensor.text_sensor_schema(klass=DemoTextSensor).extend(
+            text_sensor.text_sensor_schema(DemoTextSensor).extend(
                 cv.polling_component_schema("60s")
             )
         ],
