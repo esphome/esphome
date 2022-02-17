@@ -99,11 +99,11 @@ bool MAX44009Sensor::set_continuous_mode() {
   if (this->error_ == MAX44009_OK) {
     config |= MAX44009_CFG_CONTINUOUS;
     this->write_(MAX44009_REGISTER_CONFIGURATION, config);
-    this->status_clear_error();
+    this->status_clear_warning();
     ESP_LOGV(TAG, "set to continuous mode");
     return true;
   } else {
-    this->status_set_error();
+    this->status_set_warning();
     return false;
   }
 }
@@ -113,11 +113,11 @@ bool MAX44009Sensor::set_low_power_mode() {
   if (this->error_ == MAX44009_OK) {
     config &= ~MAX44009_CFG_CONTINUOUS;
     this->write_(MAX44009_REGISTER_CONFIGURATION, config);
-    this->status_clear_error();
+    this->status_clear_warning();
     ESP_LOGV(TAG, "set to low power mode");
     return true;
   } else {
-    this->status_set_error();
+    this->status_set_warning();
     return false;
   }
 }
