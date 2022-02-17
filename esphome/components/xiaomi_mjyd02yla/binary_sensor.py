@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import sensor, binary_sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_MAC_ADDRESS,
-    CONF_ID,
     CONF_BINDKEY,
     CONF_DEVICE_CLASS,
     CONF_LIGHT,
@@ -75,10 +74,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
     await esp32_ble_tracker.register_ble_device(var, config)
-    await binary_sensor.register_binary_sensor(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_bindkey(config[CONF_BINDKEY]))

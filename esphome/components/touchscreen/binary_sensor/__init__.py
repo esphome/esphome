@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 
 from esphome.components import binary_sensor
-from esphome.const import CONF_ID
 
 from .. import touchscreen_ns, CONF_TOUCHSCREEN_ID, Touchscreen, TouchListener
 
@@ -49,8 +48,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await binary_sensor.register_binary_sensor(var, config)
+    var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_TOUCHSCREEN_ID])
 

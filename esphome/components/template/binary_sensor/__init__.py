@@ -18,9 +18,8 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
-    await binary_sensor.register_binary_sensor(var, config)
 
     if CONF_LAMBDA in config:
         template_ = await cg.process_lambda(

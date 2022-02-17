@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_ID
+
 from . import (
     xpt2046_ns,
     XPT2046Component,
@@ -42,8 +42,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await binary_sensor.register_binary_sensor(var, config)
+    var = await binary_sensor.new_binary_sensor(config)
     hub = await cg.get_variable(config[CONF_XPT2046_ID])
     cg.add(
         var.set_area(
