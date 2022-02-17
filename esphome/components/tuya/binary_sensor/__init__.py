@@ -12,13 +12,16 @@ TuyaBinarySensor = tuya_ns.class_(
     "TuyaBinarySensor", binary_sensor.BinarySensor, cg.Component
 )
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(TuyaBinarySensor),
-        cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
-        cv.Required(CONF_SENSOR_DATAPOINT): cv.uint8_t,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    binary_sensor.binary_sensor_schema(TuyaBinarySensor)
+    .extend(
+        {
+            cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
+            cv.Required(CONF_SENSOR_DATAPOINT): cv.uint8_t,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):

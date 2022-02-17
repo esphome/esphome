@@ -132,12 +132,8 @@ CONFIG_SCHEMA = cv.Schema(
                 },
             ],
         ): [
-            binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+            binary_sensor.binary_sensor_schema(DemoBinarySensor).extend(
                 cv.polling_component_schema("60s")
-            ).extend(
-                {
-                    cv.GenerateID(): cv.declare_id(DemoBinarySensor),
-                }
             )
         ],
         cv.Optional(

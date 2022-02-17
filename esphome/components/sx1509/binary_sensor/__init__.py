@@ -11,9 +11,8 @@ DEPENDENCIES = ["sx1509"]
 
 SX1509BinarySensor = sx1509_ns.class_("SX1509BinarySensor", binary_sensor.BinarySensor)
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(SX1509BinarySensor).extend(
     {
-        cv.GenerateID(): cv.declare_id(SX1509BinarySensor),
         cv.GenerateID(CONF_SX1509_ID): cv.use_id(SX1509Component),
         cv.Required(CONF_ROW): cv.int_range(min=0, max=4),
         cv.Required(CONF_COL): cv.int_range(min=0, max=4),

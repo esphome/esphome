@@ -4,11 +4,12 @@ from esphome.components import sensor, binary_sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_MAC_ADDRESS,
     CONF_BINDKEY,
-    CONF_DEVICE_CLASS,
     CONF_LIGHT,
     CONF_BATTERY_LEVEL,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_LIGHT,
+    DEVICE_CLASS_MOTION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
@@ -32,14 +33,13 @@ XiaomiMJYD02YLA = xiaomi_mjyd02yla_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    binary_sensor.binary_sensor_schema(
+        XiaomiMJYD02YLA, device_class=DEVICE_CLASS_MOTION
+    )
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(XiaomiMJYD02YLA),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Required(CONF_BINDKEY): cv.bind_key,
-            cv.Optional(
-                CONF_DEVICE_CLASS, default="motion"
-            ): binary_sensor.device_class,
             cv.Optional(CONF_IDLE_TIME): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MINUTE,
                 icon=ICON_TIMELAPSE,
@@ -59,12 +59,8 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_ILLUMINANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_LIGHT): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
-                {
-                    cv.Optional(
-                        CONF_DEVICE_CLASS, default="light"
-                    ): binary_sensor.device_class,
-                }
+            cv.Optional(CONF_LIGHT): binary_sensor.binary_sensor_schema(
+                device_class=DEVICE_CLASS_LIGHT
             ),
         }
     )

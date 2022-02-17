@@ -31,9 +31,8 @@ def validate_uid(value):
 
 PN532BinarySensor = pn532_ns.class_("PN532BinarySensor", binary_sensor.BinarySensor)
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(PN532BinarySensor).extend(
     {
-        cv.GenerateID(): cv.declare_id(PN532BinarySensor),
         cv.GenerateID(CONF_PN532_ID): cv.use_id(PN532),
         cv.Required(CONF_UID): validate_uid,
     }

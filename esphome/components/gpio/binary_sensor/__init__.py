@@ -9,12 +9,15 @@ GPIOBinarySensor = gpio_ns.class_(
     "GPIOBinarySensor", binary_sensor.BinarySensor, cg.Component
 )
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(GPIOBinarySensor),
-        cv.Required(CONF_PIN): pins.gpio_input_pin_schema,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    binary_sensor.binary_sensor_schema(GPIOBinarySensor)
+    .extend(
+        {
+            cv.Required(CONF_PIN): pins.gpio_input_pin_schema,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):

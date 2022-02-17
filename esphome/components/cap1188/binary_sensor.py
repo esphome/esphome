@@ -7,9 +7,8 @@ from . import cap1188_ns, CAP1188Component, CONF_CAP1188_ID
 DEPENDENCIES = ["cap1188"]
 CAP1188Channel = cap1188_ns.class_("CAP1188Channel", binary_sensor.BinarySensor)
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(CAP1188Channel).extend(
     {
-        cv.GenerateID(): cv.declare_id(CAP1188Channel),
         cv.GenerateID(CONF_CAP1188_ID): cv.use_id(CAP1188Component),
         cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=7),
     }

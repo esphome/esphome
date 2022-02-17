@@ -31,9 +31,8 @@ def validate_uid(value):
 
 RC522BinarySensor = rc522_ns.class_("RC522BinarySensor", binary_sensor.BinarySensor)
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(RC522BinarySensor).extend(
     {
-        cv.GenerateID(): cv.declare_id(RC522BinarySensor),
         cv.GenerateID(CONF_RC522_ID): cv.use_id(RC522),
         cv.Required(CONF_UID): validate_uid,
     }

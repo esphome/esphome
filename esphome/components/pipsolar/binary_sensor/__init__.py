@@ -128,7 +128,7 @@ TYPES = [
 ]
 
 CONFIG_SCHEMA = PIPSOLAR_COMPONENT_SCHEMA.extend(
-    {cv.Optional(type): binary_sensor.BINARY_SENSOR_SCHEMA for type in TYPES}
+    {cv.Optional(type): binary_sensor.binary_sensor_schema() for type in TYPES}
 )
 
 

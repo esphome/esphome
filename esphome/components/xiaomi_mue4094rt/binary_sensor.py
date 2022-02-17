@@ -1,7 +1,11 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor, esp32_ble_tracker
-from esphome.const import CONF_MAC_ADDRESS, CONF_DEVICE_CLASS, CONF_TIMEOUT
+from esphome.const import (
+    CONF_MAC_ADDRESS,
+    CONF_TIMEOUT,
+    DEVICE_CLASS_MOTION,
+)
 
 
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -16,13 +20,12 @@ XiaomiMUE4094RT = xiaomi_mue4094rt_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    binary_sensor.binary_sensor_schema(
+        XiaomiMUE4094RT, device_class=DEVICE_CLASS_MOTION
+    )
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(XiaomiMUE4094RT),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-            cv.Optional(
-                CONF_DEVICE_CLASS, default="motion"
-            ): binary_sensor.device_class,
             cv.Optional(
                 CONF_TIMEOUT, default="5s"
             ): cv.positive_time_period_milliseconds,

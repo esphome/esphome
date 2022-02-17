@@ -17,18 +17,10 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_BMS_DALY_ID): cv.use_id(DalyBmsComponent),
             cv.Optional(
                 CONF_CHARGING_MOS_ENABLED
-            ): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
-                {
-                    cv.GenerateID(): cv.declare_id(binary_sensor.BinarySensor),
-                }
-            ),
+            ): binary_sensor.binary_sensor_schema(),
             cv.Optional(
                 CONF_DISCHARGING_MOS_ENABLED
-            ): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
-                {
-                    cv.GenerateID(): cv.declare_id(binary_sensor.BinarySensor),
-                }
-            ),
+            ): binary_sensor.binary_sensor_schema(),
         }
     ).extend(cv.COMPONENT_SCHEMA)
 )

@@ -27,9 +27,8 @@ def validate_xpt2046_button(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    binary_sensor.binary_sensor_schema(XPT2046Button).extend(
         {
-            cv.GenerateID(): cv.declare_id(XPT2046Button),
             cv.GenerateID(CONF_XPT2046_ID): cv.use_id(XPT2046Component),
             cv.Required(CONF_X_MIN): cv.int_range(min=0, max=4095),
             cv.Required(CONF_X_MAX): cv.int_range(min=0, max=4095),

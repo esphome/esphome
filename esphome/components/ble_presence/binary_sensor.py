@@ -29,9 +29,9 @@ def _validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    binary_sensor.binary_sensor_schema(BLEPresenceDevice)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(BLEPresenceDevice),
             cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
             cv.Optional(CONF_IBEACON_MAJOR): cv.uint16_t,

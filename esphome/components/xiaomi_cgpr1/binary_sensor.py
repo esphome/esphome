@@ -4,14 +4,12 @@ from esphome.components import sensor, binary_sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BINDKEY,
-    CONF_DEVICE_CLASS,
     CONF_MAC_ADDRESS,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_MOTION,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    ICON_EMPTY,
     UNIT_PERCENT,
     CONF_IDLE_TIME,
     CONF_ILLUMINANCE,
@@ -32,15 +30,11 @@ XiaomiCGPR1 = xiaomi_cgpr1_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    binary_sensor.binary_sensor_schema(XiaomiCGPR1, device_class=DEVICE_CLASS_MOTION)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(XiaomiCGPR1),
             cv.Required(CONF_BINDKEY): cv.bind_key,
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-            cv.Optional(
-                CONF_DEVICE_CLASS,
-                default=DEVICE_CLASS_MOTION,
-            ): binary_sensor.device_class,
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 accuracy_decimals=0,
@@ -55,7 +49,9 @@ CONFIG_SCHEMA = cv.All(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                UNIT_LUX, ICON_EMPTY, 0, DEVICE_CLASS_ILLUMINANCE
+                unit_of_measurement=UNIT_LUX,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_ILLUMINANCE,
             ),
         }
     )

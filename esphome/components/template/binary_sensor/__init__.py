@@ -9,12 +9,15 @@ TemplateBinarySensor = template_ns.class_(
     "TemplateBinarySensor", binary_sensor.BinarySensor, cg.Component
 )
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(TemplateBinarySensor),
-        cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    binary_sensor.binary_sensor_schema(TemplateBinarySensor)
+    .extend(
+        {
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):

@@ -33,16 +33,17 @@ def validate_coords(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    binary_sensor.binary_sensor_schema(TouchscreenBinarySensor)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(TouchscreenBinarySensor),
             cv.GenerateID(CONF_TOUCHSCREEN_ID): cv.use_id(Touchscreen),
             cv.Required(CONF_X_MIN): cv.int_range(min=0, max=2000),
             cv.Required(CONF_X_MAX): cv.int_range(min=0, max=2000),
             cv.Required(CONF_Y_MIN): cv.int_range(min=0, max=2000),
             cv.Required(CONF_Y_MAX): cv.int_range(min=0, max=2000),
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(cv.COMPONENT_SCHEMA),
     validate_coords,
 )
 
