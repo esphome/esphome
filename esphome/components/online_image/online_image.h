@@ -9,17 +9,16 @@ enum ImageFormat {
   PNG,
 };
 
-class OnlineImage: public esphome::display::Image {
+class OnlineImage {
  public:
-  OnlineImage(const char* url, display::ImageType type): Image(nullptr, 0, 0, type), url(url) {};
-  bool get_pixel(int x, int y) const override;
-  Color get_color_pixel(int x, int y) const override;
-  Color get_grayscale_pixel(int x, int y) const override;
+  OnlineImage(const char* url, uint16_t width, uint16_t height): url(url), width(width), height(height) {};
 
   void draw(int x, int y, display::DisplayBuffer* display);
 
  protected:
   const char* url;
+  const uint16_t width;
+  const uint16_t height;
 
 };
 

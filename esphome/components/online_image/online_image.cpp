@@ -18,27 +18,35 @@ namespace online_image {
 
 using display::DisplayBuffer;
 
-bool OnlineImage::get_pixel(int x, int y) const {
-    return false;
-}
-Color OnlineImage::get_color_pixel(int x, int y) const {
-    return Color::BLACK;
-}
-Color OnlineImage::get_grayscale_pixel(int x, int y) const {
-    return Color::BLACK;
-}
+struct Context {
+  int x;
+  int y;
+  uint16_t w;
+  uint16_t h;
+  DisplayBuffer* display;
+};
 
 void drawCallback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint8_t rgba[4]) {
-    DisplayBuffer* display = (DisplayBuffer*)pngle_get_user_data(pngle);
+    Context* context = (Context*)pngle_get_user_data(pngle);
   Color color(rgba[0], rgba[1], rgba[2], rgba[3]);
-  float g_scale = 1.0;
+
+  float scale_x = 1;
+  float scale_y = 1;
+  uint32_t width = pngle_get_width(pngle);
+  uint32_t height = pngle_get_height(pngle);
+  if (width && width <= context->w) {
+    scale_x = context->w / width;
+  }
+  if (height && height <= context->h) {
+    scale_y = context->h / height;
+  }
 
   if (rgba[3]) {
-    x = ceil(x * g_scale);
-    y = ceil(y * g_scale);
-    w = ceil(w * g_scale);
-    h = ceil(h * g_scale);
-    display->filled_rectangle(x, y, w, h, color);
+    x = context->x + ceil(x * scale_x);
+    y = context->y + ceil(y * scale_y);
+    w = ceil(w * scale_x);
+    h = ceil(h * scale_y);
+    context->display->filled_rectangle(x, y, w, h, color);
   }
 }
 
@@ -56,7 +64,8 @@ void OnlineImage::draw(int x, int y, DisplayBuffer* display) {
   WiFiClient *stream = http.getStreamPtr();
 
   pngle_t *pngle = pngle_new();
-  pngle_set_user_data(pngle, display);
+  Context context_data {.x=x, .y=y, .w=width, .h=height, .display=display};
+  pngle_set_user_data(pngle, &context_data);
   pngle_set_draw_callback(pngle, drawCallback);
 
   uint8_t buf[2048];
