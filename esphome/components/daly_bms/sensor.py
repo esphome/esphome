@@ -94,6 +94,12 @@ TYPES = [
     CONF_CELL_16_VOLTAGE,
 ]
 
+CELL_VOLTAGE_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_VOLT,
+    device_class=DEVICE_CLASS_VOLTAGE,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -188,118 +194,22 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_CELL_1_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CELL_2_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CELL_3_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CELL_4_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CELL_5_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CELL_6_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CELL_7_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CELL_8_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CELL_9_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CELL_10_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CELL_11_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CELL_12_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CELL_13_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CELL_14_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CELL_15_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_CELL_16_VOLTAGE): sensor.sensor_schema(
-                UNIT_VOLT,
-                ICON_FLASH,
-                3,
-                DEVICE_CLASS_VOLTAGE,
-                STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_CELL_1_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_2_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_3_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_4_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_5_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_6_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_7_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_8_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_9_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_10_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_11_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_12_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_13_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_14_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_15_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_16_VOLTAGE): CELL_VOLTAGE_SCHEMA,
         }
     ).extend(cv.COMPONENT_SCHEMA)
 )
