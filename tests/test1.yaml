@@ -1313,15 +1313,15 @@ binary_sensor:
     threshold: 
       upper: 110
       lower: 90
-    delay: 
-      high: 0s
-      low: 10s
+    filters: 
+      - delayed_on: 0s
+      - delayed_off: 10s
   - platform: analog_threshold
     name: Analog Trheshold 2
     sensor_id: template_sensor
     threshold: 100
-    delay: 10s
-    inverted: true
+    filters: 
+      - invert: 
 
 pca9685:
   frequency: 500
