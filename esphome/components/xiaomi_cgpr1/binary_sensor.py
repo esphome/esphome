@@ -7,12 +7,10 @@ from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_MAC_ADDRESS,
     CONF_ID,
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_MOTION,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    ICON_EMPTY,
     UNIT_PERCENT,
     CONF_IDLE_TIME,
     CONF_ILLUMINANCE,
@@ -52,11 +50,12 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_MINUTE,
                 icon=ICON_TIMELAPSE,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_EMPTY,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                UNIT_LUX, ICON_EMPTY, 0, DEVICE_CLASS_ILLUMINANCE
+                unit_of_measurement=UNIT_LUX,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_ILLUMINANCE,
             ),
         }
     )
