@@ -224,7 +224,7 @@ _UNDEF = object()
 
 
 def sensor_schema(
-    klass: MockObjClass = _UNDEF,
+    class_: MockObjClass = _UNDEF,
     *,
     unit_of_measurement: str = _UNDEF,
     icon: str = _UNDEF,
@@ -234,8 +234,8 @@ def sensor_schema(
     entity_category: str = _UNDEF,
 ) -> cv.Schema:
     schema = SENSOR_SCHEMA
-    if klass is not _UNDEF:
-        schema = schema.extend({cv.GenerateID(): cv.declare_id(klass)})
+    if class_ is not _UNDEF:
+        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
     if unit_of_measurement is not _UNDEF:
         schema = schema.extend(
             {
