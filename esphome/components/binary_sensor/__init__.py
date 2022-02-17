@@ -402,7 +402,7 @@ def binary_sensor_schema(
                 ): cv.entity_category
             }
         )
-    if device_class is not None:
+    if device_class is not _UNDEF:
         schema = schema.extend(
             {
                 cv.Optional(
