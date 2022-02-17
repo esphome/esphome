@@ -12,7 +12,7 @@ class AnalogThresholdBinarySensor : public Component, public binary_sensor::Bina
   void dump_config() override;
   void setup() override;
 
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_sensor(sensor::Sensor *analog_sensor);
   void set_upper_threshold(float threshold) { this->upper_threshold_ = threshold; }
