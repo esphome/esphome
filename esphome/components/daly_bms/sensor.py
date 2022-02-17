@@ -36,6 +36,22 @@ CONF_REMAINING_CAPACITY = "remaining_capacity"
 CONF_TEMPERATURE_1 = "temperature_1"
 CONF_TEMPERATURE_2 = "temperature_2"
 
+CONF_CELL_1_VOLTAGE = "cell_1_voltage"
+CONF_CELL_2_VOLTAGE = "cell_2_voltage"
+CONF_CELL_3_VOLTAGE = "cell_3_voltage"
+CONF_CELL_4_VOLTAGE = "cell_4_voltage"
+CONF_CELL_5_VOLTAGE = "cell_5_voltage"
+CONF_CELL_6_VOLTAGE = "cell_6_voltage"
+CONF_CELL_7_VOLTAGE = "cell_7_voltage"
+CONF_CELL_8_VOLTAGE = "cell_8_voltage"
+CONF_CELL_9_VOLTAGE = "cell_9_voltage"
+CONF_CELL_10_VOLTAGE = "cell_10_voltage"
+CONF_CELL_11_VOLTAGE = "cell_11_voltage"
+CONF_CELL_12_VOLTAGE = "cell_12_voltage"
+CONF_CELL_13_VOLTAGE = "cell_13_voltage"
+CONF_CELL_14_VOLTAGE = "cell_14_voltage"
+CONF_CELL_15_VOLTAGE = "cell_15_voltage"
+CONF_CELL_16_VOLTAGE = "cell_16_voltage"
 ICON_CURRENT_DC = "mdi:current-dc"
 ICON_BATTERY_OUTLINE = "mdi:battery-outline"
 ICON_THERMOMETER_CHEVRON_UP = "mdi:thermometer-chevron-up"
@@ -60,7 +76,29 @@ TYPES = [
     CONF_REMAINING_CAPACITY,
     CONF_TEMPERATURE_1,
     CONF_TEMPERATURE_2,
+    CONF_CELL_1_VOLTAGE,
+    CONF_CELL_2_VOLTAGE,
+    CONF_CELL_3_VOLTAGE,
+    CONF_CELL_4_VOLTAGE,
+    CONF_CELL_5_VOLTAGE,
+    CONF_CELL_6_VOLTAGE,
+    CONF_CELL_7_VOLTAGE,
+    CONF_CELL_8_VOLTAGE,
+    CONF_CELL_9_VOLTAGE,
+    CONF_CELL_10_VOLTAGE,
+    CONF_CELL_11_VOLTAGE,
+    CONF_CELL_12_VOLTAGE,
+    CONF_CELL_13_VOLTAGE,
+    CONF_CELL_14_VOLTAGE,
+    CONF_CELL_15_VOLTAGE,
+    CONF_CELL_16_VOLTAGE,
 ]
+
+CELL_VOLTAGE_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_VOLT,
+    device_class=DEVICE_CLASS_VOLTAGE,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -156,6 +194,22 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_CELL_1_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_2_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_3_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_4_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_5_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_6_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_7_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_8_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_9_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_10_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_11_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_12_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_13_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_14_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_15_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_16_VOLTAGE): CELL_VOLTAGE_SCHEMA,
         }
     ).extend(cv.COMPONENT_SCHEMA)
 )
