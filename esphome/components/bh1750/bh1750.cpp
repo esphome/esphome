@@ -111,7 +111,6 @@ void BH1750Sensor::read_lx_(BH1750Mode mode, uint8_t mtreg, const std::function<
 
     f(lx);
   });
-  f(NAN);
 }
 
 void BH1750Sensor::dump_config() {
