@@ -27,25 +27,10 @@ TANK_TYPE_CUSTOM = "CUSTOM"
 
 UNIT_MILLIMETER = "mm"
 
-# validators
-_distance_mm = cv.float_with_unit("distance", "(mm|MM)")
-_distance_cm = cv.float_with_unit("distance", "(cm|CM)")
-
-
 def small_distance(value):
     """small_distance is stored in mm"""
-    try:
-        return _distance_mm(value)
-    except cv.Invalid:
-        pass
-    try:
-        cm = _distance_cm(value)
-        return cm * 10
-    except cv.Invalid:
-        pass
-
     meters = cv.distance(value)
-    return meters * 100
+    return meters * 1000
 
 
 #
