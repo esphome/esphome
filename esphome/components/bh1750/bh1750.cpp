@@ -39,7 +39,8 @@ MTreg:
 
 void BH1750Sensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BH1750 '%s'...", this->name_.c_str());
-  if (!this->write_bytes(BH1750_COMMAND_POWER_ON, nullptr, 0)) {
+  uint8_t turn_on = BH1750_COMMAND_POWER_ON;
+  if (this->write(&turn_on, 1) != i2c::ERROR_OK) {
     this->mark_failed();
     return;
   }
