@@ -133,6 +133,7 @@ ADCSensor = adc_ns.class_(
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
+        ADCSensor,
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=2,
         device_class=DEVICE_CLASS_VOLTAGE,
@@ -140,7 +141,6 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(ADCSensor),
             cv.Required(CONF_PIN): validate_adc_pin,
             cv.Optional(CONF_RAW, default=False): cv.boolean,
             cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(

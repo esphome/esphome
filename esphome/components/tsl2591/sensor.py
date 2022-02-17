@@ -35,10 +35,8 @@ from esphome.const import (
     CONF_DEVICE_FACTOR,
     CONF_GLASS_ATTENUATION_FACTOR,
     ICON_BRIGHTNESS_6,
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ILLUMINANCE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_EMPTY,
     UNIT_LUX,
 )
 
@@ -87,32 +85,26 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(TSL2591Component),
             cv.Optional(CONF_INFRARED): sensor.sensor_schema(
-                UNIT_EMPTY,
-                ICON_BRIGHTNESS_6,
-                0,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                icon=ICON_BRIGHTNESS_6,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_VISIBLE): sensor.sensor_schema(
-                UNIT_EMPTY,
-                ICON_BRIGHTNESS_6,
-                0,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                icon=ICON_BRIGHTNESS_6,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_FULL_SPECTRUM): sensor.sensor_schema(
-                UNIT_EMPTY,
-                ICON_BRIGHTNESS_6,
-                0,
-                DEVICE_CLASS_EMPTY,
-                STATE_CLASS_MEASUREMENT,
+                icon=ICON_BRIGHTNESS_6,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CALCULATED_LUX): sensor.sensor_schema(
-                UNIT_LUX,
-                ICON_BRIGHTNESS_6,
-                4,
-                DEVICE_CLASS_ILLUMINANCE,
-                STATE_CLASS_MEASUREMENT,
+                unit_of_measurement=UNIT_LUX,
+                icon=ICON_BRIGHTNESS_6,
+                accuracy_decimals=4,
+                device_class=DEVICE_CLASS_ILLUMINANCE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(
                 CONF_INTEGRATION_TIME, default="100ms"
