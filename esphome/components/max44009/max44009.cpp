@@ -58,7 +58,7 @@ void MAX44009Sensor::update() {
   // update sensor illuminance value
   float lux = this->read_illuminance_();
   if (this->error_ != MAX44009_OK) {
-    this->status_set_error();
+    this->status_set_warning();
   } else {
     this->status_clear_error();
     this->publish_state(lux);
