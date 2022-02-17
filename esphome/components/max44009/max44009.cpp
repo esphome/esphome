@@ -60,7 +60,7 @@ void MAX44009Sensor::update() {
   if (this->error_ != MAX44009_OK) {
     this->status_set_warning();
   } else {
-    this->status_clear_error();
+    this->status_clear_warning();
     this->publish_state(lux);
   }
 }
