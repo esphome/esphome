@@ -22,7 +22,6 @@ from esphome.const import (
     CONF_STATE,
     CONF_TIMING,
     CONF_TRIGGER_ID,
-    CONF_NAME,
     CONF_MQTT_ID,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_BATTERY,
@@ -443,7 +442,7 @@ async def register_binary_sensor(var, config):
 
 
 async def new_binary_sensor(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    var = cg.new_Pvariable(config[CONF_ID])
     await register_binary_sensor(var, config)
     return var
 
