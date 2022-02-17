@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor, sensor
 from esphome.const import (
-    CONF_ID,
     CONF_SENSOR_ID,
     CONF_THRESHOLD,
 )
@@ -31,12 +30,11 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
-    await binary_sensor.register_binary_sensor(var, config)
 
-    bin = await cg.get_variable(config[CONF_SENSOR_ID])
-    cg.add(var.set_sensor(bin))
+    sens = await cg.get_variable(config[CONF_SENSOR_ID])
+    cg.add(var.set_sensor(sens))
 
     if isinstance(config[CONF_THRESHOLD], float):
         cg.add(var.set_upper_threshold(config[CONF_THRESHOLD]))
