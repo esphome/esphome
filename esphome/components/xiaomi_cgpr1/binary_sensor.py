@@ -4,9 +4,7 @@ from esphome.components import sensor, binary_sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BINDKEY,
-    CONF_DEVICE_CLASS,
     CONF_MAC_ADDRESS,
-    CONF_ID,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_MOTION,
@@ -31,15 +29,11 @@ XiaomiCGPR1 = xiaomi_cgpr1_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    binary_sensor.binary_sensor_schema(XiaomiCGPR1, device_class=DEVICE_CLASS_MOTION)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(XiaomiCGPR1),
             cv.Required(CONF_BINDKEY): cv.bind_key,
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-            cv.Optional(
-                CONF_DEVICE_CLASS,
-                default=DEVICE_CLASS_MOTION,
-            ): binary_sensor.device_class,
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 accuracy_decimals=0,
@@ -64,21 +58,20 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield esp32_ble_tracker.register_ble_device(var, config)
-    yield binary_sensor.register_binary_sensor(var, config)
+async def to_code(config):
+    var = await binary_sensor.new_binary_sensor(config)
+    await cg.register_component(var, config)
+    await esp32_ble_tracker.register_ble_device(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_bindkey(config[CONF_BINDKEY]))
 
     if CONF_IDLE_TIME in config:
-        sens = yield sensor.new_sensor(config[CONF_IDLE_TIME])
+        sens = await sensor.new_sensor(config[CONF_IDLE_TIME])
         cg.add(var.set_idle_time(sens))
     if CONF_BATTERY_LEVEL in config:
-        sens = yield sensor.new_sensor(config[CONF_BATTERY_LEVEL])
+        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
         cg.add(var.set_battery_level(sens))
     if CONF_ILLUMINANCE in config:
-        sens = yield sensor.new_sensor(config[CONF_ILLUMINANCE])
+        sens = await sensor.new_sensor(config[CONF_ILLUMINANCE])
         cg.add(var.set_illuminance(sens))
