@@ -337,12 +337,8 @@ CONFIG_SCHEMA = cv.Schema(
                 },
             ],
         ): [
-            sensor.sensor_schema(accuracy_decimals=0)
-            .extend(cv.polling_component_schema("60s"))
-            .extend(
-                {
-                    cv.GenerateID(): cv.declare_id(DemoSensor),
-                }
+            sensor.sensor_schema(DemoSensor, accuracy_decimals=0).extend(
+                cv.polling_component_schema("60s")
             )
         ],
         cv.Optional(
@@ -427,9 +423,8 @@ async def to_code(config):
         cg.add(var.set_type(conf[CONF_TYPE]))
 
     for conf in config[CONF_SENSORS]:
-        var = cg.new_Pvariable(conf[CONF_ID])
+        var = await sensor.new_sensor(conf)
         await cg.register_component(var, conf)
-        await sensor.register_sensor(var, conf)
 
     for conf in config[CONF_SWITCHES]:
         var = cg.new_Pvariable(conf[CONF_ID])

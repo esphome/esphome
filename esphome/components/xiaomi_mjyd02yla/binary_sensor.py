@@ -12,7 +12,6 @@ from esphome.const import (
     DEVICE_CLASS_ILLUMINANCE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_NONE,
     UNIT_PERCENT,
     CONF_IDLE_TIME,
     CONF_ILLUMINANCE,
@@ -22,7 +21,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
-AUTO_LOAD = ["xiaomi_ble"]
+AUTO_LOAD = ["xiaomi_ble", "sensor"]
 
 xiaomi_mjyd02yla_ns = cg.esphome_ns.namespace("xiaomi_mjyd02yla")
 XiaomiMJYD02YLA = xiaomi_mjyd02yla_ns.class_(
@@ -45,7 +44,6 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_MINUTE,
                 icon=ICON_TIMELAPSE,
                 accuracy_decimals=0,
-                state_class=STATE_CLASS_NONE,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
