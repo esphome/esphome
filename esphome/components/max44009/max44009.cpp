@@ -59,6 +59,7 @@ void MAX44009Sensor::update() {
   float lux = this->read_illuminance_();
   if (this->error_ != MAX44009_OK) {
     this->status_set_warning();
+    this->publish_state(NAN);
   } else {
     this->status_clear_warning();
     this->publish_state(lux);
