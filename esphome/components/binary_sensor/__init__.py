@@ -383,15 +383,15 @@ _UNDEF = object()
 
 
 def binary_sensor_schema(
-    klass: MockObjClass = _UNDEF,
+    class_: MockObjClass = _UNDEF,
     *,
     icon: str = _UNDEF,
     entity_category: str = _UNDEF,
     device_class: str = _UNDEF,
 ) -> cv.Schema:
     schema = BINARY_SENSOR_SCHEMA
-    if klass is not None:
-        schema = schema.extend({cv.GenerateID(): cv.declare_id(klass)})
+    if class_ is not None:
+        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
     if icon is not _UNDEF:
         schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
     if entity_category is not _UNDEF:
