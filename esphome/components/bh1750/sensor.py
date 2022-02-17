@@ -9,6 +9,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
+CODEOWNERS = ["@OttoWinter"]
 
 bh1750_ns = cg.esphome_ns.namespace("bh1750")
 
