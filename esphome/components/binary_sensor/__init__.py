@@ -390,7 +390,7 @@ def binary_sensor_schema(
     device_class: str = _UNDEF,
 ) -> cv.Schema:
     schema = BINARY_SENSOR_SCHEMA
-    if class_ is not None:
+    if class_ is not _UNDEF:
         schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
     if icon is not _UNDEF:
         schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
