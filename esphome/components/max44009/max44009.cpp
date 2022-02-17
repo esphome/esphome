@@ -113,7 +113,7 @@ bool MAX44009Sensor::set_low_power_mode() {
     config &= ~MAX44009_CFG_CONTINUOUS;
     this->write_(MAX44009_REGISTER_CONFIGURATION, config);
     this->status_clear_error();
-    ESP_LOGD(TAG, "set to low power mode");
+    ESP_LOGV(TAG, "set to low power mode");
     return true;
   } else {
     this->status_set_error();
