@@ -456,12 +456,10 @@ sensor:
     name: "Living Room Brightness 3"
     internal: true
     address: 0x23
-    resolution: 1.0
     update_interval: 30s
     retain: False
     availability:
     state_topic: livingroom/custom_state_topic
-    measurement_duration: 31
     i2c_id: i2c_bus
   - platform: bme280
     temperature:
@@ -1090,8 +1088,8 @@ sensor:
     temperature:
       name: Max9611 Temp
     update_interval: 1s
-  
-  
+
+
 esp32_touch:
   setup_mode: False
   iir_filter: 10ms
