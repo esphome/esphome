@@ -83,15 +83,13 @@ float MAX44009Sensor::read_illuminance_() {
     return this->error_;
   }
 
-  float lux = this->convert_to_lux_(datahigh, datalow);
-  return lux;
+  return this->convert_to_lux_(datahigh, datalow);
 }
 
-int MAX44009Sensor::convert_to_lux_(uint8_t data_high, uint8_t data_low) {
+float MAX44009Sensor::convert_to_lux_(uint8_t data_high, uint8_t data_low) {
   uint8_t exponent = data_high >> 4;
   uint32_t mantissa = ((data_high & 0x0F) << 4) + (data_low & 0x0F);
-  float lux = ((0x0001 << exponent) * 0.045) * mantissa;
-  return roundf(lux);
+  return ((0x0001 << exponent) * 0.045) * mantissa;
 }
 
 bool MAX44009Sensor::set_continuous_mode() {

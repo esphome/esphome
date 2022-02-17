@@ -27,7 +27,7 @@ MODE_OPTIONS = {
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         unit_of_measurement=UNIT_LUX,
-        accuracy_decimals=0,
+        accuracy_decimals=3,
         device_class=DEVICE_CLASS_ILLUMINANCE,
         state_class=STATE_CLASS_MEASUREMENT,
     )

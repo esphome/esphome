@@ -25,7 +25,7 @@ class MAX44009Sensor : public sensor::Sensor, public PollingComponent, public i2
  protected:
   /// Read the illuminance value
   float read_illuminance_();
-  int convert_to_lux_(uint8_t data_high, uint8_t data_low);
+  float convert_to_lux_(uint8_t data_high, uint8_t data_low);
   uint8_t read_(uint8_t reg);
   void write_(uint8_t reg, uint8_t value);
 
