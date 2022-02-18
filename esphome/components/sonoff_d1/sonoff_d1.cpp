@@ -121,6 +121,8 @@ bool SonoffD1Output::read_command_(uint8_t *cmd, size_t &len) {
       this->skip_command_();
       return true;
     }
+  } else {
+    ESP_LOGW(TAG, "[%04d] RX: feedback timeout", this->write_count_);
   }
   return false;
 }
@@ -169,7 +171,10 @@ bool SonoffD1Output::write_command_(uint8_t *cmd, const size_t len, bool needs_a
   }
   this->populate_checksum_(cmd, len);
 
-  uint32_t retries = 5;
+  // Need retries here to handle the following cases:
+  // 1. On power up companion MCU starts to respond with a delay, so few first commands are ignored
+  // 2. UART command initiated by this component can clash with a command initiated by RF
+  uint32_t retries = 10;
   do {
     ESP_LOGV(TAG, "[%04d] Writing to the dimmer:", this->write_count_);
     ESP_LOGV(TAG, "[%04d] %s", this->write_count_, format_hex_pretty(cmd, len).c_str());
