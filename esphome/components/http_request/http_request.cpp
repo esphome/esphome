@@ -120,10 +120,16 @@ void HttpRequestComponent::close() {
 }
 
 const char *HttpRequestComponent::get_string() {
-  // The static variable is here because HTTPClient::getString() returns a String on ESP32, and we need something to
-  // to keep a buffer alive.
-  static std::string str;
-  str = this->client_.getString().c_str();
+#if defined(ESP32)
+  // The static variable is here because HTTPClient::getString() returns a String on ESP32,
+  // and we need something to keep a buffer alive.
+  static String str;
+#else
+  // However on ESP8266, HTTPClient::getString() returns a String& to a member variable.
+  // Leaving this the default so that any new platform either doesn't copy, or encounters a compilation error.
+  auto &
+#endif
+  str = this->client_.getString();
   return str.c_str();
 }
 

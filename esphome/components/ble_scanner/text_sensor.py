@@ -13,7 +13,7 @@ BLEScanner = ble_scanner_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    text_sensor.text_sensor_schema(klass=BLEScanner)
+    text_sensor.text_sensor_schema(BLEScanner)
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
 )

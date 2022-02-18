@@ -1,7 +1,7 @@
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_DEVICE
+from esphome.const import CONF_DEVICE, ENTITY_CATEGORY_DIAGNOSTIC
 
 from . import CONF_DEBUG_ID, DebugComponent
 
@@ -11,7 +11,9 @@ DEPENDENCIES = ["debug"]
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_DEBUG_ID): cv.use_id(DebugComponent),
-        cv.Optional(CONF_DEVICE): text_sensor.text_sensor_schema(),
+        cv.Optional(CONF_DEVICE): text_sensor.text_sensor_schema(
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        ),
     }
 )
 

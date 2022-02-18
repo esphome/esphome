@@ -8,6 +8,7 @@ CODEOWNERS = ["@mvturnho", "@danielschramm"]
 IS_PLATFORM_COMPONENT = True
 
 CONF_CAN_ID = "can_id"
+CONF_CAN_ID_MASK = "can_id_mask"
 CONF_USE_EXTENDED_ID = "use_extended_id"
 CONF_CANBUS_ID = "canbus_id"
 CONF_BIT_RATE = "bit_rate"
@@ -38,7 +39,7 @@ canbus_ns = cg.esphome_ns.namespace("canbus")
 CanbusComponent = canbus_ns.class_("CanbusComponent", cg.Component)
 CanbusTrigger = canbus_ns.class_(
     "CanbusTrigger",
-    automation.Trigger.template(cg.std_vector.template(cg.uint8)),
+    automation.Trigger.template(cg.std_vector.template(cg.uint8), cg.uint32),
     cg.Component,
 )
 CanSpeed = canbus_ns.enum("CAN_SPEED")
@@ -72,6 +73,9 @@ CANBUS_SCHEMA = cv.Schema(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
                 cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
+                cv.Optional(CONF_CAN_ID_MASK, default=0x1FFFFFFF): cv.int_range(
+                    min=0, max=0x1FFFFFFF
+                ),
                 cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
             },
             validate_id,
@@ -90,11 +94,16 @@ async def setup_canbus_core_(var, config):
 
     for conf in config.get(CONF_ON_FRAME, []):
         can_id = conf[CONF_CAN_ID]
+        can_id_mask = conf[CONF_CAN_ID_MASK]
         ext_id = conf[CONF_USE_EXTENDED_ID]
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, can_id, ext_id)
+        trigger = cg.new_Pvariable(
+            conf[CONF_TRIGGER_ID], var, can_id, can_id_mask, ext_id
+        )
         await cg.register_component(trigger, conf)
         await automation.build_automation(
-            trigger, [(cg.std_vector.template(cg.uint8), "x")], conf
+            trigger,
+            [(cg.std_vector.template(cg.uint8), "x"), (cg.uint32, "can_id")],
+            conf,
         )
 
 
@@ -126,7 +135,6 @@ async def canbus_action_to_code(config, action_id, template_arg, args):
     if CONF_CAN_ID in config:
         can_id = await cg.templatable(config[CONF_CAN_ID], args, cg.uint32)
         cg.add(var.set_can_id(can_id))
-
     use_extended_id = await cg.templatable(
         config[CONF_USE_EXTENDED_ID], args, cg.uint32
     )
