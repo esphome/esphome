@@ -137,13 +137,14 @@ _UNDEF = object()
 
 
 def text_sensor_schema(
-    klass: MockObjClass = _UNDEF,
+    class_: MockObjClass = _UNDEF,
+    *,
     icon: str = _UNDEF,
     entity_category: str = _UNDEF,
 ) -> cv.Schema:
     schema = TEXT_SENSOR_SCHEMA
-    if klass is not _UNDEF:
-        schema = schema.extend({cv.GenerateID(): cv.declare_id(klass)})
+    if class_ is not _UNDEF:
+        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
     if icon is not _UNDEF:
         schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
     if entity_category is not _UNDEF:
