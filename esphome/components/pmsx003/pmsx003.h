@@ -14,6 +14,13 @@ enum PMSX003Type {
   PMSX003_TYPE_5003S,
 };
 
+#define PMSX003_SENSOR(key) \
+ protected: \
+  sensor::Sensor *key##_; \
+\
+ public: \
+  void set_##key##_sensor(sensor::Sensor *sensor) { this->key##_ = sensor; }
+
 class PMSX003Component : public uart::UARTDevice, public Component {
  public:
   PMSX003Component() = default;
@@ -23,24 +30,27 @@ class PMSX003Component : public uart::UARTDevice, public Component {
 
   void set_type(PMSX003Type type) { type_ = type; }
 
-  void set_pm_1_0_std_sensor(sensor::Sensor *pm_1_0_std_sensor);
-  void set_pm_2_5_std_sensor(sensor::Sensor *pm_2_5_std_sensor);
-  void set_pm_10_0_std_sensor(sensor::Sensor *pm_10_0_std_sensor);
+  // "Standard Particle"
+  PMSX003_SENSOR(pm_1_0_std)
+  PMSX003_SENSOR(pm_2_5_std)
+  PMSX003_SENSOR(pm_10_0_std)
 
-  void set_pm_1_0_sensor(sensor::Sensor *pm_1_0_sensor);
-  void set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor);
-  void set_pm_10_0_sensor(sensor::Sensor *pm_10_0_sensor);
+  // "Under Atmospheric Pressure"
+  PMSX003_SENSOR(pm_1_0)
+  PMSX003_SENSOR(pm_2_5)
+  PMSX003_SENSOR(pm_10_0)
 
-  void set_pm_particles_03um_sensor(sensor::Sensor *pm_particles_03um_sensor);
-  void set_pm_particles_05um_sensor(sensor::Sensor *pm_particles_05um_sensor);
-  void set_pm_particles_10um_sensor(sensor::Sensor *pm_particles_10um_sensor);
-  void set_pm_particles_25um_sensor(sensor::Sensor *pm_particles_25um_sensor);
-  void set_pm_particles_50um_sensor(sensor::Sensor *pm_particles_50um_sensor);
-  void set_pm_particles_100um_sensor(sensor::Sensor *pm_particles_100um_sensor);
+  // Particle counts by size
+  PMSX003_SENSOR(pm_0_3um)
+  PMSX003_SENSOR(pm_0_5um)
+  PMSX003_SENSOR(pm_1_0um)
+  PMSX003_SENSOR(pm_2_5um)
+  PMSX003_SENSOR(pm_5_0um)
+  PMSX003_SENSOR(pm_10_0um)
 
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor);
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor);
-  void set_formaldehyde_sensor(sensor::Sensor *formaldehyde_sensor);
+  PMSX003_SENSOR(temperature)
+  PMSX003_SENSOR(humidity)
+  PMSX003_SENSOR(formaldehyde)
 
  protected:
   optional<bool> check_byte_();
@@ -51,28 +61,6 @@ class PMSX003Component : public uart::UARTDevice, public Component {
   uint8_t data_index_{0};
   uint32_t last_transmission_{0};
   PMSX003Type type_;
-
-  // "Standard Particle"
-  sensor::Sensor *pm_1_0_std_sensor_{nullptr};
-  sensor::Sensor *pm_2_5_std_sensor_{nullptr};
-  sensor::Sensor *pm_10_0_std_sensor_{nullptr};
-
-  // "Under Atmospheric Pressure"
-  sensor::Sensor *pm_1_0_sensor_{nullptr};
-  sensor::Sensor *pm_2_5_sensor_{nullptr};
-  sensor::Sensor *pm_10_0_sensor_{nullptr};
-
-  // Particle counts by size
-  sensor::Sensor *pm_particles_03um_sensor_{nullptr};
-  sensor::Sensor *pm_particles_05um_sensor_{nullptr};
-  sensor::Sensor *pm_particles_10um_sensor_{nullptr};
-  sensor::Sensor *pm_particles_25um_sensor_{nullptr};
-  sensor::Sensor *pm_particles_50um_sensor_{nullptr};
-  sensor::Sensor *pm_particles_100um_sensor_{nullptr};
-
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
-  sensor::Sensor *formaldehyde_sensor_{nullptr};
 };
 
 }  // namespace pmsx003
