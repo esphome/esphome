@@ -4,7 +4,7 @@
 # Runs the ESPHome dashboard
 # ==============================================================================
 
-export ESPHOME_IS_HASSIO=true
+export ESPHOME_IS_HA_ADDON=true
 
 if bashio::config.true 'leave_front_door_open'; then
     export DISABLE_HA_AUTHENTICATION=true
@@ -32,4 +32,4 @@ export PLATFORMIO_CACHE_DIR="${pio_cache_base}/cache"
 export PLATFORMIO_GLOBALLIB_DIR=/piolibs
 
 bashio::log.info "Starting ESPHome dashboard..."
-exec esphome dashboard /config/esphome --socket /var/run/esphome.sock --hassio
+exec esphome dashboard /config/esphome --socket /var/run/esphome.sock --ha-addon
