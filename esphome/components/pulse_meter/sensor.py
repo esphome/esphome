@@ -23,17 +23,16 @@ CODEOWNERS = ["@stevebaxter", "@cstaahl"]
 
 pulse_meter_ns = cg.esphome_ns.namespace("pulse_meter")
 
-PulseMeterInternalFilterMode = pulse_meter_ns.enum(
-    "PulseMeterSensor::InternalFilterMode", True
-)
-FILTER_MODES = {
-    "EDGE": PulseMeterInternalFilterMode.FILTER_EDGE,
-    "PULSE": PulseMeterInternalFilterMode.FILTER_PULSE,
-}
 
 PulseMeterSensor = pulse_meter_ns.class_(
     "PulseMeterSensor", sensor.Sensor, cg.Component
 )
+
+PulseMeterInternalFilterMode = PulseMeterSensor.enum("InternalFilterMode")
+FILTER_MODES = {
+    "EDGE": PulseMeterInternalFilterMode.FILTER_EDGE,
+    "PULSE": PulseMeterInternalFilterMode.FILTER_PULSE,
+}
 
 SetTotalPulsesAction = pulse_meter_ns.class_("SetTotalPulsesAction", automation.Action)
 
