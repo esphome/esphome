@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
-    CONF_ID,
     DEVICE_CLASS_PRESSURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_HECTOPASCAL,
@@ -24,6 +23,7 @@ CONF_MEASUREMENT_MODE = "measurement_mode"
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
+        SDP3XComponent,
         unit_of_measurement=UNIT_HECTOPASCAL,
         accuracy_decimals=3,
         device_class=DEVICE_CLASS_PRESSURE,
@@ -31,7 +31,6 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(SDP3XComponent),
             cv.Optional(
                 CONF_MEASUREMENT_MODE, default="differential_pressure"
             ): cv.enum(MEASUREMENT_MODE),
@@ -43,8 +42,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    await sensor.register_sensor(var, config)
     cg.add(var.set_measurement_mode(config[CONF_MEASUREMENT_MODE]))

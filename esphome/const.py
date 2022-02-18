@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2022.2.0-dev"
+__version__ = "2022.3.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -344,6 +344,7 @@ CONF_LOOP_TIME = "loop_time"
 CONF_LOW = "low"
 CONF_LOW_VOLTAGE_REFERENCE = "low_voltage_reference"
 CONF_MAC_ADDRESS = "mac_address"
+CONF_MAGNITUDE = "magnitude"
 CONF_MAINS_FILTER = "mains_filter"
 CONF_MAKE_ID = "make_id"
 CONF_MANUAL_IP = "manual_ip"
@@ -735,6 +736,7 @@ CONF_VOLTAGE_DIVIDER = "voltage_divider"
 CONF_WAIT_TIME = "wait_time"
 CONF_WAIT_UNTIL = "wait_until"
 CONF_WAKEUP_PIN = "wakeup_pin"
+CONF_WAND_ID = "wand_id"
 CONF_WARM_WHITE = "warm_white"
 CONF_WARM_WHITE_COLOR_TEMPERATURE = "warm_white_color_temperature"
 CONF_WATCHDOG_THRESHOLD = "watchdog_threshold"

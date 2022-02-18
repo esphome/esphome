@@ -222,7 +222,13 @@ def lint_ext_check(fname):
 
 
 @lint_file_check(
-    exclude=["**.sh", "docker/hassio-rootfs/**", "docker/*.py", "script/*", "setup.py"]
+    exclude=[
+        "**.sh",
+        "docker/ha-addon-rootfs/**",
+        "docker/*.py",
+        "script/*",
+        "setup.py",
+    ]
 )
 def lint_executable_bit(fname):
     ex = EXECUTABLE_BIT[fname]
@@ -275,9 +281,7 @@ def highlight(s):
     ],
 )
 def lint_no_defines(fname, match):
-    s = highlight(
-        "static const uint8_t {} = {};".format(match.group(1), match.group(2))
-    )
+    s = highlight(f"static const uint8_t {match.group(1)} = {match.group(2)};")
     return (
         "#define macros for integer constants are not allowed, please use "
         "{} style instead (replace uint8_t with the appropriate "

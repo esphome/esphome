@@ -13,7 +13,7 @@ template<typename T, unsigned B> inline T signextend(const T x) {
   return s.x = x;
 }
 // Map the gain register to in uV/LSB
-const float gain_to_lsb(MAX9611Multiplexer gain) {
+float gain_to_lsb(MAX9611Multiplexer gain) {
   float lsb = 0.0;
   if (gain == MAX9611_MULTIPLEXER_CSA_GAIN1) {
     lsb = 107.50;
