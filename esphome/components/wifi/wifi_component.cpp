@@ -37,15 +37,10 @@ WiFiComponent::boolfuncptr WiFiComponent::can_disable_sta_modefunc = [] { return
 
 // TODO remove
 static const WiFiComponent::boolfuncptr quark =
-    WiFiComponent::register_can_disable_sta_mode([] { return true && quark(); });
+    WiFiComponent::register_can_disable_sta_mode(*[] { return true && quark(); });
 
 static bool quark2andreturntrue() { return true && quark2(); }
 static const WiFiComponent::boolfuncptr quark2 = WiFiComponent::register_can_disable_sta_mode(quark2andreturntrue);
-
-static void check_null_at_compiletime() {
-  // Should fail
-  WiFiComponent::register_can_disable_sta_mode((WiFiComponent::boolfuncptr) NULL);
-}
 // TODO end remove
 
 float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }

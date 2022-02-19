@@ -260,12 +260,13 @@ class WiFiComponent : public Component {
   int8_t wifi_rssi();
 
   // TODO move
+  using boolfuncref = bool (&)();
   using boolfuncptr = bool (*)();
-  static boolfuncptr register_can_disable_sta_mode(boolfuncptr func) {
+  static boolfuncref register_can_disable_sta_mode(boolfuncref func) {
     // TODO Assertion in NULL func
     auto old = WiFiComponent::can_disable_sta_modefunc;
     WiFiComponent::can_disable_sta_modefunc = func;
-    return old;
+    return *old;
   }
   // TODO end move
 
