@@ -55,17 +55,19 @@ class ProtoVarInt {
   }
   int32_t as_sint32() const {
     // with ZigZag encoding
-    if (this->value_ & 1)
+    if (this->value_ & 1) {
       return static_cast<int32_t>(~(this->value_ >> 1));
-    else
+    } else {
       return static_cast<int32_t>(this->value_ >> 1);
+    }
   }
   int64_t as_sint64() const {
     // with ZigZag encoding
-    if (this->value_ & 1)
+    if (this->value_ & 1) {
       return static_cast<int64_t>(~(this->value_ >> 1));
-    else
+    } else {
       return static_cast<int64_t>(this->value_ >> 1);
+    }
   }
   void encode(std::vector<uint8_t> &out) {
     uint32_t val = this->value_;
@@ -220,10 +222,11 @@ class ProtoWriteBuffer {
   }
   void encode_sint32(uint32_t field_id, int32_t value, bool force = false) {
     uint32_t uvalue;
-    if (value < 0)
+    if (value < 0) {
       uvalue = ~(value << 1);
-    else
+    } else {
       uvalue = value << 1;
+    }
     this->encode_uint32(field_id, uvalue, force);
   }
   template<class C> void encode_message(uint32_t field_id, const C &value, bool force = false) {

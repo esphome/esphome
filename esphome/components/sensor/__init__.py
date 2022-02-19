@@ -58,6 +58,7 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
@@ -223,6 +224,8 @@ _UNDEF = object()
 
 
 def sensor_schema(
+    class_: MockObjClass = _UNDEF,
+    *,
     unit_of_measurement: str = _UNDEF,
     icon: str = _UNDEF,
     accuracy_decimals: int = _UNDEF,
@@ -231,6 +234,8 @@ def sensor_schema(
     entity_category: str = _UNDEF,
 ) -> cv.Schema:
     schema = SENSOR_SCHEMA
+    if class_ is not _UNDEF:
+        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
     if unit_of_measurement is not _UNDEF:
         schema = schema.extend(
             {

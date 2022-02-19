@@ -66,8 +66,8 @@ async def to_code(config):
     cg.add_define("USE_WEBSERVER")
 
     cg.add(paren.set_port(config[CONF_PORT]))
-    cg.add_define("WEBSERVER_PORT", config[CONF_PORT])
     cg.add_define("USE_WEBSERVER")
+    cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
     cg.add(var.set_css_url(config[CONF_CSS_URL]))
     cg.add(var.set_js_url(config[CONF_JS_URL]))
     cg.add(var.set_allow_ota(config[CONF_OTA]))
@@ -77,11 +77,11 @@ async def to_code(config):
     if CONF_CSS_INCLUDE in config:
         cg.add_define("WEBSERVER_CSS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
-        with open(file=path, mode="r", encoding="utf-8") as myfile:
+        with open(file=path, encoding="utf-8") as myfile:
             cg.add(var.set_css_include(myfile.read()))
     if CONF_JS_INCLUDE in config:
         cg.add_define("WEBSERVER_JS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
-        with open(file=path, mode="r", encoding="utf-8") as myfile:
+        with open(file=path, encoding="utf-8") as myfile:
             cg.add(var.set_js_include(myfile.read()))
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))

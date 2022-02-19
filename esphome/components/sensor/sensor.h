@@ -150,20 +150,28 @@ class Sensor : public EntityBase {
   void internal_send_state_to_frontend(float state);
 
  protected:
-  /// Override this to set the default unit of measurement.
-  ESPDEPRECATED("unit_of_measurement() is deprecated, set property during config validation instead.", "2022.01")
+  /** Override this to set the default unit of measurement.
+   *
+   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
+   */
   virtual std::string unit_of_measurement();  // NOLINT
 
-  /// Override this to set the default accuracy in decimals.
-  ESPDEPRECATED("accuracy_decimals() is deprecated, set property during config validation instead.", "2022.01")
+  /** Override this to set the default accuracy in decimals.
+   *
+   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
+   */
   virtual int8_t accuracy_decimals();  // NOLINT
 
-  /// Override this to set the default device class.
-  ESPDEPRECATED("device_class() is deprecated, set property during config validation instead.", "2022.01")
+  /** Override this to set the default device class.
+   *
+   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
+   */
   virtual std::string device_class();  // NOLINT
 
-  /// Override this to set the default state class.
-  ESPDEPRECATED("state_class() is deprecated, set property during config validation instead.", "2022.01")
+  /** Override this to set the default state class.
+   *
+   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
+   */
   virtual StateClass state_class();  // NOLINT
 
   uint32_t hash_base() override;

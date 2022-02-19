@@ -24,7 +24,7 @@ void AirthingsWavePlus::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt
 
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       this->handle_ = 0;
-      auto chr = this->parent()->get_characteristic(service_uuid_, sensors_data_characteristic_uuid_);
+      auto *chr = this->parent()->get_characteristic(service_uuid_, sensors_data_characteristic_uuid_);
       if (chr == nullptr) {
         ESP_LOGW(TAG, "No sensor characteristic found at service %s char %s", service_uuid_.to_string().c_str(),
                  sensors_data_characteristic_uuid_.to_string().c_str());
@@ -56,7 +56,7 @@ void AirthingsWavePlus::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt
 }
 
 void AirthingsWavePlus::read_sensors_(uint8_t *raw_value, uint16_t value_len) {
-  auto value = (WavePlusReadings *) raw_value;
+  auto *value = (WavePlusReadings *) raw_value;
 
   if (sizeof(WavePlusReadings) <= value_len) {
     ESP_LOGD(TAG, "version = %d", value->version);

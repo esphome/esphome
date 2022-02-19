@@ -41,43 +41,48 @@ void NexaProtocol::encode(RemoteTransmitData *dst, const NexaData &data) {
 
   // Device (26 bits)
   for (int16_t i = 26 - 1; i >= 0; i--) {
-    if (data.device & (1 << i))
+    if (data.device & (1 << i)) {
       this->one(dst);
-    else
+    } else {
       this->zero(dst);
+    }
   }
 
   // Group (1 bit)
-  if (data.group != 0)
+  if (data.group != 0) {
     this->one(dst);
-  else
+  } else {
     this->zero(dst);
+  }
 
   // State (1 bit)
   if (data.state == 2) {
     // Special case for dimmers...send 00 as state
     dst->item(TX_BIT_HIGH_US, TX_BIT_ZERO_LOW_US);
     dst->item(TX_BIT_HIGH_US, TX_BIT_ZERO_LOW_US);
-  } else if (data.state == 1)
+  } else if (data.state == 1) {
     this->one(dst);
-  else
+  } else {
     this->zero(dst);
+  }
 
   // Channel (4 bits)
   for (int16_t i = 4 - 1; i >= 0; i--) {
-    if (data.channel & (1 << i))
+    if (data.channel & (1 << i)) {
       this->one(dst);
-    else
+    } else {
       this->zero(dst);
+    }
   }
 
   // Level (4 bits)
   if (data.state == 2) {
     for (int16_t i = 4 - 1; i >= 0; i--) {
-      if (data.level & (1 << i))
+      if (data.level & (1 << i)) {
         this->one(dst);
-      else
+      } else {
         this->zero(dst);
+      }
     }
   }
 

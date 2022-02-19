@@ -15,6 +15,11 @@ namespace esphome {
 namespace adc {
 
 static const char *const TAG = "adc";
+// 13 bits for S3 / 12 bit for all other esp32 variants
+// create a const to avoid the repated cast to enum
+#ifdef USE_ESP32
+static const adc_bits_width_t ADC_WIDTH_MAX_SOC_BITS = static_cast<adc_bits_width_t>(ADC_WIDTH_MAX - 1);
+#endif
 
 void ADCSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ADC '%s'...", this->get_name().c_str());
@@ -23,14 +28,14 @@ void ADCSensor::setup() {
 #endif
 
 #ifdef USE_ESP32
-  adc1_config_width(ADC_WIDTH_BIT_12);
+  adc1_config_width(ADC_WIDTH_MAX_SOC_BITS);
   if (!autorange_) {
     adc1_config_channel_atten(channel_, attenuation_);
   }
 
   // load characteristics for each attenuation
   for (int i = 0; i < (int) ADC_ATTEN_MAX; i++) {
-    auto cal_value = esp_adc_cal_characterize(ADC_UNIT_1, (adc_atten_t) i, ADC_WIDTH_BIT_12,
+    auto cal_value = esp_adc_cal_characterize(ADC_UNIT_1, (adc_atten_t) i, ADC_WIDTH_MAX_SOC_BITS,
                                               1100,  // default vref
                                               &cal_characteristics_[i]);
     switch (cal_value) {
@@ -65,9 +70,9 @@ void ADCSensor::dump_config() {
 
 #ifdef USE_ESP32
   LOG_PIN("  Pin: ", pin_);
-  if (autorange_)
+  if (autorange_) {
     ESP_LOGCONFIG(TAG, " Attenuation: auto");
-  else
+  } else {
     switch (this->attenuation_) {
       case ADC_ATTEN_DB_0:
         ESP_LOGCONFIG(TAG, " Attenuation: 0db (max 1.1V)");
@@ -84,6 +89,7 @@ void ADCSensor::dump_config() {
       default:  // This is to satisfy the unused ADC_ATTEN_MAX
         break;
     }
+  }
 #endif  // USE_ESP32
   LOG_UPDATE_INTERVAL(this);
 }

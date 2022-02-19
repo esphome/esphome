@@ -116,17 +116,19 @@ template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public P
   std::vector<uint8_t> data_static_{};
 };
 
-class CanbusTrigger : public Trigger<std::vector<uint8_t>>, public Component {
+class CanbusTrigger : public Trigger<std::vector<uint8_t>, uint32_t>, public Component {
   friend class Canbus;
 
  public:
-  explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id, const bool use_extended_id)
-      : parent_(parent), can_id_(can_id), use_extended_id_(use_extended_id){};
+  explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id, const std::uint32_t can_id_mask,
+                         const bool use_extended_id)
+      : parent_(parent), can_id_(can_id), can_id_mask_(can_id_mask), use_extended_id_(use_extended_id){};
   void setup() override { this->parent_->add_trigger(this); }
 
  protected:
   Canbus *parent_;
   uint32_t can_id_;
+  uint32_t can_id_mask_;
   bool use_extended_id_;
 };
 

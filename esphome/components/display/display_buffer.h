@@ -14,6 +14,10 @@
 #include "esphome/components/graph/graph.h"
 #endif
 
+#ifdef USE_QR_CODE
+#include "esphome/components/qr_code/qr_code.h"
+#endif
+
 namespace esphome {
 namespace display {
 
@@ -73,7 +77,12 @@ extern const Color COLOR_OFF;
 /// Turn the pixel ON.
 extern const Color COLOR_ON;
 
-enum ImageType { IMAGE_TYPE_BINARY = 0, IMAGE_TYPE_GRAYSCALE = 1, IMAGE_TYPE_RGB24 = 2 };
+enum ImageType {
+  IMAGE_TYPE_BINARY = 0,
+  IMAGE_TYPE_GRAYSCALE = 1,
+  IMAGE_TYPE_RGB24 = 2,
+  IMAGE_TYPE_TRANSPARENT_BINARY = 3,
+};
 
 enum DisplayRotation {
   DISPLAY_ROTATION_0_DEGREES = 0,
@@ -302,6 +311,17 @@ class DisplayBuffer {
   void legend(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON);
 #endif  // USE_GRAPH
 
+#ifdef USE_QR_CODE
+  /** Draw the `qr_code` with the top-left corner at [x,y] to the screen.
+   *
+   * @param x The x coordinate of the upper left corner.
+   * @param y The y coordinate of the upper left corner.
+   * @param qr_code The qr_code to draw
+   * @param color_on The color to replace in binary images for the on bits.
+   */
+  void qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on = COLOR_ON, int scale = 1);
+#endif
+
   /** Get the text bounds of the given string.
    *
    * @param x The x coordinate to place the string at, can be 0 if only interested in dimensions.
@@ -336,14 +356,14 @@ class DisplayBuffer {
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
 
+  virtual int get_height_internal() = 0;
+  virtual int get_width_internal() = 0;
+  DisplayRotation get_rotation() const { return this->rotation_; }
+
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
 
   virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
-
-  virtual int get_height_internal() = 0;
-
-  virtual int get_width_internal() = 0;
 
   void init_internal_(uint32_t buffer_length);
 
