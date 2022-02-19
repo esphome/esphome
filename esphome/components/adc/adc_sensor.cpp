@@ -21,9 +21,9 @@ static const char *const TAG = "adc";
 // TODO: directly use ADC_WIDTH_BIT_DEFAULT when available in newer IDF
 static const adc_bits_width_t ADC_WIDTH_MAX_SOC_BITS = static_cast<adc_bits_width_t>(ADC_WIDTH_MAX - 1);
 #if ADC_WIDTH_MAX_SOC_BITS == ADC_WIDTH_12Bit
-#define CUSTOM_SOC_ADC_MAX_BITWIDTH 12
+static const int CUSTOM_SOC_ADC_MAX_BITWIDTH = 12;
 #else
-#define CUSTOM_SOC_ADC_MAX_BITWIDTH 13
+static const int CUSTOM_SOC_ADC_MAX_BITWIDTH = 13;
 #endif
 // TODO: Directly use SOC_ADC_MAX_BITWIDTH when available in newer IDF
 static const int ADC_MAX = (2 ^ CUSTOM_SOC_ADC_MAX_BITWIDTH) - 1;
