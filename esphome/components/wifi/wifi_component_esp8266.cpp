@@ -580,7 +580,7 @@ void WiFiComponent::wifi_pre_setup_() {
   wifi_set_event_handler_cb(&WiFiComponent::wifi_event_callback);
 
   // Make sure WiFi is in clean state before anything starts
-  this->wifi_mode_(false, false);
+  this->wifi_mode_(WiFiComponent::can_disable_sta_mode_(), false);
 }
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {

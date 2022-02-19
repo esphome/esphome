@@ -31,6 +31,31 @@ namespace wifi {
 
 static const char *const TAG = "wifi";
 
+// TODO Move
+typedef bool (*boolfuncptr)();
+boolfuncptr can_disable_sta_mode_func_ = []() -> bool { return true; }
+
+WiFiComponent::boolfuncref
+WiFiComponent::register_can_disable_sta_mode(boolfuncref func) {
+  // TODO ASSERT func == null
+  auto old = can_disable_sta_mode_func_;
+  can_disable_sta_mode_func_ = func;
+  return *old;
+}
+bool WiFiComponent::can_disable_sta_mode_() { return can_disable_sta_mode_func_(); };
+// TODO end move
+
+// TODO remove
+static bool returntrue() { return true; }
+void CheckNullAtCompiletime() {
+  // Shuld work
+  WiFiComponent::register_can_disable_sta_mode(returntrue);
+  WiFiComponent::register_can_disable_sta_mode(*[] { return true; });
+  // Should fail
+  WiFiComponent::register_can_disable_sta_mode((WiFiComponent::boolfuncref) NULL);
+}
+// TODO end remove
+
 float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
 void WiFiComponent::setup() {
@@ -566,7 +591,7 @@ void WiFiComponent::retry_connect() {
 
   delay(10);
   if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
-      (this->num_retried_ > 5 || this->error_from_callback_)) {
+      WiFiComponent::can_disable_sta_mode_() && (this->num_retried_ > 5 || this->error_from_callback_)) {
     // If retry failed for more than 5 times, let's restart STA
     ESP_LOGW(TAG, "Restarting WiFi adapter...");
     this->wifi_mode_(false, {});
@@ -619,6 +644,8 @@ bool WiFiComponent::is_esp32_improv_active_() {
   return false;
 #endif
 }
+
+bool WiFiComponent::can_disable_sta_mode_() { return false; }
 
 void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }
 void WiFiAP::set_bssid(bssid_t bssid) { this->bssid_ = bssid; }
