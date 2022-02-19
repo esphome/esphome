@@ -1317,18 +1317,18 @@ binary_sensor:
   - platform: analog_threshold
     name: Analog Trheshold 1
     sensor_id: template_sensor
-    threshold: 
+    threshold:
       upper: 110
       lower: 90
-    filters: 
+    filters:
       - delayed_on: 0s
       - delayed_off: 10s
   - platform: analog_threshold
     name: Analog Trheshold 2
     sensor_id: template_sensor
     threshold: 100
-    filters: 
-      - invert: 
+    filters:
+      - invert:
 
 pca9685:
   frequency: 500
@@ -2514,7 +2514,7 @@ text_sensor:
     on_notify:
       then:
         - lambda: |-
-            ESP_LOGD("green_btn", "Location changed: %s", x);
+            ESP_LOGD("green_btn", "Location changed: %s", x.c_str());
   - platform: mqtt_subscribe
     name: "MQTT Subscribe Text"
     topic: "the/topic"
