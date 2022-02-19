@@ -15,18 +15,18 @@ namespace esphome {
 namespace adc {
 
 static const char *const TAG = "adc";
-#ifdef USE_ESP32
 // 13 bits for S3 / 12 bit for all other esp32 variants
 // create a const to avoid the repated cast to enum
-// TODO: directly use ADC_WIDTH_BIT_DEFAULT when available in newer IDF
+#ifdef USE_ESP32
+// TODO: simply use ADC_WIDTH_BIT_DEFAULT when available in newer IDF
 static const adc_bits_width_t ADC_WIDTH_MAX_SOC_BITS = static_cast<adc_bits_width_t>(ADC_WIDTH_MAX - 1);
 #if ADC_WIDTH_MAX_SOC_BITS == ADC_WIDTH_12Bit
 static const int CUSTOM_SOC_ADC_MAX_BITWIDTH = 12;
 #else
 static const int CUSTOM_SOC_ADC_MAX_BITWIDTH = 13;
 #endif
-// TODO: Directly use SOC_ADC_MAX_BITWIDTH when available in newer IDF
-static const int ADC_MAX = (2 ^ CUSTOM_SOC_ADC_MAX_BITWIDTH) - 1;
+// TODO: simply use SOC_ADC_MAX_BITWIDTH when available in newer IDF
+static const int ADC_MAX = pow(2,CUSTOM_SOC_ADC_MAX_BITWIDTH) - 1;
 static const int ADC_HALF = ADC_MAX >> 1;
 #endif
 
