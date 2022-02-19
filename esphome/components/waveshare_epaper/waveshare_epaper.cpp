@@ -1242,59 +1242,59 @@ void WaveshareEPaper7P5InBC::dump_config() {
 }
 
 void WaveshareEPaper7P5InHDB::initialize() {
-  this->command(0x12);       //SWRESET
+  this->command(0x12);  // SWRESET
 
-  this->wait_until_idle_();  //waiting for the electronic paper IC to release the idle signal
+  this->wait_until_idle_();  // waiting for the electronic paper IC to release the idle signal
 
-  this->command(0x46);       // Auto Write RAM
+  this->command(0x46);  // Auto Write RAM
   this->data(0xF7);
 
-  this->wait_until_idle_();  //waiting for the electronic paper IC to release the idle signal
+  this->wait_until_idle_();  // waiting for the electronic paper IC to release the idle signal
 
-  this->command(0x47);       // Auto Write RAM
+  this->command(0x47);  // Auto Write RAM
   this->data(0xF7);
 
-  this->wait_until_idle_();  //waiting for the electronic paper IC to release the idle signal
+  this->wait_until_idle_();  // waiting for the electronic paper IC to release the idle signal
 
-  this->command(0x0C);       // Soft start setting
+  this->command(0x0C);  // Soft start setting
   this->data(0xAE);
   this->data(0xC7);
   this->data(0xC3);
   this->data(0xC0);
   this->data(0x40);
 
-  this->command(0x01);       // Set MUX as 527
+  this->command(0x01);  // Set MUX as 527
   this->data(0xAF);
   this->data(0x02);
   this->data(0x01);
 
-  this->command(0x11);       // Data entry mode
+  this->command(0x11);  // Data entry mode
   this->data(0x01);
 
   this->command(0x44);
-  this->data(0x00);          // RAM x address start at 0
+  this->data(0x00);  // RAM x address start at 0
   this->data(0x00);
-  this->data(0x6F);          // RAM x address end at 36Fh -> 879
+  this->data(0x6F);  // RAM x address end at 36Fh -> 879
   this->data(0x03);
 
   this->command(0x45);
-  this->data(0xAF);         // RAM y address start at 20Fh;
+  this->data(0xAF);  // RAM y address start at 20Fh;
   this->data(0x02);
-  this->data(0x00);         // RAM y address end at 00h;
+  this->data(0x00);  // RAM y address end at 00h;
   this->data(0x00);
 
-  this->command(0x3C);      // VBD
-  this->data(0x01);         // LUT1, for white
+  this->command(0x3C);  // VBD
+  this->data(0x01);     // LUT1, for white
 
   this->command(0x18);
   this->data(0X80);
 
   this->command(0x22);
-  this->data(0XB1);         //Load Temperature and waveform setting.
+  this->data(0XB1);  // Load Temperature and waveform setting.
 
   this->command(0x20);
 
-  this->wait_until_idle_(); //waiting for the electronic paper IC to release the idle signal
+  this->wait_until_idle_();  // waiting for the electronic paper IC to release the idle signal
 
   this->command(0x4E);
   this->data(0x00);
@@ -1332,7 +1332,7 @@ void HOT WaveshareEPaper7P5InHDB::display() {
   this->command(0x22);
   this->data(0xC7);
   this->command(0x20);
-  delay(100); // NOLINT
+  delay(100);  // NOLINT
 }
 
 int WaveshareEPaper7P5InHDB::get_width_internal() { return 880; }

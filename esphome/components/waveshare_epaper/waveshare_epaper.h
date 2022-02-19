@@ -359,7 +359,7 @@ class WaveshareEPaper7P5InHDB : public WaveshareEPaper {
   void dump_config() override;
 
   void deep_sleep() override {
-    //deep sleep
+    // deep sleep
     this->command(0x10);
     this->data(0x01);
   }
