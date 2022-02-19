@@ -88,8 +88,7 @@ static void retry_handler(const std::shared_ptr<RetryArgs> &args) {
   if (retry_result == RetryResult::DONE || --args->retry_countdown <= 0)
     return;
   args->current_interval *= args->backoff_increase_factor;
-  args->scheduler->set_timeout(args->component, args->name, args->current_interval,
-                               [args]() { retry_handler(args); });
+  args->scheduler->set_timeout(args->component, args->name, args->current_interval, [args]() { retry_handler(args); });
 }
 
 void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
