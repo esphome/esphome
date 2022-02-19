@@ -298,7 +298,7 @@ class WiFiComponent : public Component {
   bool is_esp32_improv_active_();
 
   static boolfuncptr can_disable_sta_modefunc;
-  static bool WiFiComponent::can_disable_sta_mode() { return can_disable_sta_modefunc(); };
+  static bool can_disable_sta_mode() { return can_disable_sta_modefunc(); };
 
 #ifdef USE_ESP8266
   static void wifi_event_callback(System_Event_t *event);
