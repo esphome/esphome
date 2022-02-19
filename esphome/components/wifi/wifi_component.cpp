@@ -49,11 +49,11 @@ bool WiFiComponent::can_disable_sta_mode() { return can_disable_sta_modefunc(); 
 
 // TODO remove
 static bool sometrue() { return true; }
-static WiFiComponent::boolfuncref quark = WiFiComponent::register_can_disable_sta_mode(
+static boolfuncref quark = WiFiComponent::register_can_disable_sta_mode(
     *[] { return sometrue() && quark(); });  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static bool quark2andreturntrue();
-static WiFiComponent::boolfuncref quark2 = WiFiComponent::register_can_disable_sta_mode(
+static boolfuncref quark2 = WiFiComponent::register_can_disable_sta_mode(
     quark2andreturntrue);  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool quark2andreturntrue() { return sometrue() && quark2(); }
 // TODO end remove
