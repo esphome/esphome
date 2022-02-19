@@ -40,12 +40,12 @@ def inherit_accuracy_decimals(decimals, config):
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
+        TotalDailyEnergy,
         device_class=DEVICE_CLASS_ENERGY,
         state_class=STATE_CLASS_TOTAL_INCREASING,
     )
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(TotalDailyEnergy),
             cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
             cv.Required(CONF_POWER_ID): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_RESTORE, default=True): cv.boolean,
@@ -82,10 +82,8 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
-    await sensor.register_sensor(var, config)
 
     sens = await cg.get_variable(config[CONF_POWER_ID])
     cg.add(var.set_parent(sens))

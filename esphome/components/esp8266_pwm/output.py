@@ -23,15 +23,20 @@ ESP8266PWM = esp8266_pwm_ns.class_("ESP8266PWM", output.FloatOutput, cg.Componen
 SetFrequencyAction = esp8266_pwm_ns.class_("SetFrequencyAction", automation.Action)
 validate_frequency = cv.All(cv.frequency, cv.Range(min=1.0e-6))
 
-CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
-    {
-        cv.Required(CONF_ID): cv.declare_id(ESP8266PWM),
-        cv.Required(CONF_PIN): cv.All(
-            pins.internal_gpio_output_pin_schema, valid_pwm_pin
-        ),
-        cv.Optional(CONF_FREQUENCY, default="1kHz"): validate_frequency,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    output.FLOAT_OUTPUT_SCHEMA.extend(
+        {
+            cv.Required(CONF_ID): cv.declare_id(ESP8266PWM),
+            cv.Required(CONF_PIN): cv.All(
+                pins.internal_gpio_output_pin_schema, valid_pwm_pin
+            ),
+            cv.Optional(CONF_FREQUENCY, default="1kHz"): validate_frequency,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.require_framework_version(
+        esp8266_arduino=cv.Version(2, 4, 0),
+    ),
+)
 
 
 async def to_code(config):

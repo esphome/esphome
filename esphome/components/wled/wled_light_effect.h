@@ -17,7 +17,6 @@ class WLEDLightEffect : public light::AddressableLightEffect {
  public:
   WLEDLightEffect(const std::string &name);
 
- public:
   void start() override;
   void stop() override;
   void apply(light::AddressableLight &it, const Color &current_color) override;
@@ -32,7 +31,6 @@ class WLEDLightEffect : public light::AddressableLightEffect {
   bool parse_drgbw_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size);
   bool parse_dnrgb_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size);
 
- protected:
   uint16_t port_{0};
   std::unique_ptr<UDP> udp_;
   uint32_t blank_at_{0};

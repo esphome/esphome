@@ -41,6 +41,7 @@ service APIConnection {
   rpc number_command (NumberCommandRequest) returns (void) {}
   rpc select_command (SelectCommandRequest) returns (void) {}
   rpc button_command (ButtonCommandRequest) returns (void) {}
+  rpc lock_command (LockCommandRequest) returns (void) {}
 }
 
 
@@ -95,6 +96,9 @@ message HelloResponse {
   // and only exists for debugging/logging purposes.
   // For example "ESPHome v1.10.0 on ESP8266"
   string server_info = 3;
+
+  // The name of the server (App.get_name())
+  string name = 4;
 }
 
 // Message sent at the beginning of each connection to authenticate the client
@@ -525,6 +529,7 @@ message ListEntitiesSwitchResponse {
   bool assumed_state = 6;
   bool disabled_by_default = 7;
   EntityCategory entity_category = 8;
+  string device_class = 9;
 }
 message SwitchStateResponse {
   option (id) = 26;
@@ -953,6 +958,63 @@ message SelectCommandRequest {
   string state = 2;
 }
 
+
+// ==================== LOCK ====================
+enum LockState {
+  LOCK_STATE_NONE = 0;
+  LOCK_STATE_LOCKED = 1;
+  LOCK_STATE_UNLOCKED = 2;
+  LOCK_STATE_JAMMED = 3;
+  LOCK_STATE_LOCKING = 4;
+  LOCK_STATE_UNLOCKING = 5;
+}
+enum LockCommand  {
+  LOCK_UNLOCK = 0;
+  LOCK_LOCK = 1;
+  LOCK_OPEN = 2;
+}
+message ListEntitiesLockResponse {
+  option (id) = 58;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_LOCK";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+  bool assumed_state = 8;
+
+  bool supports_open = 9;
+  bool requires_code = 10;
+
+  # Not yet implemented:
+  string code_format = 11;
+}
+message LockStateResponse {
+  option (id) = 59;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_LOCK";
+  option (no_delay) = true;
+  fixed32 key = 1;
+  LockState state = 2;
+}
+message LockCommandRequest {
+  option (id) = 60;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_LOCK";
+  option (no_delay) = true;
+  fixed32 key = 1;
+  LockCommand command = 2;
+
+  # Not yet implemented:
+  bool has_code = 3;
+  string code = 4;
+}
+
 // ==================== BUTTON ====================
 message ListEntitiesButtonResponse {
   option (id) = 61;
@@ -977,3 +1039,4 @@ message ButtonCommandRequest {
 
   fixed32 key = 1;
 }
+

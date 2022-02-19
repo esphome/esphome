@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_DEVICE_CLASS,
     CONF_STATE,
+    CONF_ON_OPEN,
     CONF_POSITION,
     CONF_POSITION_COMMAND_TOPIC,
     CONF_POSITION_STATE_TOPIC,
@@ -74,7 +75,6 @@ CoverClosedTrigger = cover_ns.class_(
     "CoverClosedTrigger", automation.Trigger.template()
 )
 
-CONF_ON_OPEN = "on_open"
 CONF_ON_CLOSED = "on_closed"
 
 COVER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(

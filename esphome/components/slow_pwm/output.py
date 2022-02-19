@@ -15,6 +15,7 @@ slow_pwm_ns = cg.esphome_ns.namespace("slow_pwm")
 SlowPWMOutput = slow_pwm_ns.class_("SlowPWMOutput", output.FloatOutput, cg.Component)
 
 CONF_STATE_CHANGE_ACTION = "state_change_action"
+CONF_RESTART_CYCLE_ON_STATE_CHANGE = "restart_cycle_on_state_change"
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
@@ -37,6 +38,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
             cv.positive_time_period_milliseconds,
             cv.Range(min=core.TimePeriod(milliseconds=100)),
         ),
+        cv.Optional(CONF_RESTART_CYCLE_ON_STATE_CHANGE, default=False): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -63,3 +65,8 @@ async def to_code(config):
         )
 
     cg.add(var.set_period(config[CONF_PERIOD]))
+    cg.add(
+        var.set_restart_cycle_on_state_change(
+            config[CONF_RESTART_CYCLE_ON_STATE_CHANGE]
+        )
+    )

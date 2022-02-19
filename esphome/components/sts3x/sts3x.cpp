@@ -78,18 +78,20 @@ uint8_t sts3x_crc(uint8_t data1, uint8_t data2) {
 
   crc ^= data1;
   for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80)
+    if (crc & 0x80) {
       crc = (crc << 1) ^ 0x131;
-    else
+    } else {
       crc = (crc << 1);
+    }
   }
 
   crc ^= data2;
   for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80)
+    if (crc & 0x80) {
       crc = (crc << 1) ^ 0x131;
-    else
+    } else {
       crc = (crc << 1);
+    }
   }
 
   return crc;
