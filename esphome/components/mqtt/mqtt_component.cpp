@@ -150,7 +150,7 @@ std::string MQTTComponent::get_default_object_id_() const {
 }
 
 void MQTTComponent::subscribe(const std::string &topic, const mqtt_callback_t &callback, uint8_t qos) {
-  global_mqtt_client->subscribe(topic, std::move(callback), qos);
+  global_mqtt_client->subscribe(topic, callback, qos);
 }
 
 void MQTTComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
