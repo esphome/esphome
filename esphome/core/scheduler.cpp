@@ -83,13 +83,13 @@ struct RetryArgs {
   Scheduler *scheduler;
 };
 
-static void retry_handler(std::shared_ptr<RetryArgs> args) {
+static void retry_handler(const std::shared_ptr<RetryArgs> &args) {
   RetryResult retry_result = args->func();
   if (retry_result == RetryResult::DONE || --args->retry_countdown <= 0)
     return;
   args->current_interval *= args->backoff_increase_factor;
   args->scheduler->set_timeout(args->component, args->name, args->current_interval,
-                               [args]() { retry_handler(std::move(args)); });
+                               [args]() { retry_handler(args); });
 }
 
 void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
@@ -112,7 +112,7 @@ void HOT Scheduler::set_retry(Component *component, const std::string &name, uin
   args->backoff_increase_factor = backoff_increase_factor;
   args->scheduler = this;
 
-  this->set_timeout(component, args->name, initial_wait_time, [args]() { retry_handler(std::move(args)); });
+  this->set_timeout(component, args->name, initial_wait_time, [args]() { retry_handler(args); });
 }
 bool HOT Scheduler::cancel_retry(Component *component, const std::string &name) {
   return this->cancel_timeout(component, "retry$" + name);
