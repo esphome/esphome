@@ -5,7 +5,6 @@ from esphome.components import sensor
 from esphome.const import (
     CONF_COUNT_MODE,
     CONF_FALLING_EDGE,
-    CONF_ID,
     CONF_INTERNAL_FILTER,
     CONF_PIN,
     CONF_RISING_EDGE,
@@ -66,6 +65,7 @@ def validate_count_mode(value):
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
+        PulseCounterSensor,
         unit_of_measurement=UNIT_PULSES_PER_MINUTE,
         icon=ICON_PULSE,
         accuracy_decimals=2,
@@ -73,7 +73,6 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(PulseCounterSensor),
             cv.Required(CONF_PIN): validate_pulse_counter_pin,
             cv.Optional(
                 CONF_COUNT_MODE,
@@ -104,9 +103,8 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
-    await sensor.register_sensor(var, config)
 
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))

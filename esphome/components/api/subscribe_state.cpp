@@ -47,6 +47,9 @@ bool InitialStateIterator::on_select(select::Select *select) {
   return this->client_->send_select_state(select, select->state);
 }
 #endif
+#ifdef USE_LOCK
+bool InitialStateIterator::on_lock(lock::Lock *a_lock) { return this->client_->send_lock_state(a_lock, a_lock->state); }
+#endif
 InitialStateIterator::InitialStateIterator(APIServer *server, APIConnection *client)
     : ComponentIterator(server), client_(client) {}
 

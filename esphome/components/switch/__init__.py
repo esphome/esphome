@@ -4,18 +4,27 @@ from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import (
+    CONF_DEVICE_CLASS,
     CONF_ID,
     CONF_INVERTED,
+    CONF_MQTT_ID,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_TRIGGER_ID,
-    CONF_MQTT_ID,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_OUTLET,
+    DEVICE_CLASS_SWITCH,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
+DEVICE_CLASSES = [
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_OUTLET,
+    DEVICE_CLASS_SWITCH,
+]
 
 switch_ns = cg.esphome_ns.namespace("switch_")
 Switch = switch_ns.class_("Switch", cg.EntityBase)
@@ -51,6 +60,7 @@ SWITCH_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).e
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOffTrigger),
             }
         ),
+        cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
     }
 )
 
@@ -70,6 +80,9 @@ async def setup_switch_core_(var, config):
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
+
+    if CONF_DEVICE_CLASS in config:
+        cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
 
 
 async def register_switch(var, config):
