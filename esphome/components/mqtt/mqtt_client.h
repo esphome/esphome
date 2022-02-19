@@ -161,7 +161,7 @@ class MQTTClientComponent : public Component {
    * @param callback The callback function.
    * @param qos The QoS of this subscription.
    */
-  void subscribe(const std::string &topic, const mqtt_callback_t callback, uint8_t qos = 0);
+  void subscribe(const std::string &topic, const mqtt_callback_t& callback, uint8_t qos = 0);
 
   /** Subscribe to an MQTT topic and call callback when a partial message is received.
    *

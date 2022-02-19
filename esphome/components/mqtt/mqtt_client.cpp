@@ -322,7 +322,7 @@ void MQTTClientComponent::resubscribe_subscriptions_() {
   }
 }
 
-void MQTTClientComponent::subscribe(const std::string &topic, const mqtt_callback_t callback, uint8_t qos) {
+void MQTTClientComponent::subscribe(const std::string &topic, const mqtt_callback_t& callback, uint8_t qos) {
   auto f = [callback, this](const std::string &topic, char *payload, size_t len, size_t index, size_t total) {
     if (index == 0)
       this->payload_buffer_.reserve(total);
