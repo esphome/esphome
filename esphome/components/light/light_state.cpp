@@ -68,6 +68,12 @@ void LightState::setup() {
         recovered.state = !recovered.state;
       }
       break;
+    case LIGHT_RESTORE_AND_OFF:
+    case LIGHT_RESTORE_AND_ON:
+      this->rtc_ = global_preferences->make_preference<LightStateRTCState>(this->get_object_id_hash());
+      this->rtc_.load(&recovered);
+      recovered.state = (this->restore_mode_ == LIGHT_RESTORE_AND_ON);
+      break;
     case LIGHT_ALWAYS_OFF:
       recovered.state = false;
       break;
@@ -75,7 +81,7 @@ void LightState::setup() {
       recovered.state = true;
       break;
   }
-
+  
   call.set_color_mode_if_supported(recovered.color_mode);
   call.set_state(recovered.state);
   call.set_brightness_if_supported(recovered.brightness);
