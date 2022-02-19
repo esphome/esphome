@@ -260,9 +260,14 @@ class WiFiComponent : public Component {
   int8_t wifi_rssi();
 
   // TODO move
-  using boolfuncref = bool (&)();
+  using boolfuncptr = bool (*)();
+  static boolfuncptr register_can_disable_sta_mode(boolfuncptr func) {
+    // TODO Assertion in NULL func
+    auto old = WiFiComponent::can_disable_sta_modefunc;
+    WiFiComponent::can_disable_sta_modefunc = func;
+    return old;
+  }
   // TODO end move
-  static boolfuncref register_can_disable_sta_mode(boolfuncref func);
 
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
@@ -291,7 +296,8 @@ class WiFiComponent : public Component {
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
 
-  static bool can_disable_sta_mode();
+  static boolfuncptr can_disable_sta_modefunc;
+  static bool WiFiComponent::can_disable_sta_mode() { return can_disable_sta_modefunc(); };
 
 #ifdef USE_ESP8266
   static void wifi_event_callback(System_Event_t *event);
