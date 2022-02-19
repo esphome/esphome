@@ -2496,6 +2496,18 @@ globals:
     initial_value: "false"
 
 text_sensor:
+  - platform: ble_client
+    ble_client_id: ble_foo
+    name: 'Sensor Location'
+    service_uuid: '180d'
+    characteristic_uuid: '2a38'
+    descriptor_uuid: '2902'
+    notify: true
+    update_interval: never
+    on_notify:
+      then:
+        - lambda: |-
+            ESP_LOGD("green_btn", "Location changed: %s", x);
   - platform: mqtt_subscribe
     name: "MQTT Subscribe Text"
     topic: "the/topic"
