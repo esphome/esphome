@@ -33,14 +33,14 @@ static const char *const TAG = "wifi";
 
 // TODO Move
 using boolfuncptr = bool (*)();
-boolfuncptr can_disable_sta_modefunc_ = []() -> bool { return true; };
+static boolfuncptr can_disable_sta_modefunc = []() -> bool { return true; };
 
 WiFiComponent::boolfuncref WiFiComponent::register_can_disable_sta_mode(boolfuncref func) {
-  auto old = can_disable_sta_modefunc_;
-  can_disable_sta_modefunc_ = func;
+  auto old = can_disable_sta_modefunc;
+  can_disable_sta_modefunc = func;
   return *old;
 }
-bool WiFiComponent::can_disable_sta_mode() { return can_disable_sta_modefunc_(); };
+bool WiFiComponent::can_disable_sta_mode() { return can_disable_sta_modefunc(); };
 // TODO end move
 
 // TODO remove
