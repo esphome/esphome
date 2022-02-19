@@ -1,4 +1,5 @@
 #include "climate.h"
+#include "esphome/core/macros.h"
 
 namespace esphome {
 namespace climate {
@@ -326,14 +327,17 @@ optional<ClimateDeviceRestoreState> Climate::restore_state_() {
   return recovered;
 }
 void Climate::save_state_() {
-#if defined(USE_ESP_IDF) && !defined(CLANG_TIDY)
+#if (defined(USE_ESP_IDF) || (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0))) && \
+    !defined(CLANG_TIDY)
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
+#define TEMP_IGNORE_MEMACCESS
 #endif
   ClimateDeviceRestoreState state{};
   // initialize as zero to prevent random data on stack triggering erase
   memset(&state, 0, sizeof(ClimateDeviceRestoreState));
-#if USE_ESP_IDF && !defined(CLANG_TIDY)
+#ifdef TEMP_IGNORE_MEMACCESS
 #pragma GCC diagnostic pop
+#undef TEMP_IGNORE_MEMACCESS
 #endif
 
   state.mode = this->mode;

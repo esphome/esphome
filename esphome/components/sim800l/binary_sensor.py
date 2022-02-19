@@ -2,8 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import (
-    CONF_DEVICE_CLASS,
-    CONF_ENTITY_CATEGORY,
     DEVICE_CLASS_CONNECTIVITY,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
@@ -15,15 +13,9 @@ CONF_REGISTERED = "registered"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_SIM800L_ID): cv.use_id(Sim800LComponent),
-    cv.Optional(CONF_REGISTERED): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
-        {
-            cv.Optional(
-                CONF_DEVICE_CLASS, default=DEVICE_CLASS_CONNECTIVITY
-            ): binary_sensor.device_class,
-            cv.Optional(
-                CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_DIAGNOSTIC
-            ): cv.entity_category,
-        }
+    cv.Optional(CONF_REGISTERED): binary_sensor.binary_sensor_schema(
+        device_class=DEVICE_CLASS_CONNECTIVITY,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
 }
 

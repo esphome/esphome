@@ -17,11 +17,16 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.helpers import copy_file_if_changed
 
-from .const import CONF_RESTORE_FROM_FLASH, KEY_BOARD, KEY_ESP8266, esp8266_ns
+from .const import (
+    CONF_RESTORE_FROM_FLASH,
+    KEY_BOARD,
+    KEY_ESP8266,
+    KEY_PIN_INITIAL_STATES,
+    esp8266_ns,
+)
 from .boards import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 
-# force import gpio to register pin schema
-from .gpio import esp8266_pin_to_code  # noqa
+from .gpio import PinInitialState, add_pin_initial_states_array
 
 
 CODEOWNERS = ["@esphome/core"]
@@ -37,6 +42,9 @@ def set_core_data(config):
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
     CORE.data[KEY_ESP8266][KEY_BOARD] = config[CONF_BOARD]
+    CORE.data[KEY_ESP8266][KEY_PIN_INITIAL_STATES] = [
+        PinInitialState() for _ in range(16)
+    ]
     return config
 
 
@@ -220,6 +228,8 @@ async def to_code(config):
 
         if ld_script is not None:
             cg.add_platformio_option("board_build.ldscript", ld_script)
+
+    CORE.add_job(add_pin_initial_states_array)
 
 
 # Called by writer.py

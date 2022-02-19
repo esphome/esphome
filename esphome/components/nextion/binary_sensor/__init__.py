@@ -20,9 +20,9 @@ NextionBinarySensor = nextion_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    binary_sensor.binary_sensor_schema(NextionBinarySensor)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(NextionBinarySensor),
             cv.Optional(CONF_PAGE_ID): cv.uint8_t,
             cv.Optional(CONF_COMPONENT_ID): cv.uint8_t,
         }

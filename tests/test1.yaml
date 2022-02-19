@@ -463,6 +463,13 @@ sensor:
     state_topic: livingroom/custom_state_topic
     measurement_duration: 31
     i2c_id: i2c_bus
+  - platform: max44009
+    name: "Outside Brightness 1"
+    internal: true
+    address: 0x4A
+    update_interval: 30s
+    mode: low_power
+    i2c_id: i2c_bus
   - platform: bme280
     temperature:
       name: "Outside Temperature"
@@ -1307,6 +1314,21 @@ binary_sensor:
         ]
   - platform: as3935
     name: "Storm Alert"
+  - platform: analog_threshold
+    name: Analog Trheshold 1
+    sensor_id: template_sensor
+    threshold: 
+      upper: 110
+      lower: 90
+    filters: 
+      - delayed_on: 0s
+      - delayed_off: 10s
+  - platform: analog_threshold
+    name: Analog Trheshold 2
+    sensor_id: template_sensor
+    threshold: 100
+    filters: 
+      - invert: 
 
 pca9685:
   frequency: 500
@@ -1846,6 +1868,11 @@ switch:
     turn_on_action:
       remote_transmitter.transmit_jvc:
         data: 0x10EF
+  - platform: template
+    name: MagiQuest
+    turn_on_action:
+      remote_transmitter.transmit_magiquest:
+        wand_id: 0x01234567
   - platform: template
     name: NEC
     id: living_room_lights_off
@@ -2476,6 +2503,18 @@ globals:
     initial_value: "false"
 
 text_sensor:
+  - platform: ble_client
+    ble_client_id: ble_foo
+    name: 'Sensor Location'
+    service_uuid: '180d'
+    characteristic_uuid: '2a38'
+    descriptor_uuid: '2902'
+    notify: true
+    update_interval: never
+    on_notify:
+      then:
+        - lambda: |-
+            ESP_LOGD("green_btn", "Location changed: %s", x);
   - platform: mqtt_subscribe
     name: "MQTT Subscribe Text"
     topic: "the/topic"
@@ -2551,6 +2590,25 @@ canbus:
                 lambda: "return x[0] == 0x11;"
               then:
                 light.toggle: ${roomname}_lights
+      - can_id:      0b00000000000000000000001000000
+        can_id_mask: 0b11111000000000011111111000000
+        use_extended_id: true
+        then:
+          - lambda: |-
+              auto pdo_id = can_id >> 14;
+              switch (pdo_id)
+              {
+                case 117:
+                  ESP_LOGD("canbus", "exhaust_fan_duty");
+                  break;
+                case 118:
+                  ESP_LOGD("canbus", "supply_fan_duty");
+                  break;
+                case 119:
+                  ESP_LOGD("canbus", "supply_fan_flow");
+                  break;
+                // to be continued...
+              }
   - platform: esp32_can
     id: esp32_internal_can
     rx_pin: GPIO04
@@ -2570,6 +2628,25 @@ canbus:
                 lambda: "return x[0] == 0x11;"
               then:
                 light.toggle: ${roomname}_lights
+      - can_id:      0b00000000000000000000001000000
+        can_id_mask: 0b11111000000000011111111000000
+        use_extended_id: true
+        then:
+          - lambda: |-
+              auto pdo_id = can_id >> 14;
+              switch (pdo_id)
+              {
+                case 117:
+                  ESP_LOGD("canbus", "exhaust_fan_duty");
+                  break;
+                case 118:
+                  ESP_LOGD("canbus", "supply_fan_duty");
+                  break;
+                case 119:
+                  ESP_LOGD("canbus", "supply_fan_flow");
+                  break;
+                // to be continued...
+              }
 
 teleinfo:
   id: myteleinfo

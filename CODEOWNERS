@@ -19,6 +19,7 @@ esphome/components/airthings_wave_mini/* @ncareau
 esphome/components/airthings_wave_plus/* @jeromelaban
 esphome/components/am43/* @buxtronix
 esphome/components/am43/cover/* @buxtronix
+esphome/components/analog_threshold/* @ianchi
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
 esphome/components/api/* @OttoWinter
@@ -93,6 +94,7 @@ esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
 esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/ltr390/* @sjtrny
+esphome/components/max44009/* @berfenger
 esphome/components/max7219digit/* @rspaargaren
 esphome/components/max9611/* @mckaymatthew
 esphome/components/mcp23008/* @jesserockz
