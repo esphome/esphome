@@ -34,26 +34,26 @@ static const char *const TAG = "wifi";
 // TODO Move
 using boolfuncptr = bool (*)();
 
-static boolfuncptr can_disable_sta_modefunc =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static boolfuncptr can_disable_sta_mode_func =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     [] { return true; };
 
-boolfuncref WiFiComponent::register_can_disable_sta_mode(boolfuncref func) {
-  auto old = can_disable_sta_modefunc;
-  can_disable_sta_modefunc = func;
+boolfuncref WiFiComponent::register_can_disable_sta_mode_(boolfuncref func) {
+  auto old = can_disable_sta_mode_func;
+  can_disable_sta_mode_func = func;
   return *old;
 }
 
-bool WiFiComponent::can_disable_sta_mode() { return can_disable_sta_modefunc(); };
+bool WiFiComponent::can_disable_sta_mode_() { return can_disable_sta_mode_func(); };
 // TODO end move
 
 // TODO remove
 static bool sometrue() { return true; }
 static boolfuncref quark =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-    WiFiComponent::register_can_disable_sta_mode(*[] { return sometrue() && quark(); });
+    WiFiComponent::register_can_disable_sta_mode_(*[] { return sometrue() && quark(); });
 
 static bool quark2andreturntrue();
 static boolfuncref quark2 =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-    WiFiComponent::register_can_disable_sta_mode(quark2andreturntrue);
+    WiFiComponent::register_can_disable_sta_mode_(quark2andreturntrue);
 static bool quark2andreturntrue() { return sometrue() && quark2(); }
 // TODO end remove
 
@@ -591,7 +591,7 @@ void WiFiComponent::retry_connect() {
   }
 
   delay(10);
-  if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() && WiFiComponent::can_disable_sta_mode() &&
+  if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() && this->can_disable_sta_mode_() &&
       (this->num_retried_ > 5 || this->error_from_callback_)) {
     // If retry failed for more than 5 times, let's restart STA
     ESP_LOGW(TAG, "Restarting WiFi adapter...");

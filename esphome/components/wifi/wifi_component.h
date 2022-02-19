@@ -261,7 +261,7 @@ class WiFiComponent : public Component {
 
   int8_t wifi_rssi();
 
-  static boolfuncref register_can_disable_sta_mode(boolfuncref func);
+  static boolfuncref register_can_disable_sta_mode_(boolfuncref func);
 
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
@@ -331,7 +331,7 @@ class WiFiComponent : public Component {
   ESPPreferenceObject pref_;
   bool has_saved_wifi_settings_{false};
 
-  static bool can_disable_sta_mode();
+  bool can_disable_sta_mode_();
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
