@@ -37,7 +37,7 @@ using boolfuncptr = bool (*)();
 static boolfuncptr can_disable_sta_mode_func =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     [] { return true; };
 
-boolfuncref WiFiComponent::register_can_disable_sta_mode_(boolfuncref func) {
+boolfuncref WiFiComponent::register_can_disable_sta_mode(boolfuncref func) {
   auto old = can_disable_sta_mode_func;
   can_disable_sta_mode_func = func;
   return *old;
@@ -49,11 +49,11 @@ bool WiFiComponent::can_disable_sta_mode_() { return can_disable_sta_mode_func()
 // TODO remove
 static bool sometrue() { return true; }
 static boolfuncref quark =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-    WiFiComponent::register_can_disable_sta_mode_(*[] { return sometrue() && quark(); });
+    WiFiComponent::register_can_disable_sta_mode(*[] { return sometrue() && quark(); });
 
 static bool quark2andreturntrue();
 static boolfuncref quark2 =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-    WiFiComponent::register_can_disable_sta_mode_(quark2andreturntrue);
+    WiFiComponent::register_can_disable_sta_mode(quark2andreturntrue);
 static bool quark2andreturntrue() { return sometrue() && quark2(); }
 // TODO end remove
 

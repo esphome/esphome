@@ -261,7 +261,7 @@ class WiFiComponent : public Component {
 
   int8_t wifi_rssi();
 
-  static boolfuncref register_can_disable_sta_mode_(boolfuncref func);
+  static boolfuncref register_can_disable_sta_mode(boolfuncref func);
 
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
