@@ -37,10 +37,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    if CONF_USE_RM433_REMOTE in config:
-        cg.add(var.set_use_rm433_remote(config[CONF_USE_RM433_REMOTE]))
-    if CONF_MIN_VALUE in config:
-        cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
-    if CONF_MAX_VALUE in config:
-        cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
+    cg.add(var.set_use_rm433_remote(config[CONF_USE_RM433_REMOTE]))
+    cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
+    cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
     await light.register_light(var, config)
