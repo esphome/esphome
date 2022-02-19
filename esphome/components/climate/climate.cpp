@@ -336,7 +336,7 @@ void Climate::save_state_() {
   memset(&state, 0, sizeof(ClimateDeviceRestoreState));
 #if TEMP_IGNORE_MEMACCESS
 #pragma GCC diagnostic pop
-#unset TEMP_IGNORE_MEMACCESS
+#undef TEMP_IGNORE_MEMACCESS
 #endif
 
   state.mode = this->mode;
