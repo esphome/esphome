@@ -7,7 +7,7 @@ from aioesphomeapi import APIClient, ReconnectLogic, APIConnectionError, LogLeve
 import zeroconf
 
 from esphome.const import CONF_KEY, CONF_PORT, CONF_PASSWORD, __version__
-from esphome.util import safe_print
+from esphome.util import safe_print, format_time
 from . import CONF_ENCRYPTION
 
 _LOGGER = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ async def async_run_logs(config, address):
     first_connect = True
 
     def on_log(msg):
-        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        time_ = format_time(datetime.now().time())
         text = msg.message.decode("utf8", "backslashreplace")
         safe_print(time_ + text)
 

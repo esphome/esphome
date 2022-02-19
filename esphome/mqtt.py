@@ -23,7 +23,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError
 from esphome.log import color, Fore
-from esphome.util import safe_print
+from esphome.util import safe_print, format_time
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -113,7 +113,7 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
     _LOGGER.info("Starting log output from %s", topic)
 
     def on_message(client, userdata, msg):
-        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        time_ = format_time(datetime.now().time())
         payload = msg.payload.decode(errors="backslashreplace")
         message = time_ + payload
         safe_print(message)

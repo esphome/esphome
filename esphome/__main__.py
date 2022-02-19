@@ -28,6 +28,7 @@ from esphome.util import (
     safe_print,
     list_yaml_files,
     get_serial_ports,
+    format_time,
 )
 from esphome.log import color, setup_log, Fore
 
@@ -127,7 +128,7 @@ def run_miniterm(config, port):
                 .replace(b"\n", b"")
                 .decode("utf8", "backslashreplace")
             )
-            time = datetime.now().time().strftime("[%H:%M:%S]")
+            time = format_time(datetime.now().time())
             message = time + line
             safe_print(message)
 

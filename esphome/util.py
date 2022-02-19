@@ -10,6 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from datetime import time
+
 from esphome import const
 
 _LOGGER = logging.getLogger(__name__)
@@ -306,3 +308,9 @@ def get_serial_ports() -> List[SerialPort]:
 
     result.sort(key=lambda x: x.path)
     return result
+
+
+def format_time(timestamp: time):
+    return timestamp.strftime("[%H:%M:%S.{ms:03d}]").format(
+        ms=timestamp.microsecond // 1000
+    )
