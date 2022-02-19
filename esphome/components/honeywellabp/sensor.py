@@ -13,6 +13,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["spi"]
+CODEOWNERS = ["@RubyBailey"]
 
 CONF_MIN_PRESSURE = "min_pressure"
 CONF_MAX_PRESSURE = "max_pressure"

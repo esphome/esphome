@@ -594,6 +594,14 @@ sensor:
     oversampling: 8x
     update_interval: 15s
     i2c_id: i2c_bus
+  - platform: honeywellabp
+    pressure:
+      name: "Honeywell pressure"
+      min_pressure: 0
+      max_pressure: 15
+    temperature:
+      name: "Honeywell temperature"
+    cs_pin: GPIO5
   - platform: qmc5883l
     address: 0x0D
     field_strength_x:
