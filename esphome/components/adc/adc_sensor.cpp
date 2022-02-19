@@ -26,7 +26,7 @@ static const int CUSTOM_SOC_ADC_MAX_BITWIDTH = 12;
 static const int CUSTOM_SOC_ADC_MAX_BITWIDTH = 13;
 #endif
 // TODO: simply use SOC_ADC_MAX_BITWIDTH when available in newer IDF
-static const int ADC_MAX = pow(2, CUSTOM_SOC_ADC_MAX_BITWIDTH) - 1;
+static const int ADC_MAX = (1 << CUSTOM_SOC_ADC_MAX_BITWIDTH) - 1;
 static const int ADC_HALF = ADC_MAX >> 1;
 #endif
 
