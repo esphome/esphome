@@ -40,9 +40,9 @@ static bool sometrue() { return true; }
 static WiFiComponent::boolfuncref quark =
     WiFiComponent::register_can_disable_sta_mode(*[] { return sometrue() && quark(); });
 
-static WiFiComponent::boolfuncref quark2;
-static bool quark2andreturntrue() { return true && quark2(); }
+static bool quark2andreturntrue();
 static WiFiComponent::boolfuncref quark2 = WiFiComponent::register_can_disable_sta_mode(quark2andreturntrue);
+static bool quark2andreturntrue() { return true && quark2(); }
 // TODO end remove
 
 float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
