@@ -164,6 +164,8 @@ enum WiFiPowerSaveMode {
 struct IDFWiFiEvent;
 #endif
 
+using boolfuncref = bool (&)();
+
 /// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent : public Component {
  public:
@@ -259,16 +261,7 @@ class WiFiComponent : public Component {
 
   int8_t wifi_rssi();
 
-  // TODO move
-  using boolfuncref = bool (&)();
-  using boolfuncptr = bool (*)();
-  static boolfuncref register_can_disable_sta_mode(boolfuncref func) {
-    // TODO Assertion in NULL func
-    auto old = WiFiComponent::can_disable_sta_modefunc;
-    WiFiComponent::can_disable_sta_modefunc = func;
-    return *old;
-  }
-  // TODO end move
+  static boolfuncref register_can_disable_sta_mode(boolfuncref func);
 
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
@@ -296,12 +289,6 @@ class WiFiComponent : public Component {
 
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
-
- private:
-  static boolfuncptr can_disable_sta_modefunc;
-
- protected:
-  static bool can_disable_sta_mode() { return can_disable_sta_modefunc(); };
 
 #ifdef USE_ESP8266
   static void wifi_event_callback(System_Event_t *event);
@@ -343,6 +330,8 @@ class WiFiComponent : public Component {
   optional<float> output_power_;
   ESPPreferenceObject pref_;
   bool has_saved_wifi_settings_{false};
+
+  static bool can_disable_sta_mode();
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

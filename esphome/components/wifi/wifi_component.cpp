@@ -32,16 +32,29 @@ namespace wifi {
 static const char *const TAG = "wifi";
 
 // TODO Move
-WiFiComponent::boolfuncptr WiFiComponent::can_disable_sta_modefunc = [] { return true; };
+using boolfuncptr = bool (*)();
+
+static boolfuncptr can_disable_sta_modefunc = [] {
+  return true;
+};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+boolfuncref WiFiComponent::register_can_disable_sta_mode(boolfuncref func) {
+  auto old = can_disable_sta_modefunc;
+  can_disable_sta_modefunc = func;
+  return *old;
+}
+
+bool WiFiComponent::can_disable_sta_mode() { return can_disable_sta_modefunc(); };
 // TODO end move
 
 // TODO remove
 static bool sometrue() { return true; }
-static WiFiComponent::boolfuncref quark =
-    WiFiComponent::register_can_disable_sta_mode(*[] { return sometrue() && quark(); });
+static WiFiComponent::boolfuncref quark = WiFiComponent::register_can_disable_sta_mode(
+    *[] { return sometrue() && quark(); });  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static bool quark2andreturntrue();
-static WiFiComponent::boolfuncref quark2 = WiFiComponent::register_can_disable_sta_mode(quark2andreturntrue);
+static WiFiComponent::boolfuncref quark2 = WiFiComponent::register_can_disable_sta_mode(
+    quark2andreturntrue);  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool quark2andreturntrue() { return sometrue() && quark2(); }
 // TODO end remove
 
