@@ -327,7 +327,8 @@ optional<ClimateDeviceRestoreState> Climate::restore_state_() {
   return recovered;
 }
 void Climate::save_state_() {
-#if (defined(USE_ESP_IDF) || (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0))) && !defined(CLANG_TIDY)
+#if (defined(USE_ESP_IDF) || (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0))) && \
+    !defined(CLANG_TIDY)
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #define TEMP_IGNORE_MEMACCESS
 #endif
