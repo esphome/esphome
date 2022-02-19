@@ -1090,8 +1090,8 @@ sensor:
     temperature:
       name: Max9611 Temp
     update_interval: 1s
-  
-  
+
+
 esp32_touch:
   setup_mode: False
   iir_filter: 10ms
@@ -2543,7 +2543,7 @@ canbus:
         then:
           - lambda: |-
               std::string b(x.begin(), x.end());
-              ESP_LOGD("canid 500", "%s", &b[0] );
+              ESP_LOGD("canid 500", "%s", b.c_str());
       - can_id: 23
         then:
           - if:
@@ -2562,7 +2562,7 @@ canbus:
         then:
           - lambda: |-
               std::string b(x.begin(), x.end());
-              ESP_LOGD("canid 500", "%s", &b[0] );
+              ESP_LOGD("canid 500", "%s", b.c_str() );
       - can_id: 23
         then:
           - if:
