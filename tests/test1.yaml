@@ -456,12 +456,10 @@ sensor:
     name: "Living Room Brightness 3"
     internal: true
     address: 0x23
-    resolution: 1.0
     update_interval: 30s
     retain: False
     availability:
     state_topic: livingroom/custom_state_topic
-    measurement_duration: 31
     i2c_id: i2c_bus
   - platform: max44009
     name: "Outside Brightness 1"
