@@ -32,25 +32,19 @@ namespace wifi {
 static const char *const TAG = "wifi";
 
 // TODO Move
-using boolfuncptr = bool (*)();
-static boolfuncptr can_disable_sta_modefunc = []() -> bool { return true; };
-
-WiFiComponent::boolfuncref WiFiComponent::register_can_disable_sta_mode(boolfuncref func) {
-  auto old = can_disable_sta_modefunc;
-  can_disable_sta_modefunc = func;
-  return *old;
-}
-bool WiFiComponent::can_disable_sta_mode() { return can_disable_sta_modefunc(); };
+WiFiComponent::boolfuncptr WiFiComponent::can_disable_sta_modefunc = [] { return true; };
 // TODO end move
 
 // TODO remove
-static bool returntrue() { return true; }
-void check_null_at_compiletime() {
-  // Shuld work
-  WiFiComponent::register_can_disable_sta_mode(returntrue);
-  WiFiComponent::register_can_disable_sta_mode(*[] { return true; });
+static const WiFiComponent::boolfuncptr quark =
+    WiFiComponent::register_can_disable_sta_mode([] { return true && quark(); });
+
+static bool quark2andreturntrue() { return true && quark2(); }
+static const WiFiComponent::boolfuncptr quark2 = WiFiComponent::register_can_disable_sta_mode(quark2andreturntrue);
+
+static void check_null_at_compiletime() {
   // Should fail
-  // WiFiComponent::register_can_disable_sta_mode((WiFiComponent::boolfuncref) NULL);
+  WiFiComponent::register_can_disable_sta_mode((WiFiComponent::boolfuncptr) NULL);
 }
 // TODO end remove
 
