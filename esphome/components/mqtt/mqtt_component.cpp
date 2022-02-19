@@ -149,7 +149,7 @@ std::string MQTTComponent::get_default_object_id_() const {
   return str_sanitize(str_snake_case(this->friendly_name()));
 }
 
-void MQTTComponent::subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos) {
+void MQTTComponent::subscribe(const std::string &topic, const mqtt_callback_t &callback, uint8_t qos) {
   global_mqtt_client->subscribe(topic, std::move(callback), qos);
 }
 

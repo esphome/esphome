@@ -127,7 +127,7 @@ class MQTTComponent : public Component {
    * @param callback The callback that will be called when a message with matching topic is received.
    * @param qos The MQTT quality of service. Defaults to 0.
    */
-  void subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos = 0);
+  void subscribe(const std::string &topic, const mqtt_callback_t &callback, uint8_t qos = 0);
 
   /** Subscribe to a MQTT topic and automatically parse JSON payload.
    *
