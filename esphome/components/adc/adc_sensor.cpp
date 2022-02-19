@@ -26,8 +26,8 @@ static const int CUSTOM_SOC_ADC_MAX_BITWIDTH = 12;
 static const int CUSTOM_SOC_ADC_MAX_BITWIDTH = 13;
 #endif
 // TODO: simply use SOC_ADC_MAX_BITWIDTH when available in newer IDF
-static const int ADC_MAX = (1 << CUSTOM_SOC_ADC_MAX_BITWIDTH) - 1;
-static const int ADC_HALF = ADC_MAX >> 1;
+static const int ADC_MAX = (1 << CUSTOM_SOC_ADC_MAX_BITWIDTH) - 1;  // 4095 (12 bit) or 8191 (13 bit)
+static const int ADC_HALF = (1 << CUSTOM_SOC_ADC_MAX_BITWIDTH) >> 1;  // 2048 (12 bit) or 4096 (13 bit)
 #endif
 
 void ADCSensor::setup() {
