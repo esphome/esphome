@@ -33,11 +33,9 @@ static const char *const TAG = "wifi";
 
 // TODO Move
 typedef bool (*boolfuncptr)();
-boolfuncptr can_disable_sta_mode_func_ = []() -> bool { return true; }
+boolfuncptr can_disable_sta_mode_func_ = []() -> bool { return true; };
 
-WiFiComponent::boolfuncref
-WiFiComponent::register_can_disable_sta_mode(boolfuncref func) {
-  // TODO ASSERT func == null
+WiFiComponent::boolfuncref WiFiComponent::register_can_disable_sta_mode(boolfuncref func) {
   auto old = can_disable_sta_mode_func_;
   can_disable_sta_mode_func_ = func;
   return *old;
@@ -52,7 +50,7 @@ void CheckNullAtCompiletime() {
   WiFiComponent::register_can_disable_sta_mode(returntrue);
   WiFiComponent::register_can_disable_sta_mode(*[] { return true; });
   // Should fail
-  WiFiComponent::register_can_disable_sta_mode((WiFiComponent::boolfuncref) NULL);
+  // WiFiComponent::register_can_disable_sta_mode((WiFiComponent::boolfuncref) NULL);
 }
 // TODO end remove
 
@@ -644,8 +642,6 @@ bool WiFiComponent::is_esp32_improv_active_() {
   return false;
 #endif
 }
-
-bool WiFiComponent::can_disable_sta_mode_() { return false; }
 
 void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }
 void WiFiAP::set_bssid(bssid_t bssid) { this->bssid_ = bssid; }
