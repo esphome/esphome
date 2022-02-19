@@ -334,7 +334,7 @@ void Climate::save_state_() {
   ClimateDeviceRestoreState state{};
   // initialize as zero to prevent random data on stack triggering erase
   memset(&state, 0, sizeof(ClimateDeviceRestoreState));
-#if TEMP_IGNORE_MEMACCESS
+#ifdef TEMP_IGNORE_MEMACCESS
 #pragma GCC diagnostic pop
 #undef TEMP_IGNORE_MEMACCESS
 #endif
