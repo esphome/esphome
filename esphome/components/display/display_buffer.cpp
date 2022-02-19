@@ -242,6 +242,13 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
         }
       }
       break;
+    case IMAGE_TYPE_RGB565:
+      for (int img_x = 0; img_x < image->get_width(); img_x++) {
+        for (int img_y = 0; img_y < image->get_height(); img_y++) {
+          this->draw_pixel_at(x + img_x, y + img_y, image->get_rgb565_pixel(img_x, img_y));
+        }
+      }
+      break;
   }
 }
 
@@ -496,6 +503,17 @@ Color Image::get_color_pixel(int x, int y) const {
                            (progmem_read_byte(this->data_start_ + pos + 1) << 8) |
                            (progmem_read_byte(this->data_start_ + pos + 0) << 16);
   return Color(color32);
+}
+Color Image::get_rgb565_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return Color::BLACK;
+  const uint32_t pos = (x + y * this->width_) * 2;
+  uint16_t rgb565 =
+      progmem_read_byte(this->data_start_ + pos + 0) << 8 | progmem_read_byte(this->data_start_ + pos + 1);
+  auto r = (rgb565 & 0xF800) >> 11;
+  auto g = (rgb565 & 0x07E0) >> 5;
+  auto b = rgb565 & 0x001F;
+  return Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
 }
 Color Image::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
