@@ -297,7 +297,10 @@ class WiFiComponent : public Component {
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
 
+ private:
   static boolfuncptr can_disable_sta_modefunc;
+
+ protected:
   static bool can_disable_sta_mode() { return can_disable_sta_modefunc(); };
 
 #ifdef USE_ESP8266
