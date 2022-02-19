@@ -32,20 +32,20 @@ namespace wifi {
 static const char *const TAG = "wifi";
 
 // TODO Move
-typedef bool (*boolfuncptr)();
-boolfuncptr can_disable_sta_mode_func_ = []() -> bool { return true; };
+using boolfuncptr = bool (*)();
+boolfuncptr can_disable_sta_modefunc_ = []() -> bool { return true; };
 
 WiFiComponent::boolfuncref WiFiComponent::register_can_disable_sta_mode(boolfuncref func) {
-  auto old = can_disable_sta_mode_func_;
-  can_disable_sta_mode_func_ = func;
+  auto old = can_disable_sta_modefunc_;
+  can_disable_sta_modefunc_ = func;
   return *old;
 }
-bool WiFiComponent::can_disable_sta_mode_() { return can_disable_sta_mode_func_(); };
+bool WiFiComponent::can_disable_sta_mode() { return can_disable_sta_modefunc_(); };
 // TODO end move
 
 // TODO remove
 static bool returntrue() { return true; }
-void CheckNullAtCompiletime() {
+void check_null_at_compiletime() {
   // Shuld work
   WiFiComponent::register_can_disable_sta_mode(returntrue);
   WiFiComponent::register_can_disable_sta_mode(*[] { return true; });
@@ -588,8 +588,8 @@ void WiFiComponent::retry_connect() {
   }
 
   delay(10);
-  if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() &&
-      WiFiComponent::can_disable_sta_mode_() && (this->num_retried_ > 5 || this->error_from_callback_)) {
+  if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_() && WiFiComponent::can_disable_sta_mode() &&
+      (this->num_retried_ > 5 || this->error_from_callback_)) {
     // If retry failed for more than 5 times, let's restart STA
     ESP_LOGW(TAG, "Restarting WiFi adapter...");
     this->wifi_mode_(false, {});

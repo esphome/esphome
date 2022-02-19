@@ -594,7 +594,7 @@ void WiFiComponent::wifi_pre_setup_() {
   WiFi.onEvent(f);
   WiFi.persistent(false);
   // Make sure WiFi is in clean state before anything starts
-  this->wifi_mode_(WiFiComponent::can_disable_sta_mode_(), false);
+  this->wifi_mode_(WiFiComponent::can_disable_sta_mode(), false);
 }
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   auto status = WiFiClass::status();
