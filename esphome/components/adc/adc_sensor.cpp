@@ -16,11 +16,17 @@ namespace adc {
 
 static const char *const TAG = "adc";
 #ifdef USE_ESP32
-#include <soc/soc_caps.h>
 // 13 bits for S3 / 12 bit for all other esp32 variants
 // create a const to avoid the repated cast to enum
+// TODO: directly use ADC_WIDTH_BIT_DEFAULT when available in newer IDF
 static const adc_bits_width_t ADC_WIDTH_MAX_SOC_BITS = static_cast<adc_bits_width_t>(ADC_WIDTH_MAX - 1);
-static const int ADC_MAX = (2 ^ SOC_ADC_MAX_BITWIDTH) - 1;
+#if ADC_WIDTH_MAX_SOC_BITS == ADC_WIDTH_12Bit
+#define CUSTOM_SOC_ADC_MAX_BITWIDTH 12
+#else
+#define CUSTOM_SOC_ADC_MAX_BITWIDTH 13
+#endif
+// TODO: Directly use SOC_ADC_MAX_BITWIDTH when available in newer IDF
+static const int ADC_MAX = (2 ^ CUSTOM_SOC_ADC_MAX_BITWIDTH) - 1;
 static const int ADC_HALF = ADC_MAX >> 1;
 #endif
 
@@ -165,7 +171,7 @@ float ADCSensor::sample() {
   // max theoretical csum value is 4095*4 = 16380
   uint32_t csum = c11 + c6 + c2 + c0;
 
-  // each mv is max 3900; so max value is 3900*4095*4, fits in unsigned
+  // each mv is max 3900; so max value is 3900*4095*4, fits in unsigned32
   uint32_t mv_scaled = (mv11 * c11) + (mv6 * c6) + (mv2 * c2) + (mv0 * c0);
   return mv_scaled / (float) (csum * 1000U);
 }
