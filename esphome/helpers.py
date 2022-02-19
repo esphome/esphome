@@ -1,4 +1,5 @@
 import codecs
+from contextlib import suppress
 
 import logging
 import os
@@ -143,8 +144,8 @@ def get_bool_env(var, default=False):
     return bool(os.getenv(var, default))
 
 
-def is_hassio():
-    return get_bool_env("ESPHOME_IS_HASSIO")
+def is_ha_addon():
+    return get_bool_env("ESPHOME_IS_HA_ADDON")
 
 
 def walk_files(path):
@@ -233,8 +234,20 @@ def copy_file_if_changed(src: os.PathLike, dst: os.PathLike) -> None:
         return
     mkdir_p(os.path.dirname(dst))
     try:
-        shutil.copy(src, dst)
+        shutil.copyfile(src, dst)
     except OSError as err:
+        if isinstance(err, PermissionError):
+            # Older esphome versions copied over the src file permissions too.
+            # So when the dst file had 444 permissions, the dst file would have those
+            # too and subsequent writes would fail
+
+            # -> delete file (it would be overwritten anyway), and try again
+            # if that fails, use normal error handler
+            with suppress(OSError):
+                os.unlink(dst)
+                shutil.copyfile(src, dst)
+                return
+
         from esphome.core import EsphomeError
 
         raise EsphomeError(f"Error copying file {src} to {dst}: {err}") from err

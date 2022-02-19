@@ -213,6 +213,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_LOCK
+    case IteratorState::LOCK:
+      if (this->at_ >= App.get_locks().size()) {
+        advance_platform = true;
+      } else {
+        auto *a_lock = App.get_locks()[this->at_];
+        if (a_lock->is_internal()) {
+          success = true;
+          break;
+        } else {
+          success = this->on_lock(a_lock);
+        }
+      }
+      break;
+#endif
     case IteratorState::MAX:
       if (this->on_end()) {
         this->state_ = IteratorState::NONE;

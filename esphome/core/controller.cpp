@@ -65,6 +65,12 @@ void Controller::setup_controller(bool include_internal) {
       obj->add_on_state_callback([this, obj](const std::string &state) { this->on_select_update(obj, state); });
   }
 #endif
+#ifdef USE_LOCK
+  for (auto *obj : App.get_locks()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_state_callback([this, obj]() { this->on_lock_update(obj); });
+  }
+#endif
 }
 
 }  // namespace esphome
