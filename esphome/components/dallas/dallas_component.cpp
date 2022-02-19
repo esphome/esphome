@@ -111,6 +111,9 @@ void DallasComponent::update() {
   if (!result) {
     ESP_LOGE(TAG, "Requesting conversion failed");
     this->status_set_warning();
+    for (auto *sensor : this->sensors_) {
+      sensor->publish_state(NAN);
+    }
     return;
   }
 
