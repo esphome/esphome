@@ -72,9 +72,9 @@ def validate_pmsx003_sensors(value):
 
 
 def validate_update_interval(value):
-    if value is None:
-        return value
     value = cv.positive_time_period_milliseconds(value)
+    if value == cv.time_period("0s"):
+        return value
     if value < cv.time_period("30s"):
         raise cv.Invalid(
             "Update interval must be greater than or equal to 30 seconds if set."
@@ -171,7 +171,7 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_UPDATE_INTERVAL, default=None): validate_update_interval,
+            cv.Optional(CONF_UPDATE_INTERVAL, default="0s"): validate_update_interval,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -180,7 +180,7 @@ CONFIG_SCHEMA = (
 
 
 def final_validate(config):
-    require_tx = config[CONF_UPDATE_INTERVAL] is not None
+    require_tx = config[CONF_UPDATE_INTERVAL] > cv.time_period("0s")
     schema = uart.final_validate_device_schema(
         "pmsx003", baud_rate=9600, require_rx=True, require_tx=require_tx
     )
@@ -257,4 +257,4 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_FORMALDEHYDE])
         cg.add(var.set_formaldehyde_sensor(sens))
 
-    cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL] or 0))
+    cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
