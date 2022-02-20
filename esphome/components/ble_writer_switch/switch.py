@@ -25,7 +25,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
             cv.Required(CONF_CHARACTERISTIC_UUID): esp32_ble_tracker.bt_uuid,
             cv.Optional(CONF_INVERTED): cv.invalid(
-                "BLE writer switche does not support inverted mode"
+                "BLE writer switch does not support inverted mode"
             ),
             cv.Optional(CONF_ICON, default=ICON_BLUETOOTH): switch.icon,
         }
