@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INVERTED,
     CONF_SERVICE_UUID,
+    CONF_CHARACTERISTIC_UUID,
     ICON_BLUETOOTH,
 )
 
@@ -13,7 +14,6 @@ CODEOWNERS = ["@rbaron"]
 
 ble_writer_switch_ns = cg.esphome_ns.namespace("ble_writer_switch")
 
-CONF_CHARACTERISTIC_UUID = "characteristic_uuid"
 BLEWriterSwitch = ble_writer_switch_ns.class_(
     "BLEWriterSwitch", switch.Switch, cg.Component, ble_client.BLEClientNode
 )

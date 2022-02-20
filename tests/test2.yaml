@@ -433,7 +433,6 @@ ble_client:
   - mac_address: 01:02:03:04:05:06
     id: radon_eye_ble_id
   - mac_address: 01:02:03:04:05:06
-    id: ble_writer_switch_client
 
 
 airthings_ble:
@@ -562,7 +561,7 @@ cap1188:
 
 switch:
   - platform: ble_writer_switch
-    ble_client_id: ble_writer_switch_client
+    ble_client_id: airthings01
     name: "BLE Writer Switch"
     service_uuid: 11223344-5566-7788-99aa-bbccddeeff00
     characteristic_uuid: 11223344-5566-7788-99aa-bbccddeeff00
