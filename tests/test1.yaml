@@ -719,6 +719,23 @@ sensor:
     temperature:
       name: "MPU6050 Temperature"
     i2c_id: i2c_bus
+  - platform: mpu6886
+    address: 0x68
+    accel_x:
+      name: "MPU6886 Accel X"
+    accel_y:
+      name: "MPU6886 Accel Y"
+    accel_z:
+      name: "MPU6886 Accel z"
+    gyro_x:
+      name: "MPU6886 Gyro X"
+    gyro_y:
+      name: "MPU6886 Gyro Y"
+    gyro_z:
+      name: "MPU6886 Gyro z"
+    temperature:
+      name: "MPU6886 Temperature"
+    i2c_id: i2c_bus
   - platform: ms5611
     temperature:
       name: "Outside Temperature"
