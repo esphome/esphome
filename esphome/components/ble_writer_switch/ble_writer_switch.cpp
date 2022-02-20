@@ -33,7 +33,7 @@ void BLEWriterSwitch::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
       break;
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       this->handle_ = 0;
-      auto chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
+      auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
       if (chr == nullptr) {
         this->status_set_warning();
         this->publish_state(NAN);
