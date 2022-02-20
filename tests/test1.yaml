@@ -2104,6 +2104,9 @@ fan:
     on_speed_set:
       then:
         - logger.log: "Fan speed was changed!"
+  - platform: copy
+    source_id: fan_speed
+    name: "Fan Speed Copy"
 
 interval:
   - interval: 10s
@@ -2671,6 +2674,9 @@ select:
       - one
       - two
     optimistic: true
+  - platform: copy
+    source_id: test_select
+    name: Test Select Copy
 
 qr_code:
   - id: homepage_qr
@@ -2700,3 +2706,6 @@ lock:
     name: "Generic Output Lock"
     id: test_lock2
     output: pca_6
+  - platform: copy
+    source_id: test_lock2
+    name: Generic Output Lock Copy
