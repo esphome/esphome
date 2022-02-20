@@ -10,6 +10,7 @@ from esphome.components import display
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
+    CONF_FAMILY,
     CONF_FILE,
     CONF_GLYPHS,
     CONF_ID,
@@ -17,6 +18,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_SIZE,
     CONF_PATH,
+    CONF_WEIGHT,
 )
 from esphome.core import CORE, HexInt
 
@@ -101,8 +103,6 @@ LOCAL_SCHEMA = cv.Schema(
         cv.Required(CONF_PATH): validate_truetype_file,
     }
 )
-CONF_FAMILY = "family"
-CONF_WEIGHT = "weight"
 CONF_ITALIC = "italic"
 FONT_WEIGHTS = {
     "thin": 100,
