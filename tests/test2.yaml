@@ -432,7 +432,6 @@ ble_client:
     id: airthingsmini01
   - mac_address: 01:02:03:04:05:06
     id: radon_eye_ble_id
-  - mac_address: 01:02:03:04:05:06
 
 
 airthings_ble:
