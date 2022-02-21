@@ -1501,6 +1501,28 @@ output:
   - platform: mcp4725
     id: mcp4725_dac_output
     i2c_id: i2c_bus
+  - platform: mcp4728
+    id: mcp4728_dac_output_a
+    channel: A
+    vref: vdd
+    power_down: normal
+  - platform: mcp4728
+    id: mcp4728_dac_output_b
+    channel: B
+    vref: internal
+    gain: X1
+    power_down: gnd_1k
+  - platform: mcp4728
+    id: mcp4728_dac_output_c
+    channel: C
+    vref: vdd
+    power_down: gnd_100k
+  - platform: mcp4728
+    id: mcp4728_dac_output_d
+    channel: D
+    vref: internal
+    gain: X2
+    power_down: gnd_500k
 
 e131:
 
@@ -2013,6 +2035,9 @@ switch:
       - output.set_level:
           id: mcp4725_dac_output
           level: !lambda "return 0.5;"
+      - output.set_level:
+          id: mcp4728_dac_output_a
+          level: !lambda "return 0.5;"
     turn_off_action:
       - switch.turn_on: living_room_lights_off
     restore_state: False
@@ -2391,6 +2416,12 @@ rc522_i2c:
     on_tag:
       - lambda: |-
           ESP_LOGD("main", "Found tag %s", x.c_str());
+    i2c_id: i2c_bus
+
+mcp4728:
+  - id: mcp4728_dac
+    store_in_eeprom: False
+    address: 0x60
     i2c_id: i2c_bus
 
 gps:
