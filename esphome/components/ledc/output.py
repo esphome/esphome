@@ -13,12 +13,12 @@ DEPENDENCIES = ["esp32"]
 
 
 def calc_max_frequency(bit_depth):
-    return 80e6 / (2 ** bit_depth)
+    return 80e6 / (2**bit_depth)
 
 
 def calc_min_frequency(bit_depth):
-    max_div_num = ((2 ** 20) - 1) / 256.0
-    return 80e6 / (max_div_num * (2 ** bit_depth))
+    max_div_num = ((2**20) - 1) / 256.0
+    return 80e6 / (max_div_num * (2**bit_depth))
 
 
 def validate_frequency(value):

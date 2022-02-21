@@ -225,11 +225,11 @@ def _validate(config):
         if CONF_MANUAL_IP in config:
             use_address = str(config[CONF_MANUAL_IP][CONF_STATIC_IP])
         elif CONF_NETWORKS in config:
-            ips = set(
+            ips = {
                 str(net[CONF_MANUAL_IP][CONF_STATIC_IP])
                 for net in config[CONF_NETWORKS]
                 if CONF_MANUAL_IP in net
-            )
+            }
             if len(ips) > 1:
                 raise cv.Invalid(
                     "Must specify use_address when using multiple static IP addresses."
