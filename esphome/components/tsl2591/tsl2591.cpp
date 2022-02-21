@@ -79,7 +79,7 @@ void TSL2591Component::setup() {
     this->mark_failed();
     return;
   }
-  
+
   this->set_integration_time_and_gain(this->integration_time_, this->gain_);
   this->disable_if_power_saving_();
 }
