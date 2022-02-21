@@ -189,7 +189,7 @@ std::string ProntoProtocol::dump_duration_(uint32_t duration, uint16_t timebase,
 std::string ProntoProtocol::compensate_and_dump_sequence_(std::vector<int32_t> *data, uint16_t timebase) {
   std::string out;
 
-  for (uint_fast8_t i = 0; i < data->size() - 1; i++) {
+  for (std::vector<int32_t>::size_type i = 0; i < data->size() - 1; i++) {
     int32_t t_length = data->at(i);
     uint32_t t_duration;
     if (t_length > 0) {
