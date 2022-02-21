@@ -307,9 +307,9 @@ void HBridge::set_output_state_(HBridgeMode mode, float dutycycle) {
     // If dutycycle is 0 or negative, force off
     new_mode = HBridgeMode::OFF;
     new_dutycycle = 0;
-  } else if (new_dutycycle > 1) {
+  } else if (new_dutycycle > 1.0f) {
     // If dutycycle is above 1, cap to 1
-    new_dutycycle = 1;
+    new_dutycycle = 1.0f;
   }
 
   // Set pin states + duty cycle according to mode
@@ -324,8 +324,15 @@ void HBridge::set_output_state_(HBridgeMode mode, float dutycycle) {
       break;
 
     case HBridgeMode::DIRECTION_A:
-      this->pin_b_->set_level(0);
-      this->pin_a_->set_level(new_dutycycle);
+      // Set states dependent on current decay mode
+      if (current_decay_mode_ == CurrentDecayMode::SLOW) {
+        this->pin_b_->set_level(1.0f - new_dutycycle);
+        this->pin_a_->set_level(1.0f);
+      } else if (current_decay_mode_ == CurrentDecayMode::FAST) {
+        this->pin_b_->set_level(0);
+        this->pin_a_->set_level(new_dutycycle);
+      }
+
       if (this->enable_pin_ != nullptr) {
         this->enable_pin_->set_level(1);
       }
@@ -333,8 +340,15 @@ void HBridge::set_output_state_(HBridgeMode mode, float dutycycle) {
       break;
 
     case HBridgeMode::DIRECTION_B:
-      this->pin_a_->set_level(0);
-      this->pin_b_->set_level(new_dutycycle);
+      // Set states dependent on current decay mode
+      if (current_decay_mode_ == CurrentDecayMode::SLOW) {
+        this->pin_a_->set_level(1.0f - new_dutycycle);
+        this->pin_b_->set_level(1.0f);
+      } else if (current_decay_mode_ == CurrentDecayMode::FAST) {
+        this->pin_a_->set_level(0);
+        this->pin_b_->set_level(new_dutycycle);
+      }
+
       if (this->enable_pin_ != nullptr) {
         this->enable_pin_->set_level(1);
       }

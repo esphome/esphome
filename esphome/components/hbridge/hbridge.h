@@ -19,12 +19,18 @@ enum class TransitionState {
   DUTYCYCLE_TRANSITIONING = 3,
 };
 
+enum class CurrentDecayMode {
+  SLOW = 0,
+  FAST = 1,
+};
+
 class HBridge : public Component {
  public:
   // Config set functions
   void set_hbridge_pin_a(output::FloatOutput *pin_a) { pin_a_ = pin_a; }
   void set_hbridge_pin_b(output::FloatOutput *pin_b) { pin_b_ = pin_b; }
   void set_hbridge_enable_pin(output::FloatOutput *enable) { enable_pin_ = enable; }
+  void set_hbridge_decay_mode(CurrentDecayMode decay_mode) { current_decay_mode_ = decay_mode; }
   void set_setting_transition_delta_per_ms(float val) { setting_transition_delta_per_ms_ = val; }
   void set_setting_transition_shorting_buildup_duration_ms(uint32_t val) {
     setting_transition_shorting_buildup_duration_ms_ = val;
@@ -47,6 +53,11 @@ class HBridge : public Component {
   output::FloatOutput *pin_a_;
   output::FloatOutput *pin_b_;
   output::FloatOutput *enable_pin_{nullptr};
+
+  // HBridge control settings
+
+  // Current decay mode: See DRV8833 datasheet - "7.3.2 Bridge Control and Decay Modes" for details
+  CurrentDecayMode current_decay_mode_{CurrentDecayMode::SLOW};
 
   // Transition settings (storage only)
   float setting_transition_delta_per_ms_ = 0;

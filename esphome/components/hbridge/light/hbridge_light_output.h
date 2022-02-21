@@ -24,6 +24,9 @@ class HBridgeLightOutput : public HBridge, public light::LightOutput {
   void setup() override {
     this->direction_a_update_ = false;
     HBridge::setup();
+
+    // Force "fast" decay mode, lights do not support slow decay
+    HBridge::set_hbridge_decay_mode(CurrentDecayMode::FAST);
   }
 
   void loop() override {
@@ -47,6 +50,8 @@ class HBridgeLightOutput : public HBridge, public light::LightOutput {
 
   void write_state(light::LightState *state) override {
     state->current_values_as_cwww(&this->light_direction_a_duty_, &this->light_direction_b_duty_, false);
+    ESP_LOGD("HBridgeLight", "New light state A: %f B: %f", this->light_direction_a_duty_,
+             this->light_direction_b_duty_);
   }
 
  protected:
