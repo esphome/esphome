@@ -1316,12 +1316,6 @@ void HOT WaveshareEPaper7P5InHDB::display() {
   this->write_array(this->buffer_, this->get_buffer_length_());
   this->end_data_();
 
-  // comment from Waveshare code
-  // this->wait_until_idle_();
-  // this->command(0x4F);
-  // this->data(0xAf);
-  // this->data(0x02);
-
   // RED
   this->command(0x26);
   this->start_data_();
