@@ -200,8 +200,8 @@ optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
 }
 
 // ExponentialMovingAverageFilter
-ExponentialMovingAverageFilter::ExponentialMovingAverageFilter(float alpha, size_t send_every)
-    : send_every_(send_every), send_at_(send_every - 1), alpha_(alpha) {}
+ExponentialMovingAverageFilter::ExponentialMovingAverageFilter(float alpha, size_t send_every, size_t send_first_at)
+    : send_every_(send_every), send_at_(send_every - send_first_at), alpha_(alpha) {}
 optional<float> ExponentialMovingAverageFilter::new_value(float value) {
   if (!std::isnan(value)) {
     if (this->first_value_) {
