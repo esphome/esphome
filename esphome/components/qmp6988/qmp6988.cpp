@@ -102,11 +102,8 @@ bool QMP6988Component::device_check_() {
     ESP_LOGE(TAG, "%s: read chip ID (0xD1) failed", __func__);
   }
   ESP_LOGD(TAG, "qmp6988 read chip id = 0x%x", qmp6988_data_.chip_id);
-  if (qmp6988_data_.chip_id == QMP6988_CHIP_ID) {
-    return true;
-  }
 
-  return false;
+  return qmp6988_data_.chip_id == QMP6988_CHIP_ID;
 }
 
 bool QMP6988Component::get_calibration_data_() {
@@ -355,7 +352,7 @@ void QMP6988Component::setup() {
 
   bool ret;
   ret = this->device_check_();
-  if (ret == false) {
+  if (!ret) {
     ESP_LOGCONFIG(TAG, "Setup failed - device not found");
   }
 
