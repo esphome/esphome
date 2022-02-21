@@ -41,25 +41,21 @@ namespace remote_base {
 static const char *const TAG = "remote.pronto";
 
 bool ProntoData::operator==(const ProntoData &rhs) const {
-  ESP_LOGD(TAG, "operator==");
-  ESP_LOGD(TAG, "this.data: %s", data.c_str());
-  ESP_LOGD(TAG, " rhs.data: %s", rhs.data.c_str());
-  std::vector<uint16_t> data1 = decode_pronto(data);
-  std::vector<uint16_t> data2 = decode_pronto(rhs.data);
+  std::vector<uint16_t> data1 = encode_pronto(data);
+  std::vector<uint16_t> data2 = encode_pronto(rhs.data);
 
-  if (data1.size() != data2.size()) {
-    return false;
-  }
-
-  uint16_t total_diff = 0;
-  for (std::vector<uint16_t>::size_type i = 0; i < data1.size(); ++i) {
+  uint32_t total_diff = 0;
+  // Don't need to check the last one, it's the large gap at the end.
+  for (std::vector<uint16_t>::size_type i = 0; i < data1.size() - 1; ++i) {
     int diff = data2[i] - data1[i];
-    if (diff > 3)
+    diff *= diff;
+    if (diff > 9)
       return false;
-    total_diff += diff * diff;
+
+    total_diff += diff;
   }
 
-  return total_diff <= 100;
+  return total_diff <= data1.size() * 3;
 }
 
 // DO NOT EXPORT from this file
@@ -130,7 +126,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::vector<uin
   }
 }
 
-std::vector<uint16_t> decode_pronto(const std::string &str) {
+std::vector<uint16_t> encode_pronto(const std::string &str) {
   size_t len = str.length() / (DIGITS_IN_PRONTO_NUMBER + 1) + 1;
   std::vector<uint16_t> data;
   const char *p = str.c_str();
@@ -150,7 +146,7 @@ std::vector<uint16_t> decode_pronto(const std::string &str) {
 }
 
 void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &str) {
-  std::vector<uint16_t> data = decode_pronto(str);
+  std::vector<uint16_t> data = encode_pronto(str);
   send_pronto_(dst, data);
 }
 
@@ -172,7 +168,7 @@ std::string ProntoProtocol::dump_digit_(uint8_t x) {
   return std::string(1, (char) (x <= 9 ? ('0' + x) : ('A' + (x - 10))));
 }
 
-std::string ProntoProtocol::dump_number_(uint16_t number) {
+std::string ProntoProtocol::dump_number_(uint16_t number, bool end /* = false */) {
   std::string num;
 
   for (uint8_t i = 0; i < DIGITS_IN_PRONTO_NUMBER; ++i) {
@@ -180,18 +176,20 @@ std::string ProntoProtocol::dump_number_(uint16_t number) {
     num += dump_digit_((number >> shifts) & HEX_MASK);
   }
 
-  num += ' ';
+  if (!end)
+    num += ' ';
+
   return num;
 }
 
-std::string ProntoProtocol::dump_duration_(uint32_t duration, uint16_t timebase) {
-  return dump_number_((duration + timebase / 2) / timebase);
+std::string ProntoProtocol::dump_duration_(uint32_t duration, uint16_t timebase, bool end /* = false */) {
+  return dump_number_((duration + timebase / 2) / timebase, end);
 }
 
 std::string ProntoProtocol::compensate_and_dump_sequence_(std::vector<int32_t> *data, uint16_t timebase) {
   std::string out;
 
-  for (std::vector<int32_t>::size_type i = 0; i < data->size() - 1; i++) {
+  for (uint_fast8_t i = 0; i < data->size() - 1; i++) {
     int32_t t_length = data->at(i);
     uint32_t t_duration;
     if (t_length > 0) {
@@ -204,7 +202,7 @@ std::string ProntoProtocol::compensate_and_dump_sequence_(std::vector<int32_t> *
   }
 
   // append minimum gap
-  out += dump_duration_(PRONTO_DEFAULT_GAP, timebase);
+  out += dump_duration_(PRONTO_DEFAULT_GAP, timebase, true);
 
   return out;
 }
@@ -213,7 +211,6 @@ optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
   ProntoData out;
 
   uint16_t frequency = 38000U;
-  ESP_LOGD(TAG, "Receive Pronto: frequency=%d", frequency);
   std::vector<int32_t> *data = src.get_raw_data();
   std::string prontodata;
 
@@ -222,7 +219,6 @@ optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
   prontodata += dump_number_((data->size() + 1) / 2);
   prontodata += dump_number_(0);
   uint16_t timebase = to_timebase_(frequency);
-  ESP_LOGD(TAG, "Receive Pronto: timebase=%d", timebase);
   prontodata += compensate_and_dump_sequence_(data, timebase);
 
   out.data = prontodata;
