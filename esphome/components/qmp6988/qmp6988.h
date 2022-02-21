@@ -99,14 +99,12 @@ class QMP6988Component : public PollingComponent, public i2c::I2CDevice {
   QMP6988IIRFilter iir_filter_{QMP6988_IIR_FILTER_OFF};
 
   void software_reset_();
-  int get_calibration_data_();
-  uint8_t device_check_();
-  void set_power_mode_(int power_mode);
+  bool get_calibration_data_();
+  bool device_check_();
+  void set_power_mode_(uint8_t power_mode);
   void write_oversampling_temperature_(unsigned char oversampling_t);
   void write_oversampling_pressure_(unsigned char oversampling_p);
   void write_filter_(unsigned char filter);
-  uint8_t write_register_(uint8_t reg_add, uint8_t reg_dat);
-  uint8_t read_data_(uint8_t reg_add, unsigned char *read, uint8_t num);
   void calculate_pressure_();
   void calculate_altitude_(float pressure, float temp);
 

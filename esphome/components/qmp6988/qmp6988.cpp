@@ -94,46 +94,30 @@ static const char *iir_filter_to_str(QMP6988IIRFilter filter) {
   }
 }
 
-uint8_t QMP6988Component::write_register_(uint8_t reg_add, uint8_t reg_dat) {
-  if (this->write_byte(reg_add, reg_dat) != i2c::ERROR_OK) {
-    return 0;
-  }
-
-  return 1;
-}
-
-uint8_t QMP6988Component::read_data_(uint8_t reg_add, unsigned char *read, uint8_t num) {
-  if (this->read_register(reg_add, read, num) != i2c::ERROR_OK) {
-    return 0;
-  }
-
-  return 1;
-}
-
-uint8_t QMP6988Component::device_check_() {
+bool QMP6988Component::device_check_() {
   uint8_t ret = 0;
 
-  ret = this->read_data_(QMP6988_CHIP_ID_REG, &(qmp6988_data_.chip_id), 1);
-  if (ret == 0) {
+  ret = this->read_register(QMP6988_CHIP_ID_REG, &(qmp6988_data_.chip_id), 1);
+  if (ret != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "%s: read chip ID (0xD1) failed", __func__);
   }
   ESP_LOGD(TAG, "qmp6988 read chip id = 0x%x", qmp6988_data_.chip_id);
   if (qmp6988_data_.chip_id == QMP6988_CHIP_ID) {
-    return 1;
+    return true;
   }
 
-  return 0;
+  return false;
 }
 
-int QMP6988Component::get_calibration_data_() {
-  int status = 0;
+bool QMP6988Component::get_calibration_data_() {
+  uint8_t status = false;
   // BITFIELDS temp_COE;
   uint8_t a_data_uint8_tr[QMP6988_CALIBRATION_DATA_LENGTH] = {0};
   int len;
 
   for (len = 0; len < QMP6988_CALIBRATION_DATA_LENGTH; len += 1) {
-    status = this->read_data_(QMP6988_CALIBRATION_DATA_START + len, &a_data_uint8_tr[len], 1);
-    if (status == 0) {
+    status = this->read_register(QMP6988_CALIBRATION_DATA_START + len, &a_data_uint8_tr[len], 1);
+    if (status != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "qmp6988 read calibration data (0xA0) error!");
       return status;
     }
@@ -204,7 +188,7 @@ int QMP6988Component::get_calibration_data_() {
   ESP_LOGV(TAG, "bp2[%lld] b12[%lld] b21[%lld] bp3[%lld]\r\n", qmp6988_data_.ik.bp2, qmp6988_data_.ik.b12,
            qmp6988_data_.ik.b21, qmp6988_data_.ik.bp3);
   ESP_LOGV(TAG, "<----------- int calibration data -------------->\r\n");
-  return 1;
+  return true;
 }
 
 QMP6988_S16_t QMP6988Component::get_compensated_temperature_(qmp6988_ik_data_t *ik, QMP6988_S32_t dt) {
@@ -260,24 +244,24 @@ QMP6988_S32_t QMP6988Component::get_compensated_pressure_(qmp6988_ik_data_t *ik,
 }
 
 void QMP6988Component::software_reset_() {
-  uint8_t ret = 0;
+  bool ret = 0;
 
-  ret = this->write_register_(QMP6988_RESET_REG, 0xe6);
-  if (ret == 0) {
+  ret = this->write_byte(QMP6988_RESET_REG, 0xe6);
+  if (ret != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Software Reset (0xe6) failed");
   }
   delay(10);
 
-  this->write_register_(QMP6988_RESET_REG, 0x00);
+  this->write_byte(QMP6988_RESET_REG, 0x00);
 }
 
-void QMP6988Component::set_power_mode_(int power_mode) {
+void QMP6988Component::set_power_mode_(uint8_t power_mode) {
   uint8_t data;
 
   ESP_LOGD(TAG, "Setting Power mode to: %d", power_mode);
 
   qmp6988_data_.power_mode = power_mode;
-  this->read_data_(QMP6988_CTRLMEAS_REG, &data, 1);
+  this->read_register(QMP6988_CTRLMEAS_REG, &data, 1);
   data = data & 0xfc;
   if (power_mode == QMP6988_SLEEP_MODE) {
     data |= 0x00;
@@ -286,7 +270,7 @@ void QMP6988Component::set_power_mode_(int power_mode) {
   } else if (power_mode == QMP6988_NORMAL_MODE) {
     data |= 0x03;
   }
-  this->write_register_(QMP6988_CTRLMEAS_REG, data);
+  this->write_byte(QMP6988_CTRLMEAS_REG, data);
 
   ESP_LOGD(TAG, "Set Power mode 0xf4=0x%x \r\n", data);
 
@@ -297,27 +281,27 @@ void QMP6988Component::write_filter_(unsigned char filter) {
   uint8_t data;
 
   data = (filter & 0x03);
-  this->write_register_(QMP6988_CONFIG_REG, data);
+  this->write_byte(QMP6988_CONFIG_REG, data);
   delay(10);
 }
 
 void QMP6988Component::write_oversampling_pressure_(unsigned char oversampling_p) {
   uint8_t data;
 
-  this->read_data_(QMP6988_CTRLMEAS_REG, &data, 1);
+  this->read_register(QMP6988_CTRLMEAS_REG, &data, 1);
   data &= 0xe3;
   data |= (oversampling_p << 2);
-  this->write_register_(QMP6988_CTRLMEAS_REG, data);
+  this->write_byte(QMP6988_CTRLMEAS_REG, data);
   delay(10);
 }
 
 void QMP6988Component::write_oversampling_temperature_(unsigned char oversampling_t) {
   uint8_t data;
 
-  this->read_data_(QMP6988_CTRLMEAS_REG, &data, 1);
+  this->read_register(QMP6988_CTRLMEAS_REG, &data, 1);
   data &= 0x1f;
   data |= (oversampling_t << 5);
-  this->write_register_(QMP6988_CTRLMEAS_REG, data);
+  this->write_byte(QMP6988_CTRLMEAS_REG, data);
   delay(10);
 }
 
@@ -346,7 +330,7 @@ void QMP6988Component::calculate_pressure_() {
   this->qmp6988_data_.temperature = 0;
   this->qmp6988_data_.pressure = 0;
 
-  err = this->read_data_(QMP6988_PRESSURE_MSB_REG, a_data_uint8_tr, 6);
+  err = this->read_register(QMP6988_PRESSURE_MSB_REG, a_data_uint8_tr, 6);
   if (err == 0) {
     ESP_LOGE(TAG, "Error reading raw pressure/temp values");
     return;
@@ -369,9 +353,9 @@ void QMP6988Component::calculate_pressure_() {
 void QMP6988Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up QMP6988");
 
-  uint8_t ret;
+  bool ret;
   ret = this->device_check_();
-  if (ret == 0) {
+  if (ret == false) {
     ESP_LOGCONFIG(TAG, "Setup failed - device not found");
   }
 
