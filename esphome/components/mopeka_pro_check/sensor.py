@@ -61,7 +61,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_CUSTOM_DISTANCE_FULL): small_distance,
             cv.Optional(CONF_CUSTOM_DISTANCE_EMPTY): small_distance,
-            cv.Optional(CONF_TANK_TYPE, default="20LB_V"): cv.enum(
+            cv.Required(CONF_TANK_TYPE): cv.enum(
                 CONF_SUPPORTED_TANKS_MAP, upper=True
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
