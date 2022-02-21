@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.const import CONF_ID, CONF_PIN, CONF_PIN_A
 
+
 MULTI_CONF = True
 AUTO_LOAD = ['sensor']
 
