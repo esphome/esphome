@@ -55,7 +55,7 @@ void MCP4728Component::set_channel_value_(MCP4728ChannelIdx channel, uint16_t va
   } else {
     cn = 'D';
   }
-  ESP_LOGD(TAG, "Setting MCP4728 channel %c to %d!", cn, value);
+  ESP_LOGV(TAG, "Setting MCP4728 channel %c to %d!", cn, value);
   reg_[channel].data = value;
   this->update_ = true;
 }
