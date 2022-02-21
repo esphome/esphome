@@ -6,7 +6,7 @@
 namespace esphome {
 namespace remote_base {
 
-std::vector<uint16_t> decode_pronto(const std::string &str);
+std::vector<uint16_t> encode_pronto(const std::string &str);
 
 struct ProntoData {
   std::string data;
@@ -23,8 +23,8 @@ class ProntoProtocol : public RemoteProtocol<ProntoData> {
   uint16_t to_timebase_(uint16_t frequency);
   uint16_t to_frequency_code_(uint16_t frequency);
   std::string dump_digit_(uint8_t x);
-  std::string dump_number_(uint16_t number);
-  std::string dump_duration_(uint32_t duration, uint16_t timebase);
+  std::string dump_number_(uint16_t number, bool end = false);
+  std::string dump_duration_(uint32_t duration, uint16_t timebase, bool end = false);
   std::string compensate_and_dump_sequence_(std::vector<int32_t> *data, uint16_t timebase);
 
  public:
