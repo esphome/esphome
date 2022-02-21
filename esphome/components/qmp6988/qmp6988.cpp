@@ -110,7 +110,7 @@ bool QMP6988Component::device_check_() {
 }
 
 bool QMP6988Component::get_calibration_data_() {
-  uint8_t status = false;
+  uint8_t status = 0;
   // BITFIELDS temp_COE;
   uint8_t a_data_uint8_tr[QMP6988_CALIBRATION_DATA_LENGTH] = {0};
   int len;
@@ -244,7 +244,7 @@ QMP6988_S32_t QMP6988Component::get_compensated_pressure_(qmp6988_ik_data_t *ik,
 }
 
 void QMP6988Component::software_reset_() {
-  bool ret = 0;
+  uint8_t ret = 0;
 
   ret = this->write_byte(QMP6988_RESET_REG, 0xe6);
   if (ret != i2c::ERROR_OK) {
@@ -331,7 +331,7 @@ void QMP6988Component::calculate_pressure_() {
   this->qmp6988_data_.pressure = 0;
 
   err = this->read_register(QMP6988_PRESSURE_MSB_REG, a_data_uint8_tr, 6);
-  if (err == 0) {
+  if (err != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Error reading raw pressure/temp values");
     return;
   }
