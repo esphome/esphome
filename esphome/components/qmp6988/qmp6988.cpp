@@ -119,7 +119,7 @@ bool QMP6988Component::get_calibration_data_() {
     status = this->read_register(QMP6988_CALIBRATION_DATA_START + len, &a_data_uint8_tr[len], 1);
     if (status != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "qmp6988 read calibration data (0xA0) error!");
-      return status;
+      return false;
     }
   }
 
