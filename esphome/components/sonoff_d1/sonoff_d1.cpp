@@ -123,6 +123,7 @@ bool SonoffD1Output::read_command_(uint8_t *cmd, size_t &len) {
     }
   } else {
     ESP_LOGW(TAG, "[%04d] RX: feedback timeout", this->write_count_);
+    this->skip_command_();
   }
   return false;
 }
