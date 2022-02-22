@@ -1,4 +1,6 @@
 #include "ms8607.h"
+
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -87,7 +89,7 @@ void MS8607Component::update() {
 void MS8607Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MS8607:");
   LOG_I2C_DEVICE(this);
-  // LOG_I2C_DEVICE doesn't work for humidity, the `address_` is private. Log using this object's
+  // LOG_I2C_DEVICE doesn't work for humidity, the `address_` is protected. Log using this object's
   // saved value for the address.
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->humidity_sensor_address_);
   if (this->is_failed()) {
@@ -105,7 +107,9 @@ void MS8607Component::set_humidity_sensor_address(uint8_t address) {
     delete this->humidity_i2c_device_;
   }
   this->humidity_sensor_address_ = address;
-  this->humidity_i2c_device_ = new I2CDevice(this->parent_, address);
+  this->humidity_i2c_device_ = new I2CDevice();
+  this->humidity_i2c_device_->set_i2c_bus(this->bus_);
+  this->humidity_i2c_device_->set_i2c_address(address);
 }
 
 
@@ -174,7 +178,7 @@ static uint8_t crc4(uint16_t *buffer, size_t length) {
 
   // add all the bytes
   for (uint8_t idx = 0; idx < length; ++idx) {
-    for (auto byte : decode_uint16(buffer[idx])) {
+    for (auto byte : decode_value(buffer[idx])) {
       apply_crc(byte);
     }
   }
