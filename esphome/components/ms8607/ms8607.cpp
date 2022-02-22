@@ -35,6 +35,8 @@ static const uint8_t MS8607_CMD_CONV_D2_OSR_8K = 0x5A;
 enum class MS8607Component::ErrorCode {
   /// Component hasn't failed (yet?)
   NONE = 0,
+  /// Both the Pressure/Temperature address and the Humidity address failed to reset
+  PTH_RESET_FAILED,
   /// Asking the Pressure/Temperature sensor to reset failed
   PT_RESET_FAILED,
   /// Asking the Humidity sensor to reset failed
@@ -60,11 +62,13 @@ void MS8607Component::setup() {
   bool h_successful = this->humidity_i2c_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
 
   if (pt_successful && h_successful) {
-    // TODO: blocking wait? Or use set_timeout? I think 15ms is short enough to just block?
+    // docs say delay(>10) is disallowed, I'm not sure how to structure code to correctly delay(15) during setup()
     delay(15); // matches Adafruit_MS8607 & SparkFun_PHT_MS8607_Arduino_Library
   } else {
     ESP_LOGE(TAG, "Resetting I2C devices failed. Marking component as failed.");
-    if (h_successful) {
+    if (!pt_successful && !h_successful) {
+      this->error_code_ = ErrorCode::PTH_RESET_FAILED;
+    } else if (!pt_successful) {
       this->error_code_ = ErrorCode::PT_RESET_FAILED;
     } else {
       this->error_code_ = ErrorCode::H_RESET_FAILED;
@@ -111,7 +115,6 @@ void MS8607Component::set_humidity_sensor_address(uint8_t address) {
   this->humidity_i2c_device_->set_i2c_bus(this->bus_);
   this->humidity_i2c_device_->set_i2c_address(address);
 }
-
 
 bool MS8607Component::read_calibration_values_from_prom_() {
   ESP_LOGD(TAG, "Reading calibration values from PROM");
