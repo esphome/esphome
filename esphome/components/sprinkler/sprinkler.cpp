@@ -523,9 +523,7 @@ void Sprinkler::start_valve_(const optional<size_t> valve_number, optional<uint3
   }
   // sanity checks passed, compute run_duration, make valve_number the active_valve_ and start it
   this->active_valve_ = valve_number;
-  if (!run_duration.has_value()) {
-    run_duration = this->valve_run_duration_adjusted(this->active_valve_.value());
-  } else if (run_duration.value() == 0) {
+  if (!run_duration.has_value() || (run_duration.value() == 0)) {
     run_duration = this->valve_run_duration_adjusted(this->active_valve_.value());
   }
   this->reset_resume_();
