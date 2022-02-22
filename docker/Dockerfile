@@ -5,9 +5,11 @@
 # One of "docker", "hassio"
 ARG BASEIMGTYPE=docker
 
+# https://github.com/hassio-addons/addon-debian-base/releases
 FROM ghcr.io/hassio-addons/debian-base/amd64:5.2.3 AS base-hassio-amd64
 FROM ghcr.io/hassio-addons/debian-base/aarch64:5.2.3 AS base-hassio-arm64
 FROM ghcr.io/hassio-addons/debian-base/armv7:5.2.3 AS base-hassio-armv7
+# https://hub.docker.com/_/debian?tab=tags&page=1&name=bullseye
 FROM debian:bullseye-20220125-slim AS base-docker-amd64
 FROM debian:bullseye-20220125-slim AS base-docker-arm64
 FROM debian:bullseye-20220125-slim AS base-docker-armv7
@@ -43,7 +45,7 @@ RUN \
     # Ubuntu python3-pip is missing wheel
     pip3 install --no-cache-dir \
         wheel==0.37.1 \
-        platformio==5.2.4 \
+        platformio==5.2.5 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_libraries_interval 1000000 \
@@ -52,15 +54,15 @@ RUN \
     && mkdir -p /piolibs
 
 
-
-# ======================= docker-type image =======================
-FROM base AS docker
-
 # First install requirements to leverage caching when requirements don't change
 COPY requirements.txt requirements_optional.txt docker/platformio_install_deps.py platformio.ini /
 RUN \
     pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
     && /platformio_install_deps.py /platformio.ini
+
+
+# ======================= docker-type image =======================
+FROM base AS docker
 
 # Copy esphome and install
 COPY . /esphome
@@ -93,7 +95,7 @@ RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        nginx=1.18.0-6.1 \
+        nginx-light=1.18.0-6.1 \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
@@ -103,12 +105,6 @@ ARG BUILD_VERSION=dev
 
 # Copy root filesystem
 COPY docker/ha-addon-rootfs/ /
-
-# First install requirements to leverage caching when requirements don't change
-COPY requirements.txt requirements_optional.txt docker/platformio_install_deps.py platformio.ini /
-RUN \
-    pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
-    && /platformio_install_deps.py /platformio.ini
 
 # Copy esphome and install
 COPY . /esphome
@@ -147,10 +143,8 @@ RUN \
         /var/{cache,log}/* \
         /var/lib/apt/lists/*
 
-COPY requirements.txt requirements_optional.txt requirements_test.txt docker/platformio_install_deps.py platformio.ini /
-RUN \
-    pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt -r /requirements_test.txt \
-    && /platformio_install_deps.py /platformio.ini
+COPY requirements_test.txt /
+RUN pip3 install --no-cache-dir -r /requirements_test.txt
 
 VOLUME ["/esphome"]
 WORKDIR /esphome

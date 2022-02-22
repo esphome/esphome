@@ -6,6 +6,8 @@ from esphome import automation
 from esphome.const import CONF_ON_TOUCH
 
 CODEOWNERS = ["@jesserockz"]
+DEPENDENCIES = ["display"]
+
 IS_PLATFORM_COMPONENT = True
 
 touchscreen_ns = cg.esphome_ns.namespace("touchscreen")

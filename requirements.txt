@@ -9,7 +9,7 @@ pyserial==3.5
 platformio==5.2.5  # When updating platformio, also update Dockerfile
 esptool==3.2
 click==8.0.3
-esphome-dashboard==20220209.0
+esphome-dashboard==20220219.0
 aioesphomeapi==10.8.2
 zeroconf==0.38.3
 

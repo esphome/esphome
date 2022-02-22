@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/display/display_buffer.h"
 #include "esphome/components/touchscreen/touchscreen.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -23,11 +24,14 @@ class TouchscreenBinarySensor : public binary_sensor::BinarySensor,
     this->y_max_ = y_max;
   }
 
+  void set_page(display::DisplayPage *page) { this->page_ = page; }
+
   void touch(TouchPoint tp) override;
   void release() override;
 
  protected:
   int16_t x_min_, x_max_, y_min_, y_max_;
+  display::DisplayPage *page_{nullptr};
 };
 
 }  // namespace touchscreen
