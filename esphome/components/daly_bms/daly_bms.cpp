@@ -16,6 +16,7 @@ static const uint8_t DALY_REQUEST_MIN_MAX_VOLTAGE = 0x91;
 static const uint8_t DALY_REQUEST_MIN_MAX_TEMPERATURE = 0x92;
 static const uint8_t DALY_REQUEST_MOS = 0x93;
 static const uint8_t DALY_REQUEST_STATUS = 0x94;
+static const uint8_t DALY_REQUEST_CELL_VOLTAGE = 0x95;
 static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
 void DalyBmsComponent::setup() {}
@@ -31,6 +32,7 @@ void DalyBmsComponent::update() {
   this->request_data_(DALY_REQUEST_MIN_MAX_TEMPERATURE);
   this->request_data_(DALY_REQUEST_MOS);
   this->request_data_(DALY_REQUEST_STATUS);
+  this->request_data_(DALY_REQUEST_CELL_VOLTAGE);
   this->request_data_(DALY_REQUEST_TEMPERATURE);
 
   std::vector<uint8_t> get_battery_level_data;
@@ -163,6 +165,71 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
               if (this->temperature_2_sensor_) {
                 this->temperature_2_sensor_->publish_state(it[6] - DALY_TEMPERATURE_OFFSET);
               }
+            }
+            break;
+
+          case DALY_REQUEST_CELL_VOLTAGE:
+            switch (it[4]) {
+              case 1:
+                if (this->cell_1_voltage_) {
+                  this->cell_1_voltage_->publish_state((float) encode_uint16(it[5], it[6]) / 1000);
+                }
+                if (this->cell_2_voltage_) {
+                  this->cell_2_voltage_->publish_state((float) encode_uint16(it[7], it[8]) / 1000);
+                }
+                if (this->cell_3_voltage_) {
+                  this->cell_3_voltage_->publish_state((float) encode_uint16(it[9], it[10]) / 1000);
+                }
+                break;
+              case 2:
+                if (this->cell_4_voltage_) {
+                  this->cell_4_voltage_->publish_state((float) encode_uint16(it[5], it[6]) / 1000);
+                }
+                if (this->cell_5_voltage_) {
+                  this->cell_5_voltage_->publish_state((float) encode_uint16(it[7], it[8]) / 1000);
+                }
+                if (this->cell_6_voltage_) {
+                  this->cell_6_voltage_->publish_state((float) encode_uint16(it[9], it[10]) / 1000);
+                }
+                break;
+              case 3:
+                if (this->cell_7_voltage_) {
+                  this->cell_7_voltage_->publish_state((float) encode_uint16(it[5], it[6]) / 1000);
+                }
+                if (this->cell_8_voltage_) {
+                  this->cell_8_voltage_->publish_state((float) encode_uint16(it[7], it[8]) / 1000);
+                }
+                if (this->cell_9_voltage_) {
+                  this->cell_9_voltage_->publish_state((float) encode_uint16(it[9], it[10]) / 1000);
+                }
+                break;
+              case 4:
+                if (this->cell_10_voltage_) {
+                  this->cell_10_voltage_->publish_state((float) encode_uint16(it[5], it[6]) / 1000);
+                }
+                if (this->cell_11_voltage_) {
+                  this->cell_11_voltage_->publish_state((float) encode_uint16(it[7], it[8]) / 1000);
+                }
+                if (this->cell_12_voltage_) {
+                  this->cell_12_voltage_->publish_state((float) encode_uint16(it[9], it[10]) / 1000);
+                }
+                break;
+              case 5:
+                if (this->cell_13_voltage_) {
+                  this->cell_13_voltage_->publish_state((float) encode_uint16(it[5], it[6]) / 1000);
+                }
+                if (this->cell_14_voltage_) {
+                  this->cell_14_voltage_->publish_state((float) encode_uint16(it[7], it[8]) / 1000);
+                }
+                if (this->cell_15_voltage_) {
+                  this->cell_15_voltage_->publish_state((float) encode_uint16(it[9], it[10]) / 1000);
+                }
+                break;
+              case 6:
+                if (this->cell_16_voltage_) {
+                  this->cell_16_voltage_->publish_state((float) encode_uint16(it[5], it[6]) / 1000);
+                }
+                break;
             }
             break;
 

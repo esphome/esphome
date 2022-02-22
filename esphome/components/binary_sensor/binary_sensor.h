@@ -26,11 +26,6 @@ namespace binary_sensor {
 class BinarySensor : public EntityBase {
  public:
   explicit BinarySensor();
-  /** Construct a binary sensor with the specified name
-   *
-   * @param name Name of this binary sensor.
-   */
-  explicit BinarySensor(const std::string &name);
 
   /** Add a callback to be notified of state changes.
    *

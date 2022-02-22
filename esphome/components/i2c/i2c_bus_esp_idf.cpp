@@ -65,10 +65,11 @@ void IDFI2CBus::dump_config() {
       ESP_LOGI(TAG, "Found no i2c devices!");
     } else {
       for (const auto &s : scan_results_) {
-        if (s.second)
+        if (s.second) {
           ESP_LOGI(TAG, "Found i2c device at address 0x%02X", s.first);
-        else
+        } else {
           ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
+        }
       }
     }
   }

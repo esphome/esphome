@@ -692,6 +692,20 @@ sensor:
     name: 'testwave'
     component_id: 2
     wave_channel_id: 1
+  - platform: mlx90393
+    oversampling: 1
+    filter: 0
+    gain: "3X"
+    x_axis:
+      name: "mlxxaxis"
+    y_axis:
+      name: "mlxyaxis"
+    z_axis:
+      name: "mlxzaxis"
+      resolution: 17BIT
+    temperature:
+      name: "mlxtemp"
+      oversampling: 2
 time:
   - platform: homeassistant
 
@@ -1351,7 +1365,15 @@ daly_bms:
   update_interval: 20s
   uart_id: uart1
 
+qr_code:
+  - id: homepage_qr
+    value: https://esphome.io/index.html
+
 button:
+  - platform: output
+    id: output_button
+    output: out
+    duration: 100ms
   - platform: wake_on_lan
     target_mac_address: 12:34:56:78:90:ab
     name: wol_test_1

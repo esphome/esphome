@@ -420,10 +420,11 @@ float BME680Component::calc_humidity_(uint16_t raw_humidity) {
 
   calc_hum = var2 + (var3 + var4 * temp_comp) * var2 * var2;
 
-  if (calc_hum > 100.0f)
+  if (calc_hum > 100.0f) {
     calc_hum = 100.0f;
-  else if (calc_hum < 0.0f)
+  } else if (calc_hum < 0.0f) {
     calc_hum = 0.0f;
+  }
 
   return calc_hum;
 }

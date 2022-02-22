@@ -30,10 +30,11 @@ void Am43Component::loop() {
         esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_, packet->length,
                                  packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
     ESP_LOGI(TAG, "[%s] Logging into AM43", this->get_name().c_str());
-    if (status)
+    if (status) {
       ESP_LOGW(TAG, "[%s] Error writing set_pin to device, error = %d", this->get_name().c_str(), status);
-    else
+    } else {
       this->logged_in_ = true;
+    }
   }
 }
 

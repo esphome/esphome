@@ -16,10 +16,11 @@ class SunTextSensor : public text_sensor::TextSensor, public PollingComponent {
 
   void update() override {
     optional<time::ESPTime> res;
-    if (this->sunrise_)
+    if (this->sunrise_) {
       res = this->parent_->sunrise(this->elevation_);
-    else
+    } else {
       res = this->parent_->sunset(this->elevation_);
+    }
     if (!res) {
       this->publish_state("");
       return;
