@@ -675,10 +675,11 @@ void Sprinkler::dump_config() {
     ESP_LOGCONFIG(TAG, "  Repeat Cycles: %u times", this->target_repeats_.value_or(0));
   }
   if (this->switching_delay_.has_value()) {
-    if (this->valve_overlap_)
+    if (this->valve_overlap_) {
       ESP_LOGCONFIG(TAG, "  Valve Overlap: %u seconds", this->switching_delay_.value_or(0));
-    else
+    } else {
       ESP_LOGCONFIG(TAG, "  Valve Open Delay: %u seconds", this->switching_delay_.value_or(0));
+    }
   }
   for (size_t valve_number = 0; valve_number < this->number_of_valves(); valve_number++) {
     ESP_LOGCONFIG(TAG, "  Valve %u:", valve_number);

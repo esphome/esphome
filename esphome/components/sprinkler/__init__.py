@@ -346,6 +346,9 @@ async def to_code(config):
     for valve_group in config:
         var = await cg.get_variable(valve_group[CONF_ID])
         for controller_to_add in config:
-            controller = await cg.get_variable(controller_to_add[CONF_ID])
-            if var != controller:
-                cg.add(var.add_controller(controller))
+            if valve_group[CONF_ID] != controller_to_add[CONF_ID]:
+                cg.add(
+                    var.add_controller(
+                        await cg.get_variable(controller_to_add[CONF_ID])
+                    )
+                )
