@@ -56,7 +56,7 @@ async def to_code(config):
     cg.add(ble_server.register_service_component(var))
 
     cg.add_define("USE_IMPROV")
-    cg.add_library("esphome/Improv", "1.0.0")
+    cg.add_library("esphome/Improv", "1.2.1")
 
     cg.add(var.set_identify_duration(config[CONF_IDENTIFY_DURATION]))
     cg.add(var.set_authorized_duration(config[CONF_AUTHORIZED_DURATION]))

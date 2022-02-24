@@ -5,12 +5,14 @@
 # One of "docker", "hassio"
 ARG BASEIMGTYPE=docker
 
-FROM ghcr.io/hassio-addons/debian-base/amd64:5.1.1 AS base-hassio-amd64
-FROM ghcr.io/hassio-addons/debian-base/aarch64:5.1.1 AS base-hassio-arm64
-FROM ghcr.io/hassio-addons/debian-base/armv7:5.1.1 AS base-hassio-armv7
-FROM debian:bullseye-20211011-slim AS base-docker-amd64
-FROM debian:bullseye-20211011-slim AS base-docker-arm64
-FROM debian:bullseye-20211011-slim AS base-docker-armv7
+# https://github.com/hassio-addons/addon-debian-base/releases
+FROM ghcr.io/hassio-addons/debian-base/amd64:5.2.3 AS base-hassio-amd64
+FROM ghcr.io/hassio-addons/debian-base/aarch64:5.2.3 AS base-hassio-arm64
+FROM ghcr.io/hassio-addons/debian-base/armv7:5.2.3 AS base-hassio-armv7
+# https://hub.docker.com/_/debian?tab=tags&page=1&name=bullseye
+FROM debian:bullseye-20220125-slim AS base-docker-amd64
+FROM debian:bullseye-20220125-slim AS base-docker-arm64
+FROM debian:bullseye-20220125-slim AS base-docker-armv7
 
 # Use TARGETARCH/TARGETVARIANT defined by docker
 # https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
@@ -23,11 +25,11 @@ RUN \
         python3=3.9.2-3 \
         python3-pip=20.3.4-4 \
         python3-setuptools=52.0.0-4 \
-        python3-pil=8.1.2+dfsg-0.3 \
+        python3-pil=8.1.2+dfsg-0.3+deb11u1 \
         python3-cryptography=3.3.2-1 \
         iputils-ping=3:20210202-1 \
         git=1:2.30.2-1 \
-        curl=7.74.0-1.3+b1 \
+        curl=7.74.0-1.3+deb11u1 \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
@@ -42,8 +44,8 @@ ENV \
 RUN \
     # Ubuntu python3-pip is missing wheel
     pip3 install --no-cache-dir \
-        wheel==0.36.2 \
-        platformio==5.2.2 \
+        wheel==0.37.1 \
+        platformio==5.2.5 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_libraries_interval 1000000 \
@@ -52,19 +54,19 @@ RUN \
     && mkdir -p /piolibs
 
 
-
-# ======================= docker-type image =======================
-FROM base AS docker
-
 # First install requirements to leverage caching when requirements don't change
 COPY requirements.txt requirements_optional.txt docker/platformio_install_deps.py platformio.ini /
 RUN \
     pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
     && /platformio_install_deps.py /platformio.ini
 
+
+# ======================= docker-type image =======================
+FROM base AS docker
+
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install --no-cache-dir -e /esphome
+RUN pip3 install --no-cache-dir --no-use-pep517 -e /esphome
 
 # Settings for dashboard
 ENV USERNAME="" PASSWORD=""
@@ -93,7 +95,7 @@ RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        nginx=1.18.0-6.1 \
+        nginx-light=1.18.0-6.1 \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
@@ -102,17 +104,11 @@ RUN \
 ARG BUILD_VERSION=dev
 
 # Copy root filesystem
-COPY docker/hassio-rootfs/ /
-
-# First install requirements to leverage caching when requirements don't change
-COPY requirements.txt requirements_optional.txt docker/platformio_install_deps.py platformio.ini /
-RUN \
-    pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
-    && /platformio_install_deps.py /platformio.ini
+COPY docker/ha-addon-rootfs/ /
 
 # Copy esphome and install
 COPY . /esphome
-RUN pip3 install --no-cache-dir -e /esphome
+RUN pip3 install --no-cache-dir --no-use-pep517 -e /esphome
 
 # Labels
 LABEL \
@@ -147,10 +143,8 @@ RUN \
         /var/{cache,log}/* \
         /var/lib/apt/lists/*
 
-COPY requirements.txt requirements_optional.txt requirements_test.txt docker/platformio_install_deps.py platformio.ini /
-RUN \
-    pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt -r /requirements_test.txt \
-    && /platformio_install_deps.py /platformio.ini
+COPY requirements_test.txt /
+RUN pip3 install --no-cache-dir -r /requirements_test.txt
 
 VOLUME ["/esphome"]
 WORKDIR /esphome

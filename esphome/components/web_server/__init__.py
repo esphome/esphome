@@ -22,31 +22,38 @@ AUTO_LOAD = ["json", "web_server_base"]
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(WebServer),
-        cv.Optional(CONF_PORT, default=80): cv.port,
-        cv.Optional(
-            CONF_CSS_URL, default="https://esphome.io/_static/webserver-v1.min.css"
-        ): cv.string,
-        cv.Optional(CONF_CSS_INCLUDE): cv.file_,
-        cv.Optional(
-            CONF_JS_URL, default="https://esphome.io/_static/webserver-v1.min.js"
-        ): cv.string,
-        cv.Optional(CONF_JS_INCLUDE): cv.file_,
-        cv.Optional(CONF_AUTH): cv.Schema(
-            {
-                cv.Required(CONF_USERNAME): cv.All(cv.string_strict, cv.Length(min=1)),
-                cv.Required(CONF_PASSWORD): cv.All(cv.string_strict, cv.Length(min=1)),
-            }
-        ),
-        cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
-            web_server_base.WebServerBase
-        ),
-        cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
-        cv.Optional(CONF_OTA, default=True): cv.boolean,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(WebServer),
+            cv.Optional(CONF_PORT, default=80): cv.port,
+            cv.Optional(
+                CONF_CSS_URL, default="https://esphome.io/_static/webserver-v1.min.css"
+            ): cv.string,
+            cv.Optional(CONF_CSS_INCLUDE): cv.file_,
+            cv.Optional(
+                CONF_JS_URL, default="https://esphome.io/_static/webserver-v1.min.js"
+            ): cv.string,
+            cv.Optional(CONF_JS_INCLUDE): cv.file_,
+            cv.Optional(CONF_AUTH): cv.Schema(
+                {
+                    cv.Required(CONF_USERNAME): cv.All(
+                        cv.string_strict, cv.Length(min=1)
+                    ),
+                    cv.Required(CONF_PASSWORD): cv.All(
+                        cv.string_strict, cv.Length(min=1)
+                    ),
+                }
+            ),
+            cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
+                web_server_base.WebServerBase
+            ),
+            cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
+            cv.Optional(CONF_OTA, default=True): cv.boolean,
+        },
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.only_with_arduino,
+)
 
 
 @coroutine_with_priority(40.0)
@@ -59,8 +66,8 @@ async def to_code(config):
     cg.add_define("USE_WEBSERVER")
 
     cg.add(paren.set_port(config[CONF_PORT]))
-    cg.add_define("WEBSERVER_PORT", config[CONF_PORT])
     cg.add_define("USE_WEBSERVER")
+    cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
     cg.add(var.set_css_url(config[CONF_CSS_URL]))
     cg.add(var.set_js_url(config[CONF_JS_URL]))
     cg.add(var.set_allow_ota(config[CONF_OTA]))
@@ -70,11 +77,11 @@ async def to_code(config):
     if CONF_CSS_INCLUDE in config:
         cg.add_define("WEBSERVER_CSS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
-        with open(file=path, mode="r", encoding="utf-8") as myfile:
+        with open(file=path, encoding="utf-8") as myfile:
             cg.add(var.set_css_include(myfile.read()))
     if CONF_JS_INCLUDE in config:
         cg.add_define("WEBSERVER_JS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
-        with open(file=path, mode="r", encoding="utf-8") as myfile:
+        with open(file=path, encoding="utf-8") as myfile:
             cg.add(var.set_js_include(myfile.read()))
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))

@@ -138,10 +138,11 @@ bool SDP3XComponent::check_crc_(const uint8_t data[], uint8_t size, uint8_t chec
   for (int i = 0; i < size; i++) {
     crc ^= (data[i]);
     for (uint8_t bit = 8; bit > 0; --bit) {
-      if (crc & 0x80)
+      if (crc & 0x80) {
         crc = (crc << 1) ^ 0x31;
-      else
+      } else {
         crc = (crc << 1);
+      }
     }
   }
 

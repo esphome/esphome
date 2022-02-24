@@ -51,24 +51,27 @@ void SSD1325::setup() {
   this->command(SSD1325_SETCLOCK);      // set osc division
   this->command(0xF1);                  // 145
   this->command(SSD1325_SETMULTIPLEX);  // multiplex ratio
-  if (this->model_ == SSD1327_MODEL_128_128)
+  if (this->model_ == SSD1327_MODEL_128_128) {
     this->command(0x7f);  // duty = height - 1
-  else
-    this->command(0x3f);             // duty = 1/64
+  } else {
+    this->command(0x3f);  // duty = 1/64
+  }
   this->command(SSD1325_SETOFFSET);  // set display offset
-  if (this->model_ == SSD1327_MODEL_128_128)
+  if (this->model_ == SSD1327_MODEL_128_128) {
     this->command(0x00);  // 0
-  else
-    this->command(0x4C);                // 76
+  } else {
+    this->command(0x4C);  // 76
+  }
   this->command(SSD1325_SETSTARTLINE);  // set start line
   this->command(0x00);                  // ...
   this->command(SSD1325_MASTERCONFIG);  // Set Master Config DC/DC Converter
   this->command(0x02);
   this->command(SSD1325_SETREMAP);  // set segment remapping
-  if (this->model_ == SSD1327_MODEL_128_128)
+  if (this->model_ == SSD1327_MODEL_128_128) {
     this->command(0x53);  //  COM bottom-up, split odd/even, enable column and nibble remapping
-  else
-    this->command(0x50);                    // COM bottom-up, split odd/even
+  } else {
+    this->command(0x50);  // COM bottom-up, split odd/even
+  }
   this->command(SSD1325_SETCURRENT + 0x2);  // Set Full Current Range
   this->command(SSD1325_SETGRAYTABLE);
   // gamma ~2.2
@@ -122,10 +125,11 @@ void SSD1325::display() {
   this->command(0x3F);                // set column end address
   this->command(SSD1325_SETROWADDR);  // set row address
   this->command(0x00);                // set row start address
-  if (this->model_ == SSD1327_MODEL_128_128)
+  if (this->model_ == SSD1327_MODEL_128_128) {
     this->command(127);  // set last row
-  else
+  } else {
     this->command(63);  // set last row
+  }
 
   this->write_display_data();
 }
@@ -135,12 +139,13 @@ void SSD1325::update() {
 }
 void SSD1325::set_brightness(float brightness) {
   // validation
-  if (brightness > 1)
+  if (brightness > 1) {
     this->brightness_ = 1.0;
-  else if (brightness < 0)
+  } else if (brightness < 0) {
     this->brightness_ = 0;
-  else
+  } else {
     this->brightness_ = brightness;
+  }
   // now write the new brightness level to the display
   this->command(SSD1325_SETCONTRAST);
   this->command(int(SSD1325_MAX_CONTRAST * (this->brightness_)));
