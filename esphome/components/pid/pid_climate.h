@@ -26,6 +26,14 @@ class PIDClimate : public climate::Climate, public Component {
   void set_kd(float kd) { controller_.kd = kd; }
   void set_min_integral(float min_integral) { controller_.min_integral = min_integral; }
   void set_max_integral(float max_integral) { controller_.max_integral = max_integral; }
+  void set_output_samples(int in) { controller_.output_samples = in; }
+  void set_derivative_samples(int in) { controller_.derivative_samples = in; }
+
+  void set_deadband_threshold(float in) { controller_.deadband_threshold = in; }
+  void set_deadband_kp_multiplier(float in) { controller_.deadband_kp_multiplier = in; }
+  void set_deadband_ki_multiplier(float in) { controller_.deadband_ki_multiplier = in; }
+  void set_deadband_kd_multiplier(float in) { controller_.deadband_kd_multiplier = in; }
+  void set_deadband_output_samples(int in) { controller_.deadband_output_samples = in; }
 
   float get_output_value() const { return output_value_; }
   float get_error_value() const { return controller_.error; }
@@ -35,6 +43,19 @@ class PIDClimate : public climate::Climate, public Component {
   float get_proportional_term() const { return controller_.proportional_term; }
   float get_integral_term() const { return controller_.integral_term; }
   float get_derivative_term() const { return controller_.derivative_term; }
+  int get_output_samples() { return controller_.output_samples; }
+  int get_derivative_samples() { return controller_.derivative_samples; }
+
+  float get_deadband_threshold() { return controller_.deadband_threshold; }
+  float get_deadband_kp_multiplier() { return controller_.deadband_kp_multiplier; }
+  float get_deadband_ki_multiplier() { return controller_.deadband_ki_multiplier; }
+  float get_deadband_kd_multiplier() { return controller_.deadband_kd_multiplier; }
+  int get_deadband_output_samples() { return controller_.deadband_output_samples; }
+
+  // int get_derivative_samples() const { return controller_.derivative_samples; }
+  // float get_deadband() const { return controller_.deadband; }
+  // float get_proportional_deadband_multiplier() const { return controller_.proportional_deadband_multiplier; }
+
   void add_on_pid_computed_callback(std::function<void()> &&callback) {
     pid_computed_callback_.add(std::move(callback));
   }

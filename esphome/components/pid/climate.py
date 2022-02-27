@@ -27,6 +27,16 @@ CONF_POSITIVE_OUTPUT = "positive_output"
 CONF_NEGATIVE_OUTPUT = "negative_output"
 CONF_MIN_INTEGRAL = "min_integral"
 CONF_MAX_INTEGRAL = "max_integral"
+CONF_OUTPUT_SAMPLES = "output_samples"
+CONF_DERIVATIVE_SAMPLES = "derivative_samples"
+
+# Deadband parameters
+CONF_DEADBAND_THRESHOLD = "threshold"
+CONF_DEADBAND_PARAMETERS = "deadband_parameters"
+CONF_DEADBAND_OUTPUT_SAMPLES = "output_samples"
+CONF_DEADBAND_KP_MULTIPLIER = "kp_multiplier"
+CONF_DEADBAND_KI_MULTIPLIER = "ki_multiplier"
+CONF_DEADBAND_KD_MULTIPLIER = "kd_multiplier"
 
 CONFIG_SCHEMA = cv.All(
     climate.CLIMATE_SCHEMA.extend(
@@ -36,6 +46,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE): cv.temperature,
             cv.Optional(CONF_COOL_OUTPUT): cv.use_id(output.FloatOutput),
             cv.Optional(CONF_HEAT_OUTPUT): cv.use_id(output.FloatOutput),
+            cv.Optional(CONF_DEADBAND_PARAMETERS, default={}): cv.Schema(
+                {
+                    cv.Required(CONF_DEADBAND_THRESHOLD): cv.float_,
+                    cv.Optional(CONF_DEADBAND_KP_MULTIPLIER, default=0.1): cv.float_,
+                    cv.Optional(CONF_DEADBAND_KI_MULTIPLIER, default=0.0): cv.float_,
+                    cv.Optional(CONF_DEADBAND_KD_MULTIPLIER, default=0.0): cv.float_,
+                    cv.Optional(CONF_DEADBAND_OUTPUT_SAMPLES, default=1): cv.int_,
+                }
+            ),
             cv.Required(CONF_CONTROL_PARAMETERS): cv.Schema(
                 {
                     cv.Required(CONF_KP): cv.float_,
@@ -43,6 +62,8 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_KD, default=0.0): cv.float_,
                     cv.Optional(CONF_MIN_INTEGRAL, default=-1): cv.float_,
                     cv.Optional(CONF_MAX_INTEGRAL, default=1): cv.float_,
+                    cv.Optional(CONF_DERIVATIVE_SAMPLES, default=1): cv.int_,
+                    cv.Optional(CONF_OUTPUT_SAMPLES, default=1): cv.int_,
                 }
             ),
         }
@@ -69,10 +90,21 @@ async def to_code(config):
     cg.add(var.set_kp(params[CONF_KP]))
     cg.add(var.set_ki(params[CONF_KI]))
     cg.add(var.set_kd(params[CONF_KD]))
+    cg.add(var.set_derivative_samples(params[CONF_DERIVATIVE_SAMPLES]))
+    cg.add(var.set_output_samples(params[CONF_OUTPUT_SAMPLES]))
+
     if CONF_MIN_INTEGRAL in params:
         cg.add(var.set_min_integral(params[CONF_MIN_INTEGRAL]))
     if CONF_MAX_INTEGRAL in params:
         cg.add(var.set_max_integral(params[CONF_MAX_INTEGRAL]))
+
+    if CONF_DEADBAND_PARAMETERS in config:
+        params = config[CONF_DEADBAND_PARAMETERS]
+        cg.add(var.set_deadband_threshold(params[CONF_DEADBAND_THRESHOLD]))
+        cg.add(var.set_deadband_kp_multiplier(params[CONF_DEADBAND_KP_MULTIPLIER]))
+        cg.add(var.set_deadband_ki_multiplier(params[CONF_DEADBAND_KI_MULTIPLIER]))
+        cg.add(var.set_deadband_kd_multiplier(params[CONF_DEADBAND_KD_MULTIPLIER]))
+        cg.add(var.set_deadband_output_samples(params[CONF_DEADBAND_OUTPUT_SAMPLES]))
 
     cg.add(var.set_default_target_temperature(config[CONF_DEFAULT_TARGET_TEMPERATURE]))
 
@@ -125,6 +157,9 @@ async def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_KP): cv.templatable(cv.float_),
             cv.Optional(CONF_KI, default=0.0): cv.templatable(cv.float_),
             cv.Optional(CONF_KD, default=0.0): cv.templatable(cv.float_),
+            # TODO
+            # cv.Optional(CONF_OUTPUT_SAMPLES, default=1): cv.templatable(cv.int_),
+            # cv.Optional(CONF_DERIVATIVE_SAMPLES, default=1): cv.templatable(cv.int_),
         }
     ),
 )
@@ -140,4 +175,12 @@ async def set_control_parameters(config, action_id, template_arg, args):
 
     kd_template_ = await cg.templatable(config[CONF_KD], args, float)
     cg.add(var.set_kd(kd_template_))
+
+    # TODO
+    # ds_template_ = await cg.templatable(config[CONF_DERIVATIVE_SAMPLES], args, int)
+    # cg.add(var.set_derivative_samples(ds_template_))
+
+    # os_template_ = await cg.templatable(config[CONF_OUTPUT_SAMPLES], args, int)
+    # cg.add(var.set_derivative_samples(os_template_))
+
     return var
