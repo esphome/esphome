@@ -8,8 +8,8 @@
 
 namespace esphome {
 namespace ac_dimmer {
-
-enum DimMethod { DIM_METHOD_LEADING_PULSE = 0, DIM_METHOD_LEADING, DIM_METHOD_TRAILING };
+/// RB- I added a new method DS_MODULATOR_HALF and DS_MODULATOR_FULL
+enum DimMethod { DIM_METHOD_LEADING_PULSE = 0, DIM_METHOD_LEADING, DIM_METHOD_TRAILING, DS_MODULATOR_HALF , DS_MODULATOR_FULL};
 
 struct AcDimmerDataStore {
   /// Zero-cross pin
@@ -34,6 +34,16 @@ struct AcDimmerDataStore {
   bool init_cycle;
   /// Dimmer method
   DimMethod method;
+  /// RB- ds modulator trigger
+  bool ds_trigger;
+  /// RB- integrator value for ds
+  int32_t ds_integrator;
+  /// RB- feedback value for ds
+  uint16_t ds_feedback;
+  /// RB- Flag to calculate modulation once per cycle
+  bool ds_flag;
+  /// RB- flag to determine odd pulses when DS_MODULATOR_HALF is selected
+  bool ds_odd;
 
   uint32_t timer_intr(uint32_t now);
 
