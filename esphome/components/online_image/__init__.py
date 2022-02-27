@@ -9,6 +9,7 @@ from esphome.const import (
 from esphome.core import CORE
 
 DEPENDENCIES = ["display"]
+CODEOWNERS = ["@guillempages"]
 MULTI_CONF = True
 
 online_image_ns = cg.esphome_ns.namespace("online_image")
