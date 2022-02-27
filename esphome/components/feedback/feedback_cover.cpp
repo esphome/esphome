@@ -337,6 +337,7 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
   // check if we have a wait time
   if (this->direction_change_waittime_.has_value() && dir != COVER_OPERATION_IDLE &&
       this->current_operation != COVER_OPERATION_IDLE && dir != this->current_operation) {
+    ESP_LOGD(TAG, "'%s' - Reversing direction.", this->name_.c_str());
     this->start_direction_(COVER_OPERATION_IDLE);
 
     this->set_timeout("direction_change", *this->direction_change_waittime_,
@@ -345,6 +346,8 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
   } else {
     this->set_current_operation_(dir, true);
     this->prev_command_trigger_ = trig;
+    ESP_LOGD(TAG, "'%s' - Firing '%s' trigger.", this->name_.c_str(),
+          dir == COVER_OPERATION_OPENING ? "OPEN" : dir == COVER_OPERATION_CLOSING ? "CLOSE" : "STOP");
     trig->trigger();
   }
 }
