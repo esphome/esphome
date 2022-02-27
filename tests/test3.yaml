@@ -1056,6 +1056,15 @@ climate:
       kp: 0.0
       ki: 0.0
       kd: 0.0
+      max_integral: 0.0
+      output_samples: 1
+      derivative_samples: 1
+    deadband_parameters:
+      threshold: 0.4
+      kp_multiplier: 0.0
+      ki_multiplier: 0.0
+      kd_multiplier: 0.0
+      output_samples: 1
 
 cover:
   - platform: endstop
