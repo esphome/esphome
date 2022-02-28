@@ -1,6 +1,6 @@
 #include "http_request_idf.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ESP_IDF
 
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
@@ -133,4 +133,4 @@ HttpResponse HttpRequestIDF::send(bool capture_response) {
 }  // namespace http_request
 }  // namespace esphome
 
-#endif  // USE_ESP32
+#endif  // USE_ESP_IDF

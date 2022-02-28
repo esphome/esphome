@@ -2,7 +2,7 @@
 
 #include "http_request.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ESP_IDF
 
 #include "esp_event.h"
 #include "esp_http_client.h"
@@ -28,4 +28,4 @@ class HttpRequestIDF : public HttpRequestComponent {
 }  // namespace http_request
 }  // namespace esphome
 
-#endif  // USE_ESP32
+#endif  // USE_ESP_IDF
