@@ -8,7 +8,7 @@ TeleInfoTextSensor = teleinfo_ns.class_(
     "TeleInfoTextSensor", text_sensor.TextSensor, cg.Component
 )
 
-CONFIG_SCHEMA = text_sensor.text_sensor_schema(klass=TeleInfoTextSensor).extend(
+CONFIG_SCHEMA = text_sensor.text_sensor_schema(TeleInfoTextSensor).extend(
     TELEINFO_LISTENER_SCHEMA
 )
 
