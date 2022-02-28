@@ -25,7 +25,7 @@ struct HttpResponse {
 
 class HttpRequestResponseTrigger : public Trigger<int, HttpResponse> {
  public:
-  void process(int status_code, HttpResponse response) { this->trigger(status_code, response); }
+  void process(int status_code, HttpResponse response) { this->trigger(status_code, std::move(response)); }
 };
 
 class HttpRequestComponent : public Component {
@@ -34,7 +34,7 @@ class HttpRequestComponent : public Component {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  void set_method(std::string method) { this->method_ = method; }
+  void set_method(std::string method) { this->method_ = std::move(method); }
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
   void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }

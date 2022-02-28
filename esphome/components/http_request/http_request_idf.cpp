@@ -65,18 +65,19 @@ HttpResponse HttpRequestIDF::send(bool capture_response) {
   std::vector<char> buffer;
 
   esp_http_client_method_t method;
-  if (this->method_ == "GET")
+  if (this->method_ == "GET") {
     method = HTTP_METHOD_GET;
-  else if (this->method_ == "POST")
+  } else if (this->method_ == "POST") {
     method = HTTP_METHOD_POST;
-  else if (this->method_ == "PUT")
+  } else if (this->method_ == "PUT") {
     method = HTTP_METHOD_PUT;
-  else if (this->method_ == "DELETE")
+  } else if (this->method_ == "DELETE") {
     method = HTTP_METHOD_DELETE;
-  else if (this->method_ == "PATCH")
+  } else if (this->method_ == "PATCH") {
     method = HTTP_METHOD_PATCH;
-  else
+  } else {
     method = HTTP_METHOD_GET;
+  }
 
   esp_http_client_config_t config = {};
 
