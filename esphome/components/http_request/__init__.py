@@ -12,17 +12,23 @@ from esphome.const import (
     CONF_ESP8266_DISABLE_SSL_SUPPORT,
 )
 from esphome.core import Lambda, CORE
+from esphome.components import esp32
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json"]
 
 http_request_ns = cg.esphome_ns.namespace("http_request")
 HttpRequestComponent = http_request_ns.class_("HttpRequestComponent", cg.Component)
+HttpRequestArduino = http_request_ns.class_("HttpRequestArduino", HttpRequestComponent)
+HttpRequestIDF = http_request_ns.class_("HttpRequestIDF", HttpRequestComponent)
+
+HttpResponse = http_request_ns.class_("HttpResponse")
+
 HttpRequestSendAction = http_request_ns.class_(
     "HttpRequestSendAction", automation.Action
 )
 HttpRequestResponseTrigger = http_request_ns.class_(
-    "HttpRequestResponseTrigger", automation.Trigger
+    "HttpRequestResponseTrigger", automation.Trigger.template(int, HttpResponse)
 )
 
 CONF_HEADERS = "headers"
@@ -33,6 +39,7 @@ CONF_VERIFY_SSL = "verify_ssl"
 CONF_ON_RESPONSE = "on_response"
 CONF_FOLLOW_REDIRECTS = "follow_redirects"
 CONF_REDIRECT_LIMIT = "redirect_limit"
+CONF_CAPTURE_RESPONSE = "capture_response"
 
 
 def validate_url(value):
@@ -68,10 +75,18 @@ def validate_secure_url(config):
     return config
 
 
+def _declare_request_class(value):
+    if CORE.using_esp_idf:
+        return cv.declare_id(HttpRequestIDF)(value)
+    elif CORE.is_esp8266 or CORE.is_esp32:
+        return cv.declare_id(HttpRequestArduino)(value)
+    return NotImplementedError
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(HttpRequestComponent),
+            cv.GenerateID(): _declare_request_class,
             cv.Optional(CONF_USERAGENT, "ESPHome"): cv.string,
             cv.Optional(CONF_FOLLOW_REDIRECTS, True): cv.boolean,
             cv.Optional(CONF_REDIRECT_LIMIT, 3): cv.int_,
@@ -86,6 +101,7 @@ CONFIG_SCHEMA = cv.All(
     cv.require_framework_version(
         esp8266_arduino=cv.Version(2, 5, 1),
         esp32_arduino=cv.Version(0, 0, 0),
+        esp_idf=cv.Version(0, 0, 0),
     ),
 )
 
@@ -101,8 +117,14 @@ async def to_code(config):
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
 
     if CORE.is_esp32:
-        cg.add_library("WiFiClientSecure", None)
-        cg.add_library("HTTPClient", None)
+        if CORE.using_esp_idf:
+            esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
+            esp32.add_idf_sdkconfig_option(
+                "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True
+            )
+        else:
+            cg.add_library("WiFiClientSecure", None)
+            cg.add_library("HTTPClient", None)
     if CORE.is_esp8266:
         cg.add_library("ESP8266HTTPClient", None)
 
@@ -117,6 +139,7 @@ HTTP_REQUEST_ACTION_SCHEMA = cv.Schema(
             cv.Schema({cv.string: cv.templatable(cv.string)})
         ),
         cv.Optional(CONF_VERIFY_SSL, default=True): cv.boolean,
+        cv.Optional(CONF_CAPTURE_RESPONSE, default=False): cv.boolean,
         cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(
             {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(HttpRequestResponseTrigger)}
         ),
@@ -173,6 +196,7 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
     template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
     cg.add(var.set_url(template_))
     cg.add(var.set_method(config[CONF_METHOD]))
+    cg.add(var.set_capture_response(config[CONF_CAPTURE_RESPONSE]))
     if CONF_BODY in config:
         template_ = await cg.templatable(config[CONF_BODY], args, cg.std_string)
         cg.add(var.set_body(template_))
@@ -195,6 +219,13 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
     for conf in config.get(CONF_ON_RESPONSE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_response_trigger(trigger))
-        await automation.build_automation(trigger, [(int, "status_code")], conf)
+        await automation.build_automation(
+            trigger,
+            [
+                (int, "status_code"),
+                (HttpResponse, "response"),
+            ],
+            conf,
+        )
 
     return var

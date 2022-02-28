@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
 #include "esphome/components/json/json_util.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -11,16 +9,6 @@
 #include <utility>
 #include <memory>
 
-#ifdef USE_ESP32
-#include <HTTPClient.h>
-#endif
-#ifdef USE_ESP8266
-#include <ESP8266HTTPClient.h>
-#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
-#include <WiFiClientSecure.h>
-#endif
-#endif
-
 namespace esphome {
 namespace http_request {
 
@@ -29,44 +17,48 @@ struct Header {
   const char *value;
 };
 
-class HttpRequestResponseTrigger;
+struct HttpResponse {
+  int status_code;
+  int content_length;
+  std::vector<char> data;
+};
+
+class HttpRequestResponseTrigger : public Trigger<int, HttpResponse> {
+ public:
+  void process(int status_code, HttpResponse response) { this->trigger(status_code, response); }
+};
 
 class HttpRequestComponent : public Component {
  public:
+  HttpRequestComponent();
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  void set_url(std::string url);
-  void set_method(const char *method) { this->method_ = method; }
+  void set_method(std::string method) { this->method_ = method; }
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
   void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }
   void set_redirect_limit(uint16_t limit) { this->redirect_limit_ = limit; }
   void set_body(const std::string &body) { this->body_ = body; }
   void set_headers(std::list<Header> headers) { this->headers_ = std::move(headers); }
-  void send(const std::vector<HttpRequestResponseTrigger *> &response_triggers);
-  void close();
-  const char *get_string();
+  void set_capture_response(bool capture_response) { this->capture_response_ = capture_response; }
+
+  bool get_capture_response() { return this->capture_response_; }
+
+  virtual void set_url(std::string url) = 0;
+  virtual HttpResponse send(bool capture_response) = 0;
 
  protected:
-  HTTPClient client_{};
   std::string url_;
-  std::string last_url_;
-  const char *method_;
+  std::string method_;
   const char *useragent_{nullptr};
   bool secure_;
   bool follow_redirects_;
+  bool capture_response_;
   uint16_t redirect_limit_;
   uint16_t timeout_{5000};
   std::string body_;
   std::list<Header> headers_;
-#ifdef USE_ESP8266
-  std::shared_ptr<WiFiClient> wifi_client_;
-#ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
-  std::shared_ptr<BearSSL::WiFiClientSecure> wifi_client_secure_;
-#endif
-  std::shared_ptr<WiFiClient> get_wifi_client_();
-#endif
 };
 
 template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
@@ -77,6 +69,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, body)
   TEMPLATABLE_VALUE(const char *, useragent)
   TEMPLATABLE_VALUE(uint16_t, timeout)
+  TEMPLATABLE_VALUE(bool, capture_response)
 
   void add_header(const char *key, TemplatableValue<const char *, Ts...> value) { this->headers_.insert({key, value}); }
 
@@ -89,6 +82,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   void play(Ts... x) override {
     this->parent_->set_url(this->url_.value(x...));
     this->parent_->set_method(this->method_.value(x...));
+    this->parent_->set_capture_response(this->capture_response_.value(x...));
     if (this->body_.has_value()) {
       this->parent_->set_body(this->body_.value(x...));
     }
@@ -117,8 +111,10 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       }
       this->parent_->set_headers(headers);
     }
-    this->parent_->send(this->response_triggers_);
-    this->parent_->close();
+    HttpResponse response = this->parent_->send(this->capture_response_.value(x...));
+
+    for (auto *trigger : this->response_triggers_)
+      trigger->process(response.status_code, response);
   }
 
  protected:
@@ -136,12 +132,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   std::vector<HttpRequestResponseTrigger *> response_triggers_;
 };
 
-class HttpRequestResponseTrigger : public Trigger<int> {
- public:
-  void process(int status_code) { this->trigger(status_code); }
-};
+extern HttpRequestComponent *global_http_request;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace http_request
 }  // namespace esphome
-
-#endif  // USE_ARDUINO
