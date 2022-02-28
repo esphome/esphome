@@ -76,7 +76,9 @@ HttpResponse HttpRequestIDF::send(bool capture_response) {
   } else if (this->method_ == "PATCH") {
     method = HTTP_METHOD_PATCH;
   } else {
-    method = HTTP_METHOD_GET;
+    this->status_set_warning();
+    ESP_LOGE(TAG, "HTTP Request failed; Unsupported method");
+    return {-1, 0, {}};
   }
 
   esp_http_client_config_t config = {};
