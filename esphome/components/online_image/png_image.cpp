@@ -1,3 +1,4 @@
+#ifdef USE_ARDUINO
 
 #include "png_image.h"
 #include "esphome/components/display/display_buffer.h"
@@ -18,7 +19,7 @@ namespace online_image {
  * @param rgba The color to paint the rectangle in.
  */
 void drawCallback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint8_t rgba[4]) {
-  PngDecoder* decoder = (PngDecoder*)pngle_get_user_data(pngle);
+  PngDecoder *decoder = (PngDecoder *) pngle_get_user_data(pngle);
   Color color(rgba[0], rgba[1], rgba[2], rgba[3]);
 
   if (rgba[3]) {
@@ -28,26 +29,25 @@ void drawCallback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h
   }
 }
 
-PngDecoder::PngDecoder(display::DisplayBuffer * display): ImageDecoder(display), pngle(pngle_new()) {
+PngDecoder::PngDecoder(display::DisplayBuffer *display) : ImageDecoder(display), pngle(pngle_new()) {}
 
-}
+PngDecoder::~PngDecoder() { pngle_destroy(pngle); }
 
-PngDecoder::~PngDecoder() {
-    pngle_destroy(pngle);
-}
-
-void PngDecoder::prepare(WiFiClient * stream) {
+void PngDecoder::prepare(WiFiClient *stream) {
   pngle_set_user_data(pngle, this);
   pngle_set_draw_callback(pngle, drawCallback);
 }
 
-int PngDecoder::decode(HTTPClient& http, WiFiClient* stream) {
+size_t PngDecoder::decode(HTTPClient &http, WiFiClient *stream) {
   uint8_t buf[2048];
   int remain = 0;
   int total = 0;
   while (http.connected()) {
     size_t size = stream->available();
-    if (!size) { delay(1); continue; }
+    if (!size) {
+      delay(1);
+      continue;
+    }
 
     if (size > sizeof(buf) - remain) {
       size = sizeof(buf) - remain;
@@ -62,7 +62,9 @@ int PngDecoder::decode(HTTPClient& http, WiFiClient* stream) {
       }
 
       remain = remain + len - fed;
-      if (remain > 0) memmove(buf, buf + fed, remain);
+      if (remain > 0) {
+        memmove(buf, buf + fed, remain);
+      }
     } else {
       delay(1);
     }
@@ -70,7 +72,9 @@ int PngDecoder::decode(HTTPClient& http, WiFiClient* stream) {
   return total;
 }
 
-} // namespace online_image
-} // namespace esphome
+}  // namespace online_image
+}  // namespace esphome
 
-#endif // ONLINE_IMAGE_PNG_SUPPORT
+#endif  // ONLINE_IMAGE_PNG_SUPPORT
+
+#endif  // USE_ARDUINO

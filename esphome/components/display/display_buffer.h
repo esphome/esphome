@@ -22,9 +22,9 @@ namespace esphome {
 
 #ifdef USE_ONLINE_IMAGE
 namespace online_image {
-  class OnlineImage;
+class OnlineImage;
 }
-#endif // USE_ONLINE_IMAGE
+#endif  // USE_ONLINE_IMAGE
 namespace display {
 
 /** TextAlign is used to tell the display class how to position a piece of text. By default
@@ -307,8 +307,8 @@ class DisplayBuffer {
    * @param y The y coordinate of the upper left corner.
    * @param image The image to draw
    */
-  void image(int x, int y, online_image::OnlineImage * image);
-#endif // USE_ONLINE_IMAGE
+  void image(int x, int y, online_image::OnlineImage *image);
+#endif  // USE_ONLINE_IMAGE
 
 #ifdef USE_GRAPH
   /** Draw the `graph` with the top-left corner at [x,y] to the screen.

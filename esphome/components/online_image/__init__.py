@@ -16,10 +16,7 @@ MULTI_CONF = True
 online_image_ns = cg.esphome_ns.namespace("online_image")
 
 ImageFormat = online_image_ns.enum("ImageFormat")
-IMAGE_FORMAT = {
-#    "JPEG": ImageFormat.JPEG,  # Not yet supported
-    "PNG": ImageFormat.PNG,
-}
+IMAGE_FORMAT = {"PNG": ImageFormat.PNG}  # Add new supported formats here
 
 Image_ = online_image_ns.class_("OnlineImage")
 
@@ -34,13 +31,12 @@ IMAGE_SCHEMA = cv.Schema(
 
 CONFIG_SCHEMA = IMAGE_SCHEMA
 
+
 async def to_code(config):
     url = config[CONF_URL]
     width, height = 0, 0
 
-    cg.new_Pvariable(
-        config[CONF_ID], url, width, height, config[CONF_FORMAT]
-    )
+    cg.new_Pvariable(config[CONF_ID], url, width, height, config[CONF_FORMAT])
     cg.add_define("USE_ONLINE_IMAGE")
 
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
@@ -52,6 +48,6 @@ async def to_code(config):
     if CORE.is_esp8266:
         cg.add_library("ESP8266HTTPClient", None)
 
-    if config[CONF_FORMAT] in ['PNG']:
+    if config[CONF_FORMAT] in ["PNG"]:
         cg.add_define("ONLINE_IMAGE_PNG_SUPPORT")
         cg.add_library("pngle", None)
