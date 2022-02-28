@@ -5,7 +5,6 @@ from esphome.automation import maybe_simple_id
 from esphome.components import switch
 from esphome.const import (
     CONF_ID,
-    CONF_MULTIPLIER,
     CONF_NAME,
     CONF_REPEAT,
     CONF_RUN_DURATION,
@@ -18,6 +17,7 @@ CONF_AUTO_ADVANCE_SWITCH_NAME = "auto_advance_switch_name"
 CONF_ENABLE_SWITCH_NAME = "enable_switch_name"
 CONF_MAIN_SWITCH_ID = "main_switch_id"
 CONF_MANUAL_SELECTION_DELAY = "manual_selection_delay"
+CONF_MULTIPLIER = "multiplier"
 CONF_PUMP_SWITCH = "pump_switch"
 CONF_REVERSE_SWITCH_ID = "reverse_switch_id"
 CONF_REVERSE_SWITCH_NAME = "reverse_switch_name"

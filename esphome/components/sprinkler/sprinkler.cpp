@@ -195,7 +195,7 @@ void Sprinkler::set_valve_run_duration(const optional<size_t> valve_number,
 void Sprinkler::set_auto_advance(const bool auto_advance) {
   if (this->auto_adv_sw_ != nullptr) {
     this->auto_adv_sw_->publish_state(auto_advance);
-  }  
+  }
 }
 
 void Sprinkler::set_repeat(optional<uint32_t> repeat) { this->target_repeats_ = repeat; }
@@ -651,9 +651,10 @@ void Sprinkler::valve_cycle_timer_callback_() {
       ESP_LOGD(TAG, "  Advancing to queued valve %u", this->queued_valve_.value_or(0));
       this->start_valve_(this->queued_valve_.value());
       this->queued_valve_.reset();
-    } else if (this->auto_adv_sw_->state && this->next_valve_number_in_cycle_(this->active_valve_.value()).has_value()) {
+    } else if (this->auto_adv_sw_->state &&
+               this->next_valve_number_in_cycle_(this->active_valve_.value()).has_value()) {
       ESP_LOGD(TAG, "  Advancing to valve %u",
-              this->next_valve_number_in_cycle_(this->active_valve_.value()).value_or(0));
+               this->next_valve_number_in_cycle_(this->active_valve_.value()).value_or(0));
       this->start_valve_(this->next_valve_number_in_cycle_(this->active_valve_.value()).value());
     } else if (this->auto_adv_sw_->state && (this->repeat_count_++ < this->target_repeats_.value_or(0))) {
       ESP_LOGD(TAG, "  Starting cycle %u", this->repeat_count_ + 1);
