@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "online_image.h"
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
@@ -25,41 +27,41 @@ namespace online_image {
 
 using display::DisplayBuffer;
 
-
-void OnlineImage::draw(int x, int y, DisplayBuffer* display) {
+void OnlineImage::draw(int x, int y, DisplayBuffer *display) {
   HTTPClient http;
-
 
   std::unique_ptr<ImageDecoder> decoder;
 
-  #ifdef ONLINE_IMAGE_PNG_SUPPORT
-  if (format == ImageFormat::PNG) {
+#ifdef ONLINE_IMAGE_PNG_SUPPORT
+  if (format_ == ImageFormat::PNG) {
     decoder = esphome::make_unique<PngDecoder>(display);
   }
-  #endif // ONLINE_IMAGE_PNG_SUPPORT
+#endif  // ONLINE_IMAGE_PNG_SUPPORT
 
   if (!decoder) {
     ESP_LOGE(TAG, "Could not instantiate decoder. Image format unsupported.");
     return;
   }
 
-  http.begin(url);
+  http.begin(url_);
 
-  int httpCode = http.GET();
-  if (httpCode != HTTP_CODE_OK) {
+  int http_code = http.GET();
+  if (http_code != HTTP_CODE_OK) {
     http.end();
     return;
   }
   WiFiClient *stream = http.getStreamPtr();
 
-  decoder->setOffset(x, y);
+  decoder->set_offset(x, y);
 
   decoder->prepare(stream);
-  int size = decoder->decode(http, stream);
-
+  size_t size = decoder->decode(http, stream);
+  ESP_LOGD(TAG, "Decoded %d bytes", size);
 
   http.end();
 }
 
-} // namespace online_image
-} // namespace esphome
+}  // namespace online_image
+}  // namespace esphome
+
+#endif  // USE_ARDUINO
