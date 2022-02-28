@@ -70,10 +70,11 @@ class SprinklerSwitch : public switch_::Switch, public Component {
   bool restore_state_{false};
 };
 
-class Sprinkler : public Component {
+class Sprinkler : public Component, public EntityBase {
  public:
   Sprinkler();
-  void pre_setup(const std::string &name, const std::string &auto_adv_name, const std::string &reverse_name = "");
+  Sprinkler(const std::string &name);
+
   void setup() override;
   void dump_config() override;
 
@@ -82,6 +83,11 @@ class Sprinkler : public Component {
 
   /// add another controller to the controller so it can check if pumps/main valves are in use
   void add_controller(Sprinkler *other_controller);
+
+  /// configure important controller switches
+  void set_controller_main_switch(SprinklerSwitch *controller_switch);
+  void set_controller_auto_adv_switch(SprinklerSwitch *auto_adv_switch);
+  void set_controller_reverse_switch(SprinklerSwitch *reverse_switch);
 
   /// configure a valve's switch object, run duration and pump switch (if provided).
   ///  valve_run_duration is time in seconds.
@@ -193,6 +199,8 @@ class Sprinkler : public Component {
   SprinklerSwitch *enable_switch(size_t valve_number);
 
  protected:
+  uint32_t hash_base() override;
+
   /// returns true if valve number is enabled
   bool valve_is_enabled_(size_t valve_number);
 
@@ -262,9 +270,6 @@ class Sprinkler : public Component {
   /// Sprinkler valve cycle should overlap
   bool valve_overlap_{false};
 
-  /// The name of the sprinkler controller component
-  std::string name_{""};
-
   /// The number of the valve that is currently active
   optional<uint8_t> active_valve_;
 
@@ -307,9 +312,9 @@ class Sprinkler : public Component {
   std::vector<Sprinkler *> other_controllers_;
 
   /// Switches we'll present to the front end
-  SprinklerSwitch auto_adv_sw_;
-  SprinklerSwitch controller_sw_;
-  SprinklerSwitch reverse_sw_;
+  SprinklerSwitch *auto_adv_sw_{nullptr};
+  SprinklerSwitch *controller_sw_{nullptr};
+  SprinklerSwitch *reverse_sw_{nullptr};
 
   std::unique_ptr<ShutdownAction<>> sprinkler_shutdown_action_;
   std::unique_ptr<ResumeOrStartAction<>> sprinkler_resumeorstart_action_;
