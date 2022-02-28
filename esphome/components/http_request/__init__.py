@@ -78,7 +78,7 @@ def validate_secure_url(config):
 def _declare_request_class(value):
     if CORE.using_esp_idf:
         return cv.declare_id(HttpRequestIDF)(value)
-    elif CORE.is_esp8266 or CORE.is_esp32:
+    if CORE.is_esp8266 or CORE.is_esp32:
         return cv.declare_id(HttpRequestArduino)(value)
     return NotImplementedError
 
