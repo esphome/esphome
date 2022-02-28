@@ -1,10 +1,10 @@
-from ast import Str
+import inspect
 import json
 import argparse
-from lib2to3.pytree import convert
 import os
 from tokenize import Number
 import voluptuous as vol
+
 
 # NOTE: Cannot import other esphome components globally as a modification in jsonschema
 # is needed before modules are loaded
@@ -12,11 +12,22 @@ import esphome.jsonschema as ejs
 
 ejs.EnableJsonSchemaCollect = True
 
+# schema format:
+# Schemas are splitted in several files in json format, one for core stuff, one for each platform (sensor, binary_sensor, etc) and
+# one for each component (dallas, sim800l, etc.) component can have schema for root component/hub and also for platform component,
+# e.g. dallas has hub component which has pin and then has the sensor platform which has sensor name, index, etc.
+# When files are loaded they are merged in a single object.
+# The root format is
+
+
 S_CONFIG_VARS = "config_vars"
+S_CONFIG_SCHEMA = "CONFIG_SCHEMA"
 S_COMPONENT = "component"
 S_COMPONENTS = "components"
 S_PLATFORMS = "platforms"
 S_SCHEMA = "schema"
+S_SCHEMAS = "schemas"
+S_EXTENDS = "extends"
 S_NAME = "name"
 
 parser = argparse.ArgumentParser()
@@ -26,22 +37,38 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-# dynamic load of esphome modules (core modules and components)
-modules = {}
+DUMP_RAW = False
 
-# All components loaded in a dictionary, key is the component name and values are ComponentManifest
+# store here dynamic load of esphome components
 components = {}
-platforms = {}
 
-# A string, string map, key is the str(schema) and value is the name given
+schema_core = {}
+
+# output is where all is built
+output = {"core": schema_core}
+# The full generated output is here here
+schema_full = {"components": output}
+
+# A string, string map, key is the str(schema) and value is the schema path given
 known_schemas = {}
 
-core = {}
+solve_registry = []
 
 
 def get_component_names():
-    return ["esphome", "wifi"]
-    return ["sensor", "dallas", "binary_sensor", "gpio", "template"]
+    return [
+        "esphome",
+        "esp32",
+        "wifi",
+        "sim800l",
+        "dallas",
+        "sensor",
+        "binary_sensor",
+        "gpio",
+        "template",
+        "pn532",
+        "pn532_i2c",
+    ]
     from esphome.loader import CORE_COMPONENTS_PATH
 
     component_names = [
@@ -54,26 +81,24 @@ def get_component_names():
 
 
 def load_components():
-    import esphome.config_validation as cv
     from esphome.config import get_component
-
-    modules["cv"] = cv
-    from esphome import automation
-
-    modules["automation"] = automation
 
     for domain in get_component_names():
         components[domain] = get_component(domain)
-        modules[domain] = components[domain].module
 
 
 load_components()
 
 # Import esphome after loading components (so schema is tracked)
+# pylint: disable=wrong-import-position
 import esphome.core as esphome_core
 import esphome.config_validation as cv
+import esphome.automation as automation
 from esphome.loader import get_platform, ComponentManifest
 from esphome.helpers import write_file_if_changed
+from esphome.util import Registry
+
+# pylint: enable=wrong-import-position
 
 
 def write_file(name, obj):
@@ -82,78 +107,173 @@ def write_file(name, obj):
     print(f"Wrote {full_path}")
 
 
-def register_known_schema(name, schema, converted=None):
-    known_schemas[str(schema)] = name
-    if converted is not None:
-        core["extended"][name] = converted
+def register_known_schema(
+    module, name, schema, manifest: ComponentManifest = None, platform=None
+):
+    if module not in output:
+        output[module] = {S_SCHEMAS: {}}
+    output[module][S_SCHEMAS][name] = convert_schema(schema, manifest, platform)
+    raw = str(schema)
+    if DUMP_RAW:
+        output[module][S_SCHEMAS][name]["raw"] = raw
+    known_schemas[raw] = f"{module}.{name}"
+
+
+def module_schemas(module):
+    # This should yield elements in order so extended schemas are resolved properly
+    # To do this we check on the source code where the symbol is seen first. Seems to work.
+    module_str = inspect.getsource(module)
+    schemas = {}
+    for m_attr_name in dir(module):
+        m_attr_obj = getattr(module, m_attr_name)
+        if isConvertibleSchema(m_attr_obj):
+            schemas[module_str.find(m_attr_name)] = [m_attr_name, m_attr_obj]
+
+    for pos in sorted(schemas.keys()):
+        yield schemas[pos]
+
+
+found_registries = {}
+
+
+def add_module_registries(domain, module):
+    for attr_name in dir(module):
+        attr_obj = getattr(module, attr_name)
+        if isinstance(attr_obj, Registry):
+            found_registries[str(attr_obj)] = f"{domain}.{attr_name}"
+            for name in attr_obj.keys():
+                reg_domain = None
+                if attr_obj == automation.ACTION_REGISTRY:
+                    reg_type = "actions"
+                elif attr_obj == automation.CONDITION_REGISTRY:
+                    reg_type = "conditions"
+                elif attr_name == "FILTER_REGISTRY":
+                    reg_type = "filter"
+                    reg_domain = domain
+                    reg_entry_name = name
+
+                if reg_domain is None:  # action or condition
+                    if "." not in name:
+                        reg_domain = "core"
+                        reg_entry_name = name
+                    else:
+                        parts = name.partition(".")
+                        reg_domain = parts[0]
+                        reg_entry_name = parts[2]
+
+                if reg_domain not in output:
+                    output[reg_domain] = {}
+                if reg_type not in output[reg_domain]:
+                    output[reg_domain][reg_type] = {}
+                output[reg_domain][reg_type][reg_entry_name] = convert_schema(
+                    attr_obj[name].schema
+                )
+
+                print(f"{domain} - {attr_name} - {name}")
 
 
 def build_schema():
-
     print("Building schema")
 
     # check esphome was not loaded globally (IDE auto imports)
     if len(ejs.extended_schemas) == 0:
-        raise "no data collected. Did you globally import an ESPHome component?"
+        raise Exception(
+            "no data collected. Did you globally import an ESPHome component?"
+        )
 
-    core["extended"] = {}
-    # Platforms
-    core[S_PLATFORMS] = core_platforms = []
-    # Components
-    core[S_COMPONENTS] = core_components = {}
     # Core schema
-    register_known_schema(
-        "entity_base", cv.ENTITY_BASE_SCHEMA, convert_schema(cv.ENTITY_BASE_SCHEMA)
-    )
+    schema_core[S_SCHEMAS] = {}
+    for name, schema in module_schemas(cv):
+        register_known_schema("core", name, schema)
 
-    register_known_schema(
-        "mqtt_base", cv.MQTT_COMPONENT_SCHEMA, convert_schema(cv.MQTT_COMPONENT_SCHEMA)
-    )
+    platforms = []
+    schema_core[S_PLATFORMS] = platforms
+    core_components = []
+    schema_core[S_COMPONENTS] = core_components
 
+    # Load a preview of each component
     for domain, manifest in components.items():
         if manifest.is_platform_component:
-            core_platforms.append(domain)
+            # e.g. sensor, binary sensor, add S_COMPONENTS
+            # note: S_COMPONENTS is not filled until loaded, e.g.
+            # if lock: is not used, then we don't need to know about their
+            # platforms yet.
+            output[domain] = {S_COMPONENTS: [], S_SCHEMAS: {}}
+            platforms.append(domain)
         elif manifest.config_schema is not None:
-            core_components[domain] = {
-                S_SCHEMA: {
-                    S_COMPONENT: {}
-                },  # empty schema as will be loaded from component file, this means component is root / hub
-                "multi_conf": manifest.multi_conf,
-            }
-    write_file("core", core)
+            # e.g. dallas
+            output[domain] = {S_SCHEMAS: {S_CONFIG_SCHEMA: {}}}
 
     # Generate platforms (e.g. sensor, binary_sensor, climate )
-    for platform in core_platforms:
-        platforms[platform] = {S_PLATFORMS: []}
+    for domain in platforms:
+        c = components[domain]
+        for name, schema in module_schemas(c.module):
+            register_known_schema(domain, name, schema)
 
-        for domain, manifest in components.items():
-            if domain == platform:
-                assert manifest.is_platform_component
-                schema = getattr(manifest.module, f"{platform}_SCHEMA".upper(), False)
-                platforms[platform][S_SCHEMA] = {S_COMPONENT: convert_schema(schema)}
-                register_known_schema(platform, schema)
-            module = get_platform(platform, domain)
-            if module is not None:
-                platforms[platform][S_PLATFORMS].append(domain)
-
-        write_file(platform, platforms[platform])
-
-    # Generate components (e.g. dallas, gpio, template)
+    # Generate components
     for domain, manifest in components.items():
-        if manifest.is_platform_component:
+        if domain in platforms:
             continue
-        c = {S_SCHEMA: {}}
-        if manifest.config_schema:
-            c[S_SCHEMA][S_COMPONENT] = convert_schema(manifest.config_schema)
+        if manifest.config_schema is not None:
+            core_components.append(domain)
+        for name, schema in module_schemas(manifest.module):
+            register_known_schema(domain, name, schema)
+        for platform in platforms:
+            platform_manifest = get_platform(domain=platform, platform=domain)
+            if platform_manifest is not None:
+                output[platform][S_COMPONENTS].append(domain)
+                for name, schema in module_schemas(platform_manifest.module):
+                    register_known_schema(f"{domain}.{platform}", name, schema)
 
-        for platform in core_platforms:
-            module = get_platform(platform, domain)
-            if module is not None:
-                c[S_SCHEMA][platform] = convert_schema(
-                    module.config_schema, manifest, platform
-                )
+    # Do registries
+    add_module_registries("core", automation)
+    for domain, manifest in components.items():
+        add_module_registries(domain, manifest.module)
 
-        write_file(domain, c)
+    # update props pointing to registries
+    for reg_config_var in solve_registry:
+        (registry, config_var) = reg_config_var
+        config_var["type"] = "registry"
+        config_var["registry"] = found_registries[str(registry)]
+
+    import esphome.components.esp32.boards as esp32_boards
+
+    setEnum(
+        output["esp32"]["schemas"]["CONFIG_SCHEMA"]["config_vars"]["board"],
+        list(esp32_boards.BOARD_TO_VARIANT.keys()),
+    )
+
+    # aggregate components, so all component info is in same file, otherwise we have dallas.json, dallas.sensor.json, etc.
+    data = {}
+    for component, component_schemas in output.items():
+        if "." in component:
+            key = component.partition(".")[0]
+            if key not in data:
+                data[key] = {}
+            data[key][component] = component_schemas
+        else:
+            data[component] = {component: component_schemas}
+
+    # bundle core inside esphome
+    data["esphome"]["core"] = data.pop("core")["core"]
+
+    for c, s in data.items():
+        write_file(c, s)
+
+
+def setEnum(obj, items):
+    obj["type"] = "enum"
+    obj["values"] = items
+
+
+def isConvertibleSchema(schema):
+    if schema is not None and isinstance(schema, (cv.Schema, cv.All)):
+        return True
+    if isinstance(schema, dict):
+        for k in schema.keys():
+            if isinstance(k, (cv.Required, cv.Optional)):
+                return True
+    return False
 
 
 class ConvertInfo:
@@ -169,7 +289,7 @@ def convert_schema(schema, manifest=None, platform=None):
     info.manifest = manifest
     info.platform = platform
     if platform is not None:
-        info.platform_schema = platforms[platform]
+        info.platform_schema = platform[platform]
     else:
         info.platform_schema = None
 
@@ -177,7 +297,7 @@ def convert_schema(schema, manifest=None, platform=None):
     return converted
 
 
-def convert_1(schema, converted, info: ComponentManifest, path):
+def convert_1(schema, converted, info: ConvertInfo, path):
     str_schema = str(schema)
     info.count = info.count + 1
     # print(f"{info.count} {path} {len(str_schema)} {str_schema[0:100]}")
@@ -205,35 +325,51 @@ def convert_1(schema, converted, info: ComponentManifest, path):
             convert_1(inner, converted, info, f"{path}/validators {i}")
 
     if isinstance(schema, cv.Schema):
-        convert_keys(converted, schema.schema, info)
+        convert_1(schema.schema, converted, info, f"{path}/all")
+
     elif isinstance(schema, dict):
         convert_keys(converted, schema, info)
 
 
-def convert_keys(converted, schema, info: ConvertInfo):
+def is_overriden_key(key, converted):
+    # check if the key is in any extended schema in this converted schema, i.e.
+    # if we see a on_value_range in a dallas sensor, then this is overridden because
+    #  it is already defined in sensor
+    if S_EXTENDS not in converted:
+        return False
+    for s in converted[S_EXTENDS]:
+        p = s.partition(".")
+        s1 = (
+            output.get(p[0], {}).get(S_SCHEMAS, {}).get(p[2], {}).get(S_CONFIG_VARS, {})
+        )
+        if key in s1:
+            return True
+    return False
 
+
+def convert_keys(converted, schema, info: ConvertInfo):
     for k, v in schema.items():
+        # deprecated stuff
         if str(v).startswith("<function invalid"):
             continue
 
-        if info.platform_schema is not None:
-            if str(k) in info.platform_schema[S_SCHEMA][S_COMPONENT][S_CONFIG_VARS]:
-                continue
+        if is_overriden_key(k, converted):
+            continue
 
         result = {}
 
         if isinstance(k, cv.GenerateID):
             result["key"] = "GeneratedID"
         elif isinstance(k, cv.Required):
-            result["key"] = "Optional"
-        elif isinstance(k, cv.Optional):
+            result["key"] = "Required"
+        elif isinstance(k, cv.Optional) or isinstance(k, cv.Inclusive):
             result["key"] = "Optional"
         elif k == cv.string_strict:
-            # this is when the key is any string, e.g. platformio_options
+            # this is when the key is any string, e.g. esphome/platformio_options
             converted["type"] = "dict"
             return
         else:
-            raise "Unexpected key type"
+            raise Exception("Unexpected key type")
 
         esphome_core.CORE.data = {
             esphome_core.KEY_CORE: {esphome_core.KEY_TARGET_PLATFORM: "esp8266"}
@@ -242,11 +378,67 @@ def convert_keys(converted, schema, info: ConvertInfo):
             default_value = k.default()
             if default_value is not None:
                 result["default"] = str(default_value)
+
+        # Do value
+
+        if str(v) in ejs.list_schemas:
+            v = ejs.list_schemas[str(v)][0]
+
         result["type"] = str(type(v))
-        result["raw"] = str(v)
+        if DUMP_RAW:
+            result["raw"] = str(v)
 
         if isinstance(v, vol.Schema):
+            # test: esphome/project
+            result["type"] = "schema"
             result["schema"] = convert_schema(v.schema)
+
+        if v == automation.validate_potentially_and_condition:
+            result["type"] = "registry"
+            result["registry"] = "conditions"
+
+        if str(v) in ejs.hidden_schemas:
+            schema_type = ejs.hidden_schemas[str(v)]
+            inner_vschema = v(ejs.jschema_extractor)
+
+            # enums, e.g. esp32/variant
+            if schema_type == "one_of":
+                result["type"] = "enum"
+                result["values"] = list(inner_vschema)
+            # esphome/on_boot
+            elif schema_type == "automation":
+                extra_schema = None
+                result["type"] = "trigger"
+                if (
+                    automation.AUTOMATION_SCHEMA
+                    == ejs.extended_schemas[str(inner_vschema)][0]
+                ):
+                    extra_schema = ejs.extended_schemas[str(inner_vschema)][1]
+                if extra_schema is not None:
+                    automation_schema = convert_schema(extra_schema)
+                    if not (
+                        len(automation_schema["config_vars"]) == 1
+                        and "trigger_id" in automation_schema["config_vars"]
+                    ):
+                        automation_schema["config_vars"]["then"] = {"type": "trigger"}
+
+                        result["type"] = "trigger"
+                        result["schema"] = automation_schema
+                        # some triggers can have a list of actions directly, while others needs to have some other configuration,
+                        # e.g. sensor.on_value_rang, and the list of actions is only accepted under "then" property.
+                        try:
+                            v({"delay": "1s"})
+                        except cv.Invalid:
+                            result["has_required_var"] = True
+
+        if str(v) in ejs.registry_schemas:
+            solve_registry.append((ejs.registry_schemas[str(v)], result))
+
+        if str(v) in ejs.typed_schemas:
+            result["type"] = "typed"
+            types = result["types"] = {}
+            for schema_key, schema_type in ejs.typed_schemas[str(v)][0][0].items():
+                types[schema_key] = convert_schema(schema_type)
 
         converted[S_CONFIG_VARS][str(k)] = result
 
