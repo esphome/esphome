@@ -164,26 +164,26 @@ def add_module_registries(domain, module):
     for attr_name in dir(module):
         attr_obj = getattr(module, attr_name)
         if isinstance(attr_obj, Registry):
-            found_registries[str(attr_obj)] = f"{domain}.{attr_name}"
-            for name in attr_obj.keys():
-                reg_domain = None
-                if attr_obj == automation.ACTION_REGISTRY:
-                    reg_type = "actions"
-                elif attr_obj == automation.CONDITION_REGISTRY:
-                    reg_type = "conditions"
-                elif attr_name == "FILTER_REGISTRY":
-                    reg_type = "filter"
-                    reg_domain = domain
-                    reg_entry_name = name
+            if attr_obj == automation.ACTION_REGISTRY:
+                reg_type = "action"
+                reg_domain = "core"
+                found_registries[str(attr_obj)] = reg_type
+            elif attr_obj == automation.CONDITION_REGISTRY:
+                reg_type = "condition"
+                reg_domain = "core"
+                found_registries[str(attr_obj)] = reg_type
+            else:  # attr_name == "FILTER_REGISTRY":
+                reg_domain = domain
+                reg_type = attr_name.partition("_")[0].lower()
+                found_registries[str(attr_obj)] = f"{domain}.{reg_type}"
 
-                if reg_domain is None:  # action or condition
-                    if "." not in name:
-                        reg_domain = "core"
-                        reg_entry_name = name
-                    else:
-                        parts = name.partition(".")
-                        reg_domain = parts[0]
-                        reg_entry_name = parts[2]
+            for name in attr_obj.keys():
+                if "." not in name:
+                    reg_entry_name = name
+                else:
+                    parts = name.partition(".")
+                    reg_domain = parts[0]
+                    reg_entry_name = parts[2]
 
                 if reg_domain not in output:
                     output[reg_domain] = {}
@@ -194,6 +194,24 @@ def add_module_registries(domain, module):
                 )
 
                 print(f"{domain} - {attr_name} - {name}")
+
+
+def do_esp32():
+    import esphome.components.esp32.boards as esp32_boards
+
+    setEnum(
+        output["esp32"]["schemas"]["CONFIG_SCHEMA"]["config_vars"]["board"],
+        list(esp32_boards.BOARD_TO_VARIANT.keys()),
+    )
+
+
+def do_esp8266():
+    import esphome.components.esp8266.boards as esp8266_boards
+
+    setEnum(
+        output["esp8266"]["schemas"]["CONFIG_SCHEMA"]["config_vars"]["board"],
+        list(esp8266_boards.ESP8266_BOARD_PINS.keys()),
+    )
 
 
 def build_schema():
@@ -263,16 +281,14 @@ def build_schema():
         config_var["registry"] = found_registries[str(registry)]
 
     # do pin registries
+    pins_providers = schema_core["pins"] = []
     for pin_registry in pins.PIN_SCHEMA_REGISTRY:
         s = convert_schema(pins.PIN_SCHEMA_REGISTRY[pin_registry][1])
         output[pin_registry]["pin"] = s
+        pins_providers.append(pin_registry)
 
-    import esphome.components.esp32.boards as esp32_boards
-
-    setEnum(
-        output["esp32"]["schemas"]["CONFIG_SCHEMA"]["config_vars"]["board"],
-        list(esp32_boards.BOARD_TO_VARIANT.keys()),
-    )
+    do_esp8266()
+    do_esp32()
 
     # aggregate components, so all component info is in same file, otherwise we have dallas.json, dallas.sensor.json, etc.
     data = {}
@@ -430,7 +446,7 @@ def convert_keys(converted, schema, info: ConvertInfo):
 
         elif v == automation.validate_potentially_and_condition:
             result["type"] = "registry"
-            result["registry"] = "conditions"
+            result["registry"] = "condition"
 
         elif str(v) in pin_validators:
             result |= pin_validators[str(v)]
