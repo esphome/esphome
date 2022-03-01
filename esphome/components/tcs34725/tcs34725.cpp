@@ -154,7 +154,7 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   if (r2 == 0) {
     ESP_LOGW(TAG, "No light detected on red channel, switch to auto gain or adjust timing, values will be unreliable");
     // legacy code
-    if (!integration_time_auto_) {
+    if (!this->integration_time_auto_) {
       return;
     }
   }
@@ -238,7 +238,7 @@ void TCS34725Component::update() {
            this->integration_time_, channel_r, channel_g, channel_b, channel_c, this->illuminance_,
            this->color_temperature_);
 
-  if (integration_time_auto_) {
+  if (this->integration_time_auto_) {
     // change integration time an gain to achieve maximum resolution an dynamic range
     // calculate optimal integration time to achieve 70% satuaration
     float integration_time_ideal;
