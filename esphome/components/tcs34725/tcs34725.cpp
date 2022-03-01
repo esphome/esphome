@@ -277,7 +277,7 @@ void TCS34725Component::update() {
     }
 
     // calculate register value from timing
-    uint8_t regvalATIME = (uint8_t) (256.f - integration_time_next / 2.4f);
+    uint8_t regvalATIME = (uint8_t)(256.f - integration_time_next / 2.4f);
     uint8_t actual_gain = pow(4, this->gain_reg_);
     ESP_LOGI(TAG, "Integration time: %.1fms, ideal: %.1fms regval_new %d Gain_reg: %d", this->integration_time_,
              integration_time_next, regvalATIME, actual_gain);
