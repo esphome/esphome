@@ -56,21 +56,21 @@ solve_registry = []
 
 
 def get_component_names():
-    # return [
-    #     "esphome",
-    #     "esp32",
-    #     "esp8266",
-    #     "wifi",
-    #     "sim800l",
-    #     "dallas",
-    #     "sensor",
-    #     "binary_sensor",
-    #     "gpio",
-    #     "template",
-    #     "pn532",
-    #     "pn532_i2c",
-    #     "pcf8574",
-    # ]
+    return [
+        "esphome",
+        "esp32",
+        "esp8266",
+        "wifi",
+        "sim800l",
+        "dallas",
+        "sensor",
+        "binary_sensor",
+        "gpio",
+        "template",
+        "pn532",
+        "pn532_i2c",
+        "pcf8574",
+    ]
     from esphome.loader import CORE_COMPONENTS_PATH
 
     component_names = ["esphome"]
@@ -116,7 +116,7 @@ def register_known_schema(
 ):
     if module not in output:
         output[module] = {S_SCHEMAS: {}}
-    output[module][S_SCHEMAS][name] = convert_schema(schema, manifest, platform)
+    output[module][S_SCHEMAS][name] = convert_schema(schema, f"{module}/{name}")
     raw = str(schema)
     if DUMP_RAW:
         output[module][S_SCHEMAS][name]["raw"] = raw
@@ -198,7 +198,7 @@ def add_module_registries(domain, module):
                 if reg_type not in output[reg_domain]:
                     output[reg_domain][reg_type] = {}
                 output[reg_domain][reg_type][reg_entry_name] = convert_schema(
-                    attr_obj[name].schema
+                    attr_obj[name].schema, f"{reg_domain}/{reg_type}/{reg_entry_name}"
                 )
 
                 print(f"{domain} - {attr_name} - {name}")
@@ -291,7 +291,9 @@ def build_schema():
     # do pin registries
     pins_providers = schema_core["pins"] = []
     for pin_registry in pins.PIN_SCHEMA_REGISTRY:
-        s = convert_schema(pins.PIN_SCHEMA_REGISTRY[pin_registry][1])
+        s = convert_schema(
+            pins.PIN_SCHEMA_REGISTRY[pin_registry][1], f"pins/{pin_registry}"
+        )
         if pin_registry not in output:
             output[pin_registry] = {}  # mcp23xxx does not create a component yet
         output[pin_registry]["pin"] = s
@@ -333,33 +335,14 @@ def isConvertibleSchema(schema):
     return False
 
 
-class ConvertInfo:
-    manifest: ComponentManifest = None
-    platform: str
-    platform_schema: None
-    count: Number = 0
-
-
-def convert_schema(schema, manifest=None, platform=None):
+def convert_schema(schema, path):
     converted = {S_CONFIG_VARS: {}}
-    info = ConvertInfo()
-    info.manifest = manifest
-    info.platform = platform
-    if platform is not None:
-        info.platform_schema = platform[platform]
-    else:
-        info.platform_schema = None
-
-    convert_1(schema, converted, info, "")
+    convert_1(schema, converted, path)
     return converted
 
 
-def convert_1(schema, converted, info: ConvertInfo, path):
+def convert_1(schema, converted, path):
     str_schema = str(schema)
-    info.count = info.count + 1
-    # print(f"{info.count} {path} {len(str_schema)} {str_schema[0:100]}")
-    if info.count > 30:
-        return
 
     if str_schema in known_schemas:
         if "extends" not in converted:
@@ -372,20 +355,24 @@ def convert_1(schema, converted, info: ConvertInfo, path):
         i = 0
         for s in ejs.extended_schemas[str_schema]:
             i = i + 1
-            convert_1(s, converted, info, f"{path}/extend {i}")
+            convert_1(s, converted, path + f"/ext {i}")
         return
 
     if isinstance(schema, cv.All):
         i = 0
         for inner in schema.validators:
             i = i + 1
-            convert_1(inner, converted, info, f"{path}/validators {i}")
+            convert_1(inner, converted, path + f"/val {i}")
 
     if isinstance(schema, cv.Schema):
-        convert_1(schema.schema, converted, info, f"{path}/all")
+        convert_1(schema.schema, converted, path + "/all")
 
     elif isinstance(schema, dict):
-        convert_keys(converted, schema, info)
+        convert_keys(converted, schema, path)
+
+    else:
+        result = {}
+        convert_value(converted, schema, path)
 
 
 def is_overriden_key(key, converted):
@@ -404,7 +391,7 @@ def is_overriden_key(key, converted):
     return False
 
 
-def convert_keys(converted, schema, info: ConvertInfo):
+def convert_keys(converted, schema, path):
     for k, v in schema.items():
         # deprecated stuff
         if str(v).startswith("<function invalid"):
@@ -438,73 +425,98 @@ def convert_keys(converted, schema, info: ConvertInfo):
                 result["default"] = str(default_value)
 
         # Do value
-
-        result["type"] = str(type(v))
-        if DUMP_RAW:
-            result["raw"] = str(v)
-
-        if v == cv.boolean:
-            result["type"] = "boolean"
-
-        elif str(v) in ejs.list_schemas:
-            result["is_list"] = True
-            v = ejs.list_schemas[str(v)][0]
-
-        if isinstance(v, vol.Schema):
-            # test: esphome/project
-            result["type"] = "schema"
-            result["schema"] = convert_schema(v.schema)
-
-        elif v == automation.validate_potentially_and_condition:
-            result["type"] = "registry"
-            result["registry"] = "condition"
-
-        elif str(v) in pin_validators:
-            result |= pin_validators[str(v)]
-            result["type"] = "pin"
-
-        elif str(v) in ejs.hidden_schemas:
-            schema_type = ejs.hidden_schemas[str(v)]
-
-            data = v(ejs.jschema_extractor)
-
-            # enums, e.g. esp32/variant
-            if schema_type == "one_of":
-                result["type"] = "enum"
-                result["values"] = list(data)
-            # esphome/on_boot
-            elif schema_type == "automation":
-                extra_schema = None
-                result["type"] = "trigger"
-                if automation.AUTOMATION_SCHEMA == ejs.extended_schemas[str(data)][0]:
-                    extra_schema = ejs.extended_schemas[str(data)][1]
-                if extra_schema is not None:
-                    automation_schema = convert_schema(extra_schema)
-                    if not (
-                        len(automation_schema["config_vars"]) == 1
-                        and "trigger_id" in automation_schema["config_vars"]
-                    ):
-                        automation_schema["config_vars"]["then"] = {"type": "trigger"}
-
-                        result["type"] = "trigger"
-                        result["schema"] = automation_schema
-                        # some triggers can have a list of actions directly, while others needs to have some other configuration,
-                        # e.g. sensor.on_value_rang, and the list of actions is only accepted under "then" property.
-                        try:
-                            v({"delay": "1s"})
-                        except cv.Invalid:
-                            result["has_required_var"] = True
-
-        elif str(v) in ejs.registry_schemas:
-            solve_registry.append((ejs.registry_schemas[str(v)], result))
-
-        elif str(v) in ejs.typed_schemas:
-            result["type"] = "typed"
-            types = result["types"] = {}
-            for schema_key, schema_type in ejs.typed_schemas[str(v)][0][0].items():
-                types[schema_key] = convert_schema(schema_type)
-
+        convert_value(result, v, path + f"/{str(k)}")
         converted[S_CONFIG_VARS][str(k)] = result
+
+
+def convert_value(result, v, path):
+
+    result["type"] = str(type(v))
+    if DUMP_RAW:
+        result["raw"] = str(v)
+
+    if v == cv.boolean:
+        result["type"] = "boolean"
+
+    elif str(v) in ejs.list_schemas:
+        result["is_list"] = True
+        v = ejs.list_schemas[str(v)][0]
+        result["schema"] = convert_schema(v, path + "/list")
+
+    if isinstance(v, vol.Schema):
+        # test: esphome/project
+        result["type"] = "schema"
+        result["schema"] = convert_schema(v.schema, path + "/s")
+
+    elif v == automation.validate_potentially_and_condition:
+        result["type"] = "registry"
+        result["registry"] = "condition"
+
+    elif str(v) in pin_validators:
+        result |= pin_validators[str(v)]
+        result["type"] = "pin"
+
+    elif str(v) in ejs.hidden_schemas:
+        schema_type = ejs.hidden_schemas[str(v)]
+
+        data = v(ejs.jschema_extractor)
+
+        # enums, e.g. esp32/variant
+        if schema_type == "one_of":
+            result["type"] = "enum"
+            result["values"] = list(data)
+        elif schema_type == "enum":
+            result["type"] = "enum"
+            result["values"] = list(data.keys())
+        elif schema_type == "maybe":
+            result["type"] = "maybe"
+            result["schema"] = convert_schema(data, path + "/maybe")
+        # esphome/on_boot
+        elif schema_type == "automation":
+            extra_schema = None
+            result["type"] = "trigger"
+            if automation.AUTOMATION_SCHEMA == ejs.extended_schemas[str(data)][0]:
+                extra_schema = ejs.extended_schemas[str(data)][1]
+            if extra_schema is not None:
+                automation_schema = convert_schema(extra_schema, path + "/extra")
+                if not (
+                    len(automation_schema["config_vars"]) == 1
+                    and "trigger_id" in automation_schema["config_vars"]
+                ):
+                    automation_schema["config_vars"]["then"] = {"type": "trigger"}
+
+                    result["type"] = "trigger"
+                    result["schema"] = automation_schema
+                    # some triggers can have a list of actions directly, while others needs to have some other configuration,
+                    # e.g. sensor.on_value_rang, and the list of actions is only accepted under "then" property.
+                    try:
+                        v({"delay": "1s"})
+                    except cv.Invalid:
+                        result["has_required_var"] = True
+        elif schema_type == "effects":
+            result["type"] = "registry"
+            result["registry"] = "light.effects"
+            result["filter"] = data[0]
+        else:
+            raise Exception("Unknown extracted schema type")
+
+    elif str(v) in ejs.registry_schemas:
+        solve_registry.append((ejs.registry_schemas[str(v)], result))
+
+    elif str(v) in ejs.typed_schemas:
+        result["type"] = "typed"
+        types = result["types"] = {}
+        for schema_key, schema_type in ejs.typed_schemas[str(v)][0][0].items():
+            types[schema_key] = convert_schema(
+                schema_type, path + "/type_" + schema_key
+            )
+
+    elif v == cv.int_ or v == cv.int_range:
+        result["type"] = "integer"
+    else:
+        result["raw"] = str(v)
+
+    result["path"] = path
 
 
 build_schema()
