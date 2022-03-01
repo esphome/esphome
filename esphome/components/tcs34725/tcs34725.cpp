@@ -307,7 +307,7 @@ void TCS34725Component::set_integration_time(TCS34725IntegrationTime integration
   } else {
     this->integration_reg_ = integration_time;
     my_integration_time_regval = integration_time;
-    integration_time_auto_ = false;
+    this->integration_time_auto_ = false;
   }
   this->integration_time_ = (256.f - my_integration_time_regval) * 2.4f;
   ESP_LOGI(TAG, "TCS34725I Integration time set to: %.1fms", this->integration_time_);
