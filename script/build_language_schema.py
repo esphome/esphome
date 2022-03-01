@@ -56,29 +56,30 @@ solve_registry = []
 
 
 def get_component_names():
-    return [
-        "esphome",
-        "esp32",
-        "esp8266",
-        "wifi",
-        "sim800l",
-        "dallas",
-        "sensor",
-        "binary_sensor",
-        "gpio",
-        "template",
-        "pn532",
-        "pn532_i2c",
-        "pcf8574",
-    ]
+    # return [
+    #     "esphome",
+    #     "esp32",
+    #     "esp8266",
+    #     "wifi",
+    #     "sim800l",
+    #     "dallas",
+    #     "sensor",
+    #     "binary_sensor",
+    #     "gpio",
+    #     "template",
+    #     "pn532",
+    #     "pn532_i2c",
+    #     "pcf8574",
+    # ]
     from esphome.loader import CORE_COMPONENTS_PATH
 
-    component_names = [
-        d
-        for d in os.listdir(CORE_COMPONENTS_PATH)
-        if not d.startswith("__")
-        and os.path.isdir(os.path.join(CORE_COMPONENTS_PATH, d))
-    ]
+    component_names = ["esphome"]
+    for d in os.listdir(CORE_COMPONENTS_PATH):
+        if not d.startswith("__") and os.path.isdir(
+            os.path.join(CORE_COMPONENTS_PATH, d)
+        ):
+            component_names.append(d)
+
     return component_names
 
 
@@ -125,7 +126,14 @@ def register_known_schema(
 def module_schemas(module):
     # This should yield elements in order so extended schemas are resolved properly
     # To do this we check on the source code where the symbol is seen first. Seems to work.
-    module_str = inspect.getsource(module)
+    try:
+        module_str = inspect.getsource(module)
+    except TypeError:
+        # improv
+        module_str = ""
+    except OSError:
+        # some empty __init__ files
+        module_str = ""
     schemas = {}
     for m_attr_name in dir(module):
         m_attr_obj = getattr(module, m_attr_name)
@@ -284,6 +292,8 @@ def build_schema():
     pins_providers = schema_core["pins"] = []
     for pin_registry in pins.PIN_SCHEMA_REGISTRY:
         s = convert_schema(pins.PIN_SCHEMA_REGISTRY[pin_registry][1])
+        if pin_registry not in output:
+            output[pin_registry] = {}  # mcp23xxx does not create a component yet
         output[pin_registry]["pin"] = s
         pins_providers.append(pin_registry)
 
@@ -409,19 +419,20 @@ def convert_keys(converted, schema, info: ConvertInfo):
             result["key"] = "GeneratedID"
         elif isinstance(k, cv.Required):
             result["key"] = "Required"
-        elif isinstance(k, cv.Optional) or isinstance(k, cv.Inclusive):
+        elif (
+            isinstance(k, cv.Optional)
+            or isinstance(k, cv.Inclusive)
+            or isinstance(k, cv.Exclusive)
+        ):
             result["key"] = "Optional"
-        elif k == cv.string_strict:
-            # this is when the key is any string, e.g. esphome/platformio_options
-            converted["type"] = "dict"
-            return
         else:
-            raise Exception("Unexpected key type")
+            converted["key"] = "String"
+            converted["key_dump"] = str(k)
 
         esphome_core.CORE.data = {
             esphome_core.KEY_CORE: {esphome_core.KEY_TARGET_PLATFORM: "esp8266"}
         }
-        if str(k.default) != "...":
+        if hasattr(k, "default") and str(k.default) != "...":
             default_value = k.default()
             if default_value is not None:
                 result["default"] = str(default_value)
