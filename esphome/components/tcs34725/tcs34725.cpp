@@ -192,7 +192,7 @@ void TCS34725Component::update() {
     this->status_set_warning();
     return;
   }
-  ESP_LOGD(TAG, "Raw values clear=%d red=%d green=%d blue=%d", raw_c, raw_r, raw_g, raw_b);
+  ESP_LOGV(TAG, "Raw values clear=%d red=%d green=%d blue=%d", raw_c, raw_r, raw_g, raw_b);
 
   float channel_c;
   float channel_r;
@@ -238,8 +238,6 @@ void TCS34725Component::update() {
     float integration_time_ideal;
     integration_time_ideal = 60 / ((float) raw_c /655.35) * this->integration_time_;
 
-    ESP_LOGD(TAG, "integration_time_ideal %.1f", integration_time_ideal);
-
     uint8_t gainRegVal = this->gain_reg_; 
     // increase gain if less than 20% of white channel used and high integration time
     // increase only if not already maximum
@@ -250,7 +248,7 @@ void TCS34725Component::update() {
         gainRegVal= this->gain_reg_ +1;
         // update integration time to new situation
         integration_time_ideal = integration_time_ideal /4;
-        ESP_LOGD(TAG, "TCS34725I Gain increase to %d", 2^gainRegVal);
+        //ESP_LOGD(TAG, "TCS34725I Gain increase to %d", 2^gainRegVal);
       }
     }
 
@@ -261,7 +259,7 @@ void TCS34725Component::update() {
         gainRegVal = this->gain_reg_ - 1;
         // update integration time to new situation
         integration_time_ideal = integration_time_ideal *4;
-        ESP_LOGD(TAG, "TCS34725I Gain adjust to %d", 2^gainRegVal);
+        //ESP_LOGD(TAG, "TCS34725I Gain adjust to %d", 2^gainRegVal);
       }
     }    
 
