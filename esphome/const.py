@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2022.2.5"
+__version__ = "2022.2.6"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
