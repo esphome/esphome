@@ -136,11 +136,11 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   }
   /* Check for saturation and mark the sample as invalid if true */
   if (c >= sat) {
-    if (this->integration_time_auto_){
+    if (this->integration_time_auto_) {
       ESP_LOGI(TAG,
              "Saturation too high, sample discarded, autogain ongoing",
              sat, c);
-    }else{      
+    } else {
       ESP_LOGW(TAG,
              "Saturation too high, sample with saturation %.1f and clear %d treat values carefully or use grey filter",
              sat, c);
@@ -160,7 +160,8 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   if (r2 == 0) {
     // legacy code
     if (!this->integration_time_auto_) {
-      ESP_LOGW(TAG, "No light detected on red channel, switch to auto gain or adjust timing, values will be unreliable");
+      ESP_LOGW(TAG, 
+               "No light detected on red channel, switch to auto gain or adjust timing, values will be unreliable");
       return;
     }
   }
@@ -237,8 +238,7 @@ void TCS34725Component::update() {
   // - not auto mode
   // - clear not oversaturated
   // - clear oversaturated but gain and timing cannot go lower
-  if (!this->integration_time_auto_ || raw_c < 65530 || 
-       (this->gain_reg_ == 0 && this->integration_time_ < 200) ){
+  if (!this->integration_time_auto_ || raw_c < 65530 || (this->gain_reg_ == 0 && this->integration_time_ < 200)) {
 
     if (this->illuminance_sensor_ != nullptr)
       this->illuminance_sensor_->publish_state(this->illuminance_);
@@ -250,8 +250,7 @@ void TCS34725Component::update() {
   ESP_LOGD(TAG,
            "Got Red=%.1f%%,Green=%.1f%%,Blue=%.1f%%,Clear=%.1f%% Illuminance=%.1flx Color "
            "Temperature=%.1fK",
-           channel_r, channel_g, channel_b, channel_c, this->illuminance_,
-           this->color_temperature_);
+           channel_r, channel_g, channel_b, channel_c, this->illuminance_, this->color_temperature_);
 
   if (this->integration_time_auto_) {
     // change integration time an gain to achieve maximum resolution an dynamic range
@@ -291,13 +290,14 @@ void TCS34725Component::update() {
 
     // calculate register value from timing
     uint8_t regval_atime = (uint8_t)(256.f - integration_time_next / 2.4f);
-    ESP_LOGD(TAG, "Integration time: %.1fms, ideal: %.1fms regval_new %d Gain: %.f Clear channel raw: %d  gain reg: %d", 
+    ESP_LOGD(TAG, 
+             "Integration time: %.1fms, ideal: %.1fms regval_new %d Gain: %.f Clear channel raw: %d  gain reg: %d",
              this->integration_time_, integration_time_next, regval_atime, this->gain_, raw_c, this->gain_reg_);
 
     if (this->integration_reg_ != regval_atime || gain_reg_val_new != this->gain_reg_) {
       this->integration_reg_ = regval_atime;
       this->gain_reg_ = gain_reg_val_new;
-      set_gain((TCS34725Gain)gain_reg_val_new);
+      set_gain((TCS34725Gain) gain_reg_val_new);
       if (this->write_config_register_(TCS34725_REGISTER_ATIME, this->integration_reg_) != i2c::ERROR_OK ||
           this->write_config_register_(TCS34725_REGISTER_CONTROL, this->gain_reg_) != i2c::ERROR_OK) {
         this->mark_failed();
