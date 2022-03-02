@@ -159,7 +159,7 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   if (r2 == 0) {
     // legacy code
     if (!this->integration_time_auto_) {
-      ESP_LOGW(TAG, 
+      ESP_LOGW(TAG,
                "No light detected on red channel, switch to auto gain or adjust timing, values will be unreliable");
       return;
     }
