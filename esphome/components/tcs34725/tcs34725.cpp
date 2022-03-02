@@ -139,9 +139,10 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
     if (this->integration_time_auto_) {
       ESP_LOGI(TAG, "Saturation too high, sample discarded, autogain ongoing");
     } else {
-      ESP_LOGW(TAG,
-             "Saturation too high, sample with saturation %.1f and clear %d treat values carefully or use grey filter",
-             sat, c);
+      ESP_LOGW(
+          TAG,
+          "Saturation too high, sample with saturation %.1f and clear %d treat values carefully or use grey filter",
+          sat, c);
     }
   }
 
@@ -158,7 +159,8 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   if (r2 == 0) {
     // legacy code
     if (!this->integration_time_auto_) {
-      ESP_LOGW(TAG, "No light detected on red channel, switch to auto gain or adjust timing, values will be unreliable");
+      ESP_LOGW(TAG, 
+               "No light detected on red channel, switch to auto gain or adjust timing, values will be unreliable");
       return;
     }
   }
