@@ -22,7 +22,7 @@ std::string build_json(const json_build_t &f) {
 #ifdef USE_ESP8266
   const size_t free_heap = ESP.getMaxFreeBlockSize() - 2048;  // NOLINT(readability-static-accessed-through-instance)
 #elif defined(USE_ESP32)
-  const size_t free_heap = heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT) - 2048;
+  const size_t free_heap = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) - 2048;
 #endif
 
   DynamicJsonDocument json_document(free_heap);
@@ -42,7 +42,7 @@ void parse_json(const std::string &data, const json_parse_t &f) {
 #ifdef USE_ESP8266
   const size_t free_heap = ESP.getMaxFreeBlockSize() - 2048;  // NOLINT(readability-static-accessed-through-instance)
 #elif defined(USE_ESP32)
-  const size_t free_heap = heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT) - 2048;
+  const size_t free_heap = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) - 2048;
 #endif
 
   DynamicJsonDocument json_document(free_heap);
