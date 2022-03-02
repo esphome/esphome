@@ -244,26 +244,26 @@ void TCS34725Component::update() {
     float integration_time_ideal;
     integration_time_ideal = 60 / ((float) raw_c / 655.35) * this->integration_time_;
 
-    uint8_t gainRegVal = this->gain_reg_;
+    uint8_t gain_reg_val = this->gain_reg_;
     // increase gain if less than 20% of white channel used and high integration time
     // increase only if not already maximum
     // do not use max gain, as ist will not get better
     if (this->gain_reg_ < 2) {
       if (((float) raw_c / 655.35 < 20.f) && (this->integration_time_ > 600.f)) {
-        gainRegVal = this->gain_reg_ + 1;
+        gain_reg_val = this->gain_reg_ + 1;
         // update integration time to new situation
         integration_time_ideal = integration_time_ideal / 4;
-        // ESP_LOGD(TAG, "TCS34725I Gain increase to %d", 2^gainRegVal);
+        // ESP_LOGD(TAG, "TCS34725I Gain increase to %d", 2^gain_reg_val);
       }
     }
 
     // decrease gain, if very high clear values and integration times alreadey low
     if (this->gain_reg_ > 0) {
       if (70 < ((float) raw_c / 655.35) && (this->integration_time_ < 200)) {
-        gainRegVal = this->gain_reg_ - 1;
+        gain_reg_val = this->gain_reg_ - 1;
         // update integration time to new situation
         integration_time_ideal = integration_time_ideal * 4;
-        // ESP_LOGD(TAG, "TCS34725I Gain adjust to %d", 2^gainRegVal);
+        // ESP_LOGD(TAG, "TCS34725I Gain adjust to %d", 2^gain_reg_val);
       }
     }
 
@@ -277,14 +277,14 @@ void TCS34725Component::update() {
     }
 
     // calculate register value from timing
-    uint8_t regvalATIME = (uint8_t)(256.f - integration_time_next / 2.4f);
+    uint8_t regval_atime = (uint8_t)(256.f - integration_time_next / 2.4f);
     uint8_t actual_gain = pow(4, this->gain_reg_);
     ESP_LOGI(TAG, "Integration time: %.1fms, ideal: %.1fms regval_new %d Gain_reg: %d", this->integration_time_,
-             integration_time_next, regvalATIME, actual_gain);
+             integration_time_next, regval_atime, actual_gain);
 
-    if (this->integration_reg_ != regvalATIME || gainRegVal != this->gain_reg_) {
-      this->integration_reg_ = regvalATIME;
-      this->gain_reg_ = gainRegVal;
+    if (this->integration_reg_ != regval_atime || gain_reg_val != this->gain_reg_) {
+      this->integration_reg_ = regval_atime;
+      this->gain_reg_ = gain_reg_val;
       if (this->write_config_register_(TCS34725_REGISTER_ATIME, this->integration_reg_) != i2c::ERROR_OK ||
           this->write_config_register_(TCS34725_REGISTER_CONTROL, this->gain_reg_) != i2c::ERROR_OK) {
         this->mark_failed();
