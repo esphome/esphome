@@ -138,8 +138,7 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   if (c >= sat) {
     if (this->integration_time_auto_) {
       ESP_LOGI(TAG,
-             "Saturation too high, sample discarded, autogain ongoing",
-             sat, c);
+             "Saturation too high, sample discarded, autogain ongoing",);
     } else {
       ESP_LOGW(TAG,
              "Saturation too high, sample with saturation %.1f and clear %d treat values carefully or use grey filter",
