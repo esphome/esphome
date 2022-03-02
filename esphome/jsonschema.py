@@ -49,7 +49,7 @@ def jschema_extended(func):
     return func
 
 
-def jschema_composite(func):
+def jschema_list(func):
     if EnableJsonSchemaCollect:
 
         def decorate(*args, **kwargs):
