@@ -15,6 +15,7 @@ from esphome.const import (
     ICON_THERMOMETER,
     UNIT_KELVIN,
     UNIT_LUX,
+    UNIT_PPFD,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -23,6 +24,7 @@ CONF_RED_CHANNEL = "red_channel"
 CONF_GREEN_CHANNEL = "green_channel"
 CONF_BLUE_CHANNEL = "blue_channel"
 CONF_CLEAR_CHANNEL = "clear_channel"
+CONF_PPFD = "ppfd"
 
 tcs34725_ns = cg.esphome_ns.namespace("tcs34725")
 TCS34725Component = tcs34725_ns.class_(
@@ -77,6 +79,12 @@ illuminance_schema = sensor.sensor_schema(
     device_class=DEVICE_CLASS_ILLUMINANCE,
     state_class=STATE_CLASS_MEASUREMENT,
 )
+ppfd_schema = sensor.sensor_schema(
+    unit_of_measurement=UNIT_PPFD,
+    icon=ICON_LIGHTBULB,
+    accuracy_decimals=0,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -88,6 +96,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CLEAR_CHANNEL): color_channel_schema,
             cv.Optional(CONF_ILLUMINANCE): illuminance_schema,
             cv.Optional(CONF_COLOR_TEMPERATURE): color_temperature_schema,
+            cv.Optional(CONF_PPFD): ppfd_schema,
             cv.Optional(CONF_INTEGRATION_TIME, default="2.4ms"): cv.enum(
                 TCS34725_INTEGRATION_TIMES, lower=True
             ),
@@ -129,3 +138,6 @@ async def to_code(config):
     if CONF_COLOR_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_COLOR_TEMPERATURE])
         cg.add(var.set_color_temperature_sensor(sens))
+    if CONF_PPFD in config:
+        sens = await sensor.new_sensor(config[CONF_PPFD])
+        cg.add(var.set_ppfd(sens))

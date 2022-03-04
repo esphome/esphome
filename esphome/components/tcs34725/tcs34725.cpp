@@ -57,6 +57,7 @@ void TCS34725Component::dump_config() {
   LOG_SENSOR("  ", "Blue Channel", this->blue_sensor_);
   LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
   LOG_SENSOR("  ", "Color Temperature", this->color_temperature_sensor_);
+  LOG_SENSOR("  ", "PPFD", this->ppfd_sensor_);
 }
 float TCS34725Component::get_setup_priority() const { return setup_priority::DATA; }
 
@@ -73,7 +74,7 @@ float TCS34725Component::get_setup_priority() const { return setup_priority::DAT
  *          Clear channel value
  *  @return Color temperature in degrees Kelvin
  */
-void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, uint16_t b, uint16_t c) {
+void TCS34725Component::calculate_temperature_and_lux_and_ppfd_(uint16_t r, uint16_t g, uint16_t b, uint16_t c) {
   float r2, g2, b2; /* RGB values minus IR component */
   float sat;        /* Digital saturation level */
   float ir;         /* Inferred IR content */
@@ -88,6 +89,11 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   static const float B_COEF = -0.444f;        //
   static const float CT_COEF = 3810.f;        // Color Temperature Coefficient
   static const float CT_OFFSET = 1391.f;      // Color Temperatuer Offset
+  static const float PPFD_R_COEF = 1.60537f;      // used in PPFD computation
+  static const float PPFD_G_COEF = 2.30216f;      //
+  static const float PPFD_B_COEF = 0.50019f;      //
+  static const float PPFD_C_COEF = 0.65847f;      //
+
 
   if (c == 0) {
     return;
@@ -165,6 +171,9 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   this->color_temperature_ = (CT_COEF * b2) / /** Color temp coefficient. */
                                  r2 +
                              CT_OFFSET; /** Color temp offset. */
+  // PPFD calculation
+  float par = (PPFD_C_COEF * c + PPFD_R_COEF * r2 + PPFD_G_COEF * g2 + PPFD_B_COEF * b2) * 0.001;    // MultispeQ Beta PAR sensor TCS34715 equation
+  this->ppfd_ = par / cpl
 }
 
 void TCS34725Component::update() {
@@ -226,8 +235,8 @@ void TCS34725Component::update() {
   if (this->color_temperature_sensor_ != nullptr)
     this->color_temperature_sensor_->publish_state(this->color_temperature_);
 
-  ESP_LOGD(TAG, "Got Red=%.1f%%,Green=%.1f%%,Blue=%.1f%%,Clear=%.1f%% Illuminance=%.1flx Color Temperature=%.1fK",
-           channel_r, channel_g, channel_b, channel_c, this->illuminance_, this->color_temperature_);
+  ESP_LOGD(TAG, "Got Red=%.1f%%,Green=%.1f%%,Blue=%.1f%%,Clear=%.1f%% Illuminance=%.1flx Color Temperature=%.1fK PPFD=%1fµmol/s/m²",
+           channel_r, channel_g, channel_b, channel_c, this->illuminance_, this->color_temperature_), this->ppfd_;
 
   this->status_clear_warning();
 }

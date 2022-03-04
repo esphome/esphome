@@ -49,6 +49,8 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
   void set_color_temperature_sensor(sensor::Sensor *color_temperature_sensor) {
     color_temperature_sensor_ = color_temperature_sensor;
   }
+  void set_ppfd_sensor(sensor::Sensor *ppfd_sensor) { ppfd_sensor_ = ppfd_sensor; }
+
 
   void setup() override;
   float get_setup_priority() const override;
@@ -72,14 +74,16 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *blue_sensor_{nullptr};
   sensor::Sensor *illuminance_sensor_{nullptr};
   sensor::Sensor *color_temperature_sensor_{nullptr};
+  sensor::Sensor *ppfd_sensor_{nullptr};
   float integration_time_{2.4};
   float gain_{1.0};
   float glass_attenuation_{1.0};
   float illuminance_;
   float color_temperature_;
+  float ppfd_;
 
  private:
-  void calculate_temperature_and_lux_(uint16_t r, uint16_t g, uint16_t b, uint16_t c);
+  void calculate_temperature_and_lux_and_ppfd_(uint16_t r, uint16_t g, uint16_t b, uint16_t c);
   uint8_t integration_reg_{TCS34725_INTEGRATION_TIME_2_4MS};
   uint8_t gain_reg_{TCS34725_GAIN_1X};
 };
