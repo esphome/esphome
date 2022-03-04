@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 
-#include "esphome/display/display_buffer.h"
+#include "esphome/components/display/display_buffer.h"
 
 namespace esphome {
 namespace display {

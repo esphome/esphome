@@ -193,7 +193,8 @@ async def setup_widget(conf) -> WidgetRef:
             children.append(w)
         cg.add(var.set_children(children))
     elif "text" in conf:
-        cg.add(var.set_text(conf["text"]))
+        text = await cg.templatable(conf["text"], (), cg.std_string)
+        cg.add(var.set_text(text))
         font = await cg.get_variable(conf["font"])
         cg.add(var.set_font(font))
     return var
