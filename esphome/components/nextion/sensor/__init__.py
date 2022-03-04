@@ -44,11 +44,11 @@ def _validate(config):
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
+        NextionSensor,
         accuracy_decimals=2,
     )
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(NextionSensor),
             cv.Optional(CONF_PRECISION, default=0): cv.int_range(min=0, max=8),
             cv.Optional(CONF_WAVE_CHANNEL_ID): CheckWaveID,
             cv.Optional(CONF_COMPONENT_ID): cv.uint8_t,

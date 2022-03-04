@@ -67,6 +67,27 @@ esp32:
     type: arduino
 """
 
+ESP32S2_CONFIG = """
+esp32:
+  board: {board}
+  framework:
+    type: esp-idf
+"""
+
+ESP32C3_CONFIG = """
+esp32:
+  board: {board}
+  framework:
+    type: esp-idf
+"""
+
+HARDWARE_BASE_CONFIGS = {
+    "ESP8266": ESP8266_CONFIG,
+    "ESP32": ESP32_CONFIG,
+    "ESP32S2": ESP32S2_CONFIG,
+    "ESP32C3": ESP32C3_CONFIG,
+}
+
 
 def sanitize_double_quotes(value):
     return value.replace("\\", "\\\\").replace('"', '\\"')
@@ -83,11 +104,7 @@ def wizard_file(**kwargs):
 
     config = BASE_CONFIG.format(**kwargs)
 
-    config += (
-        ESP8266_CONFIG.format(**kwargs)
-        if kwargs["platform"] == "ESP8266"
-        else ESP32_CONFIG.format(**kwargs)
-    )
+    config += HARDWARE_BASE_CONFIGS[kwargs["platform"]].format(**kwargs)
 
     config += LOGGER_API_CONFIG
 
@@ -119,16 +136,26 @@ def wizard_file(**kwargs):
 """
 
     # pylint: disable=consider-using-f-string
-    config += """
+    if kwargs["platform"] in ["ESP8266", "ESP32"]:
+        config += """
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
     ssid: "{fallback_name}"
     password: "{fallback_psk}"
 
 captive_portal:
-""".format(
-        **kwargs
-    )
+    """.format(
+            **kwargs
+        )
+    else:
+        config += """
+  # Enable fallback hotspot in case wifi connection fails
+  ap:
+    ssid: "{fallback_name}"
+    password: "{fallback_psk}"
+    """.format(
+            **kwargs
+        )
 
     return config
 
@@ -147,10 +174,10 @@ def wizard_write(path, **kwargs):
         kwargs["platform"] = (
             "ESP8266" if board in esp8266_boards.ESP8266_BOARD_PINS else "ESP32"
         )
-    platform = kwargs["platform"]
+    hardware = kwargs["platform"]
 
     write_file(path, wizard_file(**kwargs))
-    storage = StorageJSON.from_wizard(name, f"{name}.local", platform)
+    storage = StorageJSON.from_wizard(name, f"{name}.local", hardware)
     storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
     storage.save(storage_path)
 

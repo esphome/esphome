@@ -64,7 +64,7 @@ class StorageJSON:
         # Web server port of the ESP, for example 80
         assert web_port is None or isinstance(web_port, int)
         self.web_port = web_port  # type: int
-        # The type of ESP in use, either ESP32 or ESP8266
+        # The type of hardware in use, like "ESP32", "ESP32C3", "ESP8266", etc.
         self.target_platform = target_platform  # type: str
         # The absolute path to the platformio project
         self.build_path = build_path  # type: str
@@ -99,6 +99,11 @@ class StorageJSON:
     def from_esphome_core(
         esph, old
     ):  # type: (CoreType, Optional[StorageJSON]) -> StorageJSON
+        hardware = esph.target_platform.upper()
+        if esph.is_esp32:
+            from esphome.components import esp32
+
+            hardware = esp32.get_esp32_variant(esph)
         return StorageJSON(
             storage_version=1,
             name=esph.name,
@@ -107,15 +112,14 @@ class StorageJSON:
             src_version=1,
             address=esph.address,
             web_port=esph.web_port,
-            target_platform=esph.target_platform,
+            target_platform=hardware,
             build_path=esph.build_path,
             firmware_bin_path=esph.firmware_bin,
             loaded_integrations=list(esph.loaded_integrations),
         )
 
     @staticmethod
-    def from_wizard(name, address, esp_platform):
-        # type: (str, str, str) -> StorageJSON
+    def from_wizard(name: str, address: str, esp_platform: str) -> "StorageJSON":
         return StorageJSON(
             storage_version=1,
             name=name,
