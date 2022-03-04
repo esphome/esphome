@@ -114,7 +114,7 @@ def use_font_id(value):
 TEXT_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Text),
-        cv.Required("text"): cv.string,
+        cv.Required("text"): cv.templatable(cv.string),
         cv.Required("font"): use_font_id,
         cv.Optional("source"): cv.Any(cv.use_id(sensor.Sensor), cv.use_id(text_sensor.TextSensor)),
     },
