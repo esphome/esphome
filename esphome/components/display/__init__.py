@@ -199,7 +199,7 @@ async def setup_widget(conf) -> WidgetRef:
     return var
 
 async def setup_widgets(widgets):
-    var = await cg.new_Pvariable(core.ID(None, type=WidgetContainer))
+    var = cg.new_Pvariable(core.ID(None, type=WidgetContainer))
     children = []
     for conf in widgets:
         w = await setup_widget(conf)
