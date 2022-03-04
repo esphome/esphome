@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, automation
 from esphome.automation import maybe_simple_id
-from esphome.components import font, sensor, text_sensor
+from esphome.components import sensor, text_sensor
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
     CONF_ID,
@@ -107,11 +107,15 @@ VERTICAL_SCHEMA = cv.Schema(
     },
 ).extend(BASE_WIDGET_SCHEMA)
 
+def use_font_id(value):
+    from esphome.components import font
+    return cv.use_id(font.Font)(value)
+
 TEXT_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Text),
         cv.Required("text"): cv.string,
-        cv.Required("font"): cv.use_id(font.Font),
+        cv.Required("font"): use_font_id,
         cv.Optional("source"): cv.Any(cv.use_id(sensor.Sensor), cv.use_id(text_sensor.TextSensor)),
     },
 )
