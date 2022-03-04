@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, automation
 from esphome.automation import maybe_simple_id
+from esphome.components import font, sensor, text_sensor
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
     CONF_ID,
@@ -36,7 +37,16 @@ DisplayOnPageChangeTrigger = display_ns.class_(
     "DisplayOnPageChangeTrigger", automation.Trigger
 )
 
+Widget = display_ns.class_("Widget")
+WidgetRef = Widget.operator("ref")
+WidgetContainer = display_ns.class_("WidgetContainer", Widget)
+Horizontal = display_ns.class_("Horizontal", Widget)
+Vertical = display_ns.class_("Vertical", Widget)
+Text = display_ns.class_("Text", Widget)
+
 CONF_ON_PAGE_CHANGE = "on_page_change"
+
+CONF_WIDGETS = "widgets"
 
 DISPLAY_ROTATIONS = {
     0: display_ns.DISPLAY_ROTATION_0_DEGREES,
@@ -59,6 +69,59 @@ BASIC_DISPLAY_SCHEMA = cv.Schema(
     }
 )
 
+CONF_X = "x"
+CONF_Y = "y"
+CONF_WIDTH = "width"
+CONF_HEIGHT = "height"
+
+
+def WidgetSchema(x):
+    return WIDGET_SCHEMA(x)
+
+BASE_WIDGET_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_X, default=0): cv.int_range(min=0, max=2000),
+        cv.Optional(CONF_Y, default=0): cv.int_range(min=0, max=2000),
+        cv.Optional(CONF_WIDTH): cv.Any(cv.int_range(min=0, max=2000), cv.percentage),
+        cv.Optional(CONF_HEIGHT): cv.Any(cv.int_range(min=0, max=2000), cv.percentage),
+    },
+)
+
+HORIZONTAL_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(Horizontal),
+        cv.Required("horizontal"): cv.All(
+            cv.ensure_list(WidgetSchema),
+            cv.Length(min=1),
+        ),
+    },
+).extend(BASE_WIDGET_SCHEMA)
+
+VERTICAL_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(Vertical),
+        cv.Required("vertical"): cv.All(
+            cv.ensure_list(WidgetSchema),
+            cv.Length(min=1),
+        ),
+    },
+).extend(BASE_WIDGET_SCHEMA)
+
+TEXT_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(Text),
+        cv.Required("text"): cv.string,
+        cv.Required("font"): cv.use_id(font.Font),
+        cv.Optional("source"): cv.Any(cv.use_id(sensor.Sensor), cv.use_id(text_sensor.TextSensor)),
+    },
+)
+
+WIDGET_SCHEMA = cv.Any(
+    HORIZONTAL_SCHEMA,
+    VERTICAL_SCHEMA,
+    TEXT_SCHEMA,
+)
+
 FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
     {
         cv.Optional(CONF_ROTATION): validate_rotation,
@@ -66,8 +129,9 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
             cv.ensure_list(
                 {
                     cv.GenerateID(): cv.declare_id(DisplayPage),
-                    cv.Required(CONF_LAMBDA): cv.lambda_,
-                }
+                    cv.Optional(CONF_WIDGETS): cv.ensure_list(WidgetSchema),
+                    cv.Optional(CONF_LAMBDA): cv.lambda_,
+                    }
             ),
             cv.Length(min=1),
         ),
@@ -95,9 +159,12 @@ async def setup_display_core_(var, config):
     if CONF_PAGES in config:
         pages = []
         for conf in config[CONF_PAGES]:
-            lambda_ = await cg.process_lambda(
-                conf[CONF_LAMBDA], [(DisplayBufferRef, "it")], return_type=cg.void
-            )
+            if CONF_LAMBDA in conf:
+                lambda_ = await cg.process_lambda(
+                    conf[CONF_LAMBDA], [(DisplayBufferRef, "it")], return_type=cg.void
+                )
+            elif CONF_WIDGETS in conf:
+                lambda_ = await setup_widgets(conf[CONF_WIDGETS])
             page = cg.new_Pvariable(conf[CONF_ID], lambda_)
             pages.append(page)
         cg.add(var.set_pages(pages))
@@ -113,6 +180,28 @@ async def setup_display_core_(var, config):
             trigger, [(DisplayPagePtr, "from"), (DisplayPagePtr, "to")], conf
         )
 
+async def setup_widget(conf) -> WidgetRef:
+    var = cg.new_Pvariable(conf[CONF_ID])
+    if "horizontal" in conf or "vertical" in conf:
+        children = []
+        for w in conf.get("horizontal", []) + conf.get("vertical", []):
+            w = await setup_widget(w)
+            children.append(w)
+        cg.add(var.set_children(children))
+    elif "text" in conf:
+        cg.add(var.set_text(conf["text"]))
+        font = await cg.get_variable(conf["font"])
+        cg.add(var.set_font(font))
+    return var
+
+async def setup_widgets(widgets):
+    var = await cg.new_Pvariable(core.ID(None, type=WidgetContainer))
+    children = []
+    for conf in widgets:
+        w = await setup_widget(conf)
+        children.append(w)
+    cg.add(var.set_children(children))
+    return var.draw
 
 async def register_display(var, config):
     await setup_display_core_(var, config)
