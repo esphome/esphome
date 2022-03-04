@@ -38,6 +38,8 @@ parser.add_argument(
 args = parser.parse_args()
 
 DUMP_RAW = False
+DUMP_UNKNOWN = False
+DUMP_PATH = False
 
 # store here dynamic load of esphome components
 components = {}
@@ -61,6 +63,7 @@ def get_component_names():
         "esp32",
         "esp8266",
         "logger",
+        "ota",
         "i2c",
         "api",
         "wifi",
@@ -74,6 +77,8 @@ def get_component_names():
         "pn532_i2c",
         "pcf8574",
         "light",
+        "binary",
+        "monochromatic",
     ]
     from esphome.loader import CORE_COMPONENTS_PATH
 
@@ -224,6 +229,56 @@ def do_esp8266():
     )
 
 
+def shrink():
+    """Shrink the extending schemas which has just an end type, e.g. at this point
+    ota / port is type schema with extended pointing to core.port, this should instead be
+    type number. core.port is number"""
+
+    for k, v in output.items():
+        print("Simplifying " + k)
+        if S_SCHEMAS in v:
+            for kk, vv in v[S_SCHEMAS].items():
+                if S_TYPE in vv:
+                    pass
+                    # print("    type")
+                elif S_CONFIG_VARS in vv or S_EXTENDS in vv:
+                    # print("    schema")
+                    shrink_schema(vv, "      ")
+                else:
+                    # print("    skip")
+                    pass
+
+
+def shrink_schema(schema, depth):
+    assert S_CONFIG_VARS not in schema or len(schema[S_CONFIG_VARS]) > 0
+    if S_CONFIG_VARS not in schema and len(schema.get(S_EXTENDS, [])) == 1:
+        #       print(depth + " Candidate ")
+        return get_simple_type(schema.get(S_EXTENDS)[0])
+
+    for k, v in schema.get(S_CONFIG_VARS, {}).items():
+        if v.get(S_TYPE) == "schema":
+            #            print(depth + "  " + k)
+            simple = shrink_schema(v.get(S_SCHEMA), depth + "  ")
+            if simple is not None:
+                v[S_TYPE] = simple
+                v.pop(S_SCHEMA)
+                print(depth + k + " patch with " + simple)
+
+
+def get_simple_type(ref):
+    parts = str(ref).partition(".")
+    data = output[parts[0]][S_SCHEMAS][parts[2]]
+    if S_CONFIG_VARS in data:
+        return None
+    if S_TYPE in data:
+        return data[S_TYPE]
+    if S_EXTENDS in data and len(data[S_EXTENDS]) == 1:
+        return get_simple_type(data[S_EXTENDS][0])
+
+
+# print(ref)
+
+
 def build_schema():
     print("Building schema")
 
@@ -303,6 +358,8 @@ def build_schema():
 
     do_esp8266()
     do_esp32()
+
+    shrink()
 
     # aggregate components, so all component info is in same file, otherwise we have dallas.json, dallas.sensor.json, etc.
     data = {}
@@ -492,20 +549,24 @@ def convert_1(schema, config_var, path):
             config = convert_config(schema_type, path + "/type_" + schema_key)
             types[schema_key] = config["schema"]
 
-    else:
+    elif DUMP_UNKNOWN:
         if S_TYPE not in config_var:
             config_var["unknown"] = str_schema
 
-    config_var["path"] = path
+    if DUMP_PATH:
+        config_var["path"] = path
 
 
 def is_overriden_key(key, converted):
     # check if the key is in any extended schema in this converted schema, i.e.
     # if we see a on_value_range in a dallas sensor, then this is overridden because
     #  it is already defined in sensor
-    if S_EXTENDS not in converted:
+    assert S_CONFIG_VARS not in converted and S_EXTENDS not in converted
+    config = converted.get(S_SCHEMA, {})
+
+    if S_EXTENDS not in config:
         return False
-    for s in converted[S_EXTENDS]:
+    for s in config[S_EXTENDS]:
         p = s.partition(".")
         s1 = (
             output.get(p[0], {}).get(S_SCHEMAS, {}).get(p[2], {}).get(S_CONFIG_VARS, {})
