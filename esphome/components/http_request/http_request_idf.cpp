@@ -35,9 +35,10 @@ esp_err_t http_event_handler(esp_http_client_event_t *evt) {
        */
       if (!esp_http_client_is_chunked_response(evt->client)) {
         if (global_http_request->get_capture_response()) {
-          std::vector<char> &buffer = *reinterpret_cast<std::vector<char> *>(evt->user_data);
-          buffer.insert(buffer.end(), reinterpret_cast<char *>(evt->data),
-                        reinterpret_cast<char *>(evt->data) + evt->data_len);
+          auto& response = *reinterpret_cast<HttpResponse *>(evt->user_data);
+          const auto data_begin = reinterpret_cast<char *>(evt->data);
+          const auto data_end = data_begin + evt->data_len;
+          response.data.insert(response.data.end(), data_begin, data_end);
         }
       }
 
@@ -62,8 +63,6 @@ std::unique_ptr<HttpResponse> HttpRequestIDF::send() {
     return nullptr;
   }
 
-  std::vector<char> buffer;
-
   esp_http_client_method_t method;
   if (this->method_ == "GET") {
     method = HTTP_METHOD_GET;
@@ -81,6 +80,7 @@ std::unique_ptr<HttpResponse> HttpRequestIDF::send() {
     return nullptr;
   }
 
+  HttpResponse response = {};
   esp_http_client_config_t config = {};
 
   config.url = this->url_.c_str();
@@ -88,7 +88,7 @@ std::unique_ptr<HttpResponse> HttpRequestIDF::send() {
   config.timeout_ms = this->timeout_;
   config.disable_auto_redirect = !this->follow_redirects_;
   config.max_redirection_count = this->redirect_limit_;
-  config.user_data = (void *) &buffer;
+  config.user_data = reinterpret_cast<void *>(&response);
   config.event_handler = &http_event_handler;
 
   if (this->useragent_ != nullptr) {
@@ -114,12 +114,9 @@ std::unique_ptr<HttpResponse> HttpRequestIDF::send() {
     return nullptr;
   }
 
-  std::unique_ptr<HttpResponse> response = make_unique<HttpResponse>();
-
-  int status_code = esp_http_client_get_status_code(client);
-  response->status_code = status_code;
-  response->content_length = esp_http_client_get_content_length(client);
-  response->data = std::move(buffer);
+  const auto status_code = esp_http_client_get_status_code(client);
+  response.status_code = status_code;
+  response.content_length = esp_http_client_get_content_length(client);
 
   if (status_code < 200 || status_code >= 300) {
     ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", this->url_.c_str(), status_code);
@@ -131,7 +128,8 @@ std::unique_ptr<HttpResponse> HttpRequestIDF::send() {
   ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_.c_str(), status_code);
 
   esp_http_client_cleanup(client);
-  return response;
+
+  return std::unique_ptr<HttpResponse>(new HttpResponse(std::move(response)));
 }
 
 }  // namespace http_request
