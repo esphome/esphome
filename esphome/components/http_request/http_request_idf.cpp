@@ -35,9 +35,9 @@ esp_err_t http_event_handler(esp_http_client_event_t *evt) {
        */
       if (!esp_http_client_is_chunked_response(evt->client)) {
         if (global_http_request->get_capture_response()) {
-          auto& response = *reinterpret_cast<HttpResponse *>(evt->user_data);
-          const auto data_begin = reinterpret_cast<char *>(evt->data);
-          const auto data_end = data_begin + evt->data_len;
+          auto &response = *reinterpret_cast<HttpResponse *>(evt->user_data);
+          auto *const data_begin = reinterpret_cast<char *>(evt->data);
+          auto *const data_end = data_begin + evt->data_len;
           response.data.insert(response.data.end(), data_begin, data_end);
         }
       }
@@ -80,7 +80,7 @@ std::unique_ptr<HttpResponse> HttpRequestIDF::send() {
     return nullptr;
   }
 
-  HttpResponse response = {}; // used as user_data, by http_event_handler, in esp_http_client_perform
+  HttpResponse response = {};  // used as user_data, by http_event_handler, in esp_http_client_perform
   esp_http_client_config_t config = {};
 
   config.url = this->url_.c_str();
