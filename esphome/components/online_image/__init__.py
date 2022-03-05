@@ -1,6 +1,7 @@
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
+    CONF_ESP8266_DISABLE_SSL_SUPPORT,
     CONF_ID,
     CONF_FORMAT,
     CONF_RAW_DATA_ID,
@@ -41,6 +42,10 @@ async def to_code(config):
         config[CONF_ID], url, width, height, config[CONF_FORMAT]
     )
     cg.add_define("USE_ONLINE_IMAGE")
+
+    if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
+        cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
+
     if CORE.is_esp32:
         cg.add_library("WiFiClientSecure", None)
         cg.add_library("HTTPClient", None)
