@@ -32,7 +32,7 @@ void ThermostatClimate::setup() {
   } else {
     // restore from defaults, change_away handles temps for us
     this->mode = this->default_mode_;
-    this->change_away_(false);
+    this->change_preset_(climate::CLIMATE_PRESET_HOME);
   }
   // refresh the climate action based on the restored settings, we'll publish_state() later
   this->switch_to_action_(this->compute_action_(), false);
@@ -162,7 +162,7 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
   if (call.get_preset().has_value()) {
     // setup_complete_ blocks modifying/resetting the temps immediately after boot
     if (this->setup_complete_) {
-      this->change_away_(*call.get_preset() == climate::CLIMATE_PRESET_AWAY);
+      this->change_preset_(*call.get_preset());
     } else {
       this->preset = *call.get_preset();
     }
@@ -236,8 +236,9 @@ climate::ClimateTraits ThermostatClimate::traits() {
   if (supports_swing_mode_vertical_)
     traits.add_supported_swing_mode(climate::CLIMATE_SWING_VERTICAL);
 
-  if (supports_away_)
-    traits.set_supported_presets({climate::CLIMATE_PRESET_HOME, climate::CLIMATE_PRESET_AWAY});
+  for (auto it = this->preset_config_.begin(); it != this->preset_config_.end(); it++) {
+    traits.add_supported_preset(it->first);
+  }
 
   traits.set_supports_two_point_target_temperature(this->supports_two_points_);
   traits.set_supports_action(true);
@@ -910,30 +911,27 @@ bool ThermostatClimate::supplemental_heating_required_() {
           (this->supplemental_action_ == climate::CLIMATE_ACTION_HEATING));
 }
 
-void ThermostatClimate::change_away_(bool away) {
-  if (!away) {
+void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
+  auto config = this->preset_config_.find(preset);
+
+  if (config != this->preset_config_.end()) {
+    ESP_LOGVV(TAG, "Switching to preset  %s", climate::climate_preset_to_string(preset));
+
     if (this->supports_two_points_) {
-      this->target_temperature_low = this->normal_config_.default_temperature_low;
-      this->target_temperature_high = this->normal_config_.default_temperature_high;
-    } else
-      this->target_temperature = this->normal_config_.default_temperature;
+      this->target_temperature_low = config->second.default_temperature_low;
+      this->target_temperature_high = config->second.default_temperature_high;
+    } else {
+      this->target_temperature = config->second.default_temperature;
+    }
+
+    this->preset = preset;
   } else {
-    if (this->supports_two_points_) {
-      this->target_temperature_low = this->away_config_.default_temperature_low;
-      this->target_temperature_high = this->away_config_.default_temperature_high;
-    } else
-      this->target_temperature = this->away_config_.default_temperature;
+    ESP_LOGVV(TAG, "Preset %s is not configured, ignoring.", climate::climate_preset_to_string(preset));
   }
-  this->preset = away ? climate::CLIMATE_PRESET_AWAY : climate::CLIMATE_PRESET_HOME;
 }
 
-void ThermostatClimate::set_normal_config(const ThermostatClimateTargetTempConfig &normal_config) {
-  this->normal_config_ = normal_config;
-}
-
-void ThermostatClimate::set_away_config(const ThermostatClimateTargetTempConfig &away_config) {
-  this->supports_away_ = true;
-  this->away_config_ = away_config;
+void ThermostatClimate::set_preset_config(climate::ClimatePreset preset, const ThermostatClimateTargetTempConfig &config) {
+  this->preset_config_[preset] = config;
 }
 
 ThermostatClimate::ThermostatClimate()
@@ -1115,20 +1113,7 @@ Trigger<> *ThermostatClimate::get_temperature_change_trigger() const { return th
 
 void ThermostatClimate::dump_config() {
   LOG_CLIMATE("", "Thermostat", this);
-  if (this->supports_heat_) {
-    if (this->supports_two_points_) {
-      ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
-    } else {
-      ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature);
-    }
-  }
-  if ((this->supports_cool_) || (this->supports_fan_only_ && this->supports_fan_only_cooling_)) {
-    if (this->supports_two_points_) {
-      ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
-    } else {
-      ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature);
-    }
-  }
+
   if (this->supports_two_points_)
     ESP_LOGCONFIG(TAG, "  Minimum Set Point Differential: %.1f°C", this->set_point_minimum_differential_);
   ESP_LOGCONFIG(TAG, "  Start-up Delay Enabled: %s", YESNO(this->use_startup_delay_));
@@ -1194,22 +1179,24 @@ void ThermostatClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports SWING MODE HORIZONTAL: %s", YESNO(this->supports_swing_mode_horizontal_));
   ESP_LOGCONFIG(TAG, "  Supports SWING MODE VERTICAL: %s", YESNO(this->supports_swing_mode_vertical_));
   ESP_LOGCONFIG(TAG, "  Supports TWO SET POINTS: %s", YESNO(this->supports_two_points_));
-  ESP_LOGCONFIG(TAG, "  Supports AWAY mode: %s", YESNO(this->supports_away_));
-  if (this->supports_away_) {
+  
+  ESP_LOGCONFIG(TAG, "  Supported PRESETS: ");
+  for (auto it = this->preset_config_.begin(); it != this->preset_config_.end(); it++) {
+    auto preset_name = LOG_STR_ARG(climate::climate_preset_to_string(it->first));
+
+    ESP_LOGCONFIG(TAG, "  Supports %s: %s", preset_name, YESNO(true));
     if (this->supports_heat_) {
       if (this->supports_two_points_) {
-        ESP_LOGCONFIG(TAG, "    Away Default Target Temperature Low: %.1f°C",
-                      this->away_config_.default_temperature_low);
+        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature Low: %.1f°C", preset_name, it->second.default_temperature_low);
       } else {
-        ESP_LOGCONFIG(TAG, "    Away Default Target Temperature Low: %.1f°C", this->away_config_.default_temperature);
+        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature Low: %.1f°C", preset_name, it->second.default_temperature);
       }
     }
     if ((this->supports_cool_) || (this->supports_fan_only_)) {
       if (this->supports_two_points_) {
-        ESP_LOGCONFIG(TAG, "    Away Default Target Temperature High: %.1f°C",
-                      this->away_config_.default_temperature_high);
+        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature High: %.1f°C", preset_name, it->second.default_temperature_high);
       } else {
-        ESP_LOGCONFIG(TAG, "    Away Default Target Temperature High: %.1f°C", this->away_config_.default_temperature);
+        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature High: %.1f°C", preset_name, it->second.default_temperature);
       }
     }
   }
