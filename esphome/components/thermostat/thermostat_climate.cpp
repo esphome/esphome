@@ -1179,7 +1179,7 @@ void ThermostatClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports SWING MODE HORIZONTAL: %s", YESNO(this->supports_swing_mode_horizontal_));
   ESP_LOGCONFIG(TAG, "  Supports SWING MODE VERTICAL: %s", YESNO(this->supports_swing_mode_vertical_));
   ESP_LOGCONFIG(TAG, "  Supports TWO SET POINTS: %s", YESNO(this->supports_two_points_));
-  
+
   ESP_LOGCONFIG(TAG, "  Supported PRESETS: ");
   for (auto it = this->preset_config_.begin(); it != this->preset_config_.end(); it++) {
     auto preset_name = LOG_STR_ARG(climate::climate_preset_to_string(it->first));
