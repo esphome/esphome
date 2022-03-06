@@ -231,8 +231,8 @@ class LambdaExpression(Expression):
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
         cpp += " {\n"
-        if self.source is not None:
-            cpp += f"{self.source.as_line_directive}\n"
+        #        if self.source is not None:
+        #            cpp += f"{self.source.as_line_directive}\n"
         cpp += f"{self.content}\n}}"
         return indent_all_but_first_and_last(cpp)
 
@@ -714,7 +714,7 @@ class MockObj(Expression):
 
     def __getattr__(self, attr: str) -> "MockObj":
         # prevent python dunder methods being replaced by mock objects
-        if attr.startswith("__"):
+        if attr.startswith("__") and attr.endswith("__"):
             raise AttributeError()
         next_op = "."
         if attr.startswith("P") and self.op not in ["::", ""]:
@@ -776,6 +776,10 @@ class MockObj(Expression):
             return MockObj(f"{self.base} *const", "")
         if name == "const":
             return MockObj(f"const {self.base}", "")
+        if name == "addr":
+            op = UnaryOpExpression("&", self)
+            return MockObj(op)
+
         raise ValueError("Expected one of ref, ptr, const_ptr, const.")
 
     @property

@@ -7,56 +7,87 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
+static const char* TAG = "display.widgets";
+
 namespace esphome {
 namespace display {
 
-  int Widget::get_width() {
-    return 0;
-  }
-  int Widget::get_height() {
-    return 0;
+  /*
+    All widgets need to declare their preferred size by implementing get_size.
+    Container widgets need to calculate their preferred size from their child widgets' sizes.
+  */
+
+  void Widget::get_size(int *width, int *height) {
+    *width = *height = 0;
   }
 
-  void Widget::draw(DisplayBuffer* it) {
-    return draw(it, 0, 0, it.get_width(), it.get_height());
+  void Widget::draw_fullscreen(DisplayBuffer& it) {
+    int width, height;
+    // Trigger sizing
+    get_size(&width, &height);
+    ESP_LOGV(TAG, "Minimum size is (%d, %d)", width, height);
+
+    it.fill(COLOR_ON);
+    return draw(&it, 0, 0, it.get_width(), it.get_height());
+  }
+
+  void WidgetContainer::get_size(int *width, int *height) {
+    *width = 0, *height = 0;
+    for (auto& child : children_) {
+        child.widget_->get_size(&child.preferred_width, &child.preferred_height);
+        *width = std::max(*width, child.preferred_width);
+        *height = std::max(*height, child.preferred_height);
+    }
   }
 
   void WidgetContainer::draw(DisplayBuffer* it, int x1, int y1, int width, int height) {
-    for (auto *widget : children_) {
-      widget->draw(it, x1, y1, width, height);
+    for (auto child : children_) {
+      child.widget_->draw(it, x1, y1, width, height);
     }
   }
 
-  int Horizontal::get_width() {
-    int ret = 0;
-    for (auto *widget : children_) {
-      ret += widget->get_width();
+  void Horizontal::get_size(int *width, int *height) {
+    WidgetContainer::get_size(width, height);
+    *width = 0;
+    for (auto child : children_) {
+      *width += child.preferred_width;
     }
-    return ret;
   }
 
   void Horizontal::draw(DisplayBuffer* it, int x1, int y1, int width, int height) {
-    for (auto *widget : children_) {
-      width1 = widget->get_width();
-      widget->draw(it, x1, y1, width1, height);
-      x1 += width1;
+    ESP_LOGV(TAG, "Horizontal::draw at (%d, %d, %d, %d)", x1, y1, width, height);
+    for (auto child : children_) {
+      ESP_LOGV(TAG, "Drawing horizontal child at (%d, %d, %d, %d)", x1, y1, child.preferred_width, height);
+      child.widget_->draw(it, x1, y1, child.preferred_width, height);
+      x1 += child.preferred_width;
     }
   }
 
-  int Vertical::get_height() {
-    int ret = 0;
-    for (auto *widget : children_) {
-      ret += widget->get_height();
+  void Vertical::get_size(int *width, int *height) {
+    WidgetContainer::get_size(width, height);
+    *height = 0;
+    for (auto child : children_) {
+      *height += child.preferred_height;
     }
-    return ret;
   }
 
   void Vertical::draw(DisplayBuffer* it, int x1, int y1, int width, int height) {
-    for (auto *widget : children_) {
-      height1 = widget->get_height();
-      widget->draw(it, x1, y1, width, height1);
-      y1 += height1;
+    ESP_LOGV(TAG, "Vertical::draw at (%d, %d, %d, %d)", x1, y1, width, height);
+    for (auto child : children_) {
+      ESP_LOGV(TAG, "Drawing vertical child at (%d, %d, %d, %d)", x1, y1, width, child.preferred_height);
+      child.widget_->draw(it, x1, y1, width, child.preferred_height);
+      y1 += child.preferred_height;
     }
+  }
+
+  template<> void Text<>::get_size(int *width, int *height) {
+    cached_text_ = text_.value();
+    int unused_x_offset, unused_baseline;
+    font_->measure(cached_text_.c_str(), width, &unused_x_offset, &unused_baseline, height);
+  }
+
+  template<> void Text<>::draw(DisplayBuffer* it, int x1, int y1, int width, int height) {
+    it->print(x1, y1, font_, COLOR_OFF, cached_text_.c_str());
   }
 
 }  // namespace display

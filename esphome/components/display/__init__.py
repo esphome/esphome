@@ -69,6 +69,8 @@ BASIC_DISPLAY_SCHEMA = cv.Schema(
     }
 )
 
+CONF_WIDGET_CONTAINER_ID = "widget_container_id"
+
 CONF_X = "x"
 CONF_Y = "y"
 CONF_WIDTH = "width"
@@ -77,6 +79,7 @@ CONF_HEIGHT = "height"
 
 def WidgetSchema(x):
     return WIDGET_SCHEMA(x)
+
 
 BASE_WIDGET_SCHEMA = cv.Schema(
     {
@@ -107,16 +110,21 @@ VERTICAL_SCHEMA = cv.Schema(
     },
 ).extend(BASE_WIDGET_SCHEMA)
 
+
 def use_font_id(value):
     from esphome.components import font
+
     return cv.use_id(font.Font)(value)
+
 
 TEXT_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(Text),
+        cv.GenerateID(): cv.declare_id(Text.template()),
         cv.Required("text"): cv.templatable(cv.string),
         cv.Required("font"): use_font_id,
-        cv.Optional("source"): cv.Any(cv.use_id(sensor.Sensor), cv.use_id(text_sensor.TextSensor)),
+        cv.Optional("source"): cv.Any(
+            cv.use_id(sensor.Sensor), cv.use_id(text_sensor.TextSensor)
+        ),
     },
 )
 
@@ -133,9 +141,12 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
             cv.ensure_list(
                 {
                     cv.GenerateID(): cv.declare_id(DisplayPage),
+                    cv.GenerateID(CONF_WIDGET_CONTAINER_ID): cv.declare_id(
+                        WidgetContainer
+                    ),
                     cv.Optional(CONF_WIDGETS): cv.ensure_list(WidgetSchema),
                     cv.Optional(CONF_LAMBDA): cv.lambda_,
-                    }
+                }
             ),
             cv.Length(min=1),
         ),
@@ -168,7 +179,9 @@ async def setup_display_core_(var, config):
                     conf[CONF_LAMBDA], [(DisplayBufferRef, "it")], return_type=cg.void
                 )
             elif CONF_WIDGETS in conf:
-                lambda_ = await setup_widgets(conf[CONF_WIDGETS])
+                lambda_ = await setup_widgets(
+                    conf[CONF_WIDGET_CONTAINER_ID], conf[CONF_WIDGETS]
+                )
             page = cg.new_Pvariable(conf[CONF_ID], lambda_)
             pages.append(page)
         cg.add(var.set_pages(pages))
@@ -183,6 +196,7 @@ async def setup_display_core_(var, config):
         await automation.build_automation(
             trigger, [(DisplayPagePtr, "from"), (DisplayPagePtr, "to")], conf
         )
+
 
 async def setup_widget(conf) -> WidgetRef:
     var = cg.new_Pvariable(conf[CONF_ID])
@@ -199,14 +213,20 @@ async def setup_widget(conf) -> WidgetRef:
         cg.add(var.set_font(font))
     return var
 
-async def setup_widgets(widgets):
-    var = cg.new_Pvariable(core.ID(None, type=WidgetContainer))
+
+async def setup_widgets(widget_container_id, widgets):
+    var = cg.new_Pvariable(widget_container_id)
     children = []
     for conf in widgets:
         w = await setup_widget(conf)
         children.append(w)
     cg.add(var.set_children(children))
-    return var.draw
+    return cg.std_ns.bind(
+        display_ns.namespace("WidgetContainer").draw_fullscreen.operator("addr"),
+        var,
+        cg.std_ns.namespace("placeholders").namespace("_1"),
+    )
+
 
 async def register_display(var, config):
     await setup_display_core_(var, config)
