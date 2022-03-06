@@ -80,8 +80,20 @@ namespace display {
     }
   }
 
+  template<> void Text<>::calculate_text_() {
+    std::string text = text_.value();
+    if (source_ != NULL && source_->has_state()) {
+      cached_text_.resize(256);
+      snprintf(&cached_text_[0], cached_text_.size(), text.c_str(), source_->state);
+    } else if (source_text_ != NULL && source_text_->has_state()) {
+      cached_text_.resize(256);
+      snprintf(&cached_text_[0], cached_text_.size(), text.c_str(), source_text_->state.c_str());
+    } else {
+      cached_text_ = text;
+    }
+  }
   template<> void Text<>::get_size(int *width, int *height) {
-    cached_text_ = text_.value();
+    calculate_text_();
     int unused_x_offset, unused_baseline;
     font_->measure(cached_text_.c_str(), width, &unused_x_offset, &unused_baseline, height);
   }

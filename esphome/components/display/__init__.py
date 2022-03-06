@@ -122,9 +122,8 @@ TEXT_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(Text.template()),
         cv.Required("text"): cv.templatable(cv.string),
         cv.Required("font"): use_font_id,
-        cv.Optional("source"): cv.Any(
-            cv.use_id(sensor.Sensor), cv.use_id(text_sensor.TextSensor)
-        ),
+        cv.Exclusive("sensor", "sensor"): cv.use_id(sensor.Sensor),
+        cv.Exclusive("text_sensor", "sensor"): cv.use_id(text_sensor.TextSensor),
     },
 )
 
@@ -208,6 +207,10 @@ async def setup_widget(conf) -> WidgetRef:
         cg.add(var.set_children(children))
     elif "text" in conf:
         text = await cg.templatable(conf["text"], (), cg.std_string)
+        for key in ("sensor", "text_sensor"):
+            if key in conf:
+                sensor = await cg.get_variable(conf[key])
+                cg.add(var.set_sensor(sensor))
         cg.add(var.set_text(text))
         font = await cg.get_variable(conf["font"])
         cg.add(var.set_font(font))

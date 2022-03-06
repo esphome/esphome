@@ -231,8 +231,8 @@ class LambdaExpression(Expression):
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
         cpp += " {\n"
-        #        if self.source is not None:
-        #            cpp += f"{self.source.as_line_directive}\n"
+        if self.source is not None:
+            cpp += f"{self.source.as_line_directive}\n"
         cpp += f"{self.content}\n}}"
         return indent_all_but_first_and_last(cpp)
 

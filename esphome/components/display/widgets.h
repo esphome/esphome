@@ -4,6 +4,8 @@
 #include "esphome/core/defines.h"
 
 #include "esphome/components/display/display_buffer.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/text_sensor/text_sensor.h"
 
 namespace esphome {
 namespace display {
@@ -61,10 +63,17 @@ template<typename... Ts>  class Text : public Widget {
 
   virtual void get_size(int *width, int *height);
 
-   virtual void draw(DisplayBuffer* it, int x1, int y1, int width, int height);
+  virtual void draw(DisplayBuffer* it, int x1, int y1, int width, int height);
+
+  void set_sensor(sensor::Sensor *sensor) { source_ = sensor; source_text_ = NULL; }
+  void set_sensor(text_sensor::TextSensor *sensor) { source_text_ = sensor; source_ = NULL; }
+
  protected:
-   Font* font_;
+  Font* font_;
+  void calculate_text_();
   std::string cached_text_;
+  sensor::Sensor *source_;
+  text_sensor::TextSensor *source_text_;
 };
 
 }  // namespace display
