@@ -82,6 +82,7 @@ CLIMATE_MODES = {
 }
 validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
+ClimatePreset = climate_ns.enum("ClimatePreset")
 
 def validate_thermostat(config):
     # verify corresponding action(s) exist(s) for any defined climate mode or action
@@ -531,7 +532,7 @@ async def to_code(config):
     cg.add(var.set_supports_fan_with_heating(config[CONF_FAN_WITH_HEATING]))
 
     cg.add(var.set_use_startup_delay(config[CONF_STARTUP_DELAY]))
-    cg.add(var.set_normal_config(normal_config))
+    cg.add(var.set_preset_config(ClimatePreset.CLIMATE_PRESET_HOME, normal_config))
 
     await automation.build_automation(
         var.get_idle_action_trigger(), [], config[CONF_IDLE_ACTION]
@@ -694,4 +695,5 @@ async def to_code(config):
             away_config = ThermostatClimateTargetTempConfig(
                 away[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
             )
-        cg.add(var.set_away_config(away_config))
+        cg.add(var.set_preset_config(ClimatePreset.CLIMATE_PRESET_AWAY, away_config))
+

@@ -4,6 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
+#include <map>
 
 namespace esphome {
 namespace thermostat {
@@ -94,8 +95,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   void set_supports_swing_mode_vertical(bool supports_swing_mode_vertical);
   void set_supports_two_points(bool supports_two_points);
 
-  void set_normal_config(const ThermostatClimateTargetTempConfig &normal_config);
-  void set_away_config(const ThermostatClimateTargetTempConfig &away_config);
+  void set_preset_config(climate::ClimatePreset preset, const ThermostatClimateTargetTempConfig &config);
 
   Trigger<> *get_cool_action_trigger() const;
   Trigger<> *get_supplemental_cool_action_trigger() const;
@@ -149,8 +149,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
 
-  /// Change the away setting, will reset target temperatures to defaults.
-  void change_away_(bool away);
+  /// Change to a provided preset setting, will reset target temperatures to defaults for that preset
+  void change_preset_(climate::ClimatePreset preset);
 
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
@@ -267,12 +267,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// A false value means that the controller has no such support.
   bool supports_two_points_{false};
 
-  /// Whether the controller supports an "away" mode
-  ///
-  /// A false value means that the controller has no such mode.
-  bool supports_away_{false};
-
-  /// Flags indicating if maximum allowable run time was exceeded
+    /// Flags indicating if maximum allowable run time was exceeded
   bool cooling_max_runtime_exceeded_{false};
   bool heating_max_runtime_exceeded_{false};
 
@@ -409,9 +404,6 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Minimum allowable duration in seconds for action timers
   const uint8_t min_timer_duration_{1};
 
-  /// Temperature data for normal/home and away modes
-  ThermostatClimateTargetTempConfig normal_config_{};
-  ThermostatClimateTargetTempConfig away_config_{};
 
   /// Climate action timers
   std::vector<ThermostatClimateTimer> timer_{
@@ -425,6 +417,9 @@ class ThermostatClimate : public climate::Climate, public Component {
       {"heat_off", false, 0, std::bind(&ThermostatClimate::heating_off_timer_callback_, this)},
       {"heat_on", false, 0, std::bind(&ThermostatClimate::heating_on_timer_callback_, this)},
       {"idle_on", false, 0, std::bind(&ThermostatClimate::idle_on_timer_callback_, this)}};
+
+  /// The set of temperature configurations this thermostat supports (Eg. AWAY, ECO, etc)
+  std::map<climate::ClimatePreset, ThermostatClimateTargetTempConfig> preset_config_{};
 };
 
 }  // namespace thermostat
