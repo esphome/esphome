@@ -236,8 +236,8 @@ climate::ClimateTraits ThermostatClimate::traits() {
   if (supports_swing_mode_vertical_)
     traits.add_supported_swing_mode(climate::CLIMATE_SWING_VERTICAL);
 
-  for (auto it = this->preset_config_.begin(); it != this->preset_config_.end(); it++) {
-    traits.add_supported_preset(it->first);
+  for (auto & it : this->preset_config_) {
+    traits.add_supported_preset(it.first);
   }
 
   traits.set_supports_two_point_target_temperature(this->supports_two_points_);
@@ -1183,7 +1183,7 @@ void ThermostatClimate::dump_config() {
 
   ESP_LOGCONFIG(TAG, "  Supported PRESETS: ");
   for (auto it = this->preset_config_.begin(); it != this->preset_config_.end(); it++) {
-    auto preset_name = LOG_STR_ARG(climate::climate_preset_to_string(it->first));
+    const auto *preset_name = LOG_STR_ARG(climate::climate_preset_to_string(it->first));
 
     ESP_LOGCONFIG(TAG, "  Supports %s: %s", preset_name, YESNO(true));
     if (this->supports_heat_) {
