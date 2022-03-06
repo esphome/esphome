@@ -930,7 +930,8 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   }
 }
 
-void ThermostatClimate::set_preset_config(climate::ClimatePreset preset, const ThermostatClimateTargetTempConfig &config) {
+void ThermostatClimate::set_preset_config(climate::ClimatePreset preset
+                                          const ThermostatClimateTargetTempConfig &config) {
   this->preset_config_[preset] = config;
 }
 
@@ -1187,16 +1188,20 @@ void ThermostatClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "  Supports %s: %s", preset_name, YESNO(true));
     if (this->supports_heat_) {
       if (this->supports_two_points_) {
-        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature Low: %.1f°C", preset_name, it->second.default_temperature_low);
+        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature Low: %.1f°C", preset_name,
+                      it->second.default_temperature_low);
       } else {
-        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature Low: %.1f°C", preset_name, it->second.default_temperature);
+        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature Low: %.1f°C", preset_name,
+                      it->second.default_temperature);
       }
     }
     if ((this->supports_cool_) || (this->supports_fan_only_)) {
       if (this->supports_two_points_) {
-        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature High: %.1f°C", preset_name, it->second.default_temperature_high);
+        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature High: %.1f°C", preset_name,
+                      it->second.default_temperature_high);
       } else {
-        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature High: %.1f°C", preset_name, it->second.default_temperature);
+        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature High: %.1f°C", 
+                      preset_name, it->second.default_temperature);
       }
     }
   }
