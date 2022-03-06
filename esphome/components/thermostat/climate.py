@@ -710,8 +710,8 @@ async def to_code(config):
         cg.add(var.set_preset_config(ClimatePreset.CLIMATE_PRESET_AWAY, away_config))
 
     if CONF_PRESET in config:
-        for preset in climate.CLIMATE_PRESETS.items():
-            preset_label = preset.lower()
+        for label, preset in climate.CLIMATE_PRESETS.items():
+            preset_label = label.lower()
 
             if preset_label not in config[CONF_PRESET]:
                 continue
@@ -732,4 +732,4 @@ async def to_code(config):
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
                 )
 
-            cg.add(var.set_preset_config(climate.CLIMATE_PRESETS[preset], preset_target_config))
+            cg.add(var.set_preset_config(preset, preset_target_config))

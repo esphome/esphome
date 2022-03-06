@@ -930,7 +930,7 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   }
 }
 
-void ThermostatClimate::set_preset_config(climate::ClimatePreset preset
+void ThermostatClimate::set_preset_config(climate::ClimatePreset preset,
                                           const ThermostatClimateTargetTempConfig &config) {
   this->preset_config_[preset] = config;
 }
