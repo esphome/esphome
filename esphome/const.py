@@ -937,6 +937,9 @@ STATE_CLASS_NONE = ""
 # The state represents a measurement in present time
 STATE_CLASS_MEASUREMENT = "measurement"
 
+# The state represents a total that can both increase and decrease, e.g. a net energy meter.
+STATE_CLASS_TOTAL = "total"
+
 # The state represents a total that only increases, a decrease is considered a reset.
 STATE_CLASS_TOTAL_INCREASING = "total_increasing"
 
