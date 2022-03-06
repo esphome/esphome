@@ -1200,8 +1200,8 @@ void ThermostatClimate::dump_config() {
         ESP_LOGCONFIG(TAG, "    %s Default Target Temperature High: %.1f°C", preset_name,
                       it->second.default_temperature_high);
       } else {
-        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature High: %.1f°C", 
-                      preset_name, it->second.default_temperature);
+        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature High: %.1f°C", preset_name,
+                      it->second.default_temperature);
       }
     }
   }
