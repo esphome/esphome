@@ -72,6 +72,9 @@ class AcDimmer : public output::FloatOutput, public Component {
   AcDimmerDataStore store_;
   bool init_with_half_cycle_;
   DimMethod method_;
+  /// RB- for ds module initialization
+  int32_t ds_integrator_;
+  uint16_t ds_feedback_;
 };
 
 }  // namespace ac_dimmer
