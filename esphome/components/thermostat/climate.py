@@ -92,6 +92,7 @@ PRESET_CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+
 def validate_thermostat(config):
     # verify corresponding action(s) exist(s) for any defined climate mode or action
     requirements = {
@@ -425,7 +426,7 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_PRESET): cv.Schema(
-                    { cv.Optional(preset.lower()): PRESET_CONFIG_SCHEMA for preset in climate.CLIMATE_PRESETS }
+                {cv.Optional(preset.lower()): PRESET_CONFIG_SCHEMA for preset in climate.CLIMATE_PRESETS}
             )
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -709,7 +710,7 @@ async def to_code(config):
         cg.add(var.set_preset_config(ClimatePreset.CLIMATE_PRESET_AWAY, away_config))
 
     if CONF_PRESET in config:
-        for preset in climate.CLIMATE_PRESETS:
+        for preset in climate.CLIMATE_PRESETS.items():
             preset_label = preset.lower()
 
             if preset_label not in config[CONF_PRESET]:
