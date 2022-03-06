@@ -58,6 +58,7 @@ from esphome.const import (
     CONF_SWING_OFF_ACTION,
     CONF_SWING_VERTICAL_ACTION,
     CONF_TARGET_TEMPERATURE_CHANGE_ACTION,
+    CONF_PRESET,
 )
 
 CODEOWNERS = ["@kbx81"]
@@ -83,6 +84,13 @@ CLIMATE_MODES = {
 validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
 ClimatePreset = climate_ns.enum("ClimatePreset")
+
+PRESET_CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
+        cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
+    }
+)
 
 
 def validate_thermostat(config):
@@ -417,6 +425,12 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
                 }
             ),
+            cv.Optional(CONF_PRESET): cv.Schema(
+                {
+                    cv.Optional(preset.lower()): PRESET_CONFIG_SCHEMA
+                    for preset in climate.CLIMATE_PRESETS
+                }
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(
@@ -697,3 +711,32 @@ async def to_code(config):
                 away[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
             )
         cg.add(var.set_preset_config(ClimatePreset.CLIMATE_PRESET_AWAY, away_config))
+
+    if CONF_PRESET in config:
+        for preset in climate.CLIMATE_PRESETS:
+            preset_label = preset.lower()
+
+            if preset_label not in config[CONF_PRESET]:
+                continue
+
+            preset_config = config[CONF_PRESET][preset_label]
+
+            if two_points_available is True:
+                preset_target_config = ThermostatClimateTargetTempConfig(
+                    preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
+                    preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH],
+                )
+            elif CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in away:
+                preset_target_config = ThermostatClimateTargetTempConfig(
+                    preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
+                )
+            elif CONF_DEFAULT_TARGET_TEMPERATURE_LOW in away:
+                preset_target_config = ThermostatClimateTargetTempConfig(
+                    preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
+                )
+
+            cg.add(
+                var.set_preset_config(
+                    climate.CLIMATE_PRESETS[preset], preset_target_config
+                )
+            )
