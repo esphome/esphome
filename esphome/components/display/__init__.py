@@ -36,6 +36,7 @@ DisplayIsDisplayingPageCondition = display_ns.class_(
 DisplayOnPageChangeTrigger = display_ns.class_(
     "DisplayOnPageChangeTrigger", automation.Trigger
 )
+TextAlign = display_ns.enum("TextAlign", is_class=True)
 
 Widget = display_ns.class_("Widget")
 WidgetRef = Widget.operator("ref")
@@ -117,6 +118,22 @@ def use_font_id(value):
     return cv.use_id(font.Font)(value)
 
 
+_ALIGN = {
+    "TOP_LEFT": TextAlign.TOP_LEFT,
+    "TOP_CENTER": TextAlign.TOP_CENTER,
+    "TOP_RIGHT": TextAlign.TOP_RIGHT,
+    "CENTER_LEFT": TextAlign.CENTER_LEFT,
+    "CENTER": TextAlign.CENTER,
+    "CENTER_RIGHT": TextAlign.CENTER_RIGHT,
+    "BASELINE_LEFT": TextAlign.BASELINE_LEFT,
+    "BASELINE_CENTER": TextAlign.BASELINE_CENTER,
+    "BASELINE_RIGHT": TextAlign.BASELINE_RIGHT,
+    "BOTTOM_LEFT": TextAlign.BOTTOM_LEFT,
+    "BOTTOM_CENTER": TextAlign.BOTTOM_CENTER,
+    "BOTTOM_RIGHT": TextAlign.BOTTOM_RIGHT,
+}
+
+
 TEXT_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Text.template()),
@@ -124,6 +141,9 @@ TEXT_SCHEMA = cv.Schema(
         cv.Required("font"): use_font_id,
         cv.Exclusive("sensor", "sensor"): cv.use_id(sensor.Sensor),
         cv.Exclusive("text_sensor", "sensor"): cv.use_id(text_sensor.TextSensor),
+        cv.Optional("align", default="top left"): cv.enum(
+            _ALIGN, upper=True, space="_"
+        ),
     },
 )
 
@@ -206,6 +226,7 @@ async def setup_widget(conf) -> WidgetRef:
             children.append(w)
         cg.add(var.set_children(children))
     elif "text" in conf:
+        cg.add(var.set_textalign(conf["align"].enum_value))
         text = await cg.templatable(conf["text"], (), cg.std_string)
         for key in ("sensor", "text_sensor"):
             if key in conf:

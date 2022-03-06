@@ -99,7 +99,21 @@ namespace display {
   }
 
   template<> void Text<>::draw(DisplayBuffer* it, int x1, int y1, int width, int height) {
-    it->print(x1, y1, font_, COLOR_OFF, cached_text_.c_str());
+    auto x_align = TextAlign(int(align_) & 0x18);
+    auto y_align = TextAlign(int(align_) & 0x07);
+    if (x_align == TextAlign::RIGHT) {
+      x1 += width;
+    } else if (x_align == TextAlign::CENTER_HORIZONTAL) {
+      x1 += width/2;
+    }
+    if (y_align == TextAlign::BOTTOM) {
+      y1 += height;
+    } if (y_align == TextAlign::BASELINE) {
+      y1 += (height*3)/4;
+    } else if (y_align == TextAlign::CENTER_VERTICAL) {
+      y1 += height/2;
+    }
+    it->print(x1, y1, font_, COLOR_OFF, align_, cached_text_.c_str());
   }
 
 }  // namespace display

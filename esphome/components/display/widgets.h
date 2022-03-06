@@ -60,6 +60,7 @@ template<typename... Ts>  class Text : public Widget {
  public:
    TEMPLATABLE_VALUE(std::string, text);
   void set_font(Font* font) { font_ = font; }
+  void set_textalign(TextAlign align) { align_ = align; }
 
   virtual void get_size(int *width, int *height);
 
@@ -70,6 +71,7 @@ template<typename... Ts>  class Text : public Widget {
 
  protected:
   Font* font_;
+  TextAlign align_ = TextAlign::TOP_LEFT;
   void calculate_text_();
   std::string cached_text_;
   sensor::Sensor *source_;
