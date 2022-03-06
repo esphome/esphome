@@ -90,7 +90,7 @@ PRESET_CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature
     }
-)  
+)
 
 def validate_thermostat(config):
     # verify corresponding action(s) exist(s) for any defined climate mode or action
