@@ -43,7 +43,7 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
   // RB- added condition to DS_MODULATOR method
   // RB- DS first order modulator implemented here
   if (this->method == DS_MODULATOR_HALF || this->method == DS_MODULATOR_FULL) {
-    if(this->ds_flag && time_since_zc > GATE_ENABLE_TIME) {
+    if (this->ds_flag && time_since_zc > GATE_ENABLE_TIME) {
       this->gate_pin.digital_write(false);
       if (this->ds_odd) {
         this->ds_integrator += this->value - this->ds_feedback;
@@ -54,7 +54,7 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
           this->ds_trigger = false;
           this->ds_feedback = 0;
         }
-        if(this->method == DS_MODULATOR_FULL) {
+        if (this->method == DS_MODULATOR_FULL) {
           this->ds_odd = false;
         }
       } else {
