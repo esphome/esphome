@@ -59,7 +59,8 @@ class BLECharacteristic {
   void parse_descriptors();
   BLEDescriptor *get_descriptor(espbt::ESPBTUUID uuid);
   BLEDescriptor *get_descriptor(uint16_t uuid);
-
+  void write_value(uint8_t *new_val, int16_t new_val_size);
+  void write_value(uint8_t *new_val, int16_t new_val_size, esp_gatt_write_type_t write_type);
   BLEService *service;
 };
 
@@ -81,6 +82,7 @@ class BLEClient : public espbt::ESPBTClient, public Component {
   void setup() override;
   void dump_config() override;
   void loop() override;
+  float get_setup_priority() const override;
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
@@ -125,9 +127,10 @@ class BLEClient : public espbt::ESPBTClient, public Component {
   bool all_nodes_established_() {
     if (this->state() != espbt::ClientState::ESTABLISHED)
       return false;
-    for (auto &node : nodes_)
+    for (auto &node : nodes_) {
       if (node->node_state != espbt::ClientState::ESTABLISHED)
         return false;
+    }
     return true;
   }
 

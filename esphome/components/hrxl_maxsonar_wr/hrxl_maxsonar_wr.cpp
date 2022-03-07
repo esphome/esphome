@@ -44,7 +44,7 @@ void HrxlMaxsonarWrComponent::check_buffer_() {
 
     if (this->buffer_.length() == MAX_DATA_LENGTH_BYTES && this->buffer_[0] == 'R' &&
         this->buffer_.back() == static_cast<char>(ASCII_CR)) {
-      int millimeters = strtol(this->buffer_.substr(1, MAX_DATA_LENGTH_BYTES - 2).c_str(), nullptr, 10);
+      int millimeters = parse_number<int>(this->buffer_.substr(1, MAX_DATA_LENGTH_BYTES - 2)).value_or(0);
       float meters = float(millimeters) / 1000.0;
       ESP_LOGV(TAG, "Distance from sensor: %d mm, %f m", millimeters, meters);
       this->publish_state(meters);

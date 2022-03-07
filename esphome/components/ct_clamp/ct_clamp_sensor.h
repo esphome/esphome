@@ -43,6 +43,7 @@ class CTClampSensor : public sensor::Sensor, public PollingComponent {
    * https://en.wikipedia.org/wiki/Root_mean_square
    */
 
+  float last_value_ = 0.0f;
   float sample_sum_ = 0.0f;
   float sample_squared_sum_ = 0.0f;
   uint32_t num_samples_ = 0;

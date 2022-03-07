@@ -1,5 +1,6 @@
 #pragma once
-#include "fan_state.h"
+
+#include "fan.h"
 
 namespace esphome {
 namespace fan {

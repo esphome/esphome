@@ -31,18 +31,21 @@ uint16_t DallasTemperatureSensor::millis_to_wait_for_conversion() const {
 void DallasComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DallasComponent...");
 
-  yield();
+  pin_->setup();
+
+  // clear bus with 480µs high, otherwise initial reset in search_vec() fails
+  pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+  delayMicroseconds(480);
+
+  one_wire_ = new ESPOneWire(pin_);  // NOLINT(cppcoreguidelines-owning-memory)
+
   std::vector<uint64_t> raw_sensors;
-  {
-    InterruptLock lock;
-    raw_sensors = this->one_wire_->search_vec();
-  }
+  raw_sensors = this->one_wire_->search_vec();
 
   for (auto &address : raw_sensors) {
-    std::string s = uint64_to_string(address);
     auto *address8 = reinterpret_cast<uint8_t *>(&address);
     if (crc8(address8, 7) != address8[7]) {
-      ESP_LOGW(TAG, "Dallas device 0x%s has invalid CRC.", s.c_str());
+      ESP_LOGW(TAG, "Dallas device 0x%s has invalid CRC.", format_hex(address).c_str());
       continue;
     }
     if (address8[0] != DALLAS_MODEL_DS18S20 && address8[0] != DALLAS_MODEL_DS1822 &&
@@ -54,7 +57,7 @@ void DallasComponent::setup() {
     this->found_sensors_.push_back(address);
   }
 
-  for (auto sensor : this->sensors_) {
+  for (auto *sensor : this->sensors_) {
     if (sensor->get_index().has_value()) {
       if (*sensor->get_index() >= this->found_sensors_.size()) {
         this->status_set_error();
@@ -70,7 +73,7 @@ void DallasComponent::setup() {
 }
 void DallasComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "DallasComponent:");
-  LOG_PIN("  Pin: ", this->one_wire_->get_pin());
+  LOG_PIN("  Pin: ", this->pin_);
   LOG_UPDATE_INTERVAL(this);
 
   if (this->found_sensors_.empty()) {
@@ -78,8 +81,7 @@ void DallasComponent::dump_config() {
   } else {
     ESP_LOGD(TAG, "  Found sensors:");
     for (auto &address : this->found_sensors_) {
-      std::string s = uint64_to_string(address);
-      ESP_LOGD(TAG, "    0x%s", s.c_str());
+      ESP_LOGD(TAG, "    0x%s", format_hex(address).c_str());
     }
   }
 
@@ -104,28 +106,26 @@ void DallasComponent::update() {
   bool result;
   {
     InterruptLock lock;
-    if (!this->one_wire_->reset()) {
-      result = false;
-    } else {
-      result = true;
-      this->one_wire_->skip();
-      this->one_wire_->write8(DALLAS_COMMAND_START_CONVERSION);
-    }
+    result = this->one_wire_->reset();
   }
-
   if (!result) {
     ESP_LOGE(TAG, "Requesting conversion failed");
     this->status_set_warning();
+    for (auto *sensor : this->sensors_) {
+      sensor->publish_state(NAN);
+    }
     return;
+  }
+
+  {
+    InterruptLock lock;
+    this->one_wire_->skip();
+    this->one_wire_->write8(DALLAS_COMMAND_START_CONVERSION);
   }
 
   for (auto *sensor : this->sensors_) {
     this->set_timeout(sensor->get_address_name(), sensor->millis_to_wait_for_conversion(), [this, sensor] {
-      bool res;
-      {
-        InterruptLock lock;
-        res = sensor->read_scratch_pad();
-      }
+      bool res = sensor->read_scratch_pad();
 
       if (!res) {
         ESP_LOGW(TAG, "'%s' - Resetting bus for read failed!", sensor->get_name().c_str());
@@ -146,7 +146,6 @@ void DallasComponent::update() {
     });
   }
 }
-DallasComponent::DallasComponent(ESPOneWire *one_wire) : one_wire_(one_wire) {}
 
 void DallasTemperatureSensor::set_address(uint64_t address) { this->address_ = address; }
 uint8_t DallasTemperatureSensor::get_resolution() const { return this->resolution_; }
@@ -156,31 +155,37 @@ void DallasTemperatureSensor::set_index(uint8_t index) { this->index_ = index; }
 uint8_t *DallasTemperatureSensor::get_address8() { return reinterpret_cast<uint8_t *>(&this->address_); }
 const std::string &DallasTemperatureSensor::get_address_name() {
   if (this->address_name_.empty()) {
-    this->address_name_ = std::string("0x") + uint64_to_string(this->address_);
+    this->address_name_ = std::string("0x") + format_hex(this->address_);
   }
 
   return this->address_name_;
 }
 bool IRAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
-  ESPOneWire *wire = this->parent_->one_wire_;
-  if (!wire->reset()) {
-    return false;
+  auto *wire = this->parent_->one_wire_;
+
+  {
+    InterruptLock lock;
+
+    if (!wire->reset()) {
+      return false;
+    }
   }
 
-  wire->select(this->address_);
-  wire->write8(DALLAS_COMMAND_READ_SCRATCH_PAD);
+  {
+    InterruptLock lock;
 
-  for (unsigned char &i : this->scratch_pad_) {
-    i = wire->read8();
+    wire->select(this->address_);
+    wire->write8(DALLAS_COMMAND_READ_SCRATCH_PAD);
+
+    for (unsigned char &i : this->scratch_pad_) {
+      i = wire->read8();
+    }
   }
+
   return true;
 }
 bool DallasTemperatureSensor::setup_sensor() {
-  bool r;
-  {
-    InterruptLock lock;
-    r = this->read_scratch_pad();
-  }
+  bool r = this->read_scratch_pad();
 
   if (!r) {
     ESP_LOGE(TAG, "Reading scratchpad failed: reset");
@@ -214,7 +219,7 @@ bool DallasTemperatureSensor::setup_sensor() {
       break;
   }
 
-  ESPOneWire *wire = this->parent_->one_wire_;
+  auto *wire = this->parent_->one_wire_;
   {
     InterruptLock lock;
     if (wire->reset()) {
@@ -253,7 +258,7 @@ float DallasTemperatureSensor::get_temp_c() {
 
   return temp / 128.0f;
 }
-std::string DallasTemperatureSensor::unique_id() { return "dallas-" + uint64_to_string(this->address_); }
+std::string DallasTemperatureSensor::unique_id() { return "dallas-" + str_lower_case(format_hex(this->address_)); }
 
 }  // namespace dallas
 }  // namespace esphome

@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_RESTORE_MODE,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
+    CONF_ON_STATE,
     CONF_TRIGGER_ID,
     CONF_COLD_WHITE_COLOR_TEMPERATURE,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
@@ -37,6 +38,7 @@ from .types import (  # noqa
     AddressableLight,
     LightTurnOnTrigger,
     LightTurnOffTrigger,
+    LightStateTrigger,
 )
 
 CODEOWNERS = ["@esphome/core"]
@@ -50,6 +52,8 @@ RESTORE_MODES = {
     "ALWAYS_ON": LightRestoreMode.LIGHT_ALWAYS_ON,
     "RESTORE_INVERTED_DEFAULT_OFF": LightRestoreMode.LIGHT_RESTORE_INVERTED_DEFAULT_OFF,
     "RESTORE_INVERTED_DEFAULT_ON": LightRestoreMode.LIGHT_RESTORE_INVERTED_DEFAULT_ON,
+    "RESTORE_AND_OFF": LightRestoreMode.LIGHT_RESTORE_AND_OFF,
+    "RESTORE_AND_ON": LightRestoreMode.LIGHT_RESTORE_AND_ON,
 }
 
 LIGHT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
@@ -67,6 +71,11 @@ LIGHT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).ex
         cv.Optional(CONF_ON_TURN_OFF): auto.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOffTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_STATE): auto.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightStateTrigger),
             }
         ),
     }
@@ -149,6 +158,9 @@ async def setup_light_core_(light_var, output_var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
         await auto.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_TURN_OFF, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
+        await auto.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
         await auto.build_automation(trigger, [], conf)
 

@@ -9,6 +9,22 @@ namespace esp32 {
 
 static const char *const TAG = "esp32";
 
+static int IRAM_ATTR flags_to_mode(gpio::Flags flags) {
+  if (flags == gpio::FLAG_INPUT) {
+    return INPUT;
+  } else if (flags == gpio::FLAG_OUTPUT) {
+    return OUTPUT;
+  } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
+    return INPUT_PULLUP;
+  } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN)) {
+    return INPUT_PULLDOWN;
+  } else if (flags == (gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN)) {
+    return OUTPUT_OPEN_DRAIN;
+  } else {
+    return 0;
+  }
+}
+
 struct ISRPinArg {
   uint8_t pin;
   bool inverted;
@@ -43,22 +59,9 @@ void ArduinoInternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, g
 
   attachInterruptArg(pin_, func, arg, arduino_mode);
 }
+
 void ArduinoInternalGPIOPin::pin_mode(gpio::Flags flags) {
-  uint8_t mode;
-  if (flags == gpio::FLAG_INPUT) {
-    mode = INPUT;
-  } else if (flags == gpio::FLAG_OUTPUT) {
-    mode = OUTPUT;
-  } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
-    mode = INPUT_PULLUP;
-  } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN)) {
-    mode = INPUT_PULLDOWN;
-  } else if (flags == (gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN)) {
-    mode = OUTPUT_OPEN_DRAIN;
-  } else {
-    return;
-  }
-  pinMode(pin_, mode);  // NOLINT
+  pinMode(pin_, flags_to_mode(flags));  // NOLINT
 }
 
 std::string ArduinoInternalGPIOPin::dump_summary() const {
@@ -100,6 +103,10 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
     GPIO.status1_w1tc.intr_st = 1UL << (arg->pin - 32);
   }
 #endif
+}
+void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
+  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
+  pinMode(arg->pin, flags_to_mode(flags));  // NOLINT
 }
 
 }  // namespace esphome

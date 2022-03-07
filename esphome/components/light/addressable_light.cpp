@@ -79,7 +79,7 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
   // dynamically-calculated alpha values to match the look.
 
   float denom = (1.0f - smoothed_progress);
-  float alpha = denom == 0.0f ? 0.0f : (smoothed_progress - this->last_transition_progress_) / denom;
+  float alpha = denom == 0.0f ? 1.0f : (smoothed_progress - this->last_transition_progress_) / denom;
 
   // We need to use a low-resolution alpha here which makes the transition set in only after ~half of the length
   // We solve this by accumulating the fractional part of the alpha over time.

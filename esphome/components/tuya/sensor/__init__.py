@@ -1,13 +1,11 @@
 from esphome.components import sensor
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_SENSOR_DATAPOINT
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
 DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@jesserockz"]
-
-CONF_SENSOR_DATAPOINT = "sensor_datapoint"
 
 TuyaSensor = tuya_ns.class_("TuyaSensor", sensor.Sensor, cg.Component)
 

@@ -11,6 +11,7 @@ enum PMSX003Type {
   PMSX003_TYPE_X003 = 0,
   PMSX003_TYPE_5003T,
   PMSX003_TYPE_5003ST,
+  PMSX003_TYPE_5003S,
 };
 
 class PMSX003Component : public uart::UARTDevice, public Component {

@@ -29,6 +29,7 @@ CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
 CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
 CONF_AMBIENT_PRESSURE_COMPENSATION = "ambient_pressure_compensation"
 CONF_TEMPERATURE_OFFSET = "temperature_offset"
+CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE = "ambient_pressure_compensation_source"
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -62,6 +63,9 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.pressure,
             cv.Optional(CONF_TEMPERATURE_OFFSET, default="4°C"): cv.temperature,
+            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
+                sensor.Sensor
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -92,7 +96,10 @@ async def to_code(config):
             cg.add(getattr(var, funcName)(config[key]))
 
     for key, funcName in SENSOR_MAP.items():
-
         if key in config:
             sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, funcName)(sens))
+
+    if CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE in config:
+        sens = await cg.get_variable(config[CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE])
+        cg.add(var.set_ambient_pressure_source(sens))

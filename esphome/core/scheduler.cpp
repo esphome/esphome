@@ -32,7 +32,7 @@ void HOT Scheduler::set_timeout(Component *component, const std::string &name, u
   item->timeout = timeout;
   item->last_execution = now;
   item->last_execution_major = this->millis_major_;
-  item->f = std::move(func);
+  item->void_callback = std::move(func);
   item->remove = false;
   this->push_(std::move(item));
 }
@@ -65,13 +65,47 @@ void HOT Scheduler::set_interval(Component *component, const std::string &name, 
   item->last_execution_major = this->millis_major_;
   if (item->last_execution > now)
     item->last_execution_major--;
-  item->f = std::move(func);
+  item->void_callback = std::move(func);
   item->remove = false;
   this->push_(std::move(item));
 }
 bool HOT Scheduler::cancel_interval(Component *component, const std::string &name) {
   return this->cancel_item_(component, name, SchedulerItem::INTERVAL);
 }
+
+void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
+                              uint8_t max_attempts, std::function<RetryResult()> &&func,
+                              float backoff_increase_factor) {
+  const uint32_t now = this->millis_();
+
+  if (!name.empty())
+    this->cancel_retry(component, name);
+
+  if (initial_wait_time == SCHEDULER_DONT_RUN)
+    return;
+
+  ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%u,max_attempts=%u, backoff_factor=%0.1f)", name.c_str(),
+            initial_wait_time, max_attempts, backoff_increase_factor);
+
+  auto item = make_unique<SchedulerItem>();
+  item->component = component;
+  item->name = name;
+  item->type = SchedulerItem::RETRY;
+  item->interval = initial_wait_time;
+  item->retry_countdown = max_attempts;
+  item->backoff_multiplier = backoff_increase_factor;
+  item->last_execution = now - initial_wait_time;
+  item->last_execution_major = this->millis_major_;
+  if (item->last_execution > now)
+    item->last_execution_major--;
+  item->retry_callback = std::move(func);
+  item->remove = false;
+  this->push_(std::move(item));
+}
+bool HOT Scheduler::cancel_retry(Component *component, const std::string &name) {
+  return this->cancel_item_(component, name, SchedulerItem::RETRY);
+}
+
 optional<uint32_t> HOT Scheduler::next_schedule_in() {
   if (this->empty_())
     return {};
@@ -82,7 +116,7 @@ optional<uint32_t> HOT Scheduler::next_schedule_in() {
     return 0;
   return next_time - now;
 }
-void IRAM_ATTR HOT Scheduler::call() {
+void HOT Scheduler::call() {
   const uint32_t now = this->millis_();
   this->process_to_add();
 
@@ -95,10 +129,9 @@ void IRAM_ATTR HOT Scheduler::call() {
     ESP_LOGVV(TAG, "Items: count=%u, now=%u", this->items_.size(), now);
     while (!this->empty_()) {
       auto item = std::move(this->items_[0]);
-      const char *type = item->type == SchedulerItem::INTERVAL ? "interval" : "timeout";
-      ESP_LOGVV(TAG, "  %s '%s' interval=%u last_execution=%u (%u) next=%u (%u)", type, item->name.c_str(),
-                item->interval, item->last_execution, item->last_execution_major, item->next_execution(),
-                item->next_execution_major());
+      ESP_LOGVV(TAG, "  %s '%s' interval=%u last_execution=%u (%u) next=%u (%u)", item->get_type_str(),
+                item->name.c_str(), item->interval, item->last_execution, item->last_execution_major,
+                item->next_execution(), item->next_execution_major());
 
       this->pop_raw_();
       old_items.push_back(std::move(item));
@@ -129,13 +162,15 @@ void IRAM_ATTR HOT Scheduler::call() {
   }
 
   while (!this->empty_()) {
+    RetryResult retry_result = RETRY;
     // use scoping to indicate visibility of `item` variable
     {
       // Don't copy-by value yet
       auto &item = this->items_[0];
-      if ((now - item->last_execution) < item->interval)
+      if ((now - item->last_execution) < item->interval) {
         // Not reached timeout yet, done for this call
         break;
+      }
       uint8_t major = item->next_execution_major();
       if (this->millis_major_ - major > 1)
         break;
@@ -147,17 +182,20 @@ void IRAM_ATTR HOT Scheduler::call() {
       }
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-      const char *type = item->type == SchedulerItem::INTERVAL ? "interval" : "timeout";
-      ESP_LOGVV(TAG, "Running %s '%s' with interval=%u last_execution=%u (now=%u)", type, item->name.c_str(),
-                item->interval, item->last_execution, now);
+      ESP_LOGVV(TAG, "Running %s '%s' with interval=%u last_execution=%u (now=%u)", item->get_type_str(),
+                item->name.c_str(), item->interval, item->last_execution, now);
 #endif
 
-      // Warning: During f(), a lot of stuff can happen, including:
+      // Warning: During callback(), a lot of stuff can happen, including:
       //  - timeouts/intervals get added, potentially invalidating vector pointers
       //  - timeouts/intervals get cancelled
       {
         WarnIfComponentBlockingGuard guard{item->component};
-        item->f();
+        if (item->type == SchedulerItem::RETRY) {
+          retry_result = item->retry_callback();
+        } else {
+          item->void_callback();
+        }
       }
     }
 
@@ -175,13 +213,16 @@ void IRAM_ATTR HOT Scheduler::call() {
         continue;
       }
 
-      if (item->type == SchedulerItem::INTERVAL) {
+      if (item->type == SchedulerItem::INTERVAL ||
+          (item->type == SchedulerItem::RETRY && (--item->retry_countdown > 0 && retry_result != RetryResult::DONE))) {
         if (item->interval != 0) {
           const uint32_t before = item->last_execution;
           const uint32_t amount = (now - item->last_execution) / item->interval;
           item->last_execution += amount * item->interval;
           if (item->last_execution < before)
             item->last_execution_major++;
+          if (item->type == SchedulerItem::RETRY)
+            item->interval *= item->backoff_multiplier;
         }
         this->push_(std::move(item));
       }
@@ -218,17 +259,19 @@ void HOT Scheduler::pop_raw_() {
 void HOT Scheduler::push_(std::unique_ptr<Scheduler::SchedulerItem> item) { this->to_add_.push_back(std::move(item)); }
 bool HOT Scheduler::cancel_item_(Component *component, const std::string &name, Scheduler::SchedulerItem::Type type) {
   bool ret = false;
-  for (auto &it : this->items_)
+  for (auto &it : this->items_) {
     if (it->component == component && it->name == name && it->type == type && !it->remove) {
       to_remove_++;
       it->remove = true;
       ret = true;
     }
-  for (auto &it : this->to_add_)
+  }
+  for (auto &it : this->to_add_) {
     if (it->component == component && it->name == name && it->type == type) {
       it->remove = true;
       ret = true;
     }
+  }
 
   return ret;
 }

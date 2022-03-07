@@ -39,6 +39,12 @@ uart:
   tx_pin: GPIO22
   rx_pin: GPIO23
   baud_rate: 115200
+  # Specifically added for testing debug with no after: definition.
+  debug:
+    dummy_receiver: false
+    direction: rx
+    sequence:
+      - lambda: UARTDebug::log_hex(direction, bytes, ':');
 
 ota:
   safe_mode: True
@@ -49,9 +55,12 @@ logger:
   level: DEBUG
 
 deep_sleep:
-  run_duration: 20s
+  run_duration:
+    default: 20s
+    gpio_wakeup_reason: 10s
+    touch_wakeup_reason: 15s
   sleep_duration: 50s
-  wakeup_pin: GPIO39
+  wakeup_pin: GPIO2
   wakeup_pin_mode: INVERT_WAKEUP
 
 as3935_i2c:
@@ -60,6 +69,12 @@ as3935_i2c:
 mcp3008:
   - id: 'mcp3008_hub'
     cs_pin: GPIO12
+
+output:
+  - platform: ac_dimmer
+    id: dimmer1
+    gate_pin: GPIO5
+    zero_cross_pin: GPIO12
 
 sensor:
   - platform: homeassistant
@@ -212,6 +227,14 @@ sensor:
       name: 'JQJCY01YM Formaldehyde'
     battery_level:
       name: 'JQJCY01YM Battery Level'
+  - platform: xiaomi_mhoc303
+    mac_address: 'E7:50:59:32:A0:1C'
+    temperature:
+      name: 'MHO-C303 Temperature'
+    humidity:
+      name: 'MHO-C303 Humidity'
+    battery_level:
+      name: 'MHO-C303 Battery Level'
   - platform: atc_mithermometer
     mac_address: 'A4:C1:38:4E:16:78'
     temperature:
@@ -292,6 +315,35 @@ sensor:
       name: "Wave Mini Pressure"
     tvoc:
       name: "Wave Mini VOC"
+  - platform: ina260
+    address: 0x40
+    current:
+      name: "INA260 Current"
+    power:
+      name: "INA260 Power"
+    bus_voltage:
+      name: "INA260 Voltage"
+    update_interval: 60s
+  - platform: radon_eye_rd200
+    ble_client_id: radon_eye_ble_id
+    update_interval: 10min
+    radon:
+      name: "RD200 Radon"
+    radon_long_term:
+      name: "RD200 Radon Long Term"
+  - platform: mopeka_pro_check
+    mac_address: D3:75:F2:DC:16:91
+    tank_type: CUSTOM
+    custom_distance_full: 40cm
+    custom_distance_empty: 10mm
+    temperature:
+      name: "Propane test temp"
+    level:
+      name: "Propane test level"
+    distance:
+      name: "Propane test distance"
+    battery_level:
+      name: "Propane test battery level"
 
 time:
   - platform: homeassistant
@@ -391,9 +443,19 @@ ble_client:
     id: airthings01
   - mac_address: 01:02:03:04:05:06
     id: airthingsmini01
+  - mac_address: 01:02:03:04:05:06
+    id: radon_eye_ble_id
 
 
 airthings_ble:
+
+radon_eye_ble:
+
+ruuvi_ble:
+
+xiaomi_ble:
+
+mopeka_ble:
 
 #esp32_ble_beacon:
 #  type: iBeacon
@@ -441,6 +503,16 @@ text_sensor:
     name: 'Template Text Sensor'
     lambda: |-
       return {"Hello World"};
+    filters:
+      - to_upper:
+      - to_lower:
+      - append: "xyz"
+      - prepend: "abcd"
+      - substitute:
+          - Hello -> Goodbye
+      - map:
+          - red -> green
+      - lambda: return {"1234"};
   - platform: homeassistant
     entity_id: sensor.hello_world2
     id: ha_hello_world2
@@ -493,3 +565,9 @@ interval:
 
 display:
 
+cap1188:
+  id: cap1188_component
+  address: 0x29
+  touch_threshold: 0x20
+  allow_multiple_touches: true
+  reset_pin: 14

@@ -41,10 +41,11 @@ uint32_t ESP32ArduinoUARTComponent::get_config() {
    * tick_ref_always_on:27   select the clock.1：apb clock：ref_tick
    */
 
-  if (this->parity_ == UART_CONFIG_PARITY_EVEN)
+  if (this->parity_ == UART_CONFIG_PARITY_EVEN) {
     config |= UART_PARITY_EVEN | UART_PARITY_ENABLE;
-  else if (this->parity_ == UART_CONFIG_PARITY_ODD)
+  } else if (this->parity_ == UART_CONFIG_PARITY_ODD) {
     config |= UART_PARITY_ODD | UART_PARITY_ENABLE;
+  }
 
   switch (this->data_bits_) {
     case 5:
@@ -61,10 +62,11 @@ uint32_t ESP32ArduinoUARTComponent::get_config() {
       break;
   }
 
-  if (this->stop_bits_ == 1)
+  if (this->stop_bits_ == 1) {
     config |= UART_NB_STOP_BIT_1;
-  else
+  } else {
     config |= UART_NB_STOP_BIT_2;
+  }
 
   config |= UART_TICK_APB_CLOCK;
 
@@ -117,26 +119,32 @@ void ESP32ArduinoUARTComponent::dump_config() {
 
 void ESP32ArduinoUARTComponent::write_array(const uint8_t *data, size_t len) {
   this->hw_serial_->write(data, len);
+#ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    ESP_LOGVV(TAG, "    Wrote 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
+    this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
   }
+#endif
 }
+
 bool ESP32ArduinoUARTComponent::peek_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
     return false;
   *data = this->hw_serial_->peek();
   return true;
 }
+
 bool ESP32ArduinoUARTComponent::read_array(uint8_t *data, size_t len) {
   if (!this->check_read_timeout_(len))
     return false;
   this->hw_serial_->readBytes(data, len);
+#ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    ESP_LOGVV(TAG, "    Read 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
+    this->debug_callback_.call(UART_DIRECTION_RX, data[i]);
   }
-
+#endif
   return true;
 }
+
 int ESP32ArduinoUARTComponent::available() { return this->hw_serial_->available(); }
 void ESP32ArduinoUARTComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing...");

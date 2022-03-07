@@ -31,19 +31,20 @@ void CTClampSensor::update() {
       return;
     }
 
-    float dc = this->sample_sum_ / this->num_samples_;
-    float var = (this->sample_squared_sum_ / this->num_samples_) - dc * dc;
-    float ac = std::sqrt(var);
-    ESP_LOGD(TAG, "'%s' - Got %d samples", this->name_.c_str(), this->num_samples_);
-    ESP_LOGD(TAG, "'%s' - Raw AC Value: %.3fA", this->name_.c_str(), ac);
-    this->publish_state(ac);
+    const float rms_ac_dc_squared = this->sample_squared_sum_ / this->num_samples_;
+    const float rms_dc = this->sample_sum_ / this->num_samples_;
+    const float rms_ac = std::sqrt(rms_ac_dc_squared - rms_dc * rms_dc);
+    ESP_LOGD(TAG, "'%s' - Raw AC Value: %.3fA after %d different samples (%d SPS)", this->name_.c_str(), rms_ac,
+             this->num_samples_, 1000 * this->num_samples_ / this->sample_duration_);
+    this->publish_state(rms_ac);
   });
 
   // Set sampling values
-  this->is_sampling_ = true;
+  this->last_value_ = 0.0;
   this->num_samples_ = 0;
   this->sample_sum_ = 0.0f;
   this->sample_squared_sum_ = 0.0f;
+  this->is_sampling_ = true;
 }
 
 void CTClampSensor::loop() {
@@ -55,9 +56,14 @@ void CTClampSensor::loop() {
   if (std::isnan(value))
     return;
 
+  // Assuming a sine wave, avoid requesting values faster than the ADC can provide them
+  if (this->last_value_ == value)
+    return;
+  this->last_value_ = value;
+
+  this->num_samples_++;
   this->sample_sum_ += value;
   this->sample_squared_sum_ += value * value;
-  this->num_samples_++;
 }
 
 }  // namespace ct_clamp

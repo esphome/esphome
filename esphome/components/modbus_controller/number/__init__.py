@@ -4,29 +4,28 @@ from esphome.components import number
 from esphome.const import (
     CONF_ADDRESS,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
     CONF_MULTIPLY,
-    CONF_OFFSET,
     CONF_STEP,
 )
 
 from .. import (
+    add_modbus_base_properties,
     modbus_controller_ns,
-    ModbusController,
-    SENSOR_VALUE_TYPE,
+    modbus_calc_properties,
+    ModbusItemBaseSchema,
     SensorItem,
+    SENSOR_VALUE_TYPE,
 )
-
 
 from ..const import (
     CONF_BITMASK,
-    CONF_BYTE_OFFSET,
+    CONF_CUSTOM_COMMAND,
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
-    CONF_REGISTER_COUNT,
     CONF_SKIP_UPDATES,
+    CONF_USE_WRITE_MULTIPLE,
     CONF_VALUE_TYPE,
     CONF_WRITE_LAMBDA,
 )
@@ -39,22 +38,6 @@ ModbusNumber = modbus_controller_ns.class_(
     "ModbusNumber", cg.Component, number.Number, SensorItem
 )
 
-TYPE_REGISTER_MAP = {
-    "RAW": 1,
-    "U_WORD": 1,
-    "S_WORD": 1,
-    "U_DWORD": 2,
-    "U_DWORD_R": 2,
-    "S_DWORD": 2,
-    "S_DWORD_R": 2,
-    "U_QWORD": 4,
-    "U_QWORDU_R": 4,
-    "S_QWORD": 4,
-    "U_QWORD_R": 4,
-    "FP32": 2,
-    "FP32_R": 2,
-}
-
 
 def validate_min_max(config):
     if config[CONF_MAX_VALUE] <= config[CONF_MIN_VALUE]:
@@ -66,45 +49,36 @@ def validate_min_max(config):
     return config
 
 
+def validate_modbus_number(config):
+    if CONF_CUSTOM_COMMAND not in config and CONF_ADDRESS not in config:
+        raise cv.Invalid(
+            f" {CONF_ADDRESS} is a required property if '{CONF_CUSTOM_COMMAND}:' isn't used"
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
-    number.NUMBER_SCHEMA.extend(
+    number.NUMBER_SCHEMA.extend(ModbusItemBaseSchema).extend(
         {
             cv.GenerateID(): cv.declare_id(ModbusNumber),
-            cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
-            cv.Required(CONF_ADDRESS): cv.positive_int,
-            cv.Optional(CONF_OFFSET, default=0): cv.positive_int,
-            cv.Optional(CONF_BYTE_OFFSET): cv.positive_int,
-            cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
             cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
-            cv.Optional(CONF_REGISTER_COUNT, default=0): cv.positive_int,
-            cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
-            cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
-            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
-            cv.GenerateID(): cv.declare_id(ModbusNumber),
             # 24 bits are the maximum value for fp32 before precison is lost
             # 0x00FFFFFF = 16777215
             cv.Optional(CONF_MAX_VALUE, default=16777215.0): cv.float_,
             cv.Optional(CONF_MIN_VALUE, default=-16777215.0): cv.float_,
             cv.Optional(CONF_STEP, default=1): cv.positive_float,
             cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
+            cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
         }
-    ).extend(cv.polling_component_schema("60s")),
+    ),
     validate_min_max,
+    validate_modbus_number,
 )
 
 
 async def to_code(config):
-    byte_offset = 0
-    if CONF_OFFSET in config:
-        byte_offset = config[CONF_OFFSET]
-    # A CONF_BYTE_OFFSET setting overrides CONF_OFFSET
-    if CONF_BYTE_OFFSET in config:
-        byte_offset = config[CONF_BYTE_OFFSET]
-    value_type = config[CONF_VALUE_TYPE]
-    reg_count = config[CONF_REGISTER_COUNT]
-    if reg_count == 0:
-        reg_count = TYPE_REGISTER_MAP[value_type]
+    byte_offset, reg_count = modbus_calc_properties(config)
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_ADDRESS],
@@ -130,28 +104,16 @@ async def to_code(config):
 
     cg.add(var.set_parent(parent))
     cg.add(parent.add_sensor_item(var))
-    if CONF_LAMBDA in config:
+    await add_modbus_base_properties(var, config, ModbusNumber)
+    cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
+    if CONF_WRITE_LAMBDA in config:
         template_ = await cg.process_lambda(
-            config[CONF_LAMBDA],
+            config[CONF_WRITE_LAMBDA],
             [
                 (ModbusNumber.operator("ptr"), "item"),
                 (cg.float_, "x"),
-                (
-                    cg.std_vector.template(cg.uint8).operator("const").operator("ref"),
-                    "data",
-                ),
+                (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
             ],
             return_type=cg.optional.template(float),
         )
-        cg.add(var.set_template(template_))
-        if CONF_WRITE_LAMBDA in config:
-            template_ = await cg.process_lambda(
-                config[CONF_WRITE_LAMBDA],
-                [
-                    (ModbusNumber.operator("ptr"), "item"),
-                    (cg.float_, "x"),
-                    (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
-                ],
-                return_type=cg.optional.template(float),
-            )
-            cg.add(var.set_write_template(template_))
+        cg.add(var.set_write_template(template_))

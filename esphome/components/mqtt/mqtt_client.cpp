@@ -346,7 +346,7 @@ void MQTTClientComponent::subscribe(const std::string &topic, mqtt_callback_t ca
 
 void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
   auto f = [callback](const std::string &topic, const std::string &payload) {
-    json::parse_json(payload, [topic, callback](JsonObject &root) { callback(topic, root); });
+    json::parse_json(payload, [topic, callback](JsonObject root) { callback(topic, root); });
   };
   MQTTSubscription subscription{
       .topic = topic,
@@ -372,10 +372,11 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
 
   auto it = subscriptions_.begin();
   while (it != subscriptions_.end()) {
-    if (it->topic == topic)
+    if (it->topic == topic) {
       it = subscriptions_.erase(it);
-    else
+    } else {
       ++it;
+    }
   }
 }
 
@@ -416,9 +417,8 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
 }
 bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos,
                                        bool retain) {
-  size_t len;
-  const char *message = json::build_json(f, &len);
-  return this->publish(topic, message, len, qos, retain);
+  std::string message = json::build_json(f);
+  return this->publish(topic, message, qos, retain);
 }
 
 /** Check if the message topic matches the given subscription topic
@@ -484,9 +484,10 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
   // in an ISR.
   this->defer([this, topic, payload]() {
 #endif
-    for (auto &subscription : this->subscriptions_)
+    for (auto &subscription : this->subscriptions_) {
       if (topic_match(topic.c_str(), subscription.topic.c_str()))
         subscription.callback(topic, payload);
+    }
 #ifdef USE_ESP8266
   });
 #endif
@@ -535,8 +536,12 @@ void MQTTClientComponent::set_birth_message(MQTTMessage &&message) {
 
 void MQTTClientComponent::set_shutdown_message(MQTTMessage &&message) { this->shutdown_message_ = std::move(message); }
 
-void MQTTClientComponent::set_discovery_info(std::string &&prefix, bool retain, bool clean) {
+void MQTTClientComponent::set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
+                                             MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain,
+                                             bool clean) {
   this->discovery_info_.prefix = std::move(prefix);
+  this->discovery_info_.unique_id_generator = unique_id_generator;
+  this->discovery_info_.object_id_generator = object_id_generator;
   this->discovery_info_.retain = retain;
   this->discovery_info_.clean = clean;
 }

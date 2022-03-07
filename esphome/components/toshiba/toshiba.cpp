@@ -197,7 +197,7 @@ void ToshibaClimate::transmit_generic_() {
 
   // Transmit
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   encode_(data, message, message_length, 1);
 
@@ -210,7 +210,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
       clamp<float>(this->target_temperature, TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN, TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX);
   float temp_adjd = temperature - TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   // Byte 0:  Header upper (0xB2)
   message[0] = RAC_PT1411HWRU_MESSAGE_HEADER0;
@@ -357,7 +357,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_temp_(const bool cs_state, const bo
     uint8_t message[RAC_PT1411HWRU_MESSAGE_LENGTH] = {0};
     float temperature = clamp<float>(this->current_temperature, 0.0, TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX + 1);
     auto transmit = this->transmitter_->transmit();
-    auto data = transmit.get_data();
+    auto *data = transmit.get_data();
     // "Comfort Sense" feature notes
     // IR Code: 0xBA45 xxXX yyYY
     // xx: Temperature in °C
@@ -542,10 +542,11 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
 
         // case RAC_PT1411HWRU_MODE_DRY:
         case RAC_PT1411HWRU_MODE_FAN:
-          if ((message[4] >> 4) == RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY)
+          if ((message[4] >> 4) == RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY) {
             this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-          else
+          } else {
             this->mode = climate::CLIMATE_MODE_DRY;
+          }
           break;
 
         case RAC_PT1411HWRU_MODE_HEAT:
@@ -580,13 +581,13 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
         temperature_code =
             (message[4] >> 4) | (message[14] & RAC_PT1411HWRU_FLAG_FRAC) | (message[15] & RAC_PT1411HWRU_FLAG_NEG);
         if (message[15] & RAC_PT1411HWRU_FLAG_FAH) {
-          for (uint8_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_F.size(); i++) {
+          for (size_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_F.size(); i++) {
             if (RAC_PT1411HWRU_TEMPERATURE_F[i] == temperature_code) {
               this->target_temperature = static_cast<float>((i + TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN - 32) * 5) / 9;
             }
           }
         } else {
-          for (uint8_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_C.size(); i++) {
+          for (size_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_C.size(); i++) {
             if (RAC_PT1411HWRU_TEMPERATURE_C[i] == temperature_code) {
               this->target_temperature = i + TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
             }

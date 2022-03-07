@@ -46,24 +46,31 @@ IGNORE_LIB_WARNINGS = f"(?:{'|'.join(['Hash', 'Update'])})"
 FILTER_PLATFORMIO_LINES = [
     r"Verbose mode can be enabled via `-v, --verbose` option.*",
     r"CONFIGURATION: https://docs.platformio.org/.*",
-    r"PLATFORM: .*",
     r"DEBUG: Current.*",
-    r"PACKAGES: .*",
+    r"LDF Modes:.*",
     r"LDF: Library Dependency Finder -> http://bit.ly/configure-pio-ldf.*",
-    r"LDF Modes: Finder ~ chain, Compatibility ~ soft.*",
     f"Looking for {IGNORE_LIB_WARNINGS} library in registry",
     f"Warning! Library `.*'{IGNORE_LIB_WARNINGS}.*` has not been found in PlatformIO Registry.",
     f"You can ignore this message, if `.*{IGNORE_LIB_WARNINGS}.*` is a built-in library.*",
     r"Scanning dependencies...",
     r"Found \d+ compatible libraries",
     r"Memory Usage -> http://bit.ly/pio-memory-usage",
-    r"esptool.py v.*",
     r"Found: https://platformio.org/lib/show/.*",
     r"Using cache: .*",
     r"Installing dependencies",
-    r".* @ .* is already installed",
+    r"Library Manager: Already installed, built-in library",
     r"Building in .* mode",
     r"Advanced Memory Usage is available via .*",
+    r"Merged .* ELF section",
+    r"esptool.py v.*",
+    r"Checking size .*",
+    r"Retrieving maximum program size .*",
+    r"PLATFORM: .*",
+    r"PACKAGES:.*",
+    r" - framework-arduinoespressif.* \(.*\)",
+    r" - tool-esptool.* \(.*\)",
+    r" - toolchain-.* \(.*\)",
+    r"Creating BIN file .*",
 ]
 
 
@@ -118,7 +125,7 @@ def _run_idedata(config):
 
 def _load_idedata(config):
     platformio_ini = Path(CORE.relative_build_path("platformio.ini"))
-    temp_idedata = Path(CORE.relative_internal_path(CORE.name, "idedata.json"))
+    temp_idedata = Path(CORE.relative_internal_path("idedata", f"{CORE.name}.json"))
 
     changed = False
     if not platformio_ini.is_file() or not temp_idedata.is_file():

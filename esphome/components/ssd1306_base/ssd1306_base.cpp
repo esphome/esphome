@@ -66,10 +66,11 @@ void SSD1306::setup() {
   if (!this->is_ssd1305_()) {
     // Enable charge pump (0x8D)
     this->command(SSD1306_COMMAND_CHARGE_PUMP);
-    if (this->external_vcc_)
+    if (this->external_vcc_) {
       this->command(0x10);
-    else
+    } else {
       this->command(0x14);
+    }
   }
 
   // Set addressing mode to horizontal (0x20)
@@ -94,7 +95,9 @@ void SSD1306::setup() {
     case SSD1306_MODEL_128_64:
     case SH1106_MODEL_128_64:
     case SSD1306_MODEL_64_48:
+    case SSD1306_MODEL_64_32:
     case SH1106_MODEL_64_48:
+    case SH1107_MODEL_128_64:
     case SSD1305_MODEL_128_32:
     case SSD1305_MODEL_128_64:
       this->command(0x12);
@@ -103,14 +106,22 @@ void SSD1306::setup() {
 
   // Pre-charge period (0xD9)
   this->command(SSD1306_COMMAND_SET_PRE_CHARGE);
-  if (this->external_vcc_)
+  if (this->external_vcc_) {
     this->command(0x22);
-  else
+  } else {
     this->command(0xF1);
+  }
 
   // Set V_COM (0xDB)
   this->command(SSD1306_COMMAND_SET_VCOM_DETECT);
-  this->command(0x00);
+  switch (this->model_) {
+    case SH1107_MODEL_128_64:
+      this->command(0x35);
+      break;
+    default:
+      this->command(0x00);
+      break;
+  }
 
   // Display output follow RAM (0xA4)
   this->command(SSD1306_COMMAND_DISPLAY_ALL_ON_RESUME);
@@ -141,6 +152,7 @@ void SSD1306::display() {
   this->command(SSD1306_COMMAND_COLUMN_ADDRESS);
   switch (this->model_) {
     case SSD1306_MODEL_64_48:
+    case SSD1306_MODEL_64_32:
       this->command(0x20 + this->offset_x_);
       this->command(0x20 + this->offset_x_ + this->get_width_internal() - 1);
       break;
@@ -196,7 +208,10 @@ void SSD1306::turn_off() {
 }
 int SSD1306::get_height_internal() {
   switch (this->model_) {
+    case SH1107_MODEL_128_64:
+      return 128;
     case SSD1306_MODEL_128_32:
+    case SSD1306_MODEL_64_32:
     case SH1106_MODEL_128_32:
     case SSD1305_MODEL_128_32:
       return 32;
@@ -227,7 +242,9 @@ int SSD1306::get_width_internal() {
     case SH1106_MODEL_96_16:
       return 96;
     case SSD1306_MODEL_64_48:
+    case SSD1306_MODEL_64_32:
     case SH1106_MODEL_64_48:
+    case SH1107_MODEL_128_64:
       return 64;
     default:
       return 0;
@@ -271,6 +288,8 @@ const char *SSD1306::model_str_() {
       return "SSD1306 128x32";
     case SSD1306_MODEL_128_64:
       return "SSD1306 128x64";
+    case SSD1306_MODEL_64_32:
+      return "SSD1306 64x32";
     case SSD1306_MODEL_96_16:
       return "SSD1306 96x16";
     case SSD1306_MODEL_64_48:
@@ -283,10 +302,12 @@ const char *SSD1306::model_str_() {
       return "SH1106 96x16";
     case SH1106_MODEL_64_48:
       return "SH1106 64x48";
+    case SH1107_MODEL_128_64:
+      return "SH1107 128x64";
     case SSD1305_MODEL_128_32:
       return "SSD1305 128x32";
     case SSD1305_MODEL_128_64:
-      return "SSD1305 128x32";
+      return "SSD1305 128x64";
     default:
       return "Unknown";
   }

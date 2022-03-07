@@ -4,7 +4,7 @@
             "owner": "ci-custom",
             "pattern": [
                 {
-                    "regexp": "^ERROR (.*):(\\d+):(\\d+) - (.*)$",
+                    "regexp": "^(.*):(\\d+):(\\d+):\\s+lint:\\s+(.*)$",
                     "file": 1,
                     "line": 2,
                     "column": 3,

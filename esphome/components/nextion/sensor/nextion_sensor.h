@@ -8,10 +8,7 @@ namespace esphome {
 namespace nextion {
 class NextionSensor;
 
-class NextionSensor : public NextionComponent,
-                      public sensor::Sensor,
-                      public PollingComponent,
-                      public std::enable_shared_from_this<NextionSensor> {
+class NextionSensor : public NextionComponent, public sensor::Sensor, public PollingComponent {
  public:
   NextionSensor(NextionBase *nextion) { this->nextion_ = nextion; }
   void send_state_to_nextion() override { this->set_state(this->state, false, true); };

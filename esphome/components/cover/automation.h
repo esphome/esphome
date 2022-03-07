@@ -99,6 +99,7 @@ template<typename... Ts> class CoverIsOpenCondition : public Condition<Ts...> {
  protected:
   Cover *cover_;
 };
+
 template<typename... Ts> class CoverIsClosedCondition : public Condition<Ts...> {
  public:
   CoverIsClosedCondition(Cover *cover) : cover_(cover) {}
@@ -106,6 +107,28 @@ template<typename... Ts> class CoverIsClosedCondition : public Condition<Ts...> 
 
  protected:
   Cover *cover_;
+};
+
+class CoverOpenTrigger : public Trigger<> {
+ public:
+  CoverOpenTrigger(Cover *a_cover) {
+    a_cover->add_on_state_callback([this, a_cover]() {
+      if (a_cover->is_fully_open()) {
+        this->trigger();
+      }
+    });
+  }
+};
+
+class CoverClosedTrigger : public Trigger<> {
+ public:
+  CoverClosedTrigger(Cover *a_cover) {
+    a_cover->add_on_state_callback([this, a_cover]() {
+      if (a_cover->is_fully_closed()) {
+        this->trigger();
+      }
+    });
+  }
 };
 
 }  // namespace cover

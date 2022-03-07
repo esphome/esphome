@@ -18,10 +18,8 @@ class SCD4XComponent : public PollingComponent, public i2c::I2CDevice {
 
   void set_automatic_self_calibration(bool asc) { enable_asc_ = asc; }
   void set_altitude_compensation(uint16_t altitude) { altitude_compensation_ = altitude; }
-  void set_ambient_pressure_compensation(float pressure) {
-    ambient_pressure_compensation_ = true;
-    ambient_pressure_ = (uint16_t)(pressure * 1000);
-  }
+  void set_ambient_pressure_compensation(float pressure_in_bar);
+  void set_ambient_pressure_source(sensor::Sensor *pressure) { ambient_pressure_source_ = pressure; }
   void set_temperature_offset(float offset) { temperature_offset_ = offset; };
 
   void set_co2_sensor(sensor::Sensor *co2) { co2_sensor_ = co2; }
@@ -33,6 +31,7 @@ class SCD4XComponent : public PollingComponent, public i2c::I2CDevice {
   bool read_data_(uint16_t *data, uint8_t len);
   bool write_command_(uint16_t command);
   bool write_command_(uint16_t command, uint16_t data);
+  bool update_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
 
   ERRORCODE error_code_;
 
@@ -47,6 +46,8 @@ class SCD4XComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *co2_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
+  // used for compensation
+  sensor::Sensor *ambient_pressure_source_{nullptr};
 };
 
 }  // namespace scd4x

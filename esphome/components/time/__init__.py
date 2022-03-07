@@ -1,7 +1,6 @@
 import logging
 from importlib import resources
 from typing import Optional
-from datetime import timezone
 
 import tzlocal
 
@@ -66,14 +65,11 @@ def _extract_tz_string(tzfile: bytes) -> str:
 
 
 def detect_tz() -> str:
-    localzone = tzlocal.get_localzone()
-    if localzone is timezone.utc:
-        return "UTC0"
-    if not hasattr(localzone, "key"):
+    iana_key = tzlocal.get_localzone_name()
+    if iana_key is None:
         raise cv.Invalid(
             "Could not automatically determine timezone, please set timezone manually."
         )
-    iana_key = localzone.key
     _LOGGER.info("Detected timezone '%s'", iana_key)
     tzfile = _load_tzdata(iana_key)
     if tzfile is None:
