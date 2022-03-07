@@ -59,6 +59,9 @@ from esphome.const import (
     CONF_SWING_VERTICAL_ACTION,
     CONF_TARGET_TEMPERATURE_CHANGE_ACTION,
     CONF_PRESET,
+    CONF_FAN_MODE,
+    CONF_SWING_MODE,
+    CONF_MODE,
 )
 
 CODEOWNERS = ["@kbx81"]
@@ -87,8 +90,14 @@ ClimatePreset = climate_ns.enum("ClimatePreset")
 
 PRESET_CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(): cv.declare_id(ThermostatClimateTargetTempConfig),
+        cv.Optional(CONF_MODE): validate_climate_mode,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
+        cv.Optional(CONF_FAN_MODE): cv.templatable(climate.validate_climate_fan_mode),
+        cv.Optional(CONF_SWING_MODE): cv.templatable(
+            climate.validate_climate_swing_mode
+        ),
     }
 )
 
@@ -713,8 +722,8 @@ async def to_code(config):
         cg.add(var.set_preset_config(ClimatePreset.CLIMATE_PRESET_AWAY, away_config))
 
     if CONF_PRESET in config:
-        for preset in climate.CLIMATE_PRESETS:
-            preset_label = preset.lower()
+        for label, preset in climate.CLIMATE_PRESETS.items():
+            preset_label = label.lower()
 
             if preset_label not in config[CONF_PRESET]:
                 continue
@@ -735,8 +744,23 @@ async def to_code(config):
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
                 )
 
-            cg.add(
-                var.set_preset_config(
-                    climate.CLIMATE_PRESETS[preset], preset_target_config
-                )
+            preset_target_variable = cg.new_variable(
+                preset_config[CONF_ID], preset_target_config
             )
+
+            if CONF_MODE in preset_config:
+                cg.add(preset_target_variable.set_mode(preset_config[CONF_MODE]))
+
+            if CONF_FAN_MODE in preset_config:
+                cg.add(
+                    preset_target_variable.set_fan_mode(preset_config[CONF_FAN_MODE])
+                )
+
+            if CONF_SWING_MODE in preset_config:
+                cg.add(
+                    preset_target_variable.set_swing_mode(
+                        preset_config[CONF_SWING_MODE]
+                    )
+                )
+
+            cg.add(var.set_preset_config(preset, preset_target_variable))
