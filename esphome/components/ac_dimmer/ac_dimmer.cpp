@@ -34,14 +34,14 @@ static const uint32_t GATE_ENABLE_TIME = 50;
 uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
   // If no ZC signal received yet.
   if (this->crossed_zero_at == 0){
-    ///RB- initialize ds modulator
+    // RB- initialize ds modulator
     this->ds_integrator = 0;
     this->ds_feedback = 0;
     return 0;
   }
   uint32_t time_since_zc = now - this->crossed_zero_at;
-  /// RB- added condition to DS_MODULATOR method
-  /// RB- DS first order modulator implemented here
+  // RB- added condition to DS_MODULATOR method
+  // RB- DS first order modulator implemented here
   if (this->method == DS_MODULATOR_HALF || this->method == DS_MODULATOR_FULL){
     if(this->ds_flag && time_since_zc > GATE_ENABLE_TIME){
       this->gate_pin.digital_write(false);
@@ -62,7 +62,7 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
       }
       this->ds_flag = false;
     }
-  } else { /// RB- resto of methods start here unaltered
+  } else { // RB- rest of methods start here unaltered
   if (this->value == 65535 || this->value == 0) {
     return 0;
   }
@@ -85,7 +85,7 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
     // Next event is disable, return time until that event
     return this->disable_time_us - time_since_zc;
   }
-  } ///RB- DS_MODULATOR condition
+  } // RB- DS_MODULATOR condition
 
   if (time_since_zc >= this->cycle_time_us) {
     // Already past last cycle time, schedule next call shortly
@@ -123,7 +123,7 @@ void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
   uint32_t cycle_time = this->crossed_zero_at - prev_crossed;
   if (cycle_time > 5000) {
     this->cycle_time_us = cycle_time;
-    /// RB- enable_modulator
+    // RB- enable_modulator
     this->ds_flag = true;
   } else {
     // Otherwise this is noise and this is 2nd (or 3rd...) fall in the same pulse
@@ -132,9 +132,9 @@ void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
   }
 
   if (this->method == DS_MODULATOR_HALF || this->method == DS_MODULATOR_FULL) {
-    /// RB- if trigger is ON then enable immediately otherwise disable immedately
+    // RB- if trigger is ON then enable immediately otherwise disable immedately
     this->gate_pin.digital_write(this->ds_trigger);
-  } else { /// RB- rest of methods start here unaltered
+  } else { // RB- rest of methods start here unaltered
   if (this->value == 65535) {
     // fully on, enable output immediately
     this->gate_pin.digital_write(true);
@@ -165,7 +165,7 @@ void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
       }
     }
   }
-  } /// RB- DS_MODULATOR condition
+  } // RB- DS_MODULATOR condition
 }
 
 void IRAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
@@ -211,7 +211,7 @@ void AcDimmer::setup() {
   this->store_.min_power = static_cast<uint16_t>(this->min_power_ * 1000);
   this->min_power_ = 0;
   this->store_.method = this->method_;
-  /// RB- added integrator initialization
+  // RB- added integrator initialization
   this->ds_integrator_ = 0;
   this->ds_feedback_ = 0;
   this->store_.ds_integrator = this->ds_integrator_;
