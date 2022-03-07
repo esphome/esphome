@@ -62,7 +62,7 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
       }
       this->ds_flag = false;
     }
-  } else { // RB- rest of methods start here unaltered
+  } else {  // RB- rest of methods start here unaltered
     if (this->value == 65535 || this->value == 0) {
       return 0;
     }
@@ -85,7 +85,7 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
       // Next event is disable, return time until that event
       return this->disable_time_us - time_since_zc;
     }
-  } // RB- DS_MODULATOR condition
+  }  // RB- DS_MODULATOR condition
 
   if (time_since_zc >= this->cycle_time_us) {
     // Already past last cycle time, schedule next call shortly
