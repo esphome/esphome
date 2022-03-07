@@ -1,4 +1,6 @@
 import logging
+from dataclasses import dataclass
+from typing import List
 
 from esphome.const import (
     CONF_ID,
@@ -12,12 +14,12 @@ from esphome.const import (
     CONF_PULLUP,
 )
 from esphome import pins
-from esphome.core import CORE
+from esphome.core import CORE, coroutine_with_priority
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
 from . import boards
-from .const import KEY_BOARD, KEY_ESP8266, esp8266_ns
+from .const import KEY_BOARD, KEY_ESP8266, KEY_PIN_INITIAL_STATES, esp8266_ns
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -160,11 +162,57 @@ ESP8266_PIN_SCHEMA = cv.All(
 )
 
 
+@dataclass
+class PinInitialState:
+    mode = 255
+    level: int = 255
+
+
 @pins.PIN_SCHEMA_REGISTRY.register("esp8266", ESP8266_PIN_SCHEMA)
 async def esp8266_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
+    mode = config[CONF_MODE]
     cg.add(var.set_pin(num))
     cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
+    cg.add(var.set_flags(pins.gpio_flags_expr(mode)))
+    if num < 16:
+        initial_state: PinInitialState = CORE.data[KEY_ESP8266][KEY_PIN_INITIAL_STATES][
+            num
+        ]
+        if mode[CONF_INPUT]:
+            if mode[CONF_PULLDOWN]:
+                initial_state.mode = cg.global_ns.INPUT_PULLDOWN_16
+            elif mode[CONF_PULLUP]:
+                initial_state.mode = cg.global_ns.INPUT_PULLUP
+            else:
+                initial_state.mode = cg.global_ns.INPUT
+        elif mode[CONF_OUTPUT]:
+            if mode[CONF_OPEN_DRAIN]:
+                initial_state.mode = cg.global_ns.OUTPUT_OPEN_DRAIN
+            else:
+                initial_state.mode = cg.global_ns.OUTPUT
+            initial_state.level = int(config[CONF_INVERTED])
+
     return var
+
+
+@coroutine_with_priority(-999.0)
+async def add_pin_initial_states_array():
+    # Add includes at the very end, so that they override everything
+    initial_states: List[PinInitialState] = CORE.data[KEY_ESP8266][
+        KEY_PIN_INITIAL_STATES
+    ]
+    initial_modes_s = ", ".join(str(x.mode) for x in initial_states)
+    initial_levels_s = ", ".join(str(x.level) for x in initial_states)
+
+    cg.add_global(
+        cg.RawExpression(
+            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_MODE[16] = {{{initial_modes_s}}}"
+        )
+    )
+    cg.add_global(
+        cg.RawExpression(
+            f"const uint8_t ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[16] = {{{initial_levels_s}}}"
+        )
+    )

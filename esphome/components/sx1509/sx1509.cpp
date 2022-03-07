@@ -64,10 +64,11 @@ void SX1509Component::digital_write(uint8_t pin, bool bit_value) {
     // If the pin is an output, write high/low
     uint16_t temp_reg_data = 0;
     this->read_byte_16(REG_DATA_B, &temp_reg_data);
-    if (bit_value)
+    if (bit_value) {
       temp_reg_data |= (1 << pin);
-    else
+    } else {
       temp_reg_data &= ~(1 << pin);
+    }
     this->write_byte_16(REG_DATA_B, temp_reg_data);
   } else {
     // Otherwise the pin is an input, pull-up/down
@@ -94,10 +95,11 @@ void SX1509Component::digital_write(uint8_t pin, bool bit_value) {
 
 void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
-  if (flags == gpio::FLAG_OUTPUT)
+  if (flags == gpio::FLAG_OUTPUT) {
     this->ddr_mask_ &= ~(1 << pin);
-  else
+  } else {
     this->ddr_mask_ |= (1 << pin);
+  }
   this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 
   if (flags & gpio::FLAG_PULLUP)

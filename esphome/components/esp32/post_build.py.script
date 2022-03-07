@@ -1,13 +1,20 @@
 # Source https://github.com/letscontrolit/ESPEasy/pull/3845#issuecomment-1005864664
 
-import esptool
+import os
+if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
+    import esptool
+else:
+    import subprocess
+from SCons.Script import ARGUMENTS
 
 # pylint: disable=E0602
 Import("env")  # noqa
 
 
 def esp32_create_combined_bin(source, target, env):
-    print("Generating combined binary for serial flashing")
+    verbose = bool(int(ARGUMENTS.get("PIOVERBOSE", "0")))
+    if verbose:
+        print("Generating combined binary for serial flashing")
     app_offset = 0x10000
 
     new_file_name = env.subst("$BUILD_DIR/${PROGNAME}-factory.bin")
@@ -24,20 +31,26 @@ def esp32_create_combined_bin(source, target, env):
         "--flash_size",
         flash_size,
     ]
-    print("    Offset | File")
+    if verbose:
+        print("    Offset | File")
     for section in sections:
         sect_adr, sect_file = section.split(" ", 1)
-        print(f" -  {sect_adr} | {sect_file}")
+        if verbose:
+            print(f" -  {sect_adr} | {sect_file}")
         cmd += [sect_adr, sect_file]
 
-    print(f" - {hex(app_offset)} | {firmware_name}")
     cmd += [hex(app_offset), firmware_name]
 
-    print()
-    print(f"Using esptool.py arguments: {' '.join(cmd)}")
-    print()
-    esptool.main(cmd)
+    if verbose:
+        print(f" - {hex(app_offset)} | {firmware_name}")
+        print()
+        print(f"Using esptool.py arguments: {' '.join(cmd)}")
+        print()
 
+    if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
+        esptool.main(cmd)
+    else:
+        subprocess.run(["esptool.py", *cmd])
 
 # pylint: disable=E0602
 env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", esp32_create_combined_bin)  # noqa

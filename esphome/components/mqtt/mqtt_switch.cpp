@@ -13,7 +13,7 @@ static const char *const TAG = "mqtt.switch";
 
 using namespace esphome::switch_;
 
-MQTTSwitchComponent::MQTTSwitchComponent(switch_::Switch *a_switch) : MQTTComponent(), switch_(a_switch) {}
+MQTTSwitchComponent::MQTTSwitchComponent(switch_::Switch *a_switch) : switch_(a_switch) {}
 
 void MQTTSwitchComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {

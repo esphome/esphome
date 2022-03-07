@@ -23,6 +23,7 @@ AUTO_LOAD = ["psram"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
+
 ESP32CameraFrameSize = esp32_camera_ns.enum("ESP32CameraFrameSize")
 FRAME_SIZES = {
     "160X120": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_160X120,
@@ -46,30 +47,76 @@ FRAME_SIZES = {
     "1600X1200": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1600X1200,
     "UXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1600X1200,
 }
+ESP32GainControlMode = esp32_camera_ns.enum("ESP32GainControlMode")
+ENUM_GAIN_CONTROL_MODE = {
+    "MANUAL": ESP32GainControlMode.ESP32_GC_MODE_MANU,
+    "AUTO": ESP32GainControlMode.ESP32_GC_MODE_AUTO,
+}
+ESP32AgcGainCeiling = esp32_camera_ns.enum("ESP32AgcGainCeiling")
+ENUM_GAIN_CEILING = {
+    "2X": ESP32AgcGainCeiling.ESP32_GAINCEILING_2X,
+    "4X": ESP32AgcGainCeiling.ESP32_GAINCEILING_4X,
+    "8X": ESP32AgcGainCeiling.ESP32_GAINCEILING_8X,
+    "16X": ESP32AgcGainCeiling.ESP32_GAINCEILING_16X,
+    "32X": ESP32AgcGainCeiling.ESP32_GAINCEILING_32X,
+    "64X": ESP32AgcGainCeiling.ESP32_GAINCEILING_64X,
+    "128X": ESP32AgcGainCeiling.ESP32_GAINCEILING_128X,
+}
+ESP32WhiteBalanceMode = esp32_camera_ns.enum("ESP32WhiteBalanceMode")
+ENUM_WB_MODE = {
+    "AUTO": ESP32WhiteBalanceMode.ESP32_WB_MODE_AUTO,
+    "SUNNY": ESP32WhiteBalanceMode.ESP32_WB_MODE_SUNNY,
+    "CLOUDY": ESP32WhiteBalanceMode.ESP32_WB_MODE_CLOUDY,
+    "OFFICE": ESP32WhiteBalanceMode.ESP32_WB_MODE_OFFICE,
+    "HOME": ESP32WhiteBalanceMode.ESP32_WB_MODE_HOME,
+}
+ESP32SpecialEffect = esp32_camera_ns.enum("ESP32SpecialEffect")
+ENUM_SPECIAL_EFFECT = {
+    "NONE": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_NONE,
+    "NEGATIVE": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_NEGATIVE,
+    "GRAYSCALE": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_GRAYSCALE,
+    "RED_TINT": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_RED_TINT,
+    "GREEN_TINT": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_GREEN_TINT,
+    "BLUE_TINT": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_BLUE_TINT,
+    "SEPIA": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_SEPIA,
+}
 
+# pin assignment
 CONF_VSYNC_PIN = "vsync_pin"
 CONF_HREF_PIN = "href_pin"
 CONF_PIXEL_CLOCK_PIN = "pixel_clock_pin"
 CONF_EXTERNAL_CLOCK = "external_clock"
 CONF_I2C_PINS = "i2c_pins"
 CONF_POWER_DOWN_PIN = "power_down_pin"
-
-CONF_MAX_FRAMERATE = "max_framerate"
-CONF_IDLE_FRAMERATE = "idle_framerate"
+# image
 CONF_JPEG_QUALITY = "jpeg_quality"
 CONF_VERTICAL_FLIP = "vertical_flip"
 CONF_HORIZONTAL_MIRROR = "horizontal_mirror"
+CONF_SATURATION = "saturation"
+CONF_SPECIAL_EFFECT = "special_effect"
+# exposure
+CONF_AEC_MODE = "aec_mode"
 CONF_AEC2 = "aec2"
 CONF_AE_LEVEL = "ae_level"
 CONF_AEC_VALUE = "aec_value"
-CONF_SATURATION = "saturation"
+# gains
+CONF_AGC_MODE = "agc_mode"
+CONF_AGC_VALUE = "agc_value"
+CONF_AGC_GAIN_CEILING = "agc_gain_ceiling"
+# white balance
+CONF_WB_MODE = "wb_mode"
+# test pattern
 CONF_TEST_PATTERN = "test_pattern"
+# framerates
+CONF_MAX_FRAMERATE = "max_framerate"
+CONF_IDLE_FRAMERATE = "idle_framerate"
 
 camera_range_param = cv.int_range(min=-2, max=2)
 
 CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(ESP32Camera),
+        # pin assignment
         cv.Required(CONF_DATA_PINS): cv.All(
             [pins.internal_gpio_input_pin_number], cv.Length(min=8, max=8)
         ),
@@ -92,12 +139,7 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         ),
         cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_POWER_DOWN_PIN): pins.internal_gpio_output_pin_number,
-        cv.Optional(CONF_MAX_FRAMERATE, default="10 fps"): cv.All(
-            cv.framerate, cv.Range(min=0, min_included=False, max=60)
-        ),
-        cv.Optional(CONF_IDLE_FRAMERATE, default="0.1 fps"): cv.All(
-            cv.framerate, cv.Range(min=0, max=1)
-        ),
+        # image
         cv.Optional(CONF_RESOLUTION, default="640X480"): cv.enum(
             FRAME_SIZES, upper=True
         ),
@@ -107,29 +149,66 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         cv.Optional(CONF_SATURATION, default=0): camera_range_param,
         cv.Optional(CONF_VERTICAL_FLIP, default=True): cv.boolean,
         cv.Optional(CONF_HORIZONTAL_MIRROR, default=True): cv.boolean,
+        cv.Optional(CONF_SPECIAL_EFFECT, default="NONE"): cv.enum(
+            ENUM_SPECIAL_EFFECT, upper=True
+        ),
+        # exposure
+        cv.Optional(CONF_AGC_MODE, default="AUTO"): cv.enum(
+            ENUM_GAIN_CONTROL_MODE, upper=True
+        ),
         cv.Optional(CONF_AEC2, default=False): cv.boolean,
         cv.Optional(CONF_AE_LEVEL, default=0): camera_range_param,
         cv.Optional(CONF_AEC_VALUE, default=300): cv.int_range(min=0, max=1200),
+        # gains
+        cv.Optional(CONF_AEC_MODE, default="AUTO"): cv.enum(
+            ENUM_GAIN_CONTROL_MODE, upper=True
+        ),
+        cv.Optional(CONF_AGC_VALUE, default=0): cv.int_range(min=0, max=30),
+        cv.Optional(CONF_AGC_GAIN_CEILING, default="2X"): cv.enum(
+            ENUM_GAIN_CEILING, upper=True
+        ),
+        # white balance
+        cv.Optional(CONF_WB_MODE, default="AUTO"): cv.enum(ENUM_WB_MODE, upper=True),
+        # test pattern
         cv.Optional(CONF_TEST_PATTERN, default=False): cv.boolean,
+        # framerates
+        cv.Optional(CONF_MAX_FRAMERATE, default="10 fps"): cv.All(
+            cv.framerate, cv.Range(min=0, min_included=False, max=60)
+        ),
+        cv.Optional(CONF_IDLE_FRAMERATE, default="0.1 fps"): cv.All(
+            cv.framerate, cv.Range(min=0, max=1)
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 SETTERS = {
+    # pin assignment
     CONF_DATA_PINS: "set_data_pins",
     CONF_VSYNC_PIN: "set_vsync_pin",
     CONF_HREF_PIN: "set_href_pin",
     CONF_PIXEL_CLOCK_PIN: "set_pixel_clock_pin",
     CONF_RESET_PIN: "set_reset_pin",
     CONF_POWER_DOWN_PIN: "set_power_down_pin",
+    # image
     CONF_JPEG_QUALITY: "set_jpeg_quality",
     CONF_VERTICAL_FLIP: "set_vertical_flip",
     CONF_HORIZONTAL_MIRROR: "set_horizontal_mirror",
-    CONF_AEC2: "set_aec2",
-    CONF_AE_LEVEL: "set_ae_level",
-    CONF_AEC_VALUE: "set_aec_value",
     CONF_CONTRAST: "set_contrast",
     CONF_BRIGHTNESS: "set_brightness",
     CONF_SATURATION: "set_saturation",
+    CONF_SPECIAL_EFFECT: "set_special_effect",
+    # exposure
+    CONF_AEC_MODE: "set_aec_mode",
+    CONF_AEC2: "set_aec2",
+    CONF_AE_LEVEL: "set_ae_level",
+    CONF_AEC_VALUE: "set_aec_value",
+    # gains
+    CONF_AGC_MODE: "set_agc_mode",
+    CONF_AGC_VALUE: "set_agc_value",
+    CONF_AGC_GAIN_CEILING: "set_agc_gain_ceiling",
+    # white balance
+    CONF_WB_MODE: "set_wb_mode",
+    # test pattern
     CONF_TEST_PATTERN: "set_test_pattern",
 }
 

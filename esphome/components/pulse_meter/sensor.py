@@ -5,6 +5,7 @@ from esphome.components import sensor
 from esphome.const import (
     CONF_ID,
     CONF_INTERNAL_FILTER,
+    CONF_INTERNAL_FILTER_MODE,
     CONF_PIN,
     CONF_NUMBER,
     CONF_TIMEOUT,
@@ -18,13 +19,20 @@ from esphome.const import (
 )
 from esphome.core import CORE
 
-CODEOWNERS = ["@stevebaxter"]
+CODEOWNERS = ["@stevebaxter", "@cstaahl"]
 
 pulse_meter_ns = cg.esphome_ns.namespace("pulse_meter")
+
 
 PulseMeterSensor = pulse_meter_ns.class_(
     "PulseMeterSensor", sensor.Sensor, cg.Component
 )
+
+PulseMeterInternalFilterMode = PulseMeterSensor.enum("InternalFilterMode")
+FILTER_MODES = {
+    "EDGE": PulseMeterInternalFilterMode.FILTER_EDGE,
+    "PULSE": PulseMeterInternalFilterMode.FILTER_PULSE,
+}
 
 SetTotalPulsesAction = pulse_meter_ns.class_("SetTotalPulsesAction", automation.Action)
 
@@ -50,13 +58,13 @@ def validate_pulse_meter_pin(value):
 
 
 CONFIG_SCHEMA = sensor.sensor_schema(
+    PulseMeterSensor,
     unit_of_measurement=UNIT_PULSES_PER_MINUTE,
     icon=ICON_PULSE,
     accuracy_decimals=2,
     state_class=STATE_CLASS_MEASUREMENT,
 ).extend(
     {
-        cv.GenerateID(): cv.declare_id(PulseMeterSensor),
         cv.Required(CONF_PIN): validate_pulse_meter_pin,
         cv.Optional(CONF_INTERNAL_FILTER, default="13us"): validate_internal_filter,
         cv.Optional(CONF_TIMEOUT, default="5min"): validate_timeout,
@@ -66,19 +74,22 @@ CONFIG_SCHEMA = sensor.sensor_schema(
             accuracy_decimals=0,
             state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
+        cv.Optional(CONF_INTERNAL_FILTER_MODE, default="EDGE"): cv.enum(
+            FILTER_MODES, upper=True
+        ),
     }
 )
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
-    await sensor.register_sensor(var, config)
 
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT]))
+    cg.add(var.set_filter_mode(config[CONF_INTERNAL_FILTER_MODE]))
 
     if CONF_TOTAL in config:
         sens = await sensor.new_sensor(config[CONF_TOTAL])
