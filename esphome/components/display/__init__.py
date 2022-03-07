@@ -5,16 +5,21 @@ from esphome.automation import maybe_simple_id
 from esphome.components import sensor, text_sensor
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
+    CONF_FORMAT,
     CONF_ID,
     CONF_LAMBDA,
     CONF_PAGES,
     CONF_PAGE_ID,
     CONF_ROTATION,
+    CONF_SENSOR,
     CONF_FROM,
+    CONF_TEXT_SENSOR,
     CONF_TO,
     CONF_TRIGGER_ID,
+    CONF_TYPE_ID,
 )
 from esphome.core import coroutine_with_priority
+from esphome.util import Registry
 
 IS_PLATFORM_COMPONENT = True
 
@@ -41,8 +46,6 @@ TextAlign = display_ns.enum("TextAlign", is_class=True)
 Widget = display_ns.class_("Widget")
 WidgetRef = Widget.operator("ref")
 WidgetContainer = display_ns.class_("WidgetContainer", Widget)
-Horizontal = display_ns.class_("Horizontal", Widget)
-Vertical = display_ns.class_("Vertical", Widget)
 Text = display_ns.class_("Text", Widget)
 
 CONF_ON_PAGE_CHANGE = "on_page_change"
@@ -77,12 +80,7 @@ CONF_Y = "y"
 CONF_WIDTH = "width"
 CONF_HEIGHT = "height"
 
-
-def WidgetSchema(x):
-    return WIDGET_SCHEMA(x)
-
-
-BASE_WIDGET_SCHEMA = cv.Schema(
+WIDGET_REGISTRY = Registry(
     {
         cv.Optional(CONF_X, default=0): cv.int_range(min=0, max=2000),
         cv.Optional(CONF_Y, default=0): cv.int_range(min=0, max=2000),
@@ -90,26 +88,41 @@ BASE_WIDGET_SCHEMA = cv.Schema(
         cv.Optional(CONF_HEIGHT): cv.Any(cv.int_range(min=0, max=2000), cv.percentage),
     },
 )
+validate_widget = cv.validate_registry_entry(
+    "widget",
+    WIDGET_REGISTRY,
+)
+register_widget = WIDGET_REGISTRY.register
 
-HORIZONTAL_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(Horizontal),
-        cv.Required("horizontal"): cv.All(
-            cv.ensure_list(WidgetSchema),
+
+async def build_widget(full_config):
+    registry_entry, config = cg.extract_registry_entry_config(
+        WIDGET_REGISTRY, full_config
+    )
+    type_id = full_config[CONF_TYPE_ID]
+    builder = registry_entry.coroutine_fun
+    var = cg.new_Pvariable(type_id)
+    # TODO: Apply top-level parameters
+    await builder(var, config)
+    return var
+
+
+for class_ in ("Horizontal", "Vertical"):
+
+    @register_widget(
+        class_.lower(),
+        display_ns.class_(class_, Widget),
+        cv.All(
+            cv.ensure_list(validate_widget),
             cv.Length(min=1),
         ),
-    },
-).extend(BASE_WIDGET_SCHEMA)
-
-VERTICAL_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(Vertical),
-        cv.Required("vertical"): cv.All(
-            cv.ensure_list(WidgetSchema),
-            cv.Length(min=1),
-        ),
-    },
-).extend(BASE_WIDGET_SCHEMA)
+    )
+    async def box_widget(var, config):
+        children = []
+        for w in config:
+            w = await build_widget(w)
+            children.append(w)
+        cg.add(var.set_children(children))
 
 
 def use_font_id(value):
@@ -133,39 +146,70 @@ _ALIGN = {
     "BOTTOM_RIGHT": TextAlign.BOTTOM_RIGHT,
 }
 
+CONF_TEXT = "text"
+CONF_FONT = "font"
+CONF_ALIGN = "align"
 
-TEXT_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(Text.template()),
-        cv.Required("text"): cv.templatable(cv.string),
-        cv.Required("font"): use_font_id,
-        cv.Exclusive("sensor", "sensor"): cv.use_id(sensor.Sensor),
-        cv.Exclusive("text_sensor", "sensor"): cv.use_id(text_sensor.TextSensor),
-        cv.Optional("align", default="top left"): cv.enum(
-            _ALIGN, upper=True, space="_"
-        ),
-    },
-)
 
-WIDGET_SCHEMA = cv.Any(
-    HORIZONTAL_SCHEMA,
-    VERTICAL_SCHEMA,
-    TEXT_SCHEMA,
+def validate_text(obj):
+    if CONF_TEXT in obj:
+        obj[CONF_FORMAT] = obj[CONF_TEXT]
+    if CONF_SENSOR in obj and CONF_FORMAT not in obj:
+        obj[CONF_FORMAT] = "%g"
+    if CONF_TEXT_SENSOR in obj and CONF_FORMAT not in obj:
+        obj[CONF_FORMAT] = "%s"
+    if CONF_FORMAT not in obj:
+        raise cv.Invalid("text, format, or a sensor must be specified")
+    return obj
+
+
+@register_widget(
+    "text",
+    Text.template(),
+    cv.All(
+        {
+            cv.Exclusive(CONF_TEXT, "text"): cv.templatable(cv.string),
+            cv.Exclusive(CONF_FORMAT, "text"): cv.templatable(cv.string),
+            cv.Required(CONF_FONT): use_font_id,
+            cv.Exclusive(CONF_SENSOR, "sensor"): cv.use_id(sensor.Sensor),
+            cv.Exclusive(CONF_TEXT_SENSOR, "sensor"): cv.use_id(text_sensor.TextSensor),
+            cv.Optional(CONF_ALIGN, default="top left"): cv.enum(
+                _ALIGN, upper=True, space="_"
+            ),
+        },
+        validate_text,
+    ),
 )
+async def text_widget(var, conf):
+    cg.add(var.set_textalign(conf[CONF_ALIGN].enum_value))
+    text = await cg.templatable(conf[CONF_FORMAT], (), cg.std_string)
+    for key in (CONF_SENSOR, CONF_TEXT_SENSOR):
+        if key in conf:
+            sensor = await cg.get_variable(conf[key])
+            cg.add(var.set_sensor(sensor))
+    cg.add(var.set_text(text))
+    font = await cg.get_variable(conf[CONF_FONT])
+    cg.add(var.set_font(font))
+
 
 FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
     {
         cv.Optional(CONF_ROTATION): validate_rotation,
         cv.Optional(CONF_PAGES): cv.All(
             cv.ensure_list(
-                {
-                    cv.GenerateID(): cv.declare_id(DisplayPage),
-                    cv.GenerateID(CONF_WIDGET_CONTAINER_ID): cv.declare_id(
-                        WidgetContainer
-                    ),
-                    cv.Optional(CONF_WIDGETS): cv.ensure_list(WidgetSchema),
-                    cv.Optional(CONF_LAMBDA): cv.lambda_,
-                }
+                cv.All(
+                    {
+                        cv.GenerateID(): cv.declare_id(DisplayPage),
+                        cv.GenerateID(CONF_WIDGET_CONTAINER_ID): cv.declare_id(
+                            WidgetContainer
+                        ),
+                        cv.Exclusive(CONF_WIDGETS, "draw"): cv.ensure_list(
+                            validate_widget
+                        ),
+                        cv.Exclusive(CONF_LAMBDA, "draw"): cv.lambda_,
+                    },
+                    cv.has_exactly_one_key(CONF_WIDGETS, CONF_LAMBDA),
+                )
             ),
             cv.Length(min=1),
         ),
@@ -217,32 +261,11 @@ async def setup_display_core_(var, config):
         )
 
 
-async def setup_widget(conf) -> WidgetRef:
-    var = cg.new_Pvariable(conf[CONF_ID])
-    if "horizontal" in conf or "vertical" in conf:
-        children = []
-        for w in conf.get("horizontal", []) + conf.get("vertical", []):
-            w = await setup_widget(w)
-            children.append(w)
-        cg.add(var.set_children(children))
-    elif "text" in conf:
-        cg.add(var.set_textalign(conf["align"].enum_value))
-        text = await cg.templatable(conf["text"], (), cg.std_string)
-        for key in ("sensor", "text_sensor"):
-            if key in conf:
-                sensor = await cg.get_variable(conf[key])
-                cg.add(var.set_sensor(sensor))
-        cg.add(var.set_text(text))
-        font = await cg.get_variable(conf["font"])
-        cg.add(var.set_font(font))
-    return var
-
-
 async def setup_widgets(widget_container_id, widgets):
     var = cg.new_Pvariable(widget_container_id)
     children = []
     for conf in widgets:
-        w = await setup_widget(conf)
+        w = await build_widget(conf)
         children.append(w)
     cg.add(var.set_children(children))
     return cg.std_ns.bind(
