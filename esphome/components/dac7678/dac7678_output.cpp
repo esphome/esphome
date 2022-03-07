@@ -57,7 +57,6 @@ void DAC7678Output::dump_config() {
   }
   else
 	ESP_LOGCONFIG(TAG, "DAC7678 initialised");
-  
 }
 
 void DAC7678Output::loop() {
