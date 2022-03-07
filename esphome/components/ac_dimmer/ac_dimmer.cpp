@@ -134,7 +134,7 @@ void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
   if (this->method == DS_MODULATOR_HALF || this->method == DS_MODULATOR_FULL) {
     // RB- if trigger is ON then enable immediately otherwise disable immedately
     this->gate_pin.digital_write(this->ds_trigger);
-  } else { // RB- rest of methods start here unaltered
+  } else {  // RB- rest of methods start here unaltered
     if (this->value == 65535) {
       // fully on, enable output immediately
       this->gate_pin.digital_write(true);
@@ -165,7 +165,7 @@ void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
         }
       }
     }
-  } // RB- DS_MODULATOR condition
+  }  // RB- DS_MODULATOR condition
 }
 
 void IRAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
