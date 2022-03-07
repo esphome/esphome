@@ -33,7 +33,7 @@ static const uint32_t GATE_ENABLE_TIME = 50;
 /// Returns when next "event" is expected in µs, or 0 if no such event known.
 uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
   // If no ZC signal received yet.
-  if (this->crossed_zero_at == 0){
+  if (this->crossed_zero_at == 0) {
     // RB- initialize ds modulator
     this->ds_integrator = 0;
     this->ds_feedback = 0;
@@ -42,19 +42,19 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
   uint32_t time_since_zc = now - this->crossed_zero_at;
   // RB- added condition to DS_MODULATOR method
   // RB- DS first order modulator implemented here
-  if (this->method == DS_MODULATOR_HALF || this->method == DS_MODULATOR_FULL){
-    if(this->ds_flag && time_since_zc > GATE_ENABLE_TIME){
+  if (this->method == DS_MODULATOR_HALF || this->method == DS_MODULATOR_FULL) {
+    if(this->ds_flag && time_since_zc > GATE_ENABLE_TIME) {
       this->gate_pin.digital_write(false);
-      if (this->ds_odd){
+      if (this->ds_odd) {
         this->ds_integrator += this->value - this->ds_feedback;
-        if (this->ds_integrator > 32767){
+        if (this->ds_integrator > 32767) {
           this->ds_trigger = true;
           this->ds_feedback = 65535;
         } else {
           this->ds_trigger = false;
           this->ds_feedback = 0;
         }
-        if(this->method == DS_MODULATOR_FULL){
+        if(this->method == DS_MODULATOR_FULL) {
           this->ds_odd = false;
         }
       } else {
