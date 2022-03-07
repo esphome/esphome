@@ -9,7 +9,7 @@
 namespace esphome {
 namespace ac_dimmer {
 /// RB- I added a new method DS_MODULATOR_HALF and DS_MODULATOR_FULL
-enum DimMethod { 
+enum DimMethod {
   DIM_METHOD_LEADING_PULSE = 0,
   DIM_METHOD_LEADING,
   DIM_METHOD_TRAILING,
