@@ -130,7 +130,7 @@ void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
     // Consider this is the right fall edge and accumulate the cycle time instead
     this->cycle_time_us += cycle_time;
   }
-  
+
   if (this->method == DS_MODULATOR_HALF || this->method == DS_MODULATOR_FULL) {
     /// RB- if trigger is ON then enable immediately otherwise disable immedately
     this->gate_pin.digital_write(this->ds_trigger);
@@ -212,8 +212,8 @@ void AcDimmer::setup() {
   this->min_power_ = 0;
   this->store_.method = this->method_;
   /// RB- added integrator initialization
-  this->ds_integrator_ = 0;  
-  this->ds_feedback_ = 0; 
+  this->ds_integrator_ = 0;
+  this->ds_feedback_ = 0;
   this->store_.ds_integrator = this->ds_integrator_;
   this->store_.ds_feedback = this->ds_feedback_;
 
