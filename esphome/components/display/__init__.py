@@ -6,6 +6,7 @@ from esphome.components import sensor, text_sensor
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
     CONF_FORMAT,
+    CONF_HEIGHT,
     CONF_ID,
     CONF_LAMBDA,
     CONF_PAGES,
@@ -17,6 +18,7 @@ from esphome.const import (
     CONF_TO,
     CONF_TRIGGER_ID,
     CONF_TYPE_ID,
+    CONF_WIDTH,
 )
 from esphome.core import coroutine_with_priority
 from esphome.util import Registry
@@ -77,8 +79,6 @@ CONF_WIDGET_CONTAINER_ID = "widget_container_id"
 
 CONF_X = "x"
 CONF_Y = "y"
-CONF_WIDTH = "width"
-CONF_HEIGHT = "height"
 
 WIDGET_REGISTRY = Registry(
     {
