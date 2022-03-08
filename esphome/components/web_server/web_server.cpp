@@ -977,6 +977,9 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
 
     root["mode"] = PSTR_LOCAL(climate_mode_to_string(obj->mode));
 
+    root["max_temperature"] = traits.get_visual_max_temperature();
+    root["min_temperature"] = traits.get_visual_min_temperature();
+    root["temperature_step"] = traits.get_visual_temperature_step();
     if (traits.get_supports_action()) {
       root["action"] = PSTR_LOCAL(climate_action_to_string(obj->action));
     }
