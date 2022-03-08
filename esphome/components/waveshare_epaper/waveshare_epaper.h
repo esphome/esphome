@@ -355,6 +355,7 @@ class WaveshareEPaper7P5InV2alt : public WaveshareEPaper7P5InV2 {
   bool wait_until_idle_();
   void initialize() override;
   void dump_config() override;
+
  protected:
   void reset_() {
     if (this->reset_pin_ != nullptr) {
