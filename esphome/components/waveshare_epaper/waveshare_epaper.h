@@ -354,10 +354,18 @@ class WaveshareEPaper7P5InV2alt : public WaveshareEPaper7P5InV2 {
  public:
   bool wait_until_idle_();
   void initialize() override;
-  void display() override;
   void dump_config() override;
  protected:
-  void reset_();
+  void reset_() {
+    if (this->reset_pin_ != nullptr) {
+      this->reset_pin_->digital_write(true);
+      delay(200);  // NOLINT
+      this->reset_pin_->digital_write(false);
+      delay(2);  // NOLINT
+      this->reset_pin_->digital_write(true);
+      delay(20);  // NOLINT
+    }
+  };
 };
 
 class WaveshareEPaper7P5InHDB : public WaveshareEPaper {
