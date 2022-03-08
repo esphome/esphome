@@ -35,6 +35,17 @@ struct ThermostatClimateTargetTempConfig {
   ThermostatClimateTargetTempConfig(float default_temperature);
   ThermostatClimateTargetTempConfig(float default_temperature_low, float default_temperature_high);
 
+  void set_fan_mode(climate::ClimateFanMode fan_mode) {
+    this->fan_mode_ = fan_mode;
+  }
+  void set_swing_mode(climate::ClimateSwingMode swing_mode) {
+    this->swing_mode_ = swing_mode;
+  }
+
+  void set_mode(climate::ClimateMode mode) {
+    this->mode_ = mode;
+  }
+
   float default_temperature{NAN};
   float default_temperature_low{NAN};
   float default_temperature_high{NAN};
@@ -42,6 +53,9 @@ struct ThermostatClimateTargetTempConfig {
   float cool_overrun_{NAN};
   float heat_deadband_{NAN};
   float heat_overrun_{NAN};
+  optional<climate::ClimateFanMode> fan_mode_{};
+  optional<climate::ClimateSwingMode> swing_mode_{};
+  optional<climate::ClimateMode> mode_{};
 };
 
 class ThermostatClimate : public climate::Climate, public Component {
