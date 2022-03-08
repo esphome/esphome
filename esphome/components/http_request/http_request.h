@@ -47,7 +47,7 @@ class HttpRequestComponent : public Component {
   bool get_capture_response() { return this->capture_response_; }
 
   virtual void set_url(std::string url) = 0;
-  virtual std::unique_ptr<HttpResponse> send(bool capture_response) = 0;
+  virtual std::unique_ptr<HttpResponse> send() = 0;
 
  protected:
   std::string url_;
