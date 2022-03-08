@@ -55,11 +55,11 @@ esp_err_t http_event_handler(esp_http_client_event_t *evt) {
 
 void HttpRequestIDF::set_url(std::string url) { this->url_ = std::move(url); }
 
-HttpResponse HttpRequestIDF::send(bool capture_response) {
+std::unique_ptr<HttpResponse> HttpRequestIDF::send() {
   if (!network::is_connected()) {
     this->status_set_warning();
     ESP_LOGE(TAG, "HTTP Request failed; Not connected to network");
-    return {-1, 0, {}};
+    return nullptr;
   }
 
   std::vector<char> buffer;
@@ -78,7 +78,7 @@ HttpResponse HttpRequestIDF::send(bool capture_response) {
   } else {
     this->status_set_warning();
     ESP_LOGE(TAG, "HTTP Request failed; Unsupported method");
-    return {-1, 0, {}};
+    return nullptr;
   }
 
   esp_http_client_config_t config = {};
@@ -111,23 +111,24 @@ HttpResponse HttpRequestIDF::send(bool capture_response) {
     this->status_set_warning();
     ESP_LOGE(TAG, "HTTP Request failed: %s", esp_err_to_name(err));
     esp_http_client_cleanup(client);
-    return {-1, 0, {}};
+    return nullptr;
   }
 
-  HttpResponse response = {};
+  std::unique_ptr<HttpResponse> response = make_unique<HttpResponse>();
 
-  response.status_code = esp_http_client_get_status_code(client);
-  response.content_length = esp_http_client_get_content_length(client);
-  response.data = std::move(buffer);
+  int status_code = esp_http_client_get_status_code(client);
+  response->status_code = status_code;
+  response->content_length = esp_http_client_get_content_length(client);
+  response->data = std::move(buffer);
 
-  if (response.status_code < 200 || response.status_code >= 300) {
-    ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", this->url_.c_str(), response.status_code);
+  if (status_code < 200 || status_code >= 300) {
+    ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", this->url_.c_str(), status_code);
     this->status_set_warning();
     return response;
   }
 
   this->status_clear_warning();
-  ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_.c_str(), response.status_code);
+  ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_.c_str(), status_code);
 
   esp_http_client_cleanup(client);
   return response;

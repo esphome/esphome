@@ -17,7 +17,7 @@ static const size_t RESPONSE_BUFFER_SIZE = 2048;
 class HttpRequestIDF : public HttpRequestComponent {
  public:
   void set_url(std::string url) override;
-  HttpResponse send(bool capture_response) override;
+  std::unique_ptr<HttpResponse> send() override;
 
  protected:
   char last_response_buffer_[RESPONSE_BUFFER_SIZE];

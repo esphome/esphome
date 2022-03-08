@@ -23,7 +23,7 @@ void HttpRequestArduino::set_url(std::string url) {
   this->client_.setReuse(true);
 }
 
-HttpResponse HttpRequestArduino::send(bool capture_response) {
+std::unique_ptr<HttpResponse> HttpRequestArduino::send() {
   if (!network::is_connected()) {
     this->client_.end();
     this->status_set_warning();
@@ -68,10 +68,10 @@ HttpResponse HttpRequestArduino::send(bool capture_response) {
 
   int http_code = this->client_.sendRequest(this->method_.c_str(), this->body_.c_str());
 
-  HttpResponse response = {};
+  std::unique_ptr<HttpResponse> response = make_unique<HttpResponse>();
 
-  response.status_code = http_code;
-  response.content_length = this->client_.getSize();
+  response->status_code = http_code;
+  response->content_length = this->client_.getSize();
 
   if (http_code < 0) {
     ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", this->url_.c_str(),
@@ -79,14 +79,14 @@ HttpResponse HttpRequestArduino::send(bool capture_response) {
     this->status_set_warning();
     return {http_code, 0, {}};
   }
-  if (capture_response) {
+  if (this->capture_response_) {
 #ifdef USE_ESP32
     String str;
 #else
     auto &
 #endif
     str = this->client_.getString();
-    response.data = std::vector<char>(str.c_str(), str.c_str() + str.length());
+    response->data = std::vector<char>(str.c_str(), str.c_str() + str.length());
   }
 
   if (http_code < 200 || http_code >= 300) {

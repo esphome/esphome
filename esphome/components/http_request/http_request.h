@@ -1,13 +1,14 @@
 #pragma once
 
+#include <list>
+#include <map>
+#include <memory>
+#include <utility>
 #include "esphome/components/json/json_util.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-#include <list>
-#include <map>
-#include <utility>
-#include <memory>
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace http_request {
@@ -25,7 +26,7 @@ struct HttpResponse {
 
 class HttpRequestResponseTrigger : public Trigger<int, HttpResponse> {
  public:
-  void process(int status_code, HttpResponse response) { this->trigger(status_code, std::move(response)); }
+  void process(std::unique_ptr<HttpResponse> &response) { this->trigger(response->status_code, *response); }
 };
 
 class HttpRequestComponent : public Component {
@@ -46,7 +47,7 @@ class HttpRequestComponent : public Component {
   bool get_capture_response() { return this->capture_response_; }
 
   virtual void set_url(std::string url) = 0;
-  virtual HttpResponse send(bool capture_response) = 0;
+  virtual std::unique_ptr<HttpResponse> send(bool capture_response) = 0;
 
  protected:
   std::string url_;
@@ -111,10 +112,10 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       }
       this->parent_->set_headers(headers);
     }
-    HttpResponse response = this->parent_->send(this->capture_response_.value(x...));
+    std::unique_ptr<HttpResponse> response = this->parent_->send();
 
     for (auto *trigger : this->response_triggers_)
-      trigger->process(response.status_code, response);
+      trigger->process(response);
   }
 
  protected:
