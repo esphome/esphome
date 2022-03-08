@@ -22,6 +22,7 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
     CONF_SUBSTITUTIONS,
+    PLATFORM_RP2040,
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
@@ -70,6 +71,8 @@ def choose_prompt(options):
 
 def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api):
     options = []
+    if PLATFORM_RP2040 in CORE.config:
+        return "picotool"
     for port in get_serial_ports():
         options.append((f"{port.path} ({port.description})", port.path))
     if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
@@ -258,6 +261,14 @@ def upload_using_esptool(config, port):
 
 
 def upload_program(config, args, host):
+    if PLATFORM_RP2040 in config:
+        from esphome import platformio_api
+
+        upload_args = ["-t", "upload"]
+        if args.device is not None:
+            upload_args += ["--upload-port", args.device]
+        return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+
     # if upload is to a serial port use platformio, otherwise assume ota
     if get_port_type(host) == "SERIAL":
         return upload_using_esptool(config, host)

@@ -76,6 +76,8 @@ uint32_t random_uint32() {
   return esp_random();
 #elif defined(USE_ESP8266)
   return os_random();
+#elif defined(USE_RP2040)
+  return rand();
 #else
 #error "No random source available for this configuration."
 #endif
@@ -87,6 +89,8 @@ bool random_bytes(uint8_t *data, size_t len) {
   return true;
 #elif defined(USE_ESP8266)
   return os_get_random(data, len) == 0;
+#elif defined(USE_RP2040)
+  return false;
 #else
 #error "No random source available for this configuration."
 #endif
