@@ -247,5 +247,44 @@ namespace display {
     it->print(x1, y1, font_, COLOR_OFF, align_, cached_text_.c_str());
   }
 
+  const int BUTTON_BORDER_INNER = 10;
+  const int BUTTON_BORDER_OUTER = 10;
+
+  void Button::invalidate_layout() {
+    child_->invalidate_layout();
+    child_->get_minimum_size(&minimum_width_, &minimum_height_);
+    child_->get_preferred_size(&preferred_width_, &preferred_height_);
+    child_->get_maximum_size(&maximum_width_, &maximum_height_);
+    minimum_width_ = sadd(minimum_width_, BUTTON_BORDER_INNER + BUTTON_BORDER_OUTER);
+    minimum_height_ = sadd(minimum_height_, BUTTON_BORDER_INNER + BUTTON_BORDER_OUTER);
+    preferred_width_ = sadd(preferred_width_, BUTTON_BORDER_INNER + BUTTON_BORDER_OUTER);
+    preferred_height_ = sadd(preferred_height_, BUTTON_BORDER_INNER + BUTTON_BORDER_OUTER);
+    maximum_width_ = sadd(maximum_width_, BUTTON_BORDER_INNER + BUTTON_BORDER_OUTER);
+    maximum_height_ = sadd(maximum_height_, BUTTON_BORDER_INNER + BUTTON_BORDER_OUTER);
+  }
+
+  void Button::draw(DisplayBuffer* it, int x1, int y1, int width, int height) {
+    int lx = x1+BUTTON_BORDER_OUTER+BUTTON_BORDER_INNER;
+    int ty = y1+BUTTON_BORDER_OUTER+BUTTON_BORDER_INNER;
+    int rx = x1+width-(BUTTON_BORDER_OUTER+BUTTON_BORDER_INNER);
+    int by = y1+height-(BUTTON_BORDER_OUTER+BUTTON_BORDER_INNER);
+    // Draw circles at each corner
+    it->circle(lx, ty, BUTTON_BORDER_INNER, COLOR_OFF);
+    it->circle(rx, ty, BUTTON_BORDER_INNER, COLOR_OFF);
+    it->circle(lx, by, BUTTON_BORDER_INNER, COLOR_OFF);
+    it->circle(rx, by, BUTTON_BORDER_INNER, COLOR_OFF);
+    // Remove the unneeded parts of the circles
+    it->filled_rectangle(lx, y1+BUTTON_BORDER_OUTER, rx-lx, height-(2*BUTTON_BORDER_OUTER), COLOR_ON);
+    it->filled_rectangle(x1+BUTTON_BORDER_OUTER, ty, width-(2*BUTTON_BORDER_OUTER), by-ty, COLOR_ON);
+    // Connect with lines
+    it->line(lx, y1+BUTTON_BORDER_OUTER, rx, y1+BUTTON_BORDER_OUTER, COLOR_OFF);
+    it->line(lx, y1+height-BUTTON_BORDER_OUTER, rx, y1+height-BUTTON_BORDER_OUTER, COLOR_OFF);
+    it->line(x1+BUTTON_BORDER_OUTER, ty, x1+BUTTON_BORDER_OUTER, by, COLOR_OFF);
+    it->line(x1+width-BUTTON_BORDER_OUTER, ty, x1+width-BUTTON_BORDER_OUTER, by, COLOR_OFF);
+    // Draw content
+    child_->draw(it, lx, ty, rx-lx, by-ty);
+  }
+
+
 }  // namespace display
 }  // namespace esphome

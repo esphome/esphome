@@ -18,6 +18,10 @@ class Widget {
     user_preferred_width_ = width;
     user_preferred_height_ = height;
   };
+  void set_maximum_size(int width, int height) {
+    user_maximum_width_ = width;
+    user_maximum_height_ = height;
+  };
   void get_minimum_size(int *width, int *height) {
     *width = minimum_width_;
     *height = minimum_height_;
@@ -27,14 +31,14 @@ class Widget {
     *height = (user_preferred_height_ >= 0) ? user_preferred_height_ : preferred_height_;
   };
   void get_maximum_size(int *width, int *height) {
-    *width = maximum_width_;
-    *height = maximum_height_;
+    *width = (user_maximum_width_ >= 0) ? user_maximum_width_ : maximum_width_;
+    *height = (user_maximum_height_ >= 0) ? user_maximum_height_ : maximum_height_;
   };
 
   // invalidate_layout should recalculate {minimum,preferred,maximum}_{width,height}_ as necessary.
   virtual void invalidate_layout();
 
-  virtual void draw(DisplayBuffer* it, int x1, int y1, int width, int height);
+  virtual void draw(DisplayBuffer* it, int x1, int y1, int width, int height) = 0;
 
   void draw_fullscreen(DisplayBuffer& it);
 protected:
@@ -43,6 +47,7 @@ protected:
   int maximum_width_ = SHRT_MAX, maximum_height_ = SHRT_MAX;
 private:
   int user_preferred_width_ = -1, user_preferred_height_ = -1;
+  int user_maximum_width_ = -1, user_maximum_height_ = -1;
 protected:
   struct SizeRequirements {
   public:
@@ -126,6 +131,16 @@ template<typename... Ts>  class Text : public Widget {
   sensor::Sensor *source_;
   text_sensor::TextSensor *source_text_;
 };
+
+  class Button : public Widget {
+  public:
+    void set_child(Widget* child) { child_ = child; };
+
+    virtual void invalidate_layout();
+    virtual void draw(DisplayBuffer* it, int x1, int y1, int width, int height);
+  protected:
+    Widget* child_;
+  };
 
 }  // namespace display
 }  // namespace esphome

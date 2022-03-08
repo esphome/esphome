@@ -127,6 +127,18 @@ for class_ in ("Horizontal", "Vertical"):
         cg.add(var.set_children(children))
 
 
+@register_widget(
+    "button",
+    display_ns.class_("Button", Widget),
+    {
+        cv.Required("content"): validate_widget,
+    },
+)
+async def button_widget(var, config):
+    w = await build_widget(config["content"])
+    cg.add(var.set_child(w))
+
+
 def use_font_id(value):
     from esphome.components import font
 
