@@ -6,7 +6,6 @@ from esphome.components import sensor, text_sensor
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
     CONF_FORMAT,
-    CONF_HEIGHT,
     CONF_ID,
     CONF_LAMBDA,
     CONF_PAGES,
@@ -18,7 +17,6 @@ from esphome.const import (
     CONF_TO,
     CONF_TRIGGER_ID,
     CONF_TYPE_ID,
-    CONF_WIDTH,
 )
 from esphome.core import coroutine_with_priority
 from esphome.util import Registry
@@ -79,13 +77,15 @@ CONF_WIDGET_CONTAINER_ID = "widget_container_id"
 
 CONF_X = "x"
 CONF_Y = "y"
+CONF_PREFERRED_SIZE = "preferred_size"
 
 WIDGET_REGISTRY = Registry(
     {
-        cv.Optional(CONF_X, default=0): cv.int_range(min=0, max=2000),
-        cv.Optional(CONF_Y, default=0): cv.int_range(min=0, max=2000),
-        cv.Optional(CONF_WIDTH): cv.Any(cv.int_range(min=0, max=2000), cv.percentage),
-        cv.Optional(CONF_HEIGHT): cv.Any(cv.int_range(min=0, max=2000), cv.percentage),
+        cv.Optional(CONF_PREFERRED_SIZE): cv.dimensions,
+        #        cv.Optional(CONF_X, default=0): cv.int_range(min=0, max=2000),
+        #        cv.Optional(CONF_Y, default=0): cv.int_range(min=0, max=2000),
+        #        cv.Optional(CONF_WIDTH): cv.Any(cv.int_range(min=0, max=2000), cv.percentage),
+        #        cv.Optional(CONF_HEIGHT): cv.Any(cv.int_range(min=0, max=2000), cv.percentage),
     },
 )
 validate_widget = cv.validate_registry_entry(
@@ -102,6 +102,8 @@ async def build_widget(full_config):
     type_id = full_config[CONF_TYPE_ID]
     builder = registry_entry.coroutine_fun
     var = cg.new_Pvariable(type_id)
+    if CONF_PREFERRED_SIZE in full_config:
+        var.set_preferred_size(*full_config[CONF_PREFERRED_SIZE])
     # TODO: Apply top-level parameters
     await builder(var, config)
     return var

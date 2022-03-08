@@ -12,31 +12,151 @@ static const char* TAG = "display.widgets";
 namespace esphome {
 namespace display {
 
+  void add_clamp(int* dest, int a, int b) {
+    if (__builtin_add_overflow(a, b, dest)) {
+      *dest = INT_MAX;
+    }
+  }
+
+  template<typename T>
+  static T sadd(T first, T second)
+  {
+    static_assert(std::is_integral<T>::value, "sadd is not defined for non-integral types");
+    return first > std::numeric_limits<T>::max() - second ? std::numeric_limits<T>::max() : first + second;
+  }
+
   /*
-    All widgets need to declare their preferred size by implementing get_size.
+    All widgets need to declare their preferred size by implementing invalidate_layout.
     Container widgets need to calculate their preferred size from their child widgets' sizes.
   */
 
-  void Widget::get_size(int *width, int *height) {
-    *width = *height = 0;
+  void Widget::invalidate_layout() {
+    // Defaults are fine.
   }
 
   void Widget::draw_fullscreen(DisplayBuffer& it) {
-    int width, height;
     // Trigger sizing
-    get_size(&width, &height);
-    ESP_LOGV(TAG, "Minimum size is (%d, %d)", width, height);
+    invalidate_layout();
+    ESP_LOGV(TAG, "Minimum size is (%d, %d)", minimum_width_, minimum_height_);
+    ESP_LOGV(TAG, "Preferred size is (%d, %d)", preferred_width_, preferred_height_);
 
     it.fill(COLOR_ON);
     return draw(&it, 0, 0, it.get_width(), it.get_height());
   }
 
-  void WidgetContainer::get_size(int *width, int *height) {
-    *width = 0, *height = 0;
-    for (auto& child : children_) {
-        child.widget_->get_size(&child.preferred_width, &child.preferred_height);
-        *width = std::max(*width, child.preferred_width);
-        *height = std::max(*height, child.preferred_height);
+  Widget::SizeRequirements Widget::SizeRequirements::get_tiled_size_requirements(std::vector<SizeRequirements> children) {
+    SizeRequirements total;
+    for (auto& req : children) {
+      add_clamp(&total.minimum, total.minimum, req.minimum);
+      add_clamp(&total.preferred, total.preferred, req.preferred);
+      add_clamp(&total.maximum, total.maximum, req.maximum);
+    }
+    return total;
+  }
+
+  Widget::SizeRequirements Widget::SizeRequirements::get_aligned_size_requirements(std::vector<SizeRequirements> children) {
+    // This algorithm is taken from Swing's SizeRequirements class.
+    SizeRequirements totalAscent;
+    SizeRequirements totalDescent;
+    for (auto& req : children) {
+      int ascent = (int) (req.alignment * req.minimum);
+      int descent = req.minimum - ascent;
+      totalAscent.minimum = std::max(ascent, totalAscent.minimum);
+      totalDescent.minimum = std::max(descent, totalDescent.minimum);
+
+      ascent = (int) (req.alignment * req.preferred);
+      descent = req.preferred - ascent;
+      totalAscent.preferred = std::max(ascent, totalAscent.preferred);
+      totalDescent.preferred = std::max(descent, totalDescent.preferred);
+
+      ascent = (int) (req.alignment * req.maximum);
+      descent = req.maximum - ascent;
+      totalAscent.maximum = std::max(ascent, totalAscent.maximum);
+      totalDescent.maximum = std::max(descent, totalDescent.maximum);
+    }
+    int min, pref, max;
+    add_clamp(&min, totalAscent.minimum, totalDescent.minimum);
+    add_clamp(&pref, totalAscent.preferred, totalDescent.preferred);
+    add_clamp(&max, totalAscent.maximum, totalDescent.maximum);
+    float alignment = 0.0f;
+    if (min > 0) {
+      alignment = (float) totalAscent.minimum / min;
+      alignment = clamp(alignment, 0.0f, 1.0f);
+    }
+    Widget::SizeRequirements out;
+    out.minimum = min;
+    out.preferred = pref;
+    out.maximum = max;
+    out.alignment = alignment;
+    return out;
+  }
+
+  void Widget::SizeRequirements::calculate_tiled_positions(int allocated, std::vector<SizeRequirements> children, std::vector<int> &offsets, std::vector<int> &spans) {
+    offsets.resize(children.size());
+    spans.resize(children.size());
+    if (allocated >= preferred) {
+      // Expanded tile
+      float totalPlay = std::min(allocated - preferred, maximum - preferred);
+      float factor = (maximum - preferred == 0) ? 0 : (totalPlay / (maximum - preferred));
+
+      int totalOffset = 0;
+      for (int i = 0; i < children.size(); i++) {
+        offsets[i] = totalOffset;
+        SizeRequirements &req = children[i];
+        int play = (int)(factor * (req.maximum - req.preferred));
+        add_clamp(&spans[i], req.preferred, play);
+        add_clamp(&totalOffset, totalOffset, spans[i]);
+      }
+    } else {
+      // Compressed tile
+      float totalPlay = std::min(preferred - allocated, preferred - minimum);
+      float factor = (preferred - minimum == 0) ? 0.0 : (totalPlay / (preferred - minimum));
+
+      int totalOffset = 0;
+      for (int i = 0; i < children.size(); i++) {
+        offsets[i] = totalOffset;
+        SizeRequirements &req = children[i];
+        int play = (int)(factor * (req.preferred - req.minimum));
+        spans[i] = req.preferred - play;
+        add_clamp(&totalOffset, totalOffset, spans[i]);
+      }
+    }
+  }
+  void Widget::SizeRequirements::calculate_aligned_positions(int allocated, std::vector<SizeRequirements> children, std::vector<int> &offsets, std::vector<int> &spans) {
+    offsets.resize(children.size());
+    spans.resize(children.size());
+    int totalAscent = (int)(allocated * alignment);
+    int totalDescent = allocated - totalAscent;
+    for (int i = 0; i < children.size(); i++) {
+      SizeRequirements &req = children[i];
+      int maxAscent = (int)(req.maximum * req.alignment);
+      int maxDescent = req.maximum - maxAscent;
+      int ascent = std::min(totalAscent, maxAscent);
+      int descent = std::min(totalDescent, maxDescent);
+
+      offsets[i] = totalAscent - ascent;
+      add_clamp(&spans[i], ascent, descent);
+    }
+  }
+
+  void WidgetContainer::invalidate_layout() {
+    minimum_width_ = 0; minimum_height_ = 0;
+    preferred_width_ = 0; preferred_height_ = 0;
+    maximum_width_ = 0; maximum_height_ = 0;
+    for (auto &child : children_) {
+      child.widget_->invalidate_layout();
+      int child_minimum_width, child_minimum_height;
+      child.widget_->get_minimum_size(&child_minimum_width, &child_minimum_height);
+      minimum_width_ = std::max(minimum_width_, child_minimum_width);
+      minimum_height_ = std::max(minimum_height_, child_minimum_height);
+      int child_preferred_width, child_preferred_height;
+      child.widget_->get_preferred_size(&child_preferred_width, &child_preferred_height);
+      preferred_width_ = std::max(preferred_width_, child_preferred_width);
+      preferred_height_ = std::max(preferred_height_, child_preferred_height);
+      int child_maximum_width, child_maximum_height;
+      child.widget_->get_maximum_size(&child_maximum_width, &child_maximum_height);
+      maximum_width_ = std::max(maximum_width_, child_maximum_width);
+      maximum_height_ = std::max(maximum_height_, child_maximum_height);
     }
   }
 
@@ -46,38 +166,47 @@ namespace display {
     }
   }
 
-  void Horizontal::get_size(int *width, int *height) {
-    WidgetContainer::get_size(width, height);
-    *width = 0;
-    for (auto child : children_) {
-      *width += child.preferred_width;
+  void Box::invalidate_layout() {
+    xChildren_.resize(children_.size());
+    yChildren_.resize(children_.size());
+    for (int i = 0; i < children_.size(); i++) {
+      Child &child = children_[i];
+      child.widget_->invalidate_layout();
+      child.widget_->get_minimum_size(&xChildren_[i].minimum, &yChildren_[i].minimum);
+      child.widget_->get_preferred_size(&xChildren_[i].preferred, &yChildren_[i].preferred);
+      child.widget_->get_maximum_size(&xChildren_[i].maximum, &yChildren_[i].maximum);
     }
+    if (axis_ == X_AXIS) {
+      xTotal_ = SizeRequirements::get_tiled_size_requirements(xChildren_);
+      yTotal_ = SizeRequirements::get_aligned_size_requirements(yChildren_);
+    } else {
+      xTotal_ = SizeRequirements::get_aligned_size_requirements(xChildren_);
+      yTotal_ = SizeRequirements::get_tiled_size_requirements(yChildren_);
+    }
+    minimum_width_ = xTotal_.minimum;
+    preferred_width_ = xTotal_.preferred;
+    maximum_width_ = xTotal_.maximum;
+    minimum_height_ = yTotal_.minimum;
+    preferred_height_ = yTotal_.preferred;
+    maximum_height_ = yTotal_.maximum;
   }
 
-  void Horizontal::draw(DisplayBuffer* it, int x1, int y1, int width, int height) {
-    ESP_LOGV(TAG, "Horizontal::draw at (%d, %d, %d, %d)", x1, y1, width, height);
-    for (auto child : children_) {
-      ESP_LOGV(TAG, "Drawing horizontal child at (%d, %d, %d, %d)", x1, y1, child.preferred_width, height);
-      child.widget_->draw(it, x1, y1, child.preferred_width, height);
-      x1 += child.preferred_width;
+  void Box::draw(DisplayBuffer* it, int x1, int y1, int width, int height) {
+    ESP_LOGV(TAG, "Box<%s>::draw at (%d, %d, %d, %d)", (axis_ == X_AXIS ? "Horizontal" : "Vertical"), x1, y1, width, height);
+    std::vector<int> xOffsets, yOffsets, xSpans, ySpans;
+    if (axis_ == X_AXIS) {
+      xTotal_.calculate_tiled_positions(width, xChildren_, xOffsets, xSpans);
+      yTotal_.calculate_aligned_positions(height, yChildren_, yOffsets, ySpans);
+    } else {
+      xTotal_.calculate_aligned_positions(width, xChildren_, xOffsets, xSpans);
+      yTotal_.calculate_tiled_positions(height, yChildren_, yOffsets, ySpans);
     }
-  }
-
-  void Vertical::get_size(int *width, int *height) {
-    WidgetContainer::get_size(width, height);
-    *height = 0;
-    for (auto child : children_) {
-      *height += child.preferred_height;
+    for (int i = 0; i < children_.size(); i++) {
+      ESP_LOGV(TAG, "Drawing child %d at (%d, %d, %d, %d)", i, xOffsets[i], yOffsets[i], xSpans[i], ySpans[i]);
+      ESP_LOGV(TAG, "SizeRequirements x={%d, %d, %d, %g}, y={%d, %d, %d, %g}", xChildren_[i].minimum, xChildren_[i].preferred, xChildren_[i].maximum, xChildren_[i].alignment, yChildren_[i].minimum, yChildren_[i].preferred, yChildren_[i].maximum, yChildren_[i].alignment);
+      children_[i].widget_->draw(it, x1+xOffsets[i], y1+yOffsets[i], xSpans[i], ySpans[i]);
     }
-  }
-
-  void Vertical::draw(DisplayBuffer* it, int x1, int y1, int width, int height) {
-    ESP_LOGV(TAG, "Vertical::draw at (%d, %d, %d, %d)", x1, y1, width, height);
-    for (auto child : children_) {
-      ESP_LOGV(TAG, "Drawing vertical child at (%d, %d, %d, %d)", x1, y1, width, child.preferred_height);
-      child.widget_->draw(it, x1, y1, width, child.preferred_height);
-      y1 += child.preferred_height;
-    }
+    ESP_LOGV(TAG, "Done drawing %d children", children_.size());
   }
 
   template<> void Text<>::calculate_text_() {
@@ -92,10 +221,12 @@ namespace display {
       cached_text_ = text;
     }
   }
-  template<> void Text<>::get_size(int *width, int *height) {
+  template<> void Text<>::invalidate_layout() {
     calculate_text_();
     int unused_x_offset, unused_baseline;
-    font_->measure(cached_text_.c_str(), width, &unused_x_offset, &unused_baseline, height);
+    font_->measure(cached_text_.c_str(), &preferred_width_, &unused_x_offset, &unused_baseline, &preferred_height_);
+    minimum_width_ = preferred_width_;
+    minimum_height_ = preferred_height_;
   }
 
   template<> void Text<>::draw(DisplayBuffer* it, int x1, int y1, int width, int height) {

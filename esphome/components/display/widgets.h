@@ -1,5 +1,7 @@
 #pragma once
 
+#include <bits/stdc++.h>
+
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 
@@ -12,16 +14,52 @@ namespace display {
 
 class Widget {
  public:
-  virtual void get_size(int *width, int *height);
+  void set_preferred_size(int width, int height) {
+    user_preferred_width_ = width;
+    user_preferred_height_ = height;
+  };
+  void get_minimum_size(int *width, int *height) {
+    *width = minimum_width_;
+    *height = minimum_height_;
+  };
+  void get_preferred_size(int *width, int *height) {
+    *width = (user_preferred_width_ >= 0) ? user_preferred_width_ : preferred_width_;
+    *height = (user_preferred_height_ >= 0) ? user_preferred_height_ : preferred_height_;
+  };
+  void get_maximum_size(int *width, int *height) {
+    *width = maximum_width_;
+    *height = maximum_height_;
+  };
+
+  // invalidate_layout should recalculate {minimum,preferred,maximum}_{width,height}_ as necessary.
+  virtual void invalidate_layout();
 
   virtual void draw(DisplayBuffer* it, int x1, int y1, int width, int height);
 
   void draw_fullscreen(DisplayBuffer& it);
+protected:
+  int minimum_width_ = 0, minimum_height_ = 0;
+  int preferred_width_ = 0, preferred_height_ = 0;
+  int maximum_width_ = SHRT_MAX, maximum_height_ = SHRT_MAX;
+private:
+  int user_preferred_width_ = -1, user_preferred_height_ = -1;
+protected:
+  struct SizeRequirements {
+  public:
+    int minimum = 0;
+    int preferred = 0;
+    int maximum = 0;
+    float alignment = 0.5;
+    static SizeRequirements get_tiled_size_requirements(std::vector<SizeRequirements> children);
+    static SizeRequirements get_aligned_size_requirements(std::vector<SizeRequirements> children);
+    void calculate_tiled_positions(int allocated, std::vector<SizeRequirements> children, std::vector<int> &offsets, std::vector<int> &spans);
+    void calculate_aligned_positions(int allocated, std::vector<SizeRequirements> children, std::vector<int> &offsets, std::vector<int> &spans);
+  };
 };
 
 class WidgetContainer : public Widget {
  public:
-  virtual void get_size(int *width, int *height);
+  virtual void invalidate_layout();
   virtual void draw(DisplayBuffer* it, int x1, int y1, int width, int height);
 
   void set_children(std::vector<Widget *> children) {
@@ -37,24 +75,36 @@ class WidgetContainer : public Widget {
     Child(Widget* widget) : widget_(widget) {}
     Widget *widget_;
     int x, y, width, height;
-    int preferred_width, preferred_height;
   };
   std::vector<Child> children_;
 };
 
-class Horizontal : public WidgetContainer {
-public:
-  virtual void get_size(int *width, int *height);
+  class Box : public WidgetContainer {
+  protected:
+    enum Axis {
+      X_AXIS,
+      Y_AXIS,
+    };
+    Box(Axis axis)
+      : axis_(axis) {}
+  public:
+    virtual void invalidate_layout();
+    virtual void draw(DisplayBuffer* it, int x1, int y1, int width, int height);
+  private:
+    std::vector<SizeRequirements> xChildren_, yChildren_;
+    SizeRequirements xTotal_, yTotal_;
+    Axis axis_;
+  };
 
-  virtual void draw(DisplayBuffer* it, int x1, int y1, int width, int height);
+class Horizontal : public Box {
+public:
+  Horizontal() : Box(X_AXIS) {};
 };
 
-class Vertical : public WidgetContainer {
+class Vertical : public Box {
 public:
-  virtual void get_size(int *width, int *height);
-
-   virtual void draw(DisplayBuffer* it, int x1, int y1, int width, int height);
- };
+  Vertical() : Box(Y_AXIS) {};
+};
 
 template<typename... Ts>  class Text : public Widget {
  public:
@@ -62,8 +112,7 @@ template<typename... Ts>  class Text : public Widget {
   void set_font(Font* font) { font_ = font; }
   void set_textalign(TextAlign align) { align_ = align; }
 
-  virtual void get_size(int *width, int *height);
-
+  virtual void invalidate_layout();
   virtual void draw(DisplayBuffer* it, int x1, int y1, int width, int height);
 
   void set_sensor(sensor::Sensor *sensor) { source_ = sensor; source_text_ = NULL; }
