@@ -62,6 +62,8 @@ def get_component_names():
         "esphome",
         "esp32",
         "esp8266",
+        "sensor",
+        "template",
         "logger",
         "ota",
         "i2c",
@@ -69,10 +71,8 @@ def get_component_names():
         "wifi",
         "sim800l",
         "dallas",
-        "sensor",
         "binary_sensor",
         "gpio",
-        "template",
         "pn532",
         "pn532_i2c",
         "pcf8574",
@@ -196,9 +196,13 @@ def add_module_registries(domain, module):
                 if "." not in name:
                     reg_entry_name = name
                 else:
-                    parts = name.partition(".")
-                    reg_domain = parts[0]
-                    reg_entry_name = parts[2]
+                    parts = name.split(".")
+                    if len(parts) == 2:
+                        reg_domain = parts[0]
+                        reg_entry_name = parts[1]
+                    else:
+                        reg_domain = ".".join([parts[1], parts[0]])
+                        reg_entry_name = parts[2]
 
                 if reg_domain not in output:
                     output[reg_domain] = {}
@@ -276,9 +280,6 @@ def get_simple_type(ref):
         return get_simple_type(data[S_EXTENDS][0])
 
 
-# print(ref)
-
-
 def build_schema():
     print("Building schema")
 
@@ -293,9 +294,9 @@ def build_schema():
     for name, schema in module_schemas(cv):
         register_known_schema("core", name, schema)
 
-    platforms = []
+    platforms = {}
     schema_core[S_PLATFORMS] = platforms
-    core_components = []
+    core_components = {}
     schema_core[S_COMPONENTS] = core_components
 
     add_pin_validators()
@@ -307,8 +308,8 @@ def build_schema():
             # note: S_COMPONENTS is not filled until loaded, e.g.
             # if lock: is not used, then we don't need to know about their
             # platforms yet.
-            output[domain] = {S_COMPONENTS: [], S_SCHEMAS: {}}
-            platforms.append(domain)
+            output[domain] = {S_COMPONENTS: {}, S_SCHEMAS: {}}
+            platforms[domain] = {}
         elif manifest.config_schema is not None:
             # e.g. dallas
             output[domain] = {S_SCHEMAS: {S_CONFIG_SCHEMA: {}}}
@@ -324,13 +325,13 @@ def build_schema():
         if domain in platforms:
             continue
         if manifest.config_schema is not None:
-            core_components.append(domain)
+            core_components[domain] = {}
         for name, schema in module_schemas(manifest.module):
             register_known_schema(domain, name, schema)
         for platform in platforms:
             platform_manifest = get_platform(domain=platform, platform=domain)
             if platform_manifest is not None:
-                output[platform][S_COMPONENTS].append(domain)
+                output[platform][S_COMPONENTS][domain] = {}
                 for name, schema in module_schemas(platform_manifest.module):
                     register_known_schema(f"{domain}.{platform}", name, schema)
 
