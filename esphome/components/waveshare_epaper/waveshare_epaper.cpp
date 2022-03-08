@@ -1138,6 +1138,94 @@ int WaveshareEPaper7P5InV2::get_width_internal() { return 800; }
 int WaveshareEPaper7P5InV2::get_height_internal() { return 480; }
 void WaveshareEPaper7P5InV2::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.5inV2rev2");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+/* 7.50inV2rev2 */
+void WaveshareEPaper7P5InV2alt::initialize() {
+  unsigned char Voltage_Frame_7IN5_V2[]={
+      0x6, 0x3F, 0x3F, 0x11, 0x24, 0x7, 0x17,
+  };
+
+  // COMMAND POWER SETTING
+  this->command(0x01);
+
+  // 1-0=11: internal power
+  this->data(0x17);
+
+  this->data(0x17); // VGH&VGL
+  this->data(0x3F); // VSH
+  this->data(0x3F); // VSL
+  this->data(0x11); // VSHR
+
+  // VCOM DC Setting
+  this->command(0x82);
+  this->data(0x24); // VCOM
+
+  // Booster Setting
+  this->command(0x06);
+  this->data(0x27);
+  this->data(0x27);
+  this->data(0x2F);
+  this->data(0x17);
+
+  // OSC Setting
+  this->command(0x30);
+  this->data(0x06);  // 2-0=100: N=4  ; 5-3=111: M=7  ;  3C=50Hz     3A=100HZ
+
+  // POWER ON
+  this->command(0x04);
+
+  delay(100);  // NOLINT
+  this->wait_until_idle_();
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  this->data(0x3F); // KW-3f   KWR-2F	BWROTP 0f	BWOTP 1f
+
+  // COMMAND RESOLUTION SETTING
+  this->command(0x61);
+  this->data(0x03);
+  this->data(0x20);
+  this->data(0x01);
+  this->data(0xE0);
+  // COMMAND ...?
+  this->command(0x15);
+  this->data(0x00);
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0x10);
+  this->data(0x07);
+  // COMMAND TCON SETTING
+  this->command(0x60);
+  this->data(0x22);
+  // Resolution setting
+  this->command(0x65);
+  this->data(0x00);
+  this->data(0x00); // 800*480
+  this->data(0x00);
+  this->data(0x00);
+}
+void HOT WaveshareEPaper7P5InV2alt::display() {
+  uint32_t buf_len = this->get_buffer_length_();
+  // COMMAND DATA START TRANSMISSION NEW DATA
+  this->command(0x13);
+  delay(2);
+  for (uint32_t i = 0; i < buf_len; i++) {
+    this->data(~(this->buffer_[i]));
+  }
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  delay(100);  // NOLINT
+  this->wait_until_idle_();
+}
+
+void WaveshareEPaper7P5InV2alt::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 7.5inV2");
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
