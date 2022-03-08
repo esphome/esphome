@@ -185,8 +185,7 @@ async def text_widget(var, conf):
     text = await cg.templatable(conf[CONF_FORMAT], (), cg.std_string)
     for key in (CONF_SENSOR, CONF_TEXT_SENSOR):
         if key in conf:
-            sensor = await cg.get_variable(conf[key])
-            cg.add(var.set_sensor(sensor))
+            cg.add(var.set_sensor(await cg.get_variable(conf[key])))
     cg.add(var.set_text(text))
     font = await cg.get_variable(conf[CONF_FONT])
     cg.add(var.set_font(font))
