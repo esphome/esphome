@@ -821,9 +821,8 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
       root["step"] = obj->traits.get_step();
       root["mode"] = (int) obj->traits.get_mode();
     }
-    char buffer[64];
-    snprintf(buffer, sizeof(buffer), "%f", value);
-    root["state"] = buffer;
+    std::string state = str_sprintf("%f", value);
+    root["state"] = state;
     if (isnan(value)) {
       root["value"] = "\"NaN\"";
     } else {
