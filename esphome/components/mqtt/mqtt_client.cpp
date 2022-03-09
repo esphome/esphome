@@ -1,5 +1,4 @@
 #include "mqtt_client.h"
-#define USE_MQTT
 
 #ifdef USE_MQTT
 
