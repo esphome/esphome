@@ -1,6 +1,7 @@
 import inspect
 import json
 import argparse
+from operator import truediv
 import os
 import voluptuous as vol
 
@@ -65,6 +66,10 @@ def get_component_names():
         "sensor",
         "template",
         "logger",
+        # required to process automations.rst
+        "globals",
+        "script",
+        "interval",
         "ota",
         "i2c",
         "api",
@@ -386,7 +391,11 @@ def setEnum(obj, items):
 
 
 def isConvertibleSchema(schema):
-    if schema is not None and isinstance(schema, (cv.Schema, cv.All)):
+    if schema is None:
+        return False
+    if isinstance(schema, (cv.Schema, cv.All)):
+        return True
+    if str(schema) in ejs.hidden_schemas:
         return True
     if isinstance(schema, dict):
         for k in schema.keys():
@@ -518,7 +527,8 @@ def convert_1(schema, config_var, path):
                         and "trigger_id" in automation_schema["config_vars"]
                     ):
                         automation_schema["config_vars"]["then"] = {S_TYPE: "trigger"}
-                        automation_schema["config_vars"].pop("trigger_id")
+                        if "trigger_id" in automation_schema["config_vars"]:
+                            automation_schema["config_vars"].pop("trigger_id")
 
                         config_var[S_TYPE] = "trigger"
                         config_var["schema"] = automation_schema
