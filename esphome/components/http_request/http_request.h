@@ -26,7 +26,7 @@ struct HttpResponse {
 
 class HttpRequestResponseTrigger : public Trigger<int, HttpResponse> {
  public:
-  void process(HttpResponse response) { this->trigger(response->status_code, response); }
+  void process(HttpResponse response) { this->trigger(response.status_code, response); }
 };
 
 class HttpRequestComponent : public Component {
