@@ -10,7 +10,7 @@ namespace tuya {
 class TuyaInitializedTrigger : public Trigger<> {
  public:
   explicit TuyaInitializedTrigger(Tuya *parent) {
-   parent->add_on_initialized_callback([this]() { this->trigger(); });
+    parent->add_on_initialized_callback([this]() { this->trigger(); });
   }
 };
 
