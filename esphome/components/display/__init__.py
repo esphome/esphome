@@ -1,3 +1,5 @@
+import re
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, automation
@@ -75,17 +77,66 @@ BASIC_DISPLAY_SCHEMA = cv.Schema(
 
 CONF_WIDGET_CONTAINER_ID = "widget_container_id"
 
-CONF_X = "x"
-CONF_Y = "y"
+CONF_MINIMUM_SIZE = "minimum_size"
 CONF_PREFERRED_SIZE = "preferred_size"
+CONF_MAXIMUM_SIZE = "maximum_size"
+
+DIMENSION_SOURCE = display_ns.namespace("Widget").enum("DimensionSource")
+
+_DIMENSION_SOURCE = {
+    "AUTO": DIMENSION_SOURCE.AUTO,
+    "MINIMUM": DIMENSION_SOURCE.MINIMUM,
+    "PREFERRED": DIMENSION_SOURCE.PREFERRED,
+    "MAXIMUM": DIMENSION_SOURCE.MAXIMUM,
+    "INFINITE": DIMENSION_SOURCE.INFINITE,
+}
+
+
+def size(value):
+    try:
+        return cv.enum(_DIMENSION_SOURCE, upper=True)(value)
+    except cv.Invalid:
+        pass
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        raise cv.Invalid(
+            'Width and height dimensions must be integers or "auto", "minimum", "preferred", "maximum", or "infinite"'
+        )
+    if value < 0:
+        raise cv.Invalid("Width and height must be at least 0")
+    return value
+
+
+def dimensions(value):
+    # Four possibilities:
+    # "NNxNN"
+    # [NN, NN]
+    # "maximum"
+    # ["maximum", NN]
+    try:
+        value = size(value)
+        return [value, value]
+    except cv.Invalid:
+        pass
+    if isinstance(value, list):
+        if len(value) != 2:
+            raise cv.Invalid(f"Dimensions must have a length of two, not {len(value)}")
+        return size(value[0]), size(value[1])
+    value = cv.string(value)
+    match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
+    if not match:
+        raise cv.Invalid(
+            "Invalid value '{}' for dimensions. Only WIDTHxHEIGHT is allowed."
+        )
+    return dimensions([match.group(1), match.group(2)])
+
 
 WIDGET_REGISTRY = Registry(
     {
-        cv.Optional(CONF_PREFERRED_SIZE): cv.dimensions,
-        #        cv.Optional(CONF_X, default=0): cv.int_range(min=0, max=2000),
-        #        cv.Optional(CONF_Y, default=0): cv.int_range(min=0, max=2000),
-        #        cv.Optional(CONF_WIDTH): cv.Any(cv.int_range(min=0, max=2000), cv.percentage),
-        #        cv.Optional(CONF_HEIGHT): cv.Any(cv.int_range(min=0, max=2000), cv.percentage),
+        cv.Optional(CONF_MINIMUM_SIZE): dimensions,
+        cv.Optional(CONF_PREFERRED_SIZE): dimensions,
+        cv.Optional(CONF_MAXIMUM_SIZE): dimensions,
     },
 )
 validate_widget = cv.validate_registry_entry(
@@ -102,9 +153,12 @@ async def build_widget(full_config):
     type_id = full_config[CONF_TYPE_ID]
     builder = registry_entry.coroutine_fun
     var = cg.new_Pvariable(type_id)
+    if CONF_MINIMUM_SIZE in full_config:
+        cg.add(var.set_minimum_size(*full_config[CONF_MINIMUM_SIZE]))
     if CONF_PREFERRED_SIZE in full_config:
-        var.set_preferred_size(*full_config[CONF_PREFERRED_SIZE])
-    # TODO: Apply top-level parameters
+        cg.add(var.set_preferred_size(*full_config[CONF_PREFERRED_SIZE]))
+    if CONF_MAXIMUM_SIZE in full_config:
+        cg.add(var.set_maximum_size(*full_config[CONF_MAXIMUM_SIZE]))
     await builder(var, config)
     return var
 

@@ -12,11 +12,37 @@ static const char* TAG = "display.widgets";
 namespace esphome {
 namespace display {
 
-  void add_clamp(int* dest, int a, int b) {
+  static void add_clamp(int* dest, int a, int b) {
     if (__builtin_add_overflow(a, b, dest)) {
       *dest = INT_MAX;
     }
   }
+
+  static int get_size(Widget::DimensionSource source, int user, int minimum, int preferred, int maximum) {
+    if (user == Widget::AUTO || user < Widget::MAXIMUM) {
+      user = source;
+    }
+    switch (user) {
+    case Widget::MINIMUM:
+      return minimum;
+    case Widget::PREFERRED:
+      return preferred;
+    case Widget::MAXIMUM:
+      return maximum;
+    }
+    return user;
+  }
+
+#define ASSIGN_SIZE(SOURCE, SOURCE_LOWER, DIRECTION) { *DIRECTION = get_size(Widget::SOURCE, user_ ## SOURCE_LOWER ## _ ## DIRECTION ## _, minimum_ ## DIRECTION ## _, preferred_ ## DIRECTION ## _, maximum_ ## DIRECTION ## _); }
+
+#define GET_SIZE_FN(SOURCE, SOURCE_LOWER) void Widget::get_ ## SOURCE_LOWER ## _size(int *width, int *height) {\
+  ASSIGN_SIZE(SOURCE, SOURCE_LOWER, width); \
+  ASSIGN_SIZE(SOURCE, SOURCE_LOWER, height); \
+}
+
+  GET_SIZE_FN(MINIMUM, minimum);
+  GET_SIZE_FN(PREFERRED, preferred);
+  GET_SIZE_FN(MAXIMUM, maximum);
 
   template<typename T>
   static T sadd(T first, T second)

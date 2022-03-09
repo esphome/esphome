@@ -13,7 +13,11 @@ namespace esphome {
 namespace display {
 
 class Widget {
- public:
+public:
+  void set_minimum_size(int width, int height) {
+    user_minimum_width_ = width;
+    user_minimum_height_ = height;
+  };
   void set_preferred_size(int width, int height) {
     user_preferred_width_ = width;
     user_preferred_height_ = height;
@@ -22,18 +26,18 @@ class Widget {
     user_maximum_width_ = width;
     user_maximum_height_ = height;
   };
-  void get_minimum_size(int *width, int *height) {
-    *width = minimum_width_;
-    *height = minimum_height_;
+
+  enum DimensionSource {
+    AUTO = -1,
+    MINIMUM = -2,
+    PREFERRED = -3,
+    MAXIMUM = -4,
+    INFINITE = SHRT_MAX,
   };
-  void get_preferred_size(int *width, int *height) {
-    *width = (user_preferred_width_ >= 0) ? user_preferred_width_ : preferred_width_;
-    *height = (user_preferred_height_ >= 0) ? user_preferred_height_ : preferred_height_;
-  };
-  void get_maximum_size(int *width, int *height) {
-    *width = (user_maximum_width_ >= 0) ? user_maximum_width_ : maximum_width_;
-    *height = (user_maximum_height_ >= 0) ? user_maximum_height_ : maximum_height_;
-  };
+
+  void get_minimum_size(int *width, int *height);
+  void get_preferred_size(int *width, int *height);
+  void get_maximum_size(int *width, int *height);
 
   // invalidate_layout should recalculate {minimum,preferred,maximum}_{width,height}_ as necessary.
   virtual void invalidate_layout();
@@ -46,6 +50,7 @@ protected:
   int preferred_width_ = 0, preferred_height_ = 0;
   int maximum_width_ = SHRT_MAX, maximum_height_ = SHRT_MAX;
 private:
+  int user_minimum_width_ = -1, user_minimum_height_ = -1;
   int user_preferred_width_ = -1, user_preferred_height_ = -1;
   int user_maximum_width_ = -1, user_maximum_height_ = -1;
 protected:
