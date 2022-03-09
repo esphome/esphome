@@ -197,7 +197,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       if (this->init_state_ == TuyaInitState::INIT_DATAPOINT) {
         this->init_state_ = TuyaInitState::INIT_DONE;
         this->set_timeout("datapoint_dump", 1000, [this] { this->dump_config(); });
-        this->initialized_callback_.call();
+        this->set_timeout("initialized_cb", 1000, [this] { this->initialized_callback_.call(); });
       }
       this->handle_datapoints_(buffer, len);
       break;

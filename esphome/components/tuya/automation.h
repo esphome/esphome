@@ -7,6 +7,13 @@
 namespace esphome {
 namespace tuya {
 
+class TuyaInitializedTrigger : public Trigger<> {
+ public:
+  explicit TuyaInitializedTrigger(Tuya *parent) {
+   parent->add_on_initialized_callback([this]() { this->trigger(); });
+  }
+};
+
 class TuyaDatapointUpdateTrigger : public Trigger<TuyaDatapoint> {
  public:
   explicit TuyaDatapointUpdateTrigger(Tuya *parent, uint8_t sensor_id) {

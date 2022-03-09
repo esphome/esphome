@@ -12,6 +12,8 @@ CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS = "ignore_mcu_update_on_datapoints"
 CONF_ON_DATAPOINT_UPDATE = "on_datapoint_update"
 CONF_DATAPOINT_TYPE = "datapoint_type"
 
+CONF_ON_INITIALIZED = "on_initialized"
+
 tuya_ns = cg.esphome_ns.namespace("tuya")
 Tuya = tuya_ns.class_("Tuya", cg.Component, uart.UARTDevice)
 
@@ -70,6 +72,10 @@ DATAPOINT_TRIGGERS = {
     ),
 }
 
+INITIALIZED_TRIGGER = tuya_ns.class_(
+    "TuyaInitializedTrigger", automation.Trigger.template()
+)
+
 
 def assign_declare_id(value):
     value = value.copy()
@@ -100,6 +106,11 @@ CONFIG_SCHEMA = (
                 },
                 extra_validators=assign_declare_id,
             ),
+            cv.Optional(CONF_ON_INITIALIZED): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(INITIALIZED_TRIGGER),
+                }
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -124,3 +135,6 @@ async def to_code(config):
         await automation.build_automation(
             trigger, [(DATAPOINT_TYPES[conf[CONF_DATAPOINT_TYPE]], "x")], conf
         )
+    for conf in config.get(CONF_ON_INITIALIZED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
