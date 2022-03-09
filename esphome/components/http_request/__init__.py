@@ -28,7 +28,8 @@ HttpRequestSendAction = http_request_ns.class_(
     "HttpRequestSendAction", automation.Action
 )
 HttpRequestResponseTrigger = http_request_ns.class_(
-    "HttpRequestResponseTrigger", automation.Trigger.template(int, HttpResponse)
+    "HttpRequestResponseTrigger",
+    automation.Trigger.template(int, HttpResponse.operator("ref")),
 )
 
 CONF_HEADERS = "headers"
@@ -223,7 +224,7 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
             trigger,
             [
                 (int, "status_code"),
-                (HttpResponse, "response"),
+                (HttpResponse.operator("ref"), "response"),
             ],
             conf,
         )

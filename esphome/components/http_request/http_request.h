@@ -24,9 +24,9 @@ struct HttpResponse {
   std::vector<char> data;
 };
 
-class HttpRequestResponseTrigger : public Trigger<int, HttpResponse> {
+class HttpRequestResponseTrigger : public Trigger<int, HttpResponse &> {
  public:
-  void process(HttpResponse response) { this->trigger(response.status_code, response); }
+  void process(HttpResponse &response) { this->trigger(response.status_code, response); }
 };
 
 class HttpRequestComponent : public Component {
