@@ -121,7 +121,7 @@ std::unique_ptr<HttpResponse> HttpRequestIDF::send() {
   if (status_code < 200 || status_code >= 300) {
     ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", this->url_.c_str(), status_code);
     this->status_set_warning();
-    return response;
+    return make_unique<HttpResponse>(std::move(response));
   }
 
   this->status_clear_warning();
@@ -129,7 +129,7 @@ std::unique_ptr<HttpResponse> HttpRequestIDF::send() {
 
   esp_http_client_cleanup(client);
 
-  return std::unique_ptr<HttpResponse>(new HttpResponse(std::move(response)));
+  return make_unique<HttpResponse>(std::move(response));
 }
 
 }  // namespace http_request
