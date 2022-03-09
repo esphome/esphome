@@ -20,7 +20,7 @@ namespace http_request {
 class HttpRequestArduino : public HttpRequestComponent {
  public:
   void set_url(std::string url) override;
-  std::unique_ptr<HttpResponse> send() override;
+  HttpResponse send() override;
 
  protected:
   std::string last_url_;

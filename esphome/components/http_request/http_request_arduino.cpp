@@ -23,7 +23,7 @@ void HttpRequestArduino::set_url(std::string url) {
   this->client_.setReuse(true);
 }
 
-std::unique_ptr<HttpResponse> HttpRequestArduino::send() {
+HttpResponse HttpRequestArduino::send() {
   if (!network::is_connected()) {
     this->client_.end();
     this->status_set_warning();
@@ -68,10 +68,10 @@ std::unique_ptr<HttpResponse> HttpRequestArduino::send() {
 
   int http_code = this->client_.sendRequest(this->method_.c_str(), this->body_.c_str());
 
-  std::unique_ptr<HttpResponse> response = make_unique<HttpResponse>();
+  HttpResponse response = {};
 
-  response->status_code = http_code;
-  response->content_length = this->client_.getSize();
+  response.status_code = http_code;
+  response.content_length = this->client_.getSize();
 
   if (http_code < 0) {
     ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", this->url_.c_str(),
@@ -86,7 +86,7 @@ std::unique_ptr<HttpResponse> HttpRequestArduino::send() {
     auto &
 #endif
     str = this->client_.getString();
-    response->data = std::vector<char>(str.c_str(), str.c_str() + str.length());
+    response.data = std::vector<char>(str.c_str(), str.c_str() + str.length());
   }
 
   if (http_code < 200 || http_code >= 300) {

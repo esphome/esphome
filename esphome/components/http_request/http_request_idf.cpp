@@ -56,11 +56,11 @@ esp_err_t http_event_handler(esp_http_client_event_t *evt) {
 
 void HttpRequestIDF::set_url(std::string url) { this->url_ = std::move(url); }
 
-std::unique_ptr<HttpResponse> HttpRequestIDF::send() {
+HttpResponse HttpRequestIDF::send() {
   if (!network::is_connected()) {
     this->status_set_warning();
     ESP_LOGE(TAG, "HTTP Request failed; Not connected to network");
-    return nullptr;
+    return {};
   }
 
   esp_http_client_method_t method;
@@ -77,7 +77,7 @@ std::unique_ptr<HttpResponse> HttpRequestIDF::send() {
   } else {
     this->status_set_warning();
     ESP_LOGE(TAG, "HTTP Request failed; Unsupported method");
-    return nullptr;
+    return {};
   }
 
   HttpResponse response = {};  // used as user_data, by http_event_handler, in esp_http_client_perform
@@ -111,7 +111,7 @@ std::unique_ptr<HttpResponse> HttpRequestIDF::send() {
     this->status_set_warning();
     ESP_LOGE(TAG, "HTTP Request failed: %s", esp_err_to_name(err));
     esp_http_client_cleanup(client);
-    return nullptr;
+    return {};
   }
 
   const auto status_code = esp_http_client_get_status_code(client);
@@ -121,7 +121,7 @@ std::unique_ptr<HttpResponse> HttpRequestIDF::send() {
   if (status_code < 200 || status_code >= 300) {
     ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", this->url_.c_str(), status_code);
     this->status_set_warning();
-    return make_unique<HttpResponse>(std::move(response));
+    return response;
   }
 
   this->status_clear_warning();
@@ -129,7 +129,7 @@ std::unique_ptr<HttpResponse> HttpRequestIDF::send() {
 
   esp_http_client_cleanup(client);
 
-  return make_unique<HttpResponse>(std::move(response));
+  return response;
 }
 
 }  // namespace http_request

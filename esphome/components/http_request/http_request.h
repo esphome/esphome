@@ -26,7 +26,7 @@ struct HttpResponse {
 
 class HttpRequestResponseTrigger : public Trigger<int, HttpResponse> {
  public:
-  void process(std::unique_ptr<HttpResponse> &response) { this->trigger(response->status_code, *response); }
+  void process(HttpResponse response) { this->trigger(response->status_code, response); }
 };
 
 class HttpRequestComponent : public Component {
@@ -47,7 +47,7 @@ class HttpRequestComponent : public Component {
   bool get_capture_response() { return this->capture_response_; }
 
   virtual void set_url(std::string url) = 0;
-  virtual std::unique_ptr<HttpResponse> send() = 0;
+  virtual HttpResponse send() = 0;
 
  protected:
   std::string url_;
@@ -112,7 +112,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       }
       this->parent_->set_headers(headers);
     }
-    std::unique_ptr<HttpResponse> response = this->parent_->send();
+    HttpResponse response = this->parent_->send();
 
     for (auto *trigger : this->response_triggers_)
       trigger->process(response);
