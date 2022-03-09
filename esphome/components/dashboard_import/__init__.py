@@ -3,6 +3,7 @@ from pathlib import Path
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components.packages import validate_source_shorthand
+from esphome.wizard import wizard_file
 from esphome.yaml_util import dump
 
 
@@ -48,12 +49,24 @@ def import_config(path: str, name: str, project_name: str, import_url: str) -> N
     if p.exists():
         raise FileExistsError
 
-    config = {
-        "substitutions": {"name": name},
-        "packages": {project_name: import_url},
-        "esphome": {"name_add_mac_suffix": False},
-    }
-    p.write_text(
-        dump(config) + WIFI_CONFIG,
-        encoding="utf8",
-    )
+    if project_name == "esphome.web":
+        p.write_text(
+            wizard_file(
+                name=name,
+                platform="ESP32" if "esp32" in import_url else "ESP8266",
+                board="esp32dev" if "esp32" in import_url else "esp01_1m",
+                ssid="!secret wifi_ssid",
+                psk="!secret wifi_password",
+            ),
+            encoding="utf8",
+        )
+    else:
+        config = {
+            "substitutions": {"name": name},
+            "packages": {project_name: import_url},
+            "esphome": {"name_add_mac_suffix": False},
+        }
+        p.write_text(
+            dump(config) + WIFI_CONFIG,
+            encoding="utf8",
+        )

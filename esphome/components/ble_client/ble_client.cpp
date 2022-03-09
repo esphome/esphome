@@ -167,7 +167,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      auto descr = this->get_config_descriptor(param->reg_for_notify.handle);
+      auto *descr = this->get_config_descriptor(param->reg_for_notify.handle);
       if (descr == nullptr) {
         ESP_LOGW(TAG, "No descriptor found for notify of handle 0x%x", param->reg_for_notify.handle);
         break;
@@ -252,16 +252,17 @@ float BLEClient::parse_char_value(uint8_t *value, uint16_t length) {
 }
 
 BLEService *BLEClient::get_service(espbt::ESPBTUUID uuid) {
-  for (auto svc : this->services_)
+  for (auto *svc : this->services_) {
     if (svc->uuid == uuid)
       return svc;
+  }
   return nullptr;
 }
 
 BLEService *BLEClient::get_service(uint16_t uuid) { return this->get_service(espbt::ESPBTUUID::from_uint16(uuid)); }
 
 BLECharacteristic *BLEClient::get_characteristic(espbt::ESPBTUUID service, espbt::ESPBTUUID chr) {
-  auto svc = this->get_service(service);
+  auto *svc = this->get_service(service);
   if (svc == nullptr)
     return nullptr;
   return svc->get_characteristic(chr);
@@ -272,19 +273,24 @@ BLECharacteristic *BLEClient::get_characteristic(uint16_t service, uint16_t chr)
 }
 
 BLEDescriptor *BLEClient::get_config_descriptor(uint16_t handle) {
-  for (auto &svc : this->services_)
-    for (auto &chr : svc->characteristics)
-      if (chr->handle == handle)
-        for (auto &desc : chr->descriptors)
+  for (auto &svc : this->services_) {
+    for (auto &chr : svc->characteristics) {
+      if (chr->handle == handle) {
+        for (auto &desc : chr->descriptors) {
           if (desc->uuid == espbt::ESPBTUUID::from_uint16(0x2902))
             return desc;
+        }
+      }
+    }
+  }
   return nullptr;
 }
 
 BLECharacteristic *BLEService::get_characteristic(espbt::ESPBTUUID uuid) {
-  for (auto &chr : this->characteristics)
+  for (auto &chr : this->characteristics) {
     if (chr->uuid == uuid)
       return chr;
+  }
   return nullptr;
 }
 
@@ -293,10 +299,10 @@ BLECharacteristic *BLEService::get_characteristic(uint16_t uuid) {
 }
 
 BLEDescriptor *BLEClient::get_descriptor(espbt::ESPBTUUID service, espbt::ESPBTUUID chr, espbt::ESPBTUUID descr) {
-  auto svc = this->get_service(service);
+  auto *svc = this->get_service(service);
   if (svc == nullptr)
     return nullptr;
-  auto ch = svc->get_characteristic(chr);
+  auto *ch = svc->get_characteristic(chr);
   if (ch == nullptr)
     return nullptr;
   return ch->get_descriptor(descr);
@@ -379,22 +385,27 @@ void BLECharacteristic::parse_descriptors() {
 }
 
 BLEDescriptor *BLECharacteristic::get_descriptor(espbt::ESPBTUUID uuid) {
-  for (auto &desc : this->descriptors)
+  for (auto &desc : this->descriptors) {
     if (desc->uuid == uuid)
       return desc;
+  }
   return nullptr;
 }
 BLEDescriptor *BLECharacteristic::get_descriptor(uint16_t uuid) {
   return this->get_descriptor(espbt::ESPBTUUID::from_uint16(uuid));
 }
 
-void BLECharacteristic::write_value(uint8_t *new_val, int16_t new_val_size) {
-  auto client = this->service->client;
+void BLECharacteristic::write_value(uint8_t *new_val, int16_t new_val_size, esp_gatt_write_type_t write_type) {
+  auto *client = this->service->client;
   auto status = esp_ble_gattc_write_char(client->gattc_if, client->conn_id, this->handle, new_val_size, new_val,
-                                         ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+                                         write_type, ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     ESP_LOGW(TAG, "Error sending write value to BLE gattc server, status=%d", status);
   }
+}
+
+void BLECharacteristic::write_value(uint8_t *new_val, int16_t new_val_size) {
+  write_value(new_val, new_val_size, ESP_GATT_WRITE_TYPE_NO_RSP);
 }
 
 }  // namespace ble_client

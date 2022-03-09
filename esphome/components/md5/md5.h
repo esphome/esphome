@@ -3,8 +3,8 @@
 #include "esphome/core/defines.h"
 
 #ifdef USE_ESP_IDF
-#include "esp32/rom/md5_hash.h"
-#define MD5_CTX_TYPE MD5Context
+#include "esp_rom_md5.h"
+#define MD5_CTX_TYPE md5_context_t
 #endif
 
 #if defined(USE_ARDUINO) && defined(USE_ESP32)

@@ -11,10 +11,12 @@ from esphome.const import (
     CONF_BROKER,
     CONF_CLIENT_ID,
     CONF_COMMAND_TOPIC,
+    CONF_COMMAND_RETAIN,
     CONF_DISCOVERY,
     CONF_DISCOVERY_PREFIX,
     CONF_DISCOVERY_RETAIN,
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
+    CONF_DISCOVERY_OBJECT_ID_GENERATOR,
     CONF_ID,
     CONF_KEEPALIVE,
     CONF_LEVEL,
@@ -96,11 +98,18 @@ MQTTTextSensor = mqtt_ns.class_("MQTTTextSensor", MQTTComponent)
 MQTTNumberComponent = mqtt_ns.class_("MQTTNumberComponent", MQTTComponent)
 MQTTSelectComponent = mqtt_ns.class_("MQTTSelectComponent", MQTTComponent)
 MQTTButtonComponent = mqtt_ns.class_("MQTTButtonComponent", MQTTComponent)
+MQTTLockComponent = mqtt_ns.class_("MQTTLockComponent", MQTTComponent)
 
 MQTTDiscoveryUniqueIdGenerator = mqtt_ns.enum("MQTTDiscoveryUniqueIdGenerator")
 MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS = {
     "legacy": MQTTDiscoveryUniqueIdGenerator.MQTT_LEGACY_UNIQUE_ID_GENERATOR,
     "mac": MQTTDiscoveryUniqueIdGenerator.MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR,
+}
+
+MQTTDiscoveryObjectIdGenerator = mqtt_ns.enum("MQTTDiscoveryObjectIdGenerator")
+MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
+    "none": MQTTDiscoveryObjectIdGenerator.MQTT_NONE_OBJECT_ID_GENERATOR,
+    "device_name": MQTTDiscoveryObjectIdGenerator.MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR,
 }
 
 
@@ -163,6 +172,9 @@ CONFIG_SCHEMA = cv.All(
             ): cv.publish_topic,
             cv.Optional(CONF_DISCOVERY_UNIQUE_ID_GENERATOR, default="legacy"): cv.enum(
                 MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS
+            ),
+            cv.Optional(CONF_DISCOVERY_OBJECT_ID_GENERATOR, default="none"): cv.enum(
+                MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS
             ),
             cv.Optional(CONF_USE_ABBREVIATIONS, default=True): cv.boolean,
             cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
@@ -243,19 +255,27 @@ async def to_code(config):
     discovery_retain = config[CONF_DISCOVERY_RETAIN]
     discovery_prefix = config[CONF_DISCOVERY_PREFIX]
     discovery_unique_id_generator = config[CONF_DISCOVERY_UNIQUE_ID_GENERATOR]
+    discovery_object_id_generator = config[CONF_DISCOVERY_OBJECT_ID_GENERATOR]
 
     if not discovery:
         cg.add(var.disable_discovery())
     elif discovery == "CLEAN":
         cg.add(
             var.set_discovery_info(
-                discovery_prefix, discovery_unique_id_generator, discovery_retain, True
+                discovery_prefix,
+                discovery_unique_id_generator,
+                discovery_object_id_generator,
+                discovery_retain,
+                True,
             )
         )
     elif CONF_DISCOVERY_RETAIN in config or CONF_DISCOVERY_PREFIX in config:
         cg.add(
             var.set_discovery_info(
-                discovery_prefix, discovery_unique_id_generator, discovery_retain
+                discovery_prefix,
+                discovery_unique_id_generator,
+                discovery_object_id_generator,
+                discovery_retain,
             )
         )
 
@@ -392,6 +412,8 @@ async def register_mqtt_component(var, config):
         cg.add(var.set_custom_state_topic(config[CONF_STATE_TOPIC]))
     if CONF_COMMAND_TOPIC in config:
         cg.add(var.set_custom_command_topic(config[CONF_COMMAND_TOPIC]))
+    if CONF_COMMAND_RETAIN in config:
+        cg.add(var.set_command_retain(config[CONF_COMMAND_RETAIN]))
     if CONF_AVAILABILITY in config:
         availability = config[CONF_AVAILABILITY]
         if not availability:
