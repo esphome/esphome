@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import CONF_ID, ICON_FLASH, UNIT_WATT_HOURS
 
@@ -13,13 +12,12 @@ from .. import (
 
 TeleInfoSensor = teleinfo_ns.class_("TeleInfoSensor", sensor.Sensor, cg.Component)
 
-CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        unit_of_measurement=UNIT_WATT_HOURS, icon=ICON_FLASH, accuracy_decimals=0
-    )
-    .extend({cv.GenerateID(): cv.declare_id(TeleInfoSensor)})
-    .extend(TELEINFO_LISTENER_SCHEMA)
-)
+CONFIG_SCHEMA = sensor.sensor_schema(
+    TeleInfoSensor,
+    unit_of_measurement=UNIT_WATT_HOURS,
+    icon=ICON_FLASH,
+    accuracy_decimals=0,
+).extend(TELEINFO_LISTENER_SCHEMA)
 
 
 async def to_code(config):

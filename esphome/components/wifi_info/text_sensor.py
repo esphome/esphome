@@ -32,19 +32,19 @@ MacAddressWifiInfo = wifi_info_ns.class_(
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_IP_ADDRESS): text_sensor.text_sensor_schema(
-            klass=IPAddressWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            IPAddressWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ).extend(cv.polling_component_schema("1s")),
         cv.Optional(CONF_SCAN_RESULTS): text_sensor.text_sensor_schema(
-            klass=ScanResultsWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            ScanResultsWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ).extend(cv.polling_component_schema("60s")),
         cv.Optional(CONF_SSID): text_sensor.text_sensor_schema(
-            klass=SSIDWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            SSIDWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ).extend(cv.polling_component_schema("1s")),
         cv.Optional(CONF_BSSID): text_sensor.text_sensor_schema(
-            klass=BSSIDWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            BSSIDWiFiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ).extend(cv.polling_component_schema("1s")),
         cv.Optional(CONF_MAC_ADDRESS): text_sensor.text_sensor_schema(
-            klass=MacAddressWifiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            MacAddressWifiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
     }
 )
