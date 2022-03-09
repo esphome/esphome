@@ -41,6 +41,7 @@ args = parser.parse_args()
 DUMP_RAW = False
 DUMP_UNKNOWN = False
 DUMP_PATH = False
+JSON_DUMP_PRETTY = True
 
 # store here dynamic load of esphome components
 components = {}
@@ -121,7 +122,11 @@ from esphome.util import Registry
 
 def write_file(name, obj):
     full_path = os.path.join(args.output_path, name + ".json")
-    write_file_if_changed(full_path, json.dumps(obj))
+    if JSON_DUMP_PRETTY:
+        json_str = json.dumps(obj, indent=2)
+    else:
+        json_str = json.dumps(obj, separators=(",", ":"))
+    write_file_if_changed(full_path, json_str)
     print(f"Wrote {full_path}")
 
 
