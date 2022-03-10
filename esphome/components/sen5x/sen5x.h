@@ -19,7 +19,6 @@ class SEN5xComponent : public PollingComponent, public i2c::I2CDevice {
   void set_temperature_sensor(sensor::Sensor *temperature) { temperature_sensor_ = temperature; }
   void set_voc_sensor(sensor::Sensor *voc) { voc_sensor_ = voc; }
 
-
   void setup() override;
   void update() override;
   void dump_config() override;

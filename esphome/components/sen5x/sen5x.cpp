@@ -6,7 +6,6 @@ namespace sen5x {
 
 static const char *const TAG = "sen5x";
 
-
 static const uint16_t SEN5x_CMD_START_MEASUREMENT = 0x0021;
 static const uint16_t SEN5x_CMD_START_MEASUREMENT_RHT_GAS_ONLY = 0x0037;
 static const uint16_t SEN5x_CMD_STOP_MEASUREMENT = 0x0104;
@@ -26,11 +25,9 @@ static const uint16_t SEN5x_CMD_READ_FIRMWARE_VERSION = 0xD100;
 static const uint16_t SEN5x_CMD_READ_DEVICE_STATUS = 0xD206;
 static const uint16_t SEN5x_CMD_CLEAR_DEVICE_STATUS = 0xD210;
 static const uint16_t SEN5x_CMD_RESET = 0xD304;
-static const size_t SERIAL_NUMBER_LENGTH = 32; // number of ASCII Characters
-
+static const size_t SERIAL_NUMBER_LENGTH = 32;  // number of ASCII Characters
 
 static const uint8_t MAX_SKIPPED_DATA_CYCLES_BEFORE_ERROR = 5;
-
 
 void SEN5xComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sen54...");
@@ -73,7 +70,7 @@ void SEN5xComponent::setup() {
     this->skipped_data_read_cycles_ = 0;
     this->start_continuous_measurement_();
 
-      initialized_ = true;
+    initialized_ = true;
   });
 }
 
@@ -215,7 +212,6 @@ void SEN5xComponent::update() {
     if (this->voc_sensor_ != nullptr)
       this->voc_sensor_->publish_state(voc_index);
 
-
     this->status_clear_warning();
     this->skipped_data_read_cycles_ = 0;
   });
@@ -282,5 +278,5 @@ bool SEN5xComponent::read_data_(uint16_t *data, uint8_t len) {
   return true;
 }
 
-}  // namespace sps30
+}  // namespace sen5x
 }  // namespace esphome
