@@ -90,6 +90,7 @@ class DeepSleepComponent : public Component {
   void begin_sleep(bool manual = false);
 
   void prevent_deep_sleep();
+  void allow_deep_sleep();
 
  protected:
   // Returns nullopt if no run duration is set. Otherwise, returns the run
