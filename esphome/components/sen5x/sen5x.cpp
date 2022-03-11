@@ -41,6 +41,8 @@ void SEN5xComponent::setup() {
       return;
     }
 
+    delay(20);
+
     if (!this->read_data_(&raw_firmware_version_, 1)) {
       this->error_code_ = FIRMWARE_VERSION_READ_FAILED;
       this->mark_failed();
@@ -53,6 +55,8 @@ void SEN5xComponent::setup() {
       this->mark_failed();
       return;
     }
+
+    delay(20);
 
     uint16_t raw_serial_number[8];
     if (!this->read_data_(raw_serial_number, 8)) {
