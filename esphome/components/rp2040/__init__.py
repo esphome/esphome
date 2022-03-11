@@ -1,5 +1,7 @@
 import logging
 
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
@@ -10,11 +12,9 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
 )
-from .const import KEY_RP2040, KEY_BOARD, rp2040_ns
-
 from esphome.core import CORE, coroutine_with_priority
-import esphome.config_validation as cv
-import esphome.codegen as cg
+
+from .const import KEY_BOARD, KEY_RP2040, rp2040_ns
 
 # force import gpio to register pin schema
 from .gpio import rp2040_pin_to_code  # noqa
