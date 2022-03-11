@@ -3,8 +3,6 @@
 #include "preferences.h"
 
 #include <cstring>
-#include <string>
-#include <vector>
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
@@ -22,8 +20,6 @@ class RP2040PreferenceBackend : public ESPPreferenceBackend {
 
 class RP2040Preferences : public ESPPreferences {
  public:
-  void setup() {}
-
   ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) override {
     auto *pref = new RP2040PreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
     return ESPPreferenceObject(pref);
@@ -39,7 +35,6 @@ class RP2040Preferences : public ESPPreferences {
 
 void setup_preferences() {
   auto *prefs = new RP2040Preferences();  // NOLINT(cppcoreguidelines-owning-memory)
-  prefs->setup();
   global_preferences = prefs;
 }
 

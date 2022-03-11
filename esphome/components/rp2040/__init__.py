@@ -10,7 +10,7 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
 )
-from .const import KEY_RP2040, KEY_BOARD
+from .const import KEY_RP2040, KEY_BOARD, rp2040_ns
 
 from esphome.core import CORE, coroutine_with_priority
 import esphome.config_validation as cv
@@ -56,7 +56,7 @@ ARDUINO_PLATFORM_VERSION = cv.Version(1, 5, 0)
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(2, 7, 2), "https://github.com/arduino/ArduinoCore-mbed"),
+        "dev": (cv.Version(2, 8, 0), "https://github.com/arduino/ArduinoCore-mbed"),
         "latest": (cv.Version(2, 7, 2), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
@@ -122,6 +122,8 @@ CONFIG_SCHEMA = cv.All(
 
 @coroutine_with_priority(1000)
 async def to_code(config):
+    cg.add(rp2040_ns.setup_preferences())
+
     cg.add_platformio_option("lib_ldf_mode", "off")
 
     cg.add_platformio_option("board", config[CONF_BOARD])

@@ -1,4 +1,5 @@
 #pragma once
+
 #ifdef USE_RP2040
 
 namespace esphome {

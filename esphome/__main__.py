@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import sys
+import time
 from datetime import datetime
 
 from esphome import const, writer, yaml_util
@@ -71,8 +72,6 @@ def choose_prompt(options):
 
 def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api):
     options = []
-    if PLATFORM_RP2040 in CORE.config:
-        return "picotool"
     for port in get_serial_ports():
         options.append((f"{port.path} ({port.description})", port.path))
     if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
@@ -104,11 +103,11 @@ def run_miniterm(config, port):
 
     if CONF_LOGGER not in config:
         _LOGGER.info("Logger is not enabled. Not starting UART logs.")
-        return
+        return 1
     baud_rate = config["logger"][CONF_BAUD_RATE]
     if baud_rate == 0:
         _LOGGER.info("UART logging is disabled (baud_rate=0). Not starting UART logs.")
-        return
+        return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
     backtrace_state = False
@@ -122,25 +121,34 @@ def run_miniterm(config, port):
         ser.dtr = False
         ser.rts = False
 
-    with ser:
-        while True:
-            try:
-                raw = ser.readline()
-            except serial.SerialException:
-                _LOGGER.error("Serial port closed!")
-                return
-            line = (
-                raw.replace(b"\r", b"")
-                .replace(b"\n", b"")
-                .decode("utf8", "backslashreplace")
-            )
-            time = datetime.now().time().strftime("[%H:%M:%S]")
-            message = time + line
-            safe_print(message)
+    tries = 0
+    while tries < 5:
+        try:
+            with ser:
+                while True:
+                    try:
+                        raw = ser.readline()
+                    except serial.SerialException:
+                        _LOGGER.error("Serial port closed!")
+                        return
+                    line = (
+                        raw.replace(b"\r", b"")
+                        .replace(b"\n", b"")
+                        .decode("utf8", "backslashreplace")
+                    )
+                    time_str = datetime.now().time().strftime("[%H:%M:%S]")
+                    message = time_str + line
+                    safe_print(message)
 
-            backtrace_state = platformio_api.process_stacktrace(
-                config, line, backtrace_state=backtrace_state
-            )
+                    backtrace_state = platformio_api.process_stacktrace(
+                        config, line, backtrace_state=backtrace_state
+                    )
+        except serial.SerialException:
+            tries += 1
+            time.sleep(1)
+    if tries >= 5:
+        _LOGGER.error("Could not connect to serial port %s", port)
+        return 1
 
 
 def wrap_to_code(name, comp):
@@ -291,8 +299,7 @@ def show_logs(config, args, port):
     if "logger" not in config:
         raise EsphomeError("Logger is not configured!")
     if get_port_type(port) == "SERIAL":
-        run_miniterm(config, port)
-        return 0
+        return run_miniterm(config, port)
     if get_port_type(port) == "NETWORK" and "api" in config:
         from esphome.components.api.client import run_logs
 
