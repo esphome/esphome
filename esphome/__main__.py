@@ -130,7 +130,7 @@ def run_miniterm(config, port):
                         raw = ser.readline()
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
-                        return
+                        return 0
                     line = (
                         raw.replace(b"\r", b"")
                         .replace(b"\n", b"")
