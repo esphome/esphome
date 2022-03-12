@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2022.3.0-dev"
+__version__ = "2022.4.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -307,6 +307,7 @@ CONF_INTENSITY = "intensity"
 CONF_INTERLOCK = "interlock"
 CONF_INTERNAL = "internal"
 CONF_INTERNAL_FILTER = "internal_filter"
+CONF_INTERNAL_FILTER_MODE = "internal_filter_mode"
 CONF_INTERRUPT = "interrupt"
 CONF_INTERVAL = "interval"
 CONF_INVALID_COOLDOWN = "invalid_cooldown"
@@ -621,6 +622,7 @@ CONF_SLEEP_PIN = "sleep_pin"
 CONF_SLEEP_WHEN_DONE = "sleep_when_done"
 CONF_SONY = "sony"
 CONF_SOURCE = "source"
+CONF_SOURCE_ID = "source_id"
 CONF_SPEED = "speed"
 CONF_SPEED_COMMAND_TOPIC = "speed_command_topic"
 CONF_SPEED_COUNT = "speed_count"

@@ -61,8 +61,8 @@ def set_core_data(config):
     return config
 
 
-def get_esp32_variant():
-    return CORE.data[KEY_ESP32][KEY_VARIANT]
+def get_esp32_variant(core_obj=None):
+    return (core_obj or CORE).data[KEY_ESP32][KEY_VARIANT]
 
 
 def only_on_variant(*, supported=None, unsupported=None):

@@ -408,18 +408,30 @@ async def sliding_window_moving_average_filter_to_code(config, filter_id):
     )
 
 
-@FILTER_REGISTRY.register(
-    "exponential_moving_average",
-    ExponentialMovingAverageFilter,
+EXPONENTIAL_AVERAGE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_ALPHA, default=0.1): cv.positive_float,
             cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
         }
     ),
+    validate_send_first_at,
+)
+
+
+@FILTER_REGISTRY.register(
+    "exponential_moving_average",
+    ExponentialMovingAverageFilter,
+    EXPONENTIAL_AVERAGE_SCHEMA,
 )
 async def exponential_moving_average_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(filter_id, config[CONF_ALPHA], config[CONF_SEND_EVERY])
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_ALPHA],
+        config[CONF_SEND_EVERY],
+        config[CONF_SEND_FIRST_AT],
+    )
 
 
 @FILTER_REGISTRY.register(
