@@ -53,7 +53,7 @@ def _translate_pin(value):
 
 def validate_gpio_pin(value):
     value = _translate_pin(value)
-    if value < 0 or value > 100:
+    if value < 0 or value > 29:
         raise cv.Invalid(f"RP2040: Invalid pin number: {value}")
     return value
 
