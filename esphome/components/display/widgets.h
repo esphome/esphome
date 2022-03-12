@@ -144,7 +144,17 @@ template<typename... Ts>  class Text : public Widget {
     virtual void invalidate_layout();
     virtual void draw(DisplayBuffer* it, int x1, int y1, int width, int height);
   protected:
-    Widget* child_;
+    Widget* child_ = NULL;
+  };
+
+  class ImageWidget : public Widget {
+  public:
+    void set_image(Image* image) { image_ = image; }
+
+    virtual void invalidate_layout();
+    virtual void draw(DisplayBuffer* it, int x1, int y1, int width, int height);
+  protected:
+    Image* image_ = NULL;
   };
 
 }  // namespace display

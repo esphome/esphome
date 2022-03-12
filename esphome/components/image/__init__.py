@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_DITHER,
     CONF_FILE,
     CONF_ID,
+    CONF_IMAGE_ID,
     CONF_RAW_DATA_ID,
     CONF_RESIZE,
     CONF_TYPE,
@@ -44,6 +45,18 @@ IMAGE_SCHEMA = cv.Schema(
 )
 
 CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, IMAGE_SCHEMA)
+
+
+@display.register_widget(
+    "image",
+    display.display_ns.class_("ImageWidget"),
+    {
+        cv.Required(CONF_IMAGE_ID): cv.use_id(Image_),
+    },
+)
+async def image_widget(var, conf):
+    image = await cg.get_variable(conf[CONF_IMAGE_ID])
+    cg.add(var.set_image(image))
 
 
 async def to_code(config):

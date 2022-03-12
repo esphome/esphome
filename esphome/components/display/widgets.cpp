@@ -277,6 +277,9 @@ namespace display {
   const int BUTTON_BORDER_OUTER = 10;
 
   void Button::invalidate_layout() {
+    if (!child_) {
+      return;
+    }
     child_->invalidate_layout();
     child_->get_minimum_size(&minimum_width_, &minimum_height_);
     child_->get_preferred_size(&preferred_width_, &preferred_height_);
@@ -290,6 +293,9 @@ namespace display {
   }
 
   void Button::draw(DisplayBuffer* it, int x1, int y1, int width, int height) {
+    if (!child_) {
+      return;
+    }
     int lx = x1+BUTTON_BORDER_OUTER+BUTTON_BORDER_INNER;
     int ty = y1+BUTTON_BORDER_OUTER+BUTTON_BORDER_INNER;
     int rx = x1+width-(BUTTON_BORDER_OUTER+BUTTON_BORDER_INNER);
@@ -309,6 +315,21 @@ namespace display {
     it->line(x1+width-BUTTON_BORDER_OUTER, ty, x1+width-BUTTON_BORDER_OUTER, by, COLOR_OFF);
     // Draw content
     child_->draw(it, lx, ty, rx-lx, by-ty);
+  }
+
+  void ImageWidget::invalidate_layout() {
+    if (!image_) {
+      return;
+    }
+    minimum_width_ = preferred_width_ = maximum_width_ = image_->get_width();
+    minimum_height_ = preferred_height_ = maximum_height_ = image_->get_height();
+  }
+
+  void ImageWidget::draw(DisplayBuffer* it, int x1, int y1, int width, int height) {
+    if (!image_) {
+      return;
+    }
+    it->image(x1, y1, image_, COLOR_OFF, COLOR_ON);
   }
 
 
