@@ -329,7 +329,10 @@ namespace display {
     if (!image_) {
       return;
     }
-    it->image(x1, y1, image_, COLOR_OFF, COLOR_ON);
+    // N.B. "BINARY" type images are stored inverted, so to draw them
+    // non-inverted we have to invert them again...
+    bool invert = image_->get_type() == IMAGE_TYPE_BINARY;
+    it->image(x1, y1, image_, invert ? COLOR_OFF : COLOR_ON, invert ? COLOR_ON : COLOR_OFF);
   }
 
 
