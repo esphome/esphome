@@ -279,7 +279,7 @@ def upload_program(config, args, host):
             upload_args += ["--upload-port", args.device]
         return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
 
-    elif CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
+    if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
         # if upload is to a serial port use platformio, otherwise assume ota
         if get_port_type(host) == "SERIAL":
             return upload_using_esptool(config, host)
