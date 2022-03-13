@@ -16,16 +16,24 @@ static const char *const TAG = "json";
 static std::vector<char> global_json_build_buffer;  // NOLINT
 
 std::string build_json(const json_build_t &f) {
-  // Here we are allocating as much heap memory as available minus 2kb to be safe
+  // Here we are allocating up to 10kb of memory,
+  // with the heap size minus 2kb to be safe if less than 10kb
   // as we can not have a true dynamic sized document.
   // The excess memory is freed below with `shrinkToFit()`
 #ifdef USE_ESP8266
-  const size_t free_heap = ESP.getMaxFreeBlockSize() - 2048;  // NOLINT(readability-static-accessed-through-instance)
+  const size_t free_heap = ESP.getMaxFreeBlockSize();  // NOLINT(readability-static-accessed-through-instance)
 #elif defined(USE_ESP32)
-  const size_t free_heap = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) - 2048;
+  const size_t free_heap = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
 #endif
 
-  DynamicJsonDocument json_document(free_heap);
+  const size_t request_size = std::min(free_heap - 2048, (size_t) 10240);
+
+  DynamicJsonDocument json_document(request_size);
+  if (json_document.memoryPool().buffer() == nullptr) {
+    ESP_LOGE(TAG, "Could not allocate memory for JSON document! Requested %u bytes, free heap: %u", request_size,
+             free_heap);
+    return "{}";
+  }
   JsonObject root = json_document.to<JsonObject>();
   f(root);
   json_document.shrinkToFit();
@@ -36,16 +44,24 @@ std::string build_json(const json_build_t &f) {
 }
 
 void parse_json(const std::string &data, const json_parse_t &f) {
-  // Here we are allocating as much heap memory as available minus 2kb to be safe
+  // Here we are allocating up to 10kb of memory,
+  // with the heap size minus 2kb to be safe if less than 10kb
   // as we can not have a true dynamic sized document.
   // The excess memory is freed below with `shrinkToFit()`
 #ifdef USE_ESP8266
-  const size_t free_heap = ESP.getMaxFreeBlockSize() - 2048;  // NOLINT(readability-static-accessed-through-instance)
+  const size_t free_heap = ESP.getMaxFreeBlockSize();  // NOLINT(readability-static-accessed-through-instance)
 #elif defined(USE_ESP32)
-  const size_t free_heap = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) - 2048;
+  const size_t free_heap = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
 #endif
 
-  DynamicJsonDocument json_document(free_heap);
+  const size_t request_size = std::min(free_heap - 2048, (size_t) 10240);
+
+  DynamicJsonDocument json_document(request_size);
+  if (json_document.memoryPool().buffer() == nullptr) {
+    ESP_LOGE(TAG, "Could not allocate memory for JSON document! Requested %u bytes, free heap: %u", request_size,
+             free_heap);
+    return;
+  }
   DeserializationError err = deserializeJson(json_document, data);
   json_document.shrinkToFit();
 
