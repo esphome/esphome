@@ -1,7 +1,6 @@
 import inspect
 import json
 import argparse
-from operator import truediv
 import os
 import voluptuous as vol
 
@@ -53,13 +52,15 @@ output = {"core": schema_core}
 # The full generated output is here here
 schema_full = {"components": output}
 
-# A string, string map, key is the str(schema) and value is the schema path given
+# A string, string map, key is the str(schema) and value is
+# a tuple, first element is the schema reference and second is the schema path given, the schema reference is needed to test as different schemas have same key
 known_schemas = {}
 
 solve_registry = []
 
 
 def get_component_names():
+    # return ["esphome", "esp32", "esp8266", "sensor", "mpu6886"]
     return [
         "esphome",
         "esp32",
@@ -76,24 +77,31 @@ def get_component_names():
         "api",
         "wifi",
         "sim800l",
+        "remote_receiver",
+        "remote_transmitter",
         "dallas",
         "binary_sensor",
         "gpio",
         "pn532",
         "pn532_i2c",
         "pcf8574",
+        # required to process light/index.rst
         "light",
         "binary",
         "monochromatic",
+        "e131",
+        "wled",
     ]
     from esphome.loader import CORE_COMPONENTS_PATH
 
-    component_names = ["esphome"]
+    component_names = ["esphome", "sensor"]
+
     for d in os.listdir(CORE_COMPONENTS_PATH):
         if not d.startswith("__") and os.path.isdir(
             os.path.join(CORE_COMPONENTS_PATH, d)
         ):
-            component_names.append(d)
+            if d not in component_names:
+                component_names.append(d)
 
     return component_names
 
@@ -136,8 +144,18 @@ def register_known_schema(
     if module not in output:
         output[module] = {S_SCHEMAS: {}}
     config = convert_config(schema, f"{module}/{name}")
-    output[module][S_SCHEMAS][name] = config[S_SCHEMA] if S_SCHEMA in config else config
-    known_schemas[str(schema)] = f"{module}.{name}"
+    if S_SCHEMA in config:
+        config = config[S_SCHEMA]
+    output[module][S_SCHEMAS][name] = config
+    str_schema = str(schema)
+    if str_schema in known_schemas:
+        schema_info = known_schemas[str_schema]
+        for (schema_instance, name) in schema_info:
+            if schema_instance is schema:
+                print(f"{module}.{name} is an alias of {name} (exactly same schema)")
+        schema_info.append((schema, f"{module}.{name}"))
+    else:
+        known_schemas[str_schema] = [(schema, f"{module}.{name}")]
 
 
 def module_schemas(module):
@@ -249,7 +267,7 @@ def shrink():
     type number. core.port is number"""
 
     for k, v in output.items():
-        print("Simplifying " + k)
+        # print("Simplifying " + k)
         if S_SCHEMAS in v:
             for kk, vv in v[S_SCHEMAS].items():
                 if S_TYPE in vv:
@@ -257,7 +275,7 @@ def shrink():
                     # print("    type")
                 elif S_CONFIG_VARS in vv or S_EXTENDS in vv:
                     # print("    schema")
-                    shrink_schema(vv, "      ")
+                    shrink_schema(vv, "Simplifying " + k + "      ")
                 else:
                     # print("    skip")
                     pass
@@ -281,6 +299,12 @@ def shrink_schema(schema, depth):
 
 def get_simple_type(ref):
     parts = str(ref).partition(".")
+    if parts[0] not in output:
+        print(" not patching " + ref)
+        return None
+    elif parts[2] not in output[parts[0]][S_SCHEMAS]:
+        print(" not patching 2 " + ref)
+        return None
     data = output[parts[0]][S_SCHEMAS][parts[2]]
     if S_CONFIG_VARS in data:
         return None
@@ -423,34 +447,38 @@ def convert_1(schema, config_var, path):
     str_schema = str(schema)
 
     if str_schema in known_schemas:
-        assert S_CONFIG_VARS not in config_var
-        assert S_EXTENDS not in config_var
-        if not S_TYPE in config_var:
-            config_var[S_TYPE] = S_SCHEMA
-        assert config_var[S_TYPE] == S_SCHEMA
+        schema_info = known_schemas[(str_schema)]
+        for (schema_instance, name) in schema_info:
+            if schema_instance is schema:
+                assert S_CONFIG_VARS not in config_var
+                assert S_EXTENDS not in config_var
+                if not S_TYPE in config_var:
+                    config_var[S_TYPE] = S_SCHEMA
+                assert config_var[S_TYPE] == S_SCHEMA
 
-        if S_SCHEMA not in config_var:
-            config_var[S_SCHEMA] = {}
-        if S_EXTENDS not in config_var[S_SCHEMA]:
-            config_var[S_SCHEMA][S_EXTENDS] = [known_schemas[str_schema]]
-        else:
-            config_var[S_SCHEMA][S_EXTENDS].append(known_schemas[str_schema])
-        return
+                if S_SCHEMA not in config_var:
+                    config_var[S_SCHEMA] = {}
+                if S_EXTENDS not in config_var[S_SCHEMA]:
+                    config_var[S_SCHEMA][S_EXTENDS] = [name]
+                else:
+                    config_var[S_SCHEMA][S_EXTENDS].append(name)
+                return
 
     # Extended schemas are tracked when the .extend() is used in a schema
     if str_schema in ejs.extended_schemas:
-        extended = ejs.extended_schemas.get(str_schema)
+        instances = ejs.extended_schemas.get(str_schema)
+        for (schema_instance, extended) in instances:
+            if schema_instance is schema:
+                # The midea actions are extending an empty schema (resulted in the templatize not templatizing anything)
+                # this causes a recursion in that this extended looks the same in extended schema as the extended[1]
+                if str_schema == str(extended[1]):
+                    assert path.startswith("midea_ac/")
+                    return
 
-        # The midea actions are extending an empty schema (resulted in the templatize not templatizing anything)
-        # this causes a recursion in that this extended looks the same in extended schema as the extended[1]
-        if str_schema == str(extended[1]):
-            assert path == "midea.climate/MIDEA_ACTION_BASE_SCHEMA"
-            return
-
-        assert len(extended) == 2
-        convert_1(extended[0], config_var, path + "/extL")
-        convert_1(extended[1], config_var, path + "/extR")
-        return
+                assert len(extended) == 2
+                convert_1(extended[0], config_var, path + "/extL")
+                convert_1(extended[1], config_var, path + "/extR")
+                return
 
     if isinstance(schema, cv.All):
         i = 0
@@ -523,7 +551,9 @@ def convert_1(schema, config_var, path):
             config_var[S_TYPE] = "trigger"
             if automation.AUTOMATION_SCHEMA == ejs.extended_schemas[str(data)][0]:
                 extra_schema = ejs.extended_schemas[str(data)][1]
-            if extra_schema is not None:
+            if (
+                extra_schema is not None and len(extra_schema) > 1
+            ):  # usually only trigger_id here
                 config = convert_config(extra_schema, path + "/extra")
                 if "schema" in config:
                     automation_schema = config["schema"]
@@ -552,6 +582,13 @@ def convert_1(schema, config_var, path):
         elif schema_type == "templatable":
             config_var["templatable"] = True
             convert_1(data, config_var, path + "/templat")
+        elif schema_type == "triggers":
+            # remote base
+            convert_1(data, config_var, path + "/trigger")
+        elif schema_type == "sensor":
+            schema = data
+            convert_1(data, config_var, path + "/trigger")
+            config_var = config_var
         else:
             raise Exception("Unknown extracted schema type")
 
@@ -573,32 +610,35 @@ def convert_1(schema, config_var, path):
         config_var["path"] = path
 
 
-def is_overriden_key(key, converted):
+def get_overridden_config(key, converted):
     # check if the key is in any extended schema in this converted schema, i.e.
     # if we see a on_value_range in a dallas sensor, then this is overridden because
-    #  it is already defined in sensor
+    # it is already defined in sensor
     assert S_CONFIG_VARS not in converted and S_EXTENDS not in converted
     config = converted.get(S_SCHEMA, {})
 
+    return get_overridden_key_inner(key, config, {})
+
+
+def get_overridden_key_inner(key, config, ret):
     if S_EXTENDS not in config:
-        return False
+        return ret
     for s in config[S_EXTENDS]:
         p = s.partition(".")
-        s1 = (
-            output.get(p[0], {}).get(S_SCHEMAS, {}).get(p[2], {}).get(S_CONFIG_VARS, {})
-        )
-        if key in s1:
-            return True
-    return False
+        s1 = output.get(p[0], {}).get(S_SCHEMAS, {}).get(p[2], {})
+        if key in s1.get(S_CONFIG_VARS, {}):
+            for k, v in s1.get(S_CONFIG_VARS)[key].items():
+                if k not in ret:  # keep most overridden
+                    ret[k] = v
+        get_overridden_key_inner(key, s1, ret)
+
+    return ret
 
 
 def convert_keys(converted, schema, path):
     for k, v in schema.items():
         # deprecated stuff
         if str(v).startswith("<function invalid"):
-            continue
-
-        if is_overriden_key(k, converted):
             continue
 
         result = {}
@@ -632,6 +672,9 @@ def convert_keys(converted, schema, path):
             converted["schema"] = {S_CONFIG_VARS: {}}
         if S_CONFIG_VARS not in converted["schema"]:
             converted["schema"][S_CONFIG_VARS] = {}
+        for base_k, base_v in get_overridden_config(k, converted).items():
+            if base_k in result and base_v == result[base_k]:
+                result.pop(base_k)
         converted["schema"][S_CONFIG_VARS][str(k)] = result
 
 

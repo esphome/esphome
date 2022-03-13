@@ -41,7 +41,10 @@ def jschema_extended(func):
         def decorate(*args, **kwargs):
             ret = func(*args, **kwargs)
             assert len(args) == 2
-            extended_schemas[str(ret)] = args
+            if str(ret) in extended_schemas:
+                extended_schemas[str(ret)].append((ret, args))
+            else:
+                extended_schemas[str(ret)] = [(ret, args)]
             return ret
 
         return decorate
