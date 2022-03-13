@@ -147,15 +147,15 @@ def register_known_schema(
     if S_SCHEMA in config:
         config = config[S_SCHEMA]
     output[module][S_SCHEMAS][name] = config
-    str_schema = str(schema)
-    if str_schema in known_schemas:
-        schema_info = known_schemas[str_schema]
+    repr_schema = repr(schema)
+    if repr_schema in known_schemas:
+        schema_info = known_schemas[repr_schema]
         for (schema_instance, name) in schema_info:
             if schema_instance is schema:
                 print(f"{module}.{name} is an alias of {name} (exactly same schema)")
         schema_info.append((schema, f"{module}.{name}"))
     else:
-        known_schemas[str_schema] = [(schema, f"{module}.{name}")]
+        known_schemas[repr_schema] = [(schema, f"{module}.{name}")]
 
 
 def module_schemas(module):
@@ -188,7 +188,7 @@ pin_validators = {}
 def add_pin_validators():
     for m_attr_name in dir(pins):
         if "gpio" in m_attr_name:
-            s = pin_validators[str(getattr(pins, m_attr_name))] = {}
+            s = pin_validators[repr(getattr(pins, m_attr_name))] = {}
             if "schema" in m_attr_name:
                 s["schema"] = True  # else is just number
             if "internal" in m_attr_name:
@@ -210,15 +210,15 @@ def add_module_registries(domain, module):
             if attr_obj == automation.ACTION_REGISTRY:
                 reg_type = "action"
                 reg_domain = "core"
-                found_registries[str(attr_obj)] = reg_type
+                found_registries[repr(attr_obj)] = reg_type
             elif attr_obj == automation.CONDITION_REGISTRY:
                 reg_type = "condition"
                 reg_domain = "core"
-                found_registries[str(attr_obj)] = reg_type
+                found_registries[repr(attr_obj)] = reg_type
             else:  # attr_name == "FILTER_REGISTRY":
                 reg_domain = domain
                 reg_type = attr_name.partition("_")[0].lower()
-                found_registries[str(attr_obj)] = f"{domain}.{reg_type}"
+                found_registries[repr(attr_obj)] = f"{domain}.{reg_type}"
 
             for name in attr_obj.keys():
                 if "." not in name:
@@ -298,7 +298,7 @@ def shrink_schema(schema, depth):
 
 
 def get_simple_type(ref):
-    parts = str(ref).partition(".")
+    parts = repr(ref).partition(".")
     if parts[0] not in output:
         print(" not patching " + ref)
         return None
@@ -378,7 +378,7 @@ def build_schema():
     for reg_config_var in solve_registry:
         (registry, config_var) = reg_config_var
         config_var[S_TYPE] = "registry"
-        config_var["registry"] = found_registries[str(registry)]
+        config_var["registry"] = found_registries[repr(registry)]
 
     # do pin registries
     pins_providers = schema_core["pins"] = []
@@ -424,7 +424,7 @@ def isConvertibleSchema(schema):
         return False
     if isinstance(schema, (cv.Schema, cv.All)):
         return True
-    if str(schema) in ejs.hidden_schemas:
+    if repr(schema) in ejs.hidden_schemas:
         return True
     if isinstance(schema, dict):
         for k in schema.keys():
@@ -444,10 +444,10 @@ def convert_1(schema, config_var, path):
     config_var has a S_TYPE property, if this is S_SCHEMA, then it has a S_SCHEMA property
     schema does not have a type property, schema can have optionally both S_CONFIG_VARS and S_EXTENDS
     """
-    str_schema = str(schema)
+    repr_schema = repr(schema)
 
-    if str_schema in known_schemas:
-        schema_info = known_schemas[(str_schema)]
+    if repr_schema in known_schemas:
+        schema_info = known_schemas[(repr_schema)]
         for (schema_instance, name) in schema_info:
             if schema_instance is schema:
                 assert S_CONFIG_VARS not in config_var
@@ -465,20 +465,18 @@ def convert_1(schema, config_var, path):
                 return
 
     # Extended schemas are tracked when the .extend() is used in a schema
-    if str_schema in ejs.extended_schemas:
-        instances = ejs.extended_schemas.get(str_schema)
-        for (schema_instance, extended) in instances:
-            if schema_instance is schema:
-                # The midea actions are extending an empty schema (resulted in the templatize not templatizing anything)
-                # this causes a recursion in that this extended looks the same in extended schema as the extended[1]
-                if str_schema == str(extended[1]):
-                    assert path.startswith("midea_ac/")
-                    return
+    if repr_schema in ejs.extended_schemas:
+        extended = ejs.extended_schemas.get(repr_schema)
+        # The midea actions are extending an empty schema (resulted in the templatize not templatizing anything)
+        # this causes a recursion in that this extended looks the same in extended schema as the extended[1]
+        if repr_schema == repr(extended[1]):
+            assert path.startswith("midea_ac/")
+            return
 
-                assert len(extended) == 2
-                convert_1(extended[0], config_var, path + "/extL")
-                convert_1(extended[1], config_var, path + "/extR")
-                return
+        assert len(extended) == 2
+        convert_1(extended[0], config_var, path + "/extL")
+        convert_1(extended[1], config_var, path + "/extR")
+        return
 
     if isinstance(schema, cv.All):
         i = 0
@@ -501,14 +499,14 @@ def convert_1(schema, config_var, path):
         convert_keys(config_var, schema, path)
         return
 
-    if str_schema in ejs.list_schemas:
+    if repr_schema in ejs.list_schemas:
         config_var["is_list"] = True
-        items_schema = ejs.list_schemas[str_schema][0]
+        items_schema = ejs.list_schemas[repr_schema][0]
         convert_1(items_schema, config_var, path + "/list")
         return
 
     if DUMP_RAW:
-        config_var["raw"] = str_schema
+        config_var["raw"] = repr_schema
 
     # pylint: disable=comparison-with-callable
     if schema == cv.boolean:
@@ -526,12 +524,12 @@ def convert_1(schema, config_var, path):
         config_var[S_TYPE] = "schema"
         config_var["schema"] = convert_config(schema.schema, path + "/s")["schema"]
 
-    elif str_schema in pin_validators:
-        config_var |= pin_validators[str_schema]
+    elif repr_schema in pin_validators:
+        config_var |= pin_validators[repr_schema]
         config_var[S_TYPE] = "pin"
 
-    elif str_schema in ejs.hidden_schemas:
-        schema_type = ejs.hidden_schemas[str_schema]
+    elif repr_schema in ejs.hidden_schemas:
+        schema_type = ejs.hidden_schemas[repr_schema]
 
         data = schema(ejs.jschema_extractor)
 
@@ -549,8 +547,8 @@ def convert_1(schema, config_var, path):
         elif schema_type == "automation":
             extra_schema = None
             config_var[S_TYPE] = "trigger"
-            if automation.AUTOMATION_SCHEMA == ejs.extended_schemas[str(data)][0]:
-                extra_schema = ejs.extended_schemas[str(data)][1]
+            if automation.AUTOMATION_SCHEMA == ejs.extended_schemas[repr(data)][0]:
+                extra_schema = ejs.extended_schemas[repr(data)][1]
             if (
                 extra_schema is not None and len(extra_schema) > 1
             ):  # usually only trigger_id here
@@ -592,19 +590,19 @@ def convert_1(schema, config_var, path):
         else:
             raise Exception("Unknown extracted schema type")
 
-    elif str_schema in ejs.registry_schemas:
-        solve_registry.append((ejs.registry_schemas[str_schema], config_var))
+    elif repr_schema in ejs.registry_schemas:
+        solve_registry.append((ejs.registry_schemas[repr_schema], config_var))
 
-    elif str_schema in ejs.typed_schemas:
+    elif repr_schema in ejs.typed_schemas:
         config_var[S_TYPE] = "typed"
         types = config_var["types"] = {}
-        for schema_key, schema_type in ejs.typed_schemas[str_schema][0][0].items():
+        for schema_key, schema_type in ejs.typed_schemas[repr_schema][0][0].items():
             config = convert_config(schema_type, path + "/type_" + schema_key)
             types[schema_key] = config["schema"]
 
     elif DUMP_UNKNOWN:
         if S_TYPE not in config_var:
-            config_var["unknown"] = str_schema
+            config_var["unknown"] = repr_schema
 
     if DUMP_PATH:
         config_var["path"] = path
@@ -638,7 +636,7 @@ def get_overridden_key_inner(key, config, ret):
 def convert_keys(converted, schema, path):
     for k, v in schema.items():
         # deprecated stuff
-        if str(v).startswith("<function invalid"):
+        if repr(v).startswith("<function invalid"):
             continue
 
         result = {}
