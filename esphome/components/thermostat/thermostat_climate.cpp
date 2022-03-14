@@ -1216,8 +1216,7 @@ void ThermostatClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "  Supports %s: %s", preset_name, YESNO(true));
     if (this->supports_heat_) {
       if (this->supports_two_points_) {
-        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature Low: %.1f°C", preset_name,
-                      it.second.default_temperature_low);
+        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature Low: %.1f°C", preset_name, it.second.default_temperature_low);
       } else {
         ESP_LOGCONFIG(TAG, "    %s Default Target Temperature Low: %.1f°C", preset_name,
                       it.second.default_temperature);

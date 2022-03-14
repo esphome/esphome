@@ -35,16 +35,9 @@ struct ThermostatClimateTargetTempConfig {
   ThermostatClimateTargetTempConfig(float default_temperature);
   ThermostatClimateTargetTempConfig(float default_temperature_low, float default_temperature_high);
 
-  void set_fan_mode(climate::ClimateFanMode fan_mode) {
-    this->fan_mode_ = fan_mode;
-  }
-  void set_swing_mode(climate::ClimateSwingMode swing_mode) {
-    this->swing_mode_ = swing_mode;
-  }
-
-  void set_mode(climate::ClimateMode mode) {
-    this->mode_ = mode;
-  }
+  void set_fan_mode(climate::ClimateFanMode fan_mode) { ->fan_mode_ = fan_mode; }
+  void set_swing_mode(climate::ClimateSwingMode swing_mode) { this->swing_mode_ = swing_mode; }
+  void set_swing_mode(climate::ClimateSwingMode swing_mode) { this->swing_mode_ = swing_mode; }
 
   float default_temperature{NAN};
   float default_temperature_low{NAN};
