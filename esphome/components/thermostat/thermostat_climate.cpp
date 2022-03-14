@@ -931,22 +931,23 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
       ESP_LOGV(TAG, "Setting mode to %s", LOG_STR_ARG(climate::climate_mode_to_string(*config->second.mode_)));
     }
 
-
     if (config->second.fan_mode_.has_value()) {
       this->fan_mode = *config->second.fan_mode_;
-      ESP_LOGV(TAG, "Setting fan mode to %s", LOG_STR_ARG(climate::climate_fan_mode_to_string(*config->second.fan_mode_)));
+      ESP_LOGV(TAG, "Setting fan mode to %s",
+               LOG_STR_ARG(climate::climate_fan_mode_to_string(*config->second.fan_mode_)));
     }
 
     if (config->second.swing_mode_.has_value()) {
-      ESP_LOGV(TAG, "Setting swing mode to %s", LOG_STR_ARG(climate::climate_swing_mode_to_string(*config->second.swing_mode_)));
+      ESP_LOGV(TAG, "Setting swing mode to %s",
+               LOG_STR_ARG(climate::climate_swing_mode_to_string(*config->second.swing_mode_)));
       this->swing_mode = *config->second.swing_mode_;
     }
 
     // Fire any preset changed trigger if defined
     if (this->preset != preset) {
-        Trigger<> *trig = this->preset_change_trigger_;
-        assert(trig != nullptr);
-        trig->trigger();
+      Trigger<> *trig = this->preset_change_trigger_;
+      assert(trig != nullptr);
+      trig->trigger();
     }
 
     this->preset = preset;
