@@ -942,6 +942,13 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
       this->swing_mode = *config->second.swing_mode_;
     }
 
+    // Fire any preset changed trigger if defined
+    if (this->preset != preset) {
+      Trigger<> *trig = this->preset_change_trigger_;
+      assert(trig != nullptr);
+      trig->trigger();
+    }
+
     this->preset = preset;
   } else {
     ESP_LOGVV(TAG, "Preset %s is not configured, ignoring.", climate::climate_preset_to_string(preset));
@@ -979,7 +986,8 @@ ThermostatClimate::ThermostatClimate()
       swing_mode_off_trigger_(new Trigger<>()),
       swing_mode_horizontal_trigger_(new Trigger<>()),
       swing_mode_vertical_trigger_(new Trigger<>()),
-      temperature_change_trigger_(new Trigger<>()) {}
+      temperature_change_trigger_(new Trigger<>()),
+      preset_change_trigger_(new Trigger<>()) {}
 
 void ThermostatClimate::set_default_mode(climate::ClimateMode default_mode) { this->default_mode_ = default_mode; }
 void ThermostatClimate::set_set_point_minimum_differential(float differential) {
@@ -1128,6 +1136,7 @@ Trigger<> *ThermostatClimate::get_swing_mode_off_trigger() const { return this->
 Trigger<> *ThermostatClimate::get_swing_mode_horizontal_trigger() const { return this->swing_mode_horizontal_trigger_; }
 Trigger<> *ThermostatClimate::get_swing_mode_vertical_trigger() const { return this->swing_mode_vertical_trigger_; }
 Trigger<> *ThermostatClimate::get_temperature_change_trigger() const { return this->temperature_change_trigger_; }
+Trigger<> *ThermostatClimate::get_preset_change_trigger() const { return this->preset_change_trigger_; }
 
 void ThermostatClimate::dump_config() {
   LOG_CLIMATE("", "Thermostat", this);

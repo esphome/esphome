@@ -131,6 +131,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *get_swing_mode_off_trigger() const;
   Trigger<> *get_swing_mode_vertical_trigger() const;
   Trigger<> *get_temperature_change_trigger() const;
+  Trigger<> *get_preset_change_trigger() const;
   /// Get current hysteresis values
   float cool_deadband();
   float cool_overrun();
@@ -369,6 +370,9 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   /// The trigger to call when the target temperature(s) change(es).
   Trigger<> *temperature_change_trigger_{nullptr};
+
+  /// The triggr to call when the preset mode changes
+  Trigger<> *preset_change_trigger_{nullptr};
 
   /// A reference to the trigger that was previously active.
   ///
