@@ -51,7 +51,7 @@ void ModbusNumber::control(float value) {
     write_cmd = ModbusCommandItem::create_custom_command(
         this->parent_, data,
         [this, write_cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
-          this->parent_->on_write_register_response(cmd.register_type, this->start_address, data);
+          this->parent_->on_write_register_response(write_cmd.register_type, this->start_address, data);
         });
   } else {
     data = float_to_payload(write_value, this->sensor_value_type);
