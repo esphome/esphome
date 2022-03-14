@@ -196,7 +196,7 @@ uint64_t IRAM_ATTR ESPOneWire::search() {
         if (!branch) {
           last_zero = id_bit_number;
           if (last_zero < 9) {
-            this->last_discrepancy_ = last_zero;
+            this->last_family_discrepancy_ = last_zero;
           }
         }
       }
