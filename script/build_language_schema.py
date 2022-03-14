@@ -61,37 +61,37 @@ solve_registry = []
 
 def get_component_names():
     # return ["esphome", "esp32", "esp8266", "sensor", "mpu6886"]
-    return [
-        "esphome",
-        "esp32",
-        "esp8266",
-        "sensor",
-        "template",
-        "logger",
-        # required to process automations.rst
-        "globals",
-        "script",
-        "interval",
-        "ota",
-        "i2c",
-        "api",
-        "wifi",
-        "sim800l",
-        "remote_receiver",
-        "remote_transmitter",
-        "dallas",
-        "binary_sensor",
-        "gpio",
-        "pn532",
-        "pn532_i2c",
-        "pcf8574",
-        # required to process light/index.rst
-        "light",
-        "binary",
-        "monochromatic",
-        "e131",
-        "wled",
-    ]
+    # return [
+    #     "esphome",
+    #     "esp32",
+    #     "esp8266",
+    #     "sensor",
+    #     "template",
+    #     "logger",
+    #     # required to process automations.rst
+    #     "globals",
+    #     "script",
+    #     "interval",
+    #     "ota",
+    #     "i2c",
+    #     "api",
+    #     "wifi",
+    #     "sim800l",
+    #     "remote_receiver",
+    #     "remote_transmitter",
+    #     "dallas",
+    #     "binary_sensor",
+    #     "gpio",
+    #     "pn532",
+    #     "pn532_i2c",
+    #     "pcf8574",
+    #     # required to process light/index.rst
+    #     "light",
+    #     "binary",
+    #     "monochromatic",
+    #     "e131",
+    #     "wled",
+    # ]
     from esphome.loader import CORE_COMPONENTS_PATH
 
     component_names = ["esphome", "sensor"]
@@ -264,7 +264,10 @@ def do_esp8266():
 def shrink():
     """Shrink the extending schemas which has just an end type, e.g. at this point
     ota / port is type schema with extended pointing to core.port, this should instead be
-    type number. core.port is number"""
+    type number. core.port is number
+
+    This also fixes enums, as they are another schema and they are instead put in the same cv
+    """
 
     for k, v in output.items():
         # print("Simplifying " + k)
@@ -288,17 +291,19 @@ def shrink_schema(schema, depth):
         return get_simple_type(schema.get(S_EXTENDS)[0])
 
     for k, v in schema.get(S_CONFIG_VARS, {}).items():
-        if v.get(S_TYPE) == "schema":
+        if v.get(S_TYPE) == "schema" or v.get(S_TYPE) == "trigger" and S_SCHEMA in v:
             #            print(depth + "  " + k)
             simple = shrink_schema(v.get(S_SCHEMA), depth + "  ")
             if simple is not None:
-                v[S_TYPE] = simple
                 v.pop(S_SCHEMA)
-                print(depth + k + " patch with " + simple)
+                for simple_k, simple_v in simple.items():
+                    v[simple_k] = simple_v
+
+                print(depth + k + " patch with " + simple[S_TYPE])
 
 
 def get_simple_type(ref):
-    parts = repr(ref).partition(".")
+    parts = ref.partition(".")
     if parts[0] not in output:
         print(" not patching " + ref)
         return None
@@ -309,7 +314,7 @@ def get_simple_type(ref):
     if S_CONFIG_VARS in data:
         return None
     if S_TYPE in data:
-        return data[S_TYPE]
+        return data
     if S_EXTENDS in data and len(data[S_EXTENDS]) == 1:
         return get_simple_type(data[S_EXTENDS][0])
 
