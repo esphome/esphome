@@ -50,7 +50,7 @@ void ModbusNumber::control(float value) {
     ESP_LOGV(TAG, "Modbus Number write raw: %s", format_hex_pretty(data).c_str());
     write_cmd = ModbusCommandItem::create_custom_command(
         this->parent_, data,
-        [this, cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
+        [this, write_cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
           this->parent_->on_write_register_response(cmd.register_type, this->start_address, data);
         });
   } else {
