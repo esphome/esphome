@@ -61,7 +61,7 @@ from esphome.const import (
     CONF_PRESET,
     CONF_FAN_MODE,
     CONF_SWING_MODE,
-    CONF_MODE
+    CONF_MODE,
 )
 
 CONF_PRESET_CHANGE = "preset_change"
@@ -92,12 +92,14 @@ ClimatePreset = climate_ns.enum("ClimatePreset")
 
 PRESET_CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID() : cv.declare_id(ThermostatClimateTargetTempConfig),
+        cv.GenerateID(): cv.declare_id(ThermostatClimateTargetTempConfig),
         cv.Optional(CONF_MODE): validate_climate_mode,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
         cv.Optional(CONF_FAN_MODE): cv.templatable(climate.validate_climate_fan_mode),
-        cv.Optional(CONF_SWING_MODE): cv.templatable(climate.validate_climate_swing_mode)
+        cv.Optional(CONF_SWING_MODE): cv.templatable(
+            climate.validate_climate_swing_mode
+        ),
     }
 )
 
@@ -202,6 +204,7 @@ def validate_thermostat(config):
                 raise cv.Invalid(
                     f"{req_trigger} must be defined to use {config_trigger}"
                 )
+
     if CONF_FAN_ONLY_ACTION in config:
         # determine validation requirements based on fan_only_action_uses_fan_mode_timer setting
         if config[CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER] is True:
@@ -216,6 +219,7 @@ def validate_thermostat(config):
                 raise cv.Invalid(
                     f"{config_req_action} must be defined to use {CONF_FAN_ONLY_ACTION}"
                 )
+
     # for any fan_mode action, confirm min_fan_mode_switching_time is defined
     requirements = {
         CONF_MIN_FAN_MODE_SWITCHING_TIME: [
@@ -236,6 +240,7 @@ def validate_thermostat(config):
                 raise cv.Invalid(
                     f"{req_config_item} must be defined to use {config_trigger}"
                 )
+
     # determine validation requirements based on fan_only_cooling setting
     if config[CONF_FAN_ONLY_COOLING] is True:
         requirements = {
@@ -250,6 +255,7 @@ def validate_thermostat(config):
             CONF_DEFAULT_TARGET_TEMPERATURE_HIGH: [CONF_COOL_ACTION],
             CONF_DEFAULT_TARGET_TEMPERATURE_LOW: [CONF_HEAT_ACTION],
         }
+
     for config_temp, req_actions in requirements.items():
         for req_action in req_actions:
             # verify corresponding default target temperature exists when a given climate action exists
@@ -260,6 +266,7 @@ def validate_thermostat(config):
             # if a given climate action is NOT defined, it should not have a default target temperature
             if config_temp in config and req_action not in config:
                 raise cv.Invalid(f"{config_temp} is defined with no {req_action}")
+
     if CONF_AWAY_CONFIG in config:
         away = config[CONF_AWAY_CONFIG]
         for config_temp, req_actions in requirements.items():
@@ -274,6 +281,7 @@ def validate_thermostat(config):
                     raise cv.Invalid(
                         f"{config_temp} is defined in away configuration with no {req_action}"
                     )
+
     # verify default climate mode is valid given above configuration
     default_mode = config[CONF_DEFAULT_MODE]
     requirements = {
@@ -289,6 +297,7 @@ def validate_thermostat(config):
             raise cv.Invalid(
                 f"{CONF_DEFAULT_MODE} is set to {default_mode} but {req} is not present in the configuration"
             )
+
     if config[CONF_FAN_WITH_COOLING] is True and CONF_FAN_ONLY_ACTION not in config:
         raise cv.Invalid(
             f"{CONF_FAN_ONLY_ACTION} must be defined to use {CONF_FAN_WITH_COOLING}"
@@ -297,6 +306,7 @@ def validate_thermostat(config):
         raise cv.Invalid(
             f"{CONF_FAN_ONLY_ACTION} must be defined to use {CONF_FAN_WITH_HEATING}"
         )
+
     # if min_fan_mode_switching_time is defined, at least one fan_mode action should be defined
     if CONF_MIN_FAN_MODE_SWITCHING_TIME in config:
         requirements = [
@@ -432,7 +442,9 @@ CONFIG_SCHEMA = cv.All(
                     for preset in climate.CLIMATE_PRESETS
                 }
             ),
-            cv.Optional(CONF_PRESET_CHANGE): automation.validate_automation(single=True)
+            cv.Optional(CONF_PRESET_CHANGE): automation.validate_automation(
+                single=True
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(
@@ -483,48 +495,60 @@ async def to_code(config):
         normal_config = ThermostatClimateTargetTempConfig(
             config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
         )
+
     if CONF_MAX_COOLING_RUN_TIME in config:
         cg.add(
             var.set_cooling_maximum_run_time_in_sec(config[CONF_MAX_COOLING_RUN_TIME])
         )
+
     if CONF_MAX_HEATING_RUN_TIME in config:
         cg.add(
             var.set_heating_maximum_run_time_in_sec(config[CONF_MAX_HEATING_RUN_TIME])
         )
+
     if CONF_MIN_COOLING_OFF_TIME in config:
         cg.add(
             var.set_cooling_minimum_off_time_in_sec(config[CONF_MIN_COOLING_OFF_TIME])
         )
+
     if CONF_MIN_COOLING_RUN_TIME in config:
         cg.add(
             var.set_cooling_minimum_run_time_in_sec(config[CONF_MIN_COOLING_RUN_TIME])
         )
+
     if CONF_MIN_FAN_MODE_SWITCHING_TIME in config:
         cg.add(
             var.set_fan_mode_minimum_switching_time_in_sec(
                 config[CONF_MIN_FAN_MODE_SWITCHING_TIME]
             )
         )
+
     if CONF_MIN_FANNING_OFF_TIME in config:
         cg.add(
             var.set_fanning_minimum_off_time_in_sec(config[CONF_MIN_FANNING_OFF_TIME])
         )
+
     if CONF_MIN_FANNING_RUN_TIME in config:
         cg.add(
             var.set_fanning_minimum_run_time_in_sec(config[CONF_MIN_FANNING_RUN_TIME])
         )
+
     if CONF_MIN_HEATING_OFF_TIME in config:
         cg.add(
             var.set_heating_minimum_off_time_in_sec(config[CONF_MIN_HEATING_OFF_TIME])
         )
+
     if CONF_MIN_HEATING_RUN_TIME in config:
         cg.add(
             var.set_heating_minimum_run_time_in_sec(config[CONF_MIN_HEATING_RUN_TIME])
         )
+
     if CONF_SUPPLEMENTAL_COOLING_DELTA in config:
         cg.add(var.set_supplemental_cool_delta(config[CONF_SUPPLEMENTAL_COOLING_DELTA]))
+
     if CONF_SUPPLEMENTAL_HEATING_DELTA in config:
         cg.add(var.set_supplemental_heat_delta(config[CONF_SUPPLEMENTAL_HEATING_DELTA]))
+
     cg.add(var.set_idle_minimum_time_in_sec(config[CONF_MIN_IDLE_TIME]))
 
     cg.add(
@@ -547,6 +571,7 @@ async def to_code(config):
         cg.add(var.set_supports_heat_cool(True))
     else:
         cg.add(var.set_supports_heat_cool(False))
+
     if CONF_COOL_ACTION in config:
         await automation.build_automation(
             var.get_cool_action_trigger(), [], config[CONF_COOL_ACTION]
@@ -682,6 +707,7 @@ async def to_code(config):
             [],
             config[CONF_TARGET_TEMPERATURE_CHANGE_ACTION],
         )
+
     if CONF_AWAY_CONFIG in config:
         away = config[CONF_AWAY_CONFIG]
 
@@ -699,6 +725,7 @@ async def to_code(config):
                 away[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
             )
         cg.add(var.set_preset_config(ClimatePreset.CLIMATE_PRESET_AWAY, away_config))
+
     if CONF_PRESET in config:
         for label, preset in climate.CLIMATE_PRESETS.items():
             preset_label = label.lower()
@@ -710,7 +737,7 @@ async def to_code(config):
             if two_points_available is True:
                 preset_target_config = ThermostatClimateTargetTempConfig(
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
-                    preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
+                    preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH],
                 )
             elif CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in away:
                 preset_target_config = ThermostatClimateTargetTempConfig(
@@ -720,19 +747,24 @@ async def to_code(config):
                 preset_target_config = ThermostatClimateTargetTempConfig(
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
                 )
+            preset_target_variable = cg.new_variable(
+                preset_config[CONF_ID], preset_target_config
+            )
 
-            preset_target_variable = cg.new_variable(preset_config[CONF_ID], preset_target_config)
-            
             if CONF_MODE in preset_config:
                 cg.add(preset_target_variable.set_mode(preset_config[CONF_MODE]))
-
             if CONF_FAN_MODE in preset_config:
-                cg.add(preset_target_variable.set_fan_mode(preset_config[CONF_FAN_MODE]))
-            
+                cg.add(
+                    preset_target_variable.set_fan_mode(preset_config[CONF_FAN_MODE])
+                )
             if CONF_SWING_MODE in preset_config:
-                cg.add(preset_target_variable.set_swing_mode(preset_config[CONF_SWING_MODE]))
-            
+                cg.add(
+                    preset_target_variable.set_swing_mode(
+                        preset_config[CONF_SWING_MODE]
+                    )
+                )
             cg.add(var.set_preset_config(preset, preset_target_variable))
+
     if CONF_PRESET_CHANGE in config:
         await automation.build_automation(
             var.get_preset_change_trigger(), [], config[CONF_PRESET_CHANGE]
