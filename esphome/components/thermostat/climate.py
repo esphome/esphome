@@ -64,6 +64,8 @@ from esphome.const import (
     CONF_MODE
 )
 
+CONF_PRESET_CHANGE = "preset_change"
+
 CODEOWNERS = ["@kbx81"]
 
 climate_ns = cg.esphome_ns.namespace("climate")
@@ -430,6 +432,7 @@ CONFIG_SCHEMA = cv.All(
                     for preset in climate.CLIMATE_PRESETS
                 }
             ),
+            cv.Optional(CONF_PRESET_CHANGE): automation.validate_automation(single=True)
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(
@@ -730,3 +733,7 @@ async def to_code(config):
                 cg.add(preset_target_variable.set_swing_mode(preset_config[CONF_SWING_MODE]))
             
             cg.add(var.set_preset_config(preset, preset_target_variable))
+    if CONF_PRESET_CHANGE in config:
+        await automation.build_automation(
+            var.get_preset_change_trigger(), [], config[CONF_PRESET_CHANGE]
+        )
