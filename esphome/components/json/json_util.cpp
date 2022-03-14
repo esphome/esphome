@@ -30,8 +30,8 @@ std::string build_json(const json_build_t &f) {
 
   DynamicJsonDocument json_document(request_size);
   if (json_document.memoryPool().buffer() == nullptr) {
-    ESP_LOGE(TAG, "Could not allocate memory for JSON document! Requested %u bytes, free heap: %u", request_size,
-             free_heap);
+    ESP_LOGE(TAG, "Could not allocate memory for JSON document! Requested %u bytes, largest free heap block: %u bytes",
+             request_size, free_heap);
     return "{}";
   }
   JsonObject root = json_document.to<JsonObject>();
