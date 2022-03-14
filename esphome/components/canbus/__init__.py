@@ -135,7 +135,7 @@ async def canbus_action_to_code(config, action_id, template_arg, args):
     cg.add(var.set_use_extended_id(use_extended_id))
 
     remote_transmission_request = await cg.templatable(
-        config[CONF_REMOTE_TRANSMISSION_REQUEST], args, cg.uint32
+        config[CONF_REMOTE_TRANSMISSION_REQUEST], args, bool
     )
     cg.add(var.set_remote_transmission_request(remote_transmission_request))
 
