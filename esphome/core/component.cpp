@@ -189,8 +189,11 @@ void PollingComponent::call_setup() {
 
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
 
-void PollingComponent::set_update_interval(uint32_t update_interval) {
-  this->update_interval_ = update_interval;
+void PollingComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
+
+void PollingComponent::reschedule_update(uint32_t update_interval) {
+  if (update_interval > 0)
+    this->set_update_interval(update_interval);
   this->cancel_interval("update");
   this->set_interval("update", this->get_update_interval(), [this]() { this->update(); });
 }

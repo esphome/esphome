@@ -281,6 +281,15 @@ class PollingComponent : public Component {
    */
   virtual void set_update_interval(uint32_t update_interval);
 
+  /** Re-set the update interval in ms for this polling object.
+   *
+   * Cancels the update interval and registers a new one with the given or
+   * previously set (default if argument is omitted) update_interval
+   *
+   * @param update_interval The update interval in ms.
+   */
+  void reschedule_update(uint32_t update_interval = 0);
+
   // ========== OVERRIDE METHODS ==========
   // (You'll only need this when creating your own custom sensor)
   virtual void update() = 0;
