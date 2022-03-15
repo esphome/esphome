@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TYPE, CONF_UUID
+from esphome.const import CONF_ID, CONF_TX_POWER, CONF_TYPE, CONF_UUID
 from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
 
@@ -20,6 +20,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_UUID): cv.uuid,
         cv.Optional(CONF_MAJOR, default=10167): cv.uint16_t,
         cv.Optional(CONF_MINOR, default=61958): cv.uint16_t,
+        cv.Optional(CONF_TX_POWER, default=7): cv.int_range(0, 7),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -31,6 +32,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     cg.add(var.set_major(config[CONF_MAJOR]))
     cg.add(var.set_minor(config[CONF_MINOR]))
+    cg.add(var.set_txpower_level(config[CONF_TX_POWER]))
 
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)

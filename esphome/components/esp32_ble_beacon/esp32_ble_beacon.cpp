@@ -40,7 +40,7 @@ static const esp_ble_ibeacon_head_t IBEACON_COMMON_HEAD = {
 
 void ESP32BLEBeacon::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP32 BLE Beacon:");
-  ESP_LOGCONFIG(TAG, "  Major: %u, Minor: %u", this->major_, this->minor_);
+  ESP_LOGCONFIG(TAG, "  Major: %u, Minor: %u, TX-Power-level: %u", this->major_, this->minor_, this->txpower_level_);
 }
 
 void ESP32BLEBeacon::setup() {
@@ -139,6 +139,11 @@ void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap
   esp_err_t err;
   switch (event) {
     case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT: {
+      err = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, this->txpower_level_);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ble_tx_power_set failed: %s", esp_err_to_name(err));
+        return;
+      }
       err = esp_ble_gap_start_advertising(&ble_adv_params);
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ble_gap_start_advertising failed: %d", err);
@@ -153,7 +158,7 @@ void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap
       break;
     }
     case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT: {
-      err = param->adv_start_cmpl.status;
+      err = param->adv_stop_cmpl.status;
       if (err != ESP_BT_STATUS_SUCCESS) {
         ESP_LOGE(TAG, "BLE adv stop failed: %s", esp_err_to_name(err));
       } else {

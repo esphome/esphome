@@ -42,6 +42,7 @@ class ESP32BLEBeacon : public Component {
 
   void set_major(uint16_t major) { this->major_ = major; }
   void set_minor(uint16_t minor) { this->minor_ = minor; }
+  void set_txpower_level(uint16_t level) { this->txpower_level_ = level; }
 
  protected:
   static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
@@ -51,6 +52,7 @@ class ESP32BLEBeacon : public Component {
   std::array<uint8_t, 16> uuid_;
   uint16_t major_{};
   uint16_t minor_{};
+  uint16_t txpower_level_{};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
