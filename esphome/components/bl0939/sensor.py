@@ -10,7 +10,6 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_AMPERE,
-    UNIT_CELSIUS,
     UNIT_KILOWATT_HOURS,
     UNIT_VOLT,
     UNIT_WATT,
@@ -24,7 +23,7 @@ CONF_ACTIVE_POWER_1 = "active_power_1"
 CONF_ACTIVE_POWER_2 = "active_power_2"
 CONF_ENERGY_1 = "energy_1"
 CONF_ENERGY_2 = "energy_2"
-CONF_ENERGY_SUM = "energy_total"
+CONF_ENERGY_TOTAL = "energy_total"
 
 bl0939_ns = cg.esphome_ns.namespace("bl0939")
 BL0939 = bl0939_ns.class_("BL0939", cg.PollingComponent, uart.UARTDevice)
@@ -73,7 +72,7 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ENERGY,
             ),
-            cv.Optional(CONF_ENERGY_SUM): sensor.sensor_schema(
+            cv.Optional(CONF_ENERGY_TOTAL): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ENERGY,
@@ -118,7 +117,7 @@ async def to_code(config):
         conf = config[CONF_ENERGY_2]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_energy_sensor_2(sens))
-    if CONF_ENERGY_SUM in config:
-        conf = config[CONF_ENERGY_SUM]
+    if CONF_ENERGY_TOTAL in config:
+        conf = config[CONF_ENERGY_TOTAL]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_energy_sensor_sum(sens))

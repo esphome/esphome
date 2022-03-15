@@ -7,15 +7,15 @@
 namespace esphome {
 namespace bl0939 {
 
-//https://datasheet.lcsc.com/lcsc/2108071830_BL-Shanghai-Belling-BL0939_C2841044.pdf 
-//(unfortunatelly chinese, but the formulas can be easily understood)
-//Sonoff Dual R3 V2 has the exact same resistor values for the current shunts (RL=1miliOhm) 
-//and for the voltage divider (R1=0.51kOhm, R2=5*390kOhm)
-//as in the manufacturer's reference circuit, so the same formulas were used here (Vref=1.218V)
+// https://datasheet.lcsc.com/lcsc/2108071830_BL-Shanghai-Belling-BL0939_C2841044.pdf
+// (unfortunatelly chinese, but the formulas can be easily understood)
+// Sonoff Dual R3 V2 has the exact same resistor values for the current shunts (RL=1miliOhm)
+// and for the voltage divider (R1=0.51kOhm, R2=5*390kOhm)
+// as in the manufacturer's reference circuit, so the same formulas were used here (Vref=1.218V)
 static const float BL0939_IREF = 324004 * 1 / 1.218;
 static const float BL0939_UREF = 79931 * 0.51 * 1000 / (1.218 * (5 * 390 + 0.51));
 static const float BL0939_PREF = 4046 * 1 * 0.51 * 1000 / (1.218 * 1.218 * (5 * 390 + 0.51));
-static const float BL0939_EREF = 3.6e6 * 4046 * 1 * 0.51 * 1000/(1638.4 * 256 * 1.218 * 1.218 * (5 * 390 + 0.51));
+static const float BL0939_EREF = 3.6e6 * 4046 * 1 * 0.51 * 1000 / (1638.4 * 256 * 1.218 * 1.218 * (5 * 390 + 0.51));
 
 struct ube24_t {  // NOLINT(readability-identifier-naming,altera-struct-pack-align)
   uint8_t l;
