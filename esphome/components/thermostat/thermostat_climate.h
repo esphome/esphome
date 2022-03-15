@@ -275,7 +275,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// A false value means that the controller has no such support.
   bool supports_two_points_{false};
 
-    /// Flags indicating if maximum allowable run time was exceeded
+  /// Flags indicating if maximum allowable run time was exceeded
   bool cooling_max_runtime_exceeded_{false};
   bool heating_max_runtime_exceeded_{false};
 
@@ -414,7 +414,6 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   /// Minimum allowable duration in seconds for action timers
   const uint8_t min_timer_duration_{1};
-
 
   /// Climate action timers
   std::vector<ThermostatClimateTimer> timer_{
