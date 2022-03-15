@@ -17,6 +17,22 @@ void TuyaNumber::setup() {
     }
     this->type_ = datapoint.type;
   });
+
+  if (this->restore_value_) {
+    this->parent_->add_on_initialized_callback([this]() {
+      float value;
+      this->pref_ = global_preferences->make_preference<float>(this->get_object_id_hash());
+      if (this->pref_.load(&value)) {
+        ESP_LOGV(TAG, "Restoring number %u: %f", this->number_id_, value);
+        if (this->type_ == TuyaDatapointType::INTEGER) {
+          this->parent_->set_integer_datapoint_value(this->number_id_, value);
+        } else if (this->type_ == TuyaDatapointType::ENUM) {
+          this->parent_->set_enum_datapoint_value(this->number_id_, value);
+        }
+        this->publish_state(value);
+      }
+    });
+  }
 }
 
 void TuyaNumber::control(float value) {
@@ -27,6 +43,11 @@ void TuyaNumber::control(float value) {
     this->parent_->set_enum_datapoint_value(this->number_id_, value);
   }
   this->publish_state(value);
+
+  if (this->restore_value_) {
+    ESP_LOGV(TAG, "Saving number %u: %f", this->number_id_, value);
+    this->pref_.save(&value);
+  }
 }
 
 void TuyaNumber::dump_config() {

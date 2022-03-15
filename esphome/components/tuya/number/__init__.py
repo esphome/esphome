@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_NUMBER_DATAPOINT,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
+    CONF_RESTORE_VALUE,
     CONF_STEP,
 )
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
@@ -31,6 +32,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MAX_VALUE): cv.float_,
             cv.Required(CONF_MIN_VALUE): cv.float_,
             cv.Required(CONF_STEP): cv.positive_float,
+            cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate_min_max,
@@ -52,3 +54,6 @@ async def to_code(config):
     cg.add(var.set_tuya_parent(paren))
 
     cg.add(var.set_number_id(config[CONF_NUMBER_DATAPOINT]))
+
+    if CONF_RESTORE_VALUE in config:
+        cg.add(var.set_restore_value(config[CONF_RESTORE_VALUE]))
