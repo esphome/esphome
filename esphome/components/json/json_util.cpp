@@ -70,6 +70,7 @@ void parse_json(const std::string &data, const json_parse_t &f) {
 
     if (err == DeserializationError::Ok) {
       pass = true;
+      f(root);
     } else if (err == DeserializationError::NoMemory) {
       if (request_size * 2 >= free_heap) {
         ESP_LOGE(TAG, "Can not allocate more memory for deserialization. Consider making source string smaller");
@@ -82,8 +83,6 @@ void parse_json(const std::string &data, const json_parse_t &f) {
       return;
     }
   } while (!pass);
-
-  f(root);
 }
 
 }  // namespace json
