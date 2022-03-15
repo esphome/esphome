@@ -141,7 +141,7 @@ def resolve_ip_address(host):
 
 
 def get_bool_env(var, default=False):
-    return bool(os.getenv(var, default))
+    return os.getenv(var, default) in ["1", "true", "True", "TRUE", "yes", "Yes", "YES"]
 
 
 def is_ha_addon():
