@@ -50,10 +50,10 @@ union DataPacket {  // NOLINT(altera-struct-pack-align)
     sbe24_t cfa_cnt;
     sbe24_t cfb_cnt;
     ube16_t tps1;
-    uint8_t RESERVED4;     // value of 0x00
+    uint8_t RESERVED1;  // value of 0x00
     ube16_t tps2;
-    uint8_t RESERVED5;     // value of 0x00
-    uint8_t checksum;      // checksum
+    uint8_t RESERVED2;  // value of 0x00
+    uint8_t checksum;   // checksum
   };
 } __attribute__((packed));
 

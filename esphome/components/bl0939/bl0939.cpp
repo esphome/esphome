@@ -120,8 +120,8 @@ void BL0939::received_package_(const DataPacket *data) const {
     energy_sensor_sum_->publish_state(total_energy_consumption);
   }
 
-  ESP_LOGV("bl0939", "BL0939: U %fV, I1 %fA, I2 %fA, P1 %fW, P2 %fW, CntA %d, CntB %d, ∫P1 %fkWh, ∫P2 %fkWh",
-            v_rms, ia_rms, ib_rms, a_watt, b_watt, cfa_cnt, cfb_cnt, a_energy_consumption, b_energy_consumption);
+  ESP_LOGV("bl0939", "BL0939: U %fV, I1 %fA, I2 %fA, P1 %fW, P2 %fW, CntA %d, CntB %d, ∫P1 %fkWh, ∫P2 %fkWh", v_rms,
+           ia_rms, ib_rms, a_watt, b_watt, cfa_cnt, cfb_cnt, a_energy_consumption, b_energy_consumption);
 }
 
 void BL0939::dump_config() {  // NOLINT(readability-function-cognitive-complexity)
