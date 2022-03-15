@@ -124,6 +124,12 @@ void ESP32BLEBeacon::ble_setup() {
     return;
   }
 
+  err = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, global_esp32_ble_beacon->txpower_level_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_tx_power_set failed: %s", esp_err_to_name(err));
+    return;
+  }
+
   esp_ble_ibeacon_t ibeacon_adv_data;
   memcpy(&ibeacon_adv_data.ibeacon_head, &IBEACON_COMMON_HEAD, sizeof(esp_ble_ibeacon_head_t));
   memcpy(&ibeacon_adv_data.ibeacon_vendor.proximity_uuid, global_esp32_ble_beacon->uuid_.data(),
@@ -131,7 +137,6 @@ void ESP32BLEBeacon::ble_setup() {
   ibeacon_adv_data.ibeacon_vendor.minor = ENDIAN_CHANGE_U16(global_esp32_ble_beacon->minor_);
   ibeacon_adv_data.ibeacon_vendor.major = ENDIAN_CHANGE_U16(global_esp32_ble_beacon->major_);
   ibeacon_adv_data.ibeacon_vendor.measured_power = 0xC5;
-
   esp_ble_gap_config_adv_data_raw((uint8_t *) &ibeacon_adv_data, sizeof(ibeacon_adv_data));
 }
 
@@ -139,11 +144,6 @@ void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap
   esp_err_t err;
   switch (event) {
     case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT: {
-      err = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, this->txpower_level_);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_ble_tx_power_set failed: %s", esp_err_to_name(err));
-        return;
-      }
       err = esp_ble_gap_start_advertising(&ble_adv_params);
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ble_gap_start_advertising failed: %d", err);
