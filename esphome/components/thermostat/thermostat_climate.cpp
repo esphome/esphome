@@ -915,7 +915,7 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   auto config = this->preset_config_.find(preset);
 
   if (config != this->preset_config_.end()) {
-    ESP_LOGVV(TAG, "Switching to preset  %s", climate::climate_preset_to_string(preset));
+    ESP_LOGVV(TAG, "Switching to preset  %s", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
 
     if (this->supports_two_points_) {
       this->target_temperature_low = config->second.default_temperature_low;
@@ -952,7 +952,7 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
 
     this->preset = preset;
   } else {
-    ESP_LOGVV(TAG, "Preset %s is not configured, ignoring.", climate::climate_preset_to_string(preset));
+    ESP_LOGVV(TAG, "Preset %s is not configured, ignoring.", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
   }
 }
 
