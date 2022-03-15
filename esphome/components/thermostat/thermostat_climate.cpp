@@ -236,7 +236,7 @@ climate::ClimateTraits ThermostatClimate::traits() {
   if (supports_swing_mode_vertical_)
     traits.add_supported_swing_mode(climate::CLIMATE_SWING_VERTICAL);
 
-  for (auto & it : this->preset_config_) {
+  for (auto &it : this->preset_config_) {
     traits.add_supported_preset(it.first);
   }
 
@@ -930,7 +930,6 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
       this->mode = *config->second.mode_;
       ESP_LOGV(TAG, "Setting mode to %s", LOG_STR_ARG(climate::climate_mode_to_string(*config->second.mode_)));
     }
-
 
     if (config->second.fan_mode_.has_value()) {
       this->fan_mode = *config->second.fan_mode_;
