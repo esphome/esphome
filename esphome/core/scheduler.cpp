@@ -116,7 +116,7 @@ optional<uint32_t> HOT Scheduler::next_schedule_in() {
     return 0;
   return next_time - now;
 }
-void IRAM_ATTR HOT Scheduler::call() {
+void HOT Scheduler::call() {
   const uint32_t now = this->millis_();
   this->process_to_add();
 

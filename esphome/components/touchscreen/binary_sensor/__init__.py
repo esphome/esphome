@@ -1,15 +1,19 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 
-from esphome.components import binary_sensor
-from esphome.const import CONF_ID
+from esphome.components import binary_sensor, display
+from esphome.const import CONF_PAGE_ID
 
 from .. import touchscreen_ns, CONF_TOUCHSCREEN_ID, Touchscreen, TouchListener
 
 DEPENDENCIES = ["touchscreen"]
 
 TouchscreenBinarySensor = touchscreen_ns.class_(
-    "TouchscreenBinarySensor", binary_sensor.BinarySensor, TouchListener
+    "TouchscreenBinarySensor",
+    binary_sensor.BinarySensor,
+    cg.Component,
+    TouchListener,
+    cg.Parented.template(Touchscreen),
 )
 
 CONF_X_MIN = "x_min"
@@ -30,24 +34,27 @@ def validate_coords(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    binary_sensor.binary_sensor_schema(TouchscreenBinarySensor)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(TouchscreenBinarySensor),
             cv.GenerateID(CONF_TOUCHSCREEN_ID): cv.use_id(Touchscreen),
             cv.Required(CONF_X_MIN): cv.int_range(min=0, max=2000),
             cv.Required(CONF_X_MAX): cv.int_range(min=0, max=2000),
             cv.Required(CONF_Y_MIN): cv.int_range(min=0, max=2000),
             cv.Required(CONF_Y_MAX): cv.int_range(min=0, max=2000),
+            cv.Optional(CONF_PAGE_ID): cv.use_id(display.DisplayPage),
         }
-    ),
+    )
+    .extend(cv.COMPONENT_SCHEMA),
     validate_coords,
 )
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await binary_sensor.register_binary_sensor(var, config)
-    hub = await cg.get_variable(config[CONF_TOUCHSCREEN_ID])
+    var = await binary_sensor.new_binary_sensor(config)
+    await cg.register_component(var, config)
+    await cg.register_parented(var, config[CONF_TOUCHSCREEN_ID])
+
     cg.add(
         var.set_area(
             config[CONF_X_MIN],
@@ -56,4 +63,7 @@ async def to_code(config):
             config[CONF_Y_MAX],
         )
     )
-    cg.add(hub.register_listener(var))
+
+    if CONF_PAGE_ID in config:
+        page = await cg.get_variable(config[CONF_PAGE_ID])
+        cg.add(var.set_page(page))
