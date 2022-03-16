@@ -247,9 +247,7 @@ logger:
 
 web_server:
   port: 8080
-  ota: true
-  css_url: https://esphome.io/_static/webserver-v1.min.css
-  js_url: https://esphome.io/_static/webserver-v1.min.js
+  version: 2
 
 power_supply:
   id: "atx_power_supply"
@@ -800,6 +798,17 @@ sensor:
           value: 12345
     total:
       name: "Pulse Meter Total"
+  - platform: qmp6988
+    temperature:
+      name: "Living Temperature QMP"
+      oversampling: 32x
+    pressure:
+      name: "Living Pressure QMP"
+      oversampling: 2x
+    address: 0x70
+    update_interval: 30s
+    iir_filter: 16x
+    i2c_id: i2c_bus
   - platform: rotary_encoder
     name: "Rotary Encoder"
     id: rotary_encoder1
