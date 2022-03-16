@@ -193,6 +193,7 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   void empty_uart_buffer_();
   uint8_t check_incoming_crc_();
   uint8_t check_incoming_length_(uint8_t length);
+  uint16_t cal_crc_half(uint8_t *pin, uint8_t len);
   uint16_t calc_crc_(uint8_t *msg, int n);
   uint16_t crc_xmodem_update_(uint16_t crc, uint8_t data);
   uint8_t send_next_command_();
