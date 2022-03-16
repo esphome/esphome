@@ -216,6 +216,14 @@ sensor:
     address: 0x77
     iir_filter: 2X
 
+  - platform: ms8607
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity
+    pressure:
+      name: Pressure
+
 script:
   - id: automation_test
     then:
