@@ -60,38 +60,39 @@ solve_registry = []
 
 
 def get_component_names():
-    # return ["esphome", "esp32", "esp8266", "sensor", "mpu6886"]
-    # return [
-    #     "esphome",
-    #     "esp32",
-    #     "esp8266",
-    #     "sensor",
-    #     "template",
-    #     "logger",
-    #     # required to process automations.rst
-    #     "globals",
-    #     "script",
-    #     "interval",
-    #     "ota",
-    #     "i2c",
-    #     "api",
-    #     "wifi",
-    #     "sim800l",
-    #     "remote_receiver",
-    #     "remote_transmitter",
-    #     "dallas",
-    #     "binary_sensor",
-    #     "gpio",
-    #     "pn532",
-    #     "pn532_i2c",
-    #     "pcf8574",
-    #     # required to process light/index.rst
-    #     "light",
-    #     "binary",
-    #     "monochromatic",
-    #     "e131",
-    #     "wled",
-    # ]
+    # return ["esphome", "esp32", "esp8266", "external_components"]
+    return [
+        "esphome",
+        "esp32",
+        "esp8266",
+        "sensor",
+        "output",
+        "template",
+        "logger",
+        # required to process automations.rst
+        "globals",
+        "script",
+        "interval",
+        "ota",
+        "i2c",
+        "api",
+        "wifi",
+        "sim800l",
+        "remote_receiver",
+        "remote_transmitter",
+        "dallas",
+        "binary_sensor",
+        "gpio",
+        "pn532",
+        "pn532_i2c",
+        "pcf8574",
+        # required to process light/index.rst
+        "light",
+        "binary",
+        "monochromatic",
+        "e131",
+        "wled",
+    ]
     from esphome.loader import CORE_COMPONENTS_PATH
 
     component_names = ["esphome", "sensor"]
@@ -144,8 +145,24 @@ def register_known_schema(
     if module not in output:
         output[module] = {S_SCHEMAS: {}}
     config = convert_config(schema, f"{module}/{name}")
-    if S_SCHEMA in config:
-        config = config[S_SCHEMA]
+    if S_TYPE not in config:
+        print(f"Config var without type: {module}.{name}")
+        # config |= config[S_SCHEMA]
+        # config.pop(S_SCHEMA)
+        # config.pop(S_TYPE)
+        # if name not in [
+        #     "KEY_VALUE_SCHEMA",  # api
+        # ]:  # script  / interval
+        #     for k in config.keys():
+        #         assert k in [
+        #             S_CONFIG_VARS,
+        #             S_EXTENDS,
+        #             "is_list",
+        #             "has_required_var",  # script / interval
+        #             "key",  # keys being string (e.g. packages, api)
+        #             "key_dump",
+        #         ]
+
     output[module][S_SCHEMAS][name] = config
     repr_schema = repr(schema)
     if repr_schema in known_schemas:
@@ -240,14 +257,14 @@ def add_module_registries(domain, module):
                     attr_obj[name].schema, f"{reg_domain}/{reg_type}/{reg_entry_name}"
                 )
 
-                print(f"{domain} - {attr_name} - {name}")
+                # print(f"{domain} - {attr_name} - {name}")
 
 
 def do_esp32():
     import esphome.components.esp32.boards as esp32_boards
 
     setEnum(
-        output["esp32"]["schemas"]["CONFIG_SCHEMA"]["config_vars"]["board"],
+        output["esp32"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"]["board"],
         list(esp32_boards.BOARD_TO_VARIANT.keys()),
     )
 
@@ -256,7 +273,7 @@ def do_esp8266():
     import esphome.components.esp8266.boards as esp8266_boards
 
     setEnum(
-        output["esp8266"]["schemas"]["CONFIG_SCHEMA"]["config_vars"]["board"],
+        output["esp8266"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"]["board"],
         list(esp8266_boards.ESP8266_BOARD_PINS.keys()),
     )
 
@@ -267,18 +284,16 @@ def shrink():
     type number. core.port is number
 
     This also fixes enums, as they are another schema and they are instead put in the same cv
+
+    TODO: remove dangling items (unreachable schemas)
     """
 
     for k, v in output.items():
         # print("Simplifying " + k)
         if S_SCHEMAS in v:
             for kk, vv in v[S_SCHEMAS].items():
-                if S_TYPE in vv:
-                    pass
-                    # print("    type")
-                elif S_CONFIG_VARS in vv or S_EXTENDS in vv:
-                    # print("    schema")
-                    shrink_schema(vv, "Simplifying " + k + "      ")
+                if S_TYPE in vv and vv[S_TYPE] == S_SCHEMA:
+                    shrink_schema(vv[S_SCHEMA], "Simplifying " + k + "      ")
                 else:
                     # print("    skip")
                     pass
@@ -287,7 +302,7 @@ def shrink():
 def shrink_schema(schema, depth):
     assert S_CONFIG_VARS not in schema or len(schema[S_CONFIG_VARS]) > 0
     if S_CONFIG_VARS not in schema and len(schema.get(S_EXTENDS, [])) == 1:
-        #       print(depth + " Candidate ")
+        # print(depth + " Candidate ")
         return get_simple_type(schema.get(S_EXTENDS)[0])
 
     for k, v in schema.get(S_CONFIG_VARS, {}).items():
@@ -361,12 +376,11 @@ def build_schema():
 
     # Generate components
     for domain, manifest in components.items():
-        if domain in platforms:
-            continue
-        if manifest.config_schema is not None:
-            core_components[domain] = {}
-        for name, schema in module_schemas(manifest.module):
-            register_known_schema(domain, name, schema)
+        if domain not in platforms:
+            if manifest.config_schema is not None:
+                core_components[domain] = {}
+            for name, schema in module_schemas(manifest.module):
+                register_known_schema(domain, name, schema)
         for platform in platforms:
             platform_manifest = get_platform(domain=platform, platform=domain)
             if platform_manifest is not None:
@@ -410,7 +424,9 @@ def build_schema():
                 data[key] = {}
             data[key][component] = component_schemas
         else:
-            data[component] = {component: component_schemas}
+            if component not in data:
+                data[component] = {}
+            data[component] |= {component: component_schemas}
 
     # bundle core inside esphome
     data["esphome"]["core"] = data.pop("core")["core"]
@@ -430,6 +446,10 @@ def isConvertibleSchema(schema):
     if isinstance(schema, (cv.Schema, cv.All)):
         return True
     if repr(schema) in ejs.hidden_schemas:
+        return True
+    if repr(schema) in ejs.typed_schemas:
+        return True
+    if repr(schema) in ejs.list_schemas:
         return True
     if isinstance(schema, dict):
         for k in schema.keys():
