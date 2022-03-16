@@ -83,6 +83,11 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   enum class ErrorCode;
   /// Keep track of the reason why this component failed, to augment the dumped config
   ErrorCode error_code_;
+
+  /// Current progress through required component setup
+  enum class SetupStatus;
+  /// Current step in the multi-step & possibly delayed setup() process
+  SetupStatus setup_status_;
 };
 
 }  // namespace ms8607

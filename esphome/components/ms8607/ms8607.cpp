@@ -58,45 +58,74 @@ enum class MS8607Component::ErrorCode {
   PROM_CRC_FAILED = 5,
 };
 
+enum class MS8607Component::SetupStatus {
+  /// This component has not successfully reset the PT & H devices
+  NEEDS_RESET,
+  /// Reset commands succeeded, need to wait >= 15ms to read PROM
+  NEEDS_PROM_READ,
+  /// Successfully read PROM and ready to update sensors
+  SUCCESSFUL,
+};
+
 static uint8_t crc4(uint16_t *buffer, size_t length);
 static uint8_t hsensor_crc_check_(uint16_t value);
 
 void MS8607Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MS8607...");
   this->error_code_ = ErrorCode::NONE;
+  this->setup_status_ = SetupStatus::NEEDS_RESET;
 
-  ESP_LOGD(TAG, "Resetting both I2C addresses: 0x%02X, 0x%02X",
-           this->address_, this->humidity_sensor_address_);
-  // I believe sending the reset command to both addresses is preferable to
-  // skipping humidity if PT fails for some reason.
-  // However, only consider the reset successful if they both ACK
-  bool pt_successful = this->write_bytes(MS8607_PT_CMD_RESET, nullptr, 0);
-  bool h_successful = this->humidity_i2c_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
+  // I do not know why the device sometimes NACKs the reset command, but
+  // try 3 times in case it's a transitory issue on this boot
+  this->set_retry("reset", 1, 3, [this]() {
+    ESP_LOGD(TAG, "Resetting both I2C addresses: 0x%02X, 0x%02X",
+            this->address_, this->humidity_sensor_address_);
+    // I believe sending the reset command to both addresses is preferable to
+    // skipping humidity if PT fails for some reason.
+    // However, only consider the reset successful if they both ACK
+    bool pt_successful = this->write_bytes(MS8607_PT_CMD_RESET, nullptr, 0);
+    bool h_successful = this->humidity_i2c_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
 
-  if (pt_successful && h_successful) {
-    // docs say delay(>10) is disallowed, I'm not sure how to structure code to correctly delay(15) during setup()
-    delay(15); // matches datasheet, Adafruit_MS8607 & SparkFun_PHT_MS8607_Arduino_Library
-  } else {
-    ESP_LOGE(TAG, "Resetting I2C devices failed. Marking component as failed.");
-    if (!pt_successful && !h_successful) {
-      this->error_code_ = ErrorCode::PTH_RESET_FAILED;
-    } else if (!pt_successful) {
-      this->error_code_ = ErrorCode::PT_RESET_FAILED;
-    } else {
-      this->error_code_ = ErrorCode::H_RESET_FAILED;
+    if (!(pt_successful && h_successful)) {
+      ESP_LOGE(TAG, "Resetting I2C devices failed");
+      if (!pt_successful && !h_successful) {
+        this->error_code_ = ErrorCode::PTH_RESET_FAILED;
+      } else if (!pt_successful) {
+        this->error_code_ = ErrorCode::PT_RESET_FAILED;
+      } else {
+        this->error_code_ = ErrorCode::H_RESET_FAILED;
+      }
+
+      this->status_set_error();
+      return RetryResult::RETRY;
     }
 
-    this->mark_failed();
-    return;
-  }
+    this->setup_status_ = SetupStatus::NEEDS_PROM_READ;
+    this->error_code_ = ErrorCode::NONE;
+    this->status_clear_error();
 
-  if (!this->read_calibration_values_from_prom_()) {
-    this->mark_failed();
-    return;
-  }
+    // 15ms delay matches datasheet, Adafruit_MS8607 & SparkFun_PHT_MS8607_Arduino_Library
+    this->set_timeout("prom-read", 15, [this]() {
+      if (this->read_calibration_values_from_prom_()) {
+        this->setup_status_ = SetupStatus::SUCCESSFUL;
+        this->status_clear_error();
+      } else {
+        this->mark_failed();
+        return;
+      }
+    });
+
+    return RetryResult::DONE;
+  }, 5.0f);
 }
 
 void MS8607Component::update() {
+  if (this->setup_status_ != SetupStatus::SUCCESSFUL) {
+    // setup is still occurring, either because reset had to retry or due to the 15ms
+    // delay needed between reset & reading the PROM values
+    return;
+  }
+
   // Updating happens async and sequentially.
   // Temperature, then pressure, then humidity
   this->request_read_temperature_();
