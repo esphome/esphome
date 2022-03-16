@@ -19,7 +19,6 @@ static const uint8_t SM2135_ADDR_W = 0xC6;   // Warm
 static const uint8_t SM2135_RGB = 0x00;  // RGB channel
 static const uint8_t SM2135_CW = 0x80;   // CW channel (Chip default)
 
-
 static const uint8_t SM2135_10MA = 0x00;
 static const uint8_t SM2135_15MA = 0x01;
 static const uint8_t SM2135_20MA = 0x02;
@@ -31,7 +30,6 @@ static const uint8_t SM2135_45MA = 0x07;  // Max value for RGB
 static const uint8_t SM2135_50MA = 0x08;
 static const uint8_t SM2135_55MA = 0x09;
 static const uint8_t SM2135_60MA = 0x0A;
-
 
 void SM2135::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SM2135OutputComponent...");
@@ -59,7 +57,7 @@ void SM2135::loop() {
   if (!this->update_)
     return;
 
-  Sm2135Start_();
+  sm2135_start_();
   write_byte_(SM2135_ADDR_MC);
   write_byte_(current_mask_);
 
@@ -67,9 +65,9 @@ void SM2135::loop() {
     // No color so must be Cold/Warm
 
     write_byte_(SM2135_CW);
-    Sm2135Stop_();
+    sm2135_stop_();
     delay(1);
-    Sm2135Start_();
+    sm2135_start_();
     write_byte_(SM2135_ADDR_C);
     write_byte_(this->pwm_amounts_[4]);  // Warm
     write_byte_(this->pwm_amounts_[3]);  // Cold
@@ -82,11 +80,10 @@ void SM2135::loop() {
     write_byte_(this->pwm_amounts_[2]);  // Blue
   }
 
-  Sm2135Stop_();
+  sm2135_stop_();
 
   this->update_ = false;
 }
-
 
 }  // namespace sm2135
 }  // namespace esphome
