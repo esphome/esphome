@@ -308,7 +308,7 @@ void MS8607Component::read_pressure_(uint32_t d2_raw_temperature) {
 
 void MS8607Component::request_read_humidity_(float temperature_float) {
   if (!this->humidity_i2c_device_->write_bytes(MS8607_CMD_H_MEASURE_NO_HOLD, nullptr, 0)) {
-    ESP_LOGW(TAG, "Humidity write measure command result was not OK");
+    ESP_LOGW(TAG, "Request to measure humidity failed");
     this->status_set_warning();
     return;
   }
@@ -321,7 +321,7 @@ void MS8607Component::request_read_humidity_(float temperature_float) {
 void MS8607Component::read_humidity_(float temperature_float) {
   uint8_t bytes[3];
   if (!this->humidity_i2c_device_->read_bytes_raw(bytes, 3)) {
-    ESP_LOGW(TAG, "Humidity read response was not OK");
+    ESP_LOGW(TAG, "Failed to read the measured humidity value");
     this->status_set_warning();
     return;
   }
@@ -329,13 +329,17 @@ void MS8607Component::read_humidity_(float temperature_float) {
   // "the measurement is stored into 14 bits. The two remaining LSBs are used for transmitting status information.
   // Bit1 of the two LSBS must be set to '1'. Bit0 is currently not assigned"
   uint16_t humidity = encode_uint16(bytes[0], bytes[1]);
-  if (!(hsensor_crc_check_(humidity) == bytes[2])) {
-    ESP_LOGE(TAG, "Humidity value failed CRC");
+  uint8_t expected_crc = bytes[2];
+  uint8_t actual_crc = hsensor_crc_check_(humidity);
+  if (expected_crc != actual_crc) {
+    ESP_LOGE(TAG, "Incorrect Humidity CRC value. Provided value 0x%01X != calculated value 0x%01X",
+             expected_crc, actual_crc);
     this->status_set_warning();
     return;
   }
   if (!(humidity & 0x2)) {
-    ESP_LOGE(TAG, "Status bit in humidity data was not set to 1?");
+    // data sheet says Bit1 should always set, but nothing about what happens if it isn't
+    ESP_LOGE(TAG, "Humidity status bit was not set to 1?");
   }
   humidity &= ~(0b11); // strip status & unassigned bits from data
 
@@ -404,7 +408,7 @@ void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1
 
   const float temperature_float = temperature / 100.0f;
   const float pressure_float = pressure / 100.0f;
-  ESP_LOGD(TAG, "Got temperature=%0.2f°C pressure=%0.2fhPa", temperature_float, pressure_float);
+  ESP_LOGD(TAG, "Temperature=%0.2f°C, Pressure=%0.2fhPa", temperature_float, pressure_float);
 
   if (this->temperature_sensor_ != nullptr) {
     this->temperature_sensor_->publish_state(temperature_float);
