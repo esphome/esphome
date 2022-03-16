@@ -16,13 +16,9 @@ SM2135 = sm2135_ns.class_("SM2135", cg.Component)
 CONF_RGB_CURRENT = "rgb_current"
 CONF_CW_CURRENT = "cw_current"
 
-DRIVE_STRENGTHS_CW = {
-10,15,20,25,30,40,45,50,55,60
-}
+DRIVE_STRENGTHS_CW = {10, 15, 20, 25, 30, 40, 45, 50, 55, 60}
 
-DRIVE_STRENGTHS_RGB = {
-10,15,20,25,30,40,45
-}
+DRIVE_STRENGTHS_RGB = {10, 15, 20, 25, 30, 40, 45}
 
 
 MULTI_CONF = True
@@ -32,7 +28,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_DATA_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_CLOCK_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_RGB_CURRENT): cv.one_of(*DRIVE_STRENGTHS_RGB, int=True),
-        cv.Required(CONF_CW_CURRENT): cv.one_of(*DRIVE_STRENGTHS_CW, int=True)
+        cv.Required(CONF_CW_CURRENT): cv.one_of(*DRIVE_STRENGTHS_CW, int=True),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -48,3 +44,4 @@ async def to_code(config):
 
     cg.add(var.set_rgb_current(config[CONF_RGB_CURRENT]))
     cg.add(var.set_cw_current(config[CONF_CW_CURRENT]))
+
