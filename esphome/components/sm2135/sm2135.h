@@ -67,13 +67,13 @@ class SM2135 : public Component {
 
   void sm2135_set_high_(GPIOPin *pin) { pin->pin_mode(gpio::FLAG_PULLUP); }
 
-  void sm2135_start_(void) {
+  void sm2135_start_() {
     sm2135_set_low_(this->data_pin_);
     delayMicroseconds(s_m2135_delay_);
     sm2135_set_low_(this->clock_pin_);
   }
 
-  void sm2135_stop_(void) {
+  void sm2135_stop_() {
     sm2135_set_low_(this->data_pin_);
     delayMicroseconds(s_m2135_delay_);
     sm2135_set_high_(this->clock_pin_);

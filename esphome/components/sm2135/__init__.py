@@ -44,4 +44,3 @@ async def to_code(config):
 
     cg.add(var.set_rgb_current(config[CONF_RGB_CURRENT]))
     cg.add(var.set_cw_current(config[CONF_CW_CURRENT]))
-
