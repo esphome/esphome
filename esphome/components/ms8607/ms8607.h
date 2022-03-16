@@ -13,6 +13,13 @@ namespace ms8607 {
  By default, the MS8607 measures sensors at the highest resolution.
  A potential enhancement would be to expose the resolution as a configurable
  setting.  A lower resolution speeds up ADC conversion time & uses less power.
+
+ Datasheet: https://www.te.com/commerce/DocumentDelivery/DDEController?Action=showdoc&DocId=Data+Sheet%7FMS8607-02BA01%7FB3%7Fpdf%7FEnglish%7FENG_DS_MS8607-02BA01_B3.pdf%7FCAT-BLPS0018
+
+ Other implementations:
+ - https://github.com/TEConnectivity/MS8607_Generic_C_Driver
+ - https://github.com/adafruit/Adafruit_MS8607
+ - https://github.com/sparkfun/SparkFun_PHT_MS8607_Arduino_Library
  */
 class MS8607Component : public PollingComponent, public i2c::I2CDevice {
  public:
