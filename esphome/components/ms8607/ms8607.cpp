@@ -74,10 +74,11 @@ void MS8607Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MS8607...");
   this->error_code_ = ErrorCode::NONE;
   this->setup_status_ = SetupStatus::NEEDS_RESET;
+  this->remaining_setup_attempts_ = 3;
 
   // I do not know why the device sometimes NACKs the reset command, but
   // try 3 times in case it's a transitory issue on this boot
-  this->set_retry("reset", 1, 3, [this]() {
+  this->set_retry("reset", 1, this->remaining_setup_attempts_, [this]() {
     ESP_LOGD(TAG, "Resetting both I2C addresses: 0x%02X, 0x%02X",
             this->address_, this->humidity_sensor_address_);
     // I believe sending the reset command to both addresses is preferable to
@@ -96,7 +97,12 @@ void MS8607Component::setup() {
         this->error_code_ = ErrorCode::H_RESET_FAILED;
       }
 
-      this->status_set_error();
+      --this->remaining_setup_attempts_;
+      if (this->remaining_setup_attempts_ > 0) {
+        this->status_set_error();
+      } else {
+        this->mark_failed();
+      }
       return RetryResult::RETRY;
     }
 
