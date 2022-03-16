@@ -1,6 +1,8 @@
 #ifdef USE_ARDUINO
 
 #include "web_server.h"
+#include "list_entities.h"
+
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
@@ -17,7 +19,7 @@
 #endif
 
 #ifdef USE_LOGGER
-#include <esphome/components/logger/logger.h>
+#include "esphome/components/logger/logger.h"
 #endif
 
 #ifdef USE_FAN
@@ -106,87 +108,19 @@ void WebServer::setup() {
                  }).c_str(),
                  "ping", millis(), 30000);
 
-#ifdef USE_SENSOR
-    for (auto *obj : App.get_sensors()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->sensor_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_SWITCH
-    for (auto *obj : App.get_switches()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->switch_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_BUTTON
-    for (auto *obj : App.get_buttons())
-      client->send(this->button_json(obj, DETAIL_ALL).c_str(), "state");
-#endif
-
-#ifdef USE_BINARY_SENSOR
-    for (auto *obj : App.get_binary_sensors()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->binary_sensor_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_FAN
-    for (auto *obj : App.get_fans()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->fan_json(obj, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_LIGHT
-    for (auto *obj : App.get_lights()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->light_json(obj, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_TEXT_SENSOR
-    for (auto *obj : App.get_text_sensors()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->text_sensor_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_COVER
-    for (auto *obj : App.get_covers()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->cover_json(obj, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_NUMBER
-    for (auto *obj : App.get_numbers()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->number_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_SELECT
-    for (auto *obj : App.get_selects()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->select_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_CLIMATE
-    for (auto *obj : App.get_climates()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->climate_json(obj, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_LOCK
-    for (auto *obj : App.get_locks()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->lock_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
+    std::shared_ptr<ListEntitiesIterator> iterator = std::make_shared<ListEntitiesIterator>(client, this);
+    iterator->begin(this->include_internal_);
+    this->set_interval("iterate", 0, [this, client, iterator]() {
+      if (client->connected()) {
+        iterator->advance();
+      } else {
+        this->cancel_interval("iterate");
+        return;
+      }
+      if (iterator->is_done()) {
+        this->cancel_interval("iterate");
+      }
+    });
   });
 
 #ifdef USE_LOGGER
