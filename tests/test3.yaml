@@ -806,6 +806,12 @@ script:
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
 
+sm2135:
+  data_pin: GPIO12
+  clock_pin: GPIO14
+  rgb_current: 20
+  cw_current: 60
+
 switch:
   - platform: gpio
     id: gpio_switch1
@@ -821,7 +827,6 @@ switch:
     id: r0
     name: R0 Switch
     component_name: page0.r0
-
 
 climate:
   - platform: bang_bang
@@ -1105,7 +1110,6 @@ rf_bridge:
         code: "ABC123"
     - rf_bridge.send_raw:
         raw: "AAA5070008001000ABC12355"
-
 
 display:
   - platform: nextion
