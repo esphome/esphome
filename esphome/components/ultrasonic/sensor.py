@@ -4,7 +4,6 @@ from esphome import pins
 from esphome.components import sensor
 from esphome.const import (
     CONF_ECHO_PIN,
-    CONF_ID,
     CONF_TRIGGER_PIN,
     CONF_TIMEOUT,
     STATE_CLASS_MEASUREMENT,
@@ -21,6 +20,7 @@ UltrasonicSensorComponent = ultrasonic_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
+        UltrasonicSensorComponent,
         unit_of_measurement=UNIT_METER,
         icon=ICON_ARROW_EXPAND_VERTICAL,
         accuracy_decimals=2,
@@ -28,7 +28,6 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(UltrasonicSensorComponent),
             cv.Required(CONF_TRIGGER_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_ECHO_PIN): pins.internal_gpio_input_pin_schema,
             cv.Optional(CONF_TIMEOUT, default="2m"): cv.distance,
@@ -42,9 +41,8 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
-    await sensor.register_sensor(var, config)
 
     trigger = await cg.gpio_pin_expression(config[CONF_TRIGGER_PIN])
     cg.add(var.set_trigger_pin(trigger))

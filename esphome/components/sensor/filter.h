@@ -194,7 +194,7 @@ class SlidingWindowMovingAverageFilter : public Filter {
  */
 class ExponentialMovingAverageFilter : public Filter {
  public:
-  ExponentialMovingAverageFilter(float alpha, size_t send_every);
+  ExponentialMovingAverageFilter(float alpha, size_t send_every, size_t send_first_at);
 
   optional<float> new_value(float value) override;
 
