@@ -4,7 +4,6 @@ from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_SERVICE_UUID,
     CONF_MAC_ADDRESS,
-    CONF_ID,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     STATE_CLASS_MEASUREMENT,
     UNIT_DECIBEL,
@@ -19,6 +18,7 @@ BLERSSISensor = ble_rssi_ns.class_(
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
+        BLERSSISensor,
         unit_of_measurement=UNIT_DECIBEL,
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -26,7 +26,6 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(BLERSSISensor),
             cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
         }
@@ -38,10 +37,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await esp32_ble_tracker.register_ble_device(var, config)
-    await sensor.register_sensor(var, config)
 
     if CONF_MAC_ADDRESS in config:
         cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))

@@ -13,6 +13,7 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PARTS_PER_BILLION,
     ICON_MOLECULE_CO2,
+    ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -49,10 +50,12 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ECO2_BASELINE): sensor.sensor_schema(
                 icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_TVOC_BASELINE): sensor.sensor_schema(
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
             cv.Optional(CONF_BASELINE): cv.Schema(
