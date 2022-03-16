@@ -6,36 +6,36 @@ namespace sen5x {
 
 static const char *const TAG = "sen5x";
 
-static const uint16_t SEN5x_CMD_START_MEASUREMENT = 0x0021;
-static const uint16_t SEN5x_CMD_START_MEASUREMENT_RHT_GAS_ONLY = 0x0037;
-static const uint16_t SEN5x_CMD_STOP_MEASUREMENT = 0x0104;
-static const uint16_t SEN5x_CMD_READ_DATA_READY_FLAG = 0x0202;
-static const uint16_t SEN5x_CMD_READ_MEASURED_VALUES = 0x03C4;
-static const uint16_t SEN5x_CMD_READ_WRITE_T_COMPENSATION = 0x60B2;
-static const uint16_t SEN5x_CMD_READ_WRITE_WARM_START_PARAMS = 0x60C6;
-static const uint16_t SEN5x_CMD_READ_WRITE_VOC_ALGO_TUNING_PARAMS = 0x60D0;
-static const uint16_t SEN5x_CMD_READ_WRITE_NOX_ALGO_TUNING_PARAMS = 0x60E1;
-static const uint16_t SEN5x_CMD_READ_WRITE_RHT_ACCEL_MODE = 0x60F7;
-static const uint16_t SEN5x_CMD_READ_WRITE_VOC_ALGO_STATE = 0x6181;
-static const uint16_t SEN5x_CMD_START_FAN_CLEANING = 0x5607;
-static const uint16_t SEN5x_CMD_READ_WRITE_AUTO_CLEANING_INTVL = 0x8004;
-static const uint16_t SEN5x_CMD_READ_PRODUCT_NAME = 0xD014;
-static const uint16_t SEN5x_CMD_READ_SERIAL_NUMBER = 0xD033;
-static const uint16_t SEN5x_CMD_READ_FIRMWARE_VERSION = 0xD100;
-static const uint16_t SEN5x_CMD_READ_DEVICE_STATUS = 0xD206;
-static const uint16_t SEN5x_CMD_CLEAR_DEVICE_STATUS = 0xD210;
-static const uint16_t SEN5x_CMD_RESET = 0xD304;
+static const uint16_t SEN5X_CMD_START_MEASUREMENT = 0x0021;
+static const uint16_t SEN5X_CMD_START_MEASUREMENT_RHT_GAS_ONLY = 0x0037;
+static const uint16_t SEN5X_CMD_STOP_MEASUREMENT = 0x0104;
+static const uint16_t SEN5X_CMD_READ_DATA_READY_FLAG = 0x0202;
+static const uint16_t SEN5X_CMD_READ_MEASURED_VALUES = 0x03C4;
+static const uint16_t SEN5X_CMD_READ_WRITE_T_COMPENSATION = 0x60B2;
+static const uint16_t SEN5X_CMD_READ_WRITE_WARM_START_PARAMS = 0x60C6;
+static const uint16_t SEN5X_CMD_READ_WRITE_VOC_ALGO_TUNING_PARAMS = 0x60D0;
+static const uint16_t SEN5X_CMD_READ_WRITE_NOX_ALGO_TUNING_PARAMS = 0x60E1;
+static const uint16_t SEN5X_CMD_READ_WRITE_RHT_ACCEL_MODE = 0x60F7;
+static const uint16_t SEN5X_CMD_READ_WRITE_VOC_ALGO_STATE = 0x6181;
+static const uint16_t SEN5X_CMD_START_FAN_CLEANING = 0x5607;
+static const uint16_t SEN5X_CMD_READ_WRITE_AUTO_CLEANING_INTVL = 0x8004;
+static const uint16_t SEN5X_CMD_READ_PRODUCT_NAME = 0xD014;
+static const uint16_t SEN5X_CMD_READ_SERIAL_NUMBER = 0xD033;
+static const uint16_t SEN5X_CMD_READ_FIRMWARE_VERSION = 0xD100;
+static const uint16_t SEN5X_CMD_READ_DEVICE_STATUS = 0xD206;
+static const uint16_t SEN5X_CMD_CLEAR_DEVICE_STATUS = 0xD210;
+static const uint16_t SEN5X_CMD_RESET = 0xD304;
 static const size_t SERIAL_NUMBER_LENGTH = 32;  // number of ASCII Characters
 
 static const uint8_t MAX_SKIPPED_DATA_CYCLES_BEFORE_ERROR = 5;
 
 void SEN5xComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sen54...");
-  this->write_command_(SEN5x_CMD_RESET);
+  this->write_command_(SEN5X_CMD_RESET);
   /// Deferred Sensor initialization
   this->set_timeout(500, [this]() {
     /// Firmware version identification
-    if (!this->write_command_(SEN5x_CMD_READ_FIRMWARE_VERSION)) {
+    if (!this->write_command_(SEN5X_CMD_READ_FIRMWARE_VERSION)) {
       this->error_code_ = FIRMWARE_VERSION_REQUEST_FAILED;
       this->mark_failed();
       return;
@@ -50,7 +50,7 @@ void SEN5xComponent::setup() {
     }
 
     /// Serial number identification
-    if (!this->write_command_(SEN5x_CMD_READ_SERIAL_NUMBER)) {
+    if (!this->write_command_(SEN5X_CMD_READ_SERIAL_NUMBER)) {
       this->error_code_ = SERIAL_NUMBER_REQUEST_FAILED;
       this->mark_failed();
       return;
@@ -126,7 +126,7 @@ void SEN5xComponent::update() {
   /// Check if warning flag active (sensor reconnected?)
   if (this->status_has_warning()) {
     ESP_LOGD(TAG, "Trying to reconnect the sensor...");
-    if (this->write_command_(SEN5x_CMD_RESET)) {
+    if (this->write_command_(SEN5X_CMD_RESET)) {
       ESP_LOGD(TAG, "Sensor has soft-reset successfully. Waiting for reconnection in 1000ms...");
       this->set_timeout(1000, [this]() {
         this->start_continuous_measurement_();
@@ -141,7 +141,7 @@ void SEN5xComponent::update() {
     return;
   }
   /// Check if measurement is ready before reading the value
-  if (!this->write_command_(SEN5x_CMD_READ_DATA_READY_FLAG)) {
+  if (!this->write_command_(SEN5X_CMD_READ_DATA_READY_FLAG)) {
     this->status_set_warning();
     return;
   }
@@ -159,14 +159,14 @@ void SEN5xComponent::update() {
     return;
   }
 
-  if (!this->write_command_(SEN5x_CMD_READ_MEASURED_VALUES)) {
+  if (!this->write_command_(SEN5X_CMD_READ_MEASURED_VALUES)) {
     ESP_LOGW(TAG, "Error reading measurement status!");
     this->status_set_warning();
     return;
   }
 
   this->set_timeout(50, [this]() {
-    uint16_t raw_data[20];
+    uint16_t raw_data[8];
     if (!this->read_data_(raw_data, 8)) {
       ESP_LOGW(TAG, "Error reading measurement data!");
       this->status_set_warning();
@@ -253,7 +253,7 @@ uint8_t SEN5xComponent::sht_crc_(uint8_t data1, uint8_t data2) {
 }
 
 bool SEN5xComponent::start_continuous_measurement_() {
-  if (!this->write_command_(SEN5x_CMD_START_MEASUREMENT)) {
+  if (!this->write_command_(SEN5X_CMD_START_MEASUREMENT)) {
     ESP_LOGE(TAG, "Error starting measurements!");
     return false;
   }
