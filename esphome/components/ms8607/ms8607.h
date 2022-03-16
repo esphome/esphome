@@ -42,7 +42,10 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   void request_read_pressure_(uint32_t raw_temperature);
   /// process async pressure read
   void read_pressure_(uint32_t raw_temperature);
-  void read_humidity_();
+  /// start async humidity read
+  void request_read_humidity_(float temperature_float);
+  /// process async humidity read
+  void read_humidity_(float temperature_float);
   /// use raw temperature & pressure to calculate & publish values
   void calculate_values_(uint32_t raw_temperature, uint32_t raw_pressure);
 

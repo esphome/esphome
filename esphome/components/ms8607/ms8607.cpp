@@ -27,6 +27,10 @@ static const uint8_t MS8607_CMD_H_RESET = 0xFE;
 static const uint8_t MS8607_CMD_H_READ_USER_REGISTER = 0xE7;
 /// Write to the humidity sensor user register
 static const uint8_t MS8607_CMD_H_WRITE_USER_REGISTER = 0xE6;
+/// Read relative humidity, without holding i2c master
+static const uint8_t MS8607_CMD_H_MEASURE_NO_HOLD = 0xF5;
+/// Temperature correction coefficient for Relative Humidity from datasheet
+static const float MS8607_H_TEMP_COEFFICIENT = -0.18;
 
 /// Read the converted analog value, either D1 (pressure) or D2 (temperature)
 static const uint8_t MS8607_CMD_ADC_READ = 0x00;
@@ -43,18 +47,19 @@ enum class MS8607Component::ErrorCode {
   /// Component hasn't failed (yet?)
   NONE = 0,
   /// Both the Pressure/Temperature address and the Humidity address failed to reset
-  PTH_RESET_FAILED,
+  PTH_RESET_FAILED = 1,
   /// Asking the Pressure/Temperature sensor to reset failed
-  PT_RESET_FAILED,
+  PT_RESET_FAILED = 2,
   /// Asking the Humidity sensor to reset failed
-  H_RESET_FAILED,
+  H_RESET_FAILED = 3,
   /// Reading the PROM calibration values failed
-  PROM_READ_FAILED,
+  PROM_READ_FAILED = 4,
   /// The PROM calibration values failed the CRC check
-  PROM_CRC_FAILED,
+  PROM_CRC_FAILED = 5,
 };
 
 static uint8_t crc4(uint16_t *buffer, size_t length);
+static uint8_t hsensor_crc_check_(uint16_t value);
 
 void MS8607Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MS8607...");
@@ -92,8 +97,6 @@ void MS8607Component::setup() {
 }
 
 void MS8607Component::update() {
-  this->read_humidity_();
-
   this->request_read_temperature_();
 }
 
@@ -199,6 +202,35 @@ static uint8_t crc4(uint16_t *buffer, size_t length) {
   return (crc_remainder >> 12) & 0xF; // only the most significant 4 bits
 }
 
+/**
+ * @brief Calculates CRC value for the provided humitity (+ status bits) value
+ * 
+ * CRC-8 check comes from other MS8607 libraries on github. I did not find it in the datasheet,
+ * and it differs from the crc8 implementation that's already part of esphome.
+ * 
+ * @param value two byte humidity sensor value read from i2c
+ * @return uint8_t computed crc value
+ */
+static uint8_t hsensor_crc_check_(uint16_t value) {
+  uint32_t polynom = 0x988000; // x^8 + x^5 + x^4 + 1
+  uint32_t msb = 0x800000;
+  uint32_t mask = 0xFF8000;
+  uint32_t result = (uint32_t)value << 8; // Pad with zeros as specified in spec
+
+  while (msb != 0x80) {
+    // Check if msb of current value is 1 and apply XOR mask
+    if (result & msb) {
+      result = ((result ^ polynom) & mask) | (result & ~mask);
+    }
+
+    // Shift by one
+    msb >>= 1;
+    mask >>= 1;
+    polynom >>= 1;
+  }
+  return result & 0xFF;
+}
+
 void MS8607Component::request_read_temperature_() {
   // Tell MS8607 to start ADC conversion of temperature sensor
   if (!this->write_bytes(MS8607_CMD_CONV_D2_OSR_8K, nullptr, 0)) {
@@ -243,25 +275,39 @@ void MS8607Component::read_pressure_(uint32_t d2_raw_temperature) {
   this->calculate_values_(d2_raw_temperature, d1_raw_pressure);
 }
 
-void MS8607Component::read_humidity_() {
-  uint8_t bytes[3];
-  uint8_t failure_count = 0;
-  // FIXME: instead of blocking wait, use non-blocking + set_timeout
-  while (!this->humidity_i2c_device_->read_bytes(0xE5, bytes, 3)) {
-    ESP_LOGD(TAG, "Humidity not ready");
-    if (++failure_count > 5) {
-      return;
-    }
-    delay(25);
+void MS8607Component::request_read_humidity_(float temperature_float) {
+  if (!this->humidity_i2c_device_->write_bytes(MS8607_CMD_H_MEASURE_NO_HOLD, nullptr, 0)) {
+    ESP_LOGW(TAG, "Humidity write measure command result was not OK");
+    this->status_set_warning();
+    return;
   }
 
+  auto f = std::bind(&MS8607Component::read_humidity_, this, temperature_float);
+  // datasheet says 15.89ms max conversion time at OSR 8192
+  this->set_timeout("humidity", 20, f);
+}
+
+void MS8607Component::read_humidity_(float temperature_float) {
+  uint8_t bytes[3];
+  if (!this->humidity_i2c_device_->read_bytes_raw(bytes, 3)) {
+    ESP_LOGW(TAG, "Humidity read response was not OK");
+    this->status_set_warning();
+    return;
+  }
+
+
+  // "the measurement is stored into 14 bits. The two remaining LSBs are used for transmitting status information.
+  // Bit1 of the two LSBS must be set to '1'. Bit0 is currently not assigned"
   uint16_t humidity = encode_uint16(bytes[0], bytes[1]);
+  if (!hsensor_crc_check_(humidity) == bytes[2]) {
+    ESP_LOGE(TAG, "Humidity value failed CRC");
+    this->status_set_warning();
+    return;
+  }
   if (!(humidity & 0x2)) {
     ESP_LOGE(TAG, "Status bit in humidity data was not set to 1?");
   }
   humidity &= ~(0b11); // strip status & unassigned bits from data
-
-  // FIXME: detect errors with the checksum in bytes[2]?
 
   ESP_LOGD(TAG, "Read humidity binary value 0x%04X", humidity);
 
@@ -270,10 +316,10 @@ void MS8607Component::read_humidity_() {
   ESP_LOGD(TAG, "Read humidity partial of %.4f", humidity_partial); // should be [0.0, 1.0]
   float humidity_percentage = lerp(humidity_partial, -6.0, 118.0);
   ESP_LOGD(TAG, "Read humidity percentage of %.4f", humidity_percentage);
+  float compensated_humidity_percentage = humidity_percentage + (20 - temperature_float) * MS8607_H_TEMP_COEFFICIENT;
+  ESP_LOGD(TAG, "Compensated for temperature humidity percentage of %.4f", compensated_humidity_percentage);
 
-  // TODO: compensate for temperature
-
-    this->humidity_sensor_->publish_state(humidity_percentage);
+  this->humidity_sensor_->publish_state(compensated_humidity_percentage);
 }
 
 void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1_raw_pressure) {
@@ -330,6 +376,7 @@ void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1
   const float temperature_float = temperature / 100.0f;
   const float pressure_float = pressure / 100.0f;
   ESP_LOGD(TAG, "Got temperature=%0.2f°C pressure=%0.2fhPa", temperature_float, pressure_float);
+  this->request_read_humidity_(temperature_float);
 
   if (this->temperature_sensor_ != nullptr) {
     this->temperature_sensor_->publish_state(temperature_float);
