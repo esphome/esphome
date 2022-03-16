@@ -184,19 +184,20 @@ class Component {
 
   /** Set an retry function with a unique name. Empty name means no cancelling possible.
    *
-   * This will call f. If f returns RetryResult::RETRY f is called again after initial_wait_time ms.
-   * f should return RetryResult::DONE if no repeat is required. The initial wait time will be increased
-   * by backoff_increase_factor for each iteration. Default is doubling the time between iterations
-   * Can be cancelled via cancel_retry().
+   * This will call the retry function f after initial_wait_time. f should return RetryResult::DONE if
+   * it is successful and no repeat is required. Otherwise, returning RetryResult::RETRY will call f
+   * again in the future. The initial wait time will be multiplied by backoff_increase_factor between
+   * each iteration. If no backoff_increase_factor is supplied (default = 1.0), the wait time will stay
+   * the same. This retry function can also be cancelled by name via cancel_retry().
    *
    * IMPORTANT: Do not rely on this having correct timing. This is only called from
    * loop() and therefore can be significantly delayed.
    *
    * @param name The identifier for this retry function.
-   * @param initial_wait_time The time in ms before f is called again
+   * @param initial_wait_time The time in ms before f is called
    * @param max_attempts The maximum number of retries
    * @param f The function (or lambda) that should be called
-   * @param backoff_increase_factor time between retries is increased by this factor on every retry
+   * @param backoff_increase_factor time between retries is multiplied by this factor on every retry
    * @see cancel_retry()
    */
   void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,  // NOLINT
