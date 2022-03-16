@@ -870,6 +870,8 @@ script:
 sm2135:
   data_pin: GPIO12
   clock_pin: GPIO14
+  rgb_current: 20
+  cw_current: 60
 
 switch:
   - platform: template
