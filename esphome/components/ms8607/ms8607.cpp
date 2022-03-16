@@ -150,11 +150,8 @@ void MS8607Component::dump_config() {
 }
 
 void MS8607Component::set_humidity_sensor_address(uint8_t address) {
-  if (this->humidity_i2c_device_) {
-    delete this->humidity_i2c_device_;
-  }
   this->humidity_sensor_address_ = address;
-  this->humidity_i2c_device_ = new I2CDevice();
+  this->humidity_i2c_device_ = make_unique<I2CDevice>();
   this->humidity_i2c_device_->set_i2c_bus(this->bus_);
   this->humidity_i2c_device_->set_i2c_address(address);
 }

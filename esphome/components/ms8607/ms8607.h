@@ -67,7 +67,7 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
    * I2CDevice object is an implementation detail of the Component. The esphome configuration only
    * cares what the I2C address of the humidity sensor is. (Default is 0x40)
    */
-  i2c::I2CDevice *humidity_i2c_device_;
+  std::unique_ptr<i2c::I2CDevice> humidity_i2c_device_;
   /// I2C address for the humidity sensor
   uint8_t humidity_sensor_address_;
 
