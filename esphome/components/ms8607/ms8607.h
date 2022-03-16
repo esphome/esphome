@@ -12,7 +12,7 @@ namespace ms8607 {
 
  By default, the MS8607 measures sensors at the highest resolution.
  A potential enhancement would be to expose the resolution as a configurable
- setting.  A lower resolution speeds up ADC conversion time.
+ setting.  A lower resolution speeds up ADC conversion time & uses less power.
  */
 class MS8607Component : public PollingComponent, public i2c::I2CDevice {
  public:

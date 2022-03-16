@@ -7,6 +7,7 @@
 namespace esphome {
 namespace ms8607 {
 
+/// TAG used for logging calls
 static const char *TAG = "ms8607";
 
 /// Reset the Pressure/Temperature sensor
@@ -27,9 +28,15 @@ static const uint8_t MS8607_CMD_H_READ_USER_REGISTER = 0xE7;
 /// Write to the humidity sensor user register
 static const uint8_t MS8607_CMD_H_WRITE_USER_REGISTER = 0xE6;
 
+/// Read the converted analog value, either D1 (pressure) or D2 (temperature)
 static const uint8_t MS8607_CMD_ADC_READ = 0x00;
 
+// TODO: allow OSR to be turned down for speed and/or lower power consumption via configuration.
+// ms8607 supports 6 different settings
+
+/// Request conversion of analog D1 (pressure) with OSR=8192 (highest oversampling ratio). Takes maximum of 17.2ms
 static const uint8_t MS8607_CMD_CONV_D1_OSR_8K = 0x4A;
+/// Request conversion of analog D2 (temperature) with OSR=8192 (highest oversampling ratio). Takes maximum of 17.2ms
 static const uint8_t MS8607_CMD_CONV_D2_OSR_8K = 0x5A;
 
 enum class MS8607Component::ErrorCode {
@@ -63,7 +70,7 @@ void MS8607Component::setup() {
 
   if (pt_successful && h_successful) {
     // docs say delay(>10) is disallowed, I'm not sure how to structure code to correctly delay(15) during setup()
-    delay(15); // matches Adafruit_MS8607 & SparkFun_PHT_MS8607_Arduino_Library
+    delay(15); // matches datasheet, Adafruit_MS8607 & SparkFun_PHT_MS8607_Arduino_Library
   } else {
     ESP_LOGE(TAG, "Resetting I2C devices failed. Marking component as failed.");
     if (!pt_successful && !h_successful) {
@@ -211,29 +218,29 @@ void MS8607Component::read_temperature_() {
     return;
   }
 
-  const uint32_t raw_temperature = encode_uint32(0, bytes[0], bytes[1], bytes[2]);
-  this->request_read_pressure_(raw_temperature);
+  const uint32_t d2_raw_temperature = encode_uint32(0, bytes[0], bytes[1], bytes[2]);
+  this->request_read_pressure_(d2_raw_temperature);
 }
 
-void MS8607Component::request_read_pressure_(uint32_t raw_temperature) {
+void MS8607Component::request_read_pressure_(uint32_t d2_raw_temperature) {
   if (!this->write_bytes(MS8607_CMD_CONV_D1_OSR_8K, nullptr, 0)) {
     this->status_set_warning();
     return;
   }
 
-  auto f = std::bind(&MS8607Component::read_pressure_, this, raw_temperature);
+  auto f = std::bind(&MS8607Component::read_pressure_, this, d2_raw_temperature);
   // datasheet says 17.2ms max conversion time at OSR 8192
   this->set_timeout("pressure", 20, f);
 }
 
-void MS8607Component::read_pressure_(uint32_t raw_temperature) {
+void MS8607Component::read_pressure_(uint32_t d2_raw_temperature) {
   uint8_t bytes[3]; // 24 bits
   if (!this->read_bytes(MS8607_CMD_ADC_READ, bytes, 3)) {
     this->status_set_warning();
     return;
   }
-  const uint32_t raw_pressure = encode_uint32(0, bytes[0], bytes[1], bytes[2]);
-  this->calculate_values_(raw_temperature, raw_pressure);
+  const uint32_t d1_raw_pressure = encode_uint32(0, bytes[0], bytes[1], bytes[2]);
+  this->calculate_values_(d2_raw_temperature, d1_raw_pressure);
 }
 
 void MS8607Component::read_humidity_() {
@@ -269,18 +276,18 @@ void MS8607Component::read_humidity_() {
     this->humidity_sensor_->publish_state(humidity_percentage);
 }
 
-void MS8607Component::calculate_values_(uint32_t raw_temperature, uint32_t raw_pressure) {
+void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1_raw_pressure) {
   // Perform the first order pressure/temperature calculation
 
   // d_t: "difference between actual and reference temperature" = D2 - [C5] * 2**8
-  const int32_t d_t = int32_t(raw_temperature) - (int32_t(this->calibration_values_.reference_temperature) << 8);
+  const int32_t d_t = int32_t(d2_raw_temperature) - (int32_t(this->calibration_values_.reference_temperature) << 8);
   // actual temperature as hundredths of degree celsius in range [-4000, 8500]
   // 2000 + d_t * [C6] / (2**23)
   int32_t temperature = 2000 + ((int64_t(d_t) * this->calibration_values_.temperature_coefficient_of_temperature) >> 23);
 
   // offset at actual temperature. [C2] * (2**17) + (d_t * [C4] / (2**6))
   int64_t pressure_offset = (int64_t(this->calibration_values_.pressure_offset) << 17) + ((int64_t(d_t) * this->calibration_values_.pressure_offset_temperature_coefficient) >> 6);
-  // sensitivity at actual temperature
+  // sensitivity at actual temperature. [C1] * (2**16) + ([C3] * d_t) / (2**7)
   int64_t pressure_sensitivity = (int64_t(this->calibration_values_.pressure_sensitivity) << 16) + ((int64_t(d_t) * this->calibration_values_.pressure_sensitivity_temperature_coefficient) >> 7);
 
   // Perform the second order compensation, for non-linearity over temperature range
@@ -289,19 +296,27 @@ void MS8607Component::calculate_values_(uint32_t raw_temperature, uint32_t raw_p
   int32_t pressure_offset_2 = 0;
   int32_t pressure_sensitivity_2 = 0;
   if (temperature < 2000) {
+    // (TEMP - 2000)**2 / 2**4
     const int32_t low_temperature_adjustment = (temperature - 2000) * (temperature - 2000) >> 4;
 
+    // T2 = 3 * (d_t**2) / 2**33
     temperature_2 = (3 * d_t_squared) >> 33;
+    // OFF2 = 61 * (TEMP-2000)**2 / 2**4
     pressure_offset_2 = 61 * low_temperature_adjustment;
+    // SENS2 = 29 * (TEMP-2000)**2 / 2**4
     pressure_sensitivity_2 = 29 * low_temperature_adjustment;
 
     if (temperature < -1500) {
+      // (TEMP+1500)**2
       const int32_t very_low_temperature_adjustment = (temperature + 1500) * (temperature + 1500);
 
+      // OFF2 = OFF2 + 17 * (TEMP+1500)**2
       pressure_offset_2 += 17 * very_low_temperature_adjustment;
+      // SENS2 = SENS2 + 9 * (TEMP+1500)**2
       pressure_sensitivity_2 += 9 * very_low_temperature_adjustment;
     }
   } else {
+    // T2 = 5 * (d_t**2) / 2**38
     temperature_2 = (5 * d_t_squared) >> 38;
   }
 
@@ -310,7 +325,7 @@ void MS8607Component::calculate_values_(uint32_t raw_temperature, uint32_t raw_p
   pressure_sensitivity -= pressure_sensitivity_2;
 
   // Temperature compensated pressure. [1000, 120000] => [10.00 mbar, 1200.00 mbar]
-  const int32_t pressure = (((raw_pressure * pressure_sensitivity) >> 21) - pressure_offset) >> 15;
+  const int32_t pressure = (((d1_raw_pressure * pressure_sensitivity) >> 21) - pressure_offset) >> 15;
 
   const float temperature_float = temperature / 100.0f;
   const float pressure_float = pressure / 100.0f;
