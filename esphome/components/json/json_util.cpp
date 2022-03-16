@@ -55,7 +55,7 @@ void parse_json(const std::string &data, const json_parse_t &f) {
 #endif
   bool pass = false;
   do {
-    const size_t request_size = std::min(free_heap - 2048, (size_t) (data.size() * 1.5));
+    const size_t request_size = std::min(free_heap - 2048, (size_t)(data.size() * 1.5));
 
     DynamicJsonDocument json_document(request_size);
     if (json_document.memoryPool().buffer() == nullptr) {
