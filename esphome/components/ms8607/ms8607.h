@@ -14,7 +14,8 @@ namespace ms8607 {
  A potential enhancement would be to expose the resolution as a configurable
  setting.  A lower resolution speeds up ADC conversion time & uses less power.
 
- Datasheet: https://www.te.com/commerce/DocumentDelivery/DDEController?Action=showdoc&DocId=Data+Sheet%7FMS8607-02BA01%7FB3%7Fpdf%7FEnglish%7FENG_DS_MS8607-02BA01_B3.pdf%7FCAT-BLPS0018
+ Datasheet:
+ https://www.te.com/commerce/DocumentDelivery/DDEController?Action=showdoc&DocId=Data+Sheet%7FMS8607-02BA01%7FB3%7Fpdf%7FEnglish%7FENG_DS_MS8607-02BA01_B3.pdf%7FCAT-BLPS0018
 
  Other implementations:
  - https://github.com/TEConnectivity/MS8607_Generic_C_Driver
