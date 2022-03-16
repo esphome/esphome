@@ -109,7 +109,7 @@ def test_is_ip_address__valid(value):
         ("FOO", None, True, True),
         ("FOO", "", False, False),
         ("FOO", "Yes", False, True),
-        ("FOO", "123", False, True),
+        ("FOO", "1", False, True),
     ),
 )
 def test_get_bool_env(monkeypatch, var, value, default, expected):
