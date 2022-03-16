@@ -23,10 +23,6 @@ static const uint8_t MS8607_PROM_COUNT = (MS8607_PROM_END - MS8607_PROM_START) >
 
 /// Reset the Humidity sensor
 static const uint8_t MS8607_CMD_H_RESET = 0xFE;
-/// Read the humidity sensor user register
-static const uint8_t MS8607_CMD_H_READ_USER_REGISTER = 0xE7;
-/// Write to the humidity sensor user register
-static const uint8_t MS8607_CMD_H_WRITE_USER_REGISTER = 0xE6;
 /// Read relative humidity, without holding i2c master
 static const uint8_t MS8607_CMD_H_MEASURE_NO_HOLD = 0xF5;
 /// Temperature correction coefficient for Relative Humidity from datasheet
@@ -122,7 +118,7 @@ void MS8607Component::setup() {
     });
 
     return RetryResult::DONE;
-  }, 5.0f);
+  }, 5.0f); // executes at 1ms, 5ms, 25ms
 }
 
 void MS8607Component::update() {
