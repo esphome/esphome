@@ -88,8 +88,6 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   enum class SetupStatus;
   /// Current step in the multi-step & possibly delayed setup() process
   SetupStatus setup_status_;
-  /// Remaining attempts to reset i2c devices
-  int8_t remaining_setup_attempts_;
 };
 
 }  // namespace ms8607
