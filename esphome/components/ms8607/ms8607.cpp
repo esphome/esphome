@@ -8,7 +8,7 @@ namespace esphome {
 namespace ms8607 {
 
 /// TAG used for logging calls
-static const char *TAG = "ms8607";
+static const char *const TAG = "ms8607";
 
 /// Reset the Pressure/Temperature sensor
 static const uint8_t MS8607_PT_CMD_RESET = 0x1E;
@@ -64,7 +64,7 @@ enum class MS8607Component::SetupStatus {
 };
 
 static uint8_t crc4(uint16_t *buffer, size_t length);
-static uint8_t hsensor_crc_check_(uint16_t value);
+static uint8_t hsensor_crc_check(uint16_t value);
 
 void MS8607Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MS8607...");
@@ -222,7 +222,7 @@ static uint8_t crc4(uint16_t *buffer, size_t length) {
   };
 
   // add all the bytes
-  for (uint8_t idx = 0; idx < length; ++idx) {
+  for (size_t idx = 0; idx < length; ++idx) {
     for (auto byte : decode_value(buffer[idx])) {
       apply_crc(byte);
     }
@@ -243,7 +243,7 @@ static uint8_t crc4(uint16_t *buffer, size_t length) {
  * @param value two byte humidity sensor value read from i2c
  * @return uint8_t computed crc value
  */
-static uint8_t hsensor_crc_check_(uint16_t value) {
+static uint8_t hsensor_crc_check(uint16_t value) {
   uint32_t polynom = 0x988000;  // x^8 + x^5 + x^4 + 1
   uint32_t msb = 0x800000;
   uint32_t mask = 0xFF8000;
@@ -331,7 +331,7 @@ void MS8607Component::read_humidity_(float temperature_float) {
   // Bit1 of the two LSBS must be set to '1'. Bit0 is currently not assigned"
   uint16_t humidity = encode_uint16(bytes[0], bytes[1]);
   uint8_t expected_crc = bytes[2];
-  uint8_t actual_crc = hsensor_crc_check_(humidity);
+  uint8_t actual_crc = hsensor_crc_check(humidity);
   if (expected_crc != actual_crc) {
     ESP_LOGE(TAG, "Incorrect Humidity CRC value. Provided value 0x%01X != calculated value 0x%01X", expected_crc,
              actual_crc);
