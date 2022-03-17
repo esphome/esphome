@@ -19,7 +19,7 @@ class SEN5xComponent : public PollingComponent, public i2c::I2CDevice {
   void set_humidity_sensor(sensor::Sensor *humidity) { humidity_sensor_ = humidity; }
   void set_temperature_sensor(sensor::Sensor *temperature) { temperature_sensor_ = temperature; }
   void set_voc_sensor(sensor::Sensor *voc) { voc_sensor_ = voc; }
-  void set_nox_sensor(sensor::Sensor *nox) { nox_sensor_ = nox;}
+  void set_nox_sensor(sensor::Sensor *nox) { nox_sensor_ = nox; }
 
   void setup() override;
   void update() override;
