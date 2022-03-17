@@ -3,16 +3,17 @@
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
 #include "esphome/core/defines.h"
-#include "web_server.h"
 
 #include <ESPAsyncWebServer.h>
 
 namespace esphome {
 namespace web_server {
 
+class WebServer;
+
 class ListEntitiesIterator : public ComponentIterator {
  public:
-  ListEntitiesIterator(AsyncEventSourceClient *client, WebServer *web_server);
+  ListEntitiesIterator(WebServer *web_server);
 #ifdef USE_BINARY_SENSOR
   bool on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) override;
 #endif
@@ -49,15 +50,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_LOCK
   bool on_lock(lock::Lock *a_lock) override;
 #endif
-  bool on_begin() override;
-  bool on_end() override;
-
-  bool is_done() { return this->done_; }
 
  protected:
-  AsyncEventSourceClient *client_;
   WebServer *web_server_;
-  bool done_{false};
 };
 
 }  // namespace web_server

@@ -1,7 +1,6 @@
 #ifdef USE_ARDUINO
 
 #include "web_server.h"
-#include "list_entities.h"
 
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -108,19 +107,7 @@ void WebServer::setup() {
                  }).c_str(),
                  "ping", millis(), 30000);
 
-    std::shared_ptr<ListEntitiesIterator> iterator = std::make_shared<ListEntitiesIterator>(client, this);
-    iterator->begin(this->include_internal_);
-    this->set_interval("iterate", 0, [this, client, iterator]() {
-      if (client->connected()) {
-        iterator->advance();
-      } else {
-        this->cancel_interval("iterate");
-        return;
-      }
-      if (iterator->is_done()) {
-        this->cancel_interval("iterate");
-      }
-    });
+    this->entities_iterator_.begin(this->include_internal_);
   });
 
 #ifdef USE_LOGGER
@@ -136,6 +123,9 @@ void WebServer::setup() {
     this->base_->add_ota_handler();
 
   this->set_interval(10000, [this]() { this->events_.send("", "ping", millis(), 30000); });
+}
+void WebServer::loop() {
+  this->entities_iterator_.advance();
 }
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
