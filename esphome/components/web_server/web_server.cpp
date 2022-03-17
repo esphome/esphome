@@ -124,9 +124,7 @@ void WebServer::setup() {
 
   this->set_interval(10000, [this]() { this->events_.send("", "ping", millis(), 30000); });
 }
-void WebServer::loop() {
-  this->entities_iterator_.advance();
-}
+void WebServer::loop() { this->entities_iterator_.advance(); }
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
   ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->base_->get_port());

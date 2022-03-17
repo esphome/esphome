@@ -14,7 +14,8 @@ ListEntitiesIterator::ListEntitiesIterator(WebServer *web_server) : web_server_(
 
 #ifdef USE_BINARY_SENSOR
 bool ListEntitiesIterator::on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
-  this->web_server_->events_.send(this->web_server_->binary_sensor_json(binary_sensor, binary_sensor->state, DETAIL_ALL).c_str(), "state");
+  this->web_server_->events_.send(
+      this->web_server_->binary_sensor_json(binary_sensor, binary_sensor->state, DETAIL_ALL).c_str(), "state");
   return true;
 }
 #endif
