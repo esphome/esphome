@@ -10,12 +10,14 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_HUMIDITY,
     CONF_TVOC,
+    CONF_NOX,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    DEVICE_CLASS_NITROGEN_OXIDES,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_CELSIUS,
@@ -85,7 +87,13 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            # TODO : Add config for NOx Index (SEN55 only)
+            cv.Optional(CONF_NOX): sensor.sensor_schema(
+                unit_of_measurement=UNIT_EMPTY,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_NITROGEN_OXIDES,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -126,4 +134,7 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
 
-    # TODO : add handler for NOx (SEN55 hasn't been released yet though...)
+    if CONF_NOX in config:
+        sens = await sensor.new_sensor(config[CONF_NOX])
+        cg.add(var.set_nox_sensor(sens))
+    # NOTE : NOx untested so far (SEN55 hasn't been released yet though...)

@@ -29,6 +29,9 @@ static const size_t SERIAL_NUMBER_LENGTH = 32;  // number of ASCII Characters
 
 static const uint8_t MAX_SKIPPED_DATA_CYCLES_BEFORE_ERROR = 5;
 
+static const uint16_t UINT_INVALID = 0xFFFF;
+static const int16_t INT_INVALID = 0x7FFF;
+
 void SEN5xComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sen54...");
   this->write_command_(SEN5X_CMD_RESET);
@@ -188,16 +191,17 @@ void SEN5xComponent::update() {
     int16_t voc_index_int = static_cast<int16_t>(raw_data[6]);
     int16_t nox_index_int = static_cast<int16_t>(raw_data[7]);
 
-    float pm_1_0 = pm_1_0_int / 10.0f;
-    float pm_2_5 = pm_2_5_int / 10.0f;
-    float pm_4_0 = pm_4_0_int / 10.0f;
-    float pm_10_0 = pm_10_0_int / 10.0f;
 
-    float ambient_humi = ambient_humi_int / 100.0f;
-    float ambient_temp = ambient_temp_int / 200.0f;
+    float pm_1_0 = pm_1_0_int == UINT_INVALID ? NAN : pm_1_0_int / 10.0f;
+    float pm_2_5 = pm_2_5_int == UINT_INVALID ? NAN : pm_2_5_int / 10.0f;
+    float pm_4_0 = pm_4_0_int == UINT_INVALID ? NAN : pm_4_0_int/ 10.0f;
+    float pm_10_0 = pm_10_0_int == UINT_INVALID ? NAN : pm_10_0_int/ 10.0f;
 
-    float voc_index = voc_index_int / 10.0f;
-    float nox_index = nox_index_int / 10.0f;
+    float ambient_humi = ambient_humi_int == INT_INVALID ? NAN : ambient_humi_int / 100.0f;
+    float ambient_temp = ambient_temp_int == INT_INVALID ? NAN : ambient_temp_int / 200.0f;
+
+    float voc_index = voc_index_int == INT_INVALID ? NAN : voc_index_int / 10.0f;
+    float nox_index = nox_index_int == INT_INVALID ? NAN : nox_index_int / 10.0f;
 
     if (this->pm_1_0_sensor_ != nullptr)
       this->pm_1_0_sensor_->publish_state(pm_1_0);
@@ -215,6 +219,8 @@ void SEN5xComponent::update() {
 
     if (this->voc_sensor_ != nullptr)
       this->voc_sensor_->publish_state(voc_index);
+    if (this->nox_sensor_ != nullptr)
+      this->nox_sensor_->publish_state(nox_index);
 
     this->status_clear_warning();
     this->skipped_data_read_cycles_ = 0;
