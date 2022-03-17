@@ -182,13 +182,7 @@ int32_t ESPTime::timezone_offset() {
   time_t now = ::time(nullptr);
   auto local = ESPTime::from_epoch_local(now);
   auto utc = ESPTime::from_epoch_utc(now);
-  bool negative = false;
-
-  if (utc.second > local.second) {
-    local.second += 60;
-    local.minute -= 1;
-  }
-  offset += local.second - utc.second;
+  bool negative = utc.hour > local.hour && local.day_of_year <= utc.day_of_year;
 
   if (utc.minute > local.minute) {
     local.minute += 60;
@@ -196,13 +190,14 @@ int32_t ESPTime::timezone_offset() {
   }
   offset += (local.minute - utc.minute) * 60;
 
-  if (utc.hour > local.hour) {
-    local.hour += 24;
-    negative = true;
+  if (negative) {
+    offset -= (utc.hour - local.hour) * 3600;
+  } else {
+    if (utc.hour > local.hour) {
+      local.hour += 24;
+    }
+    offset += (local.hour - utc.hour) * 3600;
   }
-  offset += (local.hour - utc.hour) * 3600;
-  if (negative)
-    offset *= -1;
   return offset;
 }
 
