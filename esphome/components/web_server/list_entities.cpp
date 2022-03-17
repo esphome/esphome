@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "list_entities.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -90,3 +92,5 @@ bool ListEntitiesIterator::on_select(select::Select *select) {
 
 }  // namespace web_server
 }  // namespace esphome
+
+#endif  // USE_ARDUINO
