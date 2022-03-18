@@ -362,9 +362,9 @@ class WaveshareEPaper7P5InV2alt : public WaveshareEPaper7P5InV2 {
       this->reset_pin_->digital_write(true);
       delay(200);  // NOLINT
       this->reset_pin_->digital_write(false);
-      delay(2);  // NOLINT
+      delay(2);
       this->reset_pin_->digital_write(true);
-      delay(20);  // NOLINT
+      delay(20);
     }
   };
 };
