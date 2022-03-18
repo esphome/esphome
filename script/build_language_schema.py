@@ -2,6 +2,7 @@ import inspect
 import json
 import argparse
 import os
+from tkinter.tix import Tree
 import voluptuous as vol
 
 
@@ -60,39 +61,6 @@ solve_registry = []
 
 
 def get_component_names():
-    # return ["esphome", "esp32", "esp8266", "external_components"]
-    return [
-        "esphome",
-        "esp32",
-        "esp8266",
-        "sensor",
-        "output",
-        "template",
-        "logger",
-        # required to process automations.rst
-        "globals",
-        "script",
-        "interval",
-        "ota",
-        "i2c",
-        "api",
-        "wifi",
-        "sim800l",
-        "remote_receiver",
-        "remote_transmitter",
-        "dallas",
-        "binary_sensor",
-        "gpio",
-        "pn532",
-        "pn532_i2c",
-        "pcf8574",
-        # required to process light/index.rst
-        "light",
-        "binary",
-        "monochromatic",
-        "e131",
-        "wled",
-    ]
     from esphome.loader import CORE_COMPONENTS_PATH
 
     component_names = ["esphome", "sensor"]
@@ -121,6 +89,7 @@ load_components()
 import esphome.core as esphome_core
 import esphome.config_validation as cv
 import esphome.automation as automation
+import esphome.components.remote_base as remote_base
 import esphome.pins as pins
 from esphome.loader import get_platform, ComponentManifest
 from esphome.helpers import write_file_if_changed
@@ -147,21 +116,6 @@ def register_known_schema(
     config = convert_config(schema, f"{module}/{name}")
     if S_TYPE not in config:
         print(f"Config var without type: {module}.{name}")
-        # config |= config[S_SCHEMA]
-        # config.pop(S_SCHEMA)
-        # config.pop(S_TYPE)
-        # if name not in [
-        #     "KEY_VALUE_SCHEMA",  # api
-        # ]:  # script  / interval
-        #     for k in config.keys():
-        #         assert k in [
-        #             S_CONFIG_VARS,
-        #             S_EXTENDS,
-        #             "is_list",
-        #             "has_required_var",  # script / interval
-        #             "key",  # keys being string (e.g. packages, api)
-        #             "key_dump",
-        #         ]
 
     output[module][S_SCHEMAS][name] = config
     repr_schema = repr(schema)
@@ -218,6 +172,12 @@ def add_pin_validators():
                 s["modes"] = []
             if "pullup" in m_attr_name:
                 s["modes"].append("pullup")
+    from esphome.components.adc import sensor as adc_sensor
+
+    pin_validators[repr(adc_sensor.validate_adc_pin)] = {
+        "internal": True,
+        "modes": ["input"],
+    }
 
 
 def add_module_registries(domain, module):
@@ -276,6 +236,16 @@ def do_esp8266():
         output["esp8266"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"]["board"],
         list(esp8266_boards.ESP8266_BOARD_PINS.keys()),
     )
+
+
+def fix_remote_receiver():
+    output["remote_receiver.binary_sensor"]["schemas"]["CONFIG_SCHEMA"] = {
+        "type": "schema",
+        "schema": {
+            "extends": ["binary_sensor.BINARY_SENSOR_SCHEMA", "core.COMPONENT_SCHEMA"],
+            "config_vars": output["remote_base"]["binary"],
+        },
+    }
 
 
 def shrink():
@@ -392,6 +362,7 @@ def build_schema():
     add_module_registries("core", automation)
     for domain, manifest in components.items():
         add_module_registries(domain, manifest.module)
+    add_module_registries("remote_base", remote_base)
 
     # update props pointing to registries
     for reg_config_var in solve_registry:
@@ -412,6 +383,8 @@ def build_schema():
 
     do_esp8266()
     do_esp32()
+
+    fix_remote_receiver()
 
     shrink()
 
@@ -450,6 +423,8 @@ def isConvertibleSchema(schema):
     if repr(schema) in ejs.typed_schemas:
         return True
     if repr(schema) in ejs.list_schemas:
+        return True
+    if repr(schema) in ejs.registry_schemas:
         return True
     if isinstance(schema, dict):
         for k in schema.keys():
@@ -648,12 +623,13 @@ def get_overridden_key_inner(key, config, ret):
         return ret
     for s in config[S_EXTENDS]:
         p = s.partition(".")
-        s1 = output.get(p[0], {}).get(S_SCHEMAS, {}).get(p[2], {})
-        if key in s1.get(S_CONFIG_VARS, {}):
-            for k, v in s1.get(S_CONFIG_VARS)[key].items():
-                if k not in ret:  # keep most overridden
-                    ret[k] = v
-        get_overridden_key_inner(key, s1, ret)
+        s1 = output.get(p[0], {}).get(S_SCHEMAS, {}).get(p[2], {}).get(S_SCHEMA)
+        if s1:
+            if key in s1.get(S_CONFIG_VARS, {}):
+                for k, v in s1.get(S_CONFIG_VARS)[key].items():
+                    if k not in ret:  # keep most overridden
+                        ret[k] = v
+            get_overridden_key_inner(key, s1, ret)
 
     return ret
 
