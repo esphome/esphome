@@ -84,7 +84,7 @@ bool PVVXMiThermometer::parse_message_(const std::vector<uint8_t> &message, Pars
   uint8_t     battery_level;  // 0..100 %          [12]
   uint8_t     counter;        // measurement count [13]
   unit8_t     flags;          // details below     [14]
-                              // flags bit0: Reed Switch, input
+                              // flags bit0: p8, input
                               // flags bit1: GPIO_TRG pin output value (pull Up/Down)
                               // flags bit2: Output GPIO_TRG pin is controlled according to the set parameters
                               // flags bit3: Temperature trigger event
