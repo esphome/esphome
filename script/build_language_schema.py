@@ -1,6 +1,7 @@
 import inspect
 import json
 import argparse
+from operator import truediv
 import os
 import voluptuous as vol
 
@@ -127,9 +128,6 @@ def register_known_schema(module, name, schema):
     repr_schema = repr(schema)
     if repr_schema in known_schemas:
         schema_info = known_schemas[repr_schema]
-        for (schema_instance, name) in schema_info:
-            if schema_instance is schema:
-                print(f"{module}.{name} is an alias of {name} (exactly same schema)")
         schema_info.append((schema, f"{module}.{name}"))
     else:
         known_schemas[repr_schema] = [(schema, f"{module}.{name}")]
@@ -226,6 +224,19 @@ def add_module_registries(domain, module):
                 # print(f"{domain} - {attr_name} - {name}")
 
 
+def do_pins():
+    # do pin registries
+    pins_providers = schema_core["pins"] = []
+    for pin_registry in pins.PIN_SCHEMA_REGISTRY:
+        s = convert_config(
+            pins.PIN_SCHEMA_REGISTRY[pin_registry][1], f"pins/{pin_registry}"
+        )
+        if pin_registry not in output:
+            output[pin_registry] = {}  # mcp23xxx does not create a component yet
+        output[pin_registry]["pin"] = s
+        pins_providers.append(pin_registry)
+
+
 def do_esp32():
     import esphome.components.esp32.boards as esp32_boards
 
@@ -254,60 +265,142 @@ def fix_remote_receiver():
     }
 
 
+def add_referenced_recursive(referenced_schemas, config_var, path, eat_schema=False):
+    assert (
+        S_CONFIG_VARS not in config_var and S_EXTENDS not in config_var
+    )  # S_TYPE in cv or "key" in cv or len(cv) == 0
+    if (
+        config_var.get(S_TYPE) in ["schema", "trigger", "maybe"]
+        and S_SCHEMA in config_var
+    ):
+        schema = config_var[S_SCHEMA]
+        for k, v in schema.get(S_CONFIG_VARS, {}).items():
+            if eat_schema:
+                new_path = path + [S_CONFIG_VARS, k]
+            else:
+                new_path = path + ["schema", S_CONFIG_VARS, k]
+            add_referenced_recursive(referenced_schemas, v, new_path)
+        for k in schema.get(S_EXTENDS, []):
+            if k not in referenced_schemas:
+                referenced_schemas[k] = [path]
+            else:
+                if path not in referenced_schemas[k]:
+                    referenced_schemas[k].append(path)
+
+            s1 = get_str_path_schema(k)
+            p = k.split(".")
+            if len(p) == 3 and path[0] == f"{p[0]}.{p[1]}":
+                # special case for schema inside platforms
+                add_referenced_recursive(
+                    referenced_schemas, s1, [path[0], "schemas", p[2]]
+                )
+            else:
+                add_referenced_recursive(
+                    referenced_schemas, s1, [p[0], "schemas", p[1]]
+                )
+    elif config_var.get(S_TYPE) == "typed":
+        for tk, tv in config_var.get("types").items():
+            add_referenced_recursive(
+                referenced_schemas,
+                {
+                    S_TYPE: S_SCHEMA,
+                    S_SCHEMA: tv,
+                },
+                path + ["types", tk],
+                eat_schema=True,
+            )
+
+
+def get_str_path_schema(strPath):
+    parts = strPath.split(".")
+    if len(parts) > 2:
+        parts[0] += "." + parts[1]
+        parts[1] = parts[2]
+    s1 = output.get(parts[0], {}).get(S_SCHEMAS, {}).get(parts[1], {})
+    return s1
+
+
+def get_arr_path_schema(path):
+    s = output
+    for x in path:
+        s = s[x]
+    return s
+
+
+def merge(source, destination):
+    """
+    run me with nosetests --with-doctest file.py
+
+    >>> a = { 'first' : { 'all_rows' : { 'pass' : 'dog', 'number' : '1' } } }
+    >>> b = { 'first' : { 'all_rows' : { 'fail' : 'cat', 'number' : '5' } } }
+    >>> merge(b, a) == { 'first' : { 'all_rows' : { 'pass' : 'dog', 'fail' : 'cat', 'number' : '5' } } }
+    True
+    """
+    for key, value in source.items():
+        if isinstance(value, dict):
+            # get node or create one
+            node = destination.setdefault(key, {})
+            merge(value, node)
+        else:
+            destination[key] = value
+
+    return destination
+
+
 def shrink():
     """Shrink the extending schemas which has just an end type, e.g. at this point
     ota / port is type schema with extended pointing to core.port, this should instead be
     type number. core.port is number
 
     This also fixes enums, as they are another schema and they are instead put in the same cv
-
-    TODO: remove dangling items (unreachable schemas)
     """
 
-    for k, v in output.items():
-        # print("Simplifying " + k)
-        if S_SCHEMAS in v:
-            for kk, vv in v[S_SCHEMAS].items():
-                if S_TYPE in vv and vv[S_TYPE] == S_SCHEMA:
-                    shrink_schema(vv[S_SCHEMA], "Simplifying " + k + "      ")
+    # referenced_schemas contains a dict, keys are all that are shown in extends: [] arrays, values are lists of paths that are pointing to that extend
+    # e.g. key: core.COMPONENT_SCHEMA has a lot of paths of config vars which extends this schema
+
+    pass_again = True
+
+    while pass_again:
+        pass_again = False
+
+        referenced_schemas = {}
+
+        for k, v in output.items():
+            for kv, vv in v.items():
+                if kv != "pin" and isinstance(vv, dict):
+                    for kvv, vvv in vv.items():
+                        add_referenced_recursive(referenced_schemas, vvv, [k, kv, kvv])
+
+        for x, paths in referenced_schemas.items():
+            if len(paths) == 1:
+                key_s = get_str_path_schema(x)
+                arr_s = get_arr_path_schema(paths[0])
+                # key_s |= arr_s
+                # key_s.pop(S_EXTENDS)
+                pass_again = True
+                if S_SCHEMA in arr_s:
+                    if S_EXTENDS in arr_s[S_SCHEMA]:
+                        arr_s[S_SCHEMA].pop(S_EXTENDS)
+                    else:
+                        print("expected extends here!" + x)
+                    arr_s = merge(key_s, arr_s)
+                    if arr_s[S_TYPE] == "enum":
+                        arr_s.pop(S_SCHEMA)
                 else:
-                    # print("    skip")
-                    pass
+                    arr_s.pop(S_EXTENDS)
+                    arr_s |= key_s[S_SCHEMA]
+                    print(x)
 
-
-def shrink_schema(schema, depth):
-    assert S_CONFIG_VARS not in schema or len(schema[S_CONFIG_VARS]) > 0
-    if S_CONFIG_VARS not in schema and len(schema.get(S_EXTENDS, [])) == 1:
-        # print(depth + " Candidate ")
-        return get_simple_type(schema.get(S_EXTENDS)[0])
-
-    for k, v in schema.get(S_CONFIG_VARS, {}).items():
-        if v.get(S_TYPE) == "schema" or v.get(S_TYPE) == "trigger" and S_SCHEMA in v:
-            #            print(depth + "  " + k)
-            simple = shrink_schema(v.get(S_SCHEMA), depth + "  ")
-            if simple is not None:
-                v.pop(S_SCHEMA)
-                for simple_k, simple_v in simple.items():
-                    v[simple_k] = simple_v
-
-                print(depth + k + " patch with " + simple[S_TYPE])
-
-
-def get_simple_type(ref):
-    parts = ref.partition(".")
-    if parts[0] not in output:
-        print(" not patching " + ref)
-        return None
-    elif parts[2] not in output[parts[0]][S_SCHEMAS]:
-        print(" not patching 2 " + ref)
-        return None
-    data = output[parts[0]][S_SCHEMAS][parts[2]]
-    if S_CONFIG_VARS in data:
-        return None
-    if S_TYPE in data:
-        return data
-    if S_EXTENDS in data and len(data[S_EXTENDS]) == 1:
-        return get_simple_type(data[S_EXTENDS][0])
+    # remove dangling items (unreachable schemas)
+    for domain, domain_schemas in output.items():
+        for schema_name in list(domain_schemas.get(S_SCHEMAS, {}).keys()):
+            s = f"{domain}.{schema_name}"
+            if (
+                not s.endswith("." + S_CONFIG_SCHEMA)
+                and s not in referenced_schemas.keys()
+            ):
+                print(f"Removing {s}")
+                output[domain][S_SCHEMAS].pop(schema_name)
 
 
 def build_schema():
@@ -375,22 +468,10 @@ def build_schema():
         config_var[S_TYPE] = "registry"
         config_var["registry"] = found_registries[repr(registry)]
 
-    # do pin registries
-    pins_providers = schema_core["pins"] = []
-    for pin_registry in pins.PIN_SCHEMA_REGISTRY:
-        s = convert_config(
-            pins.PIN_SCHEMA_REGISTRY[pin_registry][1], f"pins/{pin_registry}"
-        )
-        if pin_registry not in output:
-            output[pin_registry] = {}  # mcp23xxx does not create a component yet
-        output[pin_registry]["pin"] = s
-        pins_providers.append(pin_registry)
-
+    do_pins()
     do_esp8266()
     do_esp32()
-
     fix_remote_receiver()
-
     shrink()
 
     # aggregate components, so all component info is in same file, otherwise we have dallas.json, dallas.sensor.json, etc.
@@ -591,7 +672,6 @@ def convert_1(schema, config_var, path):
         elif schema_type == "sensor":
             schema = data
             convert_1(data, config_var, path + "/trigger")
-            config_var = config_var
         else:
             raise Exception("Unknown extracted schema type")
 
