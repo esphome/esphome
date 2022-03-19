@@ -86,11 +86,11 @@ load_components()
 # pylint: disable=wrong-import-position
 import esphome.core as esphome_core
 import esphome.config_validation as cv
-import esphome.automation as automation
-import esphome.components.remote_base as remote_base
-import esphome.pins as pins
+from esphome import automation
+from esphome import pins
+from esphome.components import remote_base
 from esphome.const import CONF_TYPE
-from esphome.loader import get_platform, ComponentManifest
+from esphome.loader import get_platform
 from esphome.helpers import write_file_if_changed
 from esphome.util import Registry
 
@@ -107,9 +107,16 @@ def write_file(name, obj):
     print(f"Wrote {full_path}")
 
 
-def register_known_schema(
-    module, name, schema, manifest: ComponentManifest = None, platform=None
-):
+def register_module_schemas(key, module, manifest=None):
+    for name, schema in module_schemas(module):
+        register_known_schema(key, name, schema)
+    if (
+        manifest and manifest.multi_conf and S_CONFIG_SCHEMA in output[key][S_SCHEMAS]
+    ):  # not sure about 2nd part of the if, might be useless config (e.g. as3935)
+        output[key][S_SCHEMAS][S_CONFIG_SCHEMA]["is_list"] = True
+
+
+def register_known_schema(module, name, schema):
     if module not in output:
         output[module] = {S_SCHEMAS: {}}
     config = convert_config(schema, f"{module}/{name}")
@@ -314,8 +321,7 @@ def build_schema():
 
     # Core schema
     schema_core[S_SCHEMAS] = {}
-    for name, schema in module_schemas(cv):
-        register_known_schema("core", name, schema)
+    register_module_schemas("core", cv)
 
     platforms = {}
     schema_core[S_PLATFORMS] = platforms
@@ -340,26 +346,22 @@ def build_schema():
     # Generate platforms (e.g. sensor, binary_sensor, climate )
     for domain in platforms:
         c = components[domain]
-        for name, schema in module_schemas(c.module):
-            register_known_schema(domain, name, schema)
+        register_module_schemas(domain, c.module)
 
     # Generate components
     for domain, manifest in components.items():
         if domain not in platforms:
             if manifest.config_schema is not None:
                 core_components[domain] = {}
-            for name, schema in module_schemas(manifest.module):
-                register_known_schema(domain, name, schema)
-            if (
-                manifest.multi_conf and S_CONFIG_SCHEMA in output[domain][S_SCHEMAS]
-            ):  # not sure about 2nd part of the if, might be useless config (e.g. as3935)
-                output[domain][S_SCHEMAS][S_CONFIG_SCHEMA]["is_list"] = True
+            register_module_schemas(domain, manifest.module, manifest)
+
         for platform in platforms:
             platform_manifest = get_platform(domain=platform, platform=domain)
             if platform_manifest is not None:
                 output[platform][S_COMPONENTS][domain] = {}
-                for name, schema in module_schemas(platform_manifest.module):
-                    register_known_schema(f"{domain}.{platform}", name, schema)
+                register_module_schemas(
+                    f"{domain}.{platform}", platform_manifest.module
+                )
 
     # Do registries
     add_module_registries("core", automation)
