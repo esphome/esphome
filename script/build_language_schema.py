@@ -2,9 +2,7 @@ import inspect
 import json
 import argparse
 import os
-from tkinter.tix import Tree
 import voluptuous as vol
-
 
 # NOTE: Cannot import other esphome components globally as a modification in jsonschema
 # is needed before modules are loaded
@@ -91,6 +89,7 @@ import esphome.config_validation as cv
 import esphome.automation as automation
 import esphome.components.remote_base as remote_base
 import esphome.pins as pins
+from esphome.const import CONF_TYPE
 from esphome.loader import get_platform, ComponentManifest
 from esphome.helpers import write_file_if_changed
 from esphome.util import Registry
@@ -351,6 +350,10 @@ def build_schema():
                 core_components[domain] = {}
             for name, schema in module_schemas(manifest.module):
                 register_known_schema(domain, name, schema)
+            if (
+                manifest.multi_conf and S_CONFIG_SCHEMA in output[domain][S_SCHEMAS]
+            ):  # not sure about 2nd part of the if, might be useless config (e.g. as3935)
+                output[domain][S_SCHEMAS][S_CONFIG_SCHEMA]["is_list"] = True
         for platform in platforms:
             platform_manifest = get_platform(domain=platform, platform=domain)
             if platform_manifest is not None:
@@ -596,7 +599,10 @@ def convert_1(schema, config_var, path):
     elif repr_schema in ejs.typed_schemas:
         config_var[S_TYPE] = "typed"
         types = config_var["types"] = {}
-        for schema_key, schema_type in ejs.typed_schemas[repr_schema][0][0].items():
+        typed_schema = ejs.typed_schemas[repr_schema]
+        if len(typed_schema) > 1:
+            config_var["typed_key"] = typed_schema[1].get("key", CONF_TYPE)
+        for schema_key, schema_type in typed_schema[0][0].items():
             config = convert_config(schema_type, path + "/type_" + schema_key)
             types[schema_key] = config["schema"]
 
