@@ -30,6 +30,7 @@ RUN \
         iputils-ping=3:20210202-1 \
         git=1:2.30.2-1 \
         curl=7.74.0-1.3+deb11u1 \
+        openssh-client=1:8.4p1-5 \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
