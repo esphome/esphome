@@ -148,8 +148,9 @@ struct PIDController {
 
     // calculate and return the average of all values in the list
     float sum = 0;
-    for (std::list<float>::iterator it = list.begin(); it != list.end(); ++it)
-      sum += *it;
+    for (auto &elem : list)
+      sum += elem;
+
     return sum / list.size();
   }
 
