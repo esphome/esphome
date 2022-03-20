@@ -8,7 +8,7 @@
 namespace esphome {
 namespace shelly_dimmer {
 
-static const char *const TAG = "shelly";
+static constexpr char TAG[] = "shelly";
 
 static const uint8_t SHELLY_DIMMER_ACK_TIMEOUT = 200;  // ms
 static const uint8_t SHELLY_DIMMER_MAX_RETRIES = 3;
