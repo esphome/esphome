@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_VOLTAGE,
     CONF_CURRENT,
     UNIT_VOLT,
-    ICON_FLASH,
     UNIT_AMPERE,
     UNIT_WATT,
     DEVICE_CLASS_POWER,
