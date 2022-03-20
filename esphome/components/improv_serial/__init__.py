@@ -30,4 +30,4 @@ FINAL_VALIDATE_SCHEMA = validate_logger_baud_rate
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    cg.add_library("esphome/Improv", "1.0.0")
+    cg.add_library("esphome/Improv", "1.2.1")

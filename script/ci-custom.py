@@ -20,7 +20,7 @@ def find_all(a_str, sub):
         # Optimization: If str is not in whole text, then do not try
         # on each line
         return
-    for i, line in enumerate(a_str.split('\n')):
+    for i, line in enumerate(a_str.split("\n")):
         column = 0
         while True:
             column = line.find(sub, column)
@@ -222,7 +222,13 @@ def lint_ext_check(fname):
 
 
 @lint_file_check(
-    exclude=["**.sh", "docker/hassio-rootfs/**", "docker/*.py", "script/*", "setup.py"]
+    exclude=[
+        "**.sh",
+        "docker/ha-addon-rootfs/**",
+        "docker/*.py",
+        "script/*",
+        "setup.py",
+    ]
 )
 def lint_executable_bit(fname):
     ex = EXECUTABLE_BIT[fname]
@@ -275,9 +281,7 @@ def highlight(s):
     ],
 )
 def lint_no_defines(fname, match):
-    s = highlight(
-        "static const uint8_t {} = {};".format(match.group(1), match.group(2))
-    )
+    s = highlight(f"static const uint8_t {match.group(1)} = {match.group(2)};")
     return (
         "#define macros for integer constants are not allowed, please use "
         "{} style instead (replace uint8_t with the appropriate "
@@ -587,14 +591,23 @@ def lint_inclusive_language(fname, match):
     )
 
 
+@lint_re_check(r"[\t\r\f\v ]+$")
+def lint_trailing_whitespace(fname, match):
+    return "Trailing whitespace detected"
+
+
 @lint_content_find_check(
     "ESP_LOG",
     include=["*.h", "*.tcc"],
     exclude=[
         "esphome/components/binary_sensor/binary_sensor.h",
+        "esphome/components/button/button.h",
+        "esphome/components/climate/climate.h",
         "esphome/components/cover/cover.h",
         "esphome/components/display/display_buffer.h",
+        "esphome/components/fan/fan.h",
         "esphome/components/i2c/i2c.h",
+        "esphome/components/lock/lock.h",
         "esphome/components/mqtt/mqtt_component.h",
         "esphome/components/number/number.h",
         "esphome/components/output/binary_output.h",
@@ -605,8 +618,6 @@ def lint_inclusive_language(fname, match):
         "esphome/components/stepper/stepper.h",
         "esphome/components/switch/switch.h",
         "esphome/components/text_sensor/text_sensor.h",
-        "esphome/components/climate/climate.h",
-        "esphome/components/button/button.h",
         "esphome/core/component.h",
         "esphome/core/gpio.h",
         "esphome/core/log.h",
@@ -665,7 +676,10 @@ run_checks(LINT_POST_CHECKS, "POST")
 for f, errs in sorted(errors.items()):
     bold = functools.partial(styled, colorama.Style.BRIGHT)
     bold_red = functools.partial(styled, (colorama.Style.BRIGHT, colorama.Fore.RED))
-    err_str = (f"{bold(f'{f}:{lineno}:{col}:')} {bold_red('lint:')} {msg}\n" for lineno, col, msg in errs)
+    err_str = (
+        f"{bold(f'{f}:{lineno}:{col}:')} {bold_red('lint:')} {msg}\n"
+        for lineno, col, msg in errs
+    )
     print_error_for_file(f, "\n".join(err_str))
 
 if args.print_slowest:

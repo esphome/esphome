@@ -78,9 +78,10 @@ void WiFiComponent::setup() {
 #endif
   }
 #ifdef USE_IMPROV
-  if (esp32_improv::global_improv_component != nullptr)
+  if (esp32_improv::global_improv_component != nullptr) {
     if (this->wifi_mode_(true, {}))
       esp32_improv::global_improv_component->start();
+  }
 #endif
   this->wifi_apply_hostname_();
 }
@@ -142,10 +143,12 @@ void WiFiComponent::loop() {
     }
 
 #ifdef USE_IMPROV
-    if (esp32_improv::global_improv_component != nullptr)
-      if (!this->is_connected())
+    if (esp32_improv::global_improv_component != nullptr) {
+      if (!this->is_connected()) {
         if (this->wifi_mode_(true, {}))
           esp32_improv::global_improv_component->start();
+      }
+    }
 
 #endif
 

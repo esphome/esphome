@@ -42,13 +42,15 @@ void BinarySensor::send_state_internal(bool state, bool is_initial) {
   }
 }
 std::string BinarySensor::device_class() { return ""; }
-BinarySensor::BinarySensor(const std::string &name) : EntityBase(name), state(false) {}
-BinarySensor::BinarySensor() : BinarySensor("") {}
+BinarySensor::BinarySensor() : state(false) {}
 void BinarySensor::set_device_class(const std::string &device_class) { this->device_class_ = device_class; }
 std::string BinarySensor::get_device_class() {
   if (this->device_class_.has_value())
     return *this->device_class_;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   return this->device_class();
+#pragma GCC diagnostic pop
 }
 void BinarySensor::add_filter(Filter *filter) {
   filter->parent_ = this;

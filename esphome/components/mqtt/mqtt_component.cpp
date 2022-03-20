@@ -27,13 +27,13 @@ std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) con
          "/" + suffix;
 }
 
-const std::string MQTTComponent::get_state_topic_() const {
+std::string MQTTComponent::get_state_topic_() const {
   if (this->custom_state_topic_.empty())
     return this->get_default_topic_for_("state");
   return this->custom_state_topic_;
 }
 
-const std::string MQTTComponent::get_command_topic_() const {
+std::string MQTTComponent::get_command_topic_() const {
   if (this->custom_command_topic_.empty())
     return this->get_default_topic_for_("command");
   return this->custom_command_topic_;
@@ -63,7 +63,7 @@ bool MQTTComponent::send_discovery_() {
 
   return global_mqtt_client->publish_json(
       this->get_discovery_topic_(discovery_info),
-      [this](JsonObject &root) {
+      [this](JsonObject root) {
         SendDiscoveryConfig config;
         config.state_topic = true;
         config.command_topic = true;
@@ -92,6 +92,8 @@ bool MQTTComponent::send_discovery_() {
           root[MQTT_STATE_TOPIC] = this->get_state_topic_();
         if (config.command_topic)
           root[MQTT_COMMAND_TOPIC] = this->get_command_topic_();
+        if (this->command_retain_)
+          root[MQTT_COMMAND_RETAIN] = true;
 
         if (this->availability_ == nullptr) {
           if (!global_mqtt_client->get_availability().topic.empty()) {
@@ -109,12 +111,11 @@ bool MQTTComponent::send_discovery_() {
             root[MQTT_PAYLOAD_NOT_AVAILABLE] = this->availability_->payload_not_available;
         }
 
-        const std::string &node_name = App.get_name();
         std::string unique_id = this->unique_id();
+        const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
         if (!unique_id.empty()) {
           root[MQTT_UNIQUE_ID] = unique_id;
         } else {
-          const MQTTDiscoveryInfo &discovery_info = global_mqtt_client->get_discovery_info();
           if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
             char friendly_name_hash[9];
             sprintf(friendly_name_hash, "%08x", fnv1_hash(this->friendly_name()));
@@ -127,7 +128,11 @@ bool MQTTComponent::send_discovery_() {
           }
         }
 
-        JsonObject &device_info = root.createNestedObject(MQTT_DEVICE);
+        const std::string &node_name = App.get_name();
+        if (discovery_info.object_id_generator == MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR)
+          root[MQTT_OBJECT_ID] = node_name + "_" + this->get_default_object_id_();
+
+        JsonObject device_info = root.createNestedObject(MQTT_DEVICE);
         device_info[MQTT_DEVICE_IDENTIFIERS] = get_mac_address();
         device_info[MQTT_DEVICE_NAME] = node_name;
         device_info[MQTT_DEVICE_SW_VERSION] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();
@@ -165,6 +170,7 @@ void MQTTComponent::set_custom_state_topic(const std::string &custom_state_topic
 void MQTTComponent::set_custom_command_topic(const std::string &custom_command_topic) {
   this->custom_command_topic_ = custom_command_topic;
 }
+void MQTTComponent::set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }
 
 void MQTTComponent::set_availability(std::string topic, std::string payload_available,
                                      std::string payload_not_available) {

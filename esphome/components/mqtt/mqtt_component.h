@@ -33,7 +33,7 @@ struct SendDiscoveryConfig {
 \
  public: \
   void set_custom_##name##_##type##_topic(const std::string &topic) { this->custom_##name##_##type##_topic_ = topic; } \
-  const std::string get_##name##_##type##_topic() const { \
+  std::string get_##name##_##type##_topic() const { \
     if (this->custom_##name##_##type##_topic_.empty()) \
       return this->get_default_topic_for_(#name "/" #type); \
     return this->custom_##name##_##type##_topic_; \
@@ -70,7 +70,7 @@ class MQTTComponent : public Component {
   void call_dump_config() override;
 
   /// Send discovery info the Home Assistant, override this.
-  virtual void send_discovery(JsonObject &root, SendDiscoveryConfig &config) = 0;
+  virtual void send_discovery(JsonObject root, SendDiscoveryConfig &config) = 0;
 
   virtual bool send_initial_state() = 0;
 
@@ -91,6 +91,8 @@ class MQTTComponent : public Component {
   void set_custom_state_topic(const std::string &custom_state_topic);
   /// Set a custom command topic. Set to "" for default behavior.
   void set_custom_command_topic(const std::string &custom_command_topic);
+  /// Set whether command message should be retained.
+  void set_command_retain(bool command_retain);
 
   /// MQTT_COMPONENT setup priority.
   float get_setup_priority() const override;
@@ -171,10 +173,10 @@ class MQTTComponent : public Component {
   virtual bool is_disabled_by_default() const;
 
   /// Get the MQTT topic that new states will be shared to.
-  const std::string get_state_topic_() const;
+  std::string get_state_topic_() const;
 
   /// Get the MQTT topic for listening to commands.
-  const std::string get_command_topic_() const;
+  std::string get_command_topic_() const;
 
   bool is_connected_() const;
 
@@ -186,9 +188,9 @@ class MQTTComponent : public Component {
   /// Generate the Home Assistant MQTT discovery object id by automatically transforming the friendly name.
   std::string get_default_object_id_() const;
 
- protected:
   std::string custom_state_topic_{};
   std::string custom_command_topic_{};
+  bool command_retain_{false};
   bool retain_{true};
   bool discovery_enabled_{true};
   std::unique_ptr<Availability> availability_;

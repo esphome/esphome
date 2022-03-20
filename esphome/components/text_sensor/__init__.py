@@ -3,7 +3,9 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
 from esphome.const import (
+    CONF_ENTITY_CATEGORY,
     CONF_FILTERS,
+    CONF_ICON,
     CONF_ID,
     CONF_ON_VALUE,
     CONF_ON_RAW_VALUE,
@@ -14,6 +16,7 @@ from esphome.const import (
     CONF_TO,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
@@ -110,12 +113,10 @@ async def map_filter_to_code(config, filter_id):
     )
 
 
-icon = cv.icon
-
-
 TEXT_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
+        cv.GenerateID(): cv.declare_id(TextSensor),
         cv.Optional(CONF_FILTERS): validate_filters,
         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
             {
@@ -131,6 +132,30 @@ TEXT_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).exte
         ),
     }
 )
+
+_UNDEF = object()
+
+
+def text_sensor_schema(
+    class_: MockObjClass = _UNDEF,
+    *,
+    icon: str = _UNDEF,
+    entity_category: str = _UNDEF,
+) -> cv.Schema:
+    schema = TEXT_SENSOR_SCHEMA
+    if class_ is not _UNDEF:
+        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
+    if icon is not _UNDEF:
+        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
+    if entity_category is not _UNDEF:
+        schema = schema.extend(
+            {
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=entity_category
+                ): cv.entity_category
+            }
+        )
+    return schema
 
 
 async def build_filters(config):
@@ -162,6 +187,12 @@ async def register_text_sensor(var, config):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_text_sensor(var))
     await setup_text_sensor_core_(var, config)
+
+
+async def new_text_sensor(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    await register_text_sensor(var, config)
+    return var
 
 
 @coroutine_with_priority(100.0)

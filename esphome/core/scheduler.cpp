@@ -116,7 +116,7 @@ optional<uint32_t> HOT Scheduler::next_schedule_in() {
     return 0;
   return next_time - now;
 }
-void IRAM_ATTR HOT Scheduler::call() {
+void HOT Scheduler::call() {
   const uint32_t now = this->millis_();
   this->process_to_add();
 
@@ -167,9 +167,10 @@ void IRAM_ATTR HOT Scheduler::call() {
     {
       // Don't copy-by value yet
       auto &item = this->items_[0];
-      if ((now - item->last_execution) < item->interval)
+      if ((now - item->last_execution) < item->interval) {
         // Not reached timeout yet, done for this call
         break;
+      }
       uint8_t major = item->next_execution_major();
       if (this->millis_major_ - major > 1)
         break;
@@ -190,10 +191,11 @@ void IRAM_ATTR HOT Scheduler::call() {
       //  - timeouts/intervals get cancelled
       {
         WarnIfComponentBlockingGuard guard{item->component};
-        if (item->type == SchedulerItem::RETRY)
+        if (item->type == SchedulerItem::RETRY) {
           retry_result = item->retry_callback();
-        else
+        } else {
           item->void_callback();
+        }
       }
     }
 
@@ -257,17 +259,19 @@ void HOT Scheduler::pop_raw_() {
 void HOT Scheduler::push_(std::unique_ptr<Scheduler::SchedulerItem> item) { this->to_add_.push_back(std::move(item)); }
 bool HOT Scheduler::cancel_item_(Component *component, const std::string &name, Scheduler::SchedulerItem::Type type) {
   bool ret = false;
-  for (auto &it : this->items_)
+  for (auto &it : this->items_) {
     if (it->component == component && it->name == name && it->type == type && !it->remove) {
       to_remove_++;
       it->remove = true;
       ret = true;
     }
-  for (auto &it : this->to_add_)
+  }
+  for (auto &it : this->to_add_) {
     if (it->component == component && it->name == name && it->type == type) {
       it->remove = true;
       ret = true;
     }
+  }
 
   return ret;
 }

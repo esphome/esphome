@@ -11,6 +11,7 @@ from esphome.const import (
 )
 
 from .. import (
+    MODBUS_WRITE_REGISTER_TYPE,
     add_modbus_base_properties,
     modbus_controller_ns,
     modbus_calc_properties,
@@ -24,6 +25,7 @@ from ..const import (
     CONF_CUSTOM_COMMAND,
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
+    CONF_REGISTER_TYPE,
     CONF_SKIP_UPDATES,
     CONF_USE_WRITE_MULTIPLE,
     CONF_VALUE_TYPE,
@@ -58,10 +60,12 @@ def validate_modbus_number(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    number.NUMBER_SCHEMA.extend(ModbusItemBaseSchema)
-    .extend(
+    number.NUMBER_SCHEMA.extend(ModbusItemBaseSchema).extend(
         {
             cv.GenerateID(): cv.declare_id(ModbusNumber),
+            cv.Optional(CONF_REGISTER_TYPE, default="holding"): cv.enum(
+                MODBUS_WRITE_REGISTER_TYPE
+            ),
             cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
             cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
             # 24 bits are the maximum value for fp32 before precison is lost
@@ -72,8 +76,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
             cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
         }
-    )
-    .extend(cv.polling_component_schema("60s")),
+    ),
     validate_min_max,
     validate_modbus_number,
 )
@@ -83,6 +86,7 @@ async def to_code(config):
     byte_offset, reg_count = modbus_calc_properties(config)
     var = cg.new_Pvariable(
         config[CONF_ID],
+        config[CONF_REGISTER_TYPE],
         config[CONF_ADDRESS],
         byte_offset,
         config[CONF_BITMASK],

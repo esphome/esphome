@@ -9,6 +9,8 @@ from esphome.const import (
     DEVICE_CLASS_ENERGY,
     CONF_METHOD,
     STATE_CLASS_TOTAL_INCREASING,
+    CONF_UNIT_OF_MEASUREMENT,
+    CONF_ACCURACY_DECIMALS,
 )
 from esphome.core.entity_helpers import inherit_property_from
 
@@ -27,14 +29,23 @@ TotalDailyEnergy = total_daily_energy_ns.class_(
     "TotalDailyEnergy", sensor.Sensor, cg.Component
 )
 
+
+def inherit_unit_of_measurement(uom, config):
+    return uom + "h"
+
+
+def inherit_accuracy_decimals(decimals, config):
+    return decimals + 2
+
+
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
+        TotalDailyEnergy,
         device_class=DEVICE_CLASS_ENERGY,
         state_class=STATE_CLASS_TOTAL_INCREASING,
     )
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(TotalDailyEnergy),
             cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
             cv.Required(CONF_POWER_ID): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_RESTORE, default=True): cv.boolean,
@@ -54,19 +65,25 @@ FINAL_VALIDATE_SCHEMA = cv.All(
         {
             cv.Required(CONF_ID): cv.use_id(TotalDailyEnergy),
             cv.Optional(CONF_ICON): cv.icon,
+            cv.Optional(CONF_UNIT_OF_MEASUREMENT): sensor.validate_unit_of_measurement,
+            cv.Optional(CONF_ACCURACY_DECIMALS): sensor.validate_accuracy_decimals,
             cv.Required(CONF_POWER_ID): cv.use_id(sensor.Sensor),
         },
         extra=cv.ALLOW_EXTRA,
     ),
     inherit_property_from(CONF_ICON, CONF_POWER_ID),
+    inherit_property_from(
+        CONF_UNIT_OF_MEASUREMENT, CONF_POWER_ID, transform=inherit_unit_of_measurement
+    ),
+    inherit_property_from(
+        CONF_ACCURACY_DECIMALS, CONF_POWER_ID, transform=inherit_accuracy_decimals
+    ),
 )
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
-    await sensor.register_sensor(var, config)
 
     sens = await cg.get_variable(config[CONF_POWER_ID])
     cg.add(var.set_parent(sens))
