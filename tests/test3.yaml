@@ -1060,11 +1060,13 @@ climate:
       output_samples: 1
       derivative_samples: 1
     deadband_parameters:
-      threshold: 0.4
+      threshold_high: 0.4
+      threshold_low: -2.0
       kp_multiplier: 0.0
       ki_multiplier: 0.0
       kd_multiplier: 0.0
-      output_samples: 1
+      deadband_output_samples: 1
+
 
 cover:
   - platform: endstop

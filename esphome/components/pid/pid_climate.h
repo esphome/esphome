@@ -29,10 +29,13 @@ class PIDClimate : public climate::Climate, public Component {
   void set_output_samples(int in) { controller_.output_samples = in; }
   void set_derivative_samples(int in) { controller_.derivative_samples = in; }
 
-  void set_deadband_threshold(float in) { controller_.deadband_threshold = in; }
-  void set_deadband_kp_multiplier(float in) { controller_.deadband_kp_multiplier = in; }
-  void set_deadband_ki_multiplier(float in) { controller_.deadband_ki_multiplier = in; }
-  void set_deadband_kd_multiplier(float in) { controller_.deadband_kd_multiplier = in; }
+  void set_threshold_low(float in) { controller_.threshold_low = in; }
+  void set_threshold_high(float in) { controller_.threshold_high = in; }
+  void set_kp_multiplier(float in) { controller_.kp_multiplier = in; }
+  void set_ki_multiplier(float in) { controller_.ki_multiplier = in; }
+  void set_kd_multiplier(float in) { controller_.kd_multiplier = in; }
+  void set_starting_integral_term(float in) { controller_.set_starting_integral_term(in); }
+
   void set_deadband_output_samples(int in) { controller_.deadband_output_samples = in; }
 
   float get_output_value() const { return output_value_; }
@@ -46,11 +49,13 @@ class PIDClimate : public climate::Climate, public Component {
   int get_output_samples() { return controller_.output_samples; }
   int get_derivative_samples() { return controller_.derivative_samples; }
 
-  float get_deadband_threshold() { return controller_.deadband_threshold; }
-  float get_deadband_kp_multiplier() { return controller_.deadband_kp_multiplier; }
-  float get_deadband_ki_multiplier() { return controller_.deadband_ki_multiplier; }
-  float get_deadband_kd_multiplier() { return controller_.deadband_kd_multiplier; }
+  float get_threshold_low() { return controller_.threshold_low; }
+  float get_threshold_high() { return controller_.threshold_high; }
+  float get_kp_multiplier() { return controller_.kp_multiplier; }
+  float get_ki_multiplier() { return controller_.ki_multiplier; }
+  float get_kd_multiplier() { return controller_.kd_multiplier; }
   int get_deadband_output_samples() { return controller_.deadband_output_samples; }
+  bool in_deadband() { return controller_.in_deadband(); }
 
   // int get_derivative_samples() const { return controller_.derivative_samples; }
   // float get_deadband() const { return controller_.deadband; }

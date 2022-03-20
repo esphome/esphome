@@ -64,14 +64,13 @@ void PIDClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "    kp: %.5f, ki: %.5f, kd: %.5f, output samples: %d", controller_.kp, controller_.ki,
                 controller_.kd, controller_.output_samples);
 
-  if (controller_.deadband_threshold == 0) {
+  if (controller_.threshold_low == 0 && controller_.threshold_high == 0) {
     ESP_LOGCONFIG(TAG, "  Deadband disabled.");
   } else {
     ESP_LOGCONFIG(TAG, "  Deadband Parameters:");
-    ESP_LOGCONFIG(TAG, "    threshold: %0.5f, multipliers(kp: %.5f, ki: %.5f, kd: %.5f), output samples: %d",
-                  controller_.deadband_threshold, controller_.deadband_kp_multiplier,
-                  controller_.deadband_ki_multiplier, controller_.deadband_kd_multiplier,
-                  controller_.deadband_output_samples);
+    ESP_LOGCONFIG(TAG, "    threshold: %0.5f to %0.5f, multipliers(kp: %.5f, ki: %.5f, kd: %.5f), output samples: %d",
+                  controller_.threshold_low, controller_.threshold_high, controller_.kp_multiplier,
+                  controller_.ki_multiplier, controller_.kd_multiplier, controller_.deadband_output_samples);
   }
 
   if (this->autotuner_ != nullptr) {

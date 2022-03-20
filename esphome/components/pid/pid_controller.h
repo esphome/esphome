@@ -37,7 +37,13 @@ struct PIDController {
   }
 
   void reset_accumulated_integral() { accumulated_integral_ = 0; }
-  bool in_deadband() { return (fabs(error) < deadband_threshold); }
+  void set_starting_integral_term(float in) { accumulated_integral_ = in; }
+
+  bool in_deadband() {
+    // return (fabs(error) < deadband_threshold);
+    float err = -error;
+    return ((err > 0 && err < threshold_high) || (err < 0 && err > threshold_low));
+  }
 
   /// Proportional gain K_p.
   float kp = 0;
@@ -52,10 +58,11 @@ struct PIDController {
   /// smooth the output value using a weighted average over X values
   int output_samples = 1;
 
-  float deadband_threshold = 0.0f;
-  float deadband_kp_multiplier = 0.0f;
-  float deadband_ki_multiplier = 0.0f;
-  float deadband_kd_multiplier = 0.0f;
+  float threshold_low = 0.0f;
+  float threshold_high = 0.0f;
+  float kp_multiplier = 0.0f;
+  float ki_multiplier = 0.0f;
+  float kd_multiplier = 0.0f;
   int deadband_output_samples = 1;
 
   float min_integral = NAN;
@@ -76,12 +83,18 @@ struct PIDController {
     // set dead-zone to -X to +X
     if (in_deadband()) {
       // shallow the proportional_term in the deadband by the pdm
-      proportional_term *= deadband_kp_multiplier;
+      proportional_term *= kp_multiplier;
     } else {
       // pdm_offset prevents a jump when leaving the deadband
-      float error_sign = (error < 0) ? -1.0 : 1.0;
-      float pdm_offset = (deadband_threshold - (deadband_kp_multiplier * deadband_threshold)) * kp;
-      proportional_term -= error_sign * pdm_offset;
+      float pdm_offset;
+
+      if (error < 0) {
+        pdm_offset = (threshold_high - (kp_multiplier * threshold_high)) * kp;
+        proportional_term += pdm_offset;
+      } else {
+        pdm_offset = (threshold_low - (kp_multiplier * threshold_low)) * kp;
+        proportional_term -= pdm_offset;
+      }
     }
   }
 
@@ -91,7 +104,7 @@ struct PIDController {
 
     if (in_deadband()) {
       // shallow the integral when in the deadband
-      accumulated_integral_ += new_integral * deadband_ki_multiplier;
+      accumulated_integral_ += new_integral * ki_multiplier;
     } else {
       accumulated_integral_ += new_integral;
     }
@@ -121,7 +134,7 @@ struct PIDController {
 
     if (in_deadband()) {
       // shallow the derivative when in the deadband
-      derivative_term *= deadband_kd_multiplier;
+      derivative_term *= kd_multiplier;
     }
   }
 
