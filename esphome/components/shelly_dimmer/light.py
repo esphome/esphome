@@ -14,6 +14,8 @@ from esphome.const import (
     ICON_FLASH,
     UNIT_AMPERE,
     UNIT_WATT,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_VOLTAGE,
 )
 from esphome.core import HexInt
 
@@ -55,9 +57,21 @@ CONFIG_SCHEMA = (
             # cv.Optional(CONF_WARMUP_TIME, default=20): cv.uint16_t,
             cv.Optional(CONF_MIN_BRIGHTNESS, default=0): cv.uint16_t,
             cv.Optional(CONF_MAX_BRIGHTNESS, default=1000): cv.uint16_t,
-            cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1),
-            cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
-            cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
+            cv.Optional(CONF_POWER): sensor.sensor_schema(
+                unit_of_measurement=UNIT_WATT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_POWER,
+            ),
+            cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_VOLTAGE,
+            ),
+            cv.Optional(CONF_CURRENT): sensor.sensor_schema(
+                unit_of_measurement=UNIT_AMPERE,
+                device_class=DEVICE_CLASS_POWER,
+                accuracy_decimals=2,
+            ),
             # Change the default gamma_correct setting.
             cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
         }
