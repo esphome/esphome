@@ -21,6 +21,18 @@ struct UrlMatch {
 
 enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
 
+/// Web application file descriptor: name, mime type, content, length, transfer encoding (gzip, none="")
+#ifdef USE_WEBSERVER_APP
+struct AppFile {
+  std::string name;       ///< File name w/o path
+  std::string type;       ///< File mime type (e.g. text/html)
+  std::string encoding;   ///< Transfer encoding (e.g. gzip)
+  const uint8_t *data;    ///< File content
+  uint32_t length;        ///< File length
+};
+#endif // USE_WEBSERVER_APP
+
+
 /** This class allows users to create a web server with their ESP nodes.
  *
  * Behind the scenes it's using AsyncWebServer to set up the server. It exposes 3 things:
@@ -209,12 +221,23 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config);
 #endif
 
+#ifdef USE_WEBSERVER_APP
+  // Serve web application file.
+  void handle_app_request(AsyncWebServerRequest *request, const UrlMatch &match);
+#endif // USE_WEBSERVER_APP
+
   /// Override the web handler's canHandle method.
   bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.
   void handleRequest(AsyncWebServerRequest *request) override;
   /// This web handle is not trivial.
   bool isRequestHandlerTrivial() override;
+
+
+#ifdef USE_WEBSERVER_APP
+  /// Adds web application file.
+  void add_app_file(const char *name, const char *type, const char *encoding, const uint8_t *data, uint32_t length);
+#endif // USE_WEBSERVER_APP
 
  protected:
   web_server_base::WebServerBase *base_;
@@ -225,6 +248,9 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   const char *js_include_{nullptr};
   bool include_internal_{false};
   bool allow_ota_{true};
+#ifdef USE_WEBSERVER_APP
+  std::map<std::string, AppFile> app_files_{};
+#endif // USE_WEBSERVER_APP
 };
 
 }  // namespace web_server
