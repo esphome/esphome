@@ -20,39 +20,6 @@ void PulseMeterSensor::setup() {
 void PulseMeterSensor::loop() {
   const uint32_t now = micros();
 
-  // Check to see if we should filter this edge out
-  if (this->filter_mode_ == FILTER_EDGE) {
-    if ((this->last_detected_edge_us_ - this->last_valid_high_edge_us_) >= this->filter_us_) {
-      // Don't measure the first valid pulse (we need at least two pulses to measure the width)
-      if (this->last_valid_high_edge_us_ != 0) {
-        this->pulse_width_us_ = (this->last_detected_edge_us_ - this->last_valid_high_edge_us_);
-      }
-      this->total_pulses_++;
-      this->last_valid_high_edge_us_ = this->last_detected_edge_us_;
-    }
-  } else {
-    // Make sure the signal has been stable long enough
-    if ((now - this->last_detected_edge_us_) >= this->filter_us_) {
-      // Only consider HIGH pulses and "new" edges if sensor state is LOW
-      if (!this->sensor_is_high_ && this->isr_pin_.digital_read() &&
-          (this->last_detected_edge_us_ != this->last_valid_high_edge_us_)) {
-        // Don't measure the first valid pulse (we need at least two pulses to measure the width)
-        if (this->last_valid_high_edge_us_ != 0) {
-          this->pulse_width_us_ = (this->last_detected_edge_us_ - this->last_valid_high_edge_us_);
-        }
-        this->sensor_is_high_ = true;
-        this->total_pulses_++;
-        this->last_valid_high_edge_us_ = this->last_detected_edge_us_;
-      }
-      // Only consider LOW pulses and "new" edges if sensor state is HIGH
-      else if (this->sensor_is_high_ && !this->isr_pin_.digital_read() &&
-               (this->last_detected_edge_us_ != this->last_valid_low_edge_us_)) {
-        this->sensor_is_high_ = false;
-        this->last_valid_low_edge_us_ = this->last_detected_edge_us_;
-      }
-    }
-  }
-
   // If we've exceeded our timeout interval without receiving any pulses, assume 0 pulses/min until
   // we get at least two valid pulses.
   const uint32_t time_since_valid_edge_us = now - this->last_valid_high_edge_us_;
@@ -108,6 +75,39 @@ void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
     }
   } else {
     sensor->last_detected_edge_us_ = now;
+  }
+
+  // Check to see if we should filter this edge out
+  if (sensor->filter_mode_ == FILTER_EDGE) {
+    if ((sensor->last_detected_edge_us_ - sensor->last_valid_high_edge_us_) >= sensor->filter_us_) {
+      // Don't measure the first valid pulse (we need at least two pulses to measure the width)
+      if (sensor->last_valid_high_edge_us_ != 0) {
+        sensor->pulse_width_us_ = (sensor->last_detected_edge_us_ - sensor->last_valid_high_edge_us_);
+      }
+      sensor->total_pulses_++;
+      sensor->last_valid_high_edge_us_ = sensor->last_detected_edge_us_;
+    }
+  } else {
+    // Make sure the signal has been stable long enough
+    if ((now - sensor->last_detected_edge_us_) >= sensor->filter_us_) {
+      // Only consider HIGH pulses and "new" edges if sensor state is LOW
+      if (!sensor->sensor_is_high_ && sensor->isr_pin_.digital_read() &&
+          (sensor->last_detected_edge_us_ != sensor->last_valid_high_edge_us_)) {
+        // Don't measure the first valid pulse (we need at least two pulses to measure the width)
+        if (sensor->last_valid_high_edge_us_ != 0) {
+          sensor->pulse_width_us_ = (sensor->last_detected_edge_us_ - sensor->last_valid_high_edge_us_);
+        }
+        sensor->sensor_is_high_ = true;
+        sensor->total_pulses_++;
+        sensor->last_valid_high_edge_us_ = sensor->last_detected_edge_us_;
+      }
+      // Only consider LOW pulses and "new" edges if sensor state is HIGH
+      else if (sensor->sensor_is_high_ && !sensor->isr_pin_.digital_read() &&
+               (sensor->last_detected_edge_us_ != sensor->last_valid_low_edge_us_)) {
+        sensor->sensor_is_high_ = false;
+        sensor->last_valid_low_edge_us_ = sensor->last_detected_edge_us_;
+      }
+    }
   }
 }
 
