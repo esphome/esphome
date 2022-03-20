@@ -64,6 +64,10 @@ class Canbus : public Component {
 
   void send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
                  const std::vector<uint8_t> &data);
+  void send_data(uint32_t can_id, bool use_extended_id, const std::vector<uint8_t> &data) {
+    // for backwards compatibility only
+    this->send_data(can_id, use_extended_id, false, data);
+  }
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
