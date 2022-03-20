@@ -6,10 +6,15 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
+#include <array>
+
 namespace esphome {
 namespace shelly_dimmer {
 
 class ShellyDimmer : public Component, public light::LightOutput, public uart::UARTDevice {
+ private:
+  static constexpr uint16_t SHELLY_DIMMER_BUFFER_SIZE = 256;
+
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
 
@@ -44,7 +49,7 @@ class ShellyDimmer : public Component, public light::LightOutput, public uart::U
 
   // Frame parser state.
   uint8_t seq_{0};
-  uint8_t *buffer_;
+  std::array<uint8_t, SHELLY_DIMMER_BUFFER_SIZE> buffer_;
   uint8_t buffer_pos_{0};
 
   // Firmware version.

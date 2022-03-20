@@ -10,7 +10,6 @@ namespace shelly_dimmer {
 
 static const char *const TAG = "shelly";
 
-static const uint16_t SHELLY_DIMMER_BUFFER_SIZE = 256;
 static const uint8_t SHELLY_DIMMER_ACK_TIMEOUT = 200;  // ms
 static const uint8_t SHELLY_DIMMER_MAX_RETRIES = 3;
 static const uint16_t SHELLY_DIMMER_MAX_BRIGHTNESS = 1000;  // 100%
@@ -48,7 +47,6 @@ uint16_t shelly_dimmer_checksum(const uint8_t *buf, int len) {
 }
 
 void ShellyDimmer::setup() {
-  this->buffer_ = new uint8_t[SHELLY_DIMMER_BUFFER_SIZE];  // NOLINT: It will never be freed
   this->pin_nrst_->setup();
   this->pin_boot0_->setup();
 
