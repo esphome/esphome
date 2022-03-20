@@ -10,8 +10,8 @@ namespace growatt_solar {
 static const float TWO_DEC_UNIT = 0.01;
 static const float ONE_DEC_UNIT = 0.1;
 
-enum GrowattProtocolVersion{
-  RTU=0,
+enum GrowattProtocolVersion {
+  RTU = 0,
   RTU2,
 };
 
