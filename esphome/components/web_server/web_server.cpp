@@ -1050,7 +1050,8 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
 #ifdef USE_WEBSERVER_APP
 void WebServer::handle_app_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   auto filename = match.id;
-  if (filename == "") filename = "index.html";
+  if (filename == "")
+    filename = "index.html";
   if (app_files_.find(filename) == app_files_.end()) {
     ESP_LOGD(TAG, "Web app url '%s': 404 Not found", request->url().c_str());
     request->send(404);
@@ -1059,10 +1060,11 @@ void WebServer::handle_app_request(AsyncWebServerRequest *request, const UrlMatc
   ESP_LOGD(TAG, "Web app url '%s': serving file '%s'", request->url().c_str(), filename.c_str());
   auto file = app_files_[filename];
   auto response = request->beginResponse_P(200, file.type.c_str(), file.data, file.length);
-  if (file.encoding != "" && file.encoding != "none") response->addHeader("Content-Encoding", file.encoding.c_str());
+  if (file.encoding != "" && file.encoding != "none")
+    response->addHeader("Content-Encoding", file.encoding.c_str());
   request->send(response);
 }
-#endif // USE_WEBSERVER_APP
+#endif  // USE_WEBSERVER_APP
 
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
@@ -1081,7 +1083,7 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 #ifdef USE_WEBSERVER_APP
   if (request->url() == "/app")
     return true;
-#endif // USE_WEBSERVER_APP
+#endif  // USE_WEBSERVER_APP
 
   UrlMatch match = match_url(request->url().c_str(), true);
   if (!match.valid)
@@ -1149,7 +1151,7 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 #ifdef USE_WEBSERVER_APP
   if (request->method() == HTTP_GET && match.domain == "app")
     return true;
-#endif // USE_WEBSERVER_APP
+#endif  // USE_WEBSERVER_APP
 
   return false;
 }
@@ -1179,7 +1181,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     request->redirect("/app/");
     return;
   }
-#endif // USE_WEBSERVER_APP
+#endif  // USE_WEBSERVER_APP
 
   UrlMatch match = match_url(request->url().c_str());
 #ifdef USE_SENSOR
@@ -1272,23 +1274,23 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     this->handle_app_request(request, match);
     return;
   }
-#endif // USE_WEBSERVER_APP
+#endif  // USE_WEBSERVER_APP
 }
 
 bool WebServer::isRequestHandlerTrivial() { return false; }
 
 #ifdef USE_WEBSERVER_APP
-void WebServer::add_app_file(const char *name, const char *type, const char *encoding, const uint8_t *data, uint32_t length) {
+void WebServer::add_app_file(const char *name, const char *type, const char *encoding, const uint8_t *data,
+                             uint32_t length) {
   app_files_[name] = {
-    .name = name,
-    .type = type,
-    .encoding = encoding,
-    .data = data,
-    .length = length,
+      .name = name,
+      .type = type,
+      .encoding = encoding,
+      .data = data,
+      .length = length,
   };
 }
-#endif // USE_WEBSERVER_APP
-
+#endif  // USE_WEBSERVER_APP
 
 }  // namespace web_server
 }  // namespace esphome
