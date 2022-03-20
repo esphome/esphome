@@ -768,7 +768,7 @@ uint8_t Pipsolar::check_incoming_length_(uint8_t length) {
 
 uint8_t Pipsolar::check_incoming_crc_() {
   uint16_t crc16;
-  crc16 = cal_crc_half(read_buffer_, read_pos_ - 3);
+  crc16 = cal_crc_half_(read_buffer_, read_pos_ - 3);
   ESP_LOGD(TAG, "checking crc on incoming message");
   if (((uint8_t)((crc16) >> 8)) == read_buffer_[read_pos_ - 3] &&
       ((uint8_t)((crc16) &0xff)) == read_buffer_[read_pos_ - 2]) {
@@ -797,7 +797,7 @@ uint8_t Pipsolar::send_next_command_() {
     this->command_start_millis_ = millis();
     this->empty_uart_buffer_();
     this->read_pos_ = 0;
-    crc16 = cal_crc_half(byte_command, length);
+    crc16 = cal_crc_half_(byte_command, length);
     this->write_str(command);
     // checksum
     this->write(((uint8_t)((crc16) >> 8)));   // highbyte
@@ -824,7 +824,7 @@ void Pipsolar::send_next_poll_() {
   this->command_start_millis_ = millis();
   this->empty_uart_buffer_();
   this->read_pos_ = 0;
-  crc16 = cal_crc_half(this->used_polling_commands_[this->last_polling_command_].command,
+  crc16 = cal_crc_half_(this->used_polling_commands_[this->last_polling_command_].command,
                     this->used_polling_commands_[this->last_polling_command_].length);
   this->write_array(this->used_polling_commands_[this->last_polling_command_].command,
                     this->used_polling_commands_[this->last_polling_command_].length);
@@ -892,20 +892,20 @@ void Pipsolar::add_polling_command_(const char *command, ENUMPollingCommand poll
   }
 }
 
-uint16_t Pipsolar::cal_crc_half(uint8_t *pin, uint8_t len) {
+uint16_t Pipsolar::cal_crc_half_(uint8_t *msg, uint8_t len) {
     uint16_t crc;
 
     uint8_t da;
     uint8_t *ptr;
-    uint8_t bCRCHign;
-    uint8_t bCRCLow;
+    uint8_t b_crc_hign;
+    uint8_t b_crc_low;
 
     uint16_t crc_ta[16]= {
         0x0000,0x1021,0x2042,0x3063,0x4084,0x50a5,0x60c6,0x70e7,
         0x8108,0x9129,0xa14a,0xb16b,0xc18c,0xd1ad,0xe1ce,0xf1ef
     };
 
-    ptr=pin;
+    ptr=msg;
     crc=0;
 
     while(len--!=0) {
@@ -918,42 +918,17 @@ uint16_t Pipsolar::cal_crc_half(uint8_t *pin, uint8_t len) {
         ptr++;
     }
 
-    bCRCLow = crc;
-    bCRCHign= (uint8_t)(crc>>8);
+    b_crc_low = crc;
+    b_crc_hign= (uint8_t)(crc>>8);
 
-    if(bCRCLow==0x28||bCRCLow==0x0d||bCRCLow==0x0a)
-        bCRCLow++;
-    if(bCRCHign==0x28||bCRCHign==0x0d||bCRCHign==0x0a)
-        bCRCHign++;
+    if(b_crc_low==0x28||b_crc_low==0x0d||b_crc_low==0x0a)
+        b_crc_low++;
+    if(b_crc_hign==0x28||b_crc_hign==0x0d||b_crc_hign==0x0a)
+        b_crc_hign++;
 
-    crc = ((uint16_t)bCRCHign)<<8;
-    crc += bCRCLow;
+    crc = ((uint16_t)b_crc_hign)<<8;
+    crc += b_crc_low;
     return(crc);
-}
-
-uint16_t Pipsolar::calc_crc_(uint8_t *msg, int n) {
-  // Initial value. xmodem uses 0xFFFF but this example
-  // requires an initial value of zero.
-  uint16_t x = 0;
-  while (n--) {
-    x = crc_xmodem_update_(x, (uint16_t) *msg++);
-  }
-  return (x);
-}
-
-// See bottom of this page: http://www.nongnu.org/avr-libc/user-manual/group__util__crc.html
-// Polynomial: x^16 + x^12 + x^5 + 1 (0x1021)
-uint16_t Pipsolar::crc_xmodem_update_(uint16_t crc, uint8_t data) {
-  int i;
-  crc = crc ^ ((uint16_t) data << 8);
-  for (i = 0; i < 8; i++) {
-    if (crc & 0x8000) {
-      crc = (crc << 1) ^ 0x1021;  //(polynomial = 0x1021)
-    } else {
-      crc <<= 1;
-    }
-  }
-  return crc;
 }
 
 }  // namespace pipsolar
