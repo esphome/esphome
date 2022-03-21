@@ -925,7 +925,7 @@ bool ThermostatClimate::supplemental_heating_required_() {
 
 void ThermostatClimate::dump_preset_config_(const std::string &preset,
                                             const ThermostatClimateTargetTempConfig &config) {
-  auto preset_name = preset.c_str();
+  const auto *preset_name = preset.c_str();
 
   if (this->supports_heat_) {
     if (this->supports_two_points_) {
