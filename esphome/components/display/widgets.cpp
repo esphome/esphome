@@ -44,6 +44,11 @@ namespace display {
   GET_SIZE_FN(PREFERRED, preferred);
   GET_SIZE_FN(MAXIMUM, maximum);
 
+  void Widget::get_alignment(float *x, float *y) {
+    *x = alignment_x_;
+    *y = alignment_y_;
+  }
+
   template<typename T>
   static T sadd(T first, T second)
   {
@@ -120,6 +125,7 @@ namespace display {
   void Widget::SizeRequirements::calculate_tiled_positions(int allocated, std::vector<SizeRequirements> children, std::vector<int> &offsets, std::vector<int> &spans) {
     offsets.resize(children.size());
     spans.resize(children.size());
+    ESP_LOGV(TAG, "calculate_tiled_positions(allocated=%d, preferred=%d, maximum=%d)", allocated, preferred, maximum);
     if (allocated >= preferred) {
       // Expanded tile
       float totalPlay = std::min(allocated - preferred, maximum - preferred);
@@ -132,6 +138,13 @@ namespace display {
         int play = (int)(factor * (req.maximum - req.preferred));
         add_clamp(&spans[i], req.preferred, play);
         add_clamp(&totalOffset, totalOffset, spans[i]);
+      }
+      // If there's space left, evenly add it between every widget.
+      if (totalOffset < allocated) {
+        int padding = allocated - totalOffset;
+        for (int i = 1; i < children.size(); i++) {
+          offsets[i] += (padding * i) / (children.size()-1);
+        }
       }
     } else {
       // Compressed tile
@@ -201,6 +214,7 @@ namespace display {
       child.widget_->get_minimum_size(&xChildren_[i].minimum, &yChildren_[i].minimum);
       child.widget_->get_preferred_size(&xChildren_[i].preferred, &yChildren_[i].preferred);
       child.widget_->get_maximum_size(&xChildren_[i].maximum, &yChildren_[i].maximum);
+      child.widget_->get_alignment(&xChildren_[i].alignment, &yChildren_[i].alignment);
     }
     if (axis_ == X_AXIS) {
       xTotal_ = SizeRequirements::get_tiled_size_requirements(xChildren_);

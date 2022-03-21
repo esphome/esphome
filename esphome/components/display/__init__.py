@@ -80,6 +80,7 @@ CONF_WIDGET_CONTAINER_ID = "widget_container_id"
 CONF_MINIMUM_SIZE = "minimum_size"
 CONF_PREFERRED_SIZE = "preferred_size"
 CONF_MAXIMUM_SIZE = "maximum_size"
+CONF_ALIGNMENT = "alignment"
 
 DIMENSION_SOURCE = display_ns.namespace("Widget").enum("DimensionSource")
 
@@ -108,7 +109,7 @@ def size(value):
     return value
 
 
-def dimensions(value):
+def _dimensions(value):
     # Four possibilities:
     # "NNxNN"
     # [NN, NN]
@@ -129,14 +130,36 @@ def dimensions(value):
         raise cv.Invalid(
             "Invalid value '{}' for dimensions. Only WIDTHxHEIGHT is allowed."
         )
-    return dimensions([match.group(1), match.group(2)])
+    return _dimensions([match.group(1), match.group(2)])
+
+
+_ALIGNMENT_ENUM = {
+    "top left": (0.0, 0.0),
+    "top": (0.5, 0.0),
+    "top right": (1.0, 0.0),
+    "right": (1.0, 0.5),
+    "bottom right": (1.0, 1.0),
+    "bottom": (0.5, 1.0),
+    "bottom left": (0.0, 1.0),
+    "left": (0.0, 0.5),
+    "center": (0.5, 0.5),
+}
+
+
+def _alignment(value):
+    if isinstance(value, str):
+        return cv.enum(_ALIGNMENT_ENUM, lower=True)(value).enum_value
+    if len(value) != 2:
+        raise cv.Invalid("Alignment must be specified in exactly two dimensions")
+    return cv.Schema([cv.percentage(value)])(value)
 
 
 WIDGET_REGISTRY = Registry(
     {
-        cv.Optional(CONF_MINIMUM_SIZE): dimensions,
-        cv.Optional(CONF_PREFERRED_SIZE): dimensions,
-        cv.Optional(CONF_MAXIMUM_SIZE): dimensions,
+        cv.Optional(CONF_MINIMUM_SIZE): _dimensions,
+        cv.Optional(CONF_PREFERRED_SIZE): _dimensions,
+        cv.Optional(CONF_MAXIMUM_SIZE): _dimensions,
+        cv.Optional(CONF_ALIGNMENT): _alignment,
     },
 )
 validate_widget = cv.validate_registry_entry(
@@ -159,6 +182,8 @@ async def build_widget(full_config):
         cg.add(var.set_preferred_size(*full_config[CONF_PREFERRED_SIZE]))
     if CONF_MAXIMUM_SIZE in full_config:
         cg.add(var.set_maximum_size(*full_config[CONF_MAXIMUM_SIZE]))
+    if CONF_ALIGNMENT in full_config:
+        cg.add(var.set_alignment(*full_config[CONF_ALIGNMENT]))
     await builder(var, config)
     return var
 

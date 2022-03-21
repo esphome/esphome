@@ -30,6 +30,10 @@ public:
     user_maximum_width_ = width;
     user_maximum_height_ = height;
   };
+  void set_alignment(float x, float y) {
+    alignment_x_ = x;
+    alignment_y_ = y;
+  }
 
   enum DimensionSource {
     AUTO = -1,
@@ -42,6 +46,7 @@ public:
   void get_minimum_size(int *width, int *height);
   void get_preferred_size(int *width, int *height);
   void get_maximum_size(int *width, int *height);
+  void get_alignment(float *x, float *y);
 
   // invalidate_layout should recalculate {minimum,preferred,maximum}_{width,height}_ as necessary.
   virtual void invalidate_layout();
@@ -53,6 +58,7 @@ protected:
   int minimum_width_ = 0, minimum_height_ = 0;
   int preferred_width_ = 0, preferred_height_ = 0;
   int maximum_width_ = SHRT_MAX, maximum_height_ = SHRT_MAX;
+  float alignment_x_ = 0.5, alignment_y_ = 0.5;
 private:
   int user_minimum_width_ = -1, user_minimum_height_ = -1;
   int user_preferred_width_ = -1, user_preferred_height_ = -1;
