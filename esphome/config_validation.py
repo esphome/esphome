@@ -1075,7 +1075,7 @@ i2c_address = hex_uint8_t
 def percentage(value):
     """Validate that the value is a percentage.
 
-    The resulting value is an integer in the range 0.0 to 1.0.
+    The resulting value is a float in the range 0.0 to 1.0.
     """
     value = possibly_negative_percentage(value)
     return zero_to_one_float(value)
