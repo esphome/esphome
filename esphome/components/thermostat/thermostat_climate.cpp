@@ -167,6 +167,15 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
       this->preset = *call.get_preset();
     }
   }
+  if (call.get_custom_preset().has_value()) {
+    // setup_complete_ blocks modifying/resetting the temps immediately after boot
+    if (this->setup_complete_) {
+      this->change_custom_preset_(*call.get_custom_preset());
+    } else {
+      this->custom_preset = *call.get_custom_preset();
+    }
+  }
+
   if (call.get_mode().has_value())
     this->mode = *call.get_mode();
   if (call.get_fan_mode().has_value())
@@ -238,6 +247,9 @@ climate::ClimateTraits ThermostatClimate::traits() {
 
   for (auto &it : this->preset_config_) {
     traits.add_supported_preset(it.first);
+  }
+  for (auto &it : this->custom_preset_config_) {
+    traits.add_supported_custom_preset(it.first);
   }
 
   traits.set_supports_two_point_target_temperature(this->supports_two_points_);
@@ -911,54 +923,112 @@ bool ThermostatClimate::supplemental_heating_required_() {
           (this->supplemental_action_ == climate::CLIMATE_ACTION_HEATING));
 }
 
+void ThermostatClimate::dump_preset_config_(std::string preset, const ThermostatClimateTargetTempConfig &config) {
+  auto preset_name = preset.c_str();
+
+  if (this->supports_heat_) {
+    if (this->supports_two_points_) {
+      ESP_LOGCONFIG(TAG, "      %s Default Target Temperature Low: %.1f°C", preset_name,
+                    config.default_temperature_low);
+    } else {
+      ESP_LOGCONFIG(TAG, "      %s Default Target Temperature Low: %.1f°C", preset_name, config.default_temperature);
+    }
+  }
+  if ((this->supports_cool_) || (this->supports_fan_only_)) {
+    if (this->supports_two_points_) {
+      ESP_LOGCONFIG(TAG, "      %s Default Target Temperature High: %.1f°C", preset_name,
+                    config.default_temperature_high);
+    } else {
+      ESP_LOGCONFIG(TAG, "      %s Default Target Temperature High: %.1f°C", preset_name,
+                    config.default_temperature);
+    }
+  }
+
+  if (config.mode_.has_value()) {
+    ESP_LOGCONFIG(TAG, "      %s Default Mode: %s", preset_name,
+                  LOG_STR_ARG(climate::climate_mode_to_string(*config.mode_)));
+  }
+  if (config.fan_mode_.has_value()) {
+    ESP_LOGCONFIG(TAG, "      %s Default Fan Mode: %s", preset_name,
+                  LOG_STR_ARG(climate::climate_fan_mode_to_string(*config.fan_mode_)));
+  }
+  if (config.swing_mode_.has_value()) {
+    ESP_LOGCONFIG(TAG, "      %s Default Swing Mode: %s", preset_name,
+                  LOG_STR_ARG(climate::climate_swing_mode_to_string(*config.swing_mode_)));
+  }
+}
+
 void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   auto config = this->preset_config_.find(preset);
 
   if (config != this->preset_config_.end()) {
-    ESP_LOGVV(TAG, "Switching to preset  %s", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
+    ESP_LOGI(TAG, "Switching to preset  %s", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
+    this->change_preset_internal_(config->second);
 
-    if (this->supports_two_points_) {
-      this->target_temperature_low = config->second.default_temperature_low;
-      this->target_temperature_high = config->second.default_temperature_high;
-    } else {
-      this->target_temperature = config->second.default_temperature;
-    }
-
-    // Note: The mode, fan_mode, and swing_mode can all be defined on the preset but if the climate.control call
-    // also specifies them then the control's version will override these for that call
-    if (config->second.mode_.has_value()) {
-      this->mode = *config->second.mode_;
-      ESP_LOGV(TAG, "Setting mode to %s", LOG_STR_ARG(climate::climate_mode_to_string(*config->second.mode_)));
-    }
-
-    if (config->second.fan_mode_.has_value()) {
-      this->fan_mode = *config->second.fan_mode_;
-      ESP_LOGV(TAG, "Setting fan mode to %s",
-               LOG_STR_ARG(climate::climate_fan_mode_to_string(*config->second.fan_mode_)));
-    }
-
-    if (config->second.swing_mode_.has_value()) {
-      ESP_LOGV(TAG, "Setting swing mode to %s",
-               LOG_STR_ARG(climate::climate_swing_mode_to_string(*config->second.swing_mode_)));
-      this->swing_mode = *config->second.swing_mode_;
-    }
-
-    // Fire any preset changed trigger if defined
-    if (this->preset != preset) {
-      Trigger<> *trig = this->preset_change_trigger_;
-      assert(trig != nullptr);
-      trig->trigger();
-    }
-
+    this->custom_preset.reset();
     this->preset = preset;
   } else {
-    ESP_LOGVV(TAG, "Preset %s is not configured, ignoring.", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
+    ESP_LOGE(TAG, "Preset %s is not configured, ignoring.", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
+  }
+}
+
+void ThermostatClimate::change_custom_preset_(std::string custom_preset) {
+  auto config = this->custom_preset_config_.find(custom_preset);
+
+  if (config != this->custom_preset_config_.end()) {
+    ESP_LOGI(TAG, "Switching to custom preset  %s", custom_preset.c_str());
+    this->change_preset_internal_(config->second);
+
+    this->preset.reset();
+    this->custom_preset = custom_preset;
+  } else {
+    ESP_LOGE(TAG, "Custom Preset %s is not configured, ignoring.", custom_preset.c_str());
+  }
+}
+
+void ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTempConfig &config) {
+  if (this->supports_two_points_) {
+    this->target_temperature_low = config.default_temperature_low;
+    this->target_temperature_high = config.default_temperature_high;
+  } else {
+    this->target_temperature = config.default_temperature;
+  }
+
+  // Note: The mode, fan_mode, and swing_mode can all be defined on the preset but if the climate.control call
+  // also specifies them then the control's version will override these for that call
+  if (config.mode_.has_value()) {
+    this->mode = *config.mode_;
+    ESP_LOGV(TAG, "Setting mode to %s", LOG_STR_ARG(climate::climate_mode_to_string(*config.mode_)));
+  }
+
+  if (config.fan_mode_.has_value()) {
+    this->fan_mode = *config.fan_mode_;
+    ESP_LOGV(TAG, "Setting fan mode to %s",
+              LOG_STR_ARG(climate::climate_fan_mode_to_string(*config.fan_mode_)));
+  }
+
+  if (config.swing_mode_.has_value()) {
+    ESP_LOGV(TAG, "Setting swing mode to %s",
+              LOG_STR_ARG(climate::climate_swing_mode_to_string(*config.swing_mode_)));
+    this->swing_mode = *config.swing_mode_;
+  }
+
+  // Fire any preset changed trigger if defined
+  if (this->preset != preset) {
+    Trigger<> *trig = this->preset_change_trigger_;
+    assert(trig != nullptr);
+    trig->trigger();
   }
 }
 
 void ThermostatClimate::set_preset_config(climate::ClimatePreset preset,
                                           const ThermostatClimateTargetTempConfig &config) {
   this->preset_config_[preset] = config;
+}
+
+void ThermostatClimate::set_custom_preset_config(std::string name,
+                                                 const ThermostatClimateTargetTempConfig &config) {
+  this->custom_preset_config_[name] = config;
 }
 
 ThermostatClimate::ThermostatClimate()
@@ -1213,37 +1283,16 @@ void ThermostatClimate::dump_config() {
   for (auto &it : this->preset_config_) {
     const auto *preset_name = LOG_STR_ARG(climate::climate_preset_to_string(it.first));
 
-    ESP_LOGCONFIG(TAG, "  Supports %s: %s", preset_name, YESNO(true));
-    if (this->supports_heat_) {
-      if (this->supports_two_points_) {
-        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature Low: %.1f°C", preset_name,
-                      it.second.default_temperature_low);
-      } else {
-        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature Low: %.1f°C", preset_name, it.second.default_temperature);
-      }
-    }
-    if ((this->supports_cool_) || (this->supports_fan_only_)) {
-      if (this->supports_two_points_) {
-        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature High: %.1f°C", preset_name,
-                      it.second.default_temperature_high);
-      } else {
-        ESP_LOGCONFIG(TAG, "    %s Default Target Temperature High: %.1f°C", preset_name,
-                      it.second.default_temperature);
-      }
-    }
+    ESP_LOGCONFIG(TAG, "    Supports %s: %s", preset_name, YESNO(true));
+    this->dump_preset_config_(preset_name, it.second);
+  }
 
-    if (it.second.mode_.has_value()) {
-      ESP_LOGCONFIG(TAG, "    %s Default Mode: %s", preset_name,
-                    LOG_STR_ARG(climate::climate_mode_to_string(*it.second.mode_)));
-    }
-    if (it.second.fan_mode_.has_value()) {
-      ESP_LOGCONFIG(TAG, "    %s Default Fan Mode: %s", preset_name,
-                    LOG_STR_ARG(climate::climate_fan_mode_to_string(*it.second.fan_mode_)));
-    }
-    if (it.second.swing_mode_.has_value()) {
-      ESP_LOGCONFIG(TAG, "    %s Default Swing Mode: %s", preset_name,
-                    LOG_STR_ARG(climate::climate_swing_mode_to_string(*it.second.swing_mode_)));
-    }
+  ESP_LOGCONFIG(TAG, "  Supported CUSTOM PRESETS: ");
+  for (auto &it : this->custom_preset_config_) {
+    const auto *preset_name = it.first.c_str();
+
+    ESP_LOGCONFIG(TAG, "    Supports %s: %s", preset_name, YESNO(true));
+    this->dump_preset_config_(preset_name, it.second);
   }
 }
 

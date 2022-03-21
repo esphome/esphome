@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import climate, sensor
 from esphome.const import (
+    CONF_NAME,
     CONF_AUTO_MODE,
     CONF_AWAY_CONFIG,
     CONF_COOL_ACTION,
@@ -93,6 +94,7 @@ ClimatePreset = climate_ns.enum("ClimatePreset")
 PRESET_CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ThermostatClimateTargetTempConfig),
+        cv.Required(CONF_NAME): cv.string_strict,
         cv.Optional(CONF_MODE): validate_climate_mode,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
@@ -436,12 +438,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
                 }
             ),
-            cv.Optional(CONF_PRESET): cv.Schema(
-                {
-                    cv.Optional(preset.lower()): PRESET_CONFIG_SCHEMA
-                    for preset in climate.CLIMATE_PRESETS
-                }
-            ),
+            cv.Optional(CONF_PRESET): cv.ensure_list(PRESET_CONFIG_SCHEMA),
             cv.Optional(CONF_PRESET_CHANGE): automation.validate_automation(
                 single=True
             ),
@@ -727,24 +724,23 @@ async def to_code(config):
         cg.add(var.set_preset_config(ClimatePreset.CLIMATE_PRESET_AWAY, away_config))
 
     if CONF_PRESET in config:
-        for label, preset in climate.CLIMATE_PRESETS.items():
-            preset_label = label.lower()
+        for preset_config in config[CONF_PRESET]:
 
-            if preset_label not in config[CONF_PRESET]:
-                continue
-
-            preset_config = config[CONF_PRESET][preset_label]
+            name = preset_config[CONF_NAME]
+            standard_preset = None
+            if name.upper() in climate.CLIMATE_PRESETS:
+                standard_preset = climate.CLIMATE_PRESETS[name.upper()]
 
             if two_points_available is True:
                 preset_target_config = ThermostatClimateTargetTempConfig(
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH],
                 )
-            elif CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in away:
+            elif CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in preset_config:
                 preset_target_config = ThermostatClimateTargetTempConfig(
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
                 )
-            elif CONF_DEFAULT_TARGET_TEMPERATURE_LOW in away:
+            elif CONF_DEFAULT_TARGET_TEMPERATURE_LOW in preset_config:
                 preset_target_config = ThermostatClimateTargetTempConfig(
                     preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
                 )
@@ -768,7 +764,10 @@ async def to_code(config):
                     )
                 )
 
-            cg.add(var.set_preset_config(preset, preset_target_variable))
+            if standard_preset is not None:
+                cg.add(var.set_preset_config(standard_preset, preset_target_variable))
+            else:
+                cg.add(var.set_custom_preset_config(name, preset_target_variable))
 
     if CONF_PRESET_CHANGE in config:
         await automation.build_automation(
