@@ -923,7 +923,8 @@ bool ThermostatClimate::supplemental_heating_required_() {
           (this->supplemental_action_ == climate::CLIMATE_ACTION_HEATING));
 }
 
-void ThermostatClimate::dump_preset_config_(const std::string &preset, const ThermostatClimateTargetTempConfig &config) {
+void ThermostatClimate::dump_preset_config_(const std::string &preset,
+                                            const ThermostatClimateTargetTempConfig &config) {
   auto preset_name = preset.c_str();
 
   if (this->supports_heat_) {
@@ -1023,7 +1024,7 @@ void ThermostatClimate::set_preset_config(climate::ClimatePreset preset,
   this->preset_config_[preset] = config;
 }
 
-void ThermostatClimate::set_custom_preset_config(const std::string &name, 
+void ThermostatClimate::set_custom_preset_config(const std::string &name,
                                                  const ThermostatClimateTargetTempConfig &config) {
   this->custom_preset_config_[name] = config;
 }
