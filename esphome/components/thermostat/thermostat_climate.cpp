@@ -923,7 +923,7 @@ bool ThermostatClimate::supplemental_heating_required_() {
           (this->supplemental_action_ == climate::CLIMATE_ACTION_HEATING));
 }
 
-void ThermostatClimate::dump_preset_config_(std::string preset, const ThermostatClimateTargetTempConfig &config) {
+void ThermostatClimate::dump_preset_config_(const std::string &preset, const ThermostatClimateTargetTempConfig &config) {
   auto preset_name = preset.c_str();
 
   if (this->supports_heat_) {
@@ -939,8 +939,7 @@ void ThermostatClimate::dump_preset_config_(std::string preset, const Thermostat
       ESP_LOGCONFIG(TAG, "      %s Default Target Temperature High: %.1f°C", preset_name,
                     config.default_temperature_high);
     } else {
-      ESP_LOGCONFIG(TAG, "      %s Default Target Temperature High: %.1f°C", preset_name,
-                    config.default_temperature);
+      ESP_LOGCONFIG(TAG, "      %s Default Target Temperature High: %.1f°C", preset_name, config.default_temperature);
     }
   }
 
@@ -972,7 +971,7 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   }
 }
 
-void ThermostatClimate::change_custom_preset_(std::string custom_preset) {
+void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) {
   auto config = this->custom_preset_config_.find(custom_preset);
 
   if (config != this->custom_preset_config_.end()) {
@@ -1003,13 +1002,11 @@ void ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTem
 
   if (config.fan_mode_.has_value()) {
     this->fan_mode = *config.fan_mode_;
-    ESP_LOGV(TAG, "Setting fan mode to %s",
-              LOG_STR_ARG(climate::climate_fan_mode_to_string(*config.fan_mode_)));
+    ESP_LOGV(TAG, "Setting fan mode to %s", LOG_STR_ARG(climate::climate_fan_mode_to_string(*config.fan_mode_)));
   }
 
   if (config.swing_mode_.has_value()) {
-    ESP_LOGV(TAG, "Setting swing mode to %s",
-              LOG_STR_ARG(climate::climate_swing_mode_to_string(*config.swing_mode_)));
+    ESP_LOGV(TAG, "Setting swing mode to %s", LOG_STR_ARG(climate::climate_swing_mode_to_string(*config.swing_mode_)));
     this->swing_mode = *config.swing_mode_;
   }
 
@@ -1026,7 +1023,7 @@ void ThermostatClimate::set_preset_config(climate::ClimatePreset preset,
   this->preset_config_[preset] = config;
 }
 
-void ThermostatClimate::set_custom_preset_config(std::string name,
+void ThermostatClimate::set_custom_preset_config(const std::string &name, 
                                                  const ThermostatClimateTargetTempConfig &config) {
   this->custom_preset_config_[name] = config;
 }

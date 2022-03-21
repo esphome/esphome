@@ -103,7 +103,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   void set_supports_two_points(bool supports_two_points);
 
   void set_preset_config(climate::ClimatePreset preset, const ThermostatClimateTargetTempConfig &config);
-  void set_custom_preset_config(std::string name, const ThermostatClimateTargetTempConfig &config);
+  void set_custom_preset_config(const std::string &name, const ThermostatClimateTargetTempConfig &config);
 
   Trigger<> *get_cool_action_trigger() const;
   Trigger<> *get_supplemental_cool_action_trigger() const;
@@ -161,7 +161,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Change to a provided preset setting; will reset temperature, mode, fan, and swing modes accordingly
   void change_preset_(climate::ClimatePreset preset);
   /// Change to a provided custom preset setting; will reset temperature, mode, fan, and swing modes accordingly
-  void change_custom_preset_(std::string custom_preset);
+  void change_custom_preset_(const std::string &custom_preset);
 
   /// Applies the temperature, mode, fan, and swing modes of the provded config.
   /// This is agnostic of custom vs built in preset
@@ -225,7 +225,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool supplemental_cooling_required_();
   bool supplemental_heating_required_();
 
-  void dump_preset_config_(std::string preset_name, const ThermostatClimateTargetTempConfig &config);
+  void dump_preset_config_(const std::string &preset_name, const ThermostatClimateTargetTempConfig &config);
 
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};
@@ -391,7 +391,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *prev_fan_mode_trigger_{nullptr};
   Trigger<> *prev_mode_trigger_{nullptr};
   Trigger<> *prev_swing_mode_trigger_{nullptr};
-  
+
   /// Store previously-known states
   ///
   /// These are used to determine when a trigger/action needs to be called
