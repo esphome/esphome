@@ -335,6 +335,24 @@ namespace display {
     it->image(x1, y1, image_, invert ? COLOR_OFF : COLOR_ON, invert ? COLOR_ON : COLOR_OFF);
   }
 
+#ifdef USE_GRAPH
+  void GraphWidget::invalidate_layout() {
+    if (!graph_) {
+      return;
+    }
+    minimum_width_ = preferred_width_ = maximum_width_ = graph_->get_width();
+    minimum_height_ = preferred_height_ = maximum_height_ = graph_->get_height();
+  }
+
+  void GraphWidget::draw(DisplayBuffer* it, int x1, int y1, int width, int height) {
+    if (!graph_) {
+      return;
+    }
+    // TODO: Stop filling when https://github.com/esphome/issues/issues/3132 is resolved.
+    it->filled_rectangle(x1, y1, width, height, COLOR_OFF);
+    it->graph(x1, y1, graph_);
+  }
+#endif
 
 }  // namespace display
 }  // namespace esphome

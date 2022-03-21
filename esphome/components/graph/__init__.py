@@ -1,11 +1,12 @@
 from esphome.components.font import Font
-from esphome.components import sensor, color
+from esphome.components import sensor, color, display
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
     CONF_COLOR,
     CONF_DIRECTION,
     CONF_DURATION,
+    CONF_GRAPH_ID,
     CONF_ID,
     CONF_LEGEND,
     CONF_NAME,
@@ -214,3 +215,15 @@ async def to_code(config):
         cg.add(var.add_legend(legend))
 
     cg.add_define("USE_GRAPH")
+
+
+@display.register_widget(
+    "graph",
+    display.display_ns.class_("GraphWidget", display.Widget),
+    {
+        cv.Required(CONF_GRAPH_ID): cv.use_id(Graph_),
+    },
+)
+async def graph_widget(var, config):
+    g = await cg.get_variable(config[CONF_GRAPH_ID])
+    cg.add(var.set_graph(g))

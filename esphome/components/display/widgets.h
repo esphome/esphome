@@ -9,6 +9,10 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
+#ifdef USE_GRAPH
+#include "esphome/components/graph/graph.h"
+#endif
+
 namespace esphome {
 namespace display {
 
@@ -156,6 +160,17 @@ template<typename... Ts>  class Text : public Widget {
   protected:
     Image* image_ = NULL;
   };
+
+#ifdef USE_GRAPH
+  class GraphWidget : public display::Widget {
+  public:
+    void set_graph(graph::Graph *graph) { graph_ = graph; }
+    virtual void invalidate_layout();
+    virtual void draw(display::DisplayBuffer* it, int x1, int y1, int width, int height);
+  protected:
+    graph::Graph *graph_;
+  };
+#endif
 
 }  // namespace display
 }  // namespace esphome
