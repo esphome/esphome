@@ -184,17 +184,23 @@ class Component {
 
   /** Set an retry function with a unique name. Empty name means no cancelling possible.
    *
-   * This will call the retry function f after initial_wait_time. f should return RetryResult::DONE if
+   * This will call the retry function f on the next scheduler loop. f should return RetryResult::DONE if
    * it is successful and no repeat is required. Otherwise, returning RetryResult::RETRY will call f
-   * again in the future. The initial wait time will be multiplied by backoff_increase_factor between
-   * each iteration. If no backoff_increase_factor is supplied (default = 1.0), the wait time will stay
-   * the same. This retry function can also be cancelled by name via cancel_retry().
+   * again in the future.
+   *
+   * The first retry of f happens after `initial_wait_time` milliseconds. The delay between retries is
+   * increased by multipling by `backoff_increase_factor` each time. If no backoff_increase_factor is
+   * supplied (default = 1.0), the wait time will stay constant.
+   *
+   * This retry function can also be cancelled by name via cancel_retry().
    *
    * IMPORTANT: Do not rely on this having correct timing. This is only called from
    * loop() and therefore can be significantly delayed.
    *
+   * REMARK: It is an error to supply a negative or zero `backoff_increase_factor`, and 1.0 will be used instead.
+   *
    * @param name The identifier for this retry function.
-   * @param initial_wait_time The time in ms before f is called
+   * @param initial_wait_time The time in ms before f is called again
    * @param max_attempts The maximum number of retries
    * @param f The function (or lambda) that should be called
    * @param backoff_increase_factor time between retries is multiplied by this factor on every retry

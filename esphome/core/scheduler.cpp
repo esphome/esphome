@@ -102,10 +102,17 @@ void HOT Scheduler::set_retry(Component *component, const std::string &name, uin
   ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%u, max_attempts=%u, backoff_factor=%0.1f)", name.c_str(),
             initial_wait_time, max_attempts, backoff_increase_factor);
 
+  if (backoff_increase_factor < 0.0001) {
+    ESP_LOGE(TAG, "set_retry(name='%s'): backoff_factor cannot be close to zero nor negative (%0.1f). Using 1.0 instead", name.c_str(), backoff_increase_factor);
+    backoff_increase_factor = 1;
+  }
+
   auto args = std::make_shared<RetryArgs>();
   args->func = std::move(func);
   args->retry_countdown = max_attempts;
-  args->current_interval = initial_wait_time;
+  // first execution happens on next loop, adjust `interval` so that 2nd execution happens
+  // after initial_wait_time (give or take some integer truncation)
+  args->current_interval = initial_wait_time / backoff_increase_factor;
   args->component = component;
   args->name = "retry$" + name;
   args->backoff_increase_factor = backoff_increase_factor;
