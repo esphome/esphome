@@ -199,11 +199,14 @@ class Component {
    *
    * REMARK: It is an error to supply a negative or zero `backoff_increase_factor`, and 1.0 will be used instead.
    *
+   * REMARK: The interval between retries is stored into a `uint32_t`, so this doesn't behave correctly
+   * if `initial_wait_time * (backoff_increase_factor ** (max_attempts - 2))` overflows.
+   *
    * @param name The identifier for this retry function.
    * @param initial_wait_time The time in ms before f is called again
-   * @param max_attempts The maximum number of retries
+   * @param max_attempts The maximum number of executions
    * @param f The function (or lambda) that should be called
-   * @param backoff_increase_factor time between retries is multiplied by this factor on every retry
+   * @param backoff_increase_factor time between retries is multiplied by this factor on every retry after the first
    * @see cancel_retry()
    */
   void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,  // NOLINT
