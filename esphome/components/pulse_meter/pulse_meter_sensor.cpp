@@ -14,7 +14,6 @@ void PulseMeterSensor::setup() {
 
   this->pulse_width_us_ = 0;
   this->last_detected_edge_us_ = 0;
-  this->last_valid_low_edge_us_ = 0;
   this->last_valid_high_edge_us_ = 0;
   this->sensor_is_high_ = this->isr_pin_.digital_read();
   this->has_valid_high_edge_ = false;
@@ -28,17 +27,14 @@ void PulseMeterSensor::loop() {
   const uint32_t time_since_valid_edge_us =
       now - this->last_valid_high_edge_us_;
   if ((this->has_valid_high_edge_) &&
-      (time_since_valid_edge_us > this->timeout_us_) &&
-      (this->pulse_width_us_ != 0)) {
-    
+      (time_since_valid_edge_us > this->timeout_us_)) {
+
     ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min",
              time_since_valid_edge_us / 1000000);
     this->pulse_width_us_ = 0;
     this->last_detected_edge_us_ = 0;
-    this->last_valid_low_edge_us_ = 0;
     this->last_valid_high_edge_us_ = 0;
     this->has_valid_high_edge_ = false;
-
   }
 
   // We quantize our pulse widths to 1 ms to avoid unnecessary jitter
@@ -131,7 +127,6 @@ void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
       // Only consider LOW pulses and "new" edges if sensor state is HIGH
       else if (sensor->sensor_is_high_ && !sensor->isr_pin_.digital_read()) {
         sensor->sensor_is_high_ = false;
-        sensor->last_valid_low_edge_us_ = sensor->last_detected_edge_us_;
       }
     }
   }

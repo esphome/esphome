@@ -1,15 +1,15 @@
 #pragma once
 
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/components/sensor/sensor.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace pulse_meter {
 
 class PulseMeterSensor : public sensor::Sensor, public Component {
- public:
+public:
   enum InternalFilterMode {
     FILTER_EDGE = 0,
     FILTER_PULSE,
@@ -19,7 +19,9 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   void set_filter_us(uint32_t filter) { this->filter_us_ = filter; }
   void set_filter_mode(InternalFilterMode mode) { this->filter_mode_ = mode; }
   void set_timeout_us(uint32_t timeout) { this->timeout_us_ = timeout; }
-  void set_total_sensor(sensor::Sensor *sensor) { this->total_sensor_ = sensor; }
+  void set_total_sensor(sensor::Sensor *sensor) {
+    this->total_sensor_ = sensor;
+  }
 
   void set_total_pulses(uint32_t pulses);
 
@@ -28,7 +30,7 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   float get_setup_priority() const override { return setup_priority::DATA; }
   void dump_config() override;
 
- protected:
+protected:
   static void gpio_intr(PulseMeterSensor *sensor);
 
   InternalGPIOPin *pin_ = nullptr;
@@ -42,7 +44,6 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   Deduplicator<uint32_t> total_dedupe_;
 
   volatile uint32_t last_detected_edge_us_ = 0;
-  volatile uint32_t last_valid_low_edge_us_ = 0;
   volatile uint32_t last_valid_high_edge_us_ = 0;
   volatile uint32_t pulse_width_us_ = 0;
   volatile uint32_t total_pulses_ = 0;
@@ -50,5 +51,5 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   volatile bool has_valid_high_edge_ = false;
 };
 
-}  // namespace pulse_meter
-}  // namespace esphome
+} // namespace pulse_meter
+} // namespace esphome
