@@ -7,7 +7,6 @@
 #include "esphome/components/socket/socket.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
-#include "util.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
 #include "user_services.h"
