@@ -20,17 +20,20 @@ void PulseMeterSensor::setup() {
 }
 
 void PulseMeterSensor::loop() {
+  // Get a local copy of the volatile sensor values, to make sure they are not
+  // by the ISR. This could cause overflow in the following arithmetic
+  const uint32_t last_valid_high_edge_us = this->last_valid_high_edge_us_;
+  const bool has_valid_high_edge = this->has_valid_high_edge_;
   const uint32_t now = micros();
 
   // If we've exceeded our timeout interval without receiving any pulses, assume
   // 0 pulses/min until we get at least two valid pulses.
-  const uint32_t time_since_valid_edge_us =
-      now - this->last_valid_high_edge_us_;
-  if ((this->has_valid_high_edge_) &&
-      (time_since_valid_edge_us > this->timeout_us_)) {
+  const uint32_t time_since_valid_edge_us = now - last_valid_high_edge_us;
+  if ((has_valid_high_edge) && (time_since_valid_edge_us > this->timeout_us_)) {
 
     ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min",
              time_since_valid_edge_us / 1000000);
+
     this->pulse_width_us_ = 0;
     this->last_detected_edge_us_ = 0;
     this->last_valid_high_edge_us_ = 0;
