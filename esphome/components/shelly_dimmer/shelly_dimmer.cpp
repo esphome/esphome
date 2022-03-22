@@ -36,7 +36,7 @@ constexpr float POWER_SCALING_FACTOR = 880373;
 constexpr float VOLTAGE_SCALING_FACTOR = 347800;
 constexpr float CURRENT_SCALING_FACTOR = 1448;
 
-} // Anonymous namespace
+}  // Anonymous namespace
 
 namespace esphome {
 namespace shelly_dimmer {
