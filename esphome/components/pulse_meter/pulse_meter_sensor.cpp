@@ -67,6 +67,12 @@ void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
 
   // Get the current time before we do anything else so the measurements are consistent
   const uint32_t now = micros();
+  static uint32_t last_now = 0;
+
+  if (now < last_now) {
+    ESP_LOGD(TAG, "\nmicros() overflow\n");
+  }
+  last_now = now;
 
   // We only look at rising edges in EDGE mode, and all edges in PULSE mode
   if (sensor->filter_mode_ == FILTER_EDGE) {
@@ -91,8 +97,7 @@ void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
     // Make sure the signal has been stable long enough
     if ((now - sensor->last_detected_edge_us_) >= sensor->filter_us_) {
       // Only consider HIGH pulses and "new" edges if sensor state is LOW
-      if (!sensor->sensor_is_high_ && sensor->isr_pin_.digital_read() &&
-          (sensor->last_detected_edge_us_ != sensor->last_valid_high_edge_us_)) {
+      if (!sensor->sensor_is_high_ && sensor->isr_pin_.digital_read()) {
         // Don't measure the first valid pulse (we need at least two pulses to measure the width)
         if (sensor->last_valid_high_edge_us_ != 0) {
           sensor->pulse_width_us_ = (sensor->last_detected_edge_us_ - sensor->last_valid_high_edge_us_);
@@ -102,8 +107,7 @@ void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
         sensor->last_valid_high_edge_us_ = sensor->last_detected_edge_us_;
       }
       // Only consider LOW pulses and "new" edges if sensor state is HIGH
-      else if (sensor->sensor_is_high_ && !sensor->isr_pin_.digital_read() &&
-               (sensor->last_detected_edge_us_ != sensor->last_valid_low_edge_us_)) {
+      else if (sensor->sensor_is_high_ && !sensor->isr_pin_.digital_read()) {
         sensor->sensor_is_high_ = false;
         sensor->last_valid_low_edge_us_ = sensor->last_detected_edge_us_;
       }
