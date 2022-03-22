@@ -26,7 +26,7 @@ LCD_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
                 {
                     cv.Required(CONF_POSITION): cv.int_range(min=0, max=7),
                     cv.Required(CONF_DATA): cv.All(
-                        cv.ensure_list(cv.uint8_t),
+                        cv.ensure_list(cv.int_range(min=0, max=31)),
                         cv.Length(min=8, max=8),
                     ),
                 }
