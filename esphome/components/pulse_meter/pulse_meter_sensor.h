@@ -9,7 +9,7 @@ namespace esphome {
 namespace pulse_meter {
 
 class PulseMeterSensor : public sensor::Sensor, public Component {
-public:
+ public:
   enum InternalFilterMode {
     FILTER_EDGE = 0,
     FILTER_PULSE,
@@ -19,9 +19,7 @@ public:
   void set_filter_us(uint32_t filter) { this->filter_us_ = filter; }
   void set_filter_mode(InternalFilterMode mode) { this->filter_mode_ = mode; }
   void set_timeout_us(uint32_t timeout) { this->timeout_us_ = timeout; }
-  void set_total_sensor(sensor::Sensor *sensor) {
-    this->total_sensor_ = sensor;
-  }
+  void set_total_sensor(sensor::Sensor *sensor) { this->total_sensor_ = sensor; }
 
   void set_total_pulses(uint32_t pulses);
 
@@ -30,7 +28,7 @@ public:
   float get_setup_priority() const override { return setup_priority::DATA; }
   void dump_config() override;
 
-protected:
+ protected:
   static void gpio_intr(PulseMeterSensor *sensor);
 
   InternalGPIOPin *pin_ = nullptr;
@@ -51,5 +49,5 @@ protected:
   volatile bool has_valid_high_edge_ = false;
 };
 
-} // namespace pulse_meter
-} // namespace esphome
+}  // namespace pulse_meter
+}  // namespace esphome
