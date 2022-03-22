@@ -1,7 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import display
-from esphome.const import CONF_DIMENSIONS
+from esphome.const import CONF_DIMENSIONS, CONF_POSITION, CONF_DATA
+
+CONF_USER_CHARACTERS = "user_characters"
 
 lcd_base_ns = cg.esphome_ns.namespace("lcd_base")
 LCDDisplay = lcd_base_ns.class_("LCDDisplay", cg.PollingComponent)
@@ -19,6 +21,17 @@ def validate_lcd_dimensions(value):
 LCD_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
     {
         cv.Required(CONF_DIMENSIONS): validate_lcd_dimensions,
+        cv.Optional(CONF_USER_CHARACTERS): cv.ensure_list(
+            cv.Schema(
+                {
+                    cv.Required(CONF_POSITION): cv.int_range(min=0, max=7),
+                    cv.Required(CONF_DATA): cv.All(
+                        cv.ensure_list(cv.uint8_t),
+                        cv.Length(min=8, max=8),
+                    ),
+                }
+            ),
+        ),
     }
 ).extend(cv.polling_component_schema("1s"))
 
@@ -27,3 +40,6 @@ async def setup_lcd_display(var, config):
     await cg.register_component(var, config)
     await display.register_display(var, config)
     cg.add(var.set_dimensions(config[CONF_DIMENSIONS][0], config[CONF_DIMENSIONS][1]))
+    if CONF_USER_CHARACTERS in config:
+        for usr in config[CONF_USER_CHARACTERS]:
+            cg.add(var.set_user_defined_char(usr[CONF_POSITION], usr[CONF_DATA]))

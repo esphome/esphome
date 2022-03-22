@@ -65,6 +65,13 @@ void LCDDisplay::setup() {
     this->command_(LCD_DISPLAY_COMMAND_FUNCTION_SET | display_function);
   }
 
+  // store user defined characters
+  for (auto usr = this->user_defined_chars_.begin(); usr != this->user_defined_chars_.end(); ++usr) {
+    this->command_(LCD_DISPLAY_COMMAND_SET_CGRAM_ADDR | (usr->first << 3));
+    for (auto data = usr->second.begin(); data != usr->second.end(); ++data)
+      this->send(*data, true);
+  }
+
   this->command_(LCD_DISPLAY_COMMAND_FUNCTION_SET | display_function);
   uint8_t display_control = LCD_DISPLAY_DISPLAY_ON;
   this->command_(LCD_DISPLAY_COMMAND_DISPLAY_CONTROL | display_control);

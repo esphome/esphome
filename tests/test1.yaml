@@ -2218,6 +2218,9 @@ display:
   - platform: lcd_pcf8574
     dimensions: 18x4
     address: 0x3F
+    user_characters:
+      - position: 0
+        data: [ 0x00, 0x0a, 0x00, 0x04, 0x04, 0x11, 0x0e, 0x00 ]
     lambda: |-
       it.print("Hello World!");
     i2c_id: i2c_bus
