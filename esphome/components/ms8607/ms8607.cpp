@@ -141,7 +141,28 @@ void MS8607Component::dump_config() {
   // saved value for the address.
   ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->humidity_sensor_address_);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MS8607 failed! Reason: %u", static_cast<uint8_t>(this->error_code_));
+    ESP_LOGE(TAG, "Communication with MS8607 failed.");
+    switch (this->error_code_) {
+      case ErrorCode::PT_RESET_FAILED:
+        ESP_LOGE(TAG, "Temperature/Pressure RESET failed");
+        break;
+      case ErrorCode::H_RESET_FAILED:
+        ESP_LOGE(TAG, "Humidity RESET failed");
+        break;
+      case ErrorCode::PTH_RESET_FAILED:
+        ESP_LOGE(TAG, "Temperature/Pressure && Humidity RESET failed");
+        break;
+      case ErrorCode::PROM_READ_FAILED:
+        ESP_LOGE(TAG, "Reading PROM failed");
+        break;
+      case ErrorCode::PROM_CRC_FAILED:
+        ESP_LOGE(TAG, "PROM values failed CRC");
+        break;
+      case ErrorCode::NONE:
+      default:
+        ESP_LOGE(TAG, "Error reason unknown %u", static_cast<uint8_t>(this->error_code_));
+        break;
+    }
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
