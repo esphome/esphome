@@ -118,7 +118,7 @@ bool ShellyDimmer::upgrade_firmware_() {
   this->reset_dfu_boot_();
 
   // Could be constexpr in c++17
-  const auto close = [](auto* stm32) {
+  const auto close = [](stm32_t* stm32) {
       stm32_close(stm32);
   };
 
