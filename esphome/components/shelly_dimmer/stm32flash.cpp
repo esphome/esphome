@@ -431,7 +431,7 @@ stm32_err_t stm32_pages_erase(const stm32_t *stm, const uint32_t spage, const ui
   return STM32_ERR_OK;
 }
 
-template<typename T> constexpr stm32_err_t stm32_check_ack_timeout(const stm32_err_t s_err, const T &&log) {
+template<typename T> stm32_err_t stm32_check_ack_timeout(const stm32_err_t s_err, const T &&log) {
   switch (s_err) {
     case STM32_ERR_OK:
       return STM32_ERR_OK;
@@ -443,13 +443,6 @@ template<typename T> constexpr stm32_err_t stm32_check_ack_timeout(const stm32_e
       return STM32_ERR_UNKNOWN;
   }
 }
-
-#if __cplusplus >= 201703L
-static_assert(stm32_check_ack_timeout(STM32_ERR_OK, [] {}) == STM32_ERR_OK, "Invalid return value");
-static_assert(stm32_check_ack_timeout(STM32_ERR_NACK, [] {}) == STM32_ERR_UNKNOWN, "Invalid return value");
-static_assert(stm32_check_ack_timeout(STM32_ERR_NO_CMD, [] {}) == STM32_ERR_UNKNOWN, "Invalid return value");
-static_assert(stm32_check_ack_timeout(STM32_ERR_UNKNOWN, [] {}) == STM32_ERR_UNKNOWN, "Invalid return value");
-#endif
 
 /* detect CPU endian */
 bool cpu_le() {
