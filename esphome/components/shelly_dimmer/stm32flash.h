@@ -107,8 +107,8 @@ struct VarlenCmd {
 
 stm32_t *stm32_init(uart::UARTDevice *stream, uint8_t flags, char init);
 void stm32_close(stm32_t *stm);
-stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address, uint8_t data[], unsigned int len);
-stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8_t data[], unsigned int len);
+stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address, uint8_t *data, unsigned int len);
+stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8_t *data, unsigned int len);
 stm32_err_t stm32_wunprot_memory(const stm32_t *stm);
 stm32_err_t stm32_wprot_memory(const stm32_t *stm);
 stm32_err_t stm32_erase_memory(const stm32_t *stm, uint32_t spage, uint32_t pages);

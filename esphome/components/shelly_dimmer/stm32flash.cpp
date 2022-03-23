@@ -169,7 +169,7 @@ stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
 
 stm32_err_t stm32_get_ack(const stm32_t *stm) { return stm32_get_ack_timeout(stm, 0); }
 
-stm32_err_t stm32_send_command_timeout(const stm32_t *stm, const uint8_t cmd, uint32_t timeout) {
+stm32_err_t stm32_send_command_timeout(const stm32_t *stm, const uint8_t cmd, const uint32_t timeout) {
   auto *const stream = stm->stream;
   stm32_err_t s_err;
 
@@ -201,11 +201,8 @@ stm32_err_t stm32_send_command(const stm32_t *stm, const uint8_t cmd) {
 /* if we have lost sync, send a wrong command and expect a NACK */
 stm32_err_t stm32_resync(const stm32_t *stm) {
   auto *const stream = stm->stream;
-  uint8_t ack;
-  uint32_t t0, t1;
-
-  t0 = millis();
-  t1 = t0;
+  uint32_t t0 = millis();
+  auto t1 = t0;
 
   static constexpr auto BUFFER_SIZE = 2;
   const uint8_t buf[] = {
@@ -214,6 +211,7 @@ stm32_err_t stm32_resync(const stm32_t *stm) {
   };
   static_assert(sizeof(buf) == BUFFER_SIZE, "Buf expected to be 2 bytes");
 
+  uint8_t ack;
   while (t1 < t0 + STM32_RESYNC_TIMEOUT) {
     stream->write_array(buf, BUFFER_SIZE);
     stream->flush();
@@ -240,7 +238,7 @@ stm32_err_t stm32_resync(const stm32_t *stm) {
  *
  * len is value of the first byte in the frame.
  */
-stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, uint8_t cmd, uint8_t *data, unsigned int len) {
+stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, const uint8_t cmd, uint8_t *const data, unsigned int len) {
   auto *const stream = stm->stream;
   bool ret;
 
@@ -358,7 +356,7 @@ stm32_err_t stm32_mass_erase(const stm32_t *stm) {
   return STM32_ERR_OK;
 }
 
-stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_t pages) {
+stm32_err_t stm32_pages_erase(const stm32_t *stm, const uint32_t spage, const uint32_t pages) {
   auto *const stream = stm->stream;
   uint8_t cs = 0;
   uint8_t *buf;
@@ -433,7 +431,7 @@ stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_t pages
   return STM32_ERR_OK;
 }
 
-template<typename T> constexpr auto stm32_check_ack_timeout(const stm32_err_t s_err, T &&log) {
+template<typename T> constexpr auto stm32_check_ack_timeout(const stm32_err_t s_err, const T &&log) {
   switch (s_err) {
     case STM32_ERR_OK:
       return STM32_ERR_OK;
@@ -453,6 +451,20 @@ static_assert(stm32_check_ack_timeout(STM32_ERR_NO_CMD, [] {}) == STM32_ERR_UNKN
 static_assert(stm32_check_ack_timeout(STM32_ERR_UNKNOWN, [] {}) == STM32_ERR_UNKNOWN, "Invalid return value");
 #endif
 
+/* detect CPU endian */
+bool cpu_le() {
+  static constexpr int n = 1;
+
+  // returns true if little endian
+  return *reinterpret_cast<const char *>(&n) == 1;
+}
+
+uint32_t le_u32(const uint32_t v) {
+  if (!cpu_le())
+    return ((v & 0xFF000000) >> 24) | ((v & 0x00FF0000) >> 8) | ((v & 0x0000FF00) << 8) | ((v & 0x000000FF) << 24);
+  return v;
+}
+
 }  // Anonymous namespace
 
 }  // namespace shelly_dimmer
@@ -464,7 +476,7 @@ namespace shelly_dimmer {
 /* find newer command by higher code */
 #define newer(prev, a) (((prev) == STM32_CMD_ERR) ? (a) : (((prev) > (a)) ? (prev) : (a)))
 
-stm32_t *stm32_init(uart::UARTDevice *stream, uint8_t flags, char init) {
+stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char init) {
   uint8_t buf[257];
 
   auto *stm = (stm32_t *) calloc(sizeof(stm32_t), 1);      // NOLINT
@@ -626,7 +638,7 @@ void stm32_close(stm32_t *stm) {
   free(stm);         // NOLINT
 }
 
-stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address, uint8_t data[], unsigned int len) {
+stm32_err_t stm32_read_memory(const stm32_t *stm, const uint32_t address, uint8_t *data, const unsigned int len) {
   auto *const stream = stm->stream;
 
   if (!len)
@@ -669,11 +681,8 @@ stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address, uint8_t data
   return STM32_ERR_OK;
 }
 
-stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8_t data[], unsigned int len) {
+stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8_t *data, const unsigned int len) {
   auto *const stream = stm->stream;
-  uint8_t cs, buf[256 + 2];
-  unsigned int i, aligned_len;
-  stm32_err_t s_err;
 
   if (!len)
     return STM32_ERR_OK;
@@ -698,25 +707,31 @@ stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8
   if (stm32_send_command(stm, stm->cmd->wm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  buf[0] = address >> 24;
-  buf[1] = (address >> 16) & 0xFF;
-  buf[2] = (address >> 8) & 0xFF;
-  buf[3] = address & 0xFF;
-  buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
-  stream->write_array(buf, 5);
+  static constexpr auto BUFFER_SIZE = 5;
+  const uint8_t buf1[] = {
+      static_cast<uint8_t>(address >> 24),
+      static_cast<uint8_t>((address >> 16) & 0xFF),
+      static_cast<uint8_t>((address >> 8) & 0xFF),
+      static_cast<uint8_t>(address & 0xFF),
+      static_cast<uint8_t>(buf1[0] ^ buf1[1] ^ buf1[2] ^ buf1[3]),
+  };
+  static_assert(sizeof(buf1) == BUFFER_SIZE, "Invalid buffer");
+  stream->write_array(buf1, 5);
   stream->flush();
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  aligned_len = (len + 3) & ~3;
-  cs = aligned_len - 1;
+  const unsigned int aligned_len = (len + 3) & ~3;
+  uint8_t cs = aligned_len - 1;
+  uint8_t buf[256 + 2];
+
   buf[0] = aligned_len - 1;
-  for (i = 0; i < len; i++) {
+  for (auto i = 0; i < len; i++) {
     cs ^= data[i];
     buf[i + 1] = data[i];
   }
   /* padding data */
-  for (i = len; i < aligned_len; i++) {
+  for (auto i = len; i < aligned_len; i++) {
     cs ^= 0xFF;
     buf[i + 1] = 0xFF;
   }
@@ -724,7 +739,7 @@ stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8
   stream->write_array(buf, aligned_len + 2);
   stream->flush();
 
-  s_err = stm32_get_ack_timeout(stm, STM32_BLKWRITE_TIMEOUT);
+  const auto s_err = stm32_get_ack_timeout(stm, STM32_BLKWRITE_TIMEOUT);
   if (s_err != STM32_ERR_OK) {
     return STM32_ERR_UNKNOWN;
   }
@@ -825,18 +840,6 @@ stm32_err_t stm32_erase_memory(const stm32_t *stm, uint32_t spage, uint32_t page
   return STM32_ERR_OK;
 }
 
-/* detect CPU endian */
-char cpu_le() {
-  const uint32_t cpu_le_test = 0x12345678;
-  return ((const unsigned char *) &cpu_le_test)[0] == 0x78;
-}
-
-uint32_t le_u32(const uint32_t v) {
-  if (!cpu_le())
-    return ((v & 0xFF000000) >> 24) | ((v & 0x00FF0000) >> 8) | ((v & 0x0000FF00) << 8) | ((v & 0x000000FF) << 24);
-  return v;
-}
-
 static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_address, const uint8_t *code,
                                       uint32_t code_size) {
   static constexpr uint32_t BUFFER_SIZE = 256;
@@ -878,7 +881,7 @@ static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_addres
   return stm32_go(stm, target_address);
 }
 
-stm32_err_t stm32_go(const stm32_t *stm, uint32_t address) {
+stm32_err_t stm32_go(const stm32_t *stm, const uint32_t address) {
   auto *const stream = stm->stream;
 
   if (stm->cmd->go == STM32_CMD_ERR) {
@@ -917,7 +920,7 @@ stm32_err_t stm32_reset_device(const stm32_t *stm) {
   }
 }
 
-stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t length, uint32_t *crc) {
+stm32_err_t stm32_crc_memory(const stm32_t *stm, const uint32_t address, const uint32_t length, uint32_t *const crc) {
   static constexpr auto BUFFER_SIZE = 5;
   auto *const stream = stm->stream;
 
@@ -1053,5 +1056,6 @@ stm32_err_t stm32_crc_wrapper(const stm32_t *stm, uint32_t address, uint32_t len
   *crc = current_crc;
   return STM32_ERR_OK;
 }
+
 }  // namespace shelly_dimmer
 }  // namespace esphome
