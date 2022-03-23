@@ -27,45 +27,89 @@
 #include "dev_table.h"
 #include "esphome/core/log.h"
 
+
+namespace {
+
+constexpr uint8_t STM32_ACK = 0x79;
+constexpr uint8_t STM32_NACK = 0x1F;
+constexpr uint8_t STM32_BUSY = 0x76;
+
+constexpr uint8_t STM32_CMD_INIT = 0x7F;
+constexpr uint8_t STM32_CMD_GET = 0x00;   /* get the version and command supported */
+constexpr uint8_t STM32_CMD_GVR = 0x01;   /* get version and read protection status */
+constexpr uint8_t STM32_CMD_GID = 0x02;   /* get ID */
+constexpr uint8_t STM32_CMD_RM = 0x11;    /* read memory */
+constexpr uint8_t STM32_CMD_GO = 0x21;    /* go */
+constexpr uint8_t STM32_CMD_WM = 0x31;    /* write memory */
+constexpr uint8_t STM32_CMD_WM_NS = 0x32; /* no-stretch write memory */
+constexpr uint8_t STM32_CMD_ER = 0x43;    /* erase */
+constexpr uint8_t STM32_CMD_EE = 0x44;    /* extended erase */
+constexpr uint8_t STM32_CMD_EE_NS = 0x45; /* extended erase no-stretch */
+constexpr uint8_t STM32_CMD_WP = 0x63;    /* write protect */
+constexpr uint8_t STM32_CMD_WP_NS = 0x64; /* write protect no-stretch */
+constexpr uint8_t STM32_CMD_UW = 0x73;    /* write unprotect */
+constexpr uint8_t STM32_CMD_UW_NS = 0x74; /* write unprotect no-stretch */
+constexpr uint8_t STM32_CMD_RP = 0x82;    /* readout protect */
+constexpr uint8_t STM32_CMD_RP_NS = 0x83; /* readout protect no-stretch */
+constexpr uint8_t STM32_CMD_UR = 0x92;    /* readout unprotect */
+constexpr uint8_t STM32_CMD_UR_NS = 0x93; /* readout unprotect no-stretch */
+constexpr uint8_t STM32_CMD_CRC = 0xA1;   /* compute CRC */
+constexpr uint8_t STM32_CMD_ERR = 0xFF;   /* not a valid command */
+
+constexpr uint32_t STM32_RESYNC_TIMEOUT = 35 * 1000;    /* milliseconds */
+constexpr uint32_t STM32_MASSERASE_TIMEOUT = 35 * 1000; /* milliseconds */
+constexpr uint32_t STM32_PAGEERASE_TIMEOUT = 5 * 1000;  /* milliseconds */
+constexpr uint32_t STM32_BLKWRITE_TIMEOUT = 1 * 1000;   /* milliseconds */
+constexpr uint32_t STM32_WUNPROT_TIMEOUT = 1 * 1000;    /* milliseconds */
+constexpr uint32_t STM32_WPROT_TIMEOUT = 1 * 1000;      /* milliseconds */
+constexpr uint32_t STM32_RPROT_TIMEOUT = 1 * 1000;      /* milliseconds */
+constexpr uint32_t DEFAULT_TIMEOUT = 5 * 1000;          /* milliseconds */
+
+constexpr uint8_t STM32_CMD_GET_LENGTH = 17; /* bytes in the reply */
+
+/* Reset code for ARMv7-M (Cortex-M3) and ARMv6-M (Cortex-M0)
+ * see ARMv7-M or ARMv6-M Architecture Reference Manual (table B3-8)
+ * or "The definitive guide to the ARM Cortex-M3", section 14.4.
+ */
+constexpr uint8_t STM_RESET_CODE[] = {
+    0x01, 0x49,              // ldr     r1, [pc, #4] ; (<AIRCR_OFFSET>)
+    0x02, 0x4A,              // ldr     r2, [pc, #8] ; (<AIRCR_RESET_VALUE>)
+    0x0A, 0x60,              // str     r2, [r1, #0]
+    0xfe, 0xe7,              // endless: b endless
+    0x0c, 0xed, 0x00, 0xe0,  // .word 0xe000ed0c <AIRCR_OFFSET> = NVIC AIRCR register address
+    0x04, 0x00, 0xfa, 0x05   // .word 0x05fa0004 <AIRCR_RESET_VALUE> = VECTKEY | SYSRESETREQ
+};
+
+constexpr uint32_t STM_RESET_CODE_LENGTH = sizeof(STM_RESET_CODE);
+
+/* RM0360, Empty check
+ * On STM32F070x6 and STM32F030xC devices only, internal empty check flag is
+ * implemented to allow easy programming of the virgin devices by the boot loader. This flag is
+ * used when BOOT0 pin is defining Main Flash memory as the target boot space. When the
+ * flag is set, the device is considered as empty and System memory (boot loader) is selected
+ * instead of the Main Flash as a boot space to allow user to program the Flash memory.
+ * This flag is updated only during Option bytes loading: it is set when the content of the
+ * address 0x08000 0000 is read as 0xFFFF FFFF, otherwise it is cleared. It means a power
+ * on or setting of OBL_LAUNCH bit in FLASH_CR register is needed to clear this flag after
+ * programming of a virgin device to execute user code after System reset.
+ */
+constexpr uint8_t STM_OBL_LAUNCH_CODE[] = {
+    0x01, 0x49,              // ldr     r1, [pc, #4] ; (<FLASH_CR>)
+    0x02, 0x4A,              // ldr     r2, [pc, #8] ; (<OBL_LAUNCH>)
+    0x0A, 0x60,              // str     r2, [r1, #0]
+    0xfe, 0xe7,              // endless: b endless
+    0x10, 0x20, 0x02, 0x40,  // address: FLASH_CR = 40022010
+    0x00, 0x20, 0x00, 0x00   // value: OBL_LAUNCH = 00002000
+};
+
+constexpr uint32_t STM_OBL_LAUNCH_CODE_LENGTH = sizeof(STM_OBL_LAUNCH_CODE);
+
+constexpr char TAG[] = "stm32flash";
+
+}  // Anonymous namespace
+
 namespace esphome {
 namespace shelly_dimmer {
-
-static const uint8_t STM32_ACK = 0x79;
-static const uint8_t STM32_NACK = 0x1F;
-static const uint8_t STM32_BUSY = 0x76;
-
-static const uint8_t STM32_CMD_INIT = 0x7F;
-static const uint8_t STM32_CMD_GET = 0x00;   /* get the version and command supported */
-static const uint8_t STM32_CMD_GVR = 0x01;   /* get version and read protection status */
-static const uint8_t STM32_CMD_GID = 0x02;   /* get ID */
-static const uint8_t STM32_CMD_RM = 0x11;    /* read memory */
-static const uint8_t STM32_CMD_GO = 0x21;    /* go */
-static const uint8_t STM32_CMD_WM = 0x31;    /* write memory */
-static const uint8_t STM32_CMD_WM_NS = 0x32; /* no-stretch write memory */
-static const uint8_t STM32_CMD_ER = 0x43;    /* erase */
-static const uint8_t STM32_CMD_EE = 0x44;    /* extended erase */
-static const uint8_t STM32_CMD_EE_NS = 0x45; /* extended erase no-stretch */
-static const uint8_t STM32_CMD_WP = 0x63;    /* write protect */
-static const uint8_t STM32_CMD_WP_NS = 0x64; /* write protect no-stretch */
-static const uint8_t STM32_CMD_UW = 0x73;    /* write unprotect */
-static const uint8_t STM32_CMD_UW_NS = 0x74; /* write unprotect no-stretch */
-static const uint8_t STM32_CMD_RP = 0x82;    /* readout protect */
-static const uint8_t STM32_CMD_RP_NS = 0x83; /* readout protect no-stretch */
-static const uint8_t STM32_CMD_UR = 0x92;    /* readout unprotect */
-static const uint8_t STM32_CMD_UR_NS = 0x93; /* readout unprotect no-stretch */
-static const uint8_t STM32_CMD_CRC = 0xA1;   /* compute CRC */
-static const uint8_t STM32_CMD_ERR = 0xFF;   /* not a valid command */
-
-static const uint32_t STM32_RESYNC_TIMEOUT = 35 * 1000;    /* milliseconds */
-static const uint32_t STM32_MASSERASE_TIMEOUT = 35 * 1000; /* milliseconds */
-static const uint32_t STM32_PAGEERASE_TIMEOUT = 5 * 1000;  /* milliseconds */
-static const uint32_t STM32_BLKWRITE_TIMEOUT = 1 * 1000;   /* milliseconds */
-static const uint32_t STM32_WUNPROT_TIMEOUT = 1 * 1000;    /* milliseconds */
-static const uint32_t STM32_WPROT_TIMEOUT = 1 * 1000;      /* milliseconds */
-static const uint32_t STM32_RPROT_TIMEOUT = 1 * 1000;      /* milliseconds */
-static const uint32_t DEFAULT_TIMEOUT = 5 * 1000;          /* milliseconds */
-
-static const uint8_t STM32_CMD_GET_LENGTH = 17; /* bytes in the reply */
 
 struct stm32_cmd {
   uint8_t get;
@@ -81,45 +125,6 @@ struct stm32_cmd {
   uint8_t ur;
   uint8_t crc;
 };
-
-/* Reset code for ARMv7-M (Cortex-M3) and ARMv6-M (Cortex-M0)
- * see ARMv7-M or ARMv6-M Architecture Reference Manual (table B3-8)
- * or "The definitive guide to the ARM Cortex-M3", section 14.4.
- */
-static const uint8_t STM_RESET_CODE[] = {
-    0x01, 0x49,              // ldr     r1, [pc, #4] ; (<AIRCR_OFFSET>)
-    0x02, 0x4A,              // ldr     r2, [pc, #8] ; (<AIRCR_RESET_VALUE>)
-    0x0A, 0x60,              // str     r2, [r1, #0]
-    0xfe, 0xe7,              // endless: b endless
-    0x0c, 0xed, 0x00, 0xe0,  // .word 0xe000ed0c <AIRCR_OFFSET> = NVIC AIRCR register address
-    0x04, 0x00, 0xfa, 0x05   // .word 0x05fa0004 <AIRCR_RESET_VALUE> = VECTKEY | SYSRESETREQ
-};
-
-static const uint32_t STM_RESET_CODE_LENGTH = sizeof(STM_RESET_CODE);
-
-/* RM0360, Empty check
- * On STM32F070x6 and STM32F030xC devices only, internal empty check flag is
- * implemented to allow easy programming of the virgin devices by the boot loader. This flag is
- * used when BOOT0 pin is defining Main Flash memory as the target boot space. When the
- * flag is set, the device is considered as empty and System memory (boot loader) is selected
- * instead of the Main Flash as a boot space to allow user to program the Flash memory.
- * This flag is updated only during Option bytes loading: it is set when the content of the
- * address 0x08000 0000 is read as 0xFFFF FFFF, otherwise it is cleared. It means a power
- * on or setting of OBL_LAUNCH bit in FLASH_CR register is needed to clear this flag after
- * programming of a virgin device to execute user code after System reset.
- */
-static const uint8_t STM_OBL_LAUNCH_CODE[] = {
-    0x01, 0x49,              // ldr     r1, [pc, #4] ; (<FLASH_CR>)
-    0x02, 0x4A,              // ldr     r2, [pc, #8] ; (<OBL_LAUNCH>)
-    0x0A, 0x60,              // str     r2, [r1, #0]
-    0xfe, 0xe7,              // endless: b endless
-    0x10, 0x20, 0x02, 0x40,  // address: FLASH_CR = 40022010
-    0x00, 0x20, 0x00, 0x00   // value: OBL_LAUNCH = 00002000
-};
-
-static const uint32_t STM_OBL_LAUNCH_CODE_LENGTH = sizeof(STM_OBL_LAUNCH_CODE);
-
-static const char *const TAG = "stm32flash";
 
 int flash_addr_to_page_ceil(const stm32_t *stm, uint32_t addr) {
   int page;
