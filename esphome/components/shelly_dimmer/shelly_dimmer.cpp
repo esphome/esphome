@@ -42,6 +42,9 @@ constexpr float POWER_SCALING_FACTOR = 880373;
 constexpr float VOLTAGE_SCALING_FACTOR = 347800;
 constexpr float CURRENT_SCALING_FACTOR = 1448;
 
+// Esentially std::size() for pre c++17
+template<typename T, size_t N> constexpr auto size(const T (&)[N]) noexcept { return N; }
+
 }  // Anonymous namespace
 
 namespace esphome {
@@ -187,7 +190,7 @@ void ShellyDimmer::send_brightness_(uint16_t brightness) {
       static_cast<uint8_t>(brightness & 0xff),
       static_cast<uint8_t>(brightness >> 8),
   };
-  static_assert(sizeof(payload) / sizeof(payload[0]) == SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE, "Invalid payload size");
+  static_assert(size(payload) == SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE, "Invalid payload size");
 
   this->send_command_(SHELLY_DIMMER_PROTO_CMD_SWITCH, payload, SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE);
 
@@ -221,7 +224,7 @@ void ShellyDimmer::send_settings_() {
       static_cast<uint8_t>(this->warmup_time_ & 0xff),
       static_cast<uint8_t>(this->warmup_time_ >> 8),
   };
-  static_assert(sizeof(payload) / sizeof(payload[0]) == SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE, "Invalid payload size");
+  static_assert(size(payload) == SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE, "Invalid payload size");
 
   this->send_command_(SHELLY_DIMMER_PROTO_CMD_SETTINGS, payload, SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE);
 
