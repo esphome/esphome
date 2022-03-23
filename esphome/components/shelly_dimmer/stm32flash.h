@@ -54,6 +54,21 @@ typedef enum {      // NOLINT
   F_OBLL = 1 << 1,  /* OBL_LAUNCH required */
 } flags_t;
 
+struct stm32_cmd {
+  uint8_t get;
+  uint8_t gvr;
+  uint8_t gid;
+  uint8_t rm;
+  uint8_t go;
+  uint8_t wm;
+  uint8_t er; /* this may be extended erase */
+  uint8_t wp;
+  uint8_t uw;
+  uint8_t rp;
+  uint8_t ur;
+  uint8_t crc;
+};
+
 using stm32_t = struct stm32;
 using stm32_cmd_t = struct stm32_cmd;
 using stm32_dev_t = struct stm32_dev;

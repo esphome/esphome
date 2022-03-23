@@ -27,7 +27,6 @@
 #include "dev_table.h"
 #include "esphome/core/log.h"
 
-
 namespace {
 
 constexpr uint8_t STM32_ACK = 0x79;
@@ -111,20 +110,7 @@ constexpr char TAG[] = "stm32flash";
 namespace esphome {
 namespace shelly_dimmer {
 
-struct stm32_cmd {
-  uint8_t get;
-  uint8_t gvr;
-  uint8_t gid;
-  uint8_t rm;
-  uint8_t go;
-  uint8_t wm;
-  uint8_t er; /* this may be extended erase */
-  uint8_t wp;
-  uint8_t uw;
-  uint8_t rp;
-  uint8_t ur;
-  uint8_t crc;
-};
+namespace {
 
 int flash_addr_to_page_ceil(const stm32_t *stm, uint32_t addr) {
   int page;
@@ -147,7 +133,7 @@ int flash_addr_to_page_ceil(const stm32_t *stm, uint32_t addr) {
   return addr ? page + 1 : page;
 }
 
-static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
+stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
   auto *stream = stm->stream;
   uint8_t rxbyte;
   uint32_t t0 = 0, t1;
@@ -182,9 +168,9 @@ static stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
   } while (true);
 }
 
-static stm32_err_t stm32_get_ack(const stm32_t *stm) { return stm32_get_ack_timeout(stm, 0); }
+stm32_err_t stm32_get_ack(const stm32_t *stm) { return stm32_get_ack_timeout(stm, 0); }
 
-static stm32_err_t stm32_send_command_timeout(const stm32_t *stm, const uint8_t cmd, uint32_t timeout) {
+stm32_err_t stm32_send_command_timeout(const stm32_t *stm, const uint8_t cmd, uint32_t timeout) {
   uart::UARTDevice *stream = stm->stream;
   stm32_err_t s_err;
   uint8_t buf[2];
@@ -206,12 +192,12 @@ static stm32_err_t stm32_send_command_timeout(const stm32_t *stm, const uint8_t 
   return STM32_ERR_UNKNOWN;
 }
 
-static stm32_err_t stm32_send_command(const stm32_t *stm, const uint8_t cmd) {
+stm32_err_t stm32_send_command(const stm32_t *stm, const uint8_t cmd) {
   return stm32_send_command_timeout(stm, cmd, 0);
 }
 
 /* if we have lost sync, send a wrong command and expect a NACK */
-static stm32_err_t stm32_resync(const stm32_t *stm) {
+stm32_err_t stm32_resync(const stm32_t *stm) {
   uart::UARTDevice *stream = stm->stream;
   uint8_t buf[2], ack;
   uint32_t t0, t1;
@@ -247,7 +233,7 @@ static stm32_err_t stm32_resync(const stm32_t *stm) {
  *
  * len is value of the first byte in the frame.
  */
-static stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, uint8_t cmd, uint8_t *data, unsigned int len) {
+stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, uint8_t cmd, uint8_t *data, unsigned int len) {
   uart::UARTDevice *stream = stm->stream;
   bool ret;
 
@@ -296,7 +282,7 @@ static stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, uint8_t cmd, uint8_t 
  * This function sends the init sequence and, in case of timeout, recovers
  * the interface.
  */
-static stm32_err_t stm32_send_init_seq(const stm32_t *stm) {
+stm32_err_t stm32_send_init_seq(const stm32_t *stm) {
   uart::UARTDevice *stream = stm->stream;
   bool ret;
   uint8_t byte, cmd = STM32_CMD_INIT;
@@ -330,6 +316,126 @@ static stm32_err_t stm32_send_init_seq(const stm32_t *stm) {
   ESP_LOGD(TAG, "Failed to init device.");
   return STM32_ERR_UNKNOWN;
 }
+
+stm32_err_t stm32_mass_erase(const stm32_t *stm) {
+  uart::UARTDevice *stream = stm->stream;
+  stm32_err_t s_err;
+  uint8_t buf[3];
+
+  if (stm32_send_command(stm, stm->cmd->er) != STM32_ERR_OK) {
+    ESP_LOGD(TAG, "Can't initiate chip mass erase!");
+    return STM32_ERR_UNKNOWN;
+  }
+
+  /* regular erase (0x43) */
+  if (stm->cmd->er == STM32_CMD_ER) {
+    s_err = stm32_send_command_timeout(stm, 0xFF, STM32_MASSERASE_TIMEOUT);
+    if (s_err != STM32_ERR_OK) {
+      return STM32_ERR_UNKNOWN;
+    }
+    return STM32_ERR_OK;
+  }
+
+  /* extended erase */
+  buf[0] = 0xFF; /* 0xFFFF the magic number for mass erase */
+  buf[1] = 0xFF;
+  buf[2] = 0x00; /* checksum */
+  stream->write_array(buf, 3);
+  stream->flush();
+
+  s_err = stm32_get_ack_timeout(stm, STM32_MASSERASE_TIMEOUT);
+  if (s_err != STM32_ERR_OK) {
+    ESP_LOGD(TAG, "Mass erase failed. Try specifying the number of pages to be erased.");
+    return STM32_ERR_UNKNOWN;
+  }
+  return STM32_ERR_OK;
+}
+
+stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_t pages) {
+  uart::UARTDevice *stream = stm->stream;
+  stm32_err_t s_err;
+  uint32_t pg_num;
+  uint8_t pg_byte;
+  uint8_t cs = 0;
+  uint8_t *buf;
+  int i = 0;
+
+  /* The erase command reported by the bootloader is either 0x43, 0x44 or 0x45 */
+  /* 0x44 is Extended Erase, a 2 byte based protocol and needs to be handled differently. */
+  /* 0x45 is clock no-stretching version of Extended Erase for I2C port. */
+  if (stm32_send_command(stm, stm->cmd->er) != STM32_ERR_OK) {
+    ESP_LOGD(TAG, "Can't initiate chip mass erase!");
+    return STM32_ERR_UNKNOWN;
+  }
+
+  /* regular erase (0x43) */
+  if (stm->cmd->er == STM32_CMD_ER) {
+    buf = (uint8_t *) malloc(1 + pages + 1);  // NOLINT
+    if (!buf)
+      return STM32_ERR_UNKNOWN;
+
+    buf[i++] = pages - 1;
+    cs ^= (pages - 1);
+    for (pg_num = spage; pg_num < (pages + spage); pg_num++) {
+      buf[i++] = pg_num;
+      cs ^= pg_num;
+    }
+    buf[i++] = cs;
+    stream->write_array(buf, i);
+    stream->flush();
+
+    free(buf);  // NOLINT
+
+    s_err = stm32_get_ack_timeout(stm, pages * STM32_PAGEERASE_TIMEOUT);
+    if (s_err != STM32_ERR_OK) {
+      return STM32_ERR_UNKNOWN;
+    }
+    return STM32_ERR_OK;
+  }
+
+  /* extended erase */
+  buf = (uint8_t *) malloc(2 + 2 * pages + 1);  // NOLINT
+  if (!buf)
+    return STM32_ERR_UNKNOWN;
+
+  /* Number of pages to be erased - 1, two bytes, MSB first */
+  pg_byte = (pages - 1) >> 8;
+  buf[i++] = pg_byte;
+  cs ^= pg_byte;
+  pg_byte = (pages - 1) & 0xFF;
+  buf[i++] = pg_byte;
+  cs ^= pg_byte;
+
+  for (pg_num = spage; pg_num < spage + pages; pg_num++) {
+    pg_byte = pg_num >> 8;
+    cs ^= pg_byte;
+    buf[i++] = pg_byte;
+    pg_byte = pg_num & 0xFF;
+    cs ^= pg_byte;
+    buf[i++] = pg_byte;
+  }
+  buf[i++] = cs;
+  stream->write_array(buf, i);
+  stream->flush();
+
+  free(buf);  // NOLINT
+
+  s_err = stm32_get_ack_timeout(stm, pages * STM32_PAGEERASE_TIMEOUT);
+  if (s_err != STM32_ERR_OK) {
+    ESP_LOGD(TAG, "Page-by-page erase failed. Check the maximum pages your device supports.");
+    return STM32_ERR_UNKNOWN;
+  }
+
+  return STM32_ERR_OK;
+}
+
+}  // Anonymous namespace
+
+}  // namespace shelly_dimmer
+}  // namespace esphome
+
+namespace esphome {
+namespace shelly_dimmer {
 
 /* find newer command by higher code */
 #define newer(prev, a) (((prev) == STM32_CMD_ERR) ? (a) : (((prev) > (a)) ? (prev) : (a)))
@@ -679,118 +785,6 @@ stm32_err_t stm32_readprot_memory(const stm32_t *stm) {
   return STM32_ERR_OK;
 }
 
-static stm32_err_t stm32_mass_erase(const stm32_t *stm) {
-  uart::UARTDevice *stream = stm->stream;
-  stm32_err_t s_err;
-  uint8_t buf[3];
-
-  if (stm32_send_command(stm, stm->cmd->er) != STM32_ERR_OK) {
-    ESP_LOGD(TAG, "Can't initiate chip mass erase!");
-    return STM32_ERR_UNKNOWN;
-  }
-
-  /* regular erase (0x43) */
-  if (stm->cmd->er == STM32_CMD_ER) {
-    s_err = stm32_send_command_timeout(stm, 0xFF, STM32_MASSERASE_TIMEOUT);
-    if (s_err != STM32_ERR_OK) {
-      return STM32_ERR_UNKNOWN;
-    }
-    return STM32_ERR_OK;
-  }
-
-  /* extended erase */
-  buf[0] = 0xFF; /* 0xFFFF the magic number for mass erase */
-  buf[1] = 0xFF;
-  buf[2] = 0x00; /* checksum */
-  stream->write_array(buf, 3);
-  stream->flush();
-
-  s_err = stm32_get_ack_timeout(stm, STM32_MASSERASE_TIMEOUT);
-  if (s_err != STM32_ERR_OK) {
-    ESP_LOGD(TAG, "Mass erase failed. Try specifying the number of pages to be erased.");
-    return STM32_ERR_UNKNOWN;
-  }
-  return STM32_ERR_OK;
-}
-
-static stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_t pages) {
-  uart::UARTDevice *stream = stm->stream;
-  stm32_err_t s_err;
-  uint32_t pg_num;
-  uint8_t pg_byte;
-  uint8_t cs = 0;
-  uint8_t *buf;
-  int i = 0;
-
-  /* The erase command reported by the bootloader is either 0x43, 0x44 or 0x45 */
-  /* 0x44 is Extended Erase, a 2 byte based protocol and needs to be handled differently. */
-  /* 0x45 is clock no-stretching version of Extended Erase for I2C port. */
-  if (stm32_send_command(stm, stm->cmd->er) != STM32_ERR_OK) {
-    ESP_LOGD(TAG, "Can't initiate chip mass erase!");
-    return STM32_ERR_UNKNOWN;
-  }
-
-  /* regular erase (0x43) */
-  if (stm->cmd->er == STM32_CMD_ER) {
-    buf = (uint8_t *) malloc(1 + pages + 1);  // NOLINT
-    if (!buf)
-      return STM32_ERR_UNKNOWN;
-
-    buf[i++] = pages - 1;
-    cs ^= (pages - 1);
-    for (pg_num = spage; pg_num < (pages + spage); pg_num++) {
-      buf[i++] = pg_num;
-      cs ^= pg_num;
-    }
-    buf[i++] = cs;
-    stream->write_array(buf, i);
-    stream->flush();
-
-    free(buf);  // NOLINT
-
-    s_err = stm32_get_ack_timeout(stm, pages * STM32_PAGEERASE_TIMEOUT);
-    if (s_err != STM32_ERR_OK) {
-      return STM32_ERR_UNKNOWN;
-    }
-    return STM32_ERR_OK;
-  }
-
-  /* extended erase */
-  buf = (uint8_t *) malloc(2 + 2 * pages + 1);  // NOLINT
-  if (!buf)
-    return STM32_ERR_UNKNOWN;
-
-  /* Number of pages to be erased - 1, two bytes, MSB first */
-  pg_byte = (pages - 1) >> 8;
-  buf[i++] = pg_byte;
-  cs ^= pg_byte;
-  pg_byte = (pages - 1) & 0xFF;
-  buf[i++] = pg_byte;
-  cs ^= pg_byte;
-
-  for (pg_num = spage; pg_num < spage + pages; pg_num++) {
-    pg_byte = pg_num >> 8;
-    cs ^= pg_byte;
-    buf[i++] = pg_byte;
-    pg_byte = pg_num & 0xFF;
-    cs ^= pg_byte;
-    buf[i++] = pg_byte;
-  }
-  buf[i++] = cs;
-  stream->write_array(buf, i);
-  stream->flush();
-
-  free(buf);  // NOLINT
-
-  s_err = stm32_get_ack_timeout(stm, pages * STM32_PAGEERASE_TIMEOUT);
-  if (s_err != STM32_ERR_OK) {
-    ESP_LOGD(TAG, "Page-by-page erase failed. Check the maximum pages your device supports.");
-    return STM32_ERR_UNKNOWN;
-  }
-
-  return STM32_ERR_OK;
-}
-
 stm32_err_t stm32_erase_memory(const stm32_t *stm, uint32_t spage, uint32_t pages) {
   uint32_t n;
   stm32_err_t s_err;
@@ -983,12 +977,9 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t leng
  * Due to byte swap, I cannot use any CRC available in existing
  * libraries, so here is a simple not optimized implementation.
  */
-
-static const uint32_t CRCPOLY_BE = 0x04c11db7;
-static const uint32_t CRC_MSBMASK = 0x80000000;
-static const uint32_t CRC_INIT_VALUE = 0xFFFFFFFF;
-
 uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len) {
+  static constexpr uint32_t CRCPOLY_BE = 0x04c11db7;
+  static constexpr uint32_t CRC_MSBMASK = 0x80000000;
   int i;
   uint32_t data;
 
@@ -1018,6 +1009,8 @@ uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len) {
 }
 
 stm32_err_t stm32_crc_wrapper(const stm32_t *stm, uint32_t address, uint32_t length, uint32_t *crc) {
+  static constexpr uint32_t CRC_INIT_VALUE = 0xFFFFFFFF;
+
   uint8_t buf[256];
   uint32_t start, total_len, len, current_crc;
 
