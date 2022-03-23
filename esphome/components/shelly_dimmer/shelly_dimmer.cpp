@@ -43,7 +43,7 @@ constexpr float VOLTAGE_SCALING_FACTOR = 347800;
 constexpr float CURRENT_SCALING_FACTOR = 1448;
 
 // Esentially std::size() for pre c++17
-template<typename T, size_t N> constexpr size_t size(const T (&)[N]) noexcept { return N; }
+template<typename T, size_t N> constexpr size_t size(const T (&/*unused*/)[N]) noexcept { return N; }
 
 }  // Anonymous namespace
 
