@@ -175,8 +175,8 @@ stm32_err_t stm32_send_command_timeout(const stm32_t *stm, const uint8_t cmd, ui
 
   static constexpr auto BUFFER_SIZE = 2;
   const uint8_t buf[] = {
-    cmd,
-    static_cast<uint8_t>(cmd ^ 0xFF),
+      cmd,
+      static_cast<uint8_t>(cmd ^ 0xFF),
   };
   static_assert(sizeof(buf) == BUFFER_SIZE, "Buf expected to be 2 bytes");
 
@@ -209,8 +209,8 @@ stm32_err_t stm32_resync(const stm32_t *stm) {
 
   static constexpr auto BUFFER_SIZE = 2;
   const uint8_t buf[] = {
-    STM32_CMD_ERR,
-    static_cast<uint8_t>(STM32_CMD_ERR ^ 0xFF),
+      STM32_CMD_ERR,
+      static_cast<uint8_t>(STM32_CMD_ERR ^ 0xFF),
   };
   static_assert(sizeof(buf) == BUFFER_SIZE, "Buf expected to be 2 bytes");
 
@@ -343,9 +343,8 @@ stm32_err_t stm32_mass_erase(const stm32_t *stm) {
   /* extended erase */
   static constexpr auto BUFFER_SIZE = 3;
   const uint8_t buf[] = {
-    0xFF, /* 0xFFFF the magic number for mass erase */
-    0xFF,
-    0x00, /* checksum */
+      0xFF,       /* 0xFFFF the magic number for mass erase */
+      0xFF, 0x00, /* checksum */
   };
   static_assert(sizeof(buf) == BUFFER_SIZE, "Expected the buffer to be 3 bytes");
   stream->write_array(buf, 3);
@@ -468,7 +467,7 @@ namespace shelly_dimmer {
 stm32_t *stm32_init(uart::UARTDevice *stream, uint8_t flags, char init) {
   uint8_t buf[257];
 
-  auto* stm = (stm32_t *) calloc(sizeof(stm32_t), 1);            // NOLINT
+  auto *stm = (stm32_t *) calloc(sizeof(stm32_t), 1);      // NOLINT
   stm->cmd = (stm32_cmd_t *) malloc(sizeof(stm32_cmd_t));  // NOLINT
   memset(stm->cmd, STM32_CMD_ERR, sizeof(stm32_cmd_t));
   stm->stream = stream;
@@ -498,7 +497,6 @@ stm32_t *stm32_init(uart::UARTDevice *stream, uint8_t flags, char init) {
       return nullptr;
     }
   }
-
 
   {
     const auto len = ([&]() {
@@ -649,11 +647,11 @@ stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address, uint8_t data
 
   static constexpr auto BUFFER_SIZE = 5;
   const uint8_t buf[] = {
-    static_cast<uint8_t>(address >> 24),
-    static_cast<uint8_t>((address >> 16) & 0xFF),
-    static_cast<uint8_t>((address >> 8) & 0xFF),
-    static_cast<uint8_t>(address & 0xFF),
-    static_cast<uint8_t>(buf[0] ^ buf[1] ^ buf[2] ^ buf[3]),
+      static_cast<uint8_t>(address >> 24),
+      static_cast<uint8_t>((address >> 16) & 0xFF),
+      static_cast<uint8_t>((address >> 8) & 0xFF),
+      static_cast<uint8_t>(address & 0xFF),
+      static_cast<uint8_t>(buf[0] ^ buf[1] ^ buf[2] ^ buf[3]),
   };
   static_assert(sizeof(buf) == BUFFER_SIZE, "Invalid buffer");
   stream->write_array(buf, BUFFER_SIZE);
@@ -893,11 +891,11 @@ stm32_err_t stm32_go(const stm32_t *stm, uint32_t address) {
 
   static constexpr auto BUFFER_SIZE = 5;
   const uint8_t buf[] = {
-    static_cast<uint8_t>(address >> 24),
-    static_cast<uint8_t>((address >> 16) & 0xFF),
-    static_cast<uint8_t>((address >> 8) & 0xFF),
-    static_cast<uint8_t>(address & 0xFF),
-    static_cast<uint8_t>(buf[0] ^ buf[1] ^ buf[2] ^ buf[3]),
+      static_cast<uint8_t>(address >> 24),
+      static_cast<uint8_t>((address >> 16) & 0xFF),
+      static_cast<uint8_t>((address >> 8) & 0xFF),
+      static_cast<uint8_t>(address & 0xFF),
+      static_cast<uint8_t>(buf[0] ^ buf[1] ^ buf[2] ^ buf[3]),
   };
   static_assert(sizeof(buf) == BUFFER_SIZE, "Expected the buffer to be 5 bytes");
   stream->write_array(buf, 5);
@@ -938,11 +936,11 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t leng
 
   {
     const uint8_t buf[] = {
-      static_cast<uint8_t>(address >> 24),
-      static_cast<uint8_t>((address >> 16) & 0xFF),
-      static_cast<uint8_t>((address >> 8) & 0xFF),
-      static_cast<uint8_t>(address & 0xFF),
-      static_cast<uint8_t>(buf[0] ^ buf[1] ^ buf[2] ^ buf[3]),
+        static_cast<uint8_t>(address >> 24),
+        static_cast<uint8_t>((address >> 16) & 0xFF),
+        static_cast<uint8_t>((address >> 8) & 0xFF),
+        static_cast<uint8_t>(address & 0xFF),
+        static_cast<uint8_t>(buf[0] ^ buf[1] ^ buf[2] ^ buf[3]),
     };
     static_assert(sizeof(buf) == BUFFER_SIZE, "Expected the buffer to be 5 bytes");
     stream->write_array(buf, BUFFER_SIZE);
@@ -954,11 +952,11 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t leng
 
   {
     const uint8_t buf[] = {
-      static_cast<uint8_t>(length >> 24),
-      static_cast<uint8_t>((length >> 16) & 0xFF),
-      static_cast<uint8_t>((length >> 8) & 0xFF),
-      static_cast<uint8_t>(length & 0xFF),
-      static_cast<uint8_t>(buf[0] ^ buf[1] ^ buf[2] ^ buf[3]),
+        static_cast<uint8_t>(length >> 24),
+        static_cast<uint8_t>((length >> 16) & 0xFF),
+        static_cast<uint8_t>((length >> 8) & 0xFF),
+        static_cast<uint8_t>(length & 0xFF),
+        static_cast<uint8_t>(buf[0] ^ buf[1] ^ buf[2] ^ buf[3]),
     };
     static_assert(sizeof(buf) == BUFFER_SIZE, "Expected the buffer to be 5 bytes");
     stream->write_array(buf, BUFFER_SIZE);
@@ -975,7 +973,6 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t leng
     uint8_t buf[BUFFER_SIZE];
     if (!stream->read_array(buf, BUFFER_SIZE))
       return STM32_ERR_UNKNOWN;
-
 
     if (buf[4] != (buf[0] ^ buf[1] ^ buf[2] ^ buf[3]))
       return STM32_ERR_UNKNOWN;
