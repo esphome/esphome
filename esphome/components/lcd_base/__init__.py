@@ -18,19 +18,34 @@ def validate_lcd_dimensions(value):
     return value
 
 
+def validate_user_characters(value):
+    positions = set()
+    for conf in value:
+        if conf[CONF_POSITION] in positions:
+            raise cv.Invalid(
+                f"Duplicate user defined character at position {conf[CONF_POSITION]}"
+            )
+        positions.add(conf[CONF_POSITION])
+    return value
+
+
 LCD_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
     {
         cv.Required(CONF_DIMENSIONS): validate_lcd_dimensions,
-        cv.Optional(CONF_USER_CHARACTERS): cv.ensure_list(
-            cv.Schema(
-                {
-                    cv.Required(CONF_POSITION): cv.int_range(min=0, max=7),
-                    cv.Required(CONF_DATA): cv.All(
-                        cv.ensure_list(cv.int_range(min=0, max=31)),
-                        cv.Length(min=8, max=8),
-                    ),
-                }
+        cv.Optional(CONF_USER_CHARACTERS): cv.All(
+            cv.ensure_list(
+                cv.Schema(
+                    {
+                        cv.Required(CONF_POSITION): cv.int_range(min=0, max=7),
+                        cv.Required(CONF_DATA): cv.All(
+                            cv.ensure_list(cv.int_range(min=0, max=31)),
+                            cv.Length(min=8, max=8),
+                        ),
+                    }
+                ),
             ),
+            cv.Length(max=8),
+            validate_user_characters,
         ),
     }
 ).extend(cv.polling_component_schema("1s"))
