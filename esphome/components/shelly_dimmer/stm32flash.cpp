@@ -426,6 +426,29 @@ stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_t pages
   return STM32_ERR_OK;
 }
 
+template<typename T>
+constexpr auto stm32_check_ack_timeout(const stm32_err_t s_err, T&& log) {
+  switch(s_err) {
+    case STM32_ERR_OK:
+      return STM32_ERR_OK;
+    case STM32_ERR_NACK:
+      log();
+      // TODO: c++17 [[fallthrough]]
+      /* fallthrough */
+    default:
+      return STM32_ERR_UNKNOWN;
+  }
+}
+
+constexpr auto stm32_check_ack_timeout(const stm32_err_t s_err) {
+  return stm32_check_ack_timeout(s_err, []{});
+}
+
+static_assert(stm32_check_ack_timeout(STM32_ERR_OK) == STM32_ERR_OK, "Invalid return value");
+static_assert(stm32_check_ack_timeout(STM32_ERR_NACK) == STM32_ERR_UNKNOWN, "Invalid return value");
+static_assert(stm32_check_ack_timeout(STM32_ERR_NO_CMD) == STM32_ERR_UNKNOWN, "Invalid return value");
+static_assert(stm32_check_ack_timeout(STM32_ERR_UNKNOWN) == STM32_ERR_UNKNOWN, "Invalid return value");
+
 }  // Anonymous namespace
 
 }  // namespace shelly_dimmer
@@ -695,8 +718,6 @@ stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8
 }
 
 stm32_err_t stm32_wunprot_memory(const stm32_t *stm) {
-  stm32_err_t s_err;
-
   if (stm->cmd->uw == STM32_CMD_ERR) {
     ESP_LOGD(TAG, "Error: WRITE UNPROTECT command not implemented in bootloader.");
     return STM32_ERR_NO_CMD;
@@ -705,20 +726,15 @@ stm32_err_t stm32_wunprot_memory(const stm32_t *stm) {
   if (stm32_send_command(stm, stm->cmd->uw) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  s_err = stm32_get_ack_timeout(stm, STM32_WUNPROT_TIMEOUT);
-  if (s_err == STM32_ERR_NACK) {
-    ESP_LOGD(TAG, "Error: Failed to WRITE UNPROTECT");
-    return STM32_ERR_UNKNOWN;
-  }
-  if (s_err != STM32_ERR_OK) {
-    return STM32_ERR_UNKNOWN;
-  }
-  return STM32_ERR_OK;
+  return stm32_check_ack_timeout(
+    stm32_get_ack_timeout(stm, STM32_WUNPROT_TIMEOUT),
+    []() {
+      ESP_LOGD(TAG, "Error: Failed to WRITE UNPROTECT");
+    }
+  );
 }
 
 stm32_err_t stm32_wprot_memory(const stm32_t *stm) {
-  stm32_err_t s_err;
-
   if (stm->cmd->wp == STM32_CMD_ERR) {
     ESP_LOGD(TAG, "Error: WRITE PROTECT command not implemented in bootloader.");
     return STM32_ERR_NO_CMD;
@@ -727,20 +743,15 @@ stm32_err_t stm32_wprot_memory(const stm32_t *stm) {
   if (stm32_send_command(stm, stm->cmd->wp) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  s_err = stm32_get_ack_timeout(stm, STM32_WPROT_TIMEOUT);
-  if (s_err == STM32_ERR_NACK) {
-    ESP_LOGD(TAG, "Error: Failed to WRITE PROTECT");
-    return STM32_ERR_UNKNOWN;
-  }
-  if (s_err != STM32_ERR_OK) {
-    return STM32_ERR_UNKNOWN;
-  }
-  return STM32_ERR_OK;
+  return stm32_check_ack_timeout(
+    stm32_get_ack_timeout(stm, STM32_WPROT_TIMEOUT),
+    []() {
+      ESP_LOGD(TAG, "Error: Failed to WRITE PROTECT");
+    }
+  );
 }
 
 stm32_err_t stm32_runprot_memory(const stm32_t *stm) {
-  stm32_err_t s_err;
-
   if (stm->cmd->ur == STM32_CMD_ERR) {
     ESP_LOGD(TAG, "Error: READOUT UNPROTECT command not implemented in bootloader.");
     return STM32_ERR_NO_CMD;
@@ -749,20 +760,15 @@ stm32_err_t stm32_runprot_memory(const stm32_t *stm) {
   if (stm32_send_command(stm, stm->cmd->ur) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  s_err = stm32_get_ack_timeout(stm, STM32_MASSERASE_TIMEOUT);
-  if (s_err == STM32_ERR_NACK) {
-    ESP_LOGD(TAG, "Error: Failed to READOUT UNPROTECT");
-    return STM32_ERR_UNKNOWN;
-  }
-  if (s_err != STM32_ERR_OK) {
-    return STM32_ERR_UNKNOWN;
-  }
-  return STM32_ERR_OK;
+  return stm32_check_ack_timeout(
+    stm32_get_ack_timeout(stm, STM32_MASSERASE_TIMEOUT),
+    []() {
+      ESP_LOGD(TAG, "Error: Failed to READOUT UNPROTECT");
+    }
+  );
 }
 
 stm32_err_t stm32_readprot_memory(const stm32_t *stm) {
-  stm32_err_t s_err;
-
   if (stm->cmd->rp == STM32_CMD_ERR) {
     ESP_LOGD(TAG, "Error: READOUT PROTECT command not implemented in bootloader.");
     return STM32_ERR_NO_CMD;
@@ -771,15 +777,12 @@ stm32_err_t stm32_readprot_memory(const stm32_t *stm) {
   if (stm32_send_command(stm, stm->cmd->rp) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  s_err = stm32_get_ack_timeout(stm, STM32_RPROT_TIMEOUT);
-  if (s_err == STM32_ERR_NACK) {
-    ESP_LOGD(TAG, "Error: Failed to READOUT PROTECT");
-    return STM32_ERR_UNKNOWN;
-  }
-  if (s_err != STM32_ERR_OK) {
-    return STM32_ERR_UNKNOWN;
-  }
-  return STM32_ERR_OK;
+  return stm32_check_ack_timeout(
+    stm32_get_ack_timeout(stm, STM32_RPROT_TIMEOUT),
+    []() {
+      ESP_LOGD(TAG, "Error: Failed to READOUT PROTECT");
+    }
+  );
 }
 
 stm32_err_t stm32_erase_memory(const stm32_t *stm, uint32_t spage, uint32_t pages) {
