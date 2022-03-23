@@ -583,6 +583,8 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
       auto call = obj->turn_on();
       if (request->hasParam("brightness"))
         call.set_brightness(request->getParam("brightness")->value().toFloat() / 255.0f);
+      if (request->hasParam("color_brightness"))
+        call.set_color_brightness(request->getParam("color_brightness")->value().toFloat() / 255.0f);
       if (request->hasParam("r"))
         call.set_red(request->getParam("r")->value().toFloat() / 255.0f);
       if (request->hasParam("g"))
