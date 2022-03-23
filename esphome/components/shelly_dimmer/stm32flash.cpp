@@ -113,15 +113,12 @@ namespace shelly_dimmer {
 namespace {
 
 int flash_addr_to_page_ceil(const stm32_t *stm, uint32_t addr) {
-  int page;
-  uint32_t *psize;
-
   if (!(addr >= stm->dev->fl_start && addr <= stm->dev->fl_end))
     return 0;
 
-  page = 0;
+  int page = 0;
   addr -= stm->dev->fl_start;
-  psize = stm->dev->fl_ps;
+  const auto *psize = stm->dev->fl_ps;
 
   while (addr >= psize[0]) {
     addr -= psize[0];

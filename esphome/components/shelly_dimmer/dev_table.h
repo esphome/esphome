@@ -23,15 +23,15 @@
 namespace esphome {
 namespace shelly_dimmer {
 
-static const uint32_t SZ_128 = 0x00000080;
-static const uint32_t SZ_256 = 0x00000100;
-static const uint32_t SZ_1K = 0x00000400;
-static const uint32_t SZ_2K = 0x00000800;
-static const uint32_t SZ_16K = 0x00004000;
-static const uint32_t SZ_32K = 0x00008000;
-static const uint32_t SZ_64K = 0x00010000;
-static const uint32_t SZ_128K = 0x00020000;
-static const uint32_t SZ_256K = 0x00040000;
+constexpr uint32_t SZ_128 = 0x00000080;
+constexpr uint32_t SZ_256 = 0x00000100;
+constexpr uint32_t SZ_1K = 0x00000400;
+constexpr uint32_t SZ_2K = 0x00000800;
+constexpr uint32_t SZ_16K = 0x00004000;
+constexpr uint32_t SZ_32K = 0x00008000;
+constexpr uint32_t SZ_64K = 0x00010000;
+constexpr uint32_t SZ_128K = 0x00020000;
+constexpr uint32_t SZ_256K = 0x00040000;
 
 /*
  * Page-size for page-by-page flash erase.
@@ -39,24 +39,24 @@ static const uint32_t SZ_256K = 0x00040000;
  */
 
 /* fixed size pages */
-static uint32_t p_128[] = {SZ_128, 0};  // NOLINT
-static uint32_t p_256[] = {SZ_256, 0};  // NOLINT
-static uint32_t p_1k[] = {SZ_1K, 0};    // NOLINT
-static uint32_t p_2k[] = {SZ_2K, 0};    // NOLINT
+constexpr uint32_t p_128[] = {SZ_128, 0};  // NOLINT
+constexpr uint32_t p_256[] = {SZ_256, 0};  // NOLINT
+constexpr uint32_t p_1k[] = {SZ_1K, 0};    // NOLINT
+constexpr uint32_t p_2k[] = {SZ_2K, 0};    // NOLINT
 /* F2 and F4 page size */
-static uint32_t f2f4[] = {SZ_16K, SZ_16K, SZ_16K, SZ_16K, SZ_64K, SZ_128K, 0};  // NOLINT
+constexpr uint32_t f2f4[] = {SZ_16K, SZ_16K, SZ_16K, SZ_16K, SZ_64K, SZ_128K, 0};  // NOLINT
 /* F4 dual bank page size */
-static uint32_t f4db[] = {SZ_16K,  SZ_16K, SZ_16K, SZ_16K, SZ_64K, SZ_128K, SZ_128K,  // NOLINT
+constexpr uint32_t f4db[] = {SZ_16K,  SZ_16K, SZ_16K, SZ_16K, SZ_64K, SZ_128K, SZ_128K,  // NOLINT
                           SZ_128K, SZ_16K, SZ_16K, SZ_16K, SZ_16K, SZ_64K,  SZ_128K, 0};
 /* F7 page size */
-static uint32_t f7[] = {SZ_32K, SZ_32K, SZ_32K, SZ_32K, SZ_128K, SZ_256K, 0};  // NOLINT
+constexpr uint32_t f7[] = {SZ_32K, SZ_32K, SZ_32K, SZ_32K, SZ_128K, SZ_256K, 0};  // NOLINT
 
 /*
  * Device table, corresponds to the "Bootloader device-dependant parameters"
  * table in ST document AN2606.
  * Note that the option bytes upper range is inclusive!
  */
-const stm32_dev_t DEVICES[] = {
+constexpr stm32_dev_t DEVICES[] = {
     /* ID   "name"                              SRAM-address-range      FLASH-address-range    PPS  PSize
        Option-byte-addr-range  System-mem-addr-range   Flags */
     /* F0 */
@@ -147,7 +147,8 @@ const stm32_dev_t DEVICES[] = {
      0x08040800, 0},
     {0x9b0, "STM32W-256K", 0x20000200, 0x20004000, 0x08000000, 0x08040000, 4, p_2k, 0x08040800, 0x0804080F, 0x08040000,
      0x08040800, 0},
-    {0x0}};  // NOLINT
+    {0x0}
+};  // NOLINT
 
 }  // namespace shelly_dimmer
 }  // namespace esphome

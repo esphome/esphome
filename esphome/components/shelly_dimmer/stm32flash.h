@@ -98,15 +98,15 @@ struct stm32 {
 };
 
 struct stm32_dev {  // NOLINT
-  uint16_t id;
+  const uint16_t id;
   const char *name;
-  uint32_t ram_start, ram_end;
-  uint32_t fl_start, fl_end;
-  uint16_t fl_pps;  // pages per sector
-  uint32_t *fl_ps;  // page size
-  uint32_t opt_start, opt_end;
-  uint32_t mem_start, mem_end;
-  uint32_t flags;
+  const uint32_t ram_start, ram_end;
+  const uint32_t fl_start, fl_end;
+  const uint16_t fl_pps;  // pages per sector
+  const uint32_t *fl_ps;  // page size
+  const uint32_t opt_start, opt_end;
+  const uint32_t mem_start, mem_end;
+  const uint32_t flags;
 };
 
 stm32_t *stm32_init(uart::UARTDevice *stream, uint8_t flags, char init);
