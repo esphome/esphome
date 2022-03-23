@@ -703,7 +703,7 @@ stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8
   uint8_t buf1[BUFFER_SIZE];
   populate_buffer_with_address(buf1, address);
 
-  stream->write_array(buf1, 5);
+  stream->write_array(buf1, BUFFER_SIZE);
   stream->flush();
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
@@ -883,7 +883,7 @@ stm32_err_t stm32_go(const stm32_t *stm, const uint32_t address) {
   uint8_t buf[BUFFER_SIZE];
   populate_buffer_with_address(buf, address);
 
-  stream->write_array(buf, 5);
+  stream->write_array(buf, BUFFER_SIZE);
   stream->flush();
 
   if (stm32_get_ack(stm) != STM32_ERR_OK)
