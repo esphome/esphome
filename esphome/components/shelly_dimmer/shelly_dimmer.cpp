@@ -5,37 +5,41 @@
 #include <HardwareSerial.h>
 #endif
 
-namespace esphome {
-namespace shelly_dimmer {
+namespace {
 
-static constexpr char TAG[] = "shelly";
+constexpr char TAG[] = "shelly";
 
-static const uint8_t SHELLY_DIMMER_ACK_TIMEOUT = 200;  // ms
-static const uint8_t SHELLY_DIMMER_MAX_RETRIES = 3;
-static const uint16_t SHELLY_DIMMER_MAX_BRIGHTNESS = 1000;  // 100%
+constexpr uint8_t SHELLY_DIMMER_ACK_TIMEOUT = 200;  // ms
+constexpr uint8_t SHELLY_DIMMER_MAX_RETRIES = 3;
+constexpr uint16_t SHELLY_DIMMER_MAX_BRIGHTNESS = 1000;  // 100%
 
 // Protocol framing.
-static const uint8_t SHELLY_DIMMER_PROTO_START_BYTE = 0x01;
-static const uint8_t SHELLY_DIMMER_PROTO_END_BYTE = 0x04;
+constexpr uint8_t SHELLY_DIMMER_PROTO_START_BYTE = 0x01;
+constexpr uint8_t SHELLY_DIMMER_PROTO_END_BYTE = 0x04;
 
 // Supported commands.
-static const uint8_t SHELLY_DIMMER_PROTO_CMD_SWITCH = 0x01;
-static const uint8_t SHELLY_DIMMER_PROTO_CMD_POLL = 0x10;
-static const uint8_t SHELLY_DIMMER_PROTO_CMD_VERSION = 0x11;
-static const uint8_t SHELLY_DIMMER_PROTO_CMD_SETTINGS = 0x20;
+constexpr uint8_t SHELLY_DIMMER_PROTO_CMD_SWITCH = 0x01;
+constexpr uint8_t SHELLY_DIMMER_PROTO_CMD_POLL = 0x10;
+constexpr uint8_t SHELLY_DIMMER_PROTO_CMD_VERSION = 0x11;
+constexpr uint8_t SHELLY_DIMMER_PROTO_CMD_SETTINGS = 0x20;
 
 // Command payload sizes.
-static const uint8_t SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE = 2;
-static const uint8_t SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE = 10;
-static const uint8_t SHELLY_DIMMER_PROTO_MAX_FRAME_SIZE = 4 + 72 + 3;
+constexpr uint8_t SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE = 2;
+constexpr uint8_t SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE = 10;
+constexpr uint8_t SHELLY_DIMMER_PROTO_MAX_FRAME_SIZE = 4 + 72 + 3;
 
 // STM Firmware
 const uint8_t STM_FIRMWARE[] PROGMEM = SHD_FIRMWARE_DATA;
 
 // Scaling Constants
-static const float POWER_SCALING_FACTOR = 880373;
-static const float VOLTAGE_SCALING_FACTOR = 347800;
-static const float CURRENT_SCALING_FACTOR = 1448;
+constexpr float POWER_SCALING_FACTOR = 880373;
+constexpr float VOLTAGE_SCALING_FACTOR = 347800;
+constexpr float CURRENT_SCALING_FACTOR = 1448;
+
+}  // Anonymous namespace
+
+namespace esphome {
+namespace shelly_dimmer {
 
 /// Computes a crappy checksum as defined by the Shelly Dimmer protocol.
 uint16_t shelly_dimmer_checksum(const uint8_t *buf, int len) {
