@@ -440,14 +440,12 @@ constexpr auto stm32_check_ack_timeout(const stm32_err_t s_err, T&& log) {
   }
 }
 
-constexpr auto stm32_check_ack_timeout(const stm32_err_t s_err) {
-  return stm32_check_ack_timeout(s_err, []{});
-}
-
-static_assert(stm32_check_ack_timeout(STM32_ERR_OK) == STM32_ERR_OK, "Invalid return value");
-static_assert(stm32_check_ack_timeout(STM32_ERR_NACK) == STM32_ERR_UNKNOWN, "Invalid return value");
-static_assert(stm32_check_ack_timeout(STM32_ERR_NO_CMD) == STM32_ERR_UNKNOWN, "Invalid return value");
-static_assert(stm32_check_ack_timeout(STM32_ERR_UNKNOWN) == STM32_ERR_UNKNOWN, "Invalid return value");
+#if __cplusplus >= 201703L
+static_assert(stm32_check_ack_timeout(STM32_ERR_OK, []{}) == STM32_ERR_OK, "Invalid return value");
+static_assert(stm32_check_ack_timeout(STM32_ERR_NACK, []{}) == STM32_ERR_UNKNOWN, "Invalid return value");
+static_assert(stm32_check_ack_timeout(STM32_ERR_NO_CMD, []{}) == STM32_ERR_UNKNOWN, "Invalid return value");
+static_assert(stm32_check_ack_timeout(STM32_ERR_UNKNOWN, []{}) == STM32_ERR_UNKNOWN, "Invalid return value");
+#endif
 
 }  // Anonymous namespace
 
