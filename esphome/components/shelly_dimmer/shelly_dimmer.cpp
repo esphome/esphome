@@ -119,14 +119,10 @@ bool ShellyDimmer::upgrade_firmware_() {
   this->reset_dfu_boot_();
 
   // Could be constexpr in c++17
-  const auto close = [](stm32_t* stm32) {
-      stm32_close(stm32);
-  };
+  const auto close = [](stm32_t *stm32) { stm32_close(stm32); };
 
   // Cleanup with RAII
-  std::unique_ptr<stm32_t, decltype(close)> stm32{
-    stm32_init(this, STREAM_SERIAL, 1), close
-  };
+  std::unique_ptr<stm32_t, decltype(close)> stm32{stm32_init(this, STREAM_SERIAL, 1), close};
 
   if (!stm32) {
     ESP_LOGW(TAG, "Failed to initialize STM32");
@@ -187,11 +183,11 @@ uint16_t ShellyDimmer::convert_brightness_(float brightness) {
 
 void ShellyDimmer::send_brightness_(uint16_t brightness) {
   const uint8_t payload[] = {
-    // Brightness (%) * 10.
-    static_cast<uint8_t>(brightness & 0xff),
-    static_cast<uint8_t>(brightness >> 8),
+      // Brightness (%) * 10.
+      static_cast<uint8_t>(brightness & 0xff),
+      static_cast<uint8_t>(brightness >> 8),
   };
-  static_assert(sizeof(payload)/sizeof(payload[0]) == SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE, "Invalid payload size");
+  static_assert(sizeof(payload) / sizeof(payload[0]) == SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE, "Invalid payload size");
 
   this->send_command_(SHELLY_DIMMER_PROTO_CMD_SWITCH, payload, SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE);
 
@@ -209,23 +205,23 @@ void ShellyDimmer::send_settings_() {
   ESP_LOGD(TAG, "Brightness update: %d (raw: %f)", brightness_int, brightness);
 
   const uint8_t payload[] = {
-    // Brightness (%) * 10.
-    static_cast<uint8_t>(brightness_int & 0xff),
-    static_cast<uint8_t>(brightness_int >> 8),
-    // Leading / trailing edge [0x01 = leading, 0x02 = trailing].
-    this->leading_edge_ ? uint8_t{0x01} : uint8_t{0x02},
-    0x00,
-    // Fade rate.
-    static_cast<uint8_t>(fade_rate & 0xff),
-    static_cast<uint8_t>(fade_rate >> 8),
-    // Warmup brightness.
-    static_cast<uint8_t>(this->warmup_brightness_ & 0xff),
-    static_cast<uint8_t>(this->warmup_brightness_ >> 8),
-    // Warmup time.
-    static_cast<uint8_t>(this->warmup_time_ & 0xff),
-    static_cast<uint8_t>(this->warmup_time_ >> 8),
+      // Brightness (%) * 10.
+      static_cast<uint8_t>(brightness_int & 0xff),
+      static_cast<uint8_t>(brightness_int >> 8),
+      // Leading / trailing edge [0x01 = leading, 0x02 = trailing].
+      this->leading_edge_ ? uint8_t{0x01} : uint8_t{0x02},
+      0x00,
+      // Fade rate.
+      static_cast<uint8_t>(fade_rate & 0xff),
+      static_cast<uint8_t>(fade_rate >> 8),
+      // Warmup brightness.
+      static_cast<uint8_t>(this->warmup_brightness_ & 0xff),
+      static_cast<uint8_t>(this->warmup_brightness_ >> 8),
+      // Warmup time.
+      static_cast<uint8_t>(this->warmup_time_ & 0xff),
+      static_cast<uint8_t>(this->warmup_time_ >> 8),
   };
-  static_assert(sizeof(payload)/sizeof(payload[0]) == SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE, "Invalid payload size");
+  static_assert(sizeof(payload) / sizeof(payload[0]) == SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE, "Invalid payload size");
 
   this->send_command_(SHELLY_DIMMER_PROTO_CMD_SETTINGS, payload, SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE);
 
