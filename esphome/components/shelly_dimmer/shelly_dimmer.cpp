@@ -147,8 +147,8 @@ bool ShellyDimmer::upgrade_firmware_() {
       break;
     }
 
-    memcpy(buffer, p, sizeof(buffer));
-    p += sizeof(buffer);
+    memcpy(buffer, p, BUFFER_SIZE);
+    p += BUFFER_SIZE;
 
     if (stm32_write_memory(stm32, addr, buffer, len) != STM32_ERR_OK) {
       ESP_LOGW(TAG, "Failed to write to STM32 flash memory");
