@@ -42,19 +42,19 @@ constexpr auto STM32_MAX_TX_FRAME = (1 + 256 + 1); /* cmd write memory */
 constexpr auto STM32_MAX_PAGES = 0x0000ffff;
 constexpr auto STM32_MASS_ERASE = 0x00100000; /* > 2 x max_pages */
 
-typedef enum {  // NOLINT
+using stm32_err_t = enum Stm32Err {
   STM32_ERR_OK = 0,
   STM32_ERR_UNKNOWN, /* Generic error */
   STM32_ERR_NACK,
   STM32_ERR_NO_CMD, /* Command not available in bootloader */
-} stm32_err_t;
+};
 
-typedef enum {      // NOLINT
+using flags_t = enum Flags {
   F_NO_ME = 1 << 0, /* Mass-Erase not supported */
   F_OBLL = 1 << 1,  /* OBL_LAUNCH required */
-} flags_t;
+};
 
-struct stm32_cmd {  // NOLINT
+using stm32_cmd_t = struct Stm32Cmd {
   uint8_t get;
   uint8_t gvr;
   uint8_t gid;
@@ -69,23 +69,19 @@ struct stm32_cmd {  // NOLINT
   uint8_t crc;
 };
 
-using stm32_t = struct stm32;
-using stm32_cmd_t = struct stm32_cmd;
-using stm32_dev_t = struct stm32_dev;
-
-/*
- * Specify the length of reply for command GET
- * This is helpful for frame-oriented protocols, e.g. i2c, to avoid time
- * consuming try-fail-timeout-retry operation.
- * On byte-oriented protocols, i.e. UART, this information would be skipped
- * after read the first byte, so not needed.
- */
-struct VarlenCmd {
-  uint8_t version;
-  uint8_t length;
+using stm32_dev_t = struct Stm32Dev {
+  const uint16_t id;
+  const char *name;
+  const uint32_t ram_start, ram_end;
+  const uint32_t fl_start, fl_end;
+  const uint16_t fl_pps;  // pages per sector
+  const uint32_t *fl_ps;  // page size
+  const uint32_t opt_start, opt_end;
+  const uint32_t mem_start, mem_end;
+  const uint32_t flags;
 };
 
-struct stm32 {
+using stm32_t = struct Stm32 {
   uart::UARTDevice *stream;
   uint8_t flags;
   struct VarlenCmd *cmd_get_reply;
@@ -97,16 +93,16 @@ struct stm32 {
   const stm32_dev_t *dev;
 };
 
-struct stm32_dev {  // NOLINT
-  const uint16_t id;
-  const char *name;
-  const uint32_t ram_start, ram_end;
-  const uint32_t fl_start, fl_end;
-  const uint16_t fl_pps;  // pages per sector
-  const uint32_t *fl_ps;  // page size
-  const uint32_t opt_start, opt_end;
-  const uint32_t mem_start, mem_end;
-  const uint32_t flags;
+/*
+ * Specify the length of reply for command GET
+ * This is helpful for frame-oriented protocols, e.g. i2c, to avoid time
+ * consuming try-fail-timeout-retry operation.
+ * On byte-oriented protocols, i.e. UART, this information would be skipped
+ * after read the first byte, so not needed.
+ */
+struct VarlenCmd {
+  uint8_t version;
+  uint8_t length;
 };
 
 stm32_t *stm32_init(uart::UARTDevice *stream, uint8_t flags, char init);
