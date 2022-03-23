@@ -5,6 +5,7 @@
 #include <HardwareSerial.h>
 #endif
 
+#include <algorithm>
 #include <cstring>
 #include <numeric>
 
