@@ -27,6 +27,8 @@
 #include "dev_table.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
+
 namespace {
 
 constexpr uint8_t STM32_ACK = 0x79;
@@ -168,14 +170,17 @@ stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
 stm32_err_t stm32_get_ack(const stm32_t *stm) { return stm32_get_ack_timeout(stm, 0); }
 
 stm32_err_t stm32_send_command_timeout(const stm32_t *stm, const uint8_t cmd, uint32_t timeout) {
-  uart::UARTDevice *stream = stm->stream;
+  auto *const stream = stm->stream;
   stm32_err_t s_err;
-  uint8_t buf[2];
 
-  buf[0] = cmd;
-  buf[1] = cmd ^ 0xFF;
+  static constexpr auto BUFFER_SIZE = 2;
+  const uint8_t buf[] = {
+    cmd,
+    static_cast<uint8_t>(cmd ^ 0xFF),
+  };
+  static_assert(sizeof(buf) == BUFFER_SIZE, "Buf expected to be 2 bytes");
 
-  stream->write_array(buf, 2);
+  stream->write_array(buf, BUFFER_SIZE);
   stream->flush();
 
   s_err = stm32_get_ack_timeout(stm, timeout);
@@ -195,17 +200,22 @@ stm32_err_t stm32_send_command(const stm32_t *stm, const uint8_t cmd) {
 
 /* if we have lost sync, send a wrong command and expect a NACK */
 stm32_err_t stm32_resync(const stm32_t *stm) {
-  uart::UARTDevice *stream = stm->stream;
-  uint8_t buf[2], ack;
+  auto *const stream = stm->stream;
+  uint8_t ack;
   uint32_t t0, t1;
 
   t0 = millis();
   t1 = t0;
 
-  buf[0] = STM32_CMD_ERR;
-  buf[1] = STM32_CMD_ERR ^ 0xFF;
+  static constexpr auto BUFFER_SIZE = 2;
+  const uint8_t buf[] = {
+    STM32_CMD_ERR,
+    static_cast<uint8_t>(STM32_CMD_ERR ^ 0xFF),
+  };
+  static_assert(sizeof(buf) == BUFFER_SIZE, "Buf expected to be 2 bytes");
+
   while (t1 < t0 + STM32_RESYNC_TIMEOUT) {
-    stream->write_array(buf, 2);
+    stream->write_array(buf, BUFFER_SIZE);
     stream->flush();
     if (!stream->read_array(&ack, 1)) {
       t1 = millis();
@@ -231,7 +241,7 @@ stm32_err_t stm32_resync(const stm32_t *stm) {
  * len is value of the first byte in the frame.
  */
 stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, uint8_t cmd, uint8_t *data, unsigned int len) {
-  uart::UARTDevice *stream = stm->stream;
+  auto *const stream = stm->stream;
   bool ret;
 
   if (stm32_send_command(stm, cmd) != STM32_ERR_OK)
@@ -280,14 +290,13 @@ stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, uint8_t cmd, uint8_t *data, 
  * the interface.
  */
 stm32_err_t stm32_send_init_seq(const stm32_t *stm) {
-  uart::UARTDevice *stream = stm->stream;
-  bool ret;
-  uint8_t byte, cmd = STM32_CMD_INIT;
+  auto *const stream = stm->stream;
 
-  stream->write_array(&cmd, 1);
+  stream->write_array(&STM32_CMD_INIT, 1);
   stream->flush();
 
-  ret = stream->read_array(&byte, 1);
+  uint8_t byte;
+  bool ret = stream->read_array(&byte, 1);
   if (ret && byte == STM32_ACK)
     return STM32_ERR_OK;
   if (ret && byte == STM32_NACK) {
@@ -304,7 +313,7 @@ stm32_err_t stm32_send_init_seq(const stm32_t *stm) {
    * Check if previous STM32_CMD_INIT was taken as first byte
    * of a command. Send a new byte, we should get back a NACK.
    */
-  stream->write_array(&cmd, 1);
+  stream->write_array(&STM32_CMD_INIT, 1);
   stream->flush();
 
   ret = stream->read_array(&byte, 1);
@@ -315,9 +324,7 @@ stm32_err_t stm32_send_init_seq(const stm32_t *stm) {
 }
 
 stm32_err_t stm32_mass_erase(const stm32_t *stm) {
-  uart::UARTDevice *stream = stm->stream;
-  stm32_err_t s_err;
-  uint8_t buf[3];
+  auto *const stream = stm->stream;
 
   if (stm32_send_command(stm, stm->cmd->er) != STM32_ERR_OK) {
     ESP_LOGD(TAG, "Can't initiate chip mass erase!");
@@ -326,7 +333,7 @@ stm32_err_t stm32_mass_erase(const stm32_t *stm) {
 
   /* regular erase (0x43) */
   if (stm->cmd->er == STM32_CMD_ER) {
-    s_err = stm32_send_command_timeout(stm, 0xFF, STM32_MASSERASE_TIMEOUT);
+    const auto s_err = stm32_send_command_timeout(stm, 0xFF, STM32_MASSERASE_TIMEOUT);
     if (s_err != STM32_ERR_OK) {
       return STM32_ERR_UNKNOWN;
     }
@@ -334,13 +341,17 @@ stm32_err_t stm32_mass_erase(const stm32_t *stm) {
   }
 
   /* extended erase */
-  buf[0] = 0xFF; /* 0xFFFF the magic number for mass erase */
-  buf[1] = 0xFF;
-  buf[2] = 0x00; /* checksum */
+  static constexpr auto BUFFER_SIZE = 3;
+  const uint8_t buf[] = {
+    0xFF, /* 0xFFFF the magic number for mass erase */
+    0xFF,
+    0x00, /* checksum */
+  };
+  static_assert(sizeof(buf) == BUFFER_SIZE, "Expected the buffer to be 3 bytes");
   stream->write_array(buf, 3);
   stream->flush();
 
-  s_err = stm32_get_ack_timeout(stm, STM32_MASSERASE_TIMEOUT);
+  const auto s_err = stm32_get_ack_timeout(stm, STM32_MASSERASE_TIMEOUT);
   if (s_err != STM32_ERR_OK) {
     ESP_LOGD(TAG, "Mass erase failed. Try specifying the number of pages to be erased.");
     return STM32_ERR_UNKNOWN;
@@ -349,10 +360,7 @@ stm32_err_t stm32_mass_erase(const stm32_t *stm) {
 }
 
 stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_t pages) {
-  uart::UARTDevice *stream = stm->stream;
-  stm32_err_t s_err;
-  uint32_t pg_num;
-  uint8_t pg_byte;
+  auto *const stream = stm->stream;
   uint8_t cs = 0;
   uint8_t *buf;
   int i = 0;
@@ -373,7 +381,7 @@ stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_t pages
 
     buf[i++] = pages - 1;
     cs ^= (pages - 1);
-    for (pg_num = spage; pg_num < (pages + spage); pg_num++) {
+    for (auto pg_num = spage; pg_num < (pages + spage); pg_num++) {
       buf[i++] = pg_num;
       cs ^= pg_num;
     }
@@ -383,7 +391,7 @@ stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_t pages
 
     free(buf);  // NOLINT
 
-    s_err = stm32_get_ack_timeout(stm, pages * STM32_PAGEERASE_TIMEOUT);
+    const auto s_err = stm32_get_ack_timeout(stm, pages * STM32_PAGEERASE_TIMEOUT);
     if (s_err != STM32_ERR_OK) {
       return STM32_ERR_UNKNOWN;
     }
@@ -396,14 +404,14 @@ stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_t pages
     return STM32_ERR_UNKNOWN;
 
   /* Number of pages to be erased - 1, two bytes, MSB first */
-  pg_byte = (pages - 1) >> 8;
+  uint8_t pg_byte = (pages - 1) >> 8;
   buf[i++] = pg_byte;
   cs ^= pg_byte;
   pg_byte = (pages - 1) & 0xFF;
   buf[i++] = pg_byte;
   cs ^= pg_byte;
 
-  for (pg_num = spage; pg_num < spage + pages; pg_num++) {
+  for (auto pg_num = spage; pg_num < spage + pages; pg_num++) {
     pg_byte = pg_num >> 8;
     cs ^= pg_byte;
     buf[i++] = pg_byte;
@@ -417,7 +425,7 @@ stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_t pages
 
   free(buf);  // NOLINT
 
-  s_err = stm32_get_ack_timeout(stm, pages * STM32_PAGEERASE_TIMEOUT);
+  const auto s_err = stm32_get_ack_timeout(stm, pages * STM32_PAGEERASE_TIMEOUT);
   if (s_err != STM32_ERR_OK) {
     ESP_LOGD(TAG, "Page-by-page erase failed. Check the maximum pages your device supports.");
     return STM32_ERR_UNKNOWN;
@@ -458,16 +466,15 @@ namespace shelly_dimmer {
 #define newer(prev, a) (((prev) == STM32_CMD_ERR) ? (a) : (((prev) > (a)) ? (prev) : (a)))
 
 stm32_t *stm32_init(uart::UARTDevice *stream, uint8_t flags, char init) {
-  uint8_t len, val, buf[257];
-  stm32_t *stm;
-  int i, new_cmds;
+  uint8_t buf[257];
 
-  stm = (stm32_t *) calloc(sizeof(stm32_t), 1);            // NOLINT
+  auto* stm = (stm32_t *) calloc(sizeof(stm32_t), 1);            // NOLINT
   stm->cmd = (stm32_cmd_t *) malloc(sizeof(stm32_cmd_t));  // NOLINT
   memset(stm->cmd, STM32_CMD_ERR, sizeof(stm32_cmd_t));
   stm->stream = stream;
   stm->flags = flags;
 
+  // TODO: RAII close stm
   if ((stm->flags & STREAM_OPT_CMD_INIT) && init) {
     if (stm32_send_init_seq(stm) != STM32_ERR_OK)
       return nullptr;  // NOLINT
@@ -479,34 +486,43 @@ stm32_t *stm32_init(uart::UARTDevice *stream, uint8_t flags, char init) {
   }
 
   /* From AN, only UART bootloader returns 3 bytes */
-  len = (stm->flags & STREAM_OPT_GVR_ETX) ? 3 : 1;
-  if (!stream->read_array(buf, len))
-    return nullptr;  // NOLINT
-  stm->version = buf[0];
-  stm->option1 = (stm->flags & STREAM_OPT_GVR_ETX) ? buf[1] : 0;
-  stm->option2 = (stm->flags & STREAM_OPT_GVR_ETX) ? buf[2] : 0;
-  if (stm32_get_ack(stm) != STM32_ERR_OK) {
-    stm32_close(stm);
-    return nullptr;
-  }
-
-  /* get the bootloader information */
-  len = STM32_CMD_GET_LENGTH;
-  if (stm->cmd_get_reply) {
-    for (i = 0; stm->cmd_get_reply[i].length; i++) {
-      if (stm->version == stm->cmd_get_reply[i].version) {
-        len = stm->cmd_get_reply[i].length;
-        break;
-      }
+  {
+    const auto len = (stm->flags & STREAM_OPT_GVR_ETX) ? 3 : 1;
+    if (!stream->read_array(buf, len))
+      return nullptr;  // NOLINT
+    stm->version = buf[0];
+    stm->option1 = (stm->flags & STREAM_OPT_GVR_ETX) ? buf[1] : 0;
+    stm->option2 = (stm->flags & STREAM_OPT_GVR_ETX) ? buf[2] : 0;
+    if (stm32_get_ack(stm) != STM32_ERR_OK) {
+      stm32_close(stm);
+      return nullptr;
     }
   }
-  if (stm32_guess_len_cmd(stm, STM32_CMD_GET, buf, len) != STM32_ERR_OK)
-    return nullptr;
-  len = buf[0] + 1;
+
+
+  {
+    const auto len = ([&]() {
+      /* get the bootloader information */
+      if (stm->cmd_get_reply) {
+        for (auto i = 0; stm->cmd_get_reply[i].length; ++i) {
+          if (stm->version == stm->cmd_get_reply[i].version) {
+            return stm->cmd_get_reply[i].length;
+          }
+        }
+      }
+
+      return STM32_CMD_GET_LENGTH;
+    })();
+
+    if (stm32_guess_len_cmd(stm, STM32_CMD_GET, buf, len) != STM32_ERR_OK)
+      return nullptr;
+  }
+
+  const auto stop = buf[0] + 1;
   stm->bl_version = buf[1];
-  new_cmds = 0;
-  for (i = 1; i < len; i++) {
-    val = buf[i + 1];
+  int new_cmds = 0;
+  for (auto i = 1; i < stop; ++i) {
+    const auto val = buf[i + 1];
     switch (val) {
       case STM32_CMD_GET:
         stm->cmd->get = val;
@@ -576,16 +592,16 @@ stm32_t *stm32_init(uart::UARTDevice *stream, uint8_t flags, char init) {
     stm32_close(stm);
     return nullptr;
   }
-  len = buf[0] + 1;
-  if (len < 2) {
+  const auto returned = buf[0] + 1;
+  if (returned < 2) {
     stm32_close(stm);
-    ESP_LOGD(TAG, "Only %d bytes sent in the PID, unknown/unsupported device", len);
+    ESP_LOGD(TAG, "Only %d bytes sent in the PID, unknown/unsupported device", returned);
     return nullptr;
   }
   stm->pid = (buf[1] << 8) | buf[2];
-  if (len > 2) {
-    ESP_LOGD(TAG, "This bootloader returns %d extra bytes in PID:", len);
-    for (i = 2; i <= len; i++)
+  if (returned > 2) {
+    ESP_LOGD(TAG, "This bootloader returns %d extra bytes in PID:", returned);
+    for (auto i = 2; i <= returned; i++)
       ESP_LOGD(TAG, " %02x", buf[i]);
   }
   if (stm32_get_ack(stm) != STM32_ERR_OK) {
@@ -613,8 +629,7 @@ void stm32_close(stm32_t *stm) {
 }
 
 stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address, uint8_t data[], unsigned int len) {
-  uart::UARTDevice *stream = stm->stream;
-  uint8_t buf[5];
+  auto *const stream = stm->stream;
 
   if (!len)
     return STM32_ERR_OK;
@@ -632,12 +647,16 @@ stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address, uint8_t data
   if (stm32_send_command(stm, stm->cmd->rm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  buf[0] = address >> 24;
-  buf[1] = (address >> 16) & 0xFF;
-  buf[2] = (address >> 8) & 0xFF;
-  buf[3] = address & 0xFF;
-  buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
-  stream->write_array(buf, 5);
+  static constexpr auto BUFFER_SIZE = 5;
+  const uint8_t buf[] = {
+    static_cast<uint8_t>(address >> 24),
+    static_cast<uint8_t>((address >> 16) & 0xFF),
+    static_cast<uint8_t>((address >> 8) & 0xFF),
+    static_cast<uint8_t>(address & 0xFF),
+    static_cast<uint8_t>(buf[0] ^ buf[1] ^ buf[2] ^ buf[3]),
+  };
+  static_assert(sizeof(buf) == BUFFER_SIZE, "Invalid buffer");
+  stream->write_array(buf, BUFFER_SIZE);
   stream->flush();
 
   if (stm32_get_ack(stm) != STM32_ERR_OK)
@@ -653,7 +672,7 @@ stm32_err_t stm32_read_memory(const stm32_t *stm, uint32_t address, uint8_t data
 }
 
 stm32_err_t stm32_write_memory(const stm32_t *stm, uint32_t address, const uint8_t data[], unsigned int len) {
-  uart::UARTDevice *stream = stm->stream;
+  auto *const stream = stm->stream;
   uint8_t cs, buf[256 + 2];
   unsigned int i, aligned_len;
   stm32_err_t s_err;
@@ -767,9 +786,6 @@ stm32_err_t stm32_readprot_memory(const stm32_t *stm) {
 }
 
 stm32_err_t stm32_erase_memory(const stm32_t *stm, uint32_t spage, uint32_t pages) {
-  uint32_t n;
-  stm32_err_t s_err;
-
   if (!pages || spage > STM32_MAX_PAGES || ((pages != STM32_MASS_ERASE) && ((spage + pages) > STM32_MAX_PAGES)))
     return STM32_ERR_OK;
 
@@ -799,9 +815,10 @@ stm32_err_t stm32_erase_memory(const stm32_t *stm, uint32_t spage, uint32_t page
    * Some device, like STM32L152, cannot erase more than 512 pages in
    * one command. Split the call.
    */
+  static constexpr uint32_t MAX_PAGE_SIZE = 512;
   while (pages) {
-    n = (pages <= 512) ? pages : 512;
-    s_err = stm32_pages_erase(stm, spage, n);
+    const auto n = std::max(pages, MAX_PAGE_SIZE);
+    const auto s_err = stm32_pages_erase(stm, spage, n);
     if (s_err != STM32_ERR_OK)
       return s_err;
     spage += n;
@@ -824,11 +841,11 @@ uint32_t le_u32(const uint32_t v) {
 
 static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_address, const uint8_t *code,
                                       uint32_t code_size) {
-  uint32_t stack_le = le_u32(0x20002000);
-  uint32_t code_address_le = le_u32(target_address + 8 + 1);  // thumb mode address (!)
+  static constexpr uint32_t BUFFER_SIZE = 256;
+
+  const auto stack_le = le_u32(0x20002000);
+  const auto code_address_le = le_u32(target_address + 8 + 1);  // thumb mode address (!)
   uint32_t length = code_size + 8;
-  uint8_t *mem, *pos;
-  uint32_t address, w;
 
   /* Must be 32-bit aligned */
   if (target_address & 0x3) {
@@ -836,18 +853,19 @@ static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_addres
     return STM32_ERR_UNKNOWN;
   }
 
-  mem = (uint8_t *) malloc(length);  // NOLINT
+  // TODO: RAII
+  const auto mem = (uint8_t *) malloc(length);  // NOLINT
   if (!mem)
     return STM32_ERR_UNKNOWN;
 
-  memcpy(mem, &stack_le, sizeof(uint32_t));
-  memcpy(mem + 4, &code_address_le, sizeof(uint32_t));
+  memcpy(mem, &stack_le, sizeof(stack_le));
+  memcpy(mem + 4, &code_address_le, sizeof(code_address_le));
   memcpy(mem + 8, code, code_size);
 
-  pos = mem;
-  address = target_address;
+  auto pos = mem;
+  auto address = target_address;
   while (length > 0) {
-    w = length > 256 ? 256 : length;
+    const auto w = std::min(length, BUFFER_SIZE);
     if (stm32_write_memory(stm, address, pos, w) != STM32_ERR_OK) {
       free(mem);  // NOLINT
       return STM32_ERR_UNKNOWN;
@@ -863,8 +881,7 @@ static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_addres
 }
 
 stm32_err_t stm32_go(const stm32_t *stm, uint32_t address) {
-  uart::UARTDevice *stream = stm->stream;
-  uint8_t buf[5];
+  auto *const stream = stm->stream;
 
   if (stm->cmd->go == STM32_CMD_ERR) {
     ESP_LOGD(TAG, "Error: GO command not implemented in bootloader.");
@@ -874,11 +891,15 @@ stm32_err_t stm32_go(const stm32_t *stm, uint32_t address) {
   if (stm32_send_command(stm, stm->cmd->go) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  buf[0] = address >> 24;
-  buf[1] = (address >> 16) & 0xFF;
-  buf[2] = (address >> 8) & 0xFF;
-  buf[3] = address & 0xFF;
-  buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
+  static constexpr auto BUFFER_SIZE = 5;
+  const uint8_t buf[] = {
+    static_cast<uint8_t>(address >> 24),
+    static_cast<uint8_t>((address >> 16) & 0xFF),
+    static_cast<uint8_t>((address >> 8) & 0xFF),
+    static_cast<uint8_t>(address & 0xFF),
+    static_cast<uint8_t>(buf[0] ^ buf[1] ^ buf[2] ^ buf[3]),
+  };
+  static_assert(sizeof(buf) == BUFFER_SIZE, "Expected the buffer to be 5 bytes");
   stream->write_array(buf, 5);
   stream->flush();
 
@@ -888,7 +909,7 @@ stm32_err_t stm32_go(const stm32_t *stm, uint32_t address) {
 }
 
 stm32_err_t stm32_reset_device(const stm32_t *stm) {
-  uint32_t target_address = stm->dev->ram_start;
+  const auto target_address = stm->dev->ram_start;
 
   if (stm->dev->flags & F_OBLL) {
     /* set the OBL_LAUNCH bit to reset device (see RM0360, 2.5) */
@@ -899,8 +920,8 @@ stm32_err_t stm32_reset_device(const stm32_t *stm) {
 }
 
 stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t length, uint32_t *crc) {
-  uart::UARTDevice *stream = stm->stream;
-  uint8_t buf[5];
+  static constexpr auto BUFFER_SIZE = 5;
+  auto *const stream = stm->stream;
 
   if (address & 0x3 || length & 0x3) {
     ESP_LOGD(TAG, "Start and end addresses must be 4 byte aligned");
@@ -915,24 +936,34 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t leng
   if (stm32_send_command(stm, stm->cmd->crc) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  buf[0] = address >> 24;
-  buf[1] = (address >> 16) & 0xFF;
-  buf[2] = (address >> 8) & 0xFF;
-  buf[3] = address & 0xFF;
-  buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
-  stream->write_array(buf, 5);
-  stream->flush();
+  {
+    const uint8_t buf[] = {
+      static_cast<uint8_t>(address >> 24),
+      static_cast<uint8_t>((address >> 16) & 0xFF),
+      static_cast<uint8_t>((address >> 8) & 0xFF),
+      static_cast<uint8_t>(address & 0xFF),
+      static_cast<uint8_t>(buf[0] ^ buf[1] ^ buf[2] ^ buf[3]),
+    };
+    static_assert(sizeof(buf) == BUFFER_SIZE, "Expected the buffer to be 5 bytes");
+    stream->write_array(buf, BUFFER_SIZE);
+    stream->flush();
+  }
 
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  buf[0] = length >> 24;
-  buf[1] = (length >> 16) & 0xFF;
-  buf[2] = (length >> 8) & 0xFF;
-  buf[3] = length & 0xFF;
-  buf[4] = buf[0] ^ buf[1] ^ buf[2] ^ buf[3];
-  stream->write_array(buf, 5);
-  stream->flush();
+  {
+    const uint8_t buf[] = {
+      static_cast<uint8_t>(length >> 24),
+      static_cast<uint8_t>((length >> 16) & 0xFF),
+      static_cast<uint8_t>((length >> 8) & 0xFF),
+      static_cast<uint8_t>(length & 0xFF),
+      static_cast<uint8_t>(buf[0] ^ buf[1] ^ buf[2] ^ buf[3]),
+    };
+    static_assert(sizeof(buf) == BUFFER_SIZE, "Expected the buffer to be 5 bytes");
+    stream->write_array(buf, BUFFER_SIZE);
+    stream->flush();
+  }
 
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
@@ -940,13 +971,18 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t leng
   if (stm32_get_ack(stm) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  if (!stream->read_array(buf, 5))
-    return STM32_ERR_UNKNOWN;
+  {
+    uint8_t buf[BUFFER_SIZE];
+    if (!stream->read_array(buf, BUFFER_SIZE))
+      return STM32_ERR_UNKNOWN;
 
-  if (buf[4] != (buf[0] ^ buf[1] ^ buf[2] ^ buf[3]))
-    return STM32_ERR_UNKNOWN;
 
-  *crc = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
+    if (buf[4] != (buf[0] ^ buf[1] ^ buf[2] ^ buf[3]))
+      return STM32_ERR_UNKNOWN;
+
+    *crc = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
+  }
+
   return STM32_ERR_OK;
 }
 
@@ -961,8 +997,6 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address, uint32_t leng
 uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len) {
   static constexpr uint32_t CRCPOLY_BE = 0x04c11db7;
   static constexpr uint32_t CRC_MSBMASK = 0x80000000;
-  int i;
-  uint32_t data;
 
   if (len & 0x3) {
     ESP_LOGD(TAG, "Buffer length must be multiple of 4 bytes");
@@ -970,7 +1004,7 @@ uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len) {
   }
 
   while (len) {
-    data = *buf++;
+    uint32_t data = *buf++;
     data |= *buf++ << 8;
     data |= *buf++ << 16;
     data |= *buf++ << 24;
@@ -978,7 +1012,7 @@ uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len) {
 
     crc ^= data;
 
-    for (i = 0; i < 32; i++) {
+    for (size_t i = 0; i < 32; ++i) {
       if (crc & CRC_MSBMASK) {
         crc = (crc << 1) ^ CRCPOLY_BE;
       } else {
@@ -991,9 +1025,9 @@ uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len) {
 
 stm32_err_t stm32_crc_wrapper(const stm32_t *stm, uint32_t address, uint32_t length, uint32_t *crc) {
   static constexpr uint32_t CRC_INIT_VALUE = 0xFFFFFFFF;
+  static constexpr uint32_t BUFFER_SIZE = 256;
 
-  uint8_t buf[256];
-  uint32_t start, total_len, len, current_crc;
+  uint8_t buf[BUFFER_SIZE];
 
   if (address & 0x3 || length & 0x3) {
     ESP_LOGD(TAG, "Start and end addresses must be 4 byte aligned");
@@ -1003,11 +1037,11 @@ stm32_err_t stm32_crc_wrapper(const stm32_t *stm, uint32_t address, uint32_t len
   if (stm->cmd->crc != STM32_CMD_ERR)
     return stm32_crc_memory(stm, address, length, crc);
 
-  start = address;
-  total_len = length;
-  current_crc = CRC_INIT_VALUE;
+  const auto start = address;
+  const auto total_len = length;
+  uint32_t current_crc = CRC_INIT_VALUE;
   while (length) {
-    len = length > 256 ? 256 : length;
+    const auto len = std::min(BUFFER_SIZE, length);
     if (stm32_read_memory(stm, address, buf, len) != STM32_ERR_OK) {
       ESP_LOGD(TAG, "Failed to read memory at address 0x%08x, target write-protected?", address);
       return STM32_ERR_UNKNOWN;
