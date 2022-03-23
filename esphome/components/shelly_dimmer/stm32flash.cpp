@@ -80,7 +80,7 @@ constexpr uint8_t STM_RESET_CODE[] = {
     0x04, 0x00, 0xfa, 0x05   // .word 0x05fa0004 <AIRCR_RESET_VALUE> = VECTKEY | SYSRESETREQ
 };
 
-constexpr uint32_t STM_RESET_CODE_LENGTH = sizeof(STM_RESET_CODE);
+constexpr uint32_t STM_RESET_CODE_SIZE = sizeof(STM_RESET_CODE);
 
 /* RM0360, Empty check
  * On STM32F070x6 and STM32F030xC devices only, internal empty check flag is
@@ -102,7 +102,7 @@ constexpr uint8_t STM_OBL_LAUNCH_CODE[] = {
     0x00, 0x20, 0x00, 0x00   // value: OBL_LAUNCH = 00002000
 };
 
-constexpr uint32_t STM_OBL_LAUNCH_CODE_LENGTH = sizeof(STM_OBL_LAUNCH_CODE);
+constexpr uint32_t STM_OBL_LAUNCH_CODE_SIZE = sizeof(STM_OBL_LAUNCH_CODE);
 
 constexpr char TAG[] = "stm32flash";
 
@@ -917,9 +917,9 @@ stm32_err_t stm32_reset_device(const stm32_t *stm) {
 
   if (stm->dev->flags & F_OBLL) {
     /* set the OBL_LAUNCH bit to reset device (see RM0360, 2.5) */
-    return stm32_run_raw_code(stm, target_address, STM_OBL_LAUNCH_CODE, STM_OBL_LAUNCH_CODE_LENGTH);
+    return stm32_run_raw_code(stm, target_address, STM_OBL_LAUNCH_CODE, STM_OBL_LAUNCH_CODE_SIZE);
   } else {
-    return stm32_run_raw_code(stm, target_address, STM_RESET_CODE, STM_RESET_CODE_LENGTH);
+    return stm32_run_raw_code(stm, target_address, STM_RESET_CODE, STM_RESET_CODE_SIZE);
   }
 }
 
