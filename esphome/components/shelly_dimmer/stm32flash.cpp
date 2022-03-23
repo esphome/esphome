@@ -426,9 +426,8 @@ stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_t pages
   return STM32_ERR_OK;
 }
 
-template<typename T>
-constexpr auto stm32_check_ack_timeout(const stm32_err_t s_err, T&& log) {
-  switch(s_err) {
+template<typename T> constexpr auto stm32_check_ack_timeout(const stm32_err_t s_err, T &&log) {
+  switch (s_err) {
     case STM32_ERR_OK:
       return STM32_ERR_OK;
     case STM32_ERR_NACK:
@@ -441,10 +440,10 @@ constexpr auto stm32_check_ack_timeout(const stm32_err_t s_err, T&& log) {
 }
 
 #if __cplusplus >= 201703L
-static_assert(stm32_check_ack_timeout(STM32_ERR_OK, []{}) == STM32_ERR_OK, "Invalid return value");
-static_assert(stm32_check_ack_timeout(STM32_ERR_NACK, []{}) == STM32_ERR_UNKNOWN, "Invalid return value");
-static_assert(stm32_check_ack_timeout(STM32_ERR_NO_CMD, []{}) == STM32_ERR_UNKNOWN, "Invalid return value");
-static_assert(stm32_check_ack_timeout(STM32_ERR_UNKNOWN, []{}) == STM32_ERR_UNKNOWN, "Invalid return value");
+static_assert(stm32_check_ack_timeout(STM32_ERR_OK, [] {}) == STM32_ERR_OK, "Invalid return value");
+static_assert(stm32_check_ack_timeout(STM32_ERR_NACK, [] {}) == STM32_ERR_UNKNOWN, "Invalid return value");
+static_assert(stm32_check_ack_timeout(STM32_ERR_NO_CMD, [] {}) == STM32_ERR_UNKNOWN, "Invalid return value");
+static_assert(stm32_check_ack_timeout(STM32_ERR_UNKNOWN, [] {}) == STM32_ERR_UNKNOWN, "Invalid return value");
 #endif
 
 }  // Anonymous namespace
@@ -724,12 +723,8 @@ stm32_err_t stm32_wunprot_memory(const stm32_t *stm) {
   if (stm32_send_command(stm, stm->cmd->uw) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  return stm32_check_ack_timeout(
-    stm32_get_ack_timeout(stm, STM32_WUNPROT_TIMEOUT),
-    []() {
-      ESP_LOGD(TAG, "Error: Failed to WRITE UNPROTECT");
-    }
-  );
+  return stm32_check_ack_timeout(stm32_get_ack_timeout(stm, STM32_WUNPROT_TIMEOUT),
+                                 []() { ESP_LOGD(TAG, "Error: Failed to WRITE UNPROTECT"); });
 }
 
 stm32_err_t stm32_wprot_memory(const stm32_t *stm) {
@@ -741,12 +736,8 @@ stm32_err_t stm32_wprot_memory(const stm32_t *stm) {
   if (stm32_send_command(stm, stm->cmd->wp) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  return stm32_check_ack_timeout(
-    stm32_get_ack_timeout(stm, STM32_WPROT_TIMEOUT),
-    []() {
-      ESP_LOGD(TAG, "Error: Failed to WRITE PROTECT");
-    }
-  );
+  return stm32_check_ack_timeout(stm32_get_ack_timeout(stm, STM32_WPROT_TIMEOUT),
+                                 []() { ESP_LOGD(TAG, "Error: Failed to WRITE PROTECT"); });
 }
 
 stm32_err_t stm32_runprot_memory(const stm32_t *stm) {
@@ -758,12 +749,8 @@ stm32_err_t stm32_runprot_memory(const stm32_t *stm) {
   if (stm32_send_command(stm, stm->cmd->ur) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  return stm32_check_ack_timeout(
-    stm32_get_ack_timeout(stm, STM32_MASSERASE_TIMEOUT),
-    []() {
-      ESP_LOGD(TAG, "Error: Failed to READOUT UNPROTECT");
-    }
-  );
+  return stm32_check_ack_timeout(stm32_get_ack_timeout(stm, STM32_MASSERASE_TIMEOUT),
+                                 []() { ESP_LOGD(TAG, "Error: Failed to READOUT UNPROTECT"); });
 }
 
 stm32_err_t stm32_readprot_memory(const stm32_t *stm) {
@@ -775,12 +762,8 @@ stm32_err_t stm32_readprot_memory(const stm32_t *stm) {
   if (stm32_send_command(stm, stm->cmd->rp) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
 
-  return stm32_check_ack_timeout(
-    stm32_get_ack_timeout(stm, STM32_RPROT_TIMEOUT),
-    []() {
-      ESP_LOGD(TAG, "Error: Failed to READOUT PROTECT");
-    }
-  );
+  return stm32_check_ack_timeout(stm32_get_ack_timeout(stm, STM32_RPROT_TIMEOUT),
+                                 []() { ESP_LOGD(TAG, "Error: Failed to READOUT PROTECT"); });
 }
 
 stm32_err_t stm32_erase_memory(const stm32_t *stm, uint32_t spage, uint32_t pages) {

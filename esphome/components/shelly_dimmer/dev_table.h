@@ -47,7 +47,7 @@ constexpr uint32_t p_2k[] = {SZ_2K, 0};    // NOLINT
 constexpr uint32_t f2f4[] = {SZ_16K, SZ_16K, SZ_16K, SZ_16K, SZ_64K, SZ_128K, 0};  // NOLINT
 /* F4 dual bank page size */
 constexpr uint32_t f4db[] = {SZ_16K,  SZ_16K, SZ_16K, SZ_16K, SZ_64K, SZ_128K, SZ_128K,  // NOLINT
-                          SZ_128K, SZ_16K, SZ_16K, SZ_16K, SZ_16K, SZ_64K,  SZ_128K, 0};
+                             SZ_128K, SZ_16K, SZ_16K, SZ_16K, SZ_16K, SZ_64K,  SZ_128K, 0};
 /* F7 page size */
 constexpr uint32_t f7[] = {SZ_32K, SZ_32K, SZ_32K, SZ_32K, SZ_128K, SZ_256K, 0};  // NOLINT
 
@@ -147,8 +147,8 @@ constexpr stm32_dev_t DEVICES[] = {
      0x08040800, 0},
     {0x9b0, "STM32W-256K", 0x20000200, 0x20004000, 0x08000000, 0x08040000, 4, p_2k, 0x08040800, 0x0804080F, 0x08040000,
      0x08040800, 0},
-    {0x0, "", 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}
-};  // NOLINT
+    {0x0, "", 0x0, 0x0, 0x0, 0x0, 0x0, nullptr, 0x0, 0x0, 0x0},
+};
 
 }  // namespace shelly_dimmer
 }  // namespace esphome
