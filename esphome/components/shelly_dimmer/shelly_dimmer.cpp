@@ -5,6 +5,7 @@
 #include <HardwareSerial.h>
 #endif
 
+#include <cstring>
 #include <numeric>
 
 namespace {
@@ -146,7 +147,7 @@ bool ShellyDimmer::upgrade_firmware_() {
       break;
     }
 
-    memcpy(buffer, p, BUFFER_SIZE);
+    std::memcpy(buffer, p, BUFFER_SIZE);
     p += BUFFER_SIZE;
 
     if (stm32_write_memory(stm32, addr, buffer, len) != STM32_ERR_OK) {
@@ -262,7 +263,7 @@ size_t ShellyDimmer::frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *c
   pos += 4;
 
   if (payload != nullptr) {
-    memcpy(data + 4, payload, len);
+    std::memcpy(data + 4, payload, len);
     pos += len;
   }
 
