@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <memory>
 #include <numeric>
 
 namespace {
@@ -116,16 +117,24 @@ bool ShellyDimmer::upgrade_firmware_() {
   ESP_LOGW(TAG, "Starting STM32 firmware upgrade");
   this->reset_dfu_boot_();
 
-  stm32_t *stm32 = stm32_init(this, STREAM_SERIAL, 1);
+  // Could be constexpr in c++17
+  const auto close = [](auto* stm32) {
+      stm32_close(stm32);
+  };
+
+  // Cleanup with RAII
+  std::unique_ptr<stm32_t, decltype(close)> stm32{
+    stm32_init(this, STREAM_SERIAL, 1), close
+  };
+
   if (!stm32) {
     ESP_LOGW(TAG, "Failed to initialize STM32");
     return false;
   }
 
   // Erase STM32 flash.
-  if (stm32_erase_memory(stm32, 0, STM32_MASS_ERASE) != STM32_ERR_OK) {
+  if (stm32_erase_memory(stm32.get(), 0, STM32_MASS_ERASE) != STM32_ERR_OK) {
     ESP_LOGW(TAG, "Failed to erase STM32 flash memory");
-    stm32_close(stm32);
     return false;
   }
 
@@ -151,9 +160,8 @@ bool ShellyDimmer::upgrade_firmware_() {
     std::memcpy(buffer, p, BUFFER_SIZE);
     p += BUFFER_SIZE;
 
-    if (stm32_write_memory(stm32, addr, buffer, len) != STM32_ERR_OK) {
+    if (stm32_write_memory(stm32.get(), addr, buffer, len) != STM32_ERR_OK) {
       ESP_LOGW(TAG, "Failed to write to STM32 flash memory");
-      stm32_close(stm32);
       return false;
     }
 
@@ -161,7 +169,6 @@ bool ShellyDimmer::upgrade_firmware_() {
     offset += len;
   }
 
-  stm32_close(stm32);
   ESP_LOGI(TAG, "STM32 firmware upgrade successful");
 
   return true;
