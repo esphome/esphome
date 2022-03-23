@@ -454,8 +454,7 @@ uint32_t le_u32(const uint32_t v) {
   return v;
 }
 
-template<size_t N>
-void populate_buffer_with_address(uint8_t (&buffer)[N], uint32_t address) {
+template<size_t N> void populate_buffer_with_address(uint8_t (&buffer)[N], uint32_t address) {
   buffer[0] = static_cast<uint8_t>(address >> 24);
   buffer[1] = static_cast<uint8_t>((address >> 16) & 0xFF);
   buffer[2] = static_cast<uint8_t>((address >> 8) & 0xFF);
