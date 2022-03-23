@@ -100,7 +100,7 @@ void ShellyDimmer::write_state(light::LightState *state) {
   float brightness;
   state->current_values_as_brightness(&brightness);
 
-  uint16_t brightness_int = this->convert_brightness_(brightness);
+  const uint16_t brightness_int = this->convert_brightness_(brightness);
   if (brightness_int == this->brightness_) {
     ESP_LOGV(TAG, "Not sending unchanged value");
     return;
@@ -128,20 +128,20 @@ bool ShellyDimmer::upgrade_firmware_() {
   }
 
   const uint8_t *fw = STM_FIRMWARE;
-  uint32_t fw_len = sizeof(STM_FIRMWARE);
+  const uint32_t FIRMWARE_SIZE_IN_BYTES = sizeof(STM_FIRMWARE);
 
   // Copy the STM32 firmware over in 256-byte chunks. Note that the firmware is stored
   // in flash memory so all accesses need to be 4-byte aligned.
-  uint8_t buffer[256];
+  constexpr uint32_t BUFFER_SIZE = 256;
+  uint8_t buffer[BUFFER_SIZE];
   const uint8_t *p = fw;
   uint32_t offset = 0;
   uint32_t addr = stm32->dev->fl_start;
-  uint32_t end = addr + sizeof(STM_FIRMWARE);
+  const uint32_t end = addr + FIRMWARE_SIZE_IN_BYTES;
 
-  while (addr < end && offset < fw_len) {
-    uint32_t left = end - addr;
-    uint32_t len = sizeof(buffer) > left ? left : sizeof(buffer);
-    len = (len > (fw_len - offset)) ? (fw_len - offset) : len;
+  while (addr < end && offset < FIRMWARE_SIZE_IN_BYTES) {
+    const uint32_t left_of_buffer = std::min(end - addr, BUFFER_SIZE);
+    const uint32_t len = std::min(left_of_buffer, FIRMWARE_SIZE_IN_BYTES - offset);
 
     if (len == 0) {
       break;
@@ -178,10 +178,12 @@ uint16_t ShellyDimmer::convert_brightness_(float brightness) {
 }
 
 void ShellyDimmer::send_brightness_(uint16_t brightness) {
-  uint8_t payload[SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE];
-  // Brightness (%) * 10.
-  payload[0] = brightness & 0xff;
-  payload[1] = brightness >> 8;
+  const uint8_t payload[] = {
+    // Brightness (%) * 10.
+    static_cast<uint8_t>(brightness & 0xff),
+    static_cast<uint8_t>(brightness >> 8),
+  };
+  static_assert(std::size(payload) == SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE);
 
   this->send_command_(SHELLY_DIMMER_PROTO_CMD_SWITCH, payload, SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE);
 
@@ -189,16 +191,16 @@ void ShellyDimmer::send_brightness_(uint16_t brightness) {
 }
 
 void ShellyDimmer::send_settings_() {
-  uint16_t fade_rate = std::min(uint16_t{100}, this->fade_rate_);
+  const uint16_t fade_rate = std::min(uint16_t{100}, this->fade_rate_);
 
   float brightness = 0.0;
   if (this->state_ != nullptr) {
     this->state_->current_values_as_brightness(&brightness);
   }
-  uint16_t brightness_int = this->convert_brightness_(brightness);
+  const uint16_t brightness_int = this->convert_brightness_(brightness);
   ESP_LOGD(TAG, "Brightness update: %d (raw: %f)", brightness_int, brightness);
 
-  uint8_t payload[SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE] = {
+  const uint8_t payload[] = {
     // Brightness (%) * 10.
     static_cast<uint8_t>(brightness_int & 0xff),
     static_cast<uint8_t>(brightness_int >> 8),
@@ -214,7 +216,8 @@ void ShellyDimmer::send_settings_() {
     // Warmup time.
     static_cast<uint8_t>(this->warmup_time_ & 0xff),
     static_cast<uint8_t>(this->warmup_time_ >> 8),
-};
+  };
+  static_assert(std::size(payload) == SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE);
 
   this->send_command_(SHELLY_DIMMER_PROTO_CMD_SETTINGS, payload, SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE);
 
@@ -222,12 +225,12 @@ void ShellyDimmer::send_settings_() {
   this->send_brightness_(brightness_int);
 }
 
-bool ShellyDimmer::send_command_(uint8_t cmd, uint8_t *payload, uint8_t len) {
+bool ShellyDimmer::send_command_(uint8_t cmd, const uint8_t *const payload, uint8_t len) {
   ESP_LOGD(TAG, "Sending command: 0x%02x (%d bytes)", cmd, len);
 
   // Prepare a command frame.
   uint8_t frame[SHELLY_DIMMER_PROTO_MAX_FRAME_SIZE];
-  size_t frame_len = this->frame_command_(frame, cmd, payload, len);
+  const size_t frame_len = this->frame_command_(frame, cmd, payload, len);
 
   // Write the frame and wait for acknowledgement.
   int retries = SHELLY_DIMMER_MAX_RETRIES;
@@ -236,7 +239,7 @@ bool ShellyDimmer::send_command_(uint8_t cmd, uint8_t *payload, uint8_t len) {
     this->flush();
 
     ESP_LOGD(TAG, "Command sent, waiting for reply");
-    uint32_t tx_time = millis();
+    const uint32_t tx_time = millis();
     while (millis() - tx_time < SHELLY_DIMMER_ACK_TIMEOUT) {
       if (this->read_frame_()) {
         return true;
@@ -249,7 +252,7 @@ bool ShellyDimmer::send_command_(uint8_t cmd, uint8_t *payload, uint8_t len) {
   return false;
 }
 
-size_t ShellyDimmer::frame_command_(uint8_t *data, uint8_t cmd, uint8_t *payload, size_t len) {
+size_t ShellyDimmer::frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *const payload, size_t len) {
   size_t pos = 0;
 
   // Generate a frame.
@@ -265,15 +268,15 @@ size_t ShellyDimmer::frame_command_(uint8_t *data, uint8_t cmd, uint8_t *payload
   }
 
   // Calculate checksum for the payload.
-  uint16_t csum = shelly_dimmer_checksum(data + 1, 3 + len);
   data[pos++] = csum >> 8;
   data[pos++] = csum & 0xff;
+  const uint16_t csum = shelly_dimmer_checksum(data + 1, 3 + len);
   data[pos++] = SHELLY_DIMMER_PROTO_END_BYTE;
   return pos;
 }
 
 int ShellyDimmer::handle_byte_(uint8_t c) {
-  uint8_t pos = this->buffer_pos_;
+  const uint8_t pos = this->buffer_pos_;
 
   if (pos == 0) {
     // Must be start byte.
@@ -284,7 +287,7 @@ int ShellyDimmer::handle_byte_(uint8_t c) {
   }
 
   // Decode payload length from header.
-  uint8_t payload_len = this->buffer_[3];
+  const uint8_t payload_len = this->buffer_[3];
   if ((4 + payload_len + 3) > SHELLY_DIMMER_BUFFER_SIZE) {
     return -1;
   }
@@ -296,8 +299,8 @@ int ShellyDimmer::handle_byte_(uint8_t c) {
 
   if (pos == 4 + payload_len + 1) {
     // Verify checksum.
-    uint16_t csum = (this->buffer_[pos - 1] << 8 | c);
-    uint16_t csum_verify = shelly_dimmer_checksum(&this->buffer_[1], 3 + payload_len);
+    const uint16_t csum = (this->buffer_[pos - 1] << 8 | c);
+    const uint16_t csum_verify = shelly_dimmer_checksum(&this->buffer_[1], 3 + payload_len);
     if (csum != csum_verify) {
       return -1;
     }
@@ -313,7 +316,7 @@ int ShellyDimmer::handle_byte_(uint8_t c) {
 
 bool ShellyDimmer::read_frame_() {
   while (this->available()) {
-    uint8_t c = this->read();
+    const uint8_t c = this->read();
     this->buffer_[this->buffer_pos_] = c;
 
     ESP_LOGV(TAG, "Read byte: 0x%02x (pos %d)", c, this->buffer_pos_);
@@ -341,9 +344,9 @@ bool ShellyDimmer::read_frame_() {
 }
 
 bool ShellyDimmer::handle_frame_() {
-  uint8_t seq = this->buffer_[1];
-  uint8_t cmd = this->buffer_[2];
-  uint8_t payload_len = this->buffer_[3];
+  const uint8_t seq = this->buffer_[1];
+  const uint8_t cmd = this->buffer_[2];
+  const uint8_t payload_len = this->buffer_[3];
 
   ESP_LOGD(TAG, "Got frame: 0x%02x", cmd);
 
@@ -353,7 +356,7 @@ bool ShellyDimmer::handle_frame_() {
     return false;
   }
 
-  uint8_t *payload = &this->buffer_[4];
+  const uint8_t *payload = &this->buffer_[4];
 
   // Handle response.
   switch (cmd) {
@@ -362,17 +365,17 @@ bool ShellyDimmer::handle_frame_() {
         return false;
       }
 
-      uint8_t hw_version = payload[0];
+      const uint8_t hw_version = payload[0];
       // payload[1] is unused.
-      uint16_t brightness = payload[3] << 8 | payload[2];
+      const uint16_t brightness = payload[3] << 8 | payload[2];
 
-      uint32_t power_raw = payload[7] << 24 | payload[6] << 16 | payload[5] << 8 | payload[4];
+      const uint32_t power_raw = payload[7] << 24 | payload[6] << 16 | payload[5] << 8 | payload[4];
 
-      uint32_t voltage_raw = payload[11] << 24 | payload[10] << 16 | payload[9] << 8 | payload[8];
+      const uint32_t voltage_raw = payload[11] << 24 | payload[10] << 16 | payload[9] << 8 | payload[8];
 
-      uint32_t current_raw = payload[15] << 24 | payload[14] << 16 | payload[13] << 8 | payload[12];
+      const uint32_t current_raw = payload[15] << 24 | payload[14] << 16 | payload[13] << 8 | payload[12];
 
-      uint16_t fade_rate = payload[16];
+      const uint16_t fade_rate = payload[16];
 
       float power = 0;
       if (power_raw > 0) {
