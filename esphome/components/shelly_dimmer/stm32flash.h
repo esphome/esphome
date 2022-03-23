@@ -26,21 +26,21 @@ namespace esphome {
 namespace shelly_dimmer {
 
 /* flags */
-#define STREAM_OPT_BYTE (1 << 0)      /* byte (not frame) oriented */
-#define STREAM_OPT_GVR_ETX (1 << 1)   /* cmd GVR returns protection status */
-#define STREAM_OPT_CMD_INIT (1 << 2)  /* use INIT cmd to autodetect speed */
-#define STREAM_OPT_RETRY (1 << 3)     /* allowed read() retry after timeout */
-#define STREAM_OPT_I2C (1 << 4)       /* i2c */
-#define STREAM_OPT_STRETCH_W (1 << 5) /* warning for no-stretching commands */
+constexpr auto STREAM_OPT_BYTE = (1 << 0);      /* byte (not frame) oriented */
+constexpr auto STREAM_OPT_GVR_ETX = (1 << 1);   /* cmd GVR returns protection status */
+constexpr auto STREAM_OPT_CMD_INIT = (1 << 2);  /* use INIT cmd to autodetect speed */
+constexpr auto STREAM_OPT_RETRY = (1 << 3);     /* allowed read() retry after timeout */
+constexpr auto STREAM_OPT_I2C = (1 << 4);       /* i2c */
+constexpr auto STREAM_OPT_STRETCH_W = (1 << 5); /* warning for no-stretching commands */
 
-#define STREAM_SERIAL (STREAM_OPT_BYTE | STREAM_OPT_GVR_ETX | STREAM_OPT_CMD_INIT | STREAM_OPT_RETRY)
-#define STREAM_I2C (STREAM_OPT_I2C | STREAM_OPT_STRETCH_W)
+constexpr auto STREAM_SERIAL = (STREAM_OPT_BYTE | STREAM_OPT_GVR_ETX | STREAM_OPT_CMD_INIT | STREAM_OPT_RETRY);
+constexpr auto STREAM_I2C = (STREAM_OPT_I2C | STREAM_OPT_STRETCH_W);
 
-#define STM32_MAX_RX_FRAME 256           /* cmd read memory */
-#define STM32_MAX_TX_FRAME (1 + 256 + 1) /* cmd write memory */
+constexpr auto STM32_MAX_RX_FRAME = 256;           /* cmd read memory */
+constexpr auto STM32_MAX_TX_FRAME = (1 + 256 + 1); /* cmd write memory */
 
-#define STM32_MAX_PAGES 0x0000ffff
-#define STM32_MASS_ERASE 0x00100000 /* > 2 x max_pages */
+constexpr auto STM32_MAX_PAGES = 0x0000ffff;
+constexpr auto STM32_MASS_ERASE = 0x00100000; /* > 2 x max_pages */
 
 typedef enum {  // NOLINT
   STM32_ERR_OK = 0,
