@@ -135,7 +135,6 @@ int flash_addr_to_page_ceil(const stm32_t *stm, uint32_t addr) {
 stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
   auto *stream = stm->stream;
   uint8_t rxbyte;
-  uint32_t t0 = 0, t1;
 
   if (!(stm->flags & STREAM_OPT_RETRY))
     timeout = 0;
@@ -143,12 +142,11 @@ stm32_err_t stm32_get_ack_timeout(const stm32_t *stm, uint32_t timeout) {
   if (timeout == 0)
     timeout = DEFAULT_TIMEOUT;
 
-  t0 = millis();
+  const uint32_t start_time = millis();
   do {
     yield();
     if (!stream->available()) {
-      t1 = millis();
-      if (t1 < t0 + timeout)
+      if (millis() < start_time + timeout)
         continue;
       ESP_LOGD(TAG, "Failed to read ACK timeout=%i", timeout);
       return STM32_ERR_UNKNOWN;
@@ -171,7 +169,6 @@ stm32_err_t stm32_get_ack(const stm32_t *stm) { return stm32_get_ack_timeout(stm
 
 stm32_err_t stm32_send_command_timeout(const stm32_t *stm, const uint8_t cmd, const uint32_t timeout) {
   auto *const stream = stm->stream;
-  stm32_err_t s_err;
 
   static constexpr auto BUFFER_SIZE = 2;
   const uint8_t buf[] = {
@@ -183,7 +180,7 @@ stm32_err_t stm32_send_command_timeout(const stm32_t *stm, const uint8_t cmd, co
   stream->write_array(buf, BUFFER_SIZE);
   stream->flush();
 
-  s_err = stm32_get_ack_timeout(stm, timeout);
+  stm32_err_t s_err = stm32_get_ack_timeout(stm, timeout);
   if (s_err == STM32_ERR_OK)
     return STM32_ERR_OK;
   if (s_err == STM32_ERR_NACK) {
@@ -240,7 +237,6 @@ stm32_err_t stm32_resync(const stm32_t *stm) {
  */
 stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, const uint8_t cmd, uint8_t *const data, unsigned int len) {
   auto *const stream = stm->stream;
-  bool ret;
 
   if (stm32_send_command(stm, cmd) != STM32_ERR_OK)
     return STM32_ERR_UNKNOWN;
@@ -254,7 +250,7 @@ stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, const uint8_t cmd, uint8_t *
     return STM32_ERR_OK;
   }
 
-  ret = stream->read_array(data, len + 2);
+  const auto ret = stream->read_array(data, len + 2);
   if (ret && len == data[0])
     return STM32_ERR_OK;
   if (ret == 0 || ret != len + 2) {
@@ -446,10 +442,10 @@ template<typename T> stm32_err_t stm32_check_ack_timeout(const stm32_err_t s_err
 
 /* detect CPU endian */
 bool cpu_le() {
-  static constexpr int n = 1;
+  static constexpr int N = 1;
 
   // returns true if little endian
-  return *reinterpret_cast<const char *>(&n) == 1;
+  return *reinterpret_cast<const char *>(&N) == 1;
 }
 
 uint32_t le_u32(const uint32_t v) {
@@ -856,7 +852,7 @@ static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_addres
   memcpy(mem + 4, &code_address_le, sizeof(code_address_le));
   memcpy(mem + 8, code, code_size);
 
-  auto pos = mem;
+  auto *pos = mem;
   auto address = target_address;
   while (length > 0) {
     const auto w = std::min(length, BUFFER_SIZE);
