@@ -43,11 +43,7 @@ namespace shelly_dimmer {
 
 /// Computes a crappy checksum as defined by the Shelly Dimmer protocol.
 uint16_t shelly_dimmer_checksum(const uint8_t *buf, int len) {
-  uint16_t sum = 0;
-  for (int i = 0; i < len; i++) {
-    sum += buf[i];
-  }
-  return sum;
+  return std::accumulate<decltype(buf), uint16_t>(buf, buf + len, 0);
 }
 
 void ShellyDimmer::setup() {
