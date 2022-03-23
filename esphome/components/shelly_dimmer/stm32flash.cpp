@@ -431,7 +431,7 @@ stm32_err_t stm32_pages_erase(const stm32_t *stm, const uint32_t spage, const ui
   return STM32_ERR_OK;
 }
 
-template<typename T> constexpr auto stm32_check_ack_timeout(const stm32_err_t s_err, const T &&log) {
+template<typename T> constexpr stm32_err_t stm32_check_ack_timeout(const stm32_err_t s_err, const T &&log) {
   switch (s_err) {
     case STM32_ERR_OK:
       return STM32_ERR_OK;
