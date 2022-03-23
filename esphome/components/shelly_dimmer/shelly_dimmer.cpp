@@ -31,7 +31,7 @@ constexpr uint8_t SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE = 10;
 constexpr uint8_t SHELLY_DIMMER_PROTO_MAX_FRAME_SIZE = 4 + 72 + 3;
 
 // STM Firmware
-const uint8_t STM_FIRMWARE[] PROGMEM = SHD_FIRMWARE_DATA;
+constexpr uint8_t STM_FIRMWARE[] PROGMEM = SHD_FIRMWARE_DATA;
 
 // Scaling Constants
 constexpr float POWER_SCALING_FACTOR = 880373;
