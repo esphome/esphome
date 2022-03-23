@@ -128,7 +128,7 @@ bool ShellyDimmer::upgrade_firmware_() {
   }
 
   const uint8_t *fw = STM_FIRMWARE;
-  const uint32_t FIRMWARE_SIZE_IN_BYTES = sizeof(STM_FIRMWARE);
+  constexpr uint32_t FIRMWARE_SIZE_IN_BYTES = sizeof(STM_FIRMWARE);
 
   // Copy the STM32 firmware over in 256-byte chunks. Note that the firmware is stored
   // in flash memory so all accesses need to be 4-byte aligned.
