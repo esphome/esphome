@@ -5,6 +5,8 @@
 #include <HardwareSerial.h>
 #endif
 
+#include <numeric>
+
 namespace {
 
 constexpr char TAG[] = "shelly";
