@@ -182,7 +182,8 @@ uint16_t ShellyDimmer::convert_brightness_(float brightness) {
 void ShellyDimmer::send_brightness_(uint16_t brightness) {
   uint8_t payload[SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE];
   // Brightness (%) * 10.
-  payload[0] = brightness & 0xff, payload[1] = brightness >> 8,
+  payload[0] = brightness & 0xff;
+  payload[1] = brightness >> 8;
 
   this->send_command_(SHELLY_DIMMER_PROTO_CMD_SWITCH, payload, SHELLY_DIMMER_PROTO_CMD_SWITCH_SIZE);
 
