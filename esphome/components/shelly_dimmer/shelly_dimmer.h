@@ -85,10 +85,10 @@ class ShellyDimmer : public Component, public light::LightOutput, public uart::U
   bool upgrade_firmware_();
 
   /// Sends a command and waits for an acknowledgement.
-  bool send_command_(uint8_t cmd, const uint8_t *const payload, uint8_t len);
+  bool send_command_(uint8_t cmd, const uint8_t *payload, uint8_t len);
 
   /// Frames a given command payload.
-  size_t frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *const payload, size_t len);
+  size_t frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *payload, size_t len);
 
   /// Handles a single byte as part of a protocol frame.
   ///

@@ -54,7 +54,7 @@ typedef enum {      // NOLINT
   F_OBLL = 1 << 1,  /* OBL_LAUNCH required */
 } flags_t;
 
-struct stm32_cmd {
+struct stm32_cmd {  // NOLINT
   uint8_t get;
   uint8_t gvr;
   uint8_t gid;

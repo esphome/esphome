@@ -139,26 +139,26 @@ bool ShellyDimmer::upgrade_firmware_() {
     return false;
   }
 
-  static constexpr uint32_t buffer_size = 256;
+  static constexpr uint32_t BUFFER_SIZE = 256;
 
   // Copy the STM32 firmware over in 256-byte chunks. Note that the firmware is stored
   // in flash memory so all accesses need to be 4-byte aligned.
-  uint8_t buffer[buffer_size];
+  uint8_t buffer[BUFFER_SIZE];
   const uint8_t *p = STM_FIRMWARE;
   uint32_t offset = 0;
   uint32_t addr = stm32->dev->fl_start;
   const uint32_t end = addr + STM_FIRMWARE_SIZE_IN_BYTES;
 
   while (addr < end && offset < STM_FIRMWARE_SIZE_IN_BYTES) {
-    const uint32_t left_of_buffer = std::min(end - addr, buffer_size);
+    const uint32_t left_of_buffer = std::min(end - addr, BUFFER_SIZE);
     const uint32_t len = std::min(left_of_buffer, STM_FIRMWARE_SIZE_IN_BYTES - offset);
 
     if (len == 0) {
       break;
     }
 
-    std::memcpy(buffer, p, buffer_size);
-    p += buffer_size;
+    std::memcpy(buffer, p, BUFFER_SIZE);
+    p += BUFFER_SIZE;
 
     if (stm32_write_memory(stm32.get(), addr, buffer, len) != STM32_ERR_OK) {
       ESP_LOGW(TAG, "Failed to write to STM32 flash memory");
