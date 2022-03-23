@@ -268,9 +268,9 @@ size_t ShellyDimmer::frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *c
   }
 
   // Calculate checksum for the payload.
-  data[pos++] = csum >> 8;
-  data[pos++] = csum & 0xff;
   const uint16_t csum = shelly_dimmer_checksum(data + 1, 3 + len);
+  data[pos++] = static_cast<uint8_t>(csum >> 8);
+  data[pos++] = static_cast<uint8_t>(csum & 0xff);
   data[pos++] = SHELLY_DIMMER_PROTO_END_BYTE;
   return pos;
 }
@@ -379,17 +379,17 @@ bool ShellyDimmer::handle_frame_() {
 
       float power = 0;
       if (power_raw > 0) {
-        power = POWER_SCALING_FACTOR / (float) power_raw;
+        power = POWER_SCALING_FACTOR / static_cast<float>(power_raw);
       }
 
       float voltage = 0;
       if (voltage_raw > 0) {
-        voltage = VOLTAGE_SCALING_FACTOR / (float) voltage_raw;
+        voltage = VOLTAGE_SCALING_FACTOR / static_cast<float>(voltage_raw);
       }
 
       float current = 0;
       if (current_raw > 0) {
-        current = CURRENT_SCALING_FACTOR / (float) current_raw;
+        current = CURRENT_SCALING_FACTOR / static_cast<float>(current_raw);
       }
 
       ESP_LOGI(TAG, "Got dimmer data:");
