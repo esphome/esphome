@@ -196,22 +196,23 @@ void ShellyDimmer::send_settings_() {
   uint16_t brightness_int = this->convert_brightness_(brightness);
   ESP_LOGD(TAG, "Brightness update: %d (raw: %f)", brightness_int, brightness);
 
-  uint8_t payload[SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE];
-  // Brightness (%) * 10.
-  payload[0] = brightness_int & 0xff;
-  payload[1] = brightness_int >> 8;
-  // Leading / trailing edge [0x01 = leading, 0x02 = trailing].
-  payload[2] = this->leading_edge_ ? 0x01 : 0x02;
-  payload[3] = 0x00;
-  // Fade rate.
-  payload[4] = fade_rate & 0xff;
-  payload[5] = fade_rate >> 8;
-  // Warmup brightness.
-  payload[6] = this->warmup_brightness_ & 0xff;
-  payload[7] = this->warmup_brightness_ >> 8;
-  // Warmup time.
-  payload[8] = this->warmup_time_ & 0xff;
-  payload[9] = this->warmup_time_ >> 8;
+  uint8_t payload[SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE] = {
+    // Brightness (%) * 10.
+    static_cast<uint8_t>(brightness_int & 0xff),
+    static_cast<uint8_t>(brightness_int >> 8),
+    // Leading / trailing edge [0x01 = leading, 0x02 = trailing].
+    this->leading_edge_ ? uint8_t{0x01} : uint8_t{0x02},
+    0x00,
+    // Fade rate.
+    static_cast<uint8_t>(fade_rate & 0xff),
+    static_cast<uint8_t>(fade_rate >> 8),
+    // Warmup brightness.
+    static_cast<uint8_t>(this->warmup_brightness_ & 0xff),
+    static_cast<uint8_t>(this->warmup_brightness_ >> 8),
+    // Warmup time.
+    static_cast<uint8_t>(this->warmup_time_ & 0xff),
+    static_cast<uint8_t>(this->warmup_time_ >> 8),
+};
 
   this->send_command_(SHELLY_DIMMER_PROTO_CMD_SETTINGS, payload, SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE);
 
