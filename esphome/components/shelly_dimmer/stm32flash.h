@@ -69,7 +69,7 @@ using stm32_cmd_t = struct Stm32Cmd {
   uint8_t crc;
 };
 
-using stm32_dev_t = struct Stm32Dev {
+using stm32_dev_t = struct Stm32Dev {  // NOLINT
   const uint16_t id;
   const char *name;
   const uint32_t ram_start, ram_end;
