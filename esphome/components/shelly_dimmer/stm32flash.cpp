@@ -253,7 +253,7 @@ stm32_err_t stm32_guess_len_cmd(const stm32_t *stm, const uint8_t cmd, uint8_t *
   const auto ret = stream->read_array(data, len + 2);
   if (ret && len == data[0])
     return STM32_ERR_OK;
-  if (ret == false) {
+  if (!ret) {
     /* restart with only one byte */
     if (stm32_resync(stm) != STM32_ERR_OK)
       return STM32_ERR_UNKNOWN;
