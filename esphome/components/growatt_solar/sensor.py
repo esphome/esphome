@@ -162,8 +162,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await modbus.register_modbus_device(var, config)
 
-    if CONF_PROTOCOL_VERSION in config:
-        cg.add(var.set_protocol_version(config[CONF_PROTOCOL_VERSION]))
+    cg.add(var.set_protocol_version(config[CONF_PROTOCOL_VERSION]))
 
     if CONF_INVERTER_STATUS in config:
         sens = await sensor.new_sensor(config[CONF_INVERTER_STATUS])
