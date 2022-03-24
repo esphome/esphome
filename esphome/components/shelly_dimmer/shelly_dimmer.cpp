@@ -233,7 +233,7 @@ void ShellyDimmer::send_settings_() {
 }
 
 bool ShellyDimmer::send_command_(uint8_t cmd, const uint8_t *const payload, uint8_t len) {
-  ESP_LOGD(TAG, "Sending command: 0x%02x (%d bytes)", cmd, len);
+  ESP_LOGD(TAG, "Sending command: 0x%02x (%d bytes) payload 0x%s", cmd, len, format_hex(payload, len).c_str());
 
   // Prepare a command frame.
   uint8_t frame[SHELLY_DIMMER_PROTO_MAX_FRAME_SIZE];
