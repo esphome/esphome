@@ -1,16 +1,18 @@
-#include "util.h"
-#include "api_server.h"
-#include "user_services.h"
-#include "esphome/core/log.h"
+#include "component_iterator.h"
+
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace api {
+#ifdef USE_API
+#include "esphome/components/api/api_server.h"
+#include "esphome/components/api/user_services.h"
+#endif
 
-ComponentIterator::ComponentIterator(APIServer *server) : server_(server) {}
-void ComponentIterator::begin() {
+namespace esphome {
+
+void ComponentIterator::begin(bool include_internal) {
   this->state_ = IteratorState::BEGIN;
   this->at_ = 0;
+  this->include_internal_ = include_internal;
 }
 void ComponentIterator::advance() {
   bool advance_platform = false;
@@ -32,7 +34,7 @@ void ComponentIterator::advance() {
         advance_platform = true;
       } else {
         auto *binary_sensor = App.get_binary_sensors()[this->at_];
-        if (binary_sensor->is_internal()) {
+        if (binary_sensor->is_internal() && !this->include_internal_) {
           success = true;
           break;
         } else {
@@ -47,7 +49,7 @@ void ComponentIterator::advance() {
         advance_platform = true;
       } else {
         auto *cover = App.get_covers()[this->at_];
-        if (cover->is_internal()) {
+        if (cover->is_internal() && !this->include_internal_) {
           success = true;
           break;
         } else {
@@ -62,7 +64,7 @@ void ComponentIterator::advance() {
         advance_platform = true;
       } else {
         auto *fan = App.get_fans()[this->at_];
-        if (fan->is_internal()) {
+        if (fan->is_internal() && !this->include_internal_) {
           success = true;
           break;
         } else {
@@ -77,7 +79,7 @@ void ComponentIterator::advance() {
         advance_platform = true;
       } else {
         auto *light = App.get_lights()[this->at_];
-        if (light->is_internal()) {
+        if (light->is_internal() && !this->include_internal_) {
           success = true;
           break;
         } else {
@@ -92,7 +94,7 @@ void ComponentIterator::advance() {
         advance_platform = true;
       } else {
         auto *sensor = App.get_sensors()[this->at_];
-        if (sensor->is_internal()) {
+        if (sensor->is_internal() && !this->include_internal_) {
           success = true;
           break;
         } else {
@@ -107,7 +109,7 @@ void ComponentIterator::advance() {
         advance_platform = true;
       } else {
         auto *a_switch = App.get_switches()[this->at_];
-        if (a_switch->is_internal()) {
+        if (a_switch->is_internal() && !this->include_internal_) {
           success = true;
           break;
         } else {
@@ -122,7 +124,7 @@ void ComponentIterator::advance() {
         advance_platform = true;
       } else {
         auto *button = App.get_buttons()[this->at_];
-        if (button->is_internal()) {
+        if (button->is_internal() && !this->include_internal_) {
           success = true;
           break;
         } else {
@@ -137,7 +139,7 @@ void ComponentIterator::advance() {
         advance_platform = true;
       } else {
         auto *text_sensor = App.get_text_sensors()[this->at_];
-        if (text_sensor->is_internal()) {
+        if (text_sensor->is_internal() && !this->include_internal_) {
           success = true;
           break;
         } else {
@@ -146,20 +148,22 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_API
     case IteratorState ::SERVICE:
-      if (this->at_ >= this->server_->get_user_services().size()) {
+      if (this->at_ >= api::global_api_server->get_user_services().size()) {
         advance_platform = true;
       } else {
-        auto *service = this->server_->get_user_services()[this->at_];
+        auto *service = api::global_api_server->get_user_services()[this->at_];
         success = this->on_service(service);
       }
       break;
+#endif
 #ifdef USE_ESP32_CAMERA
     case IteratorState::CAMERA:
       if (esp32_camera::global_esp32_camera == nullptr) {
         advance_platform = true;
       } else {
-        if (esp32_camera::global_esp32_camera->is_internal()) {
+        if (esp32_camera::global_esp32_camera->is_internal() && !this->include_internal_) {
           advance_platform = success = true;
           break;
         } else {
@@ -174,7 +178,7 @@ void ComponentIterator::advance() {
         advance_platform = true;
       } else {
         auto *climate = App.get_climates()[this->at_];
-        if (climate->is_internal()) {
+        if (climate->is_internal() && !this->include_internal_) {
           success = true;
           break;
         } else {
@@ -189,7 +193,7 @@ void ComponentIterator::advance() {
         advance_platform = true;
       } else {
         auto *number = App.get_numbers()[this->at_];
-        if (number->is_internal()) {
+        if (number->is_internal() && !this->include_internal_) {
           success = true;
           break;
         } else {
@@ -204,7 +208,7 @@ void ComponentIterator::advance() {
         advance_platform = true;
       } else {
         auto *select = App.get_selects()[this->at_];
-        if (select->is_internal()) {
+        if (select->is_internal() && !this->include_internal_) {
           success = true;
           break;
         } else {
@@ -219,7 +223,7 @@ void ComponentIterator::advance() {
         advance_platform = true;
       } else {
         auto *a_lock = App.get_locks()[this->at_];
-        if (a_lock->is_internal()) {
+        if (a_lock->is_internal() && !this->include_internal_) {
           success = true;
           break;
         } else {
@@ -244,10 +248,10 @@ void ComponentIterator::advance() {
 }
 bool ComponentIterator::on_end() { return true; }
 bool ComponentIterator::on_begin() { return true; }
-bool ComponentIterator::on_service(UserServiceDescriptor *service) { return true; }
+#ifdef USE_API
+bool ComponentIterator::on_service(api::UserServiceDescriptor *service) { return true; }
+#endif
 #ifdef USE_ESP32_CAMERA
 bool ComponentIterator::on_camera(esp32_camera::ESP32Camera *camera) { return true; }
 #endif
-
-}  // namespace api
 }  // namespace esphome

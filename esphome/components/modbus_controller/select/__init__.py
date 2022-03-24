@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import select
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA
+from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_OPTIMISTIC
 from esphome.jsonschema import jschema_composite
 
 from .. import (
@@ -79,6 +79,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
             cv.Required(CONF_OPTIONSMAP): ensure_option_map(),
             cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
+            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
         },
@@ -112,6 +113,7 @@ async def to_code(config):
     cg.add(parent.add_sensor_item(var))
     cg.add(var.set_parent(parent))
     cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
+    cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
 
     if CONF_LAMBDA in config:
         template_ = await cg.process_lambda(

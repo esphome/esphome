@@ -798,6 +798,17 @@ sensor:
           value: 12345
     total:
       name: "Pulse Meter Total"
+  - platform: qmp6988
+    temperature:
+      name: "Living Temperature QMP"
+      oversampling: 32x
+    pressure:
+      name: "Living Pressure QMP"
+      oversampling: 2x
+    address: 0x70
+    update_interval: 30s
+    iir_filter: 16x
+    i2c_id: i2c_bus
   - platform: rotary_encoder
     name: "Rotary Encoder"
     id: rotary_encoder1
@@ -2207,6 +2218,17 @@ display:
   - platform: lcd_pcf8574
     dimensions: 18x4
     address: 0x3F
+    user_characters:
+      - position: 0
+        data:
+          - 0b00000
+          - 0b01010
+          - 0b00000
+          - 0b00100
+          - 0b00100
+          - 0b10001
+          - 0b01110
+          - 0b00000
     lambda: |-
       it.print("Hello World!");
     i2c_id: i2c_bus
