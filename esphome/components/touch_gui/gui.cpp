@@ -71,9 +71,10 @@ void TouchGUIComponent::update() {
 void TouchGUIComponent::draw() {
   this->check_page_changed_();
 
-  for (auto *d : this->drawables_)
+  for (auto *d : this->drawables_) {
     if (d->is_visible())
       d->draw();
+  }
 }
 
 void TouchGUIComponent::touch(int x, int y, bool touched) {
@@ -201,9 +202,9 @@ void TouchGUIButton::update_drawable() {
 }
 
 void TouchGUIButton::draw() {
-  if (this->writer_.has_value())
+  if (this->writer_.has_value()) {
     (this->writer_.value())(*this);
-  else if (this->parent_->get_writer().has_value()) {
+  } else if (this->parent_->get_writer().has_value()) {
     (this->parent_->get_writer().value())(*this);
   } else {
     if (this->type_ != TOUCH_GUI_BUTTON_TYPE_AREA) {
@@ -211,9 +212,10 @@ void TouchGUIButton::draw() {
                                this->y_max_ - this->y_min_ + 1, get_border_color());
       get_display()->filled_rectangle(this->x_min_ + 1, this->y_min_ + 1, this->x_max_ - this->x_min_ - 1,
                                       this->y_max_ - this->y_min_ - 1, get_background_color_to_use());
-      if (get_font() != nullptr && !this->text_.value().empty())
+      if (get_font() != nullptr && !this->text_.value().empty()) {
         get_display()->print(get_x_center(), get_y_center(), get_font(), get_foreground_color_to_use(),
                              display::TextAlign::CENTER, this->text_.value().c_str());
+      }
     }
   }
 }
