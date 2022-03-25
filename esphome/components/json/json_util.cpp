@@ -54,7 +54,7 @@ void parse_json(const std::string &data, const json_parse_t &f) {
   const size_t free_heap = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
 #endif
   bool pass = false;
-  size_t request_size = std::min(free_heap - 2048, (size_t) (data.size() * 1.5));
+  size_t request_size = std::min(free_heap - 2048, (size_t)(data.size() * 1.5));
   do {
     DynamicJsonDocument json_document(request_size);
     if (json_document.memoryPool().buffer() == nullptr) {
