@@ -28,6 +28,7 @@
 #include "esphome/core/log.h"
 
 #include <algorithm>
+#include <memory>
 
 namespace {
 
@@ -352,10 +353,15 @@ stm32_err_t stm32_mass_erase(const stm32_t *stm) {
   return STM32_ERR_OK;
 }
 
+template<typename T> std::unique_ptr<T[], void (*)(void *memory)> malloc_array_raii(size_t size) {
+  // Could be constexpr in c++17
+  static const auto deletor = [](auto *memory) { free(memory); };
+  return std::unique_ptr<T[], decltype(deletor)>{static_cast<T *>(malloc(size)), deletor};
+}
+
 stm32_err_t stm32_pages_erase(const stm32_t *stm, const uint32_t spage, const uint32_t pages) {
   auto *const stream = stm->stream;
   uint8_t cs = 0;
-  uint8_t *buf;
   int i = 0;
 
   /* The erase command reported by the bootloader is either 0x43, 0x44 or 0x45 */
@@ -368,7 +374,9 @@ stm32_err_t stm32_pages_erase(const stm32_t *stm, const uint32_t spage, const ui
 
   /* regular erase (0x43) */
   if (stm->cmd->er == STM32_CMD_ER) {
-    buf = (uint8_t *) malloc(1 + pages + 1);  // NOLINT
+    // Free memory with RAII
+    auto buf = malloc_array_raii<uint8_t>(1 + pages + 1);
+
     if (!buf)
       return STM32_ERR_UNKNOWN;
 
@@ -379,10 +387,8 @@ stm32_err_t stm32_pages_erase(const stm32_t *stm, const uint32_t spage, const ui
       cs ^= pg_num;
     }
     buf[i++] = cs;
-    stream->write_array(buf, i);
+    stream->write_array(&buf[0], i);
     stream->flush();
-
-    free(buf);  // NOLINT
 
     const auto s_err = stm32_get_ack_timeout(stm, pages * STM32_PAGEERASE_TIMEOUT);
     if (s_err != STM32_ERR_OK) {
@@ -392,7 +398,10 @@ stm32_err_t stm32_pages_erase(const stm32_t *stm, const uint32_t spage, const ui
   }
 
   /* extended erase */
-  buf = (uint8_t *) malloc(2 + 2 * pages + 1);  // NOLINT
+
+  // Free memory with RAII
+  auto buf = malloc_array_raii<uint8_t>(2 + 2 * pages + 1);
+
   if (!buf)
     return STM32_ERR_UNKNOWN;
 
@@ -413,10 +422,8 @@ stm32_err_t stm32_pages_erase(const stm32_t *stm, const uint32_t spage, const ui
     buf[i++] = pg_byte;
   }
   buf[i++] = cs;
-  stream->write_array(buf, i);
+  stream->write_array(&buf[0], i);
   stream->flush();
-
-  free(buf);  // NOLINT
 
   const auto s_err = stm32_get_ack_timeout(stm, pages * STM32_PAGEERASE_TIMEOUT);
   if (s_err != STM32_ERR_OK) {
@@ -482,14 +489,19 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
   stm->stream = stream;
   stm->flags = flags;
 
-  // TODO: RAII close stm
   if ((stm->flags & STREAM_OPT_CMD_INIT) && init) {
     if (stm32_send_init_seq(stm) != STM32_ERR_OK)
       return nullptr;  // NOLINT
   }
+
+  // Could be constexpr in c++17
+  const auto close = [](stm32_t *stm32) { stm32_close(stm32); };
+
+  // Cleanup with RAII
+  std::unique_ptr<stm32_t, decltype(close)> stm32{stm, close};
+
   /* get the version and read protection status  */
   if (stm32_send_command(stm, STM32_CMD_GVR) != STM32_ERR_OK) {
-    stm32_close(stm);
     return nullptr;  // NOLINT
   }
 
@@ -502,7 +514,6 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
     stm->option1 = (stm->flags & STREAM_OPT_GVR_ETX) ? buf[1] : 0;
     stm->option2 = (stm->flags & STREAM_OPT_GVR_ETX) ? buf[2] : 0;
     if (stm32_get_ack(stm) != STM32_ERR_OK) {
-      stm32_close(stm);
       return nullptr;
     }
   }
@@ -585,7 +596,6 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
   if (new_cmds)
     ESP_LOGD(TAG, ")");
   if (stm32_get_ack(stm) != STM32_ERR_OK) {
-    stm32_close(stm);
     return nullptr;
   }
 
@@ -596,12 +606,10 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
 
   /* get the device ID */
   if (stm32_guess_len_cmd(stm, stm->cmd->gid, buf, 1) != STM32_ERR_OK) {
-    stm32_close(stm);
     return nullptr;
   }
   const auto returned = buf[0] + 1;
   if (returned < 2) {
-    stm32_close(stm);
     ESP_LOGD(TAG, "Only %d bytes sent in the PID, unknown/unsupported device", returned);
     return nullptr;
   }
@@ -612,7 +620,6 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
       ESP_LOGD(TAG, " %02x", buf[i]);
   }
   if (stm32_get_ack(stm) != STM32_ERR_OK) {
-    stm32_close(stm);
     return nullptr;
   }
 
@@ -622,7 +629,6 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
 
   if (!stm->dev->id) {
     ESP_LOGD(TAG, "Unknown/unsupported device (Device ID: 0x%03x)", stm->pid);
-    stm32_close(stm);
     return nullptr;
   }
 
@@ -841,21 +847,23 @@ static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_addres
     return STM32_ERR_UNKNOWN;
   }
 
-  // TODO: RAII
-  const auto mem = (uint8_t *) malloc(length);  // NOLINT
+  const auto deletor = [](auto *memory) { free(memory); };
+
+  // Free memory with RAII
+  std::unique_ptr<uint8_t, decltype(deletor)> mem{static_cast<uint8_t *>(malloc(length)), deletor};
+
   if (!mem)
     return STM32_ERR_UNKNOWN;
 
-  memcpy(mem, &stack_le, sizeof(stack_le));
-  memcpy(mem + 4, &code_address_le, sizeof(code_address_le));
-  memcpy(mem + 8, code, code_size);
+  memcpy(mem.get(), &stack_le, sizeof(stack_le));
+  memcpy(mem.get() + 4, &code_address_le, sizeof(code_address_le));
+  memcpy(mem.get() + 8, code, code_size);
 
-  auto *pos = mem;
+  auto *pos = mem.get();
   auto address = target_address;
   while (length > 0) {
     const auto w = std::min(length, BUFFER_SIZE);
     if (stm32_write_memory(stm, address, pos, w) != STM32_ERR_OK) {
-      free(mem);  // NOLINT
       return STM32_ERR_UNKNOWN;
     }
 
@@ -864,7 +872,6 @@ static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_addres
     length -= w;
   }
 
-  free(mem);  // NOLINT
   return stm32_go(stm, target_address);
 }
 
