@@ -355,7 +355,9 @@ stm32_err_t stm32_mass_erase(const stm32_t *stm) {
 
 template<typename T> std::unique_ptr<T[], void (*)(T *memory)> malloc_array_raii(size_t size) {
   // Could be constexpr in c++17
-  static const auto DELETOR = [](T *memory) { free(memory); };
+  static const auto DELETOR = [](T *memory) {
+    free(memory);  // NOLINT
+  };
   return std::unique_ptr<T[], decltype(DELETOR)>{static_cast<T *>(malloc(size)), DELETOR};
 }
 
@@ -847,10 +849,13 @@ static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_addres
     return STM32_ERR_UNKNOWN;
   }
 
-  const auto deletor = [](uint8_t *memory) { free(memory); };
+  // Could be constexpr in c++17
+  static const auto DELETOR = [](uint8_t *memory) {
+    free(memory);  // NOLINT
+  };
 
   // Free memory with RAII
-  std::unique_ptr<uint8_t, decltype(deletor)> mem{static_cast<uint8_t *>(malloc(length)), deletor};
+  std::unique_ptr<uint8_t, decltype(DELETOR)> mem{static_cast<uint8_t *>(malloc(length)), DELETOR};
 
   if (!mem)
     return STM32_ERR_UNKNOWN;
