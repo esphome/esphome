@@ -16,6 +16,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@sjtrny"]
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["sensirion_common"]
 
 sht4x_ns = cg.esphome_ns.namespace("sht4x")
 

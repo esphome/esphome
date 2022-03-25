@@ -18,6 +18,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["sensirion_common"]
 
 scd30_ns = cg.esphome_ns.namespace("scd30")
 SCD30Component = scd30_ns.class_("SCD30Component", cg.Component, i2c.I2CDevice)

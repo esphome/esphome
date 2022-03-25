@@ -21,6 +21,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@sjtrny"]
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["sensirion_common"]
 
 scd4x_ns = cg.esphome_ns.namespace("scd4x")
 SCD4XComponent = scd4x_ns.class_("SCD4XComponent", cg.PollingComponent, i2c.I2CDevice)

@@ -25,15 +25,8 @@ void SCD4XComponent::setup() {
 
   // the sensor needs 1000 ms to enter the idle state
   this->set_timeout(1000, [this]() {
-    // Check if measurement is ready before reading the value
-    if (!this->write_command_(SCD4X_CMD_GET_DATA_READY_STATUS)) {
-      ESP_LOGE(TAG, "Failed to write data ready status command");
-      this->mark_failed();
-      return;
-    }
-
-    uint16_t raw_read_status[1];
-    if (!this->read_data_(raw_read_status, 1)) {
+    uint16_t raw_read_status;
+    if (!this->get_register(SCD4X_CMD_GET_DATA_READY_STATUS, raw_read_status)) {
       ESP_LOGE(TAG, "Failed to read data ready status");
       this->mark_failed();
       return;
@@ -41,9 +34,9 @@ void SCD4XComponent::setup() {
 
     uint32_t stop_measurement_delay = 0;
     // In order to query the device periodic measurement must be ceased
-    if (raw_read_status[0]) {
+    if (raw_read_status) {
       ESP_LOGD(TAG, "Sensor has data available, stopping periodic measurement");
-      if (!this->write_command_(SCD4X_CMD_STOP_MEASUREMENTS)) {
+      if (!this->write_command(SCD4X_CMD_STOP_MEASUREMENTS)) {
         ESP_LOGE(TAG, "Failed to stop measurements");
         this->mark_failed();
         return;
@@ -53,15 +46,8 @@ void SCD4XComponent::setup() {
       stop_measurement_delay = 500;
     }
     this->set_timeout(stop_measurement_delay, [this]() {
-      if (!this->write_command_(SCD4X_CMD_GET_SERIAL_NUMBER)) {
-        ESP_LOGE(TAG, "Failed to write get serial command");
-        this->error_code_ = COMMUNICATION_FAILED;
-        this->mark_failed();
-        return;
-      }
-
       uint16_t raw_serial_number[3];
-      if (!this->read_data_(raw_serial_number, 3)) {
+      if (!this->get_register(SCD4X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 1)) {
         ESP_LOGE(TAG, "Failed to read serial number");
         this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
         this->mark_failed();
@@ -70,8 +56,8 @@ void SCD4XComponent::setup() {
       ESP_LOGD(TAG, "Serial number %02d.%02d.%02d", (uint16_t(raw_serial_number[0]) >> 8),
                uint16_t(raw_serial_number[0] & 0xFF), (uint16_t(raw_serial_number[1]) >> 8));
 
-      if (!this->write_command_(SCD4X_CMD_TEMPERATURE_OFFSET,
-                                (uint16_t)(temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
+      if (!this->write_command(SCD4X_CMD_TEMPERATURE_OFFSET,
+                               (uint16_t) (temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
         ESP_LOGE(TAG, "Error setting temperature offset.");
         this->error_code_ = MEASUREMENT_INIT_FAILED;
         this->mark_failed();
@@ -88,7 +74,7 @@ void SCD4XComponent::setup() {
           return;
         }
       } else {
-        if (!this->write_command_(SCD4X_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
+        if (!this->write_command(SCD4X_CMD_ALTITUDE_COMPENSATION, altitude_compensation_)) {
           ESP_LOGE(TAG, "Error setting altitude compensation.");
           this->error_code_ = MEASUREMENT_INIT_FAILED;
           this->mark_failed();
@@ -96,7 +82,7 @@ void SCD4XComponent::setup() {
         }
       }
 
-      if (!this->write_command_(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
+      if (!this->write_command(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
         ESP_LOGE(TAG, "Error setting automatic self calibration.");
         this->error_code_ = MEASUREMENT_INIT_FAILED;
         this->mark_failed();
@@ -104,7 +90,7 @@ void SCD4XComponent::setup() {
       }
 
       // Finally start sensor measurements
-      if (!this->write_command_(SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS)) {
+      if (!this->write_command(SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS)) {
         ESP_LOGE(TAG, "Error starting continuous measurements.");
         this->error_code_ = MEASUREMENT_INIT_FAILED;
         this->mark_failed();
@@ -164,19 +150,19 @@ void SCD4XComponent::update() {
   }
 
   // Check if data is ready
-  if (!this->write_command_(SCD4X_CMD_GET_DATA_READY_STATUS)) {
+  if (!this->write_command(SCD4X_CMD_GET_DATA_READY_STATUS)) {
     this->status_set_warning();
     return;
   }
 
-  uint16_t raw_read_status[1];
-  if (!this->read_data_(raw_read_status, 1) || raw_read_status[0] == 0x00) {
+  uint16_t raw_read_status;
+  if (!this->read_data(raw_read_status) || raw_read_status == 0x00) {
     this->status_set_warning();
     ESP_LOGW(TAG, "Data not ready yet!");
     return;
   }
 
-  if (!this->write_command_(SCD4X_CMD_READ_MEASUREMENT)) {
+  if (!this->write_command(SCD4X_CMD_READ_MEASUREMENT)) {
     ESP_LOGW(TAG, "Error reading measurement!");
     this->status_set_warning();
     return;
@@ -184,7 +170,7 @@ void SCD4XComponent::update() {
 
   // Read off sensor data
   uint16_t raw_data[3];
-  if (!this->read_data_(raw_data, 3)) {
+  if (!this->read_data(raw_data, 3)) {
     this->status_set_warning();
     return;
   }
@@ -207,7 +193,7 @@ void SCD4XComponent::update() {
 // Note pressure in bar here. Convert to hPa
 void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_bar) {
   ambient_pressure_compensation_ = true;
-  uint16_t new_ambient_pressure = (uint16_t)(pressure_in_bar * 1000);
+  uint16_t new_ambient_pressure = (uint16_t) (pressure_in_bar * 1000);
   // remove millibar from comparison to avoid frequent updates +/- 10 millibar doesn't matter
   if (initialized_ && (new_ambient_pressure / 10 != ambient_pressure_ / 10)) {
     update_ambient_pressure_compensation_(new_ambient_pressure);
@@ -218,78 +204,13 @@ void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_bar) {
 }
 
 bool SCD4XComponent::update_ambient_pressure_compensation_(uint16_t pressure_in_hpa) {
-  if (this->write_command_(SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION, pressure_in_hpa)) {
+  if (this->write_command(SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION, pressure_in_hpa)) {
     ESP_LOGD(TAG, "setting ambient pressure compensation to %d hPa", pressure_in_hpa);
     return true;
   } else {
     ESP_LOGE(TAG, "Error setting ambient pressure compensation.");
     return false;
   }
-}
-
-uint8_t SCD4XComponent::sht_crc_(uint8_t data1, uint8_t data2) {
-  uint8_t bit;
-  uint8_t crc = 0xFF;
-
-  crc ^= data1;
-  for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80) {
-      crc = (crc << 1) ^ 0x131;
-    } else {
-      crc = (crc << 1);
-    }
-  }
-
-  crc ^= data2;
-  for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80) {
-      crc = (crc << 1) ^ 0x131;
-    } else {
-      crc = (crc << 1);
-    }
-  }
-
-  return crc;
-}
-
-bool SCD4XComponent::read_data_(uint16_t *data, uint8_t len) {
-  const uint8_t num_bytes = len * 3;
-  std::vector<uint8_t> buf(num_bytes);
-
-  if (this->read(buf.data(), num_bytes) != i2c::ERROR_OK) {
-    return false;
-  }
-
-  for (uint8_t i = 0; i < len; i++) {
-    const uint8_t j = 3 * i;
-    uint8_t crc = sht_crc_(buf[j], buf[j + 1]);
-    if (crc != buf[j + 2]) {
-      ESP_LOGE(TAG, "CRC8 Checksum invalid! 0x%02X != 0x%02X", buf[j + 2], crc);
-      return false;
-    }
-    data[i] = (buf[j] << 8) | buf[j + 1];
-  }
-  return true;
-}
-
-bool SCD4XComponent::write_command_(uint16_t command) {
-  const uint8_t num_bytes = 2;
-  uint8_t buffer[num_bytes];
-
-  buffer[0] = (command >> 8);
-  buffer[1] = command & 0xff;
-
-  return this->write(buffer, num_bytes) == i2c::ERROR_OK;
-}
-
-bool SCD4XComponent::write_command_(uint16_t command, uint16_t data) {
-  uint8_t raw[5];
-  raw[0] = command >> 8;
-  raw[1] = command & 0xFF;
-  raw[2] = data >> 8;
-  raw[3] = data & 0xFF;
-  raw[4] = sht_crc_(raw[2], raw[3]);
-  return this->write(raw, 5) == i2c::ERROR_OK;
 }
 
 }  // namespace scd4x

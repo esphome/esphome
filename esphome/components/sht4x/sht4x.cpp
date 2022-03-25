@@ -19,7 +19,7 @@ void SHT4XComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sht4x...");
 
   if (this->duty_cycle_ > 0.0) {
-    uint32_t heater_interval = (uint32_t)(this->heater_time_ / this->duty_cycle_);
+    uint32_t heater_interval = (uint32_t) (this->heater_time_ / this->duty_cycle_);
     ESP_LOGD(TAG, "Heater interval: %i", heater_interval);
 
     if (this->heater_power_ == SHT4X_HEATERPOWER_HIGH) {
@@ -50,31 +50,28 @@ void SHT4XComponent::setup() {
 void SHT4XComponent::dump_config() { LOG_I2C_DEVICE(this); }
 
 void SHT4XComponent::update() {
-  uint8_t cmd[] = {MEASURECOMMANDS[this->precision_]};
-
   // Send command
-  this->write(cmd, 1);
+  this->write_command(MEASURECOMMANDS[this->precision_]);
 
   this->set_timeout(10, [this]() {
-    const uint8_t num_bytes = 6;
-    uint8_t buffer[num_bytes];
+    uint16_t buffer[2];
 
     // Read measurement
-    bool read_status = this->read_bytes_raw(buffer, num_bytes);
+    bool read_status = this->read_data(buffer, 2);
 
     if (read_status) {
       // Evaluate and publish measurements
       if (this->temp_sensor_ != nullptr) {
-        // Temp is contained in the first 16 bits
-        float sensor_value_temp = (buffer[0] << 8) + buffer[1];
+        // Temp is contained in the first result word
+        float sensor_value_temp = buffer[0];
         float temp = -45 + 175 * sensor_value_temp / 65535;
 
         this->temp_sensor_->publish_state(temp);
       }
 
       if (this->humidity_sensor_ != nullptr) {
-        // Relative humidity is in the last 16 bits
-        float sensor_value_rh = (buffer[3] << 8) + buffer[4];
+        // Relative humidity is in the second result word
+        float sensor_value_rh = buffer[1];
         float rh = -6 + 125 * sensor_value_rh / 65535;
 
         this->humidity_sensor_->publish_state(rh);

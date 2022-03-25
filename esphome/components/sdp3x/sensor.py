@@ -8,6 +8,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["sensirion_common"]
 CODEOWNERS = ["@Azimath"]
 
 sdp3x_ns = cg.esphome_ns.namespace("sdp3x")

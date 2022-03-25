@@ -13,6 +13,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["sensirion_common"]
 
 sht3xd_ns = cg.esphome_ns.namespace("sht3xd")
 SHT3XDComponent = sht3xd_ns.class_(
