@@ -353,9 +353,9 @@ stm32_err_t stm32_mass_erase(const stm32_t *stm) {
   return STM32_ERR_OK;
 }
 
-template<typename T> std::unique_ptr<T[], void (*)(void *memory)> malloc_array_raii(size_t size) {
+template<typename T> std::unique_ptr<T[], void (*)(T *memory)> malloc_array_raii(size_t size) {
   // Could be constexpr in c++17
-  static const auto deletor = [](auto *memory) { free(memory); };
+  static const auto deletor = [](T *memory) { free(memory); };
   return std::unique_ptr<T[], decltype(deletor)>{static_cast<T *>(malloc(size)), deletor};
 }
 
