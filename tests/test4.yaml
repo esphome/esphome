@@ -850,7 +850,6 @@ button:
     source_id: shutdown_btn
     name: Shutdown Button Copy
 
-
 touchscreen:
   - platform: ektf2232
     interrupt_pin: GPIO36
