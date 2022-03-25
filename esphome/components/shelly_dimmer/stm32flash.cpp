@@ -847,7 +847,7 @@ static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_addres
     return STM32_ERR_UNKNOWN;
   }
 
-  const auto deletor = [](auto *memory) { free(memory); };
+  const auto deletor = [](uint8_t *memory) { free(memory); };
 
   // Free memory with RAII
   std::unique_ptr<uint8_t, decltype(deletor)> mem{static_cast<uint8_t *>(malloc(length)), deletor};
