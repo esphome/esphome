@@ -823,7 +823,7 @@ stm32_err_t stm32_erase_memory(const stm32_t *stm, uint32_t spage, uint32_t page
    */
   static constexpr uint32_t MAX_PAGE_SIZE = 512;
   while (pages) {
-    const auto n = std::max(pages, MAX_PAGE_SIZE);
+    const auto n = std::min(pages, MAX_PAGE_SIZE);
     const auto s_err = stm32_pages_erase(stm, spage, n);
     if (s_err != STM32_ERR_OK)
       return s_err;
