@@ -407,7 +407,7 @@ void WebServer::handle_states_request(AsyncWebServerRequest *request) {
   optional<std::string> s;
   stream->print(F("["));
   int i = 0;
-  while((s = states_it.next()) != nullopt) {
+  while ((s = states_it.next()) != nullopt) {
     if (i++)
       stream->print(F(","));
     stream->print(s->c_str());

@@ -17,7 +17,7 @@ class StatesIterator : public ListEntitiesIterator {
  public:
   StatesIterator(WebServer *web_server);
   optional<std::string> next();
-  
+
  protected:
   // WebServer *web_server_;
   optional<std::string> str_;

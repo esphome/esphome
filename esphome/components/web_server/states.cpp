@@ -21,14 +21,14 @@ optional<std::string> StatesIterator::next() {
   while (this->state_ != IteratorState::MAX) {
     this->str_ = nullopt;
     this->advance();
-    if(this->str_.has_value()) {
+    if (this->str_.has_value()) {
       return this->str_;
     }
   }
   this->str_ = nullopt;
   return nullopt;
 }
-				    
+
 }  // namespace web_server
 }  // namespace esphome
 
