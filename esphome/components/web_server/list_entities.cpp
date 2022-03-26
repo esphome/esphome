@@ -45,8 +45,7 @@ bool ListEntitiesIterator::on_button(button::Button *button) {
 #endif
 #ifdef USE_TEXT_SENSOR
 bool ListEntitiesIterator::on_text_sensor(text_sensor::TextSensor *text_sensor) {
-  return this->process(
-      this->web_server_->text_sensor_json(text_sensor, text_sensor->state, DETAIL_ALL));
+  return this->process(this->web_server_->text_sensor_json(text_sensor, text_sensor->state, DETAIL_ALL));
 }
 #endif
 #ifdef USE_LOCK
