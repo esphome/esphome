@@ -60,6 +60,15 @@ solve_registry = []
 
 
 def get_component_names():
+    # return [
+    #     "esphome",
+    #     "esp32",
+    #     "esp8266",
+    #     "logger",
+    #     "sensor",
+    #     "remote_receiver",
+    #     "binary_sensor",
+    # ]
     from esphome.loader import CORE_COMPONENTS_PATH
 
     component_names = ["esphome", "sensor"]
@@ -320,6 +329,14 @@ def get_str_path_schema(strPath):
     return s1
 
 
+def pop_str_path_schema(strPath):
+    parts = strPath.split(".")
+    if len(parts) > 2:
+        parts[0] += "." + parts[1]
+        parts[1] = parts[2]
+    output.get(parts[0], {}).get(S_SCHEMAS, {}).pop(parts[1])
+
+
 def get_arr_path_schema(path):
     s = output
     for x in path:
@@ -390,6 +407,34 @@ def shrink():
                     arr_s.pop(S_EXTENDS)
                     arr_s |= key_s[S_SCHEMA]
                     print(x)
+
+    # simple types should be spread on each component,
+    # for enums so far these are logger.is_log_level, cover.validate_cover_state and pulse_counter.sensor.COUNT_MODE_SCHEMA
+    # then for some reasons sensor filter registry falls here
+    # then are all simple types, integer and strings
+    for x, paths in referenced_schemas.items():
+        key_s = get_str_path_schema(x)
+        if key_s and key_s[S_TYPE] in ["enum", "registry", "integer", "string"]:
+            if key_s[S_TYPE] == "registry":
+                print("Spreading registry: " + x)
+            for target in paths:
+                target_s = get_arr_path_schema(target)
+                assert target_s[S_SCHEMA][S_EXTENDS] == [x]
+                target_s.pop(S_SCHEMA)
+                target_s |= key_s
+                if key_s[S_TYPE] in ["integer", "string"]:
+                    target_s["data_type"] = x.split(".")[1]
+            # remove this dangling again
+            pop_str_path_schema(x)
+        elif not key_s:
+            for target in paths:
+                target_s = get_arr_path_schema(target)
+                assert target_s[S_SCHEMA][S_EXTENDS] == [x]
+                target_s.pop(S_SCHEMA)
+                target_s.pop(S_TYPE)  # undefined
+                target_s["data_type"] = x.split(".")[1]
+            # remove this dangling again
+            pop_str_path_schema(x)
 
     # remove dangling items (unreachable schemas)
     for domain, domain_schemas in output.items():
