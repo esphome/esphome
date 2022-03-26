@@ -89,7 +89,7 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
 }
 #endif
 
-bool ListEntitiesIterator::process(std::string s) {
+bool ListEntitiesIterator::process(const std::string &s) {
   this->web_server_->events_.send(s.c_str(), "state");
   return true;
 }

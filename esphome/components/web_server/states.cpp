@@ -10,7 +10,7 @@ namespace web_server {
 
 StatesIterator::StatesIterator(WebServer *web_server) : ListEntitiesIterator::ListEntitiesIterator(web_server) {}
 
-bool StatesIterator::process(std::string s) {
+bool StatesIterator::process(const std::string &s) {
   this->str_ = s;
   return true;
 }
