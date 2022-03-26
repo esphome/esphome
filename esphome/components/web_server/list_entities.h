@@ -56,6 +56,7 @@ class ListEntitiesIterator : public ComponentIterator {
 
  protected:
   WebServer *web_server_;
+  virtual bool process(std::string s);
 };
 
 }  // namespace web_server
