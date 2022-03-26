@@ -12,8 +12,7 @@ ListEntitiesIterator::ListEntitiesIterator(WebServer *web_server) : web_server_(
 
 #ifdef USE_BINARY_SENSOR
 bool ListEntitiesIterator::on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
-  return this->process(
-      this->web_server_->binary_sensor_json(binary_sensor, binary_sensor->state, DETAIL_ALL));
+  return this->process(this->web_server_->binary_sensor_json(binary_sensor, binary_sensor->state, DETAIL_ALL));
 }
 #endif
 #ifdef USE_COVER
@@ -22,9 +21,7 @@ bool ListEntitiesIterator::on_cover(cover::Cover *cover) {
 }
 #endif
 #ifdef USE_FAN
-bool ListEntitiesIterator::on_fan(fan::Fan *fan) {
-  return this->process(this->web_server_->fan_json(fan, DETAIL_ALL));
-}
+bool ListEntitiesIterator::on_fan(fan::Fan *fan) { return this->process(this->web_server_->fan_json(fan, DETAIL_ALL)); }
 #endif
 #ifdef USE_LIGHT
 bool ListEntitiesIterator::on_light(light::LightState *light) {
