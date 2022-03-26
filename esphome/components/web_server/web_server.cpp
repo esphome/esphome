@@ -405,14 +405,14 @@ void WebServer::handle_states_request(AsyncWebServerRequest *request) {
   StatesIterator states_it = StatesIterator(this);
   states_it.begin();
   optional<std::string> s;
-  stream->print(F("{"));
+  stream->print(F("["));
   int i = 0;
   while((s = states_it.next()) != nullopt) {
     if (i++)
       stream->print(F(","));
     stream->print(s->c_str());
   }
-  stream->print(F("}\n"));
+  stream->print(F("]\n"));
   request->send(stream);
 }
 
