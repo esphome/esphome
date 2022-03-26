@@ -358,7 +358,8 @@ template<typename T> std::unique_ptr<T[], void (*)(T *memory)> malloc_array_raii
   static const auto DELETOR = [](T *memory) {
     free(memory);  // NOLINT
   };
-  return std::unique_ptr<T[], decltype(DELETOR)>{static_cast<T *>(malloc(size)), DELETOR};
+  return std::unique_ptr<T[], decltype(DELETOR)>{static_cast<T *>(malloc(size)),  // NOLINT
+                                                 DELETOR};
 }
 
 stm32_err_t stm32_pages_erase(const stm32_t *stm, const uint32_t spage, const uint32_t pages) {
@@ -500,7 +501,7 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
   const auto close = [](stm32_t *stm32) { stm32_close(stm32); };
 
   // Cleanup with RAII
-  std::unique_ptr<stm32_t, decltype(close)> stm32{stm, close};
+  std::unique_ptr<stm32_t, decltype(close)> stm_raii{stm, close};
 
   /* get the version and read protection status  */
   if (stm32_send_command(stm, STM32_CMD_GVR) != STM32_ERR_OK) {
@@ -633,6 +634,10 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
     ESP_LOGD(TAG, "Unknown/unsupported device (Device ID: 0x%03x)", stm->pid);
     return nullptr;
   }
+
+  // TODO: Would be much better if the unique_ptr was returned from this function
+  // Release ownership of unique_ptr
+  stm_raii.release();
 
   return stm;
 }
@@ -855,7 +860,8 @@ static stm32_err_t stm32_run_raw_code(const stm32_t *stm, uint32_t target_addres
   };
 
   // Free memory with RAII
-  std::unique_ptr<uint8_t, decltype(DELETOR)> mem{static_cast<uint8_t *>(malloc(length)), DELETOR};
+  std::unique_ptr<uint8_t, decltype(DELETOR)> mem{static_cast<uint8_t *>(malloc(length)),  // NOLINT
+                                                  DELETOR};
 
   if (!mem)
     return STM32_ERR_UNKNOWN;
