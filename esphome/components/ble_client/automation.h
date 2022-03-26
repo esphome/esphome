@@ -46,10 +46,10 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
 
   void play(Ts... x) override {
     if (this->ble_char_handle_ == 0) {
-      ESP_LOGW("ble_write_action", "Cannot write to BLE characteristic, handle_ == 0");
+      ESP_LOGW("ble_write_action", "Cannot write to BLE characteristic, ble_char_handle_ == 0");
       return;
     }
-    ESP_LOGW("ble_write_action", "Ok! Will write value %d!", this->value_.value());
+    ESP_LOGVV("ble_write_action", "Will write value %d!", this->value_.value());
     uint8_t val = value_.value();
     esp_err_t err = esp_ble_gattc_write_char(this->parent()->gattc_if, this->parent()->conn_id, this->ble_char_handle_,
                                              sizeof(val), &val, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
@@ -64,7 +64,6 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override {
-    ESP_LOGW("ble_write_action", "GATT EVT %s!", this->service_uuid_.to_string().c_str());
     switch (event) {
       case ESP_GATTC_REG_EVT:
         break;
@@ -74,8 +73,8 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
       case ESP_GATTC_SEARCH_CMPL_EVT: {
         auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
         if (chr == nullptr) {
-          ESP_LOGW("ble_write_action", "No sensor characteristic found at service %s char %s",
-                   this->service_uuid_.to_string().c_str(), this->char_uuid_.to_string().c_str());
+          ESP_LOGW("ble_write_action", "Characteristic %s was not found in service %s",
+                   this->char_uuid_.to_string().c_str(), this->service_uuid_.to_string().c_str());
           break;
         }
         this->ble_char_handle_ = chr->handle;
