@@ -637,7 +637,7 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
 
   // TODO: Would be much better if the unique_ptr was returned from this function
   // Release ownership of unique_ptr
-  stm_raii.release();
+  static_cast<void*>(stm_raii.release());
 
   return stm;
 }
