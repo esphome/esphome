@@ -21,7 +21,7 @@ class StatesIterator : public ListEntitiesIterator {
  protected:
   // WebServer *web_server_;
   optional<std::string> str_;
-  virtual bool process(std::string s);
+  bool process(std::string s) override;
 };
 
 }  // namespace web_server
