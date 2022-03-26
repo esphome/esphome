@@ -62,10 +62,14 @@ bool ListEntitiesIterator::on_button(button::Button *button) {
 #endif
 #ifdef USE_TEXT_SENSOR
 bool ListEntitiesIterator::on_text_sensor(text_sensor::TextSensor *text_sensor) {
+<<<<<<< HEAD
   if (!this->has_connected_client())
     return true;
   return this->process(
       this->web_server_->text_sensor_json(text_sensor, text_sensor->state, DETAIL_ALL));
+=======
+  return this->process(this->web_server_->text_sensor_json(text_sensor, text_sensor->state, DETAIL_ALL));
+>>>>>>> 4d9a3ae3c (make lint checker happier)
 }
 #endif
 #ifdef USE_LOCK
