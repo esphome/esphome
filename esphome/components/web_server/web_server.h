@@ -1,6 +1,7 @@
 #pragma once
 
 #include "list_entities.h"
+#include "states.h"
 
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/component.h"
@@ -140,6 +141,9 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   // Handle Private Network Access CORS OPTIONS request
   void handle_pna_cors_request(AsyncWebServerRequest *request);
 #endif
+
+  /// Handle a states request under '/states'.
+  void handle_states_request(AsyncWebServerRequest *request);
 
 #ifdef USE_SENSOR
   void on_sensor_update(sensor::Sensor *obj, float state) override;
