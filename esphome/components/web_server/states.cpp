@@ -12,7 +12,7 @@ StatesIterator::StatesIterator(WebServer *web_server) : ListEntitiesIterator::Li
   
 bool StatesIterator::has_connected_client() { return true; }
 
-bool StatesIterator::process(std::string s) {
+bool StatesIterator::process(const std::string &s) {
   this->str_ = s;
   return true;
 }
