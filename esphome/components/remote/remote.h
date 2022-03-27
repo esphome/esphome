@@ -5,7 +5,7 @@
 namespace esphome {
 namespace remote {
 
-typedef int64_t arg_t;
+using arg_t = int64_t;
 
 class RemoteCapabilities {
  public:

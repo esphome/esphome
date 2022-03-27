@@ -20,10 +20,11 @@ void RemoteProtocolCodecDuration::dump(const std::vector<arg_t> &args) {
   auto last = args.end() - 1;
 
   for (auto it = args.begin(); it != args.end(); it++) {
-    if (it != args.begin() && it != last)
+    if (it != args.begin() && it != last) {
       buf.append(", ");
-    else if (it == last)
+    } else if (it == last) {
       buf.append(":");
+    }
     buf.append(to_string(*it));
   }
 

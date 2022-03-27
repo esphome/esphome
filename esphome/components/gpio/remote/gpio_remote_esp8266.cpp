@@ -19,7 +19,7 @@ void GPIORemote::dump_config() {
   ESP_LOGCONFIG(TAG, "  Carrier Duty: %u%%", this->carrier_duty_percent_);
   LOG_PIN("  Transmit Pin: ", this->transmit_pin_);
   ESP_LOGCONFIG(TAG, "  Supported Protocols:");
-  for (auto p : this->capabilities_.supports_transmit) {
+  for (const auto &p : this->capabilities_.supports_transmit) {
     ESP_LOGCONFIG(TAG, "  - %s", p.c_str());
   }
 }

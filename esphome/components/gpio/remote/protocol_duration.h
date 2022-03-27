@@ -13,7 +13,7 @@ class RemoteProtocolCodecDuration : public RemoteProtocolCodec {
 
   // std::vector<arg_t> decode(const RemoteSignalData &src) override;
 
-  void dump(const std::vector<remote::arg_t> &command) override;
+  void dump(const std::vector<remote::arg_t> &args) override;
 };
 
 }  // namespace gpio
