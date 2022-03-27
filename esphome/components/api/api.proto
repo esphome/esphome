@@ -43,6 +43,7 @@ service APIConnection {
   rpc button_command (ButtonCommandRequest) returns (void) {}
   rpc lock_command (LockCommandRequest) returns (void) {}
   rpc media_player_command (MediaPlayerCommandRequest) returns (void) {}
+  rpc remote_command (RemoteCommandRequest) returns (void) {}
 }
 
 
@@ -1097,4 +1098,50 @@ message MediaPlayerCommandRequest {
 
   bool has_media_url = 6;
   string media_url = 7;
+}
+
+// ==================== REMOTE ======================
+
+message ListEntitiesRemoteResponse {
+  option (id) = 66;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_REMOTE";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+
+  repeated string supports_transmit = 8; // list of supported protocols
+  repeated string supports_receive = 9; // TODO: not yet implemented
+
+}
+
+enum RemoteCommand  {
+  REMOTE_TURNON = 0;
+  REMOTE_TURNOFF = 1;
+  REMOTE_TOGGLE = 2;
+  REMOTE_SEND = 3;
+  REMOTE_LEARN = 4; // TODO: not yet implemented
+}
+
+message RemoteCommandRequest {
+  option (id) = 67;
+  option (source) = SOURCE_CLIENT;
+  option (no_delay) = true;
+  option (ifdef) = "USE_REMOTE";
+
+  fixed32 key = 1;
+
+  RemoteCommand command = 2;
+
+  // send_command
+  string protocol = 3;
+  repeated sint64 args = 4 [packed=false];
+  fixed32 repeat = 5;
+  fixed32 wait_time = 6;
 }

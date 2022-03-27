@@ -778,6 +778,44 @@ void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
   call.perform();
 }
 #endif
+#ifdef USE_REMOTE
+bool APIConnection::send_remote_info(remote::Remote *a_remote) {
+  ListEntitiesRemoteResponse msg;
+  msg.key = a_remote->get_object_id_hash();
+  msg.object_id = a_remote->get_object_id();
+  msg.name = a_remote->get_name();
+  msg.unique_id = get_default_unique_id("remote", a_remote);
+  msg.icon = a_remote->get_icon();
+  msg.disabled_by_default = a_remote->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(a_remote->get_entity_category());
+  msg.supports_transmit = a_remote->get_capabilities().supports_transmit;
+  msg.supports_receive = a_remote->get_capabilities().supports_receive;
+  return this->send_list_entities_remote_response(msg);
+}
+void APIConnection::remote_command(const RemoteCommandRequest &msg) {
+  remote::Remote *a_remote = App.get_remote_by_key(msg.key);
+  if (a_remote == nullptr)
+    return;
+
+  switch (msg.command) {
+    case enums::REMOTE_TURNON:
+      a_remote->turn_on();
+      break;
+    case enums::REMOTE_TURNOFF:
+      a_remote->turn_off();
+      break;
+    case enums::REMOTE_TOGGLE:
+      // TODO: not yet implemented
+      break;
+    case enums::REMOTE_SEND:
+      a_remote->send_command(msg.repeat, msg.wait_time, msg.protocol, msg.args);
+      break;
+    case enums::REMOTE_LEARN:
+      // TODO: not yet implemented
+      break;
+  }
+}
+#endif
 
 #ifdef USE_ESP32_CAMERA
 void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {

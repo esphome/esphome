@@ -154,6 +154,12 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_MEDIA_PLAYER
   virtual void on_media_player_command_request(const MediaPlayerCommandRequest &value){};
 #endif
+#ifdef USE_REMOTE
+  bool send_list_entities_remote_response(const ListEntitiesRemoteResponse &msg);
+#endif
+#ifdef USE_REMOTE
+  virtual void on_remote_command_request(const RemoteCommandRequest &value){};
+#endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
@@ -205,6 +211,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_MEDIA_PLAYER
   virtual void media_player_command(const MediaPlayerCommandRequest &msg) = 0;
 #endif
+#ifdef USE_REMOTE
+  virtual void remote_command(const RemoteCommandRequest &msg) = 0;
+#endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
   void on_connect_request(const ConnectRequest &msg) override;
@@ -250,6 +259,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_MEDIA_PLAYER
   void on_media_player_command_request(const MediaPlayerCommandRequest &msg) override;
+#endif
+#ifdef USE_REMOTE
+  void on_remote_command_request(const RemoteCommandRequest &msg) override;
 #endif
 };
 

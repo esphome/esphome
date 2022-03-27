@@ -185,8 +185,7 @@ bool APIServerConnectionBase::send_homeassistant_service_response(const Homeassi
 #endif
   return this->send_message_<HomeassistantServiceResponse>(msg, 35);
 }
-bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(
-    const SubscribeHomeAssistantStateResponse &msg) {
+bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(const SubscribeHomeAssistantStateResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_subscribe_home_assistant_state_response: %s", msg.dump().c_str());
 #endif
@@ -327,6 +326,16 @@ bool APIServerConnectionBase::send_media_player_state_response(const MediaPlayer
 }
 #endif
 #ifdef USE_MEDIA_PLAYER
+#endif
+#ifdef USE_REMOTE
+bool APIServerConnectionBase::send_list_entities_remote_response(const ListEntitiesRemoteResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_remote_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesRemoteResponse>(msg, 66);
+}
+#endif
+#ifdef USE_REMOTE
 #endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
@@ -595,6 +604,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 67: {
+#ifdef USE_REMOTE
+      RemoteCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_remote_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_remote_command_request(msg);
+#endif
+      break;
+    }
     default:
       return false;
   }
@@ -668,8 +688,7 @@ void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &
   }
   this->subscribe_logs(msg);
 }
-void APIServerConnection::on_subscribe_homeassistant_services_request(
-    const SubscribeHomeassistantServicesRequest &msg) {
+void APIServerConnection::on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
@@ -853,6 +872,19 @@ void APIServerConnection::on_media_player_command_request(const MediaPlayerComma
     return;
   }
   this->media_player_command(msg);
+}
+#endif
+#ifdef USE_REMOTE
+void APIServerConnection::on_remote_command_request(const RemoteCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->remote_command(msg);
 }
 #endif
 

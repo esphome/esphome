@@ -52,6 +52,9 @@ class InitialStateIterator : public ComponentIterator {
 #ifdef USE_MEDIA_PLAYER
   bool on_media_player(media_player::MediaPlayer *media_player) override;
 #endif
+#ifdef USE_REMOTE
+  bool on_remote(remote::Remote *a_remote) override { return true; };
+#endif
  protected:
   APIConnection *client_;
 };

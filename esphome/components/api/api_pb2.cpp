@@ -338,6 +338,22 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::Me
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::RemoteCommand>(enums::RemoteCommand value) {
+  switch (value) {
+    case enums::REMOTE_TURNON:
+      return "REMOTE_TURNON";
+    case enums::REMOTE_TURNOFF:
+      return "REMOTE_TURNOFF";
+    case enums::REMOTE_TOGGLE:
+      return "REMOTE_TOGGLE";
+    case enums::REMOTE_SEND:
+      return "REMOTE_SEND";
+    case enums::REMOTE_LEARN:
+      return "REMOTE_LEARN";
+    default:
+      return "UNKNOWN";
+  }
+}
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -4848,6 +4864,210 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
 
   out.append("  media_url: ");
   out.append("'").append(this->media_url).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool ListEntitiesRemoteResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 6: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    case 7: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesRemoteResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->object_id = value.as_string();
+      return true;
+    }
+    case 3: {
+      this->name = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->unique_id = value.as_string();
+      return true;
+    }
+    case 5: {
+      this->icon = value.as_string();
+      return true;
+    }
+    case 8: {
+      this->supports_transmit.push_back(value.as_string());
+      return true;
+    }
+    case 9: {
+      this->supports_receive.push_back(value.as_string());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesRemoteResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 2: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ListEntitiesRemoteResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name);
+  buffer.encode_string(4, this->unique_id);
+  buffer.encode_string(5, this->icon);
+  buffer.encode_bool(6, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(7, this->entity_category);
+  for (auto &it : this->supports_transmit) {
+    buffer.encode_string(8, it, true);
+  }
+  for (auto &it : this->supports_receive) {
+    buffer.encode_string(9, it, true);
+  }
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ListEntitiesRemoteResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("ListEntitiesRemoteResponse {\n");
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id).append("'");
+  out.append("\n");
+
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  unique_id: ");
+  out.append("'").append(this->unique_id).append("'");
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+
+  for (const auto &it : this->supports_transmit) {
+    out.append("  supports_transmit: ");
+    out.append("'").append(it).append("'");
+    out.append("\n");
+  }
+
+  for (const auto &it : this->supports_receive) {
+    out.append("  supports_receive: ");
+    out.append("'").append(it).append("'");
+    out.append("\n");
+  }
+  out.append("}");
+}
+#endif
+bool RemoteCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->command = value.as_enum<enums::RemoteCommand>();
+      return true;
+    }
+    case 4: {
+      this->args.push_back(value.as_sint64());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool RemoteCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 3: {
+      this->protocol = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool RemoteCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    case 5: {
+      this->repeat = value.as_fixed32();
+      return true;
+    }
+    case 6: {
+      this->wait_time = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void RemoteCommandRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_enum<enums::RemoteCommand>(2, this->command);
+  buffer.encode_string(3, this->protocol);
+  for (auto &it : this->args) {
+    buffer.encode_sint64(4, it, true);
+  }
+  buffer.encode_fixed32(5, this->repeat);
+  buffer.encode_fixed32(6, this->wait_time);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void RemoteCommandRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("RemoteCommandRequest {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  command: ");
+  out.append(proto_enum_to_string<enums::RemoteCommand>(this->command));
+  out.append("\n");
+
+  out.append("  protocol: ");
+  out.append("'").append(this->protocol).append("'");
+  out.append("\n");
+
+  for (const auto &it : this->args) {
+    out.append("  args: ");
+    sprintf(buffer, "%lld", it);
+    out.append(buffer);
+    out.append("\n");
+  }
+
+  out.append("  repeat: ");
+  sprintf(buffer, "%u", this->repeat);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  wait_time: ");
+  sprintf(buffer, "%u", this->wait_time);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }

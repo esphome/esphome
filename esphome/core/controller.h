@@ -40,7 +40,9 @@
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
-
+#ifdef USE_REMOTE
+#include "esphome/components/remote/remote.h"
+#endif
 namespace esphome {
 
 class Controller {

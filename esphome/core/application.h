@@ -48,6 +48,9 @@
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
+#ifdef USE_REMOTE
+#include "esphome/components/remote/remote.h"
+#endif
 
 namespace esphome {
 
@@ -116,6 +119,9 @@ class Application {
 
 #ifdef USE_MEDIA_PLAYER
   void register_media_player(media_player::MediaPlayer *media_player) { this->media_players_.push_back(media_player); }
+#endif
+#ifdef USE_REMOTE
+  void register_remote(remote::Remote *a_remote) { this->remotes_.push_back(a_remote); }
 #endif
 
   /// Register the component in this Application instance.
@@ -282,6 +288,15 @@ class Application {
     return nullptr;
   }
 #endif
+#ifdef USE_REMOTE
+  const std::vector<remote::Remote *> &get_remotes() { return this->remotes_; }
+  remote::Remote *get_remote_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->remotes_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
 
   Scheduler scheduler;
 
@@ -335,6 +350,9 @@ class Application {
 #endif
 #ifdef USE_MEDIA_PLAYER
   std::vector<media_player::MediaPlayer *> media_players_{};
+#endif
+#ifdef USE_REMOTE
+  std::vector<remote::Remote *> remotes_{};
 #endif
 
   std::string name_;

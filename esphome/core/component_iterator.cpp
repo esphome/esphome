@@ -247,6 +247,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_REMOTE
+    case IteratorState::REMOTE:
+      if (this->at_ >= App.get_remotes().size()) {
+        advance_platform = true;
+      } else {
+        auto *a_remote = App.get_remotes()[this->at_];
+        if (a_remote->is_internal()) {
+          success = true;
+          break;
+        } else {
+          success = this->on_remote(a_remote);
+        }
+      }
+      break;
+#endif
     case IteratorState::MAX:
       if (this->on_end()) {
         this->state_ = IteratorState::NONE;

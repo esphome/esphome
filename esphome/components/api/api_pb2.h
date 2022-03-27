@@ -154,6 +154,13 @@ enum MediaPlayerCommand : uint32_t {
   MEDIA_PLAYER_COMMAND_MUTE = 3,
   MEDIA_PLAYER_COMMAND_UNMUTE = 4,
 };
+enum RemoteCommand : uint32_t {
+  REMOTE_TURNON = 0,
+  REMOTE_TURNOFF = 1,
+  REMOTE_TOGGLE = 2,
+  REMOTE_SEND = 3,
+  REMOTE_LEARN = 4,
+};
 
 }  // namespace enums
 
@@ -1203,6 +1210,45 @@ class MediaPlayerCommandRequest : public ProtoMessage {
   float volume{0.0f};
   bool has_media_url{false};
   std::string media_url{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class ListEntitiesRemoteResponse : public ProtoMessage {
+ public:
+  std::string object_id{};
+  uint32_t key{0};
+  std::string name{};
+  std::string unique_id{};
+  std::string icon{};
+  bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
+  std::vector<std::string> supports_transmit{};
+  std::vector<std::string> supports_receive{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class RemoteCommandRequest : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  enums::RemoteCommand command{};
+  std::string protocol{};
+  std::vector<int64_t> args{};
+  uint32_t repeat{0};
+  uint32_t wait_time{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

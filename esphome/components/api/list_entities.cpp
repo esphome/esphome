@@ -38,6 +38,9 @@ bool ListEntitiesIterator::on_text_sensor(text_sensor::TextSensor *text_sensor) 
 #ifdef USE_LOCK
 bool ListEntitiesIterator::on_lock(lock::Lock *a_lock) { return this->client_->send_lock_info(a_lock); }
 #endif
+#ifdef USE_REMOTE
+bool ListEntitiesIterator::on_remote(remote::Remote *a_remote) { return this->client_->send_remote_info(a_remote); }
+#endif
 
 bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(); }
 ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(client) {}
