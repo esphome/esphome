@@ -25,15 +25,9 @@ struct PIDController {
     // u(t) := p(t) + i(t) + d(t)
     float output = proportional_term + integral_term + derivative_term;
 
-    if (in_deadband() && deadband_output_samples > 1) {
-      output = weighted_average_(output_list_, output, deadband_output_samples);
-    }
-
-    else if (output_samples > 1) {
-      output = weighted_average_(output_list_, output, output_samples);
-    }
-
-    return output;
+    // smooth/sample the output
+    int samples = in_deadband() ? deadband_output_samples : output_samples;
+    return weighted_average_(output_list_, output, samples);
   }
 
   void reset_accumulated_integral() { accumulated_integral_ = 0; }
@@ -84,17 +78,12 @@ struct PIDController {
     if (in_deadband()) {
       // shallow the proportional_term in the deadband by the pdm
       proportional_term *= kp_multiplier;
+
     } else {
       // pdm_offset prevents a jump when leaving the deadband
-      float pdm_offset;
-
-      if (error < 0) {
-        pdm_offset = (threshold_high - (kp_multiplier * threshold_high)) * kp;
-        proportional_term += pdm_offset;
-      } else {
-        pdm_offset = (threshold_low - (kp_multiplier * threshold_low)) * kp;
-        proportional_term -= pdm_offset;
-      }
+      float threshold = (error < 0) ? threshold_high : threshold_low;
+      float pdm_offset = (threshold - (kp_multiplier * threshold)) * kp;
+      proportional_term += pdm_offset;
     }
   }
 
@@ -139,6 +128,12 @@ struct PIDController {
   }
 
   float weighted_average_(std::list<float> &list, float new_value, int samples) {
+    // if only 1 sample needed, clear the list and return
+    if (samples == 1) {
+      list.clear();
+      return new_value;
+    }
+
     // add the new item to the list
     list.push_front(new_value);
 
@@ -150,7 +145,6 @@ struct PIDController {
     float sum = 0;
     for (auto &elem : list)
       sum += elem;
-
     return sum / list.size();
   }
 
