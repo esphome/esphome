@@ -129,7 +129,7 @@ void ENS210Component::setup() {
 void ENS210Component::dump_config() {
   ESP_LOGCONFIG(TAG, "ENS210:");
   LOG_I2C_DEVICE(this);
-  ESP_LOGE(TAG, LOG_STR_ARG(ens210_status_to_human(this->error_code_)));
+  ESP_LOGE(TAG, "%s", LOG_STR_ARG(ens210_status_to_human(this->error_code_)));
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
