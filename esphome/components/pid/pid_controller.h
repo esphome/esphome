@@ -116,8 +116,7 @@ struct PIDController {
     previous_error_ = error;
 
     // smooth the derivative samples
-    if (derivative_samples > 1)
-      derivative = weighted_average_(derivative_list_, derivative, derivative_samples);
+    derivative = weighted_average_(derivative_list_, derivative, derivative_samples);
 
     derivative_term = kd * derivative;
 
