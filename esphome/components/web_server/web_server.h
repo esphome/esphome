@@ -212,6 +212,16 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config);
 #endif
 
+#ifdef USE_REMOTE
+  void on_remote_update(remote::Remote *obj, bool state) override;
+
+  /// Handle a remote request under '/remote/<id>/</turn_on/turn_off>'.
+  void handle_remote_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the remote state with its value as a JSON string.
+  std::string remote_json(remote::Remote *obj, bool value, JsonDetail start_config);
+#endif
+
   /// Override the web handler's canHandle method.
   bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.

@@ -84,6 +84,9 @@ class Controller {
 #ifdef USE_MEDIA_PLAYER
   virtual void on_media_player_update(media_player::MediaPlayer *obj){};
 #endif
+#ifdef USE_REMOTE
+  virtual void on_remote_update(remote::Remote *obj, bool state){};
+#endif
 };
 
 }  // namespace esphome

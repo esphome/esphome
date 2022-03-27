@@ -91,6 +91,12 @@ bool ListEntitiesIterator::on_select(select::Select *select) {
 }
 #endif
 
+#ifdef USE_REMOTE
+bool ListEntitiesIterator::on_remote(remote::Remote *remote) {
+  this->web_server_->events_.send(this->web_server_->remote_json(remote, true, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
 }  // namespace web_server
 }  // namespace esphome
 

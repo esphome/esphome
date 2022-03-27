@@ -49,7 +49,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_LOCK
   bool on_lock(lock::Lock *a_lock) override;
 #endif
-
+#ifdef USE_REMOTE
+  bool on_remote(remote::Remote *a_remote) override;
+#endif
  protected:
   WebServer *web_server_;
 };

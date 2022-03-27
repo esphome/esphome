@@ -25,6 +25,10 @@
 #include "esphome/components/climate/climate.h"
 #endif
 
+#ifdef USE_REMOTE
+#include "esphome/components/remote/remote.h"
+#endif
+
 #ifdef USE_WEBSERVER_LOCAL
 #include "server_index.h"
 #endif
@@ -271,6 +275,13 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   for (auto *obj : App.get_climates()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "climate", "");
+  }
+#endif
+
+#ifdef USE_REMOTE
+  for (auto *obj : App.get_remotes()) {
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "remote", "");
   }
 #endif
 
@@ -945,6 +956,38 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
 }
 #endif
 
+#ifdef USE_REMOTE
+void WebServer::on_remote_update(remote::Remote *obj, bool state) {
+  this->events_.send(this->remote_json(obj, state, DETAIL_STATE).c_str(), "state");
+}
+std::string WebServer::remote_json(remote::Remote *obj, bool value, JsonDetail start_config) {
+  return json::build_json([obj, value, start_config](JsonObject root) {
+    set_json_icon_state_value(root, obj, "remote-" + obj->get_object_id(), value ? "ON" : "OFF", value, start_config);
+  });
+}
+void WebServer::handle_remote_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (remote::Remote *obj : App.get_remotes()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->remote_json(obj, true, DETAIL_STATE);
+      request->send(200, "text/json", data.c_str());
+    } else if (match.method == "turn_on") {
+      this->defer([obj]() { obj->turn_on(); });
+      request->send(200);
+    } else if (match.method == "turn_off") {
+      this->defer([obj]() { obj->turn_off(); });
+      request->send(200);
+    } else {
+      request->send(404);
+    }
+    return;
+  }
+  request->send(404);
+}
+#endif
+
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
@@ -1019,6 +1062,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_LOCK
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "lock")
+    return true;
+#endif
+
+#ifdef USE_REMOTE
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "remote")
     return true;
 #endif
 
@@ -1125,6 +1173,14 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_LOCK
   if (match.domain == "lock") {
     this->handle_lock_request(request, match);
+
+    return;
+  }
+#endif
+
+#ifdef USE_REMOTE
+  if (match.domain == "remote") {
+    this->handle_remote_request(request, match);
 
     return;
   }
