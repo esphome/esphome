@@ -43,6 +43,24 @@ static const uint8_t DATA7_WIDTH = 17;
 static const uint32_t DATA7_MASK = ((1UL << DATA7_WIDTH) - 1);  // 0b 0 1111 1111 1111 1111
 static const uint32_t DATA7_MSB = (1UL << (DATA7_WIDTH - 1));   // 0b 1 0000 0000 0000 0000
 
+// Converts a status to a human readable string
+static const LogString *ens210_status_to_human(int status) {
+  switch (status) {
+    case ENS210Component::ENS210_STATUS_I2C_ERROR:
+      return LOG_STR("I2C error - communication with ENS210 failed!");
+    case ENS210Component::ENS210_STATUS_CRC_ERROR:
+      return LOG_STR("CRC error");
+    case ENS210Component::ENS210_STATUS_INVALID:
+      return LOG_STR("Invalid data");
+    case ENS210Component::ENS210_STATUS_OK:
+      return LOG_STR("Status OK");
+    case ENS210Component::ENS210_WRONG_CHIP_ID:
+      return LOG_STR("ENS210 has wrong chip ID! Is it a ENS210?");
+    default:
+      return LOG_STR("Unknown");
+  }
+}
+
 // Compute the CRC-7 of 'value' (should only have 17 bits)
 // https://en.wikipedia.org/wiki/Cyclic_redundancy_check#Computation
 static uint32_t crc7(uint32_t value) {
@@ -111,20 +129,8 @@ void ENS210Component::setup() {
 void ENS210Component::dump_config() {
   ESP_LOGCONFIG(TAG, "ENS210:");
   LOG_I2C_DEVICE(this);
-  switch (this->error_code_) {
-    case ENS210_STATUS_I2C_ERROR:
-      ESP_LOGE(TAG, "I2C error - communication with ENS210 failed!");
-      break;
-    case ENS210_WRONG_CHIP_ID:
-      ESP_LOGE(TAG, "ENS210 has wrong chip ID! Is it a ENS210?");
-      break;
-    case ENS210_STATUS_OK:
-    default:
-      break;
-  }
-
+  ESP_LOGE(TAG, LOG_STR_ARG(ens210_status_to_human(this->error_code_)));
   LOG_UPDATE_INTERVAL(this);
-
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
@@ -132,12 +138,6 @@ void ENS210Component::dump_config() {
 float ENS210Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void ENS210Component::update() {
-  int temperature_data, temperature_status, humidity_data, humidity_status;
-  uint8_t data[6];
-  uint32_t h_val_data, t_val_data;
-  // Set default status for early bail out
-  temperature_status = ENS210_STATUS_I2C_ERROR;
-  humidity_status = ENS210_STATUS_I2C_ERROR;
   // Execute a single measurement
   if (!this->write_byte(ENS210_REGISTER_SENS_RUN, 0x00)) {
     ESP_LOGE(TAG, "Starting single measurement failed!");
@@ -151,38 +151,47 @@ void ENS210Component::update() {
     return;
   }
   // Wait for measurement to complete
-  delay(ENS210_SINGLE_MEASURMENT_CONVERSION_TIME_MS);
-  // Read T_VAL and H_VAL
-  if (!this->read_bytes(ENS210_REGISTER_T_VAL, data, 6)) {
-    ESP_LOGE(TAG, "Communication with ENS210 failed!");
-    this->status_set_warning();
-    return;
-  }
-  // Pack bytes for humidity
-  h_val_data = (uint32_t)((uint32_t) data[5] << 16 | (uint32_t) data[4] << 8 | (uint32_t) data[3]);
-  // Extract humidity data and update the status
-  extract_measurement_(h_val_data, &humidity_data, &humidity_status);
+  this->set_timeout("data", uint32_t(ENS210_BOOTING_MS), [this]() {
+    int temperature_data, temperature_status, humidity_data, humidity_status;
+    uint8_t data[6];
+    uint32_t h_val_data, t_val_data;
+    // Set default status for early bail out
+    temperature_status = ENS210_STATUS_I2C_ERROR;
+    humidity_status = ENS210_STATUS_I2C_ERROR;
 
-  if (humidity_status == ENS210_STATUS_OK) {
-    float humidity = (humidity_data & 0xFFFF) / 512.0;
-    this->humidity_sensor_->publish_state(humidity);
-  } else {
-    ESP_LOGW(TAG, "Humidity status failure: %s", status_str_(humidity_status));
-    this->status_set_warning();
-    return;
-  }
-  // Pack bytes for temperature
-  t_val_data = (uint32_t)((uint32_t) data[2] << 16 | (uint32_t) data[1] << 8 | (uint32_t) data[0]);
-  // Extract temperature data and update the status
-  extract_measurement_(t_val_data, &temperature_data, &temperature_status);
+    delay(ENS210_SINGLE_MEASURMENT_CONVERSION_TIME_MS);
+    // Read T_VAL and H_VAL
+    if (!this->read_bytes(ENS210_REGISTER_T_VAL, data, 6)) {
+      ESP_LOGE(TAG, "Communication with ENS210 failed!");
+      this->status_set_warning();
+      return;
+    }
+    // Pack bytes for humidity
+    h_val_data = (uint32_t)((uint32_t) data[5] << 16 | (uint32_t) data[4] << 8 | (uint32_t) data[3]);
+    // Extract humidity data and update the status
+    extract_measurement_(h_val_data, &humidity_data, &humidity_status);
 
-  if (temperature_status == ENS210_STATUS_OK) {
-    // Temperature in Celsius
-    float temperature = (temperature_data & 0xFFFF) / 64.0 - 27315L / 100.0;
-    this->temperature_sensor_->publish_state(temperature);
-  } else {
-    ESP_LOGW(TAG, "Temperature status failure: %s", status_str_(temperature_status));
-  }
+    if (humidity_status == ENS210_STATUS_OK) {
+      float humidity = (humidity_data & 0xFFFF) / 512.0;
+      this->humidity_sensor_->publish_state(humidity);
+    } else {
+      ESP_LOGW(TAG, "Humidity status failure: %s", LOG_STR_ARG(ens210_status_to_human(humidity_status)));
+      this->status_set_warning();
+      return;
+    }
+    // Pack bytes for temperature
+    t_val_data = (uint32_t)((uint32_t) data[2] << 16 | (uint32_t) data[1] << 8 | (uint32_t) data[0]);
+    // Extract temperature data and update the status
+    extract_measurement_(t_val_data, &temperature_data, &temperature_status);
+
+    if (temperature_status == ENS210_STATUS_OK) {
+      // Temperature in Celsius
+      float temperature = (temperature_data & 0xFFFF) / 64.0 - 27315L / 100.0;
+      this->temperature_sensor_->publish_state(temperature);
+    } else {
+      ESP_LOGW(TAG, "Temperature status failure: %s", LOG_STR_ARG(ens210_status_to_human(temperature_status)));
+    }
+  });
 }
 
 // Extracts measurement 'data' and 'status' from a 'val' obtained from measurment.
@@ -200,22 +209,6 @@ void ENS210Component::extract_measurement_(uint32_t val, int *data, int *status)
     *status = ENS210_STATUS_INVALID;
   } else {
     *status = ENS210_STATUS_OK;
-  }
-}
-
-// Converts a status to a human readable string.
-const char *ENS210Component::status_str_(int status) {
-  switch (status) {
-    case ENS210_STATUS_I2C_ERROR:
-      return "I2C error";
-    case ENS210_STATUS_CRC_ERROR:
-      return "CRC error";
-    case ENS210_STATUS_INVALID:
-      return "Invalid data";
-    case ENS210_STATUS_OK:
-      return "Status OK";
-    default:
-      return "Unknown status";
   }
 }
 
