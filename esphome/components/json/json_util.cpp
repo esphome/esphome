@@ -54,9 +54,8 @@ void parse_json(const std::string &data, const json_parse_t &f) {
   const size_t free_heap = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
 #endif
   bool pass = false;
+  size_t request_size = std::min(free_heap - 2048, (size_t)(data.size() * 1.5));
   do {
-    const size_t request_size = std::min(free_heap - 2048, (size_t)(data.size() * 1.5));
-
     DynamicJsonDocument json_document(request_size);
     if (json_document.memoryPool().buffer() == nullptr) {
       ESP_LOGE(TAG, "Could not allocate memory for JSON document! Requested %u bytes, free heap: %u", request_size,
@@ -76,7 +75,8 @@ void parse_json(const std::string &data, const json_parse_t &f) {
         ESP_LOGE(TAG, "Can not allocate more memory for deserialization. Consider making source string smaller");
         return;
       }
-      ESP_LOGW(TAG, "Increasing memory allocation.");
+      ESP_LOGV(TAG, "Increasing memory allocation.");
+      request_size *= 2;
       continue;
     } else {
       ESP_LOGE(TAG, "JSON parse error: %s", err.c_str());
