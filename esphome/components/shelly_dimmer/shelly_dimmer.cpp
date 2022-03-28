@@ -122,10 +122,10 @@ bool ShellyDimmer::upgrade_firmware_() {
   this->reset_dfu_boot_();
 
   // Could be constexpr in c++17
-  const auto close = [](stm32_t *stm32) { stm32_close(stm32); };
+  static const auto CLOSE = [](stm32_t *stm32) { stm32_close(stm32); };
 
   // Cleanup with RAII
-  std::unique_ptr<stm32_t, decltype(close)> stm32{stm32_init(this, STREAM_SERIAL, 1), close};
+  std::unique_ptr<stm32_t, decltype(CLOSE)> stm32{stm32_init(this, STREAM_SERIAL, 1), CLOSE};
 
   if (!stm32) {
     ESP_LOGW(TAG, "Failed to initialize STM32");
