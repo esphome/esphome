@@ -35,14 +35,16 @@ void TM1638Component::setup() {
   this->stb_pin_->digital_write(false);  // false
 
   ESP_LOGD(TAG, "Pin setup complete");
-  ESP_LOGD(TAG, "Setting initial Intensity: %u", this->intensity_);
 
+  ESP_LOGD(TAG, "Initial Intensity: %u", this->intensity_);
   set_intensity(intensity_);
 
-  this->reset(false);               // all LEDs off
+  ESP_LOGD(TAG, "Reset display");
+  this->reset(false);  // all LEDs off
 
   this->buffer_ = new uint8_t[8];
 
+  ESP_LOGD(TAG, "Zero fill print buffer");
   for (uint8_t i = 0; i < 8; i++)  // zero fill print buffer
     this->buffer_[i] = 0;
 }

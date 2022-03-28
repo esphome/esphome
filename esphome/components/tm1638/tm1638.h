@@ -78,7 +78,7 @@ class TM1638Component : public PollingComponent{
   GPIOPin *stb_pin_;
   GPIOPin *dio_pin_;
   uint8_t *buffer_;
-  uint8_t buttonState_;  // should this be a pointer?
+  uint8_t buttonState_;
   optional<tm1638_writer_t> writer_{};
 
   std::vector<KeyListener *> listeners_{};

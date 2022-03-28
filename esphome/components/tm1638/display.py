@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display
-from esphome import automation
 from esphome.const import (
     CONF_ID,
     CONF_INTENSITY,
@@ -10,6 +9,8 @@ from esphome.const import (
     CONF_CLK_PIN,
     CONF_DIO_PIN,
 )
+
+CODEOWNERS = ["@skykingjwc"]
 
 CONF_TM1638_ID = "tm1638_id"
 
