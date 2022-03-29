@@ -77,7 +77,7 @@ uint32_t random_uint32() {
 #elif defined(USE_ESP8266)
   return os_random();
 #elif defined(USE_RP2040)
-  return ((uint32_t) rand()) + ((uint32_t) rand());
+  return ((uint32_t) rand()) << 16 + ((uint32_t) rand());
 #else
 #error "No random source available for this configuration."
 #endif
