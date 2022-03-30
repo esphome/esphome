@@ -40,6 +40,7 @@
 #define USE_SWITCH
 #define USE_TEXT_SENSOR
 #define USE_TIME
+#define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
 #define USE_WIFI
 
