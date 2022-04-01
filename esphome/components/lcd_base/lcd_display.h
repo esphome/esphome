@@ -7,6 +7,8 @@
 #include "esphome/components/time/real_time_clock.h"
 #endif
 
+#include <map>
+
 namespace esphome {
 namespace lcd_base {
 
@@ -18,6 +20,8 @@ class LCDDisplay : public PollingComponent {
     this->columns_ = columns;
     this->rows_ = rows;
   }
+
+  void set_user_defined_char(uint8_t pos, const std::vector<uint8_t> &data) { this->user_defined_chars_[pos] = data; }
 
   void setup() override;
   float get_setup_priority() const override;
@@ -58,6 +62,7 @@ class LCDDisplay : public PollingComponent {
   uint8_t columns_;
   uint8_t rows_;
   uint8_t *buffer_{nullptr};
+  std::map<uint8_t, std::vector<uint8_t> > user_defined_chars_;
 };
 
 }  // namespace lcd_base

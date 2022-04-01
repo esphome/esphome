@@ -151,6 +151,7 @@ esphome/components/preferences/* @esphome/core
 esphome/components/psram/* @esphome/core
 esphome/components/pulse_meter/* @cstaahl @stevebaxter
 esphome/components/pvvx_mithermometer/* @pasiz
+esphome/components/qmp6988/* @andrewpc
 esphome/components/qr_code/* @wjtje
 esphome/components/radon_eye_ble/* @jeffeb3
 esphome/components/radon_eye_rd200/* @jeffeb3

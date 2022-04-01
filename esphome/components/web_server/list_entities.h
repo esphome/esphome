@@ -1,18 +1,18 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
-#include "esphome/core/controller.h"
 #include "esphome/core/defines.h"
-
 namespace esphome {
-namespace api {
+namespace web_server {
 
-class APIConnection;
+class WebServer;
 
-class InitialStateIterator : public ComponentIterator {
+class ListEntitiesIterator : public ComponentIterator {
  public:
-  InitialStateIterator(APIConnection *client);
+  ListEntitiesIterator(WebServer *web_server);
 #ifdef USE_BINARY_SENSOR
   bool on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) override;
 #endif
@@ -32,7 +32,7 @@ class InitialStateIterator : public ComponentIterator {
   bool on_switch(switch_::Switch *a_switch) override;
 #endif
 #ifdef USE_BUTTON
-  bool on_button(button::Button *button) override { return true; };
+  bool on_button(button::Button *button) override;
 #endif
 #ifdef USE_TEXT_SENSOR
   bool on_text_sensor(text_sensor::TextSensor *text_sensor) override;
@@ -49,9 +49,12 @@ class InitialStateIterator : public ComponentIterator {
 #ifdef USE_LOCK
   bool on_lock(lock::Lock *a_lock) override;
 #endif
+
  protected:
-  APIConnection *client_;
+  WebServer *web_server_;
 };
 
-}  // namespace api
+}  // namespace web_server
 }  // namespace esphome
+
+#endif  // USE_ARDUINO
