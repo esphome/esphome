@@ -4,6 +4,7 @@ import argparse
 from operator import truediv
 import os
 import voluptuous as vol
+import re
 
 # NOTE: Cannot import other esphome components globally as a modification in jsonschema
 # is needed before modules are loaded
@@ -120,10 +121,12 @@ def write_file(name, obj):
 def register_module_schemas(key, module, manifest=None):
     for name, schema in module_schemas(module):
         register_known_schema(key, name, schema)
-    if (
-        manifest and manifest.multi_conf and S_CONFIG_SCHEMA in output[key][S_SCHEMAS]
-    ):  # not sure about 2nd part of the if, might be useless config (e.g. as3935)
-        output[key][S_SCHEMAS][S_CONFIG_SCHEMA]["is_list"] = True
+
+    if manifest:
+        # Multi conf should allow list of components
+        # not sure about 2nd part of the if, might be useless config (e.g. as3935)
+        if manifest.multi_conf and S_CONFIG_SCHEMA in output[key][S_SCHEMAS]:
+            output[key][S_SCHEMAS][S_CONFIG_SCHEMA]["is_list"] = True
 
 
 def register_known_schema(module, name, schema):
@@ -491,14 +494,20 @@ def build_schema():
         if domain not in platforms:
             if manifest.config_schema is not None:
                 core_components[domain] = {}
+                if len(manifest.dependencies) > 0:
+                    core_components[domain]["dependencies"] = manifest.dependencies
             register_module_schemas(domain, manifest.module, manifest)
 
         for platform in platforms:
             platform_manifest = get_platform(domain=platform, platform=domain)
             if platform_manifest is not None:
                 output[platform][S_COMPONENTS][domain] = {}
+                if len(platform_manifest.dependencies) > 0:
+                    output[platform][S_COMPONENTS][domain][
+                        "dependencies"
+                    ] = platform_manifest.dependencies
                 register_module_schemas(
-                    f"{domain}.{platform}", platform_manifest.module
+                    f"{domain}.{platform}", platform_manifest.module, platform_manifest
                 )
 
     # Do registries
@@ -787,7 +796,13 @@ def convert_keys(converted, schema, path):
             result["key"] = "Optional"
         else:
             converted["key"] = "String"
-            converted["key_dump"] = str(k)
+            key_string_match = re.search(
+                r"<function (\w*) at \w*>", str(k), re.IGNORECASE
+            )
+            if key_string_match:
+                converted["key_type"] = key_string_match.group(1)
+            else:
+                converted["key_type"] = str(k)
 
         esphome_core.CORE.data = {
             esphome_core.KEY_CORE: {esphome_core.KEY_TARGET_PLATFORM: "esp8266"}
