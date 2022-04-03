@@ -21,7 +21,6 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_NONE,
     UNIT_CELSIUS,
     UNIT_PERCENT,
     UNIT_VOLT,
@@ -108,13 +107,11 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MOVEMENT_COUNTER): sensor.sensor_schema(
                 icon=ICON_GAUGE,
                 accuracy_decimals=0,
-                state_class=STATE_CLASS_NONE,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_MEASUREMENT_SEQUENCE_NUMBER): sensor.sensor_schema(
                 icon=ICON_GAUGE,
                 accuracy_decimals=0,
-                state_class=STATE_CLASS_NONE,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }

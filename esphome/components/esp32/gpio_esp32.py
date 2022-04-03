@@ -18,7 +18,7 @@ _ESP_SDIO_PINS = {
     11: "Flash Command",
 }
 
-_ESP32_STRAPPING_PINS = {0, 2, 4, 15}
+_ESP32_STRAPPING_PINS = {0, 2, 4, 12, 15}
 _LOGGER = logging.getLogger(__name__)
 
 

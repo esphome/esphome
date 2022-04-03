@@ -11,14 +11,52 @@ from esphome.const import (
     CONF_WAKEUP_PIN,
 )
 
+from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C3,
+)
+
+WAKEUP_PINS = {
+    VARIANT_ESP32: [
+        0,
+        2,
+        4,
+        12,
+        13,
+        14,
+        15,
+        25,
+        26,
+        27,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+    ],
+    VARIANT_ESP32C3: [0, 1, 2, 3, 4, 5],
+}
+
 
 def validate_pin_number(value):
-    valid_pins = [0, 2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 33, 34, 35, 36, 37, 38, 39]
+    valid_pins = WAKEUP_PINS.get(get_esp32_variant(), WAKEUP_PINS[VARIANT_ESP32])
     if value[CONF_NUMBER] not in valid_pins:
         raise cv.Invalid(
             f"Only pins {', '.join(str(x) for x in valid_pins)} support wakeup"
         )
     return value
+
+
+def validate_config(config):
+    if get_esp32_variant() == VARIANT_ESP32C3 and CONF_ESP32_EXT1_WAKEUP in config:
+        raise cv.Invalid("ESP32-C3 does not support wakeup from touch.")
+    if get_esp32_variant() == VARIANT_ESP32C3 and CONF_TOUCH_WAKEUP in config:
+        raise cv.Invalid("ESP32-C3 does not support wakeup from ext1")
+    return config
 
 
 deep_sleep_ns = cg.esphome_ns.namespace("deep_sleep")
@@ -41,15 +79,30 @@ EXT1_WAKEUP_MODES = {
     "ALL_LOW": esp_sleep_ext1_wakeup_mode_t.ESP_EXT1_WAKEUP_ALL_LOW,
     "ANY_HIGH": esp_sleep_ext1_wakeup_mode_t.ESP_EXT1_WAKEUP_ANY_HIGH,
 }
+WakeupCauseToRunDuration = deep_sleep_ns.struct("WakeupCauseToRunDuration")
 
 CONF_WAKEUP_PIN_MODE = "wakeup_pin_mode"
 CONF_ESP32_EXT1_WAKEUP = "esp32_ext1_wakeup"
 CONF_TOUCH_WAKEUP = "touch_wakeup"
+CONF_DEFAULT = "default"
+CONF_GPIO_WAKEUP_REASON = "gpio_wakeup_reason"
+CONF_TOUCH_WAKEUP_REASON = "touch_wakeup_reason"
+
+WAKEUP_CAUSES_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_DEFAULT): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_TOUCH_WAKEUP_REASON): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_GPIO_WAKEUP_REASON): cv.positive_time_period_milliseconds,
+    }
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(DeepSleepComponent),
-        cv.Optional(CONF_RUN_DURATION): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_RUN_DURATION): cv.Any(
+            cv.All(cv.only_on_esp32, WAKEUP_CAUSES_SCHEMA),
+            cv.positive_time_period_milliseconds,
+        ),
         cv.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_WAKEUP_PIN): cv.All(
             cv.only_on_esp32, pins.internal_gpio_input_pin_schema, validate_pin_number
@@ -85,7 +138,28 @@ async def to_code(config):
     if CONF_WAKEUP_PIN_MODE in config:
         cg.add(var.set_wakeup_pin_mode(config[CONF_WAKEUP_PIN_MODE]))
     if CONF_RUN_DURATION in config:
-        cg.add(var.set_run_duration(config[CONF_RUN_DURATION]))
+        run_duration_config = config[CONF_RUN_DURATION]
+        if not isinstance(run_duration_config, dict):
+            cg.add(var.set_run_duration(config[CONF_RUN_DURATION]))
+        else:
+            default_run_duration = run_duration_config[CONF_DEFAULT]
+            wakeup_cause_to_run_duration = cg.StructInitializer(
+                WakeupCauseToRunDuration,
+                ("default_cause", default_run_duration),
+                (
+                    "touch_cause",
+                    run_duration_config.get(
+                        CONF_TOUCH_WAKEUP_REASON, default_run_duration
+                    ),
+                ),
+                (
+                    "gpio_cause",
+                    run_duration_config.get(
+                        CONF_GPIO_WAKEUP_REASON, default_run_duration
+                    ),
+                ),
+            )
+            cg.add(var.set_run_duration(wakeup_cause_to_run_duration))
 
     if CONF_ESP32_EXT1_WAKEUP in config:
         conf = config[CONF_ESP32_EXT1_WAKEUP]

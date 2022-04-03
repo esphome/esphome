@@ -329,9 +329,10 @@ ESPHomeLoader.add_constructor("!lambda", ESPHomeLoader.construct_lambda)
 ESPHomeLoader.add_constructor("!force", ESPHomeLoader.construct_force)
 
 
-def load_yaml(fname):
-    _SECRET_VALUES.clear()
-    _SECRET_CACHE.clear()
+def load_yaml(fname, clear_secrets=True):
+    if clear_secrets:
+        _SECRET_VALUES.clear()
+        _SECRET_CACHE.clear()
     return _load_yaml_internal(fname)
 
 

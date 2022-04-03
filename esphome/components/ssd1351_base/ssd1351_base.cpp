@@ -105,12 +105,13 @@ void SSD1351::update() {
 }
 void SSD1351::set_brightness(float brightness) {
   // validation
-  if (brightness > 1)
+  if (brightness > 1) {
     this->brightness_ = 1.0;
-  else if (brightness < 0)
+  } else if (brightness < 0) {
     this->brightness_ = 0;
-  else
+  } else {
     this->brightness_ = brightness;
+  }
   // now write the new brightness level to the display
   this->command(SSD1351_CONTRASTMASTER);
   this->data(int(SSD1351_MAX_CONTRAST * (this->brightness_)));
@@ -157,12 +158,13 @@ void HOT SSD1351::draw_absolute_pixel_internal(int x, int y, Color color) {
 }
 void SSD1351::fill(Color color) {
   const uint32_t color565 = display::ColorUtil::color_to_565(color);
-  for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
+  for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
     if (i & 1) {
       this->buffer_[i] = color565 & 0xff;
     } else {
       this->buffer_[i] = (color565 >> 8) & 0xff;
     }
+  }
 }
 void SSD1351::init_reset_() {
   if (this->reset_pin_ != nullptr) {

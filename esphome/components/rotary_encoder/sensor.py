@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_RESOLUTION,
     CONF_MIN_VALUE,
     CONF_MAX_VALUE,
-    STATE_CLASS_NONE,
     UNIT_STEPS,
     ICON_ROTATE_RIGHT,
     CONF_VALUE,
@@ -65,14 +64,13 @@ def validate_min_max_value(config):
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
+        RotaryEncoderSensor,
         unit_of_measurement=UNIT_STEPS,
         icon=ICON_ROTATE_RIGHT,
         accuracy_decimals=0,
-        state_class=STATE_CLASS_NONE,
     )
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(RotaryEncoderSensor),
             cv.Required(CONF_PIN_A): cv.All(pins.internal_gpio_input_pin_schema),
             cv.Required(CONF_PIN_B): cv.All(pins.internal_gpio_input_pin_schema),
             cv.Optional(CONF_PIN_RESET): pins.internal_gpio_output_pin_schema,
@@ -105,9 +103,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
-    await sensor.register_sensor(var, config)
+
     pin_a = await cg.gpio_pin_expression(config[CONF_PIN_A])
     cg.add(var.set_pin_a(pin_a))
     pin_b = await cg.gpio_pin_expression(config[CONF_PIN_B])

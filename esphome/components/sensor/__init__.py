@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
+    CONF_QUANTILE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
     CONF_STATE_CLASS,
@@ -57,6 +58,7 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
@@ -151,6 +153,7 @@ SensorPublishAction = sensor_ns.class_("SensorPublishAction", automation.Action)
 
 # Filters
 Filter = sensor_ns.class_("Filter")
+QuantileFilter = sensor_ns.class_("QuantileFilter", Filter)
 MedianFilter = sensor_ns.class_("MedianFilter", Filter)
 MinFilter = sensor_ns.class_("MinFilter", Filter)
 MaxFilter = sensor_ns.class_("MaxFilter", Filter)
@@ -221,6 +224,8 @@ _UNDEF = object()
 
 
 def sensor_schema(
+    class_: MockObjClass = _UNDEF,
+    *,
     unit_of_measurement: str = _UNDEF,
     icon: str = _UNDEF,
     accuracy_decimals: int = _UNDEF,
@@ -229,6 +234,8 @@ def sensor_schema(
     entity_category: str = _UNDEF,
 ) -> cv.Schema:
     schema = SENSOR_SCHEMA
+    if class_ is not _UNDEF:
+        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
     if unit_of_measurement is not _UNDEF:
         schema = schema.extend(
             {
@@ -283,6 +290,30 @@ async def multiply_filter_to_code(config, filter_id):
 @FILTER_REGISTRY.register("filter_out", FilterOutValueFilter, cv.float_)
 async def filter_out_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
+
+
+QUANTILE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_QUANTILE, default=0.9): cv.zero_to_one_float,
+        }
+    ),
+    validate_send_first_at,
+)
+
+
+@FILTER_REGISTRY.register("quantile", QuantileFilter, QUANTILE_SCHEMA)
+async def quantile_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_WINDOW_SIZE],
+        config[CONF_SEND_EVERY],
+        config[CONF_SEND_FIRST_AT],
+        config[CONF_QUANTILE],
+    )
 
 
 MEDIAN_SCHEMA = cv.All(
@@ -377,18 +408,30 @@ async def sliding_window_moving_average_filter_to_code(config, filter_id):
     )
 
 
-@FILTER_REGISTRY.register(
-    "exponential_moving_average",
-    ExponentialMovingAverageFilter,
+EXPONENTIAL_AVERAGE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_ALPHA, default=0.1): cv.positive_float,
             cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
         }
     ),
+    validate_send_first_at,
+)
+
+
+@FILTER_REGISTRY.register(
+    "exponential_moving_average",
+    ExponentialMovingAverageFilter,
+    EXPONENTIAL_AVERAGE_SCHEMA,
 )
 async def exponential_moving_average_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(filter_id, config[CONF_ALPHA], config[CONF_SEND_EVERY])
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_ALPHA],
+        config[CONF_SEND_EVERY],
+        config[CONF_SEND_FIRST_AT],
+    )
 
 
 @FILTER_REGISTRY.register(

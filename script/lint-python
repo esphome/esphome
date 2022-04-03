@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 
-from __future__ import print_function
-from helpers import get_output, get_err, git_ls_files, filter_changed
-
+from helpers import (
+    styled,
+    print_error_for_file,
+    get_output,
+    get_err,
+    git_ls_files,
+    filter_changed,
+)
 import argparse
+import colorama
 import os
 import re
 import sys
-
-sys.path.append(os.path.dirname(__file__))
 
 curfile = None
 
@@ -17,20 +21,30 @@ def print_error(file, lineno, msg):
     global curfile
 
     if curfile != file:
-        print()
-        print("\033[0;32m************* File \033[1;32m{}\033[0m".format(file))
+        print_error_for_file(file, None)
         curfile = file
 
-    print("{}:{} - {}".format(file, lineno, msg))
+    if lineno is not None:
+        print(f"{styled(colorama.Style.BRIGHT, f'{file}:{lineno}:')} {msg}")
+    else:
+        print(f"{styled(colorama.Style.BRIGHT, f'{file}:')} {msg}")
 
 
 def main():
+    colorama.init()
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "files", nargs="*", default=[], help="files to be processed (regex on path)"
     )
     parser.add_argument(
         "-c", "--changed", action="store_true", help="Only run on changed files"
+    )
+    parser.add_argument(
+        "-a",
+        "--apply",
+        action="store_true",
+        help="Apply changes to files where possible",
     )
     args = parser.parse_args()
 
@@ -54,8 +68,9 @@ def main():
 
     errors = 0
 
-    cmd = ["black", "--verbose", "--check"] + files
+    cmd = ["black", "--verbose"] + ([] if args.apply else ["--check"]) + files
     print("Running black...")
+    print()
     log = get_err(*cmd)
     for line in log.splitlines():
         WOULD_REFORMAT = "would reformat"
@@ -65,7 +80,9 @@ def main():
             errors += 1
 
     cmd = ["flake8"] + files
+    print()
     print("Running flake8...")
+    print()
     log = get_output(*cmd)
     for line in log.splitlines():
         line = line.split(":", 4)
@@ -78,7 +95,9 @@ def main():
         errors += 1
 
     cmd = ["pylint", "-f", "parseable", "--persistent=n"] + files
+    print()
     print("Running pylint...")
+    print()
     log = get_output(*cmd)
     for line in log.splitlines():
         line = line.split(":", 3)
@@ -89,6 +108,21 @@ def main():
         msg = (":".join(line[2:])).strip()
         print_error(file_, linno, msg)
         errors += 1
+
+    PYUPGRADE_TARGET = "--py38-plus"
+    cmd = ["pyupgrade", PYUPGRADE_TARGET] + files
+    print()
+    print("Running pyupgrade...")
+    print()
+    log = get_err(*cmd)
+    for line in log.splitlines():
+        REWRITING = "Rewriting"
+        if line.startswith(REWRITING):
+            file_ = line[len(REWRITING) + 1 :]
+            print_error(
+                file_, None, f"Please run pyupgrade {PYUPGRADE_TARGET} on this file"
+            )
+            errors += 1
 
     sys.exit(errors)
 

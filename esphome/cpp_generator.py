@@ -62,14 +62,13 @@ class RawExpression(Expression):
 
 
 class AssignmentExpression(Expression):
-    __slots__ = ("type", "modifier", "name", "rhs", "obj")
+    __slots__ = ("type", "modifier", "name", "rhs")
 
-    def __init__(self, type_, modifier, name, rhs, obj):
+    def __init__(self, type_, modifier, name, rhs):
         self.type = type_
         self.modifier = modifier
         self.name = name
         self.rhs = safe_exp(rhs)
-        self.obj = obj
 
     def __str__(self):
         if self.type is None:
@@ -427,8 +426,8 @@ class LineComment(Statement):
 class ProgmemAssignmentExpression(AssignmentExpression):
     __slots__ = ()
 
-    def __init__(self, type_, name, rhs, obj):
-        super().__init__(type_, "", name, rhs, obj)
+    def __init__(self, type_, name, rhs):
+        super().__init__(type_, "", name, rhs)
 
     def __str__(self):
         return f"static const {self.type} {self.name}[] PROGMEM = {self.rhs}"
@@ -437,8 +436,8 @@ class ProgmemAssignmentExpression(AssignmentExpression):
 class StaticConstAssignmentExpression(AssignmentExpression):
     __slots__ = ()
 
-    def __init__(self, type_, name, rhs, obj):
-        super().__init__(type_, "", name, rhs, obj)
+    def __init__(self, type_, name, rhs):
+        super().__init__(type_, "", name, rhs)
 
     def __str__(self):
         return f"static const {self.type} {self.name}[] = {self.rhs}"
@@ -447,7 +446,7 @@ class StaticConstAssignmentExpression(AssignmentExpression):
 def progmem_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
-    assignment = ProgmemAssignmentExpression(id_.type, id_, rhs, obj)
+    assignment = ProgmemAssignmentExpression(id_.type, id_, rhs)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
@@ -456,7 +455,7 @@ def progmem_array(id_, rhs) -> "MockObj":
 def static_const_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
-    assignment = StaticConstAssignmentExpression(id_.type, id_, rhs, obj)
+    assignment = StaticConstAssignmentExpression(id_.type, id_, rhs)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
@@ -484,7 +483,7 @@ def variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     obj = MockObj(id_, ".")
     if type_ is not None:
         id_.type = type_
-    assignment = AssignmentExpression(id_.type, "", id_, rhs, obj)
+    assignment = AssignmentExpression(id_.type, "", id_, rhs)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
@@ -507,7 +506,7 @@ def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj
         id_.type = type_
     decl = VariableDeclarationExpression(id_.type, "", id_)
     CORE.add_global(decl)
-    assignment = AssignmentExpression(None, "", id_, rhs, obj)
+    assignment = AssignmentExpression(None, "", id_, rhs)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
@@ -529,7 +528,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         id_.type = type_
     decl = VariableDeclarationExpression(id_.type, "*", id_)
     CORE.add_global(decl)
-    assignment = AssignmentExpression(None, None, id_, rhs, obj)
+    assignment = AssignmentExpression(None, None, id_, rhs)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
@@ -773,9 +772,11 @@ class MockObj(Expression):
             return MockObj(f"{self.base} &", "")
         if name == "ptr":
             return MockObj(f"{self.base} *", "")
+        if name == "const_ptr":
+            return MockObj(f"{self.base} *const", "")
         if name == "const":
             return MockObj(f"const {self.base}", "")
-        raise ValueError("Expected one of ref, ptr, const.")
+        raise ValueError("Expected one of ref, ptr, const_ptr, const.")
 
     @property
     def using(self) -> "MockObj":
@@ -953,7 +954,7 @@ class MockObjEnum(MockObj):
         base = kwargs.pop("base")
         if self._is_class:
             base = f"{base}::{self._enum}"
-            kwargs["op"] = "::"
+        kwargs["op"] = "::"
         kwargs["base"] = base
         MockObj.__init__(self, *args, **kwargs)
 

@@ -26,11 +26,6 @@ namespace binary_sensor {
 class BinarySensor : public EntityBase {
  public:
   explicit BinarySensor();
-  /** Construct a binary sensor with the specified name
-   *
-   * @param name Name of this binary sensor.
-   */
-  explicit BinarySensor(const std::string &name);
 
   /** Add a callback to be notified of state changes.
    *
@@ -74,7 +69,10 @@ class BinarySensor : public EntityBase {
 
   // ========== OVERRIDE METHODS ==========
   // (You'll only need this when creating your own custom binary sensor)
-  /// Get the default device class for this sensor, or empty string for no default.
+  /** Override this to set the default device class.
+   *
+   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
+   */
   virtual std::string device_class();
 
  protected:

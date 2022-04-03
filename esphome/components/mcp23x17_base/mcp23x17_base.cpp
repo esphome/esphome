@@ -24,6 +24,7 @@ void MCP23X17Base::pin_mode(uint8_t pin, gpio::Flags flags) {
   uint8_t gppu = pin < 8 ? mcp23x17_base::MCP23X17_GPPUA : mcp23x17_base::MCP23X17_GPPUB;
   if (flags == gpio::FLAG_INPUT) {
     this->update_reg(pin, true, iodir);
+    this->update_reg(pin, false, gppu);
   } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
     this->update_reg(pin, true, iodir);
     this->update_reg(pin, true, gppu);
@@ -69,10 +70,11 @@ void MCP23X17Base::update_reg(uint8_t pin, bool pin_value, uint8_t reg_addr) {
     this->read_reg(reg_addr, &reg_value);
   }
 
-  if (pin_value)
+  if (pin_value) {
     reg_value |= 1 << bit;
-  else
+  } else {
     reg_value &= ~(1 << bit);
+  }
 
   this->write_reg(reg_addr, reg_value);
 

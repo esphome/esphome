@@ -113,7 +113,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::string &st
   const char *p = str.c_str();
   char *endptr[1];
 
-  for (uint16_t i = 0; i < len; i++) {
+  for (size_t i = 0; i < len; i++) {
     uint16_t x = strtol(p, endptr, 16);
     if (x == 0 && i >= NUMBERS_IN_PREAMBLE) {
       // Alignment error?, bail immediately (often right result).

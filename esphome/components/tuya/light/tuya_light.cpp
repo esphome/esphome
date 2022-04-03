@@ -37,9 +37,9 @@ void TuyaLight::setup() {
   }
   if (rgb_id_.has_value()) {
     this->parent_->register_listener(*this->rgb_id_, [this](const TuyaDatapoint &datapoint) {
-      auto red = parse_hex(datapoint.value_string, 0, 2);
-      auto green = parse_hex(datapoint.value_string, 2, 2);
-      auto blue = parse_hex(datapoint.value_string, 4, 2);
+      auto red = parse_hex<uint8_t>(datapoint.value_string.substr(0, 2));
+      auto green = parse_hex<uint8_t>(datapoint.value_string.substr(2, 2));
+      auto blue = parse_hex<uint8_t>(datapoint.value_string.substr(4, 2));
       if (red.has_value() && green.has_value() && blue.has_value()) {
         auto call = this->state_->make_call();
         call.set_rgb(float(*red) / 255, float(*green) / 255, float(*blue) / 255);
@@ -48,9 +48,9 @@ void TuyaLight::setup() {
     });
   } else if (hsv_id_.has_value()) {
     this->parent_->register_listener(*this->hsv_id_, [this](const TuyaDatapoint &datapoint) {
-      auto hue = parse_hex(datapoint.value_string, 0, 4);
-      auto saturation = parse_hex(datapoint.value_string, 4, 4);
-      auto value = parse_hex(datapoint.value_string, 8, 4);
+      auto hue = parse_hex<uint16_t>(datapoint.value_string.substr(0, 4));
+      auto saturation = parse_hex<uint16_t>(datapoint.value_string.substr(4, 4));
+      auto value = parse_hex<uint16_t>(datapoint.value_string.substr(8, 4));
       if (hue.has_value() && saturation.has_value() && value.has_value()) {
         float red, green, blue;
         hsv_to_rgb(*hue, float(*saturation) / 1000, float(*value) / 1000, red, green, blue);
@@ -71,31 +71,34 @@ void TuyaLight::dump_config() {
     ESP_LOGCONFIG(TAG, "   Dimmer has datapoint ID %u", *this->dimmer_id_);
   if (this->switch_id_.has_value())
     ESP_LOGCONFIG(TAG, "   Switch has datapoint ID %u", *this->switch_id_);
-  if (this->rgb_id_.has_value())
+  if (this->rgb_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "   RGB has datapoint ID %u", *this->rgb_id_);
-  else if (this->hsv_id_.has_value())
+  } else if (this->hsv_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "   HSV has datapoint ID %u", *this->hsv_id_);
+  }
 }
 
 light::LightTraits TuyaLight::get_traits() {
   auto traits = light::LightTraits();
   if (this->color_temperature_id_.has_value() && this->dimmer_id_.has_value()) {
     if (this->rgb_id_.has_value() || this->hsv_id_.has_value()) {
-      if (this->color_interlock_)
+      if (this->color_interlock_) {
         traits.set_supported_color_modes({light::ColorMode::RGB, light::ColorMode::COLOR_TEMPERATURE});
-      else
+      } else {
         traits.set_supported_color_modes(
             {light::ColorMode::RGB_COLOR_TEMPERATURE, light::ColorMode::COLOR_TEMPERATURE});
+      }
     } else
       traits.set_supported_color_modes({light::ColorMode::COLOR_TEMPERATURE});
     traits.set_min_mireds(this->cold_white_temperature_);
     traits.set_max_mireds(this->warm_white_temperature_);
   } else if (this->rgb_id_.has_value() || this->hsv_id_.has_value()) {
     if (this->dimmer_id_.has_value()) {
-      if (this->color_interlock_)
+      if (this->color_interlock_) {
         traits.set_supported_color_modes({light::ColorMode::RGB, light::ColorMode::WHITE});
-      else
+      } else {
         traits.set_supported_color_modes({light::ColorMode::RGB_WHITE});
+      }
     } else
       traits.set_supported_color_modes({light::ColorMode::RGB});
   } else if (this->dimmer_id_.has_value()) {
