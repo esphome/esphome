@@ -252,6 +252,12 @@ void DisplayBuffer::legend(int x, int y, graph::Graph *graph, Color color_on) {
 }
 #endif  // USE_GRAPH
 
+#ifdef USE_QR_CODE
+void DisplayBuffer::qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on, int scale) {
+  qr_code->draw(this, x, y, color_on, scale);
+}
+#endif  // USE_QR_CODE
+
 void DisplayBuffer::get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1,
                                     int *width, int *height) {
   int x_offset, baseline;

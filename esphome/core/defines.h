@@ -26,18 +26,21 @@
 #define USE_GRAPH
 #define USE_HOMEASSISTANT_TIME
 #define USE_LIGHT
+#define USE_LOCK
 #define USE_LOGGER
 #define USE_MDNS
 #define USE_NUMBER
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_CALLBACK
 #define USE_POWER_SUPPLY
+#define USE_QR_CODE
 #define USE_SELECT
 #define USE_SENSOR
 #define USE_STATUS_LED
 #define USE_SWITCH
 #define USE_TEXT_SENSOR
 #define USE_TIME
+#define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
 #define USE_WIFI
 
@@ -55,6 +58,7 @@
 
 // ESP32-specific feature flags
 #ifdef USE_ESP32
+#define USE_ESP32_BLE_CLIENT
 #define USE_ESP32_BLE_SERVER
 #define USE_ESP32_CAMERA
 #define USE_ESP32_IGNORE_EFUSE_MAC_CRC

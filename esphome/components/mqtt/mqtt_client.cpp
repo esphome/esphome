@@ -1,5 +1,4 @@
 #include "mqtt_client.h"
-#define USE_MQTT
 
 #ifdef USE_MQTT
 
@@ -538,9 +537,11 @@ void MQTTClientComponent::set_birth_message(MQTTMessage &&message) {
 void MQTTClientComponent::set_shutdown_message(MQTTMessage &&message) { this->shutdown_message_ = std::move(message); }
 
 void MQTTClientComponent::set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
-                                             bool retain, bool clean) {
+                                             MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain,
+                                             bool clean) {
   this->discovery_info_.prefix = std::move(prefix);
   this->discovery_info_.unique_id_generator = unique_id_generator;
+  this->discovery_info_.object_id_generator = object_id_generator;
   this->discovery_info_.retain = retain;
   this->discovery_info_.clean = clean;
 }
