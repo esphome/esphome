@@ -21,13 +21,8 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(HydreonRGxxBinarySensor),
         cv.GenerateID(CONF_HYDREON_RGXX_ID): cv.use_id(HydreonRGxxComponent),
-        cv.Optional(CONF_TOO_COLD): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
-            {
-                cv.Optional(
-                    CONF_DEVICE_CLASS,
-                    default=DEVICE_CLASS_COLD,
-                ): binary_sensor.device_class
-            }
+        cv.Optional(CONF_TOO_COLD): binary_sensor.binary_sensor_schema(
+            device_class=DEVICE_CLASS_COLD
         ),
     }
 )
