@@ -75,9 +75,11 @@ void HydreonRGxxComponent::update() {
       this->no_response_count_ = 0;
     }
     this->write_str("R\n");
+#ifdef USE_BINARY_SENSOR
     if (this->too_cold_sensor_ != nullptr) {
       this->too_cold_sensor_->publish_state(this->too_cold_);
     }
+#endif
     this->too_cold_ = false;
     this->sensors_received_ = 0;
   }

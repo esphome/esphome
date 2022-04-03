@@ -1,8 +1,11 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/components/sensor/sensor.h"
+#ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 #include "esphome/components/uart/uart.h"
 
 namespace esphome {
@@ -26,7 +29,9 @@ static const uint8_t NUM_SENSORS = 1;
 class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
  public:
   void set_sensor(sensor::Sensor *sensor, int index) { this->sensors_[index] = sensor; }
+#ifdef USE_BINARY_SENSOR
   void set_too_cold_sensor(binary_sensor::BinarySensor *sensor) { this->too_cold_sensor_ = sensor; }
+#endif
   void set_model(RGModel model) { model_ = model; }
 
   /// Schedule data readings.
@@ -47,7 +52,9 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   bool sensor_missing_();
 
   sensor::Sensor *sensors_[NUM_SENSORS] = {nullptr};
+#ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *too_cold_sensor_ = nullptr;
+#endif
 
   int16_t boot_count_ = 0;
   int16_t no_response_count_ = 0;
