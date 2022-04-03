@@ -94,7 +94,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     )
-    .extend(cv.polling_component_schema("1s"))
+    .extend(cv.polling_component_schema("60s"))
     .extend(uart.UART_DEVICE_SCHEMA),
     _validate,
 )
