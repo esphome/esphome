@@ -35,6 +35,8 @@ ValueRangeTrigger = number_ns.class_(
 
 # Actions
 NumberSetAction = number_ns.class_("NumberSetAction", automation.Action)
+NumberIncAction = number_ns.class_("NumberIncAction", automation.Action)
+NumberTogAction = number_ns.class_("NumberTogAction", automation.Action)
 
 # Conditions
 NumberInRangeCondition = number_ns.class_(
@@ -174,4 +176,38 @@ async def number_set_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_VALUE], args, float)
     cg.add(var.set_value(template_))
+    return var
+
+
+@automation.register_action(
+    "number.inc",
+    NumberIncAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(Number),
+            cv.Required(CONF_VALUE): cv.templatable(cv.float_),
+        }
+    ),
+)
+async def number_inc_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_VALUE], args, float)
+    cg.add(var.set_increment(template_))
+    return var
+
+
+@automation.register_action(
+    "number.tog",
+    NumberTogAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(Number),
+        }
+    ),
+)
+async def number_tog_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    cg.add(var.set_toggle(True))
     return var

@@ -7,27 +7,63 @@ namespace number {
 static const char *const TAG = "number";
 
 void NumberCall::perform() {
-  ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
-  if (!this->value_.has_value() || std::isnan(*this->value_)) {
-    ESP_LOGW(TAG, "No value set for NumberCall");
+  ESP_LOGD(TAG, "'%s' - Setting/Incrementing/Toggling", this->parent_->get_name().c_str());
+  if ( (!this->value_.has_value() || std::isnan(*this->value_)) &&
+       (!this->increment_.has_value() || std::isnan(*this->increment_)) &&
+       (!this->toggle_.has_value()) ) {
+    ESP_LOGW(TAG, "No value, no increment and no toggle set for NumberCall");
     return;
   }
 
   const auto &traits = this->parent_->traits;
-  auto value = *this->value_;
+  auto min_value = traits.get_min_value();
+  auto max_value = traits.get_max_value();
+  auto current_state = this->parent_->state;
+  auto current_state_valid = this->parent_->has_state();
+  if ( this->value_.has_value() && !std::isnan(*this->value_) ) {
+    auto value = *this->value_;
 
-  float min_value = traits.get_min_value();
-  if (value < min_value) {
-    ESP_LOGW(TAG, "  Value %f must not be less than minimum %f", value, min_value);
-    return;
+    if (value < min_value) {
+      ESP_LOGW(TAG, "  Value %f must not be less than minimum %f", value, min_value);
+      return;
+    }
+    if (value > max_value) {
+      ESP_LOGW(TAG, "  Value %f must not be greater than maximum %f", value, max_value);
+      return;
+    }
+    ESP_LOGD(TAG, "  Value after set: %f", *this->value_);
+    current_state = *this->value_;
+    current_state_valid = true;
   }
-  float max_value = traits.get_max_value();
-  if (value > max_value) {
-    ESP_LOGW(TAG, "  Value %f must not be greater than maximum %f", value, max_value);
-    return;
+  if ( this->increment_.has_value() && !std::isnan(*this->increment_) ) {
+    // initialize to minimum if not already set
+    if ( !current_state_valid ) current_state = min_value;
+    // calculate
+    current_state += *this->increment_;
+    // limit to min and max values
+    if (current_state < min_value) {
+      ESP_LOGW(TAG, "  Value after increment %f clamped to minimum of %f", current_state, min_value);
+      current_state = min_value;
+    }
+    if (current_state > max_value) {
+      ESP_LOGW(TAG, "  Value after increment %f clamped to maximum of %f", current_state, max_value);
+      current_state = max_value;
+    }
+    ESP_LOGD(TAG, "  Value after increment: %f", *this->value_);
   }
-  ESP_LOGD(TAG, "  Value: %f", *this->value_);
-  this->parent_->control(*this->value_);
+  if ( this->toggle_.has_value() && *this->toggle_ == true ) {
+    if (std::isnan(min_value) || std::isnan(max_value)) {
+      ESP_LOGW(TAG, "  min and max value must both be set to valid numbers for toggle to work (min: %f and max: %f), aborting", min_value, max_value);
+      return;
+    }
+    float avg_value = ( min_value + max_value ) / 2.0;
+    if ( current_state > avg_value ) {
+      current_state = min_value;
+    } else {
+      current_state = max_value;
+    }
+  }
+  this->parent_->control(current_state);
 }
 
 void Number::publish_state(float state) {

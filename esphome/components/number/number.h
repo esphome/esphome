@@ -30,10 +30,22 @@ class NumberCall {
     return *this;
   }
   const optional<float> &get_value() const { return value_; }
+  NumberCall &set_increment(float increment) {
+    increment_ = increment;
+    return *this;
+  }
+  const optional<float> &get_increment() const { return increment_; }
+  NumberCall &set_toggle(bool toggle) {
+    toggle_ = toggle;
+    return *this;
+  }
+  const optional<bool> &get_toggle() const { return toggle_; }
 
  protected:
   Number *const parent_;
   optional<float> value_;
+  optional<float> increment_;
+  optional<bool> toggle_;
 };
 
 enum NumberMode : uint8_t {
