@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import (
     CONF_ID,
-    CONF_DEVICE_CLASS,
     DEVICE_CLASS_COLD,
 )
 
