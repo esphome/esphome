@@ -25,7 +25,7 @@ PROTOCOLS = {
     "daikin_arc417": Protocol.PROTOCOL_DAIKIN_ARC417,
     "daikin_arc480": Protocol.PROTOCOL_DAIKIN_ARC480,
     "daikin": Protocol.PROTOCOL_DAIKIN,
-    "electroluxyal" : Protocol.PROTOCOL_ELECTROLUXYAL,
+    "electroluxyal": Protocol.PROTOCOL_ELECTROLUXYAL,
     "fuego": Protocol.PROTOCOL_FUEGO,
     "fujitsu_awyz": Protocol.PROTOCOL_FUJITSU_AWYZ,
     "gree": Protocol.PROTOCOL_GREE,
