@@ -22,7 +22,6 @@ DECAY_MODE_OPTIONS = {
 
 HBRIDGE_CONFIG_SCHEMA = cv.Schema(
     {
-        # cv.GenerateID(): cv.declare_id(HBridge),
         cv.Required(CONF_PIN_A): cv.use_id(output.FloatOutput),
         cv.Required(CONF_PIN_B): cv.use_id(output.FloatOutput),
         cv.Optional(CONF_ENABLE_PIN): cv.use_id(output.FloatOutput),
