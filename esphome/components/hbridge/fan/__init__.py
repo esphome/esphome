@@ -12,7 +12,7 @@ from esphome.const import (
 CODEOWNERS = ["@FaBjE"]
 AUTO_LOAD = ["hbridge"]
 
-HBridgeFan = hbridge.hbridge_ns.class_("HBridgeFan", fan.FanState, hbridge.HBridge)
+HBridgeFan = hbridge.hbridge_ns.class_("HBridgeFan", fan.Fan, hbridge.HBridge)
 
 CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
     {

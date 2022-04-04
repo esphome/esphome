@@ -54,27 +54,21 @@ async def hbridge_setup(config, var):
         pin_enable = await cg.get_variable(config[CONF_ENABLE_PIN])
         cg.add(var.set_hbridge_enable_pin(pin_enable))
 
-    if CONF_DECAY_MODE in config:
-        cg.add(var.set_hbridge_decay_mode(config[CONF_DECAY_MODE]))
+    cg.add(var.set_hbridge_decay_mode(config[CONF_DECAY_MODE]))
 
     # Transition settings
-    if CONF_TRANSITION_DELTA_PER_MS in config:
-        cg.add(
-            var.set_setting_transition_delta_per_ms(
-                config[CONF_TRANSITION_DELTA_PER_MS]
-            )
-        )
+    cg.add(
+        var.set_setting_transition_delta_per_ms(config[CONF_TRANSITION_DELTA_PER_MS])
+    )
 
-    if CONF_TRANSITION_SHORT_BUILDUP_DURATION in config:
-        cg.add(
-            var.set_setting_transition_shorting_buildup_duration_ms(
-                config[CONF_TRANSITION_SHORT_BUILDUP_DURATION]
-            )
+    cg.add(
+        var.set_setting_transition_shorting_buildup_duration_ms(
+            config[CONF_TRANSITION_SHORT_BUILDUP_DURATION]
         )
+    )
 
-    if CONF_TRANSITION_FULL_SHORT_DURATION in config:
-        cg.add(
-            var.set_setting_transition_full_short_duration_ms(
-                config[CONF_TRANSITION_FULL_SHORT_DURATION]
-            )
+    cg.add(
+        var.set_setting_transition_full_short_duration_ms(
+            config[CONF_TRANSITION_FULL_SHORT_DURATION]
         )
+    )

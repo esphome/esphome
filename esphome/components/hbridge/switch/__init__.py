@@ -43,8 +43,7 @@ async def to_code(config):
 
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
-    if CONF_DURATION in config:
-        cg.add(var.set_switching_duration(config[CONF_DURATION]))
+    cg.add(var.set_switching_duration(config[CONF_DURATION]))
 
     # HBridge driver config
     await hbridge.hbridge_setup(config, var)
