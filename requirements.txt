@@ -3,7 +3,7 @@ PyYAML==6.0
 paho-mqtt==1.6.1
 colorama==0.4.4
 tornado==6.1
-tzlocal==4.1    # from time
+tzlocal==4.2    # from time
 tzdata>=2021.1  # from time
 pyserial==3.5
 platformio==5.2.5  # When updating platformio, also update Dockerfile
