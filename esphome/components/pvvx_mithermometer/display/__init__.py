@@ -42,16 +42,12 @@ async def to_code(config):
     await display.register_display(var, config)
     await ble_client.register_ble_node(var, config)
     cg.add(var.set_disconnect_delay(config[CONF_DISCONNECT_DELAY].total_milliseconds))
-
-    if CONF_AUTO_CLEAR_ENABLED in config:
-        cg.add(var.set_auto_clear(config[CONF_AUTO_CLEAR_ENABLED]))
+    cg.add(var.set_auto_clear(config[CONF_AUTO_CLEAR_ENABLED]))
+    cg.add(var.set_validity_period(config[CONF_VALIDITY_PERIOD].total_seconds))
 
     if CONF_TIME_ID in config:
         time_ = await cg.get_variable(config[CONF_TIME_ID])
         cg.add(var.set_time(time_))
-
-    if CONF_VALIDITY_PERIOD in config:
-        cg.add(var.set_validity_period(config[CONF_VALIDITY_PERIOD].total_seconds))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
