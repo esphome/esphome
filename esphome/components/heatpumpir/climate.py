@@ -115,4 +115,4 @@ def to_code(config):
 
     # PIO isn't updating releases, so referencing the release tag directly. See:
     # https://github.com/ToniA/arduino-heatpumpir/commit/0948c619d86407a4e50e8db2f3c193e0576c86fd
-    cg.add_library("", "", "https://github.com/ToniA/arduino-heatpumpir.git#1.0.20")
+    cg.add_library("tonia/HeatpumpIR", "1.0.20")
