@@ -262,6 +262,9 @@ void ESP32BLETracker::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_
     default:
       break;
   }
+  for (auto *client : global_esp32_ble_tracker->clients_) {
+    client->gap_event_handler(event, param);
+  }
 }
 
 void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t::ble_scan_param_cmpl_evt_param &param) {
