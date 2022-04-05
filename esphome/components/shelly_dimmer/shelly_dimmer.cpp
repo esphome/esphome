@@ -180,9 +180,7 @@ uint16_t ShellyDimmer::convert_brightness_(float brightness) {
     return 0;
   }
 
-  uint16_t brightness_int = static_cast<uint16_t>(brightness * (this->max_brightness_ - this->min_brightness_));
-  brightness_int = brightness_int + this->min_brightness_;
-  return std::min(brightness_int, SHELLY_DIMMER_MAX_BRIGHTNESS);
+  return remap<uint16_t, float>(brightness, 0.0f, 1.0f, this->min_brightness_, this->max_brightness_);
 }
 
 void ShellyDimmer::send_brightness_(uint16_t brightness) {
