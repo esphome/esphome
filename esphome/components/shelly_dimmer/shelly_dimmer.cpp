@@ -1,4 +1,5 @@
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "shelly_dimmer.h"
 #include "stm32flash.h"
 #ifndef USE_ESP_IDF
@@ -374,13 +375,13 @@ bool ShellyDimmer::handle_frame_() {
 
       const uint8_t hw_version = payload[0];
       // payload[1] is unused.
-      const uint16_t brightness = payload[3] << 8 | payload[2];
+      const uint16_t brightness = encode_uint16(payload[3], payload[2]);
 
-      const uint32_t power_raw = payload[7] << 24 | payload[6] << 16 | payload[5] << 8 | payload[4];
+      const uint32_t power_raw = encode_uint32(payload[7], payload[6], payload[5], payload[4]);
 
-      const uint32_t voltage_raw = payload[11] << 24 | payload[10] << 16 | payload[9] << 8 | payload[8];
+      const uint32_t voltage_raw = encode_uint32(payload[11], payload[10], payload[9], payload[8]);
 
-      const uint32_t current_raw = payload[15] << 24 | payload[14] << 16 | payload[13] << 8 | payload[12];
+      const uint32_t current_raw = encode_uint32(payload[15], payload[14], payload[13], payload[12]);
 
       const uint16_t fade_rate = payload[16];
 
