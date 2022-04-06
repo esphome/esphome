@@ -1,6 +1,7 @@
 #ifdef USE_ARDUINO
 
 #include "web_server.h"
+
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
@@ -17,7 +18,7 @@
 #endif
 
 #ifdef USE_LOGGER
-#include <esphome/components/logger/logger.h>
+#include "esphome/components/logger/logger.h"
 #endif
 
 #ifdef USE_FAN
@@ -106,87 +107,7 @@ void WebServer::setup() {
                  }).c_str(),
                  "ping", millis(), 30000);
 
-#ifdef USE_SENSOR
-    for (auto *obj : App.get_sensors()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->sensor_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_SWITCH
-    for (auto *obj : App.get_switches()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->switch_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_BUTTON
-    for (auto *obj : App.get_buttons())
-      client->send(this->button_json(obj, DETAIL_ALL).c_str(), "state");
-#endif
-
-#ifdef USE_BINARY_SENSOR
-    for (auto *obj : App.get_binary_sensors()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->binary_sensor_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_FAN
-    for (auto *obj : App.get_fans()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->fan_json(obj, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_LIGHT
-    for (auto *obj : App.get_lights()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->light_json(obj, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_TEXT_SENSOR
-    for (auto *obj : App.get_text_sensors()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->text_sensor_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_COVER
-    for (auto *obj : App.get_covers()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->cover_json(obj, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_NUMBER
-    for (auto *obj : App.get_numbers()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->number_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_SELECT
-    for (auto *obj : App.get_selects()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->select_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_CLIMATE
-    for (auto *obj : App.get_climates()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->climate_json(obj, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_LOCK
-    for (auto *obj : App.get_locks()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->lock_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
+    this->entities_iterator_.begin(this->include_internal_);
   });
 
 #ifdef USE_LOGGER
@@ -203,6 +124,7 @@ void WebServer::setup() {
 
   this->set_interval(10000, [this]() { this->events_.send("", "ping", millis(), 30000); });
 }
+void WebServer::loop() { this->entities_iterator_.advance(); }
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
   ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->base_->get_port());
@@ -873,6 +795,139 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
       for (auto &option : obj->traits.get_options()) {
         opt.add(option);
       }
+    }
+  });
+}
+#endif
+
+#ifdef USE_CLIMATE
+void WebServer::on_climate_update(climate::Climate *obj) {
+  this->events_.send(this->climate_json(obj, DETAIL_STATE).c_str(), "state");
+}
+
+void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_climates()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->climate_json(obj, DETAIL_STATE);
+      request->send(200, "text/json", data.c_str());
+      return;
+    }
+
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    if (request->hasParam("mode")) {
+      String mode = request->getParam("mode")->value();
+      call.set_mode(mode.c_str());
+    }
+
+    if (request->hasParam("target_temperature_high")) {
+      String value = request->getParam("target_temperature_high")->value();
+      optional<float> value_f = parse_number<float>(value.c_str());
+      if (value_f.has_value())
+        call.set_target_temperature_high(*value_f);
+    }
+
+    if (request->hasParam("target_temperature_low")) {
+      String value = request->getParam("target_temperature_low")->value();
+      optional<float> value_f = parse_number<float>(value.c_str());
+      if (value_f.has_value())
+        call.set_target_temperature_low(*value_f);
+    }
+
+    if (request->hasParam("target_temperature")) {
+      String value = request->getParam("target_temperature")->value();
+      optional<float> value_f = parse_number<float>(value.c_str());
+      if (value_f.has_value())
+        call.set_target_temperature(*value_f);
+    }
+
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+// Longest: HORIZONTAL
+#define PSTR_LOCAL(mode_s) strncpy_P(__buf, (PGM_P)((mode_s)), 15)
+
+std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject root) {
+    set_json_id(root, obj, "climate-" + obj->get_object_id(), start_config);
+    const auto traits = obj->get_traits();
+    char __buf[16];
+
+    if (start_config == DETAIL_ALL) {
+      JsonArray opt = root.createNestedArray("modes");
+      for (climate::ClimateMode m : traits.get_supported_modes())
+        opt.add(PSTR_LOCAL(climate::climate_mode_to_string(m)));
+      if (!traits.get_supported_custom_fan_modes().empty()) {
+        JsonArray opt = root.createNestedArray("fan_modes");
+        for (climate::ClimateFanMode m : traits.get_supported_fan_modes())
+          opt.add(PSTR_LOCAL(climate::climate_fan_mode_to_string(m)));
+      }
+
+      if (!traits.get_supported_custom_fan_modes().empty()) {
+        JsonArray opt = root.createNestedArray("custom_fan_modes");
+        for (auto const &custom_fan_mode : traits.get_supported_custom_fan_modes())
+          opt.add(custom_fan_mode);
+      }
+      if (traits.get_supports_swing_modes()) {
+        JsonArray opt = root.createNestedArray("swing_modes");
+        for (auto swing_mode : traits.get_supported_swing_modes())
+          opt.add(PSTR_LOCAL(climate::climate_swing_mode_to_string(swing_mode)));
+      }
+      if (traits.get_supports_presets() && obj->preset.has_value()) {
+        JsonArray opt = root.createNestedArray("presets");
+        for (climate::ClimatePreset m : traits.get_supported_presets())
+          opt.add(PSTR_LOCAL(climate::climate_preset_to_string(m)));
+      }
+      if (!traits.get_supported_custom_presets().empty() && obj->custom_preset.has_value()) {
+        JsonArray opt = root.createNestedArray("custom_presets");
+        for (auto const &custom_preset : traits.get_supported_custom_presets())
+          opt.add(custom_preset);
+      }
+    }
+
+    root["mode"] = PSTR_LOCAL(climate_mode_to_string(obj->mode));
+    root["max_temp"] = traits.get_visual_max_temperature();
+    root["min_temp"] = traits.get_visual_min_temperature();
+    root["step"] = traits.get_visual_temperature_step();
+    if (traits.get_supports_action()) {
+      root["action"] = PSTR_LOCAL(climate_action_to_string(obj->action));
+    }
+    if (traits.get_supports_fan_modes() && obj->fan_mode.has_value()) {
+      root["fan_mode"] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
+    }
+    if (!traits.get_supported_custom_fan_modes().empty() && obj->custom_fan_mode.has_value()) {
+      root["custom_fan_mode"] = obj->custom_fan_mode.value().c_str();
+    }
+    if (traits.get_supports_presets() && obj->preset.has_value()) {
+      root["preset"] = PSTR_LOCAL(climate_preset_to_string(obj->preset.value()));
+    }
+    if (!traits.get_supported_custom_presets().empty() && obj->custom_preset.has_value()) {
+      root["custom_preset"] = obj->custom_preset.value().c_str();
+    }
+    if (traits.get_supports_swing_modes()) {
+      root["swing_mode"] = PSTR_LOCAL(climate_swing_mode_to_string(obj->swing_mode));
+    }
+    if (traits.get_supports_current_temperature()) {
+      root["current_temperature"] = obj->current_temperature;
+    }
+    if (traits.get_supports_two_point_target_temperature()) {
+      root["current_temperature_low"] = obj->target_temperature_low;
+      root["current_temperature_high"] = obj->target_temperature_low;
+    } else {
+      root["target_temperature"] = obj->target_temperature;
+      root["state"] = obj->target_temperature;
     }
   });
 }
