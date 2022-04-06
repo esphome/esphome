@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor, output, esp32_ble_server
-from esphome.const import CONF_ID
+from esphome.const import CONF_BLE_SERVER_ID, CONF_ID
 
 
 AUTO_LOAD = ["binary_sensor", "output", "esp32_ble_server"]
@@ -11,7 +11,6 @@ DEPENDENCIES = ["wifi", "esp32"]
 
 CONF_AUTHORIZED_DURATION = "authorized_duration"
 CONF_AUTHORIZER = "authorizer"
-CONF_BLE_SERVER_ID = "ble_server_id"
 CONF_IDENTIFY_DURATION = "identify_duration"
 CONF_STATUS_INDICATOR = "status_indicator"
 CONF_WIFI_TIMEOUT = "wifi_timeout"

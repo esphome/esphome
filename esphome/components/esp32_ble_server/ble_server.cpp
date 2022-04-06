@@ -61,14 +61,11 @@ void BLEServer::loop() {
       break;
     }
     case STARTING_SERVICE: {
-      if (!this->device_information_service_->is_created()) {
-        break;
-      }
       if (this->device_information_service_->is_running()) {
         this->state_ = RUNNING;
         this->can_proceed_ = true;
         ESP_LOGD(TAG, "BLE server setup successfully");
-      } else if (!this->device_information_service_->is_starting()) {
+      } else if (this->device_information_service_->is_created() && !this->device_information_service_->is_starting()) {
         this->device_information_service_->start();
       }
       break;
