@@ -12,7 +12,7 @@
 #include "esphome/core/log.h"
 #endif
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace esp32_ble_controller {
@@ -68,36 +68,39 @@ class BLEController : public Component, public Controller, public esp32_ble_serv
 
   std::map<uint32_t, BLECharacteristic *> characteristics_;
 
-  BLEService *esphome_service_;
+  //BLEService *esphome_service_;
+  std::shared_ptr<BLEService> esphome_service_;
 #ifdef USE_LOGGER
   BLECharacteristic *logger_characteristic_;
   int log_level_{ESPHOME_LOG_LEVEL_DEBUG};
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  BLEService *binary_sensor_service_;
+  std::shared_ptr<BLEService> binary_sensor_service_;
 #endif
 #ifdef USE_COVER
-  BLEService *cover_service_;
+  std::shared_ptr<BLEService> cover_service_;
 #endif
 #ifdef USE_FAN
-  BLEService *fan_service_;
+  std::shared_ptr<BLEService> fan_service_;
 #endif
 #ifdef USE_LIGHT
-  BLEService *light_service_;
+  std::shared_ptr<BLEService> light_service_;
 #endif
 #ifdef USE_SENSOR
-  BLEService *sensor_service_;
+  std::shared_ptr<BLEService> sensor_service_;
 #endif
 #ifdef USE_SWITCH
-  BLEService *switch_service_;
+  std::shared_ptr<BLEService> switch_service_;
 #endif
 #ifdef USE_TEXT_SENSOR
-  BLEService *text_sensor_service_;
+  std::shared_ptr<BLEService> text_sensor_service_;
 #endif
 #ifdef USE_CLIMATE
-  BLEService *climate_service_;
+  std::shared_ptr<BLEService> climate_service_;
 #endif
+  /// Convert a uint32_t to a hex string
+  std::string uint32_to_string(uint32_t num);
 };
 
 }  // namespace esp32_ble_controller

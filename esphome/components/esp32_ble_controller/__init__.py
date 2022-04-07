@@ -6,11 +6,9 @@ from esphome.const import (
     CONF_ID,
     CONF_LEVEL,
     CONF_LOGGER,
-    ESP_PLATFORM_ESP32,
 )
 
 AUTO_LOAD = ["esp32_ble_server"]
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 CODEOWNERS = ["@jesserockz"]
 CONFLICTS_WITH = ["esp32_ble_tracker", "esp32_ble_beacon"]
 

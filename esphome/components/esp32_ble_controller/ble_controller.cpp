@@ -8,22 +8,22 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifdef USE_ESP32
 
 namespace esphome {
 namespace esp32_ble_controller {
 
-static const char *const ESPHOME_SERVICE_UUID = "03774663-d394-496e-8dcd-000000000000";
+static const char *const ESPHOME_SERVICE_UUID       = "03774663-d394-496e-8dcd-000000000000";
 static const char *const LOGGER_CHARACTERISTIC_UUID = "03774663-d394-496e-8dcd-000000000001";
 
 static const char *const BINARY_SENSOR_SERVICE_UUID = "03774663-d394-496e-8dcd-000100000000";
-static const char *const COVER_SERVICE_UUID = "03774663-d394-496e-8dcd-000200000000";
-static const char *const FAN_SERVICE_UUID = "03774663-d394-496e-8dcd-000300000000";
-static const char *const LIGHT_SERVICE_UUID = "03774663-d394-496e-8dcd-000400000000";
-static const char *const SENSOR_SERVICE_UUID = "03774663-d394-496e-8dcd-000500000000";
-static const char *const SWITCH_SERVICE_UUID = "03774663-d394-496e-8dcd-000600000000";
-static const char *const TEXT_SENSOR_SERVICE_UUID = "03774663-d394-496e-8dcd-000700000000";
-static const char *const CLIMATE_SERVICE_UUID = "03774663-d394-496e-8dcd-000800000000";
+static const char *const COVER_SERVICE_UUID         = "03774663-d394-496e-8dcd-000200000000";
+static const char *const FAN_SERVICE_UUID           = "03774663-d394-496e-8dcd-000300000000";
+static const char *const LIGHT_SERVICE_UUID         = "03774663-d394-496e-8dcd-000400000000";
+static const char *const SENSOR_SERVICE_UUID        = "03774663-d394-496e-8dcd-000500000000";
+static const char *const SWITCH_SERVICE_UUID        = "03774663-d394-496e-8dcd-000600000000";
+static const char *const TEXT_SENSOR_SERVICE_UUID   = "03774663-d394-496e-8dcd-000700000000";
+static const char *const CLIMATE_SERVICE_UUID       = "03774663-d394-496e-8dcd-000800000000";
 
 static const char *const TAG = "esp32_ble_controller";
 
@@ -354,6 +354,7 @@ void BLEController::on_sensor_update(sensor::Sensor *obj, float state) {
   auto *characteristic = this->characteristics_[obj->get_object_id_hash()];
   characteristic->set_value(state);
   characteristic->notify();
+  ESP_LOGD(TAG, "Notify Sensor - %.2f", state);
 }
 #endif
 #ifdef USE_SWITCH
@@ -363,6 +364,7 @@ void BLEController::on_switch_update(switch_::Switch *obj, bool state) {
   auto *characteristic = this->characteristics_[obj->get_object_id_hash()];
   characteristic->set_value(state);
   characteristic->notify();
+  ESP_LOGD(TAG, "Notify Switch - %s", state ? "on" : "off");
 }
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -380,6 +382,12 @@ void BLEController::on_climate_update(climate::Climate *obj) {
     return;
 }
 #endif
+std::string BLEController::uint32_to_string(uint32_t num) {
+  char buffer[9];
+  auto *address16 = reinterpret_cast<uint16_t *>(&num);
+  snprintf(buffer, sizeof(buffer), "%04X%04X", address16[1], address16[0]);
+  return std::string(buffer);
+}
 
 }  // namespace esp32_ble_controller
 }  // namespace esphome
