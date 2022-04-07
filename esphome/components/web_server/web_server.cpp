@@ -902,7 +902,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
         root["state"] = "UNKNOWN";
     }
   });
-  std::string firstjson = json::build_json([obj, start_config](JsonObject root) {
+  std::string firstjson = json::build_json([obj, start_config, secondjson](JsonObject root) {
     set_json_id(root, obj, "climate-" + obj->get_object_id(), start_config);
     const auto traits = obj->get_traits();
     char __buf[16];
