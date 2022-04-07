@@ -30,8 +30,7 @@ def validate(config, item_config):
         global_level
     ):
         raise ValueError(
-            "The esp32_ble_controller log level {} must be less severe than the "
-            "global log level {}.".format(level, global_level)
+            f"The esp32_ble_controller log level {level} must be less severe than the global log level {global_level}."
         )
 
 
