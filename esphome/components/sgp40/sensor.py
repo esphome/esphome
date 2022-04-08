@@ -1,3 +1,4 @@
+import logging
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor, sensirion_common
@@ -9,6 +10,8 @@ from esphome.const import (
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     STATE_CLASS_MEASUREMENT,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
@@ -53,6 +56,9 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
+    _LOGGER.warning(
+        "SGP40 is deprecated. Please the SGP4x platform instead. SGP4x supports both SPG40 and SGP41"
+    )
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
