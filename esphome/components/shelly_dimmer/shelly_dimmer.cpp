@@ -75,7 +75,7 @@ void ShellyDimmer::setup() {
     ESP_LOGI(TAG, "STM32 current firmware version: %d.%d, desired version: %d.%d", this->version_major_,
              this->version_minor_, SHD_FIRMWARE_MAJOR_VERSION, SHD_FIRMWARE_MINOR_VERSION);
     if (this->version_major_ != SHD_FIRMWARE_MAJOR_VERSION || this->version_minor_ != SHD_FIRMWARE_MINOR_VERSION) {
-    #ifdef SHD_FIRMWARE_DATA
+#ifdef SHD_FIRMWARE_DATA
       // Update firmware if needed.
       ESP_LOGW(TAG, "Unsupported STM32 firmware version, flashing");
       if (i > 0) {
@@ -93,11 +93,11 @@ void ShellyDimmer::setup() {
 
       // Firmware upgrade completed, do the checks again.
       continue;
-    #else
-        ESP_LOGW(TAG, "Firmware version mismatch, put 'update: True' in the yaml to flash an update.");
-        this->mark_failed();
-        return;
-    #endif
+#else
+      ESP_LOGW(TAG, "Firmware version mismatch, put 'update: True' in the yaml to flash an update.");
+      this->mark_failed();
+      return;
+#endif
     }
     break;
   }
