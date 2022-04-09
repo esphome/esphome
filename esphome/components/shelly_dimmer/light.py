@@ -1,4 +1,7 @@
 from pathlib import Path
+import hashlib
+import requests
+import re
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -10,15 +13,17 @@ from esphome.const import (
     CONF_POWER,
     CONF_VOLTAGE,
     CONF_CURRENT,
+    CONF_VERSION,
+    CONF_URL,
     UNIT_VOLT,
     UNIT_AMPERE,
     UNIT_WATT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
 )
-from esphome.core import HexInt
+from esphome.core import HexInt, CORE
 
-
+DOMAIN = "shelly_dimmer"
 DEPENDENCIES = ["sensor", "uart"]
 
 shelly_dimmer_ns = cg.esphome_ns.namespace("shelly_dimmer")
@@ -27,12 +32,16 @@ ShellyDimmer = shelly_dimmer_ns.class_(
 )
 
 CONF_FIRMWARE = "firmware"
+CONF_SHA256 = "sha256"
 
-FIRMWARE_MAPPING = {
-    "51.5": (51, 5, "shelly-dimmer-stm32_v51.5.bin"),
-    "51.6": (51, 6, "shelly-dimmer-stm32_v51.6.bin"),
+KNOWN_FIRMWARE = {
+    "51.5": (
+        "https://github.com/jamesturton/shelly-dimmer-stm32/releases/download/v51.5/shelly-dimmer-stm32_v51.5.bin",
+        "553fc1d78ed113227af7683eaa9c26189a961c4ea9a48000fb5aa8f8ac5d7b60"),
+    "51.6": (
+        "https://github.com/jamesturton/shelly-dimmer-stm32/releases/download/v51.6/shelly-dimmer-stm32_v51.6.bin",
+        "eda483e111c914723a33f5088f1397d5c0b19333db4a88dc965636b976c16c36"),
 }
-
 
 CONF_LEADING_EDGE = "leading_edge"
 CONF_WARMUP_BRIGHTNESS = "warmup_brightness"
@@ -44,11 +53,82 @@ CONF_NRST_PIN = "nrst_pin"
 CONF_BOOT0_PIN = "boot0_pin"
 
 
+def parse_firmware_version(value):
+    match = re.match(r"(\d+).(\d+)", value)
+    if match is None:
+        raise ValueError(f"Not a valid version number {value}")
+    major = int(match[1])
+    minor = int(match[2])
+    return major, minor
+
+
+def get_firmware(value):
+    def dl(url):
+        try:
+            req = requests.get(url)
+            req.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            raise cv.Invalid(f"Could not download firmware file ({url}): {e}")
+
+        h = hashlib.new("sha256")
+        h.update(req.content)
+        return req.content, h.hexdigest()
+
+    url = value[CONF_URL]
+
+    if CONF_SHA256 in value:  # we have a hash, enable caching
+        path = Path(CORE.config_dir) / ".esphome" / DOMAIN / (value[CONF_SHA256] + "_fw_stm.bin")
+
+        if not path.is_file():
+            firmware_data, dl_hash = dl(url)
+
+            if dl_hash != value[CONF_SHA256]:
+                raise cv.Invalid(f"Hash mismatch for {url}: {dl_hash} != {value[CONF_SHA256]}")
+
+            path.parent.mkdir(exist_ok=True, parents=True)
+            path.write_bytes(firmware_data)
+
+        else:
+            firmware_data = path.read_bytes()
+    else:  # no caching, download every time
+        firmware_data, dl_hash = dl(url)
+
+    return [HexInt(x) for x in firmware_data]
+
+
+def validate_firmware(value):
+    if CONF_URL not in value:
+        try:
+            value[CONF_URL], value[CONF_SHA256] = KNOWN_FIRMWARE[value[CONF_VERSION]]
+        except KeyError as e:
+            raise cv.Invalid(f"Firmware {value[CONF_VERSION]} is unknown, please specify an '{CONF_URL}' ...")
+    return value
+
+
+def validate_sha256(value):
+    value = cv.string(value)
+    if not value.isalnum() or not len(value) == 64:
+        raise ValueError(f"Not a valid SHA256 hex string: {value}")
+    return value
+
+
+def validate_version(value):
+    parse_firmware_version(value)
+    return value
+
+
 CONFIG_SCHEMA = (
     light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
         {
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ShellyDimmer),
-            cv.Optional(CONF_FIRMWARE, default="51.5"): cv.enum(FIRMWARE_MAPPING),
+            cv.Optional(CONF_FIRMWARE, default="51.6"): cv.maybe_simple_value(
+                {
+                    cv.Optional(CONF_URL): cv.url,
+                    cv.Optional(CONF_SHA256): validate_sha256,
+                    cv.Required(CONF_VERSION): validate_version, },
+                validate_firmware,  # converts a simple version key to generate the full url
+                key=CONF_VERSION,
+            ),
             cv.Optional(CONF_NRST_PIN, default="GPIO5"): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BOOT0_PIN, default="GPIO4"): pins.gpio_output_pin_schema,
             cv.Optional(CONF_LEADING_EDGE, default=False): cv.boolean,
@@ -75,17 +155,16 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(uart.UART_DEVICE_SCHEMA)
+        .extend(cv.COMPONENT_SCHEMA)
+        .extend(uart.UART_DEVICE_SCHEMA)
 )
 
 
 def to_code(config):
-    fw_major, fw_minor, fw_file = config[CONF_FIRMWARE].enum_value
-    firmware_path = (Path(__file__).parent / fw_file).resolve()
-    firmware_data = Path(firmware_path).read_bytes()
-    hexdata = [HexInt(x) for x in firmware_data]
-    cg.add_define("SHD_FIRMWARE_DATA", hexdata)
+    fw_hex = get_firmware(config[CONF_FIRMWARE])
+    fw_major, fw_minor = parse_firmware_version(config[CONF_FIRMWARE][CONF_VERSION])
+
+    cg.add_define("SHD_FIRMWARE_DATA", fw_hex)
     cg.add_define("SHD_FIRMWARE_MAJOR_VERSION", fw_major)
     cg.add_define("SHD_FIRMWARE_MINOR_VERSION", fw_minor)
 
