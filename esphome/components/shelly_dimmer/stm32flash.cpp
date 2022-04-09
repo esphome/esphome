@@ -19,7 +19,6 @@
 */
 
 #include <cstdint>
-#include <Arduino.h>
 
 #include "stm32flash.h"
 #include "debug.h"
