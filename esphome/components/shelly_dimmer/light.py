@@ -114,10 +114,10 @@ def validate_firmware(value):
     if CONF_URL not in value:
         try:
             value[CONF_URL], value[CONF_SHA256] = KNOWN_FIRMWARE[value[CONF_VERSION]]
-        except KeyError:
+        except KeyError as e:
             raise cv.Invalid(
                 f"Firmware {value[CONF_VERSION]} is unknown, please specify an '{CONF_URL}' ..."
-            )
+            ) from e
     return value
 
 
