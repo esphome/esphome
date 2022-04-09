@@ -33,15 +33,7 @@ ShellyDimmer = shelly_dimmer_ns.class_(
 
 CONF_FIRMWARE = "firmware"
 CONF_SHA256 = "sha256"
-
-KNOWN_FIRMWARE = {
-    "51.5": (
-        "https://github.com/jamesturton/shelly-dimmer-stm32/releases/download/v51.5/shelly-dimmer-stm32_v51.5.bin",
-        "553fc1d78ed113227af7683eaa9c26189a961c4ea9a48000fb5aa8f8ac5d7b60"),
-    "51.6": (
-        "https://github.com/jamesturton/shelly-dimmer-stm32/releases/download/v51.6/shelly-dimmer-stm32_v51.6.bin",
-        "eda483e111c914723a33f5088f1397d5c0b19333db4a88dc965636b976c16c36"),
-}
+CONF_UPDATE = "update"
 
 CONF_LEADING_EDGE = "leading_edge"
 CONF_WARMUP_BRIGHTNESS = "warmup_brightness"
@@ -51,6 +43,15 @@ CONF_MAX_BRIGHTNESS = "max_brightness"
 
 CONF_NRST_PIN = "nrst_pin"
 CONF_BOOT0_PIN = "boot0_pin"
+
+KNOWN_FIRMWARE = {
+    "51.5": (
+        "https://github.com/jamesturton/shelly-dimmer-stm32/releases/download/v51.5/shelly-dimmer-stm32_v51.5.bin",
+        "553fc1d78ed113227af7683eaa9c26189a961c4ea9a48000fb5aa8f8ac5d7b60"),
+    "51.6": (
+        "https://github.com/jamesturton/shelly-dimmer-stm32/releases/download/v51.6/shelly-dimmer-stm32_v51.6.bin",
+        "eda483e111c914723a33f5088f1397d5c0b19333db4a88dc965636b976c16c36"),
+}
 
 
 def parse_firmware_version(value):
@@ -63,6 +64,9 @@ def parse_firmware_version(value):
 
 
 def get_firmware(value):
+    if not value[CONF_UPDATE]:
+        return None
+
     def dl(url):
         try:
             req = requests.get(url)
@@ -125,7 +129,9 @@ CONFIG_SCHEMA = (
                 {
                     cv.Optional(CONF_URL): cv.url,
                     cv.Optional(CONF_SHA256): validate_sha256,
-                    cv.Required(CONF_VERSION): validate_version, },
+                    cv.Required(CONF_VERSION): validate_version,
+                    cv.Optional(CONF_UPDATE, default=False): cv.boolean,
+                },
                 validate_firmware,  # converts a simple version key to generate the full url
                 key=CONF_VERSION,
             ),
@@ -164,7 +170,8 @@ def to_code(config):
     fw_hex = get_firmware(config[CONF_FIRMWARE])
     fw_major, fw_minor = parse_firmware_version(config[CONF_FIRMWARE][CONF_VERSION])
 
-    cg.add_define("SHD_FIRMWARE_DATA", fw_hex)
+    if fw_hex is not None:
+        cg.add_define("SHD_FIRMWARE_DATA", fw_hex)
     cg.add_define("SHD_FIRMWARE_MAJOR_VERSION", fw_major)
     cg.add_define("SHD_FIRMWARE_MINOR_VERSION", fw_minor)
 

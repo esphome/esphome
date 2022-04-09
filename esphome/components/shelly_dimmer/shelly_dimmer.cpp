@@ -1,7 +1,11 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+
 #include "shelly_dimmer.h"
+#ifdef SHD_FIRMWARE_DATA
 #include "stm32flash.h"
+#endif
+
 #ifndef USE_ESP_IDF
 #include <HardwareSerial.h>
 #endif
@@ -35,8 +39,10 @@ constexpr uint8_t SHELLY_DIMMER_PROTO_CMD_SETTINGS_SIZE = 10;
 constexpr uint8_t SHELLY_DIMMER_PROTO_MAX_FRAME_SIZE = 4 + 72 + 3;
 
 // STM Firmware
+#ifdef SHD_FIRMWARE_DATA
 constexpr uint8_t STM_FIRMWARE[] PROGMEM = SHD_FIRMWARE_DATA;
 constexpr uint32_t STM_FIRMWARE_SIZE_IN_BYTES = sizeof(STM_FIRMWARE);
+#endif
 
 // Scaling Constants
 constexpr float POWER_SCALING_FACTOR = 880373;
@@ -69,6 +75,7 @@ void ShellyDimmer::setup() {
     ESP_LOGI(TAG, "STM32 current firmware version: %d.%d, desired version: %d.%d", this->version_major_,
              this->version_minor_, SHD_FIRMWARE_MAJOR_VERSION, SHD_FIRMWARE_MINOR_VERSION);
     if (this->version_major_ != SHD_FIRMWARE_MAJOR_VERSION || this->version_minor_ != SHD_FIRMWARE_MINOR_VERSION) {
+    #ifdef SHD_FIRMWARE_DATA
       // Update firmware if needed.
       ESP_LOGW(TAG, "Unsupported STM32 firmware version, flashing");
       if (i > 0) {
@@ -86,6 +93,11 @@ void ShellyDimmer::setup() {
 
       // Firmware upgrade completed, do the checks again.
       continue;
+    #else
+        ESP_LOGW(TAG, "Firmware version mismatch, put 'update: True' in the yaml to flash an update.");
+        this->mark_failed();
+        return;
+    #endif
     }
     break;
   }
@@ -117,7 +129,7 @@ void ShellyDimmer::write_state(light::LightState *state) {
 
   this->send_brightness_(brightness_int);
 }
-
+#ifdef SHD_FIRMWARE_DATA
 bool ShellyDimmer::upgrade_firmware_() {
   ESP_LOGW(TAG, "Starting STM32 firmware upgrade");
   this->reset_dfu_boot_();
@@ -173,6 +185,7 @@ bool ShellyDimmer::upgrade_firmware_() {
 
   return true;
 }
+#endif
 
 uint16_t ShellyDimmer::convert_brightness_(float brightness) {
   // Special case for zero as only zero means turn off completely.
