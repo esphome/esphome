@@ -167,6 +167,13 @@ void LCDDisplay::strftime(uint8_t column, uint8_t row, const char *format, time:
 }
 void LCDDisplay::strftime(const char *format, time::ESPTime time) { this->strftime(0, 0, format, time); }
 #endif
+void LCDDisplay::loadchar(uint8_t location, uint8_t charmap[]) {
+  location &= 0x7;  // we only have 8 locations 0-7
+  this->command_(LCD_DISPLAY_COMMAND_SET_CGRAM_ADDR | (location << 3));
+  for (int i = 0; i < 8; i++) {
+    this->send(charmap[i], true);
+  }
+}
 
 }  // namespace lcd_base
 }  // namespace esphome
