@@ -47,10 +47,12 @@ CONF_BOOT0_PIN = "boot0_pin"
 KNOWN_FIRMWARE = {
     "51.5": (
         "https://github.com/jamesturton/shelly-dimmer-stm32/releases/download/v51.5/shelly-dimmer-stm32_v51.5.bin",
-        "553fc1d78ed113227af7683eaa9c26189a961c4ea9a48000fb5aa8f8ac5d7b60"),
+        "553fc1d78ed113227af7683eaa9c26189a961c4ea9a48000fb5aa8f8ac5d7b60",
+    ),
     "51.6": (
         "https://github.com/jamesturton/shelly-dimmer-stm32/releases/download/v51.6/shelly-dimmer-stm32_v51.6.bin",
-        "eda483e111c914723a33f5088f1397d5c0b19333db4a88dc965636b976c16c36"),
+        "eda483e111c914723a33f5088f1397d5c0b19333db4a88dc965636b976c16c36",
+    ),
 }
 
 
@@ -81,13 +83,20 @@ def get_firmware(value):
     url = value[CONF_URL]
 
     if CONF_SHA256 in value:  # we have a hash, enable caching
-        path = Path(CORE.config_dir) / ".esphome" / DOMAIN / (value[CONF_SHA256] + "_fw_stm.bin")
+        path = (
+            Path(CORE.config_dir)
+            / ".esphome"
+            / DOMAIN
+            / (value[CONF_SHA256] + "_fw_stm.bin")
+        )
 
         if not path.is_file():
             firmware_data, dl_hash = dl(url)
 
             if dl_hash != value[CONF_SHA256]:
-                raise cv.Invalid(f"Hash mismatch for {url}: {dl_hash} != {value[CONF_SHA256]}")
+                raise cv.Invalid(
+                    f"Hash mismatch for {url}: {dl_hash} != {value[CONF_SHA256]}"
+                )
 
             path.parent.mkdir(exist_ok=True, parents=True)
             path.write_bytes(firmware_data)
@@ -105,7 +114,9 @@ def validate_firmware(value):
         try:
             value[CONF_URL], value[CONF_SHA256] = KNOWN_FIRMWARE[value[CONF_VERSION]]
         except KeyError as e:
-            raise cv.Invalid(f"Firmware {value[CONF_VERSION]} is unknown, please specify an '{CONF_URL}' ...")
+            raise cv.Invalid(
+                f"Firmware {value[CONF_VERSION]} is unknown, please specify an '{CONF_URL}' ..."
+            )
     return value
 
 
@@ -161,8 +172,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
         }
     )
-        .extend(cv.COMPONENT_SCHEMA)
-        .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA)
 )
 
 
