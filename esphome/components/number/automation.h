@@ -29,6 +29,35 @@ template<typename... Ts> class NumberSetAction : public Action<Ts...> {
   Number *number_;
 };
 
+template<typename... Ts> class NumberIncrementAction : public Action<Ts...> {
+ public:
+  NumberIncrementAction(Number *number) : number_(number) {}
+  TEMPLATABLE_VALUE(float, value)
+
+  void play(Ts... x) override {
+    auto call = this->number_->make_call();
+    call.set_increment(this->value_.value(x...));
+    call.perform();
+  }
+
+ protected:
+  Number *number_;
+};
+
+template<typename... Ts> class NumberToggleAction : public Action<Ts...> {
+ public:
+  NumberToggleAction(Number *number) : number_(number) {}
+
+  void play(Ts... x) override {
+    auto call = this->number_->make_call();
+    call.set_toggle(true);
+    call.perform();
+  }
+
+ protected:
+  Number *number_;
+};
+
 class ValueRangeTrigger : public Trigger<float>, public Component {
  public:
   explicit ValueRangeTrigger(Number *parent) : parent_(parent) {}

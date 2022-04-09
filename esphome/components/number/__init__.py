@@ -35,8 +35,8 @@ ValueRangeTrigger = number_ns.class_(
 
 # Actions
 NumberSetAction = number_ns.class_("NumberSetAction", automation.Action)
-NumberIncAction = number_ns.class_("NumberIncAction", automation.Action)
-NumberTogAction = number_ns.class_("NumberTogAction", automation.Action)
+NumberIncrementAction = number_ns.class_("NumberIncrementAction", automation.Action)
+NumberToggleAction = number_ns.class_("NumberToggleAction", automation.Action)
 
 # Conditions
 NumberInRangeCondition = number_ns.class_(
@@ -181,7 +181,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
 
 @automation.register_action(
     "number.inc",
-    NumberIncAction,
+    NumberIncrementAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(Number),
@@ -199,7 +199,7 @@ async def number_inc_to_code(config, action_id, template_arg, args):
 
 @automation.register_action(
     "number.tog",
-    NumberTogAction,
+    NumberToggleAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(Number),
