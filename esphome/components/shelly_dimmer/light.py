@@ -1,7 +1,8 @@
 from pathlib import Path
 import hashlib
-import requests
 import re
+import requests
+
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -113,7 +114,7 @@ def validate_firmware(value):
     if CONF_URL not in value:
         try:
             value[CONF_URL], value[CONF_SHA256] = KNOWN_FIRMWARE[value[CONF_VERSION]]
-        except KeyError as e:
+        except KeyError:
             raise cv.Invalid(
                 f"Firmware {value[CONF_VERSION]} is unknown, please specify an '{CONF_URL}' ..."
             )
