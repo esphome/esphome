@@ -49,7 +49,7 @@ void NumberCall::perform() {
       ESP_LOGW(TAG, "  Value after increment %f clamped to maximum of %f", current_state, max_value);
       current_state = max_value;
     }
-    ESP_LOGD(TAG, "  Value after increment: %f", *this->value_);
+    ESP_LOGD(TAG, "  Value after increment: %f", current_state);
   }
   if (this->toggle_.has_value() && *this->toggle_ == true) {
     if (std::isnan(min_value) || std::isnan(max_value)) {
