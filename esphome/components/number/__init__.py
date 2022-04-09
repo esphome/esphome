@@ -193,7 +193,7 @@ async def number_inc_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_VALUE], args, float)
-    cg.add(var.set_increment(template_))
+    cg.add(var.set_value(template_))
     return var
 
 
@@ -209,5 +209,4 @@ async def number_inc_to_code(config, action_id, template_arg, args):
 async def number_tog_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_toggle(True))
     return var
