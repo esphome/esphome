@@ -8,9 +8,8 @@ static const char *const TAG = "number";
 
 void NumberCall::perform() {
   ESP_LOGD(TAG, "'%s' - Setting/Incrementing/Toggling", this->parent_->get_name().c_str());
-  if ( (!this->value_.has_value() || std::isnan(*this->value_)) &&
-       (!this->increment_.has_value() || std::isnan(*this->increment_)) &&
-       (!this->toggle_.has_value()) ) {
+  if ((!this->value_.has_value() || std::isnan(*this->value_)) &&
+      (!this->increment_.has_value() || std::isnan(*this->increment_)) && (!this->toggle_.has_value())) {
     ESP_LOGW(TAG, "No value, no increment and no toggle set for NumberCall");
     return;
   }
@@ -20,7 +19,7 @@ void NumberCall::perform() {
   auto max_value = traits.get_max_value();
   auto current_state = this->parent_->state;
   auto current_state_valid = this->parent_->has_state();
-  if ( this->value_.has_value() && !std::isnan(*this->value_) ) {
+  if (this->value_.has_value() && !std::isnan(*this->value_)) {
     auto value = *this->value_;
 
     if (value < min_value) {
@@ -35,9 +34,10 @@ void NumberCall::perform() {
     current_state = *this->value_;
     current_state_valid = true;
   }
-  if ( this->increment_.has_value() && !std::isnan(*this->increment_) ) {
+  if (this->increment_.has_value() && !std::isnan(*this->increment_)) {
     // initialize to minimum if not already set
-    if ( !current_state_valid ) current_state = min_value;
+    if (!current_state_valid)
+      current_state = min_value;
     // calculate
     current_state += *this->increment_;
     // limit to min and max values
@@ -51,13 +51,16 @@ void NumberCall::perform() {
     }
     ESP_LOGD(TAG, "  Value after increment: %f", *this->value_);
   }
-  if ( this->toggle_.has_value() && *this->toggle_ == true ) {
+  if (this->toggle_.has_value() && *this->toggle_ == true) {
     if (std::isnan(min_value) || std::isnan(max_value)) {
-      ESP_LOGW(TAG, "  min and max value must both be set to valid numbers for toggle to work (min: %f and max: %f), aborting", min_value, max_value);
+      ESP_LOGW(
+          TAG,
+          "  min and max value must both be set to valid numbers for toggle to work (min: %f and max: %f), aborting",
+          min_value, max_value);
       return;
     }
-    float avg_value = ( min_value + max_value ) / 2.0;
-    if ( current_state > avg_value ) {
+    float avg_value = (min_value + max_value) / 2.0;
+    if (current_state > avg_value) {
       current_state = min_value;
     } else {
       current_state = max_value;

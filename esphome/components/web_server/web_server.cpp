@@ -716,8 +716,8 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
       request->send(200, "text/json", data.c_str());
       return;
     }
-    if ( (match.method != "set" && match.method != "inc" && match.method != "tog") ||
-         (!request->hasParam("value") && (match.method == "set" || match.method == "inc")) ){
+    if ((match.method != "set" && match.method != "inc" && match.method != "tog") ||
+        (!request->hasParam("value") && (match.method == "set" || match.method == "inc"))) {
       request->send(404);
       return;
     }
@@ -727,11 +727,14 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
       String value = request->getParam("value")->value();
       optional<float> value_f = parse_number<float>(value.c_str());
       if (value_f.has_value()) {
-        if ( match.method == "set" ) call.set_value(*value_f);
-        if ( match.method == "inc" ) call.set_increment(*value_f);
+        if (match.method == "set")
+          call.set_value(*value_f);
+        if (match.method == "inc")
+          call.set_increment(*value_f);
       }
     }
-    if ( match.method == "tog" ) call.set_toggle(true);
+    if (match.method == "tog")
+      call.set_toggle(true);
 
     this->defer([call]() mutable { call.perform(); });
     request->send(200);
