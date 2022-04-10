@@ -112,14 +112,15 @@ def get_firmware(value):
 
 
 def validate_firmware(value):
-    if CONF_URL not in value:
+    config = value.copy()
+    if CONF_URL not in config:
         try:
-            value[CONF_URL], value[CONF_SHA256] = KNOWN_FIRMWARE[value[CONF_VERSION]]
+            config[CONF_URL], config[CONF_SHA256] = KNOWN_FIRMWARE[config[CONF_VERSION]]
         except KeyError as e:
             raise cv.Invalid(
-                f"Firmware {value[CONF_VERSION]} is unknown, please specify an '{CONF_URL}' ..."
+                f"Firmware {config[CONF_VERSION]} is unknown, please specify an '{CONF_URL}' ..."
             ) from e
-    return value
+    return config
 
 
 def validate_sha256(value):
