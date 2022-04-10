@@ -111,6 +111,28 @@ void ShellyDimmer::setup() {
 
 void ShellyDimmer::update() { this->send_command_(SHELLY_DIMMER_PROTO_CMD_POLL, nullptr, 0); }
 
+void ShellyDimmer::dump_config() {
+  ESP_LOGCONFIG(TAG, "ShellyDimmer:");
+  LOG_PIN("  NRST Pin: ", this->pin_nrst_);
+  LOG_PIN("  BOOT0 Pin: ", this->pin_boot0_);
+
+  ESP_LOGCONFIG(TAG, "  Leading Edge: %b", this->leading_edge_);
+  ESP_LOGCONFIG(TAG, "  Warmup Brightness: %d", this->warmup_brightness_);
+  //ESP_LOGCONFIG(TAG, "  Warmup Time: %d", this->warmup_time_);
+  //ESP_LOGCONFIG(TAG, "  Fade Rate: %d", this->fade_rate_);
+  ESP_LOGCONFIG(TAG, "  Minimum Brightness: %d", this->min_brightness_);
+  ESP_LOGCONFIG(TAG, "  Maximum Brightness: %d", this->max_brightness_);
+
+  LOG_UPDATE_INTERVAL(this);
+
+  ESP_LOGCONFIG(TAG, "  STM32 current firmware version: %d.%d ", this->version_major_, this->version_minor_);
+  ESP_LOGCONFIG(TAG, "  STM32 required firmware version: %d.%d", SHD_FIRMWARE_MAJOR_VERSION, SHD_FIRMWARE_MINOR_VERSION);
+
+  if (this->version_major_ != SHD_FIRMWARE_MAJOR_VERSION || this->version_minor_ != SHD_FIRMWARE_MINOR_VERSION) {
+    ESP_LOGE(TAG, "  Firmware version mismatch, put 'update: true' in the yaml to flash an update.");
+  }
+}
+
 void ShellyDimmer::write_state(light::LightState *state) {
   if (!this->ready_) {
     return;
