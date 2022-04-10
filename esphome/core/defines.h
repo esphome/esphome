@@ -89,7 +89,7 @@
 #define USE_DASHBOARD_IMPORT
 
 // Dummy firmware payload for shelly_dimmer
-#define SHD_FIRMWARE_MAJOR_VERSION 56
-#define SHD_FIRMWARE_MINOR_VERSION 5
-#define SHD_FIRMWARE_DATA \
+#define USE_SHD_FIRMWARE_MAJOR_VERSION 56
+#define USE_SHD_FIRMWARE_MINOR_VERSION 5
+#define USE_SHD_FIRMWARE_DATA \
   {}

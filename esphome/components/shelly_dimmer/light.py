@@ -185,9 +185,9 @@ def to_code(config):
     fw_major, fw_minor = parse_firmware_version(config[CONF_FIRMWARE][CONF_VERSION])
 
     if fw_hex is not None:
-        cg.add_define("SHD_FIRMWARE_DATA", fw_hex)
-    cg.add_define("SHD_FIRMWARE_MAJOR_VERSION", fw_major)
-    cg.add_define("SHD_FIRMWARE_MINOR_VERSION", fw_minor)
+        cg.add_define("USE_SHD_FIRMWARE_DATA", fw_hex)
+    cg.add_define("USE_SHD_FIRMWARE_MAJOR_VERSION", fw_major)
+    cg.add_define("USE_SHD_FIRMWARE_MINOR_VERSION", fw_minor)
 
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     yield cg.register_component(var, config)
