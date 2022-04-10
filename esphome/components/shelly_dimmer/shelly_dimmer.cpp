@@ -94,7 +94,7 @@ void ShellyDimmer::setup() {
       // Firmware upgrade completed, do the checks again.
       continue;
 #else
-      ESP_LOGW(TAG, "Firmware version mismatch, put 'update: True' in the yaml to flash an update.");
+      ESP_LOGW(TAG, "Firmware version mismatch, put 'update: true' in the yaml to flash an update.");
       this->mark_failed();
       return;
 #endif
