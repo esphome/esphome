@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_VERSION,
     CONF_URL,
+    CONF_UPDATE_INTERVAL,
     UNIT_VOLT,
     UNIT_AMPERE,
     UNIT_WATT,
@@ -29,7 +30,7 @@ DEPENDENCIES = ["sensor", "uart"]
 
 shelly_dimmer_ns = cg.esphome_ns.namespace("shelly_dimmer")
 ShellyDimmer = shelly_dimmer_ns.class_(
-    "ShellyDimmer", light.LightOutput, cg.Component, uart.UARTDevice
+    "ShellyDimmer", light.LightOutput, cg.PollingComponent, uart.UARTDevice
 )
 
 CONF_FIRMWARE = "firmware"
@@ -173,7 +174,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.polling_component_schema("10s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
@@ -189,6 +190,10 @@ def to_code(config):
 
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     yield cg.register_component(var, config)
+    config.pop(
+        CONF_UPDATE_INTERVAL
+    )  # drop UPDATE_INTERVAL as it does not apply to the light component
+
     yield light.register_light(var, config)
     yield uart.register_uart_device(var, config)
 

@@ -102,15 +102,14 @@ void ShellyDimmer::setup() {
     break;
   }
 
-  // Poll the dimmer roughly every 10s.
-  this->set_interval("poll", 10000, [this]() { this->send_command_(SHELLY_DIMMER_PROTO_CMD_POLL, nullptr, 0); });
-
   this->send_settings_();
   // Do an immediate poll to refresh current state.
   this->send_command_(SHELLY_DIMMER_PROTO_CMD_POLL, nullptr, 0);
 
   this->ready_ = true;
 }
+
+void ShellyDimmer::update() { this->send_command_(SHELLY_DIMMER_PROTO_CMD_POLL, nullptr, 0); }
 
 void ShellyDimmer::write_state(light::LightState *state) {
   if (!this->ready_) {

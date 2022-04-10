@@ -11,7 +11,7 @@
 namespace esphome {
 namespace shelly_dimmer {
 
-class ShellyDimmer : public Component, public light::LightOutput, public uart::UARTDevice {
+class ShellyDimmer : public PollingComponent, public light::LightOutput, public uart::UARTDevice {
  private:
   static constexpr uint16_t SHELLY_DIMMER_BUFFER_SIZE = 256;
 
@@ -19,6 +19,7 @@ class ShellyDimmer : public Component, public light::LightOutput, public uart::U
   float get_setup_priority() const override { return setup_priority::LATE; }
 
   void setup() override;
+  void update() override;
 
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
