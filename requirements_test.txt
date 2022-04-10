@@ -1,7 +1,7 @@
 pylint==2.13.4
 flake8==4.0.1
 black==22.3.0
-pyupgrade==2.31.1
+pyupgrade==2.32.0
 pre-commit
 
 # Unit tests
