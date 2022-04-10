@@ -18,6 +18,9 @@
  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
+#include "esphome/core/defines.h"
+#ifdef USE_SHD_FIRMWARE_DATA
+
 #include <cstdint>
 
 #include "stm32flash.h"
@@ -1050,3 +1053,4 @@ stm32_err_t stm32_crc_wrapper(const stm32_t *stm, uint32_t address, uint32_t len
 
 }  // namespace shelly_dimmer
 }  // namespace esphome
+#endif
