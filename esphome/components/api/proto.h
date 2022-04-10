@@ -195,6 +195,20 @@ class ProtoWriteBuffer {
     this->write((value >> 16) & 0xFF);
     this->write((value >> 24) & 0xFF);
   }
+  void encode_fixed64(uint32_t field_id, uint64_t value, bool force = false) {
+    if (value == 0 && !force)
+      return;
+
+    this->encode_field_raw(field_id, 5);
+    this->write((value >> 0) & 0xFF);
+    this->write((value >> 8) & 0xFF);
+    this->write((value >> 16) & 0xFF);
+    this->write((value >> 24) & 0xFF);
+    this->write((value >> 32) & 0xFF);
+    this->write((value >> 40) & 0xFF);
+    this->write((value >> 48) & 0xFF);
+    this->write((value >> 56) & 0xFF);
+  }
   template<typename T> void encode_enum(uint32_t field_id, T value, bool force = false) {
     this->encode_uint32(field_id, static_cast<uint32_t>(value), force);
   }
@@ -228,6 +242,15 @@ class ProtoWriteBuffer {
       uvalue = value << 1;
     }
     this->encode_uint32(field_id, uvalue, force);
+  }
+  void encode_sint64(uint32_t field_id, int64_t value, bool force = false) {
+    uint64_t uvalue;
+    if (value < 0) {
+      uvalue = ~(value << 1);
+    } else {
+      uvalue = value << 1;
+    }
+    this->encode_uint64(field_id, uvalue, force);
   }
   template<class C> void encode_message(uint32_t field_id, const C &value, bool force = false) {
     this->encode_field_raw(field_id, 2);

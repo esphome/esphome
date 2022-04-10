@@ -1,23 +1,24 @@
 #pragma once
 
-#include "esphome/core/helpers.h"
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
+#include "esphome/core/helpers.h"
+
 #ifdef USE_ESP32_CAMERA
 #include "esphome/components/esp32_camera/esp32_camera.h"
 #endif
 
 namespace esphome {
-namespace api {
 
-class APIServer;
+#ifdef USE_API
+namespace api {
 class UserServiceDescriptor;
+}  // namespace api
+#endif
 
 class ComponentIterator {
  public:
-  ComponentIterator(APIServer *server);
-
-  void begin();
+  void begin(bool include_internal = false);
   void advance();
   virtual bool on_begin();
 #ifdef USE_BINARY_SENSOR
@@ -44,7 +45,9 @@ class ComponentIterator {
 #ifdef USE_TEXT_SENSOR
   virtual bool on_text_sensor(text_sensor::TextSensor *text_sensor) = 0;
 #endif
-  virtual bool on_service(UserServiceDescriptor *service);
+#ifdef USE_API
+  virtual bool on_service(api::UserServiceDescriptor *service);
+#endif
 #ifdef USE_ESP32_CAMERA
   virtual bool on_camera(esp32_camera::ESP32Camera *camera);
 #endif
@@ -90,7 +93,9 @@ class ComponentIterator {
 #ifdef USE_TEXT_SENSOR
     TEXT_SENSOR,
 #endif
+#ifdef USE_API
     SERVICE,
+#endif
 #ifdef USE_ESP32_CAMERA
     CAMERA,
 #endif
@@ -109,9 +114,7 @@ class ComponentIterator {
     MAX,
   } state_{IteratorState::NONE};
   size_t at_{0};
-
-  APIServer *server_;
+  bool include_internal_{false};
 };
 
-}  // namespace api
 }  // namespace esphome

@@ -236,7 +236,7 @@ class Int64Type(TypeInfo):
     encode_func = "encode_int64"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%ll", {name});\n'
+        o = f'sprintf(buffer, "%lld", {name});\n'
         o += f"out.append(buffer);"
         return o
 
@@ -249,7 +249,7 @@ class UInt64Type(TypeInfo):
     encode_func = "encode_uint64"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%ull", {name});\n'
+        o = f'sprintf(buffer, "%llu", {name});\n'
         o += f"out.append(buffer);"
         return o
 
@@ -275,7 +275,7 @@ class Fixed64Type(TypeInfo):
     encode_func = "encode_fixed64"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%ull", {name});\n'
+        o = f'sprintf(buffer, "%llu", {name});\n'
         o += f"out.append(buffer);"
         return o
 
@@ -417,7 +417,7 @@ class SFixed64Type(TypeInfo):
     encode_func = "encode_sfixed64"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%ll", {name});\n'
+        o = f'sprintf(buffer, "%lld", {name});\n'
         o += f"out.append(buffer);"
         return o
 
@@ -440,10 +440,10 @@ class SInt64Type(TypeInfo):
     cpp_type = "int64_t"
     default_value = "0"
     decode_varint = "value.as_sint64()"
-    encode_func = "encode_sin64"
+    encode_func = "encode_sint64"
 
     def dump(self, name):
-        o = f'sprintf(buffer, "%ll", {name});\n'
+        o = f'sprintf(buffer, "%lld", {name});\n'
         o += f"out.append(buffer);"
         return o
 
@@ -622,13 +622,13 @@ def build_message_type(desc):
         protected_content.insert(0, prot)
     if decode_64bit:
         decode_64bit.append("default:\n  return false;")
-        o = f"bool {desc.name}::decode_64bit(uint32_t field_id, Proto64bit value) {{\n"
+        o = f"bool {desc.name}::decode_64bit(uint32_t field_id, Proto64Bit value) {{\n"
         o += "  switch (field_id) {\n"
         o += indent("\n".join(decode_64bit), "    ") + "\n"
         o += "  }\n"
         o += "}\n"
         cpp += o
-        prot = "bool decode_64bit(uint32_t field_id, Proto64bit value) override;"
+        prot = "bool decode_64bit(uint32_t field_id, Proto64Bit value) override;"
         protected_content.insert(0, prot)
 
     o = f"void {desc.name}::encode(ProtoWriteBuffer buffer) const {{"

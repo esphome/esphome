@@ -2,12 +2,12 @@
 
 #include "esphome/core/component.h"
 
-#include "esphome/core/automation.h"
 #include "esphome/components/modbus/modbus.h"
+#include "esphome/core/automation.h"
 
 #include <list>
-#include <set>
 #include <queue>
+#include <set>
 #include <vector>
 
 namespace esphome {
@@ -374,13 +374,25 @@ class ModbusCommandItem {
                                                        const std::vector<bool> &values);
   /** Create custom modbus command
    * @param modbusdevice pointer to the device to execute the command
-   * @param values byte vector of data to be sent to the device. The compplete payload must be provided with the
-   * exception of the crc codess
+   * @param values byte vector of data to be sent to the device. The complete payload must be provided with the
+   * exception of the crc codes
    * @param handler function called when the response is received. Default is just logging a response
    * @return ModbusCommandItem with the prepared command
    */
   static ModbusCommandItem create_custom_command(
       ModbusController *modbusdevice, const std::vector<uint8_t> &values,
+      std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
+          &&handler = nullptr);
+
+  /** Create custom modbus command
+   * @param modbusdevice pointer to the device to execute the command
+   * @param values word vector of data to be sent to the device. The complete payload must be provided with the
+   * exception of the crc codes
+   * @param handler function called when the response is received. Default is just logging a response
+   * @return ModbusCommandItem with the prepared command
+   */
+  static ModbusCommandItem create_custom_command(
+      ModbusController *modbusdevice, const std::vector<uint16_t> &values,
       std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
           &&handler = nullptr);
 };
