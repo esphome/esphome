@@ -1120,7 +1120,7 @@ sensor:
   - platform: max9611
     i2c_id: i2c_bus
     shunt_resistance: 0.2 ohm
-    gain: '1X'
+    gain: "1X"
     voltage:
       name: Max9611 Voltage
     current:
@@ -1130,7 +1130,12 @@ sensor:
     temperature:
       name: Max9611 Temp
     update_interval: 1s
-
+  - platform: mpl3115a2
+    temperature:
+      name: "MPL3115A2 Temperature"
+    pressure:
+      name: "MPL3115A2 Pressure"
+    update_interval: 10s
 
 esp32_touch:
   setup_mode: False
@@ -2583,10 +2588,10 @@ globals:
 text_sensor:
   - platform: ble_client
     ble_client_id: ble_foo
-    name: 'Sensor Location'
-    service_uuid: '180d'
-    characteristic_uuid: '2a38'
-    descriptor_uuid: '2902'
+    name: "Sensor Location"
+    service_uuid: "180d"
+    characteristic_uuid: "2a38"
+    descriptor_uuid: "2902"
     notify: true
     update_interval: never
     on_notify:
@@ -2678,7 +2683,7 @@ canbus:
                 lambda: "return x[0] == 0x11;"
               then:
                 light.toggle: ${roomname}_lights
-      - can_id:      0b00000000000000000000001000000
+      - can_id: 0b00000000000000000000001000000
         can_id_mask: 0b11111000000000011111111000000
         use_extended_id: true
         then:
@@ -2716,7 +2721,7 @@ canbus:
                 lambda: "return x[0] == 0x11;"
               then:
                 light.toggle: ${roomname}_lights
-      - can_id:      0b00000000000000000000001000000
+      - can_id: 0b00000000000000000000001000000
         can_id_mask: 0b11111000000000011111111000000
         use_extended_id: true
         then:
