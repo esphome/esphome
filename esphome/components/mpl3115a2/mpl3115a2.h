@@ -106,7 +106,6 @@ class MPL3115A2Component : public PollingComponent, public i2c::I2CDevice {
     COMMUNICATION_FAILED,
     WRONG_ID,
   } error_code_{NONE};
-  uint8_t error_id = 0xFF;
 };
 
 }  // namespace mpl3115a2

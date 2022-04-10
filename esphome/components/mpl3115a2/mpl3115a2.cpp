@@ -17,7 +17,6 @@ void MPL3115A2Component::setup() {
     return;
   }
   if (whoami != 0xC4) {
-    this->error_id = whoami;
     this->error_code_ = WRONG_ID;
     this->mark_failed();
     return;
@@ -41,7 +40,7 @@ void MPL3115A2Component::dump_config() {
         ESP_LOGE(TAG, "Communication with MPL3115A2 failed!");
         break;
       case WRONG_ID:
-        ESP_LOGE(TAG, "MPL3115A2 has invalid id: %d", this->error_id);
+        ESP_LOGE(TAG, "MPL3115A2 has invalid id");
         break;
       default:
         ESP_LOGE(TAG, "Setting up MPL3115A2 registers failed!");
