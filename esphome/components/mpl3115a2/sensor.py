@@ -14,6 +14,7 @@ from esphome.const import (
     UNIT_METER,
 )
 
+CODEOWNERS = ["@kbickar"]
 DEPENDENCIES = ["i2c"]
 
 mpl3115a2_ns = cg.esphome_ns.namespace("mpl3115a2")
