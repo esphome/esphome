@@ -27,6 +27,7 @@ class SHTCXComponent : public PollingComponent, public i2c::I2CDevice {
   bool write_command_(uint16_t command);
   bool read_data_(uint16_t *data, uint8_t len);
   SHTCXType type_;
+  uint16_t sensor_id_;
   sensor::Sensor *temperature_sensor_;
   sensor::Sensor *humidity_sensor_;
 };
