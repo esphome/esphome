@@ -63,12 +63,12 @@ void MPL3115A2Component::update() {
   this->write_byte(MPL3115A2_CTRL_REG1, mode, true);
 
   // Wait until status shows reading available
-  uint8_t status;
-  int counter = 0;
-  while (this->read_byte(MPL3115A2_REGISTER_STATUS, &status, false) && (status & MPL3115A2_REGISTER_STATUS_PDR) == 0) {
-    if (++counter > 10)
-      return;
+  uint8_t status = 0;
+  if (!this->read_byte(MPL3115A2_REGISTER_STATUS, &status, false) || (status & MPL3115A2_REGISTER_STATUS_PDR) == 0) {
     delay(10);
+    if (!this->read_byte(MPL3115A2_REGISTER_STATUS, &status, false) || (status & MPL3115A2_REGISTER_STATUS_PDR) == 0) {
+      return;
+    }
   }
 
   uint8_t buffer[5] = {0, 0, 0, 0, 0};
@@ -76,16 +76,16 @@ void MPL3115A2Component::update() {
 
   float altitude = 0, pressure = 0;
   if (this->altitude_ != nullptr) {
-    int32_t alt = uint32_t(buffer[0]) << 24 | uint32_t(buffer[1]) << 16 | uint32_t(buffer[2]) << 8;
+    int32_t alt = encode_uint32(buffer[0], buffer[1], buffer[2], 0);
     altitude = float(alt) / 65536.0;
     this->altitude_->publish_state(altitude);
   } else {
-    uint32_t p = uint32_t(buffer[0]) << 16 | uint32_t(buffer[1]) << 8 | uint32_t(buffer[2]);
+    uint32_t p = encode_uint32(0, buffer[0], buffer[1], buffer[2]);
     pressure = float(p) / 6400.0;
     if (this->pressure_ != nullptr)
       this->pressure_->publish_state(pressure);
   }
-  int16_t t = uint16_t(buffer[3]) << 8 | uint16_t(buffer[4]);
+  int16_t t = encode_uint16(buffer[3], buffer[4]);
   float temperature = float(t) / 256.0;
   if (this->temperature_ != nullptr)
     this->temperature_->publish_state(temperature);

@@ -8,8 +8,6 @@ namespace esphome {
 namespace mpl3115a2 {
 
 // enums from https://github.com/adafruit/Adafruit_MPL3115A2_Library/
-#define MPL3115A2_ADDRESS (0x60)  ///< default I2C address 1100000
-
 /** MPL3115A2 registers **/
 enum {
   MPL3115A2_REGISTER_STATUS = (0x00),
@@ -82,8 +80,6 @@ enum {
   MPL3115A2_CTRL_REG1_OS64 = 0x30,
   MPL3115A2_CTRL_REG1_OS128 = 0x38,
 };
-
-#define MPL3115A2_REGISTER_STARTCONVERSION (0x12)  ///< start conversion
 
 class MPL3115A2Component : public PollingComponent, public i2c::I2CDevice {
  public:
