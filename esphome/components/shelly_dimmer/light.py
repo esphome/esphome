@@ -120,6 +120,7 @@ def validate_firmware(value):
             raise cv.Invalid(
                 f"Firmware {config[CONF_VERSION]} is unknown, please specify an '{CONF_URL}' ..."
             ) from e
+    get_firmware(config)
     return config
 
 
