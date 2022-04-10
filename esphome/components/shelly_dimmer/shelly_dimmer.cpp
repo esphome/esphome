@@ -74,7 +74,8 @@ void ShellyDimmer::setup() {
     this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, nullptr, 0);
     ESP_LOGI(TAG, "STM32 current firmware version: %d.%d, desired version: %d.%d", this->version_major_,
              this->version_minor_, USE_SHD_FIRMWARE_MAJOR_VERSION, USE_SHD_FIRMWARE_MINOR_VERSION);
-    if (this->version_major_ != USE_SHD_FIRMWARE_MAJOR_VERSION || this->version_minor_ != USE_SHD_FIRMWARE_MINOR_VERSION) {
+    if (this->version_major_ != USE_SHD_FIRMWARE_MAJOR_VERSION ||
+        this->version_minor_ != USE_SHD_FIRMWARE_MINOR_VERSION) {
 #ifdef USE_SHD_FIRMWARE_DATA
       // Update firmware if needed.
       ESP_LOGW(TAG, "Unsupported STM32 firmware version, flashing");
@@ -118,17 +119,19 @@ void ShellyDimmer::dump_config() {
 
   ESP_LOGCONFIG(TAG, "  Leading Edge: %b", this->leading_edge_);
   ESP_LOGCONFIG(TAG, "  Warmup Brightness: %d", this->warmup_brightness_);
-  //ESP_LOGCONFIG(TAG, "  Warmup Time: %d", this->warmup_time_);
-  //ESP_LOGCONFIG(TAG, "  Fade Rate: %d", this->fade_rate_);
+  // ESP_LOGCONFIG(TAG, "  Warmup Time: %d", this->warmup_time_);
+  // ESP_LOGCONFIG(TAG, "  Fade Rate: %d", this->fade_rate_);
   ESP_LOGCONFIG(TAG, "  Minimum Brightness: %d", this->min_brightness_);
   ESP_LOGCONFIG(TAG, "  Maximum Brightness: %d", this->max_brightness_);
 
   LOG_UPDATE_INTERVAL(this);
 
   ESP_LOGCONFIG(TAG, "  STM32 current firmware version: %d.%d ", this->version_major_, this->version_minor_);
-  ESP_LOGCONFIG(TAG, "  STM32 required firmware version: %d.%d", USE_SHD_FIRMWARE_MAJOR_VERSION, USE_SHD_FIRMWARE_MINOR_VERSION);
+  ESP_LOGCONFIG(TAG, "  STM32 required firmware version: %d.%d", USE_SHD_FIRMWARE_MAJOR_VERSION,
+                USE_SHD_FIRMWARE_MINOR_VERSION);
 
-  if (this->version_major_ != USE_SHD_FIRMWARE_MAJOR_VERSION || this->version_minor_ != USE_SHD_FIRMWARE_MINOR_VERSION) {
+  if (this->version_major_ != USE_SHD_FIRMWARE_MAJOR_VERSION ||
+      this->version_minor_ != USE_SHD_FIRMWARE_MINOR_VERSION) {
     ESP_LOGE(TAG, "  Firmware version mismatch, put 'update: true' in the yaml to flash an update.");
   }
 }
