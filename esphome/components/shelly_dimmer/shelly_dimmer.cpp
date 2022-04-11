@@ -117,7 +117,7 @@ void ShellyDimmer::dump_config() {
   LOG_PIN("  NRST Pin: ", this->pin_nrst_);
   LOG_PIN("  BOOT0 Pin: ", this->pin_boot0_);
 
-  ESP_LOGCONFIG(TAG, "  Leading Edge: %b", this->leading_edge_);
+  ESP_LOGCONFIG(TAG, "  Leading Edge: %s", YESNO(this->leading_edge_));
   ESP_LOGCONFIG(TAG, "  Warmup Brightness: %d", this->warmup_brightness_);
   // ESP_LOGCONFIG(TAG, "  Warmup Time: %d", this->warmup_time_);
   // ESP_LOGCONFIG(TAG, "  Fade Rate: %d", this->fade_rate_);
