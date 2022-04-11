@@ -1,22 +1,15 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
 from esphome.const import CONF_ID
 
-from .. import teleinfo_ns, TeleInfo, CONF_TELEINFO_ID
-
-CONF_TAG_NAME = "tag_name"
+from .. import CONF_TAG_NAME, TELEINFO_LISTENER_SCHEMA, teleinfo_ns, CONF_TELEINFO_ID
 
 TeleInfoTextSensor = teleinfo_ns.class_(
     "TeleInfoTextSensor", text_sensor.TextSensor, cg.Component
 )
 
-CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(TeleInfoTextSensor),
-        cv.GenerateID(CONF_TELEINFO_ID): cv.use_id(TeleInfo),
-        cv.Required(CONF_TAG_NAME): cv.string,
-    }
+CONFIG_SCHEMA = text_sensor.text_sensor_schema(TeleInfoTextSensor).extend(
+    TELEINFO_LISTENER_SCHEMA
 )
 
 

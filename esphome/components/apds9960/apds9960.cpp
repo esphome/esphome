@@ -225,9 +225,10 @@ void APDS9960::read_gesture_data_() {
 
   uint8_t fifo_level;
   APDS9960_WARNING_CHECK(this->read_byte(0xAE, &fifo_level), "Reading FIFO level failed.");
-  if (fifo_level == 0)
+  if (fifo_level == 0) {
     // no data to process
     return;
+  }
 
   APDS9960_WARNING_CHECK(fifo_level <= 32, "FIFO level has invalid value.")
 

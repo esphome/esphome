@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_ID
+
 from . import (
     xpt2046_ns,
     XPT2046Component,
@@ -27,9 +27,8 @@ def validate_xpt2046_button(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    binary_sensor.binary_sensor_schema(XPT2046Button).extend(
         {
-            cv.GenerateID(): cv.declare_id(XPT2046Button),
             cv.GenerateID(CONF_XPT2046_ID): cv.use_id(XPT2046Component),
             cv.Required(CONF_X_MIN): cv.int_range(min=0, max=4095),
             cv.Required(CONF_X_MAX): cv.int_range(min=0, max=4095),
@@ -42,8 +41,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await binary_sensor.register_binary_sensor(var, config)
+    var = await binary_sensor.new_binary_sensor(config)
     hub = await cg.get_variable(config[CONF_XPT2046_ID])
     cg.add(
         var.set_area(

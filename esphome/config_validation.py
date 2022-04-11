@@ -17,6 +17,7 @@ from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
     CONF_COMMAND_TOPIC,
+    CONF_COMMAND_RETAIN,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ENTITY_CATEGORY,
@@ -57,12 +58,12 @@ from esphome.core import (
 )
 from esphome.helpers import list_starts_with, add_class_to_obj
 from esphome.jsonschema import (
-    jschema_composite,
+    jschema_list,
     jschema_extractor,
     jschema_registry,
     jschema_typed,
 )
-
+from esphome.util import parse_esphome_version
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
@@ -326,7 +327,7 @@ def boolean(value):
     )
 
 
-@jschema_composite
+@jschema_list
 def ensure_list(*validators):
     """Validate this configuration option to be a list.
 
@@ -493,7 +494,11 @@ def templatable(other_validators):
     """
     schema = Schema(other_validators)
 
+    @jschema_extractor("templatable")
     def validator(value):
+        # pylint: disable=comparison-with-callable
+        if value == jschema_extractor:
+            return other_validators
         if isinstance(value, Lambda):
             return returning_lambda(value)
         if isinstance(other_validators, dict):
@@ -1545,7 +1550,7 @@ def validate_registry(name, registry):
     return ensure_list(validate_registry_entry(name, registry))
 
 
-@jschema_composite
+@jschema_list
 def maybe_simple_value(*validators, **kwargs):
     key = kwargs.pop("key", CONF_VALUE)
     validator = All(*validators)
@@ -1591,6 +1596,7 @@ MQTT_COMPONENT_SCHEMA = Schema(
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     {
         Optional(CONF_COMMAND_TOPIC): All(requires_component("mqtt"), subscribe_topic),
+        Optional(CONF_COMMAND_RETAIN): All(requires_component("mqtt"), boolean),
     }
 )
 
@@ -1711,29 +1717,61 @@ def require_framework_version(
     esp_idf=None,
     esp32_arduino=None,
     esp8266_arduino=None,
+    max_version=False,
+    extra_message=None,
 ):
     def validator(value):
         core_data = CORE.data[KEY_CORE]
         framework = core_data[KEY_TARGET_FRAMEWORK]
         if framework == "esp-idf":
             if esp_idf is None:
-                raise Invalid("This feature is incompatible with esp-idf")
+                msg = "This feature is incompatible with esp-idf"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
             required = esp_idf
         elif CORE.is_esp32 and framework == "arduino":
             if esp32_arduino is None:
-                raise Invalid(
-                    "This feature is incompatible with ESP32 using arduino framework"
-                )
+                msg = "This feature is incompatible with ESP32 using arduino framework"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
             required = esp32_arduino
         elif CORE.is_esp8266 and framework == "arduino":
             if esp8266_arduino is None:
-                raise Invalid("This feature is incompatible with ESP8266")
+                msg = "This feature is incompatible with ESP8266"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
             required = esp8266_arduino
         else:
             raise NotImplementedError
+
+        if max_version:
+            if core_data[KEY_FRAMEWORK_VERSION] > required:
+                msg = f"This feature requires framework version {required} or lower"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
+            return value
+
         if core_data[KEY_FRAMEWORK_VERSION] < required:
+            msg = f"This feature requires at least framework version {required}"
+            if extra_message:
+                msg += f". {extra_message}"
+            raise Invalid(msg)
+        return value
+
+    return validator
+
+
+def require_esphome_version(year, month, patch):
+    def validator(value):
+        esphome_version = parse_esphome_version()
+        if esphome_version < (year, month, patch):
+            requires_version = f"{year}.{month}.{patch}"
             raise Invalid(
-                f"This feature requires at least framework version {required}"
+                f"This component requires at least ESPHome version {requires_version}"
             )
         return value
 
