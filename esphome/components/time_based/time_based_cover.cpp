@@ -19,8 +19,9 @@ void TimeBasedCover::setup() {
   if (restore.has_value()) {
     restore->apply(this);
   } else {
-    this->position = 0.5f;
+    this->time_position_ = 0.5f;
   }
+  this->translate_position_();
 }
 void TimeBasedCover::loop() {
   if (this->current_operation == COVER_OPERATION_IDLE)
@@ -45,6 +46,7 @@ void TimeBasedCover::loop() {
   // Send current position every second
   if (now - this->last_publish_time_ > 1000) {
     this->publish_state(false);
+    ESP_LOGD(TAG, "  Time position: %.0f%%", this->time_position_ * 100.0f);
     this->last_publish_time_ = now;
   }
 }
@@ -161,10 +163,33 @@ void TimeBasedCover::recompute_position_() {
   }
 
   const uint32_t now = millis();
-  this->position += dir * (now - this->last_recompute_time_) / action_dur;
-  this->position = clamp(this->position, 0.0f, 1.0f);
+  this->time_position_ += dir * (now - this->last_recompute_time_) / action_dur;
+  this->time_position_ = clamp(this->time_position_, 0.0f, 1.0f);
+  this->translate_position_();
 
   this->last_recompute_time_ = now;
+}
+
+void TimeBasedCover::translate_position_() {
+  if (this->piecewise_cuts_.empty()) {
+    this->position = this->time_position_;
+    return;
+  }
+  // Find which piece it is
+  int piece = piecewise_cuts_.size() - 1;
+  for (size_t i = 0; i < this->piecewise_cuts_.size(); i++) {
+    if (this->time_position_ <= this->piecewise_cuts_[i]) {
+      piece = i;
+      break;
+    }
+  }
+
+  // Retrieve the coefficients of the linear segment
+  float m = this->piecewise_coeffs_[piece][0];
+  float n = this->piecewise_coeffs_[piece][1];
+
+  // Evaluate the position from that information
+  this->position = m * this->time_position_ + n;
 }
 
 }  // namespace time_based
