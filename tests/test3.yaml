@@ -349,6 +349,24 @@ sensor:
       name: 'Temperature'
     humidity:
       name: 'Humidity'
+  - platform: hydreon_rgxx
+    model: "RG 9"
+    uart_id: uart6
+    id: "hydreon_rg9"
+    moisture:
+      name: "hydreon_rain"
+      id: hydreon_rain
+  - platform: hydreon_rgxx
+    model: "RG_15"
+    uart_id: uart6
+    acc:
+      name: "hydreon_acc"
+    event_acc:
+      name: "hydreon_event_acc"
+    total_acc:
+      name: "hydreon_total_acc"
+    r_int:
+      name: "hydreon_r_int"
   - platform: adc
     pin: VCC
     id: my_sensor
@@ -796,6 +814,10 @@ binary_sensor:
       then:
         - cover.toggle: time_based_cover
         - cover.toggle: endstop_cover
+  - platform: hydreon_rgxx
+    hydreon_rgxx_id: "hydreon_rg9"
+    too_cold:
+      name: "rg9_toocold"
   - platform: template
     id: 'pzemac_reset_energy'
     on_press:
