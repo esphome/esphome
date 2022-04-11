@@ -26,13 +26,21 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MPL3115A2Component),
-            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
+            cv.Exclusive(
+                CONF_PRESSURE,
+                "pressure",
+                f"{CONF_PRESSURE} and {CONF_ALTITUDE} can't be used together",
+            ): sensor.sensor_schema(
                 unit_of_measurement=UNIT_HECTOPASCAL,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_PRESSURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_ALTITUDE): sensor.sensor_schema(
+            cv.Exclusive(
+                CONF_ALTITUDE,
+                "pressure",
+                f"{CONF_PRESSURE} and {CONF_ALTITUDE} can't be used together",
+            ): sensor.sensor_schema(
                 unit_of_measurement=UNIT_METER,
                 accuracy_decimals=1,
                 state_class=STATE_CLASS_MEASUREMENT,
