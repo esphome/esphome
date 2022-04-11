@@ -125,3 +125,5 @@ uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len);
 
 }  // namespace shelly_dimmer
 }  // namespace esphome
+
+#endif  // USE_SHD_FIRMWARE_DATA
