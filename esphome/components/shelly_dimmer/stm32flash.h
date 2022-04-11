@@ -19,6 +19,9 @@
 
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_SHD_FIRMWARE_DATA
+
 #include <cstdint>
 #include "esphome/components/uart/uart.h"
 
