@@ -18,6 +18,9 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 #pragma once
+
+#include "esphome/core/defines.h"
+#ifdef USE_SHD_FIRMWARE_DATA
 #include "stm32flash.h"
 
 namespace esphome {
@@ -152,3 +155,4 @@ constexpr stm32_dev_t DEVICES[] = {
 
 }  // namespace shelly_dimmer
 }  // namespace esphome
+#endif
