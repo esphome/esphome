@@ -80,7 +80,7 @@ file_types = (
     "",
 )
 cpp_include = ("*.h", "*.c", "*.cpp", "*.tcc")
-ignore_types = (".ico", ".woff", ".woff2", ".bin", "")
+ignore_types = (".ico", ".woff", ".woff2", "")
 
 LINT_FILE_CHECKS = []
 LINT_CONTENT_CHECKS = []
