@@ -92,7 +92,7 @@ class SensirionI2CDevice : public i2c::I2CDevice {
    * @return true if reading succeded
    */
   template<class T> bool write_command(T i2c_register, const std::vector<uint16_t> &data) {
-    return write_command_(i2c_register, sizeof(T), data.data, data.size());
+    return write_command_(i2c_register, sizeof(T), data.data(), data.size());
   }
 
   /** Write a command with arguments as words
