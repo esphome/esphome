@@ -49,10 +49,6 @@ namespace sonoff_d1 {
 
 static const char *const TAG = "sonoff_d1";
 
-int SonoffD1Output::remap_(int value, int min, int max, int min_out, int max_out) {
-  return (value - min) * (max_out - min_out) / (max - min) + min_out;
-}
-
 uint8_t SonoffD1Output::calc_checksum_(const uint8_t *cmd, const size_t len) {
   uint8_t crc = 0;
   for (int i = 2; i < len - 1; i++) {
@@ -202,7 +198,7 @@ bool SonoffD1Output::control_dimmer_(const bool binary, const uint8_t brightness
                      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00};
 
   cmd[6] = binary;
-  cmd[7] = this->remap_(brightness, 0, 100, this->min_value_, this->max_value_);
+  cmd[7] = remap(brightness, 0, 100, this->min_value_, this->max_value_);
   ESP_LOGI(TAG, "[%04d] Setting dimmer state to %s, raw brightness=%d", this->write_count_, ONOFF(binary), cmd[7]);
   return this->write_command_(cmd, sizeof(cmd));
 }
@@ -213,7 +209,7 @@ void SonoffD1Output::process_command_(const uint8_t *cmd, const size_t len) {
     // Ack a command from RF to ESP to prevent repeating commands
     this->write_command_(ack_buffer, sizeof(ack_buffer), false);
     ESP_LOGI(TAG, "[%04d] RF sets dimmer state to %s, raw brightness=%d", this->write_count_, ONOFF(cmd[6]), cmd[7]);
-    const uint8_t new_brightness = this->remap_(cmd[7], this->min_value_, this->max_value_, 0, 100);
+    const uint8_t new_brightness = remap(cmd[7], this->min_value_, this->max_value_, 0, 100);
     const bool new_state = cmd[6];
 
     // Got light change state command. In all cases we revert the command immediately
