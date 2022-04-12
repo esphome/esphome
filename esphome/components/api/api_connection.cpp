@@ -23,7 +23,7 @@ static const char *const TAG = "api.connection";
 static const int ESP32_CAMERA_STOP_STREAM = 5000;
 
 APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
-    : parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
+    : parent_(parent), initial_state_iterator_(this), list_entities_iterator_(this) {
   this->proto_write_buffer_.reserve(64);
 
 #if defined(USE_API_PLAINTEXT)

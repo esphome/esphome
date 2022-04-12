@@ -99,7 +99,7 @@ class StorageJSON:
     def from_esphome_core(
         esph, old
     ):  # type: (CoreType, Optional[StorageJSON]) -> StorageJSON
-        hardware = esph.target_platform
+        hardware = esph.target_platform.upper()
         if esph.is_esp32:
             from esphome.components import esp32
 

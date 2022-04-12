@@ -15,6 +15,7 @@ from esphome.components.esp32 import get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
+    VARIANT_ESP32S2,
 )
 
 WAKEUP_PINS = {
@@ -39,6 +40,30 @@ WAKEUP_PINS = {
         39,
     ],
     VARIANT_ESP32C3: [0, 1, 2, 3, 4, 5],
+    VARIANT_ESP32S2: [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+    ],
 }
 
 
