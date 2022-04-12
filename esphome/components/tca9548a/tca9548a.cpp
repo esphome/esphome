@@ -12,17 +12,17 @@ i2c::ErrorCode TCA9548AChannel::readv(uint8_t address, i2c::ReadBuffer *buffers,
     return err;
   return parent_->bus_->readv(address, buffers, cnt);
 }
-i2c::ErrorCode TCA9548AChannel::writev(uint8_t address, i2c::WriteBuffer *buffers, size_t cnt) {
+i2c::ErrorCode TCA9548AChannel::writev(uint8_t address, i2c::WriteBuffer *buffers, size_t cnt, bool stop) {
   auto err = parent_->switch_to_channel(channel_);
   if (err != i2c::ERROR_OK)
     return err;
-  return parent_->bus_->writev(address, buffers, cnt);
+  return parent_->bus_->writev(address, buffers, cnt, stop);
 }
 
 void TCA9548AComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up TCA9548A...");
   uint8_t status = 0;
-  if (this->read_register(0x00, &status, 1) != i2c::ERROR_OK) {
+  if (this->read(&status, 1) != i2c::ERROR_OK) {
     ESP_LOGI(TAG, "TCA9548A failed");
     this->mark_failed();
     return;

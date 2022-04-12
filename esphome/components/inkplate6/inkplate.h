@@ -10,30 +10,31 @@
 namespace esphome {
 namespace inkplate6 {
 
+enum InkplateModel : uint8_t {
+  INKPLATE_6 = 0,
+  INKPLATE_10 = 1,
+  INKPLATE_6_PLUS = 2,
+};
+
 class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public i2c::I2CDevice {
  public:
-  const uint8_t LUT2[16] = {0b10101010, 0b10101001, 0b10100110, 0b10100101, 0b10011010, 0b10011001,
-                            0b10010110, 0b10010101, 0b01101010, 0b01101001, 0b01100110, 0b01100101,
-                            0b01011010, 0b01011001, 0b01010110, 0b01010101};
-  const uint8_t LUTW[16] = {0b11111111, 0b11111110, 0b11111011, 0b11111010, 0b11101111, 0b11101110,
-                            0b11101011, 0b11101010, 0b10111111, 0b10111110, 0b10111011, 0b10111010,
-                            0b10101111, 0b10101110, 0b10101011, 0b10101010};
-  const uint8_t LUTB[16] = {0b11111111, 0b11111101, 0b11110111, 0b11110101, 0b11011111, 0b11011101,
-                            0b11010111, 0b11010101, 0b01111111, 0b01111101, 0b01110111, 0b01110101,
-                            0b01011111, 0b01011101, 0b01010111, 0b01010101};
-  const uint8_t pixelMaskLUT[8] = {0b00000001, 0b00000010, 0b00000100, 0b00001000,
-                                   0b00010000, 0b00100000, 0b01000000, 0b10000000};
-  const uint8_t pixelMaskGLUT[2] = {0b00001111, 0b11110000};
-  const uint8_t waveform3Bit[8][8] = {{0, 0, 0, 0, 1, 1, 1, 0}, {1, 2, 2, 2, 1, 1, 1, 0}, {0, 1, 2, 1, 1, 2, 1, 0},
-                                      {0, 2, 1, 2, 1, 2, 1, 0}, {0, 0, 0, 1, 1, 1, 2, 0}, {2, 1, 1, 1, 2, 1, 2, 0},
+  const uint8_t LUT2[16] = {0xAA, 0xA9, 0xA6, 0xA5, 0x9A, 0x99, 0x96, 0x95,
+                            0x6A, 0x69, 0x66, 0x65, 0x5A, 0x59, 0x56, 0x55};
+  const uint8_t LUTW[16] = {0xFF, 0xFE, 0xFB, 0xFA, 0xEF, 0xEE, 0xEB, 0xEA,
+                            0xBF, 0xBE, 0xBB, 0xBA, 0xAF, 0xAE, 0xAB, 0xAA};
+  const uint8_t LUTB[16] = {0xFF, 0xFD, 0xF7, 0xF5, 0xDF, 0xDD, 0xD7, 0xD5,
+                            0x7F, 0x7D, 0x77, 0x75, 0x5F, 0x5D, 0x57, 0x55};
+
+  const uint8_t pixelMaskLUT[8] = {0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80};
+  const uint8_t pixelMaskGLUT[2] = {0x0F, 0xF0};
+
+  const uint8_t waveform3Bit[8][8] = {{0, 1, 1, 0, 0, 1, 1, 0}, {0, 1, 2, 1, 1, 2, 1, 0}, {1, 1, 1, 2, 2, 1, 0, 0},
+                                      {0, 0, 0, 1, 1, 1, 2, 0}, {2, 1, 1, 1, 2, 1, 2, 0}, {2, 2, 1, 1, 2, 1, 2, 0},
                                       {1, 1, 1, 2, 1, 2, 2, 0}, {0, 0, 0, 0, 0, 0, 2, 0}};
-  const uint32_t waveform[50] = {
-      0x00000008, 0x00000008, 0x00200408, 0x80281888, 0x60a81898, 0x60a8a8a8, 0x60a8a8a8, 0x6068a868, 0x6868a868,
-      0x6868a868, 0x68686868, 0x6a686868, 0x5a686868, 0x5a686868, 0x5a586a68, 0x5a5a6a68, 0x5a5a6a68, 0x55566a68,
-      0x55565a64, 0x55555654, 0x55555556, 0x55555556, 0x55555556, 0x55555516, 0x55555596, 0x15555595, 0x95955595,
-      0x95959595, 0x95949495, 0x94949495, 0x94949495, 0xa4949494, 0x9494a4a4, 0x84a49494, 0x84948484, 0x84848484,
-      0x84848484, 0x84848484, 0xa5a48484, 0xa9a4a4a8, 0xa9a8a8a8, 0xa5a9a9a4, 0xa5a5a5a4, 0xa1a5a5a1, 0xa9a9a9a9,
-      0xa9a9a9a9, 0xa9a9a9a9, 0xa9a9a9a9, 0x15151515, 0x11111111};
+  const uint8_t waveform3Bit6Plus[8][9] = {{0, 0, 0, 0, 0, 2, 1, 1, 0}, {0, 0, 2, 1, 1, 1, 2, 1, 0},
+                                           {0, 2, 2, 2, 1, 1, 2, 1, 0}, {0, 0, 2, 2, 2, 1, 2, 1, 0},
+                                           {0, 0, 0, 0, 2, 2, 2, 1, 0}, {0, 0, 2, 1, 2, 1, 1, 2, 0},
+                                           {0, 0, 2, 2, 2, 1, 1, 2, 0}, {0, 0, 0, 0, 2, 2, 2, 2, 0}};
 
   void set_greyscale(bool greyscale) {
     this->greyscale_ = greyscale;
@@ -42,6 +43,8 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   }
   void set_partial_updating(bool partial_updating) { this->partial_updating_ = partial_updating; }
   void set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
+
+  void set_model(InkplateModel model) { this->model_ = model; }
 
   void set_display_data_0_pin(InternalGPIOPin *data) { this->display_data_0_pin_ = data; }
   void set_display_data_1_pin(InternalGPIOPin *data) { this->display_data_1_pin_ = data; }
@@ -81,6 +84,8 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   bool get_partial_updating() { return this->partial_updating_; }
   uint8_t get_temperature() { return this->temperature_; }
 
+  void block_partial() { this->block_partial_ = true; }
+
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void display1b_();
@@ -92,18 +97,36 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   void hscan_start_(uint32_t d);
   void vscan_end_();
   void vscan_start_();
-  void vscan_write_();
 
   void eink_off_();
   void eink_on_();
+  bool read_power_status_();
 
   void setup_pins_();
   void pins_z_state_();
   void pins_as_outputs_();
 
-  int get_width_internal() override { return 800; }
+  int get_width_internal() override {
+    if (this->model_ == INKPLATE_6) {
+      return 800;
+    } else if (this->model_ == INKPLATE_10) {
+      return 1200;
+    } else if (this->model_ == INKPLATE_6_PLUS) {
+      return 1024;
+    }
+    return 0;
+  }
 
-  int get_height_internal() override { return 600; }
+  int get_height_internal() override {
+    if (this->model_ == INKPLATE_6) {
+      return 600;
+    } else if (this->model_ == INKPLATE_10) {
+      return 825;
+    } else if (this->model_ == INKPLATE_6_PLUS) {
+      return 758;
+    }
+    return 0;
+  }
 
   size_t get_buffer_length_();
 
@@ -120,18 +143,24 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
     return data;
   }
 
-  uint8_t panel_on_ = 0;
+  bool panel_on_{false};
   uint8_t temperature_;
 
   uint8_t *partial_buffer_{nullptr};
   uint8_t *partial_buffer_2_{nullptr};
 
+  uint32_t *glut_{nullptr};
+  uint32_t *glut2_{nullptr};
+  uint32_t pin_lut_[256];
+
   uint32_t full_update_every_;
   uint32_t partial_updates_{0};
 
-  bool block_partial_;
+  bool block_partial_{true};
   bool greyscale_;
   bool partial_updating_;
+
+  InkplateModel model_;
 
   InternalGPIOPin *display_data_0_pin_;
   InternalGPIOPin *display_data_1_pin_;

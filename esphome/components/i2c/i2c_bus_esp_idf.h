@@ -20,7 +20,7 @@ class IDFI2CBus : public I2CBus, public Component {
   void setup() override;
   void dump_config() override;
   ErrorCode readv(uint8_t address, ReadBuffer *buffers, size_t cnt) override;
-  ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t cnt) override;
+  ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) override;
   float get_setup_priority() const override { return setup_priority::BUS; }
 
   void set_scan(bool scan) { scan_ = scan; }
@@ -36,7 +36,6 @@ class IDFI2CBus : public I2CBus, public Component {
 
  protected:
   i2c_port_t port_;
-  bool scan_;
   uint8_t sda_pin_;
   bool sda_pullup_enabled_;
   uint8_t scl_pin_;

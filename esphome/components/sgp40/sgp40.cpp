@@ -144,8 +144,8 @@ int32_t SGP40Component::measure_voc_index_() {
   // much
   if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
     voc_algorithm_get_states(&voc_algorithm_params_, &this->state0_, &this->state1_);
-    if (abs(this->baselines_storage_.state0 - this->state0_) > MAXIMUM_STORAGE_DIFF ||
-        abs(this->baselines_storage_.state1 - this->state1_) > MAXIMUM_STORAGE_DIFF) {
+    if ((uint32_t) abs(this->baselines_storage_.state0 - this->state0_) > MAXIMUM_STORAGE_DIFF ||
+        (uint32_t) abs(this->baselines_storage_.state1 - this->state1_) > MAXIMUM_STORAGE_DIFF) {
       this->seconds_since_last_store_ = 0;
       this->baselines_storage_.state0 = this->state0_;
       this->baselines_storage_.state1 = this->state1_;
@@ -211,7 +211,7 @@ uint16_t SGP40Component::measure_raw_() {
     ESP_LOGD(TAG, "write error");
     return UINT16_MAX;
   }
-  delay(250);  // NOLINT
+  delay(30);
   uint16_t raw_data[1];
 
   if (!this->read_data_(raw_data, 1)) {
@@ -229,10 +229,11 @@ uint8_t SGP40Component::generate_crc_(const uint8_t *data, uint8_t datalen) {
   for (uint8_t i = 0; i < datalen; i++) {
     crc ^= data[i];
     for (uint8_t b = 0; b < 8; b++) {
-      if (crc & 0x80)
+      if (crc & 0x80) {
         crc = (crc << 1) ^ SGP40_CRC8_POLYNOMIAL;
-      else
+      } else {
         crc <<= 1;
+      }
     }
   }
   return crc;
@@ -303,18 +304,20 @@ uint8_t SGP40Component::sht_crc_(uint8_t data1, uint8_t data2) {
 
   crc ^= data1;
   for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80)
+    if (crc & 0x80) {
       crc = (crc << 1) ^ 0x131;
-    else
+    } else {
       crc = (crc << 1);
+    }
   }
 
   crc ^= data2;
   for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80)
+    if (crc & 0x80) {
       crc = (crc << 1) ^ 0x131;
-    else
+    } else {
       crc = (crc << 1);
+    }
   }
 
   return crc;

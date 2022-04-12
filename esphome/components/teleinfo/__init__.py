@@ -7,9 +7,20 @@ CODEOWNERS = ["@0hax"]
 
 teleinfo_ns = cg.esphome_ns.namespace("teleinfo")
 TeleInfo = teleinfo_ns.class_("TeleInfo", cg.PollingComponent, uart.UARTDevice)
-CONF_TELEINFO_ID = "teleinfo_id"
 
+CONF_TELEINFO_ID = "teleinfo_id"
+CONF_TAG_NAME = "tag_name"
 CONF_HISTORICAL_MODE = "historical_mode"
+
+
+TELEINFO_LISTENER_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_TELEINFO_ID): cv.use_id(TeleInfo),
+        cv.Required(CONF_TAG_NAME): cv.string,
+    }
+)
+
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {

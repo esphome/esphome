@@ -200,6 +200,7 @@ bool SCD30Component::is_data_ready_() {
   if (!this->write_command_(SCD30_CMD_GET_DATA_READY_STATUS)) {
     return false;
   }
+  delay(4);
   uint16_t is_data_ready;
   if (!this->read_data_(&is_data_ready, 1)) {
     return false;
@@ -228,18 +229,20 @@ uint8_t SCD30Component::sht_crc_(uint8_t data1, uint8_t data2) {
 
   crc ^= data1;
   for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80)
+    if (crc & 0x80) {
       crc = (crc << 1) ^ 0x131;
-    else
+    } else {
       crc = (crc << 1);
+    }
   }
 
   crc ^= data2;
   for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80)
+    if (crc & 0x80) {
       crc = (crc << 1) ^ 0x131;
-    else
+    } else {
       crc = (crc << 1);
+    }
   }
 
   return crc;

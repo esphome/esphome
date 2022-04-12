@@ -21,7 +21,9 @@ void HDC1080Component::setup() {
   };
 
   if (!this->write_bytes(HDC1080_CMD_CONFIGURATION, data, 2)) {
-    this->mark_failed();
+    // as instruction is same as powerup defaults (for now), interpret as warning if this fails
+    ESP_LOGW(TAG, "HDC1080 initial config instruction error");
+    this->status_set_warning();
     return;
   }
 }

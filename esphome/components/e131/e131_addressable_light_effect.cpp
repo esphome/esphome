@@ -47,7 +47,7 @@ void E131AddressableLightEffect::apply(light::AddressableLight &it, const Color 
 }
 
 bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet) {
-  auto it = get_addressable_();
+  auto *it = get_addressable_();
 
   // check if this is our universe and data are valid
   if (universe < first_universe_ || universe > get_last_universe())
@@ -57,7 +57,7 @@ bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet
   // limit amount of lights per universe and received
   int output_end =
       std::min(it->size(), std::min(output_offset + get_lights_per_universe(), output_offset + packet.count - 1));
-  auto input_data = packet.values + 1;
+  auto *input_data = packet.values + 1;
 
   ESP_LOGV(TAG, "Applying data for '%s' on %d universe, for %d-%d.", get_name().c_str(), universe, output_offset,
            output_end);

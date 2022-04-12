@@ -8,6 +8,8 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_INTENSITY,
+    CONF_INVERTED,
+    CONF_LENGTH,
 )
 
 CODEOWNERS = ["@glmnet"]
@@ -22,6 +24,8 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
         cv.Optional(CONF_INTENSITY, default=7): cv.All(
             cv.uint8_t, cv.Range(min=0, max=7)
         ),
+        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+        cv.Optional(CONF_LENGTH, default=6): cv.All(cv.uint8_t, cv.Range(min=1, max=6)),
         cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_DIO_PIN): pins.gpio_output_pin_schema,
     }
@@ -39,6 +43,8 @@ async def to_code(config):
     cg.add(var.set_dio_pin(dio))
 
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
+    cg.add(var.set_inverted(config[CONF_INVERTED]))
+    cg.add(var.set_length(config[CONF_LENGTH]))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(

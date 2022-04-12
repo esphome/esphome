@@ -143,11 +143,13 @@ void MAX7219Component::dump_config() {
 void MAX7219Component::display() {
   for (uint8_t i = 0; i < 8; i++) {
     this->enable();
-    for (uint8_t j = 0; j < this->num_chips_; j++)
-      if (reverse_)
+    for (uint8_t j = 0; j < this->num_chips_; j++) {
+      if (reverse_) {
         this->send_byte_(8 - i, buffer_[(num_chips_ - j - 1) * 8 + i]);
-      else
+      } else {
         this->send_byte_(8 - i, buffer_[j * 8 + i]);
+      }
+    }
     this->disable();
   }
 }

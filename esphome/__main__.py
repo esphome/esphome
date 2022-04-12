@@ -145,6 +145,8 @@ def wrap_to_code(name, comp):
         if comp.config_schema is not None:
             conf_str = yaml_util.dump(conf)
             conf_str = conf_str.replace("//", "")
+            # remove tailing \ to avoid multi-line comment warning
+            conf_str = conf_str.replace("\\\n", "\n")
             cg.add(cg.LineComment(indent(conf_str)))
         await coro(conf)
 
@@ -638,6 +640,12 @@ def parse_args(argv):
         default=6052,
     )
     parser_dashboard.add_argument(
+        "--address",
+        help="The address to bind to.",
+        type=str,
+        default="0.0.0.0",
+    )
+    parser_dashboard.add_argument(
         "--username",
         help="The optional username to require for authentication.",
         type=str,
@@ -653,7 +661,7 @@ def parse_args(argv):
         "--open-ui", help="Open the dashboard UI in a browser.", action="store_true"
     )
     parser_dashboard.add_argument(
-        "--hassio", help=argparse.SUPPRESS, action="store_true"
+        "--ha-addon", help=argparse.SUPPRESS, action="store_true"
     )
     parser_dashboard.add_argument(
         "--socket", help="Make the dashboard serve under a unix socket", type=str
@@ -770,10 +778,10 @@ def run_esphome(argv):
         _LOGGER.warning("Please instead use:")
         _LOGGER.warning("   esphome %s", " ".join(args.deprecated_argv_suggestion))
 
-    if sys.version_info < (3, 7, 0):
+    if sys.version_info < (3, 8, 0):
         _LOGGER.error(
-            "You're running ESPHome with Python <3.7. ESPHome is no longer compatible "
-            "with this Python version. Please reinstall ESPHome with Python 3.7+"
+            "You're running ESPHome with Python <3.8. ESPHome is no longer compatible "
+            "with this Python version. Please reinstall ESPHome with Python 3.8+"
         )
         return 1
 

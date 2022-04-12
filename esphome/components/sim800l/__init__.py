@@ -1,7 +1,10 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.const import CONF_ID, CONF_TRIGGER_ID
+from esphome.const import (
+    CONF_ID,
+    CONF_TRIGGER_ID,
+)
 from esphome.components import uart
 
 DEPENDENCIES = ["uart"]
@@ -20,6 +23,7 @@ Sim800LReceivedMessageTrigger = sim800l_ns.class_(
 Sim800LSendSmsAction = sim800l_ns.class_("Sim800LSendSmsAction", automation.Action)
 Sim800LDialAction = sim800l_ns.class_("Sim800LDialAction", automation.Action)
 
+CONF_SIM800L_ID = "sim800l_id"
 CONF_ON_SMS_RECEIVED = "on_sms_received"
 CONF_RECIPIENT = "recipient"
 CONF_MESSAGE = "message"
@@ -41,7 +45,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "sim800l", baud_rate=9600, require_tx=True, require_rx=True
+    "sim800l", require_tx=True, require_rx=True
 )
 
 

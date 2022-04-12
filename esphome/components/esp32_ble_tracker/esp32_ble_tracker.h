@@ -97,6 +97,8 @@ class ESPBTDevice {
 
   const std::vector<ServiceData> &get_service_datas() const { return service_datas_; }
 
+  const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &get_scan_result() const { return scan_result_; }
+
   optional<ESPBLEiBeacon> get_ibeacon() const {
     for (auto &it : this->manufacturer_datas_) {
       auto res = ESPBLEiBeacon::from_manufacturer_data(it);
@@ -121,6 +123,7 @@ class ESPBTDevice {
   std::vector<ESPBTUUID> service_uuids_;
   std::vector<ServiceData> manufacturer_datas_{};
   std::vector<ServiceData> service_datas_{};
+  esp_ble_gap_cb_param_t::ble_scan_result_evt_param scan_result_{};
 };
 
 class ESP32BLETracker;
@@ -152,6 +155,7 @@ class ESPBTClient : public ESPBTDeviceListener {
  public:
   virtual void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) = 0;
+  virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) = 0;
   virtual void connect() = 0;
   void set_state(ClientState st) { this->state_ = st; }
   ClientState state() const { return state_; }

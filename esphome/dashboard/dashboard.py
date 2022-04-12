@@ -27,7 +27,7 @@ import tornado.process
 import tornado.web
 import tornado.websocket
 
-from esphome import const, platformio_api, util
+from esphome import const, platformio_api, util, yaml_util
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -55,13 +55,13 @@ class DashboardSettings:
         self.password_hash = ""
         self.username = ""
         self.using_password = False
-        self.on_hassio = False
+        self.on_ha_addon = False
         self.cookie_secret = None
 
     def parse_args(self, args):
-        self.on_hassio = args.hassio
+        self.on_ha_addon = args.ha_addon
         password = args.password or os.getenv("PASSWORD", "")
-        if not self.on_hassio:
+        if not self.on_ha_addon:
             self.username = args.username or os.getenv("USERNAME", "")
             self.using_password = bool(password)
         if self.using_password:
@@ -77,14 +77,14 @@ class DashboardSettings:
         return get_bool_env("ESPHOME_DASHBOARD_USE_PING")
 
     @property
-    def using_hassio_auth(self):
-        if not self.on_hassio:
+    def using_ha_addon_auth(self):
+        if not self.on_ha_addon:
             return False
         return not get_bool_env("DISABLE_HA_AUTHENTICATION")
 
     @property
     def using_auth(self):
-        return self.using_password or self.using_hassio_auth
+        return self.using_password or self.using_ha_addon_auth
 
     def check_password(self, username, password):
         if not self.using_auth:
@@ -138,10 +138,10 @@ def authenticated(func):
 
 
 def is_authenticated(request_handler):
-    if settings.on_hassio:
+    if settings.on_ha_addon:
         # Handle ingress - disable auth on ingress port
-        # X-Hassio-Ingress is automatically stripped on the non-ingress server in nginx
-        header = request_handler.request.headers.get("X-Hassio-Ingress", "NO")
+        # X-HA-Ingress is automatically stripped on the non-ingress server in nginx
+        header = request_handler.request.headers.get("X-HA-Ingress", "NO")
         if str(header) == "YES":
             return True
     if settings.using_auth:
@@ -410,6 +410,17 @@ class DownloadBinaryRequestHandler(BaseHandler):
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path
 
+        elif type == "firmware-factory.bin":
+            storage_path = ext_storage_path(settings.config_dir, configuration)
+            storage_json = StorageJSON.load(storage_path)
+            if storage_json is None:
+                self.send_error(404)
+                return
+            filename = f"{storage_json.name}-factory.bin"
+            path = storage_json.firmware_bin_path.replace(
+                "firmware.bin", "firmware-factory.bin"
+            )
+
         else:
             args = ["esphome", "idedata", settings.rel_path(configuration)]
             rc, stdout, _ = run_system_command(*args)
@@ -434,6 +445,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
         self.set_header("Content-Type", "application/octet-stream")
         self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.set_header("Cache-Control", "no-cache")
         if not Path(path).is_file():
             self.send_error(404)
             return
@@ -601,7 +613,7 @@ class MainRequestHandler(BaseHandler):
         begin = bool(self.get_argument("begin", False))
 
         self.render(
-            get_template_path("index"),
+            "index.template.html",
             begin=begin,
             **template_args(),
             login_enabled=settings.using_password,
@@ -721,7 +733,7 @@ class EditRequestHandler(BaseHandler):
         content = ""
         if os.path.isfile(filename):
             # pylint: disable=no-value-for-parameter
-            with open(file=filename, mode="r", encoding="utf-8") as f:
+            with open(file=filename, encoding="utf-8") as f:
                 content = f.read()
         self.write(content)
 
@@ -778,25 +790,25 @@ class LoginHandler(BaseHandler):
 
     def render_login_page(self, error=None):
         self.render(
-            get_template_path("login"),
+            "login.template.html",
             error=error,
-            hassio=settings.using_hassio_auth,
+            ha_addon=settings.using_ha_addon_auth,
             has_username=bool(settings.username),
             **template_args(),
         )
 
-    def post_hassio_login(self):
+    def post_ha_addon_login(self):
         import requests
 
         headers = {
-            "X-HASSIO-KEY": os.getenv("HASSIO_TOKEN"),
+            "Authentication": f"Bearer {os.getenv('SUPERVISOR_TOKEN')}",
         }
         data = {
             "username": self.get_argument("username", ""),
             "password": self.get_argument("password", ""),
         }
         try:
-            req = requests.post("http://hassio/auth", headers=headers, data=data)
+            req = requests.post("http://supervisor/auth", headers=headers, data=data)
             if req.status_code == 200:
                 self.set_secure_cookie("authenticated", cookie_authenticated_yes)
                 self.redirect("/")
@@ -823,8 +835,8 @@ class LoginHandler(BaseHandler):
         self.render_login_page(error=error_str)
 
     def post(self):
-        if settings.using_hassio_auth:
-            self.post_hassio_login()
+        if settings.using_ha_addon_auth:
+            self.post_ha_addon_login()
         else:
             self.post_native_login()
 
@@ -834,6 +846,28 @@ class LogoutHandler(BaseHandler):
     def get(self):
         self.clear_cookie("authenticated")
         self.redirect("./login")
+
+
+class SecretKeysRequestHandler(BaseHandler):
+    @authenticated
+    def get(self):
+
+        filename = None
+
+        for secret_filename in const.SECRETS_FILES:
+            relative_filename = settings.rel_path(secret_filename)
+            if os.path.isfile(relative_filename):
+                filename = relative_filename
+                break
+
+        if filename is None:
+            self.send_error(404)
+            return
+
+        secret_keys = list(yaml_util.load_yaml(filename, clear_secrets=False))
+
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(secret_keys))
 
 
 def get_base_frontend_path():
@@ -848,10 +882,6 @@ def get_base_frontend_path():
 
     # This path can be relative, so resolve against the root or else templates don't work
     return os.path.abspath(os.path.join(os.getcwd(), static_path, "esphome_dashboard"))
-
-
-def get_template_path(template_name):
-    return os.path.join(get_base_frontend_path(), f"{template_name}.template.html")
 
 
 def get_static_path(*args):
@@ -911,6 +941,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
         "cookie_secret": settings.cookie_secret,
         "log_function": log_function,
         "websocket_ping_interval": 30.0,
+        "template_path": get_base_frontend_path(),
     }
     rel = settings.relative_url
     app = tornado.web.Application(
@@ -939,6 +970,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}static/(.*)", StaticFileHandler, {"path": get_static_path()}),
             (f"{rel}devices", ListDevicesHandler),
             (f"{rel}import", ImportRequestHandler),
+            (f"{rel}secret_keys", SecretKeysRequestHandler),
         ],
         **app_settings,
     )
@@ -970,16 +1002,17 @@ def start_web_server(args):
         server.add_socket(socket)
     else:
         _LOGGER.info(
-            "Starting dashboard web server on http://0.0.0.0:%s and configuration dir %s...",
+            "Starting dashboard web server on http://%s:%s and configuration dir %s...",
+            args.address,
             args.port,
             settings.config_dir,
         )
-        app.listen(args.port)
+        app.listen(args.port, args.address)
 
         if args.open_ui:
             import webbrowser
 
-            webbrowser.open(f"localhost:{args.port}")
+            webbrowser.open(f"http://{args.address}:{args.port}")
 
     if settings.status_use_ping:
         status_thread = PingStatusThread()

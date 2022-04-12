@@ -58,11 +58,12 @@ void ESP32BLETracker::setup() {
 void ESP32BLETracker::loop() {
   BLEEvent *ble_event = this->ble_events_.pop();
   while (ble_event != nullptr) {
-    if (ble_event->type_)
+    if (ble_event->type_) {
       this->real_gattc_event_handler_(ble_event->event_.gattc.gattc_event, ble_event->event_.gattc.gattc_if,
                                       &ble_event->event_.gattc.gattc_param);
-    else
+    } else {
       this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
+    }
     delete ble_event;  // NOLINT(cppcoreguidelines-owning-memory)
     ble_event = this->ble_events_.pop();
   }
@@ -89,11 +90,12 @@ void ESP32BLETracker::loop() {
       device.parse_scan_rst(this->scan_result_buffer_[i]);
 
       bool found = false;
-      for (auto *listener : this->listeners_)
+      for (auto *listener : this->listeners_) {
         if (listener->parse_device(device))
           found = true;
+      }
 
-      for (auto *client : this->clients_)
+      for (auto *client : this->clients_) {
         if (client->parse_device(device)) {
           found = true;
           if (client->state() == ClientState::DISCOVERED) {
@@ -103,6 +105,7 @@ void ESP32BLETracker::loop() {
             }
           }
         }
+      }
 
       if (!found) {
         this->print_bt_device_info(device);
@@ -258,6 +261,9 @@ void ESP32BLETracker::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_
       break;
     default:
       break;
+  }
+  for (auto *client : global_esp32_ble_tracker->clients_) {
+    client->gap_event_handler(event, param);
   }
 }
 
@@ -483,6 +489,7 @@ optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData 
 }
 
 void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
+  this->scan_result_ = param;
   for (uint8_t i = 0; i < ESP_BD_ADDR_LEN; i++)
     this->address_[i] = param.bda[i];
   this->address_type_ = param.ble_addr_type;
@@ -524,7 +531,7 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
     ESP_LOGVV(TAG, "  Service UUID: %s", uuid.to_string().c_str());
   }
   for (auto &data : this->manufacturer_datas_) {
-    ESP_LOGVV(TAG, "  Manufacturer data: %s", hexencode(data.data).c_str());
+    ESP_LOGVV(TAG, "  Manufacturer data: %s", format_hex_pretty(data.data).c_str());
     if (this->get_ibeacon().has_value()) {
       auto ibeacon = this->get_ibeacon().value();
       ESP_LOGVV(TAG, "    iBeacon data:");
@@ -537,10 +544,10 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
   for (auto &data : this->service_datas_) {
     ESP_LOGVV(TAG, "  Service data:");
     ESP_LOGVV(TAG, "    UUID: %s", data.uuid.to_string().c_str());
-    ESP_LOGVV(TAG, "    Data: %s", hexencode(data.data).c_str());
+    ESP_LOGVV(TAG, "    Data: %s", format_hex_pretty(data.data).c_str());
   }
 
-  ESP_LOGVV(TAG, "Adv data: %s", hexencode(param.ble_adv, param.adv_data_len + param.scan_rsp_len).c_str());
+  ESP_LOGVV(TAG, "Adv data: %s", format_hex_pretty(param.ble_adv, param.adv_data_len + param.scan_rsp_len).c_str());
 #endif
 }
 void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {

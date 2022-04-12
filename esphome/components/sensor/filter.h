@@ -42,6 +42,37 @@ class Filter {
   Sensor *parent_{nullptr};
 };
 
+/** Simple quantile filter.
+ *
+ * Takes the quantile of the last <send_every> values and pushes it out every <send_every>.
+ */
+class QuantileFilter : public Filter {
+ public:
+  /** Construct a QuantileFilter.
+   *
+   * @param window_size The number of values that should be used in quantile calculation.
+   * @param send_every After how many sensor values should a new one be pushed out.
+   * @param send_first_at After how many values to forward the very first value. Defaults to the first value
+   *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
+   *   send_every.
+   * @param quantile float 0..1 to pick the requested quantile. Defaults to 0.9.
+   */
+  explicit QuantileFilter(size_t window_size, size_t send_every, size_t send_first_at, float quantile);
+
+  optional<float> new_value(float value) override;
+
+  void set_send_every(size_t send_every);
+  void set_window_size(size_t window_size);
+  void set_quantile(float quantile);
+
+ protected:
+  std::deque<float> queue_;
+  size_t send_every_;
+  size_t send_at_;
+  size_t window_size_;
+  float quantile_;
+};
+
 /** Simple median filter.
  *
  * Takes the median of the last <send_every> values and pushes it out every <send_every>.
@@ -163,7 +194,7 @@ class SlidingWindowMovingAverageFilter : public Filter {
  */
 class ExponentialMovingAverageFilter : public Filter {
  public:
-  ExponentialMovingAverageFilter(float alpha, size_t send_every);
+  ExponentialMovingAverageFilter(float alpha, size_t send_every, size_t send_first_at);
 
   optional<float> new_value(float value) override;
 

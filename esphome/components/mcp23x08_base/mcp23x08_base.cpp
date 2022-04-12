@@ -67,10 +67,11 @@ void MCP23X08Base::update_reg(uint8_t pin, bool pin_value, uint8_t reg_addr) {
     this->read_reg(reg_addr, &reg_value);
   }
 
-  if (pin_value)
+  if (pin_value) {
     reg_value |= 1 << bit;
-  else
+  } else {
     reg_value &= ~(1 << bit);
+  }
 
   this->write_reg(reg_addr, reg_value);
 

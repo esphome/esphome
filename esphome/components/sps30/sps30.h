@@ -33,6 +33,7 @@ class SPS30Component : public PollingComponent, public i2c::I2CDevice {
   bool read_data_(uint16_t *data, uint8_t len);
   uint8_t sht_crc_(uint8_t data1, uint8_t data2);
   char serial_number_[17] = {0};  /// Terminating NULL character
+  uint16_t raw_firmware_version_;
   bool start_continuous_measurement_();
   uint8_t skipped_data_read_cycles_ = 0;
 

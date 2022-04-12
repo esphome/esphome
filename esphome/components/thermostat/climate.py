@@ -431,7 +431,8 @@ async def to_code(config):
 
     heat_cool_mode_available = CONF_HEAT_ACTION in config and CONF_COOL_ACTION in config
     two_points_available = CONF_HEAT_ACTION in config and (
-        CONF_COOL_ACTION in config or CONF_FAN_ONLY_ACTION in config
+        CONF_COOL_ACTION in config
+        or (config[CONF_FAN_ONLY_COOLING] and CONF_FAN_ONLY_ACTION in config)
     )
 
     sens = await cg.get_variable(config[CONF_SENSOR])
