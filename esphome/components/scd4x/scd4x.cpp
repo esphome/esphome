@@ -57,7 +57,7 @@ void SCD4XComponent::setup() {
                uint16_t(raw_serial_number[0] & 0xFF), (uint16_t(raw_serial_number[1]) >> 8));
 
       if (!this->write_command(SCD4X_CMD_TEMPERATURE_OFFSET,
-                               (uint16_t) (temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
+                               (uint16_t)(temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
         ESP_LOGE(TAG, "Error setting temperature offset.");
         this->error_code_ = MEASUREMENT_INIT_FAILED;
         this->mark_failed();
@@ -193,7 +193,7 @@ void SCD4XComponent::update() {
 // Note pressure in bar here. Convert to hPa
 void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_bar) {
   ambient_pressure_compensation_ = true;
-  uint16_t new_ambient_pressure = (uint16_t) (pressure_in_bar * 1000);
+  uint16_t new_ambient_pressure = (uint16_t)(pressure_in_bar * 1000);
   // remove millibar from comparison to avoid frequent updates +/- 10 millibar doesn't matter
   if (initialized_ && (new_ambient_pressure / 10 != ambient_pressure_ / 10)) {
     update_ambient_pressure_compensation_(new_ambient_pressure);

@@ -193,8 +193,8 @@ uint16_t SGP40Component::measure_raw_() {
   }
 
   uint16_t data[2];
-  uint16_t rhticks = llround((uint16_t) ((humidity * 65535) / 100));
-  uint16_t tempticks = (uint16_t) (((temperature + 45) * 65535) / 175);
+  uint16_t rhticks = llround((uint16_t)((humidity * 65535) / 100));
+  uint16_t tempticks = (uint16_t)(((temperature + 45) * 65535) / 175);
   // first paramater is the relative humidity ticks
   data[0] = rhticks;
   // second paramater is the temperature ticks
