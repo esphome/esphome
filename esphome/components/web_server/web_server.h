@@ -93,12 +93,12 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_css_request(AsyncWebServerRequest *request);
 #endif
 
-#ifdef WEBSERVER_JS_INCLUDE
+#ifdef USE_WEBSERVER_JS_INCLUDE
   /// Handle included js request under '/0.js'.
   void handle_js_request(AsyncWebServerRequest *request);
 #endif
 
-#ifdef USE_WEBSERVER_JS_INCLUDE
+#ifdef USE_SENSOR
   void on_sensor_update(sensor::Sensor *obj, float state) override;
   /// Handle a sensor request under '/sensor/<id>'.
   void handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
