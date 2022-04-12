@@ -247,9 +247,7 @@ logger:
 
 web_server:
   port: 8080
-  ota: true
-  css_url: https://esphome.io/_static/webserver-v1.min.css
-  js_url: https://esphome.io/_static/webserver-v1.min.js
+  version: 2
 
 power_supply:
   id: "atx_power_supply"
@@ -262,7 +260,7 @@ power_supply:
 deep_sleep:
   run_duration: 20s
   sleep_duration: 50s
-  wakeup_pin: GPIO39
+  wakeup_pin: GPIO2
   wakeup_pin_mode: INVERT_WAKEUP
 
 ads1115:
@@ -358,6 +356,7 @@ sensor:
       - exponential_moving_average:
           alpha: 0.1
           send_every: 15
+          send_first_at: 15
       - throttle_average: 60s
       - throttle: 1s
       - heartbeat: 5s
@@ -456,12 +455,17 @@ sensor:
     name: "Living Room Brightness 3"
     internal: true
     address: 0x23
-    resolution: 1.0
     update_interval: 30s
     retain: False
     availability:
     state_topic: livingroom/custom_state_topic
-    measurement_duration: 31
+    i2c_id: i2c_bus
+  - platform: max44009
+    name: "Outside Brightness 1"
+    internal: true
+    address: 0x4A
+    update_interval: 30s
+    mode: low_power
     i2c_id: i2c_bus
   - platform: bme280
     temperature:
@@ -594,6 +598,14 @@ sensor:
     oversampling: 8x
     update_interval: 15s
     i2c_id: i2c_bus
+  - platform: honeywellabp
+    pressure:
+      name: "Honeywell pressure"
+      min_pressure: 0
+      max_pressure: 15
+    temperature:
+      name: "Honeywell temperature"
+    cs_pin: GPIO5
   - platform: qmc5883l
     address: 0x0D
     field_strength_x:
@@ -719,6 +731,23 @@ sensor:
     temperature:
       name: "MPU6050 Temperature"
     i2c_id: i2c_bus
+  - platform: mpu6886
+    address: 0x68
+    accel_x:
+      name: "MPU6886 Accel X"
+    accel_y:
+      name: "MPU6886 Accel Y"
+    accel_z:
+      name: "MPU6886 Accel z"
+    gyro_x:
+      name: "MPU6886 Gyro X"
+    gyro_y:
+      name: "MPU6886 Gyro Y"
+    gyro_z:
+      name: "MPU6886 Gyro z"
+    temperature:
+      name: "MPU6886 Temperature"
+    i2c_id: i2c_bus
   - platform: ms5611
     temperature:
       name: "Outside Temperature"
@@ -769,6 +798,17 @@ sensor:
           value: 12345
     total:
       name: "Pulse Meter Total"
+  - platform: qmp6988
+    temperature:
+      name: "Living Temperature QMP"
+      oversampling: 32x
+    pressure:
+      name: "Living Pressure QMP"
+      oversampling: 2x
+    address: 0x70
+    update_interval: 30s
+    iir_filter: 16x
+    i2c_id: i2c_bus
   - platform: rotary_encoder
     name: "Rotary Encoder"
     id: rotary_encoder1
@@ -1090,8 +1130,8 @@ sensor:
     temperature:
       name: Max9611 Temp
     update_interval: 1s
-  
-  
+
+
 esp32_touch:
   setup_mode: False
   iir_filter: 10ms
@@ -1310,18 +1350,18 @@ binary_sensor:
   - platform: analog_threshold
     name: Analog Trheshold 1
     sensor_id: template_sensor
-    threshold: 
+    threshold:
       upper: 110
       lower: 90
-    filters: 
+    filters:
       - delayed_on: 0s
       - delayed_off: 10s
   - platform: analog_threshold
     name: Analog Trheshold 2
     sensor_id: template_sensor
     threshold: 100
-    filters: 
-      - invert: 
+    filters:
+      - invert:
 
 pca9685:
   frequency: 500
@@ -1478,6 +1518,28 @@ output:
   - platform: mcp4725
     id: mcp4725_dac_output
     i2c_id: i2c_bus
+  - platform: mcp4728
+    id: mcp4728_dac_output_a
+    channel: A
+    vref: vdd
+    power_down: normal
+  - platform: mcp4728
+    id: mcp4728_dac_output_b
+    channel: B
+    vref: internal
+    gain: X1
+    power_down: gnd_1k
+  - platform: mcp4728
+    id: mcp4728_dac_output_c
+    channel: C
+    vref: vdd
+    power_down: gnd_100k
+  - platform: mcp4728
+    id: mcp4728_dac_output_d
+    channel: D
+    vref: internal
+    gain: X2
+    power_down: gnd_500k
 
 e131:
 
@@ -1862,6 +1924,11 @@ switch:
       remote_transmitter.transmit_jvc:
         data: 0x10EF
   - platform: template
+    name: MagiQuest
+    turn_on_action:
+      remote_transmitter.transmit_magiquest:
+        wand_id: 0x01234567
+  - platform: template
     name: NEC
     id: living_room_lights_off
     turn_on_action:
@@ -1985,6 +2052,9 @@ switch:
       - output.set_level:
           id: mcp4725_dac_output
           level: !lambda "return 0.5;"
+      - output.set_level:
+          id: mcp4728_dac_output_a
+          level: !lambda "return 0.5;"
     turn_off_action:
       - switch.turn_on: living_room_lights_off
     restore_state: False
@@ -2094,6 +2164,9 @@ fan:
     on_speed_set:
       then:
         - logger.log: "Fan speed was changed!"
+  - platform: copy
+    source_id: fan_speed
+    name: "Fan Speed Copy"
 
 interval:
   - interval: 10s
@@ -2145,6 +2218,17 @@ display:
   - platform: lcd_pcf8574
     dimensions: 18x4
     address: 0x3F
+    user_characters:
+      - position: 0
+        data:
+          - 0b00000
+          - 0b01010
+          - 0b00000
+          - 0b00100
+          - 0b00100
+          - 0b10001
+          - 0b01110
+          - 0b00000
     lambda: |-
       it.print("Hello World!");
     i2c_id: i2c_bus
@@ -2362,6 +2446,12 @@ rc522_i2c:
           ESP_LOGD("main", "Found tag %s", x.c_str());
     i2c_id: i2c_bus
 
+mcp4728:
+  - id: mcp4728_dac
+    store_in_eeprom: False
+    address: 0x60
+    i2c_id: i2c_bus
+
 gps:
   uart_id: uart0
 
@@ -2491,6 +2581,18 @@ globals:
     initial_value: "false"
 
 text_sensor:
+  - platform: ble_client
+    ble_client_id: ble_foo
+    name: 'Sensor Location'
+    service_uuid: '180d'
+    characteristic_uuid: '2a38'
+    descriptor_uuid: '2902'
+    notify: true
+    update_interval: never
+    on_notify:
+      then:
+        - lambda: |-
+            ESP_LOGD("green_btn", "Location changed: %s", x.c_str());
   - platform: mqtt_subscribe
     name: "MQTT Subscribe Text"
     topic: "the/topic"
@@ -2514,6 +2616,16 @@ text_sensor:
           canbus_id: esp32_internal_can
           can_id: 23
           data: [0x10, 0x20, 0x30]
+      - canbus.send:
+          canbus_id: mcp2515_can
+          can_id: 24
+          remote_transmission_request: true
+          data: []
+      - canbus.send:
+          canbus_id: esp32_internal_can
+          can_id: 24
+          remote_transmission_request: true
+          data: []
   - platform: template
     name: Template Text Sensor
     id: ${textname}_text
@@ -2558,7 +2670,7 @@ canbus:
         then:
           - lambda: |-
               std::string b(x.begin(), x.end());
-              ESP_LOGD("canid 500", "%s", &b[0] );
+              ESP_LOGD("canid 500", "%s", b.c_str());
       - can_id: 23
         then:
           - if:
@@ -2596,7 +2708,7 @@ canbus:
         then:
           - lambda: |-
               std::string b(x.begin(), x.end());
-              ESP_LOGD("canid 500", "%s", &b[0] );
+              ESP_LOGD("canid 500", "%s", b.c_str() );
       - can_id: 23
         then:
           - if:
@@ -2649,6 +2761,9 @@ select:
       - one
       - two
     optimistic: true
+  - platform: copy
+    source_id: test_select
+    name: Test Select Copy
 
 qr_code:
   - id: homepage_qr
@@ -2678,3 +2793,6 @@ lock:
     name: "Generic Output Lock"
     id: test_lock2
     output: pca_6
+  - platform: copy
+    source_id: test_lock2
+    name: Generic Output Lock Copy

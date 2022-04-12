@@ -591,6 +591,11 @@ def lint_inclusive_language(fname, match):
     )
 
 
+@lint_re_check(r"[\t\r\f\v ]+$")
+def lint_trailing_whitespace(fname, match):
+    return "Trailing whitespace detected"
+
+
 @lint_content_find_check(
     "ESP_LOG",
     include=["*.h", "*.tcc"],

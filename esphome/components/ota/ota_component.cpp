@@ -473,6 +473,8 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
       App.reboot();
     });
 
+    // Delay here to allow power to stabilise before Wi-Fi/Ethernet is initialised.
+    delay(300);  // NOLINT
     App.setup();
 
     ESP_LOGI(TAG, "Waiting for OTA attempt.");
