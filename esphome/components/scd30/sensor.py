@@ -21,7 +21,7 @@ DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
 
 scd30_ns = cg.esphome_ns.namespace("scd30")
-SCD30Component = scd30_ns.class_("SCD30Component", cg.Component, i2c.I2CDevice)
+SCD30Component = scd30_ns.class_("SCD30Component", cg.Component, sensirion_common.SensirionI2CDevice)
 
 CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
 CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
