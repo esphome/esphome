@@ -198,7 +198,7 @@ bool SonoffD1Output::control_dimmer_(const bool binary, const uint8_t brightness
                      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00};
 
   cmd[6] = binary;
-  cmd[7] = remap(brightness, 0, 100, this->min_value_, this->max_value_);
+  cmd[7] = remap<uint8_t, uint8_t>(brightness, 0, 100, this->min_value_, this->max_value_);
   ESP_LOGI(TAG, "[%04d] Setting dimmer state to %s, raw brightness=%d", this->write_count_, ONOFF(binary), cmd[7]);
   return this->write_command_(cmd, sizeof(cmd));
 }
@@ -209,7 +209,7 @@ void SonoffD1Output::process_command_(const uint8_t *cmd, const size_t len) {
     // Ack a command from RF to ESP to prevent repeating commands
     this->write_command_(ack_buffer, sizeof(ack_buffer), false);
     ESP_LOGI(TAG, "[%04d] RF sets dimmer state to %s, raw brightness=%d", this->write_count_, ONOFF(cmd[6]), cmd[7]);
-    const uint8_t new_brightness = remap(cmd[7], this->min_value_, this->max_value_, 0, 100);
+    const uint8_t new_brightness = remap<uint8_t, uint8_t>(cmd[7], this->min_value_, this->max_value_, 0, 100);
     const bool new_state = cmd[6];
 
     // Got light change state command. In all cases we revert the command immediately
