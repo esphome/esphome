@@ -129,7 +129,9 @@ void ENS210Component::setup() {
 void ENS210Component::dump_config() {
   ESP_LOGCONFIG(TAG, "ENS210:");
   LOG_I2C_DEVICE(this);
-  ESP_LOGE(TAG, "%s", LOG_STR_ARG(ens210_status_to_human(this->error_code_)));
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, "%s", LOG_STR_ARG(ens210_status_to_human(this->error_code_)));
+  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
@@ -151,7 +153,7 @@ void ENS210Component::update() {
     return;
   }
   // Wait for measurement to complete
-  this->set_timeout("data", uint32_t(ENS210_BOOTING_MS), [this]() {
+  this->set_timeout("data", uint32_t(ENS210_SINGLE_MEASURMENT_CONVERSION_TIME_MS), [this]() {
     int temperature_data, temperature_status, humidity_data, humidity_status;
     uint8_t data[6];
     uint32_t h_val_data, t_val_data;
@@ -159,7 +161,6 @@ void ENS210Component::update() {
     temperature_status = ENS210_STATUS_I2C_ERROR;
     humidity_status = ENS210_STATUS_I2C_ERROR;
 
-    delay(ENS210_SINGLE_MEASURMENT_CONVERSION_TIME_MS);
     // Read T_VAL and H_VAL
     if (!this->read_bytes(ENS210_REGISTER_T_VAL, data, 6)) {
       ESP_LOGE(TAG, "Communication with ENS210 failed!");
