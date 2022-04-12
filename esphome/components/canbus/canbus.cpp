@@ -83,7 +83,7 @@ void Canbus::loop() {
       if ((trigger->can_id_ == (can_message.can_id & trigger->can_id_mask_)) &&
           (trigger->use_extended_id_ == can_message.use_extended_id) &&
           (!trigger->remote_transmission_request_.has_value() ||
-            trigger->remote_transmission_request_.value() == can_message.remote_transmission_request)) {
+           trigger->remote_transmission_request_.value() == can_message.remote_transmission_request)) {
         trigger->trigger(data, can_message.can_id, can_message.remote_transmission_request);
       }
     }
