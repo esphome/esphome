@@ -102,7 +102,11 @@ async def setup_canbus_core_(var, config):
             conf[CONF_TRIGGER_ID], var, can_id, can_id_mask, ext_id
         )
         if CONF_REMOTE_TRANSMISSION_REQUEST in conf:
-            cg.add(trigger.set_remote_transmission_request(conf[CONF_REMOTE_TRANSMISSION_REQUEST]))
+            cg.add(
+                trigger.set_remote_transmission_request(
+                    conf[CONF_REMOTE_TRANSMISSION_REQUEST]
+                )
+            )
         await cg.register_component(trigger, conf)
         await automation.build_automation(
             trigger,
