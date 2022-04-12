@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor
+from esphome.components import i2c, sensor, sensirion_common
+
 from esphome.const import (
     CONF_ID,
     CONF_BASELINE,
@@ -22,7 +23,9 @@ DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
 
 sgp30_ns = cg.esphome_ns.namespace("sgp30")
-SGP30Component = sgp30_ns.class_("SGP30Component", cg.PollingComponent, i2c.I2CDevice)
+SGP30Component = sgp30_ns.class_(
+    "SGP30Component", cg.PollingComponent, sensirion_common.SensirionI2CDevice
+)
 
 CONF_ECO2_BASELINE = "eco2_baseline"
 CONF_TVOC_BASELINE = "tvoc_baseline"

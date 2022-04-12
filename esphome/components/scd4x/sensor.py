@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-
+from esphome.components import sensirion_common
 from esphome.const import (
     CONF_ID,
     CONF_CO2,
@@ -24,7 +24,9 @@ DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
 
 scd4x_ns = cg.esphome_ns.namespace("scd4x")
-SCD4XComponent = scd4x_ns.class_("SCD4XComponent", cg.PollingComponent, i2c.I2CDevice)
+SCD4XComponent = scd4x_ns.class_(
+    "SCD4XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
+)
 
 CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
 CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
