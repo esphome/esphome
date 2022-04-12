@@ -88,7 +88,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// Handle an index request under '/'.
   void handle_index_request(AsyncWebServerRequest *request);
 
-#ifdef WEBSERVER_CSS_INCLUDE
+#ifdef USE_WEBSERVER_CSS_INCLUDE
   /// Handle included css request under '/0.css'.
   void handle_css_request(AsyncWebServerRequest *request);
 #endif
@@ -98,7 +98,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_js_request(AsyncWebServerRequest *request);
 #endif
 
-#ifdef USE_SENSOR
+#ifdef USE_WEBSERVER_JS_INCLUDE
   void on_sensor_update(sensor::Sensor *obj, float state) override;
   /// Handle a sensor request under '/sensor/<id>'.
   void handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
