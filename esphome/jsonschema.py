@@ -1,7 +1,7 @@
 """Helpers to retrieve schema from voluptuous validators.
 
 These are a helper decorators to help get schema from some
-components which uses volutuous in a way where validation
+components which uses voluptuous in a way where validation
 is hidden in local functions
 These decorators should not modify at all what the functions
 originally do.
@@ -24,7 +24,7 @@ def jschema_extractor(validator_name):
     if EnableJsonSchemaCollect:
 
         def decorator(func):
-            hidden_schemas[str(func)] = validator_name
+            hidden_schemas[repr(func)] = validator_name
             return func
 
         return decorator
@@ -41,7 +41,7 @@ def jschema_extended(func):
         def decorate(*args, **kwargs):
             ret = func(*args, **kwargs)
             assert len(args) == 2
-            extended_schemas[str(ret)] = args
+            extended_schemas[repr(ret)] = args
             return ret
 
         return decorate
@@ -49,13 +49,13 @@ def jschema_extended(func):
     return func
 
 
-def jschema_composite(func):
+def jschema_list(func):
     if EnableJsonSchemaCollect:
 
         def decorate(*args, **kwargs):
             ret = func(*args, **kwargs)
             # args length might be 2, but 2nd is always validator
-            list_schemas[str(ret)] = args
+            list_schemas[repr(ret)] = args
             return ret
 
         return decorate
@@ -67,7 +67,7 @@ def jschema_registry(registry):
     if EnableJsonSchemaCollect:
 
         def decorator(func):
-            registry_schemas[str(func)] = registry
+            registry_schemas[repr(func)] = registry
             return func
 
         return decorator
@@ -83,7 +83,7 @@ def jschema_typed(func):
 
         def decorate(*args, **kwargs):
             ret = func(*args, **kwargs)
-            typed_schemas[str(ret)] = (args, kwargs)
+            typed_schemas[repr(ret)] = (args, kwargs)
             return ret
 
         return decorate

@@ -142,7 +142,6 @@ void IRAM_ATTR ESPOneWire::select(uint64_t address) {
 void IRAM_ATTR ESPOneWire::reset_search() {
   this->last_discrepancy_ = 0;
   this->last_device_flag_ = false;
-  this->last_family_discrepancy_ = 0;
   this->rom_number_ = 0;
 }
 uint64_t IRAM_ATTR ESPOneWire::search() {
@@ -195,9 +194,6 @@ uint64_t IRAM_ATTR ESPOneWire::search() {
 
         if (!branch) {
           last_zero = id_bit_number;
-          if (last_zero < 9) {
-            this->last_discrepancy_ = last_zero;
-          }
         }
       }
 

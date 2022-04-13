@@ -203,15 +203,6 @@ async def to_code(config):
         )
 
 
-def maybe_simple_message(schema):
-    def validator(value):
-        if isinstance(value, dict):
-            return cv.Schema(schema)(value)
-        return cv.Schema(schema)({CONF_FORMAT: value})
-
-    return validator
-
-
 def validate_printf(value):
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
     cfmt = r"""
@@ -234,7 +225,7 @@ def validate_printf(value):
 
 CONF_LOGGER_LOG = "logger.log"
 LOGGER_LOG_ACTION_SCHEMA = cv.All(
-    maybe_simple_message(
+    cv.maybe_simple_value(
         {
             cv.Required(CONF_FORMAT): cv.string,
             cv.Optional(CONF_ARGS, default=list): cv.ensure_list(cv.lambda_),
@@ -242,9 +233,10 @@ LOGGER_LOG_ACTION_SCHEMA = cv.All(
                 *LOG_LEVEL_TO_ESP_LOG, upper=True
             ),
             cv.Optional(CONF_TAG, default="main"): cv.string,
-        }
-    ),
-    validate_printf,
+        },
+        validate_printf,
+        key=CONF_FORMAT,
+    )
 )
 
 
