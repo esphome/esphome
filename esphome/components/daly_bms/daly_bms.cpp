@@ -19,7 +19,9 @@ static const uint8_t DALY_REQUEST_STATUS = 0x94;
 static const uint8_t DALY_REQUEST_CELL_VOLTAGE = 0x95;
 static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
-void DalyBmsComponent::setup() {}
+void DalyBmsComponent::setup() {
+  next_request = 1;
+}
 
 void DalyBmsComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Daly BMS:");
@@ -27,21 +29,80 @@ void DalyBmsComponent::dump_config() {
 }
 
 void DalyBmsComponent::update() {
-  this->request_data_(DALY_REQUEST_BATTERY_LEVEL);
-  this->request_data_(DALY_REQUEST_MIN_MAX_VOLTAGE);
-  this->request_data_(DALY_REQUEST_MIN_MAX_TEMPERATURE);
-  this->request_data_(DALY_REQUEST_MOS);
-  this->request_data_(DALY_REQUEST_STATUS);
-  this->request_data_(DALY_REQUEST_CELL_VOLTAGE);
-  this->request_data_(DALY_REQUEST_TEMPERATURE);
+	trigger_next = true;
+	next_request = 0;
+}
 
-  std::vector<uint8_t> get_battery_level_data;
-  int available_data = this->available();
-  if (available_data >= DALY_FRAME_SIZE) {
-    get_battery_level_data.resize(available_data);
-    this->read_array(get_battery_level_data.data(), available_data);
-    this->decode_data_(get_battery_level_data);
-  }
+void DalyBmsComponent::loop() {
+	const uint32_t now = millis();
+	  if (receiving_ && (now - last_transmission_ >= 200)) {
+		// last transmission too long ago. Reset RX index.
+		ESP_LOGW(TAG, "Last transmission too long ago. Reset RX index.");
+		data_.clear();
+		receiving_ = false;			
+	}
+	if ((now - last_transmission_ >= 250) && (trigger_next == false)) {
+		//last transmittion loger than 0.25s ago -> trigger next request
+		last_transmission_ = now;
+		trigger_next = true;
+	}
+	if (available())
+    last_transmission_ = now;
+	while (available()) {
+		uint8_t c;
+		read_byte(&c);
+		if (!receiving_) {
+			if (c != 0xa5)
+			continue;
+			receiving_ = true;
+		}
+		data_.push_back(c);
+		if (data_.size() == 4)
+			data_count_ = c;
+		if ((data_.size() > 4) and (data_.size() == data_count_ + 5)) {
+		  this->decode_data_(data_);
+		  data_.clear();
+		  receiving_ = false;		  
+		}		
+	}
+
+	if (trigger_next){
+		trigger_next = false;
+		switch (next_request) {
+			case 0:
+				this->request_data_(DALY_REQUEST_BATTERY_LEVEL);
+				next_request = 1;
+				break;
+			case 1:
+				this->request_data_(DALY_REQUEST_MIN_MAX_VOLTAGE);
+				next_request = 2;
+			break;
+			case 2:
+				this->request_data_(DALY_REQUEST_MIN_MAX_TEMPERATURE);
+				next_request = 3;
+			break;
+			case 3:
+				this->request_data_(DALY_REQUEST_MOS);
+				next_request = 4;
+			break;
+			case 4:
+				this->request_data_(DALY_REQUEST_STATUS);
+				next_request = 5;
+			break;
+			case 5:
+				this->request_data_(DALY_REQUEST_CELL_VOLTAGE);
+				next_request = 6;
+			break;
+			case 6:
+				this->request_data_(DALY_REQUEST_TEMPERATURE);
+				next_request = 7;
+			break;
+			case 7:
+			break;
+			default:
+			break;
+		}
+	}
 }
 
 float DalyBmsComponent::get_setup_priority() const { return setup_priority::DATA; }
@@ -64,6 +125,7 @@ void DalyBmsComponent::request_data_(uint8_t data_id) {
   request_message[12] = (uint8_t)(request_message[0] + request_message[1] + request_message[2] +
                                   request_message[3]);  // Checksum (Lower byte of the other bytes sum)
 
+  ESP_LOGV(TAG,"Request datapacket Nr %x", data_id);
   this->write_array(request_message, sizeof(request_message));
   this->flush();
 }
@@ -237,6 +299,9 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
             break;
         }
       }
+	  else {
+		  ESP_LOGW(TAG,"Checksum-Error on Packet %x", it[4]);
+	  }
       std::advance(it, DALY_FRAME_SIZE);
     } else {
       std::advance(it, 1);
