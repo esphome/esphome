@@ -34,8 +34,8 @@ void DalyBmsComponent::update() {
 }
 
 void DalyBmsComponent::loop() {
-    const uint32_t now = millis();
-	  if (receiving_ && (now - last_transmission_ >= 200)) {
+  const uint32_t now = millis();
+  if (receiving_ && (now - last_transmission_ >= 200)) {
     // last transmission too long ago. Reset RX index.
     ESP_LOGW(TAG, "Last transmission too long ago. Reset RX index.");
     data_.clear();
