@@ -488,26 +488,34 @@ namespace shelly_dimmer {
 stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char init) {
   uint8_t buf[257];
 
-  auto *stm = (stm32_t *) calloc(sizeof(stm32_t), 1);      // NOLINT
-  stm->cmd = (stm32_cmd_t *) malloc(sizeof(stm32_cmd_t));  // NOLINT
+  // Could be constexpr in c++17
+  static const auto CLOSE = [](stm32_t *stm32) { stm32_close(stm32); };
+
+  // Cleanup with RAII
+  std::unique_ptr<stm32_t, decltype(CLOSE)> stm{static_cast<stm32_t *>(calloc(sizeof(stm32_t), 1)),  // NOLINT
+                                                CLOSE};
+
+  if (!stm) {
+    return nullptr;
+  }
+
+  stm->cmd = static_cast<stm32_cmd_t *>(malloc(sizeof(stm32_cmd_t)));  // NOLINT
+  if (!stm->cmd) {
+    return nullptr;
+  }
+
+  /* get the version and read protection status  */
+  if (stm32_send_command(stm.get(), STM32_CMD_GVR) != STM32_ERR_OK) {
+    return nullptr;  // NOLINT
+  }
+
   memset(stm->cmd, STM32_CMD_ERR, sizeof(stm32_cmd_t));
   stm->stream = stream;
   stm->flags = flags;
 
   if ((stm->flags & STREAM_OPT_CMD_INIT) && init) {
-    if (stm32_send_init_seq(stm) != STM32_ERR_OK)
+    if (stm32_send_init_seq(stm.get()) != STM32_ERR_OK)
       return nullptr;  // NOLINT
-  }
-
-  // Could be constexpr in c++17
-  const auto close = [](stm32_t *stm32) { stm32_close(stm32); };
-
-  // Cleanup with RAII
-  std::unique_ptr<stm32_t, decltype(close)> stm_raii{stm, close};
-
-  /* get the version and read protection status  */
-  if (stm32_send_command(stm, STM32_CMD_GVR) != STM32_ERR_OK) {
-    return nullptr;  // NOLINT
   }
 
   /* From AN, only UART bootloader returns 3 bytes */
@@ -518,7 +526,7 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
     stm->version = buf[0];
     stm->option1 = (stm->flags & STREAM_OPT_GVR_ETX) ? buf[1] : 0;
     stm->option2 = (stm->flags & STREAM_OPT_GVR_ETX) ? buf[2] : 0;
-    if (stm32_get_ack(stm) != STM32_ERR_OK) {
+    if (stm32_get_ack(stm.get()) != STM32_ERR_OK) {
       return nullptr;
     }
   }
@@ -537,7 +545,7 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
       return STM32_CMD_GET_LENGTH;
     })();
 
-    if (stm32_guess_len_cmd(stm, STM32_CMD_GET, buf, len) != STM32_ERR_OK)
+    if (stm32_guess_len_cmd(stm.get(), STM32_CMD_GET, buf, len) != STM32_ERR_OK)
       return nullptr;
   }
 
@@ -600,7 +608,7 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
   }
   if (new_cmds)
     ESP_LOGD(TAG, ")");
-  if (stm32_get_ack(stm) != STM32_ERR_OK) {
+  if (stm32_get_ack(stm.get()) != STM32_ERR_OK) {
     return nullptr;
   }
 
@@ -610,7 +618,7 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
   }
 
   /* get the device ID */
-  if (stm32_guess_len_cmd(stm, stm->cmd->gid, buf, 1) != STM32_ERR_OK) {
+  if (stm32_guess_len_cmd(stm.get(), stm->cmd->gid, buf, 1) != STM32_ERR_OK) {
     return nullptr;
   }
   const auto returned = buf[0] + 1;
@@ -624,7 +632,7 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
     for (auto i = 2; i <= returned; i++)
       ESP_LOGD(TAG, " %02x", buf[i]);
   }
-  if (stm32_get_ack(stm) != STM32_ERR_OK) {
+  if (stm32_get_ack(stm.get()) != STM32_ERR_OK) {
     return nullptr;
   }
 
@@ -639,9 +647,7 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
 
   // TODO: Would be much better if the unique_ptr was returned from this function
   // Release ownership of unique_ptr
-  static_cast<void *>(stm_raii.release());  // NOLINT
-
-  return stm;
+  return stm.release();  // NOLINT
 }
 
 void stm32_close(stm32_t *stm) {
