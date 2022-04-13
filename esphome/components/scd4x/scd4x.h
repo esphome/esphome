@@ -2,14 +2,14 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/i2c/i2c.h"
+#include "esphome/components/sensirion_common/i2c_sensirion.h"
 
 namespace esphome {
 namespace scd4x {
 
 enum ERRORCODE { COMMUNICATION_FAILED, SERIAL_NUMBER_IDENTIFICATION_FAILED, MEASUREMENT_INIT_FAILED, UNKNOWN };
 
-class SCD4XComponent : public PollingComponent, public i2c::I2CDevice {
+class SCD4XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
   float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
@@ -27,10 +27,6 @@ class SCD4XComponent : public PollingComponent, public i2c::I2CDevice {
   void set_humidity_sensor(sensor::Sensor *humidity) { humidity_sensor_ = humidity; }
 
  protected:
-  uint8_t sht_crc_(uint8_t data1, uint8_t data2);
-  bool read_data_(uint16_t *data, uint8_t len);
-  bool write_command_(uint16_t command);
-  bool write_command_(uint16_t command, uint16_t data);
   bool update_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
 
   ERRORCODE error_code_;

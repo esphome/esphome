@@ -13,7 +13,7 @@ class TCA9548AChannel : public i2c::I2CBus {
   void set_parent(TCA9548AComponent *parent) { parent_ = parent; }
 
   i2c::ErrorCode readv(uint8_t address, i2c::ReadBuffer *buffers, size_t cnt) override;
-  i2c::ErrorCode writev(uint8_t address, i2c::WriteBuffer *buffers, size_t cnt) override;
+  i2c::ErrorCode writev(uint8_t address, i2c::WriteBuffer *buffers, size_t cnt, bool stop) override;
 
  protected:
   uint8_t channel_;

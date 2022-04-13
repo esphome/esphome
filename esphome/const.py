@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2022.3.0b2"
+__version__ = "2022.4.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -644,6 +644,7 @@ CONF_STEP_MODE = "step_mode"
 CONF_STEP_PIN = "step_pin"
 CONF_STOP = "stop"
 CONF_STOP_ACTION = "stop_action"
+CONF_STORE_BASELINE = "store_baseline"
 CONF_SUBNET = "subnet"
 CONF_SUBSTITUTIONS = "substitutions"
 CONF_SUPPLEMENTAL_COOLING_ACTION = "supplemental_cooling_action"
@@ -680,6 +681,7 @@ CONF_TARGET_TEMPERATURE_LOW_COMMAND_TOPIC = "target_temperature_low_command_topi
 CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC = "target_temperature_low_state_topic"
 CONF_TARGET_TEMPERATURE_STATE_TOPIC = "target_temperature_state_topic"
 CONF_TEMPERATURE = "temperature"
+CONF_TEMPERATURE_SOURCE = "temperature_source"
 CONF_TEMPERATURE_STEP = "temperature_step"
 CONF_TEXT_SENSORS = "text_sensors"
 CONF_THEN = "then"

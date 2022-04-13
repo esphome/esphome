@@ -104,7 +104,7 @@ ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt)
 
   return ERROR_OK;
 }
-ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
+ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) {
   // logging is only enabled with vv level, if warnings are shown the caller
   // should log them
   if (!initialized_) {
@@ -139,7 +139,7 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
       return ERROR_UNKNOWN;
     }
   }
-  uint8_t status = wire_->endTransmission(true);
+  uint8_t status = wire_->endTransmission(stop);
   if (status == 0) {
     return ERROR_OK;
   } else if (status == 1) {
