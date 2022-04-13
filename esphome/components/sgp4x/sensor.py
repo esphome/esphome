@@ -139,9 +139,4 @@ async def to_code(config):
                     cfg[CONF_GAIN_FACTOR],
                 )
             )
-
-    # if https://github.com/Sensirion/arduino-gas-index-algorithm/pull/1 gets mergged it can be replaced with
-    #    cg.add_library("sensirion/Sensirion Gas Index Algorithm", "^3.1.0")
-    # Currently the library is missing a library.json manifest and is therefore considered arduino only by pio but actually is library agnostic
-    # The fork only adds the missing manifest for esp-idf compability
-    cg.add_library("https://github.com/martgras/arduino-gas-index-algorithm.git", "")
+    cg.add_library("sensirion/Sensirion Gas Index Algorithm", "^3.1.0")
