@@ -173,6 +173,7 @@ esphome/components/select/* @esphome/core
 esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
 esphome/components/sgp40/* @SenexCrenshaw
+esphome/components/sgp4x/* @SenexCrenshaw @martgras
 esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core @jsuanet
 esphome/components/sim800l/* @glmnet
