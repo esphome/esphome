@@ -34,12 +34,12 @@ void DalyBmsComponent::update() {
 }
 
 void DalyBmsComponent::loop() {
-	const uint32_t now = millis();
+    const uint32_t now = millis();
 	  if (receiving_ && (now - last_transmission_ >= 200)) {
     // last transmission too long ago. Reset RX index.
     ESP_LOGW(TAG, "Last transmission too long ago. Reset RX index.");
     data_.clear();
-    receiving_ = false;			
+    receiving_ = false;
 	}
 	if ((now - last_transmission_ >= 250) && (trigger_next == false)) {
 		//last transmittion loger than 0.25s ago -> trigger next request
@@ -62,8 +62,8 @@ void DalyBmsComponent::loop() {
 		if ((data_.size() > 4) and (data_.size() == data_count_ + 5)) {
 		  this->decode_data_(data_);
 		  data_.clear();
-      receiving_ = false;		  
-    }		
+      receiving_ = false;
+    }
 	}
 
 	if (trigger_next){
