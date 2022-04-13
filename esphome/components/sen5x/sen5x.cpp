@@ -293,9 +293,9 @@ void SEN5XComponent::update() {
         if (this->read_data(states, 4)) {
           uint32_t state0 = states[0] << 16 | states[1];
           uint32_t state1 = states[2] << 16 | states[3];
-          if ((uint32_t) std::abs(static_cast<uint32_t>(this->voc_baselines_storage_.state0 - state0)) >
+          if ((uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state0 - state0)) >
                   MAXIMUM_STORAGE_DIFF ||
-              (uint32_t) std::abs(static_cast<uint32_t>(this->voc_baselines_storage_.state1 - state1)) >
+              (uint32_t) std::abs(static_cast<int32_t>(this->voc_baselines_storage_.state1 - state1)) >
                   MAXIMUM_STORAGE_DIFF) {
             this->seconds_since_last_store_ = 0;
             this->voc_baselines_storage_.state0 = state0;
