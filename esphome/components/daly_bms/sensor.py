@@ -98,7 +98,7 @@ CELL_VOLTAGE_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_VOLT,
     device_class=DEVICE_CLASS_VOLTAGE,
     state_class=STATE_CLASS_MEASUREMENT,
-	icon=ICON_FLASH,
+    icon=ICON_FLASH,
     accuracy_decimals=3,
 )
 
