@@ -67,6 +67,7 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
   void setup() override;
   void dump_config() override;
   void update() override;
+  void loop() override;
 
   float get_setup_priority() const override;
 
@@ -110,6 +111,13 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
 
   binary_sensor::BinarySensor *charging_mos_enabled_{nullptr};
   binary_sensor::BinarySensor *discharging_mos_enabled_{nullptr};
+
+  std::vector<uint8_t> data_;
+  bool receiving_{false};
+  uint8_t data_count_;
+  uint32_t last_transmission_{0};
+  bool trigger_next;
+  uint8_t next_request;
 };
 
 }  // namespace daly_bms
