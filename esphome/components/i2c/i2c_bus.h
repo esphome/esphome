@@ -15,6 +15,7 @@ enum ErrorCode {
   ERROR_NOT_INITIALIZED = 4,
   ERROR_TOO_LARGE = 5,
   ERROR_UNKNOWN = 6,
+  ERROR_CRC = 7,
 };
 
 struct ReadBuffer {

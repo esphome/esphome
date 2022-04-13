@@ -12,14 +12,14 @@ void SGP40Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SGP40...");
 
   // Serial Number identification
-  if (!this->write_command_(SGP40_CMD_GET_SERIAL_ID)) {
+  if (!this->write_command(SGP40_CMD_GET_SERIAL_ID)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
   }
   uint16_t raw_serial_number[3];
 
-  if (!this->read_data_(raw_serial_number, 3)) {
+  if (!this->read_data(raw_serial_number, 3)) {
     this->mark_failed();
     return;
   }
@@ -28,19 +28,19 @@ void SGP40Component::setup() {
   ESP_LOGD(TAG, "Serial Number: %" PRIu64, this->serial_number_);
 
   // Featureset identification for future use
-  if (!this->write_command_(SGP40_CMD_GET_FEATURESET)) {
+  if (!this->write_command(SGP40_CMD_GET_FEATURESET)) {
     ESP_LOGD(TAG, "raw_featureset write_command_ failed");
     this->mark_failed();
     return;
   }
-  uint16_t raw_featureset[1];
-  if (!this->read_data_(raw_featureset, 1)) {
+  uint16_t raw_featureset;
+  if (!this->read_data(raw_featureset)) {
     ESP_LOGD(TAG, "raw_featureset read_data_ failed");
     this->mark_failed();
     return;
   }
 
-  this->featureset_ = raw_featureset[0];
+  this->featureset_ = raw_featureset;
   if ((this->featureset_ & 0x1FF) != SGP40_FEATURESET) {
     ESP_LOGD(TAG, "Product feature set failed 0x%0X , expecting 0x%0X", uint16_t(this->featureset_ & 0x1FF),
              SGP40_FEATURESET);
@@ -95,21 +95,21 @@ void SGP40Component::setup() {
 
 void SGP40Component::self_test_() {
   ESP_LOGD(TAG, "Self-test started");
-  if (!this->write_command_(SGP40_CMD_SELF_TEST)) {
+  if (!this->write_command(SGP40_CMD_SELF_TEST)) {
     this->error_code_ = COMMUNICATION_FAILED;
     ESP_LOGD(TAG, "Self-test communication failed");
     this->mark_failed();
   }
 
   this->set_timeout(250, [this]() {
-    uint16_t reply[1];
-    if (!this->read_data_(reply, 1)) {
+    uint16_t reply;
+    if (!this->read_data(reply)) {
       ESP_LOGD(TAG, "Self-test read_data_ failed");
       this->mark_failed();
       return;
     }
 
-    if (reply[0] == 0xD400) {
+    if (reply == 0xD400) {
       this->self_test_complete_ = true;
       ESP_LOGD(TAG, "Self-test completed");
       return;
@@ -192,51 +192,28 @@ uint16_t SGP40Component::measure_raw_() {
     temperature = 25;
   }
 
-  uint8_t command[8];
-
-  command[0] = 0x26;
-  command[1] = 0x0F;
-
+  uint16_t data[2];
   uint16_t rhticks = llround((uint16_t)((humidity * 65535) / 100));
-  command[2] = rhticks >> 8;
-  command[3] = rhticks & 0xFF;
-  command[4] = generate_crc_(command + 2, 2);
   uint16_t tempticks = (uint16_t)(((temperature + 45) * 65535) / 175);
-  command[5] = tempticks >> 8;
-  command[6] = tempticks & 0xFF;
-  command[7] = generate_crc_(command + 5, 2);
+  // first paramater is the relative humidity ticks
+  data[0] = rhticks;
+  // second paramater is the temperature ticks
+  data[1] = tempticks;
 
-  if (this->write(command, 8) != i2c::ERROR_OK) {
+  if (!this->write_command(SGP40_CMD_MEASURE_RAW, data, 2)) {
     this->status_set_warning();
-    ESP_LOGD(TAG, "write error");
-    return UINT16_MAX;
+    ESP_LOGD(TAG, "write error (%d)", this->last_error_);
+    return false;
   }
   delay(30);
-  uint16_t raw_data[1];
 
-  if (!this->read_data_(raw_data, 1)) {
+  uint16_t raw_data;
+  if (!this->read_data(raw_data)) {
     this->status_set_warning();
     ESP_LOGD(TAG, "read_data_ error");
     return UINT16_MAX;
   }
-  return raw_data[0];
-}
-
-uint8_t SGP40Component::generate_crc_(const uint8_t *data, uint8_t datalen) {
-  // calculates 8-Bit checksum with given polynomial
-  uint8_t crc = SGP40_CRC8_INIT;
-
-  for (uint8_t i = 0; i < datalen; i++) {
-    crc ^= data[i];
-    for (uint8_t b = 0; b < 8; b++) {
-      if (crc & 0x80) {
-        crc = (crc << 1) ^ SGP40_CRC8_POLYNOMIAL;
-      } else {
-        crc <<= 1;
-      }
-    }
-  }
-  return crc;
+  return raw_data;
 }
 
 void SGP40Component::update_voc_index() {
@@ -291,57 +268,6 @@ void SGP40Component::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Compensation: No source configured");
   }
-}
-
-bool SGP40Component::write_command_(uint16_t command) {
-  // Warning ugly, trick the I2Ccomponent base by setting register to the first 8 bit.
-  return this->write_byte(command >> 8, command & 0xFF);
-}
-
-uint8_t SGP40Component::sht_crc_(uint8_t data1, uint8_t data2) {
-  uint8_t bit;
-  uint8_t crc = 0xFF;
-
-  crc ^= data1;
-  for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80) {
-      crc = (crc << 1) ^ 0x131;
-    } else {
-      crc = (crc << 1);
-    }
-  }
-
-  crc ^= data2;
-  for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80) {
-      crc = (crc << 1) ^ 0x131;
-    } else {
-      crc = (crc << 1);
-    }
-  }
-
-  return crc;
-}
-
-bool SGP40Component::read_data_(uint16_t *data, uint8_t len) {
-  const uint8_t num_bytes = len * 3;
-  std::vector<uint8_t> buf(num_bytes);
-
-  if (this->read(buf.data(), num_bytes) != i2c::ERROR_OK) {
-    return false;
-  }
-
-  for (uint8_t i = 0; i < len; i++) {
-    const uint8_t j = 3 * i;
-    uint8_t crc = sht_crc_(buf[j], buf[j + 1]);
-    if (crc != buf[j + 2]) {
-      ESP_LOGE(TAG, "CRC8 Checksum invalid! 0x%02X != 0x%02X", buf[j + 2], crc);
-      return false;
-    }
-    data[i] = (buf[j] << 8) | buf[j + 1];
-  }
-
-  return true;
 }
 
 }  // namespace sgp40
