@@ -498,24 +498,23 @@ stm32_t *stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char in
   if (!stm) {
     return nullptr;
   }
+  stm->stream = stream;
+  stm->flags = flags;
 
   stm->cmd = static_cast<stm32_cmd_t *>(malloc(sizeof(stm32_cmd_t)));  // NOLINT
   if (!stm->cmd) {
     return nullptr;
   }
-
-  /* get the version and read protection status  */
-  if (stm32_send_command(stm.get(), STM32_CMD_GVR) != STM32_ERR_OK) {
-    return nullptr;  // NOLINT
-  }
-
   memset(stm->cmd, STM32_CMD_ERR, sizeof(stm32_cmd_t));
-  stm->stream = stream;
-  stm->flags = flags;
 
   if ((stm->flags & STREAM_OPT_CMD_INIT) && init) {
     if (stm32_send_init_seq(stm.get()) != STM32_ERR_OK)
       return nullptr;  // NOLINT
+  }
+
+  /* get the version and read protection status  */
+  if (stm32_send_command(stm.get(), STM32_CMD_GVR) != STM32_ERR_OK) {
+    return nullptr;  // NOLINT
   }
 
   /* From AN, only UART bootloader returns 3 bytes */
