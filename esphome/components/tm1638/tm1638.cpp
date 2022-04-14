@@ -167,7 +167,10 @@ void TM1638Component::set_intensity(uint8_t brightnessLevel) {
 /////////////// DISPLAY PRINT /////////////////
 
 uint8_t TM1638Component::print(uint8_t start_pos, const char *str) {
+
   uint8_t pos = start_pos;
+
+  bool lastWasDot = false;
 
   for (; *str != '\0'; str++) {
     uint8_t data;
@@ -176,17 +179,29 @@ uint8_t TM1638Component::print(uint8_t start_pos, const char *str) {
       data = progmem_read_byte(&TM1638Translation::SevenSeg[*str - 32]);  // subract 32 to account for ASCII offset
     }
 
-    if (*str == '.') {
-      if (pos != start_pos)
+
+    if (*str == '.')  //when we encounter a dot
+    {
+      if (pos != start_pos  && !lastWasDot)  //if we are not at the fist position, backup by one  (typical case)
+      {
         pos--;
-      this->buffer_[pos] |= 0b10000000;  // handles the decimal point or period
-    } else {
-      if (pos >= 8) {
+      }
+
+      this->buffer_[pos] |= 0b10000000;  // turn on the dot on the previous position
+
+      lastWasDot = true;
+    } else  // if not a dot, then write character to display
+    {
+      if (pos >= 8)
+      {
         ESP_LOGI(TAG, "TM1638 String is too long for the display!");
         break;
       }
       this->buffer_[pos] = data;
+      lastWasDot = false;
     }
+      //"123..5678");
+
     pos++;
   }
   return pos - start_pos;
