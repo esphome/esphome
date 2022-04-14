@@ -64,17 +64,17 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_ENERGY_1): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
-                accuracy_decimals=0,
+                accuracy_decimals=3,
                 device_class=DEVICE_CLASS_ENERGY,
             ),
             cv.Optional(CONF_ENERGY_2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
-                accuracy_decimals=0,
+                accuracy_decimals=3,
                 device_class=DEVICE_CLASS_ENERGY,
             ),
             cv.Optional(CONF_ENERGY_TOTAL): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
-                accuracy_decimals=0,
+                accuracy_decimals=3,
                 device_class=DEVICE_CLASS_ENERGY,
             ),
         }
