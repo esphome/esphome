@@ -173,8 +173,10 @@ void ENS210Component::update() {
     extract_measurement_(h_val_data, &humidity_data, &humidity_status);
 
     if (humidity_status == ENS210_STATUS_OK) {
-      float humidity = (humidity_data & 0xFFFF) / 512.0;
-      this->humidity_sensor_->publish_state(humidity);
+      if (this->humidity_sensor_ != nullptr) {
+        float humidity = (humidity_data & 0xFFFF) / 512.0;
+        this->humidity_sensor_->publish_state(humidity);
+      }
     } else {
       ESP_LOGW(TAG, "Humidity status failure: %s", LOG_STR_ARG(ens210_status_to_human(humidity_status)));
       this->status_set_warning();
@@ -186,9 +188,11 @@ void ENS210Component::update() {
     extract_measurement_(t_val_data, &temperature_data, &temperature_status);
 
     if (temperature_status == ENS210_STATUS_OK) {
-      // Temperature in Celsius
-      float temperature = (temperature_data & 0xFFFF) / 64.0 - 27315L / 100.0;
-      this->temperature_sensor_->publish_state(temperature);
+      if (this->temperature_sensor_ != nullptr) {
+        // Temperature in Celsius
+        float temperature = (temperature_data & 0xFFFF) / 64.0 - 27315L / 100.0;
+        this->temperature_sensor_->publish_state(temperature);
+      }
     } else {
       ESP_LOGW(TAG, "Temperature status failure: %s", LOG_STR_ARG(ens210_status_to_human(temperature_status)));
     }
