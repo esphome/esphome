@@ -179,18 +179,16 @@ uint8_t TM1638Component::print(uint8_t start_pos, const char *str) {
       data = progmem_read_byte(&TM1638Translation::SevenSeg[*str - 32]);  // subract 32 to account for ASCII offset
     }
 
-
-    if (*str == '.')  //when we encounter a dot
+    if (*str == '.')  //handle dots
     {
-      if (pos != start_pos  && !lastWasDot)  //if we are not at the fist position, backup by one  (typical case)
+      if (pos != start_pos && !lastWasDot)  //if we are not at the first position, backup by one unless last char was a dot
       {
         pos--;
       }
-
       this->buffer_[pos] |= 0b10000000;  // turn on the dot on the previous position
-
-      lastWasDot = true;
-    } else  // if not a dot, then write character to display
+      lastWasDot = true;   //set a bit in case the next chracter is also a dot
+    }
+    else  // if not a dot, then just write the character to display
     {
       if (pos >= 8)
       {
@@ -198,7 +196,7 @@ uint8_t TM1638Component::print(uint8_t start_pos, const char *str) {
         break;
       }
       this->buffer_[pos] = data;
-      lastWasDot = false;
+      lastWasDot = false;  //clear dot tracking bit
     }
       //"123..5678");
 
