@@ -82,7 +82,7 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
 
  private:
   void calculate_temperature_and_lux_(uint16_t r, uint16_t g, uint16_t b, uint16_t c);
-  uint16_t integration_reg_{TCS34725_INTEGRATION_TIME_AUTO};
+  uint16_t integration_reg_;
   uint8_t gain_reg_{TCS34725_GAIN_1X};
 };
 
