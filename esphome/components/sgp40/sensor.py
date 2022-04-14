@@ -57,7 +57,8 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     _LOGGER.warning(
-        "SGP40 is deprecated. Please the SGP4x platform instead. SGP4x supports both SPG40 and SGP41"
+        "SGP40 is deprecated. Please use the SGP4x platform instead. SGP4x supports both SPG40 and SGP41."
+        " See https://esphome.io/components/sensor/sgp4x.html"
     )
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
