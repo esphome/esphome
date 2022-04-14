@@ -174,10 +174,7 @@ esphome/components/select/* @esphome/core
 esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
 esphome/components/sgp40/* @SenexCrenshaw
-<<<<<<< HEAD
 esphome/components/sgp4x/* @SenexCrenshaw @martgras
-=======
->>>>>>> 93b628d9a856461e570b9e195f8dbd4c04346cde
 esphome/components/shelly_dimmer/* @edge90 @rnauber
 esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core @jsuanet
