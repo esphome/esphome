@@ -116,8 +116,8 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
   bool receiving_{false};
   uint8_t data_count_;
   uint32_t last_transmission_{0};
-  bool trigger_next;
-  uint8_t next_request;
+  bool trigger_next_;
+  uint8_t next_request_;
 };
 
 }  // namespace daly_bms
