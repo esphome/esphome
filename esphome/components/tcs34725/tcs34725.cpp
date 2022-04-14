@@ -310,7 +310,7 @@ void TCS34725Component::set_integration_time(TCS34725IntegrationTime integration
   // if an integration time is 0x100, this is auto start with 154ms as this gives best starting point
   TCS34725IntegrationTime my_integration_time_regval;
 
-  if (integration_time == 0x100) {
+  if (integration_time == TCS34725_INTEGRATION_TIME_AUTO) {
     this->integration_time_auto_ = true;
     this->integration_reg_ = TCS34725_INTEGRATION_TIME_154MS;
     my_integration_time_regval = TCS34725_INTEGRATION_TIME_154MS;
