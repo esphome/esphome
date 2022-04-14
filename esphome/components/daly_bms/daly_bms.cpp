@@ -20,7 +20,7 @@ static const uint8_t DALY_REQUEST_CELL_VOLTAGE = 0x95;
 static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
 void DalyBmsComponent::setup() {
-  next_request = 1;
+  next_request_ = 1;
 }
 
 void DalyBmsComponent::dump_config() {
@@ -29,8 +29,8 @@ void DalyBmsComponent::dump_config() {
 }
 
 void DalyBmsComponent::update() {
-  trigger_next = true;
-  next_request = 0;
+  trigger_next_ = true;
+  next_request_ = 0;
 }
 
 void DalyBmsComponent::loop() {
@@ -41,10 +41,10 @@ void DalyBmsComponent::loop() {
     data_.clear();
     receiving_ = false;
   }
-  if ((now - last_transmission_ >= 250) && !trigger_next) {
+  if ((now - last_transmission_ >= 250) && !trigger_next_) {
     //last transmittion loger than 0.25s ago -> trigger next request
     last_transmission_ = now;
-    trigger_next = true;
+    trigger_next_ = true;
   }
   if (available())
   last_transmission_ = now;
@@ -66,36 +66,36 @@ void DalyBmsComponent::loop() {
     }
   }
 
-  if (trigger_next){
-    trigger_next = false;
-    switch (next_request) {
+  if (trigger_next_){
+    trigger_next_ = false;
+    switch (next_request_) {
       case 0:
         this->request_data_(DALY_REQUEST_BATTERY_LEVEL);
-        next_request = 1;
+        next_request_ = 1;
         break;
       case 1:
         this->request_data_(DALY_REQUEST_MIN_MAX_VOLTAGE);
-        next_request = 2;
+        next_request_ = 2;
       break;
       case 2:
         this->request_data_(DALY_REQUEST_MIN_MAX_TEMPERATURE);
-        next_request = 3;
+        next_request_ = 3;
       break;
       case 3:
         this->request_data_(DALY_REQUEST_MOS);
-        next_request = 4;
+        next_request_ = 4;
       break;
       case 4:
         this->request_data_(DALY_REQUEST_STATUS);
-        next_request = 5;
+        next_request_ = 5;
       break;
       case 5:
         this->request_data_(DALY_REQUEST_CELL_VOLTAGE);
-        next_request = 6;
+        next_request_ = 6;
       break;
       case 6:
         this->request_data_(DALY_REQUEST_TEMPERATURE);
-        next_request = 7;
+        next_request_ = 7;
       break;
       case 7:
       default:
