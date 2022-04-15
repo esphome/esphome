@@ -29,7 +29,7 @@ class TM1638Component : public PollingComponent{
   void dump_config() override;
   void update() override;
   float get_setup_priority() const override;
-  void set_intensity(uint8_t brightnessLevel);
+  void set_intensity(uint8_t brightness_level);
   void display();
 
   void set_clk_pin(GPIOPin *pin) { this->clk_pin_ = pin; }
@@ -59,17 +59,17 @@ class TM1638Component : public PollingComponent{
   uint8_t strftime(const char *format, time::ESPTime time) __attribute__((format(strftime, 2, 0)));
 #endif
 
-  void set_led(int ledPos, bool ledOnOff);
+  void set_led(int led_pos, bool led_on_off);
 
  protected:
-  void set_7seg_(int segPos, uint8_t segBits);
-  void sendCommand(uint8_t value);
-  void sendCommandLeaveOpen(uint8_t value);
-  void sendCommands(uint8_t commands[], int numCommands);
-  void sendCommandSequence(uint8_t commands[], int numCommands, uint8_t startingAddress);
-  void shiftOut(uint8_t value);
-  void reset(bool onOff);
-  uint8_t shiftIn();
+  void set_7seg_(int seg_pos, uint8_t seg_bits);
+  void send_command_(uint8_t value);
+  void send_command_leave_open_(uint8_t value);
+  void send_commands_(uint8_t commands[], int num_commands);
+  void send_command_sequence_(uint8_t commands[], int num_commands, uint8_t starting_address);
+  void shift_out_(uint8_t value);
+  void reset_(bool on_off);
+  uint8_t shift_in_();
 
   // void GetTranslation(char *str);
 
