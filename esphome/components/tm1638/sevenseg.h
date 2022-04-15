@@ -1,3 +1,5 @@
+#pragma once
+
 namespace esphome {
 namespace tm1638 {
 namespace TM1638Translation {
