@@ -2,6 +2,7 @@
 
 #include <string>
 #include <cstdint>
+#include "Wstring.h"
 
 namespace esphome {
 
@@ -14,15 +15,16 @@ enum EntityCategory : uint8_t {
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
-  EntityBase() : EntityBase("") {}
-  explicit EntityBase(std::string name);
+  EntityBase() : EntityBase(F("")) {}
+  explicit EntityBase(const __FlashStringHelper *name);
 
   // Get/set the name of this Entity
-  const std::string &get_name() const;
-  void set_name(const std::string &name);
+  std::string get_name() const;
+  void set_name(const __FlashStringHelper *name);
 
-  // Get the sanitized name of this Entity as an ID. Caching it internally.
-  const std::string &get_object_id();
+  // Get/set the sanitized name of this Entity as an ID.
+  std::string get_object_id() const;
+  void set_object_id(const __FlashStringHelper *object_id);
 
   // Get the unique Object ID of this Entity
   uint32_t get_object_id_hash();
@@ -47,10 +49,9 @@ class EntityBase {
 
  protected:
   virtual uint32_t hash_base() = 0;
-  void calc_object_id_();
 
-  std::string name_;
-  std::string object_id_;
+  const __FlashStringHelper * name_;
+  const __FlashStringHelper * object_id_;
   std::string icon_;
   uint32_t object_id_hash_;
   bool internal_{false};

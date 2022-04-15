@@ -5,13 +5,14 @@ namespace esphome {
 
 static const char *const TAG = "entity_base";
 
-EntityBase::EntityBase(std::string name) : name_(std::move(name)) { this->calc_object_id_(); }
+EntityBase::EntityBase(const __FlashStringHelper *name) : name_(name) { }
 
 // Entity Name
-const std::string &EntityBase::get_name() const { return this->name_; }
-void EntityBase::set_name(const std::string &name) {
+std::string EntityBase::get_name() const { 
+  return String(this->name_).c_str();
+}
+void EntityBase::set_name(const __FlashStringHelper *name) {
   this->name_ = name;
-  this->calc_object_id_();
 }
 
 // Entity Internal
@@ -31,13 +32,12 @@ EntityCategory EntityBase::get_entity_category() const { return this->entity_cat
 void EntityBase::set_entity_category(EntityCategory entity_category) { this->entity_category_ = entity_category; }
 
 // Entity Object ID
-const std::string &EntityBase::get_object_id() { return this->object_id_; }
-
-// Calculate Object ID Hash from Entity Name
-void EntityBase::calc_object_id_() {
-  this->object_id_ = str_sanitize(str_snake_case(this->name_));
-  // FNV-1 hash
-  this->object_id_hash_ = fnv1_hash(this->object_id_);
+std::string EntityBase::get_object_id() const { 
+  return String(this->object_id_).c_str();
+}
+void EntityBase::set_object_id(const __FlashStringHelper *object_id) {
+  this->object_id_ = object_id;
+  this->object_id_hash_ = fnv1_hash(this->get_object_id());
 }
 uint32_t EntityBase::get_object_id_hash() { return this->object_id_hash_; }
 

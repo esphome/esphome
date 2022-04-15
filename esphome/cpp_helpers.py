@@ -14,12 +14,29 @@ from esphome.const import (
 # pylint: disable=unused-import
 from esphome.core import coroutine, ID, CORE
 from esphome.types import ConfigType
-from esphome.cpp_generator import add, get_variable
+from esphome.cpp_generator import add, get_variable, RawExpression, CallExpression
 from esphome.cpp_types import App
 from esphome.util import Registry, RegistryEntry
-
+import unicodedata
+import re
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def safe_name(value):
+    """
+    Convert to ASCII if 'allow_unicode' is False. Convert spaces or repeated
+    dashes to single underscores. Remove characters that aren't alphanumerics,
+    underscores, or hyphens. Convert to lowercase. Also strip leading and
+    trailing whitespace, dashes, and underscores.
+    """
+    value = (
+        unicodedata.normalize("NFKD", str(value))
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+    value = re.sub(r"[^\w\s-]", "", value.lower())
+    return re.sub(r"[_\s]+", "_", value).strip("-_")
 
 
 async def gpio_pin_expression(conf):
@@ -97,7 +114,12 @@ async def register_parented(var, value):
 
 async def setup_entity(var, config):
     """Set up generic properties of an Entity"""
-    add(var.set_name(config[CONF_NAME]))
+
+    F = lambda x: CallExpression(RawExpression("F"), x)
+
+    add(var.set_name(F(config[CONF_NAME])))
+    add(var.set_object_id(F(safe_name(config[CONF_NAME]))))
+
     add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
     if CONF_INTERNAL in config:
         add(var.set_internal(config[CONF_INTERNAL]))
