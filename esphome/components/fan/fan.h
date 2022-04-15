@@ -108,7 +108,7 @@ class Fan : public EntityBase {
  public:
   Fan();
   /// Construct the fan with name.
-  explicit Fan(const std::string &name);
+  explicit Fan(const __FlashStringHelper *name);
 
   /// The current on/off state of the fan.
   bool state{false};

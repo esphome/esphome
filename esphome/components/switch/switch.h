@@ -33,7 +33,7 @@ namespace switch_ {
 class Switch : public EntityBase {
  public:
   explicit Switch();
-  explicit Switch(const std::string &name);
+  explicit Switch(const __FlashStringHelper *name);
 
   /** Publish a state to the front-end from the back-end.
    *

@@ -8,7 +8,7 @@ static const char *const TAG = "entity_base";
 EntityBase::EntityBase(const __FlashStringHelper *name) : name_(name) { }
 
 // Entity Name
-std::string EntityBase::get_name() const { 
+std::string EntityBase::get_name() const {
   return String(this->name_).c_str();
 }
 void EntityBase::set_name(const __FlashStringHelper *name) {
@@ -32,7 +32,7 @@ EntityCategory EntityBase::get_entity_category() const { return this->entity_cat
 void EntityBase::set_entity_category(EntityCategory entity_category) { this->entity_category_ = entity_category; }
 
 // Entity Object ID
-std::string EntityBase::get_object_id() const { 
+std::string EntityBase::get_object_id() const {
   return String(this->object_id_).c_str();
 }
 void EntityBase::set_object_id(const __FlashStringHelper *object_id) {

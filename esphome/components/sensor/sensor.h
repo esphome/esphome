@@ -47,7 +47,7 @@ std::string state_class_to_string(StateClass state_class);
 class Sensor : public EntityBase {
  public:
   explicit Sensor();
-  explicit Sensor(const std::string &name);
+  explicit Sensor(const __FlashStringHelper *name);
 
   /// Get the unit of measurement, using the manual override if set.
   std::string get_unit_of_measurement();

@@ -22,7 +22,7 @@ namespace text_sensor {
 class TextSensor : public EntityBase {
  public:
   explicit TextSensor();
-  explicit TextSensor(const std::string &name);
+  explicit TextSensor(const __FlashStringHelper *name);
 
   /// Getter-syntax for .state.
   std::string get_state() const;

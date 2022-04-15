@@ -6,14 +6,14 @@ namespace text_sensor {
 
 static const char *const TAG = "text_sensor";
 
-TextSensor::TextSensor() : TextSensor("") {}
-TextSensor::TextSensor(const std::string &name) : EntityBase(name) {}
+TextSensor::TextSensor() : TextSensor(F("")) {}
+TextSensor::TextSensor(const __FlashStringHelper *name) : EntityBase(name) {}
 
 void TextSensor::publish_state(const std::string &state) {
   this->raw_state = state;
   this->raw_callback_.call(state);
 
-  ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), state.c_str());
+  ESP_LOGV(TAG, "'%s': Received new state %s", this->get_name(), state.c_str());
 
   if (this->filter_list_ == nullptr) {
     this->internal_send_state_to_frontend(state);
@@ -64,7 +64,7 @@ std::string TextSensor::get_raw_state() const { return this->raw_state; }
 void TextSensor::internal_send_state_to_frontend(const std::string &state) {
   this->state = state;
   this->has_state_ = true;
-  ESP_LOGD(TAG, "'%s': Sending state '%s'", this->name_.c_str(), state.c_str());
+  ESP_LOGD(TAG, "'%s': Sending state '%s'", this->get_name(), state.c_str());
   this->callback_.call(state);
 }
 

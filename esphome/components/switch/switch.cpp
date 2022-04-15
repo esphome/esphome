@@ -6,8 +6,8 @@ namespace switch_ {
 
 static const char *const TAG = "switch";
 
-Switch::Switch(const std::string &name) : EntityBase(name), state(false) {}
-Switch::Switch() : Switch("") {}
+Switch::Switch(const __FlashStringHelper *name) : EntityBase(name), state(false) {}
+Switch::Switch() : Switch(F("")) {}
 
 void Switch::turn_on() {
   ESP_LOGD(TAG, "'%s' Turning ON.", this->get_name().c_str());
@@ -34,7 +34,7 @@ void Switch::publish_state(bool state) {
   this->state = state != this->inverted_;
 
   this->rtc_.save(&this->state);
-  ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), ONOFF(this->state));
+  ESP_LOGD(TAG, "'%s': Sending state %s", this->get_name(), ONOFF(this->state));
   this->state_callback_.call(this->state);
 }
 bool Switch::assumed_state() { return false; }

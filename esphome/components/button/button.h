@@ -22,7 +22,7 @@ namespace button {
 class Button : public EntityBase {
  public:
   explicit Button();
-  explicit Button(const std::string &name);
+  explicit Button(const __FlashStringHelper *name);
 
   /** Press this button. This is called by the front-end.
    *

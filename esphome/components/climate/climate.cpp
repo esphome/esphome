@@ -446,10 +446,10 @@ void Climate::set_visual_temperature_step_override(float visual_temperature_step
 }
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-Climate::Climate(const std::string &name) : EntityBase(name) {}
+Climate::Climate(const __FlashStringHelper *name) : EntityBase(name) {}
 #pragma GCC diagnostic pop
 
-Climate::Climate() : Climate("") {}
+Climate::Climate() : Climate(F("")) {}
 ClimateCall Climate::make_call() { return ClimateCall(this); }
 
 ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {

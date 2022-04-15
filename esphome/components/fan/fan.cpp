@@ -94,7 +94,7 @@ void FanRestoreState::apply(Fan &fan) {
 }
 
 Fan::Fan() : EntityBase("") {}
-Fan::Fan(const std::string &name) : EntityBase(name) {}
+Fan::Fan(const __FlashStringHelper *name) : EntityBase(name) {}
 
 FanCall Fan::turn_on() { return this->make_call().set_state(true); }
 FanCall Fan::turn_off() { return this->make_call().set_state(false); }
