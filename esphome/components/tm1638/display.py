@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_CLK_PIN,
     CONF_DIO_PIN,
+    CONF_STB_PIN,
 )
 
 CODEOWNERS = ["@skykingjwc"]
@@ -18,7 +19,6 @@ tm1638_ns = cg.esphome_ns.namespace("tm1638")
 TM1638Component = tm1638_ns.class_("TM1638Component", cg.PollingComponent)
 TM1638ComponentRef = TM1638Component.operator("ref")
 
-CONF_STB_PIN = "stb_pin"
 
 CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
     {
