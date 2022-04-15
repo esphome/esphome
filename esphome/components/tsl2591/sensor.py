@@ -149,8 +149,7 @@ async def to_code(config):
         conf = config[CONF_CALCULATED_LUX]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_calculated_lux_sensor(sens))
-
-    cg.add(var.set_name(config[CONF_NAME]))
+        
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
     cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
     cg.add(var.set_gain(config[CONF_GAIN]))
