@@ -180,7 +180,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "number.inc",
+    "number.increment",
     NumberIncrementAction,
     cv.Schema(
         {
@@ -198,7 +198,7 @@ async def number_inc_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "number.tog",
+    "number.toggle",
     NumberToggleAction,
     cv.Schema(
         {
