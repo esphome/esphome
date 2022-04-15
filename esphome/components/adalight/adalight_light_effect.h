@@ -13,7 +13,6 @@ class AdalightLightEffect : public light::AddressableLightEffect, public uart::U
  public:
   AdalightLightEffect(const std::string &name);
 
- public:
   void start() override;
   void stop() override;
   void apply(light::AddressableLight &it, const Color &current_color) override;
@@ -25,12 +24,11 @@ class AdalightLightEffect : public light::AddressableLightEffect, public uart::U
     CONSUMED,
   };
 
-  int get_frame_size_(int led_count) const;
+  unsigned int get_frame_size_(int led_count) const;
   void reset_frame_(light::AddressableLight &it);
   void blank_all_leds_(light::AddressableLight &it);
   Frame parse_frame_(light::AddressableLight &it);
 
- protected:
   uint32_t last_ack_{0};
   uint32_t last_byte_{0};
   uint32_t last_reset_{0};

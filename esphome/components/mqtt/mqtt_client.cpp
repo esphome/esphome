@@ -27,21 +27,21 @@ MQTTClientComponent::MQTTClientComponent() {
 // Connection
 void MQTTClientComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MQTT...");
-  this->mqtt_client_.onMessage([this](char const *topic, char *payload, AsyncMqttClientMessageProperties properties,
-                                      size_t len, size_t index, size_t total) {
-    if (index == 0)
-      this->payload_buffer_.reserve(total);
+  this->mqtt_backend_.set_on_message(
+      [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
+        if (index == 0)
+          this->payload_buffer_.reserve(total);
 
-    // append new payload, may contain incomplete MQTT message
-    this->payload_buffer_.append(payload, len);
+        // append new payload, may contain incomplete MQTT message
+        this->payload_buffer_.append(payload, len);
 
-    // MQTT fully received
-    if (len + index == total) {
-      this->on_message(topic, this->payload_buffer_);
-      this->payload_buffer_.clear();
-    }
-  });
-  this->mqtt_client_.onDisconnect([this](AsyncMqttClientDisconnectReason reason) {
+        // MQTT fully received
+        if (len + index == total) {
+          this->on_message(topic, this->payload_buffer_);
+          this->payload_buffer_.clear();
+        }
+      });
+  this->mqtt_backend_.set_on_disconnect([this](MQTTClientDisconnectReason reason) {
     this->state_ = MQTT_CLIENT_DISCONNECTED;
     this->disconnect_reason_ = reason;
   });
@@ -49,8 +49,10 @@ void MQTTClientComponent::setup() {
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
     logger::global_logger->add_on_log_callback([this](int level, const char *tag, const char *message) {
       if (level <= this->log_level_ && this->is_connected()) {
-        this->publish(this->log_message_.topic, message, strlen(message), this->log_message_.qos,
-                      this->log_message_.retain);
+        this->publish({.topic = this->log_message_.topic,
+                       .payload = message,
+                       .qos = this->log_message_.qos,
+                       .retain = this->log_message_.retain});
       }
     });
   }
@@ -173,9 +175,9 @@ void MQTTClientComponent::start_connect_() {
 
   ESP_LOGI(TAG, "Connecting to MQTT...");
   // Force disconnect first
-  this->mqtt_client_.disconnect(true);
+  this->mqtt_backend_.disconnect();
 
-  this->mqtt_client_.setClientId(this->credentials_.client_id.c_str());
+  this->mqtt_backend_.set_client_id(this->credentials_.client_id.c_str());
   const char *username = nullptr;
   if (!this->credentials_.username.empty())
     username = this->credentials_.username.c_str();
@@ -183,24 +185,24 @@ void MQTTClientComponent::start_connect_() {
   if (!this->credentials_.password.empty())
     password = this->credentials_.password.c_str();
 
-  this->mqtt_client_.setCredentials(username, password);
+  this->mqtt_backend_.set_credentials(username, password);
 
-  this->mqtt_client_.setServer((uint32_t) this->ip_, this->credentials_.port);
+  this->mqtt_backend_.set_server((uint32_t) this->ip_, this->credentials_.port);
   if (!this->last_will_.topic.empty()) {
-    this->mqtt_client_.setWill(this->last_will_.topic.c_str(), this->last_will_.qos, this->last_will_.retain,
-                               this->last_will_.payload.c_str(), this->last_will_.payload.length());
+    this->mqtt_backend_.set_will(this->last_will_.topic.c_str(), this->last_will_.qos, this->last_will_.retain,
+                                 this->last_will_.payload.c_str());
   }
 
-  this->mqtt_client_.connect();
+  this->mqtt_backend_.connect();
   this->state_ = MQTT_CLIENT_CONNECTING;
   this->connect_begin_ = millis();
 }
 bool MQTTClientComponent::is_connected() {
-  return this->state_ == MQTT_CLIENT_CONNECTED && this->mqtt_client_.connected();
+  return this->state_ == MQTT_CLIENT_CONNECTED && this->mqtt_backend_.connected();
 }
 
 void MQTTClientComponent::check_connected() {
-  if (!this->mqtt_client_.connected()) {
+  if (!this->mqtt_backend_.connected()) {
     if (millis() - this->connect_begin_ > 60000) {
       this->state_ = MQTT_CLIENT_DISCONNECTED;
       this->start_dnslookup_();
@@ -222,31 +224,34 @@ void MQTTClientComponent::check_connected() {
 }
 
 void MQTTClientComponent::loop() {
+  // Call the backend loop first
+  mqtt_backend_.loop();
+
   if (this->disconnect_reason_.has_value()) {
     const LogString *reason_s;
     switch (*this->disconnect_reason_) {
-      case AsyncMqttClientDisconnectReason::TCP_DISCONNECTED:
+      case MQTTClientDisconnectReason::TCP_DISCONNECTED:
         reason_s = LOG_STR("TCP disconnected");
         break;
-      case AsyncMqttClientDisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
+      case MQTTClientDisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
         reason_s = LOG_STR("Unacceptable Protocol Version");
         break;
-      case AsyncMqttClientDisconnectReason::MQTT_IDENTIFIER_REJECTED:
+      case MQTTClientDisconnectReason::MQTT_IDENTIFIER_REJECTED:
         reason_s = LOG_STR("Identifier Rejected");
         break;
-      case AsyncMqttClientDisconnectReason::MQTT_SERVER_UNAVAILABLE:
+      case MQTTClientDisconnectReason::MQTT_SERVER_UNAVAILABLE:
         reason_s = LOG_STR("Server Unavailable");
         break;
-      case AsyncMqttClientDisconnectReason::MQTT_MALFORMED_CREDENTIALS:
+      case MQTTClientDisconnectReason::MQTT_MALFORMED_CREDENTIALS:
         reason_s = LOG_STR("Malformed Credentials");
         break;
-      case AsyncMqttClientDisconnectReason::MQTT_NOT_AUTHORIZED:
+      case MQTTClientDisconnectReason::MQTT_NOT_AUTHORIZED:
         reason_s = LOG_STR("Not Authorized");
         break;
-      case AsyncMqttClientDisconnectReason::ESP8266_NOT_ENOUGH_SPACE:
+      case MQTTClientDisconnectReason::ESP8266_NOT_ENOUGH_SPACE:
         reason_s = LOG_STR("Not Enough Space");
         break;
-      case AsyncMqttClientDisconnectReason::TLS_BAD_FINGERPRINT:
+      case MQTTClientDisconnectReason::TLS_BAD_FINGERPRINT:
         reason_s = LOG_STR("TLS Bad Fingerprint");
         break;
       default:
@@ -275,7 +280,7 @@ void MQTTClientComponent::loop() {
       this->check_connected();
       break;
     case MQTT_CLIENT_CONNECTED:
-      if (!this->mqtt_client_.connected()) {
+      if (!this->mqtt_backend_.connected()) {
         this->state_ = MQTT_CLIENT_DISCONNECTED;
         ESP_LOGW(TAG, "Lost MQTT Client connection!");
         this->start_dnslookup_();
@@ -302,10 +307,10 @@ bool MQTTClientComponent::subscribe_(const char *topic, uint8_t qos) {
   if (!this->is_connected())
     return false;
 
-  uint16_t ret = this->mqtt_client_.subscribe(topic, qos);
+  bool ret = this->mqtt_backend_.subscribe(topic, qos);
   yield();
 
-  if (ret != 0) {
+  if (ret) {
     ESP_LOGV(TAG, "subscribe(topic='%s')", topic);
   } else {
     delay(5);
@@ -346,7 +351,7 @@ void MQTTClientComponent::subscribe(const std::string &topic, mqtt_callback_t ca
 
 void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
   auto f = [callback](const std::string &topic, const std::string &payload) {
-    json::parse_json(payload, [topic, callback](JsonObject &root) { callback(topic, root); });
+    json::parse_json(payload, [topic, callback](JsonObject root) { callback(topic, root); });
   };
   MQTTSubscription subscription{
       .topic = topic,
@@ -360,9 +365,9 @@ void MQTTClientComponent::subscribe_json(const std::string &topic, const mqtt_js
 }
 
 void MQTTClientComponent::unsubscribe(const std::string &topic) {
-  uint16_t ret = this->mqtt_client_.unsubscribe(topic.c_str());
+  bool ret = this->mqtt_backend_.unsubscribe(topic.c_str());
   yield();
-  if (ret != 0) {
+  if (ret) {
     ESP_LOGV(TAG, "unsubscribe(topic='%s')", topic.c_str());
   } else {
     delay(5);
@@ -372,10 +377,11 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
 
   auto it = subscriptions_.begin();
   while (it != subscriptions_.end()) {
-    if (it->topic == topic)
+    if (it->topic == topic) {
       it = subscriptions_.erase(it);
-    else
+    } else {
       ++it;
+    }
   }
 }
 
@@ -386,39 +392,39 @@ bool MQTTClientComponent::publish(const std::string &topic, const std::string &p
 
 bool MQTTClientComponent::publish(const std::string &topic, const char *payload, size_t payload_length, uint8_t qos,
                                   bool retain) {
+  return publish({.topic = topic, .payload = payload, .qos = qos, .retain = retain});
+}
+
+bool MQTTClientComponent::publish(const MQTTMessage &message) {
   if (!this->is_connected()) {
     // critical components will re-transmit their messages
     return false;
   }
-  bool logging_topic = topic == this->log_message_.topic;
-  uint16_t ret = this->mqtt_client_.publish(topic.c_str(), qos, retain, payload, payload_length);
+  bool logging_topic = this->log_message_.topic == message.topic;
+  bool ret = this->mqtt_backend_.publish(message);
   delay(0);
-  if (ret == 0 && !logging_topic && this->is_connected()) {
+  if (!ret && !logging_topic && this->is_connected()) {
     delay(0);
-    ret = this->mqtt_client_.publish(topic.c_str(), qos, retain, payload, payload_length);
+    ret = this->mqtt_backend_.publish(message);
     delay(0);
   }
 
   if (!logging_topic) {
-    if (ret != 0) {
-      ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d)", topic.c_str(), payload, retain);
+    if (ret) {
+      ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d)", message.topic.c_str(), message.payload.c_str(),
+               message.retain);
     } else {
-      ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). will retry later..", topic.c_str(),
-               payload_length);  // NOLINT
+      ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). will retry later..", message.topic.c_str(),
+               message.payload.length());
       this->status_momentary_warning("publish", 1000);
     }
   }
   return ret != 0;
 }
-
-bool MQTTClientComponent::publish(const MQTTMessage &message) {
-  return this->publish(message.topic, message.payload, message.qos, message.retain);
-}
 bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos,
                                        bool retain) {
-  size_t len;
-  const char *message = json::build_json(f, &len);
-  return this->publish(topic, message, len, qos, retain);
+  std::string message = json::build_json(f);
+  return this->publish(topic, message, qos, retain);
 }
 
 /** Check if the message topic matches the given subscription topic
@@ -484,9 +490,10 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
   // in an ISR.
   this->defer([this, topic, payload]() {
 #endif
-    for (auto &subscription : this->subscriptions_)
+    for (auto &subscription : this->subscriptions_) {
       if (topic_match(topic.c_str(), subscription.topic.c_str()))
         subscription.callback(topic, payload);
+    }
 #ifdef USE_ESP8266
   });
 #endif
@@ -498,10 +505,10 @@ bool MQTTClientComponent::is_log_message_enabled() const { return !this->log_mes
 void MQTTClientComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 void MQTTClientComponent::register_mqtt_component(MQTTComponent *component) { this->children_.push_back(component); }
 void MQTTClientComponent::set_log_level(int level) { this->log_level_ = level; }
-void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_client_.setKeepAlive(keep_alive_s); }
+void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_backend_.set_keep_alive(keep_alive_s); }
 void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
-void MQTTClientComponent::set_topic_prefix(std::string topic_prefix) { this->topic_prefix_ = std::move(topic_prefix); }
+void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix) { this->topic_prefix_ = topic_prefix; }
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
 void MQTTClientComponent::disable_birth_message() {
   this->birth_message_.topic = "";
@@ -536,9 +543,11 @@ void MQTTClientComponent::set_birth_message(MQTTMessage &&message) {
 void MQTTClientComponent::set_shutdown_message(MQTTMessage &&message) { this->shutdown_message_ = std::move(message); }
 
 void MQTTClientComponent::set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
-                                             bool retain, bool clean) {
+                                             MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain,
+                                             bool clean) {
   this->discovery_info_.prefix = std::move(prefix);
   this->discovery_info_.unique_id_generator = unique_id_generator;
+  this->discovery_info_.object_id_generator = object_id_generator;
   this->discovery_info_.retain = retain;
   this->discovery_info_.clean = clean;
 }
@@ -546,7 +555,13 @@ void MQTTClientComponent::set_discovery_info(std::string &&prefix, MQTTDiscovery
 void MQTTClientComponent::disable_last_will() { this->last_will_.topic = ""; }
 
 void MQTTClientComponent::disable_discovery() {
-  this->discovery_info_ = MQTTDiscoveryInfo{.prefix = "", .retain = false};
+  this->discovery_info_ = MQTTDiscoveryInfo{
+      .prefix = "",
+      .retain = false,
+      .clean = false,
+      .unique_id_generator = MQTT_LEGACY_UNIQUE_ID_GENERATOR,
+      .object_id_generator = MQTT_NONE_OBJECT_ID_GENERATOR,
+  };
 }
 void MQTTClientComponent::on_shutdown() {
   if (!this->shutdown_message_.topic.empty()) {
@@ -554,13 +569,13 @@ void MQTTClientComponent::on_shutdown() {
     this->publish(this->shutdown_message_);
     yield();
   }
-  this->mqtt_client_.disconnect(true);
+  this->mqtt_backend_.disconnect();
 }
 
 #if ASYNC_TCP_SSL_ENABLED
 void MQTTClientComponent::add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint) {
-  this->mqtt_client_.setSecure(true);
-  this->mqtt_client_.addServerFingerprint(fingerprint.data());
+  this->mqtt_backend_.setSecure(true);
+  this->mqtt_backend_.addServerFingerprint(fingerprint.data());
 }
 #endif
 

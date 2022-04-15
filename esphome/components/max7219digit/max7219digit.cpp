@@ -76,7 +76,7 @@ void MAX7219Component::loop() {
     this->stepsleft_ = 0;
 
   // Return if there is no need to scroll or scroll is off
-  if (!this->scroll_ || (this->max_displaybuffer_[0].size() <= get_width_internal())) {
+  if (!this->scroll_ || (this->max_displaybuffer_[0].size() <= (size_t) get_width_internal())) {
     this->display();
     return;
   }
@@ -88,7 +88,7 @@ void MAX7219Component::loop() {
 
   // Dwell time at end of string in case of stop at end
   if (this->scroll_mode_ == ScrollMode::STOP) {
-    if (this->stepsleft_ >= this->max_displaybuffer_[0].size() - get_width_internal() + 1) {
+    if (this->stepsleft_ >= this->max_displaybuffer_[0].size() - (size_t) get_width_internal() + 1) {
       if (now - this->last_scroll_ >= this->scroll_dwell_) {
         this->stepsleft_ = 0;
         this->last_scroll_ = now;
@@ -155,7 +155,7 @@ int MAX7219Component::get_height_internal() {
 int MAX7219Component::get_width_internal() { return this->num_chips_ / this->num_chip_lines_ * 8; }
 
 void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, Color color) {
-  if (x + 1 > this->max_displaybuffer_[0].size()) {  // Extend the display buffer in case required
+  if (x + 1 > (int) this->max_displaybuffer_[0].size()) {  // Extend the display buffer in case required
     for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
       this->max_displaybuffer_[chip_line].resize(x + 1, this->bckgrnd_);
     }
@@ -253,10 +253,11 @@ void MAX7219Component::send_char(uint8_t chip, uint8_t data) {
 void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
   for (uint8_t col = 0; col < 8; col++) {  // RUN THIS LOOP 8 times until column is 7
     this->enable();                        // start sending by enabling SPI
-    for (uint8_t i = 0; i < chip; i++)     // send extra NOPs to push the pixels out to extra displays
+    for (uint8_t i = 0; i < chip; i++) {   // send extra NOPs to push the pixels out to extra displays
       this->send_byte_(MAX7219_REGISTER_NOOP,
                        MAX7219_REGISTER_NOOP);  // run this loop unit the matching chip is reached
-    uint8_t b = 0;                              // rotate pixels 90 degrees -- set byte to 0
+    }
+    uint8_t b = 0;  // rotate pixels 90 degrees -- set byte to 0
     if (this->orientation_ == 0) {
       for (uint8_t i = 0; i < 8; i++) {
         // run this loop 8 times for all the pixels[8] received

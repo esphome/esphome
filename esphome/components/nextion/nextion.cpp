@@ -64,7 +64,7 @@ bool Nextion::check_connect_() {
   if (response.empty() || response.find("comok") == std::string::npos) {
 #ifdef NEXTION_PROTOCOL_LOG
     ESP_LOGN(TAG, "Bad connect request %s", response.c_str());
-    for (int i = 0; i < response.length(); i++) {
+    for (size_t i = 0; i < response.length(); i++) {
       ESP_LOGN(TAG, "response %s %d %d %c", response.c_str(), i, response[i], response[i]);
     }
 #endif
@@ -329,6 +329,7 @@ void Nextion::process_nextion_commands_() {
 
         break;
       case 0x02:  // invalid Component ID or name was used
+        ESP_LOGW(TAG, "Nextion reported component ID or name invalid!");
         this->remove_from_q_();
         break;
       case 0x03:  // invalid Page ID or name was used
@@ -387,6 +388,7 @@ void Nextion::process_nextion_commands_() {
         }
         break;
       case 0x1A:  // variable name invalid
+        ESP_LOGW(TAG, "Nextion reported variable name invalid!");
         this->remove_from_q_();
 
         break;
@@ -563,11 +565,10 @@ void Nextion::process_nextion_commands_() {
       // FF FF FF - End
       case 0x90: {  // Switched component
         std::string variable_name;
-        uint8_t index = 0;
 
         // Get variable name
-        index = to_process.find('\0');
-        if (static_cast<char>(index) == std::string::npos || (to_process_length - index - 1) < 1) {
+        auto index = to_process.find('\0');
+        if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad switch component data received for 0x90 event!");
           ESP_LOGN(TAG, "to_process %s %zu %d", to_process.c_str(), to_process_length, index);
           break;
@@ -591,10 +592,9 @@ void Nextion::process_nextion_commands_() {
       // FF FF FF - End
       case 0x91: {  // Sensor component
         std::string variable_name;
-        uint8_t index = 0;
 
-        index = to_process.find('\0');
-        if (static_cast<char>(index) == std::string::npos || (to_process_length - index - 1) != 4) {
+        auto index = to_process.find('\0');
+        if (index == std::string::npos || (to_process_length - index - 1) != 4) {
           ESP_LOGE(TAG, "Bad sensor component data received for 0x91 event!");
           ESP_LOGN(TAG, "to_process %s %zu %d", to_process.c_str(), to_process_length, index);
           break;
@@ -626,11 +626,10 @@ void Nextion::process_nextion_commands_() {
       case 0x92: {  // Text Sensor Component
         std::string variable_name;
         std::string text_value;
-        uint8_t index = 0;
 
         // Get variable name
-        index = to_process.find('\0');
-        if (static_cast<char>(index) == std::string::npos || (to_process_length - index - 1) < 1) {
+        auto index = to_process.find('\0');
+        if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad text sensor component data received for 0x92 event!");
           ESP_LOGN(TAG, "to_process %s %zu %d", to_process.c_str(), to_process_length, index);
           break;
@@ -660,11 +659,10 @@ void Nextion::process_nextion_commands_() {
       // FF FF FF - End
       case 0x93: {  // Binary Sensor component
         std::string variable_name;
-        uint8_t index = 0;
 
         // Get variable name
-        index = to_process.find('\0');
-        if (static_cast<char>(index) == std::string::npos || (to_process_length - index - 1) < 1) {
+        auto index = to_process.find('\0');
+        if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad binary sensor component data received for 0x92 event!");
           ESP_LOGN(TAG, "to_process %s %zu %d", to_process.c_str(), to_process_length, index);
           break;
@@ -690,7 +688,7 @@ void Nextion::process_nextion_commands_() {
         int index = 0;
         int found = -1;
         for (auto &nb : this->nextion_queue_) {
-          auto component = nb->component;
+          auto *component = nb->component;
           if (component->get_queue_type() == NextionQueueType::WAVEFORM_SENSOR) {
             size_t buffer_to_send = component->get_wave_buffer().size() < 255 ? component->get_wave_buffer().size()
                                                                               : 255;  // ADDT command can only send 255
@@ -736,12 +734,13 @@ void Nextion::process_nextion_commands_() {
   uint32_t ms = millis();
 
   if (!this->nextion_queue_.empty() && this->nextion_queue_.front()->queue_time + this->max_q_age_ms_ < ms) {
-    for (int i = 0; i < this->nextion_queue_.size(); i++) {
+    for (size_t i = 0; i < this->nextion_queue_.size(); i++) {
       NextionComponentBase *component = this->nextion_queue_[i]->component;
       if (this->nextion_queue_[i]->queue_time + this->max_q_age_ms_ < ms) {
-        if (this->nextion_queue_[i]->queue_time == 0)
+        if (this->nextion_queue_[i]->queue_time == 0) {
           ESP_LOGD(TAG, "Removing old queue type \"%s\" name \"%s\" queue_time 0",
                    component->get_queue_type_string().c_str(), component->get_variable_name().c_str());
+        }
 
         if (component->get_variable_name() == "sleep_wake") {
           this->is_sleeping_ = false;
@@ -875,9 +874,9 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
 
   while ((timeout == 0 && this->available()) || millis() - start <= timeout) {
     this->read_byte(&c);
-    if (c == 0xFF)
+    if (c == 0xFF) {
       nr_of_ff_bytes++;
-    else {
+    } else {
       nr_of_ff_bytes = 0;
       ff_flag = false;
     }

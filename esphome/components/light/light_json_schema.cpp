@@ -8,7 +8,7 @@ namespace light {
 
 // See https://www.home-assistant.io/integrations/light.mqtt/#json-schema for documentation on the schema
 
-void LightJSONSchema::dump_json(LightState &state, JsonObject &root) {
+void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
   if (state.supports_effects())
     root["effect"] = state.get_effect_name();
 
@@ -52,7 +52,7 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject &root) {
   if (values.get_color_mode() & ColorCapability::BRIGHTNESS)
     root["brightness"] = uint8_t(values.get_brightness() * 255);
 
-  JsonObject &color = root.createNestedObject("color");
+  JsonObject color = root.createNestedObject("color");
   if (values.get_color_mode() & ColorCapability::RGB) {
     color["r"] = uint8_t(values.get_color_brightness() * values.get_red() * 255);
     color["g"] = uint8_t(values.get_color_brightness() * values.get_green() * 255);
@@ -72,7 +72,7 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject &root) {
   }
 }
 
-void LightJSONSchema::parse_color_json(LightState &state, LightCall &call, JsonObject &root) {
+void LightJSONSchema::parse_color_json(LightState &state, LightCall &call, JsonObject root) {
   if (root.containsKey("state")) {
     auto val = parse_on_off(root["state"]);
     switch (val) {
@@ -95,7 +95,7 @@ void LightJSONSchema::parse_color_json(LightState &state, LightCall &call, JsonO
   }
 
   if (root.containsKey("color")) {
-    JsonObject &color = root["color"];
+    JsonObject color = root["color"];
     // HA also encodes brightness information in the r, g, b values, so extract that and set it as color brightness.
     float max_rgb = 0.0f;
     if (color.containsKey("r")) {
@@ -140,7 +140,7 @@ void LightJSONSchema::parse_color_json(LightState &state, LightCall &call, JsonO
   }
 }
 
-void LightJSONSchema::parse_json(LightState &state, LightCall &call, JsonObject &root) {
+void LightJSONSchema::parse_json(LightState &state, LightCall &call, JsonObject root) {
   LightJSONSchema::parse_color_json(state, call, root);
 
   if (root.containsKey("flash")) {

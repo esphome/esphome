@@ -70,7 +70,7 @@ def add_definition_array_or_single_object(ref):
 def add_core():
     from esphome.core.config import CONFIG_SCHEMA
 
-    base_props["esphome"] = get_jschema("esphome", CONFIG_SCHEMA.schema)
+    base_props["esphome"] = get_jschema("esphome", CONFIG_SCHEMA)
 
 
 def add_buses():
@@ -170,7 +170,7 @@ def get_logger_tags():
     ]
     for x in os.walk(CORE_COMPONENTS_PATH):
         for y in glob.glob(os.path.join(x[0], "*.cpp")):
-            with open(y, "r") as file:
+            with open(y) as file:
                 data = file.read()
                 match = pattern.search(data)
                 if match:
@@ -216,7 +216,7 @@ def add_components():
             add_module_registries(domain, c.module)
             add_module_schemas(domain, c.module)
 
-            # need first to iterate all platforms then iteate components
+            # need first to iterate all platforms then iterate components
             # a platform component can have other components as properties,
             # e.g. climate components usually have a temperature sensor
 
@@ -325,7 +325,9 @@ def get_entry(parent_key, vschema):
     if DUMP_COMMENTS:
         entry[JSC_COMMENT] = "entry: " + parent_key + "/" + str(vschema)
 
-    if isinstance(vschema, list):
+    if isinstance(vschema, dict):
+        entry = {"what": "is_this"}
+    elif isinstance(vschema, list):
         ref = get_jschema(parent_key + "[]", vschema[0])
         entry = {"type": "array", "items": ref}
     elif isinstance(vschema, schema_type) and hasattr(vschema, "schema"):
@@ -387,8 +389,10 @@ def get_entry(parent_key, vschema):
 
             v = vschema(None)
             if isinstance(v, ID):
-                if v.type.base != "script::Script" and (
-                    v.type.inherits_from(Trigger) or v.type == Automation
+                if (
+                    v.type.base != "script::Script"
+                    and v.type.base != "switch_::Switch"
+                    and (v.type.inherits_from(Trigger) or v.type == Automation)
                 ):
                     return None
                 entry = {"type": "string", "id_type": v.type.base}
@@ -410,6 +414,8 @@ def default_schema():
 
 
 def is_default_schema(jschema):
+    if jschema is None:
+        return False
     if is_ref(jschema):
         jschema = unref(jschema)
         if not jschema:
@@ -424,6 +430,9 @@ def get_jschema(path, vschema, create_return_ref=True):
         return get_ref(name)
 
     jschema = convert_schema(path, vschema)
+
+    if jschema is None:
+        return None
 
     if is_ref(jschema):
         # this can happen when returned extended
@@ -450,6 +459,9 @@ def get_schema_str(vschema):
 
 
 def create_ref(name, vschema, jschema):
+    if jschema is None:
+        raise ValueError("Cannot create a ref with null jschema for " + name)
+
     if name in schema_names:
         raise ValueError("Not supported")
 
@@ -523,6 +535,15 @@ def convert_schema(path, vschema, un_extend=True):
         extended = ejs.extended_schemas.get(str(vschema))
         if extended:
             lhs = get_jschema(path, extended[0], False)
+
+            # The midea actions are extending an empty schema (resulted in the templatize not templatizing anything)
+            # this causes a recursion in that this extended looks the same in extended schema as the extended[1]
+            if ejs.extended_schemas.get(str(vschema)) == ejs.extended_schemas.get(
+                str(extended[1])
+            ):
+                assert path.startswith("midea_ac")
+                return convert_schema(path, extended[1], False)
+
             rhs = get_jschema(path, extended[1], False)
 
             # check if we are not merging properties which are already in base component
@@ -567,6 +588,8 @@ def convert_schema(path, vschema, un_extend=True):
                 # we should take the valid schema,
                 # commonly all is used to validate a schema, and then a function which
                 # is not a schema es also given, get_schema will then return a default_schema()
+                if v == dict:
+                    continue  # this is a dict in the SCHEMA of packages
                 val_schema = get_jschema(path, v, False)
                 if is_default_schema(val_schema):
                     if not output:
@@ -673,6 +696,11 @@ def add_pin_registry():
 
     for mode in ("INPUT", "OUTPUT"):
         schema_name = f"PIN.GPIO_FULL_{mode}_PIN_SCHEMA"
+
+        # TODO: get pin definitions properly
+        if schema_name not in definitions:
+            definitions[schema_name] = {"type": ["object", "null"], JSC_PROPERTIES: {}}
+
         internal = definitions[schema_name]
         definitions[schema_name]["additionalItems"] = False
         definitions[f"PIN.{mode}_INTERNAL"] = internal
@@ -683,12 +711,11 @@ def add_pin_registry():
         definitions[schema_name] = {"oneOf": schemas, "type": ["string", "object"]}
 
         for k, v in pin_registry.items():
-            pin_jschema = get_jschema(
-                f"PIN.{mode}_" + k, v[1][0 if mode == "OUTPUT" else 1]
-            )
-            if unref(pin_jschema):
-                pin_jschema["required"] = [k]
-                schemas.append(pin_jschema)
+            if isinstance(v[1], vol.validators.All):
+                pin_jschema = get_jschema(f"PIN.{mode}_" + k, v[1])
+                if unref(pin_jschema):
+                    pin_jschema["required"] = [k]
+                    schemas.append(pin_jschema)
 
 
 def dump_schema():
@@ -730,9 +757,9 @@ def dump_schema():
         cv.valid_name,
         cv.hex_int,
         cv.hex_int_range,
-        pins.output_pin,
-        pins.input_pin,
-        pins.input_pullup_pin,
+        pins.gpio_output_pin_schema,
+        pins.gpio_input_pin_schema,
+        pins.gpio_input_pullup_pin_schema,
         cv.float_with_unit,
         cv.subscribe_topic,
         cv.publish_topic,
@@ -753,12 +780,12 @@ def dump_schema():
 
     for v in [pins.gpio_input_pin_schema, pins.gpio_input_pullup_pin_schema]:
         schema_registry[v] = get_ref("PIN.GPIO_FULL_INPUT_PIN_SCHEMA")
-    for v in [pins.internal_gpio_input_pin_schema, pins.input_pin]:
+    for v in [pins.internal_gpio_input_pin_schema, pins.gpio_input_pin_schema]:
         schema_registry[v] = get_ref("PIN.INPUT_INTERNAL")
 
     for v in [pins.gpio_output_pin_schema, pins.internal_gpio_output_pin_schema]:
         schema_registry[v] = get_ref("PIN.GPIO_FULL_OUTPUT_PIN_SCHEMA")
-    for v in [pins.internal_gpio_output_pin_schema, pins.output_pin]:
+    for v in [pins.internal_gpio_output_pin_schema, pins.gpio_output_pin_schema]:
         schema_registry[v] = get_ref("PIN.OUTPUT_INTERNAL")
 
     add_module_schemas("CONFIG", cv)

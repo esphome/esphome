@@ -35,7 +35,6 @@ void MCP23S08::dump_config() {
 }
 
 bool MCP23S08::read_reg(uint8_t reg, uint8_t *value) {
-  uint8_t data;
   this->enable();
   this->transfer_byte(this->device_opcode_ | 1);
   this->transfer_byte(reg);

@@ -17,11 +17,11 @@ PROJECT_EMAIL = "esphome@nabucasa.com"
 PROJECT_GITHUB_USERNAME = "esphome"
 PROJECT_GITHUB_REPOSITORY = "esphome"
 
-PYPI_URL = "https://pypi.python.org/pypi/{}".format(PROJECT_PACKAGE_NAME)
-GITHUB_PATH = "{}/{}".format(PROJECT_GITHUB_USERNAME, PROJECT_GITHUB_REPOSITORY)
-GITHUB_URL = "https://github.com/{}".format(GITHUB_PATH)
+PYPI_URL = f"https://pypi.python.org/pypi/{PROJECT_PACKAGE_NAME}"
+GITHUB_PATH = f"{PROJECT_GITHUB_USERNAME}/{PROJECT_GITHUB_REPOSITORY}"
+GITHUB_URL = f"https://github.com/{GITHUB_PATH}"
 
-DOWNLOAD_URL = "{}/archive/{}.zip".format(GITHUB_URL, const.__version__)
+DOWNLOAD_URL = f"{GITHUB_URL}/archive/{const.__version__}.zip"
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -74,7 +74,7 @@ setup(
     zip_safe=False,
     platforms="any",
     test_suite="tests",
-    python_requires=">=3.7,<4.0",
+    python_requires=">=3.8,<4.0",
     install_requires=REQUIRES,
     keywords=["home", "automation"],
     entry_points={"console_scripts": ["esphome = esphome.__main__:main"]},

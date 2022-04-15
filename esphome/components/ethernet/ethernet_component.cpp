@@ -184,7 +184,9 @@ void EthernetComponent::start_connect_() {
   }
 
   err = tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_ETH);
-  ESPHL_ERROR_CHECK(err, "DHCPC stop error");
+  if (err != ESP_ERR_TCPIP_ADAPTER_DHCP_ALREADY_STOPPED) {
+    ESPHL_ERROR_CHECK(err, "DHCPC stop error");
+  }
   err = tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_ETH, &info);
   ESPHL_ERROR_CHECK(err, "DHCPC set IP info error");
 

@@ -9,7 +9,11 @@
 #include "esphome/core/log.h"
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/ip_address.h"
-#include <AsyncMqttClient.h>
+#if defined(USE_ESP_IDF)
+#include "mqtt_backend_idf.h"
+#elif defined(USE_ARDUINO)
+#include "mqtt_backend_arduino.h"
+#endif
 #include "lwip/ip_addr.h"
 
 namespace esphome {
@@ -20,15 +24,7 @@ namespace mqtt {
  * First parameter is the topic, the second one is the payload.
  */
 using mqtt_callback_t = std::function<void(const std::string &, const std::string &)>;
-using mqtt_json_callback_t = std::function<void(const std::string &, JsonObject &)>;
-
-/// internal struct for MQTT messages.
-struct MQTTMessage {
-  std::string topic;
-  std::string payload;
-  uint8_t qos;  ///< QoS. Only for last will testaments.
-  bool retain;
-};
+using mqtt_json_callback_t = std::function<void(const std::string &, JsonObject)>;
 
 /// internal struct for MQTT subscriptions.
 struct MQTTSubscription {
@@ -61,6 +57,12 @@ enum MQTTDiscoveryUniqueIdGenerator {
   MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR,
 };
 
+/// available discovery object_id generators
+enum MQTTDiscoveryObjectIdGenerator {
+  MQTT_NONE_OBJECT_ID_GENERATOR = 0,
+  MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR,
+};
+
 /** Internal struct for MQTT Home Assistant discovery
  *
  * See <a href="https://www.home-assistant.io/docs/mqtt/discovery/">MQTT Discovery</a>.
@@ -70,6 +72,7 @@ struct MQTTDiscoveryInfo {
   bool retain;         ///< Whether to retain discovery messages.
   bool clean;
   MQTTDiscoveryUniqueIdGenerator unique_id_generator;
+  MQTTDiscoveryObjectIdGenerator object_id_generator;
 };
 
 enum MQTTClientState {
@@ -106,10 +109,11 @@ class MQTTClientComponent : public Component {
    * See <a href="https://www.home-assistant.io/docs/mqtt/discovery/">MQTT Discovery</a>.
    * @param prefix The Home Assistant discovery prefix.
    * @param unique_id_generator Controls how UniqueId is generated.
+   * @param object_id_generator Controls how ObjectId is generated.
    * @param retain Whether to retain discovery messages.
    */
-  void set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator, bool retain,
-                          bool clean = false);
+  void set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
+                          MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain, bool clean = false);
   /// Get Home Assistant discovery info.
   const MQTTDiscoveryInfo &get_discovery_info() const;
   /// Globally disable Home Assistant discovery.
@@ -131,7 +135,10 @@ class MQTTClientComponent : public Component {
    */
   void add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint);
 #endif
-
+#ifdef USE_ESP_IDF
+  void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
+  void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
+#endif
   const Availability &get_availability();
 
   /** Set the topic prefix that will be prepended to all topics together with "/". This will, in most cases,
@@ -142,7 +149,7 @@ class MQTTClientComponent : public Component {
    *
    * @param topic_prefix The topic prefix. The last "/" is appended automatically.
    */
-  void set_topic_prefix(std::string topic_prefix);
+  void set_topic_prefix(const std::string &topic_prefix);
   /// Get the topic prefix of this device, using default if necessary
   const std::string &get_topic_prefix() const;
 
@@ -269,6 +276,8 @@ class MQTTClientComponent : public Component {
       .prefix = "homeassistant",
       .retain = true,
       .clean = false,
+      .unique_id_generator = MQTT_LEGACY_UNIQUE_ID_GENERATOR,
+      .object_id_generator = MQTT_NONE_OBJECT_ID_GENERATOR,
   };
   std::string topic_prefix_{};
   MQTTMessage log_message_;
@@ -276,7 +285,12 @@ class MQTTClientComponent : public Component {
   int log_level_{ESPHOME_LOG_LEVEL};
 
   std::vector<MQTTSubscription> subscriptions_;
-  AsyncMqttClient mqtt_client_;
+#if defined(USE_ESP_IDF)
+  MQTTBackendIDF mqtt_backend_;
+#elif defined(USE_ARDUINO)
+  MQTTBackendArduino mqtt_backend_;
+#endif
+
   MQTTClientState state_{MQTT_CLIENT_DISCONNECTED};
   network::IPAddress ip_;
   bool dns_resolved_{false};
@@ -285,7 +299,7 @@ class MQTTClientComponent : public Component {
   uint32_t reboot_timeout_{300000};
   uint32_t connect_begin_;
   uint32_t last_connected_{0};
-  optional<AsyncMqttClientDisconnectReason> disconnect_reason_{};
+  optional<MQTTClientDisconnectReason> disconnect_reason_{};
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -306,11 +320,11 @@ class MQTTMessageTrigger : public Trigger<std::string>, public Component {
   optional<std::string> payload_;
 };
 
-class MQTTJsonMessageTrigger : public Trigger<const JsonObject &> {
+class MQTTJsonMessageTrigger : public Trigger<JsonObjectConst> {
  public:
   explicit MQTTJsonMessageTrigger(const std::string &topic, uint8_t qos) {
     global_mqtt_client->subscribe_json(
-        topic, [this](const std::string &topic, JsonObject &root) { this->trigger(root); }, qos);
+        topic, [this](const std::string &topic, JsonObject root) { this->trigger(root); }, qos);
   }
 };
 
@@ -338,7 +352,7 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint8_t, qos)
   TEMPLATABLE_VALUE(bool, retain)
 
-  void set_payload(std::function<void(Ts..., JsonObject &)> payload) { this->payload_ = payload; }
+  void set_payload(std::function<void(Ts..., JsonObject)> payload) { this->payload_ = payload; }
 
   void play(Ts... x) override {
     auto f = std::bind(&MQTTPublishJsonAction<Ts...>::encode_, this, x..., std::placeholders::_1);
@@ -349,8 +363,8 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
   }
 
  protected:
-  void encode_(Ts... x, JsonObject &root) { this->payload_(x..., root); }
-  std::function<void(Ts..., JsonObject &)> payload_;
+  void encode_(Ts... x, JsonObject root) { this->payload_(x..., root); }
+  std::function<void(Ts..., JsonObject)> payload_;
   MQTTClientComponent *parent_;
 };
 

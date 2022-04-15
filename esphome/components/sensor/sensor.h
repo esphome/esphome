@@ -150,16 +150,28 @@ class Sensor : public EntityBase {
   void internal_send_state_to_frontend(float state);
 
  protected:
-  /// Override this to set the default unit of measurement.
+  /** Override this to set the default unit of measurement.
+   *
+   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
+   */
   virtual std::string unit_of_measurement();  // NOLINT
 
-  /// Override this to set the default accuracy in decimals.
+  /** Override this to set the default accuracy in decimals.
+   *
+   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
+   */
   virtual int8_t accuracy_decimals();  // NOLINT
 
-  /// Override this to set the default device class.
+  /** Override this to set the default device class.
+   *
+   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
+   */
   virtual std::string device_class();  // NOLINT
 
-  /// Override this to set the default state class.
+  /** Override this to set the default state class.
+   *
+   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
+   */
   virtual StateClass state_class();  // NOLINT
 
   uint32_t hash_base() override;

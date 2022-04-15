@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
+from esphome import core, pins
 from esphome.components import display, spi
 from esphome.const import (
     CONF_BUSY_PIN,
@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_MODEL,
     CONF_PAGES,
+    CONF_RESET_DURATION,
     CONF_RESET_PIN,
 )
 
@@ -43,8 +44,14 @@ WaveshareEPaper7P5In = waveshare_epaper_ns.class_(
 WaveshareEPaper7P5InBC = waveshare_epaper_ns.class_(
     "WaveshareEPaper7P5InBC", WaveshareEPaper
 )
+WaveshareEPaper7P5InBV2 = waveshare_epaper_ns.class_(
+    "WaveshareEPaper7P5InBV2", WaveshareEPaper
+)
 WaveshareEPaper7P5InV2 = waveshare_epaper_ns.class_(
     "WaveshareEPaper7P5InV2", WaveshareEPaper
+)
+WaveshareEPaper7P5InHDB = waveshare_epaper_ns.class_(
+    "WaveshareEPaper7P5InHDB", WaveshareEPaper
 )
 WaveshareEPaper2P13InDKE = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P13InDKE", WaveshareEPaper
@@ -69,8 +76,10 @@ MODELS = {
     "4.20in-bv2": ("b", WaveshareEPaper4P2InBV2),
     "5.83in": ("b", WaveshareEPaper5P8In),
     "7.50in": ("b", WaveshareEPaper7P5In),
+    "7.50in-bv2": ("b", WaveshareEPaper7P5InBV2),
     "7.50in-bc": ("b", WaveshareEPaper7P5InBC),
     "7.50inv2": ("b", WaveshareEPaper7P5InV2),
+    "7.50in-hd-b": ("b", WaveshareEPaper7P5InHDB),
     "2.13in-ttgo-dke": ("c", WaveshareEPaper2P13InDKE),
 }
 
@@ -95,6 +104,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_FULL_UPDATE_EVERY): cv.uint32_t,
+            cv.Optional(CONF_RESET_DURATION): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=core.TimePeriod(milliseconds=500)),
+            ),
         }
     )
     .extend(cv.polling_component_schema("1s"))
@@ -135,3 +148,5 @@ async def to_code(config):
         cg.add(var.set_busy_pin(reset))
     if CONF_FULL_UPDATE_EVERY in config:
         cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
+    if CONF_RESET_DURATION in config:
+        cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))

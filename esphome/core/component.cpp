@@ -96,7 +96,7 @@ void Component::call() {
       // State loop: Call loop
       this->call_loop();
       break;
-    case COMPONENT_STATE_FAILED:
+    case COMPONENT_STATE_FAILED:  // NOLINT(bugprone-branch-clone)
       // State failed: Do nothing
       break;
     default:
@@ -177,7 +177,7 @@ bool Component::has_overridden_loop() const {
   return loop_overridden || call_loop_overridden;
 }
 
-PollingComponent::PollingComponent(uint32_t update_interval) : Component(), update_interval_(update_interval) {}
+PollingComponent::PollingComponent(uint32_t update_interval) : update_interval_(update_interval) {}
 
 void PollingComponent::call_setup() {
   // Let the polling component subclass setup their HW.

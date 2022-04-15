@@ -42,7 +42,7 @@ class ColorUtil {
                        ? esp_scale(((colorcode >> third_bits) & ((1 << second_bits) - 1)), ((1 << second_bits) - 1))
                        : esp_scale(((colorcode >> 8) & 0xFF), ((1 << second_bits) - 1));
 
-    third_color = (right_bit_aligned ? esp_scale(((colorcode >> 0) & 0xFF), ((1 << third_bits) - 1))
+    third_color = (right_bit_aligned ? esp_scale(((colorcode >> 0) & ((1 << third_bits) - 1)), ((1 << third_bits) - 1))
                                      : esp_scale(((colorcode >> 0) & 0xFF), (1 << third_bits) - 1));
 
     Color color_return;
