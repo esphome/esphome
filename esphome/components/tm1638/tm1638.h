@@ -65,7 +65,7 @@ class TM1638Component : public PollingComponent{
   void set_7seg_(int seg_pos, uint8_t seg_bits);
   void send_command_(uint8_t value);
   void send_command_leave_open_(uint8_t value);
-  void send_commands_(uint8_t commands[], int num_commands);
+  void send_commands_(uint8_t const commands[], int num_commands);
   void send_command_sequence_(uint8_t commands[], int num_commands, uint8_t starting_address);
   void shift_out_(uint8_t value);
   void reset_(bool on_off);
@@ -78,7 +78,7 @@ class TM1638Component : public PollingComponent{
   GPIOPin *stb_pin_;
   GPIOPin *dio_pin_;
   uint8_t *buffer_;
-  uint8_t buttonState_;
+  uint8_t button_state_;
   optional<tm1638_writer_t> writer_{};
 
   std::vector<KeyListener *> listeners_{};

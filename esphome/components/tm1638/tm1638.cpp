@@ -60,7 +60,7 @@ void TM1638Component::dump_config() {
 }
 
 void TM1638Component::loop() {
-  if (!this->listeners_.size())
+  if (!this->listeners_.empty())
     return;
 
   uint8_t keys = this->get_keys();
@@ -113,16 +113,16 @@ void TM1638Component::display() {
 }
 
 
-void TM1638Component::reset_(bool onOff) {
+void TM1638Component::reset_(bool on_off) {
 
-  uint8_t numCommands = 16;           //16 addresses, 8 for 7seg and 8 for LEDs
-  uint8_t commands[numCommands];
+  uint8_t num_commands = 16;           //16 addresses, 8 for 7seg and 8 for LEDs
+  uint8_t commands[num_commands];
 
-  for (int8_t i = 0; i < numCommands; i++) {
-    commands[i] = onOff ? 255 : 0;
+  for (int8_t i = 0; i < num_commands; i++) {
+    commands[i] = on_off ? 255 : 0;
   }
 
-  this->send_command_sequence_(commands, numCommands, TM1638_REGISTER_7SEG_0);
+  this->send_command_sequence_(commands, num_commands, TM1638_REGISTER_7SEG_0);
 }
 
 /////////////// LEDs /////////////////
@@ -149,13 +149,13 @@ void TM1638Component::set_7seg_(int seg_pos, uint8_t seg_bits) {
   this->send_commands_(commands, 2);
 }
 
-void TM1638Component::set_intensity(uint8_t brightnessLevel) {
+void TM1638Component::set_intensity(uint8_t brightness_level) {
 
-  this->intensity_ = brightnessLevel;
+  this->intensity_ = brightness_level;
 
   this->send_command_(TM1638_REGISTER_FIXEDADDRESS);
 
-  if (brightnessLevel > 0)
+  if (brightness_level > 0)
     {
       send_command_((uint8_t)(TM1638_REGISTER_DISPLAYON | intensity_));
     }
@@ -171,13 +171,13 @@ uint8_t TM1638Component::print(uint8_t start_pos, const char *str) {
 
   uint8_t pos = start_pos;
 
-  bool lastWasDot = false;
+  bool last_was_dot = false;
 
   for (; *str != '\0'; str++) {
     uint8_t data = TM1638_UNKNOWN_CHAR;
 
     if (*str >= ' ' && *str <= '~') {
-      data = progmem_read_byte(&TM1638Translation::SevenSeg[*str - 32]);  // subract 32 to account for ASCII offset
+      data = progmem_read_byte(&TM1638Translation::SEVEN_SEG[*str - 32]);  // subract 32 to account for ASCII offset
     }
     else if (data == TM1638_UNKNOWN_CHAR) {
       ESP_LOGW(TAG, "Encountered character '%c' with no TM1638 representation while translating string!", *str);
@@ -185,12 +185,12 @@ uint8_t TM1638Component::print(uint8_t start_pos, const char *str) {
 
     if (*str == '.')  //handle dots
     {
-      if (pos != start_pos && !lastWasDot)  //if we are not at the first position, backup by one unless last char was a dot
+      if (pos != start_pos && !last_was_dot)  //if we are not at the first position, backup by one unless last char was a dot
       {
         pos--;
       }
       this->buffer_[pos] |= 0b10000000;  // turn on the dot on the previous position
-      lastWasDot = true;   //set a bit in case the next chracter is also a dot
+      last_was_dot = true;   //set a bit in case the next chracter is also a dot
     }
     else  // if not a dot, then just write the character to display
     {
@@ -200,7 +200,7 @@ uint8_t TM1638Component::print(uint8_t start_pos, const char *str) {
         break;
       }
       this->buffer_[pos] = data;
-      lastWasDot = false;  //clear dot tracking bit
+      last_was_dot = false;  //clear dot tracking bit
     }
 
     pos++;
@@ -256,11 +256,11 @@ void TM1638Component::send_command_(uint8_t value) {
   stb_pin_->digital_write(true);
 }
 
-void TM1638Component::send_commands_(uint8_t commands[], int numCommands) {
+void TM1638Component::send_commands_(uint8_t const commands[], int num_commands) {
 
   stb_pin_->digital_write(false);
 
-  for (int i = 0; i < numCommands; i++) {
+  for (int i = 0; i < num_commands; i++) {
     uint8_t command = commands[i];
     this->shift_out_(command);
   }
@@ -272,12 +272,12 @@ void TM1638Component::send_command_leave_open_(uint8_t value) {
   this->shift_out_(value);
 }
 
-void TM1638Component::send_command_sequence_(uint8_t commands[], int numCommands, uint8_t startingAddress) {
+void TM1638Component::send_command_sequence_(uint8_t commands[], int num_commands, uint8_t starting_address) {
 
   this->send_command_(TM1638_REGISTER_AUTOADDRESS);
-  send_command_leave_open_(startingAddress);
+  send_command_leave_open_(starting_address);
 
-  for (int8_t i = 0; i < numCommands; i++) {
+  for (int8_t i = 0; i < num_commands; i++) {
     this->shift_out_(commands[i]);
   }
 
