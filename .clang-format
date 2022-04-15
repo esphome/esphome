@@ -117,7 +117,7 @@ RawStringFormats:
 ReflowComments:  true
 SortIncludes:    false
 SortUsingDeclarations: false
-SpaceAfterCStyleCast: true
+SpaceAfterCStyleCast: false
 SpaceAfterTemplateKeyword: false
 SpaceBeforeAssignmentOperators: true
 SpaceBeforeCpp11BracedList: false
