@@ -1,5 +1,3 @@
-#include "Arduino.h"  //to make PROGMEM work
-
 namespace esphome {
 namespace tm1638 {
 namespace TM1638Translation {
