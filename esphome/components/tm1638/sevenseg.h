@@ -103,6 +103,6 @@ const unsigned char SEVEN_SEG[] PROGMEM = {
           //  0x01, /* ~ */
 };
 
-}; //TM1638Translation
+}; // namespace TM1638Translation
 }  // namespace tm1638
 }  // namespace esphome

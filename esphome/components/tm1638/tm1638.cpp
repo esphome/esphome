@@ -19,13 +19,12 @@ static const uint8_t TM1638_UNKNOWN_CHAR = 0b11111111;
 
 static const uint8_t TM1638_SHIFT_DELAY = 4;  // clock pause between commands, default 4ms
 
-
 void TM1638Component::setup() {
   ESP_LOGD(TAG, "Setting up TM1638...");
 
-  this->clk_pin_->setup();              // OUTPUT
-  this->dio_pin_->setup();              // OUTPUT
-  this->stb_pin_->setup();              // OUTPUT
+  this->clk_pin_->setup();  // OUTPUT
+  this->dio_pin_->setup();  // OUTPUT
+  this->stb_pin_->setup();  // OUTPUT
 
   this->clk_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
@@ -69,7 +68,6 @@ void TM1638Component::loop() {
 }
 
 uint8_t TM1638Component::get_keys() {
-
   uint8_t buttons = 0;
 
   stb_pin_->digital_write(false);
@@ -93,8 +91,7 @@ uint8_t TM1638Component::get_keys() {
 }
 
 void TM1638Component::update() {  // this is called at the interval specified in the config.yaml
-  if (this->writer_.has_value())
-  {
+  if (this->writer_.has_value()) {
     (*this->writer_)(*this);
   }
 
@@ -105,8 +102,7 @@ float TM1638Component::get_setup_priority() const { return setup_priority::PROCE
 
 
 void TM1638Component::display() {
-  for (uint8_t i = 0; i < 8; i++)
-  {
+  for (uint8_t i = 0; i < 8; i++){
 
     this->set_7seg_(i, buffer_[i]);
   }
@@ -115,7 +111,7 @@ void TM1638Component::display() {
 
 void TM1638Component::reset_(bool on_off) {
 
-  uint8_t num_commands = 16;           //16 addresses, 8 for 7seg and 8 for LEDs
+  uint8_t num_commands = 16;  //16 addresses, 8 for 7seg and 8 for LEDs
   uint8_t commands[num_commands];
 
   for (int8_t i = 0; i < num_commands; i++) {
@@ -150,17 +146,14 @@ void TM1638Component::set_7seg_(int seg_pos, uint8_t seg_bits) {
 }
 
 void TM1638Component::set_intensity(uint8_t brightness_level) {
-
   this->intensity_ = brightness_level;
 
   this->send_command_(TM1638_REGISTER_FIXEDADDRESS);
 
-  if (brightness_level > 0)
-    {
+  if (brightness_level > 0){
       send_command_((uint8_t)(TM1638_REGISTER_DISPLAYON | intensity_));
     }
-    else
-    {
+    else{
       send_command_(TM1638_REGISTER_DISPLAYOFF);
     }
 }
@@ -168,7 +161,6 @@ void TM1638Component::set_intensity(uint8_t brightness_level) {
 /////////////// DISPLAY PRINT /////////////////
 
 uint8_t TM1638Component::print(uint8_t start_pos, const char *str) {
-
   uint8_t pos = start_pos;
 
   bool last_was_dot = false;
