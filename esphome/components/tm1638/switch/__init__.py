@@ -16,6 +16,7 @@ CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
     }
 )
 
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await switch.register_switch(var, config)
