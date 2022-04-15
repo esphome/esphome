@@ -29,7 +29,7 @@ def test_binary_sensor_sets_mandatory_fields(generate_main):
     )
 
     # Then
-    assert 'bs_1->set_name("test bs1");' in main_cpp
+    assert 'bs_1->set_name(F("test bs1"));' in main_cpp
     assert "bs_1->set_pin(" in main_cpp
 
 

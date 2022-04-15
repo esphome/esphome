@@ -2,7 +2,7 @@
 
 #include <string>
 #include <cstdint>
-#include "Wstring.h"
+#include "WString.h"
 
 namespace esphome {
 
