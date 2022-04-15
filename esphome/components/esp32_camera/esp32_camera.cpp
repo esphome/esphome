@@ -46,7 +46,7 @@ void ESP32Camera::setup() {
 void ESP32Camera::dump_config() {
   auto conf = this->config_;
   ESP_LOGCONFIG(TAG, "ESP32 Camera:");
-  ESP_LOGCONFIG(TAG, "  Name: %s", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "  Name: %s", this->get_name());
   ESP_LOGCONFIG(TAG, "  Internal: %s", YESNO(this->internal_));
   ESP_LOGCONFIG(TAG, "  Data Pins: D0:%d D1:%d D2:%d D3:%d D4:%d D5:%d D6:%d D7:%d", conf.pin_d0, conf.pin_d1,
                 conf.pin_d2, conf.pin_d3, conf.pin_d4, conf.pin_d5, conf.pin_d6, conf.pin_d7);

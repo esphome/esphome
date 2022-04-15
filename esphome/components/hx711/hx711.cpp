@@ -8,7 +8,7 @@ namespace hx711 {
 static const char *const TAG = "hx711";
 
 void HX711Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up HX711 '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Setting up HX711 '%s'...", this->get_name());
   this->sck_pin_->setup();
   this->dout_pin_->setup();
   this->sck_pin_->digital_write(false);
@@ -28,7 +28,7 @@ void HX711Sensor::update() {
   uint32_t result;
   if (this->read_sensor_(&result)) {
     int32_t value = static_cast<int32_t>(result);
-    ESP_LOGD(TAG, "'%s': Got value %d", this->name_.c_str(), value);
+    ESP_LOGD(TAG, "'%s': Got value %d", this->get_name(), value);
     this->publish_state(value);
   }
 }

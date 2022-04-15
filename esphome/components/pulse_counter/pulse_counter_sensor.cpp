@@ -137,7 +137,7 @@ pulse_counter_t PulseCounterStorage::read_raw_value() {
 #endif
 
 void PulseCounterSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up pulse counter '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Setting up pulse counter '%s'...", this->get_name());
   if (!this->storage_.pulse_counter_setup(this->pin_)) {
     this->mark_failed();
     return;

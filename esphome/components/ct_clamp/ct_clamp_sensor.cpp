@@ -34,7 +34,7 @@ void CTClampSensor::update() {
     const float rms_ac_dc_squared = this->sample_squared_sum_ / this->num_samples_;
     const float rms_dc = this->sample_sum_ / this->num_samples_;
     const float rms_ac = std::sqrt(rms_ac_dc_squared - rms_dc * rms_dc);
-    ESP_LOGD(TAG, "'%s' - Raw AC Value: %.3fA after %d different samples (%d SPS)", this->name_.c_str(), rms_ac,
+    ESP_LOGD(TAG, "'%s' - Raw AC Value: %.3fA after %d different samples (%d SPS)", this->get_name(), rms_ac,
              this->num_samples_, 1000 * this->num_samples_ / this->sample_duration_);
     this->publish_state(rms_ac);
   });

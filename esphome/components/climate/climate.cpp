@@ -382,7 +382,7 @@ void Climate::save_state_() {
   this->rtc_.save(&state);
 }
 void Climate::publish_state() {
-  ESP_LOGD(TAG, "'%s' - Sending state:", this->name_.c_str());
+  ESP_LOGD(TAG, "'%s' - Sending state:", this->get_name());
   auto traits = this->get_traits();
 
   ESP_LOGD(TAG, "  Mode: %s", LOG_STR_ARG(climate_mode_to_string(this->mode)));

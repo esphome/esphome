@@ -8,7 +8,7 @@ static const char *const TAG = "script";
 
 void SingleScript::execute() {
   if (this->is_action_running()) {
-    ESP_LOGW(TAG, "Script '%s' is already running! (mode: single)", this->name_.c_str());
+    ESP_LOGW(TAG, "Script '%s' is already running! (mode: single)", this->get_name());
     return;
   }
 
@@ -17,7 +17,7 @@ void SingleScript::execute() {
 
 void RestartScript::execute() {
   if (this->is_action_running()) {
-    ESP_LOGD(TAG, "Script '%s' restarting (mode: restart)", this->name_.c_str());
+    ESP_LOGD(TAG, "Script '%s' restarting (mode: restart)", this->get_name());
     this->stop_action();
   }
 
@@ -29,11 +29,11 @@ void QueueingScript::execute() {
     // num_runs_ is the number of *queued* instances, so total number of instances is
     // num_runs_ + 1
     if (this->max_runs_ != 0 && this->num_runs_ + 1 >= this->max_runs_) {
-      ESP_LOGW(TAG, "Script '%s' maximum number of queued runs exceeded!", this->name_.c_str());
+      ESP_LOGW(TAG, "Script '%s' maximum number of queued runs exceeded!", this->get_name());
       return;
     }
 
-    ESP_LOGD(TAG, "Script '%s' queueing new instance (mode: queued)", this->name_.c_str());
+    ESP_LOGD(TAG, "Script '%s' queueing new instance (mode: queued)", this->get_name());
     this->num_runs_++;
     return;
   }
@@ -57,7 +57,7 @@ void QueueingScript::loop() {
 
 void ParallelScript::execute() {
   if (this->max_runs_ != 0 && this->automation_parent_->num_running() >= this->max_runs_) {
-    ESP_LOGW(TAG, "Script '%s' maximum number of parallel runs exceeded!", this->name_.c_str());
+    ESP_LOGW(TAG, "Script '%s' maximum number of parallel runs exceeded!", this->get_name());
     return;
   }
   this->trigger();

@@ -517,7 +517,7 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
             this->address_[2], this->address_[3], this->address_[4], this->address_[5], address_type);
 
   ESP_LOGVV(TAG, "  RSSI: %d", this->rssi_);
-  ESP_LOGVV(TAG, "  Name: '%s'", this->name_.c_str());
+  ESP_LOGVV(TAG, "  Name: '%s'", this->get_name());
   for (auto &it : this->tx_powers_) {
     ESP_LOGVV(TAG, "  TX Power: %d", it);
   }

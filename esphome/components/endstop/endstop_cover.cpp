@@ -68,20 +68,20 @@ void EndstopCover::loop() {
 
   if (this->current_operation == COVER_OPERATION_OPENING && this->is_open_()) {
     float dur = (now - this->start_dir_time_) / 1e3f;
-    ESP_LOGD(TAG, "'%s' - Open endstop reached. Took %.1fs.", this->name_.c_str(), dur);
+    ESP_LOGD(TAG, "'%s' - Open endstop reached. Took %.1fs.", this->get_name(), dur);
 
     this->start_direction_(COVER_OPERATION_IDLE);
     this->position = COVER_OPEN;
     this->publish_state();
   } else if (this->current_operation == COVER_OPERATION_CLOSING && this->is_closed_()) {
     float dur = (now - this->start_dir_time_) / 1e3f;
-    ESP_LOGD(TAG, "'%s' - Close endstop reached. Took %.1fs.", this->name_.c_str(), dur);
+    ESP_LOGD(TAG, "'%s' - Close endstop reached. Took %.1fs.", this->get_name(), dur);
 
     this->start_direction_(COVER_OPERATION_IDLE);
     this->position = COVER_CLOSED;
     this->publish_state();
   } else if (now - this->start_dir_time_ > this->max_duration_) {
-    ESP_LOGD(TAG, "'%s' - Max duration reached. Stopping cover.", this->name_.c_str());
+    ESP_LOGD(TAG, "'%s' - Max duration reached. Stopping cover.", this->get_name());
     this->start_direction_(COVER_OPERATION_IDLE);
     this->publish_state();
   }

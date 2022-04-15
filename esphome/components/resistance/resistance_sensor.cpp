@@ -36,7 +36,7 @@ void ResistanceSensor::process_(float value) {
   }
 
   res *= this->resistor_;
-  ESP_LOGD(TAG, "'%s' - Resistance %.1fΩ", this->name_.c_str(), res);
+  ESP_LOGD(TAG, "'%s' - Resistance %.1fΩ", this->get_name(), res);
   this->publish_state(res);
 }
 

@@ -18,26 +18,26 @@ static const uint8_t MCP9808_AMBIENT_TEMP_NEGATIVE = 0x10;
 static const char *const TAG = "mcp9808";
 
 void MCP9808Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up %s...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Setting up %s...", this->get_name());
 
   uint16_t manu = 0;
   if (!this->read_byte_16(MCP9808_REG_MANUF_ID, &manu) || manu != MCP9808_MANUF_ID) {
     this->mark_failed();
-    ESP_LOGE(TAG, "%s manufacuturer id failed, device returned %X", this->name_.c_str(), manu);
+    ESP_LOGE(TAG, "%s manufacuturer id failed, device returned %X", this->get_name(), manu);
     return;
   }
   uint16_t dev_id = 0;
   if (!this->read_byte_16(MCP9808_REG_DEVICE_ID, &dev_id) || dev_id != MCP9808_DEV_ID) {
     this->mark_failed();
-    ESP_LOGE(TAG, "%s device id failed, device returned %X", this->name_.c_str(), dev_id);
+    ESP_LOGE(TAG, "%s device id failed, device returned %X", this->get_name(), dev_id);
     return;
   }
 }
 void MCP9808Sensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "%s:", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "%s:", this->get_name());
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with %s failed!", this->name_.c_str());
+    ESP_LOGE(TAG, "Communication with %s failed!", this->get_name());
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this);
@@ -71,7 +71,7 @@ void MCP9808Sensor::update() {
     return;
   }
 
-  ESP_LOGD(TAG, "%s: Got temperature=%.4f°C", this->name_.c_str(), temp);
+  ESP_LOGD(TAG, "%s: Got temperature=%.4f°C", this->get_name(), temp);
   this->publish_state(temp);
   this->status_clear_warning();
 }

@@ -13,7 +13,7 @@ void ESP32HallSensor::update() {
   adc1_config_width(ADC_WIDTH_BIT_12);
   int value_int = hall_sensor_read();
   float value = (value_int / 4095.0f) * 10000.0f;
-  ESP_LOGD(TAG, "'%s': Got reading %.0f µT", this->name_.c_str(), value);
+  ESP_LOGD(TAG, "'%s': Got reading %.0f µT", this->get_name(), value);
   this->publish_state(value);
 }
 std::string ESP32HallSensor::unique_id() { return get_mac_address() + "-hall"; }

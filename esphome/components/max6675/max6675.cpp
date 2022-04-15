@@ -18,7 +18,7 @@ void MAX6675Sensor::update() {
 }
 
 void MAX6675Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MAX6675Sensor '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Setting up MAX6675Sensor '%s'...", this->get_name());
   this->spi_setup();
 }
 void MAX6675Sensor::dump_config() {
@@ -43,7 +43,7 @@ void MAX6675Sensor::read_data_() {
   }
 
   float temperature = float(val >> 3) / 4.0f;
-  ESP_LOGD(TAG, "'%s': Got temperature=%.1f°C", this->name_.c_str(), temperature);
+  ESP_LOGD(TAG, "'%s': Got temperature=%.1f°C", this->get_name(), temperature);
   this->publish_state(temperature);
   this->status_clear_warning();
 }

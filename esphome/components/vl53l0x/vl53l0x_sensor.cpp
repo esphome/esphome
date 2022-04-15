@@ -31,7 +31,7 @@ void VL53L0XSensor::dump_config() {
 }
 
 void VL53L0XSensor::setup() {
-  ESP_LOGD(TAG, "'%s' - setup BEGIN", this->name_.c_str());
+  ESP_LOGD(TAG, "'%s' - setup BEGIN", this->get_name());
 
   if (!esphome::vl53l0x::VL53L0XSensor::enable_pin_setup_complete) {
     for (auto &vl53_sensor : vl53_sensors) {
@@ -89,7 +89,7 @@ void VL53L0XSensor::setup() {
   this->timeout_start_us_ = micros();
   while (reg(0x83).get() == 0x00) {
     if (this->timeout_us_ > 0 && ((uint16_t)(micros() - this->timeout_start_us_) > this->timeout_us_)) {
-      ESP_LOGE(TAG, "'%s' - setup timeout", this->name_.c_str());
+      ESP_LOGE(TAG, "'%s' - setup timeout", this->get_name());
       this->mark_failed();
       return;
     }
@@ -255,14 +255,14 @@ void VL53L0XSensor::setup() {
   reg(0x8A) = final_address & 0x7F;
   this->set_i2c_address(final_address);
 
-  ESP_LOGD(TAG, "'%s' - setup END", this->name_.c_str());
+  ESP_LOGD(TAG, "'%s' - setup END", this->get_name());
 }
 void VL53L0XSensor::update() {
   if (this->initiated_read_ || this->waiting_for_interrupt_) {
     this->publish_state(NAN);
     this->status_momentary_warning("update", 5000);
     ESP_LOGW(TAG, "%s - update called before prior reading complete - initiated:%d waiting_for_interrupt:%d",
-             this->name_.c_str(), this->initiated_read_, this->waiting_for_interrupt_);
+             this->get_name(), this->initiated_read_, this->waiting_for_interrupt_);
   }
 
   // initiate single shot measurement
@@ -299,13 +299,13 @@ void VL53L0XSensor::loop() {
       this->waiting_for_interrupt_ = false;
 
       if (range_mm >= 8190) {
-        ESP_LOGD(TAG, "'%s' - Distance is out of range, please move the target closer", this->name_.c_str());
+        ESP_LOGD(TAG, "'%s' - Distance is out of range, please move the target closer", this->get_name());
         this->publish_state(NAN);
         return;
       }
 
       float range_m = range_mm / 1e3f;
-      ESP_LOGD(TAG, "'%s' - Got distance %.3f m", this->name_.c_str(), range_m);
+      ESP_LOGD(TAG, "'%s' - Got distance %.3f m", this->get_name(), range_m);
       this->publish_state(range_m);
     }
   }

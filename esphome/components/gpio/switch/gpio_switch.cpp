@@ -8,7 +8,7 @@ static const char *const TAG = "switch.gpio";
 
 float GPIOSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 void GPIOSwitch::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up GPIO Switch '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Setting up GPIO Switch '%s'...", this->get_name());
 
   bool initial_state = false;
   switch (this->restore_mode_) {
