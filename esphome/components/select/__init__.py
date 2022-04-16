@@ -99,16 +99,19 @@ async def select_set_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
-    "select.next",
-    SelectNextAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(Select),
-            cv.Optional(CONF_CYCLE, default=True): cv.boolean,
-        }
-    ),
+PREVIOUS_OR_NEXT_SCHEMA = cv.All(
+    automation.maybe_simple_id(
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.use_id(Select),
+                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
+            }
+        )
+    )
 )
+
+
+@automation.register_action("select.next", SelectNextAction, PREVIOUS_OR_NEXT_SCHEMA)
 async def select_next_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
@@ -117,14 +120,7 @@ async def select_next_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "select.previous",
-    SelectPreviousAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(Select),
-            cv.Optional(CONF_CYCLE, default=True): cv.boolean,
-        }
-    ),
+    "select.previous", SelectPreviousAction, PREVIOUS_OR_NEXT_SCHEMA
 )
 async def select_previous_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -133,30 +129,25 @@ async def select_previous_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
-    "select.first",
-    SelectFirstAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(Select),
-        }
-    ),
+FIRST_OR_LAST_SCHEMA = cv.All(
+    automation.maybe_simple_id(
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.use_id(Select),
+            }
+        )
+    )
 )
+
+
+@automation.register_action("select.first", SelectFirstAction, FIRST_OR_LAST_SCHEMA)
 async def select_first_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     return var
 
 
-@automation.register_action(
-    "select.last",
-    SelectLastAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(Select),
-        }
-    ),
-)
+@automation.register_action("select.last", SelectLastAction, FIRST_OR_LAST_SCHEMA)
 async def select_last_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
