@@ -42,7 +42,7 @@ void TM1638Component::setup() {
   ESP_LOGD(TAG, "reset_ display");
   this->reset_(false);  // all LEDs off
 
-  this->buffer_ = new uint8_t[8];
+  this->buffer_ = new uint8_t[8];  // NOLINT
 
   ESP_LOGD(TAG, "Zero fill print buffer");
   for (uint8_t i = 0; i < 8; i++)  // zero fill print buffer
