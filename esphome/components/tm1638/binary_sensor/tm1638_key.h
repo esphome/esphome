@@ -9,7 +9,7 @@ namespace tm1638 {
 class TM1638Key : public binary_sensor::BinarySensor, public KeyListener {
  public:
   void set_keycode(uint8_t key_code) { key_code_ = key_code; };
-  void override keys_update(uint8_t keys);
+  void keys_update(uint8_t keys) override;
 
  protected:
   uint8_t key_code_{0};
