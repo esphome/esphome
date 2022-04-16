@@ -257,7 +257,7 @@ void TM1638Component::send_command_sequence_(uint8_t commands[], uint8_t num_com
   this->send_command_(TM1638_REGISTER_AUTOADDRESS);
   send_command_leave_open_(starting_address);
 
-  for (int8_t i = 0; i < num_commands; i++) {
+  for (uint8_t i = 0; i < num_commands; i++) {
     this->shift_out_(commands[i]);
   }
 
