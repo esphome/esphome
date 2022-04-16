@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_OPTION,
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
+    CONF_CYCLE,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -27,6 +28,10 @@ SelectStateTrigger = select_ns.class_(
 
 # Actions
 SelectSetAction = select_ns.class_("SelectSetAction", automation.Action)
+SelectNextAction = select_ns.class_("SelectNextAction", automation.Action)
+SelectPreviousAction = select_ns.class_("SelectPreviousAction", automation.Action)
+SelectFirstAction = select_ns.class_("SelectFirstAction", automation.Action)
+SelectLastAction = select_ns.class_("SelectLastAction", automation.Action)
 
 icon = cv.icon
 
@@ -91,4 +96,68 @@ async def select_set_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_OPTION], args, cg.std_string)
     cg.add(var.set_option(template_))
+    return var
+
+
+@automation.register_action(
+    "select.next",
+    SelectNextAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(Select),
+            cv.Optional(CONF_CYCLE, default=True): cv.boolean,
+        }
+    ),
+)
+async def select_next_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    cg.add(var.set_cycle(config[CONF_CYCLE]))
+    return var
+
+
+@automation.register_action(
+    "select.previous",
+    SelectPreviousAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(Select),
+            cv.Optional(CONF_CYCLE, default=True): cv.boolean,
+        }
+    ),
+)
+async def select_previous_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    cg.add(var.set_cycle(config[CONF_CYCLE]))
+    return var
+
+
+@automation.register_action(
+    "select.first",
+    SelectFirstAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(Select),
+        }
+    ),
+)
+async def select_first_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    return var
+
+
+@automation.register_action(
+    "select.last",
+    SelectLastAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(Select),
+        }
+    ),
+)
+async def select_last_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     return var

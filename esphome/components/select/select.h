@@ -19,20 +19,54 @@ namespace select {
 
 class Select;
 
+enum SelectOp {
+  SELECT_OP_NONE,
+  SELECT_OP_SET,
+  SELECT_OP_NEXT,
+  SELECT_OP_PREVIOUS,
+  SELECT_OP_FIRST,
+  SELECT_OP_LAST
+};
+
 class SelectCall {
  public:
   explicit SelectCall(Select *parent) : parent_(parent) {}
   void perform();
 
   SelectCall &set_option(const std::string &option) {
+    op_ = SELECT_OP_SET;
     option_ = option;
     return *this;
   }
   const optional<std::string> &get_option() const { return option_; }
 
+  SelectCall &select_next(bool cycle) {
+    op_ = SELECT_OP_NEXT;
+    cycle_ = cycle;
+    return *this;
+  }
+
+  SelectCall &select_previous(bool cycle) {
+    op_ = SELECT_OP_PREVIOUS;
+    cycle_ = cycle;
+    return *this;
+  }
+
+  SelectCall &select_first() {
+    op_ = SELECT_OP_FIRST;
+    return *this;
+  }
+
+  SelectCall &select_last() {
+    op_ = SELECT_OP_LAST;
+    return *this;
+  }
+
  protected:
   Select *const parent_;
+  SelectOp op_{SELECT_OP_NONE};
   optional<std::string> option_;
+  bool cycle_;
 };
 
 class SelectTraits {
@@ -76,6 +110,10 @@ class Select : public EntityBase {
   virtual void control(const std::string &value) = 0;
 
   uint32_t hash_base() override;
+
+  size_t number_of_options() const;
+  optional<size_t> index_of(const std::string &option) const;
+  optional<std::string> option_at(const size_t index) const;
 
   CallbackManager<void(std::string)> state_callback_;
   bool has_state_{false};
