@@ -11,4 +11,3 @@ void TM1638Key::keys_update(uint8_t keys) {
 
 }  // namespace tm1638
 }  // namespace esphome
-

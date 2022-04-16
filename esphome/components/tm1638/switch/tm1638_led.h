@@ -23,4 +23,3 @@ class TM1638Led : public switch_::Switch, public Component {
 
 }  // namespace tm1638
 }  // namespace esphome
-
