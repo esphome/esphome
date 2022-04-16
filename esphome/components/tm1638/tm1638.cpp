@@ -100,18 +100,14 @@ void TM1638Component::update() {  // this is called at the interval specified in
 
 float TM1638Component::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
-
 void TM1638Component::display() {
-  for (uint8_t i = 0; i < 8; i++){
-
+  for (uint8_t i = 0; i < 8; i++) {
     this->set_7seg_(i, buffer_[i]);
   }
 }
 
-
 void TM1638Component::reset_(bool on_off) {
-
-  uint8_t num_commands = 16;  //16 addresses, 8 for 7seg and 8 for LEDs
+  uint8_t num_commands = 16;  // 16 addresses, 8 for 7seg and 8 for LEDs
   uint8_t commands[num_commands];
 
   for (int8_t i = 0; i < num_commands; i++) {
@@ -150,12 +146,11 @@ void TM1638Component::set_intensity(uint8_t brightness_level) {
 
   this->send_command_(TM1638_REGISTER_FIXEDADDRESS);
 
-  if (brightness_level > 0){
-      send_command_((uint8_t)(TM1638_REGISTER_DISPLAYON | intensity_));
-    }
-    else{
-      send_command_(TM1638_REGISTER_DISPLAYOFF);
-    }
+  if (brightness_level > 0) {
+    send_command_((uint8_t)(TM1638_REGISTER_DISPLAYON | intensity_));
+  } else {
+    send_command_(TM1638_REGISTER_DISPLAYOFF);
+  }
 }
 
 /////////////// DISPLAY PRINT /////////////////
@@ -170,29 +165,27 @@ uint8_t TM1638Component::print(uint8_t start_pos, const char *str) {
 
     if (*str >= ' ' && *str <= '~') {
       data = progmem_read_byte(&TM1638Translation::SEVEN_SEG[*str - 32]);  // subract 32 to account for ASCII offset
-    }
-    else if (data == TM1638_UNKNOWN_CHAR) {
+    } else if (data == TM1638_UNKNOWN_CHAR) {
       ESP_LOGW(TAG, "Encountered character '%c' with no TM1638 representation while translating string!", *str);
     }
 
-    if (*str == '.')  //handle dots
+    if (*str == '.')  // handle dots
     {
-      if (pos != start_pos && !last_was_dot)  //if we are not at the first position, backup by one unless last char was a dot
+      if (pos != start_pos &&
+          !last_was_dot)  // if we are not at the first position, backup by one unless last char was a dot
       {
         pos--;
       }
       this->buffer_[pos] |= 0b10000000;  // turn on the dot on the previous position
-      last_was_dot = true;   //set a bit in case the next chracter is also a dot
-    }
-    else  // if not a dot, then just write the character to display
+      last_was_dot = true;               // set a bit in case the next chracter is also a dot
+    } else                               // if not a dot, then just write the character to display
     {
-      if (pos >= 8)
-      {
+      if (pos >= 8) {
         ESP_LOGI(TAG, "TM1638 String is too long for the display!");
         break;
       }
       this->buffer_[pos] = data;
-      last_was_dot = false;  //clear dot tracking bit
+      last_was_dot = false;  // clear dot tracking bit
     }
 
     pos++;
@@ -236,12 +229,9 @@ uint8_t TM1638Component::strftime(uint8_t pos, const char *format, time::ESPTime
 uint8_t TM1638Component::strftime(const char *format, time::ESPTime time) { return this->strftime(0, format, time); }
 #endif
 
-
-
 //////////////// SPI   ////////////////
 
 void TM1638Component::send_command_(uint8_t value) {
-
   this->stb_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->stb_pin_->digital_write(false);
   this->shift_out_(value);
@@ -249,7 +239,6 @@ void TM1638Component::send_command_(uint8_t value) {
 }
 
 void TM1638Component::send_commands_(uint8_t const commands[], int num_commands) {
-
   stb_pin_->digital_write(false);
 
   for (int i = 0; i < num_commands; i++) {
@@ -265,7 +254,6 @@ void TM1638Component::send_command_leave_open_(uint8_t value) {
 }
 
 void TM1638Component::send_command_sequence_(uint8_t commands[], int num_commands, uint8_t starting_address) {
-
   this->send_command_(TM1638_REGISTER_AUTOADDRESS);
   send_command_leave_open_(starting_address);
 
@@ -290,10 +278,8 @@ uint8_t TM1638Component::shift_in_() {
   return value;
 }
 
-void TM1638Component::shift_out_(uint8_t val)
-{
-  for (int i = 0; i < 8; i++)
-  {
+void TM1638Component::shift_out_(uint8_t val) {
+  for (int i = 0; i < 8; i++) {
     dio_pin_->digital_write((val & (1 << i)));
     delayMicroseconds(TM1638_SHIFT_DELAY);
 
@@ -304,7 +290,6 @@ void TM1638Component::shift_out_(uint8_t val)
     delayMicroseconds(TM1638_SHIFT_DELAY);
   }
 }
-
 
 }  // namespace tm1638
 }  // namespace esphome

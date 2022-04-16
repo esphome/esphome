@@ -14,15 +14,14 @@ namespace tm1638 {
 
 class KeyListener {
  public:
-  virtual void keys_update(uint8_t keys) {};
+  virtual void keys_update(uint8_t keys){};
 };
-
 
 class TM1638Component;
 
 using tm1638_writer_t = std::function<void(TM1638Component &)>;
 
-class TM1638Component : public PollingComponent{
+class TM1638Component : public PollingComponent {
  public:
   void set_writer(tm1638_writer_t &&writer) { this->writer_ = writer; }
   void setup() override;
@@ -37,7 +36,6 @@ class TM1638Component : public PollingComponent{
   void set_stb_pin(GPIOPin *pin) { this->stb_pin_ = pin; }
 
   void register_listener(KeyListener *listener) { this->listeners_.push_back(listener); }
-
 
   /// Evaluate the printf-format and print the result at the given position.
   uint8_t printf(uint8_t pos, const char *format, ...) __attribute__((format(printf, 3, 4)));
