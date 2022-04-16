@@ -238,10 +238,10 @@ void TM1638Component::send_command_(uint8_t value) {
   stb_pin_->digital_write(true);
 }
 
-void TM1638Component::send_commands_(uint8_t const commands[], int num_commands) {
+void TM1638Component::send_commands_(uint8_t const commands[], uint8_t num_commands) {
   stb_pin_->digital_write(false);
 
-  for (int i = 0; i < num_commands; i++) {
+  for (uint8_t i = 0; i < num_commands; i++) {
     uint8_t command = commands[i];
     this->shift_out_(command);
   }
@@ -253,7 +253,7 @@ void TM1638Component::send_command_leave_open_(uint8_t value) {
   this->shift_out_(value);
 }
 
-void TM1638Component::send_command_sequence_(uint8_t commands[], int num_commands, uint8_t starting_address) {
+void TM1638Component::send_command_sequence_(uint8_t commands[], uint8_t num_commands, uint8_t starting_address) {
   this->send_command_(TM1638_REGISTER_AUTOADDRESS);
   send_command_leave_open_(starting_address);
 

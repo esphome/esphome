@@ -63,8 +63,8 @@ class TM1638Component : public PollingComponent {
   void set_7seg_(int seg_pos, uint8_t seg_bits);
   void send_command_(uint8_t value);
   void send_command_leave_open_(uint8_t value);
-  void send_commands_(uint8_t const commands[], int num_commands);
-  void send_command_sequence_(uint8_t commands[], int num_commands, uint8_t starting_address);
+  void send_commands_(uint8_t const commands[], uint8_t num_commands);
+  void send_command_sequence_(uint8_t commands[], uint8_t num_commands, uint8_t starting_address);
   void shift_out_(uint8_t value);
   void reset_(bool on_off);
   uint8_t shift_in_();
