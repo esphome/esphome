@@ -86,7 +86,7 @@ class VariableDeclarationExpression(Expression):
         self.size = size
 
     def __str__(self):
-        if self.size:#JFMOD
+        if self.size:
             return f"{self.type} {self.modifier}{self.name}[{self.size}]"
         else:
             return f"{self.type} {self.modifier}{self.name}"
@@ -748,7 +748,7 @@ class MockObj(Expression):
     def new(self) -> "MockObj":
         return MockObj(f"new {self.base}", "->")
        
-    def new_sbuf(self, name: str, args) -> "MockObj":#JFMOD
+    def new_sbuf(self, name: str, args) -> "MockObj":
         call=CallExpression("", *args)
         return MockObj(f"new ({name}_sbuf) {self.base}{call}", "->" )
 
