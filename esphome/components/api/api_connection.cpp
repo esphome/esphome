@@ -288,8 +288,6 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
   if (fan == nullptr)
     return;
 
-  auto traits = fan->get_traits();
-
   auto call = fan->make_call();
   if (msg.has_state)
     call.set_state(msg.state);
