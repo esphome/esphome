@@ -76,7 +76,6 @@ class TM1638Component : public PollingComponent {
   GPIOPin *stb_pin_;
   GPIOPin *dio_pin_;
   uint8_t *buffer_;
-  uint8_t button_state_;
   optional<tm1638_writer_t> writer_{};
 
   std::vector<KeyListener *> listeners_{};

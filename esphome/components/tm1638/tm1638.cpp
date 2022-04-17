@@ -39,7 +39,7 @@ void TM1638Component::setup() {
   ESP_LOGD(TAG, "Initial Intensity: %u", this->intensity_);
   set_intensity(intensity_);
 
-  ESP_LOGD(TAG, "reset_ display");
+  ESP_LOGD(TAG, "Reset display");
   this->reset_(false);  // all LEDs off
 
   this->buffer_ = new uint8_t[8];  // NOLINT
@@ -59,7 +59,7 @@ void TM1638Component::dump_config() {
 }
 
 void TM1638Component::loop() {
-  if (!this->listeners_.empty())
+  if (this->listeners_.empty())
     return;
 
   uint8_t keys = this->get_keys();
