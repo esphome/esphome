@@ -77,16 +77,17 @@ class AssignmentExpression(Expression):
 
 
 class VariableDeclarationExpression(Expression):
-    #JFPOI __slots__ = ("type", "modifier", "name", "size") #JFMOD
-    def __init__(self, type_, modifier, name, size=None): #JFMOD
+    __slots__ = ("type", "modifier", "name", "size")
+
+    def __init__(self, type_, modifier, name, size=None):
         self.type = type_
         self.modifier = modifier
         self.name = name
-        self.size = size #JFMOD
+        self.size = size
 
     def __str__(self):
         if self.size:#JFMOD
-            return f"{self.type} {self.modifier}{self.name}[{self.size}]"#JFMOD
+            return f"{self.type} {self.modifier}{self.name}[{self.size}]"
         else:
             return f"{self.type} {self.modifier}{self.name}"
 
@@ -509,11 +510,9 @@ def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj
         id_.type = type_
     decl = VariableDeclarationExpression(id_.type, "", id_)
     CORE.add_global(decl)
-    # JFPOI
     assignment = AssignmentExpression(None, "", id_, rhs)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
-    #raise Exception("new_variable %s %s" % (id_, ID))
     return obj
 
 
@@ -536,13 +535,8 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     assignment = AssignmentExpression(None, None, id_, rhs)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
-    
-    #raise Exception("pVariable %s %s" % (id_, ID))
-   #JFPOI
-    decl2 = VariableDeclarationExpression("char", "", str(id_)+"_sbuf", "sizeof(%s)" % id_.type) #JFMOD 
-    CORE.add_global(decl2) #JFMOD
-
-
+    sbuf_decl = VariableDeclarationExpression("char", "", str(id_)+"_sbuf", "sizeof(%s)" % id_.type)
+    CORE.add_global(sbuf_decl)
     return obj
 
 
@@ -556,14 +550,10 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> Pvariable:
     :returns The new variable as a MockObj.
     """
     if args and isinstance(args[0], TemplateArguments):
-        print("newpv")
         id_ = id_.copy()
-        print("newpv %s" % id_)
         id_.type = id_.type.template(args[0])
-        print("newpv2 %s" % id_.type)
         args = args[1:]
-
-    rhs = id_.type.new2(str(id_), args)#JFPOI
+    rhs = id_.type.new_sbuf(str(id_), args)
     return Pvariable(id_, rhs)
 
 
@@ -741,10 +731,6 @@ class MockObj(Expression):
         return MockObj(f"{self.base}{self.op}{attr}", next_op)
 
     def __call__(self, *args):  # type: (SafeExpType) -> MockObj
-        print("call2 base:%s name:%s op:%s" % (self.base, self.name, self.op))
-        #if self.base
-        #print("call3 %s" % args[0])
-        #args = args[1:]
         call = CallExpression(self.base, *args)
         return MockObj(call, self.op)
 
@@ -759,13 +745,10 @@ class MockObj(Expression):
         return MockObj(f"{self.base}{self.op}")
 
     @property
-    def new(self) -> "MockObj":#JFMOD
-        import traceback
-        for line in traceback.format_stack():
-            print(line)
-
+    def new(self) -> "MockObj":
         return MockObj(f"new {self.base}", "->")
-    def new2(self, name: str, args) -> "MockObj":#JFMOD
+       
+    def new_sbuf(self, name: str, args) -> "MockObj":#JFMOD
         call=CallExpression("", *args)
         return MockObj(f"new ({name}_sbuf) {self.base}{call}", "->" )
 
