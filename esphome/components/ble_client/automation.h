@@ -39,20 +39,21 @@ class BLEClientDisconnectTrigger : public Trigger<>, public BLEClientNode {
 };
 
 template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, public BLEClientNode {
-  TEMPLATABLE_VALUE(uint8_t, value);
-
  public:
   BLEClientWriteAction(BLEClient *ble_client) { ble_client->register_ble_node(this); }
+
+  void set_value(std::vector<uint8_t> value) { value_ = value; }
 
   void play(Ts... x) override {
     if (this->ble_char_handle_ == 0) {
       ESP_LOGW("ble_write_action", "Cannot write to BLE characteristic, ble_char_handle_ == 0");
       return;
     }
-    ESP_LOGVV("ble_write_action", "Will write value %d!", this->value_.value());
-    uint8_t val = value_.value();
-    esp_err_t err = esp_ble_gattc_write_char(this->parent()->gattc_if, this->parent()->conn_id, this->ble_char_handle_,
-                                             sizeof(val), &val, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+    ESP_LOGVV("ble_write_action", "Will write %d bytes: %s", this->value_.size(),
+              format_hex_pretty(this->value_).c_str());
+    esp_err_t err =
+        esp_ble_gattc_write_char(this->parent()->gattc_if, this->parent()->conn_id, this->ble_char_handle_,
+                                 value_.size(), value_.data(), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
     if (err != ESP_OK) {
       ESP_LOGE("ble_write_action", "Error writing to characteristic: %s!", esp_err_to_name(err));
     }
@@ -94,6 +95,7 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   int ble_char_handle_ = 0;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;
+  std::vector<uint8_t> value_;
 };
 
 }  // namespace ble_client
