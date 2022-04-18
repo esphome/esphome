@@ -291,6 +291,8 @@ ble_client:
     on_disconnect:
       then:
         - switch.turn_on: ble1_status
+  - mac_address: C4:4F:33:11:22:33
+    id: my_bedjet_ble_client
 mcp23s08:
   - id: "mcp23s08_hub"
     cs_pin: GPIO12
@@ -1751,6 +1753,18 @@ light:
         to: 25
       - single_light_id: ${roomname}_lights
 
+  - platform: shelly_dimmer
+    name: "Shelly Dimmer Light"
+    power:
+      name: "Shelly Dimmer Power"
+    voltage:
+      name: "Shelly Dimmer Voltage"
+    current:
+      name: "Shelly Dimmer Current"
+    max_brightness: 500
+    firmware: "51.6"
+    uart_id: uart0
+
 remote_transmitter:
   - pin: 32
     carrier_duty_percent: 100%
@@ -1858,6 +1872,9 @@ climate:
     ble_client_id: ble_blah
     unit_of_measurement: c
     icon: mdi:stove
+  - platform: bedjet
+    name: My Bedjet
+    ble_client_id: my_bedjet_ble_client
 
 script:
   - id: climate_custom
@@ -2616,6 +2633,16 @@ text_sensor:
           canbus_id: esp32_internal_can
           can_id: 23
           data: [0x10, 0x20, 0x30]
+      - canbus.send:
+          canbus_id: mcp2515_can
+          can_id: 24
+          remote_transmission_request: true
+          data: []
+      - canbus.send:
+          canbus_id: esp32_internal_can
+          can_id: 24
+          remote_transmission_request: true
+          data: []
   - platform: template
     name: Template Text Sensor
     id: ${textname}_text
