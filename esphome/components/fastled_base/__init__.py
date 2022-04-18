@@ -41,8 +41,5 @@ async def new_fastled_light(config):
         cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
     await light.register_light(var, config)
-    # https://github.com/FastLED/FastLED/blob/master/library.json
-    # 3.3.3 has an issue on ESP32 with RMT and fastled_clockless:
-    # https://github.com/esphome/issues/issues/1375
-    cg.add_library("fastled/FastLED", "3.3.2")
+    cg.add_library("fastled/FastLED", "3.5")
     return var
