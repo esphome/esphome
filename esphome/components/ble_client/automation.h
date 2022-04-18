@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/automation.h"
 #include "esphome/components/ble_client/ble_client.h"
 
@@ -35,7 +37,7 @@ class BLEClientDisconnectTrigger : public Trigger<>, public BLEClientNode {
 
 class BLEWriterClientNode : public BLEClientNode {
  public:
-  void set_value(std::vector<uint8_t> value) { value_ = value; }
+  void set_value(std::vector<uint8_t> value) { value_ = std::move(value); }
 
   // Attempts to write the contents of value_ to char_uuid_.
   void write();
