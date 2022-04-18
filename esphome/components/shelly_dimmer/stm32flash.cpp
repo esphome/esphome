@@ -168,12 +168,9 @@ stm32_err_t stm32_get_ack_timeout(const stm32_unique_ptr &stm, uint32_t timeout)
   } while (true);
 }
 
-stm32_err_t stm32_get_ack(const stm32_unique_ptr &stm) {
-  return stm32_get_ack_timeout(stm, 0);
-}
+stm32_err_t stm32_get_ack(const stm32_unique_ptr &stm) { return stm32_get_ack_timeout(stm, 0); }
 
-stm32_err_t stm32_send_command_timeout(const stm32_unique_ptr &stm, const uint8_t cmd,
-                                       const uint32_t timeout) {
+stm32_err_t stm32_send_command_timeout(const stm32_unique_ptr &stm, const uint8_t cmd, const uint32_t timeout) {
   auto *const stream = stm->stream;
 
   static constexpr auto BUFFER_SIZE = 2;
@@ -241,8 +238,7 @@ stm32_err_t stm32_resync(const stm32_unique_ptr &stm) {
  *
  * len is value of the first byte in the frame.
  */
-stm32_err_t stm32_guess_len_cmd(const stm32_unique_ptr &stm, const uint8_t cmd,
-                                uint8_t *const data, unsigned int len) {
+stm32_err_t stm32_guess_len_cmd(const stm32_unique_ptr &stm, const uint8_t cmd, uint8_t *const data, unsigned int len) {
   auto *const stream = stm->stream;
 
   if (stm32_send_command(stm, cmd) != STM32_ERR_OK)
@@ -368,8 +364,7 @@ template<typename T> std::unique_ptr<T[], void (*)(T *memory)> malloc_array_raii
                                                  DELETOR};
 }
 
-stm32_err_t stm32_pages_erase(const stm32_unique_ptr &stm, const uint32_t spage,
-                              const uint32_t pages) {
+stm32_err_t stm32_pages_erase(const stm32_unique_ptr &stm, const uint32_t spage, const uint32_t pages) {
   auto *const stream = stm->stream;
   uint8_t cs = 0;
   int i = 0;
@@ -503,8 +498,7 @@ namespace shelly_dimmer {
 /* find newer command by higher code */
 #define newer(prev, a) (((prev) == STM32_CMD_ERR) ? (a) : (((prev) > (a)) ? (prev) : (a)))
 
-stm32_unique_ptr stm32_init(uart::UARTDevice *stream, const uint8_t flags,
-                                                         const char init) {
+stm32_unique_ptr stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char init) {
   uint8_t buf[257];
 
   auto stm = make_stm32_with_deletor(static_cast<stm32_t *>(calloc(sizeof(stm32_t), 1))  // NOLINT
@@ -664,8 +658,8 @@ stm32_unique_ptr stm32_init(uart::UARTDevice *stream, const uint8_t flags,
   return stm;
 }
 
-stm32_err_t stm32_read_memory(const stm32_unique_ptr &stm, const uint32_t address,
-                              uint8_t *data, const unsigned int len) {
+stm32_err_t stm32_read_memory(const stm32_unique_ptr &stm, const uint32_t address, uint8_t *data,
+                              const unsigned int len) {
   auto *const stream = stm->stream;
 
   if (!len)
@@ -703,8 +697,8 @@ stm32_err_t stm32_read_memory(const stm32_unique_ptr &stm, const uint32_t addres
   return STM32_ERR_OK;
 }
 
-stm32_err_t stm32_write_memory(const stm32_unique_ptr &stm, uint32_t address,
-                               const uint8_t *data, const unsigned int len) {
+stm32_err_t stm32_write_memory(const stm32_unique_ptr &stm, uint32_t address, const uint8_t *data,
+                               const unsigned int len) {
   auto *const stream = stm->stream;
 
   if (!len)
@@ -816,8 +810,7 @@ stm32_err_t stm32_readprot_memory(const stm32_unique_ptr &stm) {
                                  []() { ESP_LOGD(TAG, "Error: Failed to READOUT PROTECT"); });
 }
 
-stm32_err_t stm32_erase_memory(const stm32_unique_ptr &stm, uint32_t spage,
-                               uint32_t pages) {
+stm32_err_t stm32_erase_memory(const stm32_unique_ptr &stm, uint32_t spage, uint32_t pages) {
   if (!pages || spage > STM32_MAX_PAGES || ((pages != STM32_MASS_ERASE) && ((spage + pages) > STM32_MAX_PAGES)))
     return STM32_ERR_OK;
 
@@ -859,8 +852,8 @@ stm32_err_t stm32_erase_memory(const stm32_unique_ptr &stm, uint32_t spage,
   return STM32_ERR_OK;
 }
 
-static stm32_err_t stm32_run_raw_code(const stm32_unique_ptr &stm, uint32_t target_address,
-                                      const uint8_t *code, uint32_t code_size) {
+static stm32_err_t stm32_run_raw_code(const stm32_unique_ptr &stm, uint32_t target_address, const uint8_t *code,
+                                      uint32_t code_size) {
   static constexpr uint32_t BUFFER_SIZE = 256;
 
   const auto stack_le = le_u32(0x20002000);
@@ -939,8 +932,8 @@ stm32_err_t stm32_reset_device(const stm32_unique_ptr &stm) {
   }
 }
 
-stm32_err_t stm32_crc_memory(const stm32_unique_ptr &stm, const uint32_t address,
-                             const uint32_t length, uint32_t *const crc) {
+stm32_err_t stm32_crc_memory(const stm32_unique_ptr &stm, const uint32_t address, const uint32_t length,
+                             uint32_t *const crc) {
   static constexpr auto BUFFER_SIZE = 5;
   auto *const stream = stm->stream;
 
@@ -1035,8 +1028,7 @@ uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len) {
   return crc;
 }
 
-stm32_err_t stm32_crc_wrapper(const stm32_unique_ptr &stm, uint32_t address,
-                              uint32_t length, uint32_t *crc) {
+stm32_err_t stm32_crc_wrapper(const stm32_unique_ptr &stm, uint32_t address, uint32_t length, uint32_t *crc) {
   static constexpr uint32_t CRC_INIT_VALUE = 0xFFFFFFFF;
   static constexpr uint32_t BUFFER_SIZE = 256;
 
