@@ -1,14 +1,9 @@
 #pragma once
 
 #include "esphome/core/automation.h"
-// #include "esphome/core/log.h"
 #include "esphome/components/ble_client/ble_client.h"
 
 #ifdef USE_ESP32
-
-#include <esp_gap_ble_api.h>
-#include <esp_gattc_api.h>
-#include <esp_bt_defs.h>
 
 namespace esphome {
 namespace ble_client {
