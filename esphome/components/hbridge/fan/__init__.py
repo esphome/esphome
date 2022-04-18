@@ -7,10 +7,16 @@ from esphome.const import (
     CONF_ID,
     CONF_SPEED_COUNT,
     CONF_OSCILLATION_OUTPUT,
+    CONF_ACCELERATION,
+    CONF_DECELERATION,
 )
 
 CODEOWNERS = ["@FaBjE"]
 AUTO_LOAD = ["hbridge"]
+
+CONF_BRAKE_WHEN_STOPPED = "brake_when_stopped"
+CONF_BRAKE_BUILDUP_WHEN_STOPPED = "brake_buildup_when_stopped"
+CONF_MIN_SPEED = "min_speed"
 
 HBridgeFan = hbridge.hbridge_ns.class_("HBridgeFan", fan.Fan, hbridge.HBridge)
 
@@ -20,6 +26,19 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
         cv.GenerateID(CONF_ID): cv.declare_id(HBridgeFan),
         cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
         cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_id(output.BinaryOutput),
+        cv.Optional(
+            CONF_ACCELERATION, default="0ms"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_DECELERATION, default="0ms"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_BRAKE_WHEN_STOPPED, default="0ms"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_BRAKE_BUILDUP_WHEN_STOPPED, default="0ms"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_MIN_SPEED, default="0"): cv.positive_float,
     }
 ).extend(hbridge.HBRIDGE_CONFIG_SCHEMA)
 
@@ -51,3 +70,12 @@ async def to_code(config):
 
     # HBridge driver config
     await hbridge.hbridge_setup(config, var)
+
+    # Transition settings
+    cg.add(var.set_setting_rampup_time_ms(config[CONF_ACCELERATION]))
+    cg.add(var.set_setting_rampdown_time_ms(config[CONF_DECELERATION]))
+    cg.add(var.set_setting_short_time_ms(config[CONF_BRAKE_WHEN_STOPPED]))
+    cg.add(
+        var.set_setting_short_buildup_time_ms(config[CONF_BRAKE_BUILDUP_WHEN_STOPPED])
+    )
+    cg.add(var.set_setting_min_dutycycle(config[CONF_MIN_SPEED]))

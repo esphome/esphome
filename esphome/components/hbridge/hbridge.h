@@ -16,7 +16,8 @@ enum class TransitionState {
   OFF = 0,
   SHORTING_BUILDUP = 1,
   FULL_SHORT = 2,
-  DUTYCYCLE_TRANSITIONING = 3,
+  RAMP_UP = 3,
+  RAMP_DOWN = 4,
 };
 
 enum class CurrentDecayMode {
@@ -31,11 +32,12 @@ class HBridge : public Component {
   void set_hbridge_pin_b(output::FloatOutput *pin_b) { pin_b_ = pin_b; }
   void set_hbridge_enable_pin(output::FloatOutput *enable) { enable_pin_ = enable; }
   void set_hbridge_decay_mode(CurrentDecayMode decay_mode) { current_decay_mode_ = decay_mode; }
-  void set_setting_transition_delta_per_ms(float val) { setting_transition_delta_per_ms_ = val; }
-  void set_setting_transition_shorting_buildup_duration_ms(uint32_t val) {
-    setting_transition_shorting_buildup_duration_ms_ = val;
-  }
-  void set_setting_transition_full_short_duration_ms(uint32_t val) { setting_transition_full_short_duration_ms_ = val; }
+
+  void set_setting_rampup_time_ms(uint32_t val) { setting_full_rampup_time_ms_ = val; }
+  void set_setting_rampdown_time_ms(uint32_t val) { setting_full_rampdown_time_ms_ = val; }
+  void set_setting_short_buildup_time_ms(uint32_t val) { setting_short_buildup_time_ms_ = val; }
+  void set_setting_short_time_ms(uint32_t val) { setting_full_rampdown_time_ms_ = val; }
+  void set_setting_min_dutycycle(float val) { setting_min_dutycycle = val; }
 
   // Component interfacing
   void setup() override;
@@ -44,8 +46,9 @@ class HBridge : public Component {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   // Hbridge control
-  void transition_to_state(HBridgeMode target_mode, float target_dutycycle, float dutycycle_delta_per_ms,
-                           uint32_t shorting_buildup_duration_ms, uint32_t full_short_duration_ms);
+  void transition_to_state(HBridgeMode target_mode, float target_dutycycle, uint32_t full_rampup_duration_ms,
+                           uint32_t full_rampdown_duration_ms, uint32_t short_buildup_duration_ms,
+                           uint32_t short_duration_ms);
   void set_state(HBridgeMode mode, float dutycycle);
 
  protected:
@@ -59,16 +62,16 @@ class HBridge : public Component {
   // Current decay mode: See DRV8833 datasheet - "7.3.2 Bridge Control and Decay Modes" for details
   CurrentDecayMode current_decay_mode_{CurrentDecayMode::SLOW};
 
-  // Transition settings (storage only)
-  float setting_transition_delta_per_ms_ = 0;
-  uint32_t setting_transition_shorting_buildup_duration_ms_ = 0;
-  uint32_t setting_transition_full_short_duration_ms_ = 0;
+  // Settings (storage only)
+  uint32_t setting_full_rampup_time_ms_ = 0;
+  uint32_t setting_full_rampdown_time_ms_ = 0;
+  uint32_t setting_short_buildup_time_ms_ = 0;
+  uint32_t setting_short_time_ms_ = 0;
+  float setting_min_dutycycle = 0;
 
   // Object state(s)
-  float current_relative_dutycycle_ = 0;
   HBridgeMode current_mode_ = HBridgeMode::OFF;
-
-  void set_output_state_by_relative_dutycycle_(float relative_dutycycle);
+  float current_mode_dutycycle_ = 0;
   void set_output_state_(HBridgeMode mode, float dutycycle);
 
  private:
@@ -80,18 +83,20 @@ class HBridge : public Component {
   // Target vars
   HBridgeMode transition_target_mode_ = HBridgeMode::OFF;
   float transition_target_mode_dutycycle_ = 0;
-  float transition_target_relative_dutycycle_ = 0;
 
-  // Dutycycle buildup state vars
-  float transition_relative_dutycycle_delta_per_ms_ = 0;
+  // Ramp-up state vars
+  float transition_rampup_dutycycle_delta_per_ms_ = 0;
+
+  // Ramp-down state vars
+  float transition_rampdown_dutycycle_delta_per_ms_ = 0;
 
   // Shorting buildup state vars
   float transition_shorting_dutycycle_delta_per_ms_ = 0;
   float transition_shorting_dutycycle_ = 0;
   uint32_t transition_shorting_buildup_duration_ms_ = 0;
 
-  // Full short state vars
-  uint32_t transition_full_short_duration_ms_ = 0;
+  // short state vars
+  uint32_t transition_short_duration_ms_ = 0;
 };
 
 }  // namespace hbridge
