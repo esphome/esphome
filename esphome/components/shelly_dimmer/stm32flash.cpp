@@ -654,7 +654,6 @@ stm32_unique_ptr stm32_init(uart::UARTDevice *stream, const uint8_t flags, const
     return make_stm32_with_deletor(nullptr);
   }
 
-  // Release ownership of unique_ptr
   return stm;
 }
 
