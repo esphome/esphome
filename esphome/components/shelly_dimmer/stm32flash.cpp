@@ -480,7 +480,13 @@ template<size_t N> void populate_buffer_with_address(uint8_t (&buffer)[N], uint3
 }
 
 template<typename T> stm32_unique_ptr make_stm32_with_deletor(T ptr) {
-  static const auto CLOSE = [](stm32_t *stm32) { stm32_close(stm32); };
+  static const auto CLOSE = [](stm32_t *stm32) {
+    if (stm32) {
+      free(stm32->cmd);  // NOLINT
+    }
+
+    free(stm32);  // NOLINT
+  };
 
   // Cleanup with RAII
   return std::unique_ptr<stm32_t, decltype(CLOSE)>{ptr, CLOSE};
@@ -656,12 +662,6 @@ stm32_unique_ptr stm32_init(uart::UARTDevice *stream, const uint8_t flags,
 
   // Release ownership of unique_ptr
   return stm;
-}
-
-void stm32_close(stm32_t *stm) {
-  if (stm)
-    free(stm->cmd);  // NOLINT
-  free(stm);         // NOLINT
 }
 
 stm32_err_t stm32_read_memory(const stm32_unique_ptr &stm, const uint32_t address,

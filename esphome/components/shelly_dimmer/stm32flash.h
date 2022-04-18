@@ -112,7 +112,6 @@ struct VarlenCmd {
 using stm32_unique_ptr = std::unique_ptr<stm32_t, void (*)(stm32_t *)>;
 
 stm32_unique_ptr stm32_init(uart::UARTDevice *stream, uint8_t flags, char init);
-void stm32_close(stm32_t *stm);
 stm32_err_t stm32_read_memory(const stm32_unique_ptr &stm, uint32_t address, uint8_t *data,
                               unsigned int len);
 stm32_err_t stm32_write_memory(const stm32_unique_ptr &stm, uint32_t address,
