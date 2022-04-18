@@ -117,7 +117,7 @@ namespace shelly_dimmer {
 
 namespace {
 
-int flash_addr_to_page_ceil(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm, uint32_t addr) {
+int flash_addr_to_page_ceil(const stm32_unique_ptr &stm, uint32_t addr) {
   if (!(addr >= stm->dev->fl_start && addr <= stm->dev->fl_end))
     return 0;
 
@@ -135,7 +135,7 @@ int flash_addr_to_page_ceil(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> 
   return addr ? page + 1 : page;
 }
 
-stm32_err_t stm32_get_ack_timeout(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm, uint32_t timeout) {
+stm32_err_t stm32_get_ack_timeout(const stm32_unique_ptr &stm, uint32_t timeout) {
   auto *stream = stm->stream;
   uint8_t rxbyte;
 
@@ -168,11 +168,11 @@ stm32_err_t stm32_get_ack_timeout(const std::unique_ptr<stm32_t, void (*)(stm32_
   } while (true);
 }
 
-stm32_err_t stm32_get_ack(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm) {
+stm32_err_t stm32_get_ack(const stm32_unique_ptr &stm) {
   return stm32_get_ack_timeout(stm, 0);
 }
 
-stm32_err_t stm32_send_command_timeout(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm, const uint8_t cmd,
+stm32_err_t stm32_send_command_timeout(const stm32_unique_ptr &stm, const uint8_t cmd,
                                        const uint32_t timeout) {
   auto *const stream = stm->stream;
 
@@ -197,12 +197,12 @@ stm32_err_t stm32_send_command_timeout(const std::unique_ptr<stm32_t, void (*)(s
   return STM32_ERR_UNKNOWN;
 }
 
-stm32_err_t stm32_send_command(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm, const uint8_t cmd) {
+stm32_err_t stm32_send_command(const stm32_unique_ptr &stm, const uint8_t cmd) {
   return stm32_send_command_timeout(stm, cmd, 0);
 }
 
 /* if we have lost sync, send a wrong command and expect a NACK */
-stm32_err_t stm32_resync(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm) {
+stm32_err_t stm32_resync(const stm32_unique_ptr &stm) {
   auto *const stream = stm->stream;
   uint32_t t0 = millis();
   auto t1 = t0;
@@ -241,7 +241,7 @@ stm32_err_t stm32_resync(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &st
  *
  * len is value of the first byte in the frame.
  */
-stm32_err_t stm32_guess_len_cmd(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm, const uint8_t cmd,
+stm32_err_t stm32_guess_len_cmd(const stm32_unique_ptr &stm, const uint8_t cmd,
                                 uint8_t *const data, unsigned int len) {
   auto *const stream = stm->stream;
 
@@ -290,7 +290,7 @@ stm32_err_t stm32_guess_len_cmd(const std::unique_ptr<stm32_t, void (*)(stm32_t 
  * This function sends the init sequence and, in case of timeout, recovers
  * the interface.
  */
-stm32_err_t stm32_send_init_seq(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm) {
+stm32_err_t stm32_send_init_seq(const stm32_unique_ptr &stm) {
   auto *const stream = stm->stream;
 
   stream->write_array(&STM32_CMD_INIT, 1);
@@ -324,7 +324,7 @@ stm32_err_t stm32_send_init_seq(const std::unique_ptr<stm32_t, void (*)(stm32_t 
   return STM32_ERR_UNKNOWN;
 }
 
-stm32_err_t stm32_mass_erase(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm) {
+stm32_err_t stm32_mass_erase(const stm32_unique_ptr &stm) {
   auto *const stream = stm->stream;
 
   if (stm32_send_command(stm, stm->cmd->er) != STM32_ERR_OK) {
@@ -368,7 +368,7 @@ template<typename T> std::unique_ptr<T[], void (*)(T *memory)> malloc_array_raii
                                                  DELETOR};
 }
 
-stm32_err_t stm32_pages_erase(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm, const uint32_t spage,
+stm32_err_t stm32_pages_erase(const stm32_unique_ptr &stm, const uint32_t spage,
                               const uint32_t pages) {
   auto *const stream = stm->stream;
   uint8_t cs = 0;
@@ -479,7 +479,7 @@ template<size_t N> void populate_buffer_with_address(uint8_t (&buffer)[N], uint3
   buffer[4] = static_cast<uint8_t>(buffer[0] ^ buffer[1] ^ buffer[2] ^ buffer[3]);
 }
 
-template<typename T> std::unique_ptr<stm32_t, void (*)(stm32_t *)> make_stm32_with_deletor(T ptr) {
+template<typename T> stm32_unique_ptr make_stm32_with_deletor(T ptr) {
   static const auto CLOSE = [](stm32_t *stm32) { stm32_close(stm32); };
 
   // Cleanup with RAII
@@ -497,7 +497,7 @@ namespace shelly_dimmer {
 /* find newer command by higher code */
 #define newer(prev, a) (((prev) == STM32_CMD_ERR) ? (a) : (((prev) > (a)) ? (prev) : (a)))
 
-std::unique_ptr<stm32_t, void (*)(stm32_t *)> stm32_init(uart::UARTDevice *stream, const uint8_t flags,
+stm32_unique_ptr stm32_init(uart::UARTDevice *stream, const uint8_t flags,
                                                          const char init) {
   uint8_t buf[257];
 
@@ -664,7 +664,7 @@ void stm32_close(stm32_t *stm) {
   free(stm);         // NOLINT
 }
 
-stm32_err_t stm32_read_memory(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm, const uint32_t address,
+stm32_err_t stm32_read_memory(const stm32_unique_ptr &stm, const uint32_t address,
                               uint8_t *data, const unsigned int len) {
   auto *const stream = stm->stream;
 
@@ -703,7 +703,7 @@ stm32_err_t stm32_read_memory(const std::unique_ptr<stm32_t, void (*)(stm32_t *)
   return STM32_ERR_OK;
 }
 
-stm32_err_t stm32_write_memory(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm, uint32_t address,
+stm32_err_t stm32_write_memory(const stm32_unique_ptr &stm, uint32_t address,
                                const uint8_t *data, const unsigned int len) {
   auto *const stream = stm->stream;
 
@@ -764,7 +764,7 @@ stm32_err_t stm32_write_memory(const std::unique_ptr<stm32_t, void (*)(stm32_t *
   return STM32_ERR_OK;
 }
 
-stm32_err_t stm32_wunprot_memory(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm) {
+stm32_err_t stm32_wunprot_memory(const stm32_unique_ptr &stm) {
   if (stm->cmd->uw == STM32_CMD_ERR) {
     ESP_LOGD(TAG, "Error: WRITE UNPROTECT command not implemented in bootloader.");
     return STM32_ERR_NO_CMD;
@@ -777,7 +777,7 @@ stm32_err_t stm32_wunprot_memory(const std::unique_ptr<stm32_t, void (*)(stm32_t
                                  []() { ESP_LOGD(TAG, "Error: Failed to WRITE UNPROTECT"); });
 }
 
-stm32_err_t stm32_wprot_memory(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm) {
+stm32_err_t stm32_wprot_memory(const stm32_unique_ptr &stm) {
   if (stm->cmd->wp == STM32_CMD_ERR) {
     ESP_LOGD(TAG, "Error: WRITE PROTECT command not implemented in bootloader.");
     return STM32_ERR_NO_CMD;
@@ -790,7 +790,7 @@ stm32_err_t stm32_wprot_memory(const std::unique_ptr<stm32_t, void (*)(stm32_t *
                                  []() { ESP_LOGD(TAG, "Error: Failed to WRITE PROTECT"); });
 }
 
-stm32_err_t stm32_runprot_memory(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm) {
+stm32_err_t stm32_runprot_memory(const stm32_unique_ptr &stm) {
   if (stm->cmd->ur == STM32_CMD_ERR) {
     ESP_LOGD(TAG, "Error: READOUT UNPROTECT command not implemented in bootloader.");
     return STM32_ERR_NO_CMD;
@@ -803,7 +803,7 @@ stm32_err_t stm32_runprot_memory(const std::unique_ptr<stm32_t, void (*)(stm32_t
                                  []() { ESP_LOGD(TAG, "Error: Failed to READOUT UNPROTECT"); });
 }
 
-stm32_err_t stm32_readprot_memory(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm) {
+stm32_err_t stm32_readprot_memory(const stm32_unique_ptr &stm) {
   if (stm->cmd->rp == STM32_CMD_ERR) {
     ESP_LOGD(TAG, "Error: READOUT PROTECT command not implemented in bootloader.");
     return STM32_ERR_NO_CMD;
@@ -816,7 +816,7 @@ stm32_err_t stm32_readprot_memory(const std::unique_ptr<stm32_t, void (*)(stm32_
                                  []() { ESP_LOGD(TAG, "Error: Failed to READOUT PROTECT"); });
 }
 
-stm32_err_t stm32_erase_memory(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm, uint32_t spage,
+stm32_err_t stm32_erase_memory(const stm32_unique_ptr &stm, uint32_t spage,
                                uint32_t pages) {
   if (!pages || spage > STM32_MAX_PAGES || ((pages != STM32_MASS_ERASE) && ((spage + pages) > STM32_MAX_PAGES)))
     return STM32_ERR_OK;
@@ -859,7 +859,7 @@ stm32_err_t stm32_erase_memory(const std::unique_ptr<stm32_t, void (*)(stm32_t *
   return STM32_ERR_OK;
 }
 
-static stm32_err_t stm32_run_raw_code(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm, uint32_t target_address,
+static stm32_err_t stm32_run_raw_code(const stm32_unique_ptr &stm, uint32_t target_address,
                                       const uint8_t *code, uint32_t code_size) {
   static constexpr uint32_t BUFFER_SIZE = 256;
 
@@ -905,7 +905,7 @@ static stm32_err_t stm32_run_raw_code(const std::unique_ptr<stm32_t, void (*)(st
   return stm32_go(stm, target_address);
 }
 
-stm32_err_t stm32_go(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm, const uint32_t address) {
+stm32_err_t stm32_go(const stm32_unique_ptr &stm, const uint32_t address) {
   auto *const stream = stm->stream;
 
   if (stm->cmd->go == STM32_CMD_ERR) {
@@ -928,7 +928,7 @@ stm32_err_t stm32_go(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm, c
   return STM32_ERR_OK;
 }
 
-stm32_err_t stm32_reset_device(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm) {
+stm32_err_t stm32_reset_device(const stm32_unique_ptr &stm) {
   const auto target_address = stm->dev->ram_start;
 
   if (stm->dev->flags & F_OBLL) {
@@ -939,7 +939,7 @@ stm32_err_t stm32_reset_device(const std::unique_ptr<stm32_t, void (*)(stm32_t *
   }
 }
 
-stm32_err_t stm32_crc_memory(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm, const uint32_t address,
+stm32_err_t stm32_crc_memory(const stm32_unique_ptr &stm, const uint32_t address,
                              const uint32_t length, uint32_t *const crc) {
   static constexpr auto BUFFER_SIZE = 5;
   auto *const stream = stm->stream;
@@ -1035,7 +1035,7 @@ uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len) {
   return crc;
 }
 
-stm32_err_t stm32_crc_wrapper(const std::unique_ptr<stm32_t, void (*)(stm32_t *)> &stm, uint32_t address,
+stm32_err_t stm32_crc_wrapper(const stm32_unique_ptr &stm, uint32_t address,
                               uint32_t length, uint32_t *crc) {
   static constexpr uint32_t CRC_INIT_VALUE = 0xFFFFFFFF;
   static constexpr uint32_t BUFFER_SIZE = 256;
