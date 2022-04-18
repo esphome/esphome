@@ -14,8 +14,7 @@ void BLEWriterClientNode::write() {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "Cannot write to BLE characteristic - not connected");
     return;
-  }
-  if (this->ble_char_handle_ == 0) {
+  } else if (this->ble_char_handle_ == 0) {
     ESP_LOGW(TAG, "Cannot write to BLE characteristic - characteristic not found");
     return;
   }
