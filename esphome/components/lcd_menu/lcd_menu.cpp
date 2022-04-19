@@ -13,9 +13,8 @@ void LCDMenuComponent::setup() {}
 void LCDMenuComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LCD Menu");
   ESP_LOGCONFIG(TAG, "  Columns: %u, Rows: %u", this->columns_, this->rows_);
-  ESP_LOGCONFIG(TAG, "  Mark characters: %02x, %02x, %02x, %02x",
-                this->mark_selected_, this->mark_editing_, this->mark_submenu_,
-                this->mark_back_);
+  ESP_LOGCONFIG(TAG, "  Mark characters: %02x, %02x, %02x, %02x", this->mark_selected_, this->mark_editing_,
+                this->mark_submenu_, this->mark_back_);
 }
 
 void LCDMenuComponent::up() {
@@ -26,18 +25,18 @@ void LCDMenuComponent::up() {
 
     if (this->editing_) {
       switch (this->get_selected_item_()->get_type()) {
-      case MENU_ITEM_ENUM:
-        this->get_selected_item_()->dec_enum();
-        this->get_selected_item_()->on_value();
-        chg = true;
-        break;
-      case MENU_ITEM_NUMBER:
-        this->get_selected_item_()->dec_number();
-        this->get_selected_item_()->on_value();
-        chg = true;
-        break;
-      default:
-        break;
+        case MENU_ITEM_ENUM:
+          this->get_selected_item_()->dec_enum();
+          this->get_selected_item_()->on_value();
+          chg = true;
+          break;
+        case MENU_ITEM_NUMBER:
+          this->get_selected_item_()->dec_number();
+          this->get_selected_item_()->on_value();
+          chg = true;
+          break;
+        default:
+          break;
       }
     } else {
       if (this->cursor_index_ > 0) {
@@ -63,18 +62,18 @@ void LCDMenuComponent::down() {
 
     if (this->editing_) {
       switch (this->get_selected_item_()->get_type()) {
-      case MENU_ITEM_ENUM:
-        this->get_selected_item_()->inc_enum();
-        this->get_selected_item_()->on_value();
-        chg = true;
-        break;
-      case MENU_ITEM_NUMBER:
-        this->get_selected_item_()->inc_number();
-        this->get_selected_item_()->on_value();
-        chg = true;
-        break;
-      default:
-        break;
+        case MENU_ITEM_ENUM:
+          this->get_selected_item_()->inc_enum();
+          this->get_selected_item_()->on_value();
+          chg = true;
+          break;
+        case MENU_ITEM_NUMBER:
+          this->get_selected_item_()->inc_number();
+          this->get_selected_item_()->on_value();
+          chg = true;
+          break;
+        default:
+          break;
       }
     } else {
       if (this->cursor_index_ + 1 < this->displayed_item_->items_size()) {
@@ -103,47 +102,46 @@ void LCDMenuComponent::enter() {
       this->finish_editing_();
     } else {
       switch (item->get_type()) {
-      case MENU_ITEM_MENU:
-        this->displayed_item_->on_leave();
-        this->displayed_item_ = this->get_selected_item_();
-        this->selection_stack_.push_front(
-            {this->top_index_, this->cursor_index_});
-        this->cursor_index_ = this->top_index_ = 0;
-        this->displayed_item_->on_enter();
-        chg = true;
-        break;
-      case MENU_ITEM_BACK:
-        if (this->displayed_item_->get_parent() != nullptr) {
+        case MENU_ITEM_MENU:
           this->displayed_item_->on_leave();
-          this->displayed_item_ = this->displayed_item_->get_parent();
-          this->top_index_ = this->selection_stack_.front().first;
-          this->cursor_index_ = this->selection_stack_.front().second;
-          this->selection_stack_.pop_front();
+          this->displayed_item_ = this->get_selected_item_();
+          this->selection_stack_.push_front({this->top_index_, this->cursor_index_});
+          this->cursor_index_ = this->top_index_ = 0;
           this->displayed_item_->on_enter();
           chg = true;
-        }
-        break;
-      case MENU_ITEM_ENUM:
-        if (item->get_immediate_edit()) {
-          item->inc_enum();
-          item->on_value();
-        } else {
+          break;
+        case MENU_ITEM_BACK:
+          if (this->displayed_item_->get_parent() != nullptr) {
+            this->displayed_item_->on_leave();
+            this->displayed_item_ = this->displayed_item_->get_parent();
+            this->top_index_ = this->selection_stack_.front().first;
+            this->cursor_index_ = this->selection_stack_.front().second;
+            this->selection_stack_.pop_front();
+            this->displayed_item_->on_enter();
+            chg = true;
+          }
+          break;
+        case MENU_ITEM_ENUM:
+          if (item->get_immediate_edit()) {
+            item->inc_enum();
+            item->on_value();
+          } else {
+            this->editing_ = true;
+            item->on_enter();
+          }
+          chg = true;
+          break;
+        case MENU_ITEM_NUMBER:
           this->editing_ = true;
           item->on_enter();
-        }
-        chg = true;
-        break;
-      case MENU_ITEM_NUMBER:
-        this->editing_ = true;
-        item->on_enter();
-        chg = true;
-        break;
-      case MENU_ITEM_COMMAND:
-        item->on_value();
-        chg = true;
-        break;
-      default:
-        break;
+          chg = true;
+          break;
+        case MENU_ITEM_COMMAND:
+          item->on_value();
+          chg = true;
+          break;
+        default:
+          break;
       }
     }
 
@@ -157,10 +155,7 @@ void LCDMenuComponent::draw() {
 
   if (this->active_) {
     MenuItem *item = this->get_selected_item_();
-    for (size_t i = 0;
-         i < this->rows_ &&
-         this->top_index_ + i < this->displayed_item_->items_size();
-         ++i) {
+    for (size_t i = 0; i < this->rows_ && this->top_index_ + i < this->displayed_item_->items_size(); ++i) {
       this->draw_item_(this->displayed_item_->get_item(this->top_index_ + i), i,
                        this->top_index_ + i == this->cursor_index_);
     }
@@ -223,40 +218,37 @@ void LCDMenuComponent::process_initial_() {
   }
 }
 
-void LCDMenuComponent::draw_item_(const MenuItem *item, uint8_t row,
-                                  bool selected) {
-  char data[this->columns_ + 1]; // Bounded to 65 through the config
+void LCDMenuComponent::draw_item_(const MenuItem *item, uint8_t row, bool selected) {
+  char data[this->columns_ + 1];  // Bounded to 65 through the config
 
   memset(data, ' ', this->columns_);
 
   if (selected)
     data[0] = this->editing_ ? this->mark_editing_ : this->mark_selected_;
 
-  size_t n = std::min(item->get_text().size(), (size_t)this->columns_ - 2);
+  size_t n = std::min(item->get_text().size(), (size_t) this->columns_ - 2);
   memcpy(data + 1, item->get_text().c_str(), n);
 
   switch (item->get_type()) {
-  case MENU_ITEM_MENU:
-    data[this->columns_ - 1] = this->mark_submenu_;
-    break;
-  case MENU_ITEM_BACK:
-    data[this->columns_ - 1] = this->mark_back_;
-    break;
-  case MENU_ITEM_ENUM:
-  case MENU_ITEM_NUMBER: {
-    // Maximum: start mark, at least two chars of label, space, '[', value, ']',
-    // end mark. Config guarantees columns >= 12
-    std::string val = (item->get_type() == MENU_ITEM_NUMBER)
-                          ? item->get_number_text()
-                          : item->get_enum_text();
-    size_t val_width = std::min((size_t)this->columns_ - 7, val.length());
-    memcpy(data + this->columns_ - val_width - 4, " [", 2);
-    memcpy(data + this->columns_ - val_width - 2, val.c_str(), val_width);
-    data[this->columns_ - 2] = ']';
-  } break;
-  default:
-    data[this->columns_ - 1] = ' ';
-    break;
+    case MENU_ITEM_MENU:
+      data[this->columns_ - 1] = this->mark_submenu_;
+      break;
+    case MENU_ITEM_BACK:
+      data[this->columns_ - 1] = this->mark_back_;
+      break;
+    case MENU_ITEM_ENUM:
+    case MENU_ITEM_NUMBER: {
+      // Maximum: start mark, at least two chars of label, space, '[', value, ']',
+      // end mark. Config guarantees columns >= 12
+      std::string val = (item->get_type() == MENU_ITEM_NUMBER) ? item->get_number_text() : item->get_enum_text();
+      size_t val_width = std::min((size_t) this->columns_ - 7, val.length());
+      memcpy(data + this->columns_ - val_width - 4, " [", 2);
+      memcpy(data + this->columns_ - val_width - 2, val.c_str(), val_width);
+      data[this->columns_ - 2] = ']';
+    } break;
+    default:
+      data[this->columns_ - 1] = ' ';
+      break;
   }
 
   data[this->columns_] = '\0';
@@ -266,12 +258,12 @@ void LCDMenuComponent::draw_item_(const MenuItem *item, uint8_t row,
 
 void LCDMenuComponent::finish_editing_() {
   switch (this->get_selected_item_()->get_type()) {
-  case MENU_ITEM_ENUM:
-  case MENU_ITEM_NUMBER:
-    this->get_selected_item_()->on_leave();
-    break;
-  default:
-    break;
+    case MENU_ITEM_ENUM:
+    case MENU_ITEM_NUMBER:
+      this->get_selected_item_()->on_leave();
+      break;
+    default:
+      break;
   }
 
   this->editing_ = false;
@@ -279,15 +271,11 @@ void LCDMenuComponent::finish_editing_() {
 
 void MenuItem::on_enter() {
   if (this->item_type_ == MENU_ITEM_ENUM && this->int_var_ != nullptr) {
-    *this->int_var_ =
-        std::max(0, std::min(*this->int_var_,
-                             (int)this->enum_values_.size() - 1));
+    *this->int_var_ = std::max(0, std::min(*this->int_var_, (int) this->enum_values_.size() - 1));
   }
 
   if (this->item_type_ == MENU_ITEM_NUMBER && this->float_var_ != nullptr) {
-    *this->float_var_ =
-        std::max(this->min_value_,
-                 std::min(*this->float_var_, this->max_value_));
+    *this->float_var_ = std::max(this->min_value_, std::min(*this->float_var_, this->max_value_));
   }
 
   this->on_enter_callbacks_.call();
@@ -299,19 +287,21 @@ void MenuItem::on_value() { this->on_value_callbacks_.call(); }
 
 void MenuItem::inc_enum() const {
   if (this->item_type_ == MENU_ITEM_ENUM && this->int_var_ != nullptr) {
-    if (*this->int_var_ < this->enum_values_.size() - 1)
+    if (*this->int_var_ < this->enum_values_.size() - 1) {
       ++*this->int_var_;
-    else
+    } else {
       *this->int_var_ = 0;
+    }
   }
 }
 
 void MenuItem::dec_enum() const {
   if (this->item_type_ == MENU_ITEM_ENUM && this->int_var_ != nullptr) {
-    if (*this->int_var_ > 0)
+    if (*this->int_var_ > 0) {
       --*this->int_var_;
-    else
+    } else {
       *this->int_var_ = this->enum_values_.size() - 1;
+    }
   }
 }
 
@@ -334,8 +324,7 @@ void MenuItem::dec_number() const {
 int MenuItem::get_enum_value() const {
   int val = 0;
   if (this->item_type_ == MENU_ITEM_ENUM && this->int_var_ != nullptr)
-    val = std::max(0, std::min(*this->int_var_,
-                               (int)this->enum_values_.size() - 1));
+    val = std::max(0, std::min(*this->int_var_, (int) this->enum_values_.size() - 1));
 
   return val;
 }
@@ -344,16 +333,16 @@ const std::string &MenuItem::get_enum_text() const {
   if (this->item_type_ == MENU_ITEM_ENUM) {
     return this->enum_values_[get_enum_value()];
   } else {
-    static std::string EmptyString;
-    return EmptyString;
+    static std::string empty_string;
+    return empty_string;
   }
 }
 
 float MenuItem::get_number_value() const {
   float val = 0;
-  if (this->item_type_ == MENU_ITEM_NUMBER && this->float_var_ != nullptr)
-    val = std::max(this->min_value_,
-                   std::min(*this->float_var_, this->max_value_));
+  if (this->item_type_ == MENU_ITEM_NUMBER && this->float_var_ != nullptr) {
+    val = std::max(this->min_value_, std::min(*this->float_var_, this->max_value_));
+  }
 
   return val;
 }
@@ -364,5 +353,5 @@ std::string MenuItem::get_number_text() const {
   return data;
 }
 
-} // namespace lcd_menu
-} // namespace esphome
+}  // namespace lcd_menu
+}  // namespace esphome

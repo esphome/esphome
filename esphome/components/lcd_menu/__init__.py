@@ -1,3 +1,4 @@
+import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -17,7 +18,6 @@ from esphome.const import (
 from esphome.components import lcd_base
 from esphome.automation import maybe_simple_id
 from esphome.components.globals import GlobalsComponent
-import re
 
 CODEOWNERS = ["@numo68"]
 

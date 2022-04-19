@@ -25,7 +25,7 @@ class LCDMenuOnLeaveTrigger;
 class LCDMenuOnValueTrigger;
 
 class MenuItem {
-public:
+ public:
   explicit MenuItem(MenuItemType t = MENU_ITEM_ROOT) : item_type_(t) {}
   void set_parent(MenuItem *parent) { this->parent_ = parent; }
   MenuItem *get_parent() { return this->parent_; }
@@ -34,21 +34,11 @@ public:
     item->set_parent(this);
     this->items_.push_back(item);
   }
-  void set_enum_values(const std::vector<std::string> &values) {
-    this->enum_values_ = values;
-  }
-  void set_enum_variable(globals::GlobalsComponent<int> *var) {
-    this->int_var_ = &var->value();
-  }
-  void set_enum_variable(globals::RestoringGlobalsComponent<int> *var) {
-    this->int_var_ = &var->value();
-  }
-  void set_number_variable(globals::GlobalsComponent<float> *var) {
-    this->float_var_ = &var->value();
-  }
-  void set_number_variable(globals::RestoringGlobalsComponent<float> *var) {
-    this->float_var_ = &var->value();
-  }
+  void set_enum_values(const std::vector<std::string> &values) { this->enum_values_ = values; }
+  void set_enum_variable(globals::GlobalsComponent<int> *var) { this->int_var_ = &var->value(); }
+  void set_enum_variable(globals::RestoringGlobalsComponent<int> *var) { this->int_var_ = &var->value(); }
+  void set_number_variable(globals::GlobalsComponent<float> *var) { this->float_var_ = &var->value(); }
+  void set_number_variable(globals::RestoringGlobalsComponent<float> *var) { this->float_var_ = &var->value(); }
   void set_number_range(float min, float max, float step) {
     this->min_value_ = min;
     this->max_value_ = max;
@@ -56,15 +46,9 @@ public:
   }
   void set_format(const std::string &fmt) { this->format_ = fmt; }
   void set_immediate_edit(bool val) { this->immediate_edit_ = val; }
-  void add_on_enter_callback(std::function<void()> &&cb) {
-    this->on_enter_callbacks_.add(std::move(cb));
-  }
-  void add_on_leave_callback(std::function<void()> &&cb) {
-    this->on_leave_callbacks_.add(std::move(cb));
-  }
-  void add_on_value_callback(std::function<void()> &&cb) {
-    this->on_value_callbacks_.add(std::move(cb));
-  }
+  void add_on_enter_callback(std::function<void()> &&cb) { this->on_enter_callbacks_.add(std::move(cb)); }
+  void add_on_leave_callback(std::function<void()> &&cb) { this->on_leave_callbacks_.add(std::move(cb)); }
+  void add_on_value_callback(std::function<void()> &&cb) { this->on_value_callbacks_.add(std::move(cb)); }
 
   size_t items_size() const { return this->items_.size(); }
   MenuItem *get_item(size_t i) { return this->items_[i]; }
@@ -88,7 +72,7 @@ public:
   void on_leave();
   void on_value();
 
-protected:
+ protected:
   MenuItemType item_type_;
   MenuItem *parent_{nullptr};
   std::string text_;
@@ -108,15 +92,13 @@ protected:
  *
  */
 class LCDMenuComponent : public Component {
-public:
+ public:
   void set_display(lcd_base::LCDDisplay *display) { this->display_ = display; }
   void set_dimensions(uint8_t columns, uint8_t rows) {
     this->columns_ = columns;
     this->rows_ = rows;
   }
-  void set_root_item(MenuItem *item) {
-    this->displayed_item_ = this->root_item_ = item;
-  }
+  void set_root_item(MenuItem *item) { this->displayed_item_ = this->root_item_ = item; }
   void set_active(bool active) { this->active_ = active; }
   void set_mark_selected(uint8_t c) { this->mark_selected_ = c; }
   void set_mark_editing(uint8_t c) { this->mark_editing_ = c; }
@@ -125,9 +107,7 @@ public:
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override {
-    return setup_priority::PROCESSOR;
-  }
+  float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
   void up();
   void down();
@@ -141,12 +121,10 @@ public:
 
   bool is_active() const { return this->active_; }
 
-protected:
+ protected:
   void reset_();
   void process_initial_();
-  MenuItem *get_selected_item_() {
-    return this->displayed_item_->get_item(this->cursor_index_);
-  }
+  MenuItem *get_selected_item_() { return this->displayed_item_->get_item(this->cursor_index_); }
   void finish_editing_();
   void draw_item_(const MenuItem *item, uint8_t row, bool selected);
   void draw_and_update_() {
@@ -172,5 +150,5 @@ protected:
   bool root_on_enter_called_{false};
 };
 
-} // namespace lcd_menu
-} // namespace esphome
+}  // namespace lcd_menu
+}  // namespace esphome
