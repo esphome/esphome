@@ -51,7 +51,7 @@ void NumberCall::perform() {
     }
     ESP_LOGD(TAG, "  Value after increment: %f", current_state);
   }
-  if (this->toggle_.has_value() && *this->toggle_ ) {
+  if (this->toggle_.has_value() && *this->toggle_) {
     if (std::isnan(min_value) || std::isnan(max_value)) {
       ESP_LOGW(
           TAG,
