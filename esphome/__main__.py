@@ -519,7 +519,9 @@ def command_rename(args, config):
             if (
                 len(
                     re.findall(
-                        rf"{match.group(1)}:\s+[\"']?{old_name}[\"']?", raw_contents
+                        rf"^\s+{match.group(1)}:\s+[\"']?{old_name}[\"']?",
+                        raw_contents,
+                        flags=re.MULTILINE,
                     )
                 )
                 > 1
@@ -528,9 +530,10 @@ def command_rename(args, config):
                 return 1
 
             new_raw = re.sub(
-                rf"{match.group(1)}:\s+[\"']?{old_name}[\"']?",
-                f'{match.group(1)}: "{args.name}"',
+                rf"^(\s+{match.group(1)}):\s+[\"']?{old_name}[\"']?",
+                f'\\1: "{args.name}"',
                 raw_contents,
+                flags=re.MULTILINE,
             )
 
         raw_file.seek(0)
