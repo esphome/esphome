@@ -10,6 +10,7 @@ from esphome import const, writer, yaml_util
 import esphome.codegen as cg
 from esphome.config import iter_components, read_config, strip_default_ids
 from esphome.const import (
+    ALLOWED_NAME_CHARS,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
@@ -485,6 +486,16 @@ def command_idedata(args, config):
 
 
 def command_rename(args, config):
+    for c in args.name:
+        if c not in ALLOWED_NAME_CHARS:
+            print(
+                color(
+                    Fore.BOLD_RED,
+                    f"'{c}' is an invalid character for names. Valid characters are: "
+                    f"{ALLOWED_NAME_CHARS} (lowercase, no spaces)",
+                )
+            )
+            return 1
     with open(CORE.config_path, mode="r+", encoding="utf-8") as raw_file:
         raw_contents = raw_file.read()
         yaml = yaml_util.load_yaml(CORE.config_path)
