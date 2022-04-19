@@ -263,7 +263,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
-                cv.decibel, cv.float_range(min=10.0, max=20.5)
+                cv.decibel, cv.float_range(min=8.5, max=20.5)
             ),
             cv.Optional("enable_mdns"): cv.invalid(
                 "This option has been removed. Please use the [disabled] option under the "
