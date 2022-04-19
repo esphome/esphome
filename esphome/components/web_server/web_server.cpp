@@ -714,9 +714,15 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
       request->send(200, "text/json", data.c_str());
       return;
     }
-    if ((match.method != "set" && match.method != "increment" && match.method != "toggle") ||
-        (!request->hasParam("value") && (match.method == "set" || match.method == "increment"))) {
-      request->send(404);
+    if (match.method != "set" && match.method != "increment" && match.method != "toggle") {
+      request->send(404, "text/plain", (std::string("unknown request type ") + match.method).c_str());
+      return;
+    }
+    if (!request->hasParam("value") && (match.method == "set" || match.method == "increment")) {
+      request->send(400, "text/plain",
+                    (std::string("set and increment requests require value parameter (e.g. <number>/") + match.method +
+                     std::string("?value=10)"))
+                        .c_str());  // bad request error
       return;
     }
 
