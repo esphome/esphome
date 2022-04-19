@@ -752,7 +752,7 @@ def parse_args(argv):
 
     parser_rename = subparsers.add_parser("rename")
     parser_rename.add_argument(
-        "configuration", help="Your YAML configuration file(s).", nargs=1
+        "configuration", help="Your YAML configuration file.", nargs=1
     )
     parser_rename.add_argument("name", help="The new name for the device.", type=str)
 
