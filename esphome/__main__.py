@@ -504,16 +504,20 @@ def command_rename(args, config):
                 raw_contents,
             )
         else:
-            old_name = yaml[CONF_SUBSTITUTIONS][match[1]]
+            old_name = yaml[CONF_SUBSTITUTIONS][match.group(1)]
             if (
-                len(re.findall(rf"{match[1]}:\s+[\"']?{old_name}[\"']?", raw_contents))
+                len(
+                    re.findall(
+                        rf"{match.group(1)}:\s+[\"']?{old_name}[\"']?", raw_contents
+                    )
+                )
                 > 1
             ):
                 print(color(Fore.BOLD_RED, "Too many matches in YAML to safely rename"))
                 return 1
 
             new_raw = re.sub(
-                rf"{match[1]}:\s+[\"']?{old_name}[\"']?",
+                rf"{match.group(1)}:\s+[\"']?{old_name}[\"']?",
                 f'{match.group(1)}: "{args.name}"',
                 raw_contents,
             )
