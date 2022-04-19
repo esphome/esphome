@@ -547,6 +547,7 @@ def command_rename(args, config):
 
         print(color(Fore.BOLD_GREEN, "SUCCESS"))
         print()
+        return 0
 
 
 PRE_CONFIG_ACTIONS = {
