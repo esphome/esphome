@@ -2,6 +2,7 @@ import argparse
 import functools
 import logging
 import os
+import re
 import sys
 from datetime import datetime
 
@@ -13,11 +14,13 @@ from esphome.const import (
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
     CONF_LOGGER,
+    CONF_NAME,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
+    CONF_SUBSTITUTIONS,
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
@@ -481,6 +484,58 @@ def command_idedata(args, config):
     return 0
 
 
+def command_rename(args, config):
+    raw_file = open(CORE.config_path).read()
+    yaml = yaml_util.load_yaml(CORE.config_path)
+    if CONF_ESPHOME not in yaml or CONF_NAME not in yaml[CONF_ESPHOME]:
+        print(
+            color(Fore.BOLD_RED, "Complex YAML files cannot be automatically renamed.")
+        )
+        return 1
+    old_name = yaml[CONF_ESPHOME][CONF_NAME]
+    match = re.match(r"^\$\{?([a-zA-Z0-9_]+)\}?$", old_name)
+    if match is None:
+        new_raw = re.sub(
+            rf"name:\s+[\"']?{old_name}[\"']?",
+            f'name: "{args.name}"',
+            raw_file,
+        )
+    else:
+        old_name = yaml[CONF_SUBSTITUTIONS][match[1]]
+        if len(re.findall(rf"{match[1]}:\s+[\"']?{old_name}[\"']?", raw_file)) > 1:
+            print(color(Fore.BOLD_RED, "Too many matches in YAML to safely rename"))
+            return 1
+
+        new_raw = re.sub(
+            rf"{match[1]}:\s+[\"']?{old_name}[\"']?",
+            f'{match.group(1)}: "{args.name}"',
+            raw_file,
+        )
+    open(CORE.config_path, "w").write(new_raw)
+
+    print(f"Updating {color(Fore.CYAN, CORE.config_path)}")
+    print()
+
+    cli_args = [
+        "run",
+        CORE.config_path,
+        "--no-logs",
+        "--device",
+        CORE.address,
+    ]
+
+    if args.dashboard:
+        cli_args.insert(0, "--dashboard")
+
+    rc = run_external_process("esphome", *cli_args)
+    if rc != 0:
+        open(CORE.config_path, "w").write(raw_file)
+        return 1
+
+    print(color(Fore.BOLD_GREEN, "SUCCESS"))
+    print()
+
+
 PRE_CONFIG_ACTIONS = {
     "wizard": command_wizard,
     "version": command_version,
@@ -499,6 +554,7 @@ POST_CONFIG_ACTIONS = {
     "mqtt-fingerprint": command_mqtt_fingerprint,
     "clean": command_clean,
     "idedata": command_idedata,
+    "rename": command_rename,
 }
 
 
@@ -680,6 +736,12 @@ def parse_args(argv):
     parser_idedata.add_argument(
         "configuration", help="Your YAML configuration file(s).", nargs=1
     )
+
+    parser_rename = subparsers.add_parser("rename")
+    parser_rename.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs=1
+    )
+    parser_rename.add_argument("name", help="The new name for the device.", type=str)
 
     # Keep backward compatibility with the old command line format of
     # esphome <config> <command>.
