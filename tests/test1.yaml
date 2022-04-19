@@ -833,8 +833,10 @@ sensor:
           value: !lambda "return -1;"
     on_clockwise:
       - logger.log: "Clockwise"
+      - lcd_menu.down:
     on_anticlockwise:
       - logger.log: "Anticlockwise"
+      - lcd_menu.up:
   - platform: pulse_width
     name: Pulse Width
     pin: GPIO12
@@ -1244,6 +1246,14 @@ binary_sensor:
     pin: GPIO27
     threshold: 1000
     id: btn_left
+    on_press:
+      - if:
+          condition:
+            lcd_menu.is_active:
+          then:
+            - lcd_menu.enter:
+          else:
+            - lcd_menu.show:
   - platform: template
     name: "Garage Door Open"
     id: garage_door
@@ -2222,6 +2232,7 @@ color:
 
 display:
   - platform: lcd_gpio
+    id: my_lcd_gpio
     dimensions: 18x4
     data_pins:
       - GPIO19
@@ -2813,3 +2824,76 @@ lock:
   - platform: copy
     source_id: test_lock2
     name: Generic Output Lock Copy
+
+lcd_menu:
+  display_id: my_lcd_gpio
+  dimensions: 18x4
+  mark_back: 0x5e
+  mark_selected: 0x3e
+  mark_editing: 0x2a
+  mark_submenu: 0x7e
+  active: False
+  on_enter:
+    then:
+      lambda: 'ESP_LOGI("lcd_menu", "root enter");'
+  on_leave:
+    then:
+      lambda: 'ESP_LOGI("lcd_menu", "root leave");'
+  menu:
+    - type: back
+      text: 'Back'
+    - type: label
+      text: 'Label 1'
+    - type: menu
+      text: 'Submenu 1'
+      menu:
+        - type: back
+          text: 'Back'
+        - type: menu
+          text: 'Submenu 21'
+          menu:
+            - type: back
+              text: 'Back'
+            - type: command
+              text: 'Show Main'
+              on_value:
+                then:
+                  - lcd_menu.show_main:
+    - type: enum
+      text: 'Enum Item'
+      immediate_edit: True
+      enum:
+        - 'Red'
+        - 'Green'
+        - 'Blue'
+      variable: glob_int
+      on_enter:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "enum enter: %s, %s", it->get_text().c_str(), it->get_enum_text().c_str());'
+      on_leave:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "enum leave: %s, %s", it->get_text().c_str(), it->get_enum_text().c_str());'
+      on_value:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "enum value: %s, %s", it->get_text().c_str(), it->get_enum_text().c_str());'
+    - type: number
+      text: 'Number'
+      min_value: 10.0
+      max_value: 20.0
+      step: 0.5
+      format: '%.2f'
+      variable: glob_float
+      on_enter:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "number enter: %s, %f", it->get_text().c_str(), id(glob_float));'
+      on_leave:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "number leave: %s, %f", it->get_text().c_str(), id(glob_float));'
+      on_value:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "number value: %s, %f", it->get_text().c_str(), id(glob_float));'
+    - type: command
+      text: 'Hide'
+      on_value:
+        then:
+          - lcd_menu.hide:
