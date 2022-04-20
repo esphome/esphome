@@ -216,9 +216,6 @@ void LCDMenuComponent::draw_item_(const MenuItem *item, uint8_t row, bool select
   if (selected)
     data[0] = this->editing_ ? this->mark_editing_ : this->mark_selected_;
 
-  size_t n = std::min(item->get_text().size(), (size_t) this->columns_ - 2);
-  memcpy(data + 1, item->get_text().c_str(), n);
-
   switch (item->get_type()) {
     case MENU_ITEM_MENU:
       data[this->columns_ - 1] = this->mark_submenu_;
@@ -226,19 +223,32 @@ void LCDMenuComponent::draw_item_(const MenuItem *item, uint8_t row, bool select
     case MENU_ITEM_BACK:
       data[this->columns_ - 1] = this->mark_back_;
       break;
-    case MENU_ITEM_SELECT:
-    case MENU_ITEM_NUMBER: {
-      // Maximum: start mark, at least two chars of label, space, '[', value, ']',
-      // end mark. Config guarantees columns >= 12
-      std::string val = (item->get_type() == MENU_ITEM_NUMBER) ? item->get_number_text() : item->get_option_text();
-      size_t val_width = std::min((size_t) this->columns_ - 7, val.length());
-      memcpy(data + this->columns_ - val_width - 4, " [", 2);
-      memcpy(data + this->columns_ - val_width - 2, val.c_str(), val_width);
-      data[this->columns_ - 2] = ']';
-    } break;
     default:
-      data[this->columns_ - 1] = ' ';
       break;
+  }
+
+  if (item->get_writer().has_value()) {
+    auto s = item->get_writer().value()(item);
+    size_t n = std::min(s.size(), (size_t) this->columns_ - 2);
+    memcpy(data + 1, s.c_str(), n);
+  } else {
+    size_t n = std::min(item->get_text().size(), (size_t) this->columns_ - 2);
+    memcpy(data + 1, item->get_text().c_str(), n);
+
+    switch (item->get_type()) {
+      case MENU_ITEM_SELECT:
+      case MENU_ITEM_NUMBER: {
+        // Maximum: start mark, at least two chars of label, space, '[', value, ']',
+        // end mark. Config guarantees columns >= 12
+        std::string val = (item->get_type() == MENU_ITEM_NUMBER) ? item->get_number_text() : item->get_option_text();
+        size_t val_width = std::min((size_t) this->columns_ - 7, val.length());
+        memcpy(data + this->columns_ - val_width - 4, " [", 2);
+        memcpy(data + this->columns_ - val_width - 2, val.c_str(), val_width);
+        data[this->columns_ - 2] = ']';
+      } break;
+      default:
+        break;
+    }
   }
 
   data[this->columns_] = '\0';

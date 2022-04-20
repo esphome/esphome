@@ -21,9 +21,12 @@ enum MenuItemType {
   MENU_ITEM_COMMAND,
 };
 
+class MenuItem;
 class LCDMenuOnEnterTrigger;
 class LCDMenuOnLeaveTrigger;
 class LCDMenuOnValueTrigger;
+
+using item_writer_t = std::function<std::string(const MenuItem *)>;
 
 class MenuItem {
  public:
@@ -35,6 +38,10 @@ class MenuItem {
     item->set_parent(this);
     this->items_.push_back(item);
   }
+  void set_text(const std::string &t) { this->text_ = t; }
+  const std::string &get_text() const { return this->text_; }
+  void set_writer(item_writer_t &&writer) { this->writer_ = writer; }
+  const optional<item_writer_t> &get_writer() const { return this->writer_; }
   void set_select_variable(select::Select *var) { this->select_var_ = var; }
   void set_number_variable(number::Number *var) { this->number_var_ = var; }
   void set_format(const std::string &fmt) { this->format_ = fmt; }
@@ -45,8 +52,6 @@ class MenuItem {
 
   size_t items_size() const { return this->items_.size(); }
   MenuItem *get_item(size_t i) { return this->items_[i]; }
-  void set_text(const std::string &t) { this->text_ = t; }
-  const std::string &get_text() const { return this->text_; }
 
   const std::string &get_option_text() const;
   bool get_immediate_edit() const { return this->immediate_edit_; }
@@ -76,6 +81,7 @@ class MenuItem {
   CallbackManager<void()> on_enter_callbacks_{};
   CallbackManager<void()> on_leave_callbacks_{};
   CallbackManager<void()> on_value_callbacks_{};
+  optional<item_writer_t> writer_{};
 };
 
 /** Class to display a hierarchical menu.

@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_COMMAND,
     CONF_NUMBER,
     CONF_FORMAT,
+    CONF_LAMBDA,
 )
 from esphome.components import lcd_base
 from esphome.automation import maybe_simple_id
@@ -142,6 +143,7 @@ MENU_ITEM_SCHEMA = cv.All(
                 MENU_ITEM_TYPES, lower=True
             ),
             cv.Optional(CONF_TEXT): cv.string,
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_ON_ENTER): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -264,6 +266,11 @@ async def menu_item_to_code(menu, config, parent):
     cg.add(parent.add_item(item))
     if CONF_TEXT in config:
         cg.add(item.set_text(config[CONF_TEXT]))
+    if CONF_LAMBDA in config:
+        template_ = await cg.process_lambda(
+            config[CONF_LAMBDA], [(MenuItemConstPtr, "it")], return_type=cg.std_string
+        )
+        cg.add(item.set_writer(template_))
     if CONF_MENU in config:
         for c in config[CONF_MENU]:
             await menu_item_to_code(menu, c, item)
