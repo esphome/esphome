@@ -10,14 +10,12 @@ from esphome.const import (
     CONF_ON_VALUE,
     CONF_COMMAND,
     CONF_NUMBER,
-    CONF_MIN_VALUE,
-    CONF_MAX_VALUE,
-    CONF_STEP,
     CONF_FORMAT,
 )
 from esphome.components import lcd_base
 from esphome.automation import maybe_simple_id
 from esphome.components.globals import GlobalsComponent
+from esphome.components.number import Number
 
 CODEOWNERS = ["@numo68"]
 
@@ -113,18 +111,14 @@ def validate_menu_item(config):
     if CONF_IMMEDIATE_EDIT in config and config[CONF_TYPE] != CONF_ENUM:
         raise cv.Invalid(f"{CONF_IMMEDIATE_EDIT} is not valid for {config[CONF_TYPE]}")
     if config[CONF_TYPE] == CONF_NUMBER:
-        if CONF_VARIABLE not in config:
+        if CONF_NUMBER not in config:
             raise cv.Invalid(
-                f"{CONF_VARIABLE} has to be present if {CONF_TYPE} is '{CONF_NUMBER}'"
+                f"{CONF_NUMBER} has to be present if {CONF_TYPE} is '{CONF_NUMBER}'"
             )
-        if config[CONF_MIN_VALUE] >= config[CONF_MAX_VALUE]:
+        if re.search(r"^%([+-])*(\d+)*(\.\d+)*[fg]$", config[CONF_FORMAT]) is None:
             raise cv.Invalid(
-                f"{CONF_MAX_VALUE} ({config[CONF_MAX_VALUE]}) has to be larger than {CONF_MIN_VALUE} ({config[CONF_MIN_VALUE]})"
+                f"{CONF_FORMAT}: has to specify a printf-like format string specifying exactly one f or g type conversion, '{config[CONF_FORMAT]}' provided"
             )
-    if re.search(r"^%([+-])*(\d+)*(\.\d+)*[fg]$", config[CONF_FORMAT]) is None:
-        raise cv.Invalid(
-            f"{CONF_FORMAT}: has to specify a printf-like format string specifying exactly one f or g type conversion, '{config[CONF_FORMAT]}' provided"
-        )
 
     return config
 
@@ -169,9 +163,7 @@ MENU_ITEM_SCHEMA = cv.All(
             cv.Optional(CONF_ENUM): cv.All(cv.ensure_list(cv.string), cv.Length(min=1)),
             cv.Optional(CONF_VARIABLE): cv.use_id(GlobalsComponent),
             cv.Optional(CONF_IMMEDIATE_EDIT): cv.boolean,
-            cv.Optional(CONF_MIN_VALUE, default=0.0): cv.float_,
-            cv.Optional(CONF_MAX_VALUE, default=100.0): cv.float_,
-            cv.Optional(CONF_STEP, default=1.0): cv.positive_float,
+            cv.Optional(CONF_NUMBER): cv.use_id(Number),
             cv.Optional(CONF_FORMAT, default="%.1f"): cv.string_strict,
         }
     ),
@@ -277,13 +269,8 @@ async def menu_item_to_code(menu, config, parent):
         if CONF_IMMEDIATE_EDIT in config:
             cg.add(item.set_immediate_edit(config[CONF_IMMEDIATE_EDIT]))
     if config[CONF_TYPE] == CONF_NUMBER:
-        var = await cg.get_variable(config[CONF_VARIABLE])
+        var = await cg.get_variable(config[CONF_NUMBER])
         cg.add(item.set_number_variable(var))
-        cg.add(
-            item.set_number_range(
-                config[CONF_MIN_VALUE], config[CONF_MAX_VALUE], config[CONF_STEP]
-            )
-        )
         cg.add(item.set_format(config[CONF_FORMAT]))
     for conf in config.get(CONF_ON_ENTER, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], item)

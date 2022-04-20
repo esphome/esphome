@@ -26,14 +26,10 @@ void LCDMenuComponent::up() {
     if (this->editing_) {
       switch (this->get_selected_item_()->get_type()) {
         case MENU_ITEM_ENUM:
-          this->get_selected_item_()->dec_enum();
-          this->get_selected_item_()->on_value();
-          chg = true;
+          chg = this->get_selected_item_()->dec_enum();
           break;
         case MENU_ITEM_NUMBER:
-          this->get_selected_item_()->dec_number();
-          this->get_selected_item_()->on_value();
-          chg = true;
+          chg = this->get_selected_item_()->dec_number();
           break;
         default:
           break;
@@ -63,14 +59,10 @@ void LCDMenuComponent::down() {
     if (this->editing_) {
       switch (this->get_selected_item_()->get_type()) {
         case MENU_ITEM_ENUM:
-          this->get_selected_item_()->inc_enum();
-          this->get_selected_item_()->on_value();
-          chg = true;
+          chg = this->get_selected_item_()->inc_enum();
           break;
         case MENU_ITEM_NUMBER:
-          this->get_selected_item_()->inc_number();
-          this->get_selected_item_()->on_value();
-          chg = true;
+          chg = this->get_selected_item_()->inc_number();
           break;
         default:
           break;
@@ -123,13 +115,12 @@ void LCDMenuComponent::enter() {
           break;
         case MENU_ITEM_ENUM:
           if (item->get_immediate_edit()) {
-            item->inc_enum();
-            item->on_value();
+            chg = item->inc_enum();
           } else {
             this->editing_ = true;
             item->on_enter();
+            chg = true;
           }
-          chg = true;
           break;
         case MENU_ITEM_NUMBER:
           this->editing_ = true;
@@ -273,10 +264,6 @@ void MenuItem::on_enter() {
     *this->int_var_ = std::max(0, std::min(*this->int_var_, (int) this->enum_values_.size() - 1));
   }
 
-  if (this->item_type_ == MENU_ITEM_NUMBER && this->float_var_ != nullptr) {
-    *this->float_var_ = std::max(this->min_value_, std::min(*this->float_var_, this->max_value_));
-  }
-
   this->on_enter_callbacks_.call();
 }
 
@@ -284,40 +271,74 @@ void MenuItem::on_leave() { this->on_leave_callbacks_.call(); }
 
 void MenuItem::on_value() { this->on_value_callbacks_.call(); }
 
-void MenuItem::inc_enum() const {
+bool MenuItem::inc_enum() {
+  bool chg = false;
+
   if (this->item_type_ == MENU_ITEM_ENUM && this->int_var_ != nullptr) {
     if (*this->int_var_ < this->enum_values_.size() - 1) {
       ++*this->int_var_;
     } else {
       *this->int_var_ = 0;
     }
+    this->on_value();
+    chg = true;
   }
+
+  return chg;
 }
 
-void MenuItem::dec_enum() const {
+bool MenuItem::dec_enum() {
+  bool chg = false;
+
   if (this->item_type_ == MENU_ITEM_ENUM && this->int_var_ != nullptr) {
     if (*this->int_var_ > 0) {
       --*this->int_var_;
     } else {
       *this->int_var_ = this->enum_values_.size() - 1;
     }
+    this->on_value();
+    chg = true;
   }
+
+  return chg;
 }
 
-void MenuItem::inc_number() const {
-  if (this->item_type_ == MENU_ITEM_NUMBER && this->float_var_ != nullptr) {
-    *this->float_var_ += this->step_;
-    if (*this->float_var_ > this->max_value_)
-      *this->float_var_ = this->max_value_;
+bool MenuItem::inc_number() {
+  bool chg = false;
+
+  if (this->item_type_ == MENU_ITEM_NUMBER && this->number_var_ != nullptr) {
+    float val = this->get_number_value() + this->number_var_->traits.get_step();
+    if (val > this->number_var_->traits.get_max_value()) {
+      val = this->number_var_->traits.get_max_value();
+    }
+
+    if (val != this->number_var_->state) {
+      this->number_var_->set(val);
+      this->on_value();
+      chg = true;
+    }
   }
+
+  return chg;
 }
 
-void MenuItem::dec_number() const {
-  if (this->item_type_ == MENU_ITEM_NUMBER && this->float_var_ != nullptr) {
-    *this->float_var_ -= this->step_;
-    if (*this->float_var_ < this->min_value_)
-      *this->float_var_ = this->min_value_;
+bool MenuItem::dec_number() {
+  bool chg = false;
+
+  if (this->item_type_ == MENU_ITEM_NUMBER && this->number_var_ != nullptr) {
+    float val = this->get_number_value() - this->number_var_->traits.get_step();
+    if (val < this->number_var_->traits.get_min_value()) {
+      val = this->number_var_->traits.get_min_value();
+    }
+
+    if (val != this->number_var_->state) {
+      this->number_var_->set(val);
+      this->on_value();
+      chg = true;
+    }
   }
+
+  return chg;
 }
 
 int MenuItem::get_enum_value() const {
@@ -338,9 +359,16 @@ const std::string &MenuItem::get_enum_text() const {
 }
 
 float MenuItem::get_number_value() const {
-  float val = 0;
-  if (this->item_type_ == MENU_ITEM_NUMBER && this->float_var_ != nullptr) {
-    val = std::max(this->min_value_, std::min(*this->float_var_, this->max_value_));
+  float val = 0.0;
+
+  if (this->item_type_ == MENU_ITEM_NUMBER && this->number_var_ != nullptr) {
+    if (! this->number_var_->has_state() || this->number_var_->state < this->number_var_->traits.get_min_value()) {
+      val = this->number_var_->traits.get_min_value();
+    } else if (this->number_var_->state > this->number_var_->traits.get_max_value()) {
+      val = this->number_var_->traits.get_max_value();
+    } else {
+      val = this->number_var_->state;
+    }
   }
 
   return val;

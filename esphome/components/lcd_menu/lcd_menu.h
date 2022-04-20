@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/globals/globals_component.h"
+#include "esphome/components/number/number.h"
 #include "esphome/components/lcd_base/lcd_display.h"
 #include "esphome/core/component.h"
 
@@ -37,13 +38,7 @@ class MenuItem {
   void set_enum_values(const std::vector<std::string> &values) { this->enum_values_ = values; }
   void set_enum_variable(globals::GlobalsComponent<int> *var) { this->int_var_ = &var->value(); }
   void set_enum_variable(globals::RestoringGlobalsComponent<int> *var) { this->int_var_ = &var->value(); }
-  void set_number_variable(globals::GlobalsComponent<float> *var) { this->float_var_ = &var->value(); }
-  void set_number_variable(globals::RestoringGlobalsComponent<float> *var) { this->float_var_ = &var->value(); }
-  void set_number_range(float min, float max, float step) {
-    this->min_value_ = min;
-    this->max_value_ = max;
-    this->step_ = step;
-  }
+  void set_number_variable(number::Number *var) { this->number_var_ = var; }
   void set_format(const std::string &fmt) { this->format_ = fmt; }
   void set_immediate_edit(bool val) { this->immediate_edit_ = val; }
   void add_on_enter_callback(std::function<void()> &&cb) { this->on_enter_callbacks_.add(std::move(cb)); }
@@ -62,11 +57,11 @@ class MenuItem {
   float get_number_value() const;
   std::string get_number_text() const;
 
-  void inc_enum() const;
-  void dec_enum() const;
+  bool inc_enum();
+  bool dec_enum();
 
-  void inc_number() const;
-  void dec_number() const;
+  bool inc_number();
+  bool dec_number();
 
   void on_enter();
   void on_leave();
@@ -82,7 +77,7 @@ class MenuItem {
   float min_value_, max_value_, step_;
   std::string format_;
   int *int_var_{nullptr};
-  float *float_var_{nullptr};
+  number::Number *number_var_{nullptr};
   CallbackManager<void()> on_enter_callbacks_{};
   CallbackManager<void()> on_leave_callbacks_{};
   CallbackManager<void()> on_value_callbacks_{};

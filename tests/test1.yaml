@@ -2878,11 +2878,7 @@ lcd_menu:
           lambda: 'ESP_LOGI("lcd_menu", "enum value: %s, %s", it->get_text().c_str(), it->get_enum_text().c_str());'
     - type: number
       text: 'Number'
-      min_value: 10.0
-      max_value: 20.0
-      step: 0.5
-      format: '%.2f'
-      variable: glob_float
+      number: test_number
       on_enter:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "number enter: %s, %f", it->get_text().c_str(), id(glob_float));'
