@@ -92,6 +92,7 @@ void LCDMenuComponent::enter() {
 
     if (this->editing_) {
       this->finish_editing_();
+      chg = true;
     } else {
       switch (item->get_type()) {
         case MENU_ITEM_MENU:
@@ -269,9 +270,7 @@ void LCDMenuComponent::finish_editing_() {
   this->editing_ = false;
 }
 
-void MenuItem::on_enter() {
-  this->on_enter_callbacks_.call();
-}
+void MenuItem::on_enter() { this->on_enter_callbacks_.call(); }
 
 void MenuItem::on_leave() { this->on_leave_callbacks_.call(); }
 
@@ -378,7 +377,7 @@ float MenuItem::get_number_value() const {
   float val = 0.0;
 
   if (this->item_type_ == MENU_ITEM_NUMBER && this->number_var_ != nullptr) {
-    if (! this->number_var_->has_state() || this->number_var_->state < this->number_var_->traits.get_min_value()) {
+    if (!this->number_var_->has_state() || this->number_var_->state < this->number_var_->traits.get_min_value()) {
       val = this->number_var_->traits.get_min_value();
     } else if (this->number_var_->state > this->number_var_->traits.get_max_value()) {
       val = this->number_var_->traits.get_max_value();
