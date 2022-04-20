@@ -22,7 +22,7 @@ void PulseMeterSensor::setup() {
 
 void PulseMeterSensor::loop() {
   // Get a local copy of the volatile sensor values, to make sure they are not
-  // by the ISR. This could cause overflow in the following arithmetic
+  // modified by the ISR. This could cause overflow in the following arithmetic
   const uint32_t last_valid_high_edge_us = this->last_valid_high_edge_us_;
   const bool has_valid_high_edge = this->has_valid_high_edge_;
   const uint32_t now = micros();
@@ -36,7 +36,9 @@ void PulseMeterSensor::loop() {
     this->pulse_width_us_ = 0;
     this->last_detected_edge_us_ = 0;
     this->last_valid_high_edge_us_ = 0;
+    this->last_valid_low_edge_us_ = 0;
     this->has_valid_high_edge_ = false;
+    this->has_valid_low_edge_ = false;
   }
 
   // We quantize our pulse widths to 1 ms to avoid unnecessary jitter
@@ -103,6 +105,7 @@ void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
   } else {
     // Filter Mode is PULSE
     bool pin_val = sensor->isr_pin_.digital_read();
+    // Ignore false edges that may be caused by bouncing and exit the ISR ASAP
     if (pin_val == sensor->sensor_is_high_) {
       return;
     }
@@ -113,6 +116,7 @@ void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
         sensor->last_valid_high_edge_us_ = sensor->last_detected_edge_us_;
         sensor->sensor_is_high_ = true;
       } else {
+        // Count pulses when a sufficiently long high pulse is concluded.
         sensor->total_pulses_++;
         if (sensor->has_valid_low_edge_) {
           sensor->pulse_width_us_ = sensor->last_detected_edge_us_ - sensor->last_valid_low_edge_us_;
