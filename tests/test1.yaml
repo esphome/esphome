@@ -2859,35 +2859,31 @@ lcd_menu:
               on_value:
                 then:
                   - lcd_menu.show_main:
-    - type: enum
+    - type: select
       text: 'Enum Item'
       immediate_edit: True
-      enum:
-        - 'Red'
-        - 'Green'
-        - 'Blue'
-      variable: glob_int
+      select: test_select
       on_enter:
         then:
-          lambda: 'ESP_LOGI("lcd_menu", "enum enter: %s, %s", it->get_text().c_str(), it->get_enum_text().c_str());'
+          lambda: 'ESP_LOGI("lcd_menu", "select enter: %s, %s", it->get_text().c_str(), it->get_option_text().c_str());'
       on_leave:
         then:
-          lambda: 'ESP_LOGI("lcd_menu", "enum leave: %s, %s", it->get_text().c_str(), it->get_enum_text().c_str());'
+          lambda: 'ESP_LOGI("lcd_menu", "select leave: %s, %s", it->get_text().c_str(), it->get_option_text().c_str());'
       on_value:
         then:
-          lambda: 'ESP_LOGI("lcd_menu", "enum value: %s, %s", it->get_text().c_str(), it->get_enum_text().c_str());'
+          lambda: 'ESP_LOGI("lcd_menu", "select value: %s, %s", it->get_text().c_str(), it->get_option_text().c_str());'
     - type: number
       text: 'Number'
       number: test_number
       on_enter:
         then:
-          lambda: 'ESP_LOGI("lcd_menu", "number enter: %s, %f", it->get_text().c_str(), id(glob_float));'
+          lambda: 'ESP_LOGI("lcd_menu", "number enter: %s, %f", it->get_text().c_str(), it->get_number_value());'
       on_leave:
         then:
-          lambda: 'ESP_LOGI("lcd_menu", "number leave: %s, %f", it->get_text().c_str(), id(glob_float));'
+          lambda: 'ESP_LOGI("lcd_menu", "number leave: %s, %f", it->get_text().c_str(), it->get_number_value());'
       on_value:
         then:
-          lambda: 'ESP_LOGI("lcd_menu", "number value: %s, %f", it->get_text().c_str(), id(glob_float));'
+          lambda: 'ESP_LOGI("lcd_menu", "number value: %s, %f", it->get_text().c_str(), it->get_number_value());'
     - type: command
       text: 'Hide'
       on_value:

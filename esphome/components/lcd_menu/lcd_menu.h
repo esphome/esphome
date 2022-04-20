@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/components/globals/globals_component.h"
 #include "esphome/components/number/number.h"
+#include "esphome/components/select/select.h"
 #include "esphome/components/lcd_base/lcd_display.h"
 #include "esphome/core/component.h"
 
@@ -16,7 +16,7 @@ enum MenuItemType {
   MENU_ITEM_LABEL,
   MENU_ITEM_MENU,
   MENU_ITEM_BACK,
-  MENU_ITEM_ENUM,
+  MENU_ITEM_SELECT,
   MENU_ITEM_NUMBER,
   MENU_ITEM_COMMAND,
 };
@@ -35,9 +35,7 @@ class MenuItem {
     item->set_parent(this);
     this->items_.push_back(item);
   }
-  void set_enum_values(const std::vector<std::string> &values) { this->enum_values_ = values; }
-  void set_enum_variable(globals::GlobalsComponent<int> *var) { this->int_var_ = &var->value(); }
-  void set_enum_variable(globals::RestoringGlobalsComponent<int> *var) { this->int_var_ = &var->value(); }
+  void set_select_variable(select::Select *var) { this->select_var_ = var; }
   void set_number_variable(number::Number *var) { this->number_var_ = var; }
   void set_format(const std::string &fmt) { this->format_ = fmt; }
   void set_immediate_edit(bool val) { this->immediate_edit_ = val; }
@@ -50,15 +48,14 @@ class MenuItem {
   void set_text(const std::string &t) { this->text_ = t; }
   const std::string &get_text() const { return this->text_; }
 
-  int get_enum_value() const;
-  const std::string &get_enum_text() const;
+  const std::string &get_option_text() const;
   bool get_immediate_edit() const { return this->immediate_edit_; }
 
   float get_number_value() const;
   std::string get_number_text() const;
 
-  bool inc_enum();
-  bool dec_enum();
+  bool next_option();
+  bool prev_option();
 
   bool inc_number();
   bool dec_number();
@@ -72,11 +69,9 @@ class MenuItem {
   MenuItem *parent_{nullptr};
   std::string text_;
   std::vector<MenuItem *> items_;
-  std::vector<std::string> enum_values_;
   bool immediate_edit_{false};
-  float min_value_, max_value_, step_;
   std::string format_;
-  int *int_var_{nullptr};
+  select::Select *select_var_{nullptr};
   number::Number *number_var_{nullptr};
   CallbackManager<void()> on_enter_callbacks_{};
   CallbackManager<void()> on_leave_callbacks_{};

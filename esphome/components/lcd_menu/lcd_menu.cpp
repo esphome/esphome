@@ -25,8 +25,8 @@ void LCDMenuComponent::up() {
 
     if (this->editing_) {
       switch (this->get_selected_item_()->get_type()) {
-        case MENU_ITEM_ENUM:
-          chg = this->get_selected_item_()->dec_enum();
+        case MENU_ITEM_SELECT:
+          chg = this->get_selected_item_()->prev_option();
           break;
         case MENU_ITEM_NUMBER:
           chg = this->get_selected_item_()->dec_number();
@@ -58,8 +58,8 @@ void LCDMenuComponent::down() {
 
     if (this->editing_) {
       switch (this->get_selected_item_()->get_type()) {
-        case MENU_ITEM_ENUM:
-          chg = this->get_selected_item_()->inc_enum();
+        case MENU_ITEM_SELECT:
+          chg = this->get_selected_item_()->next_option();
           break;
         case MENU_ITEM_NUMBER:
           chg = this->get_selected_item_()->inc_number();
@@ -113,9 +113,9 @@ void LCDMenuComponent::enter() {
             chg = true;
           }
           break;
-        case MENU_ITEM_ENUM:
+        case MENU_ITEM_SELECT:
           if (item->get_immediate_edit()) {
-            chg = item->inc_enum();
+            chg = item->next_option();
           } else {
             this->editing_ = true;
             item->on_enter();
@@ -226,11 +226,11 @@ void LCDMenuComponent::draw_item_(const MenuItem *item, uint8_t row, bool select
     case MENU_ITEM_BACK:
       data[this->columns_ - 1] = this->mark_back_;
       break;
-    case MENU_ITEM_ENUM:
+    case MENU_ITEM_SELECT:
     case MENU_ITEM_NUMBER: {
       // Maximum: start mark, at least two chars of label, space, '[', value, ']',
       // end mark. Config guarantees columns >= 12
-      std::string val = (item->get_type() == MENU_ITEM_NUMBER) ? item->get_number_text() : item->get_enum_text();
+      std::string val = (item->get_type() == MENU_ITEM_NUMBER) ? item->get_number_text() : item->get_option_text();
       size_t val_width = std::min((size_t) this->columns_ - 7, val.length());
       memcpy(data + this->columns_ - val_width - 4, " [", 2);
       memcpy(data + this->columns_ - val_width - 2, val.c_str(), val_width);
@@ -248,7 +248,7 @@ void LCDMenuComponent::draw_item_(const MenuItem *item, uint8_t row, bool select
 
 void LCDMenuComponent::finish_editing_() {
   switch (this->get_selected_item_()->get_type()) {
-    case MENU_ITEM_ENUM:
+    case MENU_ITEM_SELECT:
     case MENU_ITEM_NUMBER:
       this->get_selected_item_()->on_leave();
       break;
@@ -260,10 +260,6 @@ void LCDMenuComponent::finish_editing_() {
 }
 
 void MenuItem::on_enter() {
-  if (this->item_type_ == MENU_ITEM_ENUM && this->int_var_ != nullptr) {
-    *this->int_var_ = std::max(0, std::min(*this->int_var_, (int) this->enum_values_.size() - 1));
-  }
-
   this->on_enter_callbacks_.call();
 }
 
@@ -271,33 +267,51 @@ void MenuItem::on_leave() { this->on_leave_callbacks_.call(); }
 
 void MenuItem::on_value() { this->on_value_callbacks_.call(); }
 
-bool MenuItem::inc_enum() {
+bool MenuItem::next_option() {
   bool chg = false;
 
-  if (this->item_type_ == MENU_ITEM_ENUM && this->int_var_ != nullptr) {
-    if (*this->int_var_ < this->enum_values_.size() - 1) {
-      ++*this->int_var_;
-    } else {
-      *this->int_var_ = 0;
+  if (this->select_var_ != nullptr) {
+    auto options = this->select_var_->traits.get_options();
+
+    if (!options.empty()) {
+      auto opt = std::find(options.begin(), options.end(), this->select_var_->state);
+
+      if (opt != options.end()) {
+        ++opt;
+      }
+
+      if (opt == options.end()) {
+        opt = options.begin();
+      }
+
+      this->select_var_->set(*opt);
+      this->on_value();
+      chg = true;
     }
-    this->on_value();
-    chg = true;
   }
 
   return chg;
 }
 
-bool MenuItem::dec_enum() {
+bool MenuItem::prev_option() {
   bool chg = false;
 
-  if (this->item_type_ == MENU_ITEM_ENUM && this->int_var_ != nullptr) {
-    if (*this->int_var_ > 0) {
-      --*this->int_var_;
-    } else {
-      *this->int_var_ = this->enum_values_.size() - 1;
+  if (this->select_var_ != nullptr) {
+    auto options = this->select_var_->traits.get_options();
+
+    if (!options.empty()) {
+      auto opt = std::find(options.begin(), options.end(), this->select_var_->state);
+
+      if (opt == options.begin()) {
+        opt = options.end();
+      }
+
+      --opt;
+
+      this->select_var_->set(*opt);
+      this->on_value();
+      chg = true;
     }
-    this->on_value();
-    chg = true;
   }
 
   return chg;
@@ -306,7 +320,7 @@ bool MenuItem::dec_enum() {
 bool MenuItem::inc_number() {
   bool chg = false;
 
-  if (this->item_type_ == MENU_ITEM_NUMBER && this->number_var_ != nullptr) {
+  if (this->number_var_ != nullptr) {
     float val = this->get_number_value() + this->number_var_->traits.get_step();
     if (val > this->number_var_->traits.get_max_value()) {
       val = this->number_var_->traits.get_max_value();
@@ -325,7 +339,7 @@ bool MenuItem::inc_number() {
 bool MenuItem::dec_number() {
   bool chg = false;
 
-  if (this->item_type_ == MENU_ITEM_NUMBER && this->number_var_ != nullptr) {
+  if (this->number_var_ != nullptr) {
     float val = this->get_number_value() - this->number_var_->traits.get_step();
     if (val < this->number_var_->traits.get_min_value()) {
       val = this->number_var_->traits.get_min_value();
@@ -341,17 +355,9 @@ bool MenuItem::dec_number() {
   return chg;
 }
 
-int MenuItem::get_enum_value() const {
-  int val = 0;
-  if (this->item_type_ == MENU_ITEM_ENUM && this->int_var_ != nullptr)
-    val = std::max(0, std::min(*this->int_var_, (int) this->enum_values_.size() - 1));
-
-  return val;
-}
-
-const std::string &MenuItem::get_enum_text() const {
-  if (this->item_type_ == MENU_ITEM_ENUM) {
-    return this->enum_values_[get_enum_value()];
+const std::string &MenuItem::get_option_text() const {
+  if (this->item_type_ == MENU_ITEM_SELECT && this->select_var_ != nullptr) {
+    return this->select_var_->state;
   } else {
     static std::string empty_string;
     return empty_string;

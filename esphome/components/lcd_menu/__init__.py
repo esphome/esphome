@@ -14,7 +14,7 @@ from esphome.const import (
 )
 from esphome.components import lcd_base
 from esphome.automation import maybe_simple_id
-from esphome.components.globals import GlobalsComponent
+from esphome.components.select import Select
 from esphome.components.number import Number
 
 CODEOWNERS = ["@numo68"]
@@ -27,9 +27,8 @@ CONF_ACTIVE = "active"
 CONF_LABEL = "label"
 CONF_MENU = "menu"
 CONF_BACK = "back"
-CONF_ENUM = "enum"
 CONF_TEXT = "text"
-CONF_VARIABLE = "variable"
+CONF_SELECT = "select"
 CONF_IMMEDIATE_EDIT = "immediate_edit"
 CONF_MARK_SELECTED = "mark_selected"
 CONF_MARK_EDITING = "mark_editing"
@@ -61,7 +60,7 @@ MENU_ITEM_TYPES = {
     CONF_LABEL: MenuItemType.MENU_ITEM_LABEL,
     CONF_MENU: MenuItemType.MENU_ITEM_MENU,
     CONF_BACK: MenuItemType.MENU_ITEM_BACK,
-    CONF_ENUM: MenuItemType.MENU_ITEM_ENUM,
+    CONF_SELECT: MenuItemType.MENU_ITEM_SELECT,
     CONF_NUMBER: MenuItemType.MENU_ITEM_NUMBER,
     CONF_COMMAND: MenuItemType.MENU_ITEM_COMMAND,
 }
@@ -95,21 +94,28 @@ def validate_menu_item(config):
         raise cv.Invalid(
             f"{CONF_MENU} has to be present if {CONF_TYPE} is '{CONF_MENU}'"
         )
-    if config[CONF_TYPE] != CONF_ENUM and CONF_ENUM in config:
-        raise cv.Invalid(
-            f"{CONF_TYPE} has to be '{CONF_ENUM}' if the {CONF_ENUM} is present"
-        )
-    if config[CONF_TYPE] == CONF_ENUM:
-        if CONF_ENUM not in config:
+
+    if config[CONF_TYPE] != CONF_SELECT:
+        if CONF_SELECT in config:
             raise cv.Invalid(
-                f"{CONF_ENUM} has to be present if {CONF_TYPE} is '{CONF_ENUM}'"
+                f"{CONF_TYPE} has to be '{CONF_SELECT}' if the {CONF_SELECT} is present"
             )
-        if CONF_VARIABLE not in config:
+        if CONF_IMMEDIATE_EDIT in config and config[CONF_TYPE] != CONF_SELECT:
             raise cv.Invalid(
-                f"{CONF_VARIABLE} has to be present if {CONF_TYPE} is '{CONF_ENUM}'"
+                f"{CONF_IMMEDIATE_EDIT} is not valid for {config[CONF_TYPE]}"
             )
-    if CONF_IMMEDIATE_EDIT in config and config[CONF_TYPE] != CONF_ENUM:
-        raise cv.Invalid(f"{CONF_IMMEDIATE_EDIT} is not valid for {config[CONF_TYPE]}")
+
+    if config[CONF_TYPE] == CONF_SELECT:
+        if CONF_SELECT not in config:
+            raise cv.Invalid(
+                f"{CONF_SELECT} has to be present if {CONF_TYPE} is '{CONF_SELECT}'"
+            )
+
+    if config[CONF_TYPE] != CONF_NUMBER:
+        if CONF_NUMBER in config:
+            raise cv.Invalid(
+                f"{CONF_TYPE} has to be '{CONF_NUMBER}' if the {CONF_NUMBER} is present"
+            )
     if config[CONF_TYPE] == CONF_NUMBER:
         if CONF_NUMBER not in config:
             raise cv.Invalid(
@@ -160,8 +166,7 @@ MENU_ITEM_SCHEMA = cv.All(
             cv.Optional(CONF_MENU): cv.All(
                 cv.ensure_list(menu_item_schema), cv.Length(min=1)
             ),
-            cv.Optional(CONF_ENUM): cv.All(cv.ensure_list(cv.string), cv.Length(min=1)),
-            cv.Optional(CONF_VARIABLE): cv.use_id(GlobalsComponent),
+            cv.Optional(CONF_SELECT): cv.use_id(Select),
             cv.Optional(CONF_IMMEDIATE_EDIT): cv.boolean,
             cv.Optional(CONF_NUMBER): cv.use_id(Number),
             cv.Optional(CONF_FORMAT, default="%.1f"): cv.string_strict,
@@ -262,10 +267,9 @@ async def menu_item_to_code(menu, config, parent):
     if CONF_MENU in config:
         for c in config[CONF_MENU]:
             await menu_item_to_code(menu, c, item)
-    if config[CONF_TYPE] == CONF_ENUM:
-        cg.add(item.set_enum_values(config[CONF_ENUM]))
-        var = await cg.get_variable(config[CONF_VARIABLE])
-        cg.add(item.set_enum_variable(var))
+    if config[CONF_TYPE] == CONF_SELECT:
+        var = await cg.get_variable(config[CONF_SELECT])
+        cg.add(item.set_select_variable(var))
         if CONF_IMMEDIATE_EDIT in config:
             cg.add(item.set_immediate_edit(config[CONF_IMMEDIATE_EDIT]))
     if config[CONF_TYPE] == CONF_NUMBER:
