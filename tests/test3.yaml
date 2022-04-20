@@ -256,6 +256,12 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 38400
+  - id: uart8
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 4800
+    parity: NONE
+    stop_bits: 2
     # Specifically added for testing debug with no options at all.
     debug:
 
@@ -477,6 +483,24 @@ sensor:
     active_power_b:
       name: ADE7953 Active Power B
       id: ade7953_active_power_b
+  - platform: bl0939
+    uart_id: uart8
+    voltage:
+      name: 'BL0939 Voltage'
+    current_1:
+      name: 'BL0939 Current 1'
+    current_2:
+      name: 'BL0939 Current 2'
+    active_power_1:
+      name: 'BL0939 Active Power 1'
+    active_power_2:
+      name: 'BL0939 Active Power 2'
+    energy_1:
+      name: 'BL0939 Energy 1'
+    energy_2:
+      name: 'BL0939 Energy 2'
+    energy_total:
+      name: 'BL0939 Total energy'
   - platform: bl0940
     uart_id: uart3
     voltage:
