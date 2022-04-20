@@ -440,9 +440,7 @@ std::string MenuItem::get_number_text() const {
 }
 
 bool MenuItem::get_switch_state() const {
-  return (this->item_type_ == MENU_ITEM_SWITCH &&
-    this->switch_var_ != nullptr &&
-    this->switch_var_->state);
+  return (this->item_type_ == MENU_ITEM_SWITCH && this->switch_var_ != nullptr && this->switch_var_->state);
 }
 
 const std::string &MenuItem::get_switch_text() const {
