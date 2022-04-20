@@ -31,6 +31,9 @@ void LCDMenuComponent::up() {
         case MENU_ITEM_NUMBER:
           chg = this->get_selected_item_()->dec_number();
           break;
+        case MENU_ITEM_SWITCH:
+          chg = this->get_selected_item_()->toggle_switch();
+          break;
         default:
           break;
       }
@@ -63,6 +66,9 @@ void LCDMenuComponent::down() {
           break;
         case MENU_ITEM_NUMBER:
           chg = this->get_selected_item_()->inc_number();
+          break;
+        case MENU_ITEM_SWITCH:
+          chg = this->get_selected_item_()->toggle_switch();
           break;
         default:
           break;
@@ -127,6 +133,15 @@ void LCDMenuComponent::enter() {
           this->editing_ = true;
           item->on_enter();
           chg = true;
+          break;
+        case MENU_ITEM_SWITCH:
+          if (item->get_immediate_edit()) {
+            chg = item->toggle_switch();
+          } else {
+            this->editing_ = true;
+            item->on_enter();
+            chg = true;
+          }
           break;
         case MENU_ITEM_COMMAND:
           item->on_value();
@@ -238,10 +253,26 @@ void LCDMenuComponent::draw_item_(const MenuItem *item, uint8_t row, bool select
 
     switch (item->get_type()) {
       case MENU_ITEM_SELECT:
-      case MENU_ITEM_NUMBER: {
+      case MENU_ITEM_NUMBER:
+      case MENU_ITEM_SWITCH: {
+        std::string val;
+
+        switch (item->get_type()) {
+          case MENU_ITEM_SELECT:
+            val = item->get_option_text();
+            break;
+          case MENU_ITEM_NUMBER:
+            val = item->get_number_text();
+            break;
+          case MENU_ITEM_SWITCH:
+            val = item->get_switch_text();
+            break;
+          default:
+            break;
+        }
+
         // Maximum: start mark, at least two chars of label, space, '[', value, ']',
         // end mark. Config guarantees columns >= 12
-        std::string val = (item->get_type() == MENU_ITEM_NUMBER) ? item->get_number_text() : item->get_option_text();
         size_t val_width = std::min((size_t) this->columns_ - 7, val.length());
         memcpy(data + this->columns_ - val_width - 4, " [", 2);
         memcpy(data + this->columns_ - val_width - 2, val.c_str(), val_width);
@@ -261,6 +292,7 @@ void LCDMenuComponent::finish_editing_() {
   switch (this->get_selected_item_()->get_type()) {
     case MENU_ITEM_SELECT:
     case MENU_ITEM_NUMBER:
+    case MENU_ITEM_SWITCH:
       this->get_selected_item_()->on_leave();
       break;
     default:
@@ -364,6 +396,18 @@ bool MenuItem::dec_number() {
   return chg;
 }
 
+bool MenuItem::toggle_switch() {
+  bool chg = false;
+
+  if (this->switch_var_ != nullptr) {
+    this->switch_var_->toggle();
+    this->on_value();
+    chg = true;
+  }
+
+  return chg;
+}
+
 const std::string &MenuItem::get_option_text() const {
   if (this->item_type_ == MENU_ITEM_SELECT && this->select_var_ != nullptr) {
     return this->select_var_->state;
@@ -393,6 +437,16 @@ std::string MenuItem::get_number_text() const {
   char data[32];
   snprintf(data, sizeof(data), this->format_.c_str(), get_number_value());
   return data;
+}
+
+bool MenuItem::get_switch_state() const {
+  return (this->item_type_ == MENU_ITEM_SWITCH &&
+    this->switch_var_ != nullptr &&
+    this->switch_var_->state);
+}
+
+const std::string &MenuItem::get_switch_text() const {
+  return this->get_switch_state() ? this->switch_on_text_ : this->switch_off_text_;
 }
 
 }  // namespace lcd_menu

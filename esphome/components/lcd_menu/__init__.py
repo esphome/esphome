@@ -17,6 +17,7 @@ from esphome.components import lcd_base
 from esphome.automation import maybe_simple_id
 from esphome.components.select import Select
 from esphome.components.number import Number
+from esphome.components.switch import Switch
 
 CODEOWNERS = ["@numo68"]
 
@@ -30,6 +31,9 @@ CONF_MENU = "menu"
 CONF_BACK = "back"
 CONF_TEXT = "text"
 CONF_SELECT = "select"
+CONF_SWITCH = "switch"
+CONF_ON_TEXT = "on_text"
+CONF_OFF_TEXT = "off_text"
 CONF_IMMEDIATE_EDIT = "immediate_edit"
 CONF_MARK_SELECTED = "mark_selected"
 CONF_MARK_EDITING = "mark_editing"
@@ -63,6 +67,7 @@ MENU_ITEM_TYPES = {
     CONF_BACK: MenuItemType.MENU_ITEM_BACK,
     CONF_SELECT: MenuItemType.MENU_ITEM_SELECT,
     CONF_NUMBER: MenuItemType.MENU_ITEM_NUMBER,
+    CONF_SWITCH: MenuItemType.MENU_ITEM_SWITCH,
     CONF_COMMAND: MenuItemType.MENU_ITEM_COMMAND,
 }
 
@@ -101,10 +106,6 @@ def validate_menu_item(config):
             raise cv.Invalid(
                 f"{CONF_TYPE} has to be '{CONF_SELECT}' if the {CONF_SELECT} is present"
             )
-        if CONF_IMMEDIATE_EDIT in config and config[CONF_TYPE] != CONF_SELECT:
-            raise cv.Invalid(
-                f"{CONF_IMMEDIATE_EDIT} is not valid for {config[CONF_TYPE]}"
-            )
 
     if config[CONF_TYPE] == CONF_SELECT:
         if CONF_SELECT not in config:
@@ -125,6 +126,18 @@ def validate_menu_item(config):
         if re.search(r"^%([+-])*(\d+)*(\.\d+)*[fg]$", config[CONF_FORMAT]) is None:
             raise cv.Invalid(
                 f"{CONF_FORMAT}: has to specify a printf-like format string specifying exactly one f or g type conversion, '{config[CONF_FORMAT]}' provided"
+            )
+
+    if config[CONF_TYPE] != CONF_SWITCH:
+        if CONF_SWITCH in config:
+            raise cv.Invalid(
+                f"{CONF_TYPE} has to be '{CONF_SWITCH}' if the {CONF_SWITCH} is present"
+            )
+
+    if config[CONF_TYPE] == CONF_SWITCH:
+        if CONF_SWITCH not in config:
+            raise cv.Invalid(
+                f"{CONF_SWITCH} has to be present if {CONF_TYPE} is '{CONF_SWITCH}'"
             )
 
     return config
@@ -169,9 +182,12 @@ MENU_ITEM_SCHEMA = cv.All(
                 cv.ensure_list(menu_item_schema), cv.Length(min=1)
             ),
             cv.Optional(CONF_SELECT): cv.use_id(Select),
-            cv.Optional(CONF_IMMEDIATE_EDIT): cv.boolean,
+            cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
             cv.Optional(CONF_NUMBER): cv.use_id(Number),
             cv.Optional(CONF_FORMAT, default="%.1f"): cv.string_strict,
+            cv.Optional(CONF_SWITCH): cv.use_id(Switch),
+            cv.Optional(CONF_ON_TEXT, default="On"): cv.string_strict,
+            cv.Optional(CONF_OFF_TEXT, default="Off"): cv.string_strict,
         }
     ),
     validate_menu_item,
@@ -277,12 +293,17 @@ async def menu_item_to_code(menu, config, parent):
     if config[CONF_TYPE] == CONF_SELECT:
         var = await cg.get_variable(config[CONF_SELECT])
         cg.add(item.set_select_variable(var))
-        if CONF_IMMEDIATE_EDIT in config:
-            cg.add(item.set_immediate_edit(config[CONF_IMMEDIATE_EDIT]))
+        cg.add(item.set_immediate_edit(config[CONF_IMMEDIATE_EDIT]))
     if config[CONF_TYPE] == CONF_NUMBER:
         var = await cg.get_variable(config[CONF_NUMBER])
         cg.add(item.set_number_variable(var))
         cg.add(item.set_format(config[CONF_FORMAT]))
+    if config[CONF_TYPE] == CONF_SWITCH:
+        var = await cg.get_variable(config[CONF_SWITCH])
+        cg.add(item.set_switch_variable(var))
+        cg.add(item.set_on_text(config[CONF_ON_TEXT]))
+        cg.add(item.set_off_text(config[CONF_OFF_TEXT]))
+        cg.add(item.set_immediate_edit(config[CONF_IMMEDIATE_EDIT]))
     for conf in config.get(CONF_ON_ENTER, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], item)
         await automation.build_automation(trigger, [(MenuItemConstPtr, "it")], conf)

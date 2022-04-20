@@ -2,6 +2,7 @@
 
 #include "esphome/components/number/number.h"
 #include "esphome/components/select/select.h"
+#include "esphome/components/switch/switch.h"
 #include "esphome/components/lcd_base/lcd_display.h"
 #include "esphome/core/component.h"
 
@@ -18,6 +19,7 @@ enum MenuItemType {
   MENU_ITEM_BACK,
   MENU_ITEM_SELECT,
   MENU_ITEM_NUMBER,
+  MENU_ITEM_SWITCH,
   MENU_ITEM_COMMAND,
 };
 
@@ -44,6 +46,9 @@ class MenuItem {
   const optional<item_writer_t> &get_writer() const { return this->writer_; }
   void set_select_variable(select::Select *var) { this->select_var_ = var; }
   void set_number_variable(number::Number *var) { this->number_var_ = var; }
+  void set_switch_variable(switch_::Switch *var) { this->switch_var_ = var; }
+  void set_on_text(const std::string &t) { this->switch_on_text_ = t; }
+  void set_off_text(const std::string &t) { this->switch_off_text_ = t; }
   void set_format(const std::string &fmt) { this->format_ = fmt; }
   void set_immediate_edit(bool val) { this->immediate_edit_ = val; }
   void add_on_enter_callback(std::function<void()> &&cb) { this->on_enter_callbacks_.add(std::move(cb)); }
@@ -59,11 +64,16 @@ class MenuItem {
   float get_number_value() const;
   std::string get_number_text() const;
 
+  bool get_switch_state() const;
+  const std::string &get_switch_text() const;
+
   bool next_option();
   bool prev_option();
 
   bool inc_number();
   bool dec_number();
+
+  bool toggle_switch();
 
   void on_enter();
   void on_leave();
@@ -76,8 +86,11 @@ class MenuItem {
   std::vector<MenuItem *> items_;
   bool immediate_edit_{false};
   std::string format_;
+  std::string switch_on_text_;
+  std::string switch_off_text_;
   select::Select *select_var_{nullptr};
   number::Number *number_var_{nullptr};
+  switch_::Switch *switch_var_{nullptr};
   CallbackManager<void()> on_enter_callbacks_{};
   CallbackManager<void()> on_leave_callbacks_{};
   CallbackManager<void()> on_value_callbacks_{};

@@ -2891,3 +2891,12 @@ lcd_menu:
       on_value:
         then:
           - lcd_menu.hide:
+    - type: switch
+      text: 'Switch'
+      switch: my_switch
+      on_text: 'Bright'
+      off_text: 'Dark'
+      immediate_edit: False
+      on_value:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "switch value: %s", it->get_switch_text().c_str());'
