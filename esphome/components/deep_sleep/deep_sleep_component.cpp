@@ -1,6 +1,7 @@
 #include "deep_sleep_component.h"
-#include "esphome/core/log.h"
+#include <cinttypes>
 #include "esphome/core/application.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP8266
 #include <Esp.h>
@@ -101,6 +102,8 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 #endif
 
   ESP_LOGI(TAG, "Beginning Deep Sleep");
+  if (this->sleep_duration_.has_value())
+    ESP_LOGI(TAG, "Sleeping for %" PRId64 "us", *this->sleep_duration_);
 
   App.run_safe_shutdown_hooks();
 

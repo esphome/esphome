@@ -161,6 +161,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         # type: (ConfigPath) -> Optional[vol.Invalid]
         for err in self.errors:
             if self.get_deepest_path(err.path) == path:
+                self.errors.remove(err)
                 return err
         return None
 
@@ -647,7 +648,7 @@ class FinalValidateValidationStep(ConfigValidationStep):
         fv.full_config.reset(token)
 
 
-def validate_config(config, command_line_substitutions):
+def validate_config(config, command_line_substitutions) -> Config:
     result = Config()
 
     loader.clear_component_meta_finders()
@@ -733,9 +734,6 @@ def validate_config(config, command_line_substitutions):
         if key in config:
             result.add_validation_step(LoadValidationStep(key, config[key]))
     result.run_validation_steps()
-
-    if result.errors:
-        return result
 
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
@@ -991,5 +989,10 @@ def read_config(command_line_substitutions):
                 errstr += f" {errline}"
             safe_print(errstr)
             safe_print(indent(dump_dict(res, path)[0]))
+
+        for err in res.errors:
+            safe_print(color(Fore.BOLD_RED, err.msg))
+            safe_print("")
+
         return None
     return OrderedDict(res)

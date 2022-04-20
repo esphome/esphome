@@ -455,6 +455,28 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
   return cmd;
 }
 
+ModbusCommandItem ModbusCommandItem::create_custom_command(
+    ModbusController *modbusdevice, const std::vector<uint16_t> &values,
+    std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
+        &&handler) {
+  ModbusCommandItem cmd = {};
+  cmd.modbusdevice = modbusdevice;
+  cmd.function_code = ModbusFunctionCode::CUSTOM;
+  if (handler == nullptr) {
+    cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
+      ESP_LOGI(TAG, "Custom Command sent");
+    };
+  } else {
+    cmd.on_data_func = handler;
+  }
+  for (auto v : values) {
+    cmd.payload.push_back((v >> 8) & 0xFF);
+    cmd.payload.push_back(v & 0xFF);
+  }
+
+  return cmd;
+}
+
 bool ModbusCommandItem::send() {
   if (this->function_code != ModbusFunctionCode::CUSTOM) {
     modbusdevice->send(uint8_t(this->function_code), this->register_address, this->register_count, this->payload.size(),

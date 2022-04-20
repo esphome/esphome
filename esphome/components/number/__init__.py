@@ -63,8 +63,8 @@ NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).e
         cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
-                cv.Optional(CONF_ABOVE): cv.float_,
-                cv.Optional(CONF_BELOW): cv.float_,
+                cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
+                cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
             },
             cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
         ),
