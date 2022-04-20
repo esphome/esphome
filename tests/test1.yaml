@@ -2845,7 +2845,7 @@ lcd_menu:
     - type: label
     - type: label
       text: 'Dynamic'
-      lambda: 'return std::string("Lambda " + it->get_text());'      
+      lambda: 'return std::string("Lambda " + it->get_text());'
     - type: menu
       text: 'Submenu 1'
       menu:
