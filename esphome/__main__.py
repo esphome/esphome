@@ -543,6 +543,13 @@ def command_rename(args, config):
         print(f"Updating {color(Fore.CYAN, CORE.config_path)}")
         print()
 
+        rc = run_external_process("esphome", "config", CORE.config_path)
+        if rc != 0:
+            raw_file.seek(0)
+            raw_file.write(raw_contents)
+            print(color(Fore.BOLD_RED, "Rename failed. Reverting changes."))
+            return 1
+
         cli_args = [
             "run",
             CORE.config_path,
