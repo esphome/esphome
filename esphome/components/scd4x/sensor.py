@@ -23,7 +23,7 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
-CODEOWNERS = ["@sjtrny"]
+CODEOWNERS = ["@sjtrny", "@martgras"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
 
