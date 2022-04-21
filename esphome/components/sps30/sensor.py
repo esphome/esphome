@@ -27,6 +27,7 @@ from esphome.const import (
     ICON_RULER,
 )
 
+CODEOWNERS = ["@martgras"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
 
