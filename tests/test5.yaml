@@ -226,8 +226,15 @@ sensor:
       oversampling: 16x
     pressure:
       name: "BMP Pressure"
+      id: bmp390_pressure
     address: 0x77
     iir_filter: 2X
+
+  - platform: pas_co2
+    co2:
+      name: "CO2"
+      id: co2
+    ambient_pressure_compensation_source: bmp390_pressure
 
 script:
   - id: automation_test

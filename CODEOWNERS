@@ -142,6 +142,7 @@ esphome/components/nfc/* @jesserockz
 esphome/components/number/* @esphome/core
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
+esphome/components/pas_co2/* @martgras
 esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984
 esphome/components/pm1006/* @habbie
