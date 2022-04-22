@@ -61,15 +61,6 @@ solve_registry = []
 
 
 def get_component_names():
-    # return [
-    #     "esphome",
-    #     "esp32",
-    #     "esp8266",
-    #     "logger",
-    #     "sensor",
-    #     "remote_receiver",
-    #     "binary_sensor",
-    # ]
     from esphome.loader import CORE_COMPONENTS_PATH
 
     component_names = ["esphome", "sensor"]
@@ -404,7 +395,7 @@ def shrink():
                     else:
                         print("expected extends here!" + x)
                     arr_s = merge(key_s, arr_s)
-                    if arr_s[S_TYPE] == "enum":
+                    if arr_s[S_TYPE] in ["enum", "typed"]:
                         arr_s.pop(S_SCHEMA)
                 else:
                     arr_s.pop(S_EXTENDS)
@@ -594,7 +585,7 @@ def convert_1(schema, config_var, path):
                 assert S_EXTENDS not in config_var
                 if not S_TYPE in config_var:
                     config_var[S_TYPE] = S_SCHEMA
-                assert config_var[S_TYPE] == S_SCHEMA
+                # assert config_var[S_TYPE] == S_SCHEMA
 
                 if S_SCHEMA not in config_var:
                     config_var[S_SCHEMA] = {}
@@ -823,6 +814,12 @@ def convert_keys(converted, schema, path):
             if base_k in result and base_v == result[base_k]:
                 result.pop(base_k)
         converted["schema"][S_CONFIG_VARS][str(k)] = result
+        if "key" in converted and converted["key"] == "String":
+            config_vars = converted["schema"]["config_vars"]
+            assert len(config_vars) == 1
+            key = list(config_vars.keys())[0]
+            assert key.startswith("<")
+            config_vars["string"] = config_vars.pop(key)
 
 
 build_schema()
