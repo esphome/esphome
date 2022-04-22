@@ -40,6 +40,8 @@ class HttpRequestComponent : public Component {
   void set_method(const char *method) { this->method_ = method; }
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
+  void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }
+  void set_redirect_limit(uint16_t limit) { this->redirect_limit_ = limit; }
   void set_body(const std::string &body) { this->body_ = body; }
   void set_headers(std::list<Header> headers) { this->headers_ = std::move(headers); }
   void send(const std::vector<HttpRequestResponseTrigger *> &response_triggers);
@@ -53,6 +55,8 @@ class HttpRequestComponent : public Component {
   const char *method_;
   const char *useragent_{nullptr};
   bool secure_;
+  bool follow_redirects_;
+  uint16_t redirect_limit_;
   uint16_t timeout_{5000};
   std::string body_;
   std::list<Header> headers_;
@@ -78,7 +82,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
 
   void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.insert({key, value}); }
 
-  void set_json(std::function<void(Ts..., JsonObject &)> json_func) { this->json_func_ = json_func; }
+  void set_json(std::function<void(Ts..., JsonObject)> json_func) { this->json_func_ = json_func; }
 
   void register_response_trigger(HttpRequestResponseTrigger *trigger) { this->response_triggers_.push_back(trigger); }
 
@@ -118,17 +122,17 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   }
 
  protected:
-  void encode_json_(Ts... x, JsonObject &root) {
+  void encode_json_(Ts... x, JsonObject root) {
     for (const auto &item : this->json_) {
       auto val = item.second;
       root[item.first] = val.value(x...);
     }
   }
-  void encode_json_func_(Ts... x, JsonObject &root) { this->json_func_(x..., root); }
+  void encode_json_func_(Ts... x, JsonObject root) { this->json_func_(x..., root); }
   HttpRequestComponent *parent_;
   std::map<const char *, TemplatableValue<const char *, Ts...>> headers_{};
   std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
-  std::function<void(Ts..., JsonObject &)> json_func_{nullptr};
+  std::function<void(Ts..., JsonObject)> json_func_{nullptr};
   std::vector<HttpRequestResponseTrigger *> response_triggers_;
 };
 

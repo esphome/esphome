@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_RANGE,
     ICON_MAGNET,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_NONE,
     UNIT_MICROTESLA,
     UNIT_DEGREES,
     ICON_SCREEN_ROTATION,
@@ -88,7 +87,6 @@ heading_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_DEGREES,
     icon=ICON_SCREEN_ROTATION,
     accuracy_decimals=1,
-    state_class=STATE_CLASS_NONE,
 )
 
 CONFIG_SCHEMA = (
@@ -114,8 +112,8 @@ CONFIG_SCHEMA = (
 
 
 def auto_data_rate(config):
-    interval_sec = config[CONF_UPDATE_INTERVAL].seconds
-    interval_hz = 1.0 / interval_sec
+    interval_msec = config[CONF_UPDATE_INTERVAL].total_milliseconds
+    interval_hz = 1000.0 / interval_msec
     for datarate in sorted(HMC5883LDatarates.keys()):
         if float(datarate) >= interval_hz:
             return HMC5883LDatarates[datarate]

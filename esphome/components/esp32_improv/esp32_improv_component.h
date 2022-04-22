@@ -1,9 +1,8 @@
 #pragma once
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/esp32_ble_server/ble_server.h"
 #include "esphome/components/esp32_ble_server/ble_characteristic.h"
-#include "esphome/components/improv/improv.h"
+#include "esphome/components/esp32_ble_server/ble_server.h"
 #include "esphome/components/output/binary_output.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/component.h"
@@ -11,6 +10,8 @@
 #include "esphome/core/preferences.h"
 
 #ifdef USE_ESP32
+
+#include <improv.h>
 
 namespace esphome {
 namespace esp32_improv {

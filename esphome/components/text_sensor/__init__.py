@@ -3,7 +3,9 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
 from esphome.const import (
+    CONF_ENTITY_CATEGORY,
     CONF_FILTERS,
+    CONF_ICON,
     CONF_ID,
     CONF_ON_VALUE,
     CONF_ON_RAW_VALUE,
@@ -14,6 +16,7 @@ from esphome.const import (
     CONF_TO,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
@@ -49,6 +52,7 @@ ToLowerFilter = text_sensor_ns.class_("ToLowerFilter", Filter)
 AppendFilter = text_sensor_ns.class_("AppendFilter", Filter)
 PrependFilter = text_sensor_ns.class_("PrependFilter", Filter)
 SubstituteFilter = text_sensor_ns.class_("SubstituteFilter", Filter)
+MapFilter = text_sensor_ns.class_("MapFilter", Filter)
 
 
 @FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
@@ -79,26 +83,21 @@ async def prepend_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
 
 
-def validate_substitute(value):
-    if isinstance(value, dict):
-        return cv.Schema(
-            {
-                cv.Required(CONF_FROM): cv.string,
-                cv.Required(CONF_TO): cv.string,
-            }
-        )(value)
-    value = cv.string(value)
-    if "->" not in value:
-        raise cv.Invalid("Substitute mapping must contain '->'")
-    a, b = value.split("->", 1)
-    a, b = a.strip(), b.strip()
-    return validate_substitute({CONF_FROM: cv.string(a), CONF_TO: cv.string(b)})
+def validate_mapping(value):
+    if not isinstance(value, dict):
+        value = cv.string(value)
+        if "->" not in value:
+            raise cv.Invalid("Mapping must contain '->'")
+        a, b = value.split("->", 1)
+        value = {CONF_FROM: a.strip(), CONF_TO: b.strip()}
+
+    return cv.Schema(
+        {cv.Required(CONF_FROM): cv.string, cv.Required(CONF_TO): cv.string}
+    )(value)
 
 
 @FILTER_REGISTRY.register(
-    "substitute",
-    SubstituteFilter,
-    cv.All(cv.ensure_list(validate_substitute), cv.Length(min=2)),
+    "substitute", SubstituteFilter, cv.ensure_list(validate_mapping)
 )
 async def substitute_filter_to_code(config, filter_id):
     from_strings = [conf[CONF_FROM] for conf in config]
@@ -106,11 +105,18 @@ async def substitute_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, from_strings, to_strings)
 
 
-icon = cv.icon
+@FILTER_REGISTRY.register("map", MapFilter, cv.ensure_list(validate_mapping))
+async def map_filter_to_code(config, filter_id):
+    map_ = cg.std_ns.class_("map").template(cg.std_string, cg.std_string)
+    return cg.new_Pvariable(
+        filter_id, map_([(item[CONF_FROM], item[CONF_TO]) for item in config])
+    )
+
 
 TEXT_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
+        cv.GenerateID(): cv.declare_id(TextSensor),
         cv.Optional(CONF_FILTERS): validate_filters,
         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
             {
@@ -126,6 +132,30 @@ TEXT_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).exte
         ),
     }
 )
+
+_UNDEF = object()
+
+
+def text_sensor_schema(
+    class_: MockObjClass = _UNDEF,
+    *,
+    icon: str = _UNDEF,
+    entity_category: str = _UNDEF,
+) -> cv.Schema:
+    schema = TEXT_SENSOR_SCHEMA
+    if class_ is not _UNDEF:
+        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
+    if icon is not _UNDEF:
+        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
+    if entity_category is not _UNDEF:
+        schema = schema.extend(
+            {
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=entity_category
+                ): cv.entity_category
+            }
+        )
+    return schema
 
 
 async def build_filters(config):
@@ -157,6 +187,12 @@ async def register_text_sensor(var, config):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_text_sensor(var))
     await setup_text_sensor_core_(var, config)
+
+
+async def new_text_sensor(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    await register_text_sensor(var, config)
+    return var
 
 
 @coroutine_with_priority(100.0)

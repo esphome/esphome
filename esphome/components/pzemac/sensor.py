@@ -1,5 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
+from esphome.automation import maybe_simple_id
 from esphome.components import sensor, modbus
 from esphome.const import (
     CONF_CURRENT,
@@ -28,6 +30,9 @@ AUTO_LOAD = ["modbus"]
 
 pzemac_ns = cg.esphome_ns.namespace("pzemac")
 PZEMAC = pzemac_ns.class_("PZEMAC", cg.PollingComponent, modbus.ModbusDevice)
+
+# Actions
+ResetEnergyAction = pzemac_ns.class_("ResetEnergyAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -73,6 +78,20 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
     .extend(modbus.modbus_device_schema(0x01))
 )
+
+
+@automation.register_action(
+    "pzemac.reset_energy",
+    ResetEnergyAction,
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(PZEMAC),
+        }
+    ),
+)
+async def reset_energy_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 async def to_code(config):

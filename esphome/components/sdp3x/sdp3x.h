@@ -2,12 +2,14 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/i2c/i2c.h"
+#include "esphome/components/sensirion_common/i2c_sensirion.h"
 
 namespace esphome {
 namespace sdp3x {
 
-class SDP3XComponent : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
+enum MeasurementMode { MASS_FLOW_AVG, DP_AVG };
+
+class SDP3XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice, public sensor::Sensor {
  public:
   /// Schedule temperature+pressure readings.
   void update() override;
@@ -16,14 +18,12 @@ class SDP3XComponent : public PollingComponent, public i2c::I2CDevice, public se
   void dump_config() override;
 
   float get_setup_priority() const override;
+  void set_measurement_mode(MeasurementMode mode) { measurement_mode_ = mode; }
 
  protected:
   /// Internal method to read the pressure from the component after it has been scheduled.
   void read_pressure_();
-
-  bool check_crc_(const uint8_t data[], uint8_t size, uint8_t checksum);
-
-  float pressure_scale_factor_ = 0.0f;  // hPa per count
+  MeasurementMode measurement_mode_;
 };
 
 }  // namespace sdp3x

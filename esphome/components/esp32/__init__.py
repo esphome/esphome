@@ -2,8 +2,9 @@ from dataclasses import dataclass
 from typing import Union
 from pathlib import Path
 import logging
+import os
 
-from esphome.helpers import write_file_if_changed
+from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
@@ -17,6 +18,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    __version__,
 )
 from esphome.core import CORE, HexInt
 import esphome.config_validation as cv
@@ -28,6 +30,7 @@ from .const import (  # noqa
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
     VARIANT_ESP32C3,
+    VARIANT_FRIENDLY,
     VARIANTS,
 )
 from .boards import BOARD_TO_VARIANT
@@ -58,12 +61,30 @@ def set_core_data(config):
     return config
 
 
-def get_esp32_variant():
-    return CORE.data[KEY_ESP32][KEY_VARIANT]
+def get_esp32_variant(core_obj=None):
+    return (core_obj or CORE).data[KEY_ESP32][KEY_VARIANT]
 
 
-def is_esp32c3():
-    return get_esp32_variant() == VARIANT_ESP32C3
+def only_on_variant(*, supported=None, unsupported=None):
+    """Config validator for features only available on some ESP32 variants."""
+    if supported is not None and not isinstance(supported, list):
+        supported = [supported]
+    if unsupported is not None and not isinstance(unsupported, list):
+        unsupported = [unsupported]
+
+    def validator_(obj):
+        variant = get_esp32_variant()
+        if supported is not None and variant not in supported:
+            raise cv.Invalid(
+                f"This feature is only available on {', '.join(supported)}"
+            )
+        if unsupported is not None and variant in unsupported:
+            raise cv.Invalid(
+                f"This feature is not available on {', '.join(unsupported)}"
+            )
+        return obj
+
+    return validator_
 
 
 @dataclass
@@ -104,7 +125,6 @@ def _format_framework_espidf_version(ver: cv.Version) -> str:
 #    The new version needs to be thoroughly validated before changing the
 #    recommended version as otherwise a bunch of devices could be bricked
 #  * For all constants below, update platformio.ini (in this repo)
-#    and platformio.ini/platformio-lint.ini in the esphome-docker-base repository
 
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
@@ -113,16 +133,16 @@ RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 0, 0)
 # The platformio/espressif32 version to use for arduino frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ARDUINO_PLATFORM_VERSION = cv.Version(3, 3, 2)
+ARDUINO_PLATFORM_VERSION = cv.Version(3, 5, 0)
 
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 3, 0)
+RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 3, 2)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ESP_IDF_PLATFORM_VERSION = cv.Version(3, 3, 2)
+ESP_IDF_PLATFORM_VERSION = cv.Version(3, 5, 0)
 
 
 def _arduino_check_versions(value):
@@ -147,8 +167,9 @@ def _arduino_check_versions(value):
     value[CONF_VERSION] = str(version)
     value[CONF_SOURCE] = source or _format_framework_arduino_version(version)
 
-    platform_version = value.get(CONF_PLATFORM_VERSION, ARDUINO_PLATFORM_VERSION)
-    value[CONF_PLATFORM_VERSION] = str(platform_version)
+    value[CONF_PLATFORM_VERSION] = value.get(
+        CONF_PLATFORM_VERSION, _parse_platform_version(str(ARDUINO_PLATFORM_VERSION))
+    )
 
     if version != RECOMMENDED_ARDUINO_FRAMEWORK_VERSION:
         _LOGGER.warning(
@@ -162,8 +183,8 @@ def _arduino_check_versions(value):
 def _esp_idf_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(4, 3, 1), "https://github.com/espressif/esp-idf.git"),
-        "latest": (cv.Version(4, 3, 0), None),
+        "dev": (cv.Version(5, 0, 0), "https://github.com/espressif/esp-idf.git"),
+        "latest": (cv.Version(4, 3, 2), None),
         "recommended": (RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION, None),
     }
 
@@ -184,8 +205,9 @@ def _esp_idf_check_versions(value):
     value[CONF_VERSION] = str(version)
     value[CONF_SOURCE] = source or _format_framework_espidf_version(version)
 
-    platform_version = value.get(CONF_PLATFORM_VERSION, ESP_IDF_PLATFORM_VERSION)
-    value[CONF_PLATFORM_VERSION] = str(platform_version)
+    value[CONF_PLATFORM_VERSION] = value.get(
+        CONF_PLATFORM_VERSION, _parse_platform_version(str(ESP_IDF_PLATFORM_VERSION))
+    )
 
     if version != RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION:
         _LOGGER.warning(
@@ -194,6 +216,15 @@ def _esp_idf_check_versions(value):
         )
 
     return value
+
+
+def _parse_platform_version(value):
+    try:
+        # if platform version is a valid version constraint, prefix the default package
+        cv.platformio_version_constraint(value)
+        return f"platformio/espressif32 @ {value}"
+    except cv.Invalid:
+        return value
 
 
 def _detect_variant(value):
@@ -218,7 +249,7 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
             cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): cv.string_strict,
+            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
         }
     ),
     _arduino_check_versions,
@@ -230,7 +261,7 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
             cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): cv.string_strict,
+            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
             cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
                 cv.string_strict: cv.string_strict
             },
@@ -276,14 +307,18 @@ async def to_code(config):
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{config[CONF_VARIANT]}")
+    cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[config[CONF_VARIANT]])
 
     cg.add_platformio_option("lib_ldf_mode", "off")
 
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+
     conf = config[CONF_FRAMEWORK]
+    cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
+
+    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
-        cg.add_platformio_option(
-            "platform", f"espressif32 @ {conf[CONF_PLATFORM_VERSION]}"
-        )
         cg.add_platformio_option("framework", "espidf")
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
@@ -299,8 +334,15 @@ async def to_code(config):
         )
         add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
         add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_SIZE", True)
+
         # Increase freertos tick speed from 100Hz to 1kHz so that delay() resolution is 1ms
         add_idf_sdkconfig_option("CONFIG_FREERTOS_HZ", 1000)
+
+        # Setup watchdog
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
 
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
 
@@ -313,10 +355,14 @@ async def to_code(config):
                 "CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", False
             )
 
-    elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
-        cg.add_platformio_option(
-            "platform", f"espressif32 @ {conf[CONF_PLATFORM_VERSION]}"
+        cg.add_define(
+            "USE_ESP_IDF_VERSION_CODE",
+            cg.RawExpression(
+                f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
+            ),
         )
+
+    elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         cg.add_platformio_option("framework", "arduino")
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
@@ -326,6 +372,13 @@ async def to_code(config):
         )
 
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
+
+        cg.add_define(
+            "USE_ARDUINO_VERSION_CODE",
+            cg.RawExpression(
+                f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
+            ),
+        )
 
 
 ARDUINO_PARTITIONS_CSV = """\
@@ -396,3 +449,18 @@ def copy_files():
             CORE.relative_build_path("partitions.csv"),
             IDF_PARTITIONS_CSV,
         )
+        # IDF build scripts look for version string to put in the build.
+        # However, if the build path does not have an initialized git repo,
+        # and no version.txt file exists, the CMake script fails for some setups.
+        # Fix by manually pasting a version.txt file, containing the ESPHome version
+        write_file_if_changed(
+            CORE.relative_build_path("version.txt"),
+            __version__,
+        )
+
+    dir = os.path.dirname(__file__)
+    post_build_file = os.path.join(dir, "post_build.py.script")
+    copy_file_if_changed(
+        post_build_file,
+        CORE.relative_build_path("post_build.py"),
+    )

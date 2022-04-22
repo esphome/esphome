@@ -5,6 +5,6 @@ set -e
 
 cd "$(dirname "$0")/.."
 pip3 install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
-pip3 install -e .
+pip3 install --no-use-pep517 -e .
 
 pre-commit install

@@ -5,6 +5,7 @@
 
 #include "ota_component.h"
 #include "ota_backend.h"
+#include "esphome/core/macros.h"
 
 namespace esphome {
 namespace ota {
@@ -16,6 +17,11 @@ class ArduinoESP8266OTABackend : public OTABackend {
   OTAResponseTypes write(uint8_t *data, size_t len) override;
   OTAResponseTypes end() override;
   void abort() override;
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
+  bool supports_compression() override { return true; }
+#else
+  bool supports_compression() override { return false; }
+#endif
 };
 
 }  // namespace ota

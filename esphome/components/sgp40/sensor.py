@@ -1,30 +1,35 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor
+from esphome.components import i2c, sensor, sensirion_common
+
 from esphome.const import (
-    CONF_ID,
+    CONF_STORE_BASELINE,
+    CONF_TEMPERATURE_SOURCE,
     ICON_RADIATOR,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     STATE_CLASS_MEASUREMENT,
 )
 
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["sensirion_common"]
 
 CODEOWNERS = ["@SenexCrenshaw"]
 
 sgp40_ns = cg.esphome_ns.namespace("sgp40")
 SGP40Component = sgp40_ns.class_(
-    "SGP40Component", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
+    "SGP40Component",
+    sensor.Sensor,
+    cg.PollingComponent,
+    sensirion_common.SensirionI2CDevice,
 )
 
 CONF_COMPENSATION = "compensation"
 CONF_HUMIDITY_SOURCE = "humidity_source"
-CONF_TEMPERATURE_SOURCE = "temperature_source"
-CONF_STORE_BASELINE = "store_baseline"
 CONF_VOC_BASELINE = "voc_baseline"
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
+        SGP40Component,
         icon=ICON_RADIATOR,
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
@@ -32,7 +37,6 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(SGP40Component),
             cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
             cv.Optional(CONF_VOC_BASELINE): cv.hex_uint16_t,
             cv.Optional(CONF_COMPENSATION): cv.Schema(
@@ -49,10 +53,9 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    await sensor.register_sensor(var, config)
 
     if CONF_COMPENSATION in config:
         compensation_config = config[CONF_COMPENSATION]

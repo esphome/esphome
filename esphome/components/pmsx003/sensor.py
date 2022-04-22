@@ -22,7 +22,6 @@ from esphome.const import (
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     ICON_CHEMICAL_WEAPON,
@@ -42,21 +41,23 @@ PMSX003Sensor = pmsx003_ns.class_("PMSX003Sensor", sensor.Sensor)
 TYPE_PMSX003 = "PMSX003"
 TYPE_PMS5003T = "PMS5003T"
 TYPE_PMS5003ST = "PMS5003ST"
+TYPE_PMS5003S = "PMS5003S"
 
 PMSX003Type = pmsx003_ns.enum("PMSX003Type")
 PMSX003_TYPES = {
     TYPE_PMSX003: PMSX003Type.PMSX003_TYPE_X003,
     TYPE_PMS5003T: PMSX003Type.PMSX003_TYPE_5003T,
     TYPE_PMS5003ST: PMSX003Type.PMSX003_TYPE_5003ST,
+    TYPE_PMS5003S: PMSX003Type.PMSX003_TYPE_5003S,
 }
 
 SENSORS_TO_TYPE = {
-    CONF_PM_1_0: [TYPE_PMSX003, TYPE_PMS5003ST],
-    CONF_PM_2_5: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST],
-    CONF_PM_10_0: [TYPE_PMSX003, TYPE_PMS5003ST],
+    CONF_PM_1_0: [TYPE_PMSX003, TYPE_PMS5003ST, TYPE_PMS5003S],
+    CONF_PM_2_5: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
+    CONF_PM_10_0: [TYPE_PMSX003, TYPE_PMS5003ST, TYPE_PMS5003S],
     CONF_TEMPERATURE: [TYPE_PMS5003T, TYPE_PMS5003ST],
     CONF_HUMIDITY: [TYPE_PMS5003T, TYPE_PMS5003ST],
-    CONF_FORMALDEHYDE: [TYPE_PMS5003ST],
+    CONF_FORMALDEHYDE: [TYPE_PMS5003ST, TYPE_PMS5003S],
 }
 
 
@@ -73,22 +74,22 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(PMSX003Component),
             cv.Required(CONF_TYPE): cv.enum(PMSX003_TYPES, upper=True),
             cv.Optional(CONF_PM_1_0_STD): sensor.sensor_schema(
-                UNIT_MICROGRAMS_PER_CUBIC_METER,
-                ICON_CHEMICAL_WEAPON,
-                0,
-                DEVICE_CLASS_PM1,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM1,
             ),
             cv.Optional(CONF_PM_2_5_STD): sensor.sensor_schema(
-                UNIT_MICROGRAMS_PER_CUBIC_METER,
-                ICON_CHEMICAL_WEAPON,
-                0,
-                DEVICE_CLASS_PM25,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM25,
             ),
             cv.Optional(CONF_PM_10_0_STD): sensor.sensor_schema(
-                UNIT_MICROGRAMS_PER_CUBIC_METER,
-                ICON_CHEMICAL_WEAPON,
-                0,
-                DEVICE_CLASS_PM10,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM10,
             ),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
@@ -109,40 +110,34 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_0_3UM): sensor.sensor_schema(
-                UNIT_COUNT_DECILITRE,
-                ICON_CHEMICAL_WEAPON,
-                0,
-                DEVICE_CLASS_EMPTY,
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
             ),
             cv.Optional(CONF_PM_0_5UM): sensor.sensor_schema(
-                UNIT_COUNT_DECILITRE,
-                ICON_CHEMICAL_WEAPON,
-                0,
-                DEVICE_CLASS_EMPTY,
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
             ),
             cv.Optional(CONF_PM_1_0UM): sensor.sensor_schema(
-                UNIT_COUNT_DECILITRE,
-                ICON_CHEMICAL_WEAPON,
-                0,
-                DEVICE_CLASS_EMPTY,
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
             ),
             cv.Optional(CONF_PM_2_5UM): sensor.sensor_schema(
-                UNIT_COUNT_DECILITRE,
-                ICON_CHEMICAL_WEAPON,
-                0,
-                DEVICE_CLASS_EMPTY,
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
             ),
             cv.Optional(CONF_PM_5_0UM): sensor.sensor_schema(
-                UNIT_COUNT_DECILITRE,
-                ICON_CHEMICAL_WEAPON,
-                0,
-                DEVICE_CLASS_EMPTY,
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
             ),
             cv.Optional(CONF_PM_10_0UM): sensor.sensor_schema(
-                UNIT_COUNT_DECILITRE,
-                ICON_CHEMICAL_WEAPON,
-                0,
-                DEVICE_CLASS_EMPTY,
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,

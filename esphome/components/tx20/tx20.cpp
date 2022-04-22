@@ -113,7 +113,7 @@ void Tx20Component::decode_and_publish_() {
   if (tx20_sa == 4) {
     if (chk == tx20_sd) {
       if (tx20_sf == tx20_sc) {
-        tx20_wind_speed_kmh = float(tx20_sc) * 0.36;
+        tx20_wind_speed_kmh = float(tx20_sc) * 0.36f;
         ESP_LOGV(TAG, "WindSpeed %f", tx20_wind_speed_kmh);
         if (this->wind_speed_sensor_ != nullptr)
           this->wind_speed_sensor_->publish_state(tx20_wind_speed_kmh);

@@ -76,6 +76,10 @@ enum GrowAuraLEDColor {
   RED = 0x01,
   BLUE = 0x02,
   PURPLE = 0x03,
+  GREEN = 0x04,
+  YELLOW = 0x05,
+  CYAN = 0x06,
+  WHITE = 0x07,
 };
 
 class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevice {

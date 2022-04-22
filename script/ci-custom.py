@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 
-from helpers import git_ls_files, filter_changed
+from helpers import styled, print_error_for_file, git_ls_files, filter_changed
+import argparse
 import codecs
 import collections
+import colorama
 import fnmatch
+import functools
 import os.path
 import re
-import subprocess
 import sys
 import time
-import functools
-import argparse
 
 sys.path.append(os.path.dirname(__file__))
 
@@ -20,7 +20,7 @@ def find_all(a_str, sub):
         # Optimization: If str is not in whole text, then do not try
         # on each line
         return
-    for i, line in enumerate(a_str.splitlines()):
+    for i, line in enumerate(a_str.split("\n")):
         column = 0
         while True:
             column = line.find(sub, column)
@@ -29,6 +29,8 @@ def find_all(a_str, sub):
             yield i, column
             column += len(sub)
 
+
+colorama.init()
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -170,7 +172,7 @@ def lint_re_check(regex, **kwargs):
     return decorator
 
 
-def lint_content_find_check(find, **kwargs):
+def lint_content_find_check(find, only_first=False, **kwargs):
     decor = lint_content_check(**kwargs)
 
     def decorator(func):
@@ -183,6 +185,8 @@ def lint_content_find_check(find, **kwargs):
             for line, col in find_all(content, find_):
                 err = func(fname)
                 errors.append((line + 1, col + 1, err))
+                if only_first:
+                    break
             return errors
 
         return decor(new_func)
@@ -218,7 +222,13 @@ def lint_ext_check(fname):
 
 
 @lint_file_check(
-    exclude=["**.sh", "docker/hassio-rootfs/**", "docker/*.py", "script/*", "setup.py"]
+    exclude=[
+        "**.sh",
+        "docker/ha-addon-rootfs/**",
+        "docker/*.py",
+        "script/*",
+        "setup.py",
+    ]
 )
 def lint_executable_bit(fname):
     ex = EXECUTABLE_BIT[fname]
@@ -232,6 +242,7 @@ def lint_executable_bit(fname):
 
 @lint_content_find_check(
     "\t",
+    only_first=True,
     exclude=[
         "esphome/dashboard/static/ace.js",
         "esphome/dashboard/static/ext-searchbox.js",
@@ -241,9 +252,9 @@ def lint_tabs(fname):
     return "File contains tab character. Please convert tabs to spaces."
 
 
-@lint_content_find_check("\r")
+@lint_content_find_check("\r", only_first=True)
 def lint_newline(fname):
-    return "File contains windows newline. Please set your editor to unix newline mode."
+    return "File contains Windows newline. Please set your editor to Unix newline mode."
 
 
 @lint_content_check(exclude=["*.svg"])
@@ -263,12 +274,14 @@ def highlight(s):
 @lint_re_check(
     r"^#define\s+([a-zA-Z0-9_]+)\s+([0-9bx]+)" + CPP_RE_EOL,
     include=cpp_include,
-    exclude=["esphome/core/log.h", "esphome/components/socket/headers.h"],
+    exclude=[
+        "esphome/core/log.h",
+        "esphome/components/socket/headers.h",
+        "esphome/core/defines.h",
+    ],
 )
 def lint_no_defines(fname, match):
-    s = highlight(
-        "static const uint8_t {} = {};".format(match.group(1), match.group(2))
-    )
+    s = highlight(f"static const uint8_t {match.group(1)} = {match.group(2)};")
     return (
         "#define macros for integer constants are not allowed, please use "
         "{} style instead (replace uint8_t with the appropriate "
@@ -578,14 +591,23 @@ def lint_inclusive_language(fname, match):
     )
 
 
+@lint_re_check(r"[\t\r\f\v ]+$")
+def lint_trailing_whitespace(fname, match):
+    return "Trailing whitespace detected"
+
+
 @lint_content_find_check(
     "ESP_LOG",
     include=["*.h", "*.tcc"],
     exclude=[
         "esphome/components/binary_sensor/binary_sensor.h",
+        "esphome/components/button/button.h",
+        "esphome/components/climate/climate.h",
         "esphome/components/cover/cover.h",
         "esphome/components/display/display_buffer.h",
+        "esphome/components/fan/fan.h",
         "esphome/components/i2c/i2c.h",
+        "esphome/components/lock/lock.h",
         "esphome/components/mqtt/mqtt_component.h",
         "esphome/components/number/number.h",
         "esphome/components/output/binary_output.h",
@@ -596,7 +618,6 @@ def lint_inclusive_language(fname, match):
         "esphome/components/stepper/stepper.h",
         "esphome/components/switch/switch.h",
         "esphome/components/text_sensor/text_sensor.h",
-        "esphome/components/climate/climate.h",
         "esphome/core/component.h",
         "esphome/core/gpio.h",
         "esphome/core/log.h",
@@ -653,10 +674,13 @@ for fname in files:
 run_checks(LINT_POST_CHECKS, "POST")
 
 for f, errs in sorted(errors.items()):
-    print(f"\033[0;32m************* File \033[1;32m{f}\033[0m")
-    for lineno, col, msg in errs:
-        print(f"ERROR {f}:{lineno}:{col} - {msg}")
-    print()
+    bold = functools.partial(styled, colorama.Style.BRIGHT)
+    bold_red = functools.partial(styled, (colorama.Style.BRIGHT, colorama.Fore.RED))
+    err_str = (
+        f"{bold(f'{f}:{lineno}:{col}:')} {bold_red('lint:')} {msg}\n"
+        for lineno, col, msg in errs
+    )
+    print_error_for_file(f, "\n".join(err_str))
 
 if args.print_slowest:
     lint_times = []

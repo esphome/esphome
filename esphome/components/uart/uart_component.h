@@ -2,9 +2,13 @@
 
 #include <vector>
 #include <cstring>
+#include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#ifdef USE_UART_DEBUGGER
+#include "esphome/core/automation.h"
+#endif
 
 namespace esphome {
 namespace uart {
@@ -14,6 +18,14 @@ enum UARTParityOptions {
   UART_CONFIG_PARITY_EVEN,
   UART_CONFIG_PARITY_ODD,
 };
+
+#ifdef USE_UART_DEBUGGER
+enum UARTDirection {
+  UART_DIRECTION_RX,
+  UART_DIRECTION_TX,
+  UART_DIRECTION_BOTH,
+};
+#endif
 
 const LogString *parity_to_str(UARTParityOptions parity);
 
@@ -40,6 +52,7 @@ class UARTComponent {
   void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
   void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
   void set_rx_buffer_size(size_t rx_buffer_size) { this->rx_buffer_size_ = rx_buffer_size; }
+  size_t get_rx_buffer_size() { return this->rx_buffer_size_; }
 
   void set_stop_bits(uint8_t stop_bits) { this->stop_bits_ = stop_bits; }
   uint8_t get_stop_bits() const { return this->stop_bits_; }
@@ -49,6 +62,12 @@ class UARTComponent {
   UARTParityOptions get_parity() const { return this->parity_; }
   void set_baud_rate(uint32_t baud_rate) { baud_rate_ = baud_rate; }
   uint32_t get_baud_rate() const { return baud_rate_; }
+
+#ifdef USE_UART_DEBUGGER
+  void add_debug_callback(std::function<void(UARTDirection, uint8_t)> &&callback) {
+    this->debug_callback_.add(std::move(callback));
+  }
+#endif
 
  protected:
   virtual void check_logger_conflict() = 0;
@@ -61,6 +80,9 @@ class UARTComponent {
   uint8_t stop_bits_;
   uint8_t data_bits_;
   UARTParityOptions parity_;
+#ifdef USE_UART_DEBUGGER
+  CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};
+#endif
 };
 
 }  // namespace uart

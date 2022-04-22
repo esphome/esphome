@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTOMATION_ID,
     CONF_CONDITION,
+    CONF_COUNT,
     CONF_ELSE,
     CONF_ID,
     CONF_THEN,
@@ -66,6 +67,7 @@ DelayAction = cg.esphome_ns.class_("DelayAction", Action, cg.Component)
 LambdaAction = cg.esphome_ns.class_("LambdaAction", Action)
 IfAction = cg.esphome_ns.class_("IfAction", Action)
 WhileAction = cg.esphome_ns.class_("WhileAction", Action)
+RepeatAction = cg.esphome_ns.class_("RepeatAction", Action)
 WaitUntilAction = cg.esphome_ns.class_("WaitUntilAction", Action, cg.Component)
 UpdateComponentAction = cg.esphome_ns.class_("UpdateComponentAction", Action)
 Automation = cg.esphome_ns.class_("Automation")
@@ -241,21 +243,35 @@ async def while_action_to_code(config, action_id, template_arg, args):
     return var
 
 
-def validate_wait_until(value):
-    schema = cv.Schema(
+@register_action(
+    "repeat",
+    RepeatAction,
+    cv.Schema(
         {
-            cv.Required(CONF_CONDITION): validate_potentially_and_condition,
-            cv.Optional(CONF_TIMEOUT): cv.templatable(
-                cv.positive_time_period_milliseconds
-            ),
+            cv.Required(CONF_COUNT): cv.templatable(cv.positive_not_null_int),
+            cv.Required(CONF_THEN): validate_action_list,
         }
-    )
-    if isinstance(value, dict) and CONF_CONDITION in value:
-        return schema(value)
-    return validate_wait_until({CONF_CONDITION: value})
+    ),
+)
+async def repeat_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    count_template = await cg.templatable(config[CONF_COUNT], args, cg.uint32)
+    cg.add(var.set_count(count_template))
+    actions = await build_action_list(config[CONF_THEN], template_arg, args)
+    cg.add(var.add_then(actions))
+    return var
 
 
-@register_action("wait_until", WaitUntilAction, validate_wait_until)
+_validate_wait_until = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_CONDITION): validate_potentially_and_condition,
+        cv.Optional(CONF_TIMEOUT): cv.templatable(cv.positive_time_period_milliseconds),
+    },
+    key=CONF_CONDITION,
+)
+
+
+@register_action("wait_until", WaitUntilAction, _validate_wait_until)
 async def wait_until_action_to_code(config, action_id, template_arg, args):
     conditions = await build_condition(config[CONF_CONDITION], template_arg, args)
     var = cg.new_Pvariable(action_id, template_arg, conditions)

@@ -1,3 +1,4 @@
+import typing
 from typing import Union, List
 
 import collections
@@ -192,8 +193,8 @@ def run_external_command(
         sys.argv = list(cmd)
         sys.exit = mock_exit
         return func() or 0
-    except KeyboardInterrupt:
-        return 1
+    except KeyboardInterrupt:  # pylint: disable=try-except-raise
+        raise
     except SystemExit as err:
         return err.args[0]
     except Exception as err:  # pylint: disable=broad-except
@@ -219,26 +220,34 @@ def run_external_process(*cmd, **kwargs):
 
     capture_stdout = kwargs.get("capture_stdout", False)
     if capture_stdout:
-        sub_stdout = io.BytesIO()
+        sub_stdout = subprocess.PIPE
     else:
         sub_stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
 
     sub_stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
 
     try:
-        return subprocess.call(cmd, stdout=sub_stdout, stderr=sub_stderr)
+        proc = subprocess.run(
+            cmd, stdout=sub_stdout, stderr=sub_stderr, encoding="utf-8", check=False
+        )
+        return proc.stdout if capture_stdout else proc.returncode
+    except KeyboardInterrupt:  # pylint: disable=try-except-raise
+        raise
     except Exception as err:  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
         _LOGGER.error("Please try running %s locally.", full_cmd)
         return 1
-    finally:
-        if capture_stdout:
-            # pylint: disable=lost-exception
-            return sub_stdout.getvalue()
 
 
 def is_dev_esphome_version():
     return "dev" in const.__version__
+
+
+def parse_esphome_version() -> typing.Tuple[int, int, int]:
+    match = re.match(r"^(\d+).(\d+).(\d+)(-dev\d*|b\d*)?$", const.__version__)
+    if match is None:
+        raise ValueError(f"Failed to parse ESPHome version '{const.__version__}'")
+    return int(match.group(1)), int(match.group(2)), int(match.group(3))
 
 
 # Custom OrderedDict with nicer repr method for debugging

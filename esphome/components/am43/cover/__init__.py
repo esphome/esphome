@@ -5,7 +5,7 @@ from esphome.const import CONF_ID, CONF_PIN
 
 CODEOWNERS = ["@buxtronix"]
 DEPENDENCIES = ["ble_client"]
-AUTO_LOAD = ["am43"]
+AUTO_LOAD = ["am43", "sensor"]
 
 CONF_INVERT_POSITION = "invert_position"
 

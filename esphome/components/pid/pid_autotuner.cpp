@@ -330,7 +330,7 @@ bool PIDAutotuner::OscillationAmplitudeDetector::has_enough_data() const {
 float PIDAutotuner::OscillationAmplitudeDetector::get_mean_oscillation_amplitude() const {
   float total_amplitudes = 0;
   size_t total_amplitudes_n = 0;
-  for (int i = 1; i < std::min(phase_mins.size(), phase_maxs.size()) - 1; i++) {
+  for (size_t i = 1; i < std::min(phase_mins.size(), phase_maxs.size()) - 1; i++) {
     total_amplitudes += std::abs(phase_maxs[i] - phase_mins[i + 1]);
     total_amplitudes_n++;
   }

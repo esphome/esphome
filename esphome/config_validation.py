@@ -12,12 +12,15 @@ from string import ascii_letters, digits
 import voluptuous as vol
 
 from esphome import core
+import esphome.codegen as cg
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
     CONF_COMMAND_TOPIC,
+    CONF_COMMAND_RETAIN,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
+    CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
@@ -35,6 +38,9 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
     CONF_TYPE,
+    ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ENTITY_CATEGORY_NONE,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
@@ -52,12 +58,12 @@ from esphome.core import (
 )
 from esphome.helpers import list_starts_with, add_class_to_obj
 from esphome.jsonschema import (
-    jschema_composite,
+    jschema_list,
     jschema_extractor,
     jschema_registry,
     jschema_typed,
 )
-
+from esphome.util import parse_esphome_version
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
@@ -291,9 +297,11 @@ def icon(value):
     value = string_strict(value)
     if not value:
         return value
-    if value.startswith("mdi:"):
+    if re.match("^[\\w\\-]+:[\\w\\-]+$", value):
         return value
-    raise Invalid('Icons should start with prefix "mdi:"')
+    raise Invalid(
+        'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
+    )
 
 
 def boolean(value):
@@ -319,7 +327,7 @@ def boolean(value):
     )
 
 
-@jschema_composite
+@jschema_list
 def ensure_list(*validators):
     """Validate this configuration option to be a list.
 
@@ -486,7 +494,11 @@ def templatable(other_validators):
     """
     schema = Schema(other_validators)
 
+    @jschema_extractor("templatable")
     def validator(value):
+        # pylint: disable=comparison-with-callable
+        if value == jschema_extractor:
+            return other_validators
         if isinstance(value, Lambda):
             return returning_lambda(value)
         if isinstance(other_validators, dict):
@@ -1394,7 +1406,7 @@ def typed_schema(schemas, **kwargs):
         if schema_option is None:
             raise Invalid(f"{key} not specified!")
         key_v = key_validator(schema_option)
-        value = schemas[key_v](value)
+        value = Schema(schemas[key_v])(value)
         value[key] = key_v
         return value
 
@@ -1538,7 +1550,7 @@ def validate_registry(name, registry):
     return ensure_list(validate_registry_entry(name, registry))
 
 
-@jschema_composite
+@jschema_list
 def maybe_simple_value(*validators, **kwargs):
     key = kwargs.pop("key", CONF_VALUE)
     validator = All(*validators)
@@ -1549,6 +1561,17 @@ def maybe_simple_value(*validators, **kwargs):
         return validator({key: value})
 
     return validate
+
+
+_ENTITY_CATEGORIES = {
+    ENTITY_CATEGORY_NONE: cg.EntityCategory.ENTITY_CATEGORY_NONE,
+    ENTITY_CATEGORY_CONFIG: cg.EntityCategory.ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_DIAGNOSTIC: cg.EntityCategory.ENTITY_CATEGORY_DIAGNOSTIC,
+}
+
+
+def entity_category(value):
+    return enum(_ENTITY_CATEGORIES, lower=True)(value)
 
 
 MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(
@@ -1573,6 +1596,7 @@ MQTT_COMPONENT_SCHEMA = Schema(
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     {
         Optional(CONF_COMMAND_TOPIC): All(requires_component("mqtt"), subscribe_topic),
+        Optional(CONF_COMMAND_RETAIN): All(requires_component("mqtt"), boolean),
     }
 )
 
@@ -1582,6 +1606,7 @@ ENTITY_BASE_SCHEMA = Schema(
         Optional(CONF_INTERNAL): boolean,
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
         Optional(CONF_ICON): icon,
+        Optional(CONF_ENTITY_CATEGORY): entity_category,
     }
 )
 
@@ -1668,34 +1693,85 @@ def version_number(value):
         raise Invalid("Not a version number") from e
 
 
+def platformio_version_constraint(value):
+    # for documentation on valid version constraints:
+    # https://docs.platformio.org/en/latest/core/userguide/platforms/cmd_install.html#cmd-platform-install
+
+    value = string_strict(value)
+    constraints = []
+    for item in value.split(","):
+        # find and strip prefix operator
+        op = None
+        for test_op in ("^", "~", ">=", ">", "<=", "<", "!="):
+            if item.startswith(test_op):
+                op = test_op
+                item = item[len(test_op) :]
+                break
+
+        constraints.append((op, version_number(item)))
+    return constraints
+
+
 def require_framework_version(
     *,
     esp_idf=None,
     esp32_arduino=None,
     esp8266_arduino=None,
+    max_version=False,
+    extra_message=None,
 ):
     def validator(value):
         core_data = CORE.data[KEY_CORE]
         framework = core_data[KEY_TARGET_FRAMEWORK]
         if framework == "esp-idf":
             if esp_idf is None:
-                raise Invalid("This feature is incompatible with esp-idf")
+                msg = "This feature is incompatible with esp-idf"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
             required = esp_idf
         elif CORE.is_esp32 and framework == "arduino":
             if esp32_arduino is None:
-                raise Invalid(
-                    "This feature is incompatible with ESP32 using arduino framework"
-                )
+                msg = "This feature is incompatible with ESP32 using arduino framework"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
             required = esp32_arduino
         elif CORE.is_esp8266 and framework == "arduino":
             if esp8266_arduino is None:
-                raise Invalid("This feature is incompatible with ESP8266")
+                msg = "This feature is incompatible with ESP8266"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
             required = esp8266_arduino
         else:
             raise NotImplementedError
+
+        if max_version:
+            if core_data[KEY_FRAMEWORK_VERSION] > required:
+                msg = f"This feature requires framework version {required} or lower"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
+            return value
+
         if core_data[KEY_FRAMEWORK_VERSION] < required:
+            msg = f"This feature requires at least framework version {required}"
+            if extra_message:
+                msg += f". {extra_message}"
+            raise Invalid(msg)
+        return value
+
+    return validator
+
+
+def require_esphome_version(year, month, patch):
+    def validator(value):
+        esphome_version = parse_esphome_version()
+        if esphome_version < (year, month, patch):
+            requires_version = f"{year}.{month}.{patch}"
             raise Invalid(
-                f"This feature requires at least framework version {required}"
+                f"This component requires at least ESPHome version {requires_version}"
             )
         return value
 

@@ -227,7 +227,9 @@ spi:
 
 uart:
   - id: uart1
-    tx_pin: GPIO1
+    tx_pin:
+      number: GPIO1
+      inverted: yes
     rx_pin: GPIO3
     baud_rate: 115200
   - id: uart2
@@ -250,6 +252,18 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
+  - id: uart7
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 38400
+  - id: uart8
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 4800
+    parity: NONE
+    stop_bits: 2
+    # Specifically added for testing debug with no options at all.
+    debug:
 
 modbus:
   uart_id: uart1
@@ -263,6 +277,8 @@ logger:
   hardware_uart: UART1
   level: DEBUG
   esp8266_store_log_strings_in_flash: true
+
+improv_serial:
 
 deep_sleep:
   run_duration: 20s
@@ -339,6 +355,24 @@ sensor:
       name: 'Temperature'
     humidity:
       name: 'Humidity'
+  - platform: hydreon_rgxx
+    model: "RG 9"
+    uart_id: uart6
+    id: "hydreon_rg9"
+    moisture:
+      name: "hydreon_rain"
+      id: hydreon_rain
+  - platform: hydreon_rgxx
+    model: "RG_15"
+    uart_id: uart6
+    acc:
+      name: "hydreon_acc"
+    event_acc:
+      name: "hydreon_event_acc"
+    total_acc:
+      name: "hydreon_total_acc"
+    r_int:
+      name: "hydreon_r_int"
   - platform: adc
     pin: VCC
     id: my_sensor
@@ -348,6 +382,11 @@ sensor:
       - filter_out: NAN
       - sliding_window_moving_average:
       - exponential_moving_average:
+      - quantile:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
+          quantile: .8
       - lambda: 'return 0;'
       - delta: 100
       - throttle: 100ms
@@ -363,6 +402,10 @@ sensor:
             - 400 -> 500
             - -50 -> -1000
             - -100 -> -10000
+  - platform: cd74hc4067
+    id: cd74hc4067_0
+    number: 0
+    sensor: my_sensor
   - platform: resistance
     sensor: my_sensor
     configuration: DOWNSTREAM
@@ -440,15 +483,48 @@ sensor:
     active_power_b:
       name: ADE7953 Active Power B
       id: ade7953_active_power_b
+  - platform: bl0939
+    uart_id: uart8
+    voltage:
+      name: 'BL0939 Voltage'
+    current_1:
+      name: 'BL0939 Current 1'
+    current_2:
+      name: 'BL0939 Current 2'
+    active_power_1:
+      name: 'BL0939 Active Power 1'
+    active_power_2:
+      name: 'BL0939 Active Power 2'
+    energy_1:
+      name: 'BL0939 Energy 1'
+    energy_2:
+      name: 'BL0939 Energy 2'
+    energy_total:
+      name: 'BL0939 Total energy'
+  - platform: bl0940
+    uart_id: uart3
+    voltage:
+      name: 'BL0940 Voltage'
+    current:
+      name: 'BL0940 Current'
+    power:
+      name: 'BL0940 Power'
+    energy:
+      name: 'BL0940 Energy'
+    internal_temperature:
+      name: 'BL0940 Internal temperature'
+    external_temperature:
+      name: 'BL0940 External temperature'
   - platform: pzem004t
     uart_id: uart3
     voltage:
-      name: 'PZEM00T Voltage'
+      name: 'PZEM004T Voltage'
     current:
       name: 'PZEM004T Current'
     power:
       name: 'PZEM004T Power'
   - platform: pzemac
+    id: pzemac1
     voltage:
       name: 'PZEMAC Voltage'
     current:
@@ -549,6 +625,18 @@ sensor:
       name: 'PMS Humidity'
     formaldehyde:
       name: 'PMS Formaldehyde Concentration'
+  - platform: cse7761
+    uart_id: uart7
+    voltage:
+      name: 'CSE7761 Voltage'
+    current_1:
+      name: 'CSE7761 Current 1'
+    current_2:
+      name: 'CSE7761 Current 2'
+    active_power_1:
+      name: 'CSE7761 Active Power 1'
+    active_power_2:
+      name: 'CSE7761 Active Power 2'
   - platform: cse7766
     uart_id: uart3
     voltage:
@@ -646,6 +734,20 @@ sensor:
     name: 'testwave'
     component_id: 2
     wave_channel_id: 1
+  - platform: mlx90393
+    oversampling: 1
+    filter: 0
+    gain: "3X"
+    x_axis:
+      name: "mlxxaxis"
+    y_axis:
+      name: "mlxyaxis"
+    z_axis:
+      name: "mlxzaxis"
+      resolution: 17BIT
+    temperature:
+      name: "mlxtemp"
+      oversampling: 2
 time:
   - platform: homeassistant
 
@@ -735,6 +837,16 @@ binary_sensor:
     on_press:
       then:
         - cover.toggle: time_based_cover
+        - cover.toggle: endstop_cover
+  - platform: hydreon_rgxx
+    hydreon_rgxx_id: "hydreon_rg9"
+    too_cold:
+      name: "rg9_toocold"
+  - platform: template
+    id: 'pzemac_reset_energy'
+    on_press:
+      then:
+        - pzemac.reset_energy: pzemac1
 
 globals:
   - id: my_global_string
@@ -995,6 +1107,7 @@ climate:
 cover:
   - platform: endstop
     name: Endstop Cover
+    id: endstop_cover
     stop_action:
       - switch.turn_on: gpio_switch1
     open_endstop: my_binary_sensor
@@ -1097,6 +1210,7 @@ output:
     pin: GPIO5
     id: my_slow_pwm
     period: 15s
+    restart_cycle_on_state_change: false
   - platform: sm2135
     id: sm2135_0
     channel: 0
@@ -1139,6 +1253,12 @@ light:
     name: Icicle Lights
     pin_a: out
     pin_b: out2
+  - platform: sonoff_d1
+    uart_id: uart2
+    use_rm433_remote: False
+    name: Sonoff D1 Dimmer
+    id: d1_light
+    restore_mode: RESTORE_DEFAULT_OFF
 
 servo:
   id: my_servo
@@ -1290,7 +1410,31 @@ fingerprint_grow:
 dsmr:
   decryption_key: 00112233445566778899aabbccddeeff
   uart_id: uart6
+  max_telegram_length: 1000
+  request_pin: D5
+  request_interval: 20s
+  receive_timeout: 100ms
 
 daly_bms:
   update_interval: 20s
   uart_id: uart1
+
+qr_code:
+  - id: homepage_qr
+    value: https://esphome.io/index.html
+
+button:
+  - platform: output
+    id: output_button
+    output: out
+    duration: 100ms
+  - platform: wake_on_lan
+    target_mac_address: 12:34:56:78:90:ab
+    name: wol_test_1
+    id: wol_1
+
+cd74hc4067:
+  pin_s0: GPIO12
+  pin_s1: GPIO13
+  pin_s2: GPIO14
+  pin_s3: GPIO15

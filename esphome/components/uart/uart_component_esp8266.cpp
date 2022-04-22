@@ -18,12 +18,13 @@ bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-
 uint32_t ESP8266UartComponent::get_config() {
   uint32_t config = 0;
 
-  if (this->parity_ == UART_CONFIG_PARITY_NONE)
+  if (this->parity_ == UART_CONFIG_PARITY_NONE) {
     config |= UART_PARITY_NONE;
-  else if (this->parity_ == UART_CONFIG_PARITY_EVEN)
+  } else if (this->parity_ == UART_CONFIG_PARITY_EVEN) {
     config |= UART_PARITY_EVEN;
-  else if (this->parity_ == UART_CONFIG_PARITY_ODD)
+  } else if (this->parity_ == UART_CONFIG_PARITY_ODD) {
     config |= UART_PARITY_ODD;
+  }
 
   switch (this->data_bits_) {
     case 5:
@@ -40,10 +41,16 @@ uint32_t ESP8266UartComponent::get_config() {
       break;
   }
 
-  if (this->stop_bits_ == 1)
+  if (this->stop_bits_ == 1) {
     config |= UART_NB_STOP_BIT_1;
-  else
+  } else {
     config |= UART_NB_STOP_BIT_2;
+  }
+
+  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted())
+    config |= BIT(22);
+  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted())
+    config |= BIT(19);
 
   return config;
 }
@@ -130,9 +137,11 @@ void ESP8266UartComponent::write_array(const uint8_t *data, size_t len) {
     for (size_t i = 0; i < len; i++)
       this->sw_serial_->write_byte(data[i]);
   }
+#ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    ESP_LOGVV(TAG, "    Wrote 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
+    this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
   }
+#endif
 }
 bool ESP8266UartComponent::peek_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
@@ -153,10 +162,11 @@ bool ESP8266UartComponent::read_array(uint8_t *data, size_t len) {
     for (size_t i = 0; i < len; i++)
       data[i] = this->sw_serial_->read_byte();
   }
+#ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    ESP_LOGVV(TAG, "    Read 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data[i]), data[i]);
+    this->debug_callback_.call(UART_DIRECTION_RX, data[i]);
   }
-
+#endif
   return true;
 }
 int ESP8266UartComponent::available() {
@@ -206,9 +216,7 @@ void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
 
   /* If parity is enabled, just read it and ignore it. */
   /* TODO: Should we check parity? Or is it too slow for nothing added..*/
-  if (arg->parity_ == UART_CONFIG_PARITY_EVEN)
-    arg->read_bit_(&wait, start);
-  else if (arg->parity_ == UART_CONFIG_PARITY_ODD)
+  if (arg->parity_ == UART_CONFIG_PARITY_EVEN || arg->parity_ == UART_CONFIG_PARITY_ODD)
     arg->read_bit_(&wait, start);
 
   // Stop bit
@@ -228,12 +236,13 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   }
   bool parity_bit = false;
   bool need_parity_bit = true;
-  if (this->parity_ == UART_CONFIG_PARITY_EVEN)
+  if (this->parity_ == UART_CONFIG_PARITY_EVEN) {
     parity_bit = false;
-  else if (this->parity_ == UART_CONFIG_PARITY_ODD)
+  } else if (this->parity_ == UART_CONFIG_PARITY_ODD) {
     parity_bit = true;
-  else
+  } else {
     need_parity_bit = false;
+  }
 
   {
     InterruptLock lock;

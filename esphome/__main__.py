@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_PORT,
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
+    SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.helpers import indent
@@ -144,6 +145,8 @@ def wrap_to_code(name, comp):
         if comp.config_schema is not None:
             conf_str = yaml_util.dump(conf)
             conf_str = conf_str.replace("//", "")
+            # remove tailing \ to avoid multi-line comment warning
+            conf_str = conf_str.replace("\\\n", "\n")
             cg.add(cg.LineComment(indent(conf_str)))
         await coro(conf)
 
@@ -200,8 +203,7 @@ def upload_using_esptool(config, port):
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
         flash_images = [
             platformio_api.FlashImage(
-                path=idedata.firmware_bin_path,
-                offset=firmware_offset,
+                path=idedata.firmware_bin_path, offset=firmware_offset
             ),
             *idedata.extra_flash_images,
         ]
@@ -226,6 +228,8 @@ def upload_using_esptool(config, port):
             mcu,
             "write_flash",
             "-z",
+            "--flash_size",
+            "detect",
         ]
         for img in flash_images:
             cmd += [img.offset, img.path]
@@ -605,10 +609,7 @@ def parse_args(argv):
         "wizard",
         help="A helpful setup wizard that will guide you through setting up ESPHome.",
     )
-    parser_wizard.add_argument(
-        "configuration",
-        help="Your YAML configuration file.",
-    )
+    parser_wizard.add_argument("configuration", help="Your YAML configuration file.")
 
     parser_fingerprint = subparsers.add_parser(
         "mqtt-fingerprint", help="Get the SSL fingerprint from a MQTT broker."
@@ -630,14 +631,19 @@ def parse_args(argv):
         "dashboard", help="Create a simple web server for a dashboard."
     )
     parser_dashboard.add_argument(
-        "configuration",
-        help="Your YAML configuration file directory.",
+        "configuration", help="Your YAML configuration file directory."
     )
     parser_dashboard.add_argument(
         "--port",
         help="The HTTP port to open connections on. Defaults to 6052.",
         type=int,
         default=6052,
+    )
+    parser_dashboard.add_argument(
+        "--address",
+        help="The address to bind to.",
+        type=str,
+        default="0.0.0.0",
     )
     parser_dashboard.add_argument(
         "--username",
@@ -655,7 +661,7 @@ def parse_args(argv):
         "--open-ui", help="Open the dashboard UI in a browser.", action="store_true"
     )
     parser_dashboard.add_argument(
-        "--hassio", help=argparse.SUPPRESS, action="store_true"
+        "--ha-addon", help=argparse.SUPPRESS, action="store_true"
     )
     parser_dashboard.add_argument(
         "--socket", help="Make the dashboard serve under a unix socket", type=str
@@ -772,10 +778,10 @@ def run_esphome(argv):
         _LOGGER.warning("Please instead use:")
         _LOGGER.warning("   esphome %s", " ".join(args.deprecated_argv_suggestion))
 
-    if sys.version_info < (3, 7, 0):
+    if sys.version_info < (3, 8, 0):
         _LOGGER.error(
-            "You're running ESPHome with Python <3.7. ESPHome is no longer compatible "
-            "with this Python version. Please reinstall ESPHome with Python 3.7+"
+            "You're running ESPHome with Python <3.8. ESPHome is no longer compatible "
+            "with this Python version. Please reinstall ESPHome with Python 3.8+"
         )
         return 1
 
@@ -787,6 +793,10 @@ def run_esphome(argv):
             return 1
 
     for conf_path in args.configuration:
+        if any(os.path.basename(conf_path) == x for x in SECRETS_FILES):
+            _LOGGER.warning("Skipping secrets file %s", conf_path)
+            continue
+
         CORE.config_path = conf_path
         CORE.dashboard = args.dashboard
 

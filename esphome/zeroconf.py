@@ -13,8 +13,9 @@ from zeroconf import (
     RecordUpdateListener,
     Zeroconf,
     ServiceBrowser,
+    ServiceStateChange,
+    current_time_millis,
 )
-from zeroconf._services import ServiceStateChange
 
 _CLASS_IN = 1
 _FLAGS_QR_QUERY = 0x0000  # query
@@ -88,7 +89,7 @@ class DashboardStatus(threading.Thread):
         entries = self.zc.cache.entries_with_name(key)
         if not entries:
             return False
-        now = time.time() * 1000
+        now = current_time_millis()
 
         return any(
             (entry.created + DashboardStatus.OFFLINE_AFTER) >= now for entry in entries
@@ -99,7 +100,7 @@ class DashboardStatus(threading.Thread):
             self.on_update(
                 {key: self.host_status(host) for key, host in self.key_to_host.items()}
             )
-            now = time.time() * 1000
+            now = current_time_millis()
             for host in self.query_hosts:
                 entries = self.zc.cache.entries_with_name(host)
                 if not entries or all(

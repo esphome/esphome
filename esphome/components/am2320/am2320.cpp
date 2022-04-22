@@ -19,12 +19,14 @@ uint16_t crc_16(uint8_t *ptr, uint8_t length) {
   //------------------------------
   while (length--) {
     crc ^= *ptr++;
-    for (i = 0; i < 8; i++)
+    for (i = 0; i < 8; i++) {
       if ((crc & 0x01) != 0) {
         crc >>= 1;
         crc ^= 0xA001;
-      } else
+      } else {
         crc >>= 1;
+      }
+    }
   }
   return crc;
 }
@@ -38,9 +40,9 @@ void AM2320Component::update() {
     return;
   }
 
-  float temperature = (((data[4] & 0x7F) << 8) + data[5]) / 10.0;
+  float temperature = (((data[4] & 0x7F) << 8) + data[5]) / 10.0f;
   temperature = (data[4] & 0x80) ? -temperature : temperature;
-  float humidity = ((data[2] << 8) + data[3]) / 10.0;
+  float humidity = ((data[2] << 8) + data[3]) / 10.0f;
 
   ESP_LOGD(TAG, "Got temperature=%.1f°C humidity=%.1f%%", temperature, humidity);
   if (this->temperature_sensor_ != nullptr)

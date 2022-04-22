@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_USE_ADDRESS,
     CONF_ETHERNET,
     CONF_WIFI,
+    CONF_PORT,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
@@ -19,7 +20,7 @@ from esphome.coroutine import FakeEventLoop as _FakeEventLoop
 
 # pylint: disable=unused-import
 from esphome.coroutine import coroutine, coroutine_with_priority  # noqa
-from esphome.helpers import ensure_unique_string, is_hassio
+from esphome.helpers import ensure_unique_string, is_ha_addon
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
@@ -520,6 +521,19 @@ class EsphomeCore:
         return None
 
     @property
+    def web_port(self) -> Optional[int]:
+        if self.config is None:
+            raise ValueError("Config has not been loaded yet")
+
+        if "web_server" in self.config:
+            try:
+                return self.config["web_server"][CONF_PORT]
+            except KeyError:
+                return 80
+
+        return None
+
+    @property
     def comment(self) -> Optional[str]:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
@@ -554,12 +568,12 @@ class EsphomeCore:
         return self.relative_build_path("src", *path)
 
     def relative_pioenvs_path(self, *path):
-        if is_hassio():
+        if is_ha_addon():
             return os.path.join("/data", self.name, ".pioenvs", *path)
         return self.relative_build_path(".pioenvs", *path)
 
     def relative_piolibdeps_path(self, *path):
-        if is_hassio():
+        if is_ha_addon():
             return os.path.join("/data", self.name, ".piolibdeps", *path)
         return self.relative_build_path(".piolibdeps", *path)
 

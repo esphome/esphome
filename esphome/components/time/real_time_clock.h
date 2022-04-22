@@ -88,8 +88,12 @@ struct ESPTime {
   /// Convert this ESPTime instance back to a tm struct.
   struct tm to_c_tm();
 
+  static int32_t timezone_offset();
+
   /// Increment this clock instance by one second.
   void increment_second();
+  /// Increment this clock instance by one day.
+  void increment_day();
   bool operator<(ESPTime other);
   bool operator<=(ESPTime other);
   bool operator==(ESPTime other);

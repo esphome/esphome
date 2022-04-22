@@ -1,6 +1,8 @@
 #include "mqtt_binary_sensor.h"
 #include "esphome/core/log.h"
 
+#include "mqtt_const.h"
+
 #ifdef USE_MQTT
 #ifdef USE_BINARY_SENSOR
 
@@ -21,19 +23,19 @@ void MQTTBinarySensorComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, false)
 }
 MQTTBinarySensorComponent::MQTTBinarySensorComponent(binary_sensor::BinarySensor *binary_sensor)
-    : MQTTComponent(), binary_sensor_(binary_sensor) {
+    : binary_sensor_(binary_sensor) {
   if (this->binary_sensor_->is_status_binary_sensor()) {
     this->set_custom_state_topic(mqtt::global_mqtt_client->get_availability().topic);
   }
 }
 
-void MQTTBinarySensorComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
+void MQTTBinarySensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   if (!this->binary_sensor_->get_device_class().empty())
-    root["device_class"] = this->binary_sensor_->get_device_class();
+    root[MQTT_DEVICE_CLASS] = this->binary_sensor_->get_device_class();
   if (this->binary_sensor_->is_status_binary_sensor())
-    root["payload_on"] = mqtt::global_mqtt_client->get_availability().payload_available;
+    root[MQTT_PAYLOAD_ON] = mqtt::global_mqtt_client->get_availability().payload_available;
   if (this->binary_sensor_->is_status_binary_sensor())
-    root["payload_off"] = mqtt::global_mqtt_client->get_availability().payload_not_available;
+    root[MQTT_PAYLOAD_OFF] = mqtt::global_mqtt_client->get_availability().payload_not_available;
   config.command_topic = false;
 }
 bool MQTTBinarySensorComponent::send_initial_state() {
