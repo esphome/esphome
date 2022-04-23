@@ -5,6 +5,10 @@
 namespace esphome {
 namespace hbridge {
 
+static const char *const TAG = "light.hbridge";
+// Let H-Bridge base component use our log tag
+const char *HBridgeLightOutput::get_log_tag() { return TAG; }
+
 light::LightTraits HBridgeLightOutput::get_traits() {
   auto traits = light::LightTraits();
   traits.set_supported_color_modes({light::ColorMode::COLD_WARM_WHITE});
@@ -43,7 +47,8 @@ void HBridgeLightOutput::loop() {
 
 void HBridgeLightOutput::write_state(light::LightState *state) {
   state->current_values_as_cwww(&this->light_direction_a_duty_, &this->light_direction_b_duty_, false);
-  ESP_LOGD("HBridgeLight", "New light state A: %f B: %f", this->light_direction_a_duty_, this->light_direction_b_duty_);
+  ESP_LOGD(TAG, "HBridgeLight", "New light state A: %f B: %f", this->light_direction_a_duty_,
+           this->light_direction_b_duty_);
 }
 
 }  // namespace hbridge

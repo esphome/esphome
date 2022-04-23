@@ -36,7 +36,7 @@ class HBridge : public Component {
   void set_setting_rampup_time_ms(uint32_t val) { setting_full_rampup_time_ms_ = val; }
   void set_setting_rampdown_time_ms(uint32_t val) { setting_full_rampdown_time_ms_ = val; }
   void set_setting_short_buildup_time_ms(uint32_t val) { setting_short_buildup_time_ms_ = val; }
-  void set_setting_short_time_ms(uint32_t val) { setting_full_rampdown_time_ms_ = val; }
+  void set_setting_short_time_ms(uint32_t val) { setting_short_time_ms_ = val; }
   void set_setting_min_dutycycle(float val) { setting_min_dutycycle = val; }
 
   // Component interfacing
@@ -74,6 +74,9 @@ class HBridge : public Component {
   float current_mode_dutycycle_ = 0;
   void set_output_state_(HBridgeMode mode, float dutycycle);
 
+  // Interface method to get log tag of inherited instance
+  virtual const char *get_log_tag();
+
  private:
   // - State transitioning context -
   TransitionState transition_state_ = TransitionState::OFF;
@@ -91,7 +94,7 @@ class HBridge : public Component {
   float transition_rampdown_dutycycle_delta_per_ms_ = 0;
 
   // Shorting buildup state vars
-  float transition_shorting_dutycycle_delta_per_ms_ = 0;
+  float transition_shorting_buildup_dutycycle_delta_per_ms_ = 0;
   float transition_shorting_dutycycle_ = 0;
   uint32_t transition_shorting_buildup_duration_ms_ = 0;
 

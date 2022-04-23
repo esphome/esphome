@@ -6,6 +6,8 @@ namespace esphome {
 namespace hbridge {
 
 static const char *const TAG = "fan.hbridge";
+// Let H-Bridge base component use our log tag
+const char *HBridgeFan::get_log_tag() { return TAG; }
 
 fan::FanCall HBridgeFan::brake() {
   HBridge::transition_to_state(HBridgeMode::SHORT, 1, HBridge::setting_full_rampup_time_ms_,

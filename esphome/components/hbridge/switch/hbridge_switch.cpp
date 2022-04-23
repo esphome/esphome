@@ -5,6 +5,8 @@ namespace esphome {
 namespace hbridge {
 
 static const char *const TAG = "switch.hbridge";
+// Let H-Bridge base component use our log tag
+const char *HBridgeSwitch::get_log_tag() { return TAG; }
 
 void HBridgeSwitch::setup() {
   ESP_LOGCONFIG(TAG, "Setting up H-Bridge Switch: '%s'...", this->name_.c_str());

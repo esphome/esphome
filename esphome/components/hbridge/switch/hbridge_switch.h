@@ -29,6 +29,7 @@ class HBridgeSwitch : public HBridge, public switch_::Switch {
 
  protected:
   void write_state(bool state) override;
+  const char *get_log_tag() override;
 
   ValveActuatorRestoreMode restore_mode_{HBRIDGE_SWITCH_RESTORE_DEFAULT_OFF};
   uint32_t switching_signal_duration_{0};  // Default 0 milliseconds = forever

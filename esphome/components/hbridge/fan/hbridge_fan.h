@@ -29,6 +29,7 @@ class HBridgeFan : public hbridge::HBridge, public fan::Fan {
 
   void control(const fan::FanCall &call) override;
   void write_state_();
+  const char *get_log_tag() override;
 };
 
 // Action template

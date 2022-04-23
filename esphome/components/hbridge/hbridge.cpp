@@ -7,7 +7,9 @@
 namespace esphome {
 namespace hbridge {
 
+// Use this for standalone instances
 static const char *const TAG = "hbridge";
+const char *HBridge::get_log_tag() { return TAG; }
 
 void HBridge::setup() {
   // Always start in off-state
@@ -24,142 +26,162 @@ void HBridge::loop() {
     uint32_t mode_duration = millis() - this->transition_mode_start_time_;
     uint32_t ms_since_last_step = millis() - this->transition_last_step_time_;
 
-    switch (this->transition_state_) {
-      case TransitionState::RAMP_DOWN:
-        // Apply next step
-        new_dutycycle =
-            this->current_mode_dutycycle_ - (this->transition_rampup_dutycycle_delta_per_ms_ * ms_since_last_step);
-        dutycycle_transition_done = false;
+    // No need to do calculations when 'no' time has passed
+    if (ms_since_last_step > 0) {
+      switch (this->transition_state_) {
+        case TransitionState::RAMP_DOWN:
+          // Calculate next step
+          new_dutycycle =
+              this->current_mode_dutycycle_ - (this->transition_rampdown_dutycycle_delta_per_ms_ * ms_since_last_step);
+          dutycycle_transition_done = false;
 
-        if (this->current_mode_ != this->transition_target_mode_) {
-          // Range limit to 0
-          if (new_dutycycle <= 0) {
-            new_dutycycle = this->transition_target_mode_dutycycle_;
-            dutycycle_transition_done = true;
+          if (this->current_mode_ != this->transition_target_mode_) {
+            // Range limit to 0
+            if (new_dutycycle <= 0) {
+              new_dutycycle = 0;
+              dutycycle_transition_done = true;
+            }
+          } else {
+            // Range limit by target dutycycle
+            if (new_dutycycle <= this->transition_target_mode_dutycycle_) {
+              new_dutycycle = this->transition_target_mode_dutycycle_;
+              dutycycle_transition_done = true;
+            }
           }
-        } else {
+
+          // Set output
+          set_output_state_(this->current_mode_, new_dutycycle);
+
+          // If reason to go to next mode
+          if (dutycycle_transition_done) {
+            // Determine next mode
+            if (this->transition_shorting_buildup_duration_ms_ > 0) {
+              // We need to buildup a short
+              this->transition_state_ = TransitionState::SHORTING_BUILDUP;
+              this->transition_shorting_dutycycle_ = 0;
+              ESP_LOGD(get_log_tag(), "Transition mode (ramp-down > short buildup)");
+            } else if (this->transition_short_duration_ms_ > 0) {
+              // We need to full short for a while
+              this->transition_state_ = TransitionState::FULL_SHORT;
+              ESP_LOGD(get_log_tag(), "Transition mode (ramp-down > full short)");
+            } else if (this->transition_target_mode_ != this->current_mode_) {
+              // We need to transition to new (active) dutycycle
+              set_output_state_(HBridgeMode::OFF, 0);
+              this->transition_state_ = TransitionState::RAMP_UP;
+              ESP_LOGD(get_log_tag(), "Transition mode (ramp-down > ramp-up)");
+            } else {
+              // We have reached our target (mode)
+              this->transition_state_ = TransitionState::OFF;
+              ESP_LOGD(get_log_tag(), "Transition done (ramp-down)");
+            }
+            this->transition_mode_start_time_ = millis();
+          }
+          break;
+
+        case TransitionState::SHORTING_BUILDUP:
+          // Calculate next step
+          this->transition_shorting_dutycycle_ +=
+              (this->transition_shorting_buildup_dutycycle_delta_per_ms_ * ms_since_last_step);
+
+          // Set output
+          set_output_state_(HBridgeMode::SHORT, this->transition_shorting_dutycycle_);
+
+          // If reason to go to next mode (Done, or target duty cycle reached, Timeout, wrong state)
+          if (this->transition_shorting_dutycycle_ >= 1 ||
+              (this->transition_target_mode_ == HBridgeMode::SHORT &&
+               this->transition_shorting_dutycycle_ >= this->transition_target_mode_dutycycle_) ||
+              mode_duration > this->transition_shorting_buildup_duration_ms_ ||
+              this->transition_shorting_buildup_dutycycle_delta_per_ms_ == 0) {
+            // Determine next mode
+            if (this->transition_short_duration_ms_ > 0) {
+              // We need to full short for a while
+              this->transition_state_ = TransitionState::FULL_SHORT;
+              ESP_LOGD(get_log_tag(), "Transition mode (short buildup > short)");
+            } else if (this->transition_target_mode_ != this->current_mode_) {
+              // We need to transition to new (active) dutycycle
+              set_output_state_(HBridgeMode::OFF, 0);
+              this->transition_state_ = TransitionState::RAMP_UP;
+              ESP_LOGD(get_log_tag(), "Transition mode (short buildup > ramp-up)");
+            } else {
+              // We have reached our target mode
+              this->transition_state_ = TransitionState::OFF;
+              ESP_LOGD(get_log_tag(), "Transition done (buildup short)");
+            }
+            this->transition_mode_start_time_ = millis();
+          }
+          break;
+
+        case TransitionState::FULL_SHORT:
+          // Set output (full short)
+          this->transition_shorting_dutycycle_ = 1;
+
+          // Set output
+          set_output_state_(HBridgeMode::SHORT, this->transition_shorting_dutycycle_);
+
+          // If reason to go to next mode (timeout)
+          if (mode_duration > this->transition_short_duration_ms_) {
+            if (this->transition_target_mode_ != this->current_mode_) {
+              // We need to transition to new (active) dutycycle
+              set_output_state_(HBridgeMode::OFF, 0);
+              this->transition_state_ = TransitionState::RAMP_UP;
+              ESP_LOGD(get_log_tag(), "Transition mode (short > ramp-up)");
+            } else {
+              // We have reached our target mode
+              this->transition_state_ = TransitionState::OFF;
+              ESP_LOGD(get_log_tag(), "Transition done (short)");
+            }
+            this->transition_mode_start_time_ = millis();
+          }
+          break;
+
+        case TransitionState::RAMP_UP:
+          // Calculate next step
+          new_dutycycle =
+              this->current_mode_dutycycle_ + (this->transition_rampup_dutycycle_delta_per_ms_ * ms_since_last_step);
+          dutycycle_transition_done = false;
+
+          if (this->current_mode_ != this->transition_target_mode_) {
+            // Start ramp-up from 0 when starting from an other mode
+            new_dutycycle = 0;
+            dutycycle_transition_done = false;
+          }
+
           // Range limit by target dutycycle
-          if (new_dutycycle <= this->transition_target_mode_dutycycle_) {
+          if (new_dutycycle >= this->transition_target_mode_dutycycle_) {
             new_dutycycle = this->transition_target_mode_dutycycle_;
             dutycycle_transition_done = true;
           }
-        }
 
-        // Set output
-        set_output_state_(this->current_mode_, this->transition_target_mode_dutycycle_);
+          // Set output
+          set_output_state_(this->transition_target_mode_, new_dutycycle);
 
-        // If reason to go to next mode
-        if (dutycycle_transition_done) {
-          // Determine next mode
-          if (this->transition_shorting_buildup_duration_ms_ > 0) {
-            // We need to buildup a short
-            this->transition_state_ = TransitionState::SHORTING_BUILDUP;
-            ESP_LOGD(TAG, "Transition mode (ramp-down > short buildup)");
-          } else if (this->transition_short_duration_ms_ > 0) {
-            // We need to full short for a while
-            this->transition_state_ = TransitionState::FULL_SHORT;
-            ESP_LOGD(TAG, "Transition mode (ramp-down > full short)");
-          } else if (this->transition_target_mode_ != this->current_mode_) {
-            // We need to transition to new (active) dutycycle
-            this->transition_state_ = TransitionState::RAMP_UP;
-            ESP_LOGD(TAG, "Transition mode (ramp-down > ramp-up)");
-          } else {
-            // We have reached our target (mode)
+          // If reason to go to next mode
+          if (dutycycle_transition_done) {
+            // Set final mode
             this->transition_state_ = TransitionState::OFF;
-            ESP_LOGD(TAG, "Transition done (ramp-down)");
+            ESP_LOGD(get_log_tag(), "Transition done (ramp-up)");
           }
-          this->transition_mode_start_time_ = millis();
-        }
-        break;
+          break;
 
-      case TransitionState::SHORTING_BUILDUP:
-        // Apply next step
-        this->transition_shorting_dutycycle_ +=
-            (this->transition_shorting_dutycycle_delta_per_ms_ * ms_since_last_step);
-        set_output_state_(HBridgeMode::SHORT, this->transition_shorting_dutycycle_);
+        default:
+        case TransitionState::OFF:
+          // Nothing to do here (Supress warning)
+          break;
+      }
 
-        // If reason to go to next mode (Timeout, or target duty cycle reached)
-        if (mode_duration > this->transition_shorting_buildup_duration_ms_ ||
-            (this->transition_target_mode_ == HBridgeMode::SHORT &&
-             this->transition_shorting_dutycycle_ >= this->transition_target_mode_dutycycle_)) {
-          // Determine next mode
-          if (this->transition_short_duration_ms_ > 0) {
-            // We need to full short for a while
-            this->transition_state_ = TransitionState::FULL_SHORT;
-            ESP_LOGD(TAG, "Transition mode (short buildup > short)");
-          } else if (this->transition_target_mode_ != this->current_mode_) {
-            // We need to transition to new (active) dutycycle
-            this->transition_state_ = TransitionState::RAMP_UP;
-            ESP_LOGD(TAG, "Transition mode (short buildup > ramp-up)");
-          } else {
-            // We have reached our target mode
-            this->transition_state_ = TransitionState::OFF;
-            ESP_LOGD(TAG, "Transition done (buildup short)");
-          }
-          this->transition_mode_start_time_ = millis();
-        }
-        break;
-
-      case TransitionState::FULL_SHORT:
-        // Apply full short
-        set_output_state_(HBridgeMode::SHORT, 1);
-
-        // If reason to go to next mode (timeout)
-        if (mode_duration > this->transition_short_duration_ms_) {
-          if (this->transition_target_mode_ != this->current_mode_) {
-            // We need to transition to new (active) dutycycle
-            this->transition_state_ = TransitionState::RAMP_UP;
-            ESP_LOGD(TAG, "Transition mode (short > ramp-up)");
-          } else {
-            // We have reached our target mode
-            this->transition_state_ = TransitionState::OFF;
-            ESP_LOGD(TAG, "Transition done (short)");
-          }
-          this->transition_mode_start_time_ = millis();
-        }
-        break;
-
-      case TransitionState::RAMP_UP:
-        // Apply next step
-        new_dutycycle =
-            this->current_mode_dutycycle_ + (this->transition_rampup_dutycycle_delta_per_ms_ * ms_since_last_step);
-        dutycycle_transition_done = false;
-
-        // Range limit by target dutycycle
-        if (new_dutycycle >= this->transition_target_mode_dutycycle_) {
-          new_dutycycle = this->transition_target_mode_dutycycle_;
-          dutycycle_transition_done = true;
-        }
-
-        // Set output
-        set_output_state_(this->transition_target_mode_, this->transition_target_mode_dutycycle_);
-
-        // If reason to go to next mode
-        if (dutycycle_transition_done) {
-          // Set final mode
-          this->transition_state_ = TransitionState::OFF;
-          ESP_LOGD(TAG, "Transition done (ramp-up)");
-        }
-        break;
-
-      default:
-      case TransitionState::OFF:
-        // Nothing to do here (Supress warning)
-        break;
+      // Store last step time
+      this->transition_last_step_time_ = millis();
     }
-
-    // Store last step time
-    this->transition_last_step_time_ = millis();
   }
 }
 
 void HBridge::dump_config() {
-  ESP_LOGCONFIG(TAG, "HBridge:");
-  ESP_LOGCONFIG(TAG, "   Ramp-up time %d ms", this->setting_full_rampup_time_ms_);
-  ESP_LOGCONFIG(TAG, "   Ramp-down time %d ms", this->setting_full_rampdown_time_ms_);
-  ESP_LOGCONFIG(TAG, "   Short-buildup (brake) time %d ms", this->setting_short_buildup_time_ms_);
-  ESP_LOGCONFIG(TAG, "   Short (brake) time %d ms", this->setting_short_time_ms_);
-  ESP_LOGCONFIG(TAG, "   Min. dutycycle: %f ", this->setting_min_dutycycle);
+  ESP_LOGCONFIG(get_log_tag(), "HBridge:");
+  ESP_LOGCONFIG(get_log_tag(), "   Ramp-up time %d ms", this->setting_full_rampup_time_ms_);
+  ESP_LOGCONFIG(get_log_tag(), "   Ramp-down time %d ms", this->setting_full_rampdown_time_ms_);
+  ESP_LOGCONFIG(get_log_tag(), "   Short-buildup (brake) time %d ms", this->setting_short_buildup_time_ms_);
+  ESP_LOGCONFIG(get_log_tag(), "   Short (brake) time %d ms", this->setting_short_time_ms_);
+  ESP_LOGCONFIG(get_log_tag(), "   Min. dutycycle: %f ", this->setting_min_dutycycle);
 }
 
 void HBridge::transition_to_state(HBridgeMode target_mode, float target_dutycycle, uint32_t full_rampup_duration_ms = 0,
@@ -208,8 +230,8 @@ void HBridge::transition_to_state(HBridgeMode target_mode, float target_dutycycl
   bool transition_rampup = false;
 
   // Check if transition crosses zero point and shorting procedure is wished by the given function arguments
-  if ((this->current_mode_ != this->transition_target_mode_) &&
-      (short_buildup_duration_ms > 0 || short_duration_ms > 0)) {
+  if ((this->current_mode_ != this->transition_target_mode_) && (this->current_mode_ != HBridgeMode::OFF) &&
+      (this->current_mode_ != HBridgeMode::SHORT) && (short_buildup_duration_ms > 0 || short_duration_ms > 0)) {
     // Enable (possible) shorting for this procedure
     transition_crosses_zero_point_with_shorting = true;
     this->transition_shorting_buildup_duration_ms_ = short_buildup_duration_ms;
@@ -219,33 +241,45 @@ void HBridge::transition_to_state(HBridgeMode target_mode, float target_dutycycl
     if (this->transition_shorting_buildup_duration_ms_ > 0 && this->current_decay_mode_ != CurrentDecayMode::SLOW) {
       if (this->transition_target_mode_ == HBridgeMode::SHORT) {
         // If short is our target mode, transition to given dutycycle
-        this->transition_shorting_dutycycle_delta_per_ms_ =
+        this->transition_shorting_buildup_dutycycle_delta_per_ms_ =
             (float) (this->transition_target_mode_dutycycle_ / (float) this->transition_shorting_buildup_duration_ms_);
       } else {
         // Otherwise transition to full short
-        this->transition_shorting_dutycycle_delta_per_ms_ =
+        this->transition_shorting_buildup_dutycycle_delta_per_ms_ =
             (float) (1.0f / (float) this->transition_shorting_buildup_duration_ms_);
       }
     } else {
       // No shorting buildup
-      this->transition_shorting_dutycycle_delta_per_ms_ = 0;
-    }
+      this->transition_shorting_buildup_dutycycle_delta_per_ms_ = 0;
+      this->transition_shorting_buildup_duration_ms_ = 0;
 
-    ESP_LOGD(TAG, "Transition: Short - duration: %d ms (buildup in: %d ms (%f/ms)), ",
-             this->transition_short_duration_ms_, this->transition_shorting_buildup_duration_ms_,
-             this->transition_shorting_dutycycle_delta_per_ms_);
+      // If no shorting either, disable whole state
+      if (short_duration_ms == 0) {
+        // No shorting procedure for this transition
+        transition_crosses_zero_point_with_shorting = false;
+        this->transition_short_duration_ms_ = 0;
+      }
+    }
   } else {
     // No shorting procedure for this transition
     transition_crosses_zero_point_with_shorting = false;
-    this->transition_shorting_buildup_duration_ms_ = 0;
     this->transition_short_duration_ms_ = 0;
-    this->transition_shorting_dutycycle_delta_per_ms_ = 0;
+
+    this->transition_shorting_buildup_duration_ms_ = 0;
+    this->transition_shorting_buildup_dutycycle_delta_per_ms_ = 0;
+  }
+
+  if (transition_crosses_zero_point_with_shorting) {
+    ESP_LOGD(get_log_tag(), "Transition: Short buildup in: %d ms (%f/ms) - Short duration: %d ms",
+             this->transition_shorting_buildup_duration_ms_, this->transition_shorting_buildup_dutycycle_delta_per_ms_,
+             this->transition_short_duration_ms_);
   }
 
   // Calculate ramp-down
   if ((setting_full_rampdown_time_ms_ > 0) &&
       (this->transition_target_mode_ == HBridgeMode::DIRECTION_A ||
-       (this->transition_target_mode_ == HBridgeMode::DIRECTION_B)) &&
+       this->transition_target_mode_ == HBridgeMode::DIRECTION_B ||
+       this->transition_target_mode_ == HBridgeMode::OFF) &&
       (((this->current_mode_ != this->transition_target_mode_) && (this->current_mode_dutycycle_ > 0)) ||
        ((this->current_mode_ == this->transition_target_mode_) &&
         (this->transition_target_mode_dutycycle_ < this->current_mode_dutycycle_)))) {
@@ -260,15 +294,15 @@ void HBridge::transition_to_state(HBridgeMode target_mode, float target_dutycycl
         (uint32_t) (((float) setting_full_rampdown_time_ms_ / (float) 100) * (dutyCycleChange * 100));
 
     // Calculate the ramp-down step per ms
-    transition_rampdown_dutycycle_delta_per_ms_ = dutyCycleChange / (float) rampDownDuration;
+    this->transition_rampdown_dutycycle_delta_per_ms_ = dutyCycleChange / (float) rampDownDuration;
     transition_rampdown = true;
 
-    ESP_LOGD(TAG, "Transition: Ramp-down - change: %f = %.0f%% duration: %d ms (%f/ms)), ", dutyCycleChange,
-             (dutyCycleChange * 100), rampDownDuration, transition_rampdown_dutycycle_delta_per_ms_);
+    ESP_LOGD(get_log_tag(), "Transition: Ramp-down - delta: %f = %.0f%% duration: %d ms (%f/ms)), ", dutyCycleChange,
+             (dutyCycleChange * 100), rampDownDuration, this->transition_rampdown_dutycycle_delta_per_ms_);
   }
   // No ramp-down in this transition
   else {
-    transition_rampdown_dutycycle_delta_per_ms_ = 0;
+    this->transition_rampdown_dutycycle_delta_per_ms_ = 0;
     transition_rampdown = false;
   }
 
@@ -290,15 +324,15 @@ void HBridge::transition_to_state(HBridgeMode target_mode, float target_dutycycl
         (uint32_t) (((float) setting_full_rampup_time_ms_ / (float) 100) * (dutyCycleChange * 100));
 
     // Calculate the ramp-up step per ms
-    transition_rampup_dutycycle_delta_per_ms_ = dutyCycleChange / (float) rampUpDuration;
+    this->transition_rampup_dutycycle_delta_per_ms_ = dutyCycleChange / (float) rampUpDuration;
     transition_rampup = true;
 
-    ESP_LOGD(TAG, "Transition: Ramp-up - change: %f = %.0f%% duration: %d ms (%f/ms)), ", dutyCycleChange,
-             (dutyCycleChange * 100), rampUpDuration, transition_rampup_dutycycle_delta_per_ms_);
+    ESP_LOGD(get_log_tag(), "Transition: Ramp-up - delta: %f = %.0f%% duration: %d ms (%f/ms)), ", dutyCycleChange,
+             (dutyCycleChange * 100), rampUpDuration, this->transition_rampup_dutycycle_delta_per_ms_);
   }
   // No ramp-up in this transition
   else {
-    transition_rampup_dutycycle_delta_per_ms_ = 0;
+    this->transition_rampup_dutycycle_delta_per_ms_ = 0;
     transition_rampup = false;
   }
 
@@ -307,14 +341,15 @@ void HBridge::transition_to_state(HBridgeMode target_mode, float target_dutycycl
     // If we need a ramp-down start with that
     // Set state
     this->transition_state_ = TransitionState::RAMP_DOWN;
-  }
-  if (transition_crosses_zero_point_with_shorting && this->transition_shorting_buildup_duration_ms_ > 0) {
+    ESP_LOGD(get_log_tag(), "Transition mode (off > ramp-down)");
+  } else if (transition_crosses_zero_point_with_shorting && this->transition_shorting_buildup_duration_ms_ > 0) {
     // If the transition start with shorting buildup, disable output now
     set_output_state_(HBridgeMode::OFF, 0);
 
     // Set start state
     this->transition_shorting_dutycycle_ = 0;
     this->transition_state_ = TransitionState::SHORTING_BUILDUP;
+    ESP_LOGD(get_log_tag(), "Transition mode (off > short buildup)");
   } else if (transition_crosses_zero_point_with_shorting && this->transition_short_duration_ms_ > 0) {
     // If the transition starts with full short, short output now
     set_output_state_(HBridgeMode::SHORT, 1);
@@ -323,12 +358,14 @@ void HBridge::transition_to_state(HBridgeMode target_mode, float target_dutycycl
     this->transition_shorting_buildup_duration_ms_ = 0;
     this->transition_shorting_dutycycle_ = 1;
     this->transition_state_ = TransitionState::FULL_SHORT;
+    ESP_LOGD(get_log_tag(), "Transition mode (off > short)");
   } else if (transition_rampup) {
     // Otherwise if we need a ramp-up start with that
     // Set state
     this->transition_shorting_buildup_duration_ms_ = 0;
     this->transition_short_duration_ms_ = 0;
-    this->transition_state_ = TransitionState::RAMP_DOWN;
+    this->transition_state_ = TransitionState::RAMP_UP;
+    ESP_LOGD(get_log_tag(), "Transition mode (off > ramp-up)");
   } else {
     // This is actually not a transition, just a hard state change.
 
@@ -336,9 +373,9 @@ void HBridge::transition_to_state(HBridgeMode target_mode, float target_dutycycl
     this->transition_state_ = TransitionState::OFF;
     this->transition_shorting_buildup_duration_ms_ = 0;
     this->transition_short_duration_ms_ = 0;
-    this->transition_shorting_dutycycle_delta_per_ms_ = 0;
+    this->transition_shorting_buildup_dutycycle_delta_per_ms_ = 0;
 
-    ESP_LOGD(TAG, "Transition: Omitted, setting state");
+    ESP_LOGD(get_log_tag(), "Transition: Omitted, setting state");
 
     // Set new state
     set_state(target_mode, target_dutycycle);
@@ -349,8 +386,8 @@ void HBridge::transition_to_state(HBridgeMode target_mode, float target_dutycycl
     this->transition_mode_start_time_ = millis();
     this->transition_last_step_time_ = millis();
 
-    ESP_LOGD(TAG, "Transition from mode:%d-%f to mode:%d-%f", this->current_mode_, this->current_mode_dutycycle_,
-             this->transition_target_mode_, this->transition_target_mode_dutycycle_);
+    ESP_LOGD(get_log_tag(), "Transition from mode:%d-%f to mode:%d-%f", this->current_mode_,
+             this->current_mode_dutycycle_, this->transition_target_mode_, this->transition_target_mode_dutycycle_);
   }
 }
 
@@ -358,7 +395,7 @@ void HBridge::set_state(HBridgeMode mode, float dutycycle) {
   float outputDutycycle = dutycycle;
 
   // Print info on mode change
-  ESP_LOGD(TAG, "Set mode %d - dutycycle: %.2f");
+  ESP_LOGD(get_log_tag(), "Set mode %d - dutycycle: %.2f", mode, dutycycle);
 
   // Cancel possible ongoing transition
   this->transition_state_ = TransitionState::OFF;
@@ -369,27 +406,25 @@ void HBridge::set_state(HBridgeMode mode, float dutycycle) {
 
 void HBridge::set_output_state_(HBridgeMode mode, float dutycycle) {
   float clipped_dutycycle = dutycycle;
-  HBridgeMode output_mode = mode;
   float output_dutycycle = dutycycle;
 
-  if (clipped_dutycycle <= 0 || mode == HBridgeMode::OFF) {
-    // If dutycycle is 0 or negative, force off
-    output_mode = HBridgeMode::OFF;
-    clipped_dutycycle = 0;
+  if (clipped_dutycycle < 0) {
+    // If dutycycle is negative, cap to 0
+    clipped_dutycycle = 0.0f;
   } else if (clipped_dutycycle > 1.0f) {
     // If dutycycle is above 1, cap to 1
     clipped_dutycycle = 1.0f;
   }
 
   // If minimum dutycycle is set, calculate (relative) 0 to 1 range over the new (shortened) absolute range
-  if (setting_min_dutycycle > 0 &&
-      (output_mode == HBridgeMode::DIRECTION_A || output_mode == HBridgeMode::DIRECTION_B)) {
+  if (setting_min_dutycycle > 0 && (mode == HBridgeMode::DIRECTION_A || mode == HBridgeMode::DIRECTION_B)) {
     output_dutycycle = (((1 - setting_min_dutycycle) / 1000) * (clipped_dutycycle * 1000)) + setting_min_dutycycle;
+  } else {
+    output_dutycycle = clipped_dutycycle;
   }
 
   // Set pin states + duty cycle according to mode
-
-  switch (output_mode) {
+  switch (mode) {
     case HBridgeMode::OFF:
       if (this->enable_pin_ != nullptr) {
         this->enable_pin_->set_level(0);
@@ -437,8 +472,8 @@ void HBridge::set_output_state_(HBridgeMode mode, float dutycycle) {
       break;
   }
 
-  // Store current values
-  this->current_mode_ = output_mode;
+  // Store current values (non clipped)
+  this->current_mode_ = mode;
   this->current_mode_dutycycle_ = clipped_dutycycle;
 }
 

@@ -17,6 +17,8 @@ class HBridgeLightOutput : public HBridge, public light::LightOutput {
   void write_state(light::LightState *state) override;
 
  protected:
+  const char *get_log_tag() override;
+
   float light_direction_a_duty_ = 0;
   float light_direction_b_duty_ = 0;
   bool direction_a_update_ = false;
