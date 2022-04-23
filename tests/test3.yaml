@@ -748,6 +748,16 @@ sensor:
     temperature:
       name: "mlxtemp"
       oversampling: 2
+
+  - platform: xgzp6897d
+    pressure_range: 50
+    pressure:
+      name: "XGZP6897D Pressure"
+    temperature:
+      name: "XGZP6897D Internal Temperature"
+    oversampling: 32768x
+    update_interval: 60s
+
 time:
   - platform: homeassistant
 
