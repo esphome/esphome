@@ -37,7 +37,7 @@ class HBridge : public Component {
   void set_setting_rampdown_time_ms(uint32_t val) { setting_full_rampdown_time_ms_ = val; }
   void set_setting_short_buildup_time_ms(uint32_t val) { setting_short_buildup_time_ms_ = val; }
   void set_setting_short_time_ms(uint32_t val) { setting_short_time_ms_ = val; }
-  void set_setting_min_dutycycle(float val) { setting_min_dutycycle = val; }
+  void set_setting_min_dutycycle(float val) { setting_min_dutycycle_ = val; }
 
   // Component interfacing
   void setup() override;
@@ -67,7 +67,7 @@ class HBridge : public Component {
   uint32_t setting_full_rampdown_time_ms_ = 0;
   uint32_t setting_short_buildup_time_ms_ = 0;
   uint32_t setting_short_time_ms_ = 0;
-  float setting_min_dutycycle = 0;
+  float setting_min_dutycycle_ = 0;
 
   // Object state(s)
   HBridgeMode current_mode_ = HBridgeMode::OFF;

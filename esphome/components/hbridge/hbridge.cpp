@@ -181,7 +181,7 @@ void HBridge::dump_config() {
   ESP_LOGCONFIG(get_log_tag(), "   Ramp-down time %d ms", this->setting_full_rampdown_time_ms_);
   ESP_LOGCONFIG(get_log_tag(), "   Short-buildup (brake) time %d ms", this->setting_short_buildup_time_ms_);
   ESP_LOGCONFIG(get_log_tag(), "   Short (brake) time %d ms", this->setting_short_time_ms_);
-  ESP_LOGCONFIG(get_log_tag(), "   Min. dutycycle: %f ", this->setting_min_dutycycle);
+  ESP_LOGCONFIG(get_log_tag(), "   Min. dutycycle: %f ", this->setting_min_dutycycle_);
 }
 
 void HBridge::transition_to_state(HBridgeMode target_mode, float target_dutycycle, uint32_t full_rampup_duration_ms = 0,
@@ -284,21 +284,21 @@ void HBridge::transition_to_state(HBridgeMode target_mode, float target_dutycycl
        ((this->current_mode_ == this->transition_target_mode_) &&
         (this->transition_target_mode_dutycycle_ < this->current_mode_dutycycle_)))) {
     // Calculate duration of this ramp-down by the duration of a full ramp-down
-    float dutyCycleChange = 0;
+    float duty_cycle_change = 0;
     if (this->transition_target_mode_ == this->current_mode_) {
-      dutyCycleChange = (this->current_mode_dutycycle_ - this->transition_target_mode_dutycycle_);
+      duty_cycle_change = (this->current_mode_dutycycle_ - this->transition_target_mode_dutycycle_);
     } else {
-      dutyCycleChange = (this->current_mode_dutycycle_);
+      duty_cycle_change = (this->current_mode_dutycycle_);
     }
-    uint32_t rampDownDuration =
-        (uint32_t) (((float) setting_full_rampdown_time_ms_ / (float) 100) * (dutyCycleChange * 100));
+    uint32_t ramp_down_duration =
+        (uint32_t)(((float) setting_full_rampdown_time_ms_ / (float) 100) * (duty_cycle_change * 100));
 
     // Calculate the ramp-down step per ms
-    this->transition_rampdown_dutycycle_delta_per_ms_ = dutyCycleChange / (float) rampDownDuration;
+    this->transition_rampdown_dutycycle_delta_per_ms_ = duty_cycle_change / (float) ramp_down_duration;
     transition_rampdown = true;
 
-    ESP_LOGD(get_log_tag(), "Transition: Ramp-down - delta: %f = %.0f%% duration: %d ms (%f/ms)), ", dutyCycleChange,
-             (dutyCycleChange * 100), rampDownDuration, this->transition_rampdown_dutycycle_delta_per_ms_);
+    ESP_LOGD(get_log_tag(), "Transition: Ramp-down - delta: %f = %.0f%% duration: %d ms (%f/ms)), ", duty_cycle_change,
+             (duty_cycle_change * 100), ramp_down_duration, this->transition_rampdown_dutycycle_delta_per_ms_);
   }
   // No ramp-down in this transition
   else {
@@ -314,21 +314,21 @@ void HBridge::transition_to_state(HBridgeMode target_mode, float target_dutycycl
        ((this->current_mode_ == this->transition_target_mode_) &&
         (this->transition_target_mode_dutycycle_ > this->current_mode_dutycycle_)))) {
     // Calculate duration of this ramp-up by the duration of a full ramp-up
-    float dutyCycleChange = 0;
+    float duty_cycle_change = 0;
     if (this->transition_target_mode_ == this->current_mode_) {
-      dutyCycleChange = (this->transition_target_mode_dutycycle_ - this->current_mode_dutycycle_);
+      duty_cycle_change = (this->transition_target_mode_dutycycle_ - this->current_mode_dutycycle_);
     } else {
-      dutyCycleChange = (this->transition_target_mode_dutycycle_);
+      duty_cycle_change = (this->transition_target_mode_dutycycle_);
     }
-    uint32_t rampUpDuration =
-        (uint32_t) (((float) setting_full_rampup_time_ms_ / (float) 100) * (dutyCycleChange * 100));
+    uint32_t ramp_up_duration =
+        (uint32_t)(((float) setting_full_rampup_time_ms_ / (float) 100) * (duty_cycle_change * 100));
 
     // Calculate the ramp-up step per ms
-    this->transition_rampup_dutycycle_delta_per_ms_ = dutyCycleChange / (float) rampUpDuration;
+    this->transition_rampup_dutycycle_delta_per_ms_ = duty_cycle_change / (float) ramp_up_duration;
     transition_rampup = true;
 
-    ESP_LOGD(get_log_tag(), "Transition: Ramp-up - delta: %f = %.0f%% duration: %d ms (%f/ms)), ", dutyCycleChange,
-             (dutyCycleChange * 100), rampUpDuration, this->transition_rampup_dutycycle_delta_per_ms_);
+    ESP_LOGD(get_log_tag(), "Transition: Ramp-up - delta: %f = %.0f%% duration: %d ms (%f/ms)), ", duty_cycle_change,
+             (duty_cycle_change * 100), ramp_up_duration, this->transition_rampup_dutycycle_delta_per_ms_);
   }
   // No ramp-up in this transition
   else {
@@ -392,8 +392,6 @@ void HBridge::transition_to_state(HBridgeMode target_mode, float target_dutycycl
 }
 
 void HBridge::set_state(HBridgeMode mode, float dutycycle) {
-  float outputDutycycle = dutycycle;
-
   // Print info on mode change
   ESP_LOGD(get_log_tag(), "Set mode %d - dutycycle: %.2f", mode, dutycycle);
 
@@ -417,8 +415,8 @@ void HBridge::set_output_state_(HBridgeMode mode, float dutycycle) {
   }
 
   // If minimum dutycycle is set, calculate (relative) 0 to 1 range over the new (shortened) absolute range
-  if (setting_min_dutycycle > 0 && (mode == HBridgeMode::DIRECTION_A || mode == HBridgeMode::DIRECTION_B)) {
-    output_dutycycle = (((1 - setting_min_dutycycle) / 1000) * (clipped_dutycycle * 1000)) + setting_min_dutycycle;
+  if (setting_min_dutycycle_ > 0 && (mode == HBridgeMode::DIRECTION_A || mode == HBridgeMode::DIRECTION_B)) {
+    output_dutycycle = (((1 - setting_min_dutycycle_) / 1000) * (clipped_dutycycle * 1000)) + setting_min_dutycycle_;
   } else {
     output_dutycycle = clipped_dutycycle;
   }
