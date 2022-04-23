@@ -27,19 +27,34 @@ void HBridgeLightOutput::setup() {
 }
 
 void HBridgeLightOutput::loop() {
-  // This method runs every loop. This is a best-effort situation.
-
-  // Alternate updating/flashing each light direction
-  if (!this->direction_a_update_) {  // First LED Direction
+  if (light_direction_a_duty_ == 0 && light_direction_b_duty_ == 0) {
+    // Light is off, turn-off HBridge
+    HBridge::set_output_state_(HBridgeMode::OFF, 0);  // Use protected function to prevent a flood of debug prints
+  } else if (light_direction_a_duty_ > 0 && light_direction_b_duty_ == 0) {
+    // Only A side is enabled, only drive that side
     HBridge::set_output_state_(
         HBridgeMode::DIRECTION_A,
         this->light_direction_a_duty_);  // Use protected function to prevent a flood of debug prints
-    this->direction_a_update_ = true;
-  } else {  // Second LED Direction
+  } else if (light_direction_a_duty_ == 0 && light_direction_b_duty_ > 0) {
+    // Only B side is enabled, only drive that side
     HBridge::set_output_state_(
         HBridgeMode::DIRECTION_B,
         this->light_direction_b_duty_);  // Use protected function to prevent a flood of debug prints
-    this->direction_a_update_ = false;
+  } else {
+    // A combination of A and B is enabled, drive both by alternating each cycle.
+    // This might/will flicker, this could be solved by an advanced PWM implementation with an offset in the dutycycle
+
+    if (!this->direction_a_update_) {  // First LED Direction
+      HBridge::set_output_state_(
+          HBridgeMode::DIRECTION_A,
+          this->light_direction_a_duty_);  // Use protected function to prevent a flood of debug prints
+      this->direction_a_update_ = true;
+    } else {  // Second LED Direction
+      HBridge::set_output_state_(
+          HBridgeMode::DIRECTION_B,
+          this->light_direction_b_duty_);  // Use protected function to prevent a flood of debug prints
+      this->direction_a_update_ = false;
+    }
   }
 
   HBridge::loop();
