@@ -47,6 +47,7 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   volatile uint32_t pulse_width_us_ = 0;
   volatile uint32_t total_pulses_ = 0;
   volatile bool sensor_is_high_ = false;
+  volatile bool has_detected_edge_ = false;
   volatile bool has_valid_high_edge_ = false;
   volatile bool has_valid_low_edge_ = false;
 };

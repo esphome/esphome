@@ -37,6 +37,7 @@ void PulseMeterSensor::loop() {
     this->last_detected_edge_us_ = 0;
     this->last_valid_high_edge_us_ = 0;
     this->last_valid_low_edge_us_ = 0;
+    this->has_detected_edge_ = false;
     this->has_valid_high_edge_ = false;
     this->has_valid_low_edge_ = false;
   }
@@ -110,7 +111,7 @@ void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
       return;
     }
     // Make sure the signal has been stable long enough
-    if (now - sensor->last_detected_edge_us_ >= sensor->filter_us_) {
+    if (sensor->has_detected_edge_ && (now - sensor->last_detected_edge_us_ >= sensor->filter_us_)) {
       if (pin_val) {
         sensor->has_valid_high_edge_ = true;
         sensor->last_valid_high_edge_us_ = sensor->last_detected_edge_us_;
@@ -126,6 +127,7 @@ void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {
         sensor->sensor_is_high_ = false;
       }
     }
+    sensor->has_detected_edge_ = true;
     sensor->last_detected_edge_us_ = now;
   }
 }
