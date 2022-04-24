@@ -102,7 +102,7 @@ class ESP32Preferences : public ESPPreferences {
     pref->nvs_handle = nvs_handle;
 
     uint32_t keyval = type;
-    pref->key = str_sprintf("%u", keyval); 
+    pref->key = str_sprintf("%u", keyval);
 
     return ESPPreferenceObject(pref);
   }
