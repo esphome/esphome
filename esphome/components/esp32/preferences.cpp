@@ -102,7 +102,7 @@ class ESP32Preferences : public ESPPreferences {
     pref->nvs_handle = nvs_handle;
     // current_offset += length;                     // not needed
 
-    uint32_t keyval = type;                          // removed current_offset from calculation
+    uint32_t keyval = type;  // removed current_offset from calculation
     char keybuf[16];
     snprintf(keybuf, sizeof(keybuf), "%u", keyval);  // switched to unsigned to avoid negative numbers in keys
     pref->key = keybuf;                              // copied to std::string
