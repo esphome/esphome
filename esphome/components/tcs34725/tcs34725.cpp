@@ -21,23 +21,23 @@ static const uint8_t TCS34725_REGISTER_BDATAL = TCS34725_COMMAND_BIT | 0x1A;
 void TCS34725Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up TCS34725...");
   uint8_t id;
-  if (!this->read_byte(TCS34725_REGISTER_ID, &id)) {
+  if (this->read_register(TCS34725_REGISTER_ID, &id, 1) != i2c::ERROR_OK) {
     this->mark_failed();
     return;
   }
-
-  if (!this->write_byte(TCS34725_REGISTER_ATIME, this->integration_reg_) ||
-      !this->write_byte(TCS34725_REGISTER_CONTROL, this->gain_reg_)) {
+  if (this->write_config_register_(TCS34725_REGISTER_ATIME, this->integration_reg_) != i2c::ERROR_OK ||
+      this->write_config_register_(TCS34725_REGISTER_CONTROL, this->gain_reg_) != i2c::ERROR_OK) {
     this->mark_failed();
     return;
   }
-
-  if (!this->write_byte(TCS34725_REGISTER_ENABLE, 0x01)) {  // Power on (internal oscillator on)
+  if (this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x01) !=
+      i2c::ERROR_OK) {  // Power on (internal oscillator on)
     this->mark_failed();
     return;
   }
   delay(3);
-  if (!this->write_byte(TCS34725_REGISTER_ENABLE, 0x03)) {  // Power on (internal oscillator on) + RGBC ADC Enable
+  if (this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x03) !=
+      i2c::ERROR_OK) {  // Power on (internal oscillator on) + RGBC ADC Enable
     this->mark_failed();
     return;
   }
@@ -134,9 +134,9 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
     /* Adjust sat to 75% to avoid analog saturation if atime < 153.6ms */
     sat -= sat / 4.f;
   }
-
   /* Check for saturation and mark the sample as invalid if true */
   if (c >= sat) {
+    ESP_LOGW(TAG, "Saturation too high, discarding sample with saturation %.1f and clear %d", sat, c);
     return;
   }
 
@@ -173,23 +173,40 @@ void TCS34725Component::update() {
   uint16_t raw_g;
   uint16_t raw_b;
 
-  if (!this->read_byte_16(TCS34725_REGISTER_CDATAL, &raw_c) || !this->read_byte_16(TCS34725_REGISTER_RDATAL, &raw_r) ||
-      !this->read_byte_16(TCS34725_REGISTER_GDATAL, &raw_g) || !this->read_byte_16(TCS34725_REGISTER_BDATAL, &raw_b)) {
-    ESP_LOGW(TAG, "Reading data from TCS34725 failed!");
+  if (this->read_data_register_(TCS34725_REGISTER_CDATAL, raw_c) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
+  if (this->read_data_register_(TCS34725_REGISTER_RDATAL, raw_r) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
+  if (this->read_data_register_(TCS34725_REGISTER_GDATAL, raw_g) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
+  if (this->read_data_register_(TCS34725_REGISTER_BDATAL, raw_b) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
+  ESP_LOGV(TAG, "Raw values clear=%x red=%x green=%x blue=%x", raw_c, raw_r, raw_g, raw_b);
 
-  // May need to fix endianness as the data read over I2C is big-endian, but most ESP platforms are little-endian
-  raw_c = i2c::i2ctohs(raw_c);
-  raw_r = i2c::i2ctohs(raw_r);
-  raw_g = i2c::i2ctohs(raw_g);
-  raw_b = i2c::i2ctohs(raw_b);
+  float channel_c;
+  float channel_r;
+  float channel_g;
+  float channel_b;
+  // avoid division by 0 and return black if clear is 0
+  if (raw_c == 0) {
+    channel_c = channel_r = channel_g = channel_b = 0.0f;
+  } else {
+    float max_count = this->integration_time_ * 1024.0f / 2.4;
+    float sum = raw_c;
+    channel_r = raw_r / sum * 100.0f;
+    channel_g = raw_g / sum * 100.0f;
+    channel_b = raw_b / sum * 100.0f;
+    channel_c = raw_c / max_count * 100.0f;
+  }
 
-  const float channel_c = raw_c / 655.35f;
-  const float channel_r = raw_r / 655.35f;
-  const float channel_g = raw_g / 655.35f;
-  const float channel_b = raw_b / 655.35f;
   if (this->clear_sensor_ != nullptr)
     this->clear_sensor_->publish_state(channel_c);
   if (this->red_sensor_ != nullptr)
@@ -209,8 +226,8 @@ void TCS34725Component::update() {
   if (this->color_temperature_sensor_ != nullptr)
     this->color_temperature_sensor_->publish_state(this->color_temperature_);
 
-  ESP_LOGD(TAG, "Got R=%.1f%%,G=%.1f%%,B=%.1f%%,C=%.1f%% Illuminance=%.1flx Color Temperature=%.1fK", channel_r,
-           channel_g, channel_b, channel_c, this->illuminance_, this->color_temperature_);
+  ESP_LOGD(TAG, "Got Red=%.1f%%,Green=%.1f%%,Blue=%.1f%%,Clear=%.1f%% Illuminance=%.1flx Color Temperature=%.1fK",
+           channel_r, channel_g, channel_b, channel_c, this->illuminance_, this->color_temperature_);
 
   this->status_clear_warning();
 }

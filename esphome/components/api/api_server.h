@@ -7,7 +7,6 @@
 #include "esphome/components/socket/socket.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
-#include "util.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
 #include "user_services.h"
@@ -44,7 +43,7 @@ class APIServer : public Component, public Controller {
   void on_cover_update(cover::Cover *obj) override;
 #endif
 #ifdef USE_FAN
-  void on_fan_update(fan::FanState *obj) override;
+  void on_fan_update(fan::Fan *obj) override;
 #endif
 #ifdef USE_LIGHT
   void on_light_update(light::LightState *obj) override;
@@ -66,6 +65,9 @@ class APIServer : public Component, public Controller {
 #endif
 #ifdef USE_SELECT
   void on_select_update(select::Select *obj, const std::string &state) override;
+#endif
+#ifdef USE_LOCK
+  void on_lock_update(lock::Lock *obj) override;
 #endif
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }

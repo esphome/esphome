@@ -131,6 +131,23 @@ void ESPTime::increment_second() {
     this->year++;
   }
 }
+void ESPTime::increment_day() {
+  this->timestamp += 86400;
+
+  // increment day
+  increment_time_value(this->day_of_week, 1, 8);
+
+  if (increment_time_value(this->day_of_month, 1, days_in_month(this->month, this->year) + 1)) {
+    // day of month roll-over, increment month
+    increment_time_value(this->month, 1, 13);
+  }
+
+  uint16_t days_in_year = (this->year % 4 == 0) ? 366 : 365;
+  if (increment_time_value(this->day_of_year, 1, days_in_year + 1)) {
+    // day of year roll-over, increment year
+    this->year++;
+  }
+}
 void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
   time_t res = 0;
 
@@ -159,6 +176,31 @@ void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
   res += this->second;
   this->timestamp = res;
 }
+
+int32_t ESPTime::timezone_offset() {
+  int32_t offset = 0;
+  time_t now = ::time(nullptr);
+  auto local = ESPTime::from_epoch_local(now);
+  auto utc = ESPTime::from_epoch_utc(now);
+  bool negative = utc.hour > local.hour && local.day_of_year <= utc.day_of_year;
+
+  if (utc.minute > local.minute) {
+    local.minute += 60;
+    local.hour -= 1;
+  }
+  offset += (local.minute - utc.minute) * 60;
+
+  if (negative) {
+    offset -= (utc.hour - local.hour) * 3600;
+  } else {
+    if (utc.hour > local.hour) {
+      local.hour += 24;
+    }
+    offset += (local.hour - utc.hour) * 3600;
+  }
+  return offset;
+}
+
 bool ESPTime::operator<(ESPTime other) { return this->timestamp < other.timestamp; }
 bool ESPTime::operator<=(ESPTime other) { return this->timestamp <= other.timestamp; }
 bool ESPTime::operator==(ESPTime other) { return this->timestamp == other.timestamp; }

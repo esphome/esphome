@@ -12,6 +12,7 @@ using namespace esphome::cover;
 CoverTraits EndstopCover::get_traits() {
   auto traits = CoverTraits();
   traits.set_supports_position(true);
+  traits.set_supports_toggle(true);
   traits.set_is_assumed_state(false);
   return traits;
 }
@@ -19,6 +20,20 @@ void EndstopCover::control(const CoverCall &call) {
   if (call.get_stop()) {
     this->start_direction_(COVER_OPERATION_IDLE);
     this->publish_state();
+  }
+  if (call.get_toggle().has_value()) {
+    if (this->current_operation != COVER_OPERATION_IDLE) {
+      this->start_direction_(COVER_OPERATION_IDLE);
+      this->publish_state();
+    } else {
+      if (this->position == COVER_CLOSED || this->last_operation_ == COVER_OPERATION_CLOSING) {
+        this->target_position_ = COVER_OPEN;
+        this->start_direction_(COVER_OPERATION_OPENING);
+      } else {
+        this->target_position_ = COVER_CLOSED;
+        this->start_direction_(COVER_OPERATION_CLOSING);
+      }
+    }
   }
   if (call.get_position().has_value()) {
     auto pos = *call.get_position();
@@ -125,9 +140,11 @@ void EndstopCover::start_direction_(CoverOperation dir) {
       trig = this->stop_trigger_;
       break;
     case COVER_OPERATION_OPENING:
+      this->last_operation_ = dir;
       trig = this->open_trigger_;
       break;
     case COVER_OPERATION_CLOSING:
+      this->last_operation_ = dir;
       trig = this->close_trigger_;
       break;
     default:

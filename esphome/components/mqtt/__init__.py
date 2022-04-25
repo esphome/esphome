@@ -9,12 +9,15 @@ from esphome.const import (
     CONF_AVAILABILITY,
     CONF_BIRTH_MESSAGE,
     CONF_BROKER,
+    CONF_CERTIFICATE_AUTHORITY,
     CONF_CLIENT_ID,
     CONF_COMMAND_TOPIC,
+    CONF_COMMAND_RETAIN,
     CONF_DISCOVERY,
     CONF_DISCOVERY_PREFIX,
     CONF_DISCOVERY_RETAIN,
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
+    CONF_DISCOVERY_OBJECT_ID_GENERATOR,
     CONF_ID,
     CONF_KEEPALIVE,
     CONF_LEVEL,
@@ -40,9 +43,14 @@ from esphome.const import (
     CONF_WILL_MESSAGE,
 )
 from esphome.core import coroutine_with_priority, CORE
+from esphome.components.esp32 import add_idf_sdkconfig_option
 
 DEPENDENCIES = ["network"]
-AUTO_LOAD = ["json", "async_tcp"]
+
+AUTO_LOAD = ["json"]
+
+CONF_IDF_SEND_ASYNC = "idf_send_async"
+CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
 
 
 def validate_message_just_topic(value):
@@ -96,11 +104,18 @@ MQTTTextSensor = mqtt_ns.class_("MQTTTextSensor", MQTTComponent)
 MQTTNumberComponent = mqtt_ns.class_("MQTTNumberComponent", MQTTComponent)
 MQTTSelectComponent = mqtt_ns.class_("MQTTSelectComponent", MQTTComponent)
 MQTTButtonComponent = mqtt_ns.class_("MQTTButtonComponent", MQTTComponent)
+MQTTLockComponent = mqtt_ns.class_("MQTTLockComponent", MQTTComponent)
 
 MQTTDiscoveryUniqueIdGenerator = mqtt_ns.enum("MQTTDiscoveryUniqueIdGenerator")
 MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS = {
     "legacy": MQTTDiscoveryUniqueIdGenerator.MQTT_LEGACY_UNIQUE_ID_GENERATOR,
     "mac": MQTTDiscoveryUniqueIdGenerator.MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR,
+}
+
+MQTTDiscoveryObjectIdGenerator = mqtt_ns.enum("MQTTDiscoveryObjectIdGenerator")
+MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
+    "none": MQTTDiscoveryObjectIdGenerator.MQTT_NONE_OBJECT_ID_GENERATOR,
+    "device_name": MQTTDiscoveryObjectIdGenerator.MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR,
 }
 
 
@@ -154,6 +169,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
             cv.Optional(CONF_CLIENT_ID): cv.string,
+            cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32_idf=False): cv.All(
+                cv.boolean, cv.only_with_esp_idf
+            ),
+            cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
+                cv.string, cv.only_with_esp_idf
+            ),
+            cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32_idf=False): cv.All(
+                cv.boolean, cv.only_with_esp_idf
+            ),
             cv.Optional(CONF_DISCOVERY, default=True): cv.Any(
                 cv.boolean, cv.one_of("CLEAN", upper=True)
             ),
@@ -163,6 +187,9 @@ CONFIG_SCHEMA = cv.All(
             ): cv.publish_topic,
             cv.Optional(CONF_DISCOVERY_UNIQUE_ID_GENERATOR, default="legacy"): cv.enum(
                 MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS
+            ),
+            cv.Optional(CONF_DISCOVERY_OBJECT_ID_GENERATOR, default="none"): cv.enum(
+                MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS
             ),
             cv.Optional(CONF_USE_ABBREVIATIONS, default=True): cv.boolean,
             cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
@@ -205,7 +232,6 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
-    cv.only_with_arduino,
 )
 
 
@@ -226,9 +252,11 @@ def exp_mqtt_message(config):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    # Add required libraries for arduino
+    if CORE.using_arduino:
+        # https://github.com/OttoWinter/async-mqtt-client/blob/master/library.json
+        cg.add_library("ottowinter/AsyncMqttClient-esphome", "0.8.6")
 
-    # https://github.com/OttoWinter/async-mqtt-client/blob/master/library.json
-    cg.add_library("ottowinter/AsyncMqttClient-esphome", "0.8.6")
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
 
@@ -243,19 +271,27 @@ async def to_code(config):
     discovery_retain = config[CONF_DISCOVERY_RETAIN]
     discovery_prefix = config[CONF_DISCOVERY_PREFIX]
     discovery_unique_id_generator = config[CONF_DISCOVERY_UNIQUE_ID_GENERATOR]
+    discovery_object_id_generator = config[CONF_DISCOVERY_OBJECT_ID_GENERATOR]
 
     if not discovery:
         cg.add(var.disable_discovery())
     elif discovery == "CLEAN":
         cg.add(
             var.set_discovery_info(
-                discovery_prefix, discovery_unique_id_generator, discovery_retain, True
+                discovery_prefix,
+                discovery_unique_id_generator,
+                discovery_object_id_generator,
+                discovery_retain,
+                True,
             )
         )
     elif CONF_DISCOVERY_RETAIN in config or CONF_DISCOVERY_PREFIX in config:
         cg.add(
             var.set_discovery_info(
-                discovery_prefix, discovery_unique_id_generator, discovery_retain
+                discovery_prefix,
+                discovery_unique_id_generator,
+                discovery_object_id_generator,
+                discovery_retain,
             )
         )
 
@@ -300,6 +336,19 @@ async def to_code(config):
     cg.add(var.set_keep_alive(config[CONF_KEEPALIVE]))
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
+
+    # esp-idf only
+    if CONF_CERTIFICATE_AUTHORITY in config:
+        cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
+        cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+
+        # prevent error -0x428e
+        # See https://github.com/espressif/esp-idf/issues/139
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_HARDWARE_MPI", False)
+
+    if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
+        cg.add_define("USE_MQTT_IDF_ENQUEUE")
+    # end esp-idf
 
     for conf in config.get(CONF_ON_MESSAGE, []):
         trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC])
@@ -392,6 +441,8 @@ async def register_mqtt_component(var, config):
         cg.add(var.set_custom_state_topic(config[CONF_STATE_TOPIC]))
     if CONF_COMMAND_TOPIC in config:
         cg.add(var.set_custom_command_topic(config[CONF_COMMAND_TOPIC]))
+    if CONF_COMMAND_RETAIN in config:
+        cg.add(var.set_command_retain(config[CONF_COMMAND_RETAIN]))
     if CONF_AVAILABILITY in config:
         availability = config[CONF_AVAILABILITY]
         if not availability:

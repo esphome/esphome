@@ -126,6 +126,13 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
     }
 )
 
+
+def wifi_network_ap(value):
+    if value is None:
+        value = {}
+    return WIFI_NETWORK_AP(value)
+
+
 WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
     {
         cv.Optional(CONF_BSSID): cv.mac_address,
@@ -225,11 +232,11 @@ def _validate(config):
         if CONF_MANUAL_IP in config:
             use_address = str(config[CONF_MANUAL_IP][CONF_STATIC_IP])
         elif CONF_NETWORKS in config:
-            ips = set(
+            ips = {
                 str(net[CONF_MANUAL_IP][CONF_STATIC_IP])
                 for net in config[CONF_NETWORKS]
                 if CONF_MANUAL_IP in net
-            )
+            }
             if len(ips) > 1:
                 raise cv.Invalid(
                     "Must specify use_address when using multiple static IP addresses."
@@ -252,7 +259,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSWORD): validate_password,
             cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
-            cv.Optional(CONF_AP): WIFI_NETWORK_AP,
+            cv.Optional(CONF_AP): wifi_network_ap,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"

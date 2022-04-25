@@ -16,10 +16,11 @@ void ArduinoI2CBus::setup() {
 
 #ifdef USE_ESP32
   static uint8_t next_bus_num = 0;
-  if (next_bus_num == 0)
+  if (next_bus_num == 0) {
     wire_ = &Wire;
-  else
+  } else {
     wire_ = new TwoWire(next_bus_num);  // NOLINT(cppcoreguidelines-owning-memory)
+  }
   next_bus_num++;
 #else
   wire_ = &Wire;  // NOLINT(cppcoreguidelines-prefer-member-initializer)
@@ -55,10 +56,11 @@ void ArduinoI2CBus::dump_config() {
       ESP_LOGI(TAG, "Found no i2c devices!");
     } else {
       for (const auto &s : scan_results_) {
-        if (s.second)
+        if (s.second) {
           ESP_LOGI(TAG, "Found i2c device at address 0x%02X", s.first);
-        else
+        } else {
           ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
+        }
       }
     }
   }
@@ -102,7 +104,7 @@ ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt)
 
   return ERROR_OK;
 }
-ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
+ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) {
   // logging is only enabled with vv level, if warnings are shown the caller
   // should log them
   if (!initialized_) {
@@ -137,7 +139,7 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
       return ERROR_UNKNOWN;
     }
   }
-  uint8_t status = wire_->endTransmission(true);
+  uint8_t status = wire_->endTransmission(stop);
   if (status == 0) {
     return ERROR_OK;
   } else if (status == 1) {
