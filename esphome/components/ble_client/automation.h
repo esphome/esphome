@@ -37,6 +37,11 @@ class BLEClientDisconnectTrigger : public Trigger<>, public BLEClientNode {
 
 class BLEWriterClientNode : public BLEClientNode {
  public:
+  BLEWriterClientNode(BLEClient *ble_client) {
+    ble_client->register_ble_node(this);
+    ble_client_ = ble_client;
+  }
+
   void set_value(std::vector<uint8_t> value) { value_ = std::move(value); }
 
   // Attempts to write the contents of value_ to char_uuid_.
@@ -50,6 +55,7 @@ class BLEWriterClientNode : public BLEClientNode {
                            esp_ble_gattc_cb_param_t *param) override;
 
  private:
+  BLEClient *ble_client_;
   int ble_char_handle_ = 0;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;
@@ -58,7 +64,7 @@ class BLEWriterClientNode : public BLEClientNode {
 
 template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, public BLEWriterClientNode {
  public:
-  BLEClientWriteAction(BLEClient *ble_client) { ble_client->register_ble_node(this); }
+  BLEClientWriteAction(BLEClient *ble_client) : BLEWriterClientNode(ble_client) {}
 
   void play(Ts... x) override { return write(); }
 };

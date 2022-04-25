@@ -34,6 +34,7 @@ void BLEWriterClientNode::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       break;
     case ESP_GATTC_OPEN_EVT:
       this->node_state = espbt::ClientState::ESTABLISHED;
+      ESP_LOGD(TAG, "Connection established with %s", ble_client_->address_str().c_str());
       break;
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
@@ -44,11 +45,14 @@ void BLEWriterClientNode::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       }
       this->ble_char_handle_ = chr->handle;
       this->node_state = espbt::ClientState::ESTABLISHED;
+      ESP_LOGD(TAG, "Found characteristic %s on device %s", this->char_uuid_.to_string().c_str(),
+               ble_client_->address_str().c_str());
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT:
       this->node_state = espbt::ClientState::IDLE;
       this->ble_char_handle_ = 0;
+      ESP_LOGD(TAG, "Disconnected from %s", ble_client_->address_str().c_str());
       break;
     default:
       break;
