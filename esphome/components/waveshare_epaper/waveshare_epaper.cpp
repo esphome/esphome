@@ -1241,6 +1241,100 @@ void WaveshareEPaper7P5InBC::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+/* 7.50in-hd */
+void WaveshareEPaper7P5InHD::initialize() { 
+  this->wait_until_idle_();
+  this->command(0x12);  //SWRESET
+  this->wait_until_idle_();
+
+  this->command(0x46);  // Auto Write Red RAM
+  this->data(0xf7);
+  this->wait_until_idle_();
+  this->command(0x47);  // Auto Write  B/W RAM
+  this->data(0xf7);
+  this->wait_until_idle_();
+
+  this->command(0x0C);  // Soft start setting
+  this->data(0xAE);
+  this->data(0xC7);
+  this->data(0xC3);
+  this->data(0xC0);
+  this->data(0x40);
+  
+  this->command(0x01);  // Set MUX as 527
+  this->data(0xAF);
+  this->data(0x02);
+  this->data(0x01);//0x01
+
+  this->command(0x11);  // Data entry mode
+  this->data(0x01);
+
+  this->command(0x44);
+  this->data(0x00); // RAM x address start at 0
+  this->data(0x00);
+  this->data(0x6F);
+  this->data(0x03);
+
+  this->command(0x45);
+  this->data(0xFF);
+  this->data(0x03);
+  this->data(0x00);
+  this->data(0x00);
+
+  this->command(0x3C); // VBD
+  this->data(0x05); // LUT1, for white
+
+  this->command(0x18);
+  this->data(0X80);
+
+  this->command(0x22);
+  this->data(0XB1); //Load Temperature and waveform setting.
+  this->command(0x20);
+  this->wait_until_idle_();
+  
+  this->command(0x4E); // set RAM x address count to 0;
+  this->data(0x00);
+  this->data(0x00);
+  this->command(0x4F);
+  this->data(0x00);
+  this->data(0x00);
+}
+
+void HOT WaveshareEPaper7P5InHD::display() {
+  this->command(0x4F);
+  this->data(0x00);
+  this->data(0x00);
+
+  this->command(0x24);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  this->command(0x26);
+  this->start_data_();
+  for (size_t i = 0; i < this->get_buffer_length_(); i++)
+    this->write_byte(0xff);
+  this->end_data_();
+  
+  this->command(0x22);
+  this->data(0xF7);//Load LUT from MCU(0x32)
+  this->command(0x20);
+}
+
+int WaveshareEPaper7P5InHD::get_width_internal() { return 880; }
+
+int WaveshareEPaper7P5InHD::get_height_internal() { return 528; }
+
+void WaveshareEPaper7P5InHD::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.5in-HD");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+/* 7.50in-hd-b */
 void WaveshareEPaper7P5InHDB::initialize() {
   this->command(0x12);  // SWRESET
 
