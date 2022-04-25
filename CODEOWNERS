@@ -183,6 +183,7 @@ esphome/components/sm2135/* @BoukeHaarsma23
 esphome/components/socket/* @esphome/core
 esphome/components/sonoff_d1/* @anatoly-savchenkov
 esphome/components/spi/* @esphome/core
+esphome/components/sps30/* @martgras
 esphome/components/ssd1322_base/* @kbx81
 esphome/components/ssd1322_spi/* @kbx81
 esphome/components/ssd1325_base/* @kbx81
