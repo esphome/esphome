@@ -28,8 +28,10 @@ esphome/components/atc_mithermometer/* @ahpohl
 esphome/components/b_parasite/* @rbaron
 esphome/components/ballu/* @bazuchan
 esphome/components/bang_bang/* @OttoWinter
+esphome/components/bedjet/* @jhansche
 esphome/components/bh1750/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
+esphome/components/bl0939/* @ziceva
 esphome/components/bl0940/* @tobias-
 esphome/components/ble_client/* @buxtronix
 esphome/components/bme680_bsec/* @trvrnrth
@@ -173,6 +175,7 @@ esphome/components/select/* @esphome/core
 esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
 esphome/components/sgp40/* @SenexCrenshaw
+esphome/components/shelly_dimmer/* @edge90 @rnauber
 esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core @jsuanet
 esphome/components/sim800l/* @glmnet
