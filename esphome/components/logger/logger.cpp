@@ -116,7 +116,15 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
     this->hw_serial_->println(msg);
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
-    if (uart_ == UART_SELECTION_STDOUT) {
+    if (
+#if defined(USE_ESP32_VARIANT_ESP32C3)
+        uart_ == UART_SELECTION_USB_CDC
+#elif defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+        uart_ == UART_SELECTION_USB_SERIAL_JTAG
+#else
+        false
+#endif
+    ) {
       puts(msg);
     } else {
       uart_write_bytes(uart_num_, msg, strlen(msg));
@@ -173,15 +181,22 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART1:
         uart_num_ = UART_NUM_1;
         break;
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2)
+#if defined(USE_ESP32)
+#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
       case UART_SELECTION_UART2:
         uart_num_ = UART_NUM_2;
         break;
 #endif
 #if defined(USE_ESP_IDF)
-      case UART_SELECTION_STDOUT:
+#if defined(USE_ESP32_VARIANT_ESP32C3)
+      case UART_SELECTION_USB_CDC:
         uart_num_ = -1;
         break;
+#elif defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+      case UART_SELECTION_USB_SERIAL_JTAG:
+        uart_num_ = -1;
+        break;
+#endif
 #endif
     }
     if (uart_num_ >= 0) {
@@ -196,6 +211,7 @@ void Logger::pre_setup() {
       // Install UART driver using an event queue here
       uart_driver_install(uart_num_, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
     }
+#endif
 #endif
 
 #ifdef USE_ARDUINO
@@ -235,7 +251,20 @@ void Logger::add_on_log_callback(std::function<void(int, const char *, const cha
 float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
 const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
 #ifdef USE_ESP32
-const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART2", "STDOUT"};
+const char *const UART_SELECTIONS[] = {
+    "UART0",
+    "UART1",
+#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
+    "UART2",
+#endif
+#if defined(USE_ESP_IDF)
+#if defined(USE_ESP32_VARIANT_ESP32C3)
+    "USB_CDC",
+#elif defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+    "USB_SERIAL_JTAG",
+#endif
+#endif
+};
 #endif
 #ifdef USE_ESP8266
 const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
