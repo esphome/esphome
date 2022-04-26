@@ -49,6 +49,19 @@ modbus_controller:
     address: 0x2
     modbus_id: mod_bus1
 
+mqtt:
+  broker: test.mosquitto.org
+  port: 1883
+  discovery: true
+  discovery_prefix: homeassistant
+  idf_send_async: false
+  on_message:
+    topic: testing/sensor/testing_sensor/state
+    qos: 0
+    then:
+      - lambda: |-
+          ESP_LOGD("Mqtt Test","testing/sensor/testing_sensor/state=[%s]",x.c_str());
+
 binary_sensor:
   - platform: gpio
     pin: GPIO0
