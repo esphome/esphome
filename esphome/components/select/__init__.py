@@ -122,7 +122,7 @@ async def select_set_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_TO): cv.templatable(
                 cv.enum(SELECT_TO_OPTIONS, upper=True)
             ),
-            cv.Optional(CONF_CYCLE, default=True): cv.boolean,
+            cv.Optional(CONF_CYCLE, default=True): cv.templatable(cv.boolean),
         }
     ),
 )
@@ -178,10 +178,13 @@ async def select_operation_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_TO in config:
-        template_ = await cg.templatable(config[CONF_TO], args, SelectOperation)
-        cg.add(var.set_operation(template_))
+        to_ = await cg.templatable(config[CONF_TO], args, SelectOperation)
+        cg.add(var.set_operation(to_))
+        if CONF_CYCLE in config:
+            cycle_ = await cg.templatable(config[CONF_CYCLE], args, bool)
+            cg.add(var.set_cycle(cycle_))
     if CONF_MODE in config:
         cg.add(var.set_operation(SELECT_TO_OPTIONS[config[CONF_MODE]]))
-    if CONF_CYCLE in config:
-        cg.add(var.set_cycle(config[CONF_CYCLE]))
+        if CONF_CYCLE in config:
+            cg.add(var.set_cycle(config[CONF_CYCLE]))
     return var
