@@ -163,6 +163,21 @@ select:
       - select.set:
           id: template_select_id
           option: two
+      - select.first: template_select_id
+      - select.last:
+          id: template_select_id
+      - select.previous: template_select_id
+      - select.next:
+          id: template_select_id
+          cycle: false
+      - select.to:
+          id: template_select_id
+          to: Previous
+          cycle: false
+      - select.to:
+          id: template_select_id
+          to: !lambda "return SELECT_OP_PREVIOUS;"
+          cycle: !lambda "return true;"
     options:
       - one
       - two
