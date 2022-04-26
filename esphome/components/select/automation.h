@@ -16,7 +16,7 @@ class SelectStateTrigger : public Trigger<std::string> {
 
 template<typename... Ts> class SelectSetAction : public Action<Ts...> {
  public:
-  SelectSetAction(Select *select) : select_(select) {}
+  explicit SelectSetAction(Select *select) : select_(select) {}
   TEMPLATABLE_VALUE(std::string, option)
 
   void play(Ts... x) override {
@@ -29,57 +29,18 @@ template<typename... Ts> class SelectSetAction : public Action<Ts...> {
   Select *select_;
 };
 
-template<typename... Ts> class SelectNextAction : public Action<Ts...> {
+template<typename... Ts> class SelectSwitchToAction : public Action<Ts...> {
  public:
-  SelectNextAction(Select *select) : select_(select) {}
+  explicit SelectSwitchToAction(Select *select) : select_(select) {}
   TEMPLATABLE_VALUE(bool, cycle)
+  TEMPLATABLE_VALUE(SelectOperation, operation)
 
   void play(Ts... x) override {
     auto call = this->select_->make_call();
-    call.select_next(this->cycle_.value(x...));
-    call.perform();
-  }
-
- protected:
-  Select *select_;
-};
-
-template<typename... Ts> class SelectPreviousAction : public Action<Ts...> {
- public:
-  SelectPreviousAction(Select *select) : select_(select) {}
-  TEMPLATABLE_VALUE(bool, cycle)
-
-  void play(Ts... x) override {
-    auto call = this->select_->make_call();
-    call.select_previous(this->cycle_.value(x...));
-    call.perform();
-  }
-
- protected:
-  Select *select_;
-};
-
-template<typename... Ts> class SelectFirstAction : public Action<Ts...> {
- public:
-  SelectFirstAction(Select *select) : select_(select) {}
-
-  void play(Ts... x) override {
-    auto call = this->select_->make_call();
-    call.select_first();
-    call.perform();
-  }
-
- protected:
-  Select *select_;
-};
-
-template<typename... Ts> class SelectLastAction : public Action<Ts...> {
- public:
-  SelectLastAction(Select *select) : select_(select) {}
-
-  void play(Ts... x) override {
-    auto call = this->select_->make_call();
-    call.select_last();
+    call.with_operation(this->operation_.value(x...));
+    if (this->cycle_.has_value()) {
+        call.with_cycle(this->cycle_.value(x...));
+    }
     call.perform();
   }
 

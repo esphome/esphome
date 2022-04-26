@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
     CONF_CYCLE,
+    CONF_MODE,
+    CONF_TO,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -28,12 +30,19 @@ SelectStateTrigger = select_ns.class_(
 
 # Actions
 SelectSetAction = select_ns.class_("SelectSetAction", automation.Action)
-SelectNextAction = select_ns.class_("SelectNextAction", automation.Action)
-SelectPreviousAction = select_ns.class_("SelectPreviousAction", automation.Action)
-SelectFirstAction = select_ns.class_("SelectFirstAction", automation.Action)
-SelectLastAction = select_ns.class_("SelectLastAction", automation.Action)
+SelectSwitchToAction = select_ns.class_("SelectSwitchToAction", automation.Action)
+
+# Enums
+SelectOperation = select_ns.enum("SelectOperation")
+SELECT_TO_OPTIONS = {
+    "NEXT": SelectOperation.SELECT_OP_NEXT,
+    "PREVIOUS": SelectOperation.SELECT_OP_PREVIOUS,
+    "FIRST": SelectOperation.SELECT_OP_FIRST,
+    "LAST": SelectOperation.SELECT_OP_LAST,
+}
 
 icon = cv.icon
+
 
 SELECT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
@@ -81,12 +90,18 @@ async def to_code(config):
     cg.add_global(select_ns.using)
 
 
+OPERATION_BASE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(Select),
+    }
+)
+
+
 @automation.register_action(
     "select.set",
     SelectSetAction,
-    cv.Schema(
+    OPERATION_BASE_SCHEMA.extend(
         {
-            cv.Required(CONF_ID): cv.use_id(Select),
             cv.Required(CONF_OPTION): cv.templatable(cv.string_strict),
         }
     ),
@@ -99,56 +114,74 @@ async def select_set_to_code(config, action_id, template_arg, args):
     return var
 
 
-PREVIOUS_OR_NEXT_SCHEMA = cv.All(
+@automation.register_action(
+    "select.to",
+    SelectSwitchToAction,
+    OPERATION_BASE_SCHEMA.extend(
+        {
+            cv.Required(CONF_TO): cv.templatable(
+                cv.enum(SELECT_TO_OPTIONS, upper=True)
+            ),
+            cv.Optional(CONF_CYCLE, default=True): cv.boolean,
+        }
+    ),
+)
+@automation.register_action(
+    "select.next",
+    SelectSwitchToAction,
     automation.maybe_simple_id(
-        cv.Schema(
+        OPERATION_BASE_SCHEMA.extend(
             {
-                cv.Required(CONF_ID): cv.use_id(Select),
+                cv.Optional(CONF_MODE, default="NEXT"): cv.one_of("NEXT", upper=True),
                 cv.Optional(CONF_CYCLE, default=True): cv.boolean,
             }
         )
-    )
+    ),
 )
-
-
-@automation.register_action("select.next", SelectNextAction, PREVIOUS_OR_NEXT_SCHEMA)
-async def select_next_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_cycle(config[CONF_CYCLE]))
-    return var
-
-
 @automation.register_action(
-    "select.previous", SelectPreviousAction, PREVIOUS_OR_NEXT_SCHEMA
-)
-async def select_previous_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_cycle(config[CONF_CYCLE]))
-    return var
-
-
-FIRST_OR_LAST_SCHEMA = cv.All(
+    "select.previous",
+    SelectSwitchToAction,
     automation.maybe_simple_id(
-        cv.Schema(
+        OPERATION_BASE_SCHEMA.extend(
             {
-                cv.Required(CONF_ID): cv.use_id(Select),
+                cv.Optional(CONF_MODE, default="PREVIOUS"): cv.one_of(
+                    "PREVIOUS", upper=True
+                ),
+                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
             }
         )
-    )
+    ),
 )
-
-
-@automation.register_action("select.first", SelectFirstAction, FIRST_OR_LAST_SCHEMA)
-async def select_first_to_code(config, action_id, template_arg, args):
+@automation.register_action(
+    "select.first",
+    SelectSwitchToAction,
+    automation.maybe_simple_id(
+        OPERATION_BASE_SCHEMA.extend(
+            {
+                cv.Optional(CONF_MODE, default="FIRST"): cv.one_of("FIRST", upper=True),
+            }
+        )
+    ),
+)
+@automation.register_action(
+    "select.last",
+    SelectSwitchToAction,
+    automation.maybe_simple_id(
+        OPERATION_BASE_SCHEMA.extend(
+            {
+                cv.Optional(CONF_MODE, default="LAST"): cv.one_of("LAST", upper=True),
+            }
+        )
+    ),
+)
+async def select_operation_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    return var
-
-
-@automation.register_action("select.last", SelectLastAction, FIRST_OR_LAST_SCHEMA)
-async def select_last_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    if CONF_TO in config:
+        template_ = await cg.templatable(config[CONF_TO], args, SelectOperation)
+        cg.add(var.set_operation(template_))
+    if CONF_MODE in config:
+        cg.add(var.set_operation(SELECT_TO_OPTIONS[config[CONF_MODE]]))
+    if CONF_CYCLE in config:
+        cg.add(var.set_cycle(config[CONF_CYCLE]))
     return var

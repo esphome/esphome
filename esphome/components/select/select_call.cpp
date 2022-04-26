@@ -8,32 +8,39 @@ namespace select {
 static const char *const TAG = "select";
 
 SelectCall &SelectCall::set_option(const std::string &option) {
-  op_ = SELECT_OP_SET;
-  option_ = option;
-  return *this;
+  return with_operation(SELECT_OP_SET).with_option(option);
 }
 
 const optional<std::string> &SelectCall::get_option() const { return option_; }
 
 SelectCall &SelectCall::select_next(bool cycle) {
-  op_ = SELECT_OP_NEXT;
-  cycle_ = cycle;
-  return *this;
+  return with_operation(SELECT_OP_NEXT).with_cycle(cycle);
 }
 
 SelectCall &SelectCall::select_previous(bool cycle) {
-  op_ = SELECT_OP_PREVIOUS;
-  cycle_ = cycle;
-  return *this;
+  return with_operation(SELECT_OP_PREVIOUS).with_cycle(cycle);
 }
 
 SelectCall &SelectCall::select_first() {
-  op_ = SELECT_OP_FIRST;
-  return *this;
+  return with_operation(SELECT_OP_FIRST);
 }
 
 SelectCall &SelectCall::select_last() {
-  op_ = SELECT_OP_LAST;
+  return with_operation(SELECT_OP_LAST);
+}
+
+SelectCall &SelectCall::with_operation(SelectOperation operation) {
+  this->operation_ = operation;
+  return *this;
+}
+
+SelectCall &SelectCall::with_cycle(bool cycle) {
+  this->cycle_ = cycle;
+  return *this;
+}
+
+SelectCall &SelectCall::with_option(const std::string &option) {
+  this->option_ = option;
   return *this;
 }
 
@@ -43,7 +50,7 @@ void SelectCall::perform() {
   const auto &traits = parent->traits;
   auto options = traits.get_options();
 
-  if (this->op_ == SELECT_OP_NONE) {
+  if (this->operation_ == SELECT_OP_NONE) {
     ESP_LOGW(TAG, "'%s': SelectCall performed without selecting an operation", name);
     return;
   }
@@ -54,7 +61,7 @@ void SelectCall::perform() {
 
   std::string target_value;
   
-  if (this->op_ == SELECT_OP_SET) {
+  if (this->operation_ == SELECT_OP_SET) {
     ESP_LOGD(TAG, "'%s': Setting", name);
     if (!this->option_.has_value()) {
       ESP_LOGW(TAG, "'%s': No value set for SelectCall", name);
@@ -62,33 +69,33 @@ void SelectCall::perform() {
     }
     target_value = this->option_.value();
   }
-  else if (this->op_ == SELECT_OP_FIRST) {
+  else if (this->operation_ == SELECT_OP_FIRST) {
     target_value = options.front();
   }
-  else if (this->op_ == SELECT_OP_LAST) {
+  else if (this->operation_ == SELECT_OP_LAST) {
     target_value = options.back();
   }
-  else if (this->op_ == SELECT_OP_NEXT || this->op_ == SELECT_OP_PREVIOUS) {
+  else if (this->operation_ == SELECT_OP_NEXT || this->operation_ == SELECT_OP_PREVIOUS) {
     auto cycle = this->cycle_;
     ESP_LOGD(TAG, "'%s': Selecting %s, with%s cycling",
-             name, this->op_ == SELECT_OP_NEXT ? "next" : "previous",
+             name, this->operation_ == SELECT_OP_NEXT ? "next" : "previous",
              cycle ? "" : "out");
     if (!parent->has_state()) {
-      target_value = this->op_ == SELECT_OP_NEXT ? options.front() : options.back();
+      target_value = this->operation_ == SELECT_OP_NEXT ? options.front() : options.back();
     }
     else {
       auto index = parent->index_of(parent->state);
       if (index.has_value()) {
         auto size = options.size();
         if (cycle) {
-          auto use_index = (size + index.value() + (this->op_ == SELECT_OP_NEXT ? +1 : -1)) % size;
+          auto use_index = (size + index.value() + (this->operation_ == SELECT_OP_NEXT ? +1 : -1)) % size;
           target_value = options[use_index];
         }
         else {
-          if (this->op_ == SELECT_OP_PREVIOUS && index.value() > 0) {
+          if (this->operation_ == SELECT_OP_PREVIOUS && index.value() > 0) {
             target_value = options[index.value() - 1]; 
           }
-          else if (this->op_ == SELECT_OP_NEXT && index.value() < options.size() - 1) {
+          else if (this->operation_ == SELECT_OP_NEXT && index.value() < options.size() - 1) {
             target_value = options[index.value() + 1]; 
           }
           else {
@@ -96,7 +103,7 @@ void SelectCall::perform() {
           }
         }
       } else {
-        target_value = this->op_ == SELECT_OP_NEXT ? options.front() : options.back();
+        target_value = this->operation_ == SELECT_OP_NEXT ? options.front() : options.back();
       }
     }
   }

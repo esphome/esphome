@@ -7,7 +7,7 @@ namespace select {
 
 class Select;
 
-enum SelectOp {
+enum SelectOperation {
   SELECT_OP_NONE,
   SELECT_OP_SET,
   SELECT_OP_NEXT,
@@ -29,10 +29,14 @@ class SelectCall {
   SelectCall &select_first();
   SelectCall &select_last();
 
+  SelectCall &with_operation(SelectOperation operation);
+  SelectCall &with_cycle(bool cycle);
+  SelectCall &with_option(const std::string &option);
+
  protected:
   Select *const parent_;
-  SelectOp op_{SELECT_OP_NONE};
   optional<std::string> option_;
+  SelectOperation operation_{SELECT_OP_NONE};
   bool cycle_;
 };
 
