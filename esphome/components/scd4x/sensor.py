@@ -150,12 +150,8 @@ SCD4X_ACTION_SCHEMA = maybe_simple_id(
 async def scd4x_frc_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    value = config[CONF_VALUE]
-    if cg.is_template(value):
-        templ = await cg.templatable(value, args, cg.uint16)
-        cg.add(var.set_value_template(templ))
-    else:
-        cg.add(var.set_value_static(value))
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
+    cg.add(var.set_value(template_))
     return var
 
 

@@ -9,28 +9,16 @@ namespace scd4x {
 
 template<typename... Ts> class PerformForcedCalibrationAction : public Action<Ts...>, public Parented<SCD4XComponent> {
  public:
-  void set_value_template(std::function<uint16_t(Ts...)> func) {
-    this->value_func_ = func;
-    this->static_ = false;
-  }
-  void set_value_static(uint16_t value) {
-    this->value_static_ = value;
-    this->static_ = true;
-  }
+  void set_value(uint16_t value) { this->value_ = value; }
 
   void play(Ts... x) override {
-    if (this->static_) {
-      this->parent_->perform_forced_calibration(value_static_);
-    } else {
-      auto val = this->value_func_(x...);
-      this->parent_->perform_forced_calibration(val);
+    if (this->value_.has_value()) {
+      this->parent_->perform_forced_calibration(value_.value());
     }
   }
 
  protected:
-  bool static_{false};
-  std::function<uint16_t(Ts...)> value_func_{};
-  uint16_t value_static_;
+  TEMPLATABLE_VALUE(uint16_t, value)
 };
 
 template<typename... Ts> class FactoryResetAction : public Action<Ts...> {
