@@ -39,7 +39,7 @@ template<typename... Ts> class SelectSwitchToAction : public Action<Ts...> {
     auto call = this->select_->make_call();
     call.with_operation(this->operation_.value(x...));
     if (this->cycle_.has_value()) {
-        call.with_cycle(this->cycle_.value(x...));
+      call.with_cycle(this->cycle_.value(x...));
     }
     call.perform();
   }

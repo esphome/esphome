@@ -37,6 +37,11 @@ class Select : public EntityBase {
   /// Return whether this select has gotten a full state yet.
   bool has_state() const { return has_state_; }
 
+  // Methods that provide an API to index-based access.
+  size_t number_of_options() const;
+  optional<size_t> index_of_option(const std::string &option) const;
+  optional<std::string> option_at(const size_t index) const;
+
  protected:
   friend class SelectCall;
 
@@ -49,10 +54,6 @@ class Select : public EntityBase {
   virtual void control(const std::string &value) = 0;
 
   uint32_t hash_base() override;
-
-  size_t number_of_options() const;
-  optional<size_t> index_of(const std::string &option) const;
-  optional<std::string> option_at(const size_t index) const;
 
   CallbackManager<void(std::string)> state_callback_;
   bool has_state_{false};

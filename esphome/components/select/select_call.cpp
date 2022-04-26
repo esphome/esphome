@@ -13,21 +13,13 @@ SelectCall &SelectCall::set_option(const std::string &option) {
 
 const optional<std::string> &SelectCall::get_option() const { return option_; }
 
-SelectCall &SelectCall::select_next(bool cycle) {
-  return with_operation(SELECT_OP_NEXT).with_cycle(cycle);
-}
+SelectCall &SelectCall::select_next(bool cycle) { return with_operation(SELECT_OP_NEXT).with_cycle(cycle); }
 
-SelectCall &SelectCall::select_previous(bool cycle) {
-  return with_operation(SELECT_OP_PREVIOUS).with_cycle(cycle);
-}
+SelectCall &SelectCall::select_previous(bool cycle) { return with_operation(SELECT_OP_PREVIOUS).with_cycle(cycle); }
 
-SelectCall &SelectCall::select_first() {
-  return with_operation(SELECT_OP_FIRST);
-}
+SelectCall &SelectCall::select_first() { return with_operation(SELECT_OP_FIRST); }
 
-SelectCall &SelectCall::select_last() {
-  return with_operation(SELECT_OP_LAST);
-}
+SelectCall &SelectCall::select_last() { return with_operation(SELECT_OP_LAST); }
 
 SelectCall &SelectCall::with_operation(SelectOperation operation) {
   this->operation_ = operation;
@@ -45,8 +37,8 @@ SelectCall &SelectCall::with_option(const std::string &option) {
 }
 
 void SelectCall::perform() {
-  auto parent = this->parent_;
-  auto name = parent->get_name().c_str();
+  auto *parent = this->parent_;
+  const auto *name = parent->get_name().c_str();
   const auto &traits = parent->traits;
   auto options = traits.get_options();
 
@@ -54,13 +46,13 @@ void SelectCall::perform() {
     ESP_LOGW(TAG, "'%s': SelectCall performed without selecting an operation", name);
     return;
   }
-  if (options.empty()) { 
+  if (options.empty()) {
     ESP_LOGW(TAG, "'%s': Cannot perform SelectCall, select has no options", name);
     return;
   }
 
   std::string target_value;
-  
+
   if (this->operation_ == SELECT_OP_SET) {
     ESP_LOGD(TAG, "'%s': Setting", name);
     if (!this->option_.has_value()) {
@@ -68,37 +60,29 @@ void SelectCall::perform() {
       return;
     }
     target_value = this->option_.value();
-  }
-  else if (this->operation_ == SELECT_OP_FIRST) {
+  } else if (this->operation_ == SELECT_OP_FIRST) {
     target_value = options.front();
-  }
-  else if (this->operation_ == SELECT_OP_LAST) {
+  } else if (this->operation_ == SELECT_OP_LAST) {
     target_value = options.back();
-  }
-  else if (this->operation_ == SELECT_OP_NEXT || this->operation_ == SELECT_OP_PREVIOUS) {
+  } else if (this->operation_ == SELECT_OP_NEXT || this->operation_ == SELECT_OP_PREVIOUS) {
     auto cycle = this->cycle_;
-    ESP_LOGD(TAG, "'%s': Selecting %s, with%s cycling",
-             name, this->operation_ == SELECT_OP_NEXT ? "next" : "previous",
+    ESP_LOGD(TAG, "'%s': Selecting %s, with%s cycling", name, this->operation_ == SELECT_OP_NEXT ? "next" : "previous",
              cycle ? "" : "out");
     if (!parent->has_state()) {
       target_value = this->operation_ == SELECT_OP_NEXT ? options.front() : options.back();
-    }
-    else {
-      auto index = parent->index_of(parent->state);
+    } else {
+      auto index = parent->index_of_option(parent->state);
       if (index.has_value()) {
         auto size = options.size();
         if (cycle) {
           auto use_index = (size + index.value() + (this->operation_ == SELECT_OP_NEXT ? +1 : -1)) % size;
           target_value = options[use_index];
-        }
-        else {
+        } else {
           if (this->operation_ == SELECT_OP_PREVIOUS && index.value() > 0) {
-            target_value = options[index.value() - 1]; 
-          }
-          else if (this->operation_ == SELECT_OP_NEXT && index.value() < options.size() - 1) {
-            target_value = options[index.value() + 1]; 
-          }
-          else {
+            target_value = options[index.value() - 1];
+          } else if (this->operation_ == SELECT_OP_NEXT && index.value() < options.size() - 1) {
+            target_value = options[index.value() + 1];
+          } else {
             return;
           }
         }

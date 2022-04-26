@@ -22,7 +22,7 @@ size_t Select::number_of_options() const {
   return options.size();
 }
 
-optional<size_t> Select::index_of(const std::string &option) const {
+optional<size_t> Select::index_of_option(const std::string &option) const {
   auto options = traits.get_options();
   auto it = std::find(options.begin(), options.end(), option);
   if (it == options.end()) {
