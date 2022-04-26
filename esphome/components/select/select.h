@@ -40,7 +40,7 @@ class Select : public EntityBase {
   // Methods that provide an API to index-based access.
   size_t number_of_options() const;
   optional<size_t> index_of_option(const std::string &option) const;
-  optional<std::string> option_at(const size_t index) const;
+  optional<std::string> option_at(size_t index) const;
 
  protected:
   friend class SelectCall;

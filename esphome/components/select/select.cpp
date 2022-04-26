@@ -31,7 +31,7 @@ optional<size_t> Select::index_of_option(const std::string &option) const {
   return std::distance(options.begin(), it);
 }
 
-optional<std::string> Select::option_at(const size_t index) const {
+optional<std::string> Select::option_at(size_t index) const {
   auto options = traits.get_options();
   if (index >= options.size()) {
     return {};
