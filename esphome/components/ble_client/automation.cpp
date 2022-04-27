@@ -10,7 +10,7 @@ namespace esphome {
 namespace ble_client {
 static const char *const TAG = "ble_client.automation";
 
-void BLEWriterClientNode::write(const std::vector<uint8_t> &value) {
+void BLEWriterClientNode::write() {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "Cannot write to BLE characteristic - not connected");
     return;
@@ -29,10 +29,9 @@ void BLEWriterClientNode::write(const std::vector<uint8_t> &value) {
     ESP_LOGE(TAG, "Characteristic %s does not allow writing", this->char_uuid_.to_string().c_str());
     return;
   }
-  ESP_LOGVV(TAG, "Will write %d bytes: %s", value.size(), format_hex_pretty(value).c_str());
-  esp_err_t err =
-      esp_ble_gattc_write_char(this->parent()->gattc_if, this->parent()->conn_id, this->ble_char_handle_, value.size(),
-                               const_cast<uint8_t *>(value.data()), write_type, ESP_GATT_AUTH_REQ_NONE);
+  ESP_LOGD(TAG, "Will write %d bytes: %s", this->value_.size(), format_hex_pretty(this->value_).c_str());
+  esp_err_t err = esp_ble_gattc_write_char(this->parent()->gattc_if, this->parent()->conn_id, this->ble_char_handle_,
+                                           value_.size(), value_.data(), write_type, ESP_GATT_AUTH_REQ_NONE);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Error writing to characteristic: %s!", esp_err_to_name(err));
   }
@@ -59,6 +58,14 @@ void BLEWriterClientNode::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       this->node_state = espbt::ClientState::ESTABLISHED;
       ESP_LOGD(TAG, "Found characteristic %s on device %s", this->char_uuid_.to_string().c_str(),
                ble_client_->address_str().c_str());
+
+      // Write and disconnect.
+      if (pending_write_) {
+        write();
+        pending_write_ = false;
+      }
+      ble_client_->should_connect_ = false;
+
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT:
@@ -70,6 +77,9 @@ void BLEWriterClientNode::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       break;
   }
 }
+
+// Alternatively we can do stuff here if the gattc_event_handler needs to be fast.
+void BLEWriterClientNode::loop() {}
 
 }  // namespace ble_client
 }  // namespace esphome

@@ -91,6 +91,7 @@ class BLEClient : public espbt::ESPBTClient, public Component {
   bool parse_device(const espbt::ESPBTDevice &device) override;
   void on_scan_end() override {}
   void connect() override;
+  void disconnect();
 
   void set_address(uint64_t address) { this->address = address; }
 
@@ -119,6 +120,9 @@ class BLEClient : public espbt::ESPBTClient, public Component {
   uint64_t address;
   bool enabled;
   std::string address_str() const;
+
+  // TODO(rbaron): properly encapsulate should_connect_.
+  bool should_connect_ = false;
 
  protected:
   void set_states_(espbt::ClientState st) {

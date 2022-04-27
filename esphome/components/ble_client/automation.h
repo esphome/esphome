@@ -43,7 +43,7 @@ class BLEWriterClientNode : public BLEClientNode {
   }
 
   // Attempts to write the contents of value to char_uuid_.
-  void write(const std::vector<uint8_t> &value);
+  void write();
 
   void set_char_uuid128(uint8_t *uuid) { this->char_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
 
@@ -52,12 +52,20 @@ class BLEWriterClientNode : public BLEClientNode {
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
 
- private:
+  void loop() override;
+
+  void set_value(const std::vector<uint8_t> &value) { this->value_ = value; }
+
+ protected:
   BLEClient *ble_client_;
+  bool pending_write_ = false;
+
+ private:
   int ble_char_handle_ = 0;
   esp_gatt_char_prop_t char_props_;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;
+  std::vector<uint8_t> value_;
 };
 
 template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, public BLEWriterClientNode {
@@ -66,10 +74,12 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
 
   void play(Ts... x) override {
     if (has_simple_value_) {
-      return write(this->value_simple_);
+      this->set_value(this->value_simple_);
     } else {
-      return write(this->value_template_(x...));
+      this->set_value(this->value_template_(x...));
     }
+    ble_client_->should_connect_ = true;
+    pending_write_ = true;
   }
 
   void set_value_template(std::function<std::vector<uint8_t>(Ts...)> func) {
