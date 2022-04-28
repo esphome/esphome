@@ -11,9 +11,7 @@ SelectCall &SelectCall::set_option(const std::string &option) {
   return with_operation(SELECT_OP_SET).with_option(option);
 }
 
-SelectCall &SelectCall::set_index(size_t index) {
-  return with_operation(SELECT_OP_SET_INDEX).with_index(index);
-}
+SelectCall &SelectCall::set_index(size_t index) { return with_operation(SELECT_OP_SET_INDEX).with_index(index); }
 
 const optional<std::string> &SelectCall::get_option() const { return option_; }
 
