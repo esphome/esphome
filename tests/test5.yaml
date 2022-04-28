@@ -183,7 +183,7 @@ select:
           index: 1
       - select.set_index:
           id: template_select_id
-          index: !lambda "return 1 + 1;" 
+          index: !lambda "return 1 + 1;"
     options:
       - one
       - two
