@@ -230,6 +230,8 @@ void BLEClient::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
     default:
       break;
   }
+  for (auto *node : this->nodes_)
+    node->gap_event_handler(event, param);
 }
 
 // Parse GATT values into a float for a sensor.

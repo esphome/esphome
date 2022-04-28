@@ -195,8 +195,22 @@ bool ESP32BLETracker::ble_setup() {
   // Empty name
   esp_ble_gap_set_device_name("");
 
-  esp_ble_io_cap_t iocap = ESP_IO_CAP_NONE;
-  err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
+  esp_ble_io_cap_t iocap = ESP_IO_CAP_KBDISP;
+  err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(esp_ble_io_cap_t));
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gap_set_security_param failed: %d", err);
+    return false;
+  }
+
+  uint8_t key_size = 16;      //the key size should be 7~16 bytes
+  err = esp_ble_gap_set_security_param(ESP_BLE_SM_MAX_KEY_SIZE, &key_size, sizeof(uint8_t));
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gap_set_security_param failed: %d", err);
+    return false;
+  }
+
+  esp_ble_auth_req_t auth_req = ESP_LE_AUTH_REQ_SC_MITM_BOND;
+  err = esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth_req, sizeof(esp_ble_auth_req_t));
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_security_param failed: %d", err);
     return false;
