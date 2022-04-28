@@ -8,7 +8,7 @@ static const char *const TAG = "select";
 
 void Select::publish_state(const std::string &state) {
   auto index = this->index_of(state);
-  auto name = this->get_name().c_str();
+  const auto *name = this->get_name().c_str();
   if (index.has_value()) {
     this->has_state_ = true;
     this->state = state;
