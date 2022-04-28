@@ -255,7 +255,7 @@ void APIServer::on_number_update(number::Number *obj, float state) {
 #endif
 
 #ifdef USE_SELECT
-void APIServer::on_select_update(select::Select *obj, const std::string &state) {
+void APIServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)

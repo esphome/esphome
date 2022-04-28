@@ -7,10 +7,10 @@
 namespace esphome {
 namespace select {
 
-class SelectStateTrigger : public Trigger<std::string> {
+class SelectStateTrigger : public Trigger<std::string, size_t> {
  public:
   explicit SelectStateTrigger(Select *parent) {
-    parent->add_on_state_callback([this](const std::string &value) { this->trigger(value); });
+    parent->add_on_state_callback([this](const std::string &value, size_t index) { this->trigger(value, index); });
   }
 };
 

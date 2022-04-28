@@ -62,7 +62,7 @@ void Controller::setup_controller(bool include_internal) {
 #ifdef USE_SELECT
   for (auto *obj : App.get_selects()) {
     if (include_internal || !obj->is_internal())
-      obj->add_on_state_callback([this, obj](const std::string &state) { this->on_select_update(obj, state); });
+      obj->add_on_state_callback([this, obj](const std::string &state, size_t index) { this->on_select_update(obj, state, index); });
   }
 #endif
 #ifdef USE_LOCK

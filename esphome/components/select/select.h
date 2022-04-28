@@ -40,7 +40,7 @@ class Select : public EntityBase {
   optional<size_t> active_index() const;
   optional<std::string> at(size_t index) const;
 
-  void add_on_state_callback(std::function<void(std::string)> &&callback);
+  void add_on_state_callback(std::function<void(std::string, size_t)> &&callback);
 
  protected:
   friend class SelectCall;
@@ -55,7 +55,7 @@ class Select : public EntityBase {
 
   uint32_t hash_base() override;
 
-  CallbackManager<void(std::string)> state_callback_;
+  CallbackManager<void(std::string, size_t)> state_callback_;
   bool has_state_{false};
 };
 
