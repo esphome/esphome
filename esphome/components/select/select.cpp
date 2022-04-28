@@ -9,7 +9,7 @@ static const char *const TAG = "select";
 void Select::publish_state(const std::string &state) {
   this->has_state_ = true;
   this->state = state;
-  auto index = this->index_of(state).value();
+  size_t index = this->index_of(state).value();
   ESP_LOGD(TAG, "'%s': Sending state %s (index %d)", this->get_name().c_str(), state.c_str(), index);
   this->state_callback_.call(state, index);
 }
