@@ -11,6 +11,10 @@ SelectCall &SelectCall::set_option(const std::string &option) {
   return with_operation(SELECT_OP_SET).with_option(option);
 }
 
+SelectCall &SelectCall::set_index(size_t index) {
+  return with_operation(SELECT_OP_SET_INDEX).with_index(index);
+}
+
 const optional<std::string> &SelectCall::get_option() const { return option_; }
 
 SelectCall &SelectCall::select_next(bool cycle) { return with_operation(SELECT_OP_NEXT).with_cycle(cycle); }
@@ -36,6 +40,11 @@ SelectCall &SelectCall::with_option(const std::string &option) {
   return *this;
 }
 
+SelectCall &SelectCall::with_index(size_t index) {
+  this->index_ = index;
+  return *this;
+}
+
 void SelectCall::perform() {
   auto *parent = this->parent_;
   const auto *name = parent->get_name().c_str();
@@ -56,10 +65,20 @@ void SelectCall::perform() {
   if (this->operation_ == SELECT_OP_SET) {
     ESP_LOGD(TAG, "'%s': Setting", name);
     if (!this->option_.has_value()) {
-      ESP_LOGW(TAG, "'%s': No value set for SelectCall", name);
+      ESP_LOGW(TAG, "'%s': No option value set for SelectCall", name);
       return;
     }
     target_value = this->option_.value();
+  } else if (this->operation_ == SELECT_OP_SET_INDEX) {
+    if (!this->index_.has_value()) {
+      ESP_LOGW(TAG, "'%s': No index value set for SelectCall", name);
+      return;
+    }
+    if (this->index_.value() >= options.size()) {
+      ESP_LOGW(TAG, "'%s': Index value %d out of bounds", name, this->index_.value());
+      return;
+    }
+    target_value = options[this->index_.value()];
   } else if (this->operation_ == SELECT_OP_FIRST) {
     target_value = options.front();
   } else if (this->operation_ == SELECT_OP_LAST) {

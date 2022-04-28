@@ -178,6 +178,12 @@ select:
           id: template_select_id
           to: !lambda "return SELECT_OP_PREVIOUS;"
           cycle: !lambda "return true;"
+      - select.set_index:
+          id: template_select_id
+          index: 1
+      - select.set_index:
+          id: template_select_id
+          index: !lambda "return 1 + 1;" 
     options:
       - one
       - two

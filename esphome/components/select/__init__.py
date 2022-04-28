@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_CYCLE,
     CONF_MODE,
     CONF_TO,
+    CONF_INDEX,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -31,6 +32,7 @@ SelectStateTrigger = select_ns.class_(
 
 # Actions
 SelectSetAction = select_ns.class_("SelectSetAction", automation.Action)
+SelectSetIndexAction = select_ns.class_("SelectSetIndexAction", automation.Action)
 SelectSwitchToAction = select_ns.class_("SelectSwitchToAction", automation.Action)
 
 # Enums
@@ -114,6 +116,23 @@ async def select_set_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_OPTION], args, cg.std_string)
     cg.add(var.set_option(template_))
+    return var
+
+
+@automation.register_action(
+    "select.set_index",
+    SelectSetIndexAction,
+    OPERATION_BASE_SCHEMA.extend(
+        {
+            cv.Required(CONF_INDEX): cv.templatable(cv.positive_int),
+        }
+    ),
+)
+async def select_set_index_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_INDEX], args, cg.size_t)
+    cg.add(var.set_index(template_))
     return var
 
 

@@ -29,6 +29,21 @@ template<typename... Ts> class SelectSetAction : public Action<Ts...> {
   Select *select_;
 };
 
+template<typename... Ts> class SelectSetIndexAction : public Action<Ts...> {
+ public:
+  explicit SelectSetIndexAction(Select *select) : select_(select) {}
+  TEMPLATABLE_VALUE(size_t, index)
+
+  void play(Ts... x) override {
+    auto call = this->select_->make_call();
+    call.set_index(this->index_.value(x...));
+    call.perform();
+  }
+
+ protected:
+  Select *select_;
+};
+
 template<typename... Ts> class SelectSwitchToAction : public Action<Ts...> {
  public:
   explicit SelectSwitchToAction(Select *select) : select_(select) {}
