@@ -71,7 +71,7 @@ void SelectCall::perform() {
     if (!parent->has_state()) {
       target_value = this->operation_ == SELECT_OP_NEXT ? options.front() : options.back();
     } else {
-      auto index = parent->index_of_option(parent->state);
+      auto index = parent->index_of(parent->state);
       if (index.has_value()) {
         auto size = options.size();
         if (cycle) {

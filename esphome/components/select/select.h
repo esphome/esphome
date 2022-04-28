@@ -24,23 +24,23 @@ namespace select {
 class Select : public EntityBase {
  public:
   std::string state;
+  SelectTraits traits;
 
   void publish_state(const std::string &state);
-
-  SelectCall make_call() { return SelectCall(this); }
-  void set(const std::string &value) { make_call().set_option(value).perform(); }
-
-  void add_on_state_callback(std::function<void(std::string)> &&callback);
-
-  SelectTraits traits;
 
   /// Return whether this select has gotten a full state yet.
   bool has_state() const { return has_state_; }
 
+  SelectCall make_call() { return SelectCall(this); }
+  void set(const std::string &value) { make_call().set_option(value).perform(); }
+
   // Methods that provide an API to index-based access.
-  size_t number_of_options() const;
-  optional<size_t> index_of_option(const std::string &option) const;
-  optional<std::string> option_at(size_t index) const;
+  size_t size() const;
+  optional<size_t> index_of(const std::string &option) const;
+  optional<size_t> active_index() const;
+  optional<std::string> at(size_t index) const;
+
+  void add_on_state_callback(std::function<void(std::string)> &&callback);
 
  protected:
   friend class SelectCall;
