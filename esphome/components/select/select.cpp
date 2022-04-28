@@ -7,11 +7,16 @@ namespace select {
 static const char *const TAG = "select";
 
 void Select::publish_state(const std::string &state) {
-  this->has_state_ = true;
-  this->state = state;
-  size_t index = this->index_of(state).value();
-  ESP_LOGD(TAG, "'%s': Sending state %s (index %d)", this->get_name().c_str(), state.c_str(), index);
-  this->state_callback_.call(state, index);
+  auto index = this->index_of(state);
+  auto name = this->get_name().c_str();
+  if (index.has_value()) {
+    this->has_state_ = true;
+    this->state = state;
+    ESP_LOGD(TAG, "'%s': Sending state %s (index %d)", name, state.c_str(), index.value());
+    this->state_callback_.call(state, index.value());
+  } else {
+    ESP_LOGE(TAG, "'%s': invalid state for publish_state(): %s", name, state.c_str());
+  }
 }
 
 void Select::add_on_state_callback(std::function<void(std::string, size_t)> &&callback) {

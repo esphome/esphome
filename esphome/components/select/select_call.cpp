@@ -93,7 +93,7 @@ void SelectCall::perform() {
   }
 
   if (std::find(options.begin(), options.end(), target_value) == options.end()) {
-    ESP_LOGW(TAG, "'%s': Option %s is not a valid option.", name, target_value.c_str());
+    ESP_LOGW(TAG, "'%s': Option %s is not a valid option", name, target_value.c_str());
     return;
   }
 
