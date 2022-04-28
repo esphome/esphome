@@ -154,8 +154,8 @@ select:
     restore_value: true
     on_value:
       - logger.log:
-          format: "Select changed to %s"
-          args: ["x.c_str()"]
+          format: "Select changed to %s (index %d)"
+          args: ["x.c_str()", "i"]
     set_action:
       - logger.log:
           format: "Template Select set to %s"
@@ -182,6 +182,16 @@ select:
       - one
       - two
       - three
+
+  - platform: modbus_controller
+    name: "Modbus Select Register 1000"
+    address: 1000
+    value_type: U_WORD
+    optionsmap:
+      "Zero": 0
+      "One": 1
+      "Two": 2
+      "Three": 3
 
 sensor:
   - platform: selec_meter
