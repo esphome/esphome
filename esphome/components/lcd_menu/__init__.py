@@ -92,52 +92,10 @@ def validate_lcd_dimensions(value):
 
 
 def validate_menu_item(config):
-    if config[CONF_TYPE] != CONF_MENU and CONF_MENU in config:
-        raise cv.Invalid(
-            f"{CONF_TYPE} has to be '{CONF_MENU}' if the {CONF_MENU} is present"
-        )
-    if config[CONF_TYPE] == CONF_MENU and CONF_MENU not in config:
-        raise cv.Invalid(
-            f"{CONF_MENU} has to be present if {CONF_TYPE} is '{CONF_MENU}'"
-        )
-
-    if config[CONF_TYPE] != CONF_SELECT:
-        if CONF_SELECT in config:
-            raise cv.Invalid(
-                f"{CONF_TYPE} has to be '{CONF_SELECT}' if the {CONF_SELECT} is present"
-            )
-
-    if config[CONF_TYPE] == CONF_SELECT:
-        if CONF_SELECT not in config:
-            raise cv.Invalid(
-                f"{CONF_SELECT} has to be present if {CONF_TYPE} is '{CONF_SELECT}'"
-            )
-
-    if config[CONF_TYPE] != CONF_NUMBER:
-        if CONF_NUMBER in config:
-            raise cv.Invalid(
-                f"{CONF_TYPE} has to be '{CONF_NUMBER}' if the {CONF_NUMBER} is present"
-            )
     if config[CONF_TYPE] == CONF_NUMBER:
-        if CONF_NUMBER not in config:
-            raise cv.Invalid(
-                f"{CONF_NUMBER} has to be present if {CONF_TYPE} is '{CONF_NUMBER}'"
-            )
         if re.search(r"^%([+-])*(\d+)*(\.\d+)*[fg]$", config[CONF_FORMAT]) is None:
             raise cv.Invalid(
                 f"{CONF_FORMAT}: has to specify a printf-like format string specifying exactly one f or g type conversion, '{config[CONF_FORMAT]}' provided"
-            )
-
-    if config[CONF_TYPE] != CONF_SWITCH:
-        if CONF_SWITCH in config:
-            raise cv.Invalid(
-                f"{CONF_TYPE} has to be '{CONF_SWITCH}' if the {CONF_SWITCH} is present"
-            )
-
-    if config[CONF_TYPE] == CONF_SWITCH:
-        if CONF_SWITCH not in config:
-            raise cv.Invalid(
-                f"{CONF_SWITCH} has to be present if {CONF_TYPE} is '{CONF_SWITCH}'"
             )
 
     return config
@@ -148,47 +106,85 @@ def menu_item_schema(value):
     return MENU_ITEM_SCHEMA(value)
 
 
+MENU_ITEM_COMMON_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_ID): cv.declare_id(MenuItem),
+        cv.Optional(CONF_TEXT): cv.string,
+        cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+    }
+)
+
+MENU_ITEM_ENTER_LEAVE_SCHEMA = MENU_ITEM_COMMON_SCHEMA.extend(
+    {
+        cv.Optional(CONF_ON_ENTER): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LCDMenuOnEnterTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_LEAVE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LCDMenuOnLeaveTrigger),
+            }
+        ),
+    }
+)
+
+MENU_ITEM_VALUE_SCHEMA = MENU_ITEM_COMMON_SCHEMA.extend(
+    {
+        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LCDMenuOnValueTrigger),
+            }
+        ),
+    }
+)
+
+MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA = MENU_ITEM_ENTER_LEAVE_SCHEMA.extend(
+    {
+        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LCDMenuOnValueTrigger),
+            }
+        ),
+    }
+)
+
 MENU_ITEM_SCHEMA = cv.All(
-    cv.Schema(
+    cv.typed_schema(
         {
-            cv.GenerateID(CONF_ID): cv.declare_id(MenuItem),
-            cv.Optional(CONF_TYPE, default="label"): cv.enum(
-                MENU_ITEM_TYPES, lower=True
-            ),
-            cv.Optional(CONF_TEXT): cv.string,
-            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-            cv.Optional(CONF_ON_ENTER): automation.validate_automation(
+            CONF_LABEL: MENU_ITEM_COMMON_SCHEMA,
+            CONF_BACK: MENU_ITEM_COMMON_SCHEMA,
+            CONF_MENU: MENU_ITEM_ENTER_LEAVE_SCHEMA.extend(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        LCDMenuOnEnterTrigger
+                    cv.Required(CONF_MENU): cv.All(
+                        cv.ensure_list(menu_item_schema), cv.Length(min=1)
                     ),
                 }
             ),
-            cv.Optional(CONF_ON_LEAVE): automation.validate_automation(
+            CONF_SELECT: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        LCDMenuOnLeaveTrigger
-                    ),
+                    cv.Required(CONF_SELECT): cv.use_id(Select),
+                    cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
                 }
             ),
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+            CONF_NUMBER: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        LCDMenuOnValueTrigger
-                    ),
+                    cv.Required(CONF_NUMBER): cv.use_id(Number),
+                    cv.Optional(CONF_FORMAT, default="%.1f"): cv.string_strict,
                 }
             ),
-            cv.Optional(CONF_MENU): cv.All(
-                cv.ensure_list(menu_item_schema), cv.Length(min=1)
+            CONF_SWITCH: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
+                {
+                    cv.Required(CONF_SWITCH): cv.use_id(Switch),
+                    cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
+                    cv.Optional(CONF_ON_TEXT, default="On"): cv.string_strict,
+                    cv.Optional(CONF_OFF_TEXT, default="Off"): cv.string_strict,
+                }
             ),
-            cv.Optional(CONF_SELECT): cv.use_id(Select),
-            cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
-            cv.Optional(CONF_NUMBER): cv.use_id(Number),
-            cv.Optional(CONF_FORMAT, default="%.1f"): cv.string_strict,
-            cv.Optional(CONF_SWITCH): cv.use_id(Switch),
-            cv.Optional(CONF_ON_TEXT, default="On"): cv.string_strict,
-            cv.Optional(CONF_OFF_TEXT, default="Off"): cv.string_strict,
-        }
+            CONF_COMMAND: MENU_ITEM_VALUE_SCHEMA,
+        },
+        default_type="label",
+        lower=True,
     ),
     validate_menu_item,
 )
@@ -278,7 +274,9 @@ async def lcd_menu_is_active_to_code(config, condition_id, template_arg, args):
 
 
 async def menu_item_to_code(menu, config, parent):
-    item = cg.new_Pvariable(config[CONF_ID], MenuItem(config[CONF_TYPE]))
+    item = cg.new_Pvariable(
+        config[CONF_ID], MenuItem(MENU_ITEM_TYPES[config[CONF_TYPE]])
+    )
     cg.add(parent.add_item(item))
     if CONF_TEXT in config:
         cg.add(item.set_text(config[CONF_TEXT]))
