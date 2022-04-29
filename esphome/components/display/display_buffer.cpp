@@ -586,8 +586,8 @@ void Animation::next_frame() {
 }
 void Animation::prev_frame() {
   this->current_frame_--;
-  if (this->current_frame_ < 0 ) {
-    this->current_frame_ = this->animation_frame_count_-1;
+  if (this->current_frame_ < 0) {
+    this->current_frame_ = this->animation_frame_count_ - 1;
   }
 }
 
