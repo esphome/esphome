@@ -43,7 +43,7 @@ class MAX7219Component : public PollingComponent,
 
   float get_setup_priority() const override;
 
-  void display();
+  void display_old();
 
   void invert_on_off(bool on_off);
   void invert_on_off();
@@ -84,6 +84,13 @@ class MAX7219Component : public PollingComponent,
   uint8_t printdigit(uint8_t pos, const char *str);
   /// Print `str` at position 0.
   uint8_t printdigit(const char *str);
+
+  void printf5(int x, const char *format, ...) __attribute__((format(printf, 3, 4)));
+  void print5(int x, const char *str);
+  void draw_symbol(int x, int y, uint8_t symbol);
+  void draw_byte(uint8_t chip, uint8_t row, uint8_t data);
+  void display();
+  uint8_t mirror_byte(uint8_t value);
 
 #ifdef USE_TIME
   /// Evaluate the strftime-format and print the result at the given position.

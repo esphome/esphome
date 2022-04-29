@@ -3,6 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
 #include "max7219font.h"
+#include "max7219font5.h"
 
 namespace esphome {
 namespace max7219digit {
@@ -106,7 +107,7 @@ void MAX7219Component::loop() {
   }
 }
 
-void MAX7219Component::display() {
+void MAX7219Component::display_old() {
   uint8_t pixels[8];
   // Run this loop for every MAX CHIP (GRID OF 64 leds)
   // Run this routine for the rows of every chip 8x row 0 top to 7 bottom
@@ -315,6 +316,109 @@ uint8_t MAX7219Component::printdigitf(const char *format, ...) {
   if (ret > 0)
     return this->printdigit(buffer);
   return 0;
+}
+
+void MAX7219Component::printf5(int x, const char *format, ...) {
+  va_list arg;
+  va_start(arg, format);
+  char buffer[64];
+  auto written_count = vsnprintf(buffer, sizeof(buffer), format, arg);
+  va_end(arg);
+  if (written_count > 0) {
+    return this->print5(x, buffer);
+  }
+}
+
+void MAX7219Component::print5(int x, const char *s) {
+  uint8_t font_width = 5;
+  uint8_t screen_width = this->num_chips_ * 8;
+  uint8_t symbols_per_screen = ceil((float) screen_width / font_width);
+
+  uint8_t text_length = strlen(s);
+  uint8_t text_width = text_length * font_width;
+  uint8_t x2 = x + text_width;
+
+  if (x < screen_width && x2 > 0) {
+    uint8_t c1 = 0;
+
+    if (x < 0) {
+      c1 = floor(-x / font_width);
+      x = x + c1 * font_width;
+    }
+
+    uint8_t c2 = _min(text_length, c1 + symbols_per_screen);
+
+    for (int i = c1; i < c2; i++) {
+      draw_symbol(x, 0, s[i]);
+      x = x + font_width;
+    }
+  }
+}
+
+void MAX7219Component::draw_symbol(int x, int y, uint8_t symbol) {
+  uint8_t chip = floor(x / 8);
+  int shift = x % 8;
+
+  for (int dataRow = 0; dataRow < 8; dataRow++) {
+    auto row = y + dataRow;
+    if (row >= 0 && row < 8) {
+      uint8_t data = progmem_read_byte(&MAX7219_DOT_MATRIX_FONT_5[symbol][dataRow]);
+      draw_byte(chip, row, shift >= 0 ? data >> shift : data << -shift);
+
+      if (shift > 0) {
+        draw_byte(chip + 1, row, data << (8 - shift));
+      }
+    }
+  }
+}
+
+void MAX7219Component::draw_byte(uint8_t chip, uint8_t row, uint8_t data) {
+  if (chip >= 0 && chip < this->num_chips_) {
+    this->max_displaybuffer_[0][chip * 8 + row] |= data;
+  }
+}
+
+void MAX7219Component::display() {
+  for (int row = 0; row < 8; row++) {
+    this->enable();
+
+    int address = this->reverse_ ? 8 - row : row + 1;
+    uint8_t data;
+
+    for (auto chip = 0; chip < this->num_chips_; chip++) {
+      if (this->reverse_) {
+        data = mirror_byte(max_displaybuffer_[0][(this->num_chips_ - chip - 1) * 8 + row]);
+      } else {
+        data = max_displaybuffer_[0][chip * 8 + row];
+      }
+      this->send_byte_(address, data);
+    }
+
+    this->disable();
+  }
+}
+
+uint8_t MAX7219Component::mirror_byte(uint8_t value) {
+  uint8_t result = 0;
+
+  if (value & 0x01)
+    result |= 0x80;
+  if (value & 0x02)
+    result |= 0x40;
+  if (value & 0x04)
+    result |= 0x20;
+  if (value & 0x08)
+    result |= 0x10;
+  if (value & 0x10)
+    result |= 0x08;
+  if (value & 0x20)
+    result |= 0x04;
+  if (value & 0x40)
+    result |= 0x02;
+  if (value & 0x80)
+    result |= 0x01;
+
+  return result;
 }
 
 #ifdef USE_TIME
