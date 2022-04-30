@@ -55,6 +55,7 @@ void OnlineImage::draw(int x, int y, DisplayBuffer *display) {
   decoder->set_offset(x, y);
 
   decoder->prepare(stream);
+  ESP_LOGD(TAG, "Downloading image from %s", url_);
   size_t size = decoder->decode(http, stream);
   ESP_LOGD(TAG, "Decoded %d bytes", size);
 
