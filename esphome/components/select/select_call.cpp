@@ -50,30 +50,30 @@ void SelectCall::perform() {
   auto options = traits.get_options();
 
   if (this->operation_ == SELECT_OP_NONE) {
-    ESP_LOGW(TAG, "'%s': SelectCall performed without selecting an operation", name);
+    ESP_LOGW(TAG, "'%s' - SelectCall performed without selecting an operation", name);
     return;
   }
   if (options.empty()) {
-    ESP_LOGW(TAG, "'%s': Cannot perform SelectCall, select has no options", name);
+    ESP_LOGW(TAG, "'%s' - Cannot perform SelectCall, select has no options", name);
     return;
   }
 
   std::string target_value;
 
   if (this->operation_ == SELECT_OP_SET) {
-    ESP_LOGD(TAG, "'%s': Setting", name);
+    ESP_LOGD(TAG, "'%s' - Setting", name);
     if (!this->option_.has_value()) {
-      ESP_LOGW(TAG, "'%s': No option value set for SelectCall", name);
+      ESP_LOGW(TAG, "'%s' - No option value set for SelectCall", name);
       return;
     }
     target_value = this->option_.value();
   } else if (this->operation_ == SELECT_OP_SET_INDEX) {
     if (!this->index_.has_value()) {
-      ESP_LOGW(TAG, "'%s': No index value set for SelectCall", name);
+      ESP_LOGW(TAG, "'%s' - No index value set for SelectCall", name);
       return;
     }
     if (this->index_.value() >= options.size()) {
-      ESP_LOGW(TAG, "'%s': Index value %d out of bounds", name, this->index_.value());
+      ESP_LOGW(TAG, "'%s' - Index value %d out of bounds", name, this->index_.value());
       return;
     }
     target_value = options[this->index_.value()];
@@ -83,7 +83,7 @@ void SelectCall::perform() {
     target_value = options.back();
   } else if (this->operation_ == SELECT_OP_NEXT || this->operation_ == SELECT_OP_PREVIOUS) {
     auto cycle = this->cycle_;
-    ESP_LOGD(TAG, "'%s': Selecting %s, with%s cycling", name, this->operation_ == SELECT_OP_NEXT ? "next" : "previous",
+    ESP_LOGD(TAG, "'%s' - Selecting %s, with%s cycling", name, this->operation_ == SELECT_OP_NEXT ? "next" : "previous",
              cycle ? "" : "out");
     if (!parent->has_state()) {
       target_value = this->operation_ == SELECT_OP_NEXT ? options.front() : options.back();
@@ -110,11 +110,11 @@ void SelectCall::perform() {
   }
 
   if (std::find(options.begin(), options.end(), target_value) == options.end()) {
-    ESP_LOGW(TAG, "'%s': Option %s is not a valid option", name, target_value.c_str());
+    ESP_LOGW(TAG, "'%s' - Option %s is not a valid option", name, target_value.c_str());
     return;
   }
 
-  ESP_LOGD(TAG, "'%s': Set selected option to: %s", name, target_value.c_str());
+  ESP_LOGD(TAG, "'%s' - Set selected option to: %s", name, target_value.c_str());
   parent->control(target_value);
 }
 
