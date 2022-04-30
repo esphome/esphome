@@ -14,6 +14,8 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     CONF_MQTT_ID,
     CONF_VALUE,
+    CONF_TO,
+    CONF_CYCLE,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -23,6 +25,7 @@ IS_PLATFORM_COMPONENT = True
 
 number_ns = cg.esphome_ns.namespace("number")
 Number = number_ns.class_("Number", cg.EntityBase)
+NumberToAction = number_ns.class_("NumberToAction", automation.Action)
 NumberPtr = Number.operator("ptr")
 
 # Triggers
@@ -47,6 +50,13 @@ NUMBER_MODES = {
     "AUTO": NumberMode.NUMBER_MODE_AUTO,
     "BOX": NumberMode.NUMBER_MODE_BOX,
     "SLIDER": NumberMode.NUMBER_MODE_SLIDER,
+}
+
+NumberOperation = number_ns.enum("NumberOperation")
+
+NUMBER_TO_OPTIONS = {
+    "NEXT": NumberOperation.NUMBER_OP_NEXT,
+    "PREVIOUS": NumberOperation.NUMBER_OP_PREVIOUS,
 }
 
 icon = cv.icon
@@ -174,4 +184,56 @@ async def number_set_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_VALUE], args, float)
     cg.add(var.set_value(template_))
+    return var
+
+
+@automation.register_action(
+    "number.next",
+    NumberToAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(Number),
+            cv.Required(CONF_MODE, default="NEXT"): cv.one_of("NEXT", upper=True),
+            cv.Optional(CONF_CYCLE, default=False): cv.boolean,
+        }
+    ),
+)
+@automation.register_action(
+    "number.previous",
+    NumberToAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(Number),
+            cv.Required(CONF_MODE, default="PREVIOUS"): cv.one_of(
+                "PREVIOUS", upper=True
+            ),
+            cv.Optional(CONF_CYCLE, default=False): cv.boolean,
+        }
+    ),
+)
+@automation.register_action(
+    "number.to",
+    NumberToAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(Number),
+            cv.Required(CONF_TO): cv.templatable(
+                cv.enum(NUMBER_TO_OPTIONS, upper=True)
+            ),
+            cv.Optional(CONF_CYCLE, default=False): cv.templatable(cv.boolean),
+        }
+    ),
+)
+async def number_to_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    if CONF_TO in config:
+        to_ = await cg.templatable(config[CONF_TO], args, NumberOperation)
+        cg.add(var.set_operation(to_))
+        cycle_ = await cg.templatable(config[CONF_CYCLE], args, bool)
+        cg.add(var.set_cycle(cycle_))
+    if CONF_MODE in config:
+        cg.add(var.set_operation(NUMBER_TO_OPTIONS[config[CONF_MODE]]))
+        cg.add(var.set_cycle(config[CONF_CYCLE]))
+
     return var
