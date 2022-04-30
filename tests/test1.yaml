@@ -833,10 +833,10 @@ sensor:
           value: !lambda "return -1;"
     on_clockwise:
       - logger.log: "Clockwise"
-      - lcd_menu.down:
+      - display_menu.down:
     on_anticlockwise:
       - logger.log: "Anticlockwise"
-      - lcd_menu.up:
+      - display_menu.up:
   - platform: pulse_width
     name: Pulse Width
     pin: GPIO12
@@ -1249,11 +1249,11 @@ binary_sensor:
     on_press:
       - if:
           condition:
-            lcd_menu.is_active:
+            display_menu.is_active:
           then:
-            - lcd_menu.enter:
+            - display_menu.enter:
           else:
-            - lcd_menu.show:
+            - display_menu.show:
   - platform: template
     name: "Garage Door Open"
     id: garage_door
@@ -2860,7 +2860,7 @@ lcd_menu:
               text: 'Show Main'
               on_value:
                 then:
-                  - lcd_menu.show_main:
+                  - display_menu.show_main:
     - type: select
       text: 'Enum Item'
       immediate_edit: True
@@ -2890,7 +2890,7 @@ lcd_menu:
       text: 'Hide'
       on_value:
         then:
-          - lcd_menu.hide:
+          - display_menu.hide:
     - type: switch
       text: 'Switch'
       switch: my_switch
