@@ -2,6 +2,8 @@
 
 #include "png_image.h"
 #include "esphome/components/display/display_buffer.h"
+#include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 
 #ifdef ONLINE_IMAGE_PNG_SUPPORT
 namespace esphome {
@@ -38,11 +40,12 @@ void PngDecoder::prepare(WiFiClient *stream) {
   pngle_set_draw_callback(pngle, drawCallback);
 }
 
-size_t PngDecoder::decode(HTTPClient &http, WiFiClient *stream) {
+size_t HOT PngDecoder::decode(HTTPClient &http, WiFiClient *stream) {
   uint8_t buf[2048];
   int remain = 0;
   int total = 0;
   while (http.connected()) {
+    App.feed_wdt();
     size_t size = stream->available();
     if (!size) {
       delay(1);
@@ -69,6 +72,7 @@ size_t PngDecoder::decode(HTTPClient &http, WiFiClient *stream) {
       delay(1);
     }
   }
+  App.feed_wdt();
   return total;
 }
 
