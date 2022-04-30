@@ -190,25 +190,29 @@ async def number_set_to_code(config, action_id, template_arg, args):
 @automation.register_action(
     "number.next",
     NumberToAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(Number),
-            cv.Optional(CONF_MODE, default="NEXT"): cv.one_of("NEXT", upper=True),
-            cv.Optional(CONF_CYCLE, default=False): cv.boolean,
-        }
+    automation.maybe_simple_id(
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.use_id(Number),
+                cv.Optional(CONF_MODE, default="NEXT"): cv.one_of("NEXT", upper=True),
+                cv.Optional(CONF_CYCLE, default=False): cv.boolean,
+            }
+        )
     ),
 )
 @automation.register_action(
     "number.previous",
     NumberToAction,
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(Number),
-            cv.Optional(CONF_MODE, default="PREVIOUS"): cv.one_of(
-                "PREVIOUS", upper=True
-            ),
-            cv.Optional(CONF_CYCLE, default=False): cv.boolean,
-        }
+    automation.maybe_simple_id(
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.use_id(Number),
+                cv.Optional(CONF_MODE, default="PREVIOUS"): cv.one_of(
+                    "PREVIOUS", upper=True
+                ),
+                cv.Optional(CONF_CYCLE, default=False): cv.boolean,
+            }
+        )
     ),
 )
 @automation.register_action(
@@ -235,5 +239,4 @@ async def number_to_to_code(config, action_id, template_arg, args):
     if CONF_MODE in config:
         cg.add(var.set_operation(NUMBER_TO_OPTIONS[config[CONF_MODE]]))
         cg.add(var.set_cycle(config[CONF_CYCLE]))
-
     return var

@@ -8,6 +8,13 @@ namespace number {
 
 class Number;
 
+enum NumberOperation {
+  NUMBER_OP_NONE,
+  NUMBER_OP_SET,
+  NUMBER_OP_NEXT,
+  NUMBER_OP_PREVIOUS,
+};
+
 class NumberCall {
  public:
   explicit NumberCall(Number *parent) : parent_(parent) {}
@@ -16,9 +23,18 @@ class NumberCall {
   NumberCall &set_value(float value);
   const optional<float> &get_value() const { return value_; }
 
+  NumberCall &number_next(bool cycle);
+  NumberCall &number_previous(bool cycle);
+
+  NumberCall &with_operation(NumberOperation operation);
+  NumberCall &with_value(float value);
+  NumberCall &with_cycle(bool cycle);
+
  protected:
   Number *const parent_;
+  NumberOperation operation_{NUMBER_OP_NONE}; 
   optional<float> value_;
+  bool cycle_;
 };
 
 }  // namespace number
