@@ -193,7 +193,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(Number),
-            cv.Required(CONF_MODE, default="NEXT"): cv.one_of("NEXT", upper=True),
+            cv.Optional(CONF_MODE, default="NEXT"): cv.one_of("NEXT", upper=True),
             cv.Optional(CONF_CYCLE, default=False): cv.boolean,
         }
     ),
@@ -204,7 +204,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(Number),
-            cv.Required(CONF_MODE, default="PREVIOUS"): cv.one_of(
+            cv.Optional(CONF_MODE, default="PREVIOUS"): cv.one_of(
                 "PREVIOUS", upper=True
             ),
             cv.Optional(CONF_CYCLE, default=False): cv.boolean,
