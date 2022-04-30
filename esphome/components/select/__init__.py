@@ -33,7 +33,7 @@ SelectStateTrigger = select_ns.class_(
 # Actions
 SelectSetAction = select_ns.class_("SelectSetAction", automation.Action)
 SelectSetIndexAction = select_ns.class_("SelectSetIndexAction", automation.Action)
-SelectSwitchToAction = select_ns.class_("SelectSwitchToAction", automation.Action)
+SelectToAction = select_ns.class_("SelectToAction", automation.Action)
 
 # Enums
 SelectOperation = select_ns.enum("SelectOperation")
@@ -138,7 +138,7 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
 
 @automation.register_action(
     "select.to",
-    SelectSwitchToAction,
+    SelectToAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_TO): cv.templatable(
@@ -150,7 +150,7 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
 )
 @automation.register_action(
     "select.next",
-    SelectSwitchToAction,
+    SelectToAction,
     automation.maybe_simple_id(
         OPERATION_BASE_SCHEMA.extend(
             {
@@ -162,7 +162,7 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
 )
 @automation.register_action(
     "select.previous",
-    SelectSwitchToAction,
+    SelectToAction,
     automation.maybe_simple_id(
         OPERATION_BASE_SCHEMA.extend(
             {
@@ -176,7 +176,7 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
 )
 @automation.register_action(
     "select.first",
-    SelectSwitchToAction,
+    SelectToAction,
     automation.maybe_simple_id(
         OPERATION_BASE_SCHEMA.extend(
             {
@@ -187,7 +187,7 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
 )
 @automation.register_action(
     "select.last",
-    SelectSwitchToAction,
+    SelectToAction,
     automation.maybe_simple_id(
         OPERATION_BASE_SCHEMA.extend(
             {

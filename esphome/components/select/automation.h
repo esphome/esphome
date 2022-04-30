@@ -44,9 +44,9 @@ template<typename... Ts> class SelectSetIndexAction : public Action<Ts...> {
   Select *select_;
 };
 
-template<typename... Ts> class SelectSwitchToAction : public Action<Ts...> {
+template<typename... Ts> class SelectToAction : public Action<Ts...> {
  public:
-  explicit SelectSwitchToAction(Select *select) : select_(select) {}
+  explicit SelectToAction(Select *select) : select_(select) {}
   TEMPLATABLE_VALUE(bool, cycle)
   TEMPLATABLE_VALUE(SelectOperation, operation)
 
