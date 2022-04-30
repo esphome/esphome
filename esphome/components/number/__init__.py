@@ -25,7 +25,6 @@ IS_PLATFORM_COMPONENT = True
 
 number_ns = cg.esphome_ns.namespace("number")
 Number = number_ns.class_("Number", cg.EntityBase)
-NumberToAction = number_ns.class_("NumberToAction", automation.Action)
 NumberPtr = Number.operator("ptr")
 
 # Triggers
@@ -38,6 +37,7 @@ ValueRangeTrigger = number_ns.class_(
 
 # Actions
 NumberSetAction = number_ns.class_("NumberSetAction", automation.Action)
+NumberToAction = number_ns.class_("NumberToAction", automation.Action)
 
 # Conditions
 NumberInRangeCondition = number_ns.class_(
@@ -195,7 +195,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             {
                 cv.Required(CONF_ID): cv.use_id(Number),
                 cv.Optional(CONF_MODE, default="NEXT"): cv.one_of("NEXT", upper=True),
-                cv.Optional(CONF_CYCLE, default=False): cv.boolean,
+                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
             }
         )
     ),
@@ -210,7 +210,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
                 cv.Optional(CONF_MODE, default="PREVIOUS"): cv.one_of(
                     "PREVIOUS", upper=True
                 ),
-                cv.Optional(CONF_CYCLE, default=False): cv.boolean,
+                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
             }
         )
     ),
@@ -224,7 +224,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_TO): cv.templatable(
                 cv.enum(NUMBER_TO_OPTIONS, upper=True)
             ),
-            cv.Optional(CONF_CYCLE, default=False): cv.templatable(cv.boolean),
+            cv.Optional(CONF_CYCLE, default=True): cv.templatable(cv.boolean),
         }
     ),
 )
