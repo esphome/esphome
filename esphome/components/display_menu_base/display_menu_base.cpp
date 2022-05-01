@@ -229,7 +229,7 @@ void DisplayMenuComponent::draw_menu() {
   if (this->active_) {
     for (size_t i = 0; i < this->rows_ && this->top_index_ + i < this->displayed_item_->items_size(); ++i) {
       this->draw_item(this->displayed_item_->get_item(this->top_index_ + i), i,
-                       this->top_index_ + i == this->cursor_index_);
+                      this->top_index_ + i == this->cursor_index_);
     }
   }
 }

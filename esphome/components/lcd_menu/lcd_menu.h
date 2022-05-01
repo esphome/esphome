@@ -32,9 +32,7 @@ class LCDCharacterMenuComponent : public display_menu_base::DisplayMenuComponent
 
  protected:
   void draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) override;
-  void update() override {
-    this->display_->update();
-  }
+  void update() override { this->display_->update(); }
 
   lcd_base::LCDDisplay *display_;
   uint8_t columns_;
