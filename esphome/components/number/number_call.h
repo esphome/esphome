@@ -13,6 +13,8 @@ enum NumberOperation {
   NUMBER_OP_SET,
   NUMBER_OP_NEXT,
   NUMBER_OP_PREVIOUS,
+  NUMBER_OP_FIRST,
+  NUMBER_OP_LAST,
 };
 
 class NumberCall {
@@ -25,6 +27,8 @@ class NumberCall {
 
   NumberCall &number_next(bool cycle);
   NumberCall &number_previous(bool cycle);
+  NumberCall &number_first();
+  NumberCall &number_last();
 
   NumberCall &with_operation(NumberOperation operation);
   NumberCall &with_value(float value);

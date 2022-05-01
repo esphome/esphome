@@ -57,6 +57,8 @@ NumberOperation = number_ns.enum("NumberOperation")
 NUMBER_TO_OPTIONS = {
     "NEXT": NumberOperation.NUMBER_OP_NEXT,
     "PREVIOUS": NumberOperation.NUMBER_OP_PREVIOUS,
+    "FIRST": NumberOperation.NUMBER_OP_FIRST,
+    "LAST": NumberOperation.NUMBER_OP_LAST,
 }
 
 icon = cv.icon
@@ -169,12 +171,18 @@ async def to_code(config):
     cg.add_global(number_ns.using)
 
 
+OPERATION_BASE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(Number),
+    }
+)
+
+
 @automation.register_action(
     "number.set",
     NumberSetAction,
-    cv.Schema(
+    OPERATION_BASE_SCHEMA.extend(
         {
-            cv.Required(CONF_ID): cv.use_id(Number),
             cv.Required(CONF_VALUE): cv.templatable(cv.float_),
         }
     ),
@@ -191,9 +199,8 @@ async def number_set_to_code(config, action_id, template_arg, args):
     "number.next",
     NumberToAction,
     automation.maybe_simple_id(
-        cv.Schema(
+        OPERATION_BASE_SCHEMA.extend(
             {
-                cv.Required(CONF_ID): cv.use_id(Number),
                 cv.Optional(CONF_MODE, default="NEXT"): cv.one_of("NEXT", upper=True),
                 cv.Optional(CONF_CYCLE, default=True): cv.boolean,
             }
@@ -204,9 +211,8 @@ async def number_set_to_code(config, action_id, template_arg, args):
     "number.previous",
     NumberToAction,
     automation.maybe_simple_id(
-        cv.Schema(
+        OPERATION_BASE_SCHEMA.extend(
             {
-                cv.Required(CONF_ID): cv.use_id(Number),
                 cv.Optional(CONF_MODE, default="PREVIOUS"): cv.one_of(
                     "PREVIOUS", upper=True
                 ),
@@ -216,11 +222,32 @@ async def number_set_to_code(config, action_id, template_arg, args):
     ),
 )
 @automation.register_action(
+    "number.first",
+    NumberToAction,
+    automation.maybe_simple_id(
+        OPERATION_BASE_SCHEMA.extend(
+            {
+                cv.Optional(CONF_MODE, default="FIRST"): cv.one_of("FIRST", upper=True),
+            }
+        )
+    ),
+)
+@automation.register_action(
+    "number.last",
+    NumberToAction,
+    automation.maybe_simple_id(
+        OPERATION_BASE_SCHEMA.extend(
+            {
+                cv.Optional(CONF_MODE, default="LAST"): cv.one_of("LAST", upper=True),
+            }
+        )
+    ),
+)
+@automation.register_action(
     "number.to",
     NumberToAction,
-    cv.Schema(
+    OPERATION_BASE_SCHEMA.extend(
         {
-            cv.Required(CONF_ID): cv.use_id(Number),
             cv.Required(CONF_TO): cv.templatable(
                 cv.enum(NUMBER_TO_OPTIONS, upper=True)
             ),
@@ -234,9 +261,11 @@ async def number_to_to_code(config, action_id, template_arg, args):
     if CONF_TO in config:
         to_ = await cg.templatable(config[CONF_TO], args, NumberOperation)
         cg.add(var.set_operation(to_))
-        cycle_ = await cg.templatable(config[CONF_CYCLE], args, bool)
-        cg.add(var.set_cycle(cycle_))
+        if CONF_CYCLE in config:
+            cycle_ = await cg.templatable(config[CONF_CYCLE], args, bool)
+            cg.add(var.set_cycle(cycle_))
     if CONF_MODE in config:
         cg.add(var.set_operation(NUMBER_TO_OPTIONS[config[CONF_MODE]]))
-        cg.add(var.set_cycle(config[CONF_CYCLE]))
+        if CONF_CYCLE in config:
+            cg.add(var.set_cycle(config[CONF_CYCLE]))
     return var

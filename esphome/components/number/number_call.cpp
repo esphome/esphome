@@ -19,6 +19,14 @@ NumberCall &NumberCall::number_previous(bool cycle) {
   return this->with_operation(NUMBER_OP_PREVIOUS).with_cycle(cycle);
 }
 
+NumberCall &NumberCall::number_first() {
+  return this->with_operation(NUMBER_OP_FIRST);
+}
+
+NumberCall &NumberCall::number_last() {
+  return this->with_operation(NUMBER_OP_LAST);
+}
+
 NumberCall &NumberCall::with_operation(NumberOperation operation) {
   this->operation_ = operation;
   return *this;
@@ -55,6 +63,10 @@ void NumberCall::perform() {
       return;
     }
     target_value = this->value_.value();
+  } else if (this->operation_ == NUMBER_OP_FIRST) {
+    target_value = std::isnan(min_value) ? std::numeric_limits<float>::min() : min_value;
+  } else if (this->operation_ == NUMBER_OP_LAST) {
+    target_value = std::isnan(max_value) ? std::numeric_limits<float>::max() : max_value;
   } else if (this->operation_ == NUMBER_OP_NEXT) {
     ESP_LOGD(TAG, "'%s' - Next number, with%s cycling", name, this->cycle_ ? "" : "out");
     if (!parent->has_state()) {
