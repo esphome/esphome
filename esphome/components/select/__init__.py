@@ -202,9 +202,11 @@ async def select_operation_to_code(config, action_id, template_arg, args):
     if CONF_TO in config:
         to_ = await cg.templatable(config[CONF_TO], args, SelectOperation)
         cg.add(var.set_operation(to_))
-        cycle_ = await cg.templatable(config[CONF_CYCLE], args, bool)
-        cg.add(var.set_cycle(cycle_))
+        if CONF_CYCLE in config:
+            cycle_ = await cg.templatable(config[CONF_CYCLE], args, bool)
+            cg.add(var.set_cycle(cycle_))
     if CONF_MODE in config:
         cg.add(var.set_operation(SELECT_TO_OPTIONS[config[CONF_MODE]]))
-        cg.add(var.set_cycle(config[CONF_CYCLE]))
+        if CONF_CYCLE in config:
+            cg.add(var.set_cycle(config[CONF_CYCLE]))
     return var
