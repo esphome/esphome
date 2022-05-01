@@ -1,10 +1,18 @@
 #pragma once
 
-#include "esphome/components/number/number.h"
-#include "esphome/components/select/select.h"
-#include "esphome/components/switch/switch.h"
-#include "esphome/components/lcd_base/lcd_display.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
+
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 #include <forward_list>
 #include <vector>
@@ -44,12 +52,18 @@ class MenuItem {
   const std::string &get_text() const { return this->text_; }
   void set_writer(item_writer_t &&writer) { this->writer_ = writer; }
   const optional<item_writer_t> &get_writer() const { return this->writer_; }
+#ifdef USE_SELECT
   void set_select_variable(select::Select *var) { this->select_var_ = var; }
+#endif
+#ifdef USE_NUMBER
   void set_number_variable(number::Number *var) { this->number_var_ = var; }
+  void set_format(const std::string &fmt) { this->format_ = fmt; }
+#endif
+#ifdef USE_SWITCH
   void set_switch_variable(switch_::Switch *var) { this->switch_var_ = var; }
   void set_on_text(const std::string &t) { this->switch_on_text_ = t; }
   void set_off_text(const std::string &t) { this->switch_off_text_ = t; }
-  void set_format(const std::string &fmt) { this->format_ = fmt; }
+#endif
   void set_immediate_edit(bool val) { this->immediate_edit_ = val; }
   void add_on_enter_callback(std::function<void()> &&cb) { this->on_enter_callbacks_.add(std::move(cb)); }
   void add_on_leave_callback(std::function<void()> &&cb) { this->on_leave_callbacks_.add(std::move(cb)); }
@@ -58,22 +72,29 @@ class MenuItem {
   size_t items_size() const { return this->items_.size(); }
   MenuItem *get_item(size_t i) { return this->items_[i]; }
 
-  const std::string &get_option_text() const;
   bool get_immediate_edit() const { return this->immediate_edit_; }
 
-  float get_number_value() const;
-  std::string get_number_text() const;
+  const std::string &get_option_text() const;
 
   bool get_switch_state() const;
   const std::string &get_switch_text() const;
 
+  float get_number_value() const;
+  std::string get_number_text() const;
+
+#ifdef USE_SELECT
   bool next_option();
   bool prev_option();
+#endif
 
+#ifdef USE_NUMBER
   bool inc_number();
   bool dec_number();
+#endif
 
+#ifdef USE_SWITCH
   bool toggle_switch();
+#endif
 
   void on_enter();
   void on_leave();
@@ -85,12 +106,18 @@ class MenuItem {
   std::string text_;
   std::vector<MenuItem *> items_;
   bool immediate_edit_{false};
+#ifdef USE_SELECT
+  select::Select *select_var_{nullptr};
+#endif
+#ifdef USE_NUMBER
+  number::Number *number_var_{nullptr};
   std::string format_;
+#endif
+#ifdef USE_SWITCH
+  switch_::Switch *switch_var_{nullptr};
   std::string switch_on_text_;
   std::string switch_off_text_;
-  select::Select *select_var_{nullptr};
-  number::Number *number_var_{nullptr};
-  switch_::Switch *switch_var_{nullptr};
+#endif
   CallbackManager<void()> on_enter_callbacks_{};
   CallbackManager<void()> on_leave_callbacks_{};
   CallbackManager<void()> on_value_callbacks_{};

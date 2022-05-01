@@ -1,11 +1,7 @@
 #pragma once
 
-#include "esphome/components/number/number.h"
-#include "esphome/components/select/select.h"
-#include "esphome/components/switch/switch.h"
 #include "esphome/components/lcd_base/lcd_display.h"
 #include "esphome/components/display_menu_base/display_menu_base.h"
-#include "esphome/core/component.h"
 
 #include <forward_list>
 #include <vector>

@@ -8,6 +8,8 @@ namespace display_menu_base {
 
 static const char *const TAG = "display_menu";
 
+static const std::string EMPTY_STRING;
+
 void DisplayMenuComponent::setup() {}
 
 void DisplayMenuComponent::up() {
@@ -19,13 +21,19 @@ void DisplayMenuComponent::up() {
     if (this->editing_) {
       switch (this->get_selected_item_()->get_type()) {
         case MENU_ITEM_SELECT:
+#ifdef USE_SELECT
           chg = this->get_selected_item_()->prev_option();
+#endif
           break;
         case MENU_ITEM_NUMBER:
+#ifdef USE_NUMBER
           chg = this->get_selected_item_()->dec_number();
+#endif
           break;
         case MENU_ITEM_SWITCH:
+#ifdef USE_SWITCH
           chg = this->get_selected_item_()->toggle_switch();
+#endif
           break;
         default:
           break;
@@ -55,13 +63,19 @@ void DisplayMenuComponent::down() {
     if (this->editing_) {
       switch (this->get_selected_item_()->get_type()) {
         case MENU_ITEM_SELECT:
+#ifdef USE_SELECT
           chg = this->get_selected_item_()->next_option();
+#endif
           break;
         case MENU_ITEM_NUMBER:
+#ifdef USE_NUMBER
           chg = this->get_selected_item_()->inc_number();
+#endif
           break;
         case MENU_ITEM_SWITCH:
+#ifdef USE_SWITCH
           chg = this->get_selected_item_()->toggle_switch();
+#endif
           break;
         default:
           break;
@@ -115,7 +129,9 @@ void DisplayMenuComponent::enter() {
           break;
         case MENU_ITEM_SELECT:
           if (item->get_immediate_edit()) {
+#ifdef USE_SELECT
             chg = item->next_option();
+#endif
           } else {
             this->editing_ = true;
             item->on_enter();
@@ -129,7 +145,9 @@ void DisplayMenuComponent::enter() {
           break;
         case MENU_ITEM_SWITCH:
           if (item->get_immediate_edit()) {
+#ifdef USE_SWITCH
             chg = item->toggle_switch();
+#endif
           } else {
             this->editing_ = true;
             item->on_enter();
@@ -240,6 +258,7 @@ void MenuItem::on_leave() { this->on_leave_callbacks_.call(); }
 
 void MenuItem::on_value() { this->on_value_callbacks_.call(); }
 
+#ifdef USE_SELECT
 bool MenuItem::next_option() {
   bool chg = false;
 
@@ -289,7 +308,9 @@ bool MenuItem::prev_option() {
 
   return chg;
 }
+#endif // USE_SELECT
 
+#ifdef USE_NUMBER
 bool MenuItem::inc_number() {
   bool chg = false;
 
@@ -327,7 +348,9 @@ bool MenuItem::dec_number() {
 
   return chg;
 }
+#endif // USE_NUMBER
 
+#ifdef USE_SWITCH
 bool MenuItem::toggle_switch() {
   bool chg = false;
 
@@ -339,19 +362,22 @@ bool MenuItem::toggle_switch() {
 
   return chg;
 }
+#endif // USE_SWITCH
 
 const std::string &MenuItem::get_option_text() const {
+#ifdef USE_SELECT
   if (this->item_type_ == MENU_ITEM_SELECT && this->select_var_ != nullptr) {
     return this->select_var_->state;
-  } else {
-    static std::string empty_string;
-    return empty_string;
   }
+#endif
+
+  return EMPTY_STRING;
 }
 
 float MenuItem::get_number_value() const {
   float val = 0.0;
 
+#ifdef USE_NUMBER
   if (this->item_type_ == MENU_ITEM_NUMBER && this->number_var_ != nullptr) {
     if (!this->number_var_->has_state() || this->number_var_->state < this->number_var_->traits.get_min_value()) {
       val = this->number_var_->traits.get_min_value();
@@ -361,22 +387,35 @@ float MenuItem::get_number_value() const {
       val = this->number_var_->state;
     }
   }
+#endif
 
   return val;
 }
 
 std::string MenuItem::get_number_text() const {
+#ifdef USE_NUMBER
   char data[32];
   snprintf(data, sizeof(data), this->format_.c_str(), get_number_value());
   return data;
+#else
+  return EMPTY_STRING;
+#endif
 }
 
 bool MenuItem::get_switch_state() const {
+#ifdef USE_SWITCH
   return (this->item_type_ == MENU_ITEM_SWITCH && this->switch_var_ != nullptr && this->switch_var_->state);
+#else
+  return false;
+#endif
 }
 
 const std::string &MenuItem::get_switch_text() const {
+#ifdef USE_SWITCH
   return this->get_switch_state() ? this->switch_on_text_ : this->switch_off_text_;
+#else
+  return EMPTY_STRING;
+#endif
 }
 
 }  // namespace display_menu_base
