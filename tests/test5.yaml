@@ -170,13 +170,13 @@ select:
       - select.next:
           id: template_select_id
           cycle: false
-      - select.to:
+      - select.operation:
           id: template_select_id
-          to: Previous
+          operation: Previous
           cycle: false
-      - select.to:
+      - select.operation:
           id: template_select_id
-          to: !lambda "return SELECT_OP_PREVIOUS;"
+          operation: !lambda "return SELECT_OP_PREVIOUS;"
           cycle: !lambda "return true;"
       - select.set_index:
           id: template_select_id
