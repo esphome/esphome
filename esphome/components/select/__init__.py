@@ -11,7 +11,7 @@ from esphome.const import (
     CONF_MQTT_ID,
     CONF_CYCLE,
     CONF_MODE,
-    CONF_TO,
+    CONF_OPERATION,
     CONF_INDEX,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -33,11 +33,11 @@ SelectStateTrigger = select_ns.class_(
 # Actions
 SelectSetAction = select_ns.class_("SelectSetAction", automation.Action)
 SelectSetIndexAction = select_ns.class_("SelectSetIndexAction", automation.Action)
-SelectToAction = select_ns.class_("SelectToAction", automation.Action)
+SelectOperationAction = select_ns.class_("SelectOperationAction", automation.Action)
 
 # Enums
 SelectOperation = select_ns.enum("SelectOperation")
-SELECT_TO_OPTIONS = {
+SELECT_OPERATION_OPTIONS = {
     "NEXT": SelectOperation.SELECT_OP_NEXT,
     "PREVIOUS": SelectOperation.SELECT_OP_PREVIOUS,
     "FIRST": SelectOperation.SELECT_OP_FIRST,
@@ -137,12 +137,12 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "select.to",
-    SelectToAction,
+    "select.operation",
+    SelectOperationAction,
     OPERATION_BASE_SCHEMA.extend(
         {
-            cv.Required(CONF_TO): cv.templatable(
-                cv.enum(SELECT_TO_OPTIONS, upper=True)
+            cv.Required(CONF_OPERATION): cv.templatable(
+                cv.enum(SELECT_OPERATION_OPTIONS, upper=True)
             ),
             cv.Optional(CONF_CYCLE, default=True): cv.templatable(cv.boolean),
         }
@@ -150,7 +150,7 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
 )
 @automation.register_action(
     "select.next",
-    SelectToAction,
+    SelectOperationAction,
     automation.maybe_simple_id(
         OPERATION_BASE_SCHEMA.extend(
             {
@@ -162,7 +162,7 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
 )
 @automation.register_action(
     "select.previous",
-    SelectToAction,
+    SelectOperationAction,
     automation.maybe_simple_id(
         OPERATION_BASE_SCHEMA.extend(
             {
@@ -176,7 +176,7 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
 )
 @automation.register_action(
     "select.first",
-    SelectToAction,
+    SelectOperationAction,
     automation.maybe_simple_id(
         OPERATION_BASE_SCHEMA.extend(
             {
@@ -187,7 +187,7 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
 )
 @automation.register_action(
     "select.last",
-    SelectToAction,
+    SelectOperationAction,
     automation.maybe_simple_id(
         OPERATION_BASE_SCHEMA.extend(
             {
@@ -199,14 +199,14 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
 async def select_operation_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_TO in config:
-        to_ = await cg.templatable(config[CONF_TO], args, SelectOperation)
-        cg.add(var.set_operation(to_))
+    if CONF_OPERATION in config:
+        op_ = await cg.templatable(config[CONF_OPERATION], args, SelectOperation)
+        cg.add(var.set_operation(op_))
         if CONF_CYCLE in config:
             cycle_ = await cg.templatable(config[CONF_CYCLE], args, bool)
             cg.add(var.set_cycle(cycle_))
     if CONF_MODE in config:
-        cg.add(var.set_operation(SELECT_TO_OPTIONS[config[CONF_MODE]]))
+        cg.add(var.set_operation(SELECT_OPERATION_OPTIONS[config[CONF_MODE]]))
         if CONF_CYCLE in config:
             cg.add(var.set_cycle(config[CONF_CYCLE]))
     return var
