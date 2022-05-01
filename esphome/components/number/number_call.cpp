@@ -11,20 +11,20 @@ NumberCall &NumberCall::set_value(float value) {
   return this->with_operation(NUMBER_OP_SET).with_value(value);
 }
 
-NumberCall &NumberCall::number_next(bool cycle) {
-  return this->with_operation(NUMBER_OP_NEXT).with_cycle(cycle);
+NumberCall &NumberCall::number_increment(bool cycle) {
+  return this->with_operation(NUMBER_OP_INCREMENT).with_cycle(cycle);
 }
 
-NumberCall &NumberCall::number_previous(bool cycle) {
-  return this->with_operation(NUMBER_OP_PREVIOUS).with_cycle(cycle);
+NumberCall &NumberCall::number_decrement(bool cycle) {
+  return this->with_operation(NUMBER_OP_DECREMENT).with_cycle(cycle);
 }
 
-NumberCall &NumberCall::number_first() {
-  return this->with_operation(NUMBER_OP_FIRST);
+NumberCall &NumberCall::number_to_min() {
+  return this->with_operation(NUMBER_OP_TO_MIN);
 }
 
-NumberCall &NumberCall::number_last() {
-  return this->with_operation(NUMBER_OP_LAST);
+NumberCall &NumberCall::number_to_max() {
+  return this->with_operation(NUMBER_OP_TO_MAX);
 }
 
 NumberCall &NumberCall::with_operation(NumberOperation operation) {
@@ -63,38 +63,46 @@ void NumberCall::perform() {
       return;
     }
     target_value = this->value_.value();
-  } else if (this->operation_ == NUMBER_OP_FIRST) {
-    target_value = std::isnan(min_value) ? std::numeric_limits<float>::min() : min_value;
-  } else if (this->operation_ == NUMBER_OP_LAST) {
-    target_value = std::isnan(max_value) ? std::numeric_limits<float>::max() : max_value;
-  } else if (this->operation_ == NUMBER_OP_NEXT) {
-    ESP_LOGD(TAG, "'%s' - Next number, with%s cycling", name, this->cycle_ ? "" : "out");
-    if (!parent->has_state()) {
-      ESP_LOGW(TAG, "'%s' - Can't set next number through NumberCall: no active state to modify", name);
-      return;
+  } else if (this->operation_ == NUMBER_OP_TO_MIN) {
+    if (std::isnan(min_value)) {
+      ESP_LOGW(TAG, "'%s' - Can't set to min value through NumberCall: no min_value defined", name);
     } else {
-      target_value = parent->state + traits.get_step();
-      if (target_value > max_value) {
-        if (this->cycle_) {
-          target_value = std::isnan(min_value) ? std::numeric_limits<float>::min() : min_value;
-        } else {
-          target_value = max_value;
-        }
-      }
-    } 
-  } else if (this->operation_ == NUMBER_OP_PREVIOUS) {
-    ESP_LOGD(TAG, "'%s' - Previous number, with%s cycling", name, this->cycle_ ? "" : "out");
-    if (!parent->has_state()) {
-      ESP_LOGW(TAG, "'%s' - Can't set previous number through NumberCall: no active state to modify", name);
-      return;
+      target_value = min_value;
+    }
+  } else if (this->operation_ == NUMBER_OP_TO_MAX) {
+    if (std::isnan(max_value)) {
+      ESP_LOGW(TAG, "'%s' - Can't set to max value through NumberCall: no max_value defined", name);
     } else {
-      target_value = parent->state - traits.get_step();
-      if (target_value < min_value) {
-        if (this->cycle_) {
-          target_value = std::isnan(max_value) ? std::numeric_limits<float>::max() : max_value;
+      target_value = max_value;
+    }
+  } else if (this->operation_ == NUMBER_OP_INCREMENT) {
+    ESP_LOGD(TAG, "'%s' - Increment number, with%s cycling", name, this->cycle_ ? "" : "out");
+    if (!parent->has_state()) {
+      ESP_LOGW(TAG, "'%s' - Can't increment number through NumberCall: no active state to modify", name);
+      return;
+    }
+    auto step = traits.get_step();
+    target_value = parent->state + (std::isnan(step) ? 1 : step);
+    if (target_value > max_value) {
+        if (this->cycle_ && !std::isnan(min_value)) {
+            target_value = min_value;
         } else {
-          target_value = min_value;
+            target_value = max_value;
         }
+    }
+  } else if (this->operation_ == NUMBER_OP_DECREMENT) {
+    ESP_LOGD(TAG, "'%s' - Decrement number, with%s cycling", name, this->cycle_ ? "" : "out");
+    if (!parent->has_state()) {
+      ESP_LOGW(TAG, "'%s' - Can't decrement number through NumberCall: no active state to modify", name);
+      return;
+    }
+    auto step = traits.get_step();
+    target_value = parent->state - (std::isnan(step) ? 1 : step);
+    if (target_value < min_value) {
+      if (this->cycle_ && !std::isnan(max_value)) {
+        target_value = max_value;
+      } else {
+        target_value = min_value;
       }
     }
   }

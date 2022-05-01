@@ -11,10 +11,10 @@ class Number;
 enum NumberOperation {
   NUMBER_OP_NONE,
   NUMBER_OP_SET,
-  NUMBER_OP_NEXT,
-  NUMBER_OP_PREVIOUS,
-  NUMBER_OP_FIRST,
-  NUMBER_OP_LAST,
+  NUMBER_OP_INCREMENT,
+  NUMBER_OP_DECREMENT,
+  NUMBER_OP_TO_MIN,
+  NUMBER_OP_TO_MAX,
 };
 
 class NumberCall {
@@ -25,10 +25,10 @@ class NumberCall {
   NumberCall &set_value(float value);
   const optional<float> &get_value() const { return value_; }
 
-  NumberCall &number_next(bool cycle);
-  NumberCall &number_previous(bool cycle);
-  NumberCall &number_first();
-  NumberCall &number_last();
+  NumberCall &number_increment(bool cycle);
+  NumberCall &number_decrement(bool cycle);
+  NumberCall &number_to_min();
+  NumberCall &number_to_max();
 
   NumberCall &with_operation(NumberOperation operation);
   NumberCall &with_value(float value);

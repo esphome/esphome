@@ -14,7 +14,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     CONF_MQTT_ID,
     CONF_VALUE,
-    CONF_TO,
+    CONF_OPERATION,
     CONF_CYCLE,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -37,7 +37,7 @@ ValueRangeTrigger = number_ns.class_(
 
 # Actions
 NumberSetAction = number_ns.class_("NumberSetAction", automation.Action)
-NumberToAction = number_ns.class_("NumberToAction", automation.Action)
+NumberOperationAction = number_ns.class_("NumberOperationAction", automation.Action)
 
 # Conditions
 NumberInRangeCondition = number_ns.class_(
@@ -54,11 +54,11 @@ NUMBER_MODES = {
 
 NumberOperation = number_ns.enum("NumberOperation")
 
-NUMBER_TO_OPTIONS = {
-    "NEXT": NumberOperation.NUMBER_OP_NEXT,
-    "PREVIOUS": NumberOperation.NUMBER_OP_PREVIOUS,
-    "FIRST": NumberOperation.NUMBER_OP_FIRST,
-    "LAST": NumberOperation.NUMBER_OP_LAST,
+NUMBER_OPERATION_OPTIONS = {
+    "INCREMENT": NumberOperation.NUMBER_OP_INCREMENT,
+    "DECREMENT": NumberOperation.NUMBER_OP_DECREMENT,
+    "TO_MIN": NumberOperation.NUMBER_OP_TO_MIN,
+    "TO_MAX": NumberOperation.NUMBER_OP_TO_MAX,
 }
 
 icon = cv.icon
@@ -196,25 +196,13 @@ async def number_set_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "number.next",
-    NumberToAction,
+    "number.increment",
+    NumberOperationAction,
     automation.maybe_simple_id(
         OPERATION_BASE_SCHEMA.extend(
             {
-                cv.Optional(CONF_MODE, default="NEXT"): cv.one_of("NEXT", upper=True),
-                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
-            }
-        )
-    ),
-)
-@automation.register_action(
-    "number.previous",
-    NumberToAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="PREVIOUS"): cv.one_of(
-                    "PREVIOUS", upper=True
+                cv.Optional(CONF_MODE, default="INCREMENT"): cv.one_of(
+                    "INCREMENT", upper=True
                 ),
                 cv.Optional(CONF_CYCLE, default=True): cv.boolean,
             }
@@ -222,34 +210,52 @@ async def number_set_to_code(config, action_id, template_arg, args):
     ),
 )
 @automation.register_action(
-    "number.first",
-    NumberToAction,
+    "number.decrement",
+    NumberOperationAction,
     automation.maybe_simple_id(
         OPERATION_BASE_SCHEMA.extend(
             {
-                cv.Optional(CONF_MODE, default="FIRST"): cv.one_of("FIRST", upper=True),
+                cv.Optional(CONF_MODE, default="DECREMENT"): cv.one_of(
+                    "DECREMENT", upper=True
+                ),
+                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
             }
         )
     ),
 )
 @automation.register_action(
-    "number.last",
-    NumberToAction,
+    "number.to_min",
+    NumberOperationAction,
     automation.maybe_simple_id(
         OPERATION_BASE_SCHEMA.extend(
             {
-                cv.Optional(CONF_MODE, default="LAST"): cv.one_of("LAST", upper=True),
+                cv.Optional(CONF_MODE, default="TO_MIN"): cv.one_of(
+                    "TO_MIN", upper=True
+                ),
             }
         )
     ),
 )
 @automation.register_action(
-    "number.to",
-    NumberToAction,
+    "number.to_max",
+    NumberOperationAction,
+    automation.maybe_simple_id(
+        OPERATION_BASE_SCHEMA.extend(
+            {
+                cv.Optional(CONF_MODE, default="TO_MAX"): cv.one_of(
+                    "TO_MAX", upper=True
+                ),
+            }
+        )
+    ),
+)
+@automation.register_action(
+    "number.operation",
+    NumberOperationAction,
     OPERATION_BASE_SCHEMA.extend(
         {
-            cv.Required(CONF_TO): cv.templatable(
-                cv.enum(NUMBER_TO_OPTIONS, upper=True)
+            cv.Required(CONF_OPERATION): cv.templatable(
+                cv.enum(NUMBER_OPERATION_OPTIONS, upper=True)
             ),
             cv.Optional(CONF_CYCLE, default=True): cv.templatable(cv.boolean),
         }
@@ -258,14 +264,14 @@ async def number_set_to_code(config, action_id, template_arg, args):
 async def number_to_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_TO in config:
-        to_ = await cg.templatable(config[CONF_TO], args, NumberOperation)
+    if CONF_OPERATION in config:
+        to_ = await cg.templatable(config[CONF_OPERATION], args, NumberOperation)
         cg.add(var.set_operation(to_))
         if CONF_CYCLE in config:
             cycle_ = await cg.templatable(config[CONF_CYCLE], args, bool)
             cg.add(var.set_cycle(cycle_))
     if CONF_MODE in config:
-        cg.add(var.set_operation(NUMBER_TO_OPTIONS[config[CONF_MODE]]))
+        cg.add(var.set_operation(NUMBER_OPERATION_OPTIONS[config[CONF_MODE]]))
         if CONF_CYCLE in config:
             cg.add(var.set_cycle(config[CONF_CYCLE]))
     return var

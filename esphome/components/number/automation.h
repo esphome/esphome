@@ -29,9 +29,9 @@ template<typename... Ts> class NumberSetAction : public Action<Ts...> {
   Number *number_;
 };
 
-template<typename... Ts> class NumberToAction : public Action<Ts...> {
+template<typename... Ts> class NumberOperationAction : public Action<Ts...> {
  public:
-  explicit NumberToAction(Number *number) : number_(number) {}
+  explicit NumberOperationAction(Number *number) : number_(number) {}
   TEMPLATABLE_VALUE(NumberOperation, operation)
   TEMPLATABLE_VALUE(bool, cycle)
 
