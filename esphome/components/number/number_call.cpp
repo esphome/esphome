@@ -7,9 +7,7 @@ namespace number {
 
 static const char *const TAG = "number";
 
-NumberCall &NumberCall::set_value(float value) {
-  return this->with_operation(NUMBER_OP_SET).with_value(value);
-}
+NumberCall &NumberCall::set_value(float value) { return this->with_operation(NUMBER_OP_SET).with_value(value); }
 
 NumberCall &NumberCall::number_increment(bool cycle) {
   return this->with_operation(NUMBER_OP_INCREMENT).with_cycle(cycle);
@@ -19,13 +17,9 @@ NumberCall &NumberCall::number_decrement(bool cycle) {
   return this->with_operation(NUMBER_OP_DECREMENT).with_cycle(cycle);
 }
 
-NumberCall &NumberCall::number_to_min() {
-  return this->with_operation(NUMBER_OP_TO_MIN);
-}
+NumberCall &NumberCall::number_to_min() { return this->with_operation(NUMBER_OP_TO_MIN); }
 
-NumberCall &NumberCall::number_to_max() {
-  return this->with_operation(NUMBER_OP_TO_MAX);
-}
+NumberCall &NumberCall::number_to_max() { return this->with_operation(NUMBER_OP_TO_MAX); }
 
 NumberCall &NumberCall::with_operation(NumberOperation operation) {
   this->operation_ = operation;
@@ -84,11 +78,11 @@ void NumberCall::perform() {
     auto step = traits.get_step();
     target_value = parent->state + (std::isnan(step) ? 1 : step);
     if (target_value > max_value) {
-        if (this->cycle_ && !std::isnan(min_value)) {
-            target_value = min_value;
-        } else {
-            target_value = max_value;
-        }
+      if (this->cycle_ && !std::isnan(min_value)) {
+        target_value = min_value;
+      } else {
+        target_value = max_value;
+      }
     }
   } else if (this->operation_ == NUMBER_OP_DECREMENT) {
     ESP_LOGD(TAG, "'%s' - Decrement number, with%s cycling", name, this->cycle_ ? "" : "out");

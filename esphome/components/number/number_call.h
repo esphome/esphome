@@ -36,7 +36,7 @@ class NumberCall {
 
  protected:
   Number *const parent_;
-  NumberOperation operation_{NUMBER_OP_NONE}; 
+  NumberOperation operation_{NUMBER_OP_NONE};
   optional<float> value_;
   bool cycle_;
 };
