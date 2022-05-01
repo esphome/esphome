@@ -128,6 +128,32 @@ number:
       - logger.log:
           format: "Template Number set to %f"
           args: ["x"]
+      - number.set:
+          id: template_number_id
+          value: 50
+      - number.first: template_number_id
+      - number.first:
+          id: template_number_id
+      - number.last: template_number_id
+      - number.last:
+          id: template_number_id
+      - number.next: template_number_id
+      - number.next:
+          id: template_number_id
+          cycle: false
+      - number.previous: template_number_id
+      - number.previous:
+          id: template_number_id
+          cycle: false
+      - number.to:
+          id: template_number_id
+          to: Next
+          cycle: false
+      - number.to:
+          id: template_number_id
+          to: !lambda "return NUMBER_OP_NEXT;"
+          cycle: !lambda "return false;"
+
     max_value: 100
     min_value: 0
     step: 5
