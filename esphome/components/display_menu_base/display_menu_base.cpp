@@ -308,7 +308,7 @@ bool MenuItem::prev_option() {
 
   return chg;
 }
-#endif // USE_SELECT
+#endif  // USE_SELECT
 
 #ifdef USE_NUMBER
 bool MenuItem::inc_number() {
@@ -348,7 +348,7 @@ bool MenuItem::dec_number() {
 
   return chg;
 }
-#endif // USE_NUMBER
+#endif  // USE_NUMBER
 
 #ifdef USE_SWITCH
 bool MenuItem::toggle_switch() {
@@ -362,7 +362,7 @@ bool MenuItem::toggle_switch() {
 
   return chg;
 }
-#endif // USE_SWITCH
+#endif  // USE_SWITCH
 
 const std::string &MenuItem::get_option_text() const {
 #ifdef USE_SELECT
