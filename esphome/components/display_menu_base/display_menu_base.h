@@ -126,12 +126,12 @@ class DisplayMenuComponent : public Component {
   void process_initial_();
   MenuItem *get_selected_item_() { return this->displayed_item_->get_item(this->cursor_index_); }
   void finish_editing_();
-  virtual void draw_();
-  virtual void draw_item_(const MenuItem *item, uint8_t row, bool selected) = 0;
-  virtual void update_() {}
-  virtual void draw_and_update_() {
-    draw();
-    update_();
+  virtual void draw_menu();
+  virtual void draw_item(const MenuItem *item, uint8_t row, bool selected) = 0;
+  virtual void update() {}
+  virtual void draw_and_update() {
+    draw_menu();
+    update();
   }
 
   uint8_t rows_;
@@ -146,5 +146,5 @@ class DisplayMenuComponent : public Component {
   bool root_on_enter_called_{false};
 };
 
-}  // namespace display_menu
+}  // namespace display_menu_base
 }  // namespace esphome

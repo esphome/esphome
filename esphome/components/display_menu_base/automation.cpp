@@ -6,5 +6,5 @@ namespace display_menu_base {
 
 static const char *const TAG = "display_menu.automation";
 
-}  // namespace lcd_menu
+}  // namespace display_menu_base
 }  // namespace esphome

@@ -42,7 +42,7 @@ void DisplayMenuComponent::up() {
     }
 
     if (chg)
-      this->draw_and_update_();
+      this->draw_and_update();
   }
 }
 
@@ -78,7 +78,7 @@ void DisplayMenuComponent::down() {
     }
 
     if (chg)
-      this->draw_and_update_();
+      this->draw_and_update();
   }
 }
 
@@ -146,13 +146,13 @@ void DisplayMenuComponent::enter() {
     }
 
     if (chg)
-      this->draw_and_update_();
+      this->draw_and_update();
   }
 }
 
 void DisplayMenuComponent::draw() {
   this->process_initial_();
-  this->draw_();
+  this->draw_menu();
 }
 
 void DisplayMenuComponent::show_main() {
@@ -175,7 +175,7 @@ void DisplayMenuComponent::show_main() {
     this->displayed_item_->on_enter();
   }
 
-  this->draw_and_update_();
+  this->draw_and_update();
 }
 
 void DisplayMenuComponent::show() {
@@ -183,7 +183,7 @@ void DisplayMenuComponent::show() {
 
   if (!this->active_) {
     this->active_ = true;
-    this->draw_and_update_();
+    this->draw_and_update();
   }
 }
 
@@ -194,7 +194,7 @@ void DisplayMenuComponent::hide() {
     if (this->editing_)
       this->finish_editing_();
     this->active_ = false;
-    this->update_();
+    this->update();
   }
 }
 
@@ -225,10 +225,10 @@ void DisplayMenuComponent::finish_editing_() {
   this->editing_ = false;
 }
 
-void DisplayMenuComponent::draw_() {
+void DisplayMenuComponent::draw_menu() {
   if (this->active_) {
     for (size_t i = 0; i < this->rows_ && this->top_index_ + i < this->displayed_item_->items_size(); ++i) {
-      this->draw_item_(this->displayed_item_->get_item(this->top_index_ + i), i,
+      this->draw_item(this->displayed_item_->get_item(this->top_index_ + i), i,
                        this->top_index_ + i == this->cursor_index_);
     }
   }
@@ -379,5 +379,5 @@ const std::string &MenuItem::get_switch_text() const {
   return this->get_switch_state() ? this->switch_on_text_ : this->switch_off_text_;
 }
 
-}  // namespace lcd_menu
+}  // namespace display_menu_base
 }  // namespace esphome

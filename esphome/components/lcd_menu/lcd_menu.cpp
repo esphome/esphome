@@ -15,7 +15,7 @@ void LCDCharacterMenuComponent::dump_config() {
                 this->mark_submenu_, this->mark_back_);
 }
 
-void LCDCharacterMenuComponent::draw_item_(const display_menu_base::MenuItem *item, uint8_t row, bool selected) {
+void LCDCharacterMenuComponent::draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) {
   char data[this->columns_ + 1];  // Bounded to 65 through the config
 
   memset(data, ' ', this->columns_);

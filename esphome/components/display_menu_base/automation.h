@@ -95,5 +95,5 @@ class DisplayMenuOnValueTrigger : public Trigger<const MenuItem *> {
   }
 };
 
-}  // namespace lcd_menu
+}  // namespace display_menu_base
 }  // namespace esphome

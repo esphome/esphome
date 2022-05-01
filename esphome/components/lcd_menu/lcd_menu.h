@@ -31,8 +31,8 @@ class LCDCharacterMenuComponent : public display_menu_base::DisplayMenuComponent
   void dump_config() override;
 
  protected:
-  virtual void draw_item_(const display_menu_base::MenuItem *item, uint8_t row, bool selected);
-  virtual void update_() {
+  void draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) override;
+  void update() override {
     this->display_->update();
   }
 
