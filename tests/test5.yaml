@@ -120,6 +120,11 @@ number:
     name: My template number
     id: template_number_id
     optimistic: true
+    max_value: 100
+    min_value: 0
+    step: 5
+    unit_of_measurement: "%"
+    mode: slider
     on_value:
       - logger.log:
           format: "Number changed to %f"
@@ -131,34 +136,28 @@ number:
       - number.set:
           id: template_number_id
           value: 50
-      - number.first: template_number_id
-      - number.first:
+      - number.to_min: template_number_id
+      - number.to_min:
           id: template_number_id
-      - number.last: template_number_id
-      - number.last:
+      - number.to_max: template_number_id
+      - number.to_max:
           id: template_number_id
-      - number.next: template_number_id
-      - number.next:
-          id: template_number_id
-          cycle: false
-      - number.previous: template_number_id
-      - number.previous:
+      - number.increment: template_number_id
+      - number.increment:
           id: template_number_id
           cycle: false
-      - number.to:
+      - number.decrement: template_number_id
+      - number.decrement:
           id: template_number_id
-          to: Next
           cycle: false
-      - number.to:
+      - number.operation:
           id: template_number_id
-          to: !lambda "return NUMBER_OP_NEXT;"
+          operation: Increment
+          cycle: false
+      - number.operation:
+          id: template_number_id
+          operation: !lambda "return NUMBER_OP_INCREMENT;"
           cycle: !lambda "return false;"
-
-    max_value: 100
-    min_value: 0
-    step: 5
-    unit_of_measurement: "%"
-    mode: slider
 
   - id: modbus_numbertest
     platform: modbus_controller
