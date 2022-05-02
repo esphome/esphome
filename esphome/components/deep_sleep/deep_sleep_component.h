@@ -9,6 +9,10 @@
 #include <esp_sleep.h>
 #endif
 
+#ifdef USE_TIME
+#include "esphome/components/time/real_time_clock.h"
+#endif
+
 namespace esphome {
 namespace deep_sleep {
 
@@ -116,15 +120,71 @@ template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
   EnterDeepSleepAction(DeepSleepComponent *deep_sleep) : deep_sleep_(deep_sleep) {}
   TEMPLATABLE_VALUE(uint32_t, sleep_duration);
 
+#ifdef USE_TIME
+  void set_until(uint8_t hour, uint8_t minute, uint8_t second) {
+    this->hour_ = hour;
+    this->minute_ = minute;
+    this->second_ = second;
+  }
+
+  void set_time(time::RealTimeClock *time) { this->time_ = time; }
+#endif
+
   void play(Ts... x) override {
     if (this->sleep_duration_.has_value()) {
       this->deep_sleep_->set_sleep_duration(this->sleep_duration_.value(x...));
     }
+#ifdef USE_TIME
+
+    if (this->hour_.has_value()) {
+      auto time = this->time_->now();
+      const uint32_t timestamp_now = time.timestamp;
+
+      bool after_time = false;
+      if (time.hour > this->hour_) {
+        after_time = true;
+      } else {
+        if (time.hour == this->hour_) {
+          if (time.minute > this->minute_) {
+            after_time = true;
+          } else {
+            if (time.minute == this->minute_) {
+              if (time.second > this->second_) {
+                after_time = true;
+              }
+            }
+          }
+        }
+      }
+
+      time.hour = *this->hour_;
+      time.minute = *this->minute_;
+      time.second = *this->second_;
+      time.recalc_timestamp_utc();
+
+      time_t timestamp = time.timestamp;  // timestamp in local time zone
+
+      if (after_time)
+        timestamp += 60 * 60 * 24;
+
+      int32_t offset = time::ESPTime::timezone_offset();
+      timestamp -= offset;  // Change timestamp to utc
+      const uint32_t ms_left = (timestamp - timestamp_now) * 1000;
+      this->deep_sleep_->set_sleep_duration(ms_left);
+    }
+#endif
     this->deep_sleep_->begin_sleep(true);
   }
 
  protected:
   DeepSleepComponent *deep_sleep_;
+#ifdef USE_TIME
+  optional<uint8_t> hour_;
+  optional<uint8_t> minute_;
+  optional<uint8_t> second_;
+
+  time::RealTimeClock *time_;
+#endif
 };
 
 template<typename... Ts> class PreventDeepSleepAction : public Action<Ts...> {

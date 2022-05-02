@@ -29,6 +29,7 @@ from esphome.const import (
     CONF_WINDOW_SIZE,
     CONF_MQTT_ID,
     CONF_FORCE_UPDATE,
+    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_BATTERY,
@@ -70,6 +71,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
@@ -212,8 +214,8 @@ SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
         cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
-                cv.Optional(CONF_ABOVE): cv.float_,
-                cv.Optional(CONF_BELOW): cv.float_,
+                cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
+                cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
             },
             cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
         ),

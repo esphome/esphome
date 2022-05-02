@@ -32,6 +32,7 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
 
   void set_parent(ModbusController *const parent) { this->parent_ = parent; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
+  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   void set_template(transform_func_t &&f) { this->transform_func_ = f; }
   void set_write_template(write_transform_func_t &&f) { this->write_transform_func_ = f; }
 
@@ -43,6 +44,7 @@ class ModbusSelect : public Component, public select::Select, public SensorItem 
   std::vector<int64_t> mapping_;
   ModbusController *parent_;
   bool use_write_multiple_{false};
+  bool optimistic_{false};
   optional<transform_func_t> transform_func_;
   optional<write_transform_func_t> write_transform_func_;
 };

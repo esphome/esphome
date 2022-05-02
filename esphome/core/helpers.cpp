@@ -213,6 +213,25 @@ std::string format_hex_pretty(const uint8_t *data, size_t length) {
 }
 std::string format_hex_pretty(const std::vector<uint8_t> &data) { return format_hex_pretty(data.data(), data.size()); }
 
+std::string format_hex_pretty(const uint16_t *data, size_t length) {
+  if (length == 0)
+    return "";
+  std::string ret;
+  ret.resize(5 * length - 1);
+  for (size_t i = 0; i < length; i++) {
+    ret[5 * i] = format_hex_pretty_char((data[i] & 0xF000) >> 12);
+    ret[5 * i + 1] = format_hex_pretty_char((data[i] & 0x0F00) >> 8);
+    ret[5 * i + 2] = format_hex_pretty_char((data[i] & 0x00F0) >> 4);
+    ret[5 * i + 3] = format_hex_pretty_char(data[i] & 0x000F);
+    if (i != length - 1)
+      ret[5 * i + 2] = '.';
+  }
+  if (length > 4)
+    return ret + " (" + to_string(length) + ")";
+  return ret;
+}
+std::string format_hex_pretty(const std::vector<uint16_t> &data) { return format_hex_pretty(data.data(), data.size()); }
+
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   if (on == nullptr && strcasecmp(str, "on") == 0)
     return PARSE_ON;
