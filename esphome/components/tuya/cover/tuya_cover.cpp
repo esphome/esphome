@@ -66,7 +66,7 @@ void TuyaCover::control(const cover::CoverCall &call) {
       auto position_int = static_cast<uint32_t>(pos * this->value_range_);
       position_int = position_int + this->min_value_;
 
-      parent_->set_integer_datapoint_value(*this->position_id_, position_int);
+      parent_->force_set_integer_datapoint_value(*this->position_id_, position_int);
     }
   }
   if (call.get_position().has_value()) {
@@ -82,7 +82,7 @@ void TuyaCover::control(const cover::CoverCall &call) {
       auto position_int = static_cast<uint32_t>(pos * this->value_range_);
       position_int = position_int + this->min_value_;
 
-      parent_->set_integer_datapoint_value(*this->position_id_, position_int);
+      parent_->force_set_integer_datapoint_value(*this->position_id_, position_int);
     }
   }
 
