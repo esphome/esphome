@@ -24,6 +24,7 @@ void SomfyProgButton::dump_config() {
 void SomfyProgButton::setup() {
   pinMode(EMITTER_GPIO, OUTPUT);
   digitalWrite(EMITTER_GPIO, LOW);
+  ELECHOUSE_cc1101.setSpiPin(14, 12, 13, 15);
   ELECHOUSE_cc1101.Init();
   ELECHOUSE_cc1101.setMHZ(CC1101_FREQUENCY);
   SomfyRemote* somfyremote_ = new SomfyRemote(EMITTER_GPIO, this->remote_id_);
