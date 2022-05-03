@@ -47,6 +47,8 @@ bool BLEClient::parse_device(const espbt::ESPBTDevice &device) {
     return false;
   if (this->state() != espbt::ClientState::IDLE)
     return false;
+  if (!should_connect_)
+    return false;
 
   ESP_LOGD(TAG, "Found device at MAC address [%s]", device.address_str().c_str());
   this->set_states_(espbt::ClientState::DISCOVERED);

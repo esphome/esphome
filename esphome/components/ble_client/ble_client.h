@@ -97,6 +97,18 @@ class BLEClient : public espbt::ESPBTClient, public Component {
 
   void set_enabled(bool enabled);
 
+  void set_maintain_connection(bool maintain_connection) {
+    maintain_connection_ = maintain_connection;
+    // Set the value of should_connect_ to the same as maintain_connection. The goal is
+    // to have sane defaults:
+    // - If maintain_connection, we already will try to connect
+    // - If !maintain_connection, we won't try to connect right away
+    should_connect_ = maintain_connection;
+  }
+  bool get_maintain_connection() const { return maintain_connection_; }
+  void set_should_connect(bool should_connect) { should_connect_ = should_connect; }
+  bool get_should_connect() const { return should_connect_; }
+
   void register_ble_node(BLEClientNode *node) {
     node->client = this;
     node->set_ble_client_parent(this);
@@ -121,10 +133,10 @@ class BLEClient : public espbt::ESPBTClient, public Component {
   bool enabled;
   std::string address_str() const;
 
-  // TODO(rbaron): properly encapsulate should_connect_.
-  bool should_connect_ = false;
-
  protected:
+  bool maintain_connection_ = true;
+  bool should_connect_ = true;
+
   void set_states_(espbt::ClientState st) {
     this->set_state(st);
     for (auto &node : nodes_)

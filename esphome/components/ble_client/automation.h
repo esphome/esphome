@@ -42,8 +42,8 @@ class BLEWriterClientNode : public BLEClientNode {
     ble_client_ = ble_client;
   }
 
-  // Attempts to write the contents of value to char_uuid_.
-  void write();
+  // Attempts to write the contents of value_ to char_uuid_.
+  bool write();
 
   void set_char_uuid128(uint8_t *uuid) { this->char_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
 
@@ -78,7 +78,9 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
     } else {
       this->set_value(this->value_template_(x...));
     }
-    ble_client_->should_connect_ = true;
+    if (!ble_client_->get_maintain_connection()) {
+      ble_client_->set_should_connect(true);
+    }
     pending_write_ = true;
   }
 

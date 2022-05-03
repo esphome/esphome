@@ -17,6 +17,8 @@ from esphome import automation
 CODEOWNERS = ["@buxtronix"]
 DEPENDENCIES = ["esp32_ble_tracker"]
 
+CONF_MAINTAIN_CONNECTION = "maintain_connection"
+
 ble_client_ns = cg.esphome_ns.namespace("ble_client")
 BLEClient = ble_client_ns.class_(
     "BLEClient", cg.Component, esp32_ble_tracker.ESPBTClient
@@ -43,6 +45,7 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(BLEClient),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_NAME): cv.string,
+            cv.Optional(CONF_MAINTAIN_CONNECTION, default=True): cv.boolean,
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -114,6 +117,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await esp32_ble_tracker.register_client(var, config)
+    cg.add(var.set_maintain_connection(config[CONF_MAINTAIN_CONNECTION]))
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     for conf in config.get(CONF_ON_CONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
