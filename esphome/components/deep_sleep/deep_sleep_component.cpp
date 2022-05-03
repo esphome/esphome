@@ -109,7 +109,8 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 
   App.run_safe_shutdown_hooks();
 
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
+#if defined(USE_ESP32) 
+#if !defined(USE_ESP32_VARIANT_ESP32C3)
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
   if (this->wakeup_pin_ != nullptr) {
@@ -127,10 +128,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
     esp_sleep_enable_touchpad_wakeup();
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
   }
-
-  esp_deep_sleep_start();
 #endif
-
 #ifdef USE_ESP32_VARIANT_ESP32C3
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
@@ -142,6 +140,10 @@ void DeepSleepComponent::begin_sleep(bool manual) {
     esp_deep_sleep_enable_gpio_wakeup(gpio_num_t(this->wakeup_pin_->get_pin()), static_cast<esp_deepsleep_gpio_wake_up_mode_t>(level));
   }
 #endif
+  esp_deep_sleep_start();
+#endif
+
+
 
 #ifdef USE_ESP8266
   ESP.deepSleep(*this->sleep_duration_);  // NOLINT(readability-static-accessed-through-instance)
