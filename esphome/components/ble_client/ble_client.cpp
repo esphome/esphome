@@ -260,18 +260,18 @@ float BLEClient::parse_char_value(uint8_t *value, uint16_t length) {
   if (length == 0)
     return 0;
   if (length == 1)
-    return (float)((uint8_t) value[0]);
+    return (float) ((uint8_t) value[0]);
 
   switch (value[0]) {
     case 0x1:  // boolean.
     case 0x2:  // 2bit.
     case 0x3:  // nibble.
     case 0x4:  // uint8.
-      return (float)((uint8_t) value[1]);
+      return (float) ((uint8_t) value[1]);
     case 0x5:  // uint12.
     case 0x6:  // uint16.
       if (length > 2) {
-        return (float)((uint16_t)(value[1] << 8) + (uint16_t) value[2]);
+        return (float) ((uint16_t)(value[1] << 8) + (uint16_t) value[2]);
       }
     case 0x7:  // uint24.
       if (length > 3) {
@@ -279,23 +279,23 @@ float BLEClient::parse_char_value(uint8_t *value, uint16_t length) {
       }
     case 0x8:  // uint32.
       if (length > 4) {
-        return (float)((uint32_t)(value[1] << 24) + (uint32_t)(value[2] << 16) + (uint32_t)(value[3] << 8) +
+        return (float) ((uint32_t)(value[1] << 24) + (uint32_t)(value[2] << 16) + (uint32_t)(value[3] << 8) +
                         (uint32_t)(value[4]));
       }
     case 0xC:  // int8.
-      return (float)((int8_t) value[1]);
+      return (float) ((int8_t) value[1]);
     case 0xD:  // int12.
     case 0xE:  // int16.
       if (length > 2) {
-        return (float)((int16_t)(value[1] << 8) + (int16_t) value[2]);
+        return (float) ((int16_t)(value[1] << 8) + (int16_t) value[2]);
       }
     case 0xF:  // int24.
       if (length > 3) {
-        return (float)((int32_t)(value[1] << 16) + (int32_t)(value[2] << 8) + (int32_t)(value[3]));
+        return (float) ((int32_t)(value[1] << 16) + (int32_t)(value[2] << 8) + (int32_t)(value[3]));
       }
     case 0x10:  // int32.
       if (length > 4) {
-        return (float)((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) +
+        return (float) ((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) +
                         (int32_t)(value[4]));
       }
   }
