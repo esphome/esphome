@@ -76,11 +76,13 @@ void DeepSleepComponent::set_sleep_duration(uint32_t time_ms) { this->sleep_dura
 void DeepSleepComponent::set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode) {
   this->wakeup_pin_mode_ = wakeup_pin_mode;
 }
+#if !defined(USE_ESP32_VARIANT_ESP32C3)
 void DeepSleepComponent::set_ext1_wakeup(Ext1Wakeup ext1_wakeup) { this->ext1_wakeup_ = ext1_wakeup; }
 void DeepSleepComponent::set_touch_wakeup(bool touch_wakeup) { this->touch_wakeup_ = touch_wakeup; }
 void DeepSleepComponent::set_run_duration(WakeupCauseToRunDuration wakeup_cause_to_run_duration) {
   wakeup_cause_to_run_duration_ = wakeup_cause_to_run_duration;
 }
+#endif
 #endif
 void DeepSleepComponent::set_run_duration(uint32_t time_ms) { this->run_duration_ = time_ms; }
 void DeepSleepComponent::begin_sleep(bool manual) {
@@ -137,7 +139,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
     if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && this->wakeup_pin_->digital_read()) {
       level = !level;
     }
-    esp_deep_sleep_enable_gpio_wakeup(gpio_num_t(this->wakeup_pin_->get_pin()), level);
+    esp_deep_sleep_enable_gpio_wakeup(gpio_num_t(this->wakeup_pin_->get_pin()), static_cast<esp_deepsleep_gpio_wake_up_mode_t>(level));
   }
 #endif
 
