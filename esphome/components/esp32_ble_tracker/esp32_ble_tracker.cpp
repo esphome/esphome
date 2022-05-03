@@ -202,7 +202,7 @@ bool ESP32BLETracker::ble_setup() {
     return false;
   }
 
-  uint8_t key_size = 16;      //the key size should be 7~16 bytes
+  uint8_t key_size = 16;  // the key size should be 7~16 bytes
   err = esp_ble_gap_set_security_param(ESP_BLE_SM_MAX_KEY_SIZE, &key_size, sizeof(uint8_t));
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_security_param failed: %d", err);
