@@ -1,6 +1,7 @@
 #ifdef USE_ESP8266
 
 #include "core.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
