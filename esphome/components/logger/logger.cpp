@@ -255,8 +255,7 @@ float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; 
 const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE"};
 #ifdef USE_ESP32
 const char *const UART_SELECTIONS[] = {
-    "UART0",
-    "UART1",
+    "UART0",           "UART1",
 #if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
     "UART2",
 #endif
