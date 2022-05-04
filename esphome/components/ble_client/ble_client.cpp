@@ -275,7 +275,7 @@ float BLEClient::parse_char_value(uint8_t *value, uint16_t length) {
       }
     case 0x7:  // uint24.
       if (length > 3) {
-        return (float)((uint32_t)(value[1] << 16) + (uint32_t)(value[2] << 8) + (uint32_t)(value[3]));
+        return (float) ((uint32_t)(value[1] << 16) + (uint32_t)(value[2] << 8) + (uint32_t)(value[3]));
       }
     case 0x8:  // uint32.
       if (length > 4) {
