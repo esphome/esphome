@@ -189,7 +189,6 @@ void Bedjet::control(const ClimateCall &call) {
     } else if (preset == "EXT HT") {
       pkt = this->codec_->get_button_request(BTN_EXTHT);
     } else {
-    }
       ESP_LOGW(TAG, "Unsupported preset: %s", preset.c_str());
       return;
     }
