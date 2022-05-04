@@ -12,30 +12,27 @@ static const char *const TAG = "stepper";
  *
  */
 void Stepper::request_stop() {
-
-  if( this->current_speed_ == 0.0f ) {
+  if (this->current_speed_ == 0.0f) {
     this->target_position = this->current_position;
 
   } else {
-
     // Compute steps needed to decelerate:
     float v_squared = this->current_speed_ * this->current_speed_;
     auto steps_to_decelerate = static_cast<int32_t>(v_squared / (2 * this->deceleration_));
 
     // Adjust the target:
 
-    int32_t target_dist = abs( int32_t(this->target_position) - int32_t(this->current_position) );
-    if( target_dist <= steps_to_decelerate ) {
+    int32_t target_dist = abs(int32_t(this->target_position) - int32_t(this->current_position));
+    if (target_dist <= steps_to_decelerate) {
       // Probably already decelerating, so let's not increase the distance
       steps_to_decelerate = target_dist;
     }
 
     // Based on the direction of movement, adjust the target position:
-    if( this->current_speed_ < 0 ) {
+    if (this->current_speed_ < 0) {
       this->target_position = this->current_position - steps_to_decelerate;
     } else
       this->target_position = this->current_position + steps_to_decelerate;
-
   }
 }
 
@@ -50,13 +47,13 @@ void Stepper::calculate_speed_(uint32_t now) {
 
   int32_t target_difference = int32_t(this->target_position) - int32_t(this->current_position);
 
-  if( (target_difference > 0) && (this->current_speed_ < 0 ) ) {
+  if ((target_difference > 0) && (this->current_speed_ < 0)) {
     // wrong direction (negative), need to decelerate:
     this->current_speed_ += this->deceleration_ * dt;
     return;
   }
 
-  if( (target_difference < 0) && (this->current_speed_ > 0 ) ) {
+  if ((target_difference < 0) && (this->current_speed_ > 0)) {
     // wrong direction (positive), need to decelerate:
     this->current_speed_ -= this->deceleration_ * dt;
     return;
@@ -68,16 +65,18 @@ void Stepper::calculate_speed_(uint32_t now) {
   auto steps_to_decelerate = static_cast<int32_t>(v_squared / (2 * this->deceleration_));
   if (num_steps <= steps_to_decelerate) {
     // need to start decelerating
-    if( target_difference > 0 )
+    if (target_difference > 0) {
       this->current_speed_ -= this->deceleration_ * dt;
-    else
+    } else {
       this->current_speed_ += this->deceleration_ * dt;
+    }
   } else {
     // we can still accelerate
-    if( target_difference > 0 )
+    if (target_difference > 0) {
       this->current_speed_ += this->acceleration_ * dt;
-    else
+    } else {
       this->current_speed_ -= this->acceleration_ * dt;
+    }
   }
 
   this->current_speed_ = clamp(this->current_speed_, -this->max_speed_, this->max_speed_);
@@ -91,7 +90,7 @@ int32_t Stepper::should_step_() {
 
   // assumes this method is called in a constant interval
   uint32_t dt = now - this->last_step_;
-  if (dt >= (1. / abs(this->current_speed_)) * 1e6f) {
+  if (dt >= (1. / std::abs(this->current_speed_)) * 1e6f) {
     int32_t mag = this->current_speed_ > 0 ? 1 : -1;
     this->last_step_ = now;
     this->current_position += mag;
