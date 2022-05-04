@@ -18,7 +18,8 @@ void Stepper::request_stop() {
   } else {
     // Compute steps needed to decelerate:
     float v_squared = this->current_speed_ * this->current_speed_;
-    auto steps_to_decelerate = static_cast<int32_t>(v_squared / (2 * this->deceleration_));
+    auto steps_to_decelerate =
+        static_cast<int32_t>(v_squared / (2 * this->deceleration_));
 
     // Adjust the target:
 
@@ -62,7 +63,8 @@ void Stepper::calculate_speed_(uint32_t now) {
   int32_t num_steps = abs(int32_t(this->target_position) - int32_t(this->current_position));
   // (v_0)^2 / 2*a
   float v_squared = this->current_speed_ * this->current_speed_;
-  auto steps_to_decelerate = static_cast<int32_t>(v_squared / (2 * this->deceleration_));
+  auto steps_to_decelerate =
+      static_cast<int32_t>(v_squared / (2 * this->deceleration_));
   if (num_steps <= steps_to_decelerate) {
     // need to start decelerating
     if (target_difference > 0) {
@@ -100,5 +102,5 @@ int32_t Stepper::should_step_() {
   return 0;
 }
 
-}  // namespace stepper
-}  // namespace esphome
+} // namespace stepper
+} // namespace esphome
