@@ -21,6 +21,7 @@ class Stepper {
   void set_max_speed(float max_speed) { this->max_speed_ = max_speed; }
   virtual void on_update_speed() {}
   bool has_reached_target() { return this->current_position == this->target_position; }
+  void request_stop();
 
   int32_t current_position{0};
   int32_t target_position{0};
