@@ -149,9 +149,7 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART0_SWAP:
 #endif
         this->hw_serial_ = &Serial;
-#if !ARDUINO_USB_CDC_ON_BOOT
         Serial.begin(this->baud_rate_);
-#endif
 #ifdef USE_ESP8266
         if (this->uart_ == UART_SELECTION_UART0_SWAP) {
           Serial.swap();
