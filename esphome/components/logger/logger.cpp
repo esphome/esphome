@@ -159,9 +159,7 @@ void Logger::pre_setup() {
         break;
       case UART_SELECTION_UART1:
         this->hw_serial_ = &Serial1;
-#if !ARDUINO_USB_CDC_ON_BOOT
         Serial1.begin(this->baud_rate_);
-#endif
 #ifdef USE_ESP8266
         Serial1.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
 #endif
