@@ -117,10 +117,12 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
     if (
-#if defined(USE_ESP32_VARIANT_ESP32C3)
+#if defined(USE_ESP32_VARIANT_ESP32S2)
         uart_ == UART_SELECTION_USB_CDC
-#elif defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#elif defined(USE_ESP32_VARIANT_ESP32C3)
         uart_ == UART_SELECTION_USB_SERIAL_JTAG
+#elif defined(USE_ESP32_VARIANT_ESP32S3)
+        uart_ == UART_SELECTION_USB_CDC || uart_ == UART_SELECTION_USB_SERIAL_JTAG
 #else
         /* DISABLES CODE */ (false)
 #endif
@@ -188,11 +190,12 @@ void Logger::pre_setup() {
         break;
 #endif
 #if defined(USE_ESP_IDF)
-#if defined(USE_ESP32_VARIANT_ESP32C3)
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
       case UART_SELECTION_USB_CDC:
         uart_num_ = -1;
         break;
-#elif defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#endif
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
       case UART_SELECTION_USB_SERIAL_JTAG:
         uart_num_ = -1;
         break;
@@ -258,9 +261,10 @@ const char *const UART_SELECTIONS[] = {
     "UART2",
 #endif
 #if defined(USE_ESP_IDF)
-#if defined(USE_ESP32_VARIANT_ESP32C3)
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
     "USB_CDC",
-#elif defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#endif
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
     "USB_SERIAL_JTAG",
 #endif
 #endif
