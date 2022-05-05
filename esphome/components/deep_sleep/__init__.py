@@ -1,13 +1,18 @@
 import esphome.codegen as cg
+from esphome.components import time
 import esphome.config_validation as cv
 from esphome import pins, automation
 from esphome.const import (
+    CONF_HOUR,
     CONF_ID,
+    CONF_MINUTE,
     CONF_MODE,
     CONF_NUMBER,
     CONF_PINS,
     CONF_RUN_DURATION,
+    CONF_SECOND,
     CONF_SLEEP_DURATION,
+    CONF_TIME_ID,
     CONF_WAKEUP_PIN,
 )
 
@@ -15,6 +20,7 @@ from esphome.components.esp32 import get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
     VARIANT_ESP32C3,
+    VARIANT_ESP32S2,
 )
 
 WAKEUP_PINS = {
@@ -39,6 +45,30 @@ WAKEUP_PINS = {
         39,
     ],
     VARIANT_ESP32C3: [0, 1, 2, 3, 4, 5],
+    VARIANT_ESP32S2: [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+    ],
 }
 
 
@@ -87,6 +117,7 @@ CONF_TOUCH_WAKEUP = "touch_wakeup"
 CONF_DEFAULT = "default"
 CONF_GPIO_WAKEUP_REASON = "gpio_wakeup_reason"
 CONF_TOUCH_WAKEUP_REASON = "touch_wakeup_reason"
+CONF_UNTIL = "until"
 
 WAKEUP_CAUSES_SCHEMA = cv.Schema(
     {
@@ -177,13 +208,19 @@ async def to_code(config):
     cg.add_define("USE_DEEP_SLEEP")
 
 
-DEEP_SLEEP_ENTER_SCHEMA = automation.maybe_simple_id(
-    {
-        cv.GenerateID(): cv.use_id(DeepSleepComponent),
-        cv.Optional(CONF_SLEEP_DURATION): cv.templatable(
-            cv.positive_time_period_milliseconds
-        ),
-    }
+DEEP_SLEEP_ENTER_SCHEMA = cv.All(
+    automation.maybe_simple_id(
+        {
+            cv.GenerateID(): cv.use_id(DeepSleepComponent),
+            cv.Exclusive(CONF_SLEEP_DURATION, "time"): cv.templatable(
+                cv.positive_time_period_milliseconds
+            ),
+            # Only on ESP32 due to how long the RTC on ESP8266 can stay asleep
+            cv.Exclusive(CONF_UNTIL, "time"): cv.All(cv.only_on_esp32, cv.time_of_day),
+            cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+        }
+    ),
+    cv.has_none_or_all_keys(CONF_UNTIL, CONF_TIME_ID),
 )
 
 
@@ -203,6 +240,14 @@ async def deep_sleep_enter_to_code(config, action_id, template_arg, args):
     if CONF_SLEEP_DURATION in config:
         template_ = await cg.templatable(config[CONF_SLEEP_DURATION], args, cg.int32)
         cg.add(var.set_sleep_duration(template_))
+
+    if CONF_UNTIL in config:
+        until = config[CONF_UNTIL]
+        cg.add(var.set_until(until[CONF_HOUR], until[CONF_MINUTE], until[CONF_SECOND]))
+
+        time_ = await cg.get_variable(config[CONF_TIME_ID])
+        cg.add(var.set_time(time_))
+
     return var
 
 
