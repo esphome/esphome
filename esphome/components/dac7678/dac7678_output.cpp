@@ -19,7 +19,6 @@ const uint8_t DAC7678_REG_SOFTWARE_RESET = 0x70;
 const uint8_t DAC7678_REG_INTERNAL_REF_0 = 0x80;
 const uint8_t DAC7678_REG_INTERNAL_REF_1 = 0x90;
 
-
 void DAC7678Output::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DAC7678OutputComponent...");
 
@@ -30,33 +29,29 @@ void DAC7678Output::setup() {
     ESP_LOGE(TAG, "Reset failed");
     this->mark_failed();
     return;
-  }
-  else
-	ESP_LOGV(TAG, "Reset succeeded");
+  } else
+    ESP_LOGV(TAG, "Reset succeeded");
 
   delayMicroseconds(1000);
 
   // Set internal reference
-  if(this->internal_reference_)
-  {
-	if (!this->write_byte_16(DAC7678_REG_INTERNAL_REF_0, 1 << 4)) {
-	  ESP_LOGE(TAG, "Set internal reference failed");
-	  this->mark_failed();
-	  return;
-	}
-	else
-	  ESP_LOGV(TAG, "Internal reference enabled");
+  if (this->internal_reference_) {
+    if (!this->write_byte_16(DAC7678_REG_INTERNAL_REF_0, 1 << 4)) {
+      ESP_LOGE(TAG, "Set internal reference failed");
+      this->mark_failed();
+      return;
+    } else
+      ESP_LOGV(TAG, "Internal reference enabled");
   }
-  
+
   this->loop();
 }
 
 void DAC7678Output::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Setting up DAC7678 failed!");
-  }
-  else
-	ESP_LOGCONFIG(TAG, "DAC7678 initialised");
+  } else
+    ESP_LOGCONFIG(TAG, "DAC7678 initialised");
 }
 
 void DAC7678Output::loop() {
@@ -86,9 +81,9 @@ void DAC7678Output::register_channel(DAC7678Channel *channel) {
 }
 
 void DAC7678Output::set_channel_value_(uint8_t channel, uint16_t value) {
-if (this->dac_input_reg_[channel] != value)
-  this->update_ = true;
-this->dac_input_reg_[channel] = value;
+  if (this->dac_input_reg_[channel] != value)
+    this->update_ = true;
+  this->dac_input_reg_[channel] = value;
 }
 
 void DAC7678Channel::write_state(float state) {

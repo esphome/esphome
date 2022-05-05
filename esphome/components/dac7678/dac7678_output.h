@@ -16,7 +16,7 @@ class DAC7678Channel : public output::FloatOutput, public Parented<DAC7678Output
 
  protected:
   friend class DAC7678Output;
-  
+
   const uint16_t full_scale_ = 0xFFF;
 
   void write_state(float state) override;
@@ -30,7 +30,7 @@ class DAC7678Output : public Component, public i2c::I2CDevice {
   DAC7678Output() {}
 
   void register_channel(DAC7678Channel *channel);
-  
+
   void set_internal_reference(const bool value) { this->internal_reference_ = value; }
 
   void setup() override;
@@ -40,9 +40,9 @@ class DAC7678Output : public Component, public i2c::I2CDevice {
 
  protected:
   friend DAC7678Channel;
-  
+
   bool internal_reference_;
-  
+
   void set_channel_value_(uint8_t channel, uint16_t value);
 
   uint8_t min_channel_{0xFF};
