@@ -13,7 +13,7 @@ static const int INSIGNIA_INIT_HIGH_US =   4400;
 static const int INSIGNIA_INIT_LOW_US =    4400;
 static const int INSIGNIA_ONE_LOW_US =     600;
 static const int INSIGNIA_ZERO_LOW_US =    1600; 
-static const int INSIGNIA_HIGH_US =        400;
+static const int INSIGNIA_HIGH_US =        550;
 
 static const uint8_t INSIGNIA_PACKET_LENGTH = 6;
 
@@ -118,9 +118,14 @@ void InsigniaClimate::transmit_state() {
       remote_state[1] |= INSIGNIA_POWER_ON;
     }
 
-    // Set Point
-    // The factory remote always sends a set point, even in modes where its not used
-    remote_state[2] = 34 + (uint8_t) roundf(clamp<float>(this->target_temperature, INSIGNIA_TEMP_MIN, INSIGNIA_TEMP_MAX));
+    // Temperature Set Point
+
+    // The factory remote always sends a set point, even in modes where its not used.
+    // ESPHome always presents this number in celcius, regardless of frontend settings.
+    // This AC unit only supports farhenheit, so we need to convert it back.
+    float target_celcius = clamp<float>(this->target_temperature, INSIGNIA_TEMP_MIN, INSIGNIA_TEMP_MAX);
+    uint8_t target_farhenheit = roundf( target_celcius * 1.8 + 32.0 );
+    remote_state[2] = 34 + target_farhenheit;
 
     // Packets 3 and 4 are not used for state packets
     remote_state[3] = 0xff;
@@ -171,16 +176,17 @@ void InsigniaClimate::send_packet(uint8_t const *message, uint8_t length) {
   for (uint8_t msgbyte = 0; msgbyte < length; msgbyte++) {
     for (uint8_t bit = 0; bit < 8; bit++) {
       data->mark(INSIGNIA_HIGH_US);
-      if (message[msgbyte] & (0x08 >> bit)) {   // shift bits out left to right
+      if (message[msgbyte] & (0x80 >> bit)) {   // shift bits out left to right
         data->space(INSIGNIA_ONE_LOW_US);
       } else {
         data->space(INSIGNIA_ZERO_LOW_US);
       }
     }
   }
+  // End the last bit
+  data->mark(INSIGNIA_HIGH_US);
 
   // Stop signal
-  data->mark(INSIGNIA_INIT_HIGH_US);
   data->space(INSIGNIA_INIT_LOW_US);
 
   transmit.perform();
