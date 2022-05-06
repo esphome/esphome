@@ -776,7 +776,10 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file(s).", nargs=1
     )
 
-    parser_rename = subparsers.add_parser("rename")
+    parser_rename = subparsers.add_parser(
+        "rename",
+        help="Rename a device in YAML, compile the binary and upload it.",
+    )
     parser_rename.add_argument(
         "configuration", help="Your YAML configuration file.", nargs=1
     )
