@@ -40,16 +40,210 @@ static const uint8_t INSIGNIA_HEAT =            0x03;
 static const uint8_t INSIGNIA_FAN =             0x04;
 
 // LED Control - Command Byte 1
-static const uint32_t INSIGNIA_LED =            0x08;
+static const uint8_t INSIGNIA_LED =             0x08;
+static const uint8_t INSIGNIA_LED_CSUM =        0x75;
 
 // Swing Control - Command Byte 1
-static const uint32_t INSIGNIA_SWING_ON =       0x02;
-static const uint32_t INSIGNIA_SWING_OFF =      0x01;
+static const uint8_t INSIGNIA_SWING_ON =        0x02;
+static const uint8_t INSIGNIA_SWING_OFF =       0x01;
+
+// Follow Me Options - FM Byte 3
+static const uint8_t INSIGNIA_FM_ON =           0xff;
+static const uint8_t INSIGNIA_FM_OFF =          0x3f;
+static const uint8_t INSIGNIA_FM_UPDATE =       0x7f;
+
+void InsigniaClimate::setup() {
+  // If a sensor has been configured, use it report current temp in the frontend
+  if (this->sensor_) {
+    this->sensor_->add_on_state_callback([this](float state) {
+      this->current_temperature = state;
+      // current temperature changed, publish state
+      this->publish_state();
+    });
+    this->current_temperature = this->sensor_->state;
+  } else {
+    this->current_temperature = NAN;
+  }
+
+  // restore set points
+  auto restore = this->restore_state_();
+  if (restore.has_value()) {
+    restore->apply(this);
+  } else {
+    // restore from defaults
+    this->mode = climate::CLIMATE_MODE_OFF;
+    // initialize target temperature to some value so that it's not NAN
+    this->target_temperature =
+        roundf(clamp(this->current_temperature, this->minimum_temperature_, this->maximum_temperature_));
+    this->fan_mode = climate::CLIMATE_FAN_AUTO;
+    this->swing_mode = climate::CLIMATE_SWING_OFF;
+    this->preset = climate::CLIMATE_PRESET_NONE;
+  }
+
+  // Never send nan to HA
+  if (std::isnan(this->target_temperature)) {
+    this->target_temperature = 24;
+  }
+
+  // Setup Follow Me
+  if (this->fm_configured_) {
+    // add a callback so that whenever the Follow Me switch state changes 
+    // we can update accordingly
+    this->fm_switch_->add_on_state_callback([this](float state) {
+      this->fm_enabled_ = state;
+      this->fm_state_changed_ = true;
+      this->update();
+    });
+  }
+
+  // Setup LED switch
+  if (this->led_configured_) {
+    this->led_switch_->add_on_state_callback([this](float state) {
+      this->led_enabled_ = state;
+      this->toggle_led();
+    });
+  }
+}
+
+// We'll use the update loop to send Follow Me data if it's enabled.
+// We need to send regular update packets to the AC unit even if the
+// sensor state hasn't changed, or Follow Me mode will time out.
+void InsigniaClimate::update() {
+  if (this->fm_configured_) {
+    if (this->fm_enabled_ or this->fm_state_changed_) {
+
+      // Transition to any of these modes disables the FM feature
+      if (this->mode == climate::CLIMATE_MODE_FAN_ONLY or 
+          this->mode == climate::CLIMATE_MODE_DRY or 
+          this->mode == climate::CLIMATE_MODE_OFF 
+         ) {
+        this->fm_enabled_ = false;
+        this->fm_state_changed_ = false;
+        this->fm_switch_->turn_off();
+        ESP_LOGV(TAG, "Disabling FM due to incompatible HVAC mode");
+        return;
+      }
+
+      uint8_t remote_state[INSIGNIA_PACKET_LENGTH] = {0};
+
+      remote_state[0] = INSIGNIA_PKT_FM;
+      remote_state[1] = this->compile_hvac_byte();
+      remote_state[2] = this->compile_set_point_byte();
+
+      if (this->fm_state_changed_) {
+        if (this->fm_enabled_) {
+          ESP_LOGD(TAG, "Enabling Follow Me");
+          remote_state[3] = INSIGNIA_FM_ON;
+        } else {
+          ESP_LOGD(TAG, "Disabling Follow Me");
+          remote_state[3] = INSIGNIA_FM_OFF;
+        }
+      } else {
+        remote_state[3] = INSIGNIA_FM_UPDATE;
+      }
+      this->fm_state_changed_ = false;
+
+      // Report sensor data
+      float target_celcius = (float)(this->sensor_->get_state());
+      uint8_t target_farhenheit = roundf( target_celcius * 1.8 + 32.0 );
+      remote_state[4] = target_farhenheit - 31;
+      ESP_LOGD(TAG, "Sending FM Update with Temperature: %3u", target_farhenheit);
+
+      remote_state[5] = this->calculate_checksum(remote_state, INSIGNIA_PACKET_LENGTH - 1);
+      this->send_transmission(remote_state, INSIGNIA_PACKET_LENGTH);
+    } else {
+      // Fix switch state drift issues
+      if (this->fm_switch_->state and not this->fm_enabled_) {
+        this->fm_switch_->turn_off();
+      }
+    }
+  }
+}
+
+void InsigniaClimate::toggle_led() {
+  uint8_t remote_state[INSIGNIA_PACKET_LENGTH] = {
+    INSIGNIA_PKT_CMD,
+    INSIGNIA_LED,
+    0xff,
+    0xff,
+    0xff,
+    INSIGNIA_LED_CSUM
+  };
+  ESP_LOGD(TAG, "Sending LED Toggle");
+  this->send_transmission(remote_state, INSIGNIA_PACKET_LENGTH);
+}
+
+uint8_t InsigniaClimate::compile_hvac_byte() {
+  uint8_t hvac_byte = 0x00;
+  // HVAC Mode
+  switch (this->mode) {
+    case climate::CLIMATE_MODE_HEAT:
+      hvac_byte |= INSIGNIA_HEAT;
+      break;
+    case climate::CLIMATE_MODE_HEAT_COOL:
+      hvac_byte |= INSIGNIA_AUTO;
+      break;
+    case climate::CLIMATE_MODE_FAN_ONLY:
+      hvac_byte |= INSIGNIA_FAN;
+      break;
+    case climate::CLIMATE_MODE_DRY:
+      hvac_byte |= INSIGNIA_DRY;
+      break;
+    default:
+    case climate::CLIMATE_MODE_COOL:
+      hvac_byte |= INSIGNIA_COOL;
+      break;
+  }
+
+  // Fan Mode
+  switch (this->fan_mode.value()) {
+    case climate::CLIMATE_FAN_HIGH:
+      hvac_byte |= INSIGNIA_FAN_HIGH;
+      break;
+    case climate::CLIMATE_FAN_MEDIUM:
+      hvac_byte |= INSIGNIA_FAN_MED;
+      break;
+    case climate::CLIMATE_FAN_LOW:
+      hvac_byte |= INSIGNIA_FAN_MIN;
+      break;
+    default:
+    case climate::CLIMATE_FAN_AUTO:
+      hvac_byte |= INSIGNIA_FAN_AUTO;
+      break;
+  }
+
+  // Power
+  if (this->mode == climate::CLIMATE_MODE_OFF) {
+    hvac_byte |= INSIGNIA_POWER_OFF;
+  } else {
+    hvac_byte |= INSIGNIA_POWER_ON;
+  }
+
+  return hvac_byte;
+}
+
+uint8_t InsigniaClimate::compile_set_point_byte() {
+  // The AC expects a valid set point, even in modes where its not used.
+  // ESPHome always presents this number in celcius.
+  // This AC unit only supports farhenheit, so we need to convert it.
+  float target_celcius = clamp<float>(this->target_temperature, INSIGNIA_TEMP_MIN, INSIGNIA_TEMP_MAX);
+  uint8_t target_farhenheit = roundf( target_celcius * 1.8 + 32.0 );
+  return (34 + target_farhenheit);
+}
+
+uint8_t InsigniaClimate::calculate_checksum(uint8_t const *message, uint8_t length) {
+  uint8_t csum = 0x00;
+  for (int i = 0; i < length; i++) {
+    csum += this->reverse_bits(message[i]);
+  }
+  csum += 0xff;
+  csum = this->reverse_bits(csum) ^ 0xff;
+
+  return csum;
+}
 
 void InsigniaClimate::transmit_state() {
   uint8_t remote_state[INSIGNIA_PACKET_LENGTH] = {0};
-  uint8_t inverted_remote_state[INSIGNIA_PACKET_LENGTH] = {0};
-
   if (send_swing_cmd_) {
     // Handle swing command
     send_swing_cmd_ = false;
@@ -62,70 +256,13 @@ void InsigniaClimate::transmit_state() {
     remote_state[2] = 0xff;
     remote_state[3] = 0xff;
     remote_state[4] = 0xff;
-  // Frontend doesn't curently have a way to pass in LED state
-  // } else if (send_led_cmd_) {
-  //   // Handle LED command
-  //   remote_state[0] = INSIGNIA_PKT_CMD;
-  //   remote_state[1] = INSIGNIA_LED;
-  //   remote_state[2] = 0xff;
-  //   remote_state[3] = 0xff;
-  //   remote_state[4] = 0xff;
   } else {
     // Handle all other state changes
     remote_state[0] = INSIGNIA_PKT_STATE;
-
-    // HVAC Mode
-    switch (this->mode) {
-      case climate::CLIMATE_MODE_HEAT:
-        remote_state[1] |= INSIGNIA_HEAT;
-        break;
-      case climate::CLIMATE_MODE_HEAT_COOL:
-        remote_state[1] |= INSIGNIA_AUTO;
-        break;
-      case climate::CLIMATE_MODE_FAN_ONLY:
-        remote_state[1] |= INSIGNIA_FAN;
-        break;
-      case climate::CLIMATE_MODE_DRY:
-        remote_state[1] |= INSIGNIA_DRY;
-        break;
-      default:
-      case climate::CLIMATE_MODE_COOL:
-        remote_state[1] |= INSIGNIA_COOL;
-        break;
-    }
-
-    // Fan Mode
-    switch (this->fan_mode.value()) {
-      case climate::CLIMATE_FAN_HIGH:
-        remote_state[1] |= INSIGNIA_FAN_HIGH;
-        break;
-      case climate::CLIMATE_FAN_MEDIUM:
-        remote_state[1] |= INSIGNIA_FAN_MED;
-        break;
-      case climate::CLIMATE_FAN_LOW:
-        remote_state[1] |= INSIGNIA_FAN_MIN;
-        break;
-      default:
-      case climate::CLIMATE_FAN_AUTO:
-        remote_state[1] |= INSIGNIA_FAN_AUTO;
-        break;
-    }
-
-    // Power
-    if (this->mode == climate::CLIMATE_MODE_OFF) {
-      remote_state[1] |= INSIGNIA_POWER_OFF;
-    } else {
-      remote_state[1] |= INSIGNIA_POWER_ON;
-    }
+    remote_state[1] = this->compile_hvac_byte();
 
     // Temperature Set Point
-
-    // The factory remote always sends a set point, even in modes where its not used.
-    // ESPHome always presents this number in celcius, regardless of frontend settings.
-    // This AC unit only supports farhenheit, so we need to convert it back.
-    float target_celcius = clamp<float>(this->target_temperature, INSIGNIA_TEMP_MIN, INSIGNIA_TEMP_MAX);
-    uint8_t target_farhenheit = roundf( target_celcius * 1.8 + 32.0 );
-    remote_state[2] = 34 + target_farhenheit;
+    remote_state[2] = compile_set_point_byte();
 
     // Packets 3 and 4 are not used for state packets
     remote_state[3] = 0xff;
@@ -133,21 +270,23 @@ void InsigniaClimate::transmit_state() {
   }
 
   // Calculate checksum
-  for (int i = 0; i < 5; i++) {
-    remote_state[5] += reverse_bits(remote_state[i]);
-  }
-  remote_state[5] += 0xff;
-  remote_state[5] = reverse_bits(remote_state[5]) ^ 0xff;
+  remote_state[5] = this->calculate_checksum(remote_state, INSIGNIA_PACKET_LENGTH - 1);
 
+  send_transmission(remote_state, INSIGNIA_PACKET_LENGTH);
+}
+
+void InsigniaClimate::send_transmission(uint8_t const *message, uint8_t length) {
+  // This AC expects the same packet sent twice, one of them in one's compliment
+  // of the other
+  uint8_t inverted_message[INSIGNIA_PACKET_LENGTH] = {0};
   for (uint8_t i = 0; i < INSIGNIA_PACKET_LENGTH; i++) {
-    inverted_remote_state[i] = (remote_state[i] ^ 0xff);
+    inverted_message[i] = (message[i] ^ 0xff);
   }
 
-  ESP_LOGV(TAG, "Sending insignia code: 0x%2X %2X %2X %2X %2X %2X", remote_state[0],remote_state[1],remote_state[2],remote_state[3],remote_state[4],remote_state[5] );
+  ESP_LOGV(TAG, "Sending insignia code: 0x%2X %2X %2X %2X %2X %2X", message[0],message[1],message[2],message[3],message[4],message[5] );
 
-  this->send_packet(inverted_remote_state, INSIGNIA_PACKET_LENGTH);
-  this->send_packet(remote_state, INSIGNIA_PACKET_LENGTH);
-
+  this->send_packet(inverted_message, INSIGNIA_PACKET_LENGTH);
+  this->send_packet(message, INSIGNIA_PACKET_LENGTH);
 }
 
 uint8_t InsigniaClimate::reverse_bits(uint8_t inbyte) {
