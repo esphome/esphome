@@ -29,6 +29,8 @@ climate::ClimateTraits ClimateIR::traits() {
   return traits;
 }
 
+void ClimateIR::update() {}
+
 void ClimateIR::setup() {
   if (this->sensor_) {
     this->sensor_->add_on_state_callback([this](float state) {

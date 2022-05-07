@@ -18,7 +18,7 @@ namespace climate_ir {
     Likewise to decode a IR into the AC state, implement
       bool RemoteReceiverListener::on_receive(remote_base::RemoteReceiveData data) and return true
 */
-class ClimateIR : public climate::Climate, public Component, public remote_base::RemoteReceiverListener {
+class ClimateIR : public climate::Climate, public PollingComponent, public remote_base::RemoteReceiverListener {
  public:
   ClimateIR(float minimum_temperature, float maximum_temperature, float temperature_step = 1.0f,
             bool supports_dry = false, bool supports_fan_only = false, std::set<climate::ClimateFanMode> fan_modes = {},
@@ -34,6 +34,7 @@ class ClimateIR : public climate::Climate, public Component, public remote_base:
   }
 
   void setup() override;
+  void update() override;
   void dump_config() override;
   void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
     this->transmitter_ = transmitter;
