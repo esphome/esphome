@@ -49,7 +49,7 @@ class OnlineImage {
    * @param y Y coordinate to draw the image on.
    * @param display the display to draw to.
    */
-  void draw(int x, int y, display::DisplayBuffer *display);
+  void draw(int x, int y, display::DisplayBuffer *display, Color color_on, Color color_off);
 
  protected:
   const char *url_;
@@ -83,6 +83,17 @@ class ImageDecoder {
   };
 
   /**
+   * @brief Set the on and off colors for monochrome images.
+   *
+   * @param color_on The color to use when the original pixel is not black.
+   * @param color_off The color to use when the original pixel is black.
+   */
+  void set_monochrome_colors(Color color_on, Color color_off) {
+    color_on_ = color_on;
+    color_off_ = color_off;
+  }
+
+  /**
    * @brief Initialize the decoder.
    *
    * @param stream WiFiClient to read the data from, in case the decoder needs initial data to auto-configure itself.
@@ -106,11 +117,21 @@ class ImageDecoder {
    * @return the topmost coordinate.
    */
   int y0() { return offset_y_; }
+  /**
+   * @return the color for on pixels.
+   */
+  Color color_on() { return color_on_; }
+  /**
+   * @return the color for off pixels.
+   */
+  Color color_off() { return color_off_; }
 
  protected:
   display::DisplayBuffer *display_;
   int offset_x_ = 0;
   int offset_y_ = 0;
+  Color color_on_ = display::COLOR_ON;
+  Color color_off_ = display::COLOR_OFF;
 };
 
 }  // namespace online_image
