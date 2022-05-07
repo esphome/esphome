@@ -9,7 +9,7 @@ MULTI_CONF = True
 
 dac7678_ns = cg.esphome_ns.namespace("dac7678")
 DAC7678Output = dac7678_ns.class_("DAC7678Output", cg.Component, i2c.I2CDevice)
-CONF_DAC7678_INTERNAL_REFERENCE = 'internal_reference'
+CONF_DAC7678_INTERNAL_REFERENCE = "CONF_DAC7678_INTERNAL_REFERENCE"
 
 CONFIG_SCHEMA = (
     cv.Schema(
