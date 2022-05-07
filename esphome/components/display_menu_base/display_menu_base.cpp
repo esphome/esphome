@@ -420,11 +420,10 @@ std::string MenuItem::get_value_text() const {
         break;
 #endif
 #ifdef USE_NUMBER
-      case MENU_ITEM_NUMBER: {
-          char data[32];
-          snprintf(data, sizeof(data), this->format_.c_str(), get_number_value());
-          val = data;
-        }
+      case MENU_ITEM_NUMBER:
+        char data[32];
+        snprintf(data, sizeof(data), this->format_.c_str(), get_number_value());
+        val = data;
         break;
 #endif
 #ifdef USE_SWITCH

@@ -111,7 +111,6 @@ MENU_ITEM_COMMON_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(MenuItem),
         cv.Optional(CONF_TEXT): cv.templatable(cv.string),
-        cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
     }
 )
 
@@ -174,12 +173,14 @@ MENU_ITEM_SCHEMA = cv.All(
                 {
                     cv.Required(CONF_SELECT): cv.use_id(Select),
                     cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
+                    cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
                 }
             ),
             CONF_NUMBER: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
                 {
                     cv.Required(CONF_NUMBER): cv.use_id(Number),
                     cv.Optional(CONF_FORMAT, default="%.1f"): cv.string_strict,
+                    cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
                 }
             ),
             CONF_SWITCH: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
@@ -188,12 +189,14 @@ MENU_ITEM_SCHEMA = cv.All(
                     cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
                     cv.Optional(CONF_ON_TEXT, default="On"): cv.string_strict,
                     cv.Optional(CONF_OFF_TEXT, default="Off"): cv.string_strict,
+                    cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
                 }
             ),
             CONF_COMMAND: MENU_ITEM_VALUE_SCHEMA,
             CONF_CUSTOM: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
                 {
                     cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
+                    cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
                     cv.Optional(CONF_ON_NEXT): automation.validate_automation(
                         {
                             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
