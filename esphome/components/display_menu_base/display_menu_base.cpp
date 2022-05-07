@@ -206,7 +206,7 @@ void DisplayMenuComponent::draw_menu() {
 bool MenuItem::select_next() {
   bool val;
 
-  switch(this->item_type_) {
+  switch (this->item_type_) {
 #ifdef USE_SELECT
     case MENU_ITEM_SELECT:
       val = this->next_option_();
@@ -242,7 +242,7 @@ bool MenuItem::select_next() {
 bool MenuItem::select_prev() {
   bool val;
 
-  switch(this->item_type_) {
+  switch (this->item_type_) {
 #ifdef USE_SELECT
     case MENU_ITEM_SELECT:
       val = this->prev_option_();
@@ -410,31 +410,28 @@ std::string MenuItem::get_value_text() const {
 
   if (this->value_getter_.has_value()) {
     val = this->value_getter_.value()(this);
-  }
-  else {
+  } else {
     switch (this->item_type_) {
-  #ifdef USE_SELECT
+#ifdef USE_SELECT
       case MENU_ITEM_SELECT:
         if (this->select_var_ != nullptr) {
           val = this->select_var_->state;
         }
         break;
-  #endif
-  #ifdef USE_NUMBER
+#endif
+#ifdef USE_NUMBER
       case MENU_ITEM_NUMBER: {
           char data[32];
           snprintf(data, sizeof(data), this->format_.c_str(), get_number_value());
           val = data;
         }
         break;
-  #endif
-  #ifdef USE_SWITCH
+#endif
+#ifdef USE_SWITCH
       case MENU_ITEM_SWITCH:
         val = this->get_switch_state() ? this->switch_on_text_ : this->switch_off_text_;
         break;
-  #endif
-      case MENU_ITEM_CUSTOM:
-        break;
+#endif
       default:
         break;
     }
