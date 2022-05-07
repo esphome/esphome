@@ -1,7 +1,7 @@
 import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
+from esphome import automation, core
 from esphome.const import (
     CONF_ID,
     CONF_TYPE,
@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_COMMAND,
     CONF_NUMBER,
     CONF_FORMAT,
-    CONF_LAMBDA,
 )
 from esphome.automation import maybe_simple_id
 from esphome.components.select import Select
@@ -98,8 +97,7 @@ def menu_item_schema(value):
 MENU_ITEM_COMMON_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(MenuItem),
-        cv.Optional(CONF_TEXT): cv.string,
-        cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+        cv.Optional(CONF_TEXT): cv.templatable(cv.string),
     }
 )
 
@@ -275,12 +273,13 @@ async def menu_item_to_code(menu, config, parent):
     )
     cg.add(parent.add_item(item))
     if CONF_TEXT in config:
-        cg.add(item.set_text(config[CONF_TEXT]))
-    if CONF_LAMBDA in config:
-        template_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(MenuItemConstPtr, "it")], return_type=cg.std_string
-        )
-        cg.add(item.set_text_writer(template_))
+        if isinstance(config[CONF_TEXT], core.Lambda):
+            template_ = await cg.templatable(
+                config[CONF_TEXT], [(MenuItemConstPtr, "it")], cg.std_string
+            )
+            cg.add(item.set_text(template_))
+        else:
+            cg.add(item.set_text(config[CONF_TEXT]))
     if CONF_MENU in config:
         for c in config[CONF_MENU]:
             await menu_item_to_code(menu, c, item)

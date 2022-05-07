@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/automation.h"
 
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
@@ -48,10 +49,7 @@ class MenuItem {
     item->set_parent(this);
     this->items_.push_back(item);
   }
-  void set_text(const std::string &t) { this->text_ = t; }
-  const std::string &get_text() const { return this->text_; }
-  void set_text_writer(item_writer_t &&writer) { this->text_writer_ = writer; }
-  const optional<item_writer_t> &get_text_writer() const { return this->text_writer_; }
+  template<typename V> void set_text(V val) { this->text_ = val; }
 #ifdef USE_SELECT
   void set_select_variable(select::Select *var) { this->select_var_ = var; }
 #endif
@@ -74,6 +72,7 @@ class MenuItem {
 
   bool get_immediate_edit() const { return this->immediate_edit_; }
 
+  std::string get_text() const { return const_cast<MenuItem *>(this)->text_.value(this); }
   bool has_value() const;
   std::string get_value_text() const;
 
@@ -101,7 +100,7 @@ class MenuItem {
  protected:
   MenuItemType item_type_;
   MenuItem *parent_{nullptr};
-  std::string text_;
+  TemplatableValue<std::string, const MenuItem *> text_;
   std::vector<MenuItem *> items_;
   bool immediate_edit_{false};
 #ifdef USE_SELECT
@@ -119,7 +118,6 @@ class MenuItem {
   CallbackManager<void()> on_enter_callbacks_{};
   CallbackManager<void()> on_leave_callbacks_{};
   CallbackManager<void()> on_value_callbacks_{};
-  optional<item_writer_t> text_writer_{};
 };
 
 /** Class to display a hierarchical menu.
