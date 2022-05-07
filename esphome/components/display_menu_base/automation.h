@@ -95,5 +95,19 @@ class DisplayMenuOnValueTrigger : public Trigger<const MenuItem *> {
   }
 };
 
+class DisplayMenuOnNextTrigger : public Trigger<const MenuItem *> {
+ public:
+  explicit DisplayMenuOnNextTrigger(MenuItem *parent) {
+    parent->add_on_next_callback([this, parent]() { this->trigger(parent); });
+  }
+};
+
+class DisplayMenuOnPrevTrigger : public Trigger<const MenuItem *> {
+ public:
+  explicit DisplayMenuOnPrevTrigger(MenuItem *parent) {
+    parent->add_on_prev_callback([this, parent]() { this->trigger(parent); });
+  }
+};
+
 }  // namespace display_menu_base
 }  // namespace esphome

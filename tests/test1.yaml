@@ -2843,9 +2843,6 @@ lcd_menu:
     - type: back
       text: 'Back'
     - type: label
-    - type: label
-      text: 'Dynamic'
-      lambda: 'return std::string("Lambda " + it->get_text());'
     - type: menu
       text: 'Submenu 1'
       menu:
@@ -2900,3 +2897,13 @@ lcd_menu:
       on_value:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "switch value: %s", it->get_value_text().c_str());'
+    - type: custom
+      text: !lambda 'return "Custom";'
+      value_lambda: 'return "Val";'
+      on_next:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "custom next: %s", it->get_text().c_str());'
+      on_prev:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
+    

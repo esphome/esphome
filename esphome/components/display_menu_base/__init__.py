@@ -29,12 +29,16 @@ CONF_BACK = "back"
 CONF_TEXT = "text"
 CONF_SELECT = "select"
 CONF_SWITCH = "switch"
+CONF_CUSTOM = "custom"
 CONF_ON_TEXT = "on_text"
 CONF_OFF_TEXT = "off_text"
+CONF_VALUE_LAMBDA = "value_lambda"
 CONF_IMMEDIATE_EDIT = "immediate_edit"
 CONF_ROOT_ITEM_ID = "root_item_id"
 CONF_ON_ENTER = "on_enter"
 CONF_ON_LEAVE = "on_leave"
+CONF_ON_NEXT = "on_next"
+CONF_ON_PREV = "on_prev"
 
 DisplayMenuComponent = display_menu_base_ns.class_("DisplayMenuComponent", cg.Component)
 
@@ -64,6 +68,7 @@ MENU_ITEM_TYPES = {
     CONF_NUMBER: MenuItemType.MENU_ITEM_NUMBER,
     CONF_SWITCH: MenuItemType.MENU_ITEM_SWITCH,
     CONF_COMMAND: MenuItemType.MENU_ITEM_COMMAND,
+    CONF_CUSTOM: MenuItemType.MENU_ITEM_CUSTOM,
 }
 
 DisplayMenuOnEnterTrigger = display_menu_base_ns.class_(
@@ -76,6 +81,14 @@ DisplayMenuOnLeaveTrigger = display_menu_base_ns.class_(
 
 DisplayMenuOnValueTrigger = display_menu_base_ns.class_(
     "DisplayMenuOnValueTrigger", automation.Trigger
+)
+
+DisplayMenuOnNextTrigger = display_menu_base_ns.class_(
+    "DisplayMenuOnNextTrigger", automation.Trigger
+)
+
+DisplayMenuOnPrevTrigger = display_menu_base_ns.class_(
+    "DisplayMenuOnPrevTrigger", automation.Trigger
 )
 
 
@@ -98,6 +111,7 @@ MENU_ITEM_COMMON_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(MenuItem),
         cv.Optional(CONF_TEXT): cv.templatable(cv.string),
+        cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
     }
 )
 
@@ -177,6 +191,25 @@ MENU_ITEM_SCHEMA = cv.All(
                 }
             ),
             CONF_COMMAND: MENU_ITEM_VALUE_SCHEMA,
+            CONF_CUSTOM: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
+                {
+                    cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
+                    cv.Optional(CONF_ON_NEXT): automation.validate_automation(
+                        {
+                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                                DisplayMenuOnNextTrigger
+                            ),
+                        }
+                    ),
+                    cv.Optional(CONF_ON_PREV): automation.validate_automation(
+                        {
+                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                                DisplayMenuOnPrevTrigger
+                            ),
+                        }
+                    ),
+                }
+            ),
         },
         default_type="label",
         lower=True,
@@ -280,13 +313,21 @@ async def menu_item_to_code(menu, config, parent):
             cg.add(item.set_text(template_))
         else:
             cg.add(item.set_text(config[CONF_TEXT]))
+    if CONF_VALUE_LAMBDA in config:
+        template_ = await cg.process_lambda(
+            config[CONF_VALUE_LAMBDA],
+            [(MenuItemConstPtr, "it")],
+            return_type=cg.std_string,
+        )
+        cg.add(item.set_value_lambda(template_))
     if CONF_MENU in config:
         for c in config[CONF_MENU]:
             await menu_item_to_code(menu, c, item)
+    if CONF_IMMEDIATE_EDIT in config:
+        cg.add(item.set_immediate_edit(config[CONF_IMMEDIATE_EDIT]))
     if config[CONF_TYPE] == CONF_SELECT:
         var = await cg.get_variable(config[CONF_SELECT])
         cg.add(item.set_select_variable(var))
-        cg.add(item.set_immediate_edit(config[CONF_IMMEDIATE_EDIT]))
     if config[CONF_TYPE] == CONF_NUMBER:
         var = await cg.get_variable(config[CONF_NUMBER])
         cg.add(item.set_number_variable(var))
@@ -296,7 +337,6 @@ async def menu_item_to_code(menu, config, parent):
         cg.add(item.set_switch_variable(var))
         cg.add(item.set_on_text(config[CONF_ON_TEXT]))
         cg.add(item.set_off_text(config[CONF_OFF_TEXT]))
-        cg.add(item.set_immediate_edit(config[CONF_IMMEDIATE_EDIT]))
     for conf in config.get(CONF_ON_ENTER, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], item)
         await automation.build_automation(trigger, [(MenuItemConstPtr, "it")], conf)
@@ -304,6 +344,12 @@ async def menu_item_to_code(menu, config, parent):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], item)
         await automation.build_automation(trigger, [(MenuItemConstPtr, "it")], conf)
     for conf in config.get(CONF_ON_VALUE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], item)
+        await automation.build_automation(trigger, [(MenuItemConstPtr, "it")], conf)
+    for conf in config.get(CONF_ON_NEXT, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], item)
+        await automation.build_automation(trigger, [(MenuItemConstPtr, "it")], conf)
+    for conf in config.get(CONF_ON_PREV, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], item)
         await automation.build_automation(trigger, [(MenuItemConstPtr, "it")], conf)
 

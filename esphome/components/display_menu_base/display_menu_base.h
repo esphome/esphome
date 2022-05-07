@@ -30,6 +30,7 @@ enum MenuItemType {
   MENU_ITEM_NUMBER,
   MENU_ITEM_SWITCH,
   MENU_ITEM_COMMAND,
+  MENU_ITEM_CUSTOM,
 };
 
 class MenuItem;
@@ -37,7 +38,7 @@ class DisplayMenuOnEnterTrigger;
 class DisplayMenuOnLeaveTrigger;
 class DisplayMenuOnValueTrigger;
 
-using item_writer_t = std::function<std::string(const MenuItem *)>;
+using value_getter_t = std::function<std::string(const MenuItem *)>;
 
 class MenuItem {
  public:
@@ -66,6 +67,9 @@ class MenuItem {
   void add_on_enter_callback(std::function<void()> &&cb) { this->on_enter_callbacks_.add(std::move(cb)); }
   void add_on_leave_callback(std::function<void()> &&cb) { this->on_leave_callbacks_.add(std::move(cb)); }
   void add_on_value_callback(std::function<void()> &&cb) { this->on_value_callbacks_.add(std::move(cb)); }
+  void add_on_next_callback(std::function<void()> &&cb) { this->on_next_callbacks_.add(std::move(cb)); }
+  void add_on_prev_callback(std::function<void()> &&cb) { this->on_prev_callbacks_.add(std::move(cb)); }
+  void set_value_lambda(value_getter_t &&getter) { this->value_getter_ = getter; }
 
   size_t items_size() const { return this->items_.size(); }
   MenuItem *get_item(size_t i) { return this->items_[i]; }
@@ -84,7 +88,6 @@ class MenuItem {
 
   void on_enter();
   void on_leave();
-  void on_value();
 
  protected:
 #ifdef USE_SELECT
@@ -100,6 +103,10 @@ class MenuItem {
 #ifdef USE_SWITCH
   bool toggle_switch_();
 #endif
+
+  void on_value_();
+  void on_next_();
+  void on_prev_();
 
   MenuItemType item_type_;
   MenuItem *parent_{nullptr};
@@ -118,9 +125,12 @@ class MenuItem {
   std::string switch_on_text_;
   std::string switch_off_text_;
 #endif
+  optional<value_getter_t> value_getter_{};
   CallbackManager<void()> on_enter_callbacks_{};
   CallbackManager<void()> on_leave_callbacks_{};
   CallbackManager<void()> on_value_callbacks_{};
+  CallbackManager<void()> on_next_callbacks_{};
+  CallbackManager<void()> on_prev_callbacks_{};
 };
 
 /** Class to display a hierarchical menu.
