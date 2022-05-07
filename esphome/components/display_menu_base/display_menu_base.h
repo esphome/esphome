@@ -79,25 +79,28 @@ class MenuItem {
   bool get_switch_state() const;
   float get_number_value() const;
 
-#ifdef USE_SELECT
-  bool next_option();
-  bool prev_option();
-#endif
-
-#ifdef USE_NUMBER
-  bool inc_number();
-  bool dec_number();
-#endif
-
-#ifdef USE_SWITCH
-  bool toggle_switch();
-#endif
+  bool select_next();
+  bool select_prev();
 
   void on_enter();
   void on_leave();
   void on_value();
 
  protected:
+#ifdef USE_SELECT
+  bool next_option_();
+  bool prev_option_();
+#endif
+
+#ifdef USE_NUMBER
+  bool inc_number_();
+  bool dec_number_();
+#endif
+
+#ifdef USE_SWITCH
+  bool toggle_switch_();
+#endif
+
   MenuItemType item_type_;
   MenuItem *parent_{nullptr};
   TemplatableValue<std::string, const MenuItem *> text_;

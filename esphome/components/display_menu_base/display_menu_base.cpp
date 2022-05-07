@@ -17,25 +17,7 @@ void DisplayMenuComponent::up() {
     bool chg = false;
 
     if (this->editing_) {
-      switch (this->get_selected_item_()->get_type()) {
-        case MENU_ITEM_SELECT:
-#ifdef USE_SELECT
-          chg = this->get_selected_item_()->prev_option();
-#endif
-          break;
-        case MENU_ITEM_NUMBER:
-#ifdef USE_NUMBER
-          chg = this->get_selected_item_()->dec_number();
-#endif
-          break;
-        case MENU_ITEM_SWITCH:
-#ifdef USE_SWITCH
-          chg = this->get_selected_item_()->toggle_switch();
-#endif
-          break;
-        default:
-          break;
-      }
+      chg = this->get_selected_item_()->select_prev();
     } else {
       if (this->cursor_index_ > 0) {
         chg = true;
@@ -59,25 +41,7 @@ void DisplayMenuComponent::down() {
     bool chg = false;
 
     if (this->editing_) {
-      switch (this->get_selected_item_()->get_type()) {
-        case MENU_ITEM_SELECT:
-#ifdef USE_SELECT
-          chg = this->get_selected_item_()->next_option();
-#endif
-          break;
-        case MENU_ITEM_NUMBER:
-#ifdef USE_NUMBER
-          chg = this->get_selected_item_()->inc_number();
-#endif
-          break;
-        case MENU_ITEM_SWITCH:
-#ifdef USE_SWITCH
-          chg = this->get_selected_item_()->toggle_switch();
-#endif
-          break;
-        default:
-          break;
-      }
+      chg = this->get_selected_item_()->select_next();
     } else {
       if (this->cursor_index_ + 1 < this->displayed_item_->items_size()) {
         chg = true;
@@ -127,9 +91,7 @@ void DisplayMenuComponent::enter() {
           break;
         case MENU_ITEM_SELECT:
           if (item->get_immediate_edit()) {
-#ifdef USE_SELECT
-            chg = item->next_option();
-#endif
+            chg = item->select_next();
           } else {
             this->editing_ = true;
             item->on_enter();
@@ -143,9 +105,7 @@ void DisplayMenuComponent::enter() {
           break;
         case MENU_ITEM_SWITCH:
           if (item->get_immediate_edit()) {
-#ifdef USE_SWITCH
-            chg = item->toggle_switch();
-#endif
+            chg = item->select_next();
           } else {
             this->editing_ = true;
             item->on_enter();
@@ -250,6 +210,60 @@ void DisplayMenuComponent::draw_menu() {
   }
 }
 
+bool MenuItem::select_next() {
+  bool val;
+
+  switch(this->item_type_) {
+#ifdef USE_SELECT
+    case MENU_ITEM_SELECT:
+      val = this->next_option_();
+      break;
+#endif
+#ifdef USE_NUMBER
+    case MENU_ITEM_NUMBER:
+      val = this->inc_number_();
+      break;
+#endif
+#ifdef USE_SWITCH
+    case MENU_ITEM_SWITCH:
+      val = this->toggle_switch_();
+      break;
+#endif
+    default:
+      val = false;
+      break;
+  }
+
+  return val;
+}
+
+bool MenuItem::select_prev() {
+  bool val;
+
+  switch(this->item_type_) {
+#ifdef USE_SELECT
+    case MENU_ITEM_SELECT:
+      val = this->prev_option_();
+      break;
+#endif
+#ifdef USE_NUMBER
+    case MENU_ITEM_NUMBER:
+      val = this->dec_number_();
+      break;
+#endif
+#ifdef USE_SWITCH
+    case MENU_ITEM_SWITCH:
+      val = this->toggle_switch_();
+      break;
+#endif
+    default:
+      val = false;
+      break;
+  }
+
+  return val;
+}
+
 void MenuItem::on_enter() { this->on_enter_callbacks_.call(); }
 
 void MenuItem::on_leave() { this->on_leave_callbacks_.call(); }
@@ -257,7 +271,7 @@ void MenuItem::on_leave() { this->on_leave_callbacks_.call(); }
 void MenuItem::on_value() { this->on_value_callbacks_.call(); }
 
 #ifdef USE_SELECT
-bool MenuItem::next_option() {
+bool MenuItem::next_option_() {
   bool chg = false;
 
   if (this->select_var_ != nullptr) {
@@ -283,7 +297,7 @@ bool MenuItem::next_option() {
   return chg;
 }
 
-bool MenuItem::prev_option() {
+bool MenuItem::prev_option_() {
   bool chg = false;
 
   if (this->select_var_ != nullptr) {
@@ -309,7 +323,7 @@ bool MenuItem::prev_option() {
 #endif  // USE_SELECT
 
 #ifdef USE_NUMBER
-bool MenuItem::inc_number() {
+bool MenuItem::inc_number_() {
   bool chg = false;
 
   if (this->number_var_ != nullptr) {
@@ -328,7 +342,7 @@ bool MenuItem::inc_number() {
   return chg;
 }
 
-bool MenuItem::dec_number() {
+bool MenuItem::dec_number_() {
   bool chg = false;
 
   if (this->number_var_ != nullptr) {
@@ -349,7 +363,7 @@ bool MenuItem::dec_number() {
 #endif  // USE_NUMBER
 
 #ifdef USE_SWITCH
-bool MenuItem::toggle_switch() {
+bool MenuItem::toggle_switch_() {
   bool chg = false;
 
   if (this->switch_var_ != nullptr) {
