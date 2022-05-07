@@ -280,7 +280,7 @@ async def menu_item_to_code(menu, config, parent):
         template_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(MenuItemConstPtr, "it")], return_type=cg.std_string
         )
-        cg.add(item.set_writer(template_))
+        cg.add(item.set_text_writer(template_))
     if CONF_MENU in config:
         for c in config[CONF_MENU]:
             await menu_item_to_code(menu, c, item)

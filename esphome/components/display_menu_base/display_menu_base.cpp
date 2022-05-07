@@ -8,8 +8,6 @@ namespace display_menu_base {
 
 static const char *const TAG = "display_menu";
 
-static const std::string EMPTY_STRING;
-
 void DisplayMenuComponent::setup() {}
 
 void DisplayMenuComponent::up() {
@@ -364,14 +362,52 @@ bool MenuItem::toggle_switch() {
 }
 #endif  // USE_SWITCH
 
-const std::string &MenuItem::get_option_text() const {
-#ifdef USE_SELECT
-  if (this->item_type_ == MENU_ITEM_SELECT && this->select_var_ != nullptr) {
-    return this->select_var_->state;
-  }
-#endif
+bool MenuItem::has_value() const {
+  bool val;
 
-  return EMPTY_STRING;
+  switch (this->item_type_) {
+    case MENU_ITEM_SELECT:
+    case MENU_ITEM_NUMBER:
+    case MENU_ITEM_SWITCH:
+      val = true;
+      break;
+    default:
+      val = false;
+      break;
+  }
+
+  return val;
+}
+
+std::string MenuItem::get_value_text() const {
+  std::string val;
+
+  switch (this->item_type_) {
+#ifdef USE_SELECT
+    case MENU_ITEM_SELECT:
+      if (this->select_var_ != nullptr) {
+        val = this->select_var_->state;
+      }
+      break;
+#endif
+#ifdef USE_NUMBER
+    case MENU_ITEM_NUMBER: {
+        char data[32];
+        snprintf(data, sizeof(data), this->format_.c_str(), get_number_value());
+        val = data;
+      }
+      break;
+#endif
+#ifdef USE_SWITCH
+    case MENU_ITEM_SWITCH:
+      val = this->get_switch_state() ? this->switch_on_text_ : this->switch_off_text_;
+      break;
+#endif
+    default:
+      break;
+  }
+
+  return val;
 }
 
 float MenuItem::get_number_value() const {
@@ -392,16 +428,6 @@ float MenuItem::get_number_value() const {
   return val;
 }
 
-std::string MenuItem::get_number_text() const {
-#ifdef USE_NUMBER
-  char data[32];
-  snprintf(data, sizeof(data), this->format_.c_str(), get_number_value());
-  return data;
-#else
-  return EMPTY_STRING;
-#endif
-}
-
 bool MenuItem::get_switch_state() const {
 #ifdef USE_SWITCH
   return (this->item_type_ == MENU_ITEM_SWITCH && this->switch_var_ != nullptr && this->switch_var_->state);
@@ -410,13 +436,6 @@ bool MenuItem::get_switch_state() const {
 #endif
 }
 
-const std::string &MenuItem::get_switch_text() const {
-#ifdef USE_SWITCH
-  return this->get_switch_state() ? this->switch_on_text_ : this->switch_off_text_;
-#else
-  return EMPTY_STRING;
-#endif
-}
 
 }  // namespace display_menu_base
 }  // namespace esphome

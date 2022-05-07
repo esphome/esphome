@@ -50,8 +50,8 @@ class MenuItem {
   }
   void set_text(const std::string &t) { this->text_ = t; }
   const std::string &get_text() const { return this->text_; }
-  void set_writer(item_writer_t &&writer) { this->writer_ = writer; }
-  const optional<item_writer_t> &get_writer() const { return this->writer_; }
+  void set_text_writer(item_writer_t &&writer) { this->text_writer_ = writer; }
+  const optional<item_writer_t> &get_text_writer() const { return this->text_writer_; }
 #ifdef USE_SELECT
   void set_select_variable(select::Select *var) { this->select_var_ = var; }
 #endif
@@ -74,13 +74,11 @@ class MenuItem {
 
   bool get_immediate_edit() const { return this->immediate_edit_; }
 
-  const std::string &get_option_text() const;
+  bool has_value() const;
+  std::string get_value_text() const;
 
   bool get_switch_state() const;
-  const std::string &get_switch_text() const;
-
   float get_number_value() const;
-  std::string get_number_text() const;
 
 #ifdef USE_SELECT
   bool next_option();
@@ -121,7 +119,7 @@ class MenuItem {
   CallbackManager<void()> on_enter_callbacks_{};
   CallbackManager<void()> on_leave_callbacks_{};
   CallbackManager<void()> on_value_callbacks_{};
-  optional<item_writer_t> writer_{};
+  optional<item_writer_t> text_writer_{};
 };
 
 /** Class to display a hierarchical menu.

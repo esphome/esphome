@@ -2867,13 +2867,13 @@ lcd_menu:
       select: test_select
       on_enter:
         then:
-          lambda: 'ESP_LOGI("lcd_menu", "select enter: %s, %s", it->get_text().c_str(), it->get_option_text().c_str());'
+          lambda: 'ESP_LOGI("lcd_menu", "select enter: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
       on_leave:
         then:
-          lambda: 'ESP_LOGI("lcd_menu", "select leave: %s, %s", it->get_text().c_str(), it->get_option_text().c_str());'
+          lambda: 'ESP_LOGI("lcd_menu", "select leave: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
       on_value:
         then:
-          lambda: 'ESP_LOGI("lcd_menu", "select value: %s, %s", it->get_text().c_str(), it->get_option_text().c_str());'
+          lambda: 'ESP_LOGI("lcd_menu", "select value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: number
       text: 'Number'
       number: test_number
@@ -2899,4 +2899,4 @@ lcd_menu:
       immediate_edit: False
       on_value:
         then:
-          lambda: 'ESP_LOGI("lcd_menu", "switch value: %s", it->get_switch_text().c_str());'
+          lambda: 'ESP_LOGI("lcd_menu", "switch value: %s", it->get_value_text().c_str());'
