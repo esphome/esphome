@@ -53,6 +53,9 @@ static const uint8_t INSIGNIA_FM_OFF =          0x3f;
 static const uint8_t INSIGNIA_FM_UPDATE =       0x7f;
 
 void InsigniaClimate::setup() {
+#ifdef USE_ESP8266
+  ESP_LOGW(TAG, "This component is not reliable on the ESP8266 platform - an ESP32 is highly recommended");
+#endif
   // If a sensor has been configured, use it report current temp in the frontend
   if (this->sensor_) {
     this->sensor_->add_on_state_callback([this](float state) {
@@ -89,7 +92,7 @@ void InsigniaClimate::setup() {
   if (this->fm_configured_) {
     // add a callback so that whenever the Follow Me switch state changes 
     // we can update accordingly
-    this->fm_switch_->add_on_state_callback([this](float state) {
+    this->fm_switch_->add_on_state_callback([this](bool state) {
       this->fm_enabled_ = state;
       this->fm_state_changed_ = true;
       this->update();
@@ -98,11 +101,21 @@ void InsigniaClimate::setup() {
 
   // Setup LED switch
   if (this->led_configured_) {
-    this->led_switch_->add_on_state_callback([this](float state) {
+    this->led_switch_->add_on_state_callback([this](bool state) {
       this->led_enabled_ = state;
       this->toggle_led();
     });
   }
+}
+
+void InsigniaClimate::dump_config() {
+  LOG_CLIMATE("", "IR Climate", this);
+  ESP_LOGCONFIG(TAG, "  Min. Temperature: %.1f°C", this->minimum_temperature_);
+  ESP_LOGCONFIG(TAG, "  Max. Temperature: %.1f°C", this->maximum_temperature_);
+  ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
+  ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
+  ESP_LOGCONFIG(TAG, "  Follow Me Configured: %s", YESNO(this->fm_configured_));
+  ESP_LOGCONFIG(TAG, "  LED Switch Configured: %s", YESNO(this->led_configured_));
 }
 
 // We'll use the update loop to send Follow Me data if it's enabled.
@@ -111,19 +124,18 @@ void InsigniaClimate::setup() {
 void InsigniaClimate::update() {
   if (this->fm_configured_) {
     if (this->fm_enabled_ or this->fm_state_changed_) {
-
       // Transition to any of these modes disables the FM feature
       if (this->mode == climate::CLIMATE_MODE_FAN_ONLY or 
           this->mode == climate::CLIMATE_MODE_DRY or 
           this->mode == climate::CLIMATE_MODE_OFF 
          ) {
-        this->fm_enabled_ = false;
-        this->fm_state_changed_ = false;
-        this->fm_switch_->turn_off();
         ESP_LOGV(TAG, "Disabling FM due to incompatible HVAC mode");
+        this->fm_state_changed_ = false;
+        this->fm_enabled_ = false;
         return;
       }
 
+      // Assemble a Follow Me packet
       uint8_t remote_state[INSIGNIA_PACKET_LENGTH] = {0};
 
       remote_state[0] = INSIGNIA_PKT_FM;
@@ -151,11 +163,6 @@ void InsigniaClimate::update() {
 
       remote_state[5] = this->calculate_checksum(remote_state, INSIGNIA_PACKET_LENGTH - 1);
       this->send_transmission(remote_state, INSIGNIA_PACKET_LENGTH);
-    } else {
-      // Fix switch state drift issues
-      if (this->fm_switch_->state and not this->fm_enabled_) {
-        this->fm_switch_->turn_off();
-      }
     }
   }
 }

@@ -44,6 +44,7 @@ class InsigniaClimate : public climate_ir::ClimateIR {
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
   void setup() override;
+  void dump_config() override;
   void update() override;
   void send_packet(uint8_t const *message, uint8_t length);
   void send_transmission(uint8_t const *message, uint8_t length);
