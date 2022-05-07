@@ -123,6 +123,8 @@ void InsigniaClimate::dump_config() {
 // sensor state hasn't changed, or Follow Me mode will time out.
 void InsigniaClimate::update() {
   if (this->fm_configured_) {
+    // ESP_LOGVV(TAG, "FM Enabled State: %s", YESNO(this->fm_enabled_));
+    // ESP_LOGVV(TAG, "FM Switch State: %s", YESNO(this->fm_switch_->state));
     if (this->fm_enabled_ or this->fm_state_changed_) {
       // Transition to any of these modes disables the FM feature
       if (this->mode == climate::CLIMATE_MODE_FAN_ONLY or 
@@ -280,6 +282,23 @@ void InsigniaClimate::transmit_state() {
   remote_state[5] = this->calculate_checksum(remote_state, INSIGNIA_PACKET_LENGTH - 1);
 
   send_transmission(remote_state, INSIGNIA_PACKET_LENGTH);
+
+  // Reconfigure Follow Me to current mode
+  if (this->mode == climate::CLIMATE_MODE_OFF or 
+      this->mode == climate::CLIMATE_MODE_DRY or 
+      this->mode == climate::CLIMATE_MODE_FAN_ONLY) {
+    // The head unit will automatically turn FM off in any of these modes
+    this->fm_enabled_ = false;
+  } else if (this->fm_switch_->state and not
+             this->fm_enabled_) {
+    // FM switch is on, and we just switched to a supported mode, so we need to
+    // re-send an enable packet
+    ESP_LOGV(TAG, "Sending delayed FM Enable packet to sync states");
+    this->fm_enabled_ = true;
+    this->fm_state_changed_ = true;
+    delay(2000);
+    this->update();
+  }
 }
 
 void InsigniaClimate::send_transmission(uint8_t const *message, uint8_t length) {
