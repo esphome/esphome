@@ -27,7 +27,7 @@ namespace online_image {
 
 using display::DisplayBuffer;
 
-void OnlineImage::draw(int x, int y, DisplayBuffer *display) {
+void OnlineImage::draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) {
   HTTPClient http;
 
   std::unique_ptr<ImageDecoder> decoder;
@@ -42,6 +42,8 @@ void OnlineImage::draw(int x, int y, DisplayBuffer *display) {
     ESP_LOGE(TAG, "Could not instantiate decoder. Image format unsupported.");
     return;
   }
+
+  decoder->set_monochrome_colors(color_on, color_off);
 
   http.begin(url_);
 

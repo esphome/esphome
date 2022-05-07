@@ -257,7 +257,9 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
 }
 
 #ifdef USE_ONLINE_IMAGE
-void DisplayBuffer::image(int x, int y, online_image::OnlineImage *image) { image->draw(x, y, this); }
+void DisplayBuffer::image(int x, int y, online_image::OnlineImage *image, Color color_on, Color color_off) {
+  image->draw(x, y, this, color_on, color_off);
+}
 #endif  // USE_ONLINE_IMAGE
 
 #ifdef USE_GRAPH
