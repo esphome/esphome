@@ -10,6 +10,8 @@ namespace esphome {
 namespace ble_client {
 static const char *const TAG = "ble_client.automation";
 
+// Attempts to write to the configured characteristic. Returns false on retriable errors and true on success or
+// non-retriable errors.
 bool BLEWriterClientNode::write() {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "Cannot write to BLE characteristic - not connected");
@@ -37,6 +39,8 @@ bool BLEWriterClientNode::write() {
     ESP_LOGE(TAG, "Error writing to characteristic: %s!", esp_err_to_name(err));
     return false;
   }
+
+  ESP_LOGD(TAG, "Success writing to characteristic");
   return true;
 }
 
@@ -76,7 +80,6 @@ void BLEWriterClientNode::loop() {
       return;
     }
 
-    ESP_LOGD(TAG, "Success writing pending value.");
     pending_write_ = false;
 
     // If the BLEClient should not maintain an active connection, tell it to disconnect.
