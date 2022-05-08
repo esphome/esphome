@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
@@ -26,8 +27,11 @@ class SCD4XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_temperature_sensor(sensor::Sensor *temperature) { temperature_sensor_ = temperature; };
   void set_humidity_sensor(sensor::Sensor *humidity) { humidity_sensor_ = humidity; }
 
+  void perform_forced_calibration(uint16_t target_co2);
+
  protected:
   bool update_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
+  void restart_periodic_measurements_after_forced_calibration();
 
   ERRORCODE error_code_;
 
@@ -44,6 +48,18 @@ class SCD4XComponent : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *humidity_sensor_{nullptr};
   // used for compensation
   sensor::Sensor *ambient_pressure_source_{nullptr};
+};
+
+
+template<typename... Ts> class PerformForcedCalibration : public Action<Ts...> {
+ public:
+  PerformForcedCalibration(SCD4XComponent *scd4x) : scd4x_(scd4x) {}
+  TEMPLATABLE_VALUE(uint16_t, target_co2)
+
+  void play(Ts... x) override { scd4x_->perform_forced_calibration(this->target_co2_.value(x...)); }
+
+ protected:
+  SCD4XComponent *scd4x_;
 };
 
 }  // namespace scd4x

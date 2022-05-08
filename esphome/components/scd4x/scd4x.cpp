@@ -203,6 +203,57 @@ void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_bar) {
   }
 }
 
+void SCD4XComponent::restart_periodic_measurements_after_forced_calibration() {
+    if (!this->write_command(SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS)) {
+      ESP_LOGE(TAG, "Error restarting continuous measurements.");
+      this->error_code_ = MEASUREMENT_INIT_FAILED;
+      this->mark_failed();
+      return;
+    }
+
+    ESP_LOGD(TAG, "Sensor back to regular operation");
+    initialized_ = true;
+}
+
+void SCD4XComponent::perform_forced_calibration(uint16_t target_co2) {
+  if (!initialized_) {
+    ESP_LOGE(TAG, "Failed to perform forced calibration. The sensor first needs to be fully initialized.");
+    return;
+  }
+
+  ESP_LOGD(TAG, "Stopping peridic measurement prior to performing calibration");
+  if (!this->write_command(SCD4X_CMD_STOP_MEASUREMENTS)) {
+    ESP_LOGE(TAG, "Failed to stop measurements");
+    this->mark_failed();
+    return;
+  }
+
+  // According to specification we have to wait for 500ms before issuing the actual calibration command.
+  // In this time, we should't do anything else with the sensor so we're setting it to uninitialized
+  // (which is pretty much the case as we need to start measurements again!)
+  initialized_ = false;
+
+  this->set_timeout(500, [this, target_co2]() {
+    ESP_LOGD(TAG, "Performing forced calibration with target co2 concentration of %ippm", target_co2);
+    if (!this->write_command(SCD4X_CMD_PERFORM_FORCED_CALIBRATION, target_co2)) {
+      ESP_LOGE(TAG, "Failed to perform forced calibration");
+      restart_periodic_measurements_after_forced_calibration();
+    } else {
+      // Spec says perform_forced_recalibration takes 400ms
+      this->set_timeout(400, [this]() {
+        uint16_t raw_frc_correction;
+        if (!this->read_data(raw_frc_correction)) {
+          ESP_LOGW(TAG, "Failed to query correction amount of forced recalibration");
+        } else {
+          ESP_LOGI(TAG, "Forced recalibration successful, corrected by %ippm", raw_frc_correction - 0x8000);
+        }
+
+        restart_periodic_measurements_after_forced_calibration();
+      });
+    }
+  });
+}
+
 bool SCD4XComponent::update_ambient_pressure_compensation_(uint16_t pressure_in_hpa) {
   if (this->write_command(SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION, pressure_in_hpa)) {
     ESP_LOGD(TAG, "setting ambient pressure compensation to %d hPa", pressure_in_hpa);
