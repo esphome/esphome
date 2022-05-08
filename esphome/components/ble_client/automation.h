@@ -57,6 +57,7 @@ class BLEWriterClientNode : public BLEClientNode {
  private:
   BLEClient *ble_client_;
   int ble_char_handle_ = 0;
+  esp_gatt_char_prop_t char_props_;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;
   std::vector<uint8_t> value_;

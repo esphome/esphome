@@ -18,10 +18,20 @@ void BLEWriterClientNode::write() {
     ESP_LOGW(TAG, "Cannot write to BLE characteristic - characteristic not found");
     return;
   }
+  esp_gatt_write_type_t write_type;
+  if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE) {
+    write_type = ESP_GATT_WRITE_TYPE_RSP;
+    ESP_LOGD(TAG, "Write type: ESP_GATT_WRITE_TYPE_RSP");
+  } else if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE_NR) {
+    write_type = ESP_GATT_WRITE_TYPE_NO_RSP;
+    ESP_LOGD(TAG, "Write type: ESP_GATT_WRITE_TYPE_NO_RSP");
+  } else {
+    ESP_LOGE(TAG, "Characteristic %s does not allow writing", this->char_uuid_.to_string().c_str());
+    return;
+  }
   ESP_LOGVV(TAG, "Will write %d bytes: %s", this->value_.size(), format_hex_pretty(this->value_).c_str());
-  esp_err_t err =
-      esp_ble_gattc_write_char(this->parent()->gattc_if, this->parent()->conn_id, this->ble_char_handle_, value_.size(),
-                               value_.data(), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+  esp_err_t err = esp_ble_gattc_write_char(this->parent()->gattc_if, this->parent()->conn_id, this->ble_char_handle_,
+                                           value_.size(), value_.data(), write_type, ESP_GATT_AUTH_REQ_NONE);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Error writing to characteristic: %s!", esp_err_to_name(err));
   }
@@ -44,6 +54,7 @@ void BLEWriterClientNode::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         break;
       }
       this->ble_char_handle_ = chr->handle;
+      this->char_props_ = chr->properties;
       this->node_state = espbt::ClientState::ESTABLISHED;
       ESP_LOGD(TAG, "Found characteristic %s on device %s", this->char_uuid_.to_string().c_str(),
                ble_client_->address_str().c_str());
