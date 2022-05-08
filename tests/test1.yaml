@@ -885,6 +885,10 @@ sensor:
   - platform: scd4x
     co2:
       name: "SCD4X CO2"
+      on_value:
+        then:
+          - scd4x.perform_forced_calibration:
+              co2: 1234
     temperature:
       id: scd4x_temperature
       name: "SCD4X Temperature"
