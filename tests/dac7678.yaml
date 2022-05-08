@@ -1,0 +1,51 @@
+esphome:
+    name: dac7678_test
+    name_add_mac_suffix: true
+    platform: ESP32
+    board: nodemcu-32s
+    
+i2c:
+  sda: 16
+  scl: 4
+  frequency: 100kHz
+  
+# Example configuration entry
+dac7678:
+  address: 0x4A
+  id: dac7678_hub1
+  internal_reference: true
+
+# Individual outputs
+output:
+- platform: dac7678
+  dac7678_id: 'dac7678_hub1'
+  channel: 0
+  id: 'dac7678_1_ch0'
+- platform: dac7678
+  dac7678_id: 'dac7678_hub1'
+  channel: 1
+  id: 'dac7678_1_ch1'
+- platform: dac7678
+  dac7678_id: 'dac7678_hub1'
+  channel: 2
+  id: 'dac7678_1_ch2'
+- platform: dac7678
+  dac7678_id: 'dac7678_hub1'
+  channel: 3
+  id: 'dac7678_1_ch3'
+- platform: dac7678
+  dac7678_id: 'dac7678_hub1'
+  channel: 4
+  id: 'dac7678_1_ch4'
+- platform: dac7678
+  dac7678_id: 'dac7678_hub1'
+  channel: 5
+  id: 'dac7678_1_ch5'
+- platform: dac7678
+  dac7678_id: 'dac7678_hub1'
+  channel: 6
+  id: 'dac7678_1_ch6'
+- platform: dac7678
+  dac7678_id: 'dac7678_hub1'
+  channel: 7
+  id: 'dac7678_1_ch7'
