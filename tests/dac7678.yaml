@@ -3,12 +3,12 @@ esphome:
     name_add_mac_suffix: true
     platform: ESP32
     board: nodemcu-32s
-    
+
 i2c:
   sda: 16
   scl: 4
   frequency: 100kHz
-  
+
 # Example configuration entry
 dac7678:
   address: 0x4A
