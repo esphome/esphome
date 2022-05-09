@@ -73,7 +73,7 @@ float DeepSleepComponent::get_loop_priority() const {
   return -100.0f;  // run after everything else is ready
 }
 void DeepSleepComponent::set_sleep_duration(uint32_t time_ms) { this->sleep_duration_ = uint64_t(time_ms) * 1000; }
-#ifdef USE_ESP32
+#if defined(USE_ESP32)
 void DeepSleepComponent::set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode) {
   this->wakeup_pin_mode_ = wakeup_pin_mode;
 }

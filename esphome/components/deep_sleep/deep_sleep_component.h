@@ -70,7 +70,7 @@ class DeepSleepComponent : public Component {
   void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode);
 #endif
 
-#if defined(USE_ESP32) 
+#if defined(USE_ESP32)
 #if !defined(USE_ESP32_VARIANT_ESP32C3)
 
   void set_ext1_wakeup(Ext1Wakeup ext1_wakeup);
