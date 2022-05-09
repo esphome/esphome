@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import maybe_simple_id
 from esphome.components import i2c, sensor
 from esphome.components import sensirion_common
 from esphome.const import (
@@ -29,7 +28,9 @@ scd4x_ns = cg.esphome_ns.namespace("scd4x")
 SCD4XComponent = scd4x_ns.class_(
     "SCD4XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
-PerformForcedCalibration = scd4x_ns.class_("PerformForcedCalibration", automation.Action)
+PerformForcedCalibration = scd4x_ns.class_(
+    "PerformForcedCalibration", automation.Action
+)
 
 CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
 CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
@@ -119,10 +120,10 @@ async def to_code(config):
             cv.GenerateID(): cv.use_id(SCD4XComponent),
             cv.Optional(CONF_CO2, 410): cv.templatable(cv.uint16_t),
         },
-        key=CONF_CO2
+        key=CONF_CO2,
     ),
 )
-async def scd4x_action_perform_forced_calibration_code(config, action_id, template_arg, args):
+async def scd4x_perform_forced_calibration_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_CO2], args, cg.uint16)

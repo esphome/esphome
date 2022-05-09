@@ -31,7 +31,7 @@ class SCD4XComponent : public PollingComponent, public sensirion_common::Sensiri
 
  protected:
   bool update_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
-  void restart_periodic_measurements_after_forced_calibration();
+  void restart_periodic_measurements_after_forced_calibration_();
 
   ERRORCODE error_code_;
 
@@ -49,7 +49,6 @@ class SCD4XComponent : public PollingComponent, public sensirion_common::Sensiri
   // used for compensation
   sensor::Sensor *ambient_pressure_source_{nullptr};
 };
-
 
 template<typename... Ts> class PerformForcedCalibration : public Action<Ts...> {
  public:

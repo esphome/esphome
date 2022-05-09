@@ -203,16 +203,16 @@ void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_bar) {
   }
 }
 
-void SCD4XComponent::restart_periodic_measurements_after_forced_calibration() {
-    if (!this->write_command(SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS)) {
-      ESP_LOGE(TAG, "Error restarting continuous measurements.");
-      this->error_code_ = MEASUREMENT_INIT_FAILED;
-      this->mark_failed();
-      return;
-    }
+void SCD4XComponent::restart_periodic_measurements_after_forced_calibration_() {
+  if (!this->write_command(SCD4X_CMD_START_CONTINUOUS_MEASUREMENTS)) {
+    ESP_LOGE(TAG, "Error restarting continuous measurements.");
+    this->error_code_ = MEASUREMENT_INIT_FAILED;
+    this->mark_failed();
+    return;
+  }
 
-    ESP_LOGD(TAG, "Sensor back to regular operation");
-    initialized_ = true;
+  ESP_LOGD(TAG, "Sensor back to regular operation");
+  initialized_ = true;
 }
 
 void SCD4XComponent::perform_forced_calibration(uint16_t target_co2) {
@@ -237,7 +237,7 @@ void SCD4XComponent::perform_forced_calibration(uint16_t target_co2) {
     ESP_LOGD(TAG, "Performing forced calibration with target co2 concentration of %ippm", target_co2);
     if (!this->write_command(SCD4X_CMD_PERFORM_FORCED_CALIBRATION, target_co2)) {
       ESP_LOGE(TAG, "Failed to perform forced calibration");
-      restart_periodic_measurements_after_forced_calibration();
+      restart_periodic_measurements_after_forced_calibration_();
     } else {
       // Spec says perform_forced_recalibration takes 400ms
       this->set_timeout(400, [this]() {
@@ -248,7 +248,7 @@ void SCD4XComponent::perform_forced_calibration(uint16_t target_co2) {
           ESP_LOGI(TAG, "Forced recalibration successful, corrected by %ippm", raw_frc_correction - 0x8000);
         }
 
-        restart_periodic_measurements_after_forced_calibration();
+        restart_periodic_measurements_after_forced_calibration_();
       });
     }
   });
