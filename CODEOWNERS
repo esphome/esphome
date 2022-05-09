@@ -90,6 +90,7 @@ esphome/components/i2c/* @esphome/core
 esphome/components/improv_serial/* @esphome/core
 esphome/components/ina260/* @MrEditor97
 esphome/components/inkbird_ibsth1_mini/* @fkirill
+esphome/components/inkbird_ibsth2/* @ciband
 esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter
 esphome/components/interval/* @esphome/core

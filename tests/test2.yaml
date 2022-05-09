@@ -263,6 +263,14 @@ sensor:
       name: 'Inkbird IBS-TH1 Humidity'
     battery_level:
       name: 'Inkbird IBS-TH1 Battery Level'
+  - platform: inkbird_ibsth2
+    mac_address: 38:81:D7:0A:9C:11
+    temperature:
+      name: 'Inkbird IBS-TH2 Temperature'
+    humidity:
+      name: 'Inkbird IBS-TH2 Humidity'
+    battery_level:
+      name: 'Inkbird IBS-TH2 Battery Level'
   - platform: xiaomi_rtcgq02lm
     id: motion_rtcgq02lm
     battery_level:
