@@ -264,7 +264,7 @@ const char *const UART_SELECTIONS[] = {
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
     "USB_SERIAL_JTAG",
 #endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32S3
-#endif // USE_ESP_IDF
+#endif  // USE_ESP_IDF
 };
 #endif  // USE_ESP32
 #ifdef USE_ESP8266
