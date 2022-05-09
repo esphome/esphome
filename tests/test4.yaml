@@ -67,7 +67,7 @@ sx1509:
 
 mcp3204:
   cs_pin: GPIO23
-  
+
 dac7678:
     address: 0x4A
     id: dac7678_hub1
@@ -510,7 +510,7 @@ output:
   - platform: pipsolar
     pipsolar_id: inverter0
     battery_recharge_voltage:
-      id: inverter0_battery_recharge_voltage_out  
+      id: inverter0_battery_recharge_voltage_out
   - platform: dac7678
     dac7678_id: 'dac7678_hub1'
     channel: 0
