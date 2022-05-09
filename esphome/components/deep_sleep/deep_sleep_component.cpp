@@ -21,6 +21,7 @@ optional<uint32_t> DeepSleepComponent::get_run_duration_() const {
     switch (wakeup_cause) {
       case ESP_SLEEP_WAKEUP_EXT0:
       case ESP_SLEEP_WAKEUP_EXT1:
+      case ESP_SLEEP_WAKEUP_GPIO:
         return this->wakeup_cause_to_run_duration_->gpio_cause;
       case ESP_SLEEP_WAKEUP_TOUCHPAD:
         return this->wakeup_cause_to_run_duration_->touch_cause;
