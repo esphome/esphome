@@ -87,6 +87,7 @@ void DeepSleepComponent::set_run_duration(WakeupCauseToRunDuration wakeup_cause_
   wakeup_cause_to_run_duration_ = wakeup_cause_to_run_duration;
 }
 #endif
+#endif
 void DeepSleepComponent::set_run_duration(uint32_t time_ms) { this->run_duration_ = time_ms; }
 void DeepSleepComponent::begin_sleep(bool manual) {
   if (this->prevent_ && !manual) {

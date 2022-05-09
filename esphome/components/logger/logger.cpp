@@ -149,13 +149,25 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART0_SWAP:
 #endif
         this->hw_serial_ = &Serial;
+        Serial.begin(this->baud_rate_);
+#ifdef USE_ESP8266
+        if (this->uart_ == UART_SELECTION_UART0_SWAP) {
+          Serial.swap();
+        }
+        Serial.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
+#endif
         break;
       case UART_SELECTION_UART1:
         this->hw_serial_ = &Serial1;
+        Serial1.begin(this->baud_rate_);
+#ifdef USE_ESP8266
+        Serial1.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
+#endif
         break;
 #if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2)
       case UART_SELECTION_UART2:
         this->hw_serial_ = &Serial2;
+        Serial2.begin(this->baud_rate_);
         break;
 #endif
     }
@@ -186,16 +198,6 @@ void Logger::pre_setup() {
     // Install UART driver using an event queue here
     uart_driver_install(uart_num_, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
 #endif
-
-#ifdef USE_ARDUINO
-    this->hw_serial_->begin(this->baud_rate_);
-#ifdef USE_ESP8266
-    if (this->uart_ == UART_SELECTION_UART0_SWAP) {
-      this->hw_serial_->swap();
-    }
-    this->hw_serial_->setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
-#endif
-#endif  // USE_ARDUINO
   }
 #ifdef USE_ESP8266
   else {

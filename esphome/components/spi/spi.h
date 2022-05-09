@@ -156,15 +156,17 @@ class SPIComponent : public Component {
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   uint8_t transfer_byte(uint8_t data) {
-#ifdef USE_SPI_ARDUINO_BACKEND
     if (this->miso_ != nullptr) {
+#ifdef USE_SPI_ARDUINO_BACKEND
       if (this->hw_spi_ != nullptr) {
         return this->hw_spi_->transfer(data);
       } else {
-        return this->transfer_<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, true, true>(data);
-      }
-    }
 #endif  // USE_SPI_ARDUINO_BACKEND
+        return this->transfer_<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, true, true>(data);
+#ifdef USE_SPI_ARDUINO_BACKEND
+      }
+#endif  // USE_SPI_ARDUINO_BACKEND
+    }
     this->write_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data);
     return 0;
   }
