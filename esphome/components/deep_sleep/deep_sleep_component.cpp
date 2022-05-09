@@ -77,10 +77,12 @@ void DeepSleepComponent::set_sleep_duration(uint32_t time_ms) { this->sleep_dura
 void DeepSleepComponent::set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode) {
   this->wakeup_pin_mode_ = wakeup_pin_mode;
 }
+#endif
 #if !defined(USE_ESP32_VARIANT_ESP32C3)
 void DeepSleepComponent::set_ext1_wakeup(Ext1Wakeup ext1_wakeup) { this->ext1_wakeup_ = ext1_wakeup; }
 void DeepSleepComponent::set_touch_wakeup(bool touch_wakeup) { this->touch_wakeup_ = touch_wakeup; }
 #endif
+#if defined(USE_ESP32)
 void DeepSleepComponent::set_run_duration(WakeupCauseToRunDuration wakeup_cause_to_run_duration) {
   wakeup_cause_to_run_duration_ = wakeup_cause_to_run_duration;
 }
