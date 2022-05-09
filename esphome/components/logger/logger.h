@@ -40,7 +40,7 @@ class Logger : public Component {
   void set_baud_rate(uint32_t baud_rate);
   uint32_t get_baud_rate() const { return baud_rate_; }
 #ifdef USE_ARDUINO
-  HardwareSerial *get_hw_serial() const { return hw_serial_; }
+  Stream *get_hw_serial() const { return hw_serial_; }
 #endif
 #ifdef USE_ESP_IDF
   uart_port_t get_uart_num() const { return uart_num_; }
@@ -119,7 +119,7 @@ class Logger : public Component {
   int tx_buffer_size_{0};
   UARTSelection uart_{UART_SELECTION_UART0};
 #ifdef USE_ARDUINO
-  HardwareSerial *hw_serial_{nullptr};
+  Stream *hw_serial_{nullptr};
 #endif
 #ifdef USE_ESP_IDF
   uart_port_t uart_num_;
