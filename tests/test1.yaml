@@ -547,11 +547,18 @@ sensor:
   - platform: esp32_hall
     name: "ESP32 Hall Sensor"
     update_interval: 15s
-  - platform: hdc1080
+  - platform: ens210
     temperature:
       name: "Living Room Temperature 5"
     humidity:
-      name: "Living Room Pressure 5"
+      name: 'Living Room Humidity 5'
+    update_interval: 15s
+    i2c_id: i2c_bus
+  - platform: hdc1080
+    temperature:
+      name: 'Living Room Temperature 6'
+    humidity:
+      name: 'Living Room Humidity 5'
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: hlw8012
