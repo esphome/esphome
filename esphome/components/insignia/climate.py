@@ -38,10 +38,9 @@ async def to_code(config):
     if CONF_FOLLOW_ME_SWITCH in config:
         if CONF_SENSOR not in config:
             raise cv.Invalid("sensor must be specified to use follow_me_switch")
-        else:
-            cg.add(var.set_fm_configured(True))
-            sw = await cg.get_variable(config[CONF_FOLLOW_ME_SWITCH])
-            cg.add(var.set_fm_switch(sw))
+        cg.add(var.set_fm_configured(True))
+        sw = await cg.get_variable(config[CONF_FOLLOW_ME_SWITCH])
+        cg.add(var.set_fm_switch(sw))
 
     if CONF_LED_SWITCH in config:
         cg.add(var.set_led_configured(True))

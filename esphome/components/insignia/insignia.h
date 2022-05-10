@@ -16,6 +16,7 @@ const float INSIGNIA_TEMP_MAX = 30.0;   // 86 Farhenheit
 class InsigniaClimate : public climate_ir::ClimateIR {
  public:
   InsigniaClimate()
+      // clang-format off
       : climate_ir::ClimateIR(INSIGNIA_TEMP_MIN,
                               INSIGNIA_TEMP_MAX,
                               1.0f,   // Step
@@ -25,7 +26,7 @@ class InsigniaClimate : public climate_ir::ClimateIR {
                                climate::CLIMATE_FAN_HIGH}, // Supported Fan Modes
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL} // Supported Swing Modes
                               ) {}
-
+  // clang-format on
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override {
     send_swing_cmd_ = call.get_swing_mode().has_value();
@@ -44,13 +45,13 @@ class InsigniaClimate : public climate_ir::ClimateIR {
   void setup() override;
   void dump_config() override;
   void update() override;
-  void send_packet(uint8_t const *message, uint8_t length);
-  void send_transmission(uint8_t const *message, uint8_t length);
-  void toggle_led();
-  uint8_t calculate_checksum(uint8_t const *message, uint8_t length);
-  uint8_t reverse_bits(uint8_t inbyte);
-  uint8_t compile_hvac_byte();
-  uint8_t compile_set_point_byte();
+  void send_packet_(uint8_t const *message, uint8_t length);
+  void send_transmission_(uint8_t const *message, uint8_t length);
+  void toggle_led_();
+  uint8_t calculate_checksum_(uint8_t const *message, uint8_t length);
+  uint8_t reverse_bits_(uint8_t inbyte);
+  uint8_t compile_hvac_byte_();
+  uint8_t compile_set_point_byte_();
   bool send_swing_cmd_{false};
   bool fm_configured_{false};
   bool fm_enabled_{false};

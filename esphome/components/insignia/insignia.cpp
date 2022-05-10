@@ -7,6 +7,9 @@ namespace insignia {
 static const char *const TAG = "insignia.climate";
 
 static const int INSIGNIA_CARRIER_FREQ = 38000;
+static const uint8_t INSIGNIA_PACKET_LENGTH = 6;
+
+// clang-format off
 
 // Pulse timings
 static const int INSIGNIA_INIT_HIGH_US =   4400;
@@ -14,8 +17,6 @@ static const int INSIGNIA_INIT_LOW_US =    4400;
 static const int INSIGNIA_ONE_LOW_US =     600;
 static const int INSIGNIA_ZERO_LOW_US =    1600;
 static const int INSIGNIA_HIGH_US =        550;
-
-static const uint8_t INSIGNIA_PACKET_LENGTH = 6;
 
 // Packet Type - Byte 0
 static const uint8_t INSIGNIA_PKT_STATE =       0xA1;
@@ -51,6 +52,8 @@ static const uint8_t INSIGNIA_SWING_OFF =       0x01;
 static const uint8_t INSIGNIA_FM_ON =           0xff;
 static const uint8_t INSIGNIA_FM_OFF =          0x3f;
 static const uint8_t INSIGNIA_FM_UPDATE =       0x7f;
+
+// clang-format on
 
 void InsigniaClimate::setup() {
 #ifdef USE_ESP8266
@@ -103,7 +106,7 @@ void InsigniaClimate::setup() {
   if (this->led_configured_) {
     this->led_switch_->add_on_state_callback([this](bool state) {
       this->led_enabled_ = state;
-      this->toggle_led();
+      this->toggle_led_();
     });
   }
 }
@@ -127,10 +130,12 @@ void InsigniaClimate::update() {
     // ESP_LOGVV(TAG, "FM Switch State: %s", YESNO(this->fm_switch_->state));
     if (this->fm_enabled_ or this->fm_state_changed_) {
       // Transition to any of these modes disables the FM feature
+      // clang-format off
       if (this->mode == climate::CLIMATE_MODE_FAN_ONLY or
           this->mode == climate::CLIMATE_MODE_DRY or
           this->mode == climate::CLIMATE_MODE_OFF
          ) {
+        // clang-format on
         ESP_LOGV(TAG, "Disabling FM due to incompatible HVAC mode");
         this->fm_state_changed_ = false;
         this->fm_enabled_ = false;
@@ -141,8 +146,8 @@ void InsigniaClimate::update() {
       uint8_t remote_state[INSIGNIA_PACKET_LENGTH] = {0};
 
       remote_state[0] = INSIGNIA_PKT_FM;
-      remote_state[1] = this->compile_hvac_byte();
-      remote_state[2] = this->compile_set_point_byte();
+      remote_state[1] = this->compile_hvac_byte_();
+      remote_state[2] = this->compile_set_point_byte_();
 
       if (this->fm_state_changed_) {
         if (this->fm_enabled_) {
@@ -158,18 +163,19 @@ void InsigniaClimate::update() {
       this->fm_state_changed_ = false;
 
       // Report sensor data
-      float target_celcius = (float)(this->sensor_->get_state());
-      uint8_t target_farhenheit = roundf( target_celcius * 1.8 + 32.0 );
+      float target_celcius = (float) (this->sensor_->get_state());
+      uint8_t target_farhenheit = roundf(target_celcius * 1.8 + 32.0);
       remote_state[4] = target_farhenheit - 31;
       ESP_LOGD(TAG, "Sending FM Update with Temperature: %3u", target_farhenheit);
 
-      remote_state[5] = this->calculate_checksum(remote_state, INSIGNIA_PACKET_LENGTH - 1);
-      this->send_transmission(remote_state, INSIGNIA_PACKET_LENGTH);
+      remote_state[5] = this->calculate_checksum_(remote_state, INSIGNIA_PACKET_LENGTH - 1);
+      this->send_transmission_(remote_state, INSIGNIA_PACKET_LENGTH);
     }
   }
 }
 
-void InsigniaClimate::toggle_led() {
+void InsigniaClimate::toggle_led_() {
+  // clang-format off
   uint8_t remote_state[INSIGNIA_PACKET_LENGTH] = {
     INSIGNIA_PKT_CMD,
     INSIGNIA_LED,
@@ -178,11 +184,12 @@ void InsigniaClimate::toggle_led() {
     0xff,
     INSIGNIA_LED_CSUM
   };
+  // clang-format on
   ESP_LOGD(TAG, "Sending LED Toggle");
-  this->send_transmission(remote_state, INSIGNIA_PACKET_LENGTH);
+  this->send_transmission_(remote_state, INSIGNIA_PACKET_LENGTH);
 }
 
-uint8_t InsigniaClimate::compile_hvac_byte() {
+uint8_t InsigniaClimate::compile_hvac_byte_() {
   uint8_t hvac_byte = 0x00;
   // HVAC Mode
   switch (this->mode) {
@@ -231,22 +238,22 @@ uint8_t InsigniaClimate::compile_hvac_byte() {
   return hvac_byte;
 }
 
-uint8_t InsigniaClimate::compile_set_point_byte() {
+uint8_t InsigniaClimate::compile_set_point_byte_() {
   // The AC expects a valid set point, even in modes where its not used.
   // ESPHome always presents this number in celcius.
   // This AC unit only supports farhenheit, so we need to convert it.
   float target_celcius = clamp<float>(this->target_temperature, INSIGNIA_TEMP_MIN, INSIGNIA_TEMP_MAX);
-  uint8_t target_farhenheit = roundf( target_celcius * 1.8 + 32.0 );
+  uint8_t target_farhenheit = roundf(target_celcius * 1.8 + 32.0);
   return (34 + target_farhenheit);
 }
 
-uint8_t InsigniaClimate::calculate_checksum(uint8_t const *message, uint8_t length) {
+uint8_t InsigniaClimate::calculate_checksum_(uint8_t const *message, uint8_t length) {
   uint8_t csum = 0x00;
   for (int i = 0; i < length; i++) {
-    csum += this->reverse_bits(message[i]);
+    csum += this->reverse_bits_(message[i]);
   }
   csum += 0xff;
-  csum = this->reverse_bits(csum) ^ 0xff;
+  csum = this->reverse_bits_(csum) ^ 0xff;
 
   return csum;
 }
@@ -268,10 +275,10 @@ void InsigniaClimate::transmit_state() {
   } else {
     // Handle all other state changes
     remote_state[0] = INSIGNIA_PKT_STATE;
-    remote_state[1] = this->compile_hvac_byte();
+    remote_state[1] = this->compile_hvac_byte_();
 
     // Temperature Set Point
-    remote_state[2] = compile_set_point_byte();
+    remote_state[2] = compile_set_point_byte_();
 
     // Packets 3 and 4 are not used for state packets
     remote_state[3] = 0xff;
@@ -279,18 +286,19 @@ void InsigniaClimate::transmit_state() {
   }
 
   // Calculate checksum
-  remote_state[5] = this->calculate_checksum(remote_state, INSIGNIA_PACKET_LENGTH - 1);
+  remote_state[5] = this->calculate_checksum_(remote_state, INSIGNIA_PACKET_LENGTH - 1);
 
-  send_transmission(remote_state, INSIGNIA_PACKET_LENGTH);
+  send_transmission_(remote_state, INSIGNIA_PACKET_LENGTH);
 
   // Reconfigure Follow Me to current mode
+  // clang-format off
   if (this->mode == climate::CLIMATE_MODE_OFF or
       this->mode == climate::CLIMATE_MODE_DRY or
       this->mode == climate::CLIMATE_MODE_FAN_ONLY) {
+    // clang-format on
     // The head unit will automatically turn FM off in any of these modes
     this->fm_enabled_ = false;
-  } else if (this->fm_switch_->state and not
-             this->fm_enabled_) {
+  } else if (this->fm_switch_->state and not this->fm_enabled_) {
     // FM switch is on, and we just switched to a supported mode, so we need to
     // re-send an enable packet
     ESP_LOGV(TAG, "Sending delayed FM Enable packet to sync states");
@@ -298,12 +306,12 @@ void InsigniaClimate::transmit_state() {
     this->fm_state_changed_ = true;
     // Pause between "power on" and "enable Follow Me". This will only happen under
     // certain state transitions, and in direct response to user interaction.
-    delay(2000); // NOLINT
+    delay(2000);  // NOLINT
     this->update();
   }
 }
 
-void InsigniaClimate::send_transmission(uint8_t const *message, uint8_t length) {
+void InsigniaClimate::send_transmission_(uint8_t const *message, uint8_t length) {
   // This AC expects the same packet sent twice, one of them in one's compliment
   // of the other
   uint8_t inverted_message[INSIGNIA_PACKET_LENGTH] = {0};
@@ -311,13 +319,14 @@ void InsigniaClimate::send_transmission(uint8_t const *message, uint8_t length) 
     inverted_message[i] = (message[i] ^ 0xff);
   }
 
-  ESP_LOGV(TAG, "Sending insignia code: 0x%2X %2X %2X %2X %2X %2X", message[0],message[1],message[2],message[3],message[4],message[5] );
+  ESP_LOGV(TAG, "Sending insignia code: 0x%2X %2X %2X %2X %2X %2X", message[0], message[1], message[2], message[3],
+           message[4], message[5]);
 
-  this->send_packet(inverted_message, INSIGNIA_PACKET_LENGTH);
-  this->send_packet(message, INSIGNIA_PACKET_LENGTH);
+  this->send_packet_(inverted_message, INSIGNIA_PACKET_LENGTH);
+  this->send_packet_(message, INSIGNIA_PACKET_LENGTH);
 }
 
-uint8_t InsigniaClimate::reverse_bits(uint8_t inbyte) {
+uint8_t InsigniaClimate::reverse_bits_(uint8_t inbyte) {
   uint8_t reversed = 0x00;
   for (uint8_t i = 0; i < 8; i++) {
     if (inbyte & (0x80 >> i)) {
@@ -327,7 +336,7 @@ uint8_t InsigniaClimate::reverse_bits(uint8_t inbyte) {
   return reversed;
 }
 
-void InsigniaClimate::send_packet(uint8_t const *message, uint8_t length) {
+void InsigniaClimate::send_packet_(uint8_t const *message, uint8_t length) {
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
 
@@ -341,7 +350,7 @@ void InsigniaClimate::send_packet(uint8_t const *message, uint8_t length) {
   for (uint8_t msgbyte = 0; msgbyte < length; msgbyte++) {
     for (uint8_t bit = 0; bit < 8; bit++) {
       data->mark(INSIGNIA_HIGH_US);
-      if (message[msgbyte] & (0x80 >> bit)) {   // shift bits out left to right
+      if (message[msgbyte] & (0x80 >> bit)) {  // shift bits out left to right
         data->space(INSIGNIA_ONE_LOW_US);
       } else {
         data->space(INSIGNIA_ZERO_LOW_US);
