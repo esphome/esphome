@@ -24,7 +24,6 @@ class SelectCall {
 
   SelectCall &set_option(const std::string &option);
   SelectCall &set_index(size_t index);
-  const optional<std::string> &get_option() const;
 
   SelectCall &select_next(bool cycle);
   SelectCall &select_previous(bool cycle);
