@@ -4,7 +4,6 @@ from esphome.components import climate_ir, sensor, switch
 from esphome.const import (
     CONF_ID,
     CONF_SENSOR,
-    CONF_SWITCHES,
 )
 
 AUTO_LOAD = ["climate_ir"]
@@ -27,6 +26,7 @@ CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
     }
 ).extend(cv.polling_component_schema("60s"))
 
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await climate_ir.register_climate_ir(var, config)
@@ -37,7 +37,7 @@ async def to_code(config):
 
     if CONF_FOLLOW_ME_SWITCH in config:
         if CONF_SENSOR not in config:
-            raise cv.Invalid(f"sensor must be specified to use follow_me_switch")
+            raise cv.Invalid("sensor must be specified to use follow_me_switch")
         else:
             cg.add(var.set_fm_configured(True))
             sw = await cg.get_variable(config[CONF_FOLLOW_ME_SWITCH])
@@ -46,4 +46,4 @@ async def to_code(config):
     if CONF_LED_SWITCH in config:
         cg.add(var.set_led_configured(True))
         sw = await cg.get_variable(config[CONF_LED_SWITCH])
-        cg.add(var.set_led_switch(sw));
+        cg.add(var.set_led_switch(sw))
