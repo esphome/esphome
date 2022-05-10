@@ -29,7 +29,7 @@ std::string build_json(const json_build_t &f) {
   const size_t request_size = std::min(free_heap - 2048, (size_t) 5120);
 
   DynamicJsonDocument json_document(request_size);
-  if (json_document.memoryPool().buffer() == nullptr) {
+  if (json_document.capacity() == 0) {
     ESP_LOGE(TAG, "Could not allocate memory for JSON document! Requested %u bytes, largest free heap block: %u bytes",
              request_size, free_heap);
     return "{}";
@@ -37,7 +37,7 @@ std::string build_json(const json_build_t &f) {
   JsonObject root = json_document.to<JsonObject>();
   f(root);
   json_document.shrinkToFit();
-
+  ESP_LOGV(TAG, "Size after shrink %u bytes", json_document.capacity());
   std::string output;
   serializeJson(json_document, output);
   return output;
@@ -57,7 +57,7 @@ void parse_json(const std::string &data, const json_parse_t &f) {
   size_t request_size = std::min(free_heap - 2048, (size_t)(data.size() * 1.5));
   do {
     DynamicJsonDocument json_document(request_size);
-    if (json_document.memoryPool().buffer() == nullptr) {
+    if (json_document.capacity() == 0) {
       ESP_LOGE(TAG, "Could not allocate memory for JSON document! Requested %u bytes, free heap: %u", request_size,
                free_heap);
       return;
