@@ -23,8 +23,7 @@ void TemplateSelect::setup() {
       ESP_LOGD(TAG, "State from initial (could not load stored index): %s", value.c_str());
     } else if (index >= this->size()) {
       value = this->initial_option_;
-      ESP_LOGD(TAG, "State from initial (restored index %d out of bounds): %s",
-               index, value.c_str());
+      ESP_LOGD(TAG, "State from initial (restored index %d out of bounds): %s", index, value.c_str());
     } else {
       value = this->at(index).value();
       ESP_LOGD(TAG, "State from restore: %s", value.c_str());
