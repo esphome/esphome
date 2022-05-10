@@ -182,6 +182,7 @@ esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core @jsuanet
 esphome/components/sim800l/* @glmnet
 esphome/components/sm2135/* @BoukeHaarsma23
+esphome/components/sml/* @alengwenus
 esphome/components/socket/* @esphome/core
 esphome/components/sonoff_d1/* @anatoly-savchenkov
 esphome/components/spi/* @esphome/core
