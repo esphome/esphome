@@ -154,8 +154,8 @@ select:
     restore_value: true
     on_value:
       - logger.log:
-          format: "Select changed to %s"
-          args: ["x.c_str()"]
+          format: "Select changed to %s (index %d)"
+          args: ["x.c_str()", "i"]
     set_action:
       - logger.log:
           format: "Template Select set to %s"
@@ -163,10 +163,41 @@ select:
       - select.set:
           id: template_select_id
           option: two
+      - select.first: template_select_id
+      - select.last:
+          id: template_select_id
+      - select.previous: template_select_id
+      - select.next:
+          id: template_select_id
+          cycle: false
+      - select.operation:
+          id: template_select_id
+          operation: Previous
+          cycle: false
+      - select.operation:
+          id: template_select_id
+          operation: !lambda "return SELECT_OP_PREVIOUS;"
+          cycle: !lambda "return true;"
+      - select.set_index:
+          id: template_select_id
+          index: 1
+      - select.set_index:
+          id: template_select_id
+          index: !lambda "return 1 + 1;"
     options:
       - one
       - two
       - three
+
+  - platform: modbus_controller
+    name: "Modbus Select Register 1000"
+    address: 1000
+    value_type: U_WORD
+    optionsmap:
+      "Zero": 0
+      "One": 1
+      "Two": 2
+      "Three": 3
 
 sensor:
   - platform: selec_meter
