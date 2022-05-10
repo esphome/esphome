@@ -1445,3 +1445,41 @@ cd74hc4067:
   pin_s1: GPIO13
   pin_s2: GPIO14
   pin_s3: GPIO15
+
+humidifier:
+  - platform: hygrostat
+    name: Hygrostat Humidifier
+    sensor: ha_hello_world
+    default_target_humidity_low: 40%
+    default_target_humidity_high: 60%
+    idle_action:
+      - switch.turn_on: gpio_switch1
+    humidify_action:
+      - switch.turn_on: gpio_switch2
+    dehumidify_action:
+      - switch.turn_on: gpio_switch1
+    auto_mode:
+      - switch.turn_on: gpio_switch2
+    off_mode:
+      - switch.turn_on: gpio_switch1
+    humidify_mode:
+      - switch.turn_on: gpio_switch2
+    dehumidify_mode:
+      - switch.turn_on: gpio_switch1
+    startup_delay: true
+    dehumidify_deadband: 0.5
+    dehumidify_overrun: 0.5
+    min_dehumidifying_off_time: 300s
+    min_dehumidifying_run_time: 300s
+    max_dehumidifying_run_time: 600s
+    humidify_deadband: 0.5
+    humidify_overrun: 0.5
+    min_humidifying_off_time: 300s
+    min_humidifying_run_time: 300s
+    max_humidifying_run_time: 600s
+    min_idle_time: 30s
+    set_point_minimum_differential: 0.5
+    away_config:
+      default_target_humidity_low: 20%
+      default_target_humidity_high: 80%
+
