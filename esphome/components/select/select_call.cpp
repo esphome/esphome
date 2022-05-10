@@ -13,8 +13,6 @@ SelectCall &SelectCall::set_option(const std::string &option) {
 
 SelectCall &SelectCall::set_index(size_t index) { return with_operation(SELECT_OP_SET_INDEX).with_index(index); }
 
-const optional<std::string> &SelectCall::get_option() const { return option_; }
-
 SelectCall &SelectCall::select_next(bool cycle) { return with_operation(SELECT_OP_NEXT).with_cycle(cycle); }
 
 SelectCall &SelectCall::select_previous(bool cycle) { return with_operation(SELECT_OP_PREVIOUS).with_cycle(cycle); }
