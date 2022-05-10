@@ -139,4 +139,4 @@ async def to_code(config):
                     cfg[CONF_GAIN_FACTOR],
                 )
             )
-    cg.add_library("https://github.com/Sensirion/arduino-gas-index-algorithm.git", "")
+    cg.add_library(None, None, "https://github.com/Sensirion/arduino-gas-index-algorithm.git", "")
