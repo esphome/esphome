@@ -755,7 +755,7 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 #endif
 
 #ifdef USE_SELECT
-void WebServer::on_select_update(select::Select *obj, const std::string &state) {
+void WebServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
   this->events_.send(this->select_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
