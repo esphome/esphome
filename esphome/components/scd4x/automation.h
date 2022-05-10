@@ -21,10 +21,7 @@ template<typename... Ts> class PerformForcedCalibrationAction : public Action<Ts
 
 template<typename... Ts> class FactoryResetAction : public Action<Ts...>, public Parented<SCD4XComponent> {
  public:
-  void play(Ts... x) override { this->parent_scd4x_->factory_reset(); }
-
- protected:
-  SCD4XComponent *scd4x_;
+  void play(Ts... x) override { this->parent_->factory_reset(); }
 };
 
 }  // namespace scd4x

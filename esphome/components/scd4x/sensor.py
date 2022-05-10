@@ -166,5 +166,6 @@ SCD4X_RESET_ACTION_SCHEMA = maybe_simple_id(
     "scd4x.factory_reset", FactoryResetAction, SCD4X_RESET_ACTION_SCHEMA
 )
 async def scd4x_reset_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
