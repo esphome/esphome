@@ -62,9 +62,9 @@ CONF_VOC_BASELINE = "voc_baseline"
 StartFanAction = sen5x_ns.class_("StartFanAction", automation.Action)
 
 ACCELERATION_MODES = {
-    "low": SEN5XAccelerationMode.LOW_ACCELERATION,
-    "medium": SEN5XAccelerationMode.MEDIUM_ACCELERATION,
-    "high": SEN5XAccelerationMode.HIGH_ACCELERATION,
+    "low": RhtAccelerationMode.LOW_ACCELERATION,
+    "medium": RhtAccelerationMode.MEDIUM_ACCELERATION,
+    "high": RhtAccelerationMode.HIGH_ACCELERATION,
 }
 
 GAS_SENSOR = cv.Schema(
