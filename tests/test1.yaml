@@ -121,6 +121,7 @@ mqtt:
     - topic: livingroom/ota_mode
       then:
         - deep_sleep.prevent
+        - deep_sleep.allow
     - topic: livingroom/ota_mode
       then:
         - deep_sleep.enter:
@@ -2833,4 +2834,3 @@ button:
           id: scd40
       - scd4x.factory_reset:
           id: scd40
-
