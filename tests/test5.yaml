@@ -120,6 +120,11 @@ number:
     name: My template number
     id: template_number_id
     optimistic: true
+    max_value: 100
+    min_value: 0
+    step: 5
+    unit_of_measurement: "%"
+    mode: slider
     on_value:
       - logger.log:
           format: "Number changed to %f"
@@ -128,11 +133,31 @@ number:
       - logger.log:
           format: "Template Number set to %f"
           args: ["x"]
-    max_value: 100
-    min_value: 0
-    step: 5
-    unit_of_measurement: "%"
-    mode: slider
+      - number.set:
+          id: template_number_id
+          value: 50
+      - number.to_min: template_number_id
+      - number.to_min:
+          id: template_number_id
+      - number.to_max: template_number_id
+      - number.to_max:
+          id: template_number_id
+      - number.increment: template_number_id
+      - number.increment:
+          id: template_number_id
+          cycle: false
+      - number.decrement: template_number_id
+      - number.decrement:
+          id: template_number_id
+          cycle: false
+      - number.operation:
+          id: template_number_id
+          operation: Increment
+          cycle: false
+      - number.operation:
+          id: template_number_id
+          operation: !lambda "return NUMBER_OP_INCREMENT;"
+          cycle: !lambda "return false;"
 
   - id: modbus_numbertest
     platform: modbus_controller
