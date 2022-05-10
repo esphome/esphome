@@ -145,6 +145,15 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_BUTTON
   virtual void on_button_command_request(const ButtonCommandRequest &value){};
 #endif
+#ifdef USE_HUMIDIFIER
+  bool send_list_entities_humidifier_response(const ListEntitiesHumidifierResponse &msg);
+#endif
+#ifdef USE_HUMIDIFIER
+  bool send_humidifier_state_response(const HumidifierStateResponse &msg);
+#endif
+#ifdef USE_HUMIDIFIER
+  virtual void on_humidifier_command_request(const HumidifierCommandRequest &value){};
+#endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
@@ -180,6 +189,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_CLIMATE
   virtual void climate_command(const ClimateCommandRequest &msg) = 0;
+#endif
+#ifdef USE_HUMIDIFIER
+  virtual void humidifier_command(const HumidifierCommandRequest &msg) = 0;
 #endif
 #ifdef USE_NUMBER
   virtual void number_command(const NumberCommandRequest &msg) = 0;
@@ -223,6 +235,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_CLIMATE
   void on_climate_command_request(const ClimateCommandRequest &msg) override;
+#endif
+#ifdef USE_HUMIDIFIER
+  void on_humidifier_command_request(const HumidifierCommandRequest &msg) override;
 #endif
 #ifdef USE_NUMBER
   void on_number_command_request(const NumberCommandRequest &msg) override;

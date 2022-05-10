@@ -185,8 +185,7 @@ bool APIServerConnectionBase::send_homeassistant_service_response(const Homeassi
 #endif
   return this->send_message_<HomeassistantServiceResponse>(msg, 35);
 }
-bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(
-    const SubscribeHomeAssistantStateResponse &msg) {
+bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(const SubscribeHomeAssistantStateResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_subscribe_home_assistant_state_response: %s", msg.dump().c_str());
 #endif
@@ -309,6 +308,24 @@ bool APIServerConnectionBase::send_list_entities_button_response(const ListEntit
 }
 #endif
 #ifdef USE_BUTTON
+#endif
+#ifdef USE_HUMIDIFIER
+bool APIServerConnectionBase::send_list_entities_humidifier_response(const ListEntitiesHumidifierResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_humidifier_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesHumidifierResponse>(msg, 63);
+}
+#endif
+#ifdef USE_HUMIDIFIER
+bool APIServerConnectionBase::send_humidifier_state_response(const HumidifierStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_humidifier_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<HumidifierStateResponse>(msg, 64);
+}
+#endif
+#ifdef USE_HUMIDIFIER
 #endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
@@ -566,6 +583,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 65: {
+#ifdef USE_HUMIDIFIER
+      HumidifierCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_humidifier_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_humidifier_command_request(msg);
+#endif
+      break;
+    }
     default:
       return false;
   }
@@ -639,8 +667,7 @@ void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &
   }
   this->subscribe_logs(msg);
 }
-void APIServerConnection::on_subscribe_homeassistant_services_request(
-    const SubscribeHomeassistantServicesRequest &msg) {
+void APIServerConnection::on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
@@ -759,6 +786,19 @@ void APIServerConnection::on_climate_command_request(const ClimateCommandRequest
     return;
   }
   this->climate_command(msg);
+}
+#endif
+#ifdef USE_HUMIDIFIER
+void APIServerConnection::on_humidifier_command_request(const HumidifierCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->humidifier_command(msg);
 }
 #endif
 #ifdef USE_NUMBER
