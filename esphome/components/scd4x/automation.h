@@ -7,7 +7,7 @@
 namespace esphome {
 namespace scd4x {
 
-template<typename... Ts> class PerformForcedCalibrationAction : public Action<Ts...> {
+template<typename... Ts> class PerformForcedCalibrationAction : public Action<Ts...>, public Parented<SCD4XComponent> {
  public:
   void play(Ts... x) override {
     if (this->value_.has_value()) {
@@ -19,11 +19,9 @@ template<typename... Ts> class PerformForcedCalibrationAction : public Action<Ts
   TEMPLATABLE_VALUE(uint16_t, value)
 };
 
-template<typename... Ts> class FactoryResetAction : public Action<Ts...> {
+template<typename... Ts> class FactoryResetAction : public Action<Ts...>, public Parented<SCD4XComponent> {
  public:
-  explicit FactoryResetAction(SCD4XComponent *scd4x) : scd4x_(scd4x) {}
-
-  void play(Ts... x) override { this->scd4x_->factory_reset(); }
+  void play(Ts... x) override { this->parent_scd4x_->factory_reset(); }
 
  protected:
   SCD4XComponent *scd4x_;
