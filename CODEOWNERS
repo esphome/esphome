@@ -90,6 +90,7 @@ esphome/components/improv_serial/* @esphome/core
 esphome/components/ina260/* @MrEditor97
 esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate6/* @jesserockz
+esphome/components/insignia/* @andrewmv
 esphome/components/integration/* @OttoWinter
 esphome/components/interval/* @esphome/core
 esphome/components/json/* @OttoWinter
