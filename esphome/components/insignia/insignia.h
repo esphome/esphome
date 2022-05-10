@@ -37,8 +37,6 @@ class InsigniaClimate : public climate_ir::ClimateIR {
   void set_led_switch(switch_::Switch *led_switch) { this->led_switch_ = led_switch; }
   void set_fm_configured(bool b) { this->fm_configured_ = b; }
   void set_led_configured(bool b) { this->led_configured_ = b; }
-  // void set_fm_enabled(bool b) { this->fm_enabled_ = b; }
-  // void set_led_enabled(bool b) { this->led_enabled_ = b; }
 
  protected:
   /// Transmit via IR the state of this climate controller.
