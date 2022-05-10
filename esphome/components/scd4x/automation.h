@@ -9,7 +9,6 @@ namespace scd4x {
 
 template<typename... Ts> class PerformForcedCalibrationAction : public Action<Ts...>, public Parented<SCD4XComponent> {
  public:
-  void set_value(uint16_t value) { this->value_ = value; }
 
   void play(Ts... x) override {
     if (this->value_.has_value()) {
