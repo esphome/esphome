@@ -326,8 +326,6 @@ uint8_t InsigniaClimate::reverse_bits(uint8_t inbyte) {
 }
 
 void InsigniaClimate::send_packet(uint8_t const *message, uint8_t length) {
-  ESP_LOGV(TAG, "Transmit message length %d", length);
-
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
 
