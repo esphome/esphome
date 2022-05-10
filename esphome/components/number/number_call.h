@@ -23,8 +23,6 @@ class NumberCall {
   void perform();
 
   NumberCall &set_value(float value);
-  const optional<float> &get_value() const { return value_; }
-
   NumberCall &number_increment(bool cycle);
   NumberCall &number_decrement(bool cycle);
   NumberCall &number_to_min();
