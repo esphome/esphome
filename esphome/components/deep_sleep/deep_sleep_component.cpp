@@ -160,6 +160,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 }
 float DeepSleepComponent::get_setup_priority() const { return setup_priority::LATE; }
 void DeepSleepComponent::prevent_deep_sleep() { this->prevent_ = true; }
+void DeepSleepComponent::allow_deep_sleep() { this->prevent_ = false; }
 
 }  // namespace deep_sleep
 }  // namespace esphome
