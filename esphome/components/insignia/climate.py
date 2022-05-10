@@ -15,7 +15,6 @@ InsigniaClimate = insignia_ns.class_(
     "InsigniaClimate", climate_ir.ClimateIR, cg.PollingComponent
 )
 
-CONF_SENSOR = "sensor"
 CONF_FOLLOW_ME_SWITCH = "follow_me_switch"
 CONF_LED_SWITCH = "led_switch"
 
