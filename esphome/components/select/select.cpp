@@ -23,6 +23,10 @@ void Select::add_on_state_callback(std::function<void(std::string, size_t)> &&ca
   this->state_callback_.add(std::move(callback));
 }
 
+bool Select::has_option(const std::string &option) const { return this->index_of(option).has_value(); }
+
+bool Select::has_index(size_t index) const { return index < this->size(); }
+
 size_t Select::size() const {
   auto options = traits.get_options();
   return options.size();
@@ -46,11 +50,12 @@ optional<size_t> Select::active_index() const {
 }
 
 optional<std::string> Select::at(size_t index) const {
-  auto options = traits.get_options();
-  if (index >= options.size()) {
+  if (this->has_index(index)) {
+    auto options = traits.get_options();
+    return options.at(index);
+  } else {
     return {};
   }
-  return options.at(index);
 }
 
 uint32_t Select::hash_base() { return 2812997003UL; }

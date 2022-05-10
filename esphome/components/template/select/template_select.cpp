@@ -21,7 +21,7 @@ void TemplateSelect::setup() {
     if (!this->pref_.load(&index)) {
       value = this->initial_option_;
       ESP_LOGD(TAG, "State from initial (could not load stored index): %s", value.c_str());
-    } else if (index >= this->size()) {
+    } else if (!this->has_index(index)) {
       value = this->initial_option_;
       ESP_LOGD(TAG, "State from initial (restored index %d out of bounds): %s", index, value.c_str());
     } else {
@@ -41,8 +41,7 @@ void TemplateSelect::update() {
   if (!val.has_value())
     return;
 
-  auto index = this->index_of(*val);
-  if (!index.has_value()) {
+  if (!this->has_option(*val)) {
     ESP_LOGE(TAG, "Lambda returned an invalid option: %s", (*val).c_str());
     return;
   }
@@ -58,7 +57,7 @@ void TemplateSelect::control(const std::string &value) {
 
   if (this->restore_value_) {
     auto index = this->index_of(value);
-    this->pref_.save(&index);
+    this->pref_.save(&index.value());
   }
 }
 

@@ -28,15 +28,28 @@ class Select : public EntityBase {
 
   void publish_state(const std::string &state);
 
-  /// Return whether this select has gotten a full state yet.
+  /// Return whether this select component has gotten a full state yet.
   bool has_state() const { return has_state_; }
 
+  /// Instantiate a SelectCall object to modify this select component's state.
   SelectCall make_call() { return SelectCall(this); }
 
-  // Methods that provide an API to index-based access.
+  /// Return whether this select component contains the provided option.
+  bool has_option(const std::string &option) const;
+
+  /// Return whether this select component contains the provided index offset.
+  bool has_index(size_t index) const;
+
+  /// Return the number of options in this select component.
   size_t size() const;
+
+  /// Find the (optional) index offset of the provided option value.
   optional<size_t> index_of(const std::string &option) const;
+
+  /// Return the (optional) index offset of the currently active option.
   optional<size_t> active_index() const;
+
+  /// Return the (optional) option value at the provided index offset.
   optional<std::string> at(size_t index) const;
 
   void add_on_state_callback(std::function<void(std::string, size_t)> &&callback);
