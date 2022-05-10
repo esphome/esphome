@@ -55,7 +55,7 @@ template<typename... Ts> class PerformForcedCalibration : public Action<Ts...> {
   PerformForcedCalibration(SCD4XComponent *scd4x) : scd4x_(scd4x) {}
   TEMPLATABLE_VALUE(uint16_t, target_co2)
 
-  void play(Ts... x) override { scd4x_->perform_forced_calibration(this->target_co2_.value(x...)); }
+  void play(Ts... x) override { this->scd4x_->perform_forced_calibration(this->target_co2_.value(x...)); }
 
  protected:
   SCD4XComponent *scd4x_;
