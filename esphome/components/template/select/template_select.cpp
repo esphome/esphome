@@ -26,7 +26,7 @@ void TemplateSelect::setup() {
       ESP_LOGD(TAG, "State from initial (restored index %d out of bounds): %s",
                index, value.c_str());
     } else {
-      value = this->at(index);
+      value = this->at(index).value();
       ESP_LOGD(TAG, "State from restore: %s", value.c_str());
     }
   }
