@@ -890,6 +890,7 @@ sensor:
     temperature_offset: 4.2C
     i2c_id: i2c_bus
   - platform: scd4x
+    id: scd40
     co2:
       name: "SCD4X CO2"
     temperature:
@@ -2822,3 +2823,14 @@ lock:
   - platform: copy
     source_id: test_lock2
     name: Generic Output Lock Copy
+
+button:
+  - platform: template
+    name: "Start calibration"
+    on_press:
+      - scd4x.perform_forced_calibration:
+          value: 419
+          id: scd40
+      - scd4x.factory_reset:
+          id: scd40
+
