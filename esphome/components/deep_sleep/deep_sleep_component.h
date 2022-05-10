@@ -70,17 +70,19 @@ class DeepSleepComponent : public Component {
   void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode);
 #endif
 
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
+#if defined(USE_ESP32)
+#if !defined(USE_ESP32_VARIANT_ESP32C3)
 
   void set_ext1_wakeup(Ext1Wakeup ext1_wakeup);
 
   void set_touch_wakeup(bool touch_wakeup);
 
+#endif
   // Set the duration in ms for how long the code should run before entering
   // deep sleep mode, according to the cause the ESP32 has woken.
   void set_run_duration(WakeupCauseToRunDuration wakeup_cause_to_run_duration);
-
 #endif
+
   /// Set a duration in ms for how long the code should run before entering deep sleep mode.
   void set_run_duration(uint32_t time_ms);
 
