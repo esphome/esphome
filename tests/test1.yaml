@@ -1811,6 +1811,8 @@ climate:
     name: Fujitsu General Climate
   - platform: daikin
     name: Daikin Climate
+  - platform: delonghi
+    name: Delonghi Climate
   - platform: yashima
     name: Yashima Climate
   - platform: mitsubishi
