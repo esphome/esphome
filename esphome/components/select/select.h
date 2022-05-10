@@ -32,7 +32,6 @@ class Select : public EntityBase {
   bool has_state() const { return has_state_; }
 
   SelectCall make_call() { return SelectCall(this); }
-  void set(const std::string &value) { make_call().set_option(value).perform(); }
 
   // Methods that provide an API to index-based access.
   size_t size() const;
