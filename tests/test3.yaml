@@ -266,7 +266,7 @@ uart:
     stop_bits: 2
     # Specifically added for testing debug with no options at all.
     debug:
-  - id: uart8
+  - id: uart9
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
@@ -563,7 +563,7 @@ sensor:
       name: 'AQI'
       calculation_type: 'AQI'
   - platform: pmsx003
-    uart_id: uart8
+    uart_id: uart9
     type: PMSX003
     pm_1_0:
       name: 'PM 1.0 Concentration'
