@@ -78,6 +78,7 @@ CANBUS_SCHEMA = cv.Schema(
                     min=0, max=0x1FFFFFFF
                 ),
                 cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
+                cv.Optional(CONF_REMOTE_TRANSMISSION_REQUEST): cv.boolean,
             },
             validate_id,
         ),
@@ -100,10 +101,20 @@ async def setup_canbus_core_(var, config):
         trigger = cg.new_Pvariable(
             conf[CONF_TRIGGER_ID], var, can_id, can_id_mask, ext_id
         )
+        if CONF_REMOTE_TRANSMISSION_REQUEST in conf:
+            cg.add(
+                trigger.set_remote_transmission_request(
+                    conf[CONF_REMOTE_TRANSMISSION_REQUEST]
+                )
+            )
         await cg.register_component(trigger, conf)
         await automation.build_automation(
             trigger,
-            [(cg.std_vector.template(cg.uint8), "x"), (cg.uint32, "can_id")],
+            [
+                (cg.std_vector.template(cg.uint8), "x"),
+                (cg.uint32, "can_id"),
+                (cg.bool_, "remote_transmission_request"),
+            ],
             conf,
         )
 
