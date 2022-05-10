@@ -16,8 +16,8 @@ const float INSIGNIA_TEMP_MAX = 30.0;   // 86 Farhenheit
 class InsigniaClimate : public climate_ir::ClimateIR {
  public:
   InsigniaClimate()
-      : climate_ir::ClimateIR(INSIGNIA_TEMP_MIN, 
-                              INSIGNIA_TEMP_MAX, 
+      : climate_ir::ClimateIR(INSIGNIA_TEMP_MIN,
+                              INSIGNIA_TEMP_MAX,
                               1.0f,   // Step
                               true,   // Supports Dry
                               true,   // Supports Fan
