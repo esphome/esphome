@@ -104,6 +104,19 @@ PRESET_CONFIG_SCHEMA = cv.Schema(
         ),
     }
 )
+ 
+def validate_preset(preset, root_config, name, requirements):
+    # verify an individual preset / default config / away config
+    for config_temp, req_actions in requirements.items():
+        for req_action in req_actions:
+            # verify corresponding default target temperature exists when a given climate action exists
+            if config_temp not in preset and req_action in root_config:
+                raise cv.Invalid(
+                    f"{config_temp} must be defined in {name} config when using {req_action}"
+                )
+            # if a given climate action is NOT defined, it should not have a default target temperature
+            if config_temp in preset and req_action not in root_config:
+                raise cv.Invalid(f"{config_temp} is defined in {name} config with no {req_action}")
 
 
 def validate_thermostat(config):
@@ -258,31 +271,16 @@ def validate_thermostat(config):
             CONF_DEFAULT_TARGET_TEMPERATURE_LOW: [CONF_HEAT_ACTION],
         }
 
-    for config_temp, req_actions in requirements.items():
-        for req_action in req_actions:
-            # verify corresponding default target temperature exists when a given climate action exists
-            if config_temp not in config and req_action in config:
-                raise cv.Invalid(
-                    f"{config_temp} must be defined when using {req_action}"
-                )
-            # if a given climate action is NOT defined, it should not have a default target temperature
-            if config_temp in config and req_action not in config:
-                raise cv.Invalid(f"{config_temp} is defined with no {req_action}")
+    validate_preset(config, config, "default", requirements)
 
     if CONF_AWAY_CONFIG in config:
         away = config[CONF_AWAY_CONFIG]
-        for config_temp, req_actions in requirements.items():
-            for req_action in req_actions:
-                # verify corresponding default target temperature exists when a given climate action exists
-                if config_temp not in away and req_action in config:
-                    raise cv.Invalid(
-                        f"{config_temp} must be defined in away configuration when using {req_action}"
-                    )
-                # if a given climate action is NOT defined, it should not have a default target temperature
-                if config_temp in away and req_action not in config:
-                    raise cv.Invalid(
-                        f"{config_temp} is defined in away configuration with no {req_action}"
-                    )
+        validate_preset(away, config, "away", requirements)
+
+    if CONF_PRESET in config:
+        for preset_config in config[CONF_PRESET]:
+            validate_preset(preset_config, config, preset_config[CONF_NAME], requirements)
+
 
     # verify default climate mode is valid given above configuration
     default_mode = config[CONF_DEFAULT_MODE]
@@ -293,12 +291,23 @@ def validate_thermostat(config):
         "DRY": [CONF_DRY_ACTION],
         "FAN_ONLY": [CONF_FAN_ONLY_ACTION],
         "AUTO": [CONF_COOL_ACTION, CONF_HEAT_ACTION],
-    }.get(default_mode, [])
-    for req in requirements:
+    }
+    actions_for_default_mode = requirements.get(default_mode, [])
+    for req in actions_for_default_mode:
         if req not in config:
             raise cv.Invalid(
                 f"{CONF_DEFAULT_MODE} is set to {default_mode} but {req} is not present in the configuration"
             )
+   
+    if CONF_PRESET in config:
+        for preset_config in config[CONF_PRESET]:
+            mode = preset_config[CONF_MODE]
+
+            for req in requirements[mode]:
+                if req not in config:
+                    raise cv.Invalid(
+                        f"{CONF_MODE} is set to {mode} for {preset_config[CONF_NAME]} but {req} is not present in the preset"
+                    )
 
     if config[CONF_FAN_WITH_COOLING] is True and CONF_FAN_ONLY_ACTION not in config:
         raise cv.Invalid(
