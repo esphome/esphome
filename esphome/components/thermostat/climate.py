@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import climate, sensor
 from esphome.const import (
-    CONF_NAME,
     CONF_AUTO_MODE,
     CONF_AWAY_CONFIG,
     CONF_COOL_ACTION,
@@ -15,6 +14,7 @@ from esphome.const import (
     CONF_DEFAULT_TARGET_TEMPERATURE_LOW,
     CONF_DRY_ACTION,
     CONF_DRY_MODE,
+    CONF_FAN_MODE,
     CONF_FAN_MODE_ON_ACTION,
     CONF_FAN_MODE_OFF_ACTION,
     CONF_FAN_MODE_AUTO_ACTION,
@@ -46,7 +46,10 @@ from esphome.const import (
     CONF_MIN_HEATING_OFF_TIME,
     CONF_MIN_HEATING_RUN_TIME,
     CONF_MIN_IDLE_TIME,
+    CONF_NAME,
+    CONF_MODE,
     CONF_OFF_MODE,
+    CONF_PRESET,
     CONF_SENSOR,
     CONF_SET_POINT_MINIMUM_DIFFERENTIAL,
     CONF_STARTUP_DELAY,
@@ -56,13 +59,10 @@ from esphome.const import (
     CONF_SUPPLEMENTAL_HEATING_DELTA,
     CONF_SWING_BOTH_ACTION,
     CONF_SWING_HORIZONTAL_ACTION,
+    CONF_SWING_MODE,
     CONF_SWING_OFF_ACTION,
     CONF_SWING_VERTICAL_ACTION,
     CONF_TARGET_TEMPERATURE_CHANGE_ACTION,
-    CONF_PRESET,
-    CONF_FAN_MODE,
-    CONF_SWING_MODE,
-    CONF_MODE,
 )
 
 CONF_PRESET_CHANGE = "preset_change"
