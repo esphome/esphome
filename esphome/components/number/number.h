@@ -33,7 +33,6 @@ class Number : public EntityBase {
   void publish_state(float state);
 
   NumberCall make_call() { return NumberCall(this); }
-  void set(float value) { make_call().set_value(value).perform(); }
 
   void add_on_state_callback(std::function<void(float)> &&callback);
 
