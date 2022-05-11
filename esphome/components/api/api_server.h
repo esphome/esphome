@@ -64,7 +64,7 @@ class APIServer : public Component, public Controller {
   void on_number_update(number::Number *obj, float state) override;
 #endif
 #ifdef USE_SELECT
-  void on_select_update(select::Select *obj, const std::string &state) override;
+  void on_select_update(select::Select *obj, const std::string &state, size_t index) override;
 #endif
 #ifdef USE_LOCK
   void on_lock_update(lock::Lock *obj) override;

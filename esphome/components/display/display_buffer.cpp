@@ -584,6 +584,12 @@ void Animation::next_frame() {
     this->current_frame_ = 0;
   }
 }
+void Animation::prev_frame() {
+  this->current_frame_--;
+  if (this->current_frame_ < 0) {
+    this->current_frame_ = this->animation_frame_count_ - 1;
+  }
+}
 
 DisplayPage::DisplayPage(display_writer_t writer) : writer_(std::move(writer)) {}
 void DisplayPage::show() { this->parent_->show_page(this); }
