@@ -1017,6 +1017,8 @@ void ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTem
     assert(trig != nullptr);
     trig->trigger();
   }
+
+  this->refresh();
 }
 
 void ThermostatClimate::set_preset_config(climate::ClimatePreset preset,
