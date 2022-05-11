@@ -104,9 +104,10 @@ PRESET_CONFIG_SCHEMA = cv.Schema(
         ),
     }
 )
- 
-def validate_preset(preset, root_config, name, requirements):
-    # verify an individual preset / default config / away config
+
+
+def validate_temperature_preset(preset, root_config, name, requirements):
+    # verify temperature settings for the provided preset / default / away configuration
     for config_temp, req_actions in requirements.items():
         for req_action in req_actions:
             # verify corresponding default target temperature exists when a given climate action exists
@@ -116,7 +117,9 @@ def validate_preset(preset, root_config, name, requirements):
                 )
             # if a given climate action is NOT defined, it should not have a default target temperature
             if config_temp in preset and req_action not in root_config:
-                raise cv.Invalid(f"{config_temp} is defined in {name} config with no {req_action}")
+                raise cv.Invalid(
+                    f"{config_temp} is defined in {name} config with no {req_action}"
+                )
 
 
 def validate_thermostat(config):
@@ -271,16 +274,20 @@ def validate_thermostat(config):
             CONF_DEFAULT_TARGET_TEMPERATURE_LOW: [CONF_HEAT_ACTION],
         }
 
-    validate_preset(config, config, "default", requirements)
+    # Validate temperature requirements for default configuraation
+    validate_temperature_preset(config, config, "default", requirements)
 
+    # Validate temperature requirements for away configuration
     if CONF_AWAY_CONFIG in config:
         away = config[CONF_AWAY_CONFIG]
-        validate_preset(away, config, "away", requirements)
+        validate_temperature_preset(away, config, "away", requirements)
 
+    # Validate temperature requirements for presets
     if CONF_PRESET in config:
         for preset_config in config[CONF_PRESET]:
-            validate_preset(preset_config, config, preset_config[CONF_NAME], requirements)
-
+            validate_temperature_preset(
+                preset_config, config, preset_config[CONF_NAME], requirements
+            )
 
     # verify default climate mode is valid given above configuration
     default_mode = config[CONF_DEFAULT_MODE]
@@ -298,7 +305,8 @@ def validate_thermostat(config):
             raise cv.Invalid(
                 f"{CONF_DEFAULT_MODE} is set to {default_mode} but {req} is not present in the configuration"
             )
-   
+
+    # Verify that the modes for presets are valid given the configuration
     if CONF_PRESET in config:
         for preset_config in config[CONF_PRESET]:
             mode = preset_config[CONF_MODE]
