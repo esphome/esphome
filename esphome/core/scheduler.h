@@ -10,13 +10,13 @@ class Component;
 
 class Scheduler {
  public:
-  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> &&func);
+  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> func);
   bool cancel_timeout(Component *component, const std::string &name);
-  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> &&func);
+  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> func);
   bool cancel_interval(Component *component, const std::string &name);
 
   void set_retry(Component *component, const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
-                 std::function<RetryResult()> &&func, float backoff_increase_factor = 1.0f);
+                 std::function<RetryResult()> func, float backoff_increase_factor = 1.0f);
   bool cancel_retry(Component *component, const std::string &name);
 
   optional<uint32_t> next_schedule_in();
@@ -29,20 +29,13 @@ class Scheduler {
   struct SchedulerItem {
     Component *component;
     std::string name;
-    enum Type { TIMEOUT, INTERVAL, RETRY } type;
+    enum Type { TIMEOUT, INTERVAL } type;
     union {
       uint32_t interval;
       uint32_t timeout;
     };
     uint32_t last_execution;
-    // Ideally this should be a union or std::variant
-    // but unions don't work with object like std::function
-    //  union CallBack_{
-    std::function<void()> void_callback;
-    std::function<RetryResult()> retry_callback;
-    //  };
-    uint8_t retry_countdown{3};
-    float backoff_multiplier{1.0f};
+    std::function<void()> callback;
     bool remove;
     uint8_t last_execution_major;
 
@@ -60,8 +53,6 @@ class Scheduler {
       switch (this->type) {
         case SchedulerItem::INTERVAL:
           return "interval";
-        case SchedulerItem::RETRY:
-          return "retry";
         case SchedulerItem::TIMEOUT:
           return "timeout";
         default:

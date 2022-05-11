@@ -71,7 +71,7 @@ class Controller {
   virtual void on_number_update(number::Number *obj, float state){};
 #endif
 #ifdef USE_SELECT
-  virtual void on_select_update(select::Select *obj, const std::string &state){};
+  virtual void on_select_update(select::Select *obj, const std::string &state, size_t index){};
 #endif
 #ifdef USE_LOCK
   virtual void on_lock_update(lock::Lock *obj){};
