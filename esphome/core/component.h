@@ -61,7 +61,7 @@ extern const uint32_t STATUS_LED_OK;
 extern const uint32_t STATUS_LED_WARNING;
 extern const uint32_t STATUS_LED_ERROR;
 
-enum RetryResult { DONE, RETRY };
+enum class RetryResult { DONE, RETRY };
 
 class Component {
  public:
