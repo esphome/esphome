@@ -134,6 +134,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 
   if (this->expected_response_.has_value() && this->expected_response_ == command_type) {
     this->expected_response_.reset();
+    this->command_queue_.erase(command_queue_.begin());
   }
 
   switch (command_type) {
@@ -402,7 +403,8 @@ void Tuya::process_command_queue_() {
   if (delay > COMMAND_DELAY && !this->command_queue_.empty() && this->rx_message_.empty() &&
       !this->expected_response_.has_value()) {
     this->send_raw_command_(command_queue_.front());
-    this->command_queue_.erase(command_queue_.begin());
+    if (!this->expected_response_.has_value())
+      this->command_queue_.erase(command_queue_.begin());
   }
 }
 
