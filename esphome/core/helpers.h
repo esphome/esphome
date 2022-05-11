@@ -239,6 +239,15 @@ template<typename T> constexpr14 T convert_little_endian(T val) {
 #endif
 }
 
+/// Create a uint16_t value from big endian bytes (most significant byte first) order.
+uint16_t constexpr14 big_endian_bytes_to_word(uint8_t first, uint8_t second) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  return first | second << 8;
+#else
+  return first << 8 | second;
+#endif
+}
+
 ///@}
 
 /// @name Strings
