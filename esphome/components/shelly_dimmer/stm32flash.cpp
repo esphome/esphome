@@ -479,7 +479,6 @@ template<typename T> stm32_unique_ptr make_stm32_with_deletor(T ptr) {
     if (stm32) {
       free(stm32->cmd);  // NOLINT
     }
-
     free(stm32);  // NOLINT
   };
 
@@ -501,8 +500,7 @@ namespace shelly_dimmer {
 stm32_unique_ptr stm32_init(uart::UARTDevice *stream, const uint8_t flags, const char init) {
   uint8_t buf[257];
 
-  auto stm = make_stm32_with_deletor(static_cast<stm32_t *>(calloc(sizeof(stm32_t), 1))  // NOLINT
-  );
+  auto stm = make_stm32_with_deletor(static_cast<stm32_t *>(calloc(sizeof(stm32_t), 1)));  // NOLINT
 
   if (!stm) {
     return make_stm32_with_deletor(nullptr);
