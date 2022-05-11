@@ -215,25 +215,27 @@ async def to_code(config):
     cg.add_define("USE_DEEP_SLEEP")
 
 
-DEEP_SLEEP_ACTION_SCHEMA = automation.maybe_simple_id(
+DEEP_SLEEP_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(DeepSleepComponent),
     }
 )
 
 DEEP_SLEEP_ENTER_SCHEMA = cv.All(
-    DEEP_SLEEP_ACTION_SCHEMA.extend(
-        cv.Schema(
-            {
-                cv.Exclusive(CONF_SLEEP_DURATION, "time"): cv.templatable(
-                    cv.positive_time_period_milliseconds
-                ),
-                # Only on ESP32 due to how long the RTC on ESP8266 can stay asleep
-                cv.Exclusive(CONF_UNTIL, "time"): cv.All(
-                    cv.only_on_esp32, cv.time_of_day
-                ),
-                cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
-            }
+    automation.maybe_simple_id(
+        DEEP_SLEEP_ACTION_SCHEMA.extend(
+            cv.Schema(
+                {
+                    cv.Exclusive(CONF_SLEEP_DURATION, "time"): cv.templatable(
+                        cv.positive_time_period_milliseconds
+                    ),
+                    # Only on ESP32 due to how long the RTC on ESP8266 can stay asleep
+                    cv.Exclusive(CONF_UNTIL, "time"): cv.All(
+                        cv.only_on_esp32, cv.time_of_day
+                    ),
+                    cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+                }
+            )
         )
     ),
     cv.has_none_or_all_keys(CONF_UNTIL, CONF_TIME_ID),
@@ -261,10 +263,14 @@ async def deep_sleep_enter_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "deep_sleep.prevent", PreventDeepSleepAction, DEEP_SLEEP_ACTION_SCHEMA
+    "deep_sleep.prevent",
+    PreventDeepSleepAction,
+    automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
 )
 @automation.register_action(
-    "deep_sleep.allow", AllowDeepSleepAction, DEEP_SLEEP_ACTION_SCHEMA
+    "deep_sleep.allow",
+    AllowDeepSleepAction,
+    automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
 )
 async def deep_sleep_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
