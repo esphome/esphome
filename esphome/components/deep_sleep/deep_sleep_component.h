@@ -190,14 +190,14 @@ template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
 #endif
 };
 
-template<typename... Ts> class PreventDeepSleepAction : public Action<Ts...> {
+template<typename... Ts> class PreventDeepSleepAction : public Action<Ts...>, public Parented<DeepSleepComponent> {
  public:
-  PreventDeepSleepAction(DeepSleepComponent *deep_sleep) : deep_sleep_(deep_sleep) {}
+  void play(Ts... x) override { this->parent_->prevent_deep_sleep(); }
+};
 
-  void play(Ts... x) override { this->deep_sleep_->prevent_deep_sleep(); }
-
- protected:
-  DeepSleepComponent *deep_sleep_;
+template<typename... Ts> class AllowDeepSleepAction : public Action<Ts...>, public Parented<DeepSleepComponent> {
+ public:
+  void play(Ts... x) override { this->parent_->allow_deep_sleep(); }
 };
 
 }  // namespace deep_sleep
