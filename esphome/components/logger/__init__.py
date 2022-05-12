@@ -19,8 +19,13 @@ from esphome.const import (
     CONF_TX_BUFFER_SIZE,
 )
 from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority
-from esphome.components.esp32 import get_esp32_variant
-from esphome.components.esp32.const import VARIANT_ESP32S2, VARIANT_ESP32C3
+from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32S3,
+)
 
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")
@@ -54,36 +59,51 @@ LOG_LEVEL_SEVERITY = [
     "VERY_VERBOSE",
 ]
 
-ESP32_REDUCED_VARIANTS = [VARIANT_ESP32C3, VARIANT_ESP32S2]
+UART0 = "UART0"
+UART1 = "UART1"
+UART2 = "UART2"
+UART0_SWAP = "UART0_SWAP"
+USB_SERIAL_JTAG = "USB_SERIAL_JTAG"
+USB_CDC = "USB_CDC"
 
-UART_SELECTION_ESP32_REDUCED = ["UART0", "UART1"]
+UART_SELECTION_ESP32 = {
+    VARIANT_ESP32: [UART0, UART1, UART2],
+    VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
+    VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32C3: [UART0, UART1, USB_SERIAL_JTAG],
+}
 
-UART_SELECTION_ESP32 = ["UART0", "UART1", "UART2"]
+UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
 
-UART_SELECTION_ESP8266 = ["UART0", "UART0_SWAP", "UART1"]
+ESP_IDF_UARTS = [USB_CDC, USB_SERIAL_JTAG]
 
 HARDWARE_UART_TO_UART_SELECTION = {
-    "UART0": logger_ns.UART_SELECTION_UART0,
-    "UART0_SWAP": logger_ns.UART_SELECTION_UART0_SWAP,
-    "UART1": logger_ns.UART_SELECTION_UART1,
-    "UART2": logger_ns.UART_SELECTION_UART2,
+    UART0: logger_ns.UART_SELECTION_UART0,
+    UART0_SWAP: logger_ns.UART_SELECTION_UART0_SWAP,
+    UART1: logger_ns.UART_SELECTION_UART1,
+    UART2: logger_ns.UART_SELECTION_UART2,
+    USB_CDC: logger_ns.UART_SELECTION_USB_CDC,
+    USB_SERIAL_JTAG: logger_ns.UART_SELECTION_USB_SERIAL_JTAG,
 }
 
 HARDWARE_UART_TO_SERIAL = {
-    "UART0": cg.global_ns.Serial,
-    "UART0_SWAP": cg.global_ns.Serial,
-    "UART1": cg.global_ns.Serial1,
-    "UART2": cg.global_ns.Serial2,
+    UART0: cg.global_ns.Serial,
+    UART0_SWAP: cg.global_ns.Serial,
+    UART1: cg.global_ns.Serial1,
+    UART2: cg.global_ns.Serial2,
 }
 
 is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 
 def uart_selection(value):
+    if value.upper() in ESP_IDF_UARTS:
+        if not CORE.using_esp_idf:
+            raise cv.Invalid(f"Only esp-idf framework supports {value}.")
     if CORE.is_esp32:
-        if get_esp32_variant() in ESP32_REDUCED_VARIANTS:
-            return cv.one_of(*UART_SELECTION_ESP32_REDUCED, upper=True)(value)
-        return cv.one_of(*UART_SELECTION_ESP32, upper=True)(value)
+        variant = get_esp32_variant()
+        if variant in UART_SELECTION_ESP32:
+            return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
     if CORE.is_esp8266:
         return cv.one_of(*UART_SELECTION_ESP8266, upper=True)(value)
     raise NotImplementedError
@@ -113,7 +133,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
             cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.validate_bytes,
             cv.Optional(CONF_DEASSERT_RTS_DTR, default=False): cv.boolean,
-            cv.Optional(CONF_HARDWARE_UART, default="UART0"): uart_selection,
+            cv.Optional(CONF_HARDWARE_UART, default=UART0): uart_selection,
             cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
             cv.Optional(CONF_LOGS, default={}): cv.Schema(
                 {
@@ -184,6 +204,12 @@ async def to_code(config):
         cg.add_build_flag("-DENABLE_I2C_DEBUG_BUFFER")
     if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH):
         cg.add_build_flag("-DUSE_STORE_LOG_STR_IN_FLASH")
+
+    if CORE.using_esp_idf:
+        if config[CONF_HARDWARE_UART] == USB_CDC:
+            add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
+        elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
+            add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
 
     # Register at end for safe mode
     await cg.register_component(log, config)
