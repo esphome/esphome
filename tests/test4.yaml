@@ -58,6 +58,15 @@ time:
 tuya:
   time_id: sntp_time
 
+select:
+  - platform: tuya
+    id: tuya_select
+    select_datapoint: 42
+    options:
+      - one
+      - two
+      - three
+
 pipsolar:
     id: inverter0
 
