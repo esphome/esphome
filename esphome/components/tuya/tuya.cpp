@@ -179,7 +179,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         if (this->status_pin_reported_ != -1) {
           this->init_state_ = TuyaInitState::INIT_DATAPOINT;
           this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
-          bool is_pin_equals = 
+          bool is_pin_equals =
               this->status_pin_.has_value() && this->status_pin_.value()->get_pin() == this->status_pin_reported_;
           // Configure status pin toggling (if reported and configured) or WIFI_STATE periodic send
           if (is_pin_equals) {

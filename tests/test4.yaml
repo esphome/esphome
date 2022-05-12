@@ -57,6 +57,9 @@ time:
 
 tuya:
   time_id: sntp_time
+  status_pin:
+    number: 14
+    inverted: true
 
 pipsolar:
     id: inverter0
