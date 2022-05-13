@@ -63,9 +63,9 @@ select:
     id: tuya_select
     select_datapoint: 42
     options:
-      - one
-      - two
-      - three
+      one: 0
+      two: 1
+      three: 2
 
 pipsolar:
     id: inverter0

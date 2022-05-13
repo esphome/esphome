@@ -43,7 +43,7 @@ void TuyaSelect::dump_config() {
   ESP_LOGCONFIG(TAG, "  Select has datapoint ID %u", this->select_id_);
   ESP_LOGCONFIG(TAG, "  Options are:");
   auto options = this->traits.get_options();
-  for (uint8_t i = 0; i < this->mappings_.size(); i ++) {
+  for (auto i = 0; i < this->mappings_.size(); i++) {
     ESP_LOGCONFIG(TAG, "    %i: %s", this->mappings_.at(i), options.at(i).c_str());
   }
 }
