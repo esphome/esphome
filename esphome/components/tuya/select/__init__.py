@@ -1,7 +1,7 @@
 from esphome.components import select
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_OPTIONS, CONF_OPTIMISTIC, CONF_ID, CONF_SELECT_DATAPOINT
+from esphome.const import CONF_OPTIONS, CONF_OPTIMISTIC, CONF_ID, CONF_ENUM_DATAPOINT
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
 DEPENDENCIES = ["tuya"]
@@ -32,7 +32,7 @@ CONFIG_SCHEMA = select.SELECT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(TuyaSelect),
         cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
-        cv.Required(CONF_SELECT_DATAPOINT): cv.uint8_t,
+        cv.Required(CONF_ENUM_DATAPOINT): cv.uint8_t,
         cv.Required(CONF_OPTIONS): ensure_option_map(),
         cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
     }
@@ -47,5 +47,5 @@ async def to_code(config):
     cg.add(var.set_select_mappings(list(options_map.keys())))
     parent = await cg.get_variable(config[CONF_TUYA_ID])
     cg.add(var.set_tuya_parent(parent))
-    cg.add(var.set_select_id(config[CONF_SELECT_DATAPOINT]))
+    cg.add(var.set_select_id(config[CONF_ENUM_DATAPOINT]))
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
