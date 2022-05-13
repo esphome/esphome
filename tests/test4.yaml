@@ -61,11 +61,11 @@ tuya:
 select:
   - platform: tuya
     id: tuya_select
-    select_datapoint: 42
+    enum_datapoint: 42
     options:
-      one: 0
-      two: 1
-      three: 2
+      0: Internal
+      1: Floor
+      2: Both
 
 pipsolar:
     id: inverter0

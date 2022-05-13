@@ -13,13 +13,13 @@ TuyaSelect = tuya_ns.class_("TuyaSelect", select.Select, cg.Component)
 def ensure_option_map():
     def validator(value):
         cv.check_not_templatable(value)
-        option = cv.All(cv.string_strict)
-        mapping = cv.All(cv.int_range(0, 2**8 - 1))
+        option = cv.All(cv.int_range(0, 2**8 - 1))
+        mapping = cv.All(cv.string_strict)
         options_map_schema = cv.Schema({option: mapping})
         value = options_map_schema(value)
 
-        all_values = list(value.values())
-        unique_values = set(value.values())
+        all_values = list(value.keys())
+        unique_values = set(value.keys())
         if len(all_values) != len(unique_values):
             raise cv.Invalid("Mapping values must be unique.")
 
@@ -43,8 +43,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     options_map = config[CONF_OPTIONS]
-    await select.register_select(var, config, options=list(options_map.keys()))
-    cg.add(var.set_select_mappings(list(options_map.values())))
+    await select.register_select(var, config, options=list(options_map.values()))
+    cg.add(var.set_select_mappings(list(options_map.keys())))
     parent = await cg.get_variable(config[CONF_TUYA_ID])
     cg.add(var.set_tuya_parent(parent))
     cg.add(var.set_select_id(config[CONF_SELECT_DATAPOINT]))
