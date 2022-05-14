@@ -20,10 +20,11 @@ void LCDCharacterMenuComponent::draw_item(const display_menu_base::MenuItem *ite
 
   memset(data, ' ', this->columns_);
 
-  if (selected)
+  if (selected) {
     data[0] = (this->editing_ || (this->mode_ == display_menu_base::MENU_MODE_JOYSTICK && item->get_immediate_edit()))
                   ? this->mark_editing_
                   : this->mark_selected_;
+  }
 
   switch (item->get_type()) {
     case display_menu_base::MENU_ITEM_MENU:
