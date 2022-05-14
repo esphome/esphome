@@ -397,23 +397,8 @@ bool MenuItem::next_option_() {
   bool chg = false;
 
   if (this->select_var_ != nullptr) {
-    auto options = this->select_var_->traits.get_options();
-
-    if (!options.empty()) {
-      auto opt = std::find(options.begin(), options.end(), this->select_var_->state);
-
-      if (opt != options.end()) {
-        ++opt;
-      }
-
-      if (opt == options.end()) {
-        opt = options.begin();
-      }
-
-      this->select_var_->set(*opt);
-      this->on_value_();
-      chg = true;
-    }
+    this->select_var_->make_call().select_next(true).perform();
+    chg = true;
   }
 
   return chg;
@@ -423,21 +408,8 @@ bool MenuItem::prev_option_() {
   bool chg = false;
 
   if (this->select_var_ != nullptr) {
-    auto options = this->select_var_->traits.get_options();
-
-    if (!options.empty()) {
-      auto opt = std::find(options.begin(), options.end(), this->select_var_->state);
-
-      if (opt == options.begin()) {
-        opt = options.end();
-      }
-
-      --opt;
-
-      this->select_var_->set(*opt);
-      this->on_value_();
-      chg = true;
-    }
+    this->select_var_->make_call().select_previous(true).perform();
+    chg = true;
   }
 
   return chg;
@@ -449,13 +421,10 @@ bool MenuItem::inc_number_() {
   bool chg = false;
 
   if (this->number_var_ != nullptr) {
-    float val = this->get_number_value() + this->number_var_->traits.get_step();
-    if (val > this->number_var_->traits.get_max_value()) {
-      val = this->number_var_->traits.get_max_value();
-    }
+    float last = this->number_var_->state;
+    this->number_var_->make_call().number_increment(false).perform();
 
-    if (val != this->number_var_->state) {
-      this->number_var_->set(val);
+    if (this->number_var_->state != last) {
       this->on_value_();
       chg = true;
     }
@@ -468,13 +437,10 @@ bool MenuItem::dec_number_() {
   bool chg = false;
 
   if (this->number_var_ != nullptr) {
-    float val = this->get_number_value() - this->number_var_->traits.get_step();
-    if (val < this->number_var_->traits.get_min_value()) {
-      val = this->number_var_->traits.get_min_value();
-    }
+    float last = this->number_var_->state;
+    this->number_var_->make_call().number_decrement(false).perform();
 
-    if (val != this->number_var_->state) {
-      this->number_var_->set(val);
+    if (this->number_var_->state != last) {
       this->on_value_();
       chg = true;
     }
