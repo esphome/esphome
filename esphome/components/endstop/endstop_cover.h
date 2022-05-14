@@ -36,6 +36,7 @@ class EndstopCover : public cover::Cover, public Component {
   void start_direction_(cover::CoverOperation dir);
 
   void recompute_position_();
+  void set_position(float value);
 
   binary_sensor::BinarySensor *open_endstop_;
   binary_sensor::BinarySensor *close_endstop_;
