@@ -17,16 +17,15 @@ void DisplayMenuComponent::up() {
     bool chg = false;
 
     if (this->editing_) {
-      chg = this->get_selected_item_()->select_prev();
-    } else {
-      if (this->cursor_index_ > 0) {
-        chg = true;
-
-        --this->cursor_index_;
-
-        if (this->cursor_index_ < this->top_index_)
-          this->top_index_ = this->cursor_index_;
+      switch (this->mode_) {
+        case MENU_MODE_ROTARY:
+          chg = this->get_selected_item_()->select_prev();
+          break;
+        default:
+          break;
       }
+    } else {
+      chg = this->cursor_up_();
     }
 
     if (chg)
@@ -41,16 +40,84 @@ void DisplayMenuComponent::down() {
     bool chg = false;
 
     if (this->editing_) {
-      chg = this->get_selected_item_()->select_next();
-    } else {
-      if (this->cursor_index_ + 1 < this->displayed_item_->items_size()) {
-        chg = true;
-
-        ++this->cursor_index_;
-
-        if (this->cursor_index_ >= this->top_index_ + this->rows_)
-          this->top_index_ = this->cursor_index_ - this->rows_ + 1;
+      switch (this->mode_) {
+        case MENU_MODE_ROTARY:
+          chg = this->get_selected_item_()->select_next();
+          break;
+        default:
+          break;
       }
+    } else {
+      chg = this->cursor_down_();
+    }
+
+    if (chg)
+      this->draw_and_update();
+  }
+}
+
+void DisplayMenuComponent::left() {
+  this->process_initial_();
+
+  if (this->active_) {
+    bool chg = false;
+
+    switch (this->get_selected_item_()->get_type()) {
+      case MENU_ITEM_SELECT:
+      case MENU_ITEM_SWITCH:
+      case MENU_ITEM_NUMBER:
+      case MENU_ITEM_CUSTOM:
+        switch (this->mode_) {
+          case MENU_MODE_ROTARY:
+            if (this->editing_) {
+              this->finish_editing_();
+              chg = true;
+            }
+            break;
+          case MENU_MODE_JOYSTICK:
+            if (this->editing_ || this->get_selected_item_()->get_immediate_edit())
+              chg = this->get_selected_item_()->select_prev();
+            break;
+          default:
+            break;
+        }
+        break;
+      case MENU_ITEM_BACK:
+        chg = this->leave_menu_();
+        break;
+      default:
+        break;
+    }
+
+    if (chg)
+      this->draw_and_update();
+  }
+}
+
+void DisplayMenuComponent::right() {
+  this->process_initial_();
+
+  if (this->active_) {
+    bool chg = false;
+
+    switch (this->get_selected_item_()->get_type()) {
+      case MENU_ITEM_SELECT:
+      case MENU_ITEM_SWITCH:
+      case MENU_ITEM_NUMBER:
+      case MENU_ITEM_CUSTOM:
+        switch (this->mode_) {
+          case MENU_MODE_JOYSTICK:
+            if (this->editing_ || this->get_selected_item_()->get_immediate_edit())
+              chg = this->get_selected_item_()->select_next();
+          default:
+            break;
+        }
+        break;
+      case MENU_ITEM_MENU:
+        chg = this->enter_menu_();
+        break;
+      default:
+        break;
     }
 
     if (chg)
@@ -71,23 +138,10 @@ void DisplayMenuComponent::enter() {
     } else {
       switch (item->get_type()) {
         case MENU_ITEM_MENU:
-          this->displayed_item_->on_leave();
-          this->displayed_item_ = this->get_selected_item_();
-          this->selection_stack_.push_front({this->top_index_, this->cursor_index_});
-          this->cursor_index_ = this->top_index_ = 0;
-          this->displayed_item_->on_enter();
-          chg = true;
+          chg = this->enter_menu_();
           break;
         case MENU_ITEM_BACK:
-          if (this->displayed_item_->get_parent() != nullptr) {
-            this->displayed_item_->on_leave();
-            this->displayed_item_ = this->displayed_item_->get_parent();
-            this->top_index_ = this->selection_stack_.front().first;
-            this->cursor_index_ = this->selection_stack_.front().second;
-            this->selection_stack_.pop_front();
-            this->displayed_item_->on_enter();
-            chg = true;
-          }
+          chg = this->leave_menu_();
           break;
         case MENU_ITEM_SELECT:
         case MENU_ITEM_SWITCH:
@@ -101,9 +155,12 @@ void DisplayMenuComponent::enter() {
           }
           break;
         case MENU_ITEM_NUMBER:
-          this->editing_ = true;
-          item->on_enter();
-          chg = true;
+          // A number cannot be immediate in the rotary mode
+          if (!item->get_immediate_edit() || this->mode_ == MENU_MODE_ROTARY) {
+            this->editing_ = true;
+            item->on_enter();
+            chg = true;
+          }
           break;
         case MENU_ITEM_COMMAND:
           chg = item->select_next();
@@ -177,6 +234,62 @@ void DisplayMenuComponent::process_initial_() {
     this->root_item_->on_enter();
     this->root_on_enter_called_ = true;
   }
+}
+
+bool DisplayMenuComponent::cursor_up_() {
+  bool chg = false;
+
+  if (this->cursor_index_ > 0) {
+    chg = true;
+
+    --this->cursor_index_;
+
+    if (this->cursor_index_ < this->top_index_)
+      this->top_index_ = this->cursor_index_;
+  }
+
+  return chg;
+}
+
+bool DisplayMenuComponent::cursor_down_() {
+  bool chg = false;
+
+  if (this->cursor_index_ + 1 < this->displayed_item_->items_size()) {
+    chg = true;
+
+    ++this->cursor_index_;
+
+    if (this->cursor_index_ >= this->top_index_ + this->rows_)
+      this->top_index_ = this->cursor_index_ - this->rows_ + 1;
+  }
+
+  return chg;
+}
+
+bool DisplayMenuComponent::enter_menu_() {
+  this->displayed_item_->on_leave();
+  this->displayed_item_ = this->get_selected_item_();
+  this->selection_stack_.push_front({this->top_index_, this->cursor_index_});
+  this->cursor_index_ = this->top_index_ = 0;
+  this->displayed_item_->on_enter();
+
+  return true;
+}
+
+bool DisplayMenuComponent::leave_menu_() {
+  bool chg = false;
+
+  if (this->displayed_item_->get_parent() != nullptr) {
+    this->displayed_item_->on_leave();
+    this->displayed_item_ = this->displayed_item_->get_parent();
+    this->top_index_ = this->selection_stack_.front().first;
+    this->cursor_index_ = this->selection_stack_.front().second;
+    this->selection_stack_.pop_front();
+    this->displayed_item_->on_enter();
+    chg = true;
+  }
+
+  return chg;
 }
 
 void DisplayMenuComponent::finish_editing_() {

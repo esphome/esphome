@@ -1253,6 +1253,8 @@ binary_sensor:
           then:
             - display_menu.enter:
           else:
+            - display_menu.left:
+            - display_menu.right:
             - display_menu.show:
   - platform: template
     name: "Garage Door Open"
@@ -2833,6 +2835,7 @@ lcd_menu:
   mark_editing: 0x2a
   mark_submenu: 0x7e
   active: False
+  mode: rotary
   on_enter:
     then:
       lambda: 'ESP_LOGI("lcd_menu", "root enter");'

@@ -6,7 +6,7 @@
 namespace esphome {
 namespace lcd_menu {
 
-static const char *const TAG = "lcd_character";
+static const char *const TAG = "lcd_menu";
 
 void LCDCharacterMenuComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LCD Menu");
@@ -21,7 +21,9 @@ void LCDCharacterMenuComponent::draw_item(const display_menu_base::MenuItem *ite
   memset(data, ' ', this->columns_);
 
   if (selected)
-    data[0] = this->editing_ ? this->mark_editing_ : this->mark_selected_;
+    data[0] = (this->editing_ || (this->mode_ == display_menu_base::MENU_MODE_JOYSTICK && item->get_immediate_edit()))
+                  ? this->mark_editing_
+                  : this->mark_selected_;
 
   switch (item->get_type()) {
     case display_menu_base::MENU_ITEM_MENU:

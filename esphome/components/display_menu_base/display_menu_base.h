@@ -21,6 +21,11 @@
 namespace esphome {
 namespace display_menu_base {
 
+enum MenuMode {
+  MENU_MODE_ROTARY,
+  MENU_MODE_JOYSTICK,
+};
+
 enum MenuItemType {
   MENU_ITEM_ROOT,
   MENU_ITEM_LABEL,
@@ -140,6 +145,7 @@ class DisplayMenuComponent : public Component {
  public:
   void set_root_item(MenuItem *item) { this->displayed_item_ = this->root_item_ = item; }
   void set_active(bool active) { this->active_ = active; }
+  void set_mode(MenuMode mode) { this->mode_ = mode; }
   void set_rows(uint8_t rows) { this->rows_ = rows; }
 
   void setup() override;
@@ -147,6 +153,8 @@ class DisplayMenuComponent : public Component {
 
   void up();
   void down();
+  void left();
+  void right();
   void enter();
 
   void show_main();
@@ -161,6 +169,10 @@ class DisplayMenuComponent : public Component {
   void reset_();
   void process_initial_();
   MenuItem *get_selected_item_() { return this->displayed_item_->get_item(this->cursor_index_); }
+  bool cursor_up_();
+  bool cursor_down_();
+  bool enter_menu_();
+  bool leave_menu_();
   void finish_editing_();
   virtual void draw_menu();
   virtual void draw_item(const MenuItem *item, uint8_t row, bool selected) = 0;
@@ -172,6 +184,7 @@ class DisplayMenuComponent : public Component {
 
   uint8_t rows_;
   bool active_;
+  MenuMode mode_;
   MenuItem *root_item_{nullptr};
 
   MenuItem *displayed_item_{nullptr};

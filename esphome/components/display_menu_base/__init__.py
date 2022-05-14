@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_COMMAND,
     CONF_NUMBER,
     CONF_FORMAT,
+    CONF_MODE,
 )
 from esphome.automation import maybe_simple_id
 from esphome.components.select import Select
@@ -23,6 +24,8 @@ display_menu_base_ns = cg.esphome_ns.namespace("display_menu_base")
 CONF_DISPLAY_ID = "display_id"
 
 CONF_ACTIVE = "active"
+CONF_ROTARY = "rotary"
+CONF_JOYSTICK = "joystick"
 CONF_LABEL = "label"
 CONF_MENU = "menu"
 CONF_BACK = "back"
@@ -47,6 +50,8 @@ MenuItemConstPtr = MenuItem.operator("ptr").operator("const")
 
 UpAction = display_menu_base_ns.class_("UpAction", automation.Action)
 DownAction = display_menu_base_ns.class_("DownAction", automation.Action)
+LeftAction = display_menu_base_ns.class_("LeftAction", automation.Action)
+RightAction = display_menu_base_ns.class_("RightAction", automation.Action)
 EnterAction = display_menu_base_ns.class_("EnterAction", automation.Action)
 ShowAction = display_menu_base_ns.class_("ShowAction", automation.Action)
 HideAction = display_menu_base_ns.class_("HideAction", automation.Action)
@@ -69,6 +74,13 @@ MENU_ITEM_TYPES = {
     CONF_SWITCH: MenuItemType.MENU_ITEM_SWITCH,
     CONF_COMMAND: MenuItemType.MENU_ITEM_COMMAND,
     CONF_CUSTOM: MenuItemType.MENU_ITEM_CUSTOM,
+}
+
+MenuMode = display_menu_base_ns.enum("MenuMode")
+
+MENU_MODES = {
+    CONF_ROTARY: MenuMode.MENU_MODE_ROTARY,
+    CONF_JOYSTICK: MenuMode.MENU_MODE_JOYSTICK,
 }
 
 DisplayMenuOnEnterTrigger = display_menu_base_ns.class_(
@@ -179,6 +191,7 @@ MENU_ITEM_SCHEMA = cv.All(
             CONF_NUMBER: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
                 {
                     cv.Required(CONF_NUMBER): cv.use_id(Number),
+                    cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
                     cv.Optional(CONF_FORMAT, default="%.1f"): cv.string_strict,
                     cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
                 }
@@ -224,6 +237,7 @@ DISPLAY_MENU_BASE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
         cv.GenerateID(CONF_ROOT_ITEM_ID): cv.declare_id(MenuItem),
+        cv.Optional(CONF_MODE, default=CONF_ROTARY): cv.enum(MENU_MODES),
         cv.Optional(CONF_ON_ENTER): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -259,6 +273,18 @@ async def menu_up_to_code(config, action_id, template_arg, args):
 
 @automation.register_action("display_menu.down", DownAction, MENU_ACTION_SCHEMA)
 async def menu_down_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action("display_menu.left", LeftAction, MENU_ACTION_SCHEMA)
+async def menu_left_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action("display_menu.right", RightAction, MENU_ACTION_SCHEMA)
+async def menu_right_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
@@ -361,6 +387,7 @@ async def display_menu_to_code(menu, config):
     cg.add(menu.set_active(config[CONF_ACTIVE]))
     root_item = cg.new_Pvariable(config[CONF_ROOT_ITEM_ID])
     cg.add(menu.set_root_item(root_item))
+    cg.add(menu.set_mode(config[CONF_MODE]))
     for c in config[CONF_MENU]:
         await menu_item_to_code(menu, c, root_item)
     for conf in config.get(CONF_ON_ENTER, []):
