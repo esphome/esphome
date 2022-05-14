@@ -186,6 +186,11 @@ void EndstopCover::recompute_position_() {
 
   this->last_recompute_time_ = now;
 }
+void set_position(float value) { 
+  const uint32_t now = millis();
+  this->position = value; 
+  this->last_recompute_time_ = now;
+}
 
 }  // namespace endstop
 }  // namespace esphome
