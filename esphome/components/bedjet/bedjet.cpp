@@ -117,7 +117,7 @@ void Bedjet::control(const ClimateCall &call) {
         pkt = this->codec_->get_button_request(BTN_OFF);
         break;
       case climate::CLIMATE_MODE_HEAT:
-        pkt = this->codec_->get_button_request(BTN_EXTHT);
+        pkt = this->codec_->get_button_request(BTN_HEAT);
         break;
       case climate::CLIMATE_MODE_FAN_ONLY:
         pkt = this->codec_->get_button_request(BTN_COOL);
@@ -137,7 +137,7 @@ void Bedjet::control(const ClimateCall &call) {
     } else {
       this->force_refresh_ = true;
       this->mode = mode;
-      // We're using (custom) preset for Turbo & M1-3 presets, so changing climate mode will clear those
+      // We're using (custom) preset for Turbo, EXT HT, & M1-3 presets, so changing climate mode will clear those
       this->custom_preset.reset();
       this->preset.reset();
     }
@@ -186,6 +186,8 @@ void Bedjet::control(const ClimateCall &call) {
       pkt = this->codec_->get_button_request(BTN_M2);
     } else if (preset == "M3") {
       pkt = this->codec_->get_button_request(BTN_M3);
+    } else if (preset == "EXT HT") {
+      pkt = this->codec_->get_button_request(BTN_EXTHT);
     } else {
       ESP_LOGW(TAG, "Unsupported preset: %s", preset.c_str());
       return;

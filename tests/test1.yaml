@@ -121,6 +121,7 @@ mqtt:
     - topic: livingroom/ota_mode
       then:
         - deep_sleep.prevent
+        - deep_sleep.allow
     - topic: livingroom/ota_mode
       then:
         - deep_sleep.enter:
@@ -547,11 +548,18 @@ sensor:
   - platform: esp32_hall
     name: "ESP32 Hall Sensor"
     update_interval: 15s
-  - platform: hdc1080
+  - platform: ens210
     temperature:
       name: "Living Room Temperature 5"
     humidity:
-      name: "Living Room Pressure 5"
+      name: 'Living Room Humidity 5'
+    update_interval: 15s
+    i2c_id: i2c_bus
+  - platform: hdc1080
+    temperature:
+      name: 'Living Room Temperature 6'
+    humidity:
+      name: 'Living Room Humidity 5'
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: hlw8012
@@ -885,6 +893,7 @@ sensor:
     temperature_offset: 4.2C
     i2c_id: i2c_bus
   - platform: scd4x
+    id: scd40
     co2:
       name: "SCD4X CO2"
     temperature:
@@ -1816,6 +1825,8 @@ climate:
     name: Fujitsu General Climate
   - platform: daikin
     name: Daikin Climate
+  - platform: delonghi
+    name: Delonghi Climate
   - platform: yashima
     name: Yashima Climate
   - platform: mitsubishi
@@ -2826,6 +2837,16 @@ lock:
   - platform: copy
     source_id: test_lock2
     name: Generic Output Lock Copy
+
+button:
+  - platform: template
+    name: "Start calibration"
+    on_press:
+      - scd4x.perform_forced_calibration:
+          value: 419
+          id: scd40
+      - scd4x.factory_reset:
+          id: scd40
 
 lcd_menu:
   display_id: my_lcd_gpio

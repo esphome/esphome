@@ -66,6 +66,9 @@ class ColorUtil {
     }
     return color_return;
   }
+  static inline Color rgb332_to_color(uint8_t rgb332_color) {
+    return to_color((uint32_t) rgb332_color, COLOR_ORDER_RGB, COLOR_BITNESS_332);
+  }
   static uint8_t color_to_332(Color color, ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) {
     uint16_t red_color, green_color, blue_color;
 
@@ -100,7 +103,6 @@ class ColorUtil {
     }
     return 0;
   }
-
   static uint32_t color_to_grayscale4(Color color) {
     uint32_t gs4 = esp_scale8(color.white, 15);
     return gs4;
