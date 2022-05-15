@@ -41,7 +41,7 @@ i2c::ErrorCode TCA9548AComponent::switch_to_channel(uint8_t channel) {
     return i2c::ERROR_OK;
 
   uint8_t channel_val = 1 << channel;
-  auto err = this->write_register(0x70, &channel_val, 1);
+  auto err = this->write(&channel_val, 1);
   if (err == i2c::ERROR_OK) {
     current_channel_ = channel;
   }

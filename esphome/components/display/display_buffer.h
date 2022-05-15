@@ -478,6 +478,7 @@ class Animation : public Image {
   int get_animation_frame_count() const;
   int get_current_frame() const;
   void next_frame();
+  void prev_frame();
 
  protected:
   int current_frame_;

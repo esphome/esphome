@@ -70,17 +70,19 @@ class DeepSleepComponent : public Component {
   void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode);
 #endif
 
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
+#if defined(USE_ESP32)
+#if !defined(USE_ESP32_VARIANT_ESP32C3)
 
   void set_ext1_wakeup(Ext1Wakeup ext1_wakeup);
 
   void set_touch_wakeup(bool touch_wakeup);
 
+#endif
   // Set the duration in ms for how long the code should run before entering
   // deep sleep mode, according to the cause the ESP32 has woken.
   void set_run_duration(WakeupCauseToRunDuration wakeup_cause_to_run_duration);
-
 #endif
+
   /// Set a duration in ms for how long the code should run before entering deep sleep mode.
   void set_run_duration(uint32_t time_ms);
 
@@ -94,6 +96,7 @@ class DeepSleepComponent : public Component {
   void begin_sleep(bool manual = false);
 
   void prevent_deep_sleep();
+  void allow_deep_sleep();
 
  protected:
   // Returns nullopt if no run duration is set. Otherwise, returns the run
@@ -187,14 +190,14 @@ template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
 #endif
 };
 
-template<typename... Ts> class PreventDeepSleepAction : public Action<Ts...> {
+template<typename... Ts> class PreventDeepSleepAction : public Action<Ts...>, public Parented<DeepSleepComponent> {
  public:
-  PreventDeepSleepAction(DeepSleepComponent *deep_sleep) : deep_sleep_(deep_sleep) {}
+  void play(Ts... x) override { this->parent_->prevent_deep_sleep(); }
+};
 
-  void play(Ts... x) override { this->deep_sleep_->prevent_deep_sleep(); }
-
- protected:
-  DeepSleepComponent *deep_sleep_;
+template<typename... Ts> class AllowDeepSleepAction : public Action<Ts...>, public Parented<DeepSleepComponent> {
+ public:
+  void play(Ts... x) override { this->parent_->allow_deep_sleep(); }
 };
 
 }  // namespace deep_sleep

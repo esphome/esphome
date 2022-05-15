@@ -1,8 +1,6 @@
 esphome:
   name: $device_name
   comment: $device_comment
-  platform: ESP8266
-  board: d1_mini
   build_path: build/test3
   on_boot:
     - if:
@@ -14,6 +12,10 @@ esphome:
           - logger.log: "Have time"
   includes:
     - custom.h
+
+esp8266:
+  board: d1_mini
+  early_pin_init: True
 
 substitutions:
   device_name: test3
@@ -264,6 +266,10 @@ uart:
     stop_bits: 2
     # Specifically added for testing debug with no options at all.
     debug:
+  - id: uart9
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
 
 modbus:
   uart_id: uart1
@@ -557,7 +563,7 @@ sensor:
       name: 'AQI'
       calculation_type: 'AQI'
   - platform: pmsx003
-    uart_id: uart2
+    uart_id: uart9
     type: PMSX003
     pm_1_0:
       name: 'PM 1.0 Concentration'
@@ -583,8 +589,9 @@ sensor:
       name: 'Particulate Count >5.0um'
     pm_10_0um:
       name: 'Particulate Count >10.0um'
+    update_interval: 30s
   - platform: pmsx003
-    uart_id: uart2
+    uart_id: uart5
     type: PMS5003T
     pm_2_5:
       name: 'PM 2.5 Concentration'
@@ -593,7 +600,7 @@ sensor:
     humidity:
       name: 'PMS Humidity'
   - platform: pmsx003
-    uart_id: uart2
+    uart_id: uart6
     type: PMS5003ST
     pm_1_0:
       name: 'PM 1.0 Concentration'
