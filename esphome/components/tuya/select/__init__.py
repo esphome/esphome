@@ -1,7 +1,7 @@
 from esphome.components import select
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_OPTIONS, CONF_OPTIMISTIC, CONF_ID, CONF_ENUM_DATAPOINT
+from esphome.const import CONF_OPTIONS, CONF_OPTIMISTIC, CONF_ENUM_DATAPOINT
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
 DEPENDENCIES = ["tuya"]
