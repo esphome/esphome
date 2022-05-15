@@ -1,6 +1,7 @@
 #ifdef USE_ARDUINO
 
 #include "online_image.h"
+#include "esphome/core/application.h"
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
 
@@ -45,10 +46,16 @@ void OnlineImage::draw(int x, int y, DisplayBuffer *display, Color color_on, Col
 
   decoder->set_monochrome_colors(color_on, color_off);
 
-  http.begin(url_);
+  int begin_status = http.begin(url_);
+  if (!begin_status) {
+    ESP_LOGE(TAG, "Could not download image from %s. Connection failed: %i", url_, begin_status);
+    return;
+  }
 
   int http_code = http.GET();
   if (http_code != HTTP_CODE_OK) {
+    App.feed_wdt();
+    ESP_LOGE(TAG, "Could not download image from %s. Error code: %i", url_, http_code);
     http.end();
     return;
   }

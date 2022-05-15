@@ -6,6 +6,9 @@
 #include "esphome/core/helpers.h"
 
 #ifdef ONLINE_IMAGE_PNG_SUPPORT
+
+static const char *const TAG = "online_image.png";
+
 namespace esphome {
 namespace online_image {
 
@@ -79,6 +82,7 @@ size_t HOT PngDecoder::decode(HTTPClient &http, WiFiClient *stream) {
     if (len > 0) {
       int fed = pngle_feed(pngle, buf, remain + len);
       if (fed < 0) {
+        ESP_LOGE(TAG, "Error decoding image: %s", pngle_error(pngle));
         break;
       }
 
