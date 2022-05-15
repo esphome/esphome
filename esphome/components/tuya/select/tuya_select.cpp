@@ -31,7 +31,7 @@ void TuyaSelect::control(const std::string &value) {
   if (idx.has_value()) {
     uint8_t mapping = this->mappings_.at(idx.value());
     ESP_LOGV(TAG, "Setting %u datapoint value to %u:%s", this->select_id_, mapping, value.c_str());
-    this->parent_->set_enum_datapoint_value(this->select_id_, idx.value());
+    this->parent_->set_enum_datapoint_value(this->select_id_, mapping);
     return;
   }
 

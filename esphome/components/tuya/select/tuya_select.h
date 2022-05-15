@@ -22,7 +22,7 @@ class TuyaSelect : public select::Select, public Component {
 
   Tuya *parent_;
   bool optimistic_ = false;
-  uint8_t select_id_{0};
+  uint8_t select_id_;
   std::vector<uint8_t> mappings_;
 };
 
