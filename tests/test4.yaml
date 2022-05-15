@@ -61,6 +61,15 @@ tuya:
     number: 14
     inverted: true
 
+select:
+  - platform: tuya
+    id: tuya_select
+    enum_datapoint: 42
+    options:
+      0: Internal
+      1: Floor
+      2: Both
+
 pipsolar:
     id: inverter0
 
