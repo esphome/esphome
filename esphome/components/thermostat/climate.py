@@ -38,6 +38,7 @@ from esphome.const import (
     CONF_IDLE_ACTION,
     CONF_MAX_COOLING_RUN_TIME,
     CONF_MAX_HEATING_RUN_TIME,
+    CONF_MAX_TEMPERATURE,
     CONF_MIN_COOLING_OFF_TIME,
     CONF_MIN_COOLING_RUN_TIME,
     CONF_MIN_FAN_MODE_SWITCHING_TIME,
@@ -46,6 +47,7 @@ from esphome.const import (
     CONF_MIN_HEATING_OFF_TIME,
     CONF_MIN_HEATING_RUN_TIME,
     CONF_MIN_IDLE_TIME,
+    CONF_MIN_TEMPERATURE,
     CONF_NAME,
     CONF_MODE,
     CONF_OFF_MODE,
@@ -63,6 +65,7 @@ from esphome.const import (
     CONF_SWING_OFF_ACTION,
     CONF_SWING_VERTICAL_ACTION,
     CONF_TARGET_TEMPERATURE_CHANGE_ACTION,
+    CONF_VISUAL,
 )
 
 CONF_PRESET_CHANGE = "preset_change"
@@ -309,6 +312,34 @@ def validate_thermostat(config):
 
     # Verify that the modes for presets are valid given the configuration
     if CONF_PRESET in config:
+        # Preset temperature vs Visual temperature validation
+
+        # Default visual configuration from climate_traits.h
+        visual_min_temperature = 10.0
+        visual_max_temperature = 30.0
+        if CONF_VISUAL in config:
+            visual_config = config[CONF_VISUAL]
+            
+            if CONF_MIN_TEMPERATURE in visual_config:
+                visual_min_temperature = visual_config[CONF_MIN_TEMPERATURE]
+            
+            if CONF_MAX_TEMPERATURE in visual_config:
+                visual_max_temperature = visual_config[CONF_MAX_TEMPERATURE]
+
+            for preset_config in config[CONF_PRESET]:
+                if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in preset_config:
+                    preset_min_temperature = preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
+                    if preset_min_temperature < visual_min_temperature:
+                        raise cv.Invalid(
+                            f"{CONF_DEFAULT_TARGET_TEMPERATURE_LOW} for {preset_config[CONF_NAME]} is set to {preset_min_temperature} which is less than the visual minimum temperature of {visual_min_temperature}"
+                        )
+                    if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in preset_config:
+                        preset_max_temperature = preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
+                        if preset_max_temperature > visual_max_temperature:
+                            raise cv.Invalid(
+                                f"{CONF_DEFAULT_TARGET_TEMPERATURE_HIGH} for {preset_config[CONF_NAME]} is set to {preset_max_temperature} which is more than the visual maximum temperature of {visual_max_temperature}"
+                            )
+
         # Mode validation
         for preset_config in config[CONF_PRESET]:
             if CONF_MODE not in preset_config:
