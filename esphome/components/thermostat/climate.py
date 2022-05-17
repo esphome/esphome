@@ -301,7 +301,7 @@ def validate_thermostat(config):
         "DRY": [CONF_DRY_ACTION],
         "FAN_ONLY": [CONF_FAN_ONLY_ACTION],
         "AUTO": [CONF_COOL_ACTION, CONF_HEAT_ACTION],
-        "OFF": []
+        "OFF": [],
     }
     actions_for_default_mode = requirements.get(default_mode, [])
     for req in actions_for_default_mode:
@@ -319,22 +319,26 @@ def validate_thermostat(config):
         visual_max_temperature = 30.0
         if CONF_VISUAL in config:
             visual_config = config[CONF_VISUAL]
-            
+
             if CONF_MIN_TEMPERATURE in visual_config:
                 visual_min_temperature = visual_config[CONF_MIN_TEMPERATURE]
-            
+
             if CONF_MAX_TEMPERATURE in visual_config:
                 visual_max_temperature = visual_config[CONF_MAX_TEMPERATURE]
 
             for preset_config in config[CONF_PRESET]:
                 if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in preset_config:
-                    preset_min_temperature = preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
+                    preset_min_temperature = preset_config[
+                        CONF_DEFAULT_TARGET_TEMPERATURE_LOW
+                    ]
                     if preset_min_temperature < visual_min_temperature:
                         raise cv.Invalid(
                             f"{CONF_DEFAULT_TARGET_TEMPERATURE_LOW} for {preset_config[CONF_NAME]} is set to {preset_min_temperature} which is less than the visual minimum temperature of {visual_min_temperature}"
                         )
                     if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in preset_config:
-                        preset_max_temperature = preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
+                        preset_max_temperature = preset_config[
+                            CONF_DEFAULT_TARGET_TEMPERATURE_HIGH
+                        ]
                         if preset_max_temperature > visual_max_temperature:
                             raise cv.Invalid(
                                 f"{CONF_DEFAULT_TARGET_TEMPERATURE_HIGH} for {preset_config[CONF_NAME]} is set to {preset_max_temperature} which is more than the visual maximum temperature of {visual_max_temperature}"
@@ -355,17 +359,17 @@ def validate_thermostat(config):
 
         # Fan mode requirements
         requirements = {
-            "ON": [ CONF_FAN_MODE_ON_ACTION ],
-            "OFF": [ CONF_FAN_MODE_OFF_ACTION ],
-            "AUTO": [ CONF_FAN_MODE_AUTO_ACTION ],
-            "LOW": [ CONF_FAN_MODE_LOW_ACTION ],
-            "MEDIUM": [ CONF_FAN_MODE_MEDIUM_ACTION ],
-            "HIGH": [ CONF_FAN_MODE_HIGH_ACTION ],
-            "MIDDLE": [ CONF_FAN_MODE_MIDDLE_ACTION ],
-            "FOCUS": [ CONF_FAN_MODE_FOCUS_ACTION ],
-            "DIFFUSE": [ CONF_FAN_MODE_DIFFUSE_ACTION ],
+            "ON": [CONF_FAN_MODE_ON_ACTION],
+            "OFF": [CONF_FAN_MODE_OFF_ACTION],
+            "AUTO": [CONF_FAN_MODE_AUTO_ACTION],
+            "LOW": [CONF_FAN_MODE_LOW_ACTION],
+            "MEDIUM": [CONF_FAN_MODE_MEDIUM_ACTION],
+            "HIGH": [CONF_FAN_MODE_HIGH_ACTION],
+            "MIDDLE": [CONF_FAN_MODE_MIDDLE_ACTION],
+            "FOCUS": [CONF_FAN_MODE_FOCUS_ACTION],
+            "DIFFUSE": [CONF_FAN_MODE_DIFFUSE_ACTION],
         }
-        
+
         for preset_config in config[CONF_PRESET]:
             if CONF_FAN_MODE not in preset_config:
                 continue
@@ -380,7 +384,7 @@ def validate_thermostat(config):
 
         # Swing mode requirements
         requirements = {
-            "OFF": [ CONF_SWING_OFF_ACTION ],
+            "OFF": [CONF_SWING_OFF_ACTION],
             "BOTH": [CONF_SWING_BOTH_ACTION],
             "VERTICAL": [CONF_SWING_VERTICAL_ACTION],
             "HORIZONTAL": [CONF_SWING_HORIZONTAL_ACTION],
@@ -391,7 +395,7 @@ def validate_thermostat(config):
                 continue
 
             swing_mode = preset_config[CONF_SWING_MODE]
-            
+
             for req in requirements[swing_mode]:
                 if req not in config:
                     raise cv.Invalid(
