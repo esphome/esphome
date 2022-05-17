@@ -1,5 +1,7 @@
 #include "i2s_audio_media_player.h"
 
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -127,3 +129,5 @@ void I2SAudioMediaPlayer::dump_config() {
 
 }  // namespace i2s_audio
 }  // namespace esphome
+
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

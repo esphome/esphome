@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+
 #include "esphome/components/media_player/media_player.h"
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
@@ -55,3 +57,5 @@ class I2SAudioMediaPlayer : public Component, public media_player::MediaPlayer {
 
 }  // namespace i2s_audio
 }  // namespace esphome
+
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO

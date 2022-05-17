@@ -31,11 +31,10 @@ INTERNAL_DAC_OPTIONS = {
     "both": i2s_dac_mode_t.I2S_DAC_CHANNEL_BOTH_EN,
 }
 
-CONFIG_SCHEMA = cv.typed_schema(
-    {
-        "internal": cv.All(
-            cv.only_on_esp32,
-            cv.Schema(
+CONFIG_SCHEMA = cv.All(
+    cv.typed_schema(
+        {
+            "internal": cv.Schema(
                 {
                     cv.GenerateID(): cv.declare_id(I2SAudioMediaPlayer),
                     cv.Required(CONF_MODE): cv.enum(INTERNAL_DAC_OPTIONS, lower=True),
@@ -43,20 +42,25 @@ CONFIG_SCHEMA = cv.typed_schema(
             )
             .extend(media_player.MEDIA_PLAYER_SCHEMA)
             .extend(cv.COMPONENT_SCHEMA),
-        ),
-        "external": cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(I2SAudioMediaPlayer),
-                cv.Required(CONF_I2S_DOUT_PIN): pins.internal_gpio_output_pin_number,
-                cv.Required(CONF_I2S_BCLK_PIN): pins.internal_gpio_output_pin_number,
-                cv.Required(CONF_I2S_WS_PIN): pins.internal_gpio_output_pin_number,
-                cv.Optional(CONF_MUTE_PIN): pins.gpio_output_pin_schema,
-            }
-        )
-        .extend(media_player.MEDIA_PLAYER_SCHEMA)
-        .extend(cv.COMPONENT_SCHEMA),
-    },
-    key=CONF_DAC_TYPE,
+            "external": cv.Schema(
+                {
+                    cv.GenerateID(): cv.declare_id(I2SAudioMediaPlayer),
+                    cv.Required(
+                        CONF_I2S_DOUT_PIN
+                    ): pins.internal_gpio_output_pin_number,
+                    cv.Required(
+                        CONF_I2S_BCLK_PIN
+                    ): pins.internal_gpio_output_pin_number,
+                    cv.Required(CONF_I2S_WS_PIN): pins.internal_gpio_output_pin_number,
+                    cv.Optional(CONF_MUTE_PIN): pins.gpio_output_pin_schema,
+                }
+            )
+            .extend(media_player.MEDIA_PLAYER_SCHEMA)
+            .extend(cv.COMPONENT_SCHEMA),
+        },
+        key=CONF_DAC_TYPE,
+    ),
+    cv.only_with_arduino,
 )
 
 
