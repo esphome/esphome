@@ -32,12 +32,12 @@ void Tuya::loop() {
 void Tuya::dump_config() {
   ESP_LOGCONFIG(TAG, "Tuya:");
   if (this->init_state_ != TuyaInitState::INIT_DONE) {
-    if (this->init_failed_)
-      ESP_LOGCONFIG(TAG, "  Initialization failed. Current init_state: %u",
-                    static_cast<uint8_t>(this->init_state_));
-    else
+    if (this->init_failed_) {
+      ESP_LOGCONFIG(TAG, "  Initialization failed. Current init_state: %u", static_cast<uint8_t>(this->init_state_));
+    } else {
       ESP_LOGCONFIG(TAG, "  Configuration will be reported when setup is complete. Current init_state: %u",
                     static_cast<uint8_t>(this->init_state_));
+    }
     ESP_LOGCONFIG(TAG, "  If no further output is received, confirm that this is a supported Tuya device.");
     return;
   }
@@ -59,8 +59,8 @@ void Tuya::dump_config() {
     }
   }
   if ((this->status_pin_reported_ != -1) || (this->reset_pin_reported_ != -1)) {
-    ESP_LOGCONFIG(TAG, "  GPIO Configuration: status: pin %d, reset: pin %d",
-                  this->status_pin_reported_, this->reset_pin_reported_);
+    ESP_LOGCONFIG(TAG, "  GPIO Configuration: status: pin %d, reset: pin %d", this->status_pin_reported_,
+                  this->reset_pin_reported_);
   }
   if (this->status_pin_.has_value()) {
     LOG_PIN("  Status Pin: ", this->status_pin_.value());
