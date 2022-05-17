@@ -233,26 +233,43 @@ class ESP8266Preferences : public ESPPreferences {
     if (s_prevent_write)
       return false;
 
-    ESP_LOGD(TAG, "Saving preferences to flash...");
-    SpiFlashOpResult erase_res, write_res = SPI_FLASH_RESULT_OK;
-    {
-      InterruptLock lock;
-      erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
-      if (erase_res == SPI_FLASH_RESULT_OK) {
-        write_res = spi_flash_write(get_esp8266_flash_address(), s_flash_storage, ESP8266_FLASH_STORAGE_SIZE * 4);
+    if (is_changed()) {
+      ESP_LOGD(TAG, "Saving preferences to flash...");
+      SpiFlashOpResult erase_res, write_res = SPI_FLASH_RESULT_OK;
+      {
+        InterruptLock lock;
+        erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
+        if (erase_res == SPI_FLASH_RESULT_OK) {
+          write_res = spi_flash_write(get_esp8266_flash_address(), s_flash_storage, ESP8266_FLASH_STORAGE_SIZE * 4);
+        }
       }
-    }
-    if (erase_res != SPI_FLASH_RESULT_OK) {
-      ESP_LOGV(TAG, "Erase ESP8266 flash failed!");
-      return false;
-    }
-    if (write_res != SPI_FLASH_RESULT_OK) {
-      ESP_LOGV(TAG, "Write ESP8266 flash failed!");
-      return false;
+      if (erase_res != SPI_FLASH_RESULT_OK) {
+        ESP_LOGV(TAG, "Erase ESP8266 flash failed!");
+        return false;
+      }
+      if (write_res != SPI_FLASH_RESULT_OK) {
+        ESP_LOGV(TAG, "Write ESP8266 flash failed!");
+        return false;
+      }
+    } else {
+      ESP_LOGD(TAG, "Preferences not changed. Skipping flash write");
     }
 
     s_flash_dirty = false;
     return true;
+  }
+  bool is_changed() {
+    auto buffer = make_unique<uint32_t[]>(ESP8266_FLASH_STORAGE_SIZE);
+    {
+      InterruptLock lock;
+      spi_flash_read(get_esp8266_flash_address(), buffer.get(), ESP8266_FLASH_STORAGE_SIZE * 4);
+    }
+    for (size_t i = 0; i < ESP8266_FLASH_STORAGE_SIZE; i++) {
+      if (buffer[i] != s_flash_storage[i]) {
+        return true;
+      }
+    }
+    return false;
   }
 };
 
