@@ -289,7 +289,7 @@ def validate_thermostat(config):
                 preset_config, config, preset_config[CONF_NAME], requirements
             )
 
-    # verify default climate mode is valid given above configuration
+    # Verify default climate mode is valid given above configuration
     default_mode = config[CONF_DEFAULT_MODE]
     requirements = {
         "HEAT_COOL": [CONF_COOL_ACTION, CONF_HEAT_ACTION],
@@ -298,6 +298,7 @@ def validate_thermostat(config):
         "DRY": [CONF_DRY_ACTION],
         "FAN_ONLY": [CONF_FAN_ONLY_ACTION],
         "AUTO": [CONF_COOL_ACTION, CONF_HEAT_ACTION],
+        "OFF": []
     }
     actions_for_default_mode = requirements.get(default_mode, [])
     for req in actions_for_default_mode:
@@ -308,13 +309,62 @@ def validate_thermostat(config):
 
     # Verify that the modes for presets are valid given the configuration
     if CONF_PRESET in config:
+        # Mode validation
         for preset_config in config[CONF_PRESET]:
+            if CONF_MODE not in preset_config:
+                continue
+
             mode = preset_config[CONF_MODE]
 
             for req in requirements[mode]:
                 if req not in config:
                     raise cv.Invalid(
-                        f"{CONF_MODE} is set to {mode} for {preset_config[CONF_NAME]} but {req} is not present in the preset"
+                        f"{CONF_MODE} is set to {mode} for {preset_config[CONF_NAME]} but {req} is not present in the configuration"
+                    )
+
+        # Fan mode requirements
+        requirements = {
+            "ON": [ CONF_FAN_MODE_ON_ACTION ],
+            "OFF": [ CONF_FAN_MODE_OFF_ACTION ],
+            "AUTO": [ CONF_FAN_MODE_AUTO_ACTION ],
+            "LOW": [ CONF_FAN_MODE_LOW_ACTION ],
+            "MEDIUM": [ CONF_FAN_MODE_MEDIUM_ACTION ],
+            "HIGH": [ CONF_FAN_MODE_HIGH_ACTION ],
+            "MIDDLE": [ CONF_FAN_MODE_MIDDLE_ACTION ],
+            "FOCUS": [ CONF_FAN_MODE_FOCUS_ACTION ],
+            "DIFFUSE": [ CONF_FAN_MODE_DIFFUSE_ACTION ],
+        }
+        
+        for preset_config in config[CONF_PRESET]:
+            if CONF_FAN_MODE not in preset_config:
+                continue
+
+            fan_mode = preset_config[CONF_FAN_MODE]
+
+            for req in requirements[fan_mode]:
+                if req not in config:
+                    raise cv.Invalid(
+                        f"{CONF_FAN_MODE} is set to {fan_mode} for {preset_config[CONF_NAME]} but {req} is not present in the configuration"
+                    )
+
+        # Swing mode requirements
+        requirements = {
+            "OFF": [ CONF_SWING_OFF_ACTION ],
+            "BOTH": [CONF_SWING_BOTH_ACTION],
+            "VERTICAL": [CONF_SWING_VERTICAL_ACTION],
+            "HORIZONTAL": [CONF_SWING_HORIZONTAL_ACTION],
+        }
+
+        for preset_config in config[CONF_PRESET]:
+            if CONF_SWING_MODE not in preset_config:
+                continue
+
+            swing_mode = preset_config[CONF_SWING_MODE]
+            
+            for req in requirements[swing_mode]:
+                if req not in config:
+                    raise cv.Invalid(
+                        f"{CONF_SWING_MODE} is set to {swing_mode} for {preset_config[CONF_NAME]} but {req} is not present in the configuration"
                     )
 
     if config[CONF_FAN_WITH_COOLING] is True and CONF_FAN_ONLY_ACTION not in config:
