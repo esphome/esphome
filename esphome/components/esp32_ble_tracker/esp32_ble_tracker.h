@@ -172,6 +172,10 @@ class ESP32BLETracker : public Component {
   void set_scan_window(uint32_t scan_window) { scan_window_ = scan_window; }
   void set_scan_active(bool scan_active) { scan_active_ = scan_active; }
 
+  void set_io_cap(esp_ble_io_cap_t iocap) { iocap_ = iocap; }
+  void set_key_size(uint8_t key_size) { key_size_ = key_size; }
+  void set_auth_req(esp_ble_auth_req_t auth_req) { auth_req_ = auth_req; }
+
   /// Setup the FreeRTOS task and the Bluetooth stack.
   void setup() override;
   void dump_config() override;
@@ -190,7 +194,7 @@ class ESP32BLETracker : public Component {
 
  protected:
   /// The FreeRTOS task managing the bluetooth interface.
-  static bool ble_setup();
+  static bool ble_setup(esp_ble_io_cap_t iocap, uint8_t key_size, esp_ble_auth_req_t auth_req);
   /// Start a single scan by setting up the parameters and doing some esp-idf calls.
   void start_scan_(bool first);
   /// Callback that will handle all GAP events and redistribute them to other callbacks.
@@ -222,6 +226,9 @@ class ESP32BLETracker : public Component {
   uint32_t scan_interval_;
   uint32_t scan_window_;
   bool scan_active_;
+  esp_ble_io_cap_t iocap_;
+  uint8_t key_size_;
+  esp_ble_auth_req_t auth_req_;
   SemaphoreHandle_t scan_result_lock_;
   SemaphoreHandle_t scan_end_lock_;
   size_t scan_result_index_{0};

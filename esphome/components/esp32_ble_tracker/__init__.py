@@ -23,6 +23,10 @@ CONF_ESP32_BLE_ID = "esp32_ble_id"
 CONF_SCAN_PARAMETERS = "scan_parameters"
 CONF_WINDOW = "window"
 CONF_ACTIVE = "active"
+CONF_SECURITY_PARAMETERS = "security_parameters"
+CONF_IO_CAPABILITY = "io_capability"
+CONF_KEY_SIZE = "key_size"
+CONF_AUTHENTICATION_MODE = "authentication_mode"
 esp32_ble_tracker_ns = cg.esphome_ns.namespace("esp32_ble_tracker")
 ESP32BLETracker = esp32_ble_tracker_ns.class_("ESP32BLETracker", cg.Component)
 ESPBTClient = esp32_ble_tracker_ns.class_("ESPBTClient")
@@ -42,6 +46,27 @@ BLEManufacturerDataAdvertiseTrigger = esp32_ble_tracker_ns.class_(
     "BLEManufacturerDataAdvertiseTrigger",
     automation.Trigger.template(adv_data_t_const_ref),
 )
+
+ESP_BLE_IO_CAP_T = {
+    "ESP_IO_CAP_OUT": 0,        # DisplayOnly
+    "ESP_IO_CAP_IO": 1,         # DisplayYesNo
+    "ESP_IO_CAP_IN": 2,         # KeyboardOnly
+    "ESP_IO_CAP_NONE": 3,       # NoInputNoOutput
+    "ESP_IO_CAP_KBDISP": 4,     # Keyboard display
+}
+validate_io_capablity = cv.enum(ESP_BLE_IO_CAP_T, upper=True)
+
+ESP_BLE_AUTH_REQ_T = {
+    "ESP_LE_AUTH_NO_BOND": 0,               # 0x00                                     /*!< 0*/
+    "ESP_LE_AUTH_BOND": 1,                  # 0x01                                     /*!< 1 << 0 */
+    "ESP_LE_AUTH_REQ_MITM": 4,              # (1 << 2)                                 /*!< 1 << 2 */
+    "ESP_LE_AUTH_REQ_BOND_MITM": 5,         # (ESP_LE_AUTH_BOND | ESP_LE_AUTH_REQ_MITM)/*!< 0101*/
+    "ESP_LE_AUTH_REQ_SC_ONLY": 8,           # (1 << 3)                                 /*!< 1 << 3 */
+    "ESP_LE_AUTH_REQ_SC_BOND": 9,           # (ESP_LE_AUTH_BOND | ESP_LE_AUTH_REQ_SC_ONLY)            /*!< 1001 */
+    "ESP_LE_AUTH_REQ_SC_MITM": 12,          # (ESP_LE_AUTH_REQ_MITM | ESP_LE_AUTH_REQ_SC_ONLY)        /*!< 1100 */
+    "ESP_LE_AUTH_REQ_SC_MITM_BOND": 13,     # (ESP_LE_AUTH_REQ_MITM | ESP_LE_AUTH_REQ_SC_ONLY | ESP_LE_AUTH_BOND)   /*!< 1101 */
+}
+validate_authentication_mode = cv.enum(ESP_BLE_AUTH_REQ_T, upper=True)
 
 
 def validate_scan_parameters(config):
@@ -142,6 +167,19 @@ CONFIG_SCHEMA = cv.Schema(
             ),
             validate_scan_parameters,
         ),
+        cv.Optional(CONF_SECURITY_PARAMETERS, default={}): cv.Schema(
+            {
+                cv.Optional(
+                    CONF_IO_CAPABILITY, default="ESP_IO_CAP_NONE"
+                ): validate_io_capablity,
+                cv.Optional(
+                    CONF_KEY_SIZE, default=7
+                ): cv.int_range(7, 16),
+                cv.Optional(
+                    CONF_AUTHENTICATION_MODE, default="ESP_LE_AUTH_NO_BOND"
+                ): validate_authentication_mode,
+            }
+        ),
         cv.Optional(CONF_ON_BLE_ADVERTISE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESPBTAdvertiseTrigger),
@@ -186,6 +224,10 @@ async def to_code(config):
     cg.add(var.set_scan_interval(int(params[CONF_INTERVAL].total_milliseconds / 0.625)))
     cg.add(var.set_scan_window(int(params[CONF_WINDOW].total_milliseconds / 0.625)))
     cg.add(var.set_scan_active(params[CONF_ACTIVE]))
+    security_params = config[CONF_SECURITY_PARAMETERS]
+    cg.add(var.set_io_cap(security_params[CONF_IO_CAPABILITY]))
+    cg.add(var.set_key_size(security_params[CONF_KEY_SIZE]))
+    cg.add(var.set_auth_req(security_params[CONF_AUTHENTICATION_MODE]))
     for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if CONF_MAC_ADDRESS in conf:

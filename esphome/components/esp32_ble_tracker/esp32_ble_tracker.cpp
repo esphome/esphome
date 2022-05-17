@@ -47,7 +47,7 @@ void ESP32BLETracker::setup() {
   this->scan_result_lock_ = xSemaphoreCreateMutex();
   this->scan_end_lock_ = xSemaphoreCreateMutex();
 
-  if (!ESP32BLETracker::ble_setup()) {
+  if (!ESP32BLETracker::ble_setup(this->iocap_, this->key_size_, this->auth_req_)) {
     this->mark_failed();
     return;
   }
@@ -129,7 +129,7 @@ void ESP32BLETracker::loop() {
   }
 }
 
-bool ESP32BLETracker::ble_setup() {
+bool ESP32BLETracker::ble_setup(esp_ble_io_cap_t iocap, uint8_t key_size, esp_ble_auth_req_t auth_req) {
   // Initialize non-volatile storage for the bluetooth controller
   esp_err_t err = nvs_flash_init();
   if (err != ESP_OK) {
@@ -195,21 +195,18 @@ bool ESP32BLETracker::ble_setup() {
   // Empty name
   esp_ble_gap_set_device_name("");
 
-  esp_ble_io_cap_t iocap = ESP_IO_CAP_KBDISP;
   err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(esp_ble_io_cap_t));
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_security_param failed: %d", err);
     return false;
   }
 
-  uint8_t key_size = 16;  // the key size should be 7~16 bytes
   err = esp_ble_gap_set_security_param(ESP_BLE_SM_MAX_KEY_SIZE, &key_size, sizeof(uint8_t));
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_security_param failed: %d", err);
     return false;
   }
 
-  esp_ble_auth_req_t auth_req = ESP_LE_AUTH_REQ_SC_MITM_BOND;
   err = esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth_req, sizeof(esp_ble_auth_req_t));
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_security_param failed: %d", err);
@@ -728,6 +725,54 @@ void ESP32BLETracker::dump_config() {
   ESP_LOGCONFIG(TAG, "  Scan Interval: %.1f ms", this->scan_interval_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Window: %.1f ms", this->scan_window_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Type: %s", this->scan_active_ ? "ACTIVE" : "PASSIVE");
+  switch (this->iocap_) {
+      case ESP_IO_CAP_OUT:
+        ESP_LOGCONFIG(TAG, "  Security IO Capability: ESP_IO_CAP_OUT");
+        break;
+      case ESP_IO_CAP_IO:
+        ESP_LOGCONFIG(TAG, "  Security IO Capability: ESP_IO_CAP_IO");
+        break;
+      case ESP_IO_CAP_IN:
+        ESP_LOGCONFIG(TAG, "  Security IO Capability: ESP_IO_CAP_IN");
+        break;
+      case ESP_IO_CAP_NONE:
+        ESP_LOGCONFIG(TAG, "  Security IO Capability: ESP_IO_CAP_NONE");
+        break;
+      case ESP_IO_CAP_KBDISP:
+        ESP_LOGCONFIG(TAG, "  Security IO Capability: ESP_IO_CAP_KBDISP");
+        break;
+      default:
+        break;
+    }
+  ESP_LOGCONFIG(TAG, "  Security Key Size: %d", this->key_size_);
+  switch (this->auth_req_) {
+      case ESP_LE_AUTH_NO_BOND:
+        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_NO_BOND");
+        break;
+      case ESP_LE_AUTH_BOND:
+        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_BOND");
+        break;
+      case ESP_LE_AUTH_REQ_MITM:
+        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_MITM");
+        break;
+      case ESP_LE_AUTH_REQ_BOND_MITM:
+        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_BOND_MITM");
+        break;
+      case ESP_LE_AUTH_REQ_SC_ONLY:
+        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_SC_ONLY");
+        break;
+      case ESP_LE_AUTH_REQ_SC_BOND:
+        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_SC_BOND");
+        break;
+      case ESP_LE_AUTH_REQ_SC_MITM:
+        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_SC_MITM");
+        break;
+      case ESP_LE_AUTH_REQ_SC_MITM_BOND:
+        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_SC_MITM_BOND");
+        break;
+      default:
+        break;
+    }
 }
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
   const uint64_t address = device.address_uint64();
