@@ -48,23 +48,23 @@ BLEManufacturerDataAdvertiseTrigger = esp32_ble_tracker_ns.class_(
 )
 
 ESP_BLE_IO_CAP_T = {
-    "ESP_IO_CAP_OUT": 0,        # DisplayOnly
-    "ESP_IO_CAP_IO": 1,         # DisplayYesNo
-    "ESP_IO_CAP_IN": 2,         # KeyboardOnly
-    "ESP_IO_CAP_NONE": 3,       # NoInputNoOutput
-    "ESP_IO_CAP_KBDISP": 4,     # Keyboard display
+    "ESP_IO_CAP_OUT": 0,  # DisplayOnly
+    "ESP_IO_CAP_IO": 1,  # DisplayYesNo
+    "ESP_IO_CAP_IN": 2,  # KeyboardOnly
+    "ESP_IO_CAP_NONE": 3,  # NoInputNoOutput
+    "ESP_IO_CAP_KBDISP": 4,  # Keyboard display
 }
 validate_io_capablity = cv.enum(ESP_BLE_IO_CAP_T, upper=True)
 
 ESP_BLE_AUTH_REQ_T = {
-    "ESP_LE_AUTH_NO_BOND": 0,               # 0x00                                     /*!< 0*/
-    "ESP_LE_AUTH_BOND": 1,                  # 0x01                                     /*!< 1 << 0 */
-    "ESP_LE_AUTH_REQ_MITM": 4,              # (1 << 2)                                 /*!< 1 << 2 */
-    "ESP_LE_AUTH_REQ_BOND_MITM": 5,         # (ESP_LE_AUTH_BOND | ESP_LE_AUTH_REQ_MITM)/*!< 0101*/
-    "ESP_LE_AUTH_REQ_SC_ONLY": 8,           # (1 << 3)                                 /*!< 1 << 3 */
-    "ESP_LE_AUTH_REQ_SC_BOND": 9,           # (ESP_LE_AUTH_BOND | ESP_LE_AUTH_REQ_SC_ONLY)            /*!< 1001 */
-    "ESP_LE_AUTH_REQ_SC_MITM": 12,          # (ESP_LE_AUTH_REQ_MITM | ESP_LE_AUTH_REQ_SC_ONLY)        /*!< 1100 */
-    "ESP_LE_AUTH_REQ_SC_MITM_BOND": 13,     # (ESP_LE_AUTH_REQ_MITM | ESP_LE_AUTH_REQ_SC_ONLY | ESP_LE_AUTH_BOND)   /*!< 1101 */
+    "ESP_LE_AUTH_NO_BOND": 0,  # 0x00   /*!< 0*/
+    "ESP_LE_AUTH_BOND": 1,  # 0x01  /*!< 1 << 0 */
+    "ESP_LE_AUTH_REQ_MITM": 4,  # (1 << 2)  /*!< 1 << 2 */
+    "ESP_LE_AUTH_REQ_BOND_MITM": 5,  # (ESP_LE_AUTH_BOND | ESP_LE_AUTH_REQ_MITM)    /*!< 0101*/
+    "ESP_LE_AUTH_REQ_SC_ONLY": 8,  # (1 << 3)   /*!< 1 << 3 */
+    "ESP_LE_AUTH_REQ_SC_BOND": 9,  # (ESP_LE_AUTH_BOND | ESP_LE_AUTH_REQ_SC_ONLY)   /*!< 1001 */
+    "ESP_LE_AUTH_REQ_SC_MITM": 12,  # (ESP_LE_AUTH_REQ_MITM | ESP_LE_AUTH_REQ_SC_ONLY)  /*!< 1100 */
+    "ESP_LE_AUTH_REQ_SC_MITM_BOND": 13,  # (ESP_LE_AUTH_REQ_MITM | ESP_LE_AUTH_REQ_SC_ONLY | ESP_LE_AUTH_BOND)  /*!< 1101 */
 }
 validate_authentication_mode = cv.enum(ESP_BLE_AUTH_REQ_T, upper=True)
 
@@ -172,9 +172,7 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.Optional(
                     CONF_IO_CAPABILITY, default="ESP_IO_CAP_NONE"
                 ): validate_io_capablity,
-                cv.Optional(
-                    CONF_KEY_SIZE, default=7
-                ): cv.int_range(7, 16),
+                cv.Optional(CONF_KEY_SIZE, default=7): cv.int_range(7, 16),
                 cv.Optional(
                     CONF_AUTHENTICATION_MODE, default="ESP_LE_AUTH_NO_BOND"
                 ): validate_authentication_mode,

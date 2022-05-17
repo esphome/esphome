@@ -726,53 +726,53 @@ void ESP32BLETracker::dump_config() {
   ESP_LOGCONFIG(TAG, "  Scan Window: %.1f ms", this->scan_window_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Type: %s", this->scan_active_ ? "ACTIVE" : "PASSIVE");
   switch (this->iocap_) {
-      case ESP_IO_CAP_OUT:
-        ESP_LOGCONFIG(TAG, "  Security IO Capability: ESP_IO_CAP_OUT");
-        break;
-      case ESP_IO_CAP_IO:
-        ESP_LOGCONFIG(TAG, "  Security IO Capability: ESP_IO_CAP_IO");
-        break;
-      case ESP_IO_CAP_IN:
-        ESP_LOGCONFIG(TAG, "  Security IO Capability: ESP_IO_CAP_IN");
-        break;
-      case ESP_IO_CAP_NONE:
-        ESP_LOGCONFIG(TAG, "  Security IO Capability: ESP_IO_CAP_NONE");
-        break;
-      case ESP_IO_CAP_KBDISP:
-        ESP_LOGCONFIG(TAG, "  Security IO Capability: ESP_IO_CAP_KBDISP");
-        break;
-      default:
-        break;
-    }
+    case ESP_IO_CAP_OUT:
+      ESP_LOGCONFIG(TAG, "  Security IO Capability: ESP_IO_CAP_OUT");
+      break;
+    case ESP_IO_CAP_IO:
+      ESP_LOGCONFIG(TAG, "  Security IO Capability: ESP_IO_CAP_IO");
+      break;
+    case ESP_IO_CAP_IN:
+      ESP_LOGCONFIG(TAG, "  Security IO Capability: ESP_IO_CAP_IN");
+      break;
+    case ESP_IO_CAP_NONE:
+      ESP_LOGCONFIG(TAG, "  Security IO Capability: ESP_IO_CAP_NONE");
+      break;
+    case ESP_IO_CAP_KBDISP:
+      ESP_LOGCONFIG(TAG, "  Security IO Capability: ESP_IO_CAP_KBDISP");
+      break;
+    default:
+      break;
+  }
   ESP_LOGCONFIG(TAG, "  Security Key Size: %d", this->key_size_);
   switch (this->auth_req_) {
-      case ESP_LE_AUTH_NO_BOND:
-        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_NO_BOND");
-        break;
-      case ESP_LE_AUTH_BOND:
-        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_BOND");
-        break;
-      case ESP_LE_AUTH_REQ_MITM:
-        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_MITM");
-        break;
-      case ESP_LE_AUTH_REQ_BOND_MITM:
-        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_BOND_MITM");
-        break;
-      case ESP_LE_AUTH_REQ_SC_ONLY:
-        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_SC_ONLY");
-        break;
-      case ESP_LE_AUTH_REQ_SC_BOND:
-        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_SC_BOND");
-        break;
-      case ESP_LE_AUTH_REQ_SC_MITM:
-        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_SC_MITM");
-        break;
-      case ESP_LE_AUTH_REQ_SC_MITM_BOND:
-        ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_SC_MITM_BOND");
-        break;
-      default:
-        break;
-    }
+    case ESP_LE_AUTH_NO_BOND:
+      ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_NO_BOND");
+      break;
+    case ESP_LE_AUTH_BOND:
+      ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_BOND");
+      break;
+    case ESP_LE_AUTH_REQ_MITM:
+      ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_MITM");
+      break;
+    case ESP_LE_AUTH_REQ_BOND_MITM:
+      ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_BOND_MITM");
+      break;
+    case ESP_LE_AUTH_REQ_SC_ONLY:
+      ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_SC_ONLY");
+      break;
+    case ESP_LE_AUTH_REQ_SC_BOND:
+      ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_SC_BOND");
+      break;
+    case ESP_LE_AUTH_REQ_SC_MITM:
+      ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_SC_MITM");
+      break;
+    case ESP_LE_AUTH_REQ_SC_MITM_BOND:
+      ESP_LOGCONFIG(TAG, "  Security Authentication Mode: ESP_LE_AUTH_REQ_SC_MITM_BOND");
+      break;
+    default:
+      break;
+  }
 }
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
   const uint64_t address = device.address_uint64();
