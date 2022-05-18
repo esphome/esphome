@@ -28,7 +28,7 @@ void EZOSensor::update() {
   this->write(&c, 1);
   this->state_ |= EZO_STATE_WAIT;
   this->start_time_ = millis();
-  this->wait_time_ = 900;
+  this->wait_time_ = 815;
 }
 
 void EZOSensor::loop() {
@@ -39,7 +39,7 @@ void EZOSensor::loop() {
       this->write(buf, len);
       this->state_ = EZO_STATE_WAIT | EZO_STATE_WAIT_TEMP;
       this->start_time_ = millis();
-      this->wait_time_ = 300;
+      this->wait_time_ = 250;
     }
     return;
   }
