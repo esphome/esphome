@@ -99,8 +99,6 @@ void I2SAudioMediaPlayer::loop() {
 media_player::MediaPlayerTraits I2SAudioMediaPlayer::get_traits() {
   auto traits = media_player::MediaPlayerTraits();
   traits.set_supports_pause(true);
-  traits.set_supports_volume(true);
-  traits.set_supports_mute(true);
   return traits;
 };
 

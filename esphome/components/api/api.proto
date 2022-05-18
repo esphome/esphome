@@ -1070,8 +1070,6 @@ message ListEntitiesMediaPlayerResponse {
   EntityCategory entity_category = 7;
 
   bool supports_pause = 8;
-  bool supports_volume = 9;
-  bool supports_mute = 10;
 }
 message MediaPlayerStateResponse {
   option (id) = 64;

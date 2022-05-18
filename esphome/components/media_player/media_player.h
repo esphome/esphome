@@ -30,17 +30,11 @@ class MediaPlayerTraits {
   MediaPlayerTraits() = default;
 
   void set_supports_pause(bool supports_pause) { this->supports_pause_ = supports_pause; }
-  void set_supports_volume(bool supports_volume) { this->supports_volume_ = supports_volume; }
-  void set_supports_mute(bool supports_mute) { this->supports_mute_ = supports_mute; }
 
   bool get_supports_pause() const { return this->supports_pause_; }
-  bool get_supports_volume() const { return this->supports_volume_; }
-  bool get_supports_mute() const { return this->supports_mute_; }
 
  protected:
   bool supports_pause_{false};
-  bool supports_volume_{false};
-  bool supports_mute_{false};
 };
 
 class MediaPlayerCall {

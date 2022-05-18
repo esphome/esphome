@@ -753,11 +753,8 @@ bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_pla
   MediaPlayerStateResponse resp{};
   resp.key = media_player->get_object_id_hash();
   resp.state = static_cast<enums::MediaPlayerState>(media_player->state);
-  auto traits = media_player->get_traits();
-  if (traits.get_supports_volume())
-    resp.volume = media_player->volume;
-  if (traits.get_supports_mute())
-    resp.muted = media_player->is_muted();
+  resp.volume = media_player->volume;
+  resp.muted = media_player->is_muted();
   return this->send_media_player_state_response(resp);
 }
 bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_player) {
@@ -772,8 +769,6 @@ bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_play
 
   auto traits = media_player->get_traits();
   msg.supports_pause = traits.get_supports_pause();
-  msg.supports_volume = traits.get_supports_volume();
-  msg.supports_mute = traits.get_supports_mute();
 
   return this->send_list_entities_media_player_response(msg);
 }

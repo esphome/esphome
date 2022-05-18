@@ -4618,14 +4618,6 @@ bool ListEntitiesMediaPlayerResponse::decode_varint(uint32_t field_id, ProtoVarI
       this->supports_pause = value.as_bool();
       return true;
     }
-    case 9: {
-      this->supports_volume = value.as_bool();
-      return true;
-    }
-    case 10: {
-      this->supports_mute = value.as_bool();
-      return true;
-    }
     default:
       return false;
   }
@@ -4671,8 +4663,6 @@ void ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(6, this->disabled_by_default);
   buffer.encode_enum<enums::EntityCategory>(7, this->entity_category);
   buffer.encode_bool(8, this->supports_pause);
-  buffer.encode_bool(9, this->supports_volume);
-  buffer.encode_bool(10, this->supports_mute);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
@@ -4709,14 +4699,6 @@ void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
 
   out.append("  supports_pause: ");
   out.append(YESNO(this->supports_pause));
-  out.append("\n");
-
-  out.append("  supports_volume: ");
-  out.append(YESNO(this->supports_volume));
-  out.append("\n");
-
-  out.append("  supports_mute: ");
-  out.append(YESNO(this->supports_mute));
   out.append("\n");
   out.append("}");
 }
