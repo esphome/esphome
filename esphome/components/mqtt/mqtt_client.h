@@ -277,6 +277,7 @@ class MQTTClientComponent : public Component {
       .retain = true,
       .clean = false,
       .unique_id_generator = MQTT_LEGACY_UNIQUE_ID_GENERATOR,
+      .object_id_generator = MQTT_NONE_OBJECT_ID_GENERATOR,
   };
   std::string topic_prefix_{};
   MQTTMessage log_message_;
