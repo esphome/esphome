@@ -1,7 +1,7 @@
 #include "tuya.h"
-#include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
 namespace esphome {
@@ -10,6 +10,7 @@ namespace tuya {
 static const char *const TAG = "tuya";
 static const int COMMAND_DELAY = 10;
 static const int RECEIVE_TIMEOUT = 300;
+static const int MAX_RETRIES = 5;
 
 void Tuya::setup() {
   this->set_interval("heartbeat", 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
@@ -27,8 +28,12 @@ void Tuya::loop() {
 void Tuya::dump_config() {
   ESP_LOGCONFIG(TAG, "Tuya:");
   if (this->init_state_ != TuyaInitState::INIT_DONE) {
-    ESP_LOGCONFIG(TAG, "  Configuration will be reported when setup is complete. Current init_state: %u",
-                  static_cast<uint8_t>(this->init_state_));
+    if (this->init_failed_) {
+      ESP_LOGCONFIG(TAG, "  Initialization failed. Current init_state: %u", static_cast<uint8_t>(this->init_state_));
+    } else {
+      ESP_LOGCONFIG(TAG, "  Configuration will be reported when setup is complete. Current init_state: %u",
+                    static_cast<uint8_t>(this->init_state_));
+    }
     ESP_LOGCONFIG(TAG, "  If no further output is received, confirm that this is a supported Tuya device.");
     return;
   }
@@ -127,6 +132,8 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 
   if (this->expected_response_.has_value() && this->expected_response_ == command_type) {
     this->expected_response_.reset();
+    this->command_queue_.erase(command_queue_.begin());
+    this->init_retries_ = 0;
   }
 
   switch (command_type) {
@@ -378,13 +385,24 @@ void Tuya::process_command_queue_() {
 
   if (this->expected_response_.has_value() && delay > RECEIVE_TIMEOUT) {
     this->expected_response_.reset();
+    if (init_state_ != TuyaInitState::INIT_DONE) {
+      if (++this->init_retries_ >= MAX_RETRIES) {
+        this->init_failed_ = true;
+        ESP_LOGE(TAG, "Initialization failed at init_state %u", static_cast<uint8_t>(this->init_state_));
+        this->command_queue_.erase(command_queue_.begin());
+        this->init_retries_ = 0;
+      }
+    } else {
+      this->command_queue_.erase(command_queue_.begin());
+    }
   }
 
   // Left check of delay since last command in case there's ever a command sent by calling send_raw_command_ directly
   if (delay > COMMAND_DELAY && !this->command_queue_.empty() && this->rx_message_.empty() &&
       !this->expected_response_.has_value()) {
     this->send_raw_command_(command_queue_.front());
-    this->command_queue_.erase(command_queue_.begin());
+    if (!this->expected_response_.has_value())
+      this->command_queue_.erase(command_queue_.begin());
   }
 }
 

@@ -556,7 +556,12 @@ void MQTTClientComponent::disable_last_will() { this->last_will_.topic = ""; }
 
 void MQTTClientComponent::disable_discovery() {
   this->discovery_info_ = MQTTDiscoveryInfo{
-      .prefix = "", .retain = false, .clean = false, .unique_id_generator = MQTT_LEGACY_UNIQUE_ID_GENERATOR};
+      .prefix = "",
+      .retain = false,
+      .clean = false,
+      .unique_id_generator = MQTT_LEGACY_UNIQUE_ID_GENERATOR,
+      .object_id_generator = MQTT_NONE_OBJECT_ID_GENERATOR,
+  };
 }
 void MQTTClientComponent::on_shutdown() {
   if (!this->shutdown_message_.topic.empty()) {
