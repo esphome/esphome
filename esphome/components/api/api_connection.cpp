@@ -12,9 +12,6 @@
 #ifdef USE_HOMEASSISTANT_TIME
 #include "esphome/components/homeassistant/time/homeassistant_time.h"
 #endif
-#ifdef USE_FAN
-#include "esphome/components/fan/fan_helpers.h"
-#endif
 
 namespace esphome {
 namespace api {
@@ -253,9 +250,6 @@ void APIConnection::cover_command(const CoverCommandRequest &msg) {
 #endif
 
 #ifdef USE_FAN
-// Shut-up about usage of deprecated speed_level_to_enum/speed_enum_to_level functions for a bit.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 bool APIConnection::send_fan_state(fan::Fan *fan) {
   if (!this->state_subscription_)
     return false;
@@ -268,7 +262,6 @@ bool APIConnection::send_fan_state(fan::Fan *fan) {
     resp.oscillating = fan->oscillating;
   if (traits.supports_speed()) {
     resp.speed_level = fan->speed;
-    resp.speed = static_cast<enums::FanSpeed>(fan::speed_level_to_enum(fan->speed, traits.supported_speed_count()));
   }
   if (traits.supports_direction())
     resp.direction = static_cast<enums::FanDirection>(fan->direction);
@@ -295,8 +288,6 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
   if (fan == nullptr)
     return;
 
-  auto traits = fan->get_traits();
-
   auto call = fan->make_call();
   if (msg.has_state)
     call.set_state(msg.state);
@@ -305,14 +296,11 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
   if (msg.has_speed_level) {
     // Prefer level
     call.set_speed(msg.speed_level);
-  } else if (msg.has_speed) {
-    call.set_speed(fan::speed_enum_to_level(static_cast<fan::FanSpeed>(msg.speed), traits.supported_speed_count()));
   }
   if (msg.has_direction)
     call.set_direction(static_cast<fan::FanDirection>(msg.direction));
   call.perform();
 }
-#pragma GCC diagnostic pop
 #endif
 
 #ifdef USE_LIGHT

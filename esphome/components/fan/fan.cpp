@@ -1,5 +1,4 @@
 #include "fan.h"
-#include "fan_helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -60,22 +59,6 @@ void FanCall::validate_() {
     this->direction_.reset();
   }
 }
-
-// This whole method is deprecated, don't warn about usage of deprecated methods inside of it.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-FanCall &FanCall::set_speed(const char *legacy_speed) {
-  const auto supported_speed_count = this->parent_.get_traits().supported_speed_count();
-  if (strcasecmp(legacy_speed, "low") == 0) {
-    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_LOW, supported_speed_count));
-  } else if (strcasecmp(legacy_speed, "medium") == 0) {
-    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_MEDIUM, supported_speed_count));
-  } else if (strcasecmp(legacy_speed, "high") == 0) {
-    this->set_speed(fan::speed_enum_to_level(FAN_SPEED_HIGH, supported_speed_count));
-  }
-  return *this;
-}
-#pragma GCC diagnostic pop
 
 FanCall FanRestoreState::to_call(Fan &fan) {
   auto call = fan.make_call();
