@@ -1,8 +1,8 @@
 import inspect
 import json
 import argparse
-from operator import truediv
 import os
+import glob
 import voluptuous as vol
 import re
 
@@ -92,7 +92,7 @@ from esphome import automation
 from esphome import pins
 from esphome.components import remote_base
 from esphome.const import CONF_TYPE
-from esphome.loader import get_platform
+from esphome.loader import get_platform, CORE_COMPONENTS_PATH
 from esphome.helpers import write_file_if_changed
 from esphome.util import Registry
 
@@ -266,6 +266,36 @@ def fix_remote_receiver():
             "config_vars": output["remote_base"]["binary"],
         },
     }
+
+
+def get_logger_tags():
+    pattern = re.compile(r'^static const char \*const TAG = "(\w.*)";', re.MULTILINE)
+    # tags not in components dir
+    tags = [
+        "app",
+        "component",
+        "entity_base",
+        "scheduler",
+        "api.service",
+    ]
+    for x in os.walk(CORE_COMPONENTS_PATH):
+        for y in glob.glob(os.path.join(x[0], "*.cpp")):
+            with open(y, encoding="utf-8") as file:
+                data = file.read()
+                match = pattern.search(data)
+                if match:
+                    tags.append(match.group(1))
+    return tags
+
+
+def add_logger_tags():
+    tags = get_logger_tags()
+    logs = output["logger"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"][
+        "logs"
+    ]["schema"]["config_vars"]
+    for t in tags:
+        logs[t] = logs["string"].copy()
+    logs.pop("string")
 
 
 def add_referenced_recursive(referenced_schemas, config_var, path, eat_schema=False):
@@ -517,6 +547,7 @@ def build_schema():
     do_esp8266()
     do_esp32()
     fix_remote_receiver()
+    add_logger_tags()
     shrink()
 
     # aggregate components, so all component info is in same file, otherwise we have dallas.json, dallas.sensor.json, etc.
