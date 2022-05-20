@@ -33,7 +33,17 @@ SwitchPtr = Switch.operator("ptr")
 ToggleAction = switch_ns.class_("ToggleAction", automation.Action)
 TurnOffAction = switch_ns.class_("TurnOffAction", automation.Action)
 TurnOnAction = switch_ns.class_("TurnOnAction", automation.Action)
+
+LockToggleAction = switch_ns.class_("LockToggleAction", automation.Action)
+LockTurnOffAction = switch_ns.class_("LockTurnOffAction", automation.Action)
+LockTurnOnAction = switch_ns.class_("LockTurnOnAction", automation.Action)
+LockAction = switch_ns.class_("LockAction", automation.Action)
+UnLockAction = switch_ns.class_("UnLockAction", automation.Action)
+
 SwitchPublishAction = switch_ns.class_("SwitchPublishAction", automation.Action)
+
+IsLockedCondition = switch_ns.class_("IsLockedCondition", Condition)
+IsUnLockedCondition = switch_ns.class_("IsUnLockedCondition", Condition)
 
 SwitchCondition = switch_ns.class_("SwitchCondition", Condition)
 SwitchTurnOnTrigger = switch_ns.class_(
@@ -98,6 +108,15 @@ SWITCH_ACTION_SCHEMA = maybe_simple_id(
     }
 )
 
+
+@automation.register_action("switch.lock_toggle", LockToggleAction, SWITCH_ACTION_SCHEMA)
+@automation.register_action("switch.lock_turn_off", LockTurnOffAction, SWITCH_ACTION_SCHEMA)
+@automation.register_action("switch.lock_turn_on", LockTurnOnAction, SWITCH_ACTION_SCHEMA)
+@automation.register_action("switch.lock", LockAction, SWITCH_ACTION_SCHEMA)
+@automation.register_action("switch.unlock", UnLockAction, SWITCH_ACTION_SCHEMA)
+
+@automation.register_condition("switch.is_locked", IsLockedCondition, SWITCH_ACTION_SCHEMA)
+@automation.register_condition("switch.is_unlocked", IsUnLockedCondition, SWITCH_ACTION_SCHEMA)
 
 @automation.register_action("switch.toggle", ToggleAction, SWITCH_ACTION_SCHEMA)
 @automation.register_action("switch.turn_off", TurnOffAction, SWITCH_ACTION_SCHEMA)

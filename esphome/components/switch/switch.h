@@ -63,6 +63,36 @@ class Switch : public EntityBase {
    */
   void toggle();
 
+  /** Turn this switch on and locks the switch.
+   *  A locked switch cannot be switched by the front-end
+   *  until unlock() is called.
+   */
+  void lock_turn_on();
+  /** Turn this switch off and locks the switch.
+   */
+  void lock_turn_off();
+  /** Toggle this switch and locks the switch.
+   */
+  void lock_toggle();
+  /** This unlocks the switch. After unlock the switch can
+   * be switched from the front-end
+   */
+  void unlock();
+
+  /** This returns true if the switch is locked
+   */
+  bool is_locked();
+
+  /** This returns true if the switch is unlocked
+   */
+  bool is_unlocked();
+
+  /** this locks the switch. A Locked switch can not be
+   * switched by the front-end until unlock()
+   */
+  void lock();
+
+
   /** Set whether the state should be treated as inverted.
    *
    * To the developer and user an inverted switch will act just like a non-inverted one.
@@ -114,6 +144,17 @@ class Switch : public EntityBase {
   Deduplicator<bool> publish_dedup_;
   ESPPreferenceObject rtc_;
   optional<std::string> device_class_;
+  /** Turn this switch on. This is called by the public classes
+   */
+  void write_state_on_(bool set_lock);
+  /** Turn this switch off. This is called by the public classes
+   */
+  void write_state_off_(bool set_lock);
+  /** Toggle this switch. This is called by the public classes
+   */
+  void write_state_toggle_(bool set_lock);
+  bool locked_{false};
+
 };
 
 }  // namespace switch_
