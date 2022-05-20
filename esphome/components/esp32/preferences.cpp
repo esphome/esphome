@@ -76,7 +76,6 @@ class ESP32PreferenceBackend : public ESPPreferenceBackend {
 class ESP32Preferences : public ESPPreferences {
  public:
   uint32_t nvs_handle;
-  // uint32_t current_offset = 0;   // not needed
 
   void open() {
     nvs_flash_init();
