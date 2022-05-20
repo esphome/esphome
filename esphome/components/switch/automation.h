@@ -87,7 +87,6 @@ template<typename... Ts> class UnLockAction : public Action<Ts...> {
   Switch *switch_;
 };
 
-
 template<typename... Ts> class LockAction : public Action<Ts...> {
  public:
   explicit LockAction(Switch *a_switch) : switch_(a_switch) {}

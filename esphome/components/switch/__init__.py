@@ -109,15 +109,23 @@ SWITCH_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("switch.lock_toggle", LockToggleAction, SWITCH_ACTION_SCHEMA)
-@automation.register_action("switch.lock_turn_off", LockTurnOffAction, SWITCH_ACTION_SCHEMA)
-@automation.register_action("switch.lock_turn_on", LockTurnOnAction, SWITCH_ACTION_SCHEMA)
+@automation.register_action(
+    "switch.lock_toggle", LockToggleAction, SWITCH_ACTION_SCHEMA
+)
+@automation.register_action(
+    "switch.lock_turn_off", LockTurnOffAction, SWITCH_ACTION_SCHEMA
+)
+@automation.register_action(
+    "switch.lock_turn_on", LockTurnOnAction, SWITCH_ACTION_SCHEMA
+)
 @automation.register_action("switch.lock", LockAction, SWITCH_ACTION_SCHEMA)
 @automation.register_action("switch.unlock", UnLockAction, SWITCH_ACTION_SCHEMA)
-
-@automation.register_condition("switch.is_locked", IsLockedCondition, SWITCH_ACTION_SCHEMA)
-@automation.register_condition("switch.is_unlocked", IsUnLockedCondition, SWITCH_ACTION_SCHEMA)
-
+@automation.register_condition(
+    "switch.is_locked", IsLockedCondition, SWITCH_ACTION_SCHEMA
+)
+@automation.register_condition(
+    "switch.is_unlocked", IsUnLockedCondition, SWITCH_ACTION_SCHEMA
+)
 @automation.register_action("switch.toggle", ToggleAction, SWITCH_ACTION_SCHEMA)
 @automation.register_action("switch.turn_off", TurnOffAction, SWITCH_ACTION_SCHEMA)
 @automation.register_action("switch.turn_on", TurnOnAction, SWITCH_ACTION_SCHEMA)

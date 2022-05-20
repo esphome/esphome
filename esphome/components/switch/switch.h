@@ -92,7 +92,6 @@ class Switch : public EntityBase {
    */
   void lock();
 
-
   /** Set whether the state should be treated as inverted.
    *
    * To the developer and user an inverted switch will act just like a non-inverted one.
@@ -154,7 +153,6 @@ class Switch : public EntityBase {
    */
   void write_state_toggle_(bool set_lock);
   bool locked_{false};
-
 };
 
 }  // namespace switch_
