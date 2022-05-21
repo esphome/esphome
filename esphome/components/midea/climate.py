@@ -113,7 +113,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PERIOD, default="1s"): cv.time_period,
             cv.Optional(CONF_TIMEOUT, default="2s"): cv.time_period,
             cv.Optional(CONF_NUM_ATTEMPTS, default=3): cv.int_range(min=1, max=5),
-            cv.Optional(CONF_TRANSMITTER_ID): cv.use_id(
+            cv.OnlyWith(CONF_TRANSMITTER_ID, "remote_transmitter"): cv.use_id(
                 remote_transmitter.RemoteTransmitterComponent
             ),
             cv.Optional(CONF_BEEPER, default=False): cv.boolean,
