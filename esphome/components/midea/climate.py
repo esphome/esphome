@@ -163,7 +163,7 @@ BeeperOnAction = midea_ac_ns.class_("BeeperOnAction", automation.Action)
 BeeperOffAction = midea_ac_ns.class_("BeeperOffAction", automation.Action)
 PowerOnAction = midea_ac_ns.class_("PowerOnAction", automation.Action)
 PowerOffAction = midea_ac_ns.class_("PowerOffAction", automation.Action)
-PowerInvAction = midea_ac_ns.class_("PowerInvAction", automation.Action)
+PowerToggleAction = midea_ac_ns.class_("PowerToggleAction", automation.Action)
 
 MIDEA_ACTION_BASE_SCHEMA = cv.Schema(
     {
@@ -250,10 +250,10 @@ async def power_off_to_code(var, config, args):
     pass
 
 
-# Power Inverse action
+# Power Toggle action
 @register_action(
-    "power_inv",
-    PowerInvAction,
+    "power_toggle",
+    PowerToggleAction,
     cv.Schema({}),
 )
 async def power_inv_to_code(var, config, args):

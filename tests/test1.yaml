@@ -2845,4 +2845,4 @@ button:
   - platform: template
     name: Midea Power Inverse
     on_press:
-      midea_ac.power_inv:
+      midea_ac.power_toggle:

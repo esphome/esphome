@@ -56,9 +56,9 @@ template<typename... Ts> class PowerOffAction : public MideaActionBase<Ts...> {
   void play(Ts... x) override { this->parent_->do_power_off(); }
 };
 
-template<typename... Ts> class PowerInvAction : public MideaActionBase<Ts...> {
+template<typename... Ts> class PowerToggleAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override { this->parent_->do_power_inv(); }
+  void play(Ts... x) override { this->parent_->do_power_toggle(); }
 };
 
 }  // namespace ac
