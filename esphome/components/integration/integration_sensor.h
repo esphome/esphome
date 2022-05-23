@@ -57,7 +57,7 @@ class IntegrationSensor : public sensor::Sensor, public Component {
     this->publish_state(result);
     if (this->restore_) {
       float result_f = result;
-      this->rtc_.save(&result_f);
+      this->pref_.save(&result_f);
     }
   }
 
@@ -65,7 +65,7 @@ class IntegrationSensor : public sensor::Sensor, public Component {
   IntegrationSensorTime time_;
   IntegrationMethod method_;
   bool restore_;
-  ESPPreferenceObject rtc_;
+  ESPPreferenceObject pref_;
 
   uint32_t last_update_;
   double result_{0.0f};
