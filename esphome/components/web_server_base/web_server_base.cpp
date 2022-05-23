@@ -1,8 +1,8 @@
-#ifdef USE_ARDUINO
-
 #include "web_server_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+
+#ifdef USE_ARDUINO
 #include <StreamString.h>
 
 #ifdef USE_ESP32
@@ -10,6 +10,24 @@
 #endif
 #ifdef USE_ESP8266
 #include <Updater.h>
+#endif
+#elif USE_ESP_IDF
+class StreamString : public std::string {
+ public:
+  void print(const char *str) ALWAYS_INLINE { this->append(str); }
+};
+static const int UPDATE_SIZE_UNKNOWN = 0xFFFFFFFF;
+static const int U_FLASH = 0;
+class UpdaterStub {
+ public:
+  static bool begin(int, int) ALWAYS_INLINE { return false; }
+  static bool isRunning() ALWAYS_INLINE { return false; }
+  static void printError(StreamString &ss) ALWAYS_INLINE { ss.print("Unimplemented yet"); }
+  static void abort() ALWAYS_INLINE {}
+  static bool hasError() ALWAYS_INLINE { return true; }
+  static int write(const uint8_t *data, int size) ALWAYS_INLINE { return 0; }
+  static bool end(bool) ALWAYS_INLINE { return true; }
+} Update;
 #endif
 
 namespace esphome {
@@ -110,5 +128,3 @@ float WebServerBase::get_setup_priority() const {
 
 }  // namespace web_server_base
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

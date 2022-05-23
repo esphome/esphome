@@ -76,7 +76,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LOCAL): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_with_arduino,
     cv.only_on(["esp32", "esp8266"]),
     default_url,
     validate_local,
