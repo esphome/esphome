@@ -55,8 +55,10 @@ class IntegrationSensor : public sensor::Sensor, public Component {
   void publish_and_save_(double result) {
     this->result_ = result;
     this->publish_state(result);
-    float result_f = result;
-    this->rtc_.save(&result_f);
+    if (this->restore_) {
+      float result_f = result;
+      this->rtc_.save(&result_f);
+    }
   }
 
   sensor::Sensor *sensor_;

@@ -42,7 +42,9 @@ void TotalDailyEnergy::loop() {
 void TotalDailyEnergy::publish_state_and_save(float state) {
   this->total_energy_ = state;
   this->publish_state(state);
-  this->pref_.save(&state);
+  if (this->restore_) {
+    this->pref_.save(&state);
+  }
 }
 
 void TotalDailyEnergy::process_new_state_(float state) {
