@@ -107,6 +107,53 @@ class ColorUtil {
     uint32_t gs4 = esp_scale8(color.white, 15);
     return gs4;
   }
+  /***
+   * Converts a Color value to an 8bit index using a 24bit 888 palette.
+   * Uses euclidiean distance to calculate the linear distance between
+   * two points in an RGB cube, then iterates through the full palette
+   * returning the closest match.
+   * @param[in] color The target color.
+   * @param[in] palette The 256*3 byte RGB palette.
+   * @return The 8 bit index of the closest color (e.g. for display buffer).
+   */
+  // static uint8_t color_to_index8_palette888(Color color, uint8_t *palette) {
+  static uint8_t color_to_index8_palette888(Color color, const uint8_t *palette) {
+    uint8_t closest_index = 0;
+    uint32_t minimum_dist2 = UINT32_MAX;  // Smallest distance^2 to the target
+                                          // so far
+    // int8_t(*plt)[][3] = palette;
+    int16_t tgt_r = color.r;
+    int16_t tgt_g = color.g;
+    int16_t tgt_b = color.b;
+    uint16_t x, y, z;
+    // Loop through each row of the palette
+    for (uint16_t i = 0; i < 256; i++) {
+      // Get the pallet rgb color
+      int16_t plt_r = (int16_t) palette[i * 3 + 0];
+      int16_t plt_g = (int16_t) palette[i * 3 + 1];
+      int16_t plt_b = (int16_t) palette[i * 3 + 2];
+      // Calculate euclidian distance (linear distance in rgb cube).
+      x = (uint32_t) std::abs(tgt_r - plt_r);
+      y = (uint32_t) std::abs(tgt_g - plt_g);
+      z = (uint32_t) std::abs(tgt_b - plt_b);
+      uint32_t dist2 = x * x + y * y + z * z;
+      if (dist2 < minimum_dist2) {
+        minimum_dist2 = dist2;
+        closest_index = (uint8_t) i;
+      }
+    }
+    return closest_index;
+  }
+  /***
+   * Converts an 8bit palette index (e.g. from a display buffer) to a color.
+   * @param[in] index The index to look up.
+   * @param[in] palette The 256*3 byte RGB palette.
+   * @return The RGBW Color object looked up by the palette.
+   */
+  static Color index8_to_color_palette888(uint8_t index, const uint8_t *palette) {
+    Color color = Color(palette[index * 3 + 0], palette[index * 3 + 1], palette[index * 3 + 2], 0);
+    return color;
+  }
 };
 }  // namespace display
 }  // namespace esphome

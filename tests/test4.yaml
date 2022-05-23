@@ -57,6 +57,18 @@ time:
 
 tuya:
   time_id: sntp_time
+  status_pin:
+    number: 14
+    inverted: true
+
+select:
+  - platform: tuya
+    id: tuya_select
+    enum_datapoint: 42
+    options:
+      0: Internal
+      1: Floor
+      2: Both
 
 pipsolar:
     id: inverter0
