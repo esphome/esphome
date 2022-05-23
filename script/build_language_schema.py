@@ -259,12 +259,18 @@ def do_esp8266():
 
 
 def fix_remote_receiver():
-    output["remote_receiver.binary_sensor"]["schemas"]["CONFIG_SCHEMA"] = {
+    remote_receiver_schema = output["remote_receiver.binary_sensor"]["schemas"]
+    remote_receiver_schema["CONFIG_SCHEMA"] = {
         "type": "schema",
         "schema": {
             "extends": ["binary_sensor.BINARY_SENSOR_SCHEMA", "core.COMPONENT_SCHEMA"],
-            "config_vars": output["remote_base"]["binary"],
+            "config_vars": output["remote_base"].pop("binary"),
         },
+    }
+    remote_receiver_schema["CONFIG_SCHEMA"]["schema"]["config_vars"]["receiver_id"] = {
+        "key": "GeneratedID",
+        "use_id_type": "remote_base::RemoteReceiverBase",
+        "type": "use_id",
     }
 
 
