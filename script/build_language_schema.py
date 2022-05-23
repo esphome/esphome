@@ -703,8 +703,9 @@ def convert_1(schema, config_var, path):
             config_var[S_TYPE] = "enum"
             config_var["values"] = list(data.keys())
         elif schema_type == "maybe":
-            config_var[S_TYPE] = "maybe"
-            config_var["schema"] = convert_config(data, path + "/maybe")["schema"]
+            config_var[S_TYPE] = S_SCHEMA
+            config_var["maybe"] = data[1]
+            config_var["schema"] = convert_config(data[0], path + "/maybe")["schema"]
         # esphome/on_boot
         elif schema_type == "automation":
             extra_schema = None
@@ -748,8 +749,50 @@ def convert_1(schema, config_var, path):
         elif schema_type == "sensor":
             schema = data
             convert_1(data, config_var, path + "/trigger")
+        elif schema_type == "declare_id":
+            # pylint: disable=protected-access
+            parents = data._parents
+
+            config_var["id_type"] = {
+                "class": str(data.base),
+                "parents": [str(x.base) for x in parents]
+                if isinstance(parents, list)
+                else None,
+            }
+        elif schema_type == "use_id":
+            if inspect.ismodule(data):
+                m_attr_obj = getattr(data, "CONFIG_SCHEMA")
+                use_schema = known_schemas.get(repr(m_attr_obj))
+                if use_schema:
+                    [output_module, output_name] = use_schema[0][1].split(".")
+                    use_id_config = output[output_module][S_SCHEMAS][output_name]
+                    config_var["use_id_type"] = use_id_config["schema"]["config_vars"][
+                        "id"
+                    ]["id_type"]["class"]
+                    config_var[S_TYPE] = "use_id"
+                else:
+                    print("TODO deferred?")
+            else:
+                if isinstance(data, str):
+                    # TODO: Figure out why pipsolar does this
+                    config_var["use_id_type"] = data
+                else:
+                    config_var["use_id_type"] = str(data.base)
+                    config_var[S_TYPE] = "use_id"
         else:
             raise Exception("Unknown extracted schema type")
+    elif config_var.get("key") == "GeneratedID":
+        if path == "i2c/CONFIG_SCHEMA/extL/all/id":
+            config_var["id_type"] = {"class": "i2c::I2CBus", "parents": ["Component"]}
+        elif path == "uart/CONFIG_SCHEMA/val 1/extL/all/id":
+            config_var["id_type"] = {
+                "class": "uart::UARTComponent",
+                "parents": ["Component"],
+            }
+        elif path == "pins/esp32/val 1/id":
+            config_var["id_type"] = "pin"
+        else:
+            raise Exception("Cannot determine id_type for " + path)
 
     elif repr_schema in ejs.registry_schemas:
         solve_registry.append((ejs.registry_schemas[repr_schema], config_var))

@@ -27,7 +27,7 @@ def maybe_conf(conf, *validators):
     def validate(value):
         # pylint: disable=comparison-with-callable
         if value == jschema_extractor:
-            return validator
+            return (validator, conf)
 
         if isinstance(value, dict):
             return validator(value)

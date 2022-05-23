@@ -452,7 +452,11 @@ def validate_id_name(value):
 def use_id(type):
     """Declare that this configuration option should point to an ID with the given type."""
 
+    @jschema_extractor("use_id")
     def validator(value):
+        # pylint: disable=comparison-with-callable
+        if value == jschema_extractor:
+            return type
         check_not_templatable(value)
         if value is None:
             return core.ID(None, is_declaration=False, type=type)
@@ -475,7 +479,11 @@ def declare_id(type):
     If two IDs with the same name exist, a validation error is thrown.
     """
 
+    @jschema_extractor("declare_id")
     def validator(value):
+        # pylint: disable=comparison-with-callable
+        if value == jschema_extractor:
+            return type
         check_not_templatable(value)
         if value is None:
             return core.ID(None, is_declaration=True, type=type)
