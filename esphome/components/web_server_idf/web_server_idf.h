@@ -1,12 +1,13 @@
 #pragma once
 #ifdef USE_ESP_IDF
 
+#include <esp_http_server.h>
+
 #include <string>
 #include <functional>
 #include <vector>
 #include <map>
 #include <set>
-#include <esp_http_server.h>
 
 namespace esphome {
 namespace web_server_idf {
@@ -19,37 +20,15 @@ namespace web_server_idf {
 #include <cmath>
 using std::isnan;
 
-typedef std::string String;
-
-class arduino_string {
- public:
-  arduino_string(const std::string &s) : s_(s) {}
-  const char *c_str() const { return this->s_.c_str(); }
-  operator const std::string &() const { return this->s_; }
-
-  float toFloat() const;
-
- protected:
-  std::string s_;
-};
+using String = std::string;
 
 class AsyncWebParameter {
  public:
-  AsyncWebParameter(const std::string &name, const std::string &value, bool form = false, bool file = false,
-                    size_t size = 0)
-      : _name(name), _value(value), _size(size), _isForm(form), _isFile(file) {}
-  const std::string &name() const { return _name; }
-  const arduino_string &value() const { return _value; }
-  size_t size() const { return _size; }
-  bool isPost() const { return _isForm; }
-  bool isFile() const { return _isFile; }
+  AsyncWebParameter(std::string value) : value_(std::move(value)) {}
+  const std::string &value() const { return this->value_; }
 
  protected:
-  std::string _name;
-  arduino_string _value;
-  size_t _size;
-  bool _isForm;
-  bool _isFile;
+  std::string value_;
 };
 
 class AsyncWebServerRequest;
@@ -59,7 +38,7 @@ class AsyncResponse {
   AsyncResponse(const AsyncWebServerRequest *req) : req_(req) {}
   virtual ~AsyncResponse() {}
 
-  void addHeader(const char *name, const char *value);
+  void addHeader /*NOLINT(readability-identifier-naming)*/ (const char *name, const char *value);
 
   virtual const char *get_content_data() const = 0;
   virtual size_t get_content_size() const = 0;
@@ -72,16 +51,14 @@ class AsyncEmptyResponse : public AsyncResponse {
  public:
   AsyncEmptyResponse(const AsyncWebServerRequest *req) : AsyncResponse(req) {}
 
-  void addHeader(const char *name, const char *value);
-
   const char *get_content_data() const override { return nullptr; };
   size_t get_content_size() const override { return 0; };
 };
 
 class AsyncWebServerResponse : public AsyncResponse {
  public:
-  AsyncWebServerResponse(const AsyncWebServerRequest *req, const std::string &content)
-      : AsyncResponse(req), content_(content) {}
+  AsyncWebServerResponse(const AsyncWebServerRequest *req, std::string content)
+      : AsyncResponse(req), content_(std::move(content)) {}
 
   const char *get_content_data() const override { return this->content_.c_str(); };
   size_t get_content_size() const override { return this->content_.size(); };
@@ -126,39 +103,40 @@ class AsyncWebServerRequest {
   ~AsyncWebServerRequest();
 
   http_method method() const { return static_cast<http_method>(this->req_->method); }
-  const std::string url() const;
-  size_t contentLength() const { return this->req_->content_len; }
+  std::string url() const;
+  size_t contentLength /*NOLINT(readability-identifier-naming)*/ () const { return this->req_->content_len; }
 
-  bool authenticate(const char *username, const char *password, const char *realm = nullptr,
-                    bool passwordIsHash = false) const;
-  void requestAuthentication(const char *realm = nullptr, bool isDigest = true) const;
+  bool authenticate(const char *username, const char *password) const;
+  void requestAuthentication /*NOLINT(readability-identifier-naming)*/ (const char *realm = nullptr) const;
 
   void send(AsyncResponse *response);
-  void send(int code, const char *contentType = nullptr, const char *content = nullptr);
-  AsyncEmptyResponse *beginResponse(int code, const char *contentType) {
-    auto res = new AsyncEmptyResponse(this);
-    this->init_response_(res, 200, contentType);
+  void send(int code, const char *content_type = nullptr, const char *content = nullptr);
+  AsyncEmptyResponse *beginResponse /*NOLINT(readability-identifier-naming)*/ (int code, const char *content_type) {
+    auto *res = new AsyncEmptyResponse(this);  // NOLINT(cppcoreguidelines-owning-memory)
+    this->init_response_(res, 200, content_type);
     return res;
   }
-  AsyncWebServerResponse *beginResponse(int code, const char *contentType, const std::string &content) {
-    auto res = new AsyncWebServerResponse(this, content);
-    this->init_response_(res, code, contentType);
+  AsyncWebServerResponse *beginResponse /*NOLINT(readability-identifier-naming)*/ (int code, const char *content_type,
+                                                                                   const std::string &content) {
+    auto *res = new AsyncWebServerResponse(this, content);  // NOLINT(cppcoreguidelines-owning-memory)
+    this->init_response_(res, code, content_type);
     return res;
   }
-  AsyncProgmemResponse *beginResponse_P(int code, const char *contentType, const uint8_t *data,
-                                        const size_t data_size) {
-    auto res = new AsyncProgmemResponse(this, data, data_size);
-    this->init_response_(res, code, contentType);
+  AsyncProgmemResponse *beginResponse_P /*NOLINT(readability-identifier-naming)*/ (int code, const char *content_type,
+                                                                                   const uint8_t *data,
+                                                                                   const size_t data_size) {
+    auto *res = new AsyncProgmemResponse(this, data, data_size);  // NOLINT(cppcoreguidelines-owning-memory)
+    this->init_response_(res, code, content_type);
     return res;
   }
-  AsyncResponseStream *beginResponseStream(const char *contentType) {
-    auto res = new AsyncResponseStream(this);
-    this->init_response_(res, 200, contentType);
+  AsyncResponseStream *beginResponseStream /*NOLINT(readability-identifier-naming)*/ (const char *content_type) {
+    auto *res = new AsyncResponseStream(this);  // NOLINT(cppcoreguidelines-owning-memory)
+    this->init_response_(res, 200, content_type);
     return res;
   }
 
-  bool hasParam(const std::string &name, bool post = false, bool file = false);
-  AsyncWebParameter *getParam(const std::string &name, bool post = false, bool file = false);
+  bool hasParam /*NOLINT(readability-identifier-naming)*/ (const std::string &name);
+  AsyncWebParameter *getParam /*NOLINT(readability-identifier-naming)*/ (const std::string &name);
 
   operator httpd_req_t *() const { return this->req_; }
 
@@ -167,7 +145,7 @@ class AsyncWebServerRequest {
   AsyncResponse *rsp_{};
   std::map<std::string, AsyncWebParameter *> params_;
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
-  void init_response_(AsyncResponse *rsp, int code, const char *contentType);
+  void init_response_(AsyncResponse *rsp, int code, const char *content_type);
 };
 
 class AsyncWebHandler;
@@ -176,7 +154,7 @@ class AsyncWebServer {
  protected:
   uint16_t port_{};
   httpd_handle_t server_{};
-  static esp_err_t request_handler_(httpd_req_t *r);
+  static esp_err_t request_handler(httpd_req_t *r);
   std::vector<AsyncWebHandler *> handlers_;
 
  public:
@@ -186,7 +164,7 @@ class AsyncWebServer {
   void begin();
   void end();
 
-  AsyncWebHandler &addHandler(AsyncWebHandler *handler) {
+  AsyncWebHandler &addHandler /*NOLINT(readability-identifier-naming)*/ (AsyncWebHandler *handler) {
     this->handlers_.push_back(handler);
     return *handler;
   }
@@ -195,12 +173,14 @@ class AsyncWebServer {
 class AsyncWebHandler {
  public:
   virtual ~AsyncWebHandler() {}
-  virtual bool canHandle(AsyncWebServerRequest *request) { return false; }
-  virtual void handleRequest(AsyncWebServerRequest *request) {}
-  virtual void handleUpload(AsyncWebServerRequest *request, const std::string &filename, size_t index, uint8_t *data,
-                            size_t len, bool final) {}
-  virtual void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {}
-  virtual bool isRequestHandlerTrivial() { return true; }
+  virtual bool canHandle /*NOLINT(readability-identifier-naming)*/ (AsyncWebServerRequest *request) { return false; }
+  virtual void handleRequest /*NOLINT(readability-identifier-naming)*/ (AsyncWebServerRequest *request) {}
+  virtual void handleUpload /*NOLINT(readability-identifier-naming)*/ (AsyncWebServerRequest *request,
+                                                                       const std::string &filename, size_t index,
+                                                                       uint8_t *data, size_t len, bool final) {}
+  virtual void handleBody /*NOLINT(readability-identifier-naming)*/ (AsyncWebServerRequest *request, uint8_t *data,
+                                                                     size_t len, size_t index, size_t total) {}
+  virtual bool isRequestHandlerTrivial /*NOLINT(readability-identifier-naming)*/ () { return true; }
 };
 
 class AsyncEventSource;
@@ -219,21 +199,21 @@ class AsyncEventSourceResponse {
   int fd_{};
 };
 
-typedef AsyncEventSourceResponse AsyncEventSourceClient;
+using AsyncEventSourceClient = AsyncEventSourceResponse;
 
 class AsyncEventSource : public AsyncWebHandler {
   friend class AsyncEventSourceResponse;
-  typedef std::function<void(AsyncEventSourceClient *client)> connect_handler_t;
+  using connect_handler_t = std::function<void(AsyncEventSourceClient *)>;
 
  public:
-  AsyncEventSource(const std::string &url) : url_(url) {}
-  virtual ~AsyncEventSource();
+  AsyncEventSource(std::string url) : url_(std::move(url)) {}
+  ~AsyncEventSource() override;
 
-  bool canHandle(AsyncWebServerRequest *request) override {
+  bool canHandle /*NOLINT(readability-identifier-naming)*/ (AsyncWebServerRequest *request) override {
     return request->method() == HTTP_GET && request->url() == this->url_;
   }
-  void handleRequest(AsyncWebServerRequest *request) override;
-  void onConnect(connect_handler_t cb) { this->on_connect_ = cb; }
+  void handleRequest /*NOLINT(readability-identifier-naming)*/ (AsyncWebServerRequest *request) override;
+  void onConnect /*NOLINT(readability-identifier-naming)*/ (connect_handler_t cb) { this->on_connect_ = std::move(cb); }
 
   void send(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
 
@@ -243,7 +223,7 @@ class AsyncEventSource : public AsyncWebHandler {
   connect_handler_t on_connect_{};
 };
 
-}  // namespace webserveridf
+}  // namespace web_server_idf
 }  // namespace esphome
 
 #endif

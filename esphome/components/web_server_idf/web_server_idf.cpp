@@ -1,3 +1,5 @@
+#ifdef USE_ESP_IDF
+
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
@@ -24,11 +26,6 @@ namespace web_server_idf {
 
 static const char *const TAG = "web_server_idf";
 
-float arduino_string::toFloat() const {
-  auto res = parse_number<float>(*this);
-  return res.has_value() ? res.value() : NAN;
-}
-
 bool uri_match(const char *reference_uri, const char *uri_to_match, size_t match_upto) {
   // always matched
   return true;
@@ -52,7 +49,7 @@ void AsyncWebServer::begin() {
     const httpd_uri_t handler_get = {
         .uri = "",
         .method = HTTP_GET,
-        .handler = request_handler_,
+        .handler = AsyncWebServer::request_handler,
         .user_ctx = this,
     };
     httpd_register_uri_handler(this->server_, &handler_get);
@@ -60,16 +57,16 @@ void AsyncWebServer::begin() {
     const httpd_uri_t handler_post = {
         .uri = "",
         .method = HTTP_POST,
-        .handler = request_handler_,
+        .handler = AsyncWebServer::request_handler,
         .user_ctx = this,
     };
     httpd_register_uri_handler(this->server_, &handler_post);
   }
 }
 
-esp_err_t AsyncWebServer::request_handler_(httpd_req_t *r) {
+esp_err_t AsyncWebServer::request_handler(httpd_req_t *r) {
   AsyncWebServerRequest req(r);
-  for (auto handler : static_cast<AsyncWebServer *>(r->user_ctx)->handlers_) {
+  for (auto *handler : static_cast<AsyncWebServer *>(r->user_ctx)->handlers_) {
     if (handler->canHandle(&req)) {
       handler->handleRequest(&req);
       break;
@@ -79,16 +76,14 @@ esp_err_t AsyncWebServer::request_handler_(httpd_req_t *r) {
 }
 
 AsyncWebServerRequest::~AsyncWebServerRequest() {
-  if (this->rsp_) {
-    delete this->rsp_;
-  }
-  for (auto pair : this->params_) {
-    delete pair.second;
+  delete this->rsp_;
+  for (const auto &pair : this->params_) {
+    delete pair.second;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
 
-const std::string AsyncWebServerRequest::url() const {
-  auto str = strchr(this->req_->uri, '?');
+std::string AsyncWebServerRequest::url() const {
+  auto *str = strchr(this->req_->uri, '?');
   if (str == nullptr) {
     return this->req_->uri;
   }
@@ -99,8 +94,8 @@ void AsyncWebServerRequest::send(AsyncResponse *response) {
   httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
 }
 
-void AsyncWebServerRequest::send(int code, const char *contentType, const char *content) {
-  this->init_response_(nullptr, code, contentType);
+void AsyncWebServerRequest::send(int code, const char *content_type, const char *content) {
+  this->init_response_(nullptr, code, content_type);
   if (content) {
     httpd_resp_send(*this, content, HTTPD_RESP_USE_STRLEN);
   } else {
@@ -108,25 +103,22 @@ void AsyncWebServerRequest::send(int code, const char *contentType, const char *
   }
 }
 
-void AsyncWebServerRequest::init_response_(AsyncResponse *rsp, int code, const char *contentType) {
+void AsyncWebServerRequest::init_response_(AsyncResponse *rsp, int code, const char *content_type) {
   httpd_resp_set_status(*this, code == 200   ? HTTPD_200
                                : code == 404 ? HTTPD_404
                                : code == 409 ? HTTPD_409
                                              : to_string(code).c_str());
 
-  if (contentType && *contentType) {
-    httpd_resp_set_type(*this, contentType);
+  if (content_type && *content_type) {
+    httpd_resp_set_type(*this, content_type);
   }
   httpd_resp_set_hdr(*this, "Accept-Ranges", "none");
 
-  if (this->rsp_) {
-    delete this->rsp_;
-  }
+  delete this->rsp_;
   this->rsp_ = rsp;
 }
 
-bool AsyncWebServerRequest::authenticate(const char *username, const char *password, const char *realm,
-                                         bool passwordIsHash) const {
+bool AsyncWebServerRequest::authenticate(const char *username, const char *password) const {
   if (username == nullptr || password == nullptr || *username == 0) {
     return true;
   }
@@ -134,19 +126,17 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
   if (buf_len == 0) {
     return false;
   }
-  char *buf = new char[++buf_len];
-  if (buf == nullptr) {
+  auto buf = std::unique_ptr<char[]>(new char[++buf_len]);
+  if (!buf) {
     ESP_LOGE(TAG, "No enough memory for basic authorization");
     return false;
   }
-  if (httpd_req_get_hdr_value_str(*this, HEADER_AUTH, buf, buf_len) != ESP_OK) {
-    delete[] buf;
+  if (httpd_req_get_hdr_value_str(*this, HEADER_AUTH, buf.get(), buf_len) != ESP_OK) {
     return false;
   }
   const size_t auth_prefix_len = sizeof(HEADER_AUTH_VALUE_BASIC_PREFIX) - 1;
-  if (strncmp(HEADER_AUTH_VALUE_BASIC_PREFIX, buf, auth_prefix_len) != 0) {
+  if (strncmp(HEADER_AUTH_VALUE_BASIC_PREFIX, buf.get(), auth_prefix_len) != 0) {
     ESP_LOGW(TAG, "Only Basic authorization supported yet");
-    delete[] buf;
     return false;
   }
 
@@ -158,30 +148,23 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
   size_t n = 0, out;
   esp_crypto_base64_encode(nullptr, 0, &n, reinterpret_cast<const uint8_t *>(user_info.c_str()), user_info.size());
 
-  uint8_t *digest = new uint8_t[n + 1];
-  esp_crypto_base64_encode(digest, n, &out, reinterpret_cast<const uint8_t *>(user_info.c_str()), user_info.size());
+  auto digest = std::unique_ptr<char[]>(new char[n + 1]);
+  esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest.get()), n, &out,
+                           reinterpret_cast<const uint8_t *>(user_info.c_str()), user_info.size());
 
-  bool res = strncmp(reinterpret_cast<const char *>(digest), buf + auth_prefix_len, buf_len - auth_prefix_len) == 0;
-
-  delete[] buf;
-  delete[] digest;
-
-  return res;
+  return strncmp(digest.get(), buf.get() + auth_prefix_len, buf_len - auth_prefix_len) == 0;
 }
 
-void AsyncWebServerRequest::requestAuthentication(const char *realm, bool isDigest) const {
+void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
   httpd_resp_set_hdr(*this, HEADER_CONNECTION, HEADER_CONNECTION_VALUE_KEEP_ALIVE);
-  // TODO implement digest support ???
   auto auth_val = str_sprintf(HEADER_AUTH_VALUE_BASIC_PREFIX "realm=\"%s\"", realm ? realm : "Login Required");
   httpd_resp_set_hdr(*this, "WWW-Authenticate", auth_val.c_str());
   httpd_resp_send_err(*this, HTTPD_401_UNAUTHORIZED, nullptr);
 }
 
-bool AsyncWebServerRequest::hasParam(const std::string &name, bool post, bool file) {
-  return this->getParam(name, post, file) != nullptr;
-}
+bool AsyncWebServerRequest::hasParam(const std::string &name) { return this->getParam(name) != nullptr; }
 
-AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name, bool post, bool file) {
+AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
   auto find = this->params_.find(name);
   if (find != this->params_.end()) {
     return find->second;
@@ -192,38 +175,32 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name, bool
     return nullptr;
   }
 
-  auto query_str = new char[++query_len];
-  if (query_str == nullptr) {
+  auto query_str = std::unique_ptr<char[]>(new char[++query_len]);
+  if (!query_str) {
     ESP_LOGE(TAG, "No enough memory for get query param");
     return nullptr;
   }
 
-  auto res = httpd_req_get_url_query_str(*this, query_str, query_len);
+  auto res = httpd_req_get_url_query_str(*this, query_str.get(), query_len);
   if (res != ESP_OK) {
     ESP_LOGW(TAG, "Can't get query for request: %s", esp_err_to_name(res));
-    delete[] query_str;
     return nullptr;
   }
 
-  auto query_val = new char[query_len];
-  if (query_val == nullptr) {
+  auto query_val = std::unique_ptr<char[]>(new char[query_len]);
+  if (!query_val) {
     ESP_LOGE(TAG, "No enough memory for get query param value");
-    delete[] query_str;
     return nullptr;
   }
 
-  res = httpd_query_key_value(query_str, name.c_str(), query_val, query_len);
+  res = httpd_query_key_value(query_str.get(), name.c_str(), query_val.get(), query_len);
   if (res != ESP_OK) {
-    delete[] query_val;
-    delete[] query_str;
     this->params_.insert({name, nullptr});
     return nullptr;
   }
-  delete[] query_str;
+  query_str.release();
 
-  auto param = new AsyncWebParameter(name, query_val, post, file);
-  delete[] query_val;
-
+  auto *param = new AsyncWebParameter(query_val.get());
   this->params_.insert({name, param});
   return param;
 }
@@ -233,13 +210,13 @@ void AsyncResponse::addHeader(const char *name, const char *value) { httpd_resp_
 void AsyncResponseStream::print(float value) { this->print(to_string(value)); }
 
 AsyncEventSource::~AsyncEventSource() {
-  for (auto ses : this->sessions_) {
-    delete ses;
+  for (auto *ses : this->sessions_) {
+    delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
-  auto rsp = new AsyncEventSourceResponse(request, this);
+  auto *rsp = new AsyncEventSourceResponse(request, this);  // NOLINT(cppcoreguidelines-owning-memory)
   if (this->on_connect_) {
     this->on_connect_(rsp);
   }
@@ -247,7 +224,7 @@ void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
 }
 
 void AsyncEventSource::send(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
-  for (auto ses : this->sessions_) {
+  for (auto *ses : this->sessions_) {
     ses->send(message, event, id, reconnect);
   }
 }
@@ -271,9 +248,9 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 }
 
 void AsyncEventSourceResponse::destroy(void *ptr) {
-  auto rsp = static_cast<AsyncEventSourceResponse *>(ptr);
+  auto *rsp = static_cast<AsyncEventSourceResponse *>(ptr);
   rsp->server_->sessions_.erase(rsp);
-  delete rsp;
+  delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 void AsyncEventSourceResponse::send(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
@@ -326,3 +303,5 @@ void AsyncEventSourceResponse::send(const char *message, const char *event, uint
 
 }  // namespace web_server_idf
 }  // namespace esphome
+
+#endif
