@@ -1,7 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 
-from esphome.components import binary_sensor
+from esphome.components import binary_sensor, display
+from esphome.const import CONF_PAGE_ID
 
 from .. import touchscreen_ns, CONF_TOUCHSCREEN_ID, Touchscreen, TouchListener
 
@@ -41,6 +42,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_X_MAX): cv.int_range(min=0, max=2000),
             cv.Required(CONF_Y_MIN): cv.int_range(min=0, max=2000),
             cv.Required(CONF_Y_MAX): cv.int_range(min=0, max=2000),
+            cv.Optional(CONF_PAGE_ID): cv.use_id(display.DisplayPage),
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
@@ -61,3 +63,7 @@ async def to_code(config):
             config[CONF_Y_MAX],
         )
     )
+
+    if CONF_PAGE_ID in config:
+        page = await cg.get_variable(config[CONF_PAGE_ID])
+        cg.add(var.set_page(page))

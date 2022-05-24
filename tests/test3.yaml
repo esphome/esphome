@@ -1,8 +1,6 @@
 esphome:
   name: $device_name
   comment: $device_comment
-  platform: ESP8266
-  board: d1_mini
   build_path: build/test3
   on_boot:
     - if:
@@ -14,6 +12,10 @@ esphome:
           - logger.log: "Have time"
   includes:
     - custom.h
+
+esp8266:
+  board: d1_mini
+  early_pin_init: True
 
 substitutions:
   device_name: test3
@@ -256,8 +258,18 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 38400
+  - id: uart8
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 4800
+    parity: NONE
+    stop_bits: 2
     # Specifically added for testing debug with no options at all.
     debug:
+  - id: uart9
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
 
 modbus:
   uart_id: uart1
@@ -349,6 +361,24 @@ sensor:
       name: 'Temperature'
     humidity:
       name: 'Humidity'
+  - platform: hydreon_rgxx
+    model: "RG 9"
+    uart_id: uart6
+    id: "hydreon_rg9"
+    moisture:
+      name: "hydreon_rain"
+      id: hydreon_rain
+  - platform: hydreon_rgxx
+    model: "RG_15"
+    uart_id: uart6
+    acc:
+      name: "hydreon_acc"
+    event_acc:
+      name: "hydreon_event_acc"
+    total_acc:
+      name: "hydreon_total_acc"
+    r_int:
+      name: "hydreon_r_int"
   - platform: adc
     pin: VCC
     id: my_sensor
@@ -459,6 +489,24 @@ sensor:
     active_power_b:
       name: ADE7953 Active Power B
       id: ade7953_active_power_b
+  - platform: bl0939
+    uart_id: uart8
+    voltage:
+      name: 'BL0939 Voltage'
+    current_1:
+      name: 'BL0939 Current 1'
+    current_2:
+      name: 'BL0939 Current 2'
+    active_power_1:
+      name: 'BL0939 Active Power 1'
+    active_power_2:
+      name: 'BL0939 Active Power 2'
+    energy_1:
+      name: 'BL0939 Energy 1'
+    energy_2:
+      name: 'BL0939 Energy 2'
+    energy_total:
+      name: 'BL0939 Total energy'
   - platform: bl0940
     uart_id: uart3
     voltage:
@@ -515,7 +563,7 @@ sensor:
       name: 'AQI'
       calculation_type: 'AQI'
   - platform: pmsx003
-    uart_id: uart2
+    uart_id: uart9
     type: PMSX003
     pm_1_0:
       name: 'PM 1.0 Concentration'
@@ -541,8 +589,9 @@ sensor:
       name: 'Particulate Count >5.0um'
     pm_10_0um:
       name: 'Particulate Count >10.0um'
+    update_interval: 30s
   - platform: pmsx003
-    uart_id: uart2
+    uart_id: uart5
     type: PMS5003T
     pm_2_5:
       name: 'PM 2.5 Concentration'
@@ -551,7 +600,7 @@ sensor:
     humidity:
       name: 'PMS Humidity'
   - platform: pmsx003
-    uart_id: uart2
+    uart_id: uart6
     type: PMS5003ST
     pm_1_0:
       name: 'PM 1.0 Concentration'
@@ -795,6 +844,11 @@ binary_sensor:
     on_press:
       then:
         - cover.toggle: time_based_cover
+        - cover.toggle: endstop_cover
+  - platform: hydreon_rgxx
+    hydreon_rgxx_id: "hydreon_rg9"
+    too_cold:
+      name: "rg9_toocold"
   - platform: template
     id: 'pzemac_reset_energy'
     on_press:
@@ -1060,6 +1114,7 @@ climate:
 cover:
   - platform: endstop
     name: Endstop Cover
+    id: endstop_cover
     stop_action:
       - switch.turn_on: gpio_switch1
     open_endstop: my_binary_sensor
@@ -1205,6 +1260,12 @@ light:
     name: Icicle Lights
     pin_a: out
     pin_b: out2
+  - platform: sonoff_d1
+    uart_id: uart2
+    use_rm433_remote: False
+    name: Sonoff D1 Dimmer
+    id: d1_light
+    restore_mode: RESTORE_DEFAULT_OFF
 
 servo:
   id: my_servo

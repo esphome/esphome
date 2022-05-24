@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome import pins
 from esphome.const import (
     CONF_FREQUENCY,
@@ -12,6 +13,7 @@ from esphome.const import (
     CONF_RESOLUTION,
     CONF_BRIGHTNESS,
     CONF_CONTRAST,
+    CONF_TRIGGER_ID,
 )
 from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
@@ -23,7 +25,14 @@ AUTO_LOAD = ["psram"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
-
+ESP32CameraStreamStartTrigger = esp32_camera_ns.class_(
+    "ESP32CameraStreamStartTrigger",
+    automation.Trigger.template(),
+)
+ESP32CameraStreamStopTrigger = esp32_camera_ns.class_(
+    "ESP32CameraStreamStopTrigger",
+    automation.Trigger.template(),
+)
 ESP32CameraFrameSize = esp32_camera_ns.enum("ESP32CameraFrameSize")
 FRAME_SIZES = {
     "160X120": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_160X120,
@@ -111,6 +120,10 @@ CONF_TEST_PATTERN = "test_pattern"
 CONF_MAX_FRAMERATE = "max_framerate"
 CONF_IDLE_FRAMERATE = "idle_framerate"
 
+# stream trigger
+CONF_ON_STREAM_START = "on_stream_start"
+CONF_ON_STREAM_STOP = "on_stream_stop"
+
 camera_range_param = cv.int_range(min=-2, max=2)
 
 CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
@@ -178,6 +191,20 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         cv.Optional(CONF_IDLE_FRAMERATE, default="0.1 fps"): cv.All(
             cv.framerate, cv.Range(min=0, max=1)
         ),
+        cv.Optional(CONF_ON_STREAM_START): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    ESP32CameraStreamStartTrigger
+                ),
+            }
+        ),
+        cv.Optional(CONF_ON_STREAM_STOP): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    ESP32CameraStreamStopTrigger
+                ),
+            }
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -238,3 +265,11 @@ async def to_code(config):
     if CORE.using_esp_idf:
         cg.add_library("espressif/esp32-camera", "1.0.0")
         add_idf_sdkconfig_option("CONFIG_RTCIO_SUPPORT_RTC_GPIO_DESC", True)
+
+    for conf in config.get(CONF_ON_STREAM_START, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_STREAM_STOP, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
