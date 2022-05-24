@@ -1,5 +1,4 @@
 #include "display_menu_base.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 
@@ -8,27 +7,25 @@ namespace display_menu_base {
 
 static const char *const TAG = "display_menu";
 
-void DisplayMenuComponent::setup() {}
-
 void DisplayMenuComponent::up() {
   this->process_initial_();
 
   if (this->active_) {
-    bool chg = false;
+    bool changed = false;
 
     if (this->editing_) {
       switch (this->mode_) {
         case MENU_MODE_ROTARY:
-          chg = this->get_selected_item_()->select_prev();
+          changed = this->get_selected_item_()->select_prev();
           break;
         default:
           break;
       }
     } else {
-      chg = this->cursor_up_();
+      changed = this->cursor_up_();
     }
 
-    if (chg)
+    if (changed)
       this->draw_and_update();
   }
 }
@@ -37,21 +34,21 @@ void DisplayMenuComponent::down() {
   this->process_initial_();
 
   if (this->active_) {
-    bool chg = false;
+    bool changed = false;
 
     if (this->editing_) {
       switch (this->mode_) {
         case MENU_MODE_ROTARY:
-          chg = this->get_selected_item_()->select_next();
+          changed = this->get_selected_item_()->select_next();
           break;
         default:
           break;
       }
     } else {
-      chg = this->cursor_down_();
+      changed = this->cursor_down_();
     }
 
-    if (chg)
+    if (changed)
       this->draw_and_update();
   }
 }
@@ -60,7 +57,7 @@ void DisplayMenuComponent::left() {
   this->process_initial_();
 
   if (this->active_) {
-    bool chg = false;
+    bool changed = false;
 
     switch (this->get_selected_item_()->get_type()) {
       case MENU_ITEM_SELECT:
@@ -71,25 +68,25 @@ void DisplayMenuComponent::left() {
           case MENU_MODE_ROTARY:
             if (this->editing_) {
               this->finish_editing_();
-              chg = true;
+              changed = true;
             }
             break;
           case MENU_MODE_JOYSTICK:
             if (this->editing_ || this->get_selected_item_()->get_immediate_edit())
-              chg = this->get_selected_item_()->select_prev();
+              changed = this->get_selected_item_()->select_prev();
             break;
           default:
             break;
         }
         break;
       case MENU_ITEM_BACK:
-        chg = this->leave_menu_();
+        changed = this->leave_menu_();
         break;
       default:
         break;
     }
 
-    if (chg)
+    if (changed)
       this->draw_and_update();
   }
 }
@@ -98,7 +95,7 @@ void DisplayMenuComponent::right() {
   this->process_initial_();
 
   if (this->active_) {
-    bool chg = false;
+    bool changed = false;
 
     switch (this->get_selected_item_()->get_type()) {
       case MENU_ITEM_SELECT:
@@ -108,19 +105,19 @@ void DisplayMenuComponent::right() {
         switch (this->mode_) {
           case MENU_MODE_JOYSTICK:
             if (this->editing_ || this->get_selected_item_()->get_immediate_edit())
-              chg = this->get_selected_item_()->select_next();
+              changed = this->get_selected_item_()->select_next();
           default:
             break;
         }
         break;
       case MENU_ITEM_MENU:
-        chg = this->enter_menu_();
+        changed = this->enter_menu_();
         break;
       default:
         break;
     }
 
-    if (chg)
+    if (changed)
       this->draw_and_update();
   }
 }
@@ -129,29 +126,29 @@ void DisplayMenuComponent::enter() {
   this->process_initial_();
 
   if (this->active_) {
-    bool chg = false;
+    bool changed = false;
     MenuItem *item = this->get_selected_item_();
 
     if (this->editing_) {
       this->finish_editing_();
-      chg = true;
+      changed = true;
     } else {
       switch (item->get_type()) {
         case MENU_ITEM_MENU:
-          chg = this->enter_menu_();
+          changed = this->enter_menu_();
           break;
         case MENU_ITEM_BACK:
-          chg = this->leave_menu_();
+          changed = this->leave_menu_();
           break;
         case MENU_ITEM_SELECT:
         case MENU_ITEM_SWITCH:
         case MENU_ITEM_CUSTOM:
           if (item->get_immediate_edit()) {
-            chg = item->select_next();
+            changed = item->select_next();
           } else {
             this->editing_ = true;
             item->on_enter();
-            chg = true;
+            changed = true;
           }
           break;
         case MENU_ITEM_NUMBER:
@@ -159,18 +156,18 @@ void DisplayMenuComponent::enter() {
           if (!item->get_immediate_edit() || this->mode_ == MENU_MODE_ROTARY) {
             this->editing_ = true;
             item->on_enter();
-            chg = true;
+            changed = true;
           }
           break;
         case MENU_ITEM_COMMAND:
-          chg = item->select_next();
+          changed = item->select_next();
           break;
         default:
           break;
       }
     }
 
-    if (chg)
+    if (changed)
       this->draw_and_update();
   }
 }
@@ -237,10 +234,10 @@ void DisplayMenuComponent::process_initial_() {
 }
 
 bool DisplayMenuComponent::cursor_up_() {
-  bool chg = false;
+  bool changed = false;
 
   if (this->cursor_index_ > 0) {
-    chg = true;
+    changed = true;
 
     --this->cursor_index_;
 
@@ -248,14 +245,14 @@ bool DisplayMenuComponent::cursor_up_() {
       this->top_index_ = this->cursor_index_;
   }
 
-  return chg;
+  return changed;
 }
 
 bool DisplayMenuComponent::cursor_down_() {
-  bool chg = false;
+  bool changed = false;
 
   if (this->cursor_index_ + 1 < this->displayed_item_->items_size()) {
-    chg = true;
+    changed = true;
 
     ++this->cursor_index_;
 
@@ -263,7 +260,7 @@ bool DisplayMenuComponent::cursor_down_() {
       this->top_index_ = this->cursor_index_ - this->rows_ + 1;
   }
 
-  return chg;
+  return changed;
 }
 
 bool DisplayMenuComponent::enter_menu_() {
@@ -277,7 +274,7 @@ bool DisplayMenuComponent::enter_menu_() {
 }
 
 bool DisplayMenuComponent::leave_menu_() {
-  bool chg = false;
+  bool changed = false;
 
   if (this->displayed_item_->get_parent() != nullptr) {
     this->displayed_item_->on_leave();
@@ -286,10 +283,10 @@ bool DisplayMenuComponent::leave_menu_() {
     this->cursor_index_ = this->selection_stack_.front().second;
     this->selection_stack_.pop_front();
     this->displayed_item_->on_enter();
-    chg = true;
+    changed = true;
   }
 
-  return chg;
+  return changed;
 }
 
 void DisplayMenuComponent::finish_editing_() {
@@ -317,75 +314,75 @@ void DisplayMenuComponent::draw_menu() {
 }
 
 bool MenuItem::select_next() {
-  bool val;
+  bool result;
 
   switch (this->item_type_) {
 #ifdef USE_SELECT
     case MENU_ITEM_SELECT:
-      val = this->next_option_();
+      result = this->next_option_();
       break;
 #endif
 #ifdef USE_NUMBER
     case MENU_ITEM_NUMBER:
-      val = this->inc_number_();
+      result = this->inc_number_();
       break;
 #endif
 #ifdef USE_SWITCH
     case MENU_ITEM_SWITCH:
-      val = this->toggle_switch_();
+      result = this->toggle_switch_();
       break;
 #endif
     case MENU_ITEM_COMMAND:
       this->on_value_();
-      val = true;
+      result = true;
       break;
     case MENU_ITEM_CUSTOM:
       this->on_next_();
       this->on_value_();
-      val = true;
+      result = true;
       break;
     default:
-      val = false;
+      result = false;
       break;
   }
 
-  return val;
+  return result;
 }
 
 bool MenuItem::select_prev() {
-  bool val;
+  bool result;
 
   switch (this->item_type_) {
 #ifdef USE_SELECT
     case MENU_ITEM_SELECT:
-      val = this->prev_option_();
+      result = this->prev_option_();
       break;
 #endif
 #ifdef USE_NUMBER
     case MENU_ITEM_NUMBER:
-      val = this->dec_number_();
+      result = this->dec_number_();
       break;
 #endif
 #ifdef USE_SWITCH
     case MENU_ITEM_SWITCH:
-      val = this->toggle_switch_();
+      result = this->toggle_switch_();
       break;
 #endif
     case MENU_ITEM_COMMAND:
       this->on_value_();
-      val = true;
+      result = true;
       break;
     case MENU_ITEM_CUSTOM:
       this->on_prev_();
       this->on_value_();
-      val = true;
+      result = true;
       break;
     default:
-      val = false;
+      result = false;
       break;
   }
 
-  return val;
+  return result;
 }
 
 void MenuItem::on_enter() { this->on_enter_callbacks_.call(); }
@@ -394,31 +391,31 @@ void MenuItem::on_leave() { this->on_leave_callbacks_.call(); }
 
 #ifdef USE_SELECT
 bool MenuItem::next_option_() {
-  bool chg = false;
+  bool changed = false;
 
   if (this->select_var_ != nullptr) {
     this->select_var_->make_call().select_next(true).perform();
-    chg = true;
+    changed = true;
   }
 
-  return chg;
+  return changed;
 }
 
 bool MenuItem::prev_option_() {
-  bool chg = false;
+  bool changed = false;
 
   if (this->select_var_ != nullptr) {
     this->select_var_->make_call().select_previous(true).perform();
-    chg = true;
+    changed = true;
   }
 
-  return chg;
+  return changed;
 }
 #endif  // USE_SELECT
 
 #ifdef USE_NUMBER
 bool MenuItem::inc_number_() {
-  bool chg = false;
+  bool changed = false;
 
   if (this->number_var_ != nullptr) {
     float last = this->number_var_->state;
@@ -426,15 +423,15 @@ bool MenuItem::inc_number_() {
 
     if (this->number_var_->state != last) {
       this->on_value_();
-      chg = true;
+      changed = true;
     }
   }
 
-  return chg;
+  return changed;
 }
 
 bool MenuItem::dec_number_() {
-  bool chg = false;
+  bool changed = false;
 
   if (this->number_var_ != nullptr) {
     float last = this->number_var_->state;
@@ -442,59 +439,59 @@ bool MenuItem::dec_number_() {
 
     if (this->number_var_->state != last) {
       this->on_value_();
-      chg = true;
+      changed = true;
     }
   }
 
-  return chg;
+  return changed;
 }
 #endif  // USE_NUMBER
 
 #ifdef USE_SWITCH
 bool MenuItem::toggle_switch_() {
-  bool chg = false;
+  bool changed = false;
 
   if (this->switch_var_ != nullptr) {
     this->switch_var_->toggle();
     this->on_value_();
-    chg = true;
+    changed = true;
   }
 
-  return chg;
+  return changed;
 }
 #endif  // USE_SWITCH
 
 bool MenuItem::has_value() const {
-  bool val;
+  bool result;
 
   switch (this->item_type_) {
     case MENU_ITEM_SELECT:
     case MENU_ITEM_NUMBER:
     case MENU_ITEM_SWITCH:
-      val = true;
+      result = true;
       break;
     case MENU_ITEM_CUSTOM:
-      val = this->value_getter_.has_value();
+      result = this->value_getter_.has_value();
       break;
     default:
-      val = false;
+      result = false;
       break;
   }
 
-  return val;
+  return result;
 }
 
 std::string MenuItem::get_value_text() const {
-  std::string val;
+  std::string result;
 
   if (this->value_getter_.has_value()) {
-    val = this->value_getter_.value()(this);
+    result = this->value_getter_.value()(this);
   } else {
     switch (this->item_type_) {
 #ifdef USE_SELECT
       case MENU_ITEM_SELECT:
         if (this->select_var_ != nullptr) {
-          val = this->select_var_->state;
+          result = this->select_var_->state;
         }
         break;
 #endif
@@ -502,12 +499,12 @@ std::string MenuItem::get_value_text() const {
       case MENU_ITEM_NUMBER:
         char data[32];
         snprintf(data, sizeof(data), this->format_.c_str(), get_number_value());
-        val = data;
+        result = data;
         break;
 #endif
 #ifdef USE_SWITCH
       case MENU_ITEM_SWITCH:
-        val = this->get_switch_state() ? this->switch_on_text_ : this->switch_off_text_;
+        result = this->get_switch_state() ? this->switch_on_text_ : this->switch_off_text_;
         break;
 #endif
       default:
@@ -515,25 +512,25 @@ std::string MenuItem::get_value_text() const {
     }
   }
 
-  return val;
+  return result;
 }
 
 float MenuItem::get_number_value() const {
-  float val = 0.0;
+  float result = 0.0;
 
 #ifdef USE_NUMBER
   if (this->number_var_ != nullptr) {
     if (!this->number_var_->has_state() || this->number_var_->state < this->number_var_->traits.get_min_value()) {
-      val = this->number_var_->traits.get_min_value();
+      result = this->number_var_->traits.get_min_value();
     } else if (this->number_var_->state > this->number_var_->traits.get_max_value()) {
-      val = this->number_var_->traits.get_max_value();
+      result = this->number_var_->traits.get_max_value();
     } else {
-      val = this->number_var_->state;
+      result = this->number_var_->state;
     }
   }
 #endif
 
-  return val;
+  return result;
 }
 
 bool MenuItem::get_switch_state() const {

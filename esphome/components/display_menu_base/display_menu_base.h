@@ -148,7 +148,6 @@ class DisplayMenuComponent : public Component {
   void set_mode(MenuMode mode) { this->mode_ = mode; }
   void set_rows(uint8_t rows) { this->rows_ = rows; }
 
-  void setup() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
   void up();

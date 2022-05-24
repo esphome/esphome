@@ -1,5 +1,4 @@
 #include "lcd_menu.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 
@@ -42,13 +41,13 @@ void LCDCharacterMenuComponent::draw_item(const display_menu_base::MenuItem *ite
   memcpy(data + 1, item->get_text().c_str(), n);
 
   if (item->has_value()) {
-    std::string val = item->get_value_text();
+    std::string value = item->get_value_text();
 
     // Maximum: start mark, at least two chars of label, space, '[', value, ']',
     // end mark. Config guarantees columns >= 12
-    size_t val_width = std::min((size_t) this->columns_ - 7, val.length());
+    size_t val_width = std::min((size_t) this->columns_ - 7, value.length());
     memcpy(data + this->columns_ - val_width - 4, " [", 2);
-    memcpy(data + this->columns_ - val_width - 2, val.c_str(), val_width);
+    memcpy(data + this->columns_ - val_width - 2, value.c_str(), val_width);
     data[this->columns_ - 2] = ']';
   }
 
