@@ -21,8 +21,9 @@ static const char *const TAG = "adc";
 static const adc_bits_width_t ADC_WIDTH_MAX_SOC_BITS = static_cast<adc_bits_width_t>(ADC_WIDTH_MAX - 1);
 
 #ifndef SOC_ADC_RTC_MAX_BITWIDTH
+// FIXME: This condition is not working properly
 #if ADC_WIDTH_MAX_SOC_BITS == ADC_WIDTH_BIT_12
-static const int SOC_ADC_RTC_MAX_BITWIDTH = 13;
+static const int SOC_ADC_RTC_MAX_BITWIDTH = 12;
 #else
 static const int SOC_ADC_RTC_MAX_BITWIDTH = 13;
 #endif
