@@ -18,8 +18,6 @@ static const char *const TAG = "adc";
 
 // 13bit for S2, and 12bit for all other esp32 variants
 #ifdef USE_ESP32
-#include "soc_caps.h"
-
 #ifndef ADC_WIDTH_BIT_DEFAULT
 #define ADC_WIDTH_BIT_DEFAULT (ADC_WIDTH_MAX - 1)
 #endif
