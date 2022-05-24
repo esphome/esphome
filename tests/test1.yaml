@@ -2862,12 +2862,11 @@ button:
 
 lcd_menu:
   display_id: my_lcd_gpio
-  dimensions: 18x4
   mark_back: 0x5e
   mark_selected: 0x3e
   mark_editing: 0x2a
   mark_submenu: 0x7e
-  active: False
+  active: false
   mode: rotary
   on_enter:
     then:
@@ -2896,7 +2895,7 @@ lcd_menu:
                   - display_menu.show_main:
     - type: select
       text: 'Enum Item'
-      immediate_edit: True
+      immediate_edit: true
       select: test_select
       on_enter:
         then:
@@ -2912,13 +2911,13 @@ lcd_menu:
       number: test_number
       on_enter:
         then:
-          lambda: 'ESP_LOGI("lcd_menu", "number enter: %s, %f", it->get_text().c_str(), it->get_number_value());'
+          lambda: 'ESP_LOGI("lcd_menu", "number enter: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
       on_leave:
         then:
-          lambda: 'ESP_LOGI("lcd_menu", "number leave: %s, %f", it->get_text().c_str(), it->get_number_value());'
+          lambda: 'ESP_LOGI("lcd_menu", "number leave: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
       on_value:
         then:
-          lambda: 'ESP_LOGI("lcd_menu", "number value: %s, %f", it->get_text().c_str(), it->get_number_value());'
+          lambda: 'ESP_LOGI("lcd_menu", "number value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: command
       text: 'Hide'
       on_value:
@@ -2929,7 +2928,7 @@ lcd_menu:
       switch: my_switch
       on_text: 'Bright'
       off_text: 'Dark'
-      immediate_edit: False
+      immediate_edit: false
       on_value:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "switch value: %s", it->get_value_text().c_str());'

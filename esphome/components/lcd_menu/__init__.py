@@ -4,6 +4,7 @@ from esphome.const import (
     CONF_ID,
     CONF_DIMENSIONS,
 )
+from esphome.core.entity_helpers import inherit_property_from
 from esphome.components import lcd_base
 from esphome.components.display_menu_base import (
     DISPLAY_MENU_BASE_SCHEMA,
@@ -24,6 +25,8 @@ CONF_MARK_EDITING = "mark_editing"
 CONF_MARK_SUBMENU = "mark_submenu"
 CONF_MARK_BACK = "mark_back"
 
+MINIMUM_COLUMNS = 12
+
 LCDCharacterMenuComponent = lcd_menu_ns.class_(
     "LCDCharacterMenuComponent", DisplayMenuComponent
 )
@@ -31,17 +34,12 @@ LCDCharacterMenuComponent = lcd_menu_ns.class_(
 MULTI_CONF = True
 
 
-def validate_lcd_dimensions(value):
-    value = cv.dimensions(value)
-    if value[0] > 64:
-        raise cv.Invalid("LCD display can't have more than 64 columns")
-    if value[0] < 12:
+def validate_lcd_dimensions(config):
+    if config[CONF_DIMENSIONS][0] < MINIMUM_COLUMNS:
         raise cv.Invalid(
-            "LCD display can't have less than 12 columns to be usable with the menu"
+            f"LCD display must have at least {MINIMUM_COLUMNS} columns to be usable with the menu"
         )
-    if value[1] > 4:
-        raise cv.Invalid("LCD display can't have more than 4 rows")
-    return value
+    return config
 
 
 CONFIG_SCHEMA = DISPLAY_MENU_BASE_SCHEMA.extend(
@@ -49,13 +47,17 @@ CONFIG_SCHEMA = DISPLAY_MENU_BASE_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(LCDCharacterMenuComponent),
             cv.GenerateID(CONF_DISPLAY_ID): cv.use_id(lcd_base.LCDDisplay),
-            cv.Required(CONF_DIMENSIONS): validate_lcd_dimensions,
             cv.Optional(CONF_MARK_SELECTED, default=0x3E): cv.uint8_t,
             cv.Optional(CONF_MARK_EDITING, default=0x2A): cv.uint8_t,
             cv.Optional(CONF_MARK_SUBMENU, default=0x7E): cv.uint8_t,
             cv.Optional(CONF_MARK_BACK, default=0x5E): cv.uint8_t,
         }
     )
+)
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    inherit_property_from(CONF_DIMENSIONS, CONF_DISPLAY_ID),
+    validate_lcd_dimensions,
 )
 
 
