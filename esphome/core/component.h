@@ -263,7 +263,7 @@ class Component {
  * after startup. Note that this class cannot guarantee a correct timing, as it's not using timers, just
  * a software polling feature with set_interval() from Component.
  */
-class PollingComponent : public Component {
+class PollingComponent : virtual public Component {
  public:
   PollingComponent() : PollingComponent(0) {}
 

@@ -13,7 +13,7 @@ namespace insignia {
 const float INSIGNIA_TEMP_MIN = 16.67;  // 62 Farhenheit
 const float INSIGNIA_TEMP_MAX = 30.0;   // 86 Farhenheit
 
-class InsigniaClimate : public climate_ir::ClimateIR {
+class InsigniaClimate : public climate_ir::ClimateIR, public PollingComponent {
  public:
   InsigniaClimate()
       // clang-format off
