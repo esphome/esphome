@@ -104,14 +104,13 @@ DisplayMenuOnPrevTrigger = display_menu_base_ns.class_(
 )
 
 
-def validate_menu_item(config):
-    if config[CONF_TYPE] == CONF_NUMBER:
-        if re.search(r"^%([+-])*(\d+)*(\.\d+)*[fg]$", config[CONF_FORMAT]) is None:
-            raise cv.Invalid(
-                f"{CONF_FORMAT}: has to specify a printf-like format string specifying exactly one f or g type conversion, '{config[CONF_FORMAT]}' provided"
-            )
+def validate_format(format):
+    if re.search(r"^%([+-])*(\d+)*(\.\d+)*[fg]$", format) is None:
+        raise cv.Invalid(
+            f"{CONF_FORMAT}: has to specify a printf-like format string specifying exactly one f or g type conversion, '{format}' provided"
+        )
 
-    return config
+    return format
 
 
 # Use a simple indirection to circumvent the recursion limitation
@@ -169,68 +168,68 @@ MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA = MENU_ITEM_ENTER_LEAVE_SCHEMA.extend(
     }
 )
 
-MENU_ITEM_SCHEMA = cv.All(
-    cv.typed_schema(
-        {
-            CONF_LABEL: MENU_ITEM_COMMON_SCHEMA,
-            CONF_BACK: MENU_ITEM_COMMON_SCHEMA,
-            CONF_MENU: MENU_ITEM_ENTER_LEAVE_SCHEMA.extend(
-                {
-                    cv.Required(CONF_MENU): cv.All(
-                        cv.ensure_list(menu_item_schema), cv.Length(min=1)
-                    ),
-                }
-            ),
-            CONF_SELECT: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
-                {
-                    cv.Required(CONF_SELECT): cv.use_id(Select),
-                    cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
-                    cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
-                }
-            ),
-            CONF_NUMBER: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
-                {
-                    cv.Required(CONF_NUMBER): cv.use_id(Number),
-                    cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
-                    cv.Optional(CONF_FORMAT, default="%.1f"): cv.string_strict,
-                    cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
-                }
-            ),
-            CONF_SWITCH: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
-                {
-                    cv.Required(CONF_SWITCH): cv.use_id(Switch),
-                    cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
-                    cv.Optional(CONF_ON_TEXT, default="On"): cv.string_strict,
-                    cv.Optional(CONF_OFF_TEXT, default="Off"): cv.string_strict,
-                    cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
-                }
-            ),
-            CONF_COMMAND: MENU_ITEM_VALUE_SCHEMA,
-            CONF_CUSTOM: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
-                {
-                    cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
-                    cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
-                    cv.Optional(CONF_ON_NEXT): automation.validate_automation(
-                        {
-                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                                DisplayMenuOnNextTrigger
-                            ),
-                        }
-                    ),
-                    cv.Optional(CONF_ON_PREV): automation.validate_automation(
-                        {
-                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                                DisplayMenuOnPrevTrigger
-                            ),
-                        }
-                    ),
-                }
-            ),
-        },
-        default_type="label",
-        lower=True,
-    ),
-    validate_menu_item,
+MENU_ITEM_SCHEMA = cv.typed_schema(
+    {
+        CONF_LABEL: MENU_ITEM_COMMON_SCHEMA,
+        CONF_BACK: MENU_ITEM_COMMON_SCHEMA,
+        CONF_MENU: MENU_ITEM_ENTER_LEAVE_SCHEMA.extend(
+            {
+                cv.Required(CONF_MENU): cv.All(
+                    cv.ensure_list(menu_item_schema), cv.Length(min=1)
+                ),
+            }
+        ),
+        CONF_SELECT: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
+            {
+                cv.Required(CONF_SELECT): cv.use_id(Select),
+                cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
+                cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
+            }
+        ),
+        CONF_NUMBER: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
+            {
+                cv.Required(CONF_NUMBER): cv.use_id(Number),
+                cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
+                cv.Optional(CONF_FORMAT, default="%.1f"): cv.All(
+                    cv.string_strict,
+                    validate_format,
+                ),
+                cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
+            }
+        ),
+        CONF_SWITCH: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
+            {
+                cv.Required(CONF_SWITCH): cv.use_id(Switch),
+                cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
+                cv.Optional(CONF_ON_TEXT, default="On"): cv.string_strict,
+                cv.Optional(CONF_OFF_TEXT, default="Off"): cv.string_strict,
+                cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
+            }
+        ),
+        CONF_COMMAND: MENU_ITEM_VALUE_SCHEMA,
+        CONF_CUSTOM: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
+            {
+                cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
+                cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
+                cv.Optional(CONF_ON_NEXT): automation.validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                            DisplayMenuOnNextTrigger
+                        ),
+                    }
+                ),
+                cv.Optional(CONF_ON_PREV): automation.validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                            DisplayMenuOnPrevTrigger
+                        ),
+                    }
+                ),
+            }
+        ),
+    },
+    default_type="label",
+    lower=True,
 )
 
 DISPLAY_MENU_BASE_SCHEMA = cv.Schema(
