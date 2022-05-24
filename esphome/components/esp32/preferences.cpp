@@ -156,7 +156,7 @@ class ESP32Preferences : public ESPPreferences {
       ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", to_save.key.c_str(), esp_err_to_name(err));
       return true;
     }
-    return to_save.data == stored_data.data;
+    return to_save.data != stored_data.data;
   }
 };
 
