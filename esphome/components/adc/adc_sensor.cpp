@@ -23,7 +23,7 @@ static const adc_bits_width_t ADC_WIDTH_BIT_DEFAULT = static_cast<adc_bits_width
 #endif
 
 #ifndef SOC_ADC_MAX_BITWIDTH
-#if ADC_WIDTH_MAX_SOC_BITS == ADC_WIDTH_12Bit
+#if ADC_WIDTH_BIT_DEFAULT == ADC_WIDTH_12Bit
 static const int SOC_ADC_MAX_BITWIDTH = 12;
 #else
 static const int SOC_ADC_MAX_BITWIDTH = 13;
