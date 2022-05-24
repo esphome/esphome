@@ -18,21 +18,22 @@ static const char *const TAG = "adc";
 
 // 13bit for S2, and 12bit for all other esp32 variants
 #ifdef USE_ESP32
-#include "soc/soc_caps.h"
-/*#ifndef ADC_WIDTH_BIT_DEFAULT
-static const adc_bits_width_t ADC_WIDTH_BIT_DEFAULT = static_cast<adc_bits_width_t>(ADC_WIDTH_MAX - 1);
+#include "soc_caps.h"
+
+#ifndef ADC_WIDTH_BIT_DEFAULT
+#define ADC_WIDTH_BIT_DEFAULT (ADC_WIDTH_MAX - 1)
 #endif
 
-#ifndef SOC_ADC_MAX_BITWIDTH
+#ifndef SOC_ADC_RTC_MAX_BITWIDTH
 #if ADC_WIDTH_BIT_DEFAULT == ADC_WIDTH_12Bit
-static const int SOC_ADC_MAX_BITWIDTH = 12;
+#define SOC_ADC_RTC_MAX_BITWIDTH 12
 #else
-static const int SOC_ADC_MAX_BITWIDTH = 13;
+#define SOC_ADC_RTC_MAX_BITWIDTH 13
 #endif
 #endif
-*/
-static const int ADC_MAX = (1 << SOC_ADC_MAX_BITWIDTH) - 1;    // 4095 (12 bit) or 8191 (13 bit)
-static const int ADC_HALF = (1 << SOC_ADC_MAX_BITWIDTH) >> 1;  // 2048 (12 bit) or 4096 (13 bit)
+
+static const int ADC_MAX = (1 << SOC_ADC_RTC_MAX_BITWIDTH) - 1;    // 4095 (12 bit) or 8191 (13 bit)
+static const int ADC_HALF = (1 << SOC_ADC_RTC_MAX_BITWIDTH) >> 1;  // 2048 (12 bit) or 4096 (13 bit)
 #endif
 
 void ADCSensor::setup() {
@@ -42,14 +43,14 @@ void ADCSensor::setup() {
 #endif
 
 #ifdef USE_ESP32
-  adc1_config_width(ADC_WIDTH_BIT_DEFAULT);
+  adc1_config_width((adc_bits_width_t) ADC_WIDTH_BIT_DEFAULT);
   if (!autorange_) {
     adc1_config_channel_atten(channel_, attenuation_);
   }
 
   // load characteristics for each attenuation
   for (int i = 0; i < (int) ADC_ATTEN_MAX; i++) {
-    auto cal_value = esp_adc_cal_characterize(ADC_UNIT_1, (adc_atten_t) i, ADC_WIDTH_BIT_DEFAULT,
+    auto cal_value = esp_adc_cal_characterize(ADC_UNIT_1, (adc_atten_t) i, (adc_bits_width_t) ADC_WIDTH_BIT_DEFAULT,
                                               1100,  // default vref
                                               &cal_characteristics_[i]);
     switch (cal_value) {
