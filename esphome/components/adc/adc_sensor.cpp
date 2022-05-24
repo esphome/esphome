@@ -88,16 +88,16 @@ void ADCSensor::dump_config() {
   } else {
     switch (this->attenuation_) {
       case ADC_ATTEN_DB_0:
-        ESP_LOGCONFIG(TAG, " Attenuation: 0db (max 1.1V)");
+        ESP_LOGCONFIG(TAG, " Attenuation: 0db");
         break;
       case ADC_ATTEN_DB_2_5:
-        ESP_LOGCONFIG(TAG, " Attenuation: 2.5db (max 1.5V)");
+        ESP_LOGCONFIG(TAG, " Attenuation: 2.5db");
         break;
       case ADC_ATTEN_DB_6:
-        ESP_LOGCONFIG(TAG, " Attenuation: 6db (max 2.2V)");
+        ESP_LOGCONFIG(TAG, " Attenuation: 6db");
         break;
       case ADC_ATTEN_DB_11:
-        ESP_LOGCONFIG(TAG, " Attenuation: 11db (max 3.9V)");
+        ESP_LOGCONFIG(TAG, " Attenuation: 11db");
         break;
       default:  // This is to satisfy the unused ADC_ATTEN_MAX
         break;
@@ -167,15 +167,15 @@ float ADCSensor::sample() {
   uint32_t mv2 = esp_adc_cal_raw_to_voltage(raw2, &cal_characteristics_[(int) ADC_ATTEN_DB_2_5]);
   uint32_t mv0 = esp_adc_cal_raw_to_voltage(raw0, &cal_characteristics_[(int) ADC_ATTEN_DB_0]);
 
-  // Contribution of each value, in range 0-2047 (12 bit ADC) or 0-4095 (13 bit ADC)
+  // Contribution of each value, in range 0-2048 (12 bit ADC) or 0-4096 (13 bit ADC)
   uint32_t c11 = std::min(raw11, ADC_HALF);
   uint32_t c6 = ADC_HALF - std::abs(raw6 - ADC_HALF);
   uint32_t c2 = ADC_HALF - std::abs(raw2 - ADC_HALF);
   uint32_t c0 = std::min(ADC_MAX - raw0, ADC_HALF);
-  // max theoretical csum value is 4095*4 = 16380
+  // max theoretical csum value is 4096*4 = 16384
   uint32_t csum = c11 + c6 + c2 + c0;
 
-  // each mv is max 3900; so max value is 3900*4095*4, fits in unsigned32
+  // each mv is max 3900; so max value is 3900*4096*4, fits in unsigned32
   uint32_t mv_scaled = (mv11 * c11) + (mv6 * c6) + (mv2 * c2) + (mv0 * c0);
   return mv_scaled / (float) (csum * 1000U);
 }
