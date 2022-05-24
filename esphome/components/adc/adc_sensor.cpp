@@ -19,14 +19,14 @@ static const char *const TAG = "adc";
 // 13bit for S2, and 12bit for all other esp32 variants
 #ifdef USE_ESP32
 #ifndef ADC_WIDTH_BIT_DEFAULT
-#define ADC_WIDTH_BIT_DEFAULT (ADC_WIDTH_MAX - 1)
+static const adc_bits_width_t ADC_WIDTH_BIT_DEFAULT = static_cast<adc_bits_width_t>(ADC_WIDTH_MAX - 1);
 #endif
 
 #ifndef SOC_ADC_RTC_MAX_BITWIDTH
 #if ADC_WIDTH_BIT_DEFAULT == ADC_WIDTH_12Bit
-#define SOC_ADC_RTC_MAX_BITWIDTH 12
+static const int SOC_ADC_RTC_MAX_BITWIDTH = 12;
 #else
-#define SOC_ADC_RTC_MAX_BITWIDTH 13
+static const int SOC_ADC_RTC_MAX_BITWIDTH = 13;
 #endif
 #endif
 
