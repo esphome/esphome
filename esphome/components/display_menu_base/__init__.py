@@ -384,7 +384,7 @@ async def menu_item_to_code(menu, config, parent):
 
 async def display_menu_to_code(menu, config):
     cg.add(menu.set_active(config[CONF_ACTIVE]))
-    root_item = cg.new_Pvariable(config[CONF_ROOT_ITEM_ID])
+    root_item = cg.new_Pvariable(config[CONF_ROOT_ITEM_ID], MenuItemType.MENU_ITEM_MENU)
     cg.add(menu.set_root_item(root_item))
     cg.add(menu.set_mode(config[CONF_MODE]))
     for c in config[CONF_MENU]:
