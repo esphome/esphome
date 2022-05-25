@@ -145,7 +145,7 @@ class AsyncWebServerRequest {
   AsyncWebParameter *getParam /*NOLINT(readability-identifier-naming)*/ (const std::string &name);
 
   bool hasArg /*NOLINT(readability-identifier-naming)*/ (const char *name) { return this->hasParam(name); }
-  const std::string arg(const std::string &name) {
+  std::string arg(const std::string &name) {
     auto *param = this->getParam(name);
     if (param) {
       return param->value();
