@@ -1,5 +1,7 @@
 #ifdef USE_ESP_IDF
 
+#include <cstdarg>
+
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
@@ -18,6 +20,7 @@ namespace web_server_idf {
 #define HEADER_CONNECTION_VALUE_KEEP_ALIVE "keep-alive"
 #define HEADER_AUTH "Authorization"
 #define HEADER_AUTH_VALUE_BASIC_PREFIX "Basic "
+#define HEADER_HOST "Host"
 #define CRLF "\r\n"
 #define EVENT_KEY_RETRY "retry: "
 #define EVENT_KEY_ID "id: "
@@ -66,13 +69,18 @@ void AsyncWebServer::begin() {
 
 esp_err_t AsyncWebServer::request_handler(httpd_req_t *r) {
   AsyncWebServerRequest req(r);
-  for (auto *handler : static_cast<AsyncWebServer *>(r->user_ctx)->handlers_) {
+  auto *server = static_cast<AsyncWebServer *>(r->user_ctx);
+  for (auto *handler : server->handlers_) {
     if (handler->canHandle(&req)) {
       handler->handleRequest(&req);
-      break;
+      return ESP_OK;
     }
   }
-  return ESP_OK;
+  if (server->on_not_found_) {
+    server->on_not_found_(&req);
+    return ESP_OK;
+  }
+  return ESP_ERR_NOT_FOUND;
 }
 
 AsyncWebServerRequest::~AsyncWebServerRequest() {
@@ -90,6 +98,22 @@ std::string AsyncWebServerRequest::url() const {
   return std::string(this->req_->uri, str - this->req_->uri);
 }
 
+std::string AsyncWebServerRequest::host() const {
+  size_t buf_len = httpd_req_get_hdr_value_len(*this, HEADER_HOST);
+  if (buf_len == 0) {
+    return {};
+  }
+  auto buf = std::unique_ptr<char[]>(new char[++buf_len]);
+  if (!buf) {
+    ESP_LOGE(TAG, "No enough memory for get " HEADER_HOST);
+    return {};
+  }
+  if (httpd_req_get_hdr_value_str(*this, HEADER_HOST, buf.get(), buf_len) != ESP_OK) {
+    return {};
+  }
+  return buf.get();
+}
+
 void AsyncWebServerRequest::send(AsyncResponse *response) {
   httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
 }
@@ -101,6 +125,12 @@ void AsyncWebServerRequest::send(int code, const char *content_type, const char 
   } else {
     httpd_resp_send(*this, nullptr, 0);
   }
+}
+
+void AsyncWebServerRequest::redirect(const std::string &url) {
+  httpd_resp_set_status(*this, "302 Found");
+  httpd_resp_set_hdr(*this, "Location", url.c_str());
+  httpd_resp_send(*this, nullptr, 0);
 }
 
 void AsyncWebServerRequest::init_response_(AsyncResponse *rsp, int code, const char *content_type) {
@@ -162,8 +192,6 @@ void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
   httpd_resp_send_err(*this, HTTPD_401_UNAUTHORIZED, nullptr);
 }
 
-bool AsyncWebServerRequest::hasParam(const std::string &name) { return this->getParam(name) != nullptr; }
-
 AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
   auto find = this->params_.find(name);
   if (find != this->params_.end()) {
@@ -208,6 +236,22 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
 void AsyncResponse::addHeader(const char *name, const char *value) { httpd_resp_set_hdr(*this->req_, name, value); }
 
 void AsyncResponseStream::print(float value) { this->print(to_string(value)); }
+
+void AsyncResponseStream::printf(const char *fmt, ...) {
+  std::string str;
+  va_list args;
+
+  va_start(args, fmt);
+  size_t length = vsnprintf(nullptr, 0, fmt, args);
+  va_end(args);
+
+  str.resize(length);
+  va_start(args, fmt);
+  vsnprintf(&str[0], length + 1, fmt, args);
+  va_end(args);
+
+  this->print(str);
+}
 
 AsyncEventSource::~AsyncEventSource() {
   for (auto *ses : this->sessions_) {
