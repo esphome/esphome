@@ -5,84 +5,28 @@
 namespace esphome {
 namespace display_menu_base {
 
-bool MenuItem::select_next() {
-  bool result;
-
-  switch (this->item_type_) {
-#ifdef USE_SELECT
-    case MENU_ITEM_SELECT:
-      result = this->next_option_();
-      break;
-#endif
-#ifdef USE_NUMBER
-    case MENU_ITEM_NUMBER:
-      result = this->inc_number_();
-      break;
-#endif
-#ifdef USE_SWITCH
-    case MENU_ITEM_SWITCH:
-      result = this->toggle_switch_();
-      break;
-#endif
-    case MENU_ITEM_COMMAND:
-      this->on_value_();
-      result = true;
-      break;
-    case MENU_ITEM_CUSTOM:
-      this->on_next_();
-      this->on_value_();
-      result = true;
-      break;
-    default:
-      result = false;
-      break;
-  }
-
-  return result;
-}
-
-bool MenuItem::select_prev() {
-  bool result;
-
-  switch (this->item_type_) {
-#ifdef USE_SELECT
-    case MENU_ITEM_SELECT:
-      result = this->prev_option_();
-      break;
-#endif
-#ifdef USE_NUMBER
-    case MENU_ITEM_NUMBER:
-      result = this->dec_number_();
-      break;
-#endif
-#ifdef USE_SWITCH
-    case MENU_ITEM_SWITCH:
-      result = this->toggle_switch_();
-      break;
-#endif
-    case MENU_ITEM_COMMAND:
-      this->on_value_();
-      result = true;
-      break;
-    case MENU_ITEM_CUSTOM:
-      this->on_prev_();
-      this->on_value_();
-      result = true;
-      break;
-    default:
-      result = false;
-      break;
-  }
-
-  return result;
-}
-
 void MenuItem::on_enter() { this->on_enter_callbacks_.call(); }
 
 void MenuItem::on_leave() { this->on_leave_callbacks_.call(); }
 
+void MenuItem::on_value_() { this->on_value_callbacks_.call(); }
+
 #ifdef USE_SELECT
-bool MenuItem::next_option_() {
+std::string MenuItemSelect::get_value_text() const {
+  std::string result;
+
+  if (this->value_getter_.has_value()) {
+    result = this->value_getter_.value()(this);
+  } else {
+    if (this->select_var_ != nullptr) {
+        result = this->select_var_->state;
+    }
+  }
+
+  return result;
+}
+
+bool MenuItemSelect::select_next() {
   bool changed = false;
 
   if (this->select_var_ != nullptr) {
@@ -93,7 +37,7 @@ bool MenuItem::next_option_() {
   return changed;
 }
 
-bool MenuItem::prev_option_() {
+bool MenuItemSelect::select_prev() {
   bool changed = false;
 
   if (this->select_var_ != nullptr) {
@@ -103,10 +47,24 @@ bool MenuItem::prev_option_() {
 
   return changed;
 }
-#endif  // USE_SELECT
+#endif // USE_SELECT
 
 #ifdef USE_NUMBER
-bool MenuItem::inc_number_() {
+std::string MenuItemNumber::get_value_text() const {
+  std::string result;
+
+  if (this->value_getter_.has_value()) {
+    result = this->value_getter_.value()(this);
+  } else {
+    char data[32];
+    snprintf(data, sizeof(data), this->format_.c_str(), get_number_value_());
+    result = data;
+  }
+
+  return result;
+}
+
+bool MenuItemNumber::select_next() {
   bool changed = false;
 
   if (this->number_var_ != nullptr) {
@@ -122,7 +80,7 @@ bool MenuItem::inc_number_() {
   return changed;
 }
 
-bool MenuItem::dec_number_() {
+bool MenuItemNumber::select_prev() {
   bool changed = false;
 
   if (this->number_var_ != nullptr) {
@@ -137,10 +95,51 @@ bool MenuItem::dec_number_() {
 
   return changed;
 }
-#endif  // USE_NUMBER
+
+
+float MenuItemNumber::get_number_value_() const {
+  float result = 0.0;
+
+  if (this->number_var_ != nullptr) {
+    if (!this->number_var_->has_state() || this->number_var_->state < this->number_var_->traits.get_min_value()) {
+      result = this->number_var_->traits.get_min_value();
+    } else if (this->number_var_->state > this->number_var_->traits.get_max_value()) {
+      result = this->number_var_->traits.get_max_value();
+    } else {
+      result = this->number_var_->state;
+    }
+  }
+
+  return result;
+}
+#endif // USE_NUMBER
 
 #ifdef USE_SWITCH
-bool MenuItem::toggle_switch_() {
+std::string MenuItemSwitch::get_value_text() const {
+  std::string result;
+
+  if (this->value_getter_.has_value()) {
+    result = this->value_getter_.value()(this);
+  } else {
+    result = this->get_switch_state_() ? this->switch_on_text_ : this->switch_off_text_;
+  }
+
+  return result;
+}
+
+bool MenuItemSwitch::select_next() {
+  return this->toggle_switch_();
+}
+
+bool MenuItemSwitch::select_prev() {
+  return this->toggle_switch_();
+}
+
+bool MenuItemSwitch::get_switch_state_() const {
+  return (this->switch_var_ != nullptr && this->switch_var_->state);
+}
+
+bool MenuItemSwitch::toggle_switch_() {
   bool changed = false;
 
   if (this->switch_var_ != nullptr) {
@@ -151,93 +150,39 @@ bool MenuItem::toggle_switch_() {
 
   return changed;
 }
-#endif  // USE_SWITCH
+#endif // USE_SWITCH
 
-bool MenuItem::has_value() const {
-  bool result;
-
-  switch (this->item_type_) {
-    case MENU_ITEM_SELECT:
-    case MENU_ITEM_NUMBER:
-    case MENU_ITEM_SWITCH:
-      result = true;
-      break;
-    case MENU_ITEM_CUSTOM:
-      result = this->value_getter_.has_value();
-      break;
-    default:
-      result = false;
-      break;
-  }
-
-  return result;
+std::string MenuItemCustom::get_value_text() const {
+  return (this->value_getter_.has_value()) ? this->value_getter_.value()(this) : "";
 }
 
-std::string MenuItem::get_value_text() const {
-  std::string result;
-
-  if (this->value_getter_.has_value()) {
-    result = this->value_getter_.value()(this);
-  } else {
-    switch (this->item_type_) {
-#ifdef USE_SELECT
-      case MENU_ITEM_SELECT:
-        if (this->select_var_ != nullptr) {
-          result = this->select_var_->state;
-        }
-        break;
-#endif
-#ifdef USE_NUMBER
-      case MENU_ITEM_NUMBER:
-        char data[32];
-        snprintf(data, sizeof(data), this->format_.c_str(), get_number_value());
-        result = data;
-        break;
-#endif
-#ifdef USE_SWITCH
-      case MENU_ITEM_SWITCH:
-        result = this->get_switch_state() ? this->switch_on_text_ : this->switch_off_text_;
-        break;
-#endif
-      default:
-        break;
-    }
-  }
-
-  return result;
+bool MenuItemCommand::select_next() {
+  this->on_value_();
+  return true;
 }
 
-float MenuItem::get_number_value() const {
-  float result = 0.0;
-
-#ifdef USE_NUMBER
-  if (this->number_var_ != nullptr) {
-    if (!this->number_var_->has_state() || this->number_var_->state < this->number_var_->traits.get_min_value()) {
-      result = this->number_var_->traits.get_min_value();
-    } else if (this->number_var_->state > this->number_var_->traits.get_max_value()) {
-      result = this->number_var_->traits.get_max_value();
-    } else {
-      result = this->number_var_->state;
-    }
-  }
-#endif
-
-  return result;
+bool MenuItemCommand::select_prev() {
+  this->on_value_();
+  return true;
 }
 
-bool MenuItem::get_switch_state() const {
-#ifdef USE_SWITCH
-  return (this->switch_var_ != nullptr && this->switch_var_->state);
-#else
-  return false;
-#endif
+bool MenuItemCustom::select_next() {
+  this->on_next_();
+  this->on_value_();
+  return true;
 }
 
-void MenuItem::on_value_() { this->on_value_callbacks_.call(); }
+bool MenuItemCustom::select_prev() {
+  this->on_prev_();
+  this->on_value_();
+  return true;
+}
 
-void MenuItem::on_next_() { this->on_next_callbacks_.call(); }
+void MenuItemCustom::on_next_() { this->on_next_callbacks_.call(); }
 
-void MenuItem::on_prev_() { this->on_prev_callbacks_.call(); }
+void MenuItemCustom::on_prev_() { this->on_prev_callbacks_.call(); }
+
+
 
 }  // namespace display_menu_base
 }  // namespace esphome

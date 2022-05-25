@@ -21,7 +21,7 @@ class MenuItem;
  */
 class DisplayMenuComponent : public Component {
  public:
-  void set_root_item(MenuItem *item) { this->displayed_item_ = this->root_item_ = item; }
+  void set_root_item(MenuItemMenu *item) { this->displayed_item_ = this->root_item_ = item; }
   void set_active(bool active) { this->active_ = active; }
   void set_mode(MenuMode mode) { this->mode_ = mode; }
   void set_rows(uint8_t rows) { this->rows_ = rows; }
@@ -62,9 +62,9 @@ class DisplayMenuComponent : public Component {
   uint8_t rows_;
   bool active_;
   MenuMode mode_;
-  MenuItem *root_item_{nullptr};
+  MenuItemMenu *root_item_{nullptr};
 
-  MenuItem *displayed_item_{nullptr};
+  MenuItemMenu *displayed_item_{nullptr};
   uint8_t top_index_{0};
   uint8_t cursor_index_{0};
   std::forward_list<std::pair<uint8_t, uint8_t>> selection_stack_{};

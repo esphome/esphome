@@ -47,6 +47,12 @@ DisplayMenuComponent = display_menu_base_ns.class_("DisplayMenuComponent", cg.Co
 
 MenuItem = display_menu_base_ns.class_("MenuItem")
 MenuItemConstPtr = MenuItem.operator("ptr").operator("const")
+MenuItemMenu = display_menu_base_ns.class_("MenuItemMenu")
+MenuItemSelect = display_menu_base_ns.class_("MenuItemSelect")
+MenuItemNumber = display_menu_base_ns.class_("MenuItemNumber")
+MenuItemSwitch = display_menu_base_ns.class_("MenuItemSwitch")
+MenuItemCommand = display_menu_base_ns.class_("MenuItemCommand")
+MenuItemCustom = display_menu_base_ns.class_("MenuItemCustom")
 
 UpAction = display_menu_base_ns.class_("UpAction", automation.Action)
 DownAction = display_menu_base_ns.class_("DownAction", automation.Action)
@@ -75,6 +81,15 @@ MENU_ITEM_TYPES = {
     CONF_COMMAND: MenuItemType.MENU_ITEM_COMMAND,
     CONF_CUSTOM: MenuItemType.MENU_ITEM_CUSTOM,
 }
+
+MENU_ITEMS_WITH_SPECIALIZED_CLASSES = (
+    CONF_MENU,
+    CONF_SELECT,
+    CONF_NUMBER,
+    CONF_SWITCH,
+    CONF_COMMAND,
+    CONF_CUSTOM,
+)
 
 MenuMode = display_menu_base_ns.enum("MenuMode")
 
@@ -120,7 +135,6 @@ def menu_item_schema(value):
 
 MENU_ITEM_COMMON_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_ID): cv.declare_id(MenuItem),
         cv.Optional(CONF_TEXT): cv.templatable(cv.string),
     }
 )
@@ -170,10 +184,19 @@ MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA = MENU_ITEM_ENTER_LEAVE_SCHEMA.extend(
 
 MENU_ITEM_SCHEMA = cv.typed_schema(
     {
-        CONF_LABEL: MENU_ITEM_COMMON_SCHEMA,
-        CONF_BACK: MENU_ITEM_COMMON_SCHEMA,
+        CONF_LABEL: MENU_ITEM_COMMON_SCHEMA.extend(
+            {
+                cv.GenerateID(CONF_ID): cv.declare_id(MenuItem),
+            }
+        ),
+        CONF_BACK: MENU_ITEM_COMMON_SCHEMA.extend(
+            {
+                cv.GenerateID(CONF_ID): cv.declare_id(MenuItem),
+            }
+        ),
         CONF_MENU: MENU_ITEM_ENTER_LEAVE_SCHEMA.extend(
             {
+                cv.GenerateID(CONF_ID): cv.declare_id(MenuItemMenu),
                 cv.Required(CONF_MENU): cv.All(
                     cv.ensure_list(menu_item_schema), cv.Length(min=1)
                 ),
@@ -181,6 +204,7 @@ MENU_ITEM_SCHEMA = cv.typed_schema(
         ),
         CONF_SELECT: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
             {
+                cv.GenerateID(CONF_ID): cv.declare_id(MenuItemSelect),
                 cv.Required(CONF_SELECT): cv.use_id(Select),
                 cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
                 cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
@@ -188,6 +212,7 @@ MENU_ITEM_SCHEMA = cv.typed_schema(
         ),
         CONF_NUMBER: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
             {
+                cv.GenerateID(CONF_ID): cv.declare_id(MenuItemNumber),
                 cv.Required(CONF_NUMBER): cv.use_id(Number),
                 cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
                 cv.Optional(CONF_FORMAT, default="%.1f"): cv.All(
@@ -199,6 +224,7 @@ MENU_ITEM_SCHEMA = cv.typed_schema(
         ),
         CONF_SWITCH: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
             {
+                cv.GenerateID(CONF_ID): cv.declare_id(MenuItemSwitch),
                 cv.Required(CONF_SWITCH): cv.use_id(Switch),
                 cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
                 cv.Optional(CONF_ON_TEXT, default="On"): cv.string_strict,
@@ -206,9 +232,14 @@ MENU_ITEM_SCHEMA = cv.typed_schema(
                 cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
             }
         ),
-        CONF_COMMAND: MENU_ITEM_VALUE_SCHEMA,
+        CONF_COMMAND: MENU_ITEM_VALUE_SCHEMA.extend(
+            {
+                cv.GenerateID(CONF_ID): cv.declare_id(MenuItemCommand),
+            }
+        ),
         CONF_CUSTOM: MENU_ITEM_ENTER_LEAVE_VALUE_SCHEMA.extend(
             {
+                cv.GenerateID(CONF_ID): cv.declare_id(MenuItemCustom),
                 cv.Optional(CONF_IMMEDIATE_EDIT, default=False): cv.boolean,
                 cv.Optional(CONF_VALUE_LAMBDA): cv.returning_lambda,
                 cv.Optional(CONF_ON_NEXT): automation.validate_automation(
@@ -235,7 +266,7 @@ MENU_ITEM_SCHEMA = cv.typed_schema(
 DISPLAY_MENU_BASE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
-        cv.GenerateID(CONF_ROOT_ITEM_ID): cv.declare_id(MenuItem),
+        cv.GenerateID(CONF_ROOT_ITEM_ID): cv.declare_id(MenuItemMenu),
         cv.Optional(CONF_MODE, default=CONF_ROTARY): cv.enum(MENU_MODES),
         cv.Optional(CONF_ON_ENTER): automation.validate_automation(
             {
@@ -329,9 +360,10 @@ async def display_menu_is_active_to_code(config, condition_id, template_arg, arg
 
 
 async def menu_item_to_code(menu, config, parent):
-    item = cg.new_Pvariable(
-        config[CONF_ID], MenuItem(MENU_ITEM_TYPES[config[CONF_TYPE]])
-    )
+    if config[CONF_TYPE] in MENU_ITEMS_WITH_SPECIALIZED_CLASSES:
+        item = cg.new_Pvariable(config[CONF_ID])
+    else:
+        item = cg.new_Pvariable(config[CONF_ID], MENU_ITEM_TYPES[config[CONF_TYPE]])
     cg.add(parent.add_item(item))
     if CONF_TEXT in config:
         if isinstance(config[CONF_TEXT], core.Lambda):
@@ -384,7 +416,7 @@ async def menu_item_to_code(menu, config, parent):
 
 async def display_menu_to_code(menu, config):
     cg.add(menu.set_active(config[CONF_ACTIVE]))
-    root_item = cg.new_Pvariable(config[CONF_ROOT_ITEM_ID], MenuItemType.MENU_ITEM_MENU)
+    root_item = cg.new_Pvariable(config[CONF_ROOT_ITEM_ID])
     cg.add(menu.set_root_item(root_item))
     cg.add(menu.set_mode(config[CONF_MODE]))
     for c in config[CONF_MENU]:

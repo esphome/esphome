@@ -117,14 +117,14 @@ class DisplayMenuOnValueTrigger : public Trigger<const MenuItem *> {
 
 class DisplayMenuOnNextTrigger : public Trigger<const MenuItem *> {
  public:
-  explicit DisplayMenuOnNextTrigger(MenuItem *parent) {
+  explicit DisplayMenuOnNextTrigger(MenuItemCustom *parent) {
     parent->add_on_next_callback([this, parent]() { this->trigger(parent); });
   }
 };
 
 class DisplayMenuOnPrevTrigger : public Trigger<const MenuItem *> {
  public:
-  explicit DisplayMenuOnPrevTrigger(MenuItem *parent) {
+  explicit DisplayMenuOnPrevTrigger(MenuItemCustom *parent) {
     parent->add_on_prev_callback([this, parent]() { this->trigger(parent); });
   }
 };
