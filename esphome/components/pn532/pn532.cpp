@@ -345,6 +345,8 @@ float PN532::get_setup_priority() const { return setup_priority::DATA; }
 
 void PN532::dump_config() {
   ESP_LOGCONFIG(TAG, "PN532:");
+  if (this->is_failed())
+    ESP_LOGE(TAG, "Component marked as failed. Check setup logs.");
   switch (this->error_code_) {
     case NONE:
       break;
