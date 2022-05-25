@@ -31,6 +31,8 @@ INTERNAL_DAC_OPTIONS = {
     "both": i2s_dac_mode_t.I2S_DAC_CHANNEL_BOTH_EN,
 }
 
+EXTERNAL_DAC_OPTIONS = ["mono", "stereo"]
+
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
@@ -53,6 +55,9 @@ CONFIG_SCHEMA = cv.All(
                     ): pins.internal_gpio_output_pin_number,
                     cv.Required(CONF_I2S_WS_PIN): pins.internal_gpio_output_pin_number,
                     cv.Optional(CONF_MUTE_PIN): pins.gpio_output_pin_schema,
+                    cv.Optional(CONF_MODE): cv.one_of(
+                        *EXTERNAL_DAC_OPTIONS, lower=True
+                    ),
                 }
             )
             .extend(media_player.MEDIA_PLAYER_SCHEMA)
@@ -78,6 +83,7 @@ async def to_code(config):
         if CONF_MUTE_PIN in config:
             pin = await cg.gpio_pin_expression(config[CONF_MUTE_PIN])
             cg.add(var.set_mute_pin(pin))
+        cg.add(var.set_external_dac_channels(2 if config[CONF_MODE] == "stereo" else 1))
 
     if CORE.is_esp32:
         cg.add_library("WiFiClientSecure", None)
