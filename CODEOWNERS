@@ -178,6 +178,7 @@ esphome/components/sen5x/* @martgras
 esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
 esphome/components/sgp40/* @SenexCrenshaw
+esphome/components/sgp4x/* @SenexCrenshaw @martgras
 esphome/components/shelly_dimmer/* @edge90 @rnauber
 esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core @jsuanet
@@ -222,6 +223,7 @@ esphome/components/tsl2591/* @wjcarpenter
 esphome/components/tuya/binary_sensor/* @jesserockz
 esphome/components/tuya/climate/* @jesserockz
 esphome/components/tuya/number/* @frankiboy1
+esphome/components/tuya/select/* @bearpawmaxim
 esphome/components/tuya/sensor/* @jesserockz
 esphome/components/tuya/switch/* @jesserockz
 esphome/components/tuya/text_sensor/* @dentra
