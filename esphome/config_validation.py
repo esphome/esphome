@@ -1430,6 +1430,7 @@ class SplitDefault(Optional):
         esp32=vol.UNDEFINED,
         esp32_arduino=vol.UNDEFINED,
         esp32_idf=vol.UNDEFINED,
+        libretuya=vol.UNDEFINED,
     ):
         super().__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
@@ -1439,6 +1440,7 @@ class SplitDefault(Optional):
         self._esp32_idf_default = vol.default_factory(
             esp32_idf if esp32 is vol.UNDEFINED else esp32
         )
+        self._libretuya_default = vol.default_factory(libretuya)
 
     @property
     def default(self):
@@ -1448,6 +1450,8 @@ class SplitDefault(Optional):
             return self._esp32_arduino_default
         if CORE.is_esp32 and CORE.using_esp_idf:
             return self._esp32_idf_default
+        if CORE.is_libretuya and CORE.using_arduino:
+            return self._libretuya_default
         raise NotImplementedError
 
     @default.setter

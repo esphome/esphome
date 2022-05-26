@@ -594,6 +594,10 @@ class EsphomeCore:
         return self.target_platform == "esp32"
 
     @property
+    def is_libretuya(self):
+        return self.target_platform == "libretuya"
+
+    @property
     def target_framework(self):
         return self.data[KEY_CORE][KEY_TARGET_FRAMEWORK]
 

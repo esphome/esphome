@@ -1,4 +1,4 @@
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_LIBRETUYA)
 
 #include "mdns_component.h"
 #include "esphome/core/log.h"

@@ -13,6 +13,10 @@
 #include <WiFi.h>
 #endif
 
+#ifdef USE_LIBRETUYA
+#include <WiFi.h>
+#endif
+
 #ifdef USE_ESP8266
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiType.h>
@@ -302,6 +306,11 @@ class WiFiComponent : public Component {
 #endif
 #ifdef USE_ESP_IDF
   void wifi_process_event_(IDFWiFiEvent *data);
+#endif
+
+#ifdef USE_LIBRETUYA
+  void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
+  void wifi_scan_done_callback_();
 #endif
 
   std::string use_address_;

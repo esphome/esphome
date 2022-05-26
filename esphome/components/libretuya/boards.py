@@ -1,0 +1,5 @@
+LIBRETUYA_BASE_PINS = {}
+
+LIBRETUYA_BOARD_PINS = {
+    "wr3": {},
+}

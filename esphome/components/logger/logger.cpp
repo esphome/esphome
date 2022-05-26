@@ -112,7 +112,9 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
 
   const char *msg = this->tx_buffer_ + offset;
   if (this->baud_rate_ > 0) {
-#ifdef USE_ARDUINO
+#ifdef USE_LIBRETUYA
+    LT_I(msg);
+#elif defined(USE_ARDUINO)
     this->hw_serial_->println(msg);
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
@@ -171,6 +173,7 @@ void Logger::pre_setup() {
         Serial.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
 #endif
         break;
+#ifndef USE_LIBRETUYA
       case UART_SELECTION_UART1:
         this->hw_serial_ = &Serial1;
         Serial1.begin(this->baud_rate_);
@@ -178,6 +181,7 @@ void Logger::pre_setup() {
         Serial1.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
 #endif
         break;
+#endif
 #if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2)
       case UART_SELECTION_UART2:
         this->hw_serial_ = &Serial2;
@@ -270,6 +274,9 @@ const char *const UART_SELECTIONS[] = {
 #ifdef USE_ESP8266
 const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
 #endif  // USE_ESP8266
+#ifdef USE_LIBRETUYA
+const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART2"};
+#endif
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
   ESP_LOGCONFIG(TAG, "  Level: %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);

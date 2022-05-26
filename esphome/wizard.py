@@ -81,11 +81,19 @@ esp32:
     type: esp-idf
 """
 
+LIBRETUYA_CONFIG = """
+libretuya:
+  board: {board}
+  framework:
+    type: arduino
+"""
+
 HARDWARE_BASE_CONFIGS = {
     "ESP8266": ESP8266_CONFIG,
     "ESP32": ESP32_CONFIG,
     "ESP32S2": ESP32S2_CONFIG,
     "ESP32C3": ESP32C3_CONFIG,
+    "LIBRETUYA": LIBRETUYA_CONFIG,
 }
 
 
@@ -164,6 +172,7 @@ captive_portal:
 
 def wizard_write(path, **kwargs):
     from esphome.components.esp8266 import boards as esp8266_boards
+    from esphome.components.esp32 import boards as esp32_boards
 
     name = kwargs["name"]
     board = kwargs["board"]
@@ -174,7 +183,11 @@ def wizard_write(path, **kwargs):
 
     if "platform" not in kwargs:
         kwargs["platform"] = (
-            "ESP8266" if board in esp8266_boards.ESP8266_BOARD_PINS else "ESP32"
+            "ESP8266"
+            if board in esp8266_boards.ESP8266_BOARD_PINS
+            else "ESP32"
+            if board in esp32_boards.ESP32_BOARD_PINS
+            else "LIBRETUYA"
         )
     hardware = kwargs["platform"]
 
@@ -220,6 +233,7 @@ def strip_accents(value):
 def wizard(path):
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
+    from esphome.components.libretuya import boards as libretuya_boards
 
     if not path.endswith(".yaml") and not path.endswith(".yml"):
         safe_print(
@@ -283,15 +297,17 @@ def wizard(path):
         "firmwares for it."
     )
     safe_print(
-        f"Are you using an {color(Fore.GREEN, 'ESP32')} or {color(Fore.GREEN, 'ESP8266')} platform? (Choose ESP8266 for Sonoff devices)"
+        f"Are you using an {color(Fore.GREEN, 'ESP32')}, {color(Fore.GREEN, 'ESP8266')} or {color(Fore.GREEN, 'LibreTuya')} platform? (Choose ESP8266 for Sonoff devices)"
     )
     while True:
         sleep(0.5)
         safe_print()
-        safe_print("Please enter either ESP32 or ESP8266.")
-        platform = input(color(Fore.BOLD_WHITE, "(ESP32/ESP8266): "))
+        safe_print("Please enter either ESP32, ESP8266 or LibreTuya.")
+        platform = input(color(Fore.BOLD_WHITE, "(ESP32/ESP8266/LibreTuya): "))
         try:
-            platform = vol.All(vol.Upper, vol.Any("ESP32", "ESP8266"))(platform)
+            platform = vol.All(vol.Upper, vol.Any("ESP32", "ESP8266", "LIBRETUYA"))(
+                platform.upper()
+            )
             break
         except vol.Invalid:
             safe_print(
@@ -305,10 +321,12 @@ def wizard(path):
         board_link = (
             "http://docs.platformio.org/en/latest/platforms/espressif32.html#boards"
         )
-    else:
+    elif platform == "ESP8266":
         board_link = (
             "http://docs.platformio.org/en/latest/platforms/espressif8266.html#boards"
         )
+    else:
+        board_link = "https://github.com/kuba2k2/libretuya/tree/master/boards"
 
     safe_print(f"Next, I need to know what {color(Fore.GREEN, 'board')} you're using.")
     sleep(0.5)
@@ -320,9 +338,12 @@ def wizard(path):
     if platform == "ESP32":
         safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'nodemcu-32s')}\".")
         boards = list(esp32_boards.ESP32_BOARD_PINS.keys())
-    else:
+    elif platform == "ESP8266":
         safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'nodemcuv2')}\".")
         boards = list(esp8266_boards.ESP8266_BOARD_PINS.keys())
+    else:
+        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'wr3')}\".")
+        boards = list(libretuya_boards.LIBRETUYA_BOARD_PINS.keys())
     safe_print(f"Options: {', '.join(sorted(boards))}")
 
     while True:

@@ -74,6 +74,7 @@ UART_SELECTION_ESP32 = {
 }
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
+UART_SELECTION_LT = [UART0, UART1, UART2]
 
 ESP_IDF_UARTS = [USB_CDC, USB_SERIAL_JTAG]
 
@@ -106,6 +107,8 @@ def uart_selection(value):
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
     if CORE.is_esp8266:
         return cv.one_of(*UART_SELECTION_ESP8266, upper=True)(value)
+    if CORE.is_libretuya:
+        return cv.one_of(*UART_SELECTION_LT, upper=True)(value)
     raise NotImplementedError
 
 

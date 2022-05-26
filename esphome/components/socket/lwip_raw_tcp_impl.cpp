@@ -14,6 +14,11 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_LIBRETUYA
+// I'm not sure what defines this in ESP frameworks
+#define inet_addr_from_ip4addr(target_inaddr, source_ipaddr) ((target_inaddr)->s_addr = ip4_addr_get_u32(source_ipaddr))
+#endif
+
 namespace esphome {
 namespace socket {
 
