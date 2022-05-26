@@ -1,0 +1,30 @@
+/*!
+ * @file Adafruit_VL53L1X.cpp
+ *
+ * @mainpage Adafruit VL53L1X time-of-flight sensor
+ *
+ * @section intro_sec Introduction
+ *
+ * This is the documentation for Adafruit's VL53L1X driver for the
+ * Arduino platform.  It is designed specifically to work with the
+ * Adafruit VL53L1X breakout: https://www.adafruit.com/product/3967
+ *
+ * These sensors use I2C to communicate, 2 pins (SCL+SDA) are required
+ * to interface with the breakout.
+ *
+ * Adafruit invests time and resources providing this open source code,
+ * please support Adafruit and open-source hardware by purchasing
+ * products from Adafruit!
+ *
+ * @section dependencies Dependencies
+ *
+ *
+ * @section author Author
+ *
+ * Written by Limor Fried/Ladyada for Adafruit Industries.
+ *
+ * @section license License
+ *
+ * BSD license, all text here must be included in any redistribution.
+ *
+ */
