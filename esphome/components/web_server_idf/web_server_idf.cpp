@@ -192,6 +192,35 @@ void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
   httpd_resp_send_err(*this, HTTPD_401_UNAUTHORIZED, nullptr);
 }
 
+static std::string url_decode(const std::string &in) {
+  std::string out;
+  out.reserve(in.size());
+  for (std::size_t i = 0; i < in.size(); ++i) {
+    if (in[i] == '%') {
+      ++i;
+      if (i + 1 < in.size()) {
+        auto c = parse_hex<uint8_t>(&in[i], 2);
+        if (c.has_value()) {
+          out += static_cast<char>(*c);
+          ++i;
+        } else {
+          out += '%';
+          out += in[i++];
+          out += in[i];
+        }
+      } else {
+        out += '%';
+        out += in[i];
+      }
+    } else if (in[i] == '+') {
+      out += ' ';
+    } else {
+      out += in[i];
+    }
+  }
+  return out;
+}
+
 AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
   auto find = this->params_.find(name);
   if (find != this->params_.end()) {
@@ -227,9 +256,10 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
     return nullptr;
   }
   query_str.release();
-
-  auto *param = new AsyncWebParameter(query_val.get());
-  this->params_.insert({name, param});
+  auto decoded = url_decode(query_val.get());
+  query_val.release();
+  auto *param = new AsyncWebParameter(decoded);  // NOLINT(cppcoreguidelines-owning-memory)
+  this->params_.insert(std::make_pair(name, param));
   return param;
 }
 
