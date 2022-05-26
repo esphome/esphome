@@ -12,7 +12,6 @@
 namespace esphome {
 namespace vl53l1x {
 
-
 std::list<VL53L1XSensor *> VL53L1XSensor::vl53l1x_sensors;
 bool VL53L1XSensor::enable_pin_setup_complete = false;
 
@@ -32,7 +31,6 @@ void VL53L1XSensor::dump_config() {
 }
 
 void VL53L1XSensor::setup() {
-
   if (!esphome::vl53l1x::VL53L1XSensor::enable_pin_setup_complete) {
     for (auto &vl53_sensor : vl53l1x_sensors) {
       if (vl53_sensor->enable_pin_ != nullptr) {
@@ -105,7 +103,6 @@ void VL53L1XSensor::update() {
 //  range_m = this->read_range(true);
 //  publish_state(range_m);
 //}
-
 
 /**************************************************************************/
 /*!
@@ -233,7 +230,6 @@ bool VL53L1XSensor::data_ready() {
   return (bool) data_rdy;
 }
 
-
 /* vl53l1x_api.h functions */
 
 VL53L1X_Error VL53L1XSensor::vl53l1x_set_i2c_address(uint8_t new_address) {
@@ -254,7 +250,7 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_sensor_init() {
   }
 
   status = this->vl53l1x_start_ranging();
-  while(tmp==0) {
+  while (tmp == 0) {
     status = this->vl53l1x_check_for_data_ready(&tmp);
   }
   tmp = 0;
@@ -326,7 +322,7 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_check_for_data_ready(uint8_t *is_data_ready
 
 VL53L1X_Error VL53L1XSensor::vl53l1x_set_timing_budget_in_ms(uint16_t timing_budget_in_ms) {
   uint16_t dist_mode;
-  VL53L1X_Error status=0;
+  VL53L1X_Error status = 0;
 
   status = this->vl53l1x_get_distance_mode(&dist_mode);
 
@@ -411,7 +407,7 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_get_timing_budget_in_ms(uint16_t *p_timing_
       *p_timing_budget_in_ms = 15;
       break;
     case 0x0051:
-    case 0x001E :
+    case 0x001E:
       *p_timing_budget_in_ms = 20;
       break;
     case 0x00D6:
@@ -472,12 +468,12 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_set_distance_mode(uint16_t dist_mode) {
 }
 
 VL53L1X_Error VL53L1XSensor::vl53l1x_get_distance_mode(uint16_t *dist_mode) {
-  uint8_t temp_dm, status=0;
+  uint8_t temp_dm, status = 0;
 
   status = this->vl53l1x_rd_byte(this->PHASECAL_CONFIG_TIMEOUT_MACROP, &temp_dm);
   if (temp_dm == 0x14)
     *dist_mode = 1;
-  if(temp_dm == 0x0A)
+  if (temp_dm == 0x0A)
     *dist_mode = 2;
   return status;
 }
@@ -487,10 +483,10 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_set_inter_measurement_in_ms(uint16_t inter_
   VL53L1X_Error status = 0;
 
   status = this->vl53l1x_rd_word(this->VL53L1X_RESULT_OSC_CALIBRATE_VAL, &clock_pll);
-  clock_pll = clock_pll&0x3FF;
-  this->vl53l1x_wr_dword(this->VL53L1X_SYSTEM_INTERMEASUREMENT_PERIOD, (uint32_t) (clock_pll * inter_measurement_in_ms * 1.075));
+  clock_pll = clock_pll & 0x3FF;
+  this->vl53l1x_wr_dword(this->VL53L1X_SYSTEM_INTERMEASUREMENT_PERIOD,
+                         (uint32_t)(clock_pll * inter_measurement_in_ms * 1.075));
   return status;
-
 }
 
 VL53L1X_Error VL53L1XSensor::vl53l1x_get_inter_measurement_in_ms(uint16_t *p_im) {
@@ -502,7 +498,7 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_get_inter_measurement_in_ms(uint16_t *p_im)
   *p_im = (uint16_t) tmp;
   status = this->vl53l1x_rd_word(this->VL53L1X_RESULT_OSC_CALIBRATE_VAL, &clock_pll);
   clock_pll = clock_pll & 0x3FF;
-  *p_im= (uint16_t)(*p_im/(clock_pll * 1.065));
+  *p_im = (uint16_t)(*p_im / (clock_pll * 1.065));
   return status;
 }
 
@@ -549,7 +545,7 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_get_ambient_per_spad(uint16_t *amb) {
 
   status = this->vl53l1x_rd_word(this->RESULT_AMBIENT_COUNT_RATE_MCPS_SD, &ambient_rate);
   status = this->vl53l1x_rd_word(this->VL53L1X_RESULT_DSS_ACTUAL_EFFECTIVE_SPADS_SD0, &sp_nb);
-  *amb =(uint16_t)(2000.0 * ambient_rate / sp_nb);
+  *amb = (uint16_t)(2000.0 * ambient_rate / sp_nb);
   return status;
 }
 
@@ -645,7 +641,7 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_set_offset(int16_t offset_value) {
   return status;
 }
 
-VL53L1X_Error  VL53L1XSensor::vl53l1x_get_offset(int16_t *offset) {
+VL53L1X_Error VL53L1XSensor::vl53l1x_get_offset(int16_t *offset) {
   VL53L1X_Error status = 0;
   uint16_t temp;
 
@@ -667,7 +663,7 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_set_x_talk(uint16_t xtalk_value) {
   return status;
 }
 
-VL53L1X_Error VL53L1XSensor::vl53l1x_get_x_talk(uint16_t *xtalk ) {
+VL53L1X_Error VL53L1XSensor::vl53l1x_get_x_talk(uint16_t *xtalk) {
   VL53L1X_Error status = 0;
   uint16_t tmp;
 
@@ -676,8 +672,8 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_get_x_talk(uint16_t *xtalk ) {
   return status;
 }
 
-VL53L1X_Error VL53L1XSensor::vl53l1x_set_distance_threshold(
-    uint16_t thresh_low, uint16_t thresh_high, uint8_t window, uint8_t int_on_no_target) {
+VL53L1X_Error VL53L1XSensor::vl53l1x_set_distance_threshold(uint16_t thresh_low, uint16_t thresh_high, uint8_t window,
+                                                            uint8_t int_on_no_target) {
   VL53L1X_Error status = 0;
   uint8_t temp = 0;
 
@@ -693,7 +689,7 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_set_distance_threshold(
   return status;
 }
 
-VL53L1X_Error VL53L1XSensor::vl53l1x_get_distance_threshold_window(uint16_t *window){
+VL53L1X_Error VL53L1XSensor::vl53l1x_get_distance_threshold_window(uint16_t *window) {
   VL53L1X_Error status = 0;
   uint8_t tmp;
   status = this->vl53l1x_rd_byte(this->SYSTEM_INTERRUPT_CONFIG_GPIO, &tmp);
@@ -781,7 +777,7 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_get_signal_threshold(uint16_t *signal) {
 VL53L1X_Error VL53L1XSensor::vl53l1x_set_sigma_threshold(uint16_t sigma) {
   VL53L1X_Error status = 0;
 
-  if(sigma > (0xFFFF >> 2)) {
+  if (sigma > (0xFFFF >> 2)) {
     return 1;
   }
   /* 16 bits register 14.2 format */
@@ -796,7 +792,6 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_get_sigma_threshold(uint16_t *signal) {
   status = this->vl53l1x_rd_word(this->RANGE_CONFIG_SIGMA_THRESH, &tmp);
   *signal = tmp >> 2;
   return status;
-
 }
 
 VL53L1X_Error VL53L1XSensor::vl53l1x_start_temperature_update() {
@@ -806,7 +801,7 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_start_temperature_update() {
   status = this->vl53l1x_wr_byte(this->VL53L1X_VHV_CONFIG_TIMEOUT_MACROP_LOOP_BOUND, 0x81); /* full VHV */
   status = this->vl53l1x_wr_byte(0x0B, 0x92);
   status = this->vl53l1x_start_ranging();
-  while(tmp==0) {
+  while (tmp == 0) {
     status = vl53l1x_check_for_data_ready(&tmp);
   }
   tmp = 0;
@@ -846,7 +841,7 @@ int8_t VL53L1XSensor::vl53l1x_calibrate_offset(uint16_t target_dist_in_mm, int16
 }
 
 int8_t VL53L1XSensor::vl53l1x_calibrate_x_talk(uint16_t target_dist_in_mm, uint16_t *xtalk) {
-  uint8_t cnt, tmp= 0;
+  uint8_t cnt, tmp = 0;
   float average_signal_rate = 0;
   float average_distance = 0;
   float average_spad_nb = 0;
@@ -879,11 +874,10 @@ int8_t VL53L1XSensor::vl53l1x_calibrate_x_talk(uint16_t target_dist_in_mm, uint1
   return status;
 }
 
-
 /* Write and read functions from I2C */
 
 VL53L1X_Error VL53L1XSensor::vl53l1x_write_multi(uint16_t index, uint8_t *pdata, uint32_t count) {
-  int  status;
+  int status;
 
   status = this->vl53l1x_i2c_write(index, pdata, (uint16_t) count);
   return status;
@@ -918,8 +912,8 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_wr_dword(uint16_t index, uint32_t data) {
   return this->vl53l1x_i2c_write(index, buffer, 4);
 }
 
-VL53L1X_Error VL53L1XSensor::vl53l1x_rd_byte(uint16_t index, uint8_t *data){
-  int  status;
+VL53L1X_Error VL53L1XSensor::vl53l1x_rd_byte(uint16_t index, uint8_t *data) {
+  int status;
 
   status = this->vl53l1x_i2c_read(index, data, 1);
   if (status)
@@ -936,7 +930,6 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_rd_word(uint16_t index, uint16_t *data) {
     *data = (buffer[0] << 8) + buffer[1];
   }
   return status;
-
 }
 
 VL53L1X_Error VL53L1XSensor::vl53l1x_rd_dword(uint16_t index, uint32_t *data) {
@@ -944,13 +937,11 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_rd_dword(uint16_t index, uint32_t *data) {
   uint8_t buffer[4] = {0, 0, 0, 0};
 
   status = this->vl53l1x_i2c_read(index, buffer, 4);
-  if(!status)
-  {
+  if (!status) {
     *data = ((uint32_t) buffer[0] << 24) + ((uint32_t) buffer[1] << 16) + ((uint32_t) buffer[2] << 8) +
             (uint32_t) buffer[3];
   }
   return status;
-
 }
 
 VL53L1X_Error VL53L1XSensor::vl53l1x_update_byte(uint16_t index, uint8_t and_data, uint8_t or_data) {
@@ -966,7 +957,7 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_update_byte(uint16_t index, uint8_t and_dat
   return status;
 }
 
-VL53L1X_Error VL53L1XSensor::vl53l1x_i2c_write(uint16_t index, const uint8_t*data, uint16_t number_of_bytes) {
+VL53L1X_Error VL53L1XSensor::vl53l1x_i2c_write(uint16_t index, const uint8_t *data, uint16_t number_of_bytes) {
   uint8_t buffer[2 + number_of_bytes];
   uint16_t idx;
   buffer[0] = (uint8_t)(index >> 8);
@@ -979,7 +970,7 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_i2c_write(uint16_t index, const uint8_t*dat
   return 0;
 }
 
-VL53L1X_Error VL53L1XSensor::vl53l1x_i2c_read(uint16_t index, uint8_t*data, uint16_t number_of_bytes) {
+VL53L1X_Error VL53L1XSensor::vl53l1x_i2c_read(uint16_t index, uint8_t *data, uint16_t number_of_bytes) {
   VL53L1X_Error status = 0;
 
   // Loop until the port is transmitted correctly
@@ -988,7 +979,7 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_i2c_read(uint16_t index, uint8_t*data, uint
     buffer[0] = (uint8_t)(index >> 8);
     buffer[1] = (uint8_t)(index & 0xFF);
     status = this->write(buffer, 2, false);
-  } while(status != 0);
+  } while (status != 0);
 
   status = this->read(data, number_of_bytes);
   return status;
@@ -1024,10 +1015,8 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_wait_value_mask_ex(uint32_t timeout_ms, uin
   uint8_t byte_value = 0;
   uint8_t found = 0;
 
-
   /* calculate time limit in absolute time */
   this->vl53l1x_get_tick_count(&start_time_ms);
-
 
   /* wait until value is found, timeout reached on error occurred */
   while ((status == this->VL53L1X_ERROR_NONE) && (polling_time_ms < timeout_ms) && (found == 0)) {
@@ -1037,7 +1026,7 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_wait_value_mask_ex(uint32_t timeout_ms, uin
     if ((byte_value & mask) == value) {
       found = 1;
     }
-    if (status == this->VL53L1X_ERROR_NONE  && found == 0 && poll_delay_ms > 0) {
+    if (status == this->VL53L1X_ERROR_NONE && found == 0 && poll_delay_ms > 0) {
       status = this->vl53l1x_wait_ms(poll_delay_ms);
     }
 
@@ -1045,7 +1034,6 @@ VL53L1X_Error VL53L1XSensor::vl53l1x_wait_value_mask_ex(uint32_t timeout_ms, uin
     negate 32bit wrap around issue) */
     this->vl53l1x_get_tick_count(&current_time_ms);
     polling_time_ms = current_time_ms - start_time_ms;
-
   }
 
   if (found == 0 && status == this->VL53L1X_ERROR_NONE)

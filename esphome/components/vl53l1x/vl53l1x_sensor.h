@@ -118,10 +118,7 @@ const uint8_t VL51L1X_DEFAULT_CONFIGURATION[] = {
              vl53l1x_init() call, put 0x40 in location 0x87 */
 };
 
-class VL53L1XSensor :
-    public sensor::Sensor,
-    public PollingComponent,
-    public i2c::I2CDevice {
+class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   uint16_t VL53L1X_I2C_SENSOR_DEVICE_ADDRESS = 0x0001;
   uint16_t VL53L1X_VHV_CONFIG_TIMEOUT_MACROP_LOOP_BOUND = 0x0008;
@@ -168,9 +165,9 @@ class VL53L1XSensor :
   VL53L1X_Error VL53L1X_ERROR_NONE = 0;
   VL53L1X_Error VL53L1X_ERROR_CALIBRATION_WARNING = -1;
   /**!< Warning invalid calibration data may be in used
-  *     \a vl53l1x_InitData()
-  *     \a vl53l1x_GetOffsetCalibrationData
-  *     \a vl53l1x_SetOffsetCalibrationData */
+   *     \a vl53l1x_InitData()
+   *     \a vl53l1x_GetOffsetCalibrationData
+   *     \a vl53l1x_SetOffsetCalibrationData */
   VL53L1X_Error VL53L1X_ERROR_MIN_CLIPPED = -2;
   /*!< Warning parameter passed was clipped to min before to be applied */
   VL53L1X_Error VL53L1X_ERROR_UNDEFINED = -3;
@@ -213,92 +210,92 @@ class VL53L1XSensor :
   /*!< Zone dynamic config GPH ID check failed - API out of sync */
   VL53L1X_Error VL53L1X_ERROR_XTALK_EXTRACTION_NO_SAMPLE_FAIL = -22;
   /*!< Thrown when run_xtalk_extraction fn has 0 succesful samples
-  *    when using the full array to sample the xtalk. In this case there is
-  *    not enough information to generate new Xtalk parm info. The function
-  *    will exit and leave the current xtalk parameters unaltered */
+   *    when using the full array to sample the xtalk. In this case there is
+   *    not enough information to generate new Xtalk parm info. The function
+   *    will exit and leave the current xtalk parameters unaltered */
   VL53L1X_Error VL53L1X_ERROR_XTALK_EXTRACTION_SIGMA_LIMIT_FAIL = -23;
   /*!< Thrown when run_xtalk_extraction fn has found that the
-  *    avg sigma estimate of the full array xtalk sample is > than the
-  *    maximal limit allowed. In this case the xtalk sample is too noisy for
-  *    measurement. The function will exit and leave the current xtalk parameters
-  *    unaltered. */
+   *    avg sigma estimate of the full array xtalk sample is > than the
+   *    maximal limit allowed. In this case the xtalk sample is too noisy for
+   *    measurement. The function will exit and leave the current xtalk parameters
+   *    unaltered. */
   VL53L1X_Error VL53L1X_ERROR_OFFSET_CAL_NO_SAMPLE_FAIL = -24;
   /*!< Thrown if there one of stages has no valid offset calibration
-  *    samples. A fatal error calibration not valid */
+   *    samples. A fatal error calibration not valid */
   VL53L1X_Error VL53L1X_ERROR_OFFSET_CAL_NO_SPADS_ENABLED_FAIL = -25;
   /*!< Thrown if there one of stages has zero effective SPADS
-  *    Traps the case when MM1 SPADs is zero.
-  *    A fatal error calibration not valid */
+   *    Traps the case when MM1 SPADs is zero.
+   *    A fatal error calibration not valid */
   VL53L1X_Error VL53L1X_ERROR_ZONE_CAL_NO_SAMPLE_FAIL = -26;
   /*!< Thrown if then some of the zones have no valid samples
-  *    A fatal error calibration not valid */
+   *    A fatal error calibration not valid */
   VL53L1X_Error VL53L1X_ERROR_TUNING_PARM_KEY_MISMATCH = -27;
   /*!< Thrown if the tuning file key table version does not match with
-  *    expected value. The driver expects the key table version to match
-  *    the compiled default version number in the define
-  *    #vl53l1x_TUNINGPARM_KEY_TABLE_VERSION_DEFAULT */
+   *    expected value. The driver expects the key table version to match
+   *    the compiled default version number in the define
+   *    #vl53l1x_TUNINGPARM_KEY_TABLE_VERSION_DEFAULT */
   VL53L1X_Error VL53L1X_WARNING_REF_SPAD_CHAR_NOT_ENOUGH_SPADS = -28;
   /*!< Thrown if there are less than 5 good SPADs are available. */
   VL53L1X_Error VL53L1X_WARNING_REF_SPAD_CHAR_RATE_TOO_HIGH = -29;
   /*!< Thrown if the final reference rate is greater than
-  *    the upper reference rate limit - default is 40 Mcps.
-  *    Implies a minimum Q3 (x10) SPAD (5) selected */
+   *    the upper reference rate limit - default is 40 Mcps.
+   *    Implies a minimum Q3 (x10) SPAD (5) selected */
   VL53L1X_Error VL53L1X_WARNING_REF_SPAD_CHAR_RATE_TOO_LOW = -30;
   /*!< Thrown if the final reference rate is less than
-  *    the lower reference rate limit - default is 10 Mcps.
-  *    Implies maximum Q1 (x1) SPADs selected */
+   *    the lower reference rate limit - default is 10 Mcps.
+   *    Implies maximum Q1 (x1) SPADs selected */
   VL53L1X_Error VL53L1X_WARNING_OFFSET_CAL_MISSING_SAMPLES = -31;
   /*!< Thrown if there is less than the requested number of
-  *    valid samples. */
+   *    valid samples. */
   VL53L1X_Error VL53L1X_WARNING_OFFSET_CAL_SIGMA_TOO_HIGH = -32;
   /*!< Thrown if the offset calibration range sigma estimate is greater
-  *    than 8.0 mm. This is the recommended min value to yield a stable
-  *    offset measurement */
+   *    than 8.0 mm. This is the recommended min value to yield a stable
+   *    offset measurement */
   VL53L1X_Error VL53L1X_WARNING_OFFSET_CAL_RATE_TOO_HIGH = -33;
   /*!< Thrown when vl53l1x_run_offset_calibration()  peak rate is greater
-  *    than that 50.0Mcps. This is the recommended  max rate to avoid
-  *    pile-up influencing the offset measurement */
+   *    than that 50.0Mcps. This is the recommended  max rate to avoid
+   *    pile-up influencing the offset measurement */
   VL53L1X_Error VL53L1X_WARNING_OFFSET_CAL_SPAD_COUNT_TOO_LOW = -34;
   /*!< Thrown when vl53l1x_run_offset_calibration() when one of stages
-  *    range has less that 5.0 effective SPADS. This is the recommended
-  *    min value to yield a stable offset */
+   *    range has less that 5.0 effective SPADS. This is the recommended
+   *    min value to yield a stable offset */
   VL53L1X_Error VL53L1X_WARNING_ZONE_CAL_MISSING_SAMPLES = -35;
   /*!< Thrown if one of more of the zones have less than
-  *    the requested number of valid samples */
+   *    the requested number of valid samples */
   VL53L1X_Error VL53L1X_WARNING_ZONE_CAL_SIGMA_TOO_HIGH = -36;
   /*!< Thrown if one or more zones have sigma estimate value greater
-  *    than 8.0 mm. This is the recommended min value to yield a stable
-  *    offset measurement */
+   *    than 8.0 mm. This is the recommended min value to yield a stable
+   *    offset measurement */
   VL53L1X_Error VL53L1X_WARNING_ZONE_CAL_RATE_TOO_HIGH = -37;
   /*!< Thrown if one of more zones have  peak rate higher than
-  *    that 50.0Mcps. This is the recommended  max rate to avoid
-  *    pile-up influencing the offset measurement */
+   *    that 50.0Mcps. This is the recommended  max rate to avoid
+   *    pile-up influencing the offset measurement */
   VL53L1X_Error VL53L1X_WARNING_XTALK_MISSING_SAMPLES = -38;
   /*!< Thrown to notify that some of the xtalk samples did not yield
-  *    valid ranging pulse data while attempting to measure
-  *    the xtalk signal in vl53l1_run_xtalk_extract(). This can signify any of
-  *    the zones are missing samples, for further debug information the
-  *    xtalk_results struct should be referred to. This warning is for
-  *    notification only, the xtalk pulse and shape have still been generated. */
+   *    valid ranging pulse data while attempting to measure
+   *    the xtalk signal in vl53l1_run_xtalk_extract(). This can signify any of
+   *    the zones are missing samples, for further debug information the
+   *    xtalk_results struct should be referred to. This warning is for
+   *    notification only, the xtalk pulse and shape have still been generated. */
   VL53L1X_Error VL53L1X_WARNING_XTALK_NO_SAMPLES_FOR_GRADIENT = -39;
   /*!< Thrown to notify that some of teh xtalk samples used for gradient
-  *    generation did not yield valid ranging pulse data while attempting to
-  *    measure the xtalk signal in vl53l1_run_xtalk_extract(). This can signify
-  *    that any one of the zones 0-3 yielded no successful samples. The
-  *    xtalk_results struct should be referred to for further debug info.
-  *    This warning is for notification only, the xtalk pulse and shape
-  *    have still been generated. */
+   *    generation did not yield valid ranging pulse data while attempting to
+   *    measure the xtalk signal in vl53l1_run_xtalk_extract(). This can signify
+   *    that any one of the zones 0-3 yielded no successful samples. The
+   *    xtalk_results struct should be referred to for further debug info.
+   *    This warning is for notification only, the xtalk pulse and shape
+   *    have still been generated. */
   VL53L1X_Error VL53L1X_WARNING_XTALK_SIGMA_LIMIT_FOR_GRADIENT = -40;
   /*!< Thrown to notify that some of the xtalk samples used for gradient
-  *    generation did not pass the sigma limit check  while attempting to
-  *    measure the xtalk signal in vl53l1_run_xtalk_extract(). This can signify
-  *    that any one of the zones 0-3 yielded an avg sigma_mm value > the limit.
-  *    The xtalk_results struct should be referred to for further debug info.
-  *    This warning is for notification only, the xtalk pulse and shape
-  *    have still been generated. */
+   *    generation did not pass the sigma limit check  while attempting to
+   *    measure the xtalk signal in vl53l1_run_xtalk_extract(). This can signify
+   *    that any one of the zones 0-3 yielded an avg sigma_mm value > the limit.
+   *    The xtalk_results struct should be referred to for further debug info.
+   *    This warning is for notification only, the xtalk pulse and shape
+   *    have still been generated. */
   VL53L1X_Error VL53L1X_ERROR_NOT_IMPLEMENTED = -41;
   /*!< Tells requested functionality has not been implemented yet or
-  *    not compatible with the device */
+   *    not compatible with the device */
   VL53L1X_Error VL53L1X_ERROR_PLATFORM_SPECIFIC_START = -60;
   /*!< Tells the starting code for platform */
 
@@ -326,8 +323,8 @@ class VL53L1XSensor :
   /*** Interface Methods ***/
   /*** High level API ***/
   /**
-  * @brief       PowerOn the sensor
-  * @return      void
+   * @brief       PowerOn the sensor
+   * @return      void
    */
   /* turns on the sensor */
   virtual void vl53l1x_on() {
@@ -338,8 +335,8 @@ class VL53L1XSensor :
   }
 
   /**
-  * @brief       PowerOff the sensor
-  * @return      void
+   * @brief       PowerOff the sensor
+   * @return      void
    */
   /* turns off the sensor */
   virtual void vl53l1x_off() {
@@ -350,8 +347,8 @@ class VL53L1XSensor :
   }
 
   /**
-  * @brief       Initialize the sensor with default values
-  * @return      0 on Success
+   * @brief       Initialize the sensor with default values
+   * @return      0 on Success
    */
   VL53L1X_Error init_sensor(uint8_t address) {
     VL53L1X_Error status = 0;
@@ -376,262 +373,262 @@ class VL53L1XSensor :
   /* vl53l1x_api.h functions */
 
   /**
-  * @brief This function sets the sensor I2C address used in case multiple devices application, default address 0x52
+   * @brief This function sets the sensor I2C address used in case multiple devices application, default address 0x52
    */
   VL53L1X_Error vl53l1x_set_i2c_address(uint8_t new_address);
 
   /**
-  * @brief This function loads the 135 bytes default values to initialize the sensor.
-  * @param dev Device address
-  * @return 0:success, != 0:failed
+   * @brief This function loads the 135 bytes default values to initialize the sensor.
+   * @param dev Device address
+   * @return 0:success, != 0:failed
    */
   VL53L1X_Error vl53l1x_sensor_init();
 
   /**
-  * @brief This function clears the interrupt, to be called after a ranging data reading
-  * to arm the interrupt for the next data ready event.
+   * @brief This function clears the interrupt, to be called after a ranging data reading
+   * to arm the interrupt for the next data ready event.
    */
   VL53L1X_Error vl53l1x_clear_interrupt();
 
   /**
-  * @brief This function programs the interrupt polarity\n
-  * 1=active high (default), 0=active low
+   * @brief This function programs the interrupt polarity\n
+   * 1=active high (default), 0=active low
    */
   VL53L1X_Error vl53l1x_set_interrupt_polarity(uint8_t int_pol);
 
   /**
-  * @brief This function returns the current interrupt polarity\n
-  * 1=active high (default), 0=active low
+   * @brief This function returns the current interrupt polarity\n
+   * 1=active high (default), 0=active low
    */
   VL53L1X_Error vl53l1x_get_interrupt_polarity(uint8_t *p_int_pol);
 
   /**
-  * @brief This function starts the ranging distance operation\n
-  * The ranging operation is continuous. The clear interrupt has to be done after each get data to allow the interrupt
-  * to raise when the next data is ready\n 1=active high (default), 0=active low, use SetInterruptPolarity() to change
-  * the interrupt polarity if required.
+   * @brief This function starts the ranging distance operation\n
+   * The ranging operation is continuous. The clear interrupt has to be done after each get data to allow the interrupt
+   * to raise when the next data is ready\n 1=active high (default), 0=active low, use SetInterruptPolarity() to change
+   * the interrupt polarity if required.
    */
   VL53L1X_Error vl53l1x_start_ranging();
 
   /**
-  * @brief This function stops the ranging.
+   * @brief This function stops the ranging.
    */
   VL53L1X_Error vl53l1x_stop_ranging();
 
   /**
-  * @brief This function checks if the new ranging data is available by polling the dedicated register.
-  * @param : isDataReady==0 -> not ready; isDataReady==1 -> ready
+   * @brief This function checks if the new ranging data is available by polling the dedicated register.
+   * @param : isDataReady==0 -> not ready; isDataReady==1 -> ready
    */
   VL53L1X_Error vl53l1x_check_for_data_ready(uint8_t *is_data_ready);
 
   /**
-  * @brief This function programs the timing budget in ms.
-  * Predefined values = 15, 20, 33, 50, 100(default), 200, 500.
+   * @brief This function programs the timing budget in ms.
+   * Predefined values = 15, 20, 33, 50, 100(default), 200, 500.
    */
   VL53L1X_Error vl53l1x_set_timing_budget_in_ms(uint16_t timing_budget_in_ms);
 
   /**
-  * @brief This function returns the current timing budget in ms.
+   * @brief This function returns the current timing budget in ms.
    */
   VL53L1X_Error vl53l1x_get_timing_budget_in_ms(uint16_t *p_timing_budget_in_ms);
 
   /**
-  * @brief This function programs the distance mode (1=short, 2=long(default)).
-  * Short mode max distance is limited to 1.3 m but better ambient immunity.\n
-  * Long mode can range up to 4 m in the dark with 200 ms timing budget.
+   * @brief This function programs the distance mode (1=short, 2=long(default)).
+   * Short mode max distance is limited to 1.3 m but better ambient immunity.\n
+   * Long mode can range up to 4 m in the dark with 200 ms timing budget.
    */
   VL53L1X_Error vl53l1x_set_distance_mode(uint16_t dist_mode);
 
   /**
-  * @brief This function returns the current distance mode (1=short, 2=long).
+   * @brief This function returns the current distance mode (1=short, 2=long).
    */
   VL53L1X_Error vl53l1x_get_distance_mode(uint16_t *dist_mode);
 
   /**
-  * @brief This function programs the Intermeasurement period in ms\n
-  * Intermeasurement period must be >/= timing budget. This condition is not checked by the API,
-  * the customer has the duty to check the condition. Default = 100 ms
+   * @brief This function programs the Intermeasurement period in ms\n
+   * Intermeasurement period must be >/= timing budget. This condition is not checked by the API,
+   * the customer has the duty to check the condition. Default = 100 ms
    */
   VL53L1X_Error vl53l1x_set_inter_measurement_in_ms(uint16_t inter_measurement_in_ms);
 
   /**
-  * @brief This function returns the Intermeasurement period in ms.
+   * @brief This function returns the Intermeasurement period in ms.
    */
   VL53L1X_Error vl53l1x_get_inter_measurement_in_ms(uint16_t *p_im);
 
   /**
-  * @brief This function returns the boot state of the device (1:booted, 0:not booted)
+   * @brief This function returns the boot state of the device (1:booted, 0:not booted)
    */
   VL53L1X_Error vl53l1x_boot_state(uint8_t *state);
 
   /**
-  * @brief This function returns the sensor id, sensor Id must be 0xEEAC
+   * @brief This function returns the sensor id, sensor Id must be 0xEEAC
    */
   VL53L1X_Error vl53l1x_get_sensor_id(uint16_t *sensor_id);
 
   /**
-  * @brief This function returns the distance measured by the sensor in mm
+   * @brief This function returns the distance measured by the sensor in mm
    */
   VL53L1X_Error vl53l1x_get_distance(uint16_t *distance);
 
   /**
-  * @brief This function returns the returned signal per SPAD in kcps/SPAD.
-  * With kcps stands for Kilo Count Per Second
+   * @brief This function returns the returned signal per SPAD in kcps/SPAD.
+   * With kcps stands for Kilo Count Per Second
    */
   VL53L1X_Error vl53l1x_get_signal_per_spad(uint16_t *signal_per_sp);
 
   /**
-  * @brief This function returns the ambient per SPAD in kcps/SPAD
+   * @brief This function returns the ambient per SPAD in kcps/SPAD
    */
   VL53L1X_Error vl53l1x_get_ambient_per_spad(uint16_t *amb);
 
   /**
-  * @brief This function returns the returned signal in kcps.
+   * @brief This function returns the returned signal in kcps.
    */
   VL53L1X_Error vl53l1x_get_signal_rate(uint16_t *signal_rate);
 
   /**
-  * @brief This function returns the current number of enabled SPADs
+   * @brief This function returns the current number of enabled SPADs
    */
   VL53L1X_Error vl53l1x_get_spad_nb(uint16_t *sp_nb);
 
   /**
-  * @brief This function returns the ambient rate in kcps
+   * @brief This function returns the ambient rate in kcps
    */
   VL53L1X_Error vl53l1x_get_ambient_rate(uint16_t *amb_rate);
 
   /**
-  * @brief This function returns the ranging status error \n
-  * (0:no error, 1:sigma failed, 2:signal failed, ..., 7:wrap-around)
+   * @brief This function returns the ranging status error \n
+   * (0:no error, 1:sigma failed, 2:signal failed, ..., 7:wrap-around)
    */
   VL53L1X_Error vl53l1x_get_range_status(uint8_t *range_status);
 
   /**
-  * @brief This function programs the offset correction in mm
-  * @param OffsetValue:the offset correction value to program in mm
+   * @brief This function programs the offset correction in mm
+   * @param OffsetValue:the offset correction value to program in mm
    */
   VL53L1X_Error vl53l1x_set_offset(int16_t offset_value);
 
   /**
-  * @brief This function returns the programmed offset correction value in mm
+   * @brief This function returns the programmed offset correction value in mm
    */
   VL53L1X_Error vl53l1x_get_offset(int16_t *offset);
 
   /**
-  * @brief This function programs the xtalk correction value in cps (Count Per Second).\n
-  * This is the number of photons reflected back from the cover glass in cps.
+   * @brief This function programs the xtalk correction value in cps (Count Per Second).\n
+   * This is the number of photons reflected back from the cover glass in cps.
    */
   VL53L1X_Error vl53l1x_set_x_talk(uint16_t xtalk_value);
 
   /**
-  * @brief This function returns the current programmed xtalk correction value in cps
+   * @brief This function returns the current programmed xtalk correction value in cps
    */
   VL53L1X_Error vl53l1x_get_x_talk(uint16_t *xtalk);
 
   /**
-  * @brief This function programs the threshold detection mode\n
-  * Example:\n
-  * vl53l1x_SetDistanceThreshold(dev,100,300,0,1): Below 100 \n
-  * vl53l1x_SetDistanceThreshold(dev,100,300,1,1): Above 300 \n
-  * vl53l1x_SetDistanceThreshold(dev,100,300,2,1): Out of window \n
-  * vl53l1x_SetDistanceThreshold(dev,100,300,3,1): In window \n
-  * @param dev : device address
-  * @param ThreshLow(in mm) : the threshold under which one the device raises an interrupt if Window = 0
-  * @param ThreshHigh(in mm) :  the threshold above which one the device raises an interrupt if Window = 1
-  * @param Window detection mode : 0=below, 1=above, 2=out, 3=in
-  * @param IntOnNoTarget = 1 (No longer used - just use 1)
+   * @brief This function programs the threshold detection mode\n
+   * Example:\n
+   * vl53l1x_SetDistanceThreshold(dev,100,300,0,1): Below 100 \n
+   * vl53l1x_SetDistanceThreshold(dev,100,300,1,1): Above 300 \n
+   * vl53l1x_SetDistanceThreshold(dev,100,300,2,1): Out of window \n
+   * vl53l1x_SetDistanceThreshold(dev,100,300,3,1): In window \n
+   * @param dev : device address
+   * @param ThreshLow(in mm) : the threshold under which one the device raises an interrupt if Window = 0
+   * @param ThreshHigh(in mm) :  the threshold above which one the device raises an interrupt if Window = 1
+   * @param Window detection mode : 0=below, 1=above, 2=out, 3=in
+   * @param IntOnNoTarget = 1 (No longer used - just use 1)
    */
   VL53L1X_Error vl53l1x_set_distance_threshold(uint16_t thresh_low, uint16_t thresh_high, uint8_t window,
                                                uint8_t int_on_no_target);
 
   /**
-  * @brief This function returns the window detection mode (0=below; 1=above; 2=out; 3=in)
+   * @brief This function returns the window detection mode (0=below; 1=above; 2=out; 3=in)
    */
   VL53L1X_Error vl53l1x_get_distance_threshold_window(uint16_t *window);
 
   /**
-  * @brief This function returns the low threshold in mm
+   * @brief This function returns the low threshold in mm
    */
   VL53L1X_Error vl53l1x_get_distance_threshold_low(uint16_t *low);
 
   /**
-  * @brief This function returns the high threshold in mm
+   * @brief This function returns the high threshold in mm
    */
   VL53L1X_Error vl53l1x_get_distance_threshold_high(uint16_t *high);
 
   /**
-  * @brief This function programs the ROI (Region of Interest)\n
-  * The ROI position is centered, only the ROI size can be reprogrammed.\n
-  * The smallest acceptable ROI size = 4\n
-  * @param roi_x:ROI Width; roi_y=ROI Height
+   * @brief This function programs the ROI (Region of Interest)\n
+   * The ROI position is centered, only the ROI size can be reprogrammed.\n
+   * The smallest acceptable ROI size = 4\n
+   * @param roi_x:ROI Width; roi_y=ROI Height
    */
   VL53L1X_Error vl53l1x_set_roi(uint16_t roi_x, uint16_t roi_y);
 
   /**
-  *@brief This function returns width X and height Y
+   *@brief This function returns width X and height Y
    */
   VL53L1X_Error vl53l1x_get_roi_xy(uint16_t *roi_x, uint16_t *roi_y);
 
   /**
-  *@brief This function programs the new user ROI center, please to be aware that there is no check in this function.
-  *if the ROI center vs ROI size is out of border the ranging function return error #13
+   *@brief This function programs the new user ROI center, please to be aware that there is no check in this function.
+   *if the ROI center vs ROI size is out of border the ranging function return error #13
    */
   VL53L1X_Error vl53l1x_set_roi_center(uint8_t roi_center);
 
   /**
-  *@brief This function returns the current user ROI center
+   *@brief This function returns the current user ROI center
    */
   VL53L1X_Error vl53l1x_get_roi_center(uint8_t *roi_center);
 
   /**
-  * @brief This function programs a new signal threshold in kcps (default=1024 kcps\n
+   * @brief This function programs a new signal threshold in kcps (default=1024 kcps\n
    */
   VL53L1X_Error vl53l1x_set_signal_threshold(uint16_t signal);
 
   /**
-  * @brief This function returns the current signal threshold in kcps
+   * @brief This function returns the current signal threshold in kcps
    */
   VL53L1X_Error vl53l1x_get_signal_threshold(uint16_t *signal);
 
   /**
-  * @brief This function programs a new sigma threshold in mm (default=15 mm)
+   * @brief This function programs a new sigma threshold in mm (default=15 mm)
    */
   VL53L1X_Error vl53l1x_set_sigma_threshold(uint16_t sigma);
 
   /**
-  * @brief This function returns the current sigma threshold in mm
+   * @brief This function returns the current sigma threshold in mm
    */
   VL53L1X_Error vl53l1x_get_sigma_threshold(uint16_t *signal);
 
   /**
-  * @brief This function performs the temperature calibration.
-  * It is recommended to call this function any time the temperature might have changed by more than 8 deg C
-  * without sensor ranging activity for an extended period.
+   * @brief This function performs the temperature calibration.
+   * It is recommended to call this function any time the temperature might have changed by more than 8 deg C
+   * without sensor ranging activity for an extended period.
    */
   VL53L1X_Error vl53l1x_start_temperature_update();
 
   /* vl53l1x_calibration.h functions */
 
   /**
-  * @brief This function performs the offset calibration.\n
-  * The function returns the offset value found and programs the offset compensation into the device.
-  * @param TargetDistInMm target distance in mm, ST recommended 100 mm
-  * Target reflectance = grey17%
-  * @return 0:success, !=0: failed
-  * @return offset pointer contains the offset found in mm
+   * @brief This function performs the offset calibration.\n
+   * The function returns the offset value found and programs the offset compensation into the device.
+   * @param TargetDistInMm target distance in mm, ST recommended 100 mm
+   * Target reflectance = grey17%
+   * @return 0:success, !=0: failed
+   * @return offset pointer contains the offset found in mm
    */
   int8_t vl53l1x_calibrate_offset(uint16_t target_dist_in_mm, int16_t *offset);
 
   /**
-  * @brief This function performs the xtalk calibration.\n
-  * The function returns the xtalk value found and programs the xtalk compensation to the device
-  * @param TargetDistInMm target distance in mm\n
-  * The target distance : the distance where the sensor start to "under range"\n
-  * due to the influence of the photons reflected back from the cover glass becoming strong\n
-  * It's also called inflection point\n
-  * Target reflectance = grey 17%
-  * @return 0: success, !=0: failed
-  * @return xtalk pointer contains the xtalk value found in cps (number of photons in count per second)
+   * @brief This function performs the xtalk calibration.\n
+   * The function returns the xtalk value found and programs the xtalk compensation to the device
+   * @param TargetDistInMm target distance in mm\n
+   * The target distance : the distance where the sensor start to "under range"\n
+   * due to the influence of the photons reflected back from the cover glass becoming strong\n
+   * It's also called inflection point\n
+   * Target reflectance = grey 17%
+   * @return 0: success, !=0: failed
+   * @return xtalk pointer contains the xtalk value found in cps (number of photons in count per second)
    */
   int8_t vl53l1x_calibrate_x_talk(uint16_t target_dist_in_mm, uint16_t *xtalk);
 
