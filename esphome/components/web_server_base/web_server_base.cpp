@@ -20,14 +20,15 @@ static const int UPDATE_SIZE_UNKNOWN = 0xFFFFFFFF;
 static const int U_FLASH = 0;
 class UpdaterStub {
  public:
-  static bool begin(int, int) ALWAYS_INLINE { return false; }
-  static bool isRunning() ALWAYS_INLINE { return false; }
-  static void printError(StreamString &ss) ALWAYS_INLINE { ss.print("Unimplemented yet"); }
-  static void abort() ALWAYS_INLINE {}
-  static bool hasError() ALWAYS_INLINE { return true; }
-  static int write(const uint8_t *data, int size) ALWAYS_INLINE { return 0; }
-  static bool end(bool) ALWAYS_INLINE { return true; }
-} Update;
+  bool begin(int /*unused*/, int /*unused*/) const { return false; }
+  bool isRunning /*NOLINT(readability-identifier-naming)*/ () const { return false; }
+  void printError /*NOLINT(readability-identifier-naming)*/ (StreamString &ss) const { ss.print("Unimplemented yet"); }
+  void abort() const {}
+  bool hasError /*NOLINT(readability-identifier-naming)*/ () const { return true; }
+  size_t write(const uint8_t * /*unused*/, int /*unused*/) const { return 0; }
+  bool end(bool /*unused*/) const { return true; }
+};
+const UpdaterStub Update; /*NOLINT(readability-identifier-naming)*/
 #endif
 
 namespace esphome {
