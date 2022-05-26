@@ -329,7 +329,7 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
   /* turns on the sensor */
   virtual void vl53l1x_on() {
     if (this->irq_pin_ != nullptr) {
-      this->irq_pin_->digital_write(1);
+      this->irq_pin_->digital_write(true);
     }
     delay(10);
   }
@@ -341,7 +341,7 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
   /* turns off the sensor */
   virtual void vl53l1x_off() {
     if (this->irq_pin_ != nullptr) {
-      this->irq_pin_->digital_write(0);
+      this->irq_pin_->digital_write(false);
     }
     delay(10);
   }

@@ -28,7 +28,7 @@ VL53L1XSensor = vl53l1x_ns.class_(
 )
 
 CONF_IO_2V8 = "io_2v8"
-CONF_IRQ_PIN = "irq_pin"
+CONF_GPIO1_PIN = "irq_pin"
 CONF_LONG_RANGE = "long_range"
 CONF_TIMING_BUDGET = "timing_budget"
 
@@ -62,7 +62,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_IRQ_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_GPIO1_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_IO_2V8, default=DEFAULT_CONF_IO_2V8): cv.boolean,
             cv.Optional(CONF_LONG_RANGE, default=DEFAULT_CONF_LONG_RANGE): cv.boolean,
             cv.Optional(
@@ -86,8 +86,8 @@ async def to_code(config):
         enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
         cg.add(var.set_enable_pin(enable))
 
-    if CONF_IRQ_PIN in config:
-        irq = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
+    if CONF_GPIO1_PIN in config:
+        irq = await cg.gpio_pin_expression(config[CONF_GPIO1_PIN])
         cg.add(var.set_irg_pin(irq))
 
     cg.add(var.set_io_2v8(config[CONF_IO_2V8]))

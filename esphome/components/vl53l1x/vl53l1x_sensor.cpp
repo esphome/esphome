@@ -36,7 +36,7 @@ void VL53L1XSensor::setup() {
       if (vl53_sensor->enable_pin_ != nullptr) {
         // Set enable pin as OUTPUT and disable the enable pin to force vl53 to HW Standby mode
         vl53_sensor->enable_pin_->setup();
-        vl53_sensor->enable_pin_->digital_write(0);
+        vl53_sensor->enable_pin_->digital_write(false);
       }
     }
     esphome::vl53l1x::VL53L1XSensor::enable_pin_setup_complete = true;
@@ -115,10 +115,10 @@ void VL53L1XSensor::update() {
 /**************************************************************************/
 bool VL53L1XSensor::begin(uint8_t i2c_addr) {
   if (this->enable_pin_ != nullptr) {
-    this->enable_pin_->digital_write(1);
-    this->enable_pin_->digital_write(0);
+    this->enable_pin_->digital_write(true);
+    this->enable_pin_->digital_write(false);
     delay(5);
-    this->enable_pin_->digital_write(1);
+    this->enable_pin_->digital_write(true);
   }
   delay(5);
 
