@@ -274,6 +274,15 @@ def fix_remote_receiver():
     }
 
 
+def fix_script():
+    output["script"][S_SCHEMAS][S_CONFIG_SCHEMA][S_TYPE] = S_SCHEMA
+    config_schema = output["script"][S_SCHEMAS][S_CONFIG_SCHEMA]
+    config_schema[S_SCHEMA][S_CONFIG_VARS]["id"]["id_type"] = {
+        "class": "script::Script"
+    }
+    config_schema["is_list"] = True
+
+
 def get_logger_tags():
     pattern = re.compile(r'^static const char \*const TAG = "(\w.*)";', re.MULTILINE)
     # tags not in components dir
@@ -553,6 +562,7 @@ def build_schema():
     do_esp8266()
     do_esp32()
     fix_remote_receiver()
+    fix_script()
     add_logger_tags()
     shrink()
 
