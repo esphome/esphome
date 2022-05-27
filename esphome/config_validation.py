@@ -1558,12 +1558,16 @@ def validate_registry(name, registry):
     return ensure_list(validate_registry_entry(name, registry))
 
 
-@jschema_list
 def maybe_simple_value(*validators, **kwargs):
     key = kwargs.pop("key", CONF_VALUE)
     validator = All(*validators)
 
+    @jschema_extractor("maybe")
     def validate(value):
+        # pylint: disable=comparison-with-callable
+        if value == jschema_extractor:
+            return (validator, key)
+
         if isinstance(value, dict) and key in value:
             return validator(value)
         return validator({key: value})
