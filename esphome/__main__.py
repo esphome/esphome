@@ -22,6 +22,7 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
     CONF_SUBSTITUTIONS,
+    PLATFORM_LIBRETUYA,
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
@@ -258,6 +259,14 @@ def upload_using_esptool(config, port):
 
 
 def upload_program(config, args, host):
+    if CORE.target_platform in (PLATFORM_LIBRETUYA):
+        from esphome import platformio_api
+
+        upload_args = ["-t", "upload"]
+        if args.device is not None:
+            upload_args += ["--upload-port", args.device]
+        return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+
     # if upload is to a serial port use platformio, otherwise assume ota
     if get_port_type(host) == "SERIAL":
         return upload_using_esptool(config, host)
