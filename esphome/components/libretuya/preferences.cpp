@@ -11,7 +11,7 @@
 namespace esphome {
 namespace libretuya {
 
-static const char *const TAG = "libretuya.preferences";
+static const char *const TAG = "lt.preferences";
 
 struct NVSData {
   std::string key;

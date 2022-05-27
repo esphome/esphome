@@ -1,4 +1,5 @@
 #pragma once
+
 #ifdef USE_LIBRETUYA
 
 namespace esphome {

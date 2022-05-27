@@ -3,8 +3,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
-#include <FreeRTOS.h>
-#include <task.h>
 
 void setup();
 void loop();

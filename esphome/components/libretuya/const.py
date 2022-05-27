@@ -2,18 +2,5 @@ import esphome.codegen as cg
 
 KEY_LIBRETUYA = "libretuya"
 KEY_BOARD = "board"
-KEY_VARIANT = "variant"
-
-VARIANT_LIBRETUYA = "LIBRETUYA"
-VARIANT_LIBRETUYA_AMBZ = "LIBRETUYA_AMBZ"
-VARIANTS = [
-    VARIANT_LIBRETUYA,
-    VARIANT_LIBRETUYA_AMBZ,
-]
-
-VARIANT_FRIENDLY = {
-    VARIANT_LIBRETUYA: "LIBRETUYA",
-    VARIANT_LIBRETUYA_AMBZ: "LIBRETUYA-AMBZ",
-}
 
 libretuya_ns = cg.esphome_ns.namespace("libretuya")
