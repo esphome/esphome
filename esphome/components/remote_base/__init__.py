@@ -1028,8 +1028,9 @@ def rc_switch_dumper(var, config):
 ) = declare_protocol("Samsung")
 SAMSUNG_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_DATA): cv.hex_uint64_t,
-        cv.Optional(CONF_NBITS, default=32): cv.int_range(32, 64),
+        cv.Optional(CONF_DATA, default=0): cv.hex_uint64_t,
+        cv.Optional(CONF_ADDRESS, default=0): cv.int_range(0, 0xFFFF),
+        cv.Optional(CONF_COMMAND, default=0): cv.int_range(0, 0xFFFF),
     }
 )
 
@@ -1041,7 +1042,8 @@ def samsung_binary_sensor(var, config):
             cg.StructInitializer(
                 SamsungData,
                 ("data", config[CONF_DATA]),
-                ("nbits", config[CONF_NBITS]),
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
             )
         )
     )
@@ -1061,8 +1063,10 @@ def samsung_dumper(var, config):
 async def samsung_action(var, config, args):
     template_ = await cg.templatable(config[CONF_DATA], args, cg.uint64)
     cg.add(var.set_data(template_))
-    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint8)
-    cg.add(var.set_nbits(template_))
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint16)
+    cg.add(var.set_command(template_))
 
 
 # Samsung36
