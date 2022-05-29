@@ -13,45 +13,45 @@ static const uint16_t CANALSAT_UNIT = 250;
 static const uint16_t CANALSATLD_UNIT = 320;
 
 CanalSatProtocol::CanalSatProtocol() {
-  this->frequency = CANALSAT_FREQ;
-  this->unit = CANALSAT_UNIT;
-  this->tag = CANALSAT_TAG;
+  this->frequency_ = CANALSAT_FREQ;
+  this->unit_ = CANALSAT_UNIT;
+  this->tag_ = CANALSAT_TAG;
 }
 
 CanalSatLDProtocol::CanalSatLDProtocol() {
-  this->frequency = CANALSATLD_FREQ;
-  this->unit = CANALSATLD_UNIT;
-  this->tag = CANALSATLD_TAG;
+  this->frequency_ = CANALSATLD_FREQ;
+  this->unit_ = CANALSATLD_UNIT;
+  this->tag_ = CANALSATLD_TAG;
 }
 
 void CanalSatBaseProtocol::encode(RemoteTransmitData *dst, const CanalSatData &data) {
   dst->reserve(48);
-  dst->set_carrier_frequency(this->frequency);
+  dst->set_carrier_frequency(this->frequency_);
 
   uint32_t raw{
       static_cast<uint32_t>((1 << 23) | (data.device << 16) | (data.address << 10) | (0 << 9) | (data.command << 1))};
-  bool wasHigh{true};
+  bool was_high{true};
 
   for (uint32_t mask = 0x800000; mask; mask >>= 1) {
     if (raw & mask) {
-      if (wasHigh) {
-        dst->mark(this->unit);
+      if (was_high) {
+        dst->mark(this->unit_);
       }
-      wasHigh = true;
+      was_high = true;
       if (raw & mask >> 1) {
-        dst->space(this->unit);
+        dst->space(this->unit_);
       } else {
-        dst->space(this->unit * 2);
+        dst->space(this->unit_ * 2);
       }
     } else {
-      if (!wasHigh) {
-        dst->space(this->unit);
+      if (!was_high) {
+        dst->space(this->unit_);
       }
-      wasHigh = false;
+      was_high = false;
       if (raw & mask >> 1) {
-        dst->mark(this->unit * 2);
+        dst->mark(this->unit_ * 2);
       } else {
-        dst->mark(this->unit);
+        dst->mark(this->unit_);
       }
     }
   }
@@ -66,40 +66,40 @@ optional<CanalSatData> CanalSatBaseProtocol::decode(RemoteReceiveData src) {
   };
 
   // Check if initial mark and spaces match
-  if (!src.peek_mark(this->unit) || !(src.peek_space(this->unit, 1) || src.peek_space(this->unit * 2, 1))) {
+  if (!src.peek_mark(this->unit_) || !(src.peek_space(this->unit_, 1) || src.peek_space(this->unit_ * 2, 1))) {
     return {};
   }
 
-  bool bit{1};
+  uint8_t bit{1};
   uint8_t offset{1};
-  uint32_t bitStream{0};
+  uint32_t buffer{0};
 
   while (offset < 24) {
-    bitStream = bitStream | (bit << (24 - offset++));
+    buffer = buffer | (bit << (24 - offset++));
     src.advance();
-    if (src.peek_mark(this->unit) || src.peek_space(this->unit)) {
+    if (src.peek_mark(this->unit_) || src.peek_space(this->unit_)) {
       src.advance();
-    } else if (src.peek_mark(this->unit * 2) || src.peek_space(this->unit * 2)) {
+    } else if (src.peek_mark(this->unit_ * 2) || src.peek_space(this->unit_ * 2)) {
       bit = !bit;
     } else if (offset != 24 && bit != 1) {  // If last bit is high, final space is indistinguishable
       return {};
     }
   }
 
-  data.device = (0xFF0000 & bitStream) >> 16;
-  data.address = (0x00FF00 & bitStream) >> 10;
-  data.repeat = (0x00FF00 & bitStream) >> 9;
-  data.command = (0x0000FF & bitStream) >> 1;
+  data.device = (0xFF0000 & buffer) >> 16;
+  data.address = (0x00FF00 & buffer) >> 10;
+  data.repeat = (0x00FF00 & buffer) >> 9;
+  data.command = (0x0000FF & buffer) >> 1;
 
   return data;
 }
 
 void CanalSatBaseProtocol::dump(const CanalSatData &data) {
-  if (this->tag == CANALSATLD_TAG) {
-    ESP_LOGD(this->tag, "Received CanalSatLD: device=0x%02X, address=0x%02X, command=0x%02X, repeat=0x%X", data.device,
+  if (this->tag_ == CANALSATLD_TAG) {
+    ESP_LOGD(this->tag_, "Received CanalSatLD: device=0x%02X, address=0x%02X, command=0x%02X, repeat=0x%X", data.device,
              data.address, data.command, data.repeat);
   } else {
-    ESP_LOGD(this->tag, "Received CanalSat: device=0x%02X, address=0x%02X, command=0x%02X, repeat=0x%X", data.device,
+    ESP_LOGD(this->tag_, "Received CanalSat: device=0x%02X, address=0x%02X, command=0x%02X, repeat=0x%X", data.device,
              data.address, data.command, data.repeat);
   }
 }

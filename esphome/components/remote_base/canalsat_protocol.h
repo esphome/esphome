@@ -25,9 +25,9 @@ class CanalSatBaseProtocol : public RemoteProtocol<CanalSatData> {
   void dump(const CanalSatData &data) override;
 
  protected:
-  uint16_t frequency;
-  uint16_t unit;
-  const char *tag;
+  uint16_t frequency_;
+  uint16_t unit_;
+  const char *tag_;
 };
 
 class CanalSatProtocol : public CanalSatBaseProtocol {
