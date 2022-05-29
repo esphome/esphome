@@ -175,7 +175,7 @@ class MenuItemCustom : public MenuItemEditable {
   bool select_next() override;
   bool select_prev() override;
 
-protected:
+ protected:
   void on_next_();
   void on_prev_();
 

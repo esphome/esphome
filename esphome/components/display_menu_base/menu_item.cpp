@@ -19,7 +19,7 @@ std::string MenuItemSelect::get_value_text() const {
     result = this->value_getter_.value()(this);
   } else {
     if (this->select_var_ != nullptr) {
-        result = this->select_var_->state;
+      result = this->select_var_->state;
     }
   }
 
@@ -47,7 +47,7 @@ bool MenuItemSelect::select_prev() {
 
   return changed;
 }
-#endif // USE_SELECT
+#endif  // USE_SELECT
 
 #ifdef USE_NUMBER
 std::string MenuItemNumber::get_value_text() const {
@@ -96,7 +96,6 @@ bool MenuItemNumber::select_prev() {
   return changed;
 }
 
-
 float MenuItemNumber::get_number_value_() const {
   float result = 0.0;
 
@@ -112,7 +111,7 @@ float MenuItemNumber::get_number_value_() const {
 
   return result;
 }
-#endif // USE_NUMBER
+#endif  // USE_NUMBER
 
 #ifdef USE_SWITCH
 std::string MenuItemSwitch::get_value_text() const {
@@ -127,17 +126,11 @@ std::string MenuItemSwitch::get_value_text() const {
   return result;
 }
 
-bool MenuItemSwitch::select_next() {
-  return this->toggle_switch_();
-}
+bool MenuItemSwitch::select_next() { return this->toggle_switch_(); }
 
-bool MenuItemSwitch::select_prev() {
-  return this->toggle_switch_();
-}
+bool MenuItemSwitch::select_prev() { return this->toggle_switch_(); }
 
-bool MenuItemSwitch::get_switch_state_() const {
-  return (this->switch_var_ != nullptr && this->switch_var_->state);
-}
+bool MenuItemSwitch::get_switch_state_() const { return (this->switch_var_ != nullptr && this->switch_var_->state); }
 
 bool MenuItemSwitch::toggle_switch_() {
   bool changed = false;
@@ -150,7 +143,7 @@ bool MenuItemSwitch::toggle_switch_() {
 
   return changed;
 }
-#endif // USE_SWITCH
+#endif  // USE_SWITCH
 
 std::string MenuItemCustom::get_value_text() const {
   return (this->value_getter_.has_value()) ? this->value_getter_.value()(this) : "";
@@ -181,8 +174,6 @@ bool MenuItemCustom::select_prev() {
 void MenuItemCustom::on_next_() { this->on_next_callbacks_.call(); }
 
 void MenuItemCustom::on_prev_() { this->on_prev_callbacks_.call(); }
-
-
 
 }  // namespace display_menu_base
 }  // namespace esphome
