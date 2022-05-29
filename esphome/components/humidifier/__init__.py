@@ -64,7 +64,7 @@ HUMIDIFIER_PRESETS = {
     "ACTIVITY": HumidifierPreset.HUMIDIFIER_PRESET_ACTIVITY,
 }
 
-validate_HUMIDIFIER_PRESET = cv.enum(HUMIDIFIER_PRESETS, upper=True)
+validate_humidifier_preset = cv.enum(HUMIDIFIER_PRESETS, upper=True)
 
 # Actions
 ControlAction = humidifier_ns.class_("ControlAction", automation.Action)
@@ -217,7 +217,7 @@ HUMIDIFIER_CONTROL_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_TARGET_HUMIDITY_LOW): cv.templatable(cv.humidity),
         cv.Optional(CONF_TARGET_HUMIDITY_HIGH): cv.templatable(cv.humidity),
         cv.Optional(CONF_AWAY): cv.templatable(cv.boolean),
-        cv.Exclusive(CONF_PRESET, "preset"): cv.templatable(validate_HUMIDIFIER_PRESET),
+        cv.Exclusive(CONF_PRESET, "preset"): cv.templatable(validate_humidifier_preset),
     }
 )
 
