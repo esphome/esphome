@@ -3,6 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import i2c
 from esphome.const import CONF_ID, CONF_INVERTED, CONF_RESOLUTION
 
+CODEOWNERS = ["@ellull"]
+
 DEPENDENCIES = ["i2c"]
 
 CONF_I2C_ADDR = 0x4C
