@@ -238,7 +238,13 @@ async def build_dumpers(config):
 
 
 # CanalSat
-CanalSatData, CanalSatBinarySensor, CanalSatTrigger, CanalSatAction, CanalSatDumper = declare_protocol("CanalSat")
+(
+    CanalSatData,
+    CanalSatBinarySensor,
+    CanalSatTrigger,
+    CanalSatAction,
+    CanalSatDumper,
+) = declare_protocol("CanalSat")
 CANALSAT_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DEVICE): cv.hex_uint8_t,
@@ -282,7 +288,13 @@ async def canalsat_action(var, config, args):
     cg.add(var.set_command(template_))
 
 
-CanalSatLDData, CanalSatLDBinarySensor, CanalSatLDTrigger, CanalSatLDAction, CanalSatLDDumper = declare_protocol("CanalSatLD")
+(
+    CanalSatLDData,
+    CanalSatLDBinarySensor,
+    CanalSatLDTrigger,
+    CanalSatLDAction,
+    CanalSatLDDumper,
+) = declare_protocol("CanalSatLD")
 CANALSATLD_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DEVICE): cv.hex_uint8_t,
@@ -290,6 +302,7 @@ CANALSATLD_SCHEMA = cv.Schema(
         cv.Required(CONF_COMMAND): cv.hex_uint8_t,
     }
 )
+
 
 @register_binary_sensor("canalsatld", CanalSatLDBinarySensor, CANALSAT_SCHEMA)
 def canalsatld_binary_sensor(var, config):
@@ -316,7 +329,7 @@ def canalsatld_dumper(var, config):
 
 
 @register_action("canalsatld", CanalSatLDAction, CANALSATLD_SCHEMA)
-async def canalsat_action(var, config, args):
+async def canalsatld_action(var, config, args):
     template_ = await cg.templatable(config[CONF_DEVICE], args, cg.uint8)
     cg.add(var.set_device(template_))
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)

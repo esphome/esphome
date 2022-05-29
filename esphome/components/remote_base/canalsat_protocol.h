@@ -11,7 +11,9 @@ struct CanalSatData {
   uint8_t repeat : 1;
   uint8_t command : 7;
 
-  bool operator==(const CanalSatData &rhs) const { return device == rhs.device && address == rhs.address && command == rhs.command; }
+  bool operator==(const CanalSatData &rhs) const {
+    return device == rhs.device && address == rhs.address && command == rhs.command;
+  }
 };
 
 struct CanalSatLDData : public CanalSatData {};
@@ -21,10 +23,11 @@ class CanalSatBaseProtocol : public RemoteProtocol<CanalSatData> {
   void encode(RemoteTransmitData *dst, const CanalSatData &data) override;
   optional<CanalSatData> decode(RemoteReceiveData src) override;
   void dump(const CanalSatData &data) override;
+
  protected:
   uint16_t frequency;
   uint16_t unit;
-  const char* tag;
+  const char *tag;
 };
 
 class CanalSatProtocol : public CanalSatBaseProtocol {
