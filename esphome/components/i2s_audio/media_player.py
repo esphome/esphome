@@ -89,5 +89,8 @@ async def to_code(config):
         cg.add_library("WiFiClientSecure", None)
         cg.add_library("HTTPClient", None)
         cg.add_library(
-            None, None, "https://github.com/jesserockz/ESP32-audioI2S#remove-fs-sd"
+            None,
+            None,
+            "https://github.com/jesserockz/ESP32-audioI2S#jesserockz-2022-173",
         )
+        cg.add_build_flag("-DAUDIO_NO_SD_FS")
