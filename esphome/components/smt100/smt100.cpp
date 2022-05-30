@@ -6,55 +6,52 @@ namespace smt100 {
 
 static const char *const TAG = "smt100";
 
-void SMT100Component::set_temperature_sensor(sensor::Sensor *temperature_sensor) {
-  temperature_sensor_ = temperature_sensor;
+void SMT100Component::update() {
+  ESP_LOGV(TAG, "Sending measurement request");
+  this->write_str("GetAllMeasurements!\r");
 }
-void SMT100Component::set_moisture_sensor(sensor::Sensor *moisture_sensor) { moisture_sensor_ = moisture_sensor; }
 
 void SMT100Component::loop() {
-  const uint32_t now = millis();
-
-  if (now - this->boot_up_time_ < SMT_BOOT_MS) {
-    if (this->boot_up_time_ == 0) {
-      this->boot_up_time_ = now;
-    }
-    return;
-  }
-
-  if (now - this->last_update_ > this->update_interval_) {
-    this->write_str("GetAllMeasurements!\r");
-    this->last_update_ = now;
-  }
-
-  if (this->available() == 0)
-    return;
-
   static char buffer[MAX_LINE_LENGTH];
-  while (available()) {
+  while (this->available() != 0) {
     if (readline(read(), buffer, MAX_LINE_LENGTH) > 0) {
       int counts = (int) atoi((strtok(buffer, ",")));
       float dielectric_constant = (float) atof((strtok(NULL, ",")));
+      float moisture = (float) atof((strtok(NULL, ",")));
+      float temperature = (float) atof((strtok(NULL, ",")));
+      float voltage = (float) atof((strtok(NULL, ",")));
+
+      if (this->counts_sensor_ != nullptr) {
+        counts_sensor_->publish_state(counts);
+      }
+
+      if (this->dielectric_constant_sensor_ != nullptr) {
+        dielectric_constant_sensor_->publish_state(dielectric_constant);
+      }
 
       if (this->moisture_sensor_ != nullptr) {
-        float moisture = (float) atof((strtok(NULL, ",")));
         moisture_sensor_->publish_state(moisture);
       }
 
       if (this->temperature_sensor_ != nullptr) {
-        float temperature = (float) atof((strtok(NULL, ",")));
         temperature_sensor_->publish_state(temperature);
       }
 
-      float voltage = (float) atof((strtok(NULL, ",")));
+      if (this->voltage_sensor_ != nullptr) {
+        voltage_sensor_->publish_state(voltage);
+      }
     }
   }
 }
+
+float SMT100Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void SMT100Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SMT100:");
 
   LOG_SENSOR(TAG, "Temperature", this->temperature_sensor_);
   LOG_SENSOR(TAG, "Water content", this->moisture_sensor_);
+  LOG_UPDATE_INTERVAL(this);
   this->check_uart_settings(9600);
 }
 

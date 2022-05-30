@@ -4,13 +4,19 @@ from esphome.components import sensor, uart
 
 from esphome.const import (
     CONF_ID,
-    CONF_MOISTURE,
+    CONF_COUNTS,
+    CONF_DIELECTRIC_CONSTANT,
     CONF_TEMPERATURE,
+    CONF_MOISTURE,
+    CONF_VOLTAGE,
     ICON_WATER_PERCENT,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
+    UNIT_EMPTY,
     UNIT_CELSIUS,
     UNIT_PERCENT,
+    UNIT_VOLT,
 )
 
 DEPENDENCIES = ["uart"]
@@ -23,16 +29,32 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SMT100),
+            cv.Optional(CONF_COUNTS): sensor.sensor_schema(
+                unit_of_measurement=UNIT_EMPTY,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_DIELECTRIC_CONSTANT): sensor.sensor_schema(
+                unit_of_measurement=UNIT_EMPTY,
+                accuracy_decimals=2,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
+                accuracy_decimals=2,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_WATER_PERCENT,
-                accuracy_decimals=0,
+                accuracy_decimals=2,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_VOLTAGE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
@@ -47,6 +69,14 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
+    if CONF_COUNTS in config:
+        sens = await sensor.new_sensor(config[CONF_COUNTS])
+        cg.add(var.set_counts_sensor(sens))
+
+    if CONF_DIELECTRIC_CONSTANT in config:
+        sens = await sensor.new_sensor(config[CONF_DIELECTRIC_CONSTANT])
+        cg.add(var.set_dielectric_constant_sensor(sens))
+
     if CONF_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
@@ -54,3 +84,7 @@ async def to_code(config):
     if CONF_MOISTURE in config:
         sens = await sensor.new_sensor(config[CONF_MOISTURE])
         cg.add(var.set_moisture_sensor(sens))
+
+    if CONF_VOLTAGE in config:
+        sens = await sensor.new_sensor(config[CONF_VOLTAGE])
+        cg.add(var.set_voltage_sensor(sens))

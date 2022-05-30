@@ -757,10 +757,16 @@ sensor:
       oversampling: 2
   - platform: smt100
     uart_id: uart2
+    counts:
+      name: "Counts"
+    dielectric_constant:
+      name: "Dielectric Constant"
     temperature:
       name: "Temperature"
     moisture:
       name: "Moisture"
+    voltage:
+      name: "Voltage"
     update_interval: 60s
 time:
   - platform: homeassistant
