@@ -88,9 +88,5 @@ async def to_code(config):
     if CORE.is_esp32:
         cg.add_library("WiFiClientSecure", None)
         cg.add_library("HTTPClient", None)
-        cg.add_library(
-            None,
-            None,
-            "https://github.com/jesserockz/ESP32-audioI2S#jesserockz-2022-173",
-        )
+        cg.add_library("esphome/ESP32-audioI2S", "2.1.0")
         cg.add_build_flag("-DAUDIO_NO_SD_FS")
