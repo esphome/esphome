@@ -755,6 +755,13 @@ sensor:
     temperature:
       name: "mlxtemp"
       oversampling: 2
+  - platform: smt100
+    uart_id: uart2
+    temperature:
+      name: "Temperature"
+    moisture:
+      name: "Moisture"
+    update_interval: 60s
 time:
   - platform: homeassistant
 
