@@ -134,7 +134,6 @@ optional<RC6Data> RC6Protocol::decode(RemoteReceiveData src) {
     } else if (offset == 4) {
       break;
     } else if (!src.peek_mark(RC6_UNIT * 2) && !src.peek_space(RC6_UNIT * 2)) {
-      ESP_LOGD(RC6_TAG, "Error: offset=%u, mark/space=%u", offset, src.peek());
       return {};
     }
   }
