@@ -20,7 +20,8 @@ void NECProtocol::encode(RemoteTransmitData *dst, const NECData &data) {
     ESP_LOGW(TAG,
              "Your command (0x%04X) is 16bits instead of 8bits, which includes the inverses. "
              "Your command will be sent, but you might want to fix this, especially your receiver codes "
-             "which are not backwards compatible.", data.command);
+             "which are not backwards compatible.",
+             data.command);
   }
 
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
