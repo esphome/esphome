@@ -14,16 +14,16 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     if (this->audio_->isRunning())
       this->audio_->stopSong();
     this->high_freq_.start();
-    this->audio_->connecttohost((*call.get_media_url()).c_str());
+    this->audio_->connecttohost(call.get_media_url().value().c_str());
     this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
   }
   if (call.get_volume().has_value()) {
-    this->volume = *call.get_volume();
+    this->volume = call.get_volume().value();
     this->set_volume_(volume);
     this->unmute_();
   }
   if (call.get_command().has_value()) {
-    switch (*call.get_command()) {
+    switch (call.get_command().value()) {
       case media_player::MEDIA_PLAYER_COMMAND_PLAY:
         if (!this->audio_->isRunning())
           this->audio_->pauseResume();

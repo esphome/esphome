@@ -57,14 +57,14 @@ void MediaPlayerCall::perform() {
   ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   this->validate_();
   if (this->command_.has_value()) {
-    const char *command_s = media_player_command_to_string(*this->command_);
+    const char *command_s = media_player_command_to_string(this->command_.value());
     ESP_LOGD(TAG, "  Command: %s", command_s);
   }
   if (this->media_url_.has_value()) {
-    ESP_LOGD(TAG, "  Media URL: %s", this->media_url_->c_str());
+    ESP_LOGD(TAG, "  Media URL: %s", this->media_url_.value().c_str());
   }
   if (this->volume_.has_value()) {
-    ESP_LOGD(TAG, "  Volume: %.2f", *this->volume_);
+    ESP_LOGD(TAG, "  Volume: %.2f", this->volume_.value());
   }
   this->parent_->control(*this);
 }
