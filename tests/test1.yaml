@@ -1886,6 +1886,7 @@ climate:
   - platform: bedjet
     name: My Bedjet
     ble_client_id: my_bedjet_ble_client
+    heat_mode: extended
 
 script:
   - id: climate_custom

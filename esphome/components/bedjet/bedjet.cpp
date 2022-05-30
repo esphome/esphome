@@ -36,6 +36,14 @@ static uint8_t bedjet_fan_speed_to_step(const std::string &fan_step_percent) {
   return -1;
 }
 
+static BedjetButton heat_button(BedjetHeatMode mode) {
+  BedjetButton btn = BTN_HEAT;
+  if (mode == HEAT_MODE_EXTENDED) {
+    btn = BTN_EXTHT;
+  }
+  return btn;
+}
+
 void Bedjet::upgrade_firmware() {
   auto *pkt = this->codec_->get_button_request(MAGIC_UPDATE);
   auto status = this->write_bedjet_packet_(pkt);
@@ -117,7 +125,7 @@ void Bedjet::control(const ClimateCall &call) {
         pkt = this->codec_->get_button_request(BTN_OFF);
         break;
       case climate::CLIMATE_MODE_HEAT:
-        pkt = this->codec_->get_button_request(BTN_HEAT);
+        pkt = this->codec_->get_button_request(heat_button(this->heating_mode_));
         break;
       case climate::CLIMATE_MODE_FAN_ONLY:
         pkt = this->codec_->get_button_request(BTN_COOL);
@@ -186,6 +194,8 @@ void Bedjet::control(const ClimateCall &call) {
       pkt = this->codec_->get_button_request(BTN_M2);
     } else if (preset == "M3") {
       pkt = this->codec_->get_button_request(BTN_M3);
+    } else if (preset == "LTD HT") {
+      pkt = this->codec_->get_button_request(BTN_HEAT);
     } else if (preset == "EXT HT") {
       pkt = this->codec_->get_button_request(BTN_EXTHT);
     } else {
@@ -557,11 +567,25 @@ bool Bedjet::update_status_() {
       break;
 
     case MODE_HEAT:
+      this->mode = climate::CLIMATE_MODE_HEAT;
+      this->action = climate::CLIMATE_ACTION_HEATING;
+      this->preset.reset();
+      if (this->heating_mode_ == HEAT_MODE_EXTENDED) {
+        this->set_custom_preset_("LTD HT");
+      } else {
+        this->custom_preset.reset();
+      }
+      break;
+
     case MODE_EXTHT:
       this->mode = climate::CLIMATE_MODE_HEAT;
       this->action = climate::CLIMATE_ACTION_HEATING;
-      this->custom_preset.reset();
       this->preset.reset();
+      if (this->heating_mode_ == HEAT_MODE_EXTENDED) {
+        this->custom_preset.reset();
+      } else {
+        this->set_custom_preset_("EXT HT");
+      }
       break;
 
     case MODE_COOL:
