@@ -126,7 +126,7 @@ class ST7789V : public PollingComponent,
 
   void write_display_data();
 
-  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_BINARY; }
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
  protected:
   GPIOPin *dc_pin_;
