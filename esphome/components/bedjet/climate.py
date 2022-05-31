@@ -44,8 +44,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
     await ble_client.register_ble_node(var, config)
-    if CONF_HEAT_MODE in config:
-        cg.add(var.set_heating_mode(config[CONF_HEAT_MODE]))
+    cg.add(var.set_heating_mode(config[CONF_HEAT_MODE]))
     if CONF_TIME_ID in config:
         time_ = await cg.get_variable(config[CONF_TIME_ID])
         cg.add(var.set_time_id(time_))
