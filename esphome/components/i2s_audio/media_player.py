@@ -55,7 +55,7 @@ CONFIG_SCHEMA = cv.All(
                     ): pins.internal_gpio_output_pin_number,
                     cv.Required(CONF_I2S_WS_PIN): pins.internal_gpio_output_pin_number,
                     cv.Optional(CONF_MUTE_PIN): pins.gpio_output_pin_schema,
-                    cv.Optional(CONF_MODE): cv.one_of(
+                    cv.Optional(CONF_MODE, default="mono"): cv.one_of(
                         *EXTERNAL_DAC_OPTIONS, lower=True
                     ),
                 }
