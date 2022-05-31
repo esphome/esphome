@@ -301,6 +301,10 @@ ble_client:
         - switch.turn_on: ble1_status
   - mac_address: C4:4F:33:11:22:33
     id: my_bedjet_ble_client
+bedjet:
+  - ble_client_id: my_bedjet_ble_client
+    id: my_bedjet_client
+    time_id: sntp_time
 mcp23s08:
   - id: "mcp23s08_hub"
     cs_pin: GPIO12
@@ -1891,7 +1895,7 @@ climate:
     icon: mdi:stove
   - platform: bedjet
     name: My Bedjet
-    ble_client_id: my_bedjet_ble_client
+    bedjet_id: my_bedjet_client
     heat_mode: extended
 
 script:
