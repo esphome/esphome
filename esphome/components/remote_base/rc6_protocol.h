@@ -31,11 +31,15 @@ template<typename... Ts> class RC6Action : public RemoteTransmitterActionBase<Ts
   void encode(RemoteTransmitData *dst, Ts... x) {
     RC6Data data{};
     data.mode = 0;
-    data.toggle = 0;
+    data.toggle = this->toggle_;
     data.address = this->address_.value(x...);
     data.command = this->command_.value(x...);
     RC6Protocol().encode(dst, data);
+    this->toggle_ = !this->toggle_;
   }
+
+ protected:
+  uint8_t toggle_{0};
 };
 
 }  // namespace remote_base
