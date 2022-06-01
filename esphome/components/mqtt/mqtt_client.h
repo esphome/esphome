@@ -337,14 +337,14 @@ class MQTTJsonMessageTrigger : public Trigger<JsonObjectConst> {
 
 class MQTTConnectTrigger : public Trigger<> {
  public:
-  explicit MQTTConnectTrigger(MQTTClientComponent*& client) {
+  explicit MQTTConnectTrigger(MQTTClientComponent *&client) {
     client->set_on_connect([this](bool session_present) { this->trigger(); });
   }
 };
 
 class MQTTDisconnectTrigger : public Trigger<> {
  public:
-  explicit MQTTDisconnectTrigger(MQTTClientComponent*& client) {
+  explicit MQTTDisconnectTrigger(MQTTClientComponent *&client) {
     client->set_on_disconnect([this](MQTTClientDisconnectReason reason) { this->trigger(); });
   }
 };
