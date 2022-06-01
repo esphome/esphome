@@ -80,9 +80,9 @@ void I2SAudioMediaPlayer::stop_() {
 void I2SAudioMediaPlayer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Audio...");
   if (this->internal_dac_mode_ != I2S_DAC_CHANNEL_DISABLE) {
-    this->audio_ = new Audio(true, this->internal_dac_mode_);
+    this->audio_ = make_unique<Audio>(true, this->internal_dac_mode_);
   } else {
-    this->audio_ = new Audio(false);
+    this->audio_ = make_unique<Audio>(false);
     this->audio_->setPinout(this->bclk_pin_, this->ws_pin_, this->dout_pin_);
     this->audio_->forceMono(this->external_dac_channels_ == 1);
   }

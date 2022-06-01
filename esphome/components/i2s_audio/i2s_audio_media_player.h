@@ -40,7 +40,7 @@ class I2SAudioMediaPlayer : public Component, public media_player::MediaPlayer {
   void set_volume_(float volume, bool publish = true);
   void stop_();
 
-  Audio *audio_{nullptr};
+  std::unique_ptr<Audio> audio_;
 
   uint8_t dout_pin_{0};
   uint8_t din_pin_{0};
