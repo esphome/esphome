@@ -83,7 +83,7 @@ void I2SAudioMediaPlayer::setup() {
     this->audio_ = make_unique<Audio>(true, this->internal_dac_mode_);
   } else {
     this->audio_ = make_unique<Audio>(false);
-    this->audio_->setPinout(this->bclk_pin_, this->ws_pin_, this->dout_pin_);
+    this->audio_->setPinout(this->bclk_pin_, this->lrclk_pin_, this->dout_pin_);
     this->audio_->forceMono(this->external_dac_channels_ == 1);
   }
   this->state = media_player::MEDIA_PLAYER_STATE_IDLE;

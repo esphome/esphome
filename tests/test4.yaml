@@ -609,7 +609,7 @@ media_player:
   - platform: i2s_audio
     name: ${friendly_name}
     dac_type: external
-    i2s_ws_pin: GPIO26
+    i2s_lrclk_pin: GPIO26
     i2s_dout_pin: GPIO25
     i2s_bclk_pin: GPIO27
     mute_pin: GPIO14
