@@ -8,16 +8,16 @@ namespace dac7678 {
 
 static const char *const TAG = "dac7678";
 
-const uint8_t DAC7678_REG_INPUT_N = 0x00;
-const uint8_t DAC7678_REG_SELECT_UPDATE_N = 0x10;
-const uint8_t DAC7678_REG_WRITE_N_UPDATE_ALL = 0x20;
-const uint8_t DAC7678_REG_WRITE_N_UPDATE_N = 0x30;
-const uint8_t DAC7678_REG_POWER = 0x40;
-const uint8_t DAC7678_REG_CLEAR_CODE = 0x50;
-const uint8_t DAC7678_REG_LDAC = 0x60;
-const uint8_t DAC7678_REG_SOFTWARE_RESET = 0x70;
-const uint8_t DAC7678_REG_INTERNAL_REF_0 = 0x80;
-const uint8_t DAC7678_REG_INTERNAL_REF_1 = 0x90;
+static const uint8_t DAC7678_REG_INPUT_N = 0x00;
+static const uint8_t DAC7678_REG_SELECT_UPDATE_N = 0x10;
+static const uint8_t DAC7678_REG_WRITE_N_UPDATE_ALL = 0x20;
+static const uint8_t DAC7678_REG_WRITE_N_UPDATE_N = 0x30;
+static const uint8_t DAC7678_REG_POWER = 0x40;
+static const uint8_t DAC7678_REG_CLEAR_CODE = 0x50;
+static const uint8_t DAC7678_REG_LDAC = 0x60;
+static const uint8_t DAC7678_REG_SOFTWARE_RESET = 0x70;
+static const uint8_t DAC7678_REG_INTERNAL_REF_0 = 0x80;
+static const uint8_t DAC7678_REG_INTERNAL_REF_1 = 0x90;
 
 void DAC7678Output::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DAC7678OutputComponent...");
