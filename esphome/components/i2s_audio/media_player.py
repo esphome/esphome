@@ -28,7 +28,7 @@ CONF_DAC_TYPE = "dac_type"
 INTERNAL_DAC_OPTIONS = {
     "left": i2s_dac_mode_t.I2S_DAC_CHANNEL_LEFT_EN,
     "right": i2s_dac_mode_t.I2S_DAC_CHANNEL_RIGHT_EN,
-    "both": i2s_dac_mode_t.I2S_DAC_CHANNEL_BOTH_EN,
+    "stereo": i2s_dac_mode_t.I2S_DAC_CHANNEL_BOTH_EN,
 }
 
 EXTERNAL_DAC_OPTIONS = ["mono", "stereo"]
