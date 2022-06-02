@@ -37,8 +37,8 @@ enum HumidifierAction : uint8_t {
 
 /// Enum for all modes a humidifier preset can be in
 enum HumidifierPreset : uint8_t {
-  /// No preset is active
-  HUMIDIFIER_PRESET_NONE = 0,
+  /// Device is in normal preset
+  HUMIDIFIER_PRESET_NORMAL = 0,
   /// Device is in home preset
   HUMIDIFIER_PRESET_HOME = 1,
   /// Device is in away preset
