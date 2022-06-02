@@ -272,6 +272,15 @@ void APIServer::on_lock_update(lock::Lock *obj) {
 }
 #endif
 
+#ifdef USE_MEDIA_PLAYER
+void APIServer::on_media_player_update(media_player::MediaPlayer *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_media_player_state(obj);
+}
+#endif
+
 float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 void APIServer::set_port(uint16_t port) { this->port_ = port; }
 APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
