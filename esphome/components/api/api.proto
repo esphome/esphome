@@ -1057,7 +1057,7 @@ enum HumidifierAction {
   HUMIDIFIER_ACTION_IDLE = 4;
 }
 enum HumidifierPreset {
-  HUMIDIFIER_PRESET_NONE = 0;
+  HUMIDIFIER_PRESET_NORMAL = 0;
   HUMIDIFIER_PRESET_HOME = 1;
   HUMIDIFIER_PRESET_AWAY = 2;
   HUMIDIFIER_PRESET_BOOST = 3;
@@ -1067,7 +1067,7 @@ enum HumidifierPreset {
   HUMIDIFIER_PRESET_ACTIVITY = 7;
 }
 message ListEntitiesHumidifierResponse {
-  option (id) = 63;
+  option (id) = 66;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_HUMIDIFIER";
 
@@ -1089,7 +1089,7 @@ message ListEntitiesHumidifierResponse {
   EntityCategory entity_category = 15;
 }
 message HumidifierStateResponse {
-  option (id) = 64;
+  option (id) = 67;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_HUMIDIFIER";
   option (no_delay) = true;
@@ -1104,7 +1104,7 @@ message HumidifierStateResponse {
   HumidifierPreset preset = 8;
 }
 message HumidifierCommandRequest {
-  option (id) = 65;
+  option (id) = 68;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_HUMIDIFIER";
   option (no_delay) = true;

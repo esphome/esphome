@@ -26,7 +26,7 @@ void HygrostatHumidifier::setup() {
   if (restore.has_value()) {
     restore->to_call(this).perform();
   } else {
-    // restore from defaults, change_away handles temps for us
+    // restore from defaults, change_away handles humidities for us
     this->mode = this->default_mode_;
     this->change_away_(false);
   }
@@ -139,7 +139,7 @@ void HygrostatHumidifier::validate_target_humidity_high() {
 
 void HygrostatHumidifier::control(const humidifier::HumidifierCall &call) {
   if (call.get_preset().has_value()) {
-    // setup_complete_ blocks modifying/resetting the temps immediately after boot
+    // setup_complete_ blocks modifying/resetting the humidities immediately after boot
     if (this->setup_complete_) {
       this->change_away_(*call.get_preset() == humidifier::HUMIDIFIER_PRESET_AWAY);
     } else {
@@ -179,8 +179,11 @@ humidifier::HumidifierTraits HygrostatHumidifier::traits() {
   if (supports_humidify_)
     traits.add_supported_mode(humidifier::HUMIDIFIER_MODE_HUMIDIFY);
 
-  if (supports_away_)
+  if (supports_away_) {
     traits.set_supported_presets({humidifier::HUMIDIFIER_PRESET_HOME, humidifier::HUMIDIFIER_PRESET_AWAY});
+  } else {
+    traits.set_supported_presets({humidifier::HUMIDIFIER_PRESET_HOME});
+  }
 
   traits.set_supports_two_point_target_humidity(this->supports_two_points_);
   traits.set_supports_action(true);

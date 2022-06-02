@@ -36,8 +36,8 @@ const LogString *humidifier_action_to_string(HumidifierAction action) {
 
 const LogString *humidifier_preset_to_string(HumidifierPreset preset) {
   switch (preset) {
-    case humidifier::HUMIDIFIER_PRESET_NONE:
-      return LOG_STR("NONE");
+    case humidifier::HUMIDIFIER_PRESET_NORMAL:
+      return LOG_STR("NORMAL");
     case humidifier::HUMIDIFIER_PRESET_HOME:
       return LOG_STR("HOME");
     case humidifier::HUMIDIFIER_PRESET_ECO:

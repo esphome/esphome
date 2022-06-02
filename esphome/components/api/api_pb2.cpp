@@ -340,8 +340,8 @@ template<> const char *proto_enum_to_string<enums::HumidifierAction>(enums::Humi
 }
 template<> const char *proto_enum_to_string<enums::HumidifierPreset>(enums::HumidifierPreset value) {
   switch (value) {
-    case enums::HUMIDIFIER_PRESET_NONE:
-      return "HUMIDIFIER_PRESET_NONE";
+    case enums::HUMIDIFIER_PRESET_NORMAL:
+      return "HUMIDIFIER_PRESET_NORMAL";
     case enums::HUMIDIFIER_PRESET_HOME:
       return "HUMIDIFIER_PRESET_HOME";
     case enums::HUMIDIFIER_PRESET_AWAY:

@@ -54,7 +54,7 @@ validate_humidifier_mode = cv.enum(HUMIDIFIER_MODES, upper=True)
 
 HumidifierPreset = humidifier_ns.enum("HumidifierPreset")
 HUMIDIFIER_PRESETS = {
-    "NONE": HumidifierPreset.HUMIDIFIER_PRESET_NONE,
+    "NORMAL": HumidifierPreset.HUMIDIFIER_PRESET_NORMAL,
     "ECO": HumidifierPreset.HUMIDIFIER_PRESET_ECO,
     "AWAY": HumidifierPreset.HUMIDIFIER_PRESET_AWAY,
     "BOOST": HumidifierPreset.HUMIDIFIER_PRESET_BOOST,
