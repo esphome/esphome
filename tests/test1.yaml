@@ -168,6 +168,13 @@ mqtt:
                 id: uart0
                 data: !lambda |-
                   return {};
+  on_connect:
+    - light.turn_on: ${roomname}_lights
+    - mqtt.publish:
+        topic: some/topic
+        payload: Hello
+  on_disconnect:
+    - light.turn_off: ${roomname}_lights
 
 i2c:
   sda: 21
