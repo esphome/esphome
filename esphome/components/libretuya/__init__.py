@@ -5,12 +5,15 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
+    CONF_NAME,
+    CONF_PROJECT,
     CONF_SOURCE,
     CONF_VERSION,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    __version__,
 )
 from esphome.core import CORE
 
@@ -87,7 +90,7 @@ async def to_code(config):
 
     # setup board config
     cg.add_platformio_option("board", config[CONF_BOARD])
-    cg.add_build_flag(f"-DUSE_LIBRETUYA")
+    cg.add_build_flag("-DUSE_LIBRETUYA")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "LibreTuya")
 
@@ -111,6 +114,16 @@ async def to_code(config):
     cg.add_platformio_option("platform", f"libretuya @ {conf[CONF_VERSION]}")
 
     # dummy version code
-    cg.add_define(
-        "USE_ARDUINO_VERSION_CODE", cg.RawExpression(f"VERSION_CODE(0, 0, 0)")
-    )
+    cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
+
+    # custom output firmware name and version
+    if CONF_PROJECT in config:
+        cg.add_platformio_option(
+            "custom_fw_name", "esphome." + config[CONF_PROJECT][CONF_NAME]
+        )
+        cg.add_platformio_option(
+            "custom_fw_version", config[CONF_PROJECT][CONF_VERSION]
+        )
+    else:
+        cg.add_platformio_option("custom_fw_name", "esphome")
+        cg.add_platformio_option("custom_fw_version", __version__)
