@@ -82,7 +82,6 @@ class MediaPlayer : public EntityBase {
   friend MediaPlayerCall;
 
   virtual void control(const MediaPlayerCall &call) = 0;
-  uint32_t hash_base() override;
 
   CallbackManager<void()> state_callback_{};
 };

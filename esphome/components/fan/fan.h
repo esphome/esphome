@@ -136,7 +136,6 @@ class Fan : public EntityBase {
   void save_state_();
 
   void dump_traits_(const char *tag, const char *prefix);
-  uint32_t hash_base() override;
 
   CallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;

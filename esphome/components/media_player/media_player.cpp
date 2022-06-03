@@ -107,7 +107,6 @@ MediaPlayerCall &MediaPlayerCall::set_volume(float volume) {
 void MediaPlayer::add_on_state_callback(std::function<void()> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
-uint32_t MediaPlayer::hash_base() { return 1938496157UL; }
 
 void MediaPlayer::publish_state() { this->state_callback_.call(); }
 
