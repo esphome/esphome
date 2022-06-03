@@ -97,6 +97,7 @@ esphome/components/interval/* @esphome/core
 esphome/components/json/* @OttoWinter
 esphome/components/kalman_combinator/* @Cat-Ion
 esphome/components/ledc/* @OttoWinter
+esphome/components/libretuya/* @kuba2k2
 esphome/components/light/* @esphome/core
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
 esphome/components/lock/* @esphome/core
