@@ -38,7 +38,9 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
 
 #ifdef USE_TIME
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
+  void send_local_time();
 #endif
+  void set_clock(uint8_t hour, uint8_t minute);
   void set_status_timeout(uint32_t timeout) { this->timeout_ = timeout; }
   /** Sets the default strategy to use for climate::CLIMATE_MODE_HEAT. */
   void set_heating_mode(BedjetHeatMode mode) { this->heating_mode_ = mode; }
@@ -90,7 +92,6 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
 
 #ifdef USE_TIME
   void setup_time_();
-  void send_local_time_();
   optional<time::RealTimeClock *> time_id_{};
 #endif
 
