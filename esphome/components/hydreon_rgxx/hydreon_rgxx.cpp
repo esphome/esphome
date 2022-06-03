@@ -195,8 +195,11 @@ void HydreonRGxxComponent::process_line_() {
       if (n == std::string::npos) {
         continue;
       }
-      float data = parse_number<float>(this->buffer_.substr(n + strlen(PROTOCOL_NAMES[i]))).value();
-      this->sensors_[i]->publish_state(data);
+      auto data = parse_number<float>(this->buffer_.substr(n + strlen(PROTOCOL_NAMES[i])));
+      if (!data.has_value())
+        continue;
+      float d = data.value();
+      this->sensors_[i]->publish_state(d);
       ESP_LOGD(TAG, "Received %s: %f", PROTOCOL_NAMES[i], this->sensors_[i]->get_raw_state());
       this->sensors_received_ |= (1 << i);
     }
