@@ -1,5 +1,6 @@
 #ifdef USE_LIBRETUYA
 
+#include "core.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
