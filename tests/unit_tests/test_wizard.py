@@ -3,6 +3,7 @@
 import esphome.wizard as wz
 import pytest
 from esphome.components.esp8266.boards import ESP8266_BOARD_PINS
+from esphome.components.esp32.boards import ESP32_BOARD_PINS
 from unittest.mock import MagicMock
 
 
@@ -140,7 +141,27 @@ def test_wizard_write_defaults_platform_from_board_esp32(
     default_config, tmp_path, monkeypatch
 ):
     """
-    If the platform is not explicitly set, use "ESP32" if the board is not one of the ESP8266 boards
+    If the platform is not explicitly set, use "ESP32" if the board is one of the ESP32 boards
+    """
+    # Given
+    del default_config["platform"]
+    default_config["board"] = [*ESP32_BOARD_PINS][0]
+
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+
+    # When
+    wz.wizard_write(tmp_path, **default_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert "esp32:" in generated_config
+
+
+def test_wizard_write_defaults_platform_from_board_libretuya(
+    default_config, tmp_path, monkeypatch
+):
+    """
+    If the platform is not explicitly set, use LibreTuya if the board is not one of ESP32 and ESP8266 boards
     """
     # Given
     del default_config["platform"]
@@ -153,7 +174,7 @@ def test_wizard_write_defaults_platform_from_board_esp32(
 
     # Then
     generated_config = wz.write_file.call_args.args[1]
-    assert "esp32:" in generated_config
+    assert "libretuya:" in generated_config
 
 
 def test_safe_print_step_prints_step_number_and_description(monkeypatch):
