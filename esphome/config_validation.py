@@ -1098,9 +1098,9 @@ def possibly_negative_percentage(value):
                 msg += " Please put a percent sign after the number!"
             raise Invalid(msg)
     except TypeError:
-        raise Invalid(
+        raise Invalid(  # pylint: disable=raise-missing-from
             "Expected percentage or float between -1.0 and 1.0"
-        )  # pylint: disable=raise-missing-from
+        )
     return negative_one_to_one_float(value)
 
 
