@@ -1,6 +1,3 @@
-from dataclasses import dataclass
-from typing import Any
-
 from esphome.const import (
     CONF_ID,
     CONF_INPUT,
@@ -13,11 +10,9 @@ from esphome.const import (
     CONF_PULLUP,
 )
 from esphome import pins
-from esphome.core import CORE
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
-from . import boards
 from .const import libretuya_ns
 
 ArduinoInternalGPIOPin = libretuya_ns.class_(
