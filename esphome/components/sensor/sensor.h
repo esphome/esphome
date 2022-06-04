@@ -21,6 +21,12 @@ namespace sensor {
     if (!(obj)->get_icon().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
     } \
+    if (!(obj)->get_metric_id().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Metric ID: '%s'", prefix, (obj)->get_metric_id().c_str()); \
+    } \
+    if (!(obj)->get_metric_name().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Metric Name: '%s'", prefix, (obj)->get_metric_name().c_str()); \
+    } \
     if (!(obj)->unique_id().empty()) { \
       ESP_LOGV(TAG, "%s  Unique ID: '%s'", prefix, (obj)->unique_id().c_str()); \
     } \

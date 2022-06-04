@@ -4,6 +4,8 @@ from esphome.const import (
     CONF_DISABLED_BY_DEFAULT,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
+    CONF_METRIC_ID,
+    CONF_METRIC_NAME,
     CONF_INTERNAL,
     CONF_NAME,
     CONF_SETUP_PRIORITY,
@@ -103,6 +105,10 @@ async def setup_entity(var, config):
         add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_ICON in config:
         add(var.set_icon(config[CONF_ICON]))
+    if CONF_METRIC_ID in config:
+        add(var.set_metric_id(config[CONF_METRIC_ID]))
+    if CONF_METRIC_NAME in config:
+        add(var.set_metric_name(config[CONF_METRIC_NAME]))
     if CONF_ENTITY_CATEGORY in config:
         add(var.set_entity_category(config[CONF_ENTITY_CATEGORY]))
 

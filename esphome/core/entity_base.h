@@ -45,6 +45,14 @@ class EntityBase {
   const std::string &get_icon() const;
   void set_icon(const std::string &name);
 
+  // Get/set the metric label 'id' of this Entity
+  const std::string &get_metric_id() const;
+  void set_metric_id(const std::string &metric_id);
+
+  // Get/set the metric label 'name' of this Entity
+  const std::string &get_metric_name() const;
+  void set_metric_name(const std::string &metric_name);
+
  protected:
   virtual uint32_t hash_base() = 0;
   void calc_object_id_();
@@ -52,6 +60,8 @@ class EntityBase {
   std::string name_;
   std::string object_id_;
   std::string icon_;
+  std::string metric_id_;
+  std::string metric_name_;
   uint32_t object_id_hash_;
   bool internal_{false};
   bool disabled_by_default_{false};
