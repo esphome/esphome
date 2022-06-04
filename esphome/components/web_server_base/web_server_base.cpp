@@ -5,7 +5,7 @@
 #include "esphome/core/application.h"
 #include <StreamString.h>
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETUYA)
 #include <Update.h>
 #endif
 #ifdef USE_ESP8266
@@ -45,7 +45,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Strin
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     success = Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000);
 #endif
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETUYA)
     if (Update.isRunning())
       Update.abort();
     success = Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH);

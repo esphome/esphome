@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_LIBRETUYA)
 
 #include "ota_component.h"
 #include "ota_backend.h"
@@ -21,4 +21,4 @@ class ArduinoESP32OTABackend : public OTABackend {
 }  // namespace ota
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO || USE_LIBRETUYA

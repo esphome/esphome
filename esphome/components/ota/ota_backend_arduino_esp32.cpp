@@ -1,5 +1,5 @@
 #include "esphome/core/defines.h"
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_LIBRETUYA)
 
 #include "ota_backend_arduino_esp32.h"
 #include "ota_component.h"
@@ -22,7 +22,11 @@ OTAResponseTypes ArduinoESP32OTABackend::begin(size_t image_size) {
   return OTA_RESPONSE_ERROR_UNKNOWN;
 }
 
-void ArduinoESP32OTABackend::set_update_md5(const char *md5) { Update.setMD5(md5); }
+void ArduinoESP32OTABackend::set_update_md5(const char *md5) {
+#ifndef USE_LIBRETUYA  // not yet implemented
+  Update.setMD5(md5);
+#endif
+}
 
 OTAResponseTypes ArduinoESP32OTABackend::write(uint8_t *data, size_t len) {
   size_t written = Update.write(data, len);
@@ -43,4 +47,4 @@ void ArduinoESP32OTABackend::abort() { Update.abort(); }
 }  // namespace ota
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO || USE_LIBRETUYA

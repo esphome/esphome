@@ -11,11 +11,8 @@ void loop();
 namespace esphome {
 
 void arch_restart() {
-  // TODO restart system
-  // restart() doesn't always end execution
-  while (true) {  // NOLINT(clang-diagnostic-unreachable-code)
-    yield();
-  }
+  //
+  LT.restart();
 }
 
 void arch_init() {}
@@ -24,15 +21,18 @@ void IRAM_ATTR HOT arch_feed_wdt() {
   // TODO reset watchdog
 }
 
-uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
+uint8_t progmem_read_byte(const uint8_t *addr) {
+  //
+  return *addr;
+}
 
 uint32_t arch_get_cpu_cycle_count() {
-  // TODO return CPU cycle count
-  return 0;
+  //
+  return LT.getCycleCount();
 }
 uint32_t arch_get_cpu_freq_hz() {
-  // TODO return CPU clock
-  return 0;
+  //
+  return LT.getCpuFreq();
 }
 
 #ifdef USE_ARDUINO
