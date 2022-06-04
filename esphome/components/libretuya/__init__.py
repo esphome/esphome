@@ -19,6 +19,10 @@ from esphome.core import CORE
 
 from .const import KEY_BOARD, KEY_LIBRETUYA, libretuya_ns
 
+# force import gpio to register pin schema
+from .gpio import libretuya_pin_to_code  # noqa
+
+
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = []

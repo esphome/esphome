@@ -10,6 +10,12 @@ void loop();
 
 namespace esphome {
 
+void IRAM_ATTR HOT yield() { ::yield(); }
+uint32_t IRAM_ATTR HOT millis() { return ::millis(); }
+uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
+void IRAM_ATTR HOT delay(uint32_t ms) { ::delay(ms); }
+void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { ::delayMicroseconds(us); }
+
 void arch_restart() {
   //
   LT.restart();
