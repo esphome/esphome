@@ -28,11 +28,11 @@ void EntityBase::set_icon(const std::string &name) { this->icon_ = name; }
 
 // Entity Metric ID
 const std::string &EntityBase::get_metric_id() const { return this->metric_id_; }
-void EntityBase::set_metric_id(const std::string &label) { this->metric_id_ = label; }
+void EntityBase::set_metric_id(const std::string &metric_id) { this->metric_id_ = metric_id; }
 
 // Entity Metric Name
 const std::string &EntityBase::get_metric_name() const { return this->metric_name_; }
-void EntityBase::set_metric_name(const std::string &label) { this->metric_name_ = label; }
+void EntityBase::set_metric_name(const std::string &metric_name) { this->metric_name_ = metric_name; }
 
 // Entity Category
 EntityCategory EntityBase::get_entity_category() const { return this->entity_category_; }

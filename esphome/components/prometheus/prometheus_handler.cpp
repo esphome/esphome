@@ -66,27 +66,31 @@ void PrometheusHandler::sensor_row_(AsyncResponseStream *stream, sensor::Sensor 
   if (!std::isnan(obj->state)) {
     // We have a valid value, output this value
     stream->print(F("esphome_sensor_failed{id=\""));
-    if (!(obj)->get_metric_id().empty())
+    if (!(obj)->get_metric_id().empty()) {
       stream->print(obj->get_metric_id().c_str());
-    else
+    } else {
       stream->print(obj->get_object_id().c_str());
+    }
     stream->print(F("\",name=\""));
-    if (!(obj)->get_metric_name().empty())
+    if (!(obj)->get_metric_name().empty()) {
       stream->print(obj->get_metric_name().c_str());
-    else
+    } else {
       stream->print(obj->get_name().c_str());
+    }
     stream->print(F("\"} 0\n"));
     // Data itself
     stream->print(F("esphome_sensor_value{id=\""));
-    if (!(obj)->get_metric_id().empty())
+    if (!(obj)->get_metric_id().empty()) {
       stream->print(obj->get_metric_id().c_str());
-    else
+    } else {
       stream->print(obj->get_object_id().c_str());
+    }
     stream->print(F("\",name=\""));
-    if (!(obj)->get_metric_name().empty())
+    if (!(obj)->get_metric_name().empty()) {
       stream->print(obj->get_metric_name().c_str());
-    else
+    } else {
       stream->print(obj->get_name().c_str());
+    }
     stream->print(F("\",unit=\""));
     stream->print(obj->get_unit_of_measurement().c_str());
     stream->print(F("\"} "));
@@ -95,15 +99,17 @@ void PrometheusHandler::sensor_row_(AsyncResponseStream *stream, sensor::Sensor 
   } else {
     // Invalid state
     stream->print(F("esphome_sensor_failed{id=\""));
-    if (!(obj)->get_metric_id().empty())
+    if (!(obj)->get_metric_id().empty()) {
       stream->print(obj->get_metric_id().c_str());
-    else
+    } else {
       stream->print(obj->get_object_id().c_str());
+    }
     stream->print(F("\",name=\""));
-    if (!(obj)->get_metric_name().empty())
+    if (!(obj)->get_metric_name().empty()) {
       stream->print(obj->get_metric_name().c_str());
-    else
+    } else {
       stream->print(obj->get_name().c_str());
+    }
     stream->print(F("\"} 1\n"));
   }
 }
@@ -121,42 +127,48 @@ void PrometheusHandler::binary_sensor_row_(AsyncResponseStream *stream, binary_s
   if (obj->has_state()) {
     // We have a valid value, output this value
     stream->print(F("esphome_binary_sensor_failed{id=\""));
-    if (!(obj)->get_metric_id().empty())
+    if (!(obj)->get_metric_id().empty()) {
       stream->print(obj->get_metric_id().c_str());
-    else
+    } else {
       stream->print(obj->get_object_id().c_str());
+    }
     stream->print(F("\",name=\""));
-    if (!(obj)->get_metric_name().empty())
+    if (!(obj)->get_metric_name().empty()) {
       stream->print(obj->get_metric_name().c_str());
-    else
+    } else {
       stream->print(obj->get_name().c_str());
+    }
     stream->print(F("\"} 0\n"));
     // Data itself
     stream->print(F("esphome_binary_sensor_value{id=\""));
-    if (!(obj)->get_metric_id().empty())
+    if (!(obj)->get_metric_id().empty()) {
       stream->print(obj->get_metric_id().c_str());
-    else
+    } else {
       stream->print(obj->get_object_id().c_str());
+    }
     stream->print(F("\",name=\""));
-    if (!(obj)->get_metric_name().empty())
+    if (!(obj)->get_metric_name().empty()) {
       stream->print(obj->get_metric_name().c_str());
-    else
+    } else {
       stream->print(obj->get_name().c_str());
+    }
     stream->print(F("\"} "));
     stream->print(obj->state);
     stream->print('\n');
   } else {
     // Invalid state
     stream->print(F("esphome_binary_sensor_failed{id=\""));
-    if (!(obj)->get_metric_id().empty())
+    if (!(obj)->get_metric_id().empty()) {
       stream->print(obj->get_metric_id().c_str());
-    else
+    } else {
       stream->print(obj->get_object_id().c_str());
+    }
     stream->print(F("\",name=\""));
-    if (!(obj)->get_metric_name().empty())
+    if (!(obj)->get_metric_name().empty()) {
       stream->print(obj->get_metric_name().c_str());
-    else
+    } else {
       stream->print(obj->get_name().c_str());
+    }
     stream->print(F("\"} 1\n"));
   }
 }
@@ -173,42 +185,48 @@ void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::Fan *obj) {
   if (obj->is_internal() && !this->include_internal_)
     return;
   stream->print(F("esphome_fan_failed{id=\""));
-  if (!(obj)->get_metric_id().empty())
+  if (!(obj)->get_metric_id().empty()) {
     stream->print(obj->get_metric_id().c_str());
-  else
+  } else {
     stream->print(obj->get_object_id().c_str());
+  }
   stream->print(F("\",name=\""));
-  if (!(obj)->get_metric_name().empty())
+  if (!(obj)->get_metric_name().empty()) {
     stream->print(obj->get_metric_name().c_str());
-  else
+  } else {
     stream->print(obj->get_name().c_str());
+  }
   stream->print(F("\"} 0\n"));
   // Data itself
   stream->print(F("esphome_fan_value{id=\""));
-  if (!(obj)->get_metric_id().empty())
+  if (!(obj)->get_metric_id().empty()) {
     stream->print(obj->get_metric_id().c_str());
-  else
+  } else {
     stream->print(obj->get_object_id().c_str());
+  }
   stream->print(F("\",name=\""));
-  if (!(obj)->get_metric_name().empty())
+  if (!(obj)->get_metric_name().empty()) {
     stream->print(obj->get_metric_name().c_str());
-  else
+  } else {
     stream->print(obj->get_name().c_str());
+  }
   stream->print(F("\"} "));
   stream->print(obj->state);
   stream->print('\n');
   // Speed if available
   if (obj->get_traits().supports_speed()) {
     stream->print(F("esphome_fan_speed{id=\""));
-    if (!(obj)->get_metric_id().empty())
+    if (!(obj)->get_metric_id().empty()) {
       stream->print(obj->get_metric_id().c_str());
-    else
+    } else {
       stream->print(obj->get_object_id().c_str());
+    }
     stream->print(F("\",name=\""));
-    if (!(obj)->get_metric_name().empty())
+    if (!(obj)->get_metric_name().empty()) {
       stream->print(obj->get_metric_name().c_str());
-    else
+    } else {
       stream->print(obj->get_name().c_str());
+    }
     stream->print(F("\"} "));
     stream->print(obj->speed);
     stream->print('\n');
@@ -216,15 +234,17 @@ void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::Fan *obj) {
   // Oscillation if available
   if (obj->get_traits().supports_oscillation()) {
     stream->print(F("esphome_fan_oscillation{id=\""));
-    if (!(obj)->get_metric_id().empty())
+    if (!(obj)->get_metric_id().empty()) {
       stream->print(obj->get_metric_id().c_str());
-    else
+    } else {
       stream->print(obj->get_object_id().c_str());
+    }
     stream->print(F("\",name=\""));
-    if (!(obj)->get_metric_name().empty())
+    if (!(obj)->get_metric_name().empty()) {
       stream->print(obj->get_metric_name().c_str());
-    else
+    } else {
       stream->print(obj->get_name().c_str());
+    }
     stream->print(F("\"} "));
     stream->print(obj->oscillating);
     stream->print('\n');
@@ -243,15 +263,17 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
     return;
   // State
   stream->print(F("esphome_light_state{id=\""));
-  if (!(obj)->get_metric_id().empty())
+  if (!(obj)->get_metric_id().empty()) {
     stream->print(obj->get_metric_id().c_str());
-  else
+  } else {
     stream->print(obj->get_object_id().c_str());
+  }
   stream->print(F("\",name=\""));
-  if (!(obj)->get_metric_name().empty())
+  if (!(obj)->get_metric_name().empty()) {
     stream->print(obj->get_metric_name().c_str());
-  else
+  } else {
     stream->print(obj->get_name().c_str());
+  }
   stream->print(F("\"} "));
   stream->print(obj->remote_values.is_on());
   stream->print(F("\n"));
@@ -261,67 +283,77 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
   color.as_brightness(&brightness);
   color.as_rgbw(&r, &g, &b, &w);
   stream->print(F("esphome_light_color{id=\""));
-  if (!(obj)->get_metric_id().empty())
+  if (!(obj)->get_metric_id().empty()) {
     stream->print(obj->get_metric_id().c_str());
-  else
+  } else {
     stream->print(obj->get_object_id().c_str());
+  }
   stream->print(F("\",name=\""));
-  if (!(obj)->get_metric_name().empty())
+  if (!(obj)->get_metric_name().empty()) {
     stream->print(obj->get_metric_name().c_str());
-  else
+  } else {
     stream->print(obj->get_name().c_str());
+  }
   stream->print(F("\",channel=\"brightness\"} "));
   stream->print(brightness);
   stream->print(F("\n"));
   stream->print(F("esphome_light_color{id=\""));
-  if (!(obj)->get_metric_id().empty())
+  if (!(obj)->get_metric_id().empty()) {
     stream->print(obj->get_metric_id().c_str());
-  else
+  } else {
     stream->print(obj->get_object_id().c_str());
+  }
   stream->print(F("\",name=\""));
-  if (!(obj)->get_metric_name().empty())
+  if (!(obj)->get_metric_name().empty()) {
     stream->print(obj->get_metric_name().c_str());
-  else
+  } else {
     stream->print(obj->get_name().c_str());
+  }
   stream->print(F("\",channel=\"r\"} "));
   stream->print(r);
   stream->print(F("\n"));
   stream->print(F("esphome_light_color{id=\""));
-  if (!(obj)->get_metric_id().empty())
+  if (!(obj)->get_metric_id().empty()) {
     stream->print(obj->get_metric_id().c_str());
-  else
+  } else {
     stream->print(obj->get_object_id().c_str());
+  }
   stream->print(F("\",name=\""));
-  if (!(obj)->get_metric_name().empty())
+  if (!(obj)->get_metric_name().empty()) {
     stream->print(obj->get_metric_name().c_str());
-  else
+  } else {
     stream->print(obj->get_name().c_str());
+  }
   stream->print(F("\",channel=\"g\"} "));
   stream->print(g);
   stream->print(F("\n"));
   stream->print(F("esphome_light_color{id=\""));
-  if (!(obj)->get_metric_id().empty())
+  if (!(obj)->get_metric_id().empty()) {
     stream->print(obj->get_metric_id().c_str());
-  else
+  } else {
     stream->print(obj->get_object_id().c_str());
+  }
   stream->print(F("\",name=\""));
-  if (!(obj)->get_metric_name().empty())
+  if (!(obj)->get_metric_name().empty()) {
     stream->print(obj->get_metric_name().c_str());
-  else
+  } else {
     stream->print(obj->get_name().c_str());
+  }
   stream->print(F("\",channel=\"b\"} "));
   stream->print(b);
   stream->print(F("\n"));
   stream->print(F("esphome_light_color{id=\""));
-  if (!(obj)->get_metric_id().empty())
+  if (!(obj)->get_metric_id().empty()) {
     stream->print(obj->get_metric_id().c_str());
-  else
+  } else {
     stream->print(obj->get_object_id().c_str());
+  }
   stream->print(F("\",name=\""));
-  if (!(obj)->get_metric_name().empty())
+  if (!(obj)->get_metric_name().empty()) {
     stream->print(obj->get_metric_name().c_str());
-  else
+  } else {
     stream->print(obj->get_name().c_str());
+  }
   stream->print(F("\",channel=\"w\"} "));
   stream->print(w);
   stream->print(F("\n"));
@@ -329,27 +361,31 @@ void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightStat
   std::string effect = obj->get_effect_name();
   if (effect == "None") {
     stream->print(F("esphome_light_effect_active{id=\""));
-    if (!(obj)->get_metric_id().empty())
+    if (!(obj)->get_metric_id().empty()) {
       stream->print(obj->get_metric_id().c_str());
-    else
+    } else {
       stream->print(obj->get_object_id().c_str());
+    }
     stream->print(F("\",name=\""));
-    if (!(obj)->get_metric_name().empty())
+    if (!(obj)->get_metric_name().empty()) {
       stream->print(obj->get_metric_name().c_str());
-    else
+    } else {
       stream->print(obj->get_name().c_str());
+    }
     stream->print(F("\",effect=\"None\"} 0\n"));
   } else {
     stream->print(F("esphome_light_effect_active{id=\""));
-    if (!(obj)->get_metric_id().empty())
+    if (!(obj)->get_metric_id().empty()) {
       stream->print(obj->get_metric_id().c_str());
-    else
+    } else {
       stream->print(obj->get_object_id().c_str());
+    }
     stream->print(F("\",name=\""));
-    if (!(obj)->get_metric_name().empty())
+    if (!(obj)->get_metric_name().empty()) {
       stream->print(obj->get_metric_name().c_str());
-    else
+    } else {
       stream->print(obj->get_name().c_str());
+    }
     stream->print(F("\",effect=\""));
     stream->print(effect.c_str());
     stream->print(F("\"} 1\n"));
@@ -368,41 +404,47 @@ void PrometheusHandler::cover_row_(AsyncResponseStream *stream, cover::Cover *ob
   if (!std::isnan(obj->position)) {
     // We have a valid value, output this value
     stream->print(F("esphome_cover_failed{id=\""));
-    if (!(obj)->get_metric_id().empty())
+    if (!(obj)->get_metric_id().empty()) {
       stream->print(obj->get_metric_id().c_str());
-    else
+    } else {
       stream->print(obj->get_object_id().c_str());
+    }
     stream->print(F("\",name=\""));
-    if (!(obj)->get_metric_name().empty())
+    if (!(obj)->get_metric_name().empty()) {
       stream->print(obj->get_metric_name().c_str());
-    else
+    } else {
       stream->print(obj->get_name().c_str());
+    }
     stream->print(F("\"} 0\n"));
     // Data itself
     stream->print(F("esphome_cover_value{id=\""));
-    if (!(obj)->get_metric_id().empty())
+    if (!(obj)->get_metric_id().empty()) {
       stream->print(obj->get_metric_id().c_str());
-    else
+    } else {
       stream->print(obj->get_object_id().c_str());
+    }
     stream->print(F("\",name=\""));
-    if (!(obj)->get_metric_name().empty())
+    if (!(obj)->get_metric_name().empty()) {
       stream->print(obj->get_metric_name().c_str());
-    else
+    } else {
       stream->print(obj->get_name().c_str());
+    }
     stream->print(F("\"} "));
     stream->print(obj->position);
     stream->print('\n');
     if (obj->get_traits().get_supports_tilt()) {
       stream->print(F("esphome_cover_tilt{id=\""));
-      if (!(obj)->get_metric_id().empty())
+      if (!(obj)->get_metric_id().empty()) {
         stream->print(obj->get_metric_id().c_str());
-      else
+      } else {
         stream->print(obj->get_object_id().c_str());
+      }
       stream->print(F("\",name=\""));
-      if (!(obj)->get_metric_name().empty())
+      if (!(obj)->get_metric_name().empty()) {
         stream->print(obj->get_metric_name().c_str());
-      else
+      } else {
         stream->print(obj->get_name().c_str());
+      }
       stream->print(F("\"} "));
       stream->print(obj->tilt);
       stream->print('\n');
@@ -410,15 +452,17 @@ void PrometheusHandler::cover_row_(AsyncResponseStream *stream, cover::Cover *ob
   } else {
     // Invalid state
     stream->print(F("esphome_cover_failed{id=\""));
-    if (!(obj)->get_metric_id().empty())
+    if (!(obj)->get_metric_id().empty()) {
       stream->print(obj->get_metric_id().c_str());
-    else
+    } else {
       stream->print(obj->get_object_id().c_str());
+    }
     stream->print(F("\",name=\""));
-    if (!(obj)->get_metric_name().empty())
+    if (!(obj)->get_metric_name().empty()) {
       stream->print(obj->get_metric_name().c_str());
-    else
+    } else {
       stream->print(obj->get_name().c_str());
+    }
     stream->print(F("\"} 1\n"));
   }
 }
@@ -433,27 +477,31 @@ void PrometheusHandler::switch_row_(AsyncResponseStream *stream, switch_::Switch
   if (obj->is_internal() && !this->include_internal_)
     return;
   stream->print(F("esphome_switch_failed{id=\""));
-  if (!(obj)->get_metric_id().empty())
+  if (!(obj)->get_metric_id().empty()) {
     stream->print(obj->get_metric_id().c_str());
-  else
+  } else {
     stream->print(obj->get_object_id().c_str());
+  }
   stream->print(F("\",name=\""));
-  if (!(obj)->get_metric_name().empty())
+  if (!(obj)->get_metric_name().empty()) {
     stream->print(obj->get_metric_name().c_str());
-  else
+  } else {
     stream->print(obj->get_name().c_str());
+  }
   stream->print(F("\"} 0\n"));
   // Data itself
   stream->print(F("esphome_switch_value{id=\""));
-  if (!(obj)->get_metric_id().empty())
+  if (!(obj)->get_metric_id().empty()) {
     stream->print(obj->get_metric_id().c_str());
-  else
+  } else {
     stream->print(obj->get_object_id().c_str());
+  }
   stream->print(F("\",name=\""));
-  if (!(obj)->get_metric_name().empty())
+  if (!(obj)->get_metric_name().empty()) {
     stream->print(obj->get_metric_name().c_str());
-  else
+  } else {
     stream->print(obj->get_name().c_str());
+  }
   stream->print(F("\"} "));
   stream->print(obj->state);
   stream->print('\n');
@@ -469,27 +517,31 @@ void PrometheusHandler::lock_row_(AsyncResponseStream *stream, lock::Lock *obj) 
   if (obj->is_internal() && !this->include_internal_)
     return;
   stream->print(F("esphome_lock_failed{id=\""));
-  if (!(obj)->get_metric_id().empty())
+  if (!(obj)->get_metric_id().empty()) {
     stream->print(obj->get_metric_id().c_str());
-  else
+  } else {
     stream->print(obj->get_object_id().c_str());
+  }
   stream->print(F("\",name=\""));
-  if (!(obj)->get_metric_name().empty())
+  if (!(obj)->get_metric_name().empty()) {
     stream->print(obj->get_metric_name().c_str());
-  else
+  } else {
     stream->print(obj->get_name().c_str());
+  }
   stream->print(F("\"} 0\n"));
   // Data itself
   stream->print(F("esphome_lock_value{id=\""));
-  if (!(obj)->get_metric_id().empty())
+  if (!(obj)->get_metric_id().empty()) {
     stream->print(obj->get_metric_id().c_str());
-  else
+  } else {
     stream->print(obj->get_object_id().c_str());
+  }
   stream->print(F("\",name=\""));
-  if (!(obj)->get_metric_name().empty())
+  if (!(obj)->get_metric_name().empty()) {
     stream->print(obj->get_metric_name().c_str());
-  else
+  } else {
     stream->print(obj->get_name().c_str());
+  }
   stream->print(F("\"} "));
   stream->print(obj->state);
   stream->print('\n');
