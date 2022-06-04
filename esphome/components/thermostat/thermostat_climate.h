@@ -4,6 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
+#include <map>
 
 namespace esphome {
 namespace thermostat {
@@ -34,6 +35,10 @@ struct ThermostatClimateTargetTempConfig {
   ThermostatClimateTargetTempConfig(float default_temperature);
   ThermostatClimateTargetTempConfig(float default_temperature_low, float default_temperature_high);
 
+  void set_fan_mode(climate::ClimateFanMode fan_mode) { this->fan_mode_ = fan_mode; }
+  void set_swing_mode(climate::ClimateSwingMode swing_mode) { this->swing_mode_ = swing_mode; }
+  void set_mode(climate::ClimateMode mode) { this->mode_ = mode; }
+
   float default_temperature{NAN};
   float default_temperature_low{NAN};
   float default_temperature_high{NAN};
@@ -41,6 +46,9 @@ struct ThermostatClimateTargetTempConfig {
   float cool_overrun_{NAN};
   float heat_deadband_{NAN};
   float heat_overrun_{NAN};
+  optional<climate::ClimateFanMode> fan_mode_{};
+  optional<climate::ClimateSwingMode> swing_mode_{};
+  optional<climate::ClimateMode> mode_{};
 };
 
 class ThermostatClimate : public climate::Climate, public Component {
@@ -94,8 +102,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   void set_supports_swing_mode_vertical(bool supports_swing_mode_vertical);
   void set_supports_two_points(bool supports_two_points);
 
-  void set_normal_config(const ThermostatClimateTargetTempConfig &normal_config);
-  void set_away_config(const ThermostatClimateTargetTempConfig &away_config);
+  void set_preset_config(climate::ClimatePreset preset, const ThermostatClimateTargetTempConfig &config);
+  void set_custom_preset_config(const std::string &name, const ThermostatClimateTargetTempConfig &config);
 
   Trigger<> *get_cool_action_trigger() const;
   Trigger<> *get_supplemental_cool_action_trigger() const;
@@ -124,6 +132,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *get_swing_mode_off_trigger() const;
   Trigger<> *get_swing_mode_vertical_trigger() const;
   Trigger<> *get_temperature_change_trigger() const;
+  Trigger<> *get_preset_change_trigger() const;
   /// Get current hysteresis values
   float cool_deadband();
   float cool_overrun();
@@ -149,8 +158,14 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
 
-  /// Change the away setting, will reset target temperatures to defaults.
-  void change_away_(bool away);
+  /// Change to a provided preset setting; will reset temperature, mode, fan, and swing modes accordingly
+  void change_preset_(climate::ClimatePreset preset);
+  /// Change to a provided custom preset setting; will reset temperature, mode, fan, and swing modes accordingly
+  void change_custom_preset_(const std::string &custom_preset);
+
+  /// Applies the temperature, mode, fan, and swing modes of the provded config.
+  /// This is agnostic of custom vs built in preset
+  void change_preset_internal_(const ThermostatClimateTargetTempConfig &config);
 
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
@@ -210,6 +225,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool supplemental_cooling_required_();
   bool supplemental_heating_required_();
 
+  void dump_preset_config_(const std::string &preset_name, const ThermostatClimateTargetTempConfig &config);
+
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};
 
@@ -266,11 +283,6 @@ class ThermostatClimate : public climate::Climate, public Component {
   ///
   /// A false value means that the controller has no such support.
   bool supports_two_points_{false};
-
-  /// Whether the controller supports an "away" mode
-  ///
-  /// A false value means that the controller has no such mode.
-  bool supports_away_{false};
 
   /// Flags indicating if maximum allowable run time was exceeded
   bool cooling_max_runtime_exceeded_{false};
@@ -368,6 +380,9 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// The trigger to call when the target temperature(s) change(es).
   Trigger<> *temperature_change_trigger_{nullptr};
 
+  /// The triggr to call when the preset mode changes
+  Trigger<> *preset_change_trigger_{nullptr};
+
   /// A reference to the trigger that was previously active.
   ///
   /// This is so that the previous trigger can be stopped before enabling a new one
@@ -409,10 +424,6 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Minimum allowable duration in seconds for action timers
   const uint8_t min_timer_duration_{1};
 
-  /// Temperature data for normal/home and away modes
-  ThermostatClimateTargetTempConfig normal_config_{};
-  ThermostatClimateTargetTempConfig away_config_{};
-
   /// Climate action timers
   std::vector<ThermostatClimateTimer> timer_{
       {"cool_run", false, 0, std::bind(&ThermostatClimate::cooling_max_run_time_timer_callback_, this)},
@@ -425,6 +436,11 @@ class ThermostatClimate : public climate::Climate, public Component {
       {"heat_off", false, 0, std::bind(&ThermostatClimate::heating_off_timer_callback_, this)},
       {"heat_on", false, 0, std::bind(&ThermostatClimate::heating_on_timer_callback_, this)},
       {"idle_on", false, 0, std::bind(&ThermostatClimate::idle_on_timer_callback_, this)}};
+
+  /// The set of standard preset configurations this thermostat supports (Eg. AWAY, ECO, etc)
+  std::map<climate::ClimatePreset, ThermostatClimateTargetTempConfig> preset_config_{};
+  /// The set of custom preset configurations this thermostat supports (eg. "My Custom Preset")
+  std::map<std::string, ThermostatClimateTargetTempConfig> custom_preset_config_{};
 };
 
 }  // namespace thermostat

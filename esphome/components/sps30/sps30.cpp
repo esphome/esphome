@@ -1,5 +1,6 @@
-#include "sps30.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "sps30.h"
 
 namespace esphome {
 namespace sps30 {
@@ -44,6 +45,22 @@ void SPS30Component::setup() {
       this->serial_number_[i * 2 + 1] = uint16_t(uint16_t(raw_serial_number[i] & 0xFF));
     }
     ESP_LOGD(TAG, "  Serial Number: '%s'", this->serial_number_);
+
+    bool result;
+    if (this->fan_interval_.has_value()) {
+      // override default value
+      result = write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS, this->fan_interval_.value());
+    } else {
+      result = write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS);
+    }
+    if (result) {
+      delay(20);
+      uint16_t secs[2];
+      if (this->read_data(secs, 2)) {
+        fan_interval_ = secs[0] << 16 | secs[1];
+      }
+    }
+
     this->status_clear_warning();
     this->skipped_data_read_cycles_ = 0;
     this->start_continuous_measurement_();
@@ -202,6 +219,17 @@ bool SPS30Component::start_continuous_measurement_() {
   if (!this->write_command(SPS30_CMD_START_CONTINUOUS_MEASUREMENTS, SPS30_CMD_START_CONTINUOUS_MEASUREMENTS_ARG)) {
     ESP_LOGE(TAG, "Error initiating measurements");
     return false;
+  }
+  return true;
+}
+
+bool SPS30Component::start_fan_cleaning() {
+  if (!write_command(SPS30_CMD_START_FAN_CLEANING)) {
+    this->status_set_warning();
+    ESP_LOGE(TAG, "write error start fan (%d)", this->last_error_);
+    return false;
+  } else {
+    ESP_LOGD(TAG, "Fan auto clean started");
   }
   return true;
 }

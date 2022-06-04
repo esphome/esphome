@@ -118,12 +118,17 @@ class ESP32Preferences : public ESPPreferences {
     // go through vector from back to front (makes erase easier/more efficient)
     for (ssize_t i = s_pending_save.size() - 1; i >= 0; i--) {
       const auto &save = s_pending_save[i];
-      esp_err_t err = nvs_set_blob(nvs_handle, save.key.c_str(), save.data.data(), save.data.size());
-      if (err != 0) {
-        ESP_LOGV(TAG, "nvs_set_blob('%s', len=%u) failed: %s", save.key.c_str(), save.data.size(),
-                 esp_err_to_name(err));
-        any_failed = true;
-        continue;
+      ESP_LOGVV(TAG, "Checking if NVS data %s has changed", save.key.c_str());
+      if (is_changed(nvs_handle, save)) {
+        esp_err_t err = nvs_set_blob(nvs_handle, save.key.c_str(), save.data.data(), save.data.size());
+        if (err != 0) {
+          ESP_LOGV(TAG, "nvs_set_blob('%s', len=%u) failed: %s", save.key.c_str(), save.data.size(),
+                   esp_err_to_name(err));
+          any_failed = true;
+          continue;
+        }
+      } else {
+        ESP_LOGD(TAG, "NVS data not changed skipping %s  len=%u", save.key.c_str(), save.data.size());
       }
       s_pending_save.erase(s_pending_save.begin() + i);
     }
@@ -136,6 +141,22 @@ class ESP32Preferences : public ESPPreferences {
     }
 
     return !any_failed;
+  }
+  bool is_changed(const uint32_t nvs_handle, const NVSData &to_save) {
+    NVSData stored_data{};
+    size_t actual_len;
+    esp_err_t err = nvs_get_blob(nvs_handle, to_save.key.c_str(), nullptr, &actual_len);
+    if (err != 0) {
+      ESP_LOGV(TAG, "nvs_get_blob('%s'): %s - the key might not be set yet", to_save.key.c_str(), esp_err_to_name(err));
+      return true;
+    }
+    stored_data.data.reserve(actual_len);
+    err = nvs_get_blob(nvs_handle, to_save.key.c_str(), stored_data.data.data(), &actual_len);
+    if (err != 0) {
+      ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", to_save.key.c_str(), esp_err_to_name(err));
+      return true;
+    }
+    return to_save.data != stored_data.data;
   }
 };
 
