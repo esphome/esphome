@@ -21,7 +21,10 @@ void arch_restart() {
   LT.restart();
 }
 
-void arch_init() {}
+void arch_init() {
+  //
+  LT.gpioRecover();
+}
 
 void IRAM_ATTR HOT arch_feed_wdt() {
   // TODO reset watchdog
