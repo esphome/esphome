@@ -9,7 +9,7 @@ from esphome.const import (
     CONF_PIN,
 )
 
-DEPENDENCIES = ["esp32"]
+CONFLICTS_WITH = ["esp8266"]
 
 
 def calc_max_frequency(bit_depth):

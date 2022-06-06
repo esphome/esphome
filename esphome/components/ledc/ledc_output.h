@@ -5,7 +5,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/output/float_output.h"
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_LIBRETUYA)
 
 namespace esphome {
 namespace ledc {
