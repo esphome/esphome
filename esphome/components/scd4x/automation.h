@@ -11,7 +11,7 @@ template<typename... Ts> class PerformForcedCalibrationAction : public Action<Ts
  public:
   void play(Ts... x) override {
     if (this->value_.has_value()) {
-      this->parent_->perform_forced_calibration(value_.value());
+      this->parent_->perform_forced_calibration(this->value_.value(x...));
     }
   }
 
