@@ -28,6 +28,10 @@
 #include "esp_efuse_table.h"
 #endif
 
+#ifdef USE_LIBRETUYA
+#include <WiFi.h>  // for macAddress()
+#endif
+
 namespace esphome {
 
 // STL backports
@@ -386,6 +390,8 @@ void get_mac_address_raw(uint8_t *mac) {
 #endif
 #elif defined(USE_ESP8266)
   wifi_get_macaddr(STATION_IF, mac);
+#elif defined(USE_LIBRETUYA)
+  WiFi.macAddress(mac);
 #endif
 }
 std::string get_mac_address() {

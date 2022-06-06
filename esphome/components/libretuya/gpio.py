@@ -98,6 +98,8 @@ LIBRETUYA_PIN_SCHEMA = cv.All(
 async def libretuya_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
+    if not str(num).isnumeric():
+        num = cg.global_ns.namespace(num)
     cg.add(var.set_pin(num))
     cg.add(var.set_inverted(config[CONF_INVERTED]))
     cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))

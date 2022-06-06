@@ -90,7 +90,8 @@ network::IPAddress WiFiComponent::wifi_sta_ip() {
 }
 
 bool WiFiComponent::wifi_apply_hostname_() {
-  // setting is done in SYSTEM_EVENT_STA_START callback
+  // setting is done in SYSTEM_EVENT_STA_START callback too
+  WiFi.setHostname(App.get_name().c_str());
   return true;
 }
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {

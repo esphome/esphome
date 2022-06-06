@@ -117,6 +117,10 @@ def validate_adc_pin(value):
             {CONF_ANALOG: True, CONF_INPUT: True}, internal=True
         )(value)
 
+    if CORE.is_libretuya:
+        if str(value).startswith("A") and str(value)[1:].isnumeric():
+            return pins.internal_gpio_input_pin_schema(value)
+
     raise NotImplementedError
 
 

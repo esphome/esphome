@@ -24,7 +24,7 @@ void LEDCOutput::write_state(float state) {
   const float duty_rounded = roundf(state * max_duty);
   auto duty = static_cast<uint32_t>(duty_rounded);
 
-  analogWrite(this->pin_->get_pin(), duty);
+  analogWrite(this->pin_->get_pin(), duty);  // NOLINT
 }
 
 void LEDCOutput::setup() {
@@ -43,8 +43,8 @@ void LEDCOutput::update_frequency(float frequency) {
   this->frequency_ = frequency;
   // force changing the frequency by removing PWM mode
   this->pin_->pin_mode(gpio::FLAG_INPUT);
-  analogWriteResolution(10);
-  analogWriteFrequency(frequency);
+  analogWriteResolution(10);        // NOLINT
+  analogWriteFrequency(frequency);  // NOLINT
   initialized_ = true;
   // re-apply duty
   this->write_state(this->duty_);

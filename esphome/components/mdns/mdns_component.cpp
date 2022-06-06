@@ -39,6 +39,9 @@ void MDNSComponent::compile_records_() {
 #ifdef USE_ESP32
     platform = "ESP32";
 #endif
+#ifdef USE_LIBRETUYA
+    platform = "LibreTuya";
+#endif
     if (platform != nullptr) {
       service.txt_records.push_back({"platform", platform});
     }
