@@ -7,7 +7,7 @@ namespace number {
 static const char *const TAG = "number.automation";
 
 void ValueRangeTrigger::setup() {
-  uint32_t myhash = (reinterpret_cast<uint32_t*>(&this->min_) + reinterpret_cast<uint32_t*>(&this->max_)) ^ this->parent_->get_object_id_hash();
+  uint32_t myhash = (reinterpret_cast<uint32_t *>(&this->min_) ^ reinterpret_cast<uint32_t *>(&this->max_));
   this->rtc_ = global_preferences->make_preference<bool>(myhash);
   bool initial_state;
   if (this->rtc_.load(&initial_state)) {
