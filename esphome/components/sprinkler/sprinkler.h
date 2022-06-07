@@ -97,6 +97,10 @@ class Sprinkler : public Component, public EntityBase {
   /// value multiplied by configured run times -- used to extend or shorten the cycle
   void set_multiplier(optional<float> multiplier);
 
+  /// if pump_switch_off_during_valve_open_delay is true, the controller will switch off the pump during the
+  ///  valve_open_delay interval
+  void set_pump_switch_off_during_valve_open_delay(bool pump_switch_off_during_valve_open_delay);
+
   /// how long the controller should wait to open/switch on the valve after it becomes active
   void set_valve_open_delay(uint32_t valve_open_delay);
 
@@ -266,6 +270,9 @@ class Sprinkler : public Component, public EntityBase {
   /// callback functions for timers
   void valve_cycle_timer_callback_();
   void valve_switching_delay_callback_();
+
+  /// Pump should be off during valve_open_delay interval
+  bool pump_switch_off_during_valve_open_delay_{false};
 
   /// Sprinkler valve cycle should overlap
   bool valve_overlap_{false};

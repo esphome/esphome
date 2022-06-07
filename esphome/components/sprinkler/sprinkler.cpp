@@ -157,6 +157,10 @@ void Sprinkler::set_multiplier(const optional<float> multiplier) {
   }
 }
 
+void Sprinkler::set_pump_switch_off_during_valve_open_delay(bool pump_switch_off_during_valve_open_delay) {
+  this->pump_switch_off_during_valve_open_delay_ = pump_switch_off_during_valve_open_delay;
+}
+
 void Sprinkler::set_valve_open_delay(const uint32_t valve_open_delay) {
   if (valve_open_delay > 0) {
     this->valve_overlap_ = false;
@@ -173,6 +177,7 @@ void Sprinkler::set_valve_overlap(uint32_t valve_overlap) {
   } else {
     this->switching_delay_.reset();
   }
+  this->pump_switch_off_during_valve_open_delay_ = false;
 }
 
 void Sprinkler::set_manual_selection_delay(uint32_t manual_selection_delay) {
@@ -558,8 +563,12 @@ void Sprinkler::start_valve_(const optional<size_t> valve_number, optional<uint3
       this->switch_to_valve_(this->active_valve_.value(), true);
       this->switch_to_pump_(this->active_valve_.value(), true);
     } else {
-      this->switch_to_pump_(this->active_valve_.value());
-      this->all_valves_off_();
+      if (this->pump_switch_off_during_valve_open_delay_) {
+        this->all_valves_off_(true);
+      } else {
+        this->switch_to_pump_(this->active_valve_.value());
+        this->all_valves_off_();
+      }
     }
   } else {
     this->switch_to_valve_(this->active_valve_.value());
@@ -682,6 +691,9 @@ void Sprinkler::valve_switching_delay_callback_() {
       this->switch_to_valve_(this->active_valve_.value());
     } else {
       ESP_LOGD(TAG, "  Activating valve %u", this->active_valve_.value());
+      if (this->pump_switch_off_during_valve_open_delay_) {
+        this->switch_to_pump_(this->active_valve_.value());
+      }
       this->switch_to_valve_(this->active_valve_.value());
     }
   }
@@ -700,6 +712,8 @@ void Sprinkler::dump_config() {
       ESP_LOGCONFIG(TAG, "  Valve Overlap: %u seconds", this->switching_delay_.value_or(0));
     } else {
       ESP_LOGCONFIG(TAG, "  Valve Open Delay: %u seconds", this->switching_delay_.value_or(0));
+      ESP_LOGCONFIG(TAG, "  Pump Switch Off During Valve Open Delay: %s",
+                    YESNO(this->pump_switch_off_during_valve_open_delay_));
     }
   }
   for (size_t valve_number = 0; valve_number < this->number_of_valves(); valve_number++) {

@@ -19,6 +19,7 @@ CONF_MAIN_SWITCH_ID = "main_switch_id"
 CONF_MANUAL_SELECTION_DELAY = "manual_selection_delay"
 CONF_MULTIPLIER = "multiplier"
 CONF_PUMP_SWITCH = "pump_switch"
+CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY = "pump_switch_off_during_valve_open_delay"
 CONF_REVERSE_SWITCH_ID = "reverse_switch_id"
 CONF_REVERSE_SWITCH_NAME = "reverse_switch_name"
 CONF_VALVE_OPEN_DELAY = "valve_open_delay"
@@ -74,6 +75,15 @@ def validate_sprinkler(config):
                     raise cv.Invalid(
                         f"{config_item} is a required option for {sprinkler_controller_index}"
                     )
+
+        if (
+            CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY in sprinkler_controller
+            and CONF_VALVE_OPEN_DELAY not in sprinkler_controller
+        ):
+            if sprinkler_controller[CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY]:
+                raise cv.Invalid(
+                    f"{CONF_VALVE_OPEN_DELAY} must be defined when {CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY} is enabled"
+                )
 
         for valve in sprinkler_controller:
             if (
@@ -149,6 +159,7 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
         cv.Optional(CONF_REVERSE_SWITCH_NAME): cv.string,
         cv.Optional(CONF_MANUAL_SELECTION_DELAY): cv.positive_time_period_seconds,
         cv.Optional(CONF_REPEAT): cv.positive_int,
+        cv.Optional(CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY): cv.boolean,
         cv.Exclusive(
             CONF_VALVE_OVERLAP, "open_delay/overlap"
         ): cv.positive_time_period_seconds,
@@ -400,6 +411,13 @@ async def to_code(config):
         if CONF_VALVE_OPEN_DELAY in sprinkler_controller:
             cg.add(
                 var.set_valve_open_delay(sprinkler_controller[CONF_VALVE_OPEN_DELAY])
+            )
+
+        if CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY in sprinkler_controller:
+            cg.add(
+                var.set_pump_switch_off_during_valve_open_delay(
+                    sprinkler_controller[CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY]
+                )
             )
 
     for sprinkler_controller in config:
