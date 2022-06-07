@@ -10,7 +10,8 @@ void ValueRangeTrigger::setup() {
   union {
     float from;
     uint32_t to;
-  } convert = { .from = (this->max_ - this->min_) }
+  } convert 
+  convert.from = (this->max_ - this->min_);
   uint32_t myhash = convert.to ^ this->parent_->get_object_id_hash();
   this->rtc_ = global_preferences->make_preference<bool>(myhash);
   bool initial_state;
