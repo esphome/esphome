@@ -6,7 +6,7 @@ namespace number {
 
 static const char *const TAG = "number.automation";
 
-void ValueRangeTrigger::setup() {                        
+void ValueRangeTrigger::setup() {
   this->rtc_ = global_preferences->make_preference<bool>(139423563UL ^this->parent_->get_object_id_hash());
   bool initial_state;
   if (this->rtc_.load(&initial_state)) {
