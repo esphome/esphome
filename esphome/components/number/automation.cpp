@@ -6,8 +6,7 @@ namespace number {
 
 static const char *const TAG = "number.automation";
 
-union convert
-{
+union convert {
     float from;
     uint32_t to;
 };
