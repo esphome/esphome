@@ -433,6 +433,11 @@ cover:
     source_id: tuya_cover
     name: Tuya Cover copy
 
+online_image:
+  - url: "https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png"
+    id: png_image
+    format: PNG
+
 display:
   - platform: addressable_light
     id: led_matrix_32x8_display
@@ -498,6 +503,8 @@ display:
     powerup_pin: GPIO1
     wakeup_pin: GPIO1
     vcom_pin: GPIO1
+    lambda: |-
+      it.image(0, 0, id(png_image));
 
 number:
   - platform: tuya
