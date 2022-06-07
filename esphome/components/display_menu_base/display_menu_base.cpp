@@ -5,9 +5,7 @@ namespace esphome {
 namespace display_menu_base {
 
 void DisplayMenuComponent::up() {
-  this->process_initial_();
-
-  if (this->active_) {
+  if (this->check_healthy_and_active_()) {
     bool changed = false;
 
     if (this->editing_) {
@@ -28,9 +26,7 @@ void DisplayMenuComponent::up() {
 }
 
 void DisplayMenuComponent::down() {
-  this->process_initial_();
-
-  if (this->active_) {
+  if (this->check_healthy_and_active_()) {
     bool changed = false;
 
     if (this->editing_) {
@@ -51,9 +47,7 @@ void DisplayMenuComponent::down() {
 }
 
 void DisplayMenuComponent::left() {
-  this->process_initial_();
-
-  if (this->active_) {
+  if (this->check_healthy_and_active_()) {
     bool changed = false;
 
     switch (this->get_selected_item_()->get_type()) {
@@ -89,9 +83,7 @@ void DisplayMenuComponent::left() {
 }
 
 void DisplayMenuComponent::right() {
-  this->process_initial_();
-
-  if (this->active_) {
+  if (this->check_healthy_and_active_()) {
     bool changed = false;
 
     switch (this->get_selected_item_()->get_type()) {
@@ -120,9 +112,7 @@ void DisplayMenuComponent::right() {
 }
 
 void DisplayMenuComponent::enter() {
-  this->process_initial_();
-
-  if (this->active_) {
+  if (this->check_healthy_and_active_()) {
     bool changed = false;
     MenuItem *item = this->get_selected_item_();
 
@@ -170,12 +160,15 @@ void DisplayMenuComponent::enter() {
 }
 
 void DisplayMenuComponent::draw() {
-  this->process_initial_();
-  this->draw_menu();
+  if (this->check_healthy_and_active_())
+    this->draw_menu();
 }
 
 void DisplayMenuComponent::show_main() {
   bool disp_changed = false;
+
+  if (this->is_failed())
+    return;
 
   this->process_initial_();
 
@@ -198,6 +191,9 @@ void DisplayMenuComponent::show_main() {
 }
 
 void DisplayMenuComponent::show() {
+  if (this->is_failed())
+    return;
+
   this->process_initial_();
 
   if (!this->active_) {
@@ -207,9 +203,7 @@ void DisplayMenuComponent::show() {
 }
 
 void DisplayMenuComponent::hide() {
-  this->process_initial_();
-
-  if (this->active_) {
+  if (this->check_healthy_and_active_()) {
     if (this->editing_)
       this->finish_editing_();
     this->active_ = false;
@@ -228,6 +222,15 @@ void DisplayMenuComponent::process_initial_() {
     this->root_item_->on_enter();
     this->root_on_enter_called_ = true;
   }
+}
+
+bool DisplayMenuComponent::check_healthy_and_active_() {
+  if (this->is_failed())
+    return false;
+
+  this->process_initial_();
+
+  return this->active_;
 }
 
 bool DisplayMenuComponent::cursor_up_() {
@@ -302,11 +305,9 @@ void DisplayMenuComponent::finish_editing_() {
 }
 
 void DisplayMenuComponent::draw_menu() {
-  if (this->active_) {
-    for (size_t i = 0; i < this->rows_ && this->top_index_ + i < this->displayed_item_->items_size(); ++i) {
-      this->draw_item(this->displayed_item_->get_item(this->top_index_ + i), i,
-                      this->top_index_ + i == this->cursor_index_);
-    }
+  for (size_t i = 0; i < this->rows_ && this->top_index_ + i < this->displayed_item_->items_size(); ++i) {
+    this->draw_item(this->displayed_item_->get_item(this->top_index_ + i), i,
+                    this->top_index_ + i == this->cursor_index_);
   }
 }
 

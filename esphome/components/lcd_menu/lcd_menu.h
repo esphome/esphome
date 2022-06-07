@@ -24,6 +24,9 @@ class LCDCharacterMenuComponent : public display_menu_base::DisplayMenuComponent
   void set_mark_submenu(uint8_t c) { this->mark_submenu_ = c; }
   void set_mark_back(uint8_t c) { this->mark_back_ = c; }
 
+  void setup() override;
+  float get_setup_priority() const override;
+
   void dump_config() override;
 
  protected:

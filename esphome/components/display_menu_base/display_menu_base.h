@@ -45,6 +45,7 @@ class DisplayMenuComponent : public Component {
  protected:
   void reset_();
   void process_initial_();
+  bool check_healthy_and_active_();
   MenuItem *get_selected_item_() { return this->displayed_item_->get_item(this->cursor_index_); }
   bool cursor_up_();
   bool cursor_down_();
