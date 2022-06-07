@@ -121,6 +121,7 @@ mqtt:
     - topic: livingroom/ota_mode
       then:
         - deep_sleep.prevent
+        - deep_sleep.allow
     - topic: livingroom/ota_mode
       then:
         - deep_sleep.enter:
@@ -167,6 +168,13 @@ mqtt:
                 id: uart0
                 data: !lambda |-
                   return {};
+  on_connect:
+    - light.turn_on: ${roomname}_lights
+    - mqtt.publish:
+        topic: some/topic
+        payload: Hello
+  on_disconnect:
+    - light.turn_off: ${roomname}_lights
 
 i2c:
   sda: 21
@@ -247,9 +255,7 @@ logger:
 
 web_server:
   port: 8080
-  ota: true
-  css_url: https://esphome.io/_static/webserver-v1.min.css
-  js_url: https://esphome.io/_static/webserver-v1.min.js
+  version: 2
 
 power_supply:
   id: "atx_power_supply"
@@ -293,6 +299,8 @@ ble_client:
     on_disconnect:
       then:
         - switch.turn_on: ble1_status
+  - mac_address: C4:4F:33:11:22:33
+    id: my_bedjet_ble_client
 mcp23s08:
   - id: "mcp23s08_hub"
     cs_pin: GPIO12
@@ -547,11 +555,18 @@ sensor:
   - platform: esp32_hall
     name: "ESP32 Hall Sensor"
     update_interval: 15s
-  - platform: hdc1080
+  - platform: ens210
     temperature:
       name: "Living Room Temperature 5"
     humidity:
-      name: "Living Room Pressure 5"
+      name: 'Living Room Humidity 5'
+    update_interval: 15s
+    i2c_id: i2c_bus
+  - platform: hdc1080
+    temperature:
+      name: 'Living Room Temperature 6'
+    humidity:
+      name: 'Living Room Humidity 5'
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: hlw8012
@@ -800,6 +815,17 @@ sensor:
           value: 12345
     total:
       name: "Pulse Meter Total"
+  - platform: qmp6988
+    temperature:
+      name: "Living Temperature QMP"
+      oversampling: 32x
+    pressure:
+      name: "Living Pressure QMP"
+      oversampling: 2x
+    address: 0x70
+    update_interval: 30s
+    iir_filter: 16x
+    i2c_id: i2c_bus
   - platform: rotary_encoder
     name: "Rotary Encoder"
     id: rotary_encoder1
@@ -872,6 +898,7 @@ sensor:
     temperature_offset: 4.2C
     i2c_id: i2c_bus
   - platform: scd4x
+    id: scd40
     co2:
       name: "SCD4X CO2"
     temperature:
@@ -1742,6 +1769,18 @@ light:
         to: 25
       - single_light_id: ${roomname}_lights
 
+  - platform: shelly_dimmer
+    name: "Shelly Dimmer Light"
+    power:
+      name: "Shelly Dimmer Power"
+    voltage:
+      name: "Shelly Dimmer Voltage"
+    current:
+      name: "Shelly Dimmer Current"
+    max_brightness: 500
+    firmware: "51.6"
+    uart_id: uart0
+
 remote_transmitter:
   - pin: 32
     carrier_duty_percent: 100%
@@ -1781,6 +1820,8 @@ climate:
     name: Fujitsu General Climate
   - platform: daikin
     name: Daikin Climate
+  - platform: delonghi
+    name: Delonghi Climate
   - platform: yashima
     name: Yashima Climate
   - platform: mitsubishi
@@ -1849,6 +1890,10 @@ climate:
     ble_client_id: ble_blah
     unit_of_measurement: c
     icon: mdi:stove
+  - platform: bedjet
+    name: My Bedjet
+    ble_client_id: my_bedjet_ble_client
+    heat_mode: extended
 
 script:
   - id: climate_custom
@@ -1864,14 +1909,6 @@ script:
           preset: SLEEP
 
 switch:
-  - platform: template
-    name: MIDEA_AC_TOGGLE_LIGHT
-    turn_on_action:
-      midea_ac.display_toggle:
-  - platform: template
-    name: MIDEA_AC_SWING_STEP
-    turn_on_action:
-      midea_ac.swing_step:
   - platform: template
     name: MIDEA_AC_BEEPER_CONTROL
     optimistic: true
@@ -2209,6 +2246,17 @@ display:
   - platform: lcd_pcf8574
     dimensions: 18x4
     address: 0x3F
+    user_characters:
+      - position: 0
+        data:
+          - 0b00000
+          - 0b01010
+          - 0b00000
+          - 0b00100
+          - 0b00100
+          - 0b10001
+          - 0b01110
+          - 0b00000
     lambda: |-
       it.print("Hello World!");
     i2c_id: i2c_bus
@@ -2596,6 +2644,16 @@ text_sensor:
           canbus_id: esp32_internal_can
           can_id: 23
           data: [0x10, 0x20, 0x30]
+      - canbus.send:
+          canbus_id: mcp2515_can
+          can_id: 24
+          remote_transmission_request: true
+          data: []
+      - canbus.send:
+          canbus_id: esp32_internal_can
+          can_id: 24
+          remote_transmission_request: true
+          data: []
   - platform: template
     name: Template Text Sensor
     id: ${textname}_text
@@ -2766,3 +2824,33 @@ lock:
   - platform: copy
     source_id: test_lock2
     name: Generic Output Lock Copy
+
+button:
+  - platform: template
+    name: "Start calibration"
+    on_press:
+      - scd4x.perform_forced_calibration:
+          value: 419
+          id: scd40
+      - scd4x.factory_reset:
+          id: scd40
+  - platform: template
+    name: Midea Display Toggle
+    on_press:
+      midea_ac.display_toggle:
+  - platform: template
+    name: Midea Swing Step
+    on_press:
+      midea_ac.swing_step:
+  - platform: template
+    name: Midea Power On
+    on_press:
+      midea_ac.power_on:
+  - platform: template
+    name: Midea Power Off
+    on_press:
+      midea_ac.power_off:
+  - platform: template
+    name: Midea Power Inverse
+    on_press:
+      midea_ac.power_toggle:
