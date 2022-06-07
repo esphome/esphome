@@ -7,8 +7,8 @@ namespace number {
 static const char *const TAG = "number.automation";
 
 union convert {
-    float from;
-    uint32_t to;
+  float from;
+  uint32_t to;
 };
 
 void ValueRangeTrigger::setup() {
