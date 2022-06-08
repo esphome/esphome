@@ -43,6 +43,14 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       case media_player::MEDIA_PLAYER_COMMAND_UNMUTE:
         this->unmute_();
         break;
+      case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
+        this->audio_->pauseResume();
+        if (this->audio_->isRunning()) {
+          this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+        } else {
+          this->state = media_player::MEDIA_PLAYER_STATE_PAUSED;
+        }
+        break;
     }
   }
   this->publish_state();
