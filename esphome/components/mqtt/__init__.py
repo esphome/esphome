@@ -24,6 +24,8 @@ from esphome.const import (
     CONF_LOG_TOPIC,
     CONF_ON_JSON_MESSAGE,
     CONF_ON_MESSAGE,
+    CONF_ON_CONNECT,
+    CONF_ON_DISCONNECT,
     CONF_PASSWORD,
     CONF_PAYLOAD,
     CONF_PAYLOAD_AVAILABLE,
@@ -89,6 +91,10 @@ MQTTMessageTrigger = mqtt_ns.class_(
 )
 MQTTJsonMessageTrigger = mqtt_ns.class_(
     "MQTTJsonMessageTrigger", automation.Trigger.template(cg.JsonObjectConst)
+)
+MQTTConnectTrigger = mqtt_ns.class_("MQTTConnectTrigger", automation.Trigger.template())
+MQTTDisconnectTrigger = mqtt_ns.class_(
+    "MQTTDisconnectTrigger", automation.Trigger.template()
 )
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 MQTTConnectedCondition = mqtt_ns.class_("MQTTConnectedCondition", Condition)
@@ -212,6 +218,18 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_ON_CONNECT): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTConnectTrigger),
+                }
+            ),
+            cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        MQTTDisconnectTrigger
+                    ),
+                }
+            ),
             cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTMessageTrigger),
@@ -361,6 +379,14 @@ async def to_code(config):
     for conf in config.get(CONF_ON_JSON_MESSAGE, []):
         trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC], conf[CONF_QOS])
         await automation.build_automation(trig, [(cg.JsonObjectConst, "x")], conf)
+
+    for conf in config.get(CONF_ON_CONNECT, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_DISCONNECT, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
 
 
 MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(

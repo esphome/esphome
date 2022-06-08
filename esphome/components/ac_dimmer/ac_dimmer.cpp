@@ -121,7 +121,11 @@ void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
       // calculate time until enable in µs: (1.0-value)*cycle_time, but with integer arithmetic
       // also take into account min_power
       auto min_us = this->cycle_time_us * this->min_power / 1000;
-      this->enable_time_us = std::max((uint32_t) 1, ((65535 - this->value) * (this->cycle_time_us - min_us)) / 65535);
+      // calculate required value to provide a true RMS voltage output
+      this->enable_time_us =
+          std::max((uint32_t) 1, (uint32_t)((65535 - (acos(1 - (2 * this->value / 65535.0)) / 3.14159 * 65535)) *
+                                            (this->cycle_time_us - min_us)) /
+                                     65535);
       if (this->method == DIM_METHOD_LEADING_PULSE) {
         // Minimum pulse time should be enough for the triac to trigger when it is close to the ZC zone
         // this is for brightness near 99%
