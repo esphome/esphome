@@ -109,11 +109,12 @@ SPRINKLER_ACTION_SCHEMA = maybe_simple_id(
     }
 )
 
-SPRINKLER_ACTION_REPEAT_SCHEMA = maybe_simple_id(
+SPRINKLER_ACTION_REPEAT_SCHEMA = cv.maybe_simple_value(
     {
-        cv.Required(CONF_ID): cv.use_id(Sprinkler),
+        cv.GenerateID(): cv.use_id(Sprinkler),
         cv.Required(CONF_REPEAT): cv.templatable(cv.positive_int),
-    }
+    },
+    key=CONF_REPEAT,
 )
 
 SPRINKLER_ACTION_SINGLE_VALVE_SCHEMA = maybe_simple_id(
