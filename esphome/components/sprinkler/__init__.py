@@ -131,7 +131,7 @@ SPRINKLER_ACTION_SET_MULTIPLIER_SCHEMA = maybe_simple_id(
     }
 )
 
-SPRINKLER_ACTION_SET_RUN_DURATION_SCHEMA = maybe_simple_id(
+SPRINKLER_ACTION_SET_RUN_DURATION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(Sprinkler),
         cv.Required(CONF_RUN_DURATION): cv.templatable(cv.positive_time_period_seconds),
