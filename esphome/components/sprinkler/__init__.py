@@ -118,18 +118,20 @@ SPRINKLER_ACTION_REPEAT_SCHEMA = cv.maybe_simple_value(
     key=CONF_REPEAT,
 )
 
-SPRINKLER_ACTION_SINGLE_VALVE_SCHEMA = maybe_simple_id(
+SPRINKLER_ACTION_SINGLE_VALVE_SCHEMA = cv.maybe_simple_value(
     {
-        cv.Required(CONF_ID): cv.use_id(Sprinkler),
+        cv.GenerateID(): cv.use_id(Sprinkler),
         cv.Required(CONF_VALVE_NUMBER): cv.templatable(cv.positive_int),
-    }
+    },
+    key=CONF_VALVE_NUMBER,
 )
 
-SPRINKLER_ACTION_SET_MULTIPLIER_SCHEMA = maybe_simple_id(
+SPRINKLER_ACTION_SET_MULTIPLIER_SCHEMA = cv.maybe_simple_value(
     {
-        cv.Required(CONF_ID): cv.use_id(Sprinkler),
+        cv.GenerateID(): cv.use_id(Sprinkler),
         cv.Required(CONF_MULTIPLIER): cv.templatable(cv.positive_float),
-    }
+    },
+    key=CONF_MULTIPLIER,
 )
 
 SPRINKLER_ACTION_SET_RUN_DURATION_SCHEMA = cv.Schema(
