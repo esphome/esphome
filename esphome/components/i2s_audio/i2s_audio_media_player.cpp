@@ -45,10 +45,11 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
         break;
       case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
         this->audio_->pauseResume();
-        if (this->audio_->isRunning())
+        if (this->audio_->isRunning()) {
           this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
-        else
+        } else {
           this->state = media_player::MEDIA_PLAYER_STATE_PAUSED;
+        }
         break;
     }
   }
