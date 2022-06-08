@@ -86,7 +86,7 @@ def validate_sprinkler(config):
                     f"{CONF_VALVE_OPEN_DELAY} must be defined when {CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY} is enabled"
                 )
 
-        for valve in sprinkler_controller:
+        for valve in sprinkler_controller[CONF_VALVES]:
             if (
                 CONF_VALVE_OVERLAP in config
                 and valve[CONF_RUN_DURATION] <= config[CONF_VALVE_OVERLAP]
