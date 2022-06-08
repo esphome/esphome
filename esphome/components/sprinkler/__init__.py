@@ -271,9 +271,7 @@ async def sprinkler_start_single_valve_to_code(config, action_id, template_arg, 
 @automation.register_action(
     "sprinkler.resume_or_start_full_cycle", ResumeOrStartAction, SPRINKLER_ACTION_SCHEMA
 )
-async def sprinkler_simple_action_to_code(
-    config, action_id, template_arg, args
-):
+async def sprinkler_simple_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
