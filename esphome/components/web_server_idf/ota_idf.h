@@ -29,4 +29,4 @@ class OTA {
 
 extern esphome::web_server_idf::OTA Update;  // NOLINT
 
-#endif // !defined(USE_ESP_IDF)
+#endif  // !defined(USE_ESP_IDF)
