@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_RUN_DURATION,
 )
 
+AUTO_LOAD = ["switch"]
 CODEOWNERS = ["@kbx81"]
 
 CONF_AUTO_ADVANCE_SWITCH_ID = "auto_advance_switch_id"
