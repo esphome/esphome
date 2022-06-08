@@ -12,27 +12,16 @@
 namespace esphome {
 namespace web_server_idf {
 
+#define USE_WEBSERVER_IDF_MULTIPART
+
 #ifndef HTTPD_409
 #define HTTPD_409 "409 Conflict"
 #endif
 
-#define HEADER_CONNECTION "Connection"
-#define HEADER_CONNECTION_VALUE_KEEP_ALIVE "keep-alive"
-#define HEADER_AUTH "Authorization"
-#define HEADER_AUTH_VALUE_BASIC_PREFIX "Basic "
-#define HEADER_HOST "Host"
-#define CRLF "\r\n"
-#define EVENT_KEY_RETRY "retry: "
-#define EVENT_KEY_ID "id: "
-#define EVENT_KEY_EVENT "event: "
-#define EVENT_KEY_DATA "data: "
+#define CRLF_STR "\r\n"
+#define CRLF_LEN (sizeof(CRLF_STR) - 1)
 
 static const char *const TAG = "web_server_idf";
-
-bool uri_match(const char *reference_uri, const char *uri_to_match, size_t match_upto) {
-  // always matched
-  return true;
-}
 
 void AsyncWebServer::end() {
   if (this->server_) {
@@ -47,7 +36,7 @@ void AsyncWebServer::begin() {
   }
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = this->port_;
-  config.uri_match_fn = uri_match;
+  config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
   if (httpd_start(&this->server_, &config) == ESP_OK) {
     const httpd_uri_t handler_get = {
         .uri = "",
@@ -66,13 +55,321 @@ void AsyncWebServer::begin() {
     httpd_register_uri_handler(this->server_, &handler_post);
   }
 }
+#ifdef USE_WEBSERVER_IDF_MULTIPART
+class FormDataParser {
+  void debug_(const char *name, const char *s, int len = -1) {}
+
+ protected:
+  enum {
+    PST_BOUNDARY = 0,
+    PST_HEADERS,
+    PST_DATA,
+    PST_FINISHED,
+  } state_ = PST_BOUNDARY;
+  std::string boundary_end_;
+  std::string filename_;
+  char *buf_{};
+  int buf_start_{};
+  char *data_{};
+  AsyncWebHandler *handler_{};
+
+  bool find_filename_(char *str, size_t len) {
+    constexpr auto c_cd_str = "Content-Disposition: form-data;";
+    constexpr auto c_cd_len = sizeof("Content-Disposition: form-data;") - 1;
+    if (strncasecmp(str, c_cd_str, c_cd_len) != 0) {
+      return false;
+    }
+    str += c_cd_len;
+    len -= c_cd_len;
+
+    constexpr auto c_fn_str = "filename=\"";
+    constexpr auto c_fn_len = sizeof("filename=\"") - 1;
+    str = static_cast<char *>(memmem(str, strnlen(str, len), c_fn_str, c_fn_len));
+    if (str == nullptr) {
+      return false;
+    }
+    str += c_fn_len;
+    len -= c_fn_len;
+
+    auto *end = static_cast<char *>(memchr(str, '"', strnlen(str, len)));
+    if (end == nullptr) {
+      return false;
+    }
+
+    this->filename_ = std::string(str, end);
+    ESP_LOGVV(TAG, "found filename %s", this->filename_.c_str());
+    return true;
+  }
+
+  // return -1 - fail, 1 - continue reading, 0 - start of data
+  int process_headers_(int &received, int prev_buf_start) {
+    char *header = this->data_;
+    debug_("header start", header);
+    char *header_end = static_cast<char *>(memmem(header, strnlen(header, received), CRLF_STR, CRLF_LEN));
+    if (header_end == nullptr) {
+      if (prev_buf_start > 0) {
+        // header is longer than BUF_SIZE*2
+        this->data_ += received;
+        // debug_("fail header", header, header_end - header);
+        return 0;
+      } else {
+        this->buf_start_ = received - (header - this->buf_);
+        return 0;
+      }
+    }
+
+    debug_("header", header, header_end - header);
+
+    if (this->filename_.empty()) {
+      this->find_filename_(header, header_end - header);
+    }
+
+    header_end += CRLF_LEN;
+    debug_("header end", header_end);
+    // search additional CRLF_STR
+    size_t tail_len = received - (header_end - this->buf_);
+    if (tail_len >= CRLF_LEN && *header_end == CRLF_STR[0] && *(++header_end) == CRLF_STR[1]) {
+      ++header_end;
+      ESP_LOGVV(TAG, "received %d\n", received);
+      received -= header_end - this->buf_;
+      ESP_LOGVV(TAG, "received %d\n", received);
+      this->data_ = header_end;
+      this->state_ = PST_DATA;
+      return 0;
+    }
+
+    this->data_ = header_end;
+    return 1;
+  }
+
+  // returns 0 - no error, -1 - failed, 1 - no boundary
+  int find_boundary_(const AsyncWebServerRequest &req) {
+    auto content_type = req.get_header("Content-Type");
+    constexpr auto c_multipart_form_data_str = "multipart/form-data";
+    constexpr auto c_multipart_form_data_len = sizeof("multipart/form-data") - 1;
+    if (!content_type.has_value() || !str_startswith(*content_type, c_multipart_form_data_str)) {
+      return 1;
+    }
+    const char *boundary = content_type.value().c_str() + (c_multipart_form_data_len + 1);  // also skips ';'
+    while (*boundary == ' ') {
+      boundary++;
+    }
+    constexpr auto c_boundary_str = "boundary=";
+    constexpr auto c_boundary_len = sizeof("boundary=") - 1;
+    if (strncmp(boundary, c_boundary_str, c_boundary_len) != 0) {
+      return -1;
+    }
+    boundary += c_boundary_len;
+    size_t boundary_len = content_type.value().length() - (boundary - content_type.value().c_str());
+
+    this->boundary_end_ = "\r\n--";
+    this->boundary_end_ += std::string(boundary, boundary_len);
+    ESP_LOGVV(TAG, "boundary %s", this->boundary_end_.c_str() + CRLF_LEN);
+    return 0;
+  }
+
+  // finding start of boundary "--%s\r\n"
+  int process_boundary_() {
+    const auto *boundary_start = this->boundary_end_.c_str() + CRLF_LEN;
+    const auto boundary_size = this->boundary_end_.size() - CRLF_LEN;
+    if (strncmp(this->data_, boundary_start, boundary_size) != 0) {
+      return -1;
+    }
+    this->data_ += boundary_size;
+    if (strncmp(this->data_, CRLF_STR, CRLF_LEN) != 0) {
+      return -1;
+    }
+    this->data_ += CRLF_LEN;
+
+    this->state_ = PST_HEADERS;
+    return 0;
+  }
+
+  int process_data_tail_(int received) {
+    auto *tail = this->data_ + received - 1;
+    // check tail \r
+    if (*tail == '\r') {
+      this->data_ = tail;
+      this->buf_start_ = 1;
+      return received - 1;
+    }
+    // check tail \r\n
+    if (*tail == '\n' && *(--tail) == '\r') {
+      this->data_ = tail;
+      this->buf_start_ = 2;
+      return received - 2;
+    }
+    // check tail \r\n-
+    if (*tail == '-' && *(--tail) == '\n' && *(--tail) == '\r') {
+      this->data_ = tail;
+      this->buf_start_ = 3;
+      return received - 3;
+    }
+    // check tail \r\n-- (tail already point to -2)
+    if (*tail == '-' && *(--tail) == '\n' && *(--tail) == '\r') {
+      this->data_ = tail;
+      this->buf_start_ = 4;
+      return received - 4;
+    }
+    return received;
+  }
+
+  // returns 1 - error, 0 - to continue reading, N - number of bytes readed
+  int process_data_(int received, int prev_buf_start) {
+    char *data_end = static_cast<char *>(memmem(this->data_, received, "\r\n--", sizeof("\r\n--") - 1));
+    debug_("data end", data_end);
+    if (data_end == nullptr) {
+      return this->process_data_tail_(received);
+    }
+
+    size_t tail_len = received - (data_end - this->buf_);
+    ESP_LOGVV(TAG, "tail_len=%d\n", tail_len);
+    if (tail_len < this->boundary_end_.size()) {
+      if (prev_buf_start > 0) {
+        return -1;
+      }
+      auto res = received - tail_len;
+      this->data_ = this->buf_ + res;
+      this->buf_start_ = tail_len;
+      return res;
+    }
+
+    debug_("data end", data_end);
+
+    data_end = static_cast<char *>(memmem(data_end, tail_len, this->boundary_end_.c_str(), this->boundary_end_.size()));
+    if (data_end) {
+      this->state_ = PST_FINISHED;
+      return (data_end - this->buf_);
+    }
+
+    return this->process_data_tail_(received);
+  }
+
+ public:
+  FormDataParser(AsyncWebHandler *handler) : handler_(handler) {}
+  ~FormDataParser() { delete[] this->buf_; }
+
+  // returns 0 - ok and handled, <0 - error, >0 - no form multipart data
+  int parse(AsyncWebServerRequest &req) {
+    if (req.method() != HTTP_POST) {
+      return 1;
+    }
+    auto res = this->find_boundary_(req);
+    if (res < 0) {
+      ESP_LOGW(TAG, "Failed find form data boundary attribute");
+      httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, nullptr);
+      return res;
+    }
+    if (res > 0) {
+      return res;
+    }
+
+    int remaining = req.contentLength();
+    int index{};
+
+    delete[] this->buf_;
+    constexpr auto buf_size = 128;
+    // buf_size * 2 - may used in process headers and data
+    this->buf_ = new char[(buf_size * 2) + this->boundary_end_.size() + 1];  // NOLINT, 1 - null term
+
+    while (remaining > 0) {
+      ESP_LOGD(TAG, "Remaining size: %u", remaining);
+      int received = httpd_req_recv(req, this->buf_ + this->buf_start_, std::min(remaining, buf_size));
+      if (received <= 0) {
+        if (received == HTTPD_SOCK_ERR_TIMEOUT) {
+          // Retry if timeout occurred
+          continue;
+        }
+        ESP_LOGW(TAG, "File reception failed");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, nullptr);
+        return ESP_FAIL;
+      }
+      remaining -= received;
+
+      received += this->buf_start_;
+
+      if (this->state_ == PST_FINISHED) {
+        debug_("processing PST_FINISHED", std::string(this->data_, received).c_str());
+        // file uploaded, do read until stream end
+        continue;
+      }
+
+      auto prev_buf_start = this->buf_start_;
+      this->buf_start_ = 0;
+
+      this->data_ = this->buf_;
+      this->data_[received] = 0;  // DEBUG
+
+      if (this->state_ == PST_BOUNDARY) {
+        debug_("processing PST_BOUNDARY", this->data_);
+
+        res = this->process_boundary_();
+        if (res < 0) {
+          ESP_LOGW(TAG, "Failed find multipart form data boundary");
+          httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, nullptr);
+          return ESP_FAIL;
+        }
+        // if (err > 0) {
+        //   continue;
+        // }
+      }
+
+      if (this->state_ == PST_HEADERS) {
+        debug_("processing PST_HEADERS", this->data_);
+        do {
+          res = this->process_headers_(received, prev_buf_start);
+          if (res < 0) {
+            ESP_LOGW(TAG, "Failed parse multipart form data header");
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, nullptr);
+            return ESP_FAIL;
+          }
+        } while (res != 0);
+      }
+
+      if (this->state_ == PST_DATA) {
+        debug_("processing PST_DATA", this->data_);
+        res = this->process_data_(received, prev_buf_start);
+        if (res < 0) {
+          ESP_LOGW(TAG, "Failed parse multipart form data binary");
+          httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, nullptr);
+          return ESP_FAIL;
+        }
+        if (res > 0 || this->state_ == PST_FINISHED) {
+          this->handler_->handleUpload(&req, this->filename_, index++, reinterpret_cast<uint8_t *>(this->buf_), res,
+                                       this->state_ == PST_FINISHED);
+        }
+      }
+
+      if (this->buf_start_) {
+        ESP_LOGVV(TAG, "buf_start_=%d\n", buf_start_);
+        std::memcpy(this->buf_, this->data_, this->buf_start_);
+      }
+
+      ESP_LOGVV(TAG, "remaining=%d, received=%d", remaining, received);
+    }
+
+    return ESP_OK;
+  }
+};
+#endif  // !defined(USE_WEBSERVER_IDF_MULTIPART)
 
 esp_err_t AsyncWebServer::request_handler(httpd_req_t *r) {
+  ESP_LOGV(TAG, "Enter AsyncWebServer::request_handler. method=%u, uri=%s", r->method, r->uri);
   AsyncWebServerRequest req(r);
   auto *server = static_cast<AsyncWebServer *>(r->user_ctx);
   for (auto *handler : server->handlers_) {
     if (handler->canHandle(&req)) {
+#ifdef USE_WEBSERVER_IDF_MULTIPART
+      auto res = FormDataParser(handler).parse(req);
+      if (res < 0) {
+        return ESP_FAIL;
+      }
+      if (res > 0) {
+        handler->handleRequest(&req);
+      }
+#else
       handler->handleRequest(&req);
+#endif
       return ESP_OK;
     }
   }
@@ -90,6 +387,22 @@ AsyncWebServerRequest::~AsyncWebServerRequest() {
   }
 }
 
+optional<std::string> AsyncWebServerRequest::get_header(const char *name) const {
+  size_t buf_len = httpd_req_get_hdr_value_len(*this, name);
+  if (buf_len == 0) {
+    return {};
+  }
+  auto buf = std::unique_ptr<char[]>(new char[++buf_len]);
+  if (!buf) {
+    ESP_LOGE(TAG, "No enough memory for get header %s", name);
+    return {};
+  }
+  if (httpd_req_get_hdr_value_str(*this, name, buf.get(), buf_len) != ESP_OK) {
+    return {};
+  }
+  return {buf.get()};
+}
+
 std::string AsyncWebServerRequest::url() const {
   auto *str = strchr(this->req_->uri, '?');
   if (str == nullptr) {
@@ -98,21 +411,7 @@ std::string AsyncWebServerRequest::url() const {
   return std::string(this->req_->uri, str - this->req_->uri);
 }
 
-std::string AsyncWebServerRequest::host() const {
-  size_t buf_len = httpd_req_get_hdr_value_len(*this, HEADER_HOST);
-  if (buf_len == 0) {
-    return {};
-  }
-  auto buf = std::unique_ptr<char[]>(new char[++buf_len]);
-  if (!buf) {
-    ESP_LOGE(TAG, "No enough memory for get " HEADER_HOST);
-    return {};
-  }
-  if (httpd_req_get_hdr_value_str(*this, HEADER_HOST, buf.get(), buf_len) != ESP_OK) {
-    return {};
-  }
-  return buf.get();
-}
+std::string AsyncWebServerRequest::host() const { return this->get_header("Host").value(); }
 
 void AsyncWebServerRequest::send(AsyncResponse *response) {
   httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
@@ -152,20 +451,15 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
   if (username == nullptr || password == nullptr || *username == 0) {
     return true;
   }
-  size_t buf_len = httpd_req_get_hdr_value_len(*this, HEADER_AUTH);
-  if (buf_len == 0) {
+  auto auth = this->get_header("Authorization");
+  if (!auth.has_value()) {
     return false;
   }
-  auto buf = std::unique_ptr<char[]>(new char[++buf_len]);
-  if (!buf) {
-    ESP_LOGE(TAG, "No enough memory for basic authorization");
-    return false;
-  }
-  if (httpd_req_get_hdr_value_str(*this, HEADER_AUTH, buf.get(), buf_len) != ESP_OK) {
-    return false;
-  }
-  const size_t auth_prefix_len = sizeof(HEADER_AUTH_VALUE_BASIC_PREFIX) - 1;
-  if (strncmp(HEADER_AUTH_VALUE_BASIC_PREFIX, buf.get(), auth_prefix_len) != 0) {
+
+  auto *auth_str = auth.value().c_str();
+
+  const auto auth_prefix_len = sizeof("Basic ") - 1;
+  if (strncmp("Basic ", auth_str, auth_prefix_len) != 0) {
     ESP_LOGW(TAG, "Only Basic authorization supported yet");
     return false;
   }
@@ -182,12 +476,12 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
   esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest.get()), n, &out,
                            reinterpret_cast<const uint8_t *>(user_info.c_str()), user_info.size());
 
-  return strncmp(digest.get(), buf.get() + auth_prefix_len, buf_len - auth_prefix_len) == 0;
+  return strncmp(digest.get(), auth_str + auth_prefix_len, auth.value().size() - auth_prefix_len) == 0;
 }
 
 void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
-  httpd_resp_set_hdr(*this, HEADER_CONNECTION, HEADER_CONNECTION_VALUE_KEEP_ALIVE);
-  auto auth_val = str_sprintf(HEADER_AUTH_VALUE_BASIC_PREFIX "realm=\"%s\"", realm ? realm : "Login Required");
+  httpd_resp_set_hdr(*this, "Connection", "keep-alive");
+  auto auth_val = str_sprintf("Basic realm=\"%s\"", realm ? realm : "Login Required");
   httpd_resp_set_hdr(*this, "WWW-Authenticate", auth_val.c_str());
   httpd_resp_send_err(*this, HTTPD_401_UNAUTHORIZED, nullptr);
 }
@@ -310,9 +604,9 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   httpd_resp_set_status(req, HTTPD_200);
   httpd_resp_set_type(req, "text/event-stream");
   httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
-  httpd_resp_set_hdr(req, HEADER_CONNECTION, HEADER_CONNECTION_VALUE_KEEP_ALIVE);
+  httpd_resp_set_hdr(req, "Connection", "keep-alive");
 
-  httpd_resp_send_chunk(req, CRLF, sizeof(CRLF) - 1);
+  httpd_resp_send_chunk(req, CRLF_STR, CRLF_LEN);
 
   req->sess_ctx = this;
   req->free_ctx = AsyncEventSourceResponse::destroy;
@@ -335,47 +629,47 @@ void AsyncEventSourceResponse::send(const char *message, const char *event, uint
   std::string ev;
 
   if (reconnect) {
-    ev.append(EVENT_KEY_RETRY, sizeof(EVENT_KEY_RETRY) - 1);
+    ev.append("retry: ", sizeof("retry: ") - 1);
     ev.append(to_string(reconnect));
-    ev.append(CRLF, sizeof(CRLF) - 1);
+    ev.append(CRLF_STR, CRLF_LEN);
   }
 
   if (id) {
-    ev.append(EVENT_KEY_ID, sizeof(EVENT_KEY_ID) - 1);
+    ev.append("id: ", sizeof("id: ") - 1);
     ev.append(to_string(id));
-    ev.append(CRLF, sizeof(CRLF) - 1);
+    ev.append(CRLF_STR, CRLF_LEN);
   }
 
   if (event && *event) {
-    ev.append(EVENT_KEY_EVENT, sizeof(EVENT_KEY_EVENT) - 1);
+    ev.append("event: ", sizeof("event: ") - 1);
     ev.append(event);
-    ev.append(CRLF, sizeof(CRLF) - 1);
+    ev.append(CRLF_STR, CRLF_LEN);
   }
 
   if (message && *message) {
-    ev.append(EVENT_KEY_DATA, sizeof(EVENT_KEY_DATA) - 1);
+    ev.append("data: ", sizeof("data: ") - 1);
     ev.append(message);
-    ev.append(CRLF, sizeof(CRLF) - 1);
+    ev.append(CRLF_STR, CRLF_LEN);
   }
 
   if (ev.empty()) {
     return;
   }
 
-  ev.append(CRLF, sizeof(CRLF) - 1);
+  ev.append(CRLF_STR, CRLF_LEN);
 
   // Sending chunked content prelude
-  auto cs = str_snprintf("%x" CRLF, 4 * sizeof(ev.size()) + sizeof(CRLF) - 1, ev.size());
+  auto cs = str_snprintf("%x" CRLF_STR, 4 * sizeof(ev.size()) + CRLF_LEN, ev.size());
   httpd_socket_send(this->hd_, this->fd_, cs.c_str(), cs.size(), 0);
 
   // Sendiing content chunk
   httpd_socket_send(this->hd_, this->fd_, ev.c_str(), ev.size(), 0);
 
   // Indicate end of chunk
-  httpd_socket_send(this->hd_, this->fd_, CRLF, sizeof(CRLF) - 1, 0);
+  httpd_socket_send(this->hd_, this->fd_, CRLF_STR, CRLF_LEN, 0);
 }
 
 }  // namespace web_server_idf
 }  // namespace esphome
 
-#endif
+#endif  // !defined(USE_ESP_IDF)
