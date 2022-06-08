@@ -50,6 +50,11 @@ bool InitialStateIterator::on_select(select::Select *select) {
 #ifdef USE_LOCK
 bool InitialStateIterator::on_lock(lock::Lock *a_lock) { return this->client_->send_lock_state(a_lock, a_lock->state); }
 #endif
+#ifdef USE_MEDIA_PLAYER
+bool InitialStateIterator::on_media_player(media_player::MediaPlayer *media_player) {
+  return this->client_->send_media_player_state(media_player);
+}
+#endif
 InitialStateIterator::InitialStateIterator(APIConnection *client) : client_(client) {}
 
 }  // namespace api

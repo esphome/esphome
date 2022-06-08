@@ -41,7 +41,6 @@
  *  O                         FF FF FF FF FF FF FF FF    - Not used
  *  M                                                 6C - CRC over bytes 2 to F (Addition)
 \*********************************************************************************************/
-#include <cmath>
 #include "sonoff_d1.h"
 
 namespace esphome {
@@ -263,7 +262,7 @@ void SonoffD1Output::write_state(light::LightState *state) {
   state->current_values_as_brightness(&brightness);
 
   // Convert ESPHome's brightness (0-1) to the device's internal brightness (0-100)
-  const uint8_t calculated_brightness = std::round(brightness * 100);
+  const uint8_t calculated_brightness = (uint8_t) roundf(brightness * 100);
 
   if (calculated_brightness == 0) {
     // if(binary) ESP_LOGD(TAG, "current_values_as_binary() returns true for zero brightness");

@@ -308,6 +308,36 @@ template<> const char *proto_enum_to_string<enums::LockCommand>(enums::LockComma
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::MediaPlayerState>(enums::MediaPlayerState value) {
+  switch (value) {
+    case enums::MEDIA_PLAYER_STATE_NONE:
+      return "MEDIA_PLAYER_STATE_NONE";
+    case enums::MEDIA_PLAYER_STATE_IDLE:
+      return "MEDIA_PLAYER_STATE_IDLE";
+    case enums::MEDIA_PLAYER_STATE_PLAYING:
+      return "MEDIA_PLAYER_STATE_PLAYING";
+    case enums::MEDIA_PLAYER_STATE_PAUSED:
+      return "MEDIA_PLAYER_STATE_PAUSED";
+    default:
+      return "UNKNOWN";
+  }
+}
+template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::MediaPlayerCommand value) {
+  switch (value) {
+    case enums::MEDIA_PLAYER_COMMAND_PLAY:
+      return "MEDIA_PLAYER_COMMAND_PLAY";
+    case enums::MEDIA_PLAYER_COMMAND_PAUSE:
+      return "MEDIA_PLAYER_COMMAND_PAUSE";
+    case enums::MEDIA_PLAYER_COMMAND_STOP:
+      return "MEDIA_PLAYER_COMMAND_STOP";
+    case enums::MEDIA_PLAYER_COMMAND_MUTE:
+      return "MEDIA_PLAYER_COMMAND_MUTE";
+    case enums::MEDIA_PLAYER_COMMAND_UNMUTE:
+      return "MEDIA_PLAYER_COMMAND_UNMUTE";
+    default:
+      return "UNKNOWN";
+  }
+}
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -4570,6 +4600,254 @@ void ButtonCommandRequest::dump_to(std::string &out) const {
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool ListEntitiesMediaPlayerResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 6: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    case 7: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
+    case 8: {
+      this->supports_pause = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesMediaPlayerResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->object_id = value.as_string();
+      return true;
+    }
+    case 3: {
+      this->name = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->unique_id = value.as_string();
+      return true;
+    }
+    case 5: {
+      this->icon = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesMediaPlayerResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 2: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name);
+  buffer.encode_string(4, this->unique_id);
+  buffer.encode_string(5, this->icon);
+  buffer.encode_bool(6, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(7, this->entity_category);
+  buffer.encode_bool(8, this->supports_pause);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("ListEntitiesMediaPlayerResponse {\n");
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id).append("'");
+  out.append("\n");
+
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  unique_id: ");
+  out.append("'").append(this->unique_id).append("'");
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+
+  out.append("  supports_pause: ");
+  out.append(YESNO(this->supports_pause));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool MediaPlayerStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->state = value.as_enum<enums::MediaPlayerState>();
+      return true;
+    }
+    case 4: {
+      this->muted = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool MediaPlayerStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    case 3: {
+      this->volume = value.as_float();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void MediaPlayerStateResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_enum<enums::MediaPlayerState>(2, this->state);
+  buffer.encode_float(3, this->volume);
+  buffer.encode_bool(4, this->muted);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void MediaPlayerStateResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("MediaPlayerStateResponse {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  state: ");
+  out.append(proto_enum_to_string<enums::MediaPlayerState>(this->state));
+  out.append("\n");
+
+  out.append("  volume: ");
+  sprintf(buffer, "%g", this->volume);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  muted: ");
+  out.append(YESNO(this->muted));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool MediaPlayerCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->has_command = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->command = value.as_enum<enums::MediaPlayerCommand>();
+      return true;
+    }
+    case 4: {
+      this->has_volume = value.as_bool();
+      return true;
+    }
+    case 6: {
+      this->has_media_url = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool MediaPlayerCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 7: {
+      this->media_url = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool MediaPlayerCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    case 5: {
+      this->volume = value.as_float();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void MediaPlayerCommandRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_bool(2, this->has_command);
+  buffer.encode_enum<enums::MediaPlayerCommand>(3, this->command);
+  buffer.encode_bool(4, this->has_volume);
+  buffer.encode_float(5, this->volume);
+  buffer.encode_bool(6, this->has_media_url);
+  buffer.encode_string(7, this->media_url);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void MediaPlayerCommandRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("MediaPlayerCommandRequest {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  has_command: ");
+  out.append(YESNO(this->has_command));
+  out.append("\n");
+
+  out.append("  command: ");
+  out.append(proto_enum_to_string<enums::MediaPlayerCommand>(this->command));
+  out.append("\n");
+
+  out.append("  has_volume: ");
+  out.append(YESNO(this->has_volume));
+  out.append("\n");
+
+  out.append("  volume: ");
+  sprintf(buffer, "%g", this->volume);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  has_media_url: ");
+  out.append(YESNO(this->has_media_url));
+  out.append("\n");
+
+  out.append("  media_url: ");
+  out.append("'").append(this->media_url).append("'");
   out.append("\n");
   out.append("}");
 }

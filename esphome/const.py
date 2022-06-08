@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2022.5.0b4"
+__version__ = "2022.6.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -105,6 +105,7 @@ CONF_COLOR_BRIGHTNESS = "color_brightness"
 CONF_COLOR_CORRECT = "color_correct"
 CONF_COLOR_INTERLOCK = "color_interlock"
 CONF_COLOR_MODE = "color_mode"
+CONF_COLOR_PALETTE = "color_palette"
 CONF_COLOR_TEMPERATURE = "color_temperature"
 CONF_COLORS = "colors"
 CONF_COMMAND = "command"
@@ -198,6 +199,7 @@ CONF_ENABLE_TIME = "enable_time"
 CONF_ENERGY = "energy"
 CONF_ENTITY_CATEGORY = "entity_category"
 CONF_ENTITY_ID = "entity_id"
+CONF_ENUM_DATAPOINT = "enum_datapoint"
 CONF_ESP8266_DISABLE_SSL_SUPPORT = "esp8266_disable_ssl_support"
 CONF_ESPHOME = "esphome"
 CONF_ETHERNET = "ethernet"

@@ -58,7 +58,5 @@ optional<std::string> Select::at(size_t index) const {
   }
 }
 
-uint32_t Select::hash_base() { return 2812997003UL; }
-
 }  // namespace select
 }  // namespace esphome

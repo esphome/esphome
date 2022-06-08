@@ -572,6 +572,14 @@ void MQTTClientComponent::on_shutdown() {
   this->mqtt_backend_.disconnect();
 }
 
+void MQTTClientComponent::set_on_connect(mqtt_on_connect_callback_t &&callback) {
+  this->mqtt_backend_.set_on_connect(std::forward<mqtt_on_connect_callback_t>(callback));
+}
+
+void MQTTClientComponent::set_on_disconnect(mqtt_on_disconnect_callback_t &&callback) {
+  this->mqtt_backend_.set_on_disconnect(std::forward<mqtt_on_disconnect_callback_t>(callback));
+}
+
 #if ASYNC_TCP_SSL_ENABLED
 void MQTTClientComponent::add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint) {
   this->mqtt_backend_.setSecure(true);
