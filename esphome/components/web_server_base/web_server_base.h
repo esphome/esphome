@@ -10,7 +10,6 @@
 #include <ESPAsyncWebServer.h>
 #elif USE_ESP_IDF
 #include "esphome/components/web_server_idf/web_server_idf.h"
-using namespace esphome::web_server_idf;  // NOLINT(google-global-names-in-headers)
 #endif
 
 namespace esphome {

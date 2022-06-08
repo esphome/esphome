@@ -1,34 +1,20 @@
 #include "web_server_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_ARDUINO
 #include <StreamString.h>
-
 #ifdef USE_ESP32
 #include <Update.h>
 #endif
 #ifdef USE_ESP8266
 #include <Updater.h>
 #endif
-#elif USE_ESP_IDF
-class StreamString : public std::string {
- public:
-  void print(const char *str) ALWAYS_INLINE { this->append(str); }
-};
-static const int UPDATE_SIZE_UNKNOWN = 0xFFFFFFFF;
-static const int U_FLASH = 0;
-class UpdaterStub {
- public:
-  bool begin(int /*unused*/, int /*unused*/) const { return false; }
-  bool isRunning /*NOLINT(readability-identifier-naming)*/ () const { return false; }
-  void printError /*NOLINT(readability-identifier-naming)*/ (StreamString &ss) const { ss.print("Unimplemented yet"); }
-  void abort() const {}
-  bool hasError /*NOLINT(readability-identifier-naming)*/ () const { return true; }
-  size_t write(const uint8_t * /*unused*/, int /*unused*/) const { return 0; }
-  bool end(bool /*unused*/) const { return true; }
-};
-const UpdaterStub Update; /*NOLINT(readability-identifier-naming)*/
+#endif
+
+#ifdef USE_ESP_IDF
+#include "esphome/components/web_server_idf/ota_idf.h"
 #endif
 
 namespace esphome {
@@ -43,14 +29,19 @@ void WebServerBase::add_handler(AsyncWebHandler *handler) {
     handler = new internal::AuthMiddlewareHandler(handler, &credentials_);
   }
   this->handlers_.push_back(handler);
-  if (this->server_ != nullptr)
+  if (this->server_ != nullptr) {
     this->server_->addHandler(handler);
+  }
 }
 
 void report_ota_error() {
+#ifdef USE_ARDUINO
   StreamString ss;
   Update.printError(ss);
   ESP_LOGW(TAG, "OTA Update failed! Error: %s", ss.c_str());
+#else
+  ESP_LOGW(TAG, "OTA Update failed! Error: %d", Update.get_error());
+#endif
 }
 
 void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index,
@@ -64,10 +55,14 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Strin
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     success = Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000);
 #endif
-#ifdef USE_ESP32
-    if (Update.isRunning())
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+    if (Update.isRunning()) {
       Update.abort();
+    }
     success = Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH);
+#endif
+#ifdef USE_ESP_IDF
+    success = Update.begin(OTA_SIZE_UNKNOWN);
 #endif
     if (!success) {
       report_ota_error();
@@ -110,9 +105,13 @@ void OTARequestHandler::handleRequest(AsyncWebServerRequest *request) {
   if (!Update.hasError()) {
     response = request->beginResponse(200, "text/plain", "Update Successful!");
   } else {
+#ifdef USE_ARDUINO
     StreamString ss;
     ss.print("Update Failed: ");
     Update.printError(ss);
+#else
+    std::string ss = str_sprintf("Update failed! Error: %d", Update.get_error());
+#endif
     response = request->beginResponse(200, "text/plain", ss);
   }
   response->addHeader("Connection", "close");
