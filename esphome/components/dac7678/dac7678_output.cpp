@@ -54,24 +54,6 @@ void DAC7678Output::dump_config() {
     ESP_LOGCONFIG(TAG, "DAC7678 initialised");
 }
 
-void DAC7678Output::loop() {
-  if (this->min_channel_ == 0xFF || !this->update_)
-    return;
-
-  for (uint8_t channel = this->min_channel_; channel <= this->max_channel_; channel++) {
-    uint16_t input_reg = this->dac_input_reg_[channel];
-    ESP_LOGV(TAG, "Channel %01u: input_reg=%04u ", channel, input_reg);
-
-    if (!this->write_byte_16(DAC7678_REG_WRITE_N_UPDATE_N | channel, input_reg << 4)) {
-      this->status_set_warning();
-      return;
-    }
-  }
-
-  this->status_clear_warning();
-  this->update_ = false;
-}
-
 void DAC7678Output::register_channel(DAC7678Channel *channel) {
   auto c = channel->channel_;
   this->min_channel_ = std::min(this->min_channel_, c);
@@ -81,9 +63,16 @@ void DAC7678Output::register_channel(DAC7678Channel *channel) {
 }
 
 void DAC7678Output::set_channel_value_(uint8_t channel, uint16_t value) {
-  if (this->dac_input_reg_[channel] != value)
-    this->update_ = true;
+  if (this->dac_input_reg_[channel] != value) {
+    ESP_LOGV(TAG, "Channel %01u: input_reg=%04u ", channel, value);
+
+    if (!this->write_byte_16(DAC7678_REG_WRITE_N_UPDATE_N | channel, value << 4)) {
+      this->status_set_warning();
+      return;
+    }
+  }
   this->dac_input_reg_[channel] = value;
+  this->status_clear_warning();
 }
 
 void DAC7678Channel::write_state(float state) {

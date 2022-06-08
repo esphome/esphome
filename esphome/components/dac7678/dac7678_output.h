@@ -36,7 +36,6 @@ class DAC7678Output : public Component, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-  void loop() override;
 
  protected:
   friend DAC7678Channel;
@@ -50,7 +49,6 @@ class DAC7678Output : public Component, public i2c::I2CDevice {
   uint16_t dac_input_reg_[8] = {
       0,
   };
-  bool update_{true};
 };
 
 }  // namespace dac7678
