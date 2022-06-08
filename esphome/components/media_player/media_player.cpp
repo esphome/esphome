@@ -33,6 +33,8 @@ const char *media_player_command_to_string(MediaPlayerCommand command) {
       return "MUTE";
     case MEDIA_PLAYER_COMMAND_UNMUTE:
       return "UNMUTE";
+    case MEDIA_PLAYER_COMMAND_TOGGLE:
+      return "TOGGLE";
     default:
       return "UNKNOWN";
   }
@@ -88,6 +90,8 @@ MediaPlayerCall &MediaPlayerCall::set_command(const std::string &command) {
     this->set_command(MEDIA_PLAYER_COMMAND_MUTE);
   } else if (str_equals_case_insensitive(command, "UNMUTE")) {
     this->set_command(MEDIA_PLAYER_COMMAND_UNMUTE);
+  } else if (str_equals_case_insensitive(command, "TOGGLE")) {
+    this->set_command(MEDIA_PLAYER_COMMAND_TOGGLE);
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command.c_str());
   }
