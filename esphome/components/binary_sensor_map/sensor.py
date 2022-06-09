@@ -42,7 +42,6 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-
         "sum": sensor.sensor_schema(
             BinarySensorMap,
             icon=ICON_CHECK_CIRCLE_OUTLINE,
