@@ -139,19 +139,19 @@ def do_packages_pass(config: dict):
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
-    
+
     config_before_packages = OrderedDict()
     config_after_packages = OrderedDict()
     packages_not_yet_hit = True
-    for k,r in config.items():
-      if k == CONF_PACKAGES:
-        packages_not_yet_hit = False
-        continue
-      if packages_not_yet_hit:
-        config_before_packages[k] = r
-      else:
-        config_after_packages[k] = r
-        
+    for k, r in config.items():
+        if k == CONF_PACKAGES:
+            packages_not_yet_hit = False
+            continue
+        if packages_not_yet_hit:
+            config_before_packages[k] = r
+        else:
+            config_after_packages[k] = r
+
     with cv.prepend_path(CONF_PACKAGES):
         packages = CONFIG_SCHEMA(packages)
 
@@ -170,5 +170,5 @@ def do_packages_pass(config: dict):
                 config_before_packages = merge_config(config_before_packages, recursive_package)
 
         config = merge_config(config_before_packages, config_after_packages)
-      
+
     return config
