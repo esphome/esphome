@@ -71,8 +71,8 @@ void BinarySensorMap::process_sum_() {
     }
   } else if (this->last_mask_ != 0ULL) {
     // is this a new sensor release
-    ESP_LOGD(TAG, "'%s' - No binary sensor active, publishing NAN", this->name_.c_str());
-    this->publish_state(NAN);
+    ESP_LOGD(TAG, "'%s' - No binary sensor active, publishing 0", this->name_.c_str());
+    this->publish_state(0.0);
   }
   this->last_mask_ = mask;
 }
