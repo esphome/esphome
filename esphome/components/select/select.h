@@ -65,8 +65,6 @@ class Select : public EntityBase {
    */
   virtual void control(const std::string &value) = 0;
 
-  uint32_t hash_base() override;
-
   CallbackManager<void(std::string, size_t)> state_callback_;
   bool has_state_{false};
 };

@@ -19,7 +19,8 @@ enum MediaPlayerCommand : uint8_t {
   MEDIA_PLAYER_COMMAND_PAUSE = 1,
   MEDIA_PLAYER_COMMAND_STOP = 2,
   MEDIA_PLAYER_COMMAND_MUTE = 3,
-  MEDIA_PLAYER_COMMAND_UNMUTE = 4
+  MEDIA_PLAYER_COMMAND_UNMUTE = 4,
+  MEDIA_PLAYER_COMMAND_TOGGLE = 5
 };
 const char *media_player_command_to_string(MediaPlayerCommand command);
 
@@ -82,7 +83,6 @@ class MediaPlayer : public EntityBase {
   friend MediaPlayerCall;
 
   virtual void control(const MediaPlayerCall &call) = 0;
-  uint32_t hash_base() override;
 
   CallbackManager<void()> state_callback_{};
 };

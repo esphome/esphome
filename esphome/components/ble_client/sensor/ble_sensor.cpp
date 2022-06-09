@@ -11,8 +11,6 @@ namespace ble_client {
 
 static const char *const TAG = "ble_sensor";
 
-uint32_t BLESensor::hash_base() { return 343459825UL; }
-
 void BLESensor::loop() {}
 
 void BLESensor::dump_config() {

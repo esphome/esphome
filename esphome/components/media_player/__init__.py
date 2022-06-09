@@ -20,6 +20,9 @@ MediaPlayer = media_player_ns.class_("MediaPlayer")
 PlayAction = media_player_ns.class_(
     "PlayAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
+ToggleAction = media_player_ns.class_(
+    "ToggleAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
 PauseAction = media_player_ns.class_(
     "PauseAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
@@ -42,12 +45,15 @@ async def register_media_player(var, config):
 MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.Schema({}))
 
 
-MEDIA_PLAYER_ACTION_SCHEMA = maybe_simple_id()(
+MEDIA_PLAYER_ACTION_SCHEMA = maybe_simple_id(
     {cv.Required(CONF_ID): cv.use_id(MediaPlayer)}
 )
 
 
 @automation.register_action("media_player.play", PlayAction, MEDIA_PLAYER_ACTION_SCHEMA)
+@automation.register_action(
+    "media_player.toggle", ToggleAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
 @automation.register_action(
     "media_player.pause", PauseAction, MEDIA_PLAYER_ACTION_SCHEMA
 )
