@@ -43,8 +43,6 @@ void DAC7678Output::setup() {
     } else
       ESP_LOGV(TAG, "Internal reference enabled");
   }
-
-  this->loop();
 }
 
 void DAC7678Output::dump_config() {
