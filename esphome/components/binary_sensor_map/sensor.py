@@ -11,6 +11,8 @@ from esphome.const import (
     CONF_GROUP,
 )
 
+CONF_SUM = "sum"
+
 DEPENDENCIES = ["binary_sensor"]
 
 binary_sensor_map_ns = cg.esphome_ns.namespace("binary_sensor_map")
@@ -21,6 +23,7 @@ SensorMapType = binary_sensor_map_ns.enum("SensorMapType")
 
 SENSOR_MAP_TYPES = {
     CONF_GROUP: SensorMapType.BINARY_SENSOR_MAP_TYPE_GROUP,
+    CONF_SUM: SensorMapType.BINARY_SENSOR_MAP_TYPE_SUM,
 }
 
 entry = {
