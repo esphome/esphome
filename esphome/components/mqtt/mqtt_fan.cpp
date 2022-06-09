@@ -114,6 +114,7 @@ void MQTTFanComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig
   if (this->state_->get_traits().supports_speed()) {
     root[MQTT_PERCENTAGE_COMMAND_TOPIC] = this->get_speed_level_command_topic();
     root[MQTT_PERCENTAGE_STATE_TOPIC] = this->get_speed_level_state_topic();
+    root[MQTT_SPEED_RANGE_MAX] = this->state_->get_traits().supported_speed_count();
   }
 }
 bool MQTTFanComponent::publish_state() {
