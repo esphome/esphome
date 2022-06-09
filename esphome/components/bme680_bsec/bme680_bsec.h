@@ -70,8 +70,8 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   void publish_(const bsec_output_t *outputs, uint8_t num_outputs);
   int64_t get_time_ns_();
 
-  void publish_sensor_state_(sensor::Sensor *sensor, float value, bool change_only = false);
-  void publish_sensor_state_(text_sensor::TextSensor *sensor, const std::string &value);
+  void publish_sensor_(sensor::Sensor *sensor, float value, bool change_only = false);
+  void publish_sensor_(text_sensor::TextSensor *sensor, const std::string &value);
 
   void snapshot_state_();                 // Fetch the current BSEC library state and save it in the bsec_state_data_ member (volatile memory)
   void restore_state_();                  // Push the state contained in the bsec_state_data_ member (volatile memory) to the BSEC library
@@ -80,6 +80,8 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
                                           //   then save it in the bsec_state_data_ member (volatile memory) and push it to the BSEC library
   void save_state_(uint8_t accuracy);     // Save the bsec_state_data_ member (volatile memory) to the ESP preferences (storage)
 
+  void queue_push_(std::function<void()> &&f) { this->queue_.push(std::move(f)); }
+
   struct bme680_dev bme680_;
   bsec_library_return_t bsec_status_{BSEC_OK};
   int8_t bme680_status_{BME680_OK};
@@ -87,6 +89,8 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   int64_t last_time_ms_{0};
   uint32_t millis_overflow_counter_{0};
   int64_t next_call_ns_{0};
+
+  std::queue<std::function<void()>> queue_;
 
   bool bsec_state_data_valid_;
   uint8_t bsec_state_data_[BSEC_MAX_STATE_BLOB_SIZE];   // This is the current snapshot of the BSEC library state
