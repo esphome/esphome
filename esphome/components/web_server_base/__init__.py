@@ -23,11 +23,10 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if CORE.is_esp32:
-        cg.add_library("WiFi", None)
-        if CORE.using_arduino:
+    if CORE.using_arduino:
+        if CORE.is_esp32:
+            cg.add_library("WiFi", None)
             cg.add_library("FS", None)
             cg.add_library("Update", None)
-    if CORE.using_arduino:
         # https://github.com/esphome/ESPAsyncWebServer/blob/master/library.json
         cg.add_library("esphome/ESPAsyncWebServer-esphome", "2.1.0")
