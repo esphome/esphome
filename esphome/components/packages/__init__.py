@@ -1,4 +1,7 @@
+import logging
+
 import re
+from collections import OrderedDict
 from pathlib import Path
 from esphome.core import EsphomeError
 from esphome.config_helpers import merge_config
@@ -17,6 +20,8 @@ from esphome.const import (
 import esphome.config_validation as cv
 
 DOMAIN = CONF_PACKAGES
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def validate_git_package(config: dict):
@@ -134,8 +139,22 @@ def do_packages_pass(config: dict):
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
+    
+    config_before_packages = OrderedDict()
+    config_after_packages = OrderedDict()
+    packages_not_yet_hit = True
+    for k,r in config.items():
+      if k == CONF_PACKAGES:
+        packages_not_yet_hit = False
+        continue
+      if packages_not_yet_hit:
+        config_before_packages[k] = r
+      else:
+        config_after_packages[k] = r
+        
     with cv.prepend_path(CONF_PACKAGES):
         packages = CONFIG_SCHEMA(packages)
+
         if not isinstance(packages, dict):
             raise cv.Invalid(
                 f"Packages must be a key to value mapping, got {type(packages)} instead"
@@ -148,7 +167,8 @@ def do_packages_pass(config: dict):
                     package_config = _process_base_package(package_config)
                 if isinstance(package_config, dict):
                     recursive_package = do_packages_pass(package_config)
-                config = merge_config(config, recursive_package)
+                config_before_packages = merge_config(config_before_packages, recursive_package)
 
-        del config[CONF_PACKAGES]
+        config = merge_config(config_before_packages, config_after_packages)
+      
     return config
