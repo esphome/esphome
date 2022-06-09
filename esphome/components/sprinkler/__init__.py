@@ -13,21 +13,20 @@ from esphome.const import (
 AUTO_LOAD = ["switch"]
 CODEOWNERS = ["@kbx81"]
 
-CONF_AUTO_ADVANCE_SWITCH_ID = "auto_advance_switch_id"
-CONF_AUTO_ADVANCE_SWITCH_NAME = "auto_advance_switch_name"
-CONF_ENABLE_SWITCH_NAME = "enable_switch_name"
-CONF_MAIN_SWITCH_ID = "main_switch_id"
+CONF_AUTO_ADVANCE_SWITCH = "auto_advance_switch"
+CONF_ENABLE_SWITCH = "enable_switch"
+CONF_MAIN_SWITCH = "main_switch"
 CONF_MANUAL_SELECTION_DELAY = "manual_selection_delay"
 CONF_MULTIPLIER = "multiplier"
 CONF_PUMP_SWITCH = "pump_switch"
+CONF_PUMP_SWITCH_ID = "pump_switch_id"
 CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY = "pump_switch_off_during_valve_open_delay"
-CONF_REVERSE_SWITCH_ID = "reverse_switch_id"
-CONF_REVERSE_SWITCH_NAME = "reverse_switch_name"
+CONF_REVERSE_SWITCH = "reverse_switch"
 CONF_VALVE_OPEN_DELAY = "valve_open_delay"
 CONF_VALVE_OVERLAP = "valve_overlap"
 CONF_VALVE_NUMBER = "valve_number"
-CONF_VALVE_SWITCH_NAME = "valve_switch_name"
 CONF_VALVE_SWITCH = "valve_switch"
+CONF_VALVE_SWITCH_ID = "valve_switch_id"
 CONF_VALVES = "valves"
 
 sprinkler_ns = cg.esphome_ns.namespace("sprinkler")
@@ -56,20 +55,21 @@ def validate_sprinkler(config):
             exclusions = [
                 CONF_VALVE_OPEN_DELAY,
                 CONF_VALVE_OVERLAP,
-                CONF_AUTO_ADVANCE_SWITCH_NAME,
-                CONF_REVERSE_SWITCH_NAME,
+                CONF_AUTO_ADVANCE_SWITCH,
+                CONF_MAIN_SWITCH,
+                CONF_REVERSE_SWITCH,
             ]
             for config_item in exclusions:
                 if config_item in sprinkler_controller:
                     raise cv.Invalid(f"Do not define {config_item} with only one valve")
-            if CONF_ENABLE_SWITCH_NAME in sprinkler_controller[CONF_VALVES][0]:
+            if CONF_ENABLE_SWITCH in sprinkler_controller[CONF_VALVES][0]:
                 raise cv.Invalid(
-                    f"Do not define {CONF_ENABLE_SWITCH_NAME} with only one valve"
+                    f"Do not define {CONF_ENABLE_SWITCH} with only one valve"
                 )
         else:
             requirements = [
-                CONF_AUTO_ADVANCE_SWITCH_NAME,
-                CONF_NAME,
+                CONF_AUTO_ADVANCE_SWITCH,
+                CONF_MAIN_SWITCH,
             ]
             for config_item in requirements:
                 if config_item not in sprinkler_controller:
@@ -144,23 +144,65 @@ SPRINKLER_ACTION_SET_RUN_DURATION_SCHEMA = cv.Schema(
 
 SPRINKLER_VALVE_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_ENABLE_SWITCH_NAME): cv.string,
-        cv.Optional(CONF_PUMP_SWITCH): cv.use_id(switch.Switch),
+        cv.Optional(CONF_ENABLE_SWITCH): cv.maybe_simple_value(
+            switch.SWITCH_SCHEMA.extend(
+                cv.Schema(
+                    {
+                        cv.GenerateID(): cv.declare_id(SprinklerSwitch),
+                    }
+                )
+            ),
+            key=CONF_NAME,
+        ),
+        cv.Optional(CONF_PUMP_SWITCH_ID): cv.use_id(switch.Switch),
         cv.Required(CONF_RUN_DURATION): cv.positive_time_period_seconds,
-        cv.Required(CONF_VALVE_SWITCH_NAME): cv.string,
-        cv.Required(CONF_VALVE_SWITCH): cv.use_id(switch.Switch),
+        cv.Required(CONF_VALVE_SWITCH): cv.maybe_simple_value(
+            switch.SWITCH_SCHEMA.extend(
+                cv.Schema(
+                    {
+                        cv.GenerateID(): cv.declare_id(SprinklerSwitch),
+                    }
+                )
+            ),
+            key=CONF_NAME,
+        ),
+        cv.Required(CONF_VALVE_SWITCH_ID): cv.use_id(switch.Switch),
     }
 )
 
 SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Sprinkler),
-        cv.GenerateID(CONF_AUTO_ADVANCE_SWITCH_ID): cv.declare_id(SprinklerSwitch),
-        cv.Optional(CONF_AUTO_ADVANCE_SWITCH_NAME): cv.string,
-        cv.GenerateID(CONF_MAIN_SWITCH_ID): cv.declare_id(SprinklerSwitch),
-        cv.Required(CONF_NAME): cv.string,
-        cv.GenerateID(CONF_REVERSE_SWITCH_ID): cv.declare_id(SprinklerSwitch),
-        cv.Optional(CONF_REVERSE_SWITCH_NAME): cv.string,
+        cv.Optional(CONF_AUTO_ADVANCE_SWITCH): cv.maybe_simple_value(
+            switch.SWITCH_SCHEMA.extend(
+                cv.Schema(
+                    {
+                        cv.GenerateID(): cv.declare_id(SprinklerSwitch),
+                    }
+                )
+            ),
+            key=CONF_NAME,
+        ),
+        cv.Optional(CONF_MAIN_SWITCH): cv.maybe_simple_value(
+            switch.SWITCH_SCHEMA.extend(
+                cv.Schema(
+                    {
+                        cv.GenerateID(): cv.declare_id(SprinklerSwitch),
+                    }
+                )
+            ),
+            key=CONF_NAME,
+        ),
+        cv.Optional(CONF_REVERSE_SWITCH): cv.maybe_simple_value(
+            switch.SWITCH_SCHEMA.extend(
+                cv.Schema(
+                    {
+                        cv.GenerateID(): cv.declare_id(SprinklerSwitch),
+                    }
+                )
+            ),
+            key=CONF_NAME,
+        ),
         cv.Optional(CONF_MANUAL_SELECTION_DELAY): cv.positive_time_period_seconds,
         cv.Optional(CONF_REPEAT): cv.positive_int,
         cv.Optional(CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY): cv.boolean,
@@ -276,101 +318,71 @@ async def sprinkler_simple_action_to_code(config, action_id, template_arg, args)
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-def sprinkler_switch_gen(config, ss_id, ss_name):
-    ss_config = config.copy()
-    ss_config[CONF_ID] = ss_id
-    ss_config[CONF_NAME] = ss_name
-    return ss_config
-
-
 async def to_code(config):
     for sprinkler_controller in config:
-        var = cg.new_Pvariable(
-            sprinkler_controller[CONF_ID], sprinkler_controller[CONF_NAME]
-        )
-        await cg.register_component(var, sprinkler_controller)
         if len(sprinkler_controller[CONF_VALVES]) > 1:
-            sw_var = cg.new_Pvariable(sprinkler_controller[CONF_MAIN_SWITCH_ID])
-            await cg.register_component(
-                sw_var,
-                sprinkler_switch_gen(
-                    sprinkler_controller,
-                    sprinkler_controller[CONF_MAIN_SWITCH_ID],
-                    sprinkler_controller[CONF_NAME],
-                ),
+            var = cg.new_Pvariable(
+                sprinkler_controller[CONF_ID],
+                sprinkler_controller[CONF_MAIN_SWITCH][CONF_NAME],
             )
-            await switch.register_switch(
-                sw_var,
-                sprinkler_switch_gen(
-                    sprinkler_controller,
-                    sprinkler_controller[CONF_MAIN_SWITCH_ID],
-                    sprinkler_controller[CONF_NAME],
-                ),
+        else:
+            var = cg.new_Pvariable(
+                sprinkler_controller[CONF_ID],
+                sprinkler_controller[CONF_VALVES][0][CONF_VALVE_SWITCH][CONF_NAME],
             )
-            sw_var = await cg.get_variable(sprinkler_controller[CONF_MAIN_SWITCH_ID])
+        await cg.register_component(var, sprinkler_controller)
+
+        if len(sprinkler_controller[CONF_VALVES]) > 1:
+            sw_var = cg.new_Pvariable(sprinkler_controller[CONF_MAIN_SWITCH][CONF_ID])
+            await cg.register_component(sw_var, sprinkler_controller[CONF_MAIN_SWITCH])
+            await switch.register_switch(sw_var, sprinkler_controller[CONF_MAIN_SWITCH])
+            sw_var = await cg.get_variable(
+                sprinkler_controller[CONF_MAIN_SWITCH][CONF_ID]
+            )
             cg.add(var.set_controller_main_switch(sw_var))
 
             sw_aa_var = cg.new_Pvariable(
-                sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH_ID]
+                sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH][CONF_ID]
             )
             await cg.register_component(
-                sw_aa_var,
-                sprinkler_switch_gen(
-                    sprinkler_controller,
-                    sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH_ID],
-                    sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH_NAME],
-                ),
+                sw_aa_var, sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH]
             )
             await switch.register_switch(
-                sw_aa_var,
-                sprinkler_switch_gen(
-                    sprinkler_controller,
-                    sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH_ID],
-                    sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH_NAME],
-                ),
+                sw_aa_var, sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH]
             )
             sw_aa_var = await cg.get_variable(
-                sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH_ID]
+                sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH][CONF_ID]
             )
             cg.add(var.set_controller_auto_adv_switch(sw_aa_var))
 
-            if CONF_REVERSE_SWITCH_NAME in sprinkler_controller:
+            if CONF_REVERSE_SWITCH in sprinkler_controller:
                 sw_rev_var = cg.new_Pvariable(
-                    sprinkler_controller[CONF_REVERSE_SWITCH_ID]
+                    sprinkler_controller[CONF_REVERSE_SWITCH][CONF_ID]
                 )
                 await cg.register_component(
-                    sw_rev_var,
-                    sprinkler_switch_gen(
-                        sprinkler_controller,
-                        sprinkler_controller[CONF_REVERSE_SWITCH_ID],
-                        sprinkler_controller[CONF_REVERSE_SWITCH_NAME],
-                    ),
+                    sw_rev_var, sprinkler_controller[CONF_REVERSE_SWITCH]
                 )
                 await switch.register_switch(
-                    sw_rev_var,
-                    sprinkler_switch_gen(
-                        sprinkler_controller,
-                        sprinkler_controller[CONF_REVERSE_SWITCH_ID],
-                        sprinkler_controller[CONF_REVERSE_SWITCH_NAME],
-                    ),
+                    sw_rev_var, sprinkler_controller[CONF_REVERSE_SWITCH]
                 )
                 sw_rev_var = await cg.get_variable(
-                    sprinkler_controller[CONF_REVERSE_SWITCH_ID]
+                    sprinkler_controller[CONF_REVERSE_SWITCH][CONF_ID]
                 )
                 cg.add(var.set_controller_reverse_switch(sw_rev_var))
 
         for valve in sprinkler_controller[CONF_VALVES]:
             if (
-                CONF_ENABLE_SWITCH_NAME in valve
+                CONF_ENABLE_SWITCH in valve
                 and len(sprinkler_controller[CONF_VALVES]) > 1
             ):
                 cg.add(
                     var.add_valve(
-                        valve[CONF_VALVE_SWITCH_NAME], valve[CONF_ENABLE_SWITCH_NAME]
+                        valve[CONF_VALVE_SWITCH][CONF_NAME],
+                        valve[CONF_ENABLE_SWITCH][CONF_NAME],
                     )
                 )
             else:
-                cg.add(var.add_valve(valve[CONF_VALVE_SWITCH_NAME]))
+                cg.add(var.add_valve(valve[CONF_VALVE_SWITCH][CONF_NAME]))
 
         if CONF_MANUAL_SELECTION_DELAY in sprinkler_controller:
             cg.add(
@@ -400,9 +412,9 @@ async def to_code(config):
     for sprinkler_controller in config:
         var = await cg.get_variable(sprinkler_controller[CONF_ID])
         for valve_index, valve in enumerate(sprinkler_controller[CONF_VALVES]):
-            valve_switch = await cg.get_variable(valve[CONF_VALVE_SWITCH])
-            if CONF_PUMP_SWITCH in valve:
-                pump = await cg.get_variable(valve[CONF_PUMP_SWITCH])
+            valve_switch = await cg.get_variable(valve[CONF_VALVE_SWITCH_ID])
+            if CONF_PUMP_SWITCH_ID in valve:
+                pump = await cg.get_variable(valve[CONF_PUMP_SWITCH_ID])
                 cg.add(
                     var.configure_valve_switch(
                         valve_index, valve_switch, valve[CONF_RUN_DURATION], pump
