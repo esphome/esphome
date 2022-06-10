@@ -9,11 +9,20 @@
 #include "esphome/core/log.h"
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/ip_address.h"
-#include <AsyncMqttClient.h>
+#if defined(USE_ESP_IDF)
+#include "mqtt_backend_idf.h"
+#elif defined(USE_ARDUINO)
+#include "mqtt_backend_arduino.h"
+#endif
 #include "lwip/ip_addr.h"
 
 namespace esphome {
 namespace mqtt {
+
+/** Callback for MQTT events.
+ */
+using mqtt_on_connect_callback_t = std::function<MQTTBackend::on_connect_callback_t>;
+using mqtt_on_disconnect_callback_t = std::function<MQTTBackend::on_disconnect_callback_t>;
 
 /** Callback for MQTT subscriptions.
  *
@@ -21,14 +30,6 @@ namespace mqtt {
  */
 using mqtt_callback_t = std::function<void(const std::string &, const std::string &)>;
 using mqtt_json_callback_t = std::function<void(const std::string &, JsonObject)>;
-
-/// internal struct for MQTT messages.
-struct MQTTMessage {
-  std::string topic;
-  std::string payload;
-  uint8_t qos;  ///< QoS. Only for last will testaments.
-  bool retain;
-};
 
 /// internal struct for MQTT subscriptions.
 struct MQTTSubscription {
@@ -139,7 +140,10 @@ class MQTTClientComponent : public Component {
    */
   void add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint);
 #endif
-
+#ifdef USE_ESP_IDF
+  void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
+  void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
+#endif
   const Availability &get_availability();
 
   /** Set the topic prefix that will be prepended to all topics together with "/". This will, in most cases,
@@ -150,7 +154,7 @@ class MQTTClientComponent : public Component {
    *
    * @param topic_prefix The topic prefix. The last "/" is appended automatically.
    */
-  void set_topic_prefix(std::string topic_prefix);
+  void set_topic_prefix(const std::string &topic_prefix);
   /// Get the topic prefix of this device, using default if necessary
   const std::string &get_topic_prefix() const;
 
@@ -241,6 +245,8 @@ class MQTTClientComponent : public Component {
   void set_username(const std::string &username) { this->credentials_.username = username; }
   void set_password(const std::string &password) { this->credentials_.password = password; }
   void set_client_id(const std::string &client_id) { this->credentials_.client_id = client_id; }
+  void set_on_connect(mqtt_on_connect_callback_t &&callback);
+  void set_on_disconnect(mqtt_on_disconnect_callback_t &&callback);
 
  protected:
   /// Reconnect to the MQTT broker if not already connected.
@@ -277,6 +283,8 @@ class MQTTClientComponent : public Component {
       .prefix = "homeassistant",
       .retain = true,
       .clean = false,
+      .unique_id_generator = MQTT_LEGACY_UNIQUE_ID_GENERATOR,
+      .object_id_generator = MQTT_NONE_OBJECT_ID_GENERATOR,
   };
   std::string topic_prefix_{};
   MQTTMessage log_message_;
@@ -284,7 +292,12 @@ class MQTTClientComponent : public Component {
   int log_level_{ESPHOME_LOG_LEVEL};
 
   std::vector<MQTTSubscription> subscriptions_;
-  AsyncMqttClient mqtt_client_;
+#if defined(USE_ESP_IDF)
+  MQTTBackendIDF mqtt_backend_;
+#elif defined(USE_ARDUINO)
+  MQTTBackendArduino mqtt_backend_;
+#endif
+
   MQTTClientState state_{MQTT_CLIENT_DISCONNECTED};
   network::IPAddress ip_;
   bool dns_resolved_{false};
@@ -293,7 +306,7 @@ class MQTTClientComponent : public Component {
   uint32_t reboot_timeout_{300000};
   uint32_t connect_begin_;
   uint32_t last_connected_{0};
-  optional<AsyncMqttClientDisconnectReason> disconnect_reason_{};
+  optional<MQTTClientDisconnectReason> disconnect_reason_{};
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -319,6 +332,20 @@ class MQTTJsonMessageTrigger : public Trigger<JsonObjectConst> {
   explicit MQTTJsonMessageTrigger(const std::string &topic, uint8_t qos) {
     global_mqtt_client->subscribe_json(
         topic, [this](const std::string &topic, JsonObject root) { this->trigger(root); }, qos);
+  }
+};
+
+class MQTTConnectTrigger : public Trigger<> {
+ public:
+  explicit MQTTConnectTrigger(MQTTClientComponent *&client) {
+    client->set_on_connect([this](bool session_present) { this->trigger(); });
+  }
+};
+
+class MQTTDisconnectTrigger : public Trigger<> {
+ public:
+  explicit MQTTDisconnectTrigger(MQTTClientComponent *&client) {
+    client->set_on_disconnect([this](MQTTClientDisconnectReason reason) { this->trigger(); });
   }
 };
 

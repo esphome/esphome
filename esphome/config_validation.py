@@ -58,7 +58,7 @@ from esphome.core import (
 )
 from esphome.helpers import list_starts_with, add_class_to_obj
 from esphome.jsonschema import (
-    jschema_composite,
+    jschema_list,
     jschema_extractor,
     jschema_registry,
     jschema_typed,
@@ -327,7 +327,7 @@ def boolean(value):
     )
 
 
-@jschema_composite
+@jschema_list
 def ensure_list(*validators):
     """Validate this configuration option to be a list.
 
@@ -494,7 +494,11 @@ def templatable(other_validators):
     """
     schema = Schema(other_validators)
 
+    @jschema_extractor("templatable")
     def validator(value):
+        # pylint: disable=comparison-with-callable
+        if value == jschema_extractor:
+            return other_validators
         if isinstance(value, Lambda):
             return returning_lambda(value)
         if isinstance(other_validators, dict):
@@ -1082,16 +1086,21 @@ def possibly_negative_percentage(value):
         except ValueError:
             # pylint: disable=raise-missing-from
             raise Invalid("invalid number")
-    if value > 1:
-        msg = "Percentage must not be higher than 100%."
-        if not has_percent_sign:
-            msg += " Please put a percent sign after the number!"
-        raise Invalid(msg)
-    if value < -1:
-        msg = "Percentage must not be smaller than -100%."
-        if not has_percent_sign:
-            msg += " Please put a percent sign after the number!"
-        raise Invalid(msg)
+    try:
+        if value > 1:
+            msg = "Percentage must not be higher than 100%."
+            if not has_percent_sign:
+                msg += " Please put a percent sign after the number!"
+            raise Invalid(msg)
+        if value < -1:
+            msg = "Percentage must not be smaller than -100%."
+            if not has_percent_sign:
+                msg += " Please put a percent sign after the number!"
+            raise Invalid(msg)
+    except TypeError:
+        raise Invalid(  # pylint: disable=raise-missing-from
+            "Expected percentage or float between -1.0 and 1.0"
+        )
     return negative_one_to_one_float(value)
 
 
@@ -1546,7 +1555,7 @@ def validate_registry(name, registry):
     return ensure_list(validate_registry_entry(name, registry))
 
 
-@jschema_composite
+@jschema_list
 def maybe_simple_value(*validators, **kwargs):
     key = kwargs.pop("key", CONF_VALUE)
     validator = All(*validators)

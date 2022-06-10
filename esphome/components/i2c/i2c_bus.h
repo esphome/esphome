@@ -15,6 +15,7 @@ enum ErrorCode {
   ERROR_NOT_INITIALIZED = 4,
   ERROR_TOO_LARGE = 5,
   ERROR_UNKNOWN = 6,
+  ERROR_CRC = 7,
 };
 
 struct ReadBuffer {
@@ -36,12 +37,18 @@ class I2CBus {
   }
   virtual ErrorCode readv(uint8_t address, ReadBuffer *buffers, size_t cnt) = 0;
   virtual ErrorCode write(uint8_t address, const uint8_t *buffer, size_t len) {
+    return write(address, buffer, len, true);
+  }
+  virtual ErrorCode write(uint8_t address, const uint8_t *buffer, size_t len, bool stop) {
     WriteBuffer buf;
     buf.data = buffer;
     buf.len = len;
-    return writev(address, &buf, 1);
+    return writev(address, &buf, 1, stop);
   }
-  virtual ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t cnt) = 0;
+  virtual ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
+    return writev(address, buffers, cnt, true);
+  }
+  virtual ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) = 0;
 
  protected:
   void i2c_scan_() {

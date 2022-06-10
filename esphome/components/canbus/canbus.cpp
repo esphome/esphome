@@ -22,20 +22,22 @@ void Canbus::dump_config() {
   }
 }
 
-void Canbus::send_data(uint32_t can_id, bool use_extended_id, const std::vector<uint8_t> &data) {
+void Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
+                       const std::vector<uint8_t> &data) {
   struct CanFrame can_message;
 
   uint8_t size = static_cast<uint8_t>(data.size());
   if (use_extended_id) {
-    ESP_LOGD(TAG, "send extended id=0x%08x size=%d", can_id, size);
+    ESP_LOGD(TAG, "send extended id=0x%08x rtr=%s size=%d", can_id, TRUEFALSE(remote_transmission_request), size);
   } else {
-    ESP_LOGD(TAG, "send extended id=0x%03x size=%d", can_id, size);
+    ESP_LOGD(TAG, "send extended id=0x%03x rtr=%s size=%d", can_id, TRUEFALSE(remote_transmission_request), size);
   }
   if (size > CAN_MAX_DATA_LENGTH)
     size = CAN_MAX_DATA_LENGTH;
   can_message.can_data_length_code = size;
   can_message.can_id = can_id;
   can_message.use_extended_id = use_extended_id;
+  can_message.remote_transmission_request = remote_transmission_request;
 
   for (int i = 0; i < size; i++) {
     can_message.data[i] = data[i];
@@ -79,8 +81,10 @@ void Canbus::loop() {
     // fire all triggers
     for (auto *trigger : this->triggers_) {
       if ((trigger->can_id_ == (can_message.can_id & trigger->can_id_mask_)) &&
-          (trigger->use_extended_id_ == can_message.use_extended_id)) {
-        trigger->trigger(data, can_message.can_id);
+          (trigger->use_extended_id_ == can_message.use_extended_id) &&
+          (!trigger->remote_transmission_request_.has_value() ||
+           trigger->remote_transmission_request_.value() == can_message.remote_transmission_request)) {
+        trigger->trigger(data, can_message.can_id, can_message.remote_transmission_request);
       }
     }
   }
