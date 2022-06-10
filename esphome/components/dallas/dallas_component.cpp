@@ -241,8 +241,8 @@ bool DallasTemperatureSensor::setup_sensor() {
   return true;
 }
 bool DallasTemperatureSensor::check_scratch_pad() {
-  bool chksumValidity=(crc8(this->scratch_pad_, 8) == this->scratch_pad_[8]);
-  bool configValidity=((this->scratch_pad_[4] & 0x9F)==0x1F);
+  bool chksumValidity = (crc8(this->scratch_pad_, 8) == this->scratch_pad_[8]);
+  bool configValidity = ((this->scratch_pad_[4] & 0x9F)==0x1F);
 #ifdef ESPHOME_LOG_LEVEL_VERY_VERBOSE
   ESP_LOGVV(TAG, "Scratch pad: %02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X (%02X)", this->scratch_pad_[0],
             this->scratch_pad_[1], this->scratch_pad_[2], this->scratch_pad_[3], this->scratch_pad_[4],
