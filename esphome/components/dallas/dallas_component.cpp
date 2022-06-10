@@ -134,7 +134,7 @@ void DallasComponent::update() {
         return;
       }
       if (!sensor->check_scratch_pad()) {
-        ESP_LOGW(TAG, "'%s' - Scratch pad checksum invalid!", sensor->get_name().c_str());
+        ESP_LOGW(TAG, "'%s' - Scratch pad invalid!", sensor->get_name().c_str());
         sensor->publish_state(NAN);
         this->status_set_warning();
         return;
@@ -241,13 +241,21 @@ bool DallasTemperatureSensor::setup_sensor() {
   return true;
 }
 bool DallasTemperatureSensor::check_scratch_pad() {
+  bool chksumValidity=(crc8(this->scratch_pad_, 8) == this->scratch_pad_[8]);
+  bool configValidity=((this->scratch_pad_[4] & 0x9F)==0x1F);
 #ifdef ESPHOME_LOG_LEVEL_VERY_VERBOSE
   ESP_LOGVV(TAG, "Scratch pad: %02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X (%02X)", this->scratch_pad_[0],
             this->scratch_pad_[1], this->scratch_pad_[2], this->scratch_pad_[3], this->scratch_pad_[4],
             this->scratch_pad_[5], this->scratch_pad_[6], this->scratch_pad_[7], this->scratch_pad_[8],
             crc8(this->scratch_pad_, 8));
 #endif
-  return crc8(this->scratch_pad_, 8) == this->scratch_pad_[8];
+  if (!chksumValidity) {
+    ESP_LOGW(TAG, "'%s' - Scratch pad checksum invalid!", this->get_name().c_str());
+  }
+  if (!configValidity) {
+    ESP_LOGW(TAG, "'%s' - Scratch pad config register invalid!", this->get_name().c_str());
+  }
+  return chksumValidity && configValidity;
 }
 float DallasTemperatureSensor::get_temp_c() {
   int16_t temp = (int16_t(this->scratch_pad_[1]) << 11) | (int16_t(this->scratch_pad_[0]) << 3);
