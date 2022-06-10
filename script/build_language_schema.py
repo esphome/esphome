@@ -3,14 +3,14 @@ import json
 import argparse
 import os
 import glob
-import voluptuous as vol
 import re
+import voluptuous as vol
 
-# NOTE: Cannot import other esphome components globally as a modification in jsonschema
+# NOTE: Cannot import other esphome components globally as a modification in vol_schema
 # is needed before modules are loaded
-import esphome.jsonschema as ejs
+import esphome.schema_extractors as ejs
 
-ejs.EnableJsonSchemaCollect = True
+ejs.EnableSchemaExtraction = True
 
 # schema format:
 # Schemas are splitted in several files in json format, one for core stuff, one for each platform (sensor, binary_sensor, etc) and
@@ -709,7 +709,7 @@ def convert_1(schema, config_var, path):
     elif repr_schema in ejs.hidden_schemas:
         schema_type = ejs.hidden_schemas[repr_schema]
 
-        data = schema(ejs.jschema_extractor)
+        data = schema(ejs.SCHEMA_EXTRACT)
 
         # enums, e.g. esp32/variant
         if schema_type == "one_of":
