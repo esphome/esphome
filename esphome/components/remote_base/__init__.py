@@ -728,6 +728,48 @@ async def rc5_action(var, config, args):
     cg.add(var.set_command(template_))
 
 
+# RC6
+RC6Data, RC6BinarySensor, RC6Trigger, RC6Action, RC6Dumper = declare_protocol("RC6")
+RC6_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.hex_uint8_t,
+        cv.Required(CONF_COMMAND): cv.hex_uint8_t,
+    }
+)
+
+
+@register_binary_sensor("rc6", RC6BinarySensor, RC6_SCHEMA)
+def rc6_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                RC6Data,
+                ("device", config[CONF_DEVICE]),
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("rc6", RC6Trigger, RC6Data)
+def rc6_trigger(var, config):
+    pass
+
+
+@register_dumper("rc6", RC6Dumper)
+def rc6_dumper(var, config):
+    pass
+
+
+@register_action("rc6", RC6Action, RC6_SCHEMA)
+async def rc6_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
+
+
 # RC Switch Raw
 RC_SWITCH_TIMING_SCHEMA = cv.All([cv.uint8_t], cv.Length(min=2, max=2))
 

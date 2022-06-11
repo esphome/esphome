@@ -12,6 +12,7 @@ namespace ili9341 {
 enum ILI9341Model {
   M5STACK = 0,
   TFT_24,
+  TFT_24R,
 };
 
 enum ILI9341ColorMode {
@@ -47,6 +48,8 @@ class ILI9341Display : public PollingComponent,
     this->setup_pins_();
     this->initialize();
   }
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
@@ -100,5 +103,12 @@ class ILI9341TFT24 : public ILI9341Display {
  public:
   void initialize() override;
 };
+
+//-----------   ILI9341_24_TFT rotated display --------------
+class ILI9341TFT24R : public ILI9341Display {
+ public:
+  void initialize() override;
+};
+
 }  // namespace ili9341
 }  // namespace esphome
