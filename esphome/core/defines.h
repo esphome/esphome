@@ -29,6 +29,7 @@
 #define USE_LOCK
 #define USE_LOGGER
 #define USE_MDNS
+#define USE_MEDIA_PLAYER
 #define USE_MQTT
 #define USE_NUMBER
 #define USE_OTA_PASSWORD

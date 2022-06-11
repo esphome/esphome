@@ -2,6 +2,7 @@ import argparse
 import functools
 import logging
 import os
+import re
 import sys
 from datetime import datetime
 
@@ -9,15 +10,18 @@ from esphome import const, writer, yaml_util
 import esphome.codegen as cg
 from esphome.config import iter_components, read_config, strip_default_ids
 from esphome.const import (
+    ALLOWED_NAME_CHARS,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
     CONF_LOGGER,
+    CONF_NAME,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
+    CONF_SUBSTITUTIONS,
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
@@ -481,6 +485,98 @@ def command_idedata(args, config):
     return 0
 
 
+def command_rename(args, config):
+    for c in args.name:
+        if c not in ALLOWED_NAME_CHARS:
+            print(
+                color(
+                    Fore.BOLD_RED,
+                    f"'{c}' is an invalid character for names. Valid characters are: "
+                    f"{ALLOWED_NAME_CHARS} (lowercase, no spaces)",
+                )
+            )
+            return 1
+    # Load existing yaml file
+    with open(CORE.config_path, mode="r+", encoding="utf-8") as raw_file:
+        raw_contents = raw_file.read()
+
+    yaml = yaml_util.load_yaml(CORE.config_path)
+    if CONF_ESPHOME not in yaml or CONF_NAME not in yaml[CONF_ESPHOME]:
+        print(
+            color(Fore.BOLD_RED, "Complex YAML files cannot be automatically renamed.")
+        )
+        return 1
+    old_name = yaml[CONF_ESPHOME][CONF_NAME]
+    match = re.match(r"^\$\{?([a-zA-Z0-9_]+)\}?$", old_name)
+    if match is None:
+        new_raw = re.sub(
+            rf"name:\s+[\"']?{old_name}[\"']?",
+            f'name: "{args.name}"',
+            raw_contents,
+        )
+    else:
+        old_name = yaml[CONF_SUBSTITUTIONS][match.group(1)]
+        if (
+            len(
+                re.findall(
+                    rf"^\s+{match.group(1)}:\s+[\"']?{old_name}[\"']?",
+                    raw_contents,
+                    flags=re.MULTILINE,
+                )
+            )
+            > 1
+        ):
+            print(color(Fore.BOLD_RED, "Too many matches in YAML to safely rename"))
+            return 1
+
+        new_raw = re.sub(
+            rf"^(\s+{match.group(1)}):\s+[\"']?{old_name}[\"']?",
+            f'\\1: "{args.name}"',
+            raw_contents,
+            flags=re.MULTILINE,
+        )
+
+    new_path = os.path.join(CORE.config_dir, args.name + ".yaml")
+    print(
+        f"Updating {color(Fore.CYAN, CORE.config_path)} to {color(Fore.CYAN, new_path)}"
+    )
+    print()
+
+    with open(new_path, mode="w", encoding="utf-8") as new_file:
+        new_file.write(new_raw)
+
+    rc = run_external_process("esphome", "config", new_path)
+    if rc != 0:
+        print(color(Fore.BOLD_RED, "Rename failed. Reverting changes."))
+        os.remove(new_path)
+        return 1
+
+    cli_args = [
+        "run",
+        new_path,
+        "--no-logs",
+        "--device",
+        CORE.address,
+    ]
+
+    if args.dashboard:
+        cli_args.insert(0, "--dashboard")
+
+    try:
+        rc = run_external_process("esphome", *cli_args)
+    except KeyboardInterrupt:
+        rc = 1
+    if rc != 0:
+        os.remove(new_path)
+        return 1
+
+    os.remove(CORE.config_path)
+
+    print(color(Fore.BOLD_GREEN, "SUCCESS"))
+    print()
+    return 0
+
+
 PRE_CONFIG_ACTIONS = {
     "wizard": command_wizard,
     "version": command_version,
@@ -499,6 +595,7 @@ POST_CONFIG_ACTIONS = {
     "mqtt-fingerprint": command_mqtt_fingerprint,
     "clean": command_clean,
     "idedata": command_idedata,
+    "rename": command_rename,
 }
 
 
@@ -680,6 +777,15 @@ def parse_args(argv):
     parser_idedata.add_argument(
         "configuration", help="Your YAML configuration file(s).", nargs=1
     )
+
+    parser_rename = subparsers.add_parser(
+        "rename",
+        help="Rename a device in YAML, compile the binary and upload it.",
+    )
+    parser_rename.add_argument(
+        "configuration", help="Your YAML configuration file.", nargs=1
+    )
+    parser_rename.add_argument("name", help="The new name for the device.", type=str)
 
     # Keep backward compatibility with the old command line format of
     # esphome <config> <command>.

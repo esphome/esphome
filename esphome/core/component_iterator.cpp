@@ -232,6 +232,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_MEDIA_PLAYER
+    case IteratorState::MEDIA_PLAYER:
+      if (this->at_ >= App.get_media_players().size()) {
+        advance_platform = true;
+      } else {
+        auto *media_player = App.get_media_players()[this->at_];
+        if (media_player->is_internal() && !this->include_internal_) {
+          success = true;
+          break;
+        } else {
+          success = this->on_media_player(media_player);
+        }
+      }
+      break;
+#endif
     case IteratorState::MAX:
       if (this->on_end()) {
         this->state_ = IteratorState::NONE;
@@ -253,5 +268,8 @@ bool ComponentIterator::on_service(api::UserServiceDescriptor *service) { return
 #endif
 #ifdef USE_ESP32_CAMERA
 bool ComponentIterator::on_camera(esp32_camera::ESP32Camera *camera) { return true; }
+#endif
+#ifdef USE_MEDIA_PLAYER
+bool ComponentIterator::on_media_player(media_player::MediaPlayer *media_player) { return true; }
 #endif
 }  // namespace esphome
