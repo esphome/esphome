@@ -535,7 +535,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     sbuf_decl = VariableDeclarationExpression(
-        "char", "", "%s_sbuf" % (id_), "sizeof(%s)" % id_.type
+        "char", "", f"{id_}_sbuf", f"sizeof({id_.type})"
     )
     CORE.add_global(sbuf_decl)
     return obj
