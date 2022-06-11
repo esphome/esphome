@@ -8,7 +8,7 @@ def test_deep_sleep_setup(generate_main):
     main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep1.yaml")
 
     assert (
-        "deepsleep = new (deep_sleep_sbuf) deep_sleep::DeepSleepComponent();"
+        "deepsleep = new (deepsleep_sbuf) deep_sleep::DeepSleepComponent();"
         in main_cpp
     )
     assert "App.register_component(deepsleep);" in main_cpp

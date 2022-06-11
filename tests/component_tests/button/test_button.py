@@ -11,7 +11,7 @@ def test_button_is_setup(generate_main):
     main_cpp = generate_main("tests/component_tests/button/test_button.yaml")
 
     # Then
-    assert "new wake_on_lan::WakeOnLanButton();" in main_cpp
+    assert "new (wol_1_sbuf) wake_on_lan::WakeOnLanButton();" in main_cpp
     assert "App.register_button" in main_cpp
     assert "App.register_component" in main_cpp
 
