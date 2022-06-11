@@ -174,8 +174,6 @@ class Sensor : public EntityBase {
    */
   virtual StateClass state_class();  // NOLINT
 
-  uint32_t hash_base() override;
-
   CallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
   CallbackManager<void(float)> callback_;      ///< Storage for filtered state callbacks.
 

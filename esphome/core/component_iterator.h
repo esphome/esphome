@@ -63,6 +63,9 @@ class ComponentIterator {
 #ifdef USE_LOCK
   virtual bool on_lock(lock::Lock *a_lock) = 0;
 #endif
+#ifdef USE_MEDIA_PLAYER
+  virtual bool on_media_player(media_player::MediaPlayer *media_player);
+#endif
   virtual bool on_end();
 
  protected:
@@ -110,6 +113,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_LOCK
     LOCK,
+#endif
+#ifdef USE_MEDIA_PLAYER
+    MEDIA_PLAYER,
 #endif
     MAX,
   } state_{IteratorState::NONE};

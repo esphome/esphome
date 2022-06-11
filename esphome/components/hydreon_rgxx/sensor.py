@@ -37,7 +37,7 @@ SUPPORTED_SENSORS = {
 PROTOCOL_NAMES = {
     CONF_MOISTURE: "R",
     CONF_ACC: "Acc",
-    CONF_R_INT: "Rint",
+    CONF_R_INT: "RInt",
     CONF_EVENT_ACC: "EventAcc",
     CONF_TOTAL_ACC: "TotalAcc",
 }

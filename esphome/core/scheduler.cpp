@@ -14,7 +14,7 @@ static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 10;
 // #define ESPHOME_DEBUG_SCHEDULER
 
 void HOT Scheduler::set_timeout(Component *component, const std::string &name, uint32_t timeout,
-                                std::function<void()> &&func) {
+                                std::function<void()> func) {
   const uint32_t now = this->millis_();
 
   if (!name.empty())
@@ -32,7 +32,7 @@ void HOT Scheduler::set_timeout(Component *component, const std::string &name, u
   item->timeout = timeout;
   item->last_execution = now;
   item->last_execution_major = this->millis_major_;
-  item->void_callback = std::move(func);
+  item->callback = std::move(func);
   item->remove = false;
   this->push_(std::move(item));
 }
@@ -40,7 +40,7 @@ bool HOT Scheduler::cancel_timeout(Component *component, const std::string &name
   return this->cancel_item_(component, name, SchedulerItem::TIMEOUT);
 }
 void HOT Scheduler::set_interval(Component *component, const std::string &name, uint32_t interval,
-                                 std::function<void()> &&func) {
+                                 std::function<void()> func) {
   const uint32_t now = this->millis_();
 
   if (!name.empty())
@@ -65,7 +65,7 @@ void HOT Scheduler::set_interval(Component *component, const std::string &name, 
   item->last_execution_major = this->millis_major_;
   if (item->last_execution > now)
     item->last_execution_major--;
-  item->void_callback = std::move(func);
+  item->callback = std::move(func);
   item->remove = false;
   this->push_(std::move(item));
 }
@@ -73,37 +73,48 @@ bool HOT Scheduler::cancel_interval(Component *component, const std::string &nam
   return this->cancel_item_(component, name, SchedulerItem::INTERVAL);
 }
 
-void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
-                              uint8_t max_attempts, std::function<RetryResult()> &&func,
-                              float backoff_increase_factor) {
-  const uint32_t now = this->millis_();
+struct RetryArgs {
+  std::function<RetryResult()> func;
+  uint8_t retry_countdown;
+  uint32_t current_interval;
+  Component *component;
+  std::string name;
+  float backoff_increase_factor;
+  Scheduler *scheduler;
+};
 
+static void retry_handler(const std::shared_ptr<RetryArgs> &args) {
+  RetryResult retry_result = args->func();
+  if (retry_result == RetryResult::DONE || --args->retry_countdown <= 0)
+    return;
+  args->current_interval *= args->backoff_increase_factor;
+  args->scheduler->set_timeout(args->component, args->name, args->current_interval, [args]() { retry_handler(args); });
+}
+
+void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
+                              uint8_t max_attempts, std::function<RetryResult()> func, float backoff_increase_factor) {
   if (!name.empty())
     this->cancel_retry(component, name);
 
   if (initial_wait_time == SCHEDULER_DONT_RUN)
     return;
 
-  ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%u,max_attempts=%u, backoff_factor=%0.1f)", name.c_str(),
+  ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%u, max_attempts=%u, backoff_factor=%0.1f)", name.c_str(),
             initial_wait_time, max_attempts, backoff_increase_factor);
 
-  auto item = make_unique<SchedulerItem>();
-  item->component = component;
-  item->name = name;
-  item->type = SchedulerItem::RETRY;
-  item->interval = initial_wait_time;
-  item->retry_countdown = max_attempts;
-  item->backoff_multiplier = backoff_increase_factor;
-  item->last_execution = now - initial_wait_time;
-  item->last_execution_major = this->millis_major_;
-  if (item->last_execution > now)
-    item->last_execution_major--;
-  item->retry_callback = std::move(func);
-  item->remove = false;
-  this->push_(std::move(item));
+  auto args = std::make_shared<RetryArgs>();
+  args->func = std::move(func);
+  args->retry_countdown = max_attempts;
+  args->current_interval = initial_wait_time;
+  args->component = component;
+  args->name = "retry$" + name;
+  args->backoff_increase_factor = backoff_increase_factor;
+  args->scheduler = this;
+
+  this->set_timeout(component, args->name, initial_wait_time, [args]() { retry_handler(args); });
 }
 bool HOT Scheduler::cancel_retry(Component *component, const std::string &name) {
-  return this->cancel_item_(component, name, SchedulerItem::RETRY);
+  return this->cancel_timeout(component, "retry$" + name);
 }
 
 optional<uint32_t> HOT Scheduler::next_schedule_in() {
@@ -162,7 +173,6 @@ void HOT Scheduler::call() {
   }
 
   while (!this->empty_()) {
-    RetryResult retry_result = RETRY;
     // use scoping to indicate visibility of `item` variable
     {
       // Don't copy-by value yet
@@ -191,11 +201,7 @@ void HOT Scheduler::call() {
       //  - timeouts/intervals get cancelled
       {
         WarnIfComponentBlockingGuard guard{item->component};
-        if (item->type == SchedulerItem::RETRY) {
-          retry_result = item->retry_callback();
-        } else {
-          item->void_callback();
-        }
+        item->callback();
       }
     }
 
@@ -213,16 +219,13 @@ void HOT Scheduler::call() {
         continue;
       }
 
-      if (item->type == SchedulerItem::INTERVAL ||
-          (item->type == SchedulerItem::RETRY && (--item->retry_countdown > 0 && retry_result != RetryResult::DONE))) {
+      if (item->type == SchedulerItem::INTERVAL) {
         if (item->interval != 0) {
           const uint32_t before = item->last_execution;
           const uint32_t amount = (now - item->last_execution) / item->interval;
           item->last_execution += amount * item->interval;
           if (item->last_execution < before)
             item->last_execution_major++;
-          if (item->type == SchedulerItem::RETRY)
-            item->interval *= item->backoff_multiplier;
         }
         this->push_(std::move(item));
       }

@@ -113,7 +113,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PERIOD, default="1s"): cv.time_period,
             cv.Optional(CONF_TIMEOUT, default="2s"): cv.time_period,
             cv.Optional(CONF_NUM_ATTEMPTS, default=3): cv.int_range(min=1, max=5),
-            cv.Optional(CONF_TRANSMITTER_ID): cv.use_id(
+            cv.OnlyWith(CONF_TRANSMITTER_ID, "remote_transmitter"): cv.use_id(
                 remote_transmitter.RemoteTransmitterComponent
             ),
             cv.Optional(CONF_BEEPER, default=False): cv.boolean,
@@ -163,6 +163,7 @@ BeeperOnAction = midea_ac_ns.class_("BeeperOnAction", automation.Action)
 BeeperOffAction = midea_ac_ns.class_("BeeperOffAction", automation.Action)
 PowerOnAction = midea_ac_ns.class_("PowerOnAction", automation.Action)
 PowerOffAction = midea_ac_ns.class_("PowerOffAction", automation.Action)
+PowerToggleAction = midea_ac_ns.class_("PowerToggleAction", automation.Action)
 
 MIDEA_ACTION_BASE_SCHEMA = cv.Schema(
     {
@@ -246,6 +247,16 @@ async def power_on_to_code(var, config, args):
     cv.Schema({}),
 )
 async def power_off_to_code(var, config, args):
+    pass
+
+
+# Power Toggle action
+@register_action(
+    "power_toggle",
+    PowerToggleAction,
+    cv.Schema({}),
+)
+async def power_inv_to_code(var, config, args):
     pass
 
 
