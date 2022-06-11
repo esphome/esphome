@@ -1,6 +1,7 @@
 import json
 import os
 
+from esphome.const import CONF_ID
 from esphome.core import CORE
 from esphome.helpers import read_file
 
@@ -38,7 +39,17 @@ def merge_config(full_old, full_new):
         elif isinstance(new, list):
             if not isinstance(old, list):
                 return new
-            return old + new
+            res = old.copy()
+            ids = {v[CONF_ID]: i for i, v in enumerate(res) if CONF_ID in v}
+            for v in new:
+                if CONF_ID in v and v[CONF_ID] in ids:
+                    res[ids[v[CONF_ID]]] = merge(res[ids[v[CONF_ID]]], v)
+                    # Delete from the dict so that duplicate components still
+                    # get passed through to validation.
+                    del ids[v[CONF_ID]]
+                    continue
+                res.append(v)
+            return res
         elif new is None:
             return old
 
