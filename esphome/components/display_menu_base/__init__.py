@@ -33,6 +33,7 @@ CONF_TEXT = "text"
 CONF_SELECT = "select"
 CONF_SWITCH = "switch"
 CONF_CUSTOM = "custom"
+CONF_ITEMS = "items"
 CONF_ON_TEXT = "on_text"
 CONF_OFF_TEXT = "off_text"
 CONF_VALUE_LAMBDA = "value_lambda"
@@ -197,7 +198,7 @@ MENU_ITEM_SCHEMA = cv.typed_schema(
         CONF_MENU: MENU_ITEM_ENTER_LEAVE_SCHEMA.extend(
             {
                 cv.GenerateID(CONF_ID): cv.declare_id(MenuItemMenu),
-                cv.Required(CONF_MENU): cv.All(
+                cv.Required(CONF_ITEMS): cv.All(
                     cv.ensure_list(menu_item_schema), cv.Length(min=1)
                 ),
             }
@@ -282,7 +283,7 @@ DISPLAY_MENU_BASE_SCHEMA = cv.Schema(
                 ),
             }
         ),
-        cv.Required(CONF_MENU): cv.All(
+        cv.Required(CONF_ITEMS): cv.All(
             cv.ensure_list(MENU_ITEM_SCHEMA), cv.Length(min=1)
         ),
     }
@@ -380,8 +381,8 @@ async def menu_item_to_code(menu, config, parent):
             return_type=cg.std_string,
         )
         cg.add(item.set_value_lambda(template_))
-    if CONF_MENU in config:
-        for c in config[CONF_MENU]:
+    if CONF_ITEMS in config:
+        for c in config[CONF_ITEMS]:
             await menu_item_to_code(menu, c, item)
     if CONF_IMMEDIATE_EDIT in config:
         cg.add(item.set_immediate_edit(config[CONF_IMMEDIATE_EDIT]))
@@ -419,7 +420,7 @@ async def display_menu_to_code(menu, config):
     root_item = cg.new_Pvariable(config[CONF_ROOT_ITEM_ID])
     cg.add(menu.set_root_item(root_item))
     cg.add(menu.set_mode(config[CONF_MODE]))
-    for c in config[CONF_MENU]:
+    for c in config[CONF_ITEMS]:
         await menu_item_to_code(menu, c, root_item)
     for conf in config.get(CONF_ON_ENTER, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], root_item)

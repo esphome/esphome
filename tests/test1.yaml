@@ -2874,18 +2874,18 @@ lcd_menu:
   on_leave:
     then:
       lambda: 'ESP_LOGI("lcd_menu", "root leave");'
-  menu:
+  items:
     - type: back
       text: 'Back'
     - type: label
     - type: menu
       text: 'Submenu 1'
-      menu:
+      items:
         - type: back
           text: 'Back'
         - type: menu
           text: 'Submenu 21'
-          menu:
+          items:
             - type: back
               text: 'Back'
             - type: command
