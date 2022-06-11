@@ -88,8 +88,7 @@ class VariableDeclarationExpression(Expression):
     def __str__(self):
         if self.size:
             return f"{self.type} {self.modifier}{self.name}[{self.size}]"
-        else:
-            return f"{self.type} {self.modifier}{self.name}"
+        return f"{self.type} {self.modifier}{self.name}"
 
 
 class ExpressionList(Expression):
@@ -536,7 +535,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     sbuf_decl = VariableDeclarationExpression(
-        "char", "", str(id_) + "_sbuf", "sizeof(%s)" % id_.type
+        "char", "", "%s_sbuf" % (id_), "sizeof(%s)" % id_.type
     )
     CORE.add_global(sbuf_decl)
     return obj
