@@ -535,7 +535,9 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     assignment = AssignmentExpression(None, None, id_, rhs)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
-    sbuf_decl = VariableDeclarationExpression("char", "", str(id_)+"_sbuf", "sizeof(%s)" % id_.type)
+    sbuf_decl = VariableDeclarationExpression(
+        "char", "", str(id_) + "_sbuf", "sizeof(%s)" % id_.type
+    )
     CORE.add_global(sbuf_decl)
     return obj
 
@@ -747,10 +749,10 @@ class MockObj(Expression):
     @property
     def new(self) -> "MockObj":
         return MockObj(f"new {self.base}", "->")
-       
+
     def new_sbuf(self, name: str, args) -> "MockObj":
-        call=CallExpression("", *args)
-        return MockObj(f"new ({name}_sbuf) {self.base}{call}", "->" )
+        call = CallExpression("", *args)
+        return MockObj(f"new ({name}_sbuf) {self.base}{call}", "->")
 
     def template(self, *args: SafeExpType) -> "MockObj":
         """Apply template parameters to this object."""
