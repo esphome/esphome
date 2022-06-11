@@ -1,9 +1,9 @@
 import json
 import os
 
+from esphome.const import CONF_ID
 from esphome.core import CORE
 from esphome.helpers import read_file
-from esphome.const import CONF_ID
 
 
 def read_config_file(path):
@@ -28,21 +28,17 @@ def read_config_file(path):
 
 def merge_config(old, new):
     def merge_lists(old, new):
-        # Merge list entries if CONF_ID is present and identical in both
-        res = []
-        to_merge = {}
-        for v in old:
-            if isinstance(v, dict) and CONF_ID in v:
-                to_merge[v[CONF_ID]] = v
-            else:
-                res.append(v)
+        res = old.copy()
+        ids = {v[CONF_ID]: i for i, v in enumerate(res) if CONF_ID in v}
         for v in new:
-            if isinstance(v, dict) and CONF_ID in v and v[CONF_ID] in to_merge:
-                id = v[CONF_ID]
-                to_merge[id] = merge_config(to_merge[id], v)
-            else:
-                res.append(v)
-        return res + list(to_merge.values())
+            if CONF_ID in v and v[CONF_ID] in ids:
+                res[ids[v[CONF_ID]]] = merge_config(res[ids[v[CONF_ID]]], v)
+                # Delete from the dict so that duplicate components still
+                # get passed through to validation.
+                del ids[v[CONF_ID]]
+                continue
+            res.append(v)
+        return res
 
     # pylint: disable=no-else-return
     if isinstance(new, dict):
