@@ -55,7 +55,7 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
         float new_volume = this->volume + 0.1f;
         if (new_volume > 1.0f)
           new_volume = 1.0f;
-        this->set_volume_(volume);
+        this->set_volume_(new_volume);
         this->unmute_();
         break;
       }
@@ -63,7 +63,7 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
         float new_volume = this->volume - 0.1f;
         if (new_volume < 0.0f)
           new_volume = 0.0f;
-        this->set_volume_(volume);
+        this->set_volume_(new_volume);
         this->unmute_();
         break;
       }
