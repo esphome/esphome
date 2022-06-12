@@ -29,6 +29,17 @@ PauseAction = media_player_ns.class_(
 StopAction = media_player_ns.class_(
     "StopAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
+VolumeUpAction = media_player_ns.class_(
+    "VolumeUpAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
+VolumeDownAction = media_player_ns.class_(
+    "VolumeDownAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
+VolumeSetAction = media_player_ns.class_(
+    "VolumeSetAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
+
+CONF_VOLUME = "volume"
 
 
 async def setup_media_player_core_(var, config):
@@ -45,9 +56,7 @@ async def register_media_player(var, config):
 MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.Schema({}))
 
 
-MEDIA_PLAYER_ACTION_SCHEMA = maybe_simple_id(
-    {cv.Required(CONF_ID): cv.use_id(MediaPlayer)}
-)
+MEDIA_PLAYER_ACTION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(MediaPlayer)})
 
 
 @automation.register_action("media_player.play", PlayAction, MEDIA_PLAYER_ACTION_SCHEMA)
@@ -58,9 +67,34 @@ MEDIA_PLAYER_ACTION_SCHEMA = maybe_simple_id(
     "media_player.pause", PauseAction, MEDIA_PLAYER_ACTION_SCHEMA
 )
 @automation.register_action("media_player.stop", StopAction, MEDIA_PLAYER_ACTION_SCHEMA)
+@automation.register_action(
+    "media_player.volume_up", VolumeUpAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
+@automation.register_action(
+    "media_player.volume_down", VolumeDownAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
 async def media_player_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
+@automation.register_action(
+    "media_player.volume_set",
+    VolumeSetAction,
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(MediaPlayer),
+            cv.Required(CONF_VOLUME): cv.templatable(cv.percentage),
+        },
+        key=CONF_VOLUME,
+    ),
+)
+async def media_player_volume_set_action(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    volume = await cg.templatable(config[CONF_VOLUME], args, float)
+    cg.add(var.set_volume(volume))
     return var
 
 
