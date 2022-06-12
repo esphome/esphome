@@ -46,7 +46,7 @@ void BME680BSECComponent::setup() {
   }
 
   // Load the BSEC library state from storage
-  bsec_state_data_valid_ = false;
+  this->bsec_state_data_valid_ = false;
   this->load_state_();
 }
 
@@ -200,15 +200,15 @@ void BME680BSECComponent::run_() {
   if (res != 0)
     return;
 
-  this->next_call_ns_ = bme680_settings_.next_call;
+  this->next_call_ns_ = this->bme680_settings_.next_call;
 
-  if (bme680_settings_.trigger_measurement) {
-    this->bme680_.tph_sett.os_temp = bme680_settings_.temperature_oversampling;
-    this->bme680_.tph_sett.os_pres = bme680_settings_.pressure_oversampling;
-    this->bme680_.tph_sett.os_hum = bme680_settings_.humidity_oversampling;
-    this->bme680_.gas_sett.run_gas = bme680_settings_.run_gas;
-    this->bme680_.gas_sett.heatr_temp = bme680_settings_.heater_temperature;
-    this->bme680_.gas_sett.heatr_dur = bme680_settings_.heating_duration;
+  if (this->bme680_settings_.trigger_measurement) {
+    this->bme680_.tph_sett.os_temp = this->bme680_settings_.temperature_oversampling;
+    this->bme680_.tph_sett.os_pres = this->bme680_settings_.pressure_oversampling;
+    this->bme680_.tph_sett.os_hum = this->bme680_settings_.humidity_oversampling;
+    this->bme680_.gas_sett.run_gas = this->bme680_settings_.run_gas;
+    this->bme680_.gas_sett.heatr_temp = this->bme680_settings_.heater_temperature;
+    this->bme680_.gas_sett.heatr_dur = this->bme680_settings_.heating_duration;
     this->bme680_.power_mode = BME680_FORCED_MODE;
     uint16_t desired_settings = BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL | BME680_GAS_SENSOR_SEL;
     this->bme680_status_ = bme680_set_sensor_settings(desired_settings, &this->bme680_);
@@ -242,7 +242,7 @@ void BME680BSECComponent::read_() {
   ESP_LOGV(TAG, "BME680@0x%02x: Reading data", address_);
   int64_t curr_time_ns = this->get_time_ns_();
 
-  if (bme680_settings_.trigger_measurement) {
+  if (this->bme680_settings_.trigger_measurement) {
     while (this->bme680_.power_mode != BME680_SLEEP_MODE) {
       this->bme680_status_ = bme680_get_sensor_mode(&this->bme680_);
       if (this->bme680_status_ != BME680_OK) {
@@ -251,7 +251,7 @@ void BME680BSECComponent::read_() {
     }
   }
 
-  if (!bme680_settings_.process_data) {
+  if (!this->bme680_settings_.process_data) {
     ESP_LOGV(TAG, "Data processing not required");
     return;
   }
@@ -271,7 +271,7 @@ void BME680BSECComponent::read_() {
   bsec_input_t inputs[BSEC_MAX_PHYSICAL_SENSOR];  // Temperature, Pressure, Humidity & Gas Resistance
   uint8_t num_inputs = 0;
 
-  if (bme680_settings_.process_data & BSEC_PROCESS_TEMPERATURE) {
+  if (this->bme680_settings_.process_data & BSEC_PROCESS_TEMPERATURE) {
     inputs[num_inputs].sensor_id = BSEC_INPUT_TEMPERATURE;
     inputs[num_inputs].signal = data.temperature / 100.0f;
     inputs[num_inputs].time_stamp = curr_time_ns;
@@ -283,19 +283,19 @@ void BME680BSECComponent::read_() {
     inputs[num_inputs].time_stamp = curr_time_ns;
     num_inputs++;
   }
-  if (bme680_settings_.process_data & BSEC_PROCESS_HUMIDITY) {
+  if (this->bme680_settings_.process_data & BSEC_PROCESS_HUMIDITY) {
     inputs[num_inputs].sensor_id = BSEC_INPUT_HUMIDITY;
     inputs[num_inputs].signal = data.humidity / 1000.0f;
     inputs[num_inputs].time_stamp = curr_time_ns;
     num_inputs++;
   }
-  if (bme680_settings_.process_data & BSEC_PROCESS_PRESSURE) {
+  if (this->bme680_settings_.process_data & BSEC_PROCESS_PRESSURE) {
     inputs[num_inputs].sensor_id = BSEC_INPUT_PRESSURE;
     inputs[num_inputs].signal = data.pressure;
     inputs[num_inputs].time_stamp = curr_time_ns;
     num_inputs++;
   }
-  if (bme680_settings_.process_data & BSEC_PROCESS_GAS) {
+  if (this->bme680_settings_.process_data & BSEC_PROCESS_GAS) {
     if (data.status & BME680_GASM_VALID_MSK) {
       inputs[num_inputs].sensor_id = BSEC_INPUT_GASRESISTOR;
       inputs[num_inputs].signal = data.gas_resistance;
@@ -425,7 +425,7 @@ void BME680BSECComponent::snapshot_state_() {
   uint8_t work_buffer[BSEC_MAX_STATE_BLOB_SIZE];
   uint32_t num_serialized_state = BSEC_MAX_STATE_BLOB_SIZE;
   this->bsec_status_ =
-      bsec_get_state(0, bsec_state_data_, BSEC_MAX_STATE_BLOB_SIZE, work_buffer, BSEC_MAX_STATE_BLOB_SIZE, &num_serialized_state);
+      bsec_get_state(0, this->bsec_state_data_, BSEC_MAX_STATE_BLOB_SIZE, work_buffer, BSEC_MAX_STATE_BLOB_SIZE, &num_serialized_state);
   if (this->bsec_status_ != BSEC_OK) {
     ESP_LOGW(TAG, "Failed to fetch BSEC library state for snapshot (BSEC Error Code %d)", this->bsec_status_);
     return;
@@ -466,7 +466,7 @@ int BME680BSECComponent::reinit_bsec_lib_(int64_t time_ns) {
     this->mark_failed();
     return -3;
   }
-  this->bsec_status_ = bsec_sensor_control(time_ns, &bme680_settings_);      // This is needed in order to support multiple devices with different enabled sensors (even if the bme680_settings_ data is not used)
+  this->bsec_status_ = bsec_sensor_control(time_ns, &this->bme680_settings_);      // This is needed in order to support multiple devices with different enabled sensors (even if the bme680_settings_ data is not used)
   if (this->bsec_status_ < BSEC_OK) {
     ESP_LOGW(TAG, "Failed to fetch sensor control settings (BSEC Error Code %d)", this->bsec_status_);
     this->mark_failed();
@@ -480,28 +480,28 @@ void BME680BSECComponent::load_state_() {
   uint32_t hash = fnv1_hash("bme680_bsec_state_" + to_string(this->address_));
   this->bsec_state_ = global_preferences->make_preference<uint8_t[BSEC_MAX_STATE_BLOB_SIZE]>(hash, true);
 
-  if (this->bsec_state_.load(&bsec_state_data_)) {
+  if (this->bsec_state_.load(&this->bsec_state_data_)) {
     ESP_LOGV(TAG, "Loading BSEC library state");
     uint8_t work_buffer[BSEC_MAX_WORKBUFFER_SIZE];
-    this->bsec_status_ = bsec_set_state(bsec_state_data_, BSEC_MAX_STATE_BLOB_SIZE, work_buffer, sizeof(work_buffer));
+    this->bsec_status_ = bsec_set_state(this->bsec_state_data_, BSEC_MAX_STATE_BLOB_SIZE, work_buffer, sizeof(work_buffer));
     if (this->bsec_status_ != BSEC_OK) {
       ESP_LOGW(TAG, "Failed to load BSEC library state (BSEC Error Code %d)", this->bsec_status_);
       return;
     }
     // All OK: set the BSEC state data as valid
-    bsec_state_data_valid_ = true;
+    this->bsec_state_data_valid_ = true;
     ESP_LOGI(TAG, "Loaded BSEC library state");
   }
 }
 
 void BME680BSECComponent::save_state_(uint8_t accuracy) {
-  if (accuracy < 3 || (millis() - this->last_state_save_ms_ < this->state_save_interval_ms_) || !bsec_state_data_valid_) {
+  if (accuracy < 3 || (millis() - this->last_state_save_ms_ < this->state_save_interval_ms_) || !this->bsec_state_data_valid_) {
     return;
   }
 
   ESP_LOGV(TAG, "Saving state");
 
-  if (!this->bsec_state_.save(&bsec_state_data_)) {
+  if (!this->bsec_state_.save(&this->bsec_state_data_)) {
     ESP_LOGW(TAG, "Failed to save state");
     return;
   }
