@@ -26,7 +26,7 @@ def read_config_file(path):
     return read_file(path)
 
 
-def merge_config(full_old, full_new):
+def merge_config(old, new):
     def merge_lists(old, new):
         # Merge list entries if CONF_ID is present and identical in both
         res = []
@@ -39,28 +39,25 @@ def merge_config(full_old, full_new):
         for v in new:
             if isinstance(v, dict) and CONF_ID in v and v[CONF_ID] in to_merge:
                 id = v[CONF_ID]
-                to_merge[id] = merge(to_merge[id], v)
+                to_merge[id] = merge_config(to_merge[id], v)
             else:
                 res.append(v)
         return res + list(to_merge.values())
 
-    def merge(old, new):
-        # pylint: disable=no-else-return
-        if isinstance(new, dict):
-            if not isinstance(old, dict):
-                return new
-            res = old.copy()
-            for k, v in new.items():
-                res[k] = merge(old[k], v) if k in old else v
-            return res
-        elif isinstance(new, list):
-            if isinstance(old, list):
-                return merge_lists(old, new)
+    # pylint: disable=no-else-return
+    if isinstance(new, dict):
+        if not isinstance(old, dict):
             return new
-
-        elif new is None:
-            return old
-
+        res = old.copy()
+        for k, v in new.items():
+            res[k] = merge_config(old[k], v) if k in old else v
+        return res
+    elif isinstance(new, list):
+        if isinstance(old, list):
+            return merge_lists(old, new)
         return new
 
-    return merge(full_old, full_new)
+    elif new is None:
+        return old
+
+    return new
