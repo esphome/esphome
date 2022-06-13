@@ -4,9 +4,6 @@ namespace esphome {
 namespace es8388 {
 
 void ES8388Component::setup() {
-  this->power_pin_->setup();
-  this->power_pin_->digital_write(false);
-
   // reset
   this->write_bytes(0x00, {0x80});
   this->write_bytes(0x00, {0x00});
@@ -47,9 +44,6 @@ void ES8388Component::setup() {
   this->write_bytes(0x04, {0x30});
   // unmute
   this->write_bytes(0x19, {0x00});
-
-  // Turn on amplifier
-  this->power_pin_->digital_write(true);
 }
 }  // namespace es8388
 }  // namespace esphome
