@@ -15,7 +15,7 @@ void ES8388Component::setup() {
   this->write_bytes(0x01, {0x50});
   // powerup
   this->write_bytes(0x02, {0x00});
-  // slave mode
+  // worker mode
   this->write_bytes(0x08, {0x00});
   // DAC powerdown
   this->write_bytes(0x04, {0xC0});
