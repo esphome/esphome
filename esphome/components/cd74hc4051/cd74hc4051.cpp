@@ -25,7 +25,6 @@ void CD74HC4051Component::dump_config() {
   LOG_PIN("  S0 Pin: ", this->pin_s0_);
   LOG_PIN("  S1 Pin: ", this->pin_s1_);
   LOG_PIN("  S2 Pin: ", this->pin_s2_);
-  LOG_PIN("  S3 Pin: ", this->pin_s3_);
   ESP_LOGCONFIG(TAG, "switch delay: %d", this->switch_delay_);
 }
 
