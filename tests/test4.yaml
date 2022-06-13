@@ -718,4 +718,3 @@ voice_assistant:
         args: [code.c_str(), message.c_str()]
 
 es8388:
-  power_pin: GPIO21
