@@ -73,12 +73,17 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   void publish_sensor_(sensor::Sensor *sensor, float value, bool change_only = false);
   void publish_sensor_(text_sensor::TextSensor *sensor, const std::string &value);
 
-  void snapshot_state_();                 // Fetch the current BSEC library state and save it in the bsec_state_data_ member (volatile memory)
-  void restore_state_();                  // Push the state contained in the bsec_state_data_ member (volatile memory) to the BSEC library
-  int reinit_bsec_lib_(int64_t time_ns);  // Prepare the BSEC library to be used again after this object returns active (as the library may have been used by other objects)
-  void load_state_();                     // Initialize the ESP preferences object; retrieve the BSEC library state from the ESP preferences (storage);
-                                          //   then save it in the bsec_state_data_ member (volatile memory) and push it to the BSEC library
-  void save_state_(uint8_t accuracy);     // Save the bsec_state_data_ member (volatile memory) to the ESP preferences (storage)
+  void snapshot_state_();  // Fetch the current BSEC library state and save it in the bsec_state_data_ member (volatile
+                           // memory)
+  void restore_state_();   // Push the state contained in the bsec_state_data_ member (volatile memory) to the BSEC
+                           // library
+  int reinit_bsec_lib_(int64_t time_ns);  // Prepare the BSEC library to be used again after this object returns active
+                                          // (as the library may have been used by other objects)
+  void load_state_();  // Initialize the ESP preferences object; retrieve the BSEC library state from the ESP
+                       // preferences (storage); then save it in the bsec_state_data_ member (volatile memory) and push
+                       // it to the BSEC library
+  void save_state_(
+      uint8_t accuracy);  // Save the bsec_state_data_ member (volatile memory) to the ESP preferences (storage)
 
   void queue_push_(std::function<void()> &&f) { this->queue_.push(std::move(f)); }
 
@@ -93,7 +98,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   std::queue<std::function<void()>> queue_;
 
   bool bsec_state_data_valid_;
-  uint8_t bsec_state_data_[BSEC_MAX_STATE_BLOB_SIZE];   // This is the current snapshot of the BSEC library state
+  uint8_t bsec_state_data_[BSEC_MAX_STATE_BLOB_SIZE];  // This is the current snapshot of the BSEC library state
   ESPPreferenceObject bsec_state_;
   uint32_t state_save_interval_ms_{21600000};  // 6 hours - 4 times a day
   uint32_t last_state_save_ms_ = 0;
