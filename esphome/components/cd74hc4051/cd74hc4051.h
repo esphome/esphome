@@ -58,5 +58,5 @@ class CD74HC4051Sensor : public sensor::Sensor, public PollingComponent, public 
 
   uint8_t pin_;
 };
-}  // namespace cd74hc4041
+}  // namespace cd74hc4051
 }  // namespace esphome

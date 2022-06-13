@@ -40,7 +40,7 @@ void CD74HC4051Component::activate_pin(uint8_t pin) {
         {0, 0, 1},  // channel 4
         {1, 0, 1},  // channel 5
         {0, 1, 1},  // channel 6
-        {1, 1, 1}  // channel 7
+        {1, 1, 1}   // channel 7
     };
     this->pin_s0_->digital_write(mux_channel[pin][0]);
     this->pin_s1_->digital_write(mux_channel[pin][1]);
