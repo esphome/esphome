@@ -7,7 +7,6 @@ from esphome import git, yaml_util
 from esphome.const import (
     CONF_FILE,
     CONF_FILES,
-    CONF_ID,
     CONF_PACKAGES,
     CONF_REF,
     CONF_REFRESH,

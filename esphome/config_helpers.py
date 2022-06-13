@@ -3,6 +3,7 @@ import os
 
 from esphome.core import CORE
 from esphome.helpers import read_file
+from esphome.const import CONF_ID
 
 
 def read_config_file(path):
@@ -26,6 +27,23 @@ def read_config_file(path):
 
 
 def merge_config(full_old, full_new):
+    def merge_lists(old, new):
+        # Merge list entries if CONF_ID is present and identical in both
+        res = []
+        to_merge = {}
+        for v in old:
+            if isinstance(v, dict) and CONF_ID in v:
+                to_merge[v[CONF_ID]] = v
+            else:
+                res.append(v)
+        for v in new:
+            if isinstance(v, dict) and CONF_ID in v and v[CONF_ID] in to_merge:
+                id = v[CONF_ID]
+                to_merge[id] = merge(to_merge[id], v)
+            else:
+                res.append(v)
+        return res + list(to_merge.values())
+
     def merge(old, new):
         # pylint: disable=no-else-return
         if isinstance(new, dict):
@@ -36,9 +54,10 @@ def merge_config(full_old, full_new):
                 res[k] = merge(old[k], v) if k in old else v
             return res
         elif isinstance(new, list):
-            if not isinstance(old, list):
-                return new
-            return old + new
+            if isinstance(old, list):
+                return merge_lists(old, new)
+            return new
+
         elif new is None:
             return old
 
