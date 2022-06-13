@@ -33,7 +33,7 @@ void CD74HC4051Component::activate_pin(uint8_t pin) {
   if (this->active_pin_ != pin) {
     ESP_LOGD(TAG, "switch to input %d", pin);
 
-    static int mux_channel[16][4] = {
+    static int mux_channel[8][3] = {
         {0, 0, 0},  // channel 0
         {1, 0, 0},  // channel 1
         {0, 1, 0},  // channel 2
