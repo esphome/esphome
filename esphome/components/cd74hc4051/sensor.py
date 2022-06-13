@@ -35,7 +35,7 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.GenerateID(CONF_CD74HC4051_ID): cv.use_id(CD74HC4051Component),
-            cv.Required(CONF_NUMBER): cv.int_range(0, 15),
+            cv.Required(CONF_NUMBER): cv.int_range(0, 7),
             cv.Required(CONF_SENSOR): cv.use_id(voltage_sampler.VoltageSampler),
         }
     )
