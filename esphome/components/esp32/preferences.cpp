@@ -36,7 +36,7 @@ class ESP32PreferenceBackend : public ESPPreferenceBackend {
     save.key = key;
     save.data.assign(data, data + len);
     s_pending_save.emplace_back(save);
-    ESP_LOGV(TAG, "s_pending_save: key: %s, len: %d", key.c_str(), len);
+    ESP_LOGVV(TAG, "s_pending_save: key: %s, len: %d", key.c_str(), len);
     return true;
   }
   bool load(uint8_t *data, size_t len) override {
@@ -67,7 +67,7 @@ class ESP32PreferenceBackend : public ESPPreferenceBackend {
       ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", key.c_str(), esp_err_to_name(err));
       return false;
     } else {
-      ESP_LOGV(TAG, "nvs_get_blob: key: %s, len: %d", key.c_str(), len);
+      ESP_LOGVV(TAG, "nvs_get_blob: key: %s, len: %d", key.c_str(), len);
     }
     return true;
   }
