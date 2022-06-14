@@ -151,18 +151,13 @@ template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, T
  public:
   ScriptExecuteAction(Script<As...> *script) : script_(script) {}
 
-  using Args = std::tuple<std::function<As(Ts...)>...>;
+  using Args = std::tuple<TemplatableValue<As, Ts...>...>;
 
-  template<typename... F> void set_args(F... x) { args_ = Args{ensure_function<As>(x)...}; }
+  template<typename... F> void set_args(F... x) { args_ = Args{x...}; }
 
   void play(Ts... x) override { this->script_->execute_tuple(this->eval_args_(x...)); }
 
  protected:
-  template<typename T> static std::function<T(Ts...)> ensure_function(std::function<T(Ts...)> f) { return f; }
-  template<typename T> static std::function<T(Ts...)> ensure_function(T t) {
-    return [t](Ts... /*unused*/) { return t; };  // NOTE: convert a `T`-value to a function
-  }
-
   // NOTE:
   //  `eval_args_impl` functions evaluates `I`th the functions in `args` member.
   //  and then recursively calls `eval_args_impl` for the `I+1`th arg.
@@ -175,7 +170,7 @@ template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, T
   template<std::size_t I, std::size_t N>
   void eval_args_impl_(std::tuple<As...> &evaled_args, std::integral_constant<std::size_t, I> /*unused*/,
                        std::integral_constant<std::size_t, N> n, Ts... x) {
-    std::get<I>(evaled_args) = std::get<I>(args_)(x...);  // NOTE: evaluate `i`th arg, and store in tuple.
+    std::get<I>(evaled_args) = std::get<I>(args_).value(x...);  // NOTE: evaluate `i`th arg, and store in tuple.
     eval_args_impl_(evaled_args, std::integral_constant<std::size_t, I + 1>{}, n,
                     x...);  // NOTE: recurse to next index.
   }
