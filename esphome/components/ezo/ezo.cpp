@@ -56,7 +56,7 @@ void EZOSensor::loop() {
     auto data = reinterpret_cast<const uint8_t *>(&to_run->command.c_str()[0]);
     ESP_LOGVV(TAG, "Sending command \"%s\"", data);
 
-    this->write_bytes(data, to_run->command.length());
+    this->write(data, to_run->command.length());
 
     if (to_run->command_type == EzoCommandType::EZO_SLEEP ||
         to_run->command_type == EzoCommandType::EZO_I2C) {  // Commands with no return data
