@@ -30,7 +30,7 @@ void EZOSensor::update() {
     }
 
     if (!found) {
-      EzoCommand *ezo_command = new EzoCommand;
+      gsl::owner<EzoCommand *> ezo_command = new EzoCommand;
       ezo_command->command = "R";
       ezo_command->command_type = EzoCommandType::EZO_READ;
       ezo_command->delay_ms = 900;
