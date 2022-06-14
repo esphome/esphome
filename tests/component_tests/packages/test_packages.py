@@ -212,7 +212,6 @@ def test_package_list_merge_by_id():
 
     expected = {
         CONF_SENSOR: [
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_2},
             {
                 CONF_ID: TEST_SENSOR_ID_1,
                 CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
@@ -224,6 +223,7 @@ def test_package_list_merge_by_id():
                 CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
                 CONF_NAME: TEST_SENSOR_NAME_1,
             },
+            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_2},
         ]
     }
 
