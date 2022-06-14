@@ -82,6 +82,13 @@ def parameters_to_template(args):
     return template, func_args
 
 
+def validate_parameter_name(value):
+    value = cv.validate_id_name(value)
+    if value != CONF_ID:
+        return value
+    raise cv.Invalid(f"Script's parameter name cannot be {CONF_ID}")
+
+
 CONFIG_SCHEMA = automation.validate_automation(
     {
         # Don't declare id as cv.declare_id yet, because the ID type
@@ -93,7 +100,9 @@ CONFIG_SCHEMA = automation.validate_automation(
         cv.Optional(CONF_MAX_RUNS): cv.positive_int,
         cv.Optional(CONF_PARAMETERS, default={}): cv.Schema(
             {
-                cv.validate_id_name: cv.one_of(*SCRIPT_PARAMS_NATIVE_TYPES, lower=True),
+                validate_parameter_name: cv.one_of(
+                    *SCRIPT_PARAMS_NATIVE_TYPES, lower=True
+                ),
             }
         ),
     },
