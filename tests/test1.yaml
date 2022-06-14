@@ -1025,7 +1025,7 @@ sensor:
     id: ultrasonic_sensor1
   - platform: uptime
     name: Uptime Sensor
-  - id: ${devicename}_uptime_pcg
+  - id: !extend ${devicename}_uptime_pcg
     unit_of_measurement: s
   - platform: wifi_signal
     name: "WiFi Signal Sensor"

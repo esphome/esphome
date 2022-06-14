@@ -6,6 +6,11 @@ from esphome.core import CORE
 from esphome.helpers import read_file
 
 
+class Extend:
+    def __init__(self, value):
+        self.value = value
+
+
 def read_config_file(path):
     # type: (str) -> str
     if CORE.vscode and (
@@ -42,12 +47,15 @@ def merge_config(full_old, full_new):
             res = old.copy()
             ids = {v[CONF_ID]: i for i, v in enumerate(res) if CONF_ID in v}
             for v in new:
-                if CONF_ID in v and v[CONF_ID] in ids:
-                    res[ids[v[CONF_ID]]] = merge(res[ids[v[CONF_ID]]], v)
-                    # Delete from the dict so that duplicate components still
-                    # get passed through to validation.
-                    del ids[v[CONF_ID]]
-                    continue
+                if CONF_ID in v:
+                    new_id = v[CONF_ID]
+                    if isinstance(new_id, Extend):
+                        new_id = new_id.value
+                    if new_id in ids:
+                        v[CONF_ID] = new_id
+                        res[ids[new_id]] = merge(res[ids[new_id]], v)
+                        continue
+                    ids[new_id] = len(res)
                 res.append(v)
             return res
         elif new is None:

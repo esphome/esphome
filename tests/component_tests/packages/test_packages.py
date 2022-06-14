@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_WIFI,
 )
 from esphome.components.packages import do_packages_pass
+from esphome.config_helpers import Extend
 import esphome.config_validation as cv
 
 # Test strings
@@ -202,17 +203,16 @@ def test_package_list_merge_by_id():
         },
         CONF_SENSOR: [
             {
-                CONF_ID: TEST_SENSOR_ID_1,
+                CONF_ID: Extend(TEST_SENSOR_ID_1),
                 CONF_UPDATE_INTERVAL: TEST_SENSOR_UPDATE_INTERVAL,
             },
-            {CONF_ID: TEST_SENSOR_ID_2, CONF_NAME: TEST_SENSOR_NAME_1},
+            {CONF_ID: Extend(TEST_SENSOR_ID_2), CONF_NAME: TEST_SENSOR_NAME_1},
             {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_2},
         ],
     }
 
     expected = {
         CONF_SENSOR: [
-            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_2},
             {
                 CONF_ID: TEST_SENSOR_ID_1,
                 CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
@@ -224,6 +224,7 @@ def test_package_list_merge_by_id():
                 CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
                 CONF_NAME: TEST_SENSOR_NAME_1,
             },
+            {CONF_PLATFORM: TEST_SENSOR_PLATFORM_2, CONF_NAME: TEST_SENSOR_NAME_2},
         ]
     }
 
@@ -247,7 +248,7 @@ def test_package_merge_by_id_with_list():
             }
         },
         CONF_SENSOR: [
-            {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_OFFSET: 146.0}]}
+            {CONF_ID: Extend(TEST_SENSOR_ID_1), CONF_FILTERS: [{CONF_OFFSET: 146.0}]}
         ],
     }
 
