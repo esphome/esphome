@@ -43,6 +43,30 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       case media_player::MEDIA_PLAYER_COMMAND_UNMUTE:
         this->unmute_();
         break;
+      case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
+        this->audio_->pauseResume();
+        if (this->audio_->isRunning()) {
+          this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+        } else {
+          this->state = media_player::MEDIA_PLAYER_STATE_PAUSED;
+        }
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP: {
+        float new_volume = this->volume + 0.1f;
+        if (new_volume > 1.0f)
+          new_volume = 1.0f;
+        this->set_volume_(new_volume);
+        this->unmute_();
+        break;
+      }
+      case media_player::MEDIA_PLAYER_COMMAND_VOLUME_DOWN: {
+        float new_volume = this->volume - 0.1f;
+        if (new_volume < 0.0f)
+          new_volume = 0.0f;
+        this->set_volume_(new_volume);
+        this->unmute_();
+        break;
+      }
     }
   }
   this->publish_state();

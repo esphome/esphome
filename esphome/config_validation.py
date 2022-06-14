@@ -1086,16 +1086,21 @@ def possibly_negative_percentage(value):
         except ValueError:
             # pylint: disable=raise-missing-from
             raise Invalid("invalid number")
-    if value > 1:
-        msg = "Percentage must not be higher than 100%."
-        if not has_percent_sign:
-            msg += " Please put a percent sign after the number!"
-        raise Invalid(msg)
-    if value < -1:
-        msg = "Percentage must not be smaller than -100%."
-        if not has_percent_sign:
-            msg += " Please put a percent sign after the number!"
-        raise Invalid(msg)
+    try:
+        if value > 1:
+            msg = "Percentage must not be higher than 100%."
+            if not has_percent_sign:
+                msg += " Please put a percent sign after the number!"
+            raise Invalid(msg)
+        if value < -1:
+            msg = "Percentage must not be smaller than -100%."
+            if not has_percent_sign:
+                msg += " Please put a percent sign after the number!"
+            raise Invalid(msg)
+    except TypeError:
+        raise Invalid(  # pylint: disable=raise-missing-from
+            "Expected percentage or float between -1.0 and 1.0"
+        )
     return negative_one_to_one_float(value)
 
 

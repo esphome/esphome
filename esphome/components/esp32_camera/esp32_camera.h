@@ -151,7 +151,6 @@ class ESP32Camera : public Component, public EntityBase {
 
  protected:
   /* internal methods */
-  uint32_t hash_base() override;
   bool has_requested_image_() const;
   bool can_return_image_() const;
 
