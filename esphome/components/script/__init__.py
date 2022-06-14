@@ -49,7 +49,7 @@ def get_script(script_id):
     for script in scripts:
         if script.get(CONF_ID, None) == script_id:
             return script
-    return {}
+    raise cv.Invalid(f"Script id '{script_id}' not found")
 
 
 def check_max_runs(value):
