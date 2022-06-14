@@ -10,6 +10,17 @@ class Extend:
     def __init__(self, value):
         self.value = value
 
+    def __str__(self):
+        return f"!extend {self.value}"
+
+    def __eq__(self, b):
+        """
+        Check if two Extend objects contain the same ID.
+
+        Only used in unit tests.
+        """
+        return isinstance(b, Extend) and self.value == b.value
+
 
 def read_config_file(path):
     # type: (str) -> str
