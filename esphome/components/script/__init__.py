@@ -133,8 +133,6 @@ async def to_code(config):
     ),
 )
 async def script_execute_action_to_code(config, action_id, template_arg, args):
-    from esphome import core
-
     async def get_ordered_args(config, script_params):
         config_args = config.copy()
         config_args.pop(CONF_ID)
@@ -157,9 +155,7 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
 
     # We need to use the parent class 'Script' as the template argument
     # to match the partial specialization of the ScriptExecuteAction template
-    parent_class = core.ID(None, type=Script)
-    parent_class.type = parent_class.type.template(template)
-    template_arg = cg.TemplateArguments(parent_class.type, *template_arg)
+    template_arg = cg.TemplateArguments(Script.template(template), *template_arg)
 
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
