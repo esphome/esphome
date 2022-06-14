@@ -4,6 +4,7 @@ from esphome.components import display
 from esphome.const import CONF_DIMENSIONS, CONF_POSITION, CONF_DATA
 
 CONF_USER_CHARACTERS = "user_characters"
+CONF_TRANSFORM = "transform"
 
 lcd_base_ns = cg.esphome_ns.namespace("lcd_base")
 LCDDisplay = lcd_base_ns.class_("LCDDisplay", cg.PollingComponent)
@@ -47,6 +48,7 @@ LCD_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
             cv.Length(max=8),
             validate_user_characters,
         ),
+        cv.Optional(CONF_TRANSFORM): cv.returning_lambda,
     }
 ).extend(cv.polling_component_schema("1s"))
 
@@ -58,3 +60,8 @@ async def setup_lcd_display(var, config):
     if CONF_USER_CHARACTERS in config:
         for usr in config[CONF_USER_CHARACTERS]:
             cg.add(var.set_user_defined_char(usr[CONF_POSITION], usr[CONF_DATA]))
+    if CONF_TRANSFORM in config:
+        lambda_ = await cg.process_lambda(
+            config[CONF_TRANSFORM], [(cg.std_string, "x")], return_type=cg.std_string
+        )
+        cg.add(var.set_transform(lambda_))

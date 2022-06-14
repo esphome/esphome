@@ -14,6 +14,8 @@ namespace lcd_base {
 
 class LCDDisplay;
 
+using transform_function_t = std::function<std::string(const std::string &)>;
+
 class LCDDisplay : public PollingComponent {
  public:
   void set_dimensions(uint8_t columns, uint8_t rows) {
@@ -22,6 +24,7 @@ class LCDDisplay : public PollingComponent {
   }
 
   void set_user_defined_char(uint8_t pos, const std::vector<uint8_t> &data) { this->user_defined_chars_[pos] = data; }
+  void set_transform(transform_function_t &&transform) { this->transform_ = transform; }
 
   void setup() override;
   float get_setup_priority() const override;
@@ -66,6 +69,7 @@ class LCDDisplay : public PollingComponent {
   uint8_t rows_;
   uint8_t *buffer_{nullptr};
   std::map<uint8_t, std::vector<uint8_t> > user_defined_chars_;
+  optional<transform_function_t> transform_{};
 };
 
 }  // namespace lcd_base

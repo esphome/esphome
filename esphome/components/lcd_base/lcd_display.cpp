@@ -117,10 +117,11 @@ void LCDDisplay::update() {
   this->display();
 }
 void LCDDisplay::command_(uint8_t value) { this->send(value, false); }
-void LCDDisplay::print(uint8_t column, uint8_t row, const char *str) {
+void LCDDisplay::print(uint8_t column, uint8_t row, const std::string &str) {
+  std::string print_str = this->transform_.has_value() ? this->transform_.value()(str) : str;
   uint8_t pos = column + row * this->columns_;
-  for (; *str != '\0'; str++) {
-    if (*str == '\n') {
+  for (auto it : print_str) {
+    if (it == '\n') {
       pos = ((pos / this->columns_) + 1) * this->columns_;
       continue;
     }
@@ -129,13 +130,13 @@ void LCDDisplay::print(uint8_t column, uint8_t row, const char *str) {
       break;
     }
 
-    this->buffer_[pos] = *reinterpret_cast<const uint8_t *>(str);
+    this->buffer_[pos] = static_cast<uint8_t>(it);
     pos++;
   }
 }
-void LCDDisplay::print(uint8_t column, uint8_t row, const std::string &str) { this->print(column, row, str.c_str()); }
-void LCDDisplay::print(const char *str) { this->print(0, 0, str); }
-void LCDDisplay::print(const std::string &str) { this->print(0, 0, str.c_str()); }
+void LCDDisplay::print(uint8_t column, uint8_t row, const char *str) { this->print(column, row, std::string(str)); }
+void LCDDisplay::print(const char *str) { this->print(0, 0, std::string(str)); }
+void LCDDisplay::print(const std::string &str) { this->print(0, 0, str); }
 void LCDDisplay::printf(uint8_t column, uint8_t row, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
