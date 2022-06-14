@@ -134,7 +134,6 @@ void DallasComponent::update() {
         return;
       }
       if (!sensor->check_scratch_pad()) {
-        ESP_LOGW(TAG, "'%s' - Scratch pad invalid!", sensor->get_name().c_str());
         sensor->publish_state(NAN);
         this->status_set_warning();
         return;
