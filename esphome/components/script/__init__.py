@@ -31,16 +31,8 @@ SCRIPT_MODES = {
     CONF_PARALLEL: ParallelScript,
 }
 
-# TODO add support for entity ids as params
-SCRIPT_PARAMS_NATIVE_TYPES = {
-    "bool": bool,
-    "int": cg.int32,
-    "float": float,
-    "string": cg.std_string,
-    "bool[]": cg.std_vector.template(bool),
-    "int[]": cg.std_vector.template(cg.int32),
-    "float[]": cg.std_vector.template(float),
-    "string[]": cg.std_vector.template(cg.std_string),
+PARAMETER_TYPE_TRANSLATIONS = {
+    "string": "std::string",
 }
 
 
@@ -70,23 +62,36 @@ def assign_declare_id(value):
 
 
 def parameters_to_template(args):
+    from esphome.cpp_types import esphome_ns
+
     template_args = []
     func_args = []
     script_arg_names = []
     for name, type_ in args.items():
-        native_type = SCRIPT_PARAMS_NATIVE_TYPES[type_]
-        template_args.append(native_type)
-        func_args.append((native_type, name))
+        type_ = PARAMETER_TYPE_TRANSLATIONS.get(type_, type_)
+        type_ = esphome_ns.namespace(type_)
+        template_args.append(type_)
+        func_args.append((type_, name))
         script_arg_names.append(name)
     template = cg.TemplateArguments(*template_args)
     return template, func_args
 
 
 def validate_parameter_name(value):
-    value = cv.validate_id_name(value)
+    value = cv.string(value)
     if value != CONF_ID:
         return value
     raise cv.Invalid(f"Script's parameter name cannot be {CONF_ID}")
+
+
+ALLOWED_PARAM_TYPE_CHARSET = set("abcdefghijklmnopqrstuvwxyz0123456789_:*&[]")
+
+
+def validate_parameter_type(value):
+    value = cv.string_strict(value)
+    if set(value.lower()) <= ALLOWED_PARAM_TYPE_CHARSET:
+        return value
+    raise cv.Invalid("Parameter type contains invalid characters")
 
 
 CONFIG_SCHEMA = automation.validate_automation(
@@ -100,9 +105,7 @@ CONFIG_SCHEMA = automation.validate_automation(
         cv.Optional(CONF_MAX_RUNS): cv.positive_int,
         cv.Optional(CONF_PARAMETERS, default={}): cv.Schema(
             {
-                validate_parameter_name: cv.one_of(
-                    *SCRIPT_PARAMS_NATIVE_TYPES, lower=True
-                ),
+                validate_parameter_name: validate_parameter_type,
             }
         ),
     },
@@ -137,7 +140,7 @@ async def to_code(config):
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(Script),
-            cv.Optional(cv.validate_id_name): cv.templatable(cv.valid),
+            cv.Optional(validate_parameter_name): cv.templatable(cv.valid),
         },
     ),
 )
