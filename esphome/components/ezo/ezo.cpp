@@ -15,11 +15,12 @@ void EZOSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-void EZOSensor::queue_command(EzoCommand ezocommand) {
+void EZOSensor::send_command(EzoCommand *ezocommand) {
   if (this->current_command->response_expected && !this->current_command->completed) {
-    ESP_LOGE(TAG, "queue_command skipped, still waiting for previous response.");
+    ESP_LOGE(TAG, "send_command skipped, still waiting for previous response.");
     return;
   }
+  delete this->current_command;
   this->current_command = ezocommand;
 }
 

@@ -46,38 +46,38 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   float get_setup_priority() const override { return setup_priority::DATA; };
 
   // For sending commands (needs to log therefore implementation is in cpp file)
-  void queue_command(EzoCommand ezocommand);
+  void send_command(EzoCommand *ezocommand);
 
   // R
-  void get_state() { this->queue_command(EzoCommand("R", EzoCommandType::EZO_READ, 900)); }
+  void get_state() { this->send_command(EzoCommand("R", EzoCommandType::EZO_READ, 900)); }
 
   // I2C
   void set_i2c() {
-    this->queue_command(EzoCommand("I2c,100", EzoCommandType::EZO_I2C, 300, false));
+    this->send_command(EzoCommand("I2c,100", EzoCommandType::EZO_I2C, 300, false));
   }  // NOLINT otherwise we get set_i2_c
 
   // Sleep
-  void set_sleep() { this->queue_command(EzoCommand("Sleep", EzoCommandType::EZO_SLEEP, 300, false)); }
+  void set_sleep() { this->send_command(EzoCommand("Sleep", EzoCommandType::EZO_SLEEP, 300, false)); }
 
   // Calibration
   void set_calibration(const std::string &point, const std::string &value) {
     std::string to_send = "Cal," + point + "," + value;
-    this->queue_command(EzoCommand(to_send, EzoCommandType::EZO_CALIBRATION, 900));
+    this->send_command(EzoCommand(to_send, EzoCommandType::EZO_CALIBRATION, 900));
   }
-  void get_calibration() { this->queue_command(EzoCommand("Cal,?", EzoCommandType::EZO_CALIBRATION)); }
-  void clear_calibration() { this->queue_command(EzoCommand("Cal,clear", EzoCommandType::EZO_CALIBRATION)); }
+  void get_calibration() { this->send_command(EzoCommand("Cal,?", EzoCommandType::EZO_CALIBRATION)); }
+  void clear_calibration() { this->send_command(EzoCommand("Cal,clear", EzoCommandType::EZO_CALIBRATION)); }
   void add_calibration_callback(std::function<void(std::string)> &&callback) {
     this->calibration_callback_.add(std::move(callback));
   }
 
   // Device Information
-  void get_device_information() { this->queue_command(EzoCommand("i", EzoCommandType::EZO_DEVICE_INFORMATION)); }
+  void get_device_information() { this->send_command(EzoCommand("i", EzoCommandType::EZO_DEVICE_INFORMATION)); }
   void add_device_infomation_callback(std::function<void(std::string)> &&callback) {
     this->device_infomation_callback_.add(std::move(callback));
   }
 
   // Slope
-  void get_slope() { this->queue_command(EzoCommand("Slope,?", EzoCommandType::EZO_SLOPE)); }
+  void get_slope() { this->send_command(EzoCommand("Slope,?", EzoCommandType::EZO_SLOPE)); }
   void add_slope_callback(std::function<void(std::string)> &&callback) {
     this->slope_callback_.add(std::move(callback));
   }
@@ -86,22 +86,22 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void set_led_state(bool on) {
     std::string to_send = "L,";
     to_send += on ? "1" : "0";
-    this->queue_command(EzoCommand(to_send, EzoCommandType::EZO_LED));
+    this->send_command(EzoCommand(to_send, EzoCommandType::EZO_LED));
   }
-  void get_led_state() { this->queue_command(EzoCommand("L,?", EzoCommandType::EZO_LED)); }
+  void get_led_state() { this->send_command(EzoCommand("L,?", EzoCommandType::EZO_LED)); }
   void add_led_state_callback(std::function<void(bool)> &&callback) { this->led_callback_.add(std::move(callback)); }
 
   // T
   void set_t(const std::string &value) {
     std::string to_send = "T," + value;
-    this->queue_command(EzoCommand(to_send, EzoCommandType::EZO_T));
+    this->send_command(EzoCommand(to_send, EzoCommandType::EZO_T));
   }
   void set_tempcomp_value(float temp) { this->set_t(to_string(temp)); }  // For backwards compatibility
-  void get_t() { this->queue_command(EzoCommand("T,?", EzoCommandType::EZO_T)); }
+  void get_t() { this->send_command(EzoCommand("T,?", EzoCommandType::EZO_T)); }
   void add_t_callback(std::function<void(std::string)> &&callback) { this->t_callback_.add(std::move(callback)); }
 
   // Custom
-  void send_custom(const std::string &to_send) { this->queue_command(EzoCommand(to_send, EzoCommandType::EZO_CUSTOM)); }
+  void send_custom(const std::string &to_send) { this->send_command(EzoCommand(to_send, EzoCommandType::EZO_CUSTOM)); }
   void add_custom_callback(std::function<void(std::string)> &&callback) {
     this->custom_callback_.add(std::move(callback));
   }
