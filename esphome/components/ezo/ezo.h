@@ -31,7 +31,7 @@ class EzoCommand {
   EzoCommandType command_type;
 
   EzoCommand(const std::string &command, EzoCommandType command_type, uint16_t delay_ms = 300)
-  	   : command(command), command_type(command_type), delay_ms(delay_ms) { }
+      : command(command), command_type(command_type), delay_ms(delay_ms) {}
 };
 
 /// This class implements support for the EZO circuits in i2c mode
