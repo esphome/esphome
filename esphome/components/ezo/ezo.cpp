@@ -30,7 +30,7 @@ void EZOSensor::update() {
     }
 
     if (!found) {
-      auto *ezo_command = make_unique<EzoCommand>;
+      EzoCommand *ezo_command = make_unique<EzoCommand>;
       ezo_command->command = "R";
       ezo_command->command_type = EzoCommandType::EZO_READ;
       ezo_command->delay_ms = 900;
@@ -51,7 +51,7 @@ void EZOSensor::loop() {
     return;
   }
 
-  auto *cur_ezo_cmd = this->commands_.front();
+  EzoCommand *cur_ezo_cmd = this->commands_.front();
 
   if (!cur_ezo_cmd->command_sent) {
     const auto *data = reinterpret_cast<const uint8_t *>(&cur_ezo_cmd->command.c_str()[0]);
@@ -100,7 +100,8 @@ void EZOSensor::loop() {
       break;
   }
 
-  ESP_LOGVV(TAG, "Received buffer \"%s\" for command type %s", buf, EZO_COMMAND_TYPE_STRINGS[cur_ezo_cmd->command_type]);
+  ESP_LOGVV(TAG, "Received buffer \"%s\" for command type %s", buf,
+            EZO_COMMAND_TYPE_STRINGS[cur_ezo_cmd->command_type]);
 
   // for (int index = 0; index < 32; ++index) {
   //   ESP_LOGD(TAG, "Received buffer index: %d char: \"%c\" %d", index, buf[index], buf[index]);
@@ -170,9 +171,7 @@ void EZOSensor::set_t(const std::string &value) {
 }
 
 // Calibration commands
-void EZOSensor::clear_calibration() {
-  this->add_command("Cal,clear", EzoCommandType::EZO_CALIBRATION);
-}
+void EZOSensor::clear_calibration() { this->add_command("Cal,clear", EzoCommandType::EZO_CALIBRATION); }
 
 void EZOSensor::set_calibration(const std::string &point, const std::string &value) {
   std::string to_send = "Cal," + point + "," + value;
@@ -187,9 +186,7 @@ void EZOSensor::set_led_state(bool on) {
 }
 
 // Custom commands
-void EZOSensor::send_custom(const std::string &to_send) {
-  this->add_command(to_send, EzoCommandType::EZO_CUSTOM);
-}
+void EZOSensor::send_custom(const std::string &to_send) { this->add_command(to_send, EzoCommandType::EZO_CUSTOM); }
 
 }  // namespace ezo
 }  // namespace esphome
