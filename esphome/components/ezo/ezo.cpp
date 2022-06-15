@@ -15,35 +15,37 @@ void EZOSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-void EZOSensor::send_command(EzoCommand *ezocommand) {
-  if (this->current_command->response_expected && !this->current_command->completed) {
+void EZOSensor::send_command(const std::string &payload, EzoCommandType type, uint16_t delay_ms = 300,
+             bool response_expected = true) {
+  if (this->cmd_response_expected && !this->cmd_completed) {
     ESP_LOGE(TAG, "send_command skipped, still waiting for previous response.");
     return;
   }
-  delete this->current_command;
-  this->current_command = ezocommand;
+
+  this->cmd_sent = false;
+  this->cmd_completed = false;
+  this->cmd_payload = &payload;
+  this->cmd_type = type;
+  this->cmd_delay_ms = delay_ms;
+  this->cmd_response_expected = response_expected;
 }
 
 void EZOSensor::update() { this->get_state(); }
 
 void EZOSensor::loop() {
-  // In case we have no command, we do nothing
-  if (this->current_command == NULL)
-    return;
-
   // In case the current command is completed, we do nothing
-  if (this->current_command->completed)
+  if (this->cmd_completed)
     return;
 
   // In case the current command is not sent, we send it
-  if (!this->current_command->command_sent) {
-    const auto *data = reinterpret_cast<const uint8_t *>(&this->current_command->command.c_str()[0]);
+  if (!this->cmd_sent) {
+    const auto *data = reinterpret_cast<const uint8_t *>(&this->cmd_payload.c_str()[0]);
     ESP_LOGVV(TAG, "Sending command \"%s\"", data);
 
-    this->write(data, this->current_command->command.length());
+    this->write(data, this->cmd_payload.length());
     this->start_time_ = millis();
-    this->next_command_after_ = this->start_time_ + this->current_command->delay_ms;
-    this->current_command->command_sent = true;
+    this->next_command_after_ = this->start_time_ + this->cmd_delay_ms;
+    this->cmd_sent = true;
     return;
   }
 
@@ -52,7 +54,7 @@ void EZOSensor::loop() {
     return;
 
   // But in case no response is expected, we try to get the new state
-  if (!this->current_command->response_expected) {
+  if (!this->cmd_response_expected) {
     this->get_state();
     return;
   }
@@ -62,7 +64,7 @@ void EZOSensor::loop() {
 
   if (!this->read_bytes_raw(buf, 32)) {
     ESP_LOGE(TAG, "Read error!");
-    this->current_command->completed = true;
+    this->cmd_completed = true;
     return;
   }
 
@@ -83,17 +85,17 @@ void EZOSensor::loop() {
   }
 
   ESP_LOGVV(TAG, "Received buffer \"%s\" for command type %s", buf,
-            EZO_COMMAND_TYPE_STRINGS[this->current_command->command_type]);
+            EZO_COMMAND_TYPE_STRINGS[this->cmd_type]);
 
   // for (int index = 0; index < 32; ++index) {
   //   ESP_LOGD(TAG, "Received buffer index: %d char: \"%c\" %d", index, buf[index], buf[index]);
   // }
 
   if (buf[0] == 1 ||
-      this->current_command->command_type == EzoCommandType::EZO_CALIBRATION) {  // EZO_CALIBRATION returns 0-3
+      this->cmd_type == EzoCommandType::EZO_CALIBRATION) {  // EZO_CALIBRATION returns 0-3
     std::string payload = reinterpret_cast<char *>(&buf[1]);
     if (!payload.empty()) {
-      switch (this->current_command->command_type) {
+      switch (this->cmd_type) {
         case EzoCommandType::EZO_READ: {
           auto val = parse_number<float>(payload);
           if (!val.has_value()) {
@@ -140,7 +142,7 @@ void EZOSensor::loop() {
           break;
         }
       }
-      this->current_command->completed = true;
+      this->cmd_completed = true;
     }
   }
 }
