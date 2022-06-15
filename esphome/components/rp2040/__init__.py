@@ -45,12 +45,12 @@ def set_core_data(config):
 # The default/recommended arduino framework version
 #  - https://github.com/arduino/ArduinoCore-mbed/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-arduino-mbed
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 7, 2)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 1, 1)
 
 # The platformio/raspberrypi version to use for arduino frameworks
 #  - https://github.com/platformio/platform-raspberrypi/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/raspberrypi
-ARDUINO_PLATFORM_VERSION = cv.Version(1, 5, 0)
+ARDUINO_PLATFORM_VERSION = cv.Version(1, 7, 0)
 
 
 def _arduino_check_versions(value):
