@@ -85,7 +85,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   // T
   void set_t(const std::string &value) {
     std::string to_send = "T," + value;
-    his->commands_.emplace_back(EzoCommand(to_send, EzoCommandType::EZO_T));
+    this->commands_.emplace_back(EzoCommand(to_send, EzoCommandType::EZO_T));
   }
   void set_tempcomp_value(float temp) { this->set_t(to_string(temp)); }  // For backwards compatibility
   void get_t() { this->commands_.emplace_back(EzoCommand("T,?", EzoCommandType::EZO_T)); }
