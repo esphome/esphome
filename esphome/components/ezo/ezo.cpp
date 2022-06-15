@@ -27,7 +27,7 @@ void EZOSensor::update() { this->get_state(); }
 
 void EZOSensor::loop() {
   // In case we have no command, we do nothing
-  if (!this->current_command)
+  if (this->current_command == NULL)
     return;
 
   // In case the current command is completed, we do nothing
