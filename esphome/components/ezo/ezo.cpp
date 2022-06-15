@@ -15,9 +15,7 @@ void EZOSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-void EZOSensor::update() {
-  this->get_state();
-}
+void EZOSensor::update() { this->get_state(); }
 
 void EZOSensor::loop() {
   // In case we have no command, we do nothing
@@ -35,7 +33,7 @@ void EZOSensor::loop() {
 
     this->write(data, this->current_command->command.length());
     this->start_time_ = millis();
-    this->next_command_after_ =  this->start_time_ + this->current_command->delay_ms;
+    this->next_command_after_ = this->start_time_ + this->current_command->delay_ms;
     this->current_command->command_sent = true;
     return;
   }
@@ -82,8 +80,8 @@ void EZOSensor::loop() {
   //   ESP_LOGD(TAG, "Received buffer index: %d char: \"%c\" %d", index, buf[index], buf[index]);
   // }
 
-  if (buf[0] == 1 || this->current_command->command_type == EzoCommandType::EZO_CALIBRATION) {  // EZO_CALIBRATION returns 0-3
-    std::string payload = reinterpret_cast<char *>(&buf[1]);
+  if (buf[0] == 1 ||
+      this->current_command->command_type == EzoCommandType::EZO_CALIBRATION) {  // EZO_CALIBRATION returns 0-3    std::string payload = reinterpret_cast<char *>(&buf[1]);
     if (!payload.empty()) {
       switch (this->current_command->command_type) {
         case EzoCommandType::EZO_READ: {

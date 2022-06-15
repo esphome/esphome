@@ -32,7 +32,8 @@ class EzoCommand {
   bool response_expected = true;
   EzoCommandType command_type;
 
-  EzoCommand(const std::string &command, EzoCommandType command_type, uint16_t delay_ms = 300, bool response_expected = true)
+  EzoCommand(const std::string &command, EzoCommandType command_type, uint16_t delay_ms = 300,
+             bool response_expected = true)
       : command(command), command_type(command_type), delay_ms(delay_ms), response_expected(response_expected) {}
 };
 
@@ -58,7 +59,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   // I2C
   void set_i2c() {
     this->queue_command(EzoCommand("I2c,100", EzoCommandType::EZO_I2C, 300, false));
-  } // NOLINT otherwise we get set_i2_c
+  }  // NOLINT otherwise we get set_i2_c
 
   // Sleep
   void set_sleep() { this->queue_command(EzoCommand("Sleep", EzoCommandType::EZO_SLEEP, 300, false)); }
@@ -75,9 +76,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   }
 
   // Device Information
-  void get_device_information() {
-    this->queue_command(EzoCommand("i", EzoCommandType::EZO_DEVICE_INFORMATION));
-  }
+  void get_device_information() { this->queue_command(EzoCommand("i", EzoCommandType::EZO_DEVICE_INFORMATION)); }
   void add_device_infomation_callback(std::function<void(std::string)> &&callback) {
     this->device_infomation_callback_.add(std::move(callback));
   }
@@ -107,9 +106,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void add_t_callback(std::function<void(std::string)> &&callback) { this->t_callback_.add(std::move(callback)); }
 
   // Custom
-  void send_custom(const std::string &to_send) {
-    this->queue_command(EzoCommand(to_send, EzoCommandType::EZO_CUSTOM));
-  }
+  void send_custom(const std::string &to_send) { this->queue_command(EzoCommand(to_send, EzoCommandType::EZO_CUSTOM)); }
   void add_custom_callback(std::function<void(std::string)> &&callback) {
     this->custom_callback_.add(std::move(callback));
   }
