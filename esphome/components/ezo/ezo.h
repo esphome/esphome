@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
-#include <deque>
 
 namespace esphome {
 namespace ezo {
@@ -87,8 +86,8 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void get_t() { this->send_command("T,?", EzoCommandType::EZO_T); }
   void add_t_callback(std::function<void(std::string)> &&callback) { this->t_callback_.add(std::move(callback)); }
 
-  // Custom
-  void send_custom(const std::string &to_send) { this->send_command(to_send, EzoCommandType::EZO_CUSTOM); }
+  // Custom command
+  void send_custom(const std::string &payload, uint16_t delay_ms = 300, bool response_expected = true) { this->send_command(payload, EzoCommandType::EZO_CUSTOM, delay_ms, response_expected); }
   void add_custom_callback(std::function<void(std::string)> &&callback) {
     this->custom_callback_.add(std::move(callback));
   }

@@ -17,11 +17,13 @@ void EZOSensor::dump_config() {
 
 void EZOSensor::send_command(const std::string &payload, EzoCommandType type, uint16_t delay_ms,
                              bool response_expected) {
+  // This check relates to the 'previous' command that was sent.
   if (this->cmd_response_expected_ && !this->cmd_completed_) {
     ESP_LOGE(TAG, "send_command skipped, still waiting for previous response.");
     return;
   }
 
+  // If we come here, we can send the new command.
   this->cmd_sent_ = false;
   this->cmd_completed_ = false;
   this->cmd_payload_ = payload;
@@ -49,16 +51,17 @@ void EZOSensor::loop() {
     return;
   }
 
-  // We wait at least the delay time
+  // Wait time not over (yet) for the previous command that was sent, so we do nothing at this point in time.
   if (millis() < this->next_command_after_)
     return;
 
-  // But in case no response is expected, we try to get the new state
+  // The command delay has passed. We do not expect a repsonse from this command, so we can issue a 'read' command.
   if (!this->cmd_response_expected_) {
     this->get_state();
     return;
   }
 
+  // If we come here, the command will give a response.
   uint8_t buf[32];
   buf[0] = 0;
 
