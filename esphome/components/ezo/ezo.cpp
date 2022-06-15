@@ -15,8 +15,8 @@ void EZOSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-void EZOSensor::send_command(const std::string &payload, EzoCommandType type, uint16_t delay_ms = 300,
-                             bool response_expected = true) {
+void EZOSensor::send_command(const std::string &payload, EzoCommandType type, uint16_t delay_ms,
+                             bool response_expected) {
   if (this->cmd_response_expected && !this->cmd_completed) {
     ESP_LOGE(TAG, "send_command skipped, still waiting for previous response.");
     return;
@@ -24,7 +24,7 @@ void EZOSensor::send_command(const std::string &payload, EzoCommandType type, ui
 
   this->cmd_sent = false;
   this->cmd_completed = false;
-  this->cmd_payload = &payload;
+  this->cmd_payload = payload;
   this->cmd_type = type;
   this->cmd_delay_ms = delay_ms;
   this->cmd_response_expected = response_expected;
