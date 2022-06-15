@@ -16,66 +16,46 @@ void EZOSensor::dump_config() {
 }
 
 void EZOSensor::update() {
-  // Check if a read is in there already and if not insert on in the second position
-
-  if (!this->commands_.empty() && this->commands_.front()->command_type != EzoCommandType::EZO_READ &&
-      this->commands_.size() > 1) {
-    bool found = false;
-
-    for (auto &i : this->commands_) {
-      if (i->command_type == EzoCommandType::EZO_READ) {
-        found = true;
-        break;
-      }
-    }
-
-    if (!found) {
-      std::deque<EzoCommand *>::iterator it = this->commands_.begin();
-      ++it;
-      this->commands_.insert(it, EzoCommand("R", EzoCommandType::EZO_READ, 900));
-    }
-
-    return;
-  }
-
   this->get_state();
 }
 
 void EZOSensor::loop() {
-  if (this->commands_.empty()) {
+  // In case we have no command, we do nothing
+  if (!this->current_command)
     return;
-  }
 
-  EzoCommand *cur_ezo_cmd = this->commands_.front();
+  // In case the current command is completed, we do nothing
+  if (this->current_command->completed)
+    return;
 
-  if (!cur_ezo_cmd->command_sent) {
-    const auto *data = reinterpret_cast<const uint8_t *>(&cur_ezo_cmd->command.c_str()[0]);
+  // In case the current command is not sent, we send it
+  if (!this->current_command->command_sent) {
+    const auto *data = reinterpret_cast<const uint8_t *>(&this->current_command->command.c_str()[0]);
     ESP_LOGVV(TAG, "Sending command \"%s\"", data);
 
-    this->write(data, cur_ezo_cmd->command.length());
+    this->write(data, this->current_command->command.length());
     this->start_time_ = millis();
-    cur_ezo_cmd->command_sent = true;
-
-    // Commands with no return data
-    if (cur_ezo_cmd->command_type == EzoCommandType::EZO_SLEEP ||
-        cur_ezo_cmd->command_type == EzoCommandType::EZO_I2C) {
-      delete cur_ezo_cmd;
-      this->commands_.pop_front();
-      return;
-    }
+    this->next_command_after_ =  this->start_time_ + this->current_command->delay_ms;
+    this->current_command->command_sent = true;
     return;
   }
 
-  if (millis() - this->start_time_ < cur_ezo_cmd->delay_ms)
+  // We wait at least the delay time
+  if (millis() < this->next_command_after_)
     return;
+
+  // But in case no response is expected, we try to get the new state
+  if (!this->current_command->response_expected) {
+    this->get_state();
+    return;  
+  }
 
   uint8_t buf[32];
   buf[0] = 0;
 
   if (!this->read_bytes_raw(buf, 32)) {
-    ESP_LOGE(TAG, "read error");
-    delete cur_ezo_cmd;
-    this->commands_.pop_front();
+    ESP_LOGE(TAG, "Read error!");
+    this->current_command->completed = true;
     return;
   }
 
@@ -96,16 +76,16 @@ void EZOSensor::loop() {
   }
 
   ESP_LOGVV(TAG, "Received buffer \"%s\" for command type %s", buf,
-            EZO_COMMAND_TYPE_STRINGS[cur_ezo_cmd->command_type]);
+            EZO_COMMAND_TYPE_STRINGS[this->current_command->command_type]);
 
   // for (int index = 0; index < 32; ++index) {
   //   ESP_LOGD(TAG, "Received buffer index: %d char: \"%c\" %d", index, buf[index], buf[index]);
   // }
 
-  if (buf[0] == 1 || cur_ezo_cmd->command_type == EzoCommandType::EZO_CALIBRATION) {  // EZO_CALIBRATION returns 0-3
+  if (buf[0] == 1 || this->current_command->command_type == EzoCommandType::EZO_CALIBRATION) {  // EZO_CALIBRATION returns 0-3
     std::string payload = reinterpret_cast<char *>(&buf[1]);
     if (!payload.empty()) {
-      switch (cur_ezo_cmd->command_type) {
+      switch (this->current_command->command_type) {
         case EzoCommandType::EZO_READ: {
           auto val = parse_number<float>(payload);
           if (!val.has_value()) {
@@ -152,11 +132,9 @@ void EZOSensor::loop() {
           break;
         }
       }
+      this->current_command->completed = true;
     }
   }
-
-  delete cur_ezo_cmd;
-  this->commands_.pop_front();
 }
 }  // namespace ezo
 }  // namespace esphome
