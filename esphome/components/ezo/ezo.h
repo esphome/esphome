@@ -94,7 +94,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   }
 
  protected:
-  std::deque<std::unique_ptr<EzoCommand>> commands_
+  std::deque<std::unique_ptr<EzoCommand>> commands_;
 
   CallbackManager<void(std::string)> device_infomation_callback_{};
   CallbackManager<void(std::string)> calibration_callback_{};
