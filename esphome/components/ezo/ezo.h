@@ -33,7 +33,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
 
   // For sending commands (needs to log therefore implementation is in cpp file)
   void send_command(const std::string &payload, EzoCommandType type, uint16_t delay_ms = 300,
-             bool response_expected = true);
+                    bool response_expected = true);
 
   // R
   void get_state() { this->send_command("R", EzoCommandType::EZO_READ, 900); }

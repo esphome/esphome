@@ -16,7 +16,7 @@ void EZOSensor::dump_config() {
 }
 
 void EZOSensor::send_command(const std::string &payload, EzoCommandType type, uint16_t delay_ms = 300,
-             bool response_expected = true) {
+                             bool response_expected = true) {
   if (this->cmd_response_expected && !this->cmd_completed) {
     ESP_LOGE(TAG, "send_command skipped, still waiting for previous response.");
     return;
@@ -84,15 +84,13 @@ void EZOSensor::loop() {
       break;
   }
 
-  ESP_LOGVV(TAG, "Received buffer \"%s\" for command type %s", buf,
-            EZO_COMMAND_TYPE_STRINGS[this->cmd_type]);
+  ESP_LOGVV(TAG, "Received buffer \"%s\" for command type %s", buf, EZO_COMMAND_TYPE_STRINGS[this->cmd_type]);
 
   // for (int index = 0; index < 32; ++index) {
   //   ESP_LOGD(TAG, "Received buffer index: %d char: \"%c\" %d", index, buf[index], buf[index]);
   // }
 
-  if (buf[0] == 1 ||
-      this->cmd_type == EzoCommandType::EZO_CALIBRATION) {  // EZO_CALIBRATION returns 0-3
+  if (buf[0] == 1 || this->cmd_type == EzoCommandType::EZO_CALIBRATION) {  // EZO_CALIBRATION returns 0-3
     std::string payload = reinterpret_cast<char *>(&buf[1]);
     if (!payload.empty()) {
       switch (this->cmd_type) {
