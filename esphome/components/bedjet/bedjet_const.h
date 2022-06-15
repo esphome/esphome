@@ -24,6 +24,14 @@ enum BedjetMode : uint8_t {
   MODE_WAIT = 6,
 };
 
+/** Optional heating strategies to use for climate::CLIMATE_MODE_HEAT. */
+enum BedjetHeatMode {
+  /// HVACMode.HEAT is handled using BTN_HEAT (default)
+  HEAT_MODE_HEAT,
+  /// HVACMode.HEAT is handled using BTN_EXTHT
+  HEAT_MODE_EXTENDED,
+};
+
 enum BedjetButton : uint8_t {
   /// Turn BedJet off
   BTN_OFF = 0x1,

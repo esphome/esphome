@@ -168,6 +168,13 @@ mqtt:
                 id: uart0
                 data: !lambda |-
                   return {};
+  on_connect:
+    - light.turn_on: ${roomname}_lights
+    - mqtt.publish:
+        topic: some/topic
+        payload: Hello
+  on_disconnect:
+    - light.turn_off: ${roomname}_lights
 
 i2c:
   sda: 21
@@ -1886,6 +1893,7 @@ climate:
   - platform: bedjet
     name: My Bedjet
     ble_client_id: my_bedjet_ble_client
+    heat_mode: extended
 
 script:
   - id: climate_custom
@@ -1901,14 +1909,6 @@ script:
           preset: SLEEP
 
 switch:
-  - platform: template
-    name: MIDEA_AC_TOGGLE_LIGHT
-    turn_on_action:
-      midea_ac.display_toggle:
-  - platform: template
-    name: MIDEA_AC_SWING_STEP
-    turn_on_action:
-      midea_ac.swing_step:
   - platform: template
     name: MIDEA_AC_BEEPER_CONTROL
     optimistic: true
@@ -2834,3 +2834,23 @@ button:
           id: scd40
       - scd4x.factory_reset:
           id: scd40
+  - platform: template
+    name: Midea Display Toggle
+    on_press:
+      midea_ac.display_toggle:
+  - platform: template
+    name: Midea Swing Step
+    on_press:
+      midea_ac.swing_step:
+  - platform: template
+    name: Midea Power On
+    on_press:
+      midea_ac.power_on:
+  - platform: template
+    name: Midea Power Off
+    on_press:
+      midea_ac.power_off:
+  - platform: template
+    name: Midea Power Inverse
+    on_press:
+      midea_ac.power_toggle:

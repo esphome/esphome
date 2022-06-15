@@ -419,7 +419,6 @@ void Climate::publish_state() {
   // Save state
   this->save_state_();
 }
-uint32_t Climate::hash_base() { return 3104134496UL; }
 
 ClimateTraits Climate::get_traits() {
   auto traits = this->traits();

@@ -40,6 +40,8 @@ class AddressableLightDisplay : public display::DisplayBuffer, public PollingCom
   void setup() override;
   void display();
 
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+
  protected:
   int get_width_internal() override;
   int get_height_internal() override;

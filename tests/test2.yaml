@@ -281,10 +281,27 @@ sensor:
     window_correction_factor: 1.0
     address: 0x53
     update_interval: 60s
-  - platform: sgp40
-    name: 'Workshop VOC'
+  - platform: sgp4x
+    voc:
+      name: "VOC Index"
+      id: sgp40_voc_index
+      algorithm_tuning:
+        index_offset: 100
+        learning_time_offset_hours: 12
+        learning_time_gain_hours: 12
+        gating_max_duration_minutes: 180
+        std_initial: 50
+        gain_factor: 230
+    nox:
+      name: "NOx"
+      algorithm_tuning:
+        index_offset: 100
+        learning_time_offset_hours: 12
+        learning_time_gain_hours: 12
+        gating_max_duration_minutes: 180
+        std_initial: 50
+        gain_factor: 230
     update_interval: 5s
-    store_baseline: 'true'
   - platform: mcp3008
     update_interval: 5s
     mcp3008_id: 'mcp3008_hub'
