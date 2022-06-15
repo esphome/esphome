@@ -19,6 +19,7 @@ enum EzoCommandType : uint8_t {
   EZO_T = 6,
   EZO_CUSTOM = 7
 };
+static const char *const TAG = "ezo.sensor";
 static const char *const EZO_COMMAND_TYPE_STRINGS[] = {"EZO_READ",  "EZO_LED",         "EZO_DEVICE_INFORMATION",
                                                        "EZO_SLOPE", "EZO_CALIBRATION", "EZO_SLEEP",
                                                        "EZO_I2C",   "EZO_T",           "EZO_CUSTOM"};
