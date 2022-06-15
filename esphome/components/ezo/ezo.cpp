@@ -30,7 +30,7 @@ void EZOSensor::update() {
     }
 
     if (!found) {
-      auto *ezo_command = make_unique<EzoCommand>();
+      auto *ezo_command = make_unique<EzoCommand>;
       ezo_command->command = "R";
       ezo_command->command_type = EzoCommandType::EZO_READ;
       ezo_command->delay_ms = 900;
