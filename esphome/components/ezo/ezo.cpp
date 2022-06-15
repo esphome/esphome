@@ -51,7 +51,7 @@ void EZOSensor::loop() {
     return;
   }
 
-  auto *cur_ezo_cmd = this->commands_.front();
+  std::unique_ptr<EzoCommand> cur_ezo_cmd = this->commands_.front();
 
   if (!cur_ezo_cmd->command_sent) {
     const auto *data = reinterpret_cast<const uint8_t *>(&cur_ezo_cmd->command.c_str()[0]);
