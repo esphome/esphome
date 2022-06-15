@@ -114,9 +114,9 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   CallbackManager<void(std::string)> custom_callback_{};
   CallbackManager<void(bool)> led_callback_{};
 
+  EzoCommand current_command;
   uint32_t start_time_ = 0;
   uint32_t next_command_after_ = 0;
-  EzoCommand current_command;
 };
 
 }  // namespace ezo
