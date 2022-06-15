@@ -103,12 +103,12 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
 
   uint32_t start_time_ = 0;
   uint32_t next_command_after_ = 0;
-  bool cmd_sent = true;
-  bool cmd_completed = true;
-  std::string cmd_payload;
-  EzoCommandType cmd_type;
-  uint16_t cmd_delay_ms = 0;
-  bool cmd_response_expected = true;
+  bool cmd_sent_ = true;
+  bool cmd_completed_ = true;
+  std::string cmd_payload_;
+  EzoCommandType cmd_type_;
+  uint16_t cmd_delay_ms_ = 0;
+  bool cmd_response_expected_ = true;
 };
 
 }  // namespace ezo
