@@ -30,7 +30,7 @@ void EZOSensor::update() {
     }
 
     if (!found) {
-      auto ezo_command = std::unique_ptr<EzoCommand>(new EzoCommand);
+      EzoCommand *ezo_command = new EzoCommand;
       ezo_command->command = "R";
       ezo_command->command_type = EzoCommandType::EZO_READ;
       ezo_command->delay_ms = 900;
@@ -51,7 +51,7 @@ void EZOSensor::loop() {
     return;
   }
 
-  std::unique_ptr<EzoCommand> cur_ezo_cmd = this->commands_.front();
+  EzoCommand *cur_ezo_cmd = this->commands_.front();
 
   if (!cur_ezo_cmd->command_sent) {
     const auto *data = reinterpret_cast<const uint8_t *>(&cur_ezo_cmd->command.c_str()[0]);

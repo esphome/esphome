@@ -40,7 +40,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   float get_setup_priority() const override { return setup_priority::DATA; };
 
   void add_command(const std::string &command, EzoCommandType command_type, uint16_t delay_ms = 300) {
-    auto ezo_command = std::unique_ptr<EzoCommand>(new EzoCommand);
+    EzoCommand *ezo_command = new EzoCommand;
     ezo_command->command = command;
     ezo_command->command_type = command_type;
     ezo_command->delay_ms = delay_ms;
@@ -94,7 +94,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   }
 
  protected:
-  std::deque<std::unique_ptr<EzoCommand>> commands_;
+  std::deque<EzoCommand *> commands_;
 
   CallbackManager<void(std::string)> device_infomation_callback_{};
   CallbackManager<void(std::string)> calibration_callback_{};
