@@ -89,7 +89,8 @@ void EZOSensor::loop() {
   // }
 
   if (buf[0] == 1 ||
-      this->current_command->command_type == EzoCommandType::EZO_CALIBRATION) {  // EZO_CALIBRATION returns 0-3    std::string payload = reinterpret_cast<char *>(&buf[1]);
+      this->current_command->command_type == EzoCommandType::EZO_CALIBRATION) {  // EZO_CALIBRATION returns 0-3
+    std::string payload = reinterpret_cast<char *>(&buf[1]);
     if (!payload.empty()) {
       switch (this->current_command->command_type) {
         case EzoCommandType::EZO_READ: {
