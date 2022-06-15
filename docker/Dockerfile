@@ -49,9 +49,7 @@ RUN \
         platformio==6.0.2 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
-    && platformio settings set check_libraries_interval 1000000 \
     && platformio settings set check_platformio_interval 1000000 \
-    && platformio settings set check_platforms_interval 1000000 \
     && mkdir -p /piolibs
 
 
