@@ -30,14 +30,9 @@ void EZOSensor::update() {
     }
 
     if (!found) {
-      EzoCommand *ezo_command = new EzoCommand;
-      ezo_command->command = "R";
-      ezo_command->command_type = EzoCommandType::EZO_READ;
-      ezo_command->delay_ms = 900;
-
       std::deque<EzoCommand *>::iterator it = this->commands_.begin();
       ++it;
-      this->commands_.insert(it, ezo_command);
+      this->commands_.insert(it, EzoCommand("R", EzoCommandType::EZO_READ, 900));
     }
 
     return;
@@ -51,7 +46,7 @@ void EZOSensor::loop() {
     return;
   }
 
-  EzoCommand *cur_ezo_cmd = this->commands_.front();
+  EzoCommand cur_ezo_cmd = this->commands_.front();
 
   if (!cur_ezo_cmd->command_sent) {
     const auto *data = reinterpret_cast<const uint8_t *>(&cur_ezo_cmd->command.c_str()[0]);
@@ -163,30 +158,5 @@ void EZOSensor::loop() {
   delete cur_ezo_cmd;
   this->commands_.pop_front();
 }
-
-// Temperature command
-void EZOSensor::set_t(const std::string &value) {
-  std::string to_send = "T," + value;
-  this->add_command(to_send, EzoCommandType::EZO_T);
-}
-
-// Calibration commands
-void EZOSensor::clear_calibration() { this->add_command("Cal,clear", EzoCommandType::EZO_CALIBRATION); }
-
-void EZOSensor::set_calibration(const std::string &point, const std::string &value) {
-  std::string to_send = "Cal," + point + "," + value;
-  this->add_command(to_send, EzoCommandType::EZO_CALIBRATION, 900);
-}
-
-// LED control
-void EZOSensor::set_led_state(bool on) {
-  std::string to_send = "L,";
-  to_send += on ? "1" : "0";
-  this->add_command(to_send, EzoCommandType::EZO_LED);
-}
-
-// Custom commands
-void EZOSensor::send_custom(const std::string &to_send) { this->add_command(to_send, EzoCommandType::EZO_CUSTOM); }
-
 }  // namespace ezo
 }  // namespace esphome
