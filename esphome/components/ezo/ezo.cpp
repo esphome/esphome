@@ -47,7 +47,7 @@ void EZOSensor::loop() {
   // But in case no response is expected, we try to get the new state
   if (!this->current_command->response_expected) {
     this->get_state();
-    return;  
+    return;
   }
 
   uint8_t buf[32];
