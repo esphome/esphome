@@ -30,7 +30,8 @@ class EzoCommand {
   bool command_sent = false;
   EzoCommandType command_type;
 
-  EzoCommand(const std::string &command, EzoCommandType command_type, uint16_t delay_ms = 300) : command(command), command_type(command_type), delay_ms(delay_ms) { }
+  EzoCommand(const std::string &command, EzoCommandType command_type, uint16_t delay_ms = 300)
+  	   : command(command), command_type(command_type), delay_ms(delay_ms) { }
 };
 
 /// This class implements support for the EZO circuits in i2c mode
@@ -45,10 +46,12 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void get_state(int pos = 0) { this->commands_.emplace_back(EzoCommand("R", EzoCommandType::EZO_READ, 900)); }
 
   // I2C
-  void set_i2c() { this->commands_.emplace_back(EzoCommand("I2c,100", EzoCommandType::EZO_I2C)); }  // NOLINT otherwise we get set_i2_c
+  void set_i2c() {
+    this->commands_.emplace_back(EzoCommand("I2c,100", EzoCommandType::EZO_I2C));
+  }  // NOLINT otherwise we get set_i2_c
 
   // Sleep
-  void set_sleep() {this->commands_.emplace_back(EzoCommand("Sleep", EzoCommandType::EZO_SLEEP)); }
+  void set_sleep() { this->commands_.emplace_back(EzoCommand("Sleep", EzoCommandType::EZO_SLEEP)); }
 
   // Calibration
   void set_calibration(const std::string &point, const std::string &value) {
@@ -62,7 +65,9 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   }
 
   // Device Information
-  void get_device_information() { this->commands_.emplace_back(EzoCommand("i", EzoCommandType::EZO_DEVICE_INFORMATION)); }
+  void get_device_information() {
+    this->commands_.emplace_back(EzoCommand("i", EzoCommandType::EZO_DEVICE_INFORMATION));
+  }
   void add_device_infomation_callback(std::function<void(std::string)> &&callback) {
     this->device_infomation_callback_.add(std::move(callback));
   }
@@ -92,7 +97,9 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void add_t_callback(std::function<void(std::string)> &&callback) { this->t_callback_.add(std::move(callback)); }
 
   // Custom
-  void send_custom(const std::string &to_send) { this->commands_.emplace_back(EzoCommand(to_send, EzoCommandType::EZO_CUSTOM)); }
+  void send_custom(const std::string &to_send) {
+    this->commands_.emplace_back(EzoCommand(to_send, EzoCommandType::EZO_CUSTOM));
+  }
   void add_custom_callback(std::function<void(std::string)> &&callback) {
     this->custom_callback_.add(std::move(callback));
   }
