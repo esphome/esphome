@@ -19,7 +19,6 @@ enum EzoCommandType : uint8_t {
   EZO_T = 6,
   EZO_CUSTOM = 7
 };
-static const char *const TAG = "ezo.sensor";
 static const char *const EZO_COMMAND_TYPE_STRINGS[] = {"EZO_READ",  "EZO_LED",         "EZO_DEVICE_INFORMATION",
                                                        "EZO_SLOPE", "EZO_CALIBRATION", "EZO_SLEEP",
                                                        "EZO_I2C",   "EZO_T",           "EZO_CUSTOM"};
@@ -46,13 +45,8 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void update() override;
   float get_setup_priority() const override { return setup_priority::DATA; };
 
-  void queue_command(EzoCommand ezocommand) {
-    if (this->current_command->response_expected && !this->current_command->completed) {
-      ESP_LOGE(TAG, "queue_command skipped, still waiting for previous response.");
-      return;
-    }
-    this->current_command = ezocommand;
-  }
+  // For sending commands (needs to log therefore implementation is in cpp file)
+  void queue_command(EzoCommand ezocommand);
 
   // R
   void get_state() { this->queue_command(EzoCommand("R", EzoCommandType::EZO_READ, 900)); }

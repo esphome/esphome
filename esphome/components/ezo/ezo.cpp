@@ -5,12 +5,22 @@
 namespace esphome {
 namespace ezo {
 
+static const char *const TAG = "ezo.sensor";
+
 void EZOSensor::dump_config() {
   LOG_SENSOR("", "EZO", this);
   LOG_I2C_DEVICE(this);
   if (this->is_failed())
     ESP_LOGE(TAG, "Communication with EZO circuit failed!");
   LOG_UPDATE_INTERVAL(this);
+}
+
+void EZOSensor::queue_command(EzoCommand ezocommand) {
+  if (this->current_command->response_expected && !this->current_command->completed) {
+    ESP_LOGE(TAG, "queue_command skipped, still waiting for previous response.");
+    return;
+  }
+  this->current_command = ezocommand;
 }
 
 void EZOSensor::update() { this->get_state(); }
