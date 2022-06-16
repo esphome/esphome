@@ -64,7 +64,7 @@ class MAX6956 : public Component, public i2c::I2CDevice {
   uint8_t global_brightness_;
 
  private:
-  int8_t prev_bright[28] = {0};
+  int8_t prev_bright_[28] = {0};
   void write_brightness_global_(uint8_t current);
   void write_brightness_mode_(max6956::MAX6956CURRENTMODE brightness_mode);
 };

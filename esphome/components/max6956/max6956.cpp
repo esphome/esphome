@@ -1,6 +1,6 @@
 #include "max6956.h"
 #include "esphome/core/log.h"
-#include <cmath>
+
 
 namespace esphome {
 namespace max6956 {
@@ -125,13 +125,13 @@ void MAX6956::set_pin_brightness(uint8_t pin, float brightness) {
   uint8_t reg_addr = MAX6956_CURRENT_START + (pin - MAX6956_MIN) / 2;
   uint8_t config = 0;
   uint8_t shift = 4 * (pin % 2);
-  uint8_t bright = round(brightness * 15);
+  uint8_t bright = roundf(brightness * 15);
   // ESP_LOGD(TAG, "new brightness=%f, mode=%u", brightness, mode);
 
-  if (prev_bright[pin - MAX6956_MIN] == bright)
+  if (prev_bright_[pin - MAX6956_MIN] == bright)
     return;
 
-  prev_bright[pin - MAX6956_MIN] = bright;
+  prev_bright_[pin - MAX6956_MIN] = bright;
 
   this->read_reg_(reg_addr, &config);
   config &= ~(MASK_CURRENT_PIN << shift);
