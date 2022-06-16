@@ -1,5 +1,7 @@
 #include "es8388_component.h"
 
+#include <soc/io_mux_reg.h>
+
 namespace esphome {
 namespace es8388 {
 
