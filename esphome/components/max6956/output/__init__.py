@@ -4,6 +4,8 @@ from esphome.components import output
 from esphome.const import CONF_PIN, CONF_ID
 from .. import MAX6956, max6956_ns, CONF_MAX6956
 
+CODEOWNERS = ["@looping40"]
+
 DEPENDENCIES = ["max6956"]
 
 MAX6956LedChannel = max6956_ns.class_(

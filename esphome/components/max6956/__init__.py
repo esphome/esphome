@@ -14,6 +14,8 @@ from esphome.const import (
 )
 from esphome.core import coroutine
 
+CODEOWNERS = ["@looping40"]
+
 DEPENDENCIES = ['i2c']
 MULTI_CONF = True
 
