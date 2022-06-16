@@ -2,9 +2,9 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace output {
+namespace max6956 {
 
 //static const char *const TAG = "max6956.automation";
 
-}  // namespace output
+}  // namespace max6956
 }  // namespace esphome

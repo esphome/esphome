@@ -18,7 +18,7 @@ enum MAX6956GPIOMode : uint8_t {
 /// Range for MAX6956 pins
 enum MAX6956GPIORange : uint8_t {
   MAX6956_MIN = 4,
-  MAX6956_MAX = 31, 
+  MAX6956_MAX = 31,
 };
 
 enum MAX6956GPIORegisters {
@@ -51,15 +51,15 @@ class MAX6956 : public Component, public i2c::I2CDevice {
   void digital_write(uint8_t pin, bool value);
   void pin_mode(uint8_t pin, gpio::Flags flags);
   void pin_mode(uint8_t pin, max6956::MAX6956GPIOFlag flags);
-  
+
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void set_brightness_global(uint8_t current) { global_brightness_ = current;};
   void set_brightness_mode(max6956::MAX6956CURRENTMODE brightness_mode){ brightness_mode_ = brightness_mode;};
   void set_pin_brightness(uint8_t pin, float brightness);
-  
+
   //void dump_config() override;
-  
+
  protected:
   // read a given register
   bool read_reg_(uint8_t reg, uint8_t *value);

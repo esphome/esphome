@@ -7,9 +7,9 @@ namespace max6956 {
 static const char *TAG = "max6956";
 
 /// Masks for MAX6956 Configuration register
-const uint32_t MASK_TRANSITION_DETECTION = 0x80;     
-const uint32_t MASK_INDIVIDUAL_CURRENT = 0x40;  
-const uint32_t MASK_NORMAL_OPERATION = 0x01; 
+const uint32_t MASK_TRANSITION_DETECTION = 0x80;
+const uint32_t MASK_INDIVIDUAL_CURRENT = 0x40;
+const uint32_t MASK_NORMAL_OPERATION = 0x01;
 
 const uint32_t MASK_1PORT_VALUE = 0x03;
 const uint32_t MASK_PORT_CONFIG = 0x03;
@@ -18,7 +18,7 @@ const uint8_t MASK_CURRENT_PIN = 0x0F;
 
 
 /**************************************
- *    MAX6956                         * 
+ *    MAX6956                         *
  **************************************/
 void MAX6956::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MAX6956...");
@@ -27,7 +27,7 @@ void MAX6956::setup() {
     this->mark_failed();
     return;
   }
-  
+
   write_brightness_global(global_brightness_);
   write_brightness_mode(brightness_mode_);
 
@@ -60,7 +60,7 @@ void MAX6956::pin_mode(uint8_t pin, gpio::Flags flags) {
   uint8_t config = 0;
   uint8_t shift = 2 * (pin % 4);
   uint8_t mode = 0;
-  
+
   if (flags == gpio::FLAG_INPUT) {
     mode = MAX6956_INPUT;
   } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
@@ -68,7 +68,7 @@ void MAX6956::pin_mode(uint8_t pin, gpio::Flags flags) {
   } else if (flags == gpio::FLAG_OUTPUT) {
     mode = MAX6956_OUTPUT;
   }
-  
+
   this->read_reg_(reg_addr, &config);
   config &= ~(MASK_PORT_CONFIG << shift);
   config |= (mode << shift);
@@ -81,20 +81,20 @@ void MAX6956::pin_mode(uint8_t pin, max6956::MAX6956GPIOFlag flags){
   uint8_t config = 0;
   uint8_t shift = 2 * (pin % 4);
   uint8_t mode = 0;
-  
+
   if (flags == max6956::FLAG_LED) {
     mode = MAX6956_LED;
   }
-  
+
   this->read_reg_(reg_addr, &config);
   //ESP_LOGD(TAG, "initial reg[0x%.2X]=0x%.2X shift=%u", reg_addr, config, shift);
   config &= ~(MASK_PORT_CONFIG << shift);
   config |= (mode << shift);
   this->write_reg_(reg_addr, config);
 
-  ESP_LOGCONFIG(TAG, "pin_mode pin[%u] = LED", pin);  
+  ESP_LOGCONFIG(TAG, "pin_mode pin[%u] = LED", pin);
   ESP_LOGD(TAG, "pin_mode LED pin[%u] = reg[0x%.2X] = 0x%.2X", pin, reg_addr, config);
-  
+
 }
 
 
@@ -123,16 +123,16 @@ void  MAX6956::write_brightness_mode(max6956::MAX6956CURRENTMODE brightness_mode
   ESP_LOGD(TAG, "write_brightness_mode reg[0x%.2X] = 0x%.2X", reg_addr, config);
 }
 
-void MAX6956::set_pin_brightness(uint8_t pin, float brightness){  
+void MAX6956::set_pin_brightness(uint8_t pin, float brightness){
   uint8_t reg_addr = MAX6956_CURRENT_START + (pin - MAX6956_MIN) / 2;
   uint8_t config = 0;
   uint8_t shift = 4 * (pin % 2);
   uint8_t bright = round(brightness * 15);
   //ESP_LOGD(TAG, "new brightness=%f, mode=%u", brightness, mode);
-  
+
   if (prev_bright[pin - MAX6956_MIN] == bright)
     return;
-  
+
   prev_bright[pin - MAX6956_MIN] = bright;
 
   this->read_reg_(reg_addr, &config);
@@ -165,7 +165,7 @@ bool MAX6956::write_reg_(uint8_t reg, uint8_t value) {
 }*/
 
 /**************************************
- *    MAX6956GPIOPin                  * 
+ *    MAX6956GPIOPin                  *
  **************************************/
 void MAX6956GPIOPin::setup() { pin_mode(flags_); }
 void MAX6956GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }

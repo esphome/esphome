@@ -58,7 +58,7 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
     cg.add(var.set_brightness_mode(config[CONF_BRIGHTNESS_MODE]))
     cg.add(var.set_brightness_global(config[CONF_BRIGHTNESS_GLOBAL]))
-    
+
 
 def validate_mode(value):
     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
@@ -92,7 +92,7 @@ MAX6956_PIN_SCHEMA = cv.All(
 async def max6956_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_MAX6956])
-    
+
     cg.add(var.set_parent(parent))
 
     num = config[CONF_NUMBER]
@@ -121,4 +121,4 @@ async def max6956_set_brightness_global_to_code(config, action_id, template_arg,
 
 
 
-      
+
