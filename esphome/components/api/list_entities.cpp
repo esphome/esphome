@@ -64,5 +64,11 @@ bool ListEntitiesIterator::on_number(number::Number *number) { return this->clie
 bool ListEntitiesIterator::on_select(select::Select *select) { return this->client_->send_select_info(select); }
 #endif
 
+#ifdef USE_MEDIA_PLAYER
+bool ListEntitiesIterator::on_media_player(media_player::MediaPlayer *media_player) {
+  return this->client_->send_media_player_info(media_player);
+}
+#endif
+
 }  // namespace api
 }  // namespace esphome

@@ -76,8 +76,6 @@ class BinarySensor : public EntityBase {
   virtual std::string device_class();
 
  protected:
-  uint32_t hash_base() override;
-
   CallbackManager<void(bool)> state_callback_{};
   optional<std::string> device_class_{};  ///< Stores the override of the device class
   Filter *filter_list_{nullptr};

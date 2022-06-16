@@ -57,6 +57,18 @@ time:
 
 tuya:
   time_id: sntp_time
+  status_pin:
+    number: 14
+    inverted: true
+
+select:
+  - platform: tuya
+    id: tuya_select
+    enum_datapoint: 42
+    options:
+      0: Internal
+      1: Floor
+      2: Both
 
 pipsolar:
     id: inverter0
@@ -592,3 +604,20 @@ touchscreen:
       - logger.log:
           format: Touch at (%d, %d)
           args: ["touch.x", "touch.y"]
+      - media_player.play:
+      - media_player.pause:
+      - media_player.stop:
+      - media_player.toggle:
+      - media_player.volume_up:
+      - media_player.volume_down:
+      - media_player.volume_set: 50%
+
+
+media_player:
+  - platform: i2s_audio
+    name: ${friendly_name}
+    dac_type: external
+    i2s_lrclk_pin: GPIO26
+    i2s_dout_pin: GPIO25
+    i2s_bclk_pin: GPIO27
+    mute_pin: GPIO14

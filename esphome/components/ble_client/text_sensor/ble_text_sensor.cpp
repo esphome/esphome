@@ -14,8 +14,6 @@ static const char *const TAG = "ble_text_sensor";
 
 static const std::string EMPTY = "";
 
-uint32_t BLETextSensor::hash_base() { return 193967603UL; }
-
 void BLETextSensor::loop() {}
 
 void BLETextSensor::dump_config() {
