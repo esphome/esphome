@@ -7,7 +7,7 @@ namespace remote_base {
 
 struct NECData {
   uint16_t address;
-  uint16_t command;
+  uint8_t command;
 
   bool operator==(const NECData &rhs) const { return address == rhs.address && command == rhs.command; }
 };
@@ -24,7 +24,7 @@ DECLARE_REMOTE_PROTOCOL(NEC)
 template<typename... Ts> class NECAction : public RemoteTransmitterActionBase<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint16_t, address)
-  TEMPLATABLE_VALUE(uint16_t, command)
+  TEMPLATABLE_VALUE(uint8_t, command)
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     NECData data{};

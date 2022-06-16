@@ -16,14 +16,6 @@ void NECProtocol::encode(RemoteTransmitData *dst, const NECData &data) {
   dst->reserve(68);
   dst->set_carrier_frequency(38000);
 
-  if (data.command > 0xFF) {
-    ESP_LOGW(TAG,
-             "Your command (0x%04X) is 16bits instead of 8bits, which includes the inverses. "
-             "Your command will be sent, but you might want to fix this, especially your receiver codes "
-             "which are not backwards compatible.",
-             data.command);
-  }
-
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
   for (uint16_t mask = 1; mask; mask <<= 1) {
     if (data.address & mask) {
