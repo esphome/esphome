@@ -32,7 +32,7 @@ void ES8388Component::setup() {
   this->write_bytes(0x2A, {0x90});
   // DACLRC ADCLRC idem
   this->write_bytes(0x2B, {0x80});
-  this->write_bytes(0x2D, {0x00});
+  this->write_bytes(0x2D, {0x80});
   // DAC volume max
   this->write_bytes(0x1B, {0x00});
   this->write_bytes(0x1A, {0x00});
