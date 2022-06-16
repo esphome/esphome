@@ -1,4 +1,3 @@
-import enum
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
@@ -10,13 +9,13 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_INPUT,
     CONF_OUTPUT,
-    CONF_PULLUP
+    CONF_PULLUP,
 )
 from esphome.core import coroutine
 
 CODEOWNERS = ["@looping40"]
 
-DEPENDENCIES = ['i2c']
+DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 
 CONF_BRIGHTNESS_MODE = "brightness_mode"
@@ -25,8 +24,8 @@ CONF_BRIGHTNESS_GLOBAL = "brightness_global"
 
 max6956_ns = cg.esphome_ns.namespace("max6956")
 
-MAX6956 = max6956_ns.class_('MAX6956', cg.Component, i2c.I2CDevice)
-MAX6956GPIOPin = max6956_ns.class_('MAX6956GPIOPin', cg.GPIOPin)
+MAX6956 = max6956_ns.class_("MAX6956", cg.Component, i2c.I2CDevice)
+MAX6956GPIOPin = max6956_ns.class_("MAX6956GPIOPin", cg.GPIOPin)
 
 # Actions
 SetCurrentGlobalAction = max6956_ns.class_("SetCurrentGlobalAction", automation.Action)
@@ -34,7 +33,7 @@ SetCurrentGlobalAction = max6956_ns.class_("SetCurrentGlobalAction", automation.
 MAX6956_CURRENTMODE = max6956_ns.enum("MAX6956CURRENTMODE")
 CURRENT_MODES = {
     "global": MAX6956_CURRENTMODE.GLOBAL,
-    "segment": MAX6956_CURRENTMODE.SEGMENT
+    "segment": MAX6956_CURRENTMODE.SEGMENT,
 }
 
 
@@ -43,7 +42,9 @@ CONFIG_SCHEMA = (
         {
             cv.Required(CONF_ID): cv.declare_id(MAX6956),
             cv.Optional(CONF_BRIGHTNESS_GLOBAL, default="6%"): cv.percentage,
-            cv.Optional(CONF_BRIGHTNESS_MODE, default="global"): cv.enum(CURRENT_MODES, lower=True)
+            cv.Optional(CONF_BRIGHTNESS_MODE, default="global"): cv.enum(
+                CURRENT_MODES, lower=True
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -69,8 +70,8 @@ def validate_mode(value):
         raise cv.Invalid("Pullup only available with input")
     return value
 
-CONF_MAX6956 = 'max6956'
 
+CONF_MAX6956 = "max6956"
 
 MAX6956_PIN_SCHEMA = cv.All(
     {
@@ -81,7 +82,7 @@ MAX6956_PIN_SCHEMA = cv.All(
             {
                 cv.Optional(CONF_INPUT, default=False): cv.boolean,
                 cv.Optional(CONF_PULLUP, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean
+                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
             },
             validate_mode,
         ),

@@ -16,7 +16,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
         cv.Required(CONF_ID): cv.declare_id(MAX6956LedChannel),
         cv.GenerateID(CONF_MAX6956): cv.use_id(MAX6956),
-        cv.Required(CONF_PIN): cv.int_range(min=4, max=31)
+        cv.Required(CONF_PIN): cv.int_range(min=4, max=31),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
