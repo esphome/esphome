@@ -111,7 +111,7 @@ void I2SAudioMediaPlayer::setup() {
     this->audio_->forceMono(this->external_dac_channels_ == 1);
     if (this->mute_pin_ != nullptr) {
       this->mute_pin_->setup();
-      this->mute_pin_->digital_write(true);
+      this->mute_pin_->digital_write(false);
     }
   }
   this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
