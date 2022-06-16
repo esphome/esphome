@@ -199,7 +199,23 @@ def test_package_list_merge_by_id():
                         CONF_NAME: TEST_SENSOR_NAME_2,
                     },
                 ]
-            }
+            },
+            "package2": {
+                CONF_SENSOR: [
+                    {
+                        CONF_ID: Extend(TEST_SENSOR_ID_1),
+                        CONF_DOMAIN: "2",
+                    }
+                ],
+            },
+            "package3": {
+                CONF_SENSOR: [
+                    {
+                        CONF_ID: Extend(TEST_SENSOR_ID_1),
+                        CONF_DOMAIN: "3",
+                    }
+                ],
+            },
         },
         CONF_SENSOR: [
             {
@@ -218,6 +234,7 @@ def test_package_list_merge_by_id():
                 CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
                 CONF_NAME: TEST_SENSOR_NAME_1,
                 CONF_UPDATE_INTERVAL: TEST_SENSOR_UPDATE_INTERVAL,
+                CONF_DOMAIN: "3",
             },
             {
                 CONF_ID: TEST_SENSOR_ID_2,

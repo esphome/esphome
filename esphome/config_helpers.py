@@ -56,7 +56,11 @@ def merge_config(full_old, full_new):
             if not isinstance(old, list):
                 return new
             res = old.copy()
-            ids = {v[CONF_ID]: i for i, v in enumerate(res) if CONF_ID in v}
+            ids = {
+                v[CONF_ID]: i
+                for i, v in enumerate(res)
+                if CONF_ID in v and isinstance(v[CONF_ID], str)
+            }
             for v in new:
                 if CONF_ID in v:
                     new_id = v[CONF_ID]
