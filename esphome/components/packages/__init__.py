@@ -1,7 +1,4 @@
-import logging
-
 import re
-from collections import OrderedDict
 from pathlib import Path
 from esphome.core import EsphomeError
 from esphome.config_helpers import merge_config
@@ -20,8 +17,6 @@ from esphome.const import (
 import esphome.config_validation as cv
 
 DOMAIN = CONF_PACKAGES
-
-_LOGGER = logging.getLogger(__name__)
 
 
 def validate_git_package(config: dict):
@@ -140,17 +135,17 @@ def do_packages_pass(config: dict):
         return config
     packages = config[CONF_PACKAGES]
 
-    config_before_packages = OrderedDict()
-    config_after_packages = OrderedDict()
+    config_before_packages = config.copy()
+    config_after_packages = config.copy()
     packages_not_yet_hit = True
     for k, r in config.items():
         if k == CONF_PACKAGES:
             packages_not_yet_hit = False
             continue
         if packages_not_yet_hit:
-            config_before_packages[k] = r
+            config_after_packages.pop(k)
         else:
-            config_after_packages[k] = r
+            config_before_packages.pop(k)
 
     with cv.prepend_path(CONF_PACKAGES):
         packages = CONFIG_SCHEMA(packages)
