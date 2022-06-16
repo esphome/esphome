@@ -24,5 +24,5 @@ class MAX6956LedChannel : public output::FloatOutput, public Component {
   uint8_t pin_;
 };
 
-}  // namespace sx1509
+}  // namespace max6956
 }  // namespace esphome

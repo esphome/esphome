@@ -7,7 +7,6 @@
 namespace esphome {
 namespace max6956 {
 
-
 template<typename... Ts> class SetCurrentGlobalAction : public Action<Ts...> {
  public:
   SetCurrentGlobalAction(MAX6956 *max6956) : max6956_(max6956) {}

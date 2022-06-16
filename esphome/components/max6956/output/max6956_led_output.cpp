@@ -29,6 +29,5 @@ void MAX6956LedChannel::dump_config() {
   LOG_FLOAT_OUTPUT(this);
 }
 
-
-}  // namespace sx1509
+}  // namespace max6956
 }  // namespace esphome
