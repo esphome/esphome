@@ -44,6 +44,9 @@ void ES8388Component::setup() {
   this->write_bytes(0x04, {0x30});
   // unmute
   this->write_bytes(0x19, {0x00});
+
+  this->write_bytes(0x2E, {33});
+  this->write_bytes(0x2F, {33});
 }
 }  // namespace es8388
 }  // namespace esphome
