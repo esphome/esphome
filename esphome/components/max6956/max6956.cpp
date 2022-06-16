@@ -4,7 +4,7 @@
 namespace esphome {
 namespace max6956 {
 
-static const char *TAG = "max6956";
+static const char *const TAG = "max6956";
 
 /// Masks for MAX6956 Configuration register
 const uint32_t MASK_TRANSITION_DETECTION = 0x80;
