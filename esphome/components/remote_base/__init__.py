@@ -458,7 +458,8 @@ def nec_binary_sensor(var, config):
             cg.StructInitializer(
                 NECData,
                 ("address", config[CONF_ADDRESS]),
-                ("command", config[CONF_COMMAND]),
+                # 0xFF added for backward capability
+                ("command", config[CONF_COMMAND] & 0xFF),
             )
         )
     )
