@@ -70,6 +70,8 @@ def validate_mode(value):
     return value
 
 CONF_MAX6956 = 'max6956'
+
+
 MAX6956_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(MAX6956GPIOPin),
@@ -118,7 +120,3 @@ async def max6956_set_brightness_global_to_code(config, action_id, template_arg,
     template_ = await cg.templatable(config[CONF_BRIGHTNESS_GLOBAL], args, float)
     cg.add(var.set_brightness_global(template_))
     return var
-
-
-
-
