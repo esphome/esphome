@@ -138,7 +138,8 @@ def do_packages_pass(config: dict):
     config_before_packages = config.copy()
     config_after_packages = config.copy()
     packages_not_yet_hit = True
-    for k, r in config.items():
+
+    for k in config.keys():
         if k == CONF_PACKAGES:
             packages_not_yet_hit = False
             continue
