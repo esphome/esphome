@@ -236,6 +236,7 @@ esphome/components/version/* @esphome/core
 esphome/components/wake_on_lan/* @willwill2will54
 esphome/components/web_server_base/* @OttoWinter
 esphome/components/whirlpool/* @glmnet
+esphome/components/wl_134/* @hobbypunk90
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs
