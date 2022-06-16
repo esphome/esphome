@@ -604,6 +604,14 @@ touchscreen:
       - logger.log:
           format: Touch at (%d, %d)
           args: ["touch.x", "touch.y"]
+      - media_player.play:
+      - media_player.pause:
+      - media_player.stop:
+      - media_player.toggle:
+      - media_player.volume_up:
+      - media_player.volume_down:
+      - media_player.volume_set: 50%
+
 
 media_player:
   - platform: i2s_audio
