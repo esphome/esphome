@@ -274,12 +274,13 @@ def test_package_merge_by_missing_id():
         CONF_PACKAGES: {
             "sensors": {
                 CONF_SENSOR: [
-                    {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 42.0}]}
+                    {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 42.0}]},
                 ]
             }
         },
         CONF_SENSOR: [
-            {CONF_ID: Extend(TEST_SENSOR_ID_2), CONF_FILTERS: [{CONF_OFFSET: 146.0}]}
+            {CONF_ID: TEST_SENSOR_ID_1, CONF_FILTERS: [{CONF_MULTIPLY: 10.0}]},
+            {CONF_ID: Extend(TEST_SENSOR_ID_2), CONF_FILTERS: [{CONF_OFFSET: 146.0}]},
         ],
     }
 
@@ -288,6 +289,10 @@ def test_package_merge_by_missing_id():
             {
                 CONF_ID: TEST_SENSOR_ID_1,
                 CONF_FILTERS: [{CONF_MULTIPLY: 42.0}],
+            },
+            {
+                CONF_ID: TEST_SENSOR_ID_1,
+                CONF_FILTERS: [{CONF_MULTIPLY: 10.0}],
             },
             {
                 CONF_ID: Extend(TEST_SENSOR_ID_2),

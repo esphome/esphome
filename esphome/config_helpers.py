@@ -62,11 +62,12 @@ def merge_config(full_old, full_new):
                     new_id = v[CONF_ID]
                     if isinstance(new_id, Extend):
                         new_id = new_id.value
-                    if new_id in ids:
-                        v[CONF_ID] = new_id
-                        res[ids[new_id]] = merge(res[ids[new_id]], v)
-                        continue
-                    ids[new_id] = len(res)
+                        if new_id in ids:
+                            v[CONF_ID] = new_id
+                            res[ids[new_id]] = merge(res[ids[new_id]], v)
+                            continue
+                    else:
+                        ids[new_id] = len(res)
                 res.append(v)
             return res
         elif new is None:
