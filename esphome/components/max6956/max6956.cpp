@@ -1,7 +1,6 @@
 #include "max6956.h"
 #include "esphome/core/log.h"
 
-
 namespace esphome {
 namespace max6956 {
 
