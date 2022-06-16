@@ -85,6 +85,12 @@ enum ImageType {
   IMAGE_TYPE_RGB565 = 4,
 };
 
+enum DisplayType {
+  DISPLAY_TYPE_BINARY = 1,
+  DISPLAY_TYPE_GRAYSCALE = 2,
+  DISPLAY_TYPE_COLOR = 3,
+};
+
 enum DisplayRotation {
   DISPLAY_ROTATION_0_DEGREES = 0,
   DISPLAY_ROTATION_90_DEGREES = 90,
@@ -360,6 +366,11 @@ class DisplayBuffer {
   virtual int get_height_internal() = 0;
   virtual int get_width_internal() = 0;
   DisplayRotation get_rotation() const { return this->rotation_; }
+
+  /** Get the type of display that the buffer corresponds to. In case of dynamically configurable displays,
+   * returns the type the display is currently configured to.
+   */
+  virtual DisplayType get_display_type() = 0;
 
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);

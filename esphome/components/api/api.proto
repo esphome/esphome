@@ -42,6 +42,7 @@ service APIConnection {
   rpc select_command (SelectCommandRequest) returns (void) {}
   rpc button_command (ButtonCommandRequest) returns (void) {}
   rpc lock_command (LockCommandRequest) returns (void) {}
+  rpc media_player_command (MediaPlayerCommandRequest) returns (void) {}
 }
 
 
@@ -991,7 +992,7 @@ message ListEntitiesLockResponse {
   bool supports_open = 9;
   bool requires_code = 10;
 
-  # Not yet implemented:
+  // Not yet implemented:
   string code_format = 11;
 }
 message LockStateResponse {
@@ -1010,7 +1011,7 @@ message LockCommandRequest {
   fixed32 key = 1;
   LockCommand command = 2;
 
-  # Not yet implemented:
+  // Not yet implemented:
   bool has_code = 3;
   string code = 4;
 }
@@ -1040,3 +1041,60 @@ message ButtonCommandRequest {
   fixed32 key = 1;
 }
 
+// ==================== MEDIA PLAYER ====================
+enum MediaPlayerState {
+  MEDIA_PLAYER_STATE_NONE = 0;
+  MEDIA_PLAYER_STATE_IDLE = 1;
+  MEDIA_PLAYER_STATE_PLAYING = 2;
+  MEDIA_PLAYER_STATE_PAUSED = 3;
+}
+enum MediaPlayerCommand {
+  MEDIA_PLAYER_COMMAND_PLAY = 0;
+  MEDIA_PLAYER_COMMAND_PAUSE = 1;
+  MEDIA_PLAYER_COMMAND_STOP = 2;
+  MEDIA_PLAYER_COMMAND_MUTE = 3;
+  MEDIA_PLAYER_COMMAND_UNMUTE = 4;
+}
+message ListEntitiesMediaPlayerResponse {
+  option (id) = 63;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_MEDIA_PLAYER";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+
+  bool supports_pause = 8;
+}
+message MediaPlayerStateResponse {
+  option (id) = 64;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_MEDIA_PLAYER";
+  option (no_delay) = true;
+  fixed32 key = 1;
+  MediaPlayerState state = 2;
+  float volume = 3;
+  bool muted = 4;
+}
+message MediaPlayerCommandRequest {
+  option (id) = 65;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_MEDIA_PLAYER";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+
+  bool has_command = 2;
+  MediaPlayerCommand command = 3;
+
+  bool has_volume = 4;
+  float volume = 5;
+
+  bool has_media_url = 6;
+  string media_url = 7;
+}

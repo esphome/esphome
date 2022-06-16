@@ -282,7 +282,6 @@ class Climate : public EntityBase {
    */
   void save_state_();
 
-  uint32_t hash_base() override;
   void dump_traits_(const char *tag);
 
   CallbackManager<void()> state_callback_{};

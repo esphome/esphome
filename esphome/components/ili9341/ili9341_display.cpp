@@ -263,5 +263,13 @@ void ILI9341TFT24::initialize() {
   this->fill_internal_(Color::BLACK);
 }
 
+//   24_TFT rotated display
+void ILI9341TFT24R::initialize() {
+  this->init_lcd_(INITCMD_TFT);
+  this->width_ = 320;
+  this->height_ = 240;
+  this->fill_internal_(Color::BLACK);
+}
+
 }  // namespace ili9341
 }  // namespace esphome
