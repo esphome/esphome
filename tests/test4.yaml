@@ -352,7 +352,7 @@ binary_sensor:
     y_max: 100
     on_press:
       - logger.log: "Touched"
-      
+
   - platform: gpio
     name: "MaxIn Pin 4"
     pin:
