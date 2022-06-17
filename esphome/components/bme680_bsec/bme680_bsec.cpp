@@ -15,6 +15,7 @@ std::map<uint8_t, BME680BSECComponent *>
 
 void BME680BSECComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BME680@0x%02x via BSEC...", address_);
+
   if (instances.count(address_) != 0) {
     ESP_LOGCONFIG(TAG,
                   "ERROR: Device with I2C address 0x%02x is already present! Multiple I2C bus support is not yet "
@@ -24,14 +25,10 @@ void BME680BSECComponent::setup() {
     this->mark_failed();
     return;
   }
+
   BME680BSECComponent::instances[this->address_] = this;
 
-  // Initialize the BSEC library
-  this->bsec_status_ = bsec_init();
-  if (this->bsec_status_ != BSEC_OK) {
-    this->mark_failed();
-    return;
-  }
+  this->bsec_state_data_valid_ = false;
 
   // Initialize the bme680_ structure (passed-in to the bme680_* functions) and the BME680 device
   this->bme680_.dev_id =
@@ -50,8 +47,13 @@ void BME680BSECComponent::setup() {
     return;
   }
 
+  // Initialize the BSEC library
+  if (this->reinit_bsec_lib_() != 0) {
+    this->mark_failed();
+    return;
+  }
+
   // Load the BSEC library state from storage
-  this->bsec_state_data_valid_ = false;
   this->load_state_();
 }
 
@@ -202,10 +204,19 @@ void BME680BSECComponent::run_() {
   ESP_LOGV(TAG, "BME680@0x%02x: Performing sensor run", address_);
 
   // Restore BSEC library state
-  int res = reinit_bsec_lib_(curr_time_ns);
-  if (res != 0)
-    return;
+  // The reinit_bsec_lib_ method is computationally expensive: it takes 1200÷2900 microseconds on a ESP32.
+  // It can be skipped entirely when there is only one device (since the BSEC library won't be shared)
+  if (BME680BSECComponent::instances.size() > 1) {
+    int res = this->reinit_bsec_lib_();
+    if (res != 0)
+      return;
+  }
 
+  this->bsec_status_ = bsec_sensor_control(curr_time_ns, &this->bme680_settings_);
+  if (this->bsec_status_ < BSEC_OK) {
+    ESP_LOGW(TAG, "Failed to fetch sensor control settings (BSEC Error Code %d)", this->bsec_status_);
+    return;
+  }
   this->next_call_ns_ = this->bme680_settings_.next_call;
 
   if (this->bme680_settings_.trigger_measurement) {
@@ -235,7 +246,8 @@ void BME680BSECComponent::run_() {
     // Since we are about to go "out of scope" in the loop, take a snapshot of the state now so we can restore it later
     // TODO: it would be interesting to see if this is really needed here, or if it's needed only after each
     // bsec_do_steps() call
-    this->snapshot_state_();
+    if (BME680BSECComponent::instances.size() > 1)
+      this->snapshot_state_();
 
     ESP_LOGV(TAG, "Queueing read in %ums", meas_dur);
     this->set_timeout("read", meas_dur, [this]() { this->read_(); });
@@ -318,9 +330,20 @@ void BME680BSECComponent::read_() {
   }
 
   // Restore BSEC library state
-  int res = reinit_bsec_lib_(curr_time_ns);
-  if (res != 0)
-    return;
+  // The reinit_bsec_lib_ method is computationally expensive: it takes 1200÷2900 microseconds on a ESP32.
+  // It can be skipped entirely when there is only one device (since the BSEC library won't be shared)
+  if (BME680BSECComponent::instances.size() > 1) {
+    int res = this->reinit_bsec_lib_();
+    if (res != 0)
+      return;
+    // Now that the BSEC library has been re-initialized, bsec_sensor_control *NEEDS* to be called in order to support
+    // multiple devices with a different set of enabled sensors (even if the bme680_settings_ data is not used)
+    this->bsec_status_ = bsec_sensor_control(curr_time_ns, &this->bme680_settings_);
+    if (this->bsec_status_ < BSEC_OK) {
+      ESP_LOGW(TAG, "Failed to fetch sensor control settings (BSEC Error Code %d)", this->bsec_status_);
+      return;
+    }
+  }
 
   bsec_output_t outputs[BSEC_NUMBER_OUTPUTS];
   uint8_t num_outputs = BSEC_NUMBER_OUTPUTS;
@@ -332,7 +355,8 @@ void BME680BSECComponent::read_() {
   ESP_LOGV(TAG, "BME680@0x%02x: after bsec_do_steps: num_inputs=%d num_outputs=%d", address_, num_inputs, num_outputs);
 
   // Since we are about to go "out of scope" in the loop, take a snapshot of the state now so we can restore it later
-  this->snapshot_state_();
+  if (BME680BSECComponent::instances.size() > 1)
+    this->snapshot_state_();
 
   if (num_outputs < 1) {
     ESP_LOGD(TAG, "No signal outputs provided by BSEC");
@@ -457,30 +481,25 @@ void BME680BSECComponent::restore_state_() {
   }
 }
 
-int BME680BSECComponent::reinit_bsec_lib_(int64_t time_ns) {
+int BME680BSECComponent::reinit_bsec_lib_() {
   this->bsec_status_ = bsec_init();
   if (this->bsec_status_ != BSEC_OK) {
     this->mark_failed();
     return -1;
   }
+
   this->set_config_();
   if (this->bsec_status_ != BSEC_OK) {
     this->mark_failed();
     return -2;
   }
+
   this->restore_state_();
+
   this->update_subscription_();
   if (this->bsec_status_ != BSEC_OK) {
     this->mark_failed();
     return -3;
-  }
-  this->bsec_status_ = bsec_sensor_control(
-      time_ns, &this->bme680_settings_);  // This is needed in order to support multiple devices with different enabled
-                                          // sensors (even if the bme680_settings_ data is not used)
-  if (this->bsec_status_ < BSEC_OK) {
-    ESP_LOGW(TAG, "Failed to fetch sensor control settings (BSEC Error Code %d)", this->bsec_status_);
-    this->mark_failed();
-    return -4;
   }
 
   return 0;
@@ -506,10 +525,16 @@ void BME680BSECComponent::load_state_() {
 }
 
 void BME680BSECComponent::save_state_(uint8_t accuracy) {
-  if (accuracy < 3 || (millis() - this->last_state_save_ms_ < this->state_save_interval_ms_) ||
-      !this->bsec_state_data_valid_) {
+  if (accuracy < 3 || (millis() - this->last_state_save_ms_ < this->state_save_interval_ms_)) {
     return;
   }
+  if (BME680BSECComponent::instances.size() <= 1) {
+    // When a single device is in use, no snapshot is taken regularly so one is taken now
+    // On multiple devices, a snapshot is taken at every loop, so there is no need to take one here
+    this->snapshot_state_();
+  }
+  if (!this->bsec_state_data_valid_)
+    return;
 
   ESP_LOGV(TAG, "Saving state");
 
