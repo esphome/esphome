@@ -358,7 +358,7 @@ binary_sensor:
     pin:
       max6956: max6956_1
       number: 4
-      mode: 
+      mode:
         input: true
         pullup: true
       inverted: False
