@@ -200,7 +200,7 @@ def validate_file_shorthand(value):
             data[CONF_WEIGHT] = weight[1:]
         return FILE_SCHEMA(data)
 
-    if value.endswith(".pcf") or value.endswith('.bdf'):
+    if value.endswith(".pcf") or value.endswith(".bdf"):
         return FILE_SCHEMA(
             {
                 CONF_TYPE: TYPE_LOCAL_BITMAP,
@@ -295,7 +295,9 @@ class BitmapFontWrapper:
 def convert_bitmap_to_pillow_font(filepath):
     from PIL import PcfFontFile, BdfFontFile
 
-    local_bitmap_font_file = _compute_local_font_dir(filepath) / os.path.basename(filepath)
+    local_bitmap_font_file = _compute_local_font_dir(filepath) / os.path.basename(
+        filepath
+    )
 
     copy_file_if_changed(filepath, local_bitmap_font_file)
 
@@ -310,9 +312,7 @@ def convert_bitmap_to_pillow_font(filepath):
             # Convert to pillow-formatted fonts, which have a .pil and .pbm extension.
             p.save(local_bitmap_font_file)
         except (SyntaxError, OSError) as err:
-            raise cv.Invalid(
-                f"Failed to parse as bitmap font: '{filepath}': {err}"
-            )
+            raise cv.Invalid(f"Failed to parse as bitmap font: '{filepath}': {err}")
 
     local_pil_font_file = os.path.splitext(local_bitmap_font_file)[0] + ".pil"
     return cv.file_(local_pil_font_file)
@@ -327,7 +327,9 @@ def load_bitmap_font(filepath):
     try:
         font = ImageFont.load(str(pil_font_path))
     except Exception as e:
-        raise core.EsphomeError(f"Failed to load bitmap font file: {pil_font_path} : {e}")
+        raise core.EsphomeError(
+            f"Failed to load bitmap font file: {pil_font_path} : {e}"
+        )
 
     return BitmapFontWrapper(font)
 
