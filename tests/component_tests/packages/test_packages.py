@@ -139,6 +139,35 @@ def test_package_override(basic_wifi, basic_esphome):
     assert actual == expected
 
 
+def test_multiple_package_order():
+    """
+    Ensures that mutiple packages are merged in order.
+    """
+    config = {
+        CONF_PACKAGES: {
+            "package1": {
+                "logger": {
+                    "level": "DEBUG",
+                },
+            },
+            "package2": {
+                "logger": {
+                    "level": "VERBOSE",
+                },
+            },
+        },
+    }
+
+    expected = {
+        "logger": {
+            "level": "VERBOSE",
+        },
+    }
+
+    actual = do_packages_pass(config)
+    assert actual == expected
+
+
 def test_package_list_merge():
     """
     Ensures lists defined in both a package and the top-level config are merged correctly
