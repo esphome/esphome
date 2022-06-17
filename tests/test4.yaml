@@ -352,7 +352,16 @@ binary_sensor:
     y_max: 100
     on_press:
       - logger.log: "Touched"
-
+      
+  - platform: gpio
+    name: "MaxIn Pin 4"
+    pin:
+      max6956: max6956_1
+      number: 4
+      mode: 
+        input: true
+        pullup: true
+      inverted: False
 
 climate:
   - platform: tuya
@@ -621,3 +630,7 @@ media_player:
     i2s_dout_pin: GPIO25
     i2s_bclk_pin: GPIO27
     mute_pin: GPIO14
+
+max6956:
+  - id: max6956_1
+    address: 0x40
