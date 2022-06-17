@@ -79,9 +79,9 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
                            // library
   int reinit_bsec_lib_();  // Prepare the BSEC library to be used again after this object returns active
                            // (as the library may have been used by other objects)
-  void load_state_();  // Initialize the ESP preferences object; retrieve the BSEC library state from the ESP
-                       // preferences (storage); then save it in the bsec_state_data_ member (volatile memory) and push
-                       // it to the BSEC library
+  void load_state_();      // Initialize the ESP preferences object; retrieve the BSEC library state from the ESP
+                           // preferences (storage); then save it in the bsec_state_data_ member (volatile memory) and
+                           // push it to the BSEC library
   void save_state_(
       uint8_t accuracy);  // Save the bsec_state_data_ member (volatile memory) to the ESP preferences (storage)
 
