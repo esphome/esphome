@@ -106,7 +106,6 @@ esphome/components/ltr390/* @sjtrny
 esphome/components/max31865/* @DAVe3283
 esphome/components/max44009/* @berfenger
 esphome/components/max6956/* @looping40
-esphome/components/max6956/output/* @looping40
 esphome/components/max7219digit/* @rspaargaren
 esphome/components/max9611/* @mckaymatthew
 esphome/components/mcp23008/* @jesserockz
