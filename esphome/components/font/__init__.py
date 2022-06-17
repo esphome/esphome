@@ -199,13 +199,15 @@ def validate_file_shorthand(value):
         if weight is not None:
             data[CONF_WEIGHT] = weight[1:]
         return FILE_SCHEMA(data)
-    elif value.endswith(".pcf") or value.endswith('.bdf'):
+
+    if value.endswith(".pcf") or value.endswith('.bdf'):
         return FILE_SCHEMA(
             {
                 CONF_TYPE: TYPE_LOCAL_BITMAP,
                 CONF_PATH: value,
             }
         )
+
     return FILE_SCHEMA(
         {
             CONF_TYPE: TYPE_LOCAL,
@@ -253,6 +255,7 @@ CONFIG_SCHEMA = cv.All(validate_pillow_installed, FONT_SCHEMA)
 # PIL doesn't provide a consistent interface for both TrueType and bitmap
 # fonts. So, we use our own wrappers to give us the consistency that we need.
 
+
 class TrueTypeFontWrapper:
     def __init__(self, font):
         self.font = font
@@ -273,14 +276,11 @@ class BitmapFontWrapper:
         self.font = font
         self.max_height = 0
 
-
     def getoffset(self, glyph):
-        return 0,0
-
+        return 0, 0
 
     def getmask(self, glyph, **kwargs):
         return self.font.getmask(glyph, **kwargs)
-
 
     def getmetrics(self, glyphs):
         max_height = 0
@@ -309,7 +309,7 @@ def convert_bitmap_to_pillow_font(filepath):
 
             # Convert to pillow-formatted fonts, which have a .pil and .pbm extension.
             p.save(local_bitmap_font_file)
-        except (SyntaxError, IOError) as err:
+        except (SyntaxError, OSError) as err:
             raise cv.Invalid(
                 f"Failed to parse as bitmap font: '{filepath}': {err}"
             )
