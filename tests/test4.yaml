@@ -615,8 +615,11 @@ media_player:
     mute_pin: GPIO14
     on_state:
       - media_player.play:
+    on_idle:
       - media_player.pause:
+    on_play:
       - media_player.stop:
+    on_pause:
       - media_player.toggle:
       - media_player.volume_up:
       - media_player.volume_down:
