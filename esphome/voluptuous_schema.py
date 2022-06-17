@@ -2,7 +2,7 @@ import difflib
 import itertools
 
 import voluptuous as vol
-from esphome.jsonschema import jschema_extended
+from esphome.schema_extractors import schema_extractor_extended
 
 
 class ExtraKeysInvalid(vol.Invalid):
@@ -203,7 +203,7 @@ class _Schema(vol.Schema):
         self._extra_schemas.append(validator)
         return self
 
-    @jschema_extended
+    @schema_extractor_extended
     # pylint: disable=signature-differs
     def extend(self, *schemas, **kwargs):
         extra = kwargs.pop("extra", None)

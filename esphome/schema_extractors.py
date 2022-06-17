@@ -9,9 +9,9 @@ However there is a property to further disable decorator
 impact."""
 
 
-# This is set to true by script/build_jsonschema.py
+# This is set to true by script/build_language_schema.py
 # only, so data is collected (again functionality is not modified)
-EnableJsonSchemaCollect = False
+EnableSchemaExtraction = False
 
 extended_schemas = {}
 list_schemas = {}
@@ -19,9 +19,12 @@ registry_schemas = {}
 hidden_schemas = {}
 typed_schemas = {}
 
+# This key is used to generate schema files of Esphome configuration.
+SCHEMA_EXTRACT = object()
 
-def jschema_extractor(validator_name):
-    if EnableJsonSchemaCollect:
+
+def schema_extractor(validator_name):
+    if EnableSchemaExtraction:
 
         def decorator(func):
             hidden_schemas[repr(func)] = validator_name
@@ -35,8 +38,8 @@ def jschema_extractor(validator_name):
     return dummy
 
 
-def jschema_extended(func):
-    if EnableJsonSchemaCollect:
+def schema_extractor_extended(func):
+    if EnableSchemaExtraction:
 
         def decorate(*args, **kwargs):
             ret = func(*args, **kwargs)
@@ -49,8 +52,8 @@ def jschema_extended(func):
     return func
 
 
-def jschema_list(func):
-    if EnableJsonSchemaCollect:
+def schema_extractor_list(func):
+    if EnableSchemaExtraction:
 
         def decorate(*args, **kwargs):
             ret = func(*args, **kwargs)
@@ -63,8 +66,8 @@ def jschema_list(func):
     return func
 
 
-def jschema_registry(registry):
-    if EnableJsonSchemaCollect:
+def schema_extractor_registry(registry):
+    if EnableSchemaExtraction:
 
         def decorator(func):
             registry_schemas[repr(func)] = registry
@@ -78,8 +81,8 @@ def jschema_registry(registry):
     return dummy
 
 
-def jschema_typed(func):
-    if EnableJsonSchemaCollect:
+def schema_extractor_typed(func):
+    if EnableSchemaExtraction:
 
         def decorate(*args, **kwargs):
             ret = func(*args, **kwargs)
