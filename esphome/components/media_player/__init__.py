@@ -38,15 +38,31 @@ VolumeDownAction = media_player_ns.class_(
 VolumeSetAction = media_player_ns.class_(
     "VolumeSetAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
-StateTrigger = media_player_ns.class_("StateTrigger", automation.Trigger.template())
 
 
 CONF_VOLUME = "volume"
+CONF_ON_IDLE = "on_idle"
+CONF_ON_PLAY = "on_play"
+CONF_ON_PAUSE = "on_pause"
+
+StateTrigger = media_player_ns.class_("StateTrigger", automation.Trigger.template())
+IdleTrigger = media_player_ns.class_("IdleTrigger", automation.Trigger.template())
+PlayTrigger = media_player_ns.class_("PlayTrigger", automation.Trigger.template())
+PauseTrigger = media_player_ns.class_("PauseTrigger", automation.Trigger.template())
 
 
 async def setup_media_player_core_(var, config):
     await setup_entity(var, config)
     for conf in config.get(CONF_ON_STATE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_IDLE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_PLAY, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_PAUSE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
@@ -63,6 +79,21 @@ MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         cv.Optional(CONF_ON_STATE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_IDLE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(IdleTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_PLAY): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PlayTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_PAUSE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PauseTrigger),
             }
         ),
     }

@@ -14,6 +14,17 @@ namespace media_player {
     } \
   };
 
+#define MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(TRIGGER_CLASS, TRIGGER_STATE) \
+  class TRIGGER_CLASS : public Trigger<> { \
+   public: \
+    TRIGGER_CLASS(MediaPlayer *player) { \
+      player->add_on_state_callback([this, player]() { \
+        if (player->state == MediaPlayerState::MEDIA_PLAYER_STATE_##TRIGGER_STATE) \
+          this->trigger(); \
+      }); \
+    } \
+  };
+
 MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(PlayAction, PLAY)
 MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(PauseAction, PAUSE)
 MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(StopAction, STOP)
@@ -32,6 +43,10 @@ class StateTrigger : public Trigger<> {
     player->add_on_state_callback([this]() { this->trigger(); });
   }
 };
+
+MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(IdleTrigger, IDLE)
+MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(PlayTrigger, PLAYING)
+MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(PauseTrigger, PAUSED)
 
 }  // namespace media_player
 }  // namespace esphome
