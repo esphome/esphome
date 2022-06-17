@@ -26,5 +26,12 @@ template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Pa
   void play(Ts... x) override { this->parent_->make_call().set_volume(this->volume_.value(x...)).perform(); }
 };
 
+class StateTrigger : public Trigger<> {
+ public:
+  StateTrigger(MediaPlayer *player) {
+    player->add_on_state_callback([this]() { this->trigger(); });
+  }
+};
+
 }  // namespace media_player
 }  // namespace esphome

@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 
 from esphome.automation import maybe_simple_id
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_ON_STATE, CONF_TRIGGER_ID
 from esphome.core import CORE
 from esphome.coroutine import coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -38,12 +38,17 @@ VolumeDownAction = media_player_ns.class_(
 VolumeSetAction = media_player_ns.class_(
     "VolumeSetAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
+StateTrigger = media_player_ns.class_("StateTrigger", automation.Trigger.template())
+
 
 CONF_VOLUME = "volume"
 
 
 async def setup_media_player_core_(var, config):
     await setup_entity(var, config)
+    for conf in config.get(CONF_ON_STATE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
 
 
 async def register_media_player(var, config):
@@ -53,7 +58,15 @@ async def register_media_player(var, config):
     await setup_media_player_core_(var, config)
 
 
-MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.Schema({}))
+MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
+    {
+        cv.Optional(CONF_ON_STATE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
+            }
+        ),
+    }
+)
 
 
 MEDIA_PLAYER_ACTION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(MediaPlayer)})
