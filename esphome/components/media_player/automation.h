@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/core/automation.h"
+#include "esphome/core/base_automation.h"
 #include "media_player.h"
 
 namespace esphome {
@@ -17,7 +17,7 @@ namespace media_player {
 #define MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(TRIGGER_CLASS, TRIGGER_STATE) \
   class TRIGGER_CLASS : public Trigger<> { \
    public: \
-    TRIGGER_CLASS(MediaPlayer *player) { \
+    explicit TRIGGER_CLASS(MediaPlayer *player) { \
       player->add_on_state_callback([this, player]() { \
         if (player->state == MediaPlayerState::MEDIA_PLAYER_STATE_##TRIGGER_STATE) \
           this->trigger(); \
@@ -44,7 +44,7 @@ template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Pa
 
 class StateTrigger : public Trigger<> {
  public:
-  StateTrigger(MediaPlayer *player) {
+  explicit StateTrigger(MediaPlayer *player) {
     player->add_on_state_callback([this]() { this->trigger(); });
   }
 };
@@ -52,6 +52,16 @@ class StateTrigger : public Trigger<> {
 MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(IdleTrigger, IDLE)
 MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(PlayTrigger, PLAYING)
 MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(PauseTrigger, PAUSED)
+
+template<typename... Ts> class IsIdleCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+ public:
+  bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_IDLE; }
+};
+
+template<typename... Ts> class IsPlayingCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+ public:
+  bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING; }
+};
 
 }  // namespace media_player
 }  // namespace esphome

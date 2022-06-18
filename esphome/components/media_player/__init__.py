@@ -53,6 +53,8 @@ StateTrigger = media_player_ns.class_("StateTrigger", automation.Trigger.templat
 IdleTrigger = media_player_ns.class_("IdleTrigger", automation.Trigger.template())
 PlayTrigger = media_player_ns.class_("PlayTrigger", automation.Trigger.template())
 PauseTrigger = media_player_ns.class_("PauseTrigger", automation.Trigger.template())
+IsIdleCondition = media_player_ns.class_("IsIdleCondition", automation.Condition)
+IsPlayingCondition = media_player_ns.class_("IsPlayingCondition", automation.Condition)
 
 
 async def setup_media_player_core_(var, config):
@@ -139,6 +141,12 @@ async def media_player_play_media_action(config, action_id, template_arg, args):
 )
 @automation.register_action(
     "media_player.volume_down", VolumeDownAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
+@automation.register_condition(
+    "media_player.is_idle", IsIdleCondition, MEDIA_PLAYER_ACTION_SCHEMA
+)
+@automation.register_condition(
+    "media_player.is_playing", IsPlayingCondition, MEDIA_PLAYER_ACTION_SCHEMA
 )
 async def media_player_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

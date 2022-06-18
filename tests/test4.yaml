@@ -623,6 +623,10 @@ media_player:
       - media_player.stop:
     on_pause:
       - media_player.toggle:
+      - wait_until:
+          media_player.is_idle:
+      - wait_until:
+          media_player.is_playing:
       - media_player.volume_up:
       - media_player.volume_down:
       - media_player.volume_set: 50%
