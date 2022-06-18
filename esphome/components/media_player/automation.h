@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/core/base_automation.h"
+#include "esphome/core/automation.h"
 #include "media_player.h"
 
 namespace esphome {
