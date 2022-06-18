@@ -14,6 +14,17 @@ namespace media_player {
     } \
   };
 
+#define MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(TRIGGER_CLASS, TRIGGER_STATE) \
+  class TRIGGER_CLASS : public Trigger<> { \
+   public: \
+    TRIGGER_CLASS(MediaPlayer *player) { \
+      player->add_on_state_callback([this, player]() { \
+        if (player->state == MediaPlayerState::MEDIA_PLAYER_STATE_##TRIGGER_STATE) \
+          this->trigger(); \
+      }); \
+    } \
+  };
+
 MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(PlayAction, PLAY)
 MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(PauseAction, PAUSE)
 MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(StopAction, STOP)
@@ -25,6 +36,17 @@ template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Pa
   TEMPLATABLE_VALUE(float, volume)
   void play(Ts... x) override { this->parent_->make_call().set_volume(this->volume_.value(x...)).perform(); }
 };
+
+class StateTrigger : public Trigger<> {
+ public:
+  StateTrigger(MediaPlayer *player) {
+    player->add_on_state_callback([this]() { this->trigger(); });
+  }
+};
+
+MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(IdleTrigger, IDLE)
+MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(PlayTrigger, PLAYING)
+MEDIA_PLAYER_SIMPLE_STATE_TRIGGER(PauseTrigger, PAUSED)
 
 }  // namespace media_player
 }  // namespace esphome
