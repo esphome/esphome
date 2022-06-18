@@ -32,6 +32,11 @@ MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(ToggleAction, TOGGLE)
 MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(VolumeUpAction, VOLUME_UP)
 MEDIA_PLAYER_SIMPLE_COMMAND_ACTION(VolumeDownAction, VOLUME_DOWN)
 
+template<typename... Ts> class PlayMediaAction : public Action<Ts...>, public Parented<MediaPlayer> {
+  TEMPLATABLE_VALUE(std::string, media_url)
+  void play(Ts... x) override { this->parent_->make_call().set_media_url(this->media_url_.value(x...)).perform(); }
+};
+
 template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(float, volume)
   void play(Ts... x) override { this->parent_->make_call().set_volume(this->volume_.value(x...)).perform(); }

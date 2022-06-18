@@ -615,6 +615,8 @@ media_player:
     mute_pin: GPIO14
     on_state:
       - media_player.play:
+      - media_player.play_media: http://localhost/media.mp3
+      - media_player.play_media: !lambda 'return "http://localhost/media.mp3";'
     on_idle:
       - media_player.pause:
     on_play:
