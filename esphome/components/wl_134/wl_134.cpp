@@ -4,7 +4,7 @@
 namespace esphome {
 namespace wl_134 {
 
-static const char *const TAG = "wl.134.sensor";
+static const char *const TAG = "wl_134.sensor";
 static const uint8_t ASCII_CR = 0x0D;
 static const uint8_t ASCII_NBSP = 0xFF;
 static const int MAX_DATA_LENGTH_BYTES = 6;
@@ -49,7 +49,7 @@ Wl134Component::Rfid134Error Wl134Component::read_packet_() {
     return RFID134_ERROR_PACKET_CHECKSUM;
   }
 
-  if (static_cast<uint8_t>(~checksum) != static_cast<uint8_t>(packet[RFID134_ERROR_PACKET_CHECKSUM_INVERT])) {
+  if (static_cast<uint8_t>(~checksum) != static_cast<uint8_t>(packet[RFID134_PACKET_CHECKSUM_INVERT])) {
     return RFID134_ERROR_PACKET_CHECKSUM_INVERT;
   }
 
