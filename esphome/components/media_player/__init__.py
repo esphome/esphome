@@ -115,7 +115,7 @@ MEDIA_PLAYER_ACTION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(MediaPl
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(MediaPlayer),
-            cv.Required(CONF_MEDIA_URL): cv.templatable(cv.string_strict),
+            cv.Required(CONF_MEDIA_URL): cv.templatable(cv.url),
         },
         key=CONF_MEDIA_URL,
     ),
