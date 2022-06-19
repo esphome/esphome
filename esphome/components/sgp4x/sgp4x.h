@@ -49,7 +49,7 @@ static const uint16_t SPG41_SELFTEST_TIME = 320;  // 320 ms for self test
 static const uint16_t SGP40_MEASURE_TIME = 30;
 static const uint16_t SGP41_MEASURE_TIME = 55;
 // Store anyway if the baseline difference exceeds the max storage diff value
-const uint32_t MAXIMUM_STORAGE_DIFF = 50.0;
+const float MAXIMUM_STORAGE_DIFF = 50.0f;
 
 class SGP4xComponent;
 
