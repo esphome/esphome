@@ -170,8 +170,8 @@ bool SGP4xComponent::measure_gas_indices_(int32_t &voc, int32_t &nox) {
   // much
   if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
     voc_algorithm_.get_states(this->voc_state0_, this->voc_state1_);
-    if ((uint32_t) abs(this->voc_baselines_storage_.state0 - this->voc_state0_) > MAXIMUM_STORAGE_DIFF ||
-        (uint32_t) abs(this->voc_baselines_storage_.state1 - this->voc_state1_) > MAXIMUM_STORAGE_DIFF) {
+    if (std::abs(this->voc_baselines_storage_.state0 - this->voc_state0_) > MAXIMUM_STORAGE_DIFF ||
+        std::abs(this->voc_baselines_storage_.state1 - this->voc_state1_) > MAXIMUM_STORAGE_DIFF) {
       this->seconds_since_last_store_ = 0;
       this->voc_baselines_storage_.state0 = this->voc_state0_;
       this->voc_baselines_storage_.state1 = this->voc_state1_;
@@ -234,8 +234,8 @@ bool SGP4xComponent::measure_raw_(uint16_t &voc_raw, uint16_t &nox_raw) {
       response_words = 2;
     }
   }
-  uint16_t rhticks = llround((uint16_t)((humidity * 65535) / 100));
-  uint16_t tempticks = (uint16_t)(((temperature + 45) * 65535) / 175);
+  uint16_t rhticks = llround((uint16_t) ((humidity * 65535) / 100));
+  uint16_t tempticks = (uint16_t) (((temperature + 45) * 65535) / 175);
   // first paramater are the relative humidity ticks
   data[0] = rhticks;
   // secomd paramater are the temperature ticks
