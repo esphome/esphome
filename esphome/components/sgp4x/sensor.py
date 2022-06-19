@@ -139,4 +139,4 @@ async def to_code(config):
                     cfg[CONF_GAIN_FACTOR],
                 )
             )
-    cg.add_library("sensirion/Sensirion Gas Index Algorithm", "^3.2.1")
+    cg.add_library("sensirion/Sensirion Gas Index Algorithm", "3.2.1")
