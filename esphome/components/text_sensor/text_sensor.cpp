@@ -70,7 +70,6 @@ void TextSensor::internal_send_state_to_frontend(const std::string &state) {
 
 std::string TextSensor::unique_id() { return ""; }
 bool TextSensor::has_state() { return this->has_state_; }
-uint32_t TextSensor::hash_base() { return 334300109UL; }
 
 }  // namespace text_sensor
 }  // namespace esphome

@@ -64,7 +64,10 @@ def import_config(path: str, name: str, project_name: str, import_url: str) -> N
         config = {
             "substitutions": {"name": name},
             "packages": {project_name: import_url},
-            "esphome": {"name_add_mac_suffix": False},
+            "esphome": {
+                "name": "${name}",
+                "name_add_mac_suffix": False,
+            },
         }
         p.write_text(
             dump(config) + WIFI_CONFIG,

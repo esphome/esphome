@@ -555,6 +555,7 @@ void WiFiComponent::check_connecting_finished() {
   }
 
   ESP_LOGW(TAG, "WiFi Unknown connection status %d", (int) status);
+  this->retry_connect();
 }
 
 void WiFiComponent::retry_connect() {

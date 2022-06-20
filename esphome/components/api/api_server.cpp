@@ -255,7 +255,7 @@ void APIServer::on_number_update(number::Number *obj, float state) {
 #endif
 
 #ifdef USE_SELECT
-void APIServer::on_select_update(select::Select *obj, const std::string &state) {
+void APIServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
@@ -269,6 +269,15 @@ void APIServer::on_lock_update(lock::Lock *obj) {
     return;
   for (auto &c : this->clients_)
     c->send_lock_state(obj, obj->state);
+}
+#endif
+
+#ifdef USE_MEDIA_PLAYER
+void APIServer::on_media_player_update(media_player::MediaPlayer *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_media_player_state(obj);
 }
 #endif
 
