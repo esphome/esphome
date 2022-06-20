@@ -38,7 +38,7 @@ void PZEMDC::on_modbus_data(const std::vector<uint8_t> &data) {
   float power = raw_power / 10.0f;  // max 429496729.5 W
 
   uint32_t raw_energy = pzem_get_32bit(8);
-  float energy = raw_energy / 1.000f;  // max 4294967.295 kWh
+  float energy = raw_energy / 1000.0f;  // max 4294967.295 kWh
 
   ESP_LOGD(TAG, "PZEM DC: V=%.1f V, I=%.3f A, P=%.1f W", voltage, current, power);
   if (this->voltage_sensor_ != nullptr)
