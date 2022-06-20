@@ -20,6 +20,9 @@ MediaPlayer = media_player_ns.class_("MediaPlayer")
 PlayAction = media_player_ns.class_(
     "PlayAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
+PlayMediaAction = media_player_ns.class_(
+    "PlayMediaAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
 ToggleAction = media_player_ns.class_(
     "ToggleAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
@@ -44,11 +47,14 @@ CONF_VOLUME = "volume"
 CONF_ON_IDLE = "on_idle"
 CONF_ON_PLAY = "on_play"
 CONF_ON_PAUSE = "on_pause"
+CONF_MEDIA_URL = "media_url"
 
 StateTrigger = media_player_ns.class_("StateTrigger", automation.Trigger.template())
 IdleTrigger = media_player_ns.class_("IdleTrigger", automation.Trigger.template())
 PlayTrigger = media_player_ns.class_("PlayTrigger", automation.Trigger.template())
 PauseTrigger = media_player_ns.class_("PauseTrigger", automation.Trigger.template())
+IsIdleCondition = media_player_ns.class_("IsIdleCondition", automation.Condition)
+IsPlayingCondition = media_player_ns.class_("IsPlayingCondition", automation.Condition)
 
 
 async def setup_media_player_core_(var, config):
@@ -103,6 +109,25 @@ MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
 MEDIA_PLAYER_ACTION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(MediaPlayer)})
 
 
+@automation.register_action(
+    "media_player.play_media",
+    PlayMediaAction,
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(MediaPlayer),
+            cv.Required(CONF_MEDIA_URL): cv.templatable(cv.url),
+        },
+        key=CONF_MEDIA_URL,
+    ),
+)
+async def media_player_play_media_action(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    media_url = await cg.templatable(config[CONF_MEDIA_URL], args, cg.std_string)
+    cg.add(var.set_media_url(media_url))
+    return var
+
+
 @automation.register_action("media_player.play", PlayAction, MEDIA_PLAYER_ACTION_SCHEMA)
 @automation.register_action(
     "media_player.toggle", ToggleAction, MEDIA_PLAYER_ACTION_SCHEMA
@@ -116,6 +141,12 @@ MEDIA_PLAYER_ACTION_SCHEMA = maybe_simple_id({cv.GenerateID(): cv.use_id(MediaPl
 )
 @automation.register_action(
     "media_player.volume_down", VolumeDownAction, MEDIA_PLAYER_ACTION_SCHEMA
+)
+@automation.register_condition(
+    "media_player.is_idle", IsIdleCondition, MEDIA_PLAYER_ACTION_SCHEMA
+)
+@automation.register_condition(
+    "media_player.is_playing", IsPlayingCondition, MEDIA_PLAYER_ACTION_SCHEMA
 )
 async def media_player_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
