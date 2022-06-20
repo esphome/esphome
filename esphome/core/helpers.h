@@ -600,7 +600,7 @@ template<class T> class ExternalRAMAllocator {
 
   ExternalRAMAllocator() = default;
   ExternalRAMAllocator(Flags flags) : flags_{flags} {}
-  template<class U> constexpr ExternalRAMAllocator(const ExternalRAMAllocator<U> &other) : flags_{other.flags} {}
+  template<class U> constexpr ExternalRAMAllocator(const ExternalRAMAllocator<U> &other) : flags_{other.flags_} {}
 
   T *allocate(size_t n) {
     size_t size = n * sizeof(T);

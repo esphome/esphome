@@ -76,6 +76,8 @@ async def to_code(config):
         pos = 0
         for frameIndex in range(frames):
             image.seek(frameIndex)
+            if CONF_RESIZE in config:
+                image.thumbnail(config[CONF_RESIZE])
             frame = image.convert("RGB")
             if CONF_RESIZE in config:
                 frame = frame.resize([width, height])
