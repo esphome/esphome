@@ -482,7 +482,7 @@ def declare_id(type):
             return core.ID(None, is_declaration=True, type=type)
 
         if isinstance(value, Extend):
-            raise Invalid(f"ID '{value.value}' was not found.")
+            raise Invalid(f"Source for extension of ID '{value.value}' was not found.")
         return core.ID(validate_id_name(value), is_declaration=True, type=type)
 
     return validator

@@ -339,7 +339,8 @@ class LoadValidationStep(ConfigValidationStep):
                 p_id = p_config.get(CONF_ID)
                 if isinstance(p_id, Extend):
                     result.add_str_error(
-                        f"ID '{p_id.value}' was not found.", path + [CONF_ID]
+                        f"Source for extension of ID '{p_id.value}' was not found.",
+                        path + [CONF_ID],
                     )
                     continue
                 result.add_str_error("No platform specified! See 'platform' key.", path)
