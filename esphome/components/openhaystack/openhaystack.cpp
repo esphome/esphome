@@ -23,8 +23,8 @@ static const char *const TAG = "openhaystack";
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static esp_ble_adv_params_t ble_adv_params = {
-    .adv_int_min = 0x0640, // 1s
-    .adv_int_max = 0x0C80, // 2s
+    .adv_int_min = 0x0640,  // 1s
+    .adv_int_max = 0x0C80,  // 2s
     .adv_type = ADV_TYPE_NONCONN_IND,
     .own_addr_type = BLE_ADDR_TYPE_RANDOM,
     .peer_addr = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
@@ -35,24 +35,12 @@ static esp_ble_adv_params_t ble_adv_params = {
 
 void OpenHaystack::dump_config() {
   ESP_LOGCONFIG(TAG, "OpenHaystack:");
-  ESP_LOGCONFIG(TAG,
-                "  Bluetooth MAC: %02X:%02X:%02X:%02X:%02X:%02X",
-                this->random_address_[0],
-                this->random_address_[1],
-                this->random_address_[2],
-                this->random_address_[3],
-                this->random_address_[4],
-                this->random_address_[5]
-  );
-  ESP_LOGCONFIG(TAG,
-                "  Advertising Key (first six digits): %02X %02X %02X %02X %02X %02X",
-                this->advertising_key_[0],
-                this->advertising_key_[1],
-                this->advertising_key_[2],
-                this->advertising_key_[3],
-                this->advertising_key_[4],
-                this->advertising_key_[5]
-  );
+  ESP_LOGCONFIG(TAG, "  Bluetooth MAC: %02X:%02X:%02X:%02X:%02X:%02X", this->random_address_[0],
+                this->random_address_[1], this->random_address_[2], this->random_address_[3], this->random_address_[4],
+                this->random_address_[5]);
+  ESP_LOGCONFIG(TAG, "  Advertising Key (first six digits): %02X %02X %02X %02X %02X %02X", this->advertising_key_[0],
+                this->advertising_key_[1], this->advertising_key_[2], this->advertising_key_[3],
+                this->advertising_key_[4], this->advertising_key_[5]);
 }
 
 void OpenHaystack::setup() {
@@ -78,7 +66,7 @@ void OpenHaystack::ble_core_task(void *params) {
   }
 }
 
-void OpenHaystack::set_addr_from_key(esp_bd_addr_t addr, uint8_t *public_key) {
+void OpenHaystack::set_addr_from_key(esp_bd_addr_t addr, const uint8_t *public_key) {
   addr[0] = public_key[0] | 0b11000000;
   addr[1] = public_key[1];
   addr[2] = public_key[2];
@@ -101,7 +89,6 @@ void OpenHaystack::ble_setup() {
     ESP_LOGE(TAG, "nvs_flash_init failed: %d", err);
     return;
   }
-
 #ifdef USE_ARDUINO
   if (!btStart()) {
     ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
