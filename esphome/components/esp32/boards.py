@@ -546,7 +546,7 @@ ESP32_BOARD_PINS = {
         "D7": 4,
         "D8": 5,
         "LED": 7,
-        "BUTTON": 9
+        "BUTTON": 9,
     },
     "lolin_d32": {"LED": 5, "_VBAT": 35},
     "lolin_d32_pro": {"LED": 5, "_VBAT": 35},
