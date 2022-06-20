@@ -134,7 +134,6 @@ void OpenHaystack::ble_setup() {
     return;
   }
 
-
   set_addr_from_key(global_openhaystack->random_address_, global_openhaystack->advertising_key_.data());
   set_payload_from_key(global_openhaystack->adv_data_, global_openhaystack->advertising_key_.data());
 

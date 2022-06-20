@@ -24,9 +24,8 @@ class OpenHaystack : public Component {
   static void set_payload_from_key(uint8_t *payload, uint8_t *public_key);
   static void ble_setup();
 
-
   std::array<uint8_t, 28> advertising_key_;
-  esp_bd_addr_t random_address_ = { 0xFF, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF };
+  esp_bd_addr_t random_address_ = {0xFF, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
   uint8_t adv_data_[31] = {
       0x1e,       /* Length (30) */
       0xff,       /* Manufacturer Specific Data (type 0xff) */
