@@ -44,18 +44,14 @@ template<typename T> class RestoringGlobalsComponent : public Component {
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  void loop() override {
-    store_value();
-  }
+  void loop() override { store_value_(); }
 
-  void on_shutdown() override {
-    store_value();
-  }
+  void on_shutdown() override { store_value_(); }
 
   void set_name_hash(uint32_t name_hash) { this->name_hash_ = name_hash; }
 
  protected:
-  void store_value() {
+  void store_value_() {
     int diff = memcmp(&this->value_, &this->prev_value_, sizeof(T));
     if (diff != 0) {
       this->rtc_.save(&this->value_);
