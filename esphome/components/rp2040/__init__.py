@@ -36,6 +36,13 @@ def set_core_data(config):
     return config
 
 
+def _format_framework_arduino_version(ver: cv.Version) -> str:
+    # format the given arduino (https://github.com/earlephilhower/arduino-pico/releases) version to
+    # a PIO earlephilhower/framework-arduinopico value
+    # List of package versions: https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
+    return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
+
+
 # NOTE: Keep this in mind when updating the recommended version:
 #  * The new version needs to be thoroughly validated before changing the
 #    recommended version as otherwise a bunch of devices could be bricked
@@ -43,9 +50,9 @@ def set_core_data(config):
 #    and platformio.ini/platformio-lint.ini in the esphome-docker-base repository
 
 # The default/recommended arduino framework version
-#  - https://github.com/arduino/ArduinoCore-mbed/releases
-#  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-arduino-mbed
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 1, 1)
+#  - https://github.com/earlephilhower/arduino-pico/releases
+#  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 1, 1)
 
 # The platformio/raspberrypi version to use for arduino frameworks
 #  - https://github.com/platformio/platform-raspberrypi/releases
@@ -56,8 +63,8 @@ ARDUINO_PLATFORM_VERSION = cv.Version(1, 7, 0)
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(2, 8, 0), "https://github.com/arduino/ArduinoCore-mbed"),
-        "latest": (cv.Version(2, 7, 2), None),
+        "dev": (cv.Version(2, 1, 1), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(2, 1, 1), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -73,7 +80,7 @@ def _arduino_check_versions(value):
         source = value.get(CONF_SOURCE, None)
 
     value[CONF_VERSION] = str(version)
-    value[CONF_SOURCE] = source or f"~{version}"
+    value[CONF_SOURCE] = source or _format_framework_arduino_version(version)
 
     value[CONF_PLATFORM_VERSION] = value.get(
         CONF_PLATFORM_VERSION, _parse_platform_version(str(ARDUINO_PLATFORM_VERSION))
@@ -138,8 +145,11 @@ async def to_code(config):
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
     cg.add_platformio_option(
         "platform_packages",
-        [f"platformio/framework-arduino-mbed @ {conf[CONF_SOURCE]}"],
+        [f"earlephilhower/framework-arduinopico @ {conf[CONF_SOURCE]}"],
     )
+
+    cg.add_platformio_option("board_build.core", "earlephilhower")
+    cg.add_platformio_option("board_build.filesystem_size", "0.5m")
 
     ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     cg.add_define(

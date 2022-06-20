@@ -17,8 +17,8 @@ static int IRAM_ATTR flags_to_mode(gpio::Flags flags, uint8_t pin) {
     return INPUT_PULLUP;
   } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN)) {
     return INPUT_PULLDOWN;
-  } else if (flags == (gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN)) {
-    return OpenDrain;
+    // } else if (flags == (gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN)) {
+    //   return OpenDrain;
   } else {
     return 0;
   }

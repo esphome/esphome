@@ -4,6 +4,8 @@
 
 #include <Arduino.h>
 
+extern "C" unsigned long ulMainGetRunTimeCounterValue();
+
 namespace esphome {
 namespace rp2040 {}  // namespace rp2040
 }  // namespace esphome

@@ -25,10 +25,8 @@ void IRAM_ATTR HOT arch_feed_wdt() {
 uint8_t progmem_read_byte(const uint8_t *addr) {
   return pgm_read_byte(addr);  // NOLINT
 }
-uint32_t IRAM_ATTR HOT arch_get_cpu_cycle_count() {
-  // TODO: implement
-}
-uint32_t arch_get_cpu_freq_hz() { return 133 * 1000 * 1000; }
+uint32_t IRAM_ATTR HOT arch_get_cpu_cycle_count() { return ulMainGetRunTimeCounterValue(); }
+uint32_t arch_get_cpu_freq_hz() { return RP2040::f_cpu(); }
 
 }  // namespace esphome
 

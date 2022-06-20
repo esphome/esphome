@@ -11,7 +11,8 @@
 #include <HardwareSerial.h>
 #endif  // USE_ESP8266 || USE_ESP32
 #ifdef USE_RP2040
-#include <Serial.h>
+#include <HardwareSerial.h>
+#include <SerialUSB.h>
 #endif  // USE_RP2040
 #endif  // USE_ARDUINO
 
