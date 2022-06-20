@@ -1,4 +1,4 @@
-pylint==2.13.9
+pylint==2.14.3
 flake8==4.0.1
 black==22.3.0
 pyupgrade==2.32.1
