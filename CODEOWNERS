@@ -145,6 +145,7 @@ esphome/components/nextion/switch/* @senexcrenshaw
 esphome/components/nextion/text_sensor/* @senexcrenshaw
 esphome/components/nfc/* @jesserockz
 esphome/components/number/* @esphome/core
+esphome/components/openhaystack/* @SebastianBar
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pid/* @OttoWinter

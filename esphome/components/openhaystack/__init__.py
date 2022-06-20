@@ -7,6 +7,7 @@ from esphome.components.esp32 import add_idf_sdkconfig_option
 
 DEPENDENCIES = ["esp32"]
 CONFLICTS_WITH = ["esp32_ble_tracker", "esp32_ble_beacon"]
+CODEOWNERS = ["@SebastianBar"]
 
 openhaystack_ns = cg.esphome_ns.namespace("openhaystack")
 OpenHaystack = openhaystack_ns.class_("OpenHaystack", cg.Component)
