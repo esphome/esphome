@@ -55,7 +55,9 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_KP_MULTIPLIER, default=0.1): cv.float_,
                     cv.Optional(CONF_KI_MULTIPLIER, default=0.0): cv.float_,
                     cv.Optional(CONF_KD_MULTIPLIER, default=0.0): cv.float_,
-                    cv.Optional(CONF_DEADBAND_OUTPUT_AVERAGING_SAMPLES, default=1): cv.int_,
+                    cv.Optional(
+                        CONF_DEADBAND_OUTPUT_AVERAGING_SAMPLES, default=1
+                    ): cv.int_,
                 }
             ),
             cv.Required(CONF_CONTROL_PARAMETERS): cv.Schema(
@@ -111,7 +113,11 @@ async def to_code(config):
         cg.add(var.set_kp_multiplier(params[CONF_KP_MULTIPLIER]))
         cg.add(var.set_ki_multiplier(params[CONF_KI_MULTIPLIER]))
         cg.add(var.set_kd_multiplier(params[CONF_KD_MULTIPLIER]))
-        cg.add(var.set_deadband_output_samples(params[CONF_DEADBAND_OUTPUT_AVERAGING_SAMPLES]))
+        cg.add(
+            var.set_deadband_output_samples(
+                params[CONF_DEADBAND_OUTPUT_AVERAGING_SAMPLES]
+            )
+        )
 
     cg.add(var.set_default_target_temperature(config[CONF_DEFAULT_TARGET_TEMPERATURE]))
 
