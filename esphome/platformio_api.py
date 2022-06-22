@@ -20,7 +20,7 @@ def patch_structhash():
     # removed/added. This might have unintended consequences, but this improves compile
     # times greatly when adding/removing components and a simple clean build solves
     # all issues
-    from platformio.commands.run import helpers, command
+    from platformio.run import helpers, cli
     from os.path import join, isdir, getmtime
     from os import makedirs
 
@@ -39,7 +39,7 @@ def patch_structhash():
 
     # pylint: disable=protected-access
     helpers.clean_build_dir = patched_clean_build_dir
-    command.clean_build_dir = patched_clean_build_dir
+    cli.clean_build_dir = patched_clean_build_dir
 
 
 IGNORE_LIB_WARNINGS = f"(?:{'|'.join(['Hash', 'Update'])})"
