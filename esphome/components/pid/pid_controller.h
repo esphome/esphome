@@ -13,20 +13,20 @@ struct PIDController {
     // y(t) ... process value (sensor reading)
     // u(t) ... output value
 
-    dt = calculate_relative_time_();
+    dt_ = calculate_relative_time_();
 
     // e(t) := r(t) - y(t)
-    error = setpoint - process_value;
+    error_ = setpoint - process_value;
 
     calculate_proportional_term_();
     calculate_integral_term_();
     calculate_derivative_term_();
 
     // u(t) := p(t) + i(t) + d(t)
-    float output = proportional_term + integral_term + derivative_term;
+    float output = proportional_term_ + integral_term_ + derivative_term_;
 
     // smooth/sample the output
-    int samples = in_deadband() ? deadband_output_samples : output_samples;
+    int samples = in_deadband() ? deadband_output_samples_ : output_samples_;
     return weighted_average_(output_list_, output, samples);
   }
 
@@ -35,96 +35,96 @@ struct PIDController {
 
   bool in_deadband() {
     // return (fabs(error) < deadband_threshold);
-    float err = -error;
-    return ((err > 0 && err < threshold_high) || (err < 0 && err > threshold_low));
+    float err = -error_;
+    return ((err > 0 && err < threshold_high_) || (err < 0 && err > threshold_low_));
   }
 
   friend class PIDClimate;
 
  private:
   /// Proportional gain K_p.
-  float kp = 0;
+  float kp_ = 0;
   /// Integral gain K_i.
-  float ki = 0;
+  float ki_ = 0;
   /// Differential gain K_d.
-  float kd = 0;
+  float kd_ = 0;
 
   // smooth the derivative value using a weighted average over X samples
-  int derivative_samples = 8;
+  int derivative_samples_ = 8;
 
   /// smooth the output value using a weighted average over X values
-  int output_samples = 1;
+  int output_samples_ = 1;
 
-  float threshold_low = 0.0f;
-  float threshold_high = 0.0f;
-  float kp_multiplier = 0.0f;
-  float ki_multiplier = 0.0f;
-  float kd_multiplier = 0.0f;
-  int deadband_output_samples = 1;
+  float threshold_low_ = 0.0f;
+  float threshold_high_ = 0.0f;
+  float kp_multiplier_ = 0.0f;
+  float ki_multiplier_ = 0.0f;
+  float kd_multiplier_ = 0.0f;
+  int deadband_output_samples_ = 1;
 
-  float min_integral = NAN;
-  float max_integral = NAN;
+  float min_integral_ = NAN;
+  float max_integral_ = NAN;
 
   // Store computed values in struct so that values can be monitored through sensors
-  float error;
-  float dt;
-  float proportional_term;
-  float integral_term;
-  float derivative_term;
+  float error_;
+  float dt_;
+  float proportional_term_;
+  float integral_term_;
+  float derivative_term_;
 
   void calculate_proportional_term_() {
     // p(t) := K_p * e(t)
-    proportional_term = kp * error;
+    proportional_term_ = kp_ * error_;
 
     // set dead-zone to -X to +X
     if (in_deadband()) {
       // shallow the proportional_term in the deadband by the pdm
-      proportional_term *= kp_multiplier;
+      proportional_term_ *= kp_multiplier_;
 
     } else {
       // pdm_offset prevents a jump when leaving the deadband
-      float threshold = (error < 0) ? threshold_high : threshold_low;
-      float pdm_offset = (threshold - (kp_multiplier * threshold)) * kp;
-      proportional_term += pdm_offset;
+      float threshold = (error_ < 0) ? threshold_high_ : threshold_low_;
+      float pdm_offset = (threshold - (kp_multiplier_ * threshold)) * kp_;
+      proportional_term_ += pdm_offset;
     }
-  }
+  };
 
   void calculate_integral_term_() {
     // i(t) := K_i * \int_{0}^{t} e(t) dt
-    float new_integral = error * dt * ki;
+    float new_integral = error_ * dt_ * ki_;
 
     if (in_deadband()) {
       // shallow the integral when in the deadband
-      accumulated_integral_ += new_integral * ki_multiplier;
+      accumulated_integral_ += new_integral * ki_multiplier_;
     } else {
       accumulated_integral_ += new_integral;
     }
 
     // constrain accumulated integral value
-    if (!std::isnan(min_integral) && accumulated_integral_ < min_integral)
-      accumulated_integral_ = min_integral;
-    if (!std::isnan(max_integral) && accumulated_integral_ > max_integral)
-      accumulated_integral_ = max_integral;
+    if (!std::isnan(min_integral_) && accumulated_integral_ < min_integral_)
+      accumulated_integral_ = min_integral_;
+    if (!std::isnan(max_integral_) && accumulated_integral_ > max_integral_)
+      accumulated_integral_ = max_integral_;
 
-    integral_term = accumulated_integral_;
+    integral_term_ = accumulated_integral_;
   }
 
   void calculate_derivative_term_() {
-    // derivative_term
+    // derivative_term_
     // d(t) := K_d * de(t)/dt
     float derivative = 0.0f;
-    if (dt != 0.0f)
-      derivative = (error - previous_error_) / dt;
-    previous_error_ = error;
+    if (dt_ != 0.0f)
+      derivative = (error_ - previous_error_) / dt_;
+    previous_error_ = error_;
 
     // smooth the derivative samples
-    derivative = weighted_average_(derivative_list_, derivative, derivative_samples);
+    derivative = weighted_average_(derivative_list_, derivative, derivative_samples_);
 
-    derivative_term = kd * derivative;
+    derivative_term_ = kd_ * derivative;
 
     if (in_deadband()) {
       // shallow the derivative when in the deadband
-      derivative_term *= kd_multiplier;
+      derivative_term_ *= kd_multiplier_;
     }
   }
 
@@ -151,13 +151,13 @@ struct PIDController {
 
   float calculate_relative_time_() {
     uint32_t now = millis();
-    uint32_t dt = now - this->last_time_;
+    uint32_t dt_ = now - this->last_time_;
     if (last_time_ == 0) {
       last_time_ = now;
       return 0.0f;
     }
     last_time_ = now;
-    return dt / 1000.0f;
+    return dt_ / 1000.0f;
   }
 
   /// Error from previous update used for derivative term
