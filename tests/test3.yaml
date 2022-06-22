@@ -1057,7 +1057,7 @@ climate:
       ki: 0.0
       kd: 0.0
       max_integral: 0.0
-      output_samples: 1
+      output_averaging_samples: 1
       derivative_averaging_samples: 1
     deadband_parameters:
       threshold_high: 0.4
