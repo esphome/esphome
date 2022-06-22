@@ -41,7 +41,7 @@ struct PIDController {
 
   friend class PIDClimate;
 
- protected:
+  private:
   /// Proportional gain K_p.
   float kp = 0;
   /// Integral gain K_i.
