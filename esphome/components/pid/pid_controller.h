@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esphome/core/hal.h"
-#include <list>
+#include <deque>
 
 namespace esphome {
 namespace pid {
@@ -39,6 +39,9 @@ struct PIDController {
     return ((err > 0 && err < threshold_high) || (err < 0 && err > threshold_low));
   }
 
+  friend class PIDClimate;
+
+ protected:
   /// Proportional gain K_p.
   float kp = 0;
   /// Integral gain K_i.
@@ -69,7 +72,6 @@ struct PIDController {
   float integral_term;
   float derivative_term;
 
- protected:
   void calculate_proportional_term_() {
     // p(t) := K_p * e(t)
     proportional_term = kp * error;
@@ -126,7 +128,7 @@ struct PIDController {
     }
   }
 
-  float weighted_average_(std::list<float> &list, float new_value, int samples) {
+  float weighted_average_(std::deque<float> &list, float new_value, int samples) {
     // if only 1 sample needed, clear the list and return
     if (samples == 1) {
       list.clear();
@@ -165,10 +167,10 @@ struct PIDController {
   uint32_t last_time_ = 0;
 
   // this is a list of derivative values for smoothing.
-  std::list<float> derivative_list_;
+  std::deque<float> derivative_list_;
 
   // this is a list of output values for smoothing.
-  std::list<float> output_list_;
+  std::deque<float> output_list_;
 };
 
 }  // namespace pid
