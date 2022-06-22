@@ -100,9 +100,15 @@ void ESP32BLETracker::loop() {
           found = true;
           if (client->state() == ClientState::DISCOVERED) {
             esp_ble_gap_stop_scanning();
+#ifdef USE_ARDUINO
             if (xSemaphoreTake(this->scan_end_lock_, 10L / portTICK_PERIOD_MS)) {
               xSemaphoreGive(this->scan_end_lock_);
             }
+#else
+            if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
+              xSemaphoreGive(this->scan_end_lock_);
+            }
+#endif
           }
         }
       }
