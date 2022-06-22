@@ -77,12 +77,12 @@ jobs:
       uses: docker/setup-qemu-action@v2
 
     - name: Log in to docker hub
-      uses: docker/login-action@v1
+      uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKER_USER }}
         password: ${{ secrets.DOCKER_PASSWORD }}
     - name: Log in to the GitHub container registry
-      uses: docker/login-action@v1
+      uses: docker/login-action@v2
       with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -119,7 +119,7 @@ jobs:
         echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
 
     - name: Log in to docker hub
-      uses: docker/login-action@v1
+      uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKER_USER }}
         password: ${{ secrets.DOCKER_PASSWORD }}
