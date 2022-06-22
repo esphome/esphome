@@ -352,6 +352,15 @@ sensor:
       name: "RD200 Radon"
     radon_long_term:
       name: "RD200 Radon Long Term"
+  - platform: radon_eye_rd200_p2
+    ble_client_id: radon_eye_ble_id
+    update_interval: 10min
+    radon:
+      name: "Radon"
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidity"
   - platform: mopeka_pro_check
     mac_address: D3:75:F2:DC:16:91
     tank_type: CUSTOM
