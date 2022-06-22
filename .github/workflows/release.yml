@@ -17,7 +17,7 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3
       - name: Get tag
         id: tag
         run: |
@@ -35,7 +35,7 @@ jobs:
     if: github.repository == 'esphome/esphome' && github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3.0.2
+      - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -65,7 +65,7 @@ jobs:
         arch: [amd64, armv7, aarch64]
         build_type: ["ha-addon", "docker", "lint"]
     steps:
-    - uses: actions/checkout@v3.0.2
+    - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -108,7 +108,7 @@ jobs:
       matrix:
         build_type: ["ha-addon", "docker", "lint"]
     steps:
-    - uses: actions/checkout@v3.0.2
+    - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -124,7 +124,7 @@ jobs:
         username: ${{ secrets.DOCKER_USER }}
         password: ${{ secrets.DOCKER_PASSWORD }}
     - name: Log in to the GitHub container registry
-      uses: docker/login-action@v1
+      uses: docker/login-action@v2
       with:
           registry: ghcr.io
           username: ${{ github.actor }}
