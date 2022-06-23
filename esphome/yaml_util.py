@@ -91,6 +91,10 @@ def _add_data_ref(fn):
 class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
     """Loader class that keeps track of line numbers."""
 
+    def __init__(self, content, context={}):
+        self.context = context
+        yaml.SafeLoader.__init__(self, content)
+
     @_add_data_ref
     def construct_yaml_int(self, node):
         return super().construct_yaml_int(node)
@@ -240,7 +244,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_secret(self, node):
-        secrets = _load_yaml_internal(self._rel_path(SECRET_YAML))
+        secrets = _load_yaml_internal(self._rel_path(SECRET_YAML), {**self.context})
         if node.value not in secrets:
             raise yaml.MarkedYAMLError(
                 f"Secret '{node.value}' not defined", node.start_mark
@@ -290,22 +294,52 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         else:
             file, vars = node.value, None
 
-        result = _load_yaml_internal(self._rel_path(file))
+        result = _load_yaml_internal(
+            self._rel_path(file), {**self.context, "vars": vars}
+        )
         if vars:
             result = substitute_vars(result, vars)
         return result
 
     @_add_data_ref
+    def construct_eval(self, node):
+        from jinja2.nativetypes import NativeEnvironment
+        from jinja2.exceptions import TemplateError, TemplateSyntaxError
+
+        vars = "vars" in self.context and self.context["vars"] or {}
+
+        try:
+            template = NativeEnvironment().from_string(node.value)
+            result = template.render(vars)
+        except TemplateSyntaxError as err:
+            raise yaml.MarkedYAMLError(
+                f"Error in line {err.lineno} of !eval expression: {err.message}",
+                node.start_mark,
+            )
+        except TemplateError as err:
+            raise yaml.MarkedYAMLError(
+                f"Error in !eval expression: {err.message}",
+                node.start_mark,
+            )
+        except Exception as err:
+            raise yaml.MarkedYAMLError(
+                f"Error in !eval expression: {err}",
+                node.start_mark,
+            )
+
+        return result
+
+    @_add_data_ref
     def construct_include_dir_list(self, node):
         files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
-        return [_load_yaml_internal(f) for f in files]
+        return [_load_yaml_internal(f, {**self.context}) for f in files]
 
     @_add_data_ref
     def construct_include_dir_merge_list(self, node):
         files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
         merged_list = []
         for fname in files:
-            loaded_yaml = _load_yaml_internal(fname)
+            loaded_yaml = _load_yaml_internal(fname, {**self.context})
             if isinstance(loaded_yaml, list):
                 merged_list.extend(loaded_yaml)
         return merged_list
@@ -316,7 +350,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         mapping = OrderedDict()
         for fname in files:
             filename = os.path.splitext(os.path.basename(fname))[0]
-            mapping[filename] = _load_yaml_internal(fname)
+            mapping[filename] = _load_yaml_internal(fname, {**self.context})
         return mapping
 
     @_add_data_ref
@@ -324,7 +358,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
         mapping = OrderedDict()
         for fname in files:
-            loaded_yaml = _load_yaml_internal(fname)
+            loaded_yaml = _load_yaml_internal(fname, {**self.context})
             if isinstance(loaded_yaml, dict):
                 mapping.update(loaded_yaml)
         return mapping
@@ -355,6 +389,7 @@ ESPHomeLoader.add_constructor("tag:yaml.org,2002:map", ESPHomeLoader.construct_y
 ESPHomeLoader.add_constructor("!env_var", ESPHomeLoader.construct_env_var)
 ESPHomeLoader.add_constructor("!secret", ESPHomeLoader.construct_secret)
 ESPHomeLoader.add_constructor("!include", ESPHomeLoader.construct_include)
+ESPHomeLoader.add_constructor("!eval", ESPHomeLoader.construct_eval)
 ESPHomeLoader.add_constructor(
     "!include_dir_list", ESPHomeLoader.construct_include_dir_list
 )
@@ -371,16 +406,34 @@ ESPHomeLoader.add_constructor("!lambda", ESPHomeLoader.construct_lambda)
 ESPHomeLoader.add_constructor("!force", ESPHomeLoader.construct_force)
 
 
-def load_yaml(fname, clear_secrets=True):
+def load_yaml(fname, clear_secrets=True, vars={}):
+    from esphome.const import CONF_SUBSTITUTIONS
+
     if clear_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
-    return _load_yaml_internal(fname)
 
-
-def _load_yaml_internal(fname):
+    # read top level file to convert substitutions to context variables for templates
     content = read_config_file(fname)
-    loader = ESPHomeLoader(content)
+    loader = yaml.BaseLoader(
+        content
+    )  # will not interpret any tags like !include and such
+
+    try:
+        raw_config = loader.get_single_data() or OrderedDict()
+        if CONF_SUBSTITUTIONS in raw_config:
+            vars = {**raw_config[CONF_SUBSTITUTIONS], **vars}
+    except yaml.YAMLError as exc:
+        raise EsphomeError(exc) from exc
+    finally:
+        loader.dispose()
+
+    return _load_yaml_internal(fname, {"vars": vars})
+
+
+def _load_yaml_internal(fname, context={}):
+    content = read_config_file(fname)
+    loader = ESPHomeLoader(content, context)
     loader.name = fname
     try:
         return loader.get_single_data() or OrderedDict()
