@@ -55,8 +55,8 @@ class RadonEyeRD200P2 : public PollingComponent, public ble_client::BLEClientNod
   float temphum_u16_to_temperature_(uint16_t value);
   uint16_t temphum_u16_to_humidity_(uint16_t value);
 
-  enum QueryType { query_radon, query_temp_hum };
-  QueryType current_query;
+  enum QueryType { QUERY_RADON, QUERY_TEMP_HUM };
+  QueryType current_query_;
 };
 
 }  // namespace radon_eye_rd200_p2

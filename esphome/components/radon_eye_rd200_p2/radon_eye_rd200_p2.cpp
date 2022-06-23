@@ -58,11 +58,11 @@ void RadonEyeRD200P2::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
         break;
       }
       if (param->read.handle == this->read_handle_) {
-        if (this->current_query == query_radon) {
+        if (this->current_query_ == QUERY_RADON) {
           ESP_LOGD(TAG, "Previous query was query_radon");
           this->read_sensors_radon_(param->read.value, param->read.value_len);
           this->write_query_temp_hum_message_();
-        } else if (this->current_query == query_temp_hum) {
+        } else if (this->current_query_ == QUERY_TEMP_HUM) {
           ESP_LOGD(TAG, "Previous query was query_temp_hum");
           this->read_sensors_temp_hum_(param->read.value, param->read.value_len);
         }
@@ -168,7 +168,7 @@ void RadonEyeRD200P2::update() {
 }
 
 void RadonEyeRD200P2::write_query_radon_message_() {
-  this->current_query = query_radon;
+  this->current_query_ = QUERY_RADON;
 
   uint8_t request = 0x50;
   ESP_LOGD(TAG, "Writing %d to write service", request);
@@ -181,7 +181,7 @@ void RadonEyeRD200P2::write_query_radon_message_() {
 }
 
 void RadonEyeRD200P2::write_query_temp_hum_message_() {
-  this->current_query = query_temp_hum;
+  this->current_query_ = QUERY_TEMP_HUM;
   uint8_t request = 0x51;
   ESP_LOGD(TAG, "Writing %d to write service", request);
   auto status =
