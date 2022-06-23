@@ -36,7 +36,6 @@ void RadonEyeRD200P2::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
       break;
     }
 
-
     case ESP_GATTC_WRITE_CHAR_EVT: {
       ESP_LOGD(TAG, "Write char event received.");
 
@@ -99,12 +98,11 @@ bool RadonEyeRD200P2::has_required_chars_() {
 }
 
 void RadonEyeRD200P2::read_sensors_radon_(uint8_t *value, uint16_t value_len) {
-
-  if (value_len>=20){
+  if (value_len >= 20) {
     ESP_LOGD(
-      TAG, "Result bytes: [%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X %02X%02X %02X%02X].",
-      value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7], value[8], value[9], value[10],
-      value[11], value[12], value[13], value[14], value[15], value[16], value[17], value[18], value[19]);
+        TAG, "Result bytes: [%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X %02X%02X %02X%02X].",
+        value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7], value[8], value[9], value[10],
+        value[11], value[12], value[13], value[14], value[15], value[16], value[17], value[18], value[19]);
   }
 
   if (value_len < 20 || (value[0] != 0x50)) {
@@ -117,12 +115,11 @@ void RadonEyeRD200P2::read_sensors_radon_(uint8_t *value, uint16_t value_len) {
 }
 
 void RadonEyeRD200P2::read_sensors_temp_hum_(uint8_t *value, uint16_t value_len) {
-
-  if (value_len>=20){
+  if (value_len >= 20) {
     ESP_LOGD(
-      TAG, "Result bytes: [%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X %02X%02X %02X%02X].",
-      value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7], value[8], value[9], value[10],
-      value[11], value[12], value[13], value[14], value[15], value[16], value[17], value[18], value[19]);
+        TAG, "Result bytes: [%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X %02X%02X %02X%02X].",
+        value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7], value[8], value[9], value[10],
+        value[11], value[12], value[13], value[14], value[15], value[16], value[17], value[18], value[19]);
   }
 
   if (value_len < 20 || (value[0] != 0x51)) {
@@ -175,9 +172,9 @@ void RadonEyeRD200P2::write_query_radon_message_() {
 
   uint8_t request = 0x50;
   ESP_LOGD(TAG, "Writing %d to write service", request);
-  auto status = esp_ble_gattc_write_char(this->parent()->gattc_if, this->parent()->conn_id, this->write_handle_,
-                                               sizeof(request), (uint8_t *) &request, ESP_GATT_WRITE_TYPE_RSP,
-                                               ESP_GATT_AUTH_REQ_NONE);
+  auto status =
+      esp_ble_gattc_write_char(this->parent()->gattc_if, this->parent()->conn_id, this->write_handle_, sizeof(request),
+                               (uint8_t *) &request, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     ESP_LOGD(TAG, "Error sending write request for sensor, status=%d.", status);
   }
@@ -187,9 +184,9 @@ void RadonEyeRD200P2::write_query_temp_hum_message_() {
   this->current_query = query_temp_hum;
   uint8_t request = 0x51;
   ESP_LOGD(TAG, "Writing %d to write service", request);
-  auto status = esp_ble_gattc_write_char(this->parent()->gattc_if, this->parent()->conn_id, this->write_handle_,
-                                               sizeof(request), (uint8_t *) &request, ESP_GATT_WRITE_TYPE_RSP,
-                                               ESP_GATT_AUTH_REQ_NONE);
+  auto status =
+      esp_ble_gattc_write_char(this->parent()->gattc_if, this->parent()->conn_id, this->write_handle_, sizeof(request),
+                               (uint8_t *) &request, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     ESP_LOGD(TAG, "Error sending write request for sensor, status=%d.", status);
   }
