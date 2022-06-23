@@ -151,13 +151,13 @@ struct PIDController {
 
   float calculate_relative_time_() {
     uint32_t now = millis();
-    uint32_t dt_ = now - this->last_time_;
+    uint32_t dt = now - this->last_time_;
     if (last_time_ == 0) {
       last_time_ = now;
       return 0.0f;
     }
     last_time_ = now;
-    return dt_ / 1000.0f;
+    return dt / 1000.0f;
   }
 
   /// Error from previous update used for derivative term
