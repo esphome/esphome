@@ -10,10 +10,10 @@ std::string state_class_to_string(StateClass state_class) {
   switch (state_class) {
     case STATE_CLASS_MEASUREMENT:
       return "measurement";
-    case STATE_CLASS_TOTAL:
-      return "total";
     case STATE_CLASS_TOTAL_INCREASING:
       return "total_increasing";
+    case STATE_CLASS_TOTAL:
+      return "total";
     case STATE_CLASS_NONE:
     default:
       return "";
