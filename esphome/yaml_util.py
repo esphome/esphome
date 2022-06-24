@@ -320,19 +320,15 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
         def jinja_from_yaml(result):
             if isinstance(result, str):
-                result = _load_yaml_string(result, {**self.context, "vars": vars})
+                result = _load_yaml_string(
+                    result,
+                    f"jinja template@{self.name}",
+                    {**self.context, "vars": vars},
+                )
                 result = self.substitute_vars(result, vars)
             return result
 
-        def jinja_mapyaml(arr, caller):
-            newarr = []
-            for item in arr:
-                result = caller(item)
-                print("map", type(result), result)
-                newarr.append(jinja_from_yaml(result))
-            return newarr
-
-        def jinja_forcestring(st):
+        def jinja_string(st):
             return ForceStr(st)
 
         vars = "vars" in self.context and self.context["vars"] or {}
@@ -341,9 +337,9 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
             env = NativeEnvironment(trim_blocks=True, lstrip_blocks=True)
             env.add_extension("jinja2.ext.do")
             env.filters["from_yaml"] = jinja_from_yaml
-            env.filters["string"] = jinja_forcestring
+            env.filters["string"] = jinja_string
             template = env.from_string(node.value)
-            template.globals.update({"include": include, "mapyaml": jinja_mapyaml})
+            template.globals.update({"include": include})
             result = template.render(vars)
         except TemplateSyntaxError as err:
             raise yaml.MarkedYAMLError(
@@ -360,9 +356,10 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                 f"Error in !eval expression: {err}",
                 node.start_mark,
             )
-        print("fresult", type(result), result)
         if isinstance(result, str):
             result = jinja_from_yaml(result)
+        elif isinstance(result, ForceStr):
+            result = str(result)
         return result
 
     @_add_data_ref
@@ -467,7 +464,7 @@ def load_yaml(fname, clear_secrets=True, vars={}):
     return _load_yaml_internal(fname, {"vars": vars})
 
 
-def _load_yaml_string(content, context={}, name="anonymous"):
+def _load_yaml_string(content, name, context={}):
     loader = ESPHomeLoader(content, context)
     loader.name = name
     try:
@@ -480,7 +477,7 @@ def _load_yaml_string(content, context={}, name="anonymous"):
 
 def _load_yaml_internal(fname, context={}):
     content = read_config_file(fname)
-    return _load_yaml_string(content, context, fname)
+    return _load_yaml_string(content, fname, context)
 
 
 def dump(dict_):
