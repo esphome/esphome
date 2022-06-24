@@ -235,6 +235,19 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   }
 #endif
 
+#ifdef USE_TEXT_INPUT
+  for (auto *obj : App.get_text_inputs()) {
+    if (this->include_internal_ || !obj->is_internal()) {
+      write_row(stream, obj, "text_input", "", [](AsyncResponseStream &stream, EntityBase *obj) {
+        text_input::TextInput *text_input = (text_input::TextInput *) obj;
+        stream.print(R"(<input type="text" value=")");
+        stream.print(text_input->state);
+        stream.print(R"("/>)");
+      });
+    }
+  }
+#endif
+
 #ifdef USE_SELECT
   for (auto *obj : App.get_selects()) {
     if (this->include_internal_ || !obj->is_internal()) {
@@ -730,6 +743,57 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 }
 #endif
 
+
+#ifdef USE_TEXT_INPUT
+void WebServer::on_text_input_update(text_input::TextInput *obj, const std::string &state) {
+  this->events_.send(this->text_input_json(obj, state, DETAIL_STATE).c_str(), "state");
+}
+void WebServer::handle_text_input_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_text_inputs()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->text_input_json(obj, obj->state, DETAIL_STATE);
+      request->send(200, "text/json", data.c_str());
+      return;
+    }
+    if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto call = obj->make_call();
+    if (request->hasParam("value")) {
+      String value = request->getParam("value")->value();
+      call.set_value(value.c_str());
+    }
+
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+std::string WebServer::text_input_json(text_input::TextInput *obj, const std::string &value, JsonDetail start_config) {
+  return json::build_json([obj, value, start_config](JsonObject root) {
+    set_json_id(root, obj, "text_input-" + obj->get_object_id(), start_config);
+    if (start_config == DETAIL_ALL) {
+      root["mode"] = (int) obj->traits.get_mode();
+    }
+    std::string state = str_sprintf("%s", value);
+    root["state"] = state;
+    if (isnan(value)) {
+      root["value"] = "\"NaN\"";
+    } else {
+      root["value"] = value;
+    }
+  });
+}
+#endif
+
+
 #ifdef USE_SELECT
 void WebServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
   this->events_.send(this->select_json(obj, state, DETAIL_STATE).c_str(), "state");
@@ -1007,6 +1071,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef USE_TEXT_INPUT
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "text_input")
+    return true;
+#endif
+
 #ifdef USE_SELECT
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "select")
     return true;
@@ -1104,6 +1173,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_NUMBER
   if (match.domain == "number") {
     this->handle_number_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_TEXT_INPUT
+  if (match.domain == "text_input") {
+    this->handle_text_input_request(request, match);
     return;
   }
 #endif

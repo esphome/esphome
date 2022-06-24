@@ -184,6 +184,15 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string number_json(number::Number *obj, float value, JsonDetail start_config);
 #endif
 
+#ifdef USE_TEXT_INPUT
+  void on_text_input_update(text_input::TextInput *obj, const std::string &state) override;
+  /// Handle a text input request under '/text_input/<id>'.
+  void handle_text_input_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the text_input state with its value as a JSON string.
+  std::string text_input_json(text_input::TextInput *obj, const std::string &value, JsonDetail start_config);
+#endif
+
 #ifdef USE_SELECT
   void on_select_update(select::Select *obj, const std::string &state, size_t index) override;
   /// Handle a select request under '/select/<id>'.

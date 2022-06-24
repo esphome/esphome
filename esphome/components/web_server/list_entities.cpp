@@ -91,6 +91,15 @@ bool ListEntitiesIterator::on_select(select::Select *select) {
 }
 #endif
 
+#ifdef USE_TEXT_INPUT
+bool ListEntitiesIterator::on_select(text_input::TextInput *text_input) {
+  this->web_server_->events_.send(
+    this->web_server_->text_input_json(text_input, text_input->state, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
+
 }  // namespace web_server
 }  // namespace esphome
 
