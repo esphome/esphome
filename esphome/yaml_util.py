@@ -309,15 +309,6 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         from jinja2.nativetypes import NativeEnvironment
         from jinja2.exceptions import TemplateError, TemplateSyntaxError
 
-        def include(file, vars={}):
-            if not isinstance(vars, dict):
-                vars = {}
-            result = _load_yaml_internal(
-                self._rel_path(file), {**self.context, "vars": vars}
-            )
-            result = self.substitute_vars(result, vars)
-            return result
-
         def jinja_from_yaml(result):
             if isinstance(result, str):
                 result = _load_yaml_string(
@@ -339,7 +330,6 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
             env.filters["from_yaml"] = jinja_from_yaml
             env.filters["string"] = jinja_string
             template = env.from_string(node.value)
-            template.globals.update({"include": include})
             result = template.render(vars)
         except TemplateSyntaxError as err:
             raise yaml.MarkedYAMLError(
