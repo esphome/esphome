@@ -32,6 +32,10 @@ _SECRET_CACHE = {}
 _SECRET_VALUES = {}
 
 
+class ForceStr(str):
+    pass
+
+
 class ESPHomeDataBase:
     @property
     def esp_range(self):
@@ -253,6 +257,31 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         _SECRET_VALUES[str(val)] = node.value
         return val
 
+    def substitute_vars(self, config, vars):
+        from esphome.const import CONF_SUBSTITUTIONS
+        from esphome.components import substitutions
+
+        vars = {k: str(v) for k, v in vars.items()}
+        org_subs = None
+        result = config
+        if not isinstance(config, dict):
+            # when the included yaml contains a list or a scalar
+            # wrap it into an OrderedDict because do_substitution_pass expects it
+            result = OrderedDict([("yaml", config)])
+        elif CONF_SUBSTITUTIONS in result:
+            org_subs = result.pop(CONF_SUBSTITUTIONS)
+
+        result[CONF_SUBSTITUTIONS] = vars
+        # Ignore missing vars that refer to the top level substitutions
+        substitutions.do_substitution_pass(result, None, ignore_missing=True)
+        result.pop(CONF_SUBSTITUTIONS)
+
+        if not isinstance(config, dict):
+            result = result["yaml"]  # unwrap the result
+        elif org_subs:
+            result[CONF_SUBSTITUTIONS] = org_subs
+        return result
+
     @_add_data_ref
     def construct_include(self, node):
         def extract_file_vars(node):
@@ -261,33 +290,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
             if file is None:
                 raise yaml.MarkedYAMLError("Must include 'file'", node.start_mark)
             vars = fields.get("vars")
-            if vars:
-                vars = {k: str(v) for k, v in vars.items()}
             return file, vars
-
-        def substitute_vars(config, vars):
-            from esphome.const import CONF_SUBSTITUTIONS
-            from esphome.components import substitutions
-
-            org_subs = None
-            result = config
-            if not isinstance(config, dict):
-                # when the included yaml contains a list or a scalar
-                # wrap it into an OrderedDict because do_substitution_pass expects it
-                result = OrderedDict([("yaml", config)])
-            elif CONF_SUBSTITUTIONS in result:
-                org_subs = result.pop(CONF_SUBSTITUTIONS)
-
-            result[CONF_SUBSTITUTIONS] = vars
-            # Ignore missing vars that refer to the top level substitutions
-            substitutions.do_substitution_pass(result, None, ignore_missing=True)
-            result.pop(CONF_SUBSTITUTIONS)
-
-            if not isinstance(config, dict):
-                result = result["yaml"]  # unwrap the result
-            elif org_subs:
-                result[CONF_SUBSTITUTIONS] = org_subs
-            return result
 
         if isinstance(node, yaml.nodes.MappingNode):
             file, vars = extract_file_vars(node)
@@ -298,7 +301,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
             self._rel_path(file), {**self.context, "vars": vars}
         )
         if vars:
-            result = substitute_vars(result, vars)
+            result = self.substitute_vars(result, vars)
         return result
 
     @_add_data_ref
@@ -306,10 +309,41 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         from jinja2.nativetypes import NativeEnvironment
         from jinja2.exceptions import TemplateError, TemplateSyntaxError
 
+        def include(file, vars={}):
+            if not isinstance(vars, dict):
+                vars = {}
+            result = _load_yaml_internal(
+                self._rel_path(file), {**self.context, "vars": vars}
+            )
+            result = self.substitute_vars(result, vars)
+            return result
+
+        def jinja_from_yaml(result):
+            if isinstance(result, str):
+                result = _load_yaml_string(result, {**self.context, "vars": vars})
+                result = self.substitute_vars(result, vars)
+            return result
+
+        def jinja_mapyaml(arr, caller):
+            newarr = []
+            for item in arr:
+                result = caller(item)
+                print("map", type(result), result)
+                newarr.append(jinja_from_yaml(result))
+            return newarr
+
+        def jinja_forcestring(st):
+            return ForceStr(st)
+
         vars = "vars" in self.context and self.context["vars"] or {}
 
         try:
-            template = NativeEnvironment().from_string(node.value)
+            env = NativeEnvironment(trim_blocks=True, lstrip_blocks=True)
+            env.add_extension("jinja2.ext.do")
+            env.filters["from_yaml"] = jinja_from_yaml
+            env.filters["string"] = jinja_forcestring
+            template = env.from_string(node.value)
+            template.globals.update({"include": include, "mapyaml": jinja_mapyaml})
             result = template.render(vars)
         except TemplateSyntaxError as err:
             raise yaml.MarkedYAMLError(
@@ -326,7 +360,9 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                 f"Error in !eval expression: {err}",
                 node.start_mark,
             )
-
+        print("fresult", type(result), result)
+        if isinstance(result, str):
+            result = jinja_from_yaml(result)
         return result
 
     @_add_data_ref
@@ -431,16 +467,20 @@ def load_yaml(fname, clear_secrets=True, vars={}):
     return _load_yaml_internal(fname, {"vars": vars})
 
 
-def _load_yaml_internal(fname, context={}):
-    content = read_config_file(fname)
+def _load_yaml_string(content, context={}, name="anonymous"):
     loader = ESPHomeLoader(content, context)
-    loader.name = fname
+    loader.name = name
     try:
         return loader.get_single_data() or OrderedDict()
     except yaml.YAMLError as exc:
         raise EsphomeError(exc) from exc
     finally:
         loader.dispose()
+
+
+def _load_yaml_internal(fname, context={}):
+    content = read_config_file(fname)
+    return _load_yaml_string(content, context, fname)
 
 
 def dump(dict_):
