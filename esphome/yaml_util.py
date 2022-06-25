@@ -327,7 +327,12 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         vars = self.context["vars"] if "vars" in self.context else {}
 
         try:
-            env = NativeEnvironment(trim_blocks=True, lstrip_blocks=True)
+            env = NativeEnvironment(
+                trim_blocks=True,
+                lstrip_blocks=True,
+                line_statement_prefix="%%",
+                line_comment_prefix="##",
+            )
             env.add_extension("jinja2.ext.do")
             env.filters["from_yaml"] = jinja_from_yaml
             env.filters["string"] = jinja_string
