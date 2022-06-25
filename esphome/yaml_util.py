@@ -95,7 +95,9 @@ def _add_data_ref(fn):
 class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
     """Loader class that keeps track of line numbers."""
 
-    def __init__(self, content, context={}):
+    def __init__(self, content, context=None):
+        if context is None:
+            context = {}
         self.context = context
         yaml.SafeLoader.__init__(self, content)
 
@@ -322,7 +324,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         def jinja_string(st):
             return ForceStr(st)
 
-        vars = "vars" in self.context and self.context["vars"] or {}
+        vars = self.context["vars"] if "vars" in self.context else {}
 
         try:
             env = NativeEnvironment(trim_blocks=True, lstrip_blocks=True)
@@ -429,8 +431,11 @@ ESPHomeLoader.add_constructor("!lambda", ESPHomeLoader.construct_lambda)
 ESPHomeLoader.add_constructor("!force", ESPHomeLoader.construct_force)
 
 
-def load_yaml(fname, clear_secrets=True, vars={}):
+def load_yaml(fname, clear_secrets=True, vars=None):
     from esphome.const import CONF_SUBSTITUTIONS
+
+    if vars is None:
+        vars = {}
 
     if clear_secrets:
         _SECRET_VALUES.clear()
@@ -454,7 +459,7 @@ def load_yaml(fname, clear_secrets=True, vars={}):
     return _load_yaml_internal(fname, {"vars": vars})
 
 
-def _load_yaml_string(content, name, context={}):
+def _load_yaml_string(content, name, context):
     loader = ESPHomeLoader(content, context)
     loader.name = name
     try:
@@ -465,7 +470,7 @@ def _load_yaml_string(content, name, context={}):
         loader.dispose()
 
 
-def _load_yaml_internal(fname, context={}):
+def _load_yaml_internal(fname, context):
     content = read_config_file(fname)
     return _load_yaml_string(content, fname, context)
 
