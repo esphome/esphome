@@ -71,6 +71,19 @@ mcp3008:
   - id: mcp3008_hub
     cs_pin: GPIO12
 
+fastled_bus_spi:
+    - id: fastled_busSpi
+      chipset: P9813
+      data_pin: GPIO0
+      clock_pin: GPIO3
+      num_chips: 2
+
+fastled_bus_clockless:
+    - id: fastled_busCl
+      chipset: WS2811
+      pin: GPIO18
+      num_chips: 2
+
 output:
   - platform: ac_dimmer
     id: dimmer1

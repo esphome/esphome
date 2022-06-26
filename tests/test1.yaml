@@ -317,6 +317,20 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
+fastled_bus_spi:
+    - id: fastled_busSpi
+      chipset: P9813
+      data_pin: GPIO0
+      clock_pin: GPIO3
+      num_chips: 2
+
+fastled_bus_clockless:
+    - id: fastled_busCl
+      chipset: SK6812
+      pin: GPIO18
+      chip_channels: 4
+      num_chips: 2
+
 sensor:
   - platform: ble_client
     type: characteristic
@@ -1739,6 +1753,57 @@ output:
     inc_pin: GPIO26
     ud_pin: GPIO27
     initial_value: 0.5
+  - platform: fastled_bus
+    id: output_componentr_spi
+    bus: fastled_busSpi
+    offset: 0
+    num_chips: 2
+    channel_offset: 0
+    repeat_distance: 6
+  - platform: fastled_bus
+    id: output_componentc_spi
+    bus: fastled_busSpi
+    offset: 0
+    num_chips: 2
+    channel_offset: 1
+  - platform: fastled_bus
+    id: output_componentw_spi
+    bus: fastled_busSpi
+    offset: 0
+    num_chips: 2
+    channel_offset: 2
+  - platform: fastled_bus
+    id: output_componentb_spi
+    bus: fastled_busSpi
+    offset: 0
+    num_chips: 2
+    channel_offset: 3
+  - platform: fastled_bus
+    bus: fastled_busSpi
+    id: output_componentg_spi
+    offset: 0
+    num_chips: 2
+    channel_offset: 5
+  - platform: fastled_bus
+    id: output_componentr_cl
+    bus: fastled_busCl
+    offset: 0
+    num_chips: 2
+    channel_offset: 0
+    repeat_distance: 6
+  - platform: fastled_bus
+    id: output_componentg_cl
+    bus: fastled_busCl
+    offset: 0
+    num_chips: 2
+    channel_offset: 1
+  - platform: fastled_bus
+    id: output_componentb_cl
+    bus: fastled_busCl
+    offset: 0
+    num_chips: 2
+    channel_offset: 2
+>>>>>>> d9a55640 (Add FastLED Bus enables multichip lights with channel-mapping)
 
 e131:
 
@@ -1949,6 +2014,30 @@ light:
         from: 20
         to: 25
       - single_light_id: ${roomname}_lights
+
+  - platform: shelly_dimmer
+    name: "Shelly Dimmer Light"
+    power:
+      name: "Shelly Dimmer Power"
+    voltage:
+      name: "Shelly Dimmer Voltage"
+    current:
+      name: "Shelly Dimmer Current"
+    max_brightness: 500
+    firmware: "51.6"
+    uart_id: uart0
+  - platform: rgbww
+    name: "Livingroom Lights SPI"
+    red: output_componentr_spi
+    green: output_componentg_spi
+    blue: output_componentb_spi
+    cold_white: output_componentc_spi
+    warm_white: output_componentw_spi
+  - platform: rgb
+    name: "Livingroom Lights CL"
+    red: output_componentr_cl
+    green: output_componentg_cl
+    blue: output_componentb_cl
 
 remote_transmitter:
   - pin: 32

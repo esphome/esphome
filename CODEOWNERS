@@ -89,6 +89,9 @@ esphome/components/ezo_pmp/* @carlos-sarmiento
 esphome/components/factory_reset/* @anatoly-savchenkov
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/feedback/* @ianchi
+esphome/components/fastled_bus/* @mabels
+esphome/components/fastled_bus_clockless/* @mabels
+esphome/components/fastled_bus_spi/* @mabels
 esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/globals/* @esphome/core
 esphome/components/gpio/* @esphome/core

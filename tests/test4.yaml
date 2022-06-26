@@ -86,6 +86,19 @@ dac7678:
   id: dac7678_hub1
   internal_reference: true
 
+fastled_bus_spi:
+    - id: fastled_busSpi
+      chipset: P9813
+      data_pin: GPIO0
+      clock_pin: GPIO3
+      num_chips: 2
+
+fastled_bus_clockless:
+    - id: fastled_busCl
+      chipset: WS2811
+      pin: GPIO18
+      num_chips: 2
+
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world

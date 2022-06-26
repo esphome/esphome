@@ -547,6 +547,7 @@ class IDPassValidationStep(ConfigValidationStep):
         # Resolve default ids after manual IDs
         for id, _ in result.declare_ids:
             id.resolve([v[0].id for v in result.declare_ids])
+            print("Resolved ID:", id, id.type)
             if isinstance(id.type, MockObjClass) and id.type.inherits_from(Component):
                 CORE.component_ids.add(id.id)
 
