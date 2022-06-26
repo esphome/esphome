@@ -38,10 +38,31 @@ def merge_config(full_old, full_new):
         elif isinstance(new, list):
             if not isinstance(old, list):
                 return new
-            return old + new
+            return merge_list(old, new)
         elif new is None:
             return old
 
         return new
+
+    def merge_list(old, new):
+        """Merge lists of dicts using the id field.
+
+        This can usefully merge lists of sensors.
+        """
+        seen_ids = {}
+        out = []
+        merged = old + new
+        for val in merged:
+            if not isinstance(val, dict):
+                return merged
+            if key := val.get("id"):
+                if (index := seen_ids.get(key)) is not None:
+                    out[index] = merge(out[index], val)
+                else:
+                    seen_ids[key] = len(out)
+                    out.append(val)
+            else:
+                out.append(val)
+        return out
 
     return merge(full_old, full_new)

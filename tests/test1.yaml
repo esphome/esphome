@@ -1148,7 +1148,12 @@ sensor:
     temperature:
       name: Max9611 Temp
     update_interval: 1s
-
+  - id: ${devicename}_uptime_pcg
+    # Customize and add automation to sensor defined in package.
+    update_interval: 60s
+    on_value:
+      lambda: |-
+        ESP_LOGD("main", "Uptime is now: %f", id(${devicename}_uptime_pcg).state);
 
 esp32_touch:
   setup_mode: False
