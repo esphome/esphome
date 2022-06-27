@@ -101,12 +101,14 @@ uint16_t DaikinClimate::fan_speed_() {
       fan_speed = DAIKIN_FAN_SILENT << 8;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      fan_speed = DAIKIN_FAN_1 << 8;
+      fan_speed = DAIKIN_FAN_3 << 8;
       break;
     case climate::CLIMATE_FAN_HIGH:
       fan_speed = DAIKIN_FAN_5 << 8;
       break;
     case climate::CLIMATE_FAN_AUTO:
+      fan_speed = DAIKIN_FAN_AUTO << 8;
+      break;
     default:
       fan_speed = DAIKIN_FAN_AUTO << 8;
   }
@@ -215,13 +217,13 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
   }
   switch (fan_mode & 0xF0) {
     case DAIKIN_FAN_1:
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      break;
     case DAIKIN_FAN_2:
     case DAIKIN_FAN_SILENT:
       this->fan_mode = climate::CLIMATE_FAN_LOW;
       break;
     case DAIKIN_FAN_3:
+      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+      break;
     case DAIKIN_FAN_4:
     case DAIKIN_FAN_5:
       this->fan_mode = climate::CLIMATE_FAN_HIGH;
