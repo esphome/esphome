@@ -129,8 +129,6 @@ class MinFilter : public Filter {
   size_t window_size_;
 };
 
-
-
 /** Simple max filter.
  *
  * Takes the max of the last <send_every> values and pushes it out every <send_every>.
