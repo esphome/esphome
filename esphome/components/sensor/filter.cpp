@@ -37,27 +37,34 @@ MedianFilter::MedianFilter(size_t window_size, size_t send_every, size_t send_fi
 void MedianFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void MedianFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
 optional<float> MedianFilter::new_value(float value) {
-  if (!std::isnan(value)) {
-    while (this->queue_.size() >= this->window_size_) {
-      this->queue_.pop_front();
-    }
-    this->queue_.push_back(value);
-    ESP_LOGVV(TAG, "MedianFilter(%p)::new_value(%f)", this, value);
+  while (this->queue_.size() >= this->window_size_) {
+    this->queue_.pop_front();
   }
+  this->queue_.push_back(value);
+  ESP_LOGVV(TAG, "MedianFilter(%p)::new_value(%f)", this, value);
 
   if (++this->send_at_ >= this->send_every_) {
     this->send_at_ = 0;
 
-    float median = 0.0f;
+    float median = NAN;
     if (!this->queue_.empty()) {
-      std::deque<float> median_queue = this->queue_;
+      // Copy queue without NaN values
+      std::deque<float> median_queue;
+      for (auto v : this->queue_) {
+        if (!std::isnan(v)) {
+          median_queue.push_back(v);
+        }
+      }
+
       sort(median_queue.begin(), median_queue.end());
 
       size_t queue_size = median_queue.size();
-      if (queue_size % 2) {
-        median = median_queue[queue_size / 2];
-      } else {
-        median = (median_queue[queue_size / 2] + median_queue[(queue_size / 2) - 1]) / 2.0f;
+      if (queue_size) {
+        if (queue_size % 2) {
+          median = median_queue[queue_size / 2];
+        } else {
+          median = (median_queue[queue_size / 2] + median_queue[(queue_size / 2) - 1]) / 2.0f;
+        }
       }
     }
 
