@@ -275,7 +275,7 @@ optional<float> MultiplyFilter::new_value(float value) { return value * this->mu
 FilterMinValue::FilterMinValue(float minvalue) : minvalue_(minvalue) {}
 
 optional<float> FilterMinValue::new_value(float value) {
-  if(value < this->minvalue_) { 
+  if (value < this->minvalue_) { 
     return this->minvalue_; 
   }
   return value;
@@ -285,7 +285,7 @@ optional<float> FilterMinValue::new_value(float value) {
 FilterMaxValue::FilterMaxValue(float maxvalue) : maxvalue_(maxvalue) {}
 
 optional<float> FilterMaxValue::new_value(float value) {
-  if(value > this->maxvalue_) {
+  if (value > this->maxvalue_) {
     return this->maxvalue_;
   }
   return value;
