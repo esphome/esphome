@@ -295,9 +295,11 @@ async def multiply_filter_to_code(config, filter_id):
 async def filter_out_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
 
+
 @FILTER_REGISTRY.register("min_value", FilterMinValue, cv.float_)
 async def filter_min_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
+
 
 @FILTER_REGISTRY.register("max_value", FilterMaxValue, cv.float_)
 async def filter_max_filter_to_code(config, filter_id):

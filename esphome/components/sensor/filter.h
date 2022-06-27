@@ -275,7 +275,6 @@ class MultiplyFilter : public Filter {
   float multiplier_;
 };
 
-
 /// Minimum Value
 class FilterMinValue : public Filter {
  public:
