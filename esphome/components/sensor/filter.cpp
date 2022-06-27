@@ -193,30 +193,27 @@ SlidingWindowMovingAverageFilter::SlidingWindowMovingAverageFilter(size_t window
 void SlidingWindowMovingAverageFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void SlidingWindowMovingAverageFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
 optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
-  if (!std::isnan(value)) {
-    if (this->queue_.size() == this->window_size_) {
-      this->sum_ -= this->queue_[0];
-      this->queue_.pop_front();
-    }
-    this->queue_.push_back(value);
-    this->sum_ += value;
+  while (this->queue_.size() >= this->window_size_) {
+    this->queue_.pop_front();
   }
-  float average;
-  if (this->queue_.empty()) {
-    average = 0.0f;
-  } else {
-    average = this->sum_ / this->queue_.size();
-  }
-  ESP_LOGVV(TAG, "SlidingWindowMovingAverageFilter(%p)::new_value(%f) -> %f", this, value, average);
+  this->queue_.push_back(value);
+  ESP_LOGVV(TAG, "SlidingWindowMovingAverageFilter(%p)::new_value(%f)", this, value);
 
-  if (++this->send_at_ % this->send_every_ == 0) {
-    if (this->send_at_ >= 10000) {
-      // Recalculate to prevent floating point error accumulating
-      this->sum_ = 0;
-      for (auto v : this->queue_)
-        this->sum_ += v;
-      average = this->sum_ / this->queue_.size();
-      this->send_at_ = 0;
+  if (++this->send_at_ >= this->send_every_) {
+    this->send_at_ = 0;
+
+    float sum = 0;
+    size_t valid_count = 0;
+    for (auto v : this->queue_) {
+      if (!std::isnan(v)) {
+        sum += v;
+        valid_count++;
+      }
+    }
+
+    float average = NAN;
+    if (valid_count) {
+      average = sum / valid_count;
     }
 
     ESP_LOGVV(TAG, "SlidingWindowMovingAverageFilter(%p)::new_value(%f) SENDING", this, value);

@@ -180,7 +180,6 @@ class SlidingWindowMovingAverageFilter : public Filter {
   void set_window_size(size_t window_size);
 
  protected:
-  float sum_{0.0};
   std::deque<float> queue_;
   size_t send_every_;
   size_t send_at_;
