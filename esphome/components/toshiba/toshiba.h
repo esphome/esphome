@@ -53,10 +53,8 @@ class ToshibaClimate : public climate_ir::ClimateIR {
     return ((this->model_ == MODEL_RAC_PT1411HWRU_C) || (this->model_ == MODEL_RAC_PT1411HWRU_F));
   }
   std::set<climate::ClimateFanMode> toshiba_fan_modes_() {
-    return (this->model_ == MODEL_GENERIC)
-               ? std::set<climate::ClimateFanMode>{}
-               : std::set<climate::ClimateFanMode>{climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW,
-                                                   climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH};
+    return std::set<climate::ClimateFanMode>{climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW,
+                                             climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH};
   }
   std::set<climate::ClimateSwingMode> toshiba_swing_modes_() {
     return (this->model_ == MODEL_GENERIC)

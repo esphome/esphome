@@ -180,8 +180,29 @@ void ToshibaClimate::transmit_generic_() {
     default:
       mode = TOSHIBA_MODE_AUTO;
   }
+  uint8_t fan = TOSHIBA_FAN_SPEED_AUTO;
+  if (this->mode != climate::CLIMATE_MODE_OFF) {
+    switch (this->fan_mode.value()) {
+      case climate::CLIMATE_FAN_LOW:
+        fan = TOSHIBA_FAN_SPEED_1;
+        break;
 
-  message[6] |= mode | TOSHIBA_FAN_SPEED_AUTO;
+      case climate::CLIMATE_FAN_MEDIUM:
+        fan = TOSHIBA_FAN_SPEED_3;
+        break;
+
+      case climate::CLIMATE_FAN_HIGH:
+        fan = TOSHIBA_FAN_SPEED_5;
+        break;
+
+      case climate::CLIMATE_FAN_AUTO:
+      default:
+        fan = TOSHIBA_FAN_SPEED_AUTO;
+        break;
+    }
+  }
+
+  message[6] = mode | fan;
 
   // Zero
   message[7] = 0x00;
@@ -531,7 +552,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
           this->mode = climate::CLIMATE_MODE_HEAT_COOL;
           break;
 
-        // case RAC_PT1411HWRU_MODE_OFF:
+          // case RAC_PT1411HWRU_MODE_OFF:
         case RAC_PT1411HWRU_MODE_COOL:
           if (((message[4] >> 4) == RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY) && (message[2] == RAC_PT1411HWRU_FAN_OFF)) {
             this->mode = climate::CLIMATE_MODE_OFF;
@@ -540,7 +561,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
           }
           break;
 
-        // case RAC_PT1411HWRU_MODE_DRY:
+          // case RAC_PT1411HWRU_MODE_DRY:
         case RAC_PT1411HWRU_MODE_FAN:
           if ((message[4] >> 4) == RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY) {
             this->mode = climate::CLIMATE_MODE_FAN_ONLY;
@@ -595,7 +616,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
         }
       }
       break;
-    // "Comfort Sense" temperature packet
+      // "Comfort Sense" temperature packet
     case RAC_PT1411HWRU_CS_HEADER:
       // "Comfort Sense" feature notes
       // IR Code: 0xBA45 xxXX yyYY
@@ -612,7 +633,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
         this->current_temperature = message[2] & ~(RAC_PT1411HWRU_CS_ENABLED | RAC_PT1411HWRU_CS_DATA);
       }
       break;
-    // Swing mode
+      // Swing mode
     case RAC_PT1411HWRU_SWING_HEADER:
       if (message[4] == RAC_PT1411HWRU_SWING_VERTICAL[4]) {
         this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
@@ -620,7 +641,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
         this->swing_mode = climate::CLIMATE_SWING_OFF;
       }
       break;
-    // Generic (old) Toshiba packet
+      // Generic (old) Toshiba packet
     default:
       uint8_t checksum = 0;
       // Add back the length of the header (we pruned it above)
