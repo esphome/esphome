@@ -157,20 +157,26 @@ MaxFilter::MaxFilter(size_t window_size, size_t send_every, size_t send_first_at
 void MaxFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void MaxFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
 optional<float> MaxFilter::new_value(float value) {
-  if (!std::isnan(value)) {
-    while (this->queue_.size() >= this->window_size_) {
-      this->queue_.pop_front();
-    }
-    this->queue_.push_back(value);
-    ESP_LOGVV(TAG, "MaxFilter(%p)::new_value(%f)", this, value);
+  while (this->queue_.size() >= this->window_size_) {
+    this->queue_.pop_front();
   }
+  this->queue_.push_back(value);
+  ESP_LOGVV(TAG, "MaxFilter(%p)::new_value(%f)", this, value);
 
   if (++this->send_at_ >= this->send_every_) {
     this->send_at_ = 0;
 
-    float max = 0.0f;
-    if (!this->queue_.empty()) {
-      std::deque<float>::iterator it = std::max_element(queue_.begin(), queue_.end());
+    // Copy queue without NaN values
+    std::deque<float> max_queue;
+    for (auto v : this->queue_) {
+      if (!std::isnan(v)) {
+        max_queue.push_back(v);
+      }
+    }
+
+    float max = NAN;
+    if (!max_queue.empty()) {
+      std::deque<float>::iterator it = std::max_element(max_queue.begin(), max_queue.end());
       max = *it;
     }
 
