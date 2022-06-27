@@ -101,14 +101,13 @@ void ESP32BLETracker::loop() {
           if (client->state() == ClientState::DISCOVERED) {
             esp_ble_gap_stop_scanning();
 #ifdef USE_ARDUINO
-            if (xSemaphoreTake(this->scan_end_lock_, 10L / portTICK_PERIOD_MS)) {
-              xSemaphoreGive(this->scan_end_lock_);
-            }
+            constexpr TickType_t block_time = 10L / portTICK_PERIOD_MS;
 #else
-            if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
+            constexpr TickType_t block_time = 0L;  // PR #3594
+#endif
+            if (xSemaphoreTake(this->scan_end_lock_, block_time)) {
               xSemaphoreGive(this->scan_end_lock_);
             }
-#endif
           }
         }
       }
