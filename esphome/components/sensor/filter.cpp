@@ -122,20 +122,26 @@ MinFilter::MinFilter(size_t window_size, size_t send_every, size_t send_first_at
 void MinFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void MinFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
 optional<float> MinFilter::new_value(float value) {
-  if (!std::isnan(value)) {
-    while (this->queue_.size() >= this->window_size_) {
-      this->queue_.pop_front();
-    }
-    this->queue_.push_back(value);
-    ESP_LOGVV(TAG, "MinFilter(%p)::new_value(%f)", this, value);
+  while (this->queue_.size() >= this->window_size_) {
+    this->queue_.pop_front();
   }
+  this->queue_.push_back(value);
+  ESP_LOGVV(TAG, "MinFilter(%p)::new_value(%f)", this, value);
 
   if (++this->send_at_ >= this->send_every_) {
     this->send_at_ = 0;
 
-    float min = 0.0f;
-    if (!this->queue_.empty()) {
-      std::deque<float>::iterator it = std::min_element(queue_.begin(), queue_.end());
+    // Copy queue without NaN values
+    std::deque<float> min_queue;
+    for (auto v : this->queue_) {
+      if (!std::isnan(v)) {
+        min_queue.push_back(v);
+      }
+    }
+
+    float min = NAN;
+    if (!min_queue.empty()) {
+      std::deque<float>::iterator it = std::min_element(min_queue.begin(), min_queue.end());
       min = *it;
     }
 
