@@ -81,26 +81,33 @@ void QuantileFilter::set_send_every(size_t send_every) { this->send_every_ = sen
 void QuantileFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
 void QuantileFilter::set_quantile(float quantile) { this->quantile_ = quantile; }
 optional<float> QuantileFilter::new_value(float value) {
-  if (!std::isnan(value)) {
-    while (this->queue_.size() >= this->window_size_) {
-      this->queue_.pop_front();
-    }
-    this->queue_.push_back(value);
-    ESP_LOGVV(TAG, "QuantileFilter(%p)::new_value(%f), quantile:%f", this, value, this->quantile_);
+  while (this->queue_.size() >= this->window_size_) {
+    this->queue_.pop_front();
   }
+  this->queue_.push_back(value);
+  ESP_LOGVV(TAG, "QuantileFilter(%p)::new_value(%f), quantile:%f", this, value, this->quantile_);
 
   if (++this->send_at_ >= this->send_every_) {
     this->send_at_ = 0;
 
-    float result = 0.0f;
+    float result = NAN;
     if (!this->queue_.empty()) {
-      std::deque<float> quantile_queue = this->queue_;
+      // Copy queue without NaN values
+      std::deque<float> quantile_queue;
+      for (auto v : this->queue_) {
+        if (!std::isnan(v)) {
+          quantile_queue.push_back(v);
+        }
+      }
+
       sort(quantile_queue.begin(), quantile_queue.end());
 
       size_t queue_size = quantile_queue.size();
-      size_t position = ceilf(queue_size * this->quantile_) - 1;
-      ESP_LOGVV(TAG, "QuantileFilter(%p)::position: %d/%d", this, position, queue_size);
-      result = quantile_queue[position];
+      if (queue_size) {
+        size_t position = ceilf(queue_size * this->quantile_) - 1;
+        ESP_LOGVV(TAG, "QuantileFilter(%p)::position: %d/%d", this, position + 1, queue_size);
+        result = quantile_queue[position];
+      }
     }
 
     ESP_LOGVV(TAG, "QuantileFilter(%p)::new_value(%f) SENDING", this, result);
