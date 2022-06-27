@@ -271,6 +271,22 @@ MultiplyFilter::MultiplyFilter(float multiplier) : multiplier_(multiplier) {}
 
 optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_; }
 
+// MinValueFilter
+FilterMinValue::FilterMinValue(float minvalue) : minvalue_(minvalue) {}
+
+optional<float> FilterMinValue::new_value(float value) {
+  if(value < this->minvalue_) return this->minvalue_;
+  return value;
+}
+
+// MaxValueFilter
+FilterMaxValue::FilterMaxValue(float maxvalue) : maxvalue_(maxvalue) {}
+
+optional<float> FilterMaxValue::new_value(float value) {
+  if(value > this->maxvalue_) return this->maxvalue_;
+  return value;
+}
+
 // FilterOutValueFilter
 FilterOutValueFilter::FilterOutValueFilter(float value_to_filter_out) : value_to_filter_out_(value_to_filter_out) {}
 

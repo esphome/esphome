@@ -129,6 +129,8 @@ class MinFilter : public Filter {
   size_t window_size_;
 };
 
+
+
 /** Simple max filter.
  *
  * Takes the max of the last <send_every> values and pushes it out every <send_every>.
@@ -271,6 +273,29 @@ class MultiplyFilter : public Filter {
 
  protected:
   float multiplier_;
+};
+
+
+/// Minimum Value
+class FilterMinValue : public Filter {
+ public:
+  explicit FilterMinValue(float minvalue);
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  float minvalue_;
+};
+
+/// Maximum Value
+class FilterMaxValue : public Filter {
+ public:
+  explicit FilterMaxValue(float maxvalue);
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  float maxvalue_;
 };
 
 /// A simple filter that only forwards the filter chain if it doesn't receive `value_to_filter_out`.

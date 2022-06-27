@@ -170,6 +170,8 @@ LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
 OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
 MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
 FilterOutValueFilter = sensor_ns.class_("FilterOutValueFilter", Filter)
+FilterMinValue = sensor_ns.class_("FilterMinValue", Filter)
+FilterMaxValue = sensor_ns.class_("FilterMaxValue", Filter)
 ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter, cg.Component)
 HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter, cg.Component)
@@ -291,6 +293,14 @@ async def multiply_filter_to_code(config, filter_id):
 
 @FILTER_REGISTRY.register("filter_out", FilterOutValueFilter, cv.float_)
 async def filter_out_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
+
+@FILTER_REGISTRY.register("min_value", FilterMinValue, cv.float_)
+async def filter_min_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
+
+@FILTER_REGISTRY.register("max_value", FilterMaxValue, cv.float_)
+async def filter_max_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
 
 
