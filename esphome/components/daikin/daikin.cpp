@@ -139,7 +139,7 @@ uint8_t DaikinClimate::temperature_() {
     case climate::CLIMATE_MODE_DRY:
       return 0xc0;
     default:
-      uint8_t temperature = (clamp<float>(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX))*2;
+      uint8_t temperature = (clamp<float>(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX)) * 2;
       return temperature;
   }
 }
@@ -149,8 +149,7 @@ uint8_t DaikinClimate::powerful_quiet_preset_() {
   if (this->preset.has_value()) {
     if (this->preset == climate::CLIMATE_PRESET_BOOST) {
       powerful_quiet_preset = DAIKIN_PRESET_POWERFUL_ON;
-    }
-    else if (this->preset == climate::CLIMATE_PRESET_SLEEP) {
+    } else if (this->preset == climate::CLIMATE_PRESET_SLEEP) {
       powerful_quiet_preset = DAIKIN_PRESET_QUIET_ON;
     }
   }
@@ -202,7 +201,7 @@ bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
   }
   uint8_t temperature = frame[6];
   if (!(temperature & 0xC0)) {
-    this->target_temperature = (float)temperature / 2.0f;
+    this->target_temperature = (float) temperature / 2.0f;
   }
   uint8_t fan_mode = frame[8];
   uint8_t swing_mode = frame[9];
