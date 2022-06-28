@@ -4,6 +4,7 @@ import inspect
 import logging
 import math
 import os
+import re
 
 import uuid
 import yaml
@@ -21,6 +22,9 @@ from esphome.core import (
 )
 from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
+from jinja2.nativetypes import NativeEnvironment
+from jinja2.exceptions import TemplateError, TemplateSyntaxError
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,8 +36,40 @@ _SECRET_CACHE = {}
 _SECRET_VALUES = {}
 
 
+VALID_SUBSTITUTIONS_CHARACTERS = (
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+)
+# pylint: disable=consider-using-f-string
+VARIABLE_PROG = re.compile(
+    "\\$([{0}]+|\\{{[{0}]*\\}})".format(VALID_SUBSTITUTIONS_CHARACTERS)
+)
+
+
 class ForceStr(str):
     pass
+
+
+def jinja_string(st):
+    return ForceStr(st)
+
+
+DETECT_JINJA = r"(\{\{)|(\{%)|(^\s*%%)"
+jinja_detect_re = re.compile(DETECT_JINJA, flags=re.MULTILINE)
+
+
+def has_jinja(st):
+    return jinja_detect_re.search(st) is not None
+
+
+jinja = NativeEnvironment(
+    trim_blocks=True,
+    lstrip_blocks=True,
+    line_statement_prefix="%%",
+    line_comment_prefix="##",
+)
+
+jinja.add_extension("jinja2.ext.do")
+jinja.filters["string"] = jinja_string
 
 
 class ESPHomeDataBase:
@@ -119,7 +155,44 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_yaml_str(self, node):
-        return super().construct_yaml_str(node)
+        st = super().construct_yaml_str(node)
+
+        def replace_vars(m):
+            name = m.group(1)
+            if name.startswith("{") and name.endswith("}"):
+                name = name[1:-1]
+            return (
+                str(self.context["vars"][name]) if name in self.context["vars"] else ""
+            )
+
+        st = VARIABLE_PROG.sub(replace_vars, st)
+
+        if not has_jinja(st):
+            return st
+
+        vars = self.context["vars"] if "vars" in self.context else {}
+
+        try:
+            template = jinja.from_string(st)
+            result = template.render(vars)
+        except TemplateSyntaxError as err:
+            raise yaml.MarkedYAMLError(
+                f"Error in line {err.lineno} of jinja expression: {err.message}",
+                node.start_mark,
+            )
+        except TemplateError as err:
+            raise yaml.MarkedYAMLError(
+                f"Error in jinja expression: {err.message}",
+                node.start_mark,
+            )
+        except Exception as err:
+            raise yaml.MarkedYAMLError(
+                f"Error in jinja expression: {err}",
+                node.start_mark,
+            )
+        if isinstance(result, ForceStr):
+            result = str(result)
+        return result
 
     @_add_data_ref
     def construct_yaml_seq(self, node):
@@ -307,64 +380,17 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         return result
 
     @_add_data_ref
-    def construct_eval(self, node):
-        from jinja2.nativetypes import NativeEnvironment
-        from jinja2.exceptions import TemplateError, TemplateSyntaxError
-
-        def jinja_from_yaml(result):
-            if isinstance(result, str):
-                result = _load_yaml_string(
-                    result,
-                    f"jinja template@{self.name}",
-                    {**self.context, "vars": vars},
-                )
-                result = self.substitute_vars(result, vars)
-            return result
-
-        def jinja_string(st):
-            return ForceStr(st)
-
-        vars = self.context["vars"] if "vars" in self.context else {}
-
-        try:
-            env = NativeEnvironment(
-                trim_blocks=True,
-                lstrip_blocks=True,
-                line_statement_prefix="%%",
-                line_comment_prefix="##",
-            )
-            env.add_extension("jinja2.ext.do")
-            env.filters["from_yaml"] = jinja_from_yaml
-            env.filters["string"] = jinja_string
-            template = env.from_string(node.value)
-            result = template.render(vars)
-        except TemplateSyntaxError as err:
-            raise yaml.MarkedYAMLError(
-                f"Error in line {err.lineno} of !eval expression: {err.message}",
-                node.start_mark,
-            )
-        except TemplateError as err:
-            raise yaml.MarkedYAMLError(
-                f"Error in !eval expression: {err.message}",
-                node.start_mark,
-            )
-        except Exception as err:
-            raise yaml.MarkedYAMLError(
-                f"Error in !eval expression: {err}",
-                node.start_mark,
-            )
-        if isinstance(result, str):
-            result = jinja_from_yaml(result)
-        elif isinstance(result, ForceStr):
-            result = str(result)
-        return result
+    def construct_string(self, node):
+        if not isinstance(node.value, str):
+            raise yaml.MarkedYAMLError("!string must tag a string", node.start_mark)
+        return node.value
 
     @_add_data_ref
     def construct_for(self, node: "yaml.Nodes.MappingNode"):
         from copy import deepcopy
 
         range = None
-        varname = None
+        varname = "item"
         repeat = None
         for key_node, value_node in node.value:
             key = self.construct_object(key_node)
@@ -400,7 +426,6 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
             vars = self.context["vars"] = oldvars.copy()
             vars[varname] = i
             obj = self.construct_object(deepcopy(repeat))
-            self.substitute_vars(obj, {varname: i})
             result.append(obj)
 
         self.context["vars"] = oldvars
@@ -435,7 +460,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         return None
 
     @_add_data_ref
-    def construct_concat(self, node):
+    def construct_flatten(self, node):
         if not isinstance(node, yaml.SequenceNode):
             raise yaml.MarkedYAMLError(
                 "concact expects a sequence/list",
@@ -443,14 +468,17 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
             )
         node.tag = None
         items = self.construct_sequence(node)
-        result = []
-        for item in items:
-            if isinstance(item, list):
-                result += item
-            elif item is not None:
-                result.append(item)
 
-        return result
+        def flatten(items):
+            result = []
+            for item in items:
+                if isinstance(item, list):
+                    result += flatten(item)
+                elif item is not None:
+                    result.append(item)
+            return result
+
+        return flatten(items)
 
     @_add_data_ref
     def construct_include_dir_list(self, node):
@@ -512,10 +540,10 @@ ESPHomeLoader.add_constructor("tag:yaml.org,2002:map", ESPHomeLoader.construct_y
 ESPHomeLoader.add_constructor("!env_var", ESPHomeLoader.construct_env_var)
 ESPHomeLoader.add_constructor("!secret", ESPHomeLoader.construct_secret)
 ESPHomeLoader.add_constructor("!include", ESPHomeLoader.construct_include)
-ESPHomeLoader.add_constructor("!eval", ESPHomeLoader.construct_eval)
+ESPHomeLoader.add_constructor("!string", ESPHomeLoader.construct_string)
 ESPHomeLoader.add_constructor("!for", ESPHomeLoader.construct_for)
 ESPHomeLoader.add_constructor("!if", ESPHomeLoader.construct_if)
-ESPHomeLoader.add_constructor("!concat", ESPHomeLoader.construct_concat)
+ESPHomeLoader.add_constructor("!flatten", ESPHomeLoader.construct_flatten)
 ESPHomeLoader.add_constructor(
     "!include_dir_list", ESPHomeLoader.construct_include_dir_list
 )
