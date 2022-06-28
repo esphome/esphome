@@ -360,6 +360,48 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         return result
 
     @_add_data_ref
+    def construct_for(self, node: "yaml.Nodes.MappingNode"):
+        from copy import deepcopy
+
+        range = None
+        varname = None
+        repeat = None
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=False)
+            if key == "range":
+                range = self.construct_object(value_node, deep=False)
+            if key == "var":
+                varname = self.construct_object(value_node, deep=False)
+            if key == "repeat":
+                repeat = value_node
+
+        if not isinstance(range, list):
+            raise yaml.MarkedYAMLError(
+                "range must be a list",
+                node.start_mark,
+            )
+        if not isinstance(varname, str):
+            raise yaml.MarkedYAMLError(
+                "var must be a string",
+                node.start_mark,
+            )
+        if repeat is None:
+            raise yaml.MarkedYAMLError(
+                "missing repeat value",
+                node.start_mark,
+            )
+
+        result = []
+        oldvars = self.context["vars"]
+        for i in range:
+            self.context["vars"] = oldvars.copy()
+            self.context["vars"][varname] = i
+            result.append(self.construct_object(deepcopy(repeat), deep=False))
+
+        self.context["vars"] = oldvars
+        return result
+
+    @_add_data_ref
     def construct_include_dir_list(self, node):
         files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
         return [_load_yaml_internal(f, {**self.context}) for f in files]
@@ -420,6 +462,7 @@ ESPHomeLoader.add_constructor("!env_var", ESPHomeLoader.construct_env_var)
 ESPHomeLoader.add_constructor("!secret", ESPHomeLoader.construct_secret)
 ESPHomeLoader.add_constructor("!include", ESPHomeLoader.construct_include)
 ESPHomeLoader.add_constructor("!eval", ESPHomeLoader.construct_eval)
+ESPHomeLoader.add_constructor("!for", ESPHomeLoader.construct_for)
 ESPHomeLoader.add_constructor(
     "!include_dir_list", ESPHomeLoader.construct_include_dir_list
 )
