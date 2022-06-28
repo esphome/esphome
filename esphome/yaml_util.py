@@ -402,6 +402,33 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         return result
 
     @_add_data_ref
+    def construct_if(self, node: "yaml.Nodes.MappingNode"):
+        condition = None
+        then_node = None
+        else_node = None
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=False)
+            if key == "condition":
+                condition = self.construct_object(value_node, deep=False)
+            if key == "then":
+                then_node = value_node
+            if key == "else":
+                else_node = value_node
+
+        if then_node is None:
+            raise yaml.MarkedYAMLError(
+                "missing then value",
+                node.start_mark,
+            )
+
+        if condition:
+            return self.construct_object(then_node, deep=False)
+        elif else_node is not None:
+            return self.construct_object(else_node, deep=False)
+
+        return None
+
+    @_add_data_ref
     def construct_include_dir_list(self, node):
         files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
         return [_load_yaml_internal(f, {**self.context}) for f in files]
@@ -463,6 +490,8 @@ ESPHomeLoader.add_constructor("!secret", ESPHomeLoader.construct_secret)
 ESPHomeLoader.add_constructor("!include", ESPHomeLoader.construct_include)
 ESPHomeLoader.add_constructor("!eval", ESPHomeLoader.construct_eval)
 ESPHomeLoader.add_constructor("!for", ESPHomeLoader.construct_for)
+ESPHomeLoader.add_constructor("!if", ESPHomeLoader.construct_if)
+
 ESPHomeLoader.add_constructor(
     "!include_dir_list", ESPHomeLoader.construct_include_dir_list
 )
