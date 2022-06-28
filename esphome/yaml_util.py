@@ -367,13 +367,16 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         varname = None
         repeat = None
         for key_node, value_node in node.value:
-            key = self.construct_object(key_node, deep=False)
+            key = self.construct_object(key_node)
             if key == "range":
-                range = self.construct_object(value_node, deep=False)
+                range = self.construct_object(value_node)
             if key == "var":
-                varname = self.construct_object(value_node, deep=False)
+                varname = self.construct_object(value_node)
             if key == "repeat":
                 repeat = value_node
+
+        if isinstance(range, str):
+            range = self.context["vars"][range]
 
         if not isinstance(range, list):
             raise yaml.MarkedYAMLError(
@@ -394,9 +397,11 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         result = []
         oldvars = self.context["vars"]
         for i in range:
-            self.context["vars"] = oldvars.copy()
-            self.context["vars"][varname] = i
-            result.append(self.construct_object(deepcopy(repeat), deep=False))
+            vars = self.context["vars"] = oldvars.copy()
+            vars[varname] = i
+            obj = self.construct_object(deepcopy(repeat))
+            self.substitute_vars(obj, {varname: i})
+            result.append(obj)
 
         self.context["vars"] = oldvars
         return result
@@ -407,9 +412,9 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         then_node = None
         else_node = None
         for key_node, value_node in node.value:
-            key = self.construct_object(key_node, deep=False)
+            key = self.construct_object(key_node)
             if key == "condition":
-                condition = self.construct_object(value_node, deep=False)
+                condition = self.construct_object(value_node)
             if key == "then":
                 then_node = value_node
             if key == "else":
@@ -422,11 +427,30 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
             )
 
         if condition:
-            return self.construct_object(then_node, deep=False)
-        elif else_node is not None:
-            return self.construct_object(else_node, deep=False)
+            return self.construct_object(then_node)
+
+        if else_node is not None:
+            return self.construct_object(else_node)
 
         return None
+
+    @_add_data_ref
+    def construct_concat(self, node):
+        if not isinstance(node, yaml.SequenceNode):
+            raise yaml.MarkedYAMLError(
+                "concact expects a sequence/list",
+                node.start_mark,
+            )
+        node.tag = None
+        items = self.construct_sequence(node)
+        result = []
+        for item in items:
+            if isinstance(item, list):
+                result += item
+            elif item is not None:
+                result.append(item)
+
+        return result
 
     @_add_data_ref
     def construct_include_dir_list(self, node):
@@ -491,7 +515,7 @@ ESPHomeLoader.add_constructor("!include", ESPHomeLoader.construct_include)
 ESPHomeLoader.add_constructor("!eval", ESPHomeLoader.construct_eval)
 ESPHomeLoader.add_constructor("!for", ESPHomeLoader.construct_for)
 ESPHomeLoader.add_constructor("!if", ESPHomeLoader.construct_if)
-
+ESPHomeLoader.add_constructor("!concat", ESPHomeLoader.construct_concat)
 ESPHomeLoader.add_constructor(
     "!include_dir_list", ESPHomeLoader.construct_include_dir_list
 )
