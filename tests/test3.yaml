@@ -1122,14 +1122,16 @@ climate:
       - switch.turn_on: gpio_switch1
     fan_mode_diffuse_action:
       - switch.turn_on: gpio_switch2
+    fan_mode_quiet_action:
+      - switch.turn_on: gpio_switch1
     swing_off_action:
-      - switch.turn_on: gpio_switch1
+      - switch.turn_on: gpio_switch2
     swing_horizontal_action:
-      - switch.turn_on: gpio_switch2
-    swing_vertical_action:
       - switch.turn_on: gpio_switch1
-    swing_both_action:
+    swing_vertical_action:
       - switch.turn_on: gpio_switch2
+    swing_both_action:
+      - switch.turn_on: gpio_switch1
     startup_delay: true
     supplemental_cooling_delta: 2.0
     cool_deadband: 0.5

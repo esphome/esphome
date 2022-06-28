@@ -99,6 +99,7 @@ enum ClimateFanMode : uint32_t {
   CLIMATE_FAN_MIDDLE = 6,
   CLIMATE_FAN_FOCUS = 7,
   CLIMATE_FAN_DIFFUSE = 8,
+  CLIMATE_FAN_QUIET = 9,
 };
 enum ClimateSwingMode : uint32_t {
   CLIMATE_SWING_OFF = 0,

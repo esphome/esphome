@@ -102,6 +102,8 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
       fan_modes.add("focus");
     if (traits.supports_fan_mode(CLIMATE_FAN_DIFFUSE))
       fan_modes.add("diffuse");
+    if (traits.supports_fan_mode(CLIMATE_FAN_QUIET))
+      fan_modes.add("quiet");
     for (const auto &fan_mode : traits.get_supported_custom_fan_modes())
       fan_modes.add(fan_mode);
   }
@@ -327,6 +329,9 @@ bool MQTTClimateComponent::publish_state_() {
           break;
         case CLIMATE_FAN_DIFFUSE:
           payload = "diffuse";
+          break;
+        case CLIMATE_FAN_QUIET:
+          payload = "quiet";
           break;
       }
     }

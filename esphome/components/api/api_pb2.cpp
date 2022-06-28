@@ -235,6 +235,8 @@ template<> const char *proto_enum_to_string<enums::ClimateFanMode>(enums::Climat
       return "CLIMATE_FAN_FOCUS";
     case enums::CLIMATE_FAN_DIFFUSE:
       return "CLIMATE_FAN_DIFFUSE";
+    case enums::CLIMATE_FAN_QUIET:
+      return "CLIMATE_FAN_QUIET";
     default:
       return "UNKNOWN";
   }

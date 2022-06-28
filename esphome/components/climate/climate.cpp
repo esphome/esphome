@@ -174,6 +174,8 @@ ClimateCall &ClimateCall::set_fan_mode(const std::string &fan_mode) {
     this->set_fan_mode(CLIMATE_FAN_FOCUS);
   } else if (str_equals_case_insensitive(fan_mode, "DIFFUSE")) {
     this->set_fan_mode(CLIMATE_FAN_DIFFUSE);
+  } else if (str_equals_case_insensitive(fan_mode, "QUIET")) {
+    this->set_fan_mode(CLIMATE_FAN_QUIET);
   } else {
     if (this->parent_->get_traits().supports_custom_fan_mode(fan_mode)) {
       this->custom_fan_mode_ = fan_mode;
