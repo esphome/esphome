@@ -331,8 +331,13 @@ optional<float> ThrottleFilter::new_value(float value) {
 // DeltaFilter
 DeltaFilter::DeltaFilter(float min_delta) : min_delta_(min_delta), last_value_(NAN) {}
 optional<float> DeltaFilter::new_value(float value) {
-  if (std::isnan(value))
-    return {};
+  if (std::isnan(value)) {
+    if (std::isnan(this->last_value_)) {
+      return {};
+    } else {
+      return this->last_value_ = value;
+    }
+  }
   if (std::isnan(this->last_value_)) {
     return this->last_value_ = value;
   }
