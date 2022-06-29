@@ -243,9 +243,12 @@ bool DallasTemperatureSensor::check_scratch_pad() {
   bool chksum_validity = (crc8(this->scratch_pad_, 8) == this->scratch_pad_[8]);
   bool config_validity = false;
 
-  switch(this->get_address8()[0]) {
-    case DALLAS_MODEL_DS18B20: config_validity=((this->scratch_pad_[4] & 0x9F)==0x1F); break;
-    default: config_validity=((this->scratch_pad_[4] & 0x10)==0x10);
+  switch (this->get_address8()[0]) {
+    case DALLAS_MODEL_DS18B20:
+      config_validity = ((this->scratch_pad_[4] & 0x9F) == 0x1F);
+      break;
+    default:
+      config_validity = ((this->scratch_pad_[4] & 0x10) == 0x10);
   }
 
 #ifdef ESPHOME_LOG_LEVEL_VERY_VERBOSE
@@ -256,8 +259,7 @@ bool DallasTemperatureSensor::check_scratch_pad() {
 #endif
   if (!chksum_validity) {
     ESP_LOGW(TAG, "'%s' - Scratch pad checksum invalid!", this->get_name().c_str());
-  }
-  else if (!config_validity) {
+  } else if (!config_validity) {
     ESP_LOGW(TAG, "'%s' - Scratch pad config register invalid!", this->get_name().c_str());
   }
   return chksum_validity && config_validity;
