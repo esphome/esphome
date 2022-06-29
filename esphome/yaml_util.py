@@ -134,10 +134,10 @@ class ESPHomeLoader(
 ):  # pylint: disable=too-many-ancestors,too-many-public-methods
     """Loader class that keeps track of line numbers."""
 
-    def __init__(self, content, context=None):
-        if context is None:
-            context = {}
-        self.context = context
+    def __init__(self, content, vars=None):
+        if vars is None:
+            vars = {}
+        self.vars = vars
         yaml.SafeLoader.__init__(self, content)
 
     @_add_data_ref
@@ -164,20 +164,16 @@ class ESPHomeLoader(
             name = m.group(1)
             if name.startswith("{") and name.endswith("}"):
                 name = name[1:-1]
-            return (
-                str(self.context["vars"][name]) if name in self.context["vars"] else ""
-            )
+            return str(self.vars[name]) if name in self.vars else ""
 
         st = VARIABLE_PROG.sub(replace_vars, st)
 
         if not has_jinja(st):
             return st
 
-        vars = self.context["vars"] if "vars" in self.context else {}
-
         try:
             template = jinja.from_string(st)
-            result = template.render(vars)
+            result = template.render(self.vars)
         except TemplateSyntaxError as err:
             raise yaml.MarkedYAMLError(
                 f"Error in line {err.lineno} of jinja expression: {err.message}",
@@ -326,7 +322,7 @@ class ESPHomeLoader(
 
     @_add_data_ref
     def construct_secret(self, node):
-        secrets = _load_yaml_internal(self._rel_path(SECRET_YAML), {**self.context})
+        secrets = _load_yaml_internal(self._rel_path(SECRET_YAML), self.vars.copy())
         if node.value not in secrets:
             raise yaml.MarkedYAMLError(
                 f"Secret '{node.value}' not defined", node.start_mark
@@ -376,7 +372,7 @@ class ESPHomeLoader(
             file, vars = node.value, None
 
         result = _load_yaml_internal(
-            self._rel_path(file), {**self.context, "vars": vars}
+            self._rel_path(file), vars.copy() if vars else None
         )
         if vars:
             result = self.substitute_vars(result, vars)
@@ -405,7 +401,7 @@ class ESPHomeLoader(
                 repeat = value_node
 
         if isinstance(range, str):
-            range = self.context["vars"][range]
+            range = self.vars[range]
 
         if not isinstance(range, list):
             raise yaml.MarkedYAMLError(
@@ -424,14 +420,14 @@ class ESPHomeLoader(
             )
 
         result = []
-        oldvars = self.context["vars"]
+        oldvars = self.vars
         for i in range:
-            vars = self.context["vars"] = oldvars.copy()
+            vars = self.vars = oldvars.copy()
             vars[varname] = i
             obj = self.construct_object(deepcopy(repeat))
             result.append(obj)
 
-        self.context["vars"] = oldvars
+        self.vars = oldvars
         return result
 
     @_add_data_ref
@@ -486,14 +482,14 @@ class ESPHomeLoader(
     @_add_data_ref
     def construct_include_dir_list(self, node):
         files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
-        return [_load_yaml_internal(f, {**self.context}) for f in files]
+        return [_load_yaml_internal(f, self.vars.copy()) for f in files]
 
     @_add_data_ref
     def construct_include_dir_merge_list(self, node):
         files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
         merged_list = []
         for fname in files:
-            loaded_yaml = _load_yaml_internal(fname, {**self.context})
+            loaded_yaml = _load_yaml_internal(fname, self.vars.copy())
             if isinstance(loaded_yaml, list):
                 merged_list.extend(loaded_yaml)
         return merged_list
@@ -504,7 +500,7 @@ class ESPHomeLoader(
         mapping = OrderedDict()
         for fname in files:
             filename = os.path.splitext(os.path.basename(fname))[0]
-            mapping[filename] = _load_yaml_internal(fname, {**self.context})
+            mapping[filename] = _load_yaml_internal(fname, self.vars.copy())
         return mapping
 
     @_add_data_ref
@@ -512,7 +508,7 @@ class ESPHomeLoader(
         files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
         mapping = OrderedDict()
         for fname in files:
-            loaded_yaml = _load_yaml_internal(fname, {**self.context})
+            loaded_yaml = _load_yaml_internal(fname, self.vars.copy())
             if isinstance(loaded_yaml, dict):
                 mapping.update(loaded_yaml)
         return mapping
@@ -566,6 +562,9 @@ ESPHomeLoader.add_constructor("!force", ESPHomeLoader.construct_force)
 def load_yaml(fname, clear_secrets=True, vars=None):
     from esphome.const import CONF_SUBSTITUTIONS
 
+    if vars is None:
+        vars = {}
+
     if clear_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
@@ -585,14 +584,14 @@ def load_yaml(fname, clear_secrets=True, vars=None):
     finally:
         loader.dispose()
 
-    return _load_yaml_internal(fname, {"vars": vars})
+    return _load_yaml_internal(fname, vars)
 
 
-def _load_yaml_string(content, name, context):
-    if context["vars"] is None:
-        context["vars"] = {}
+def _load_yaml_string(content, name, vars=None):
+    if vars is None:
+        vars = {}
 
-    loader = ESPHomeLoader(content, context)
+    loader = ESPHomeLoader(content, vars)
     loader.name = name
     try:
         return loader.get_single_data() or OrderedDict()
@@ -602,9 +601,9 @@ def _load_yaml_string(content, name, context):
         loader.dispose()
 
 
-def _load_yaml_internal(fname, context):
+def _load_yaml_internal(fname, vars):
     content = read_config_file(fname)
-    return _load_yaml_string(content, fname, context)
+    return _load_yaml_string(content, fname, vars)
 
 
 def dump(dict_):
