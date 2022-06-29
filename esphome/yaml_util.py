@@ -50,6 +50,10 @@ class ForceStr(str):
     pass
 
 
+class ForList(list):
+    pass
+
+
 def jinja_string(st):
     return ForceStr(st)
 
@@ -202,9 +206,17 @@ class ESPHomeLoader(
         return self.expand_str(node, super().construct_yaml_str(node))
 
     @_add_data_ref
-    def construct_sequence(self, node):
-        seq = super().construct_sequence(node)
-        return [item for item in seq if item]  # filter out empty items
+    def construct_sequence(self, node, deep=False):
+        def flatten_for(items):  # Flatten the output of "!for"
+            result = []
+            for item in items:
+                if isinstance(item, ForList):
+                    result += flatten_for(item)
+                elif item is not None:
+                    result.append(item)
+            return result
+
+        return flatten_for(super().construct_sequence(node, deep=deep))
 
     @_add_data_ref
     def construct_yaml_seq(self, node):
@@ -414,7 +426,7 @@ class ESPHomeLoader(
             result.append(obj)
 
         self.vars = oldvars
-        return result
+        return ForList(result)
 
     @_add_data_ref
     def construct_if(self, node: "yaml.Nodes.MappingNode"):
@@ -443,27 +455,6 @@ class ESPHomeLoader(
             return self.construct_object(else_node)
 
         return None
-
-    @_add_data_ref
-    def construct_flatten(self, node):
-        if not isinstance(node, yaml.SequenceNode):
-            raise yaml.MarkedYAMLError(
-                "concact expects a sequence/list",
-                node.start_mark,
-            )
-        node.tag = None
-        items = self.construct_sequence(node)
-
-        def flatten(items):
-            result = []
-            for item in items:
-                if isinstance(item, list):
-                    result += flatten(item)
-                elif item is not None:
-                    result.append(item)
-            return result
-
-        return flatten(items)
 
     @_add_data_ref
     def construct_include_dir_list(self, node):
@@ -528,7 +519,6 @@ ESPHomeLoader.add_constructor("!include", ESPHomeLoader.construct_include)
 ESPHomeLoader.add_constructor("!string", ESPHomeLoader.construct_string)
 ESPHomeLoader.add_constructor("!for", ESPHomeLoader.construct_for)
 ESPHomeLoader.add_constructor("!if", ESPHomeLoader.construct_if)
-ESPHomeLoader.add_constructor("!flatten", ESPHomeLoader.construct_flatten)
 ESPHomeLoader.add_constructor(
     "!include_dir_list", ESPHomeLoader.construct_include_dir_list
 )
