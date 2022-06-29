@@ -159,6 +159,8 @@ class ESPHomeLoader(
     @_add_data_ref
     def construct_yaml_str(self, node):
         st = super().construct_yaml_str(node)
+        if self.disable_str_expansion:
+            return st
 
         def replace_vars(m):
             name = m.group(1)
@@ -223,7 +225,9 @@ class ESPHomeLoader(
 
             if not is_merge_key:
                 # base case, this is a simple key-value pair
+                self.disable_str_expansion = True
                 key = self.construct_object(key_node)
+                self.disable_str_expansion = False
                 value = self.construct_object(value_node)
 
                 # Check if key is hashable
