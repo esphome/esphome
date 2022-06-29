@@ -808,7 +808,7 @@ class InvalidYAMLError(EsphomeError):
 
 def _load_config(command_line_substitutions):
     try:
-        config = yaml_util.load_yaml(CORE.config_path)
+        config = yaml_util.load_yaml(CORE.config_path, vars=command_line_substitutions)
     except EsphomeError as e:
         raise InvalidYAMLError(e) from e
 
