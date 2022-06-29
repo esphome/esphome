@@ -156,9 +156,7 @@ class ESPHomeLoader(
     def construct_yaml_omap(self, node):
         return super().construct_yaml_omap(node)
 
-    @_add_data_ref
-    def construct_yaml_str(self, node):
-        st = super().construct_yaml_str(node)
+    def expand_str(self, node, st):
         if self.disable_str_expansion:
             return st
 
@@ -168,32 +166,40 @@ class ESPHomeLoader(
                 name = name[1:-1]
             return str(self.vars[name]) if name in self.vars else ""
 
-        st = VARIABLE_PROG.sub(replace_vars, st)
+        result = VARIABLE_PROG.sub(replace_vars, st)
 
-        if not has_jinja(st):
-            return st
-
-        try:
-            template = jinja.from_string(st)
-            result = template.render(self.vars)
-        except TemplateSyntaxError as err:
-            raise yaml.MarkedYAMLError(
-                f"Error in line {err.lineno} of jinja expression: {err.message}",
-                node.start_mark,
-            )
-        except TemplateError as err:
-            raise yaml.MarkedYAMLError(
-                f"Error in jinja expression: {err.message}",
-                node.start_mark,
-            )
-        except Exception as err:
-            raise yaml.MarkedYAMLError(
-                f"Error in jinja expression: {err}",
-                node.start_mark,
-            )
+        if has_jinja(result):
+            try:
+                template = jinja.from_string(st)
+                result = template.render(self.vars)
+            except TemplateSyntaxError as err:
+                raise yaml.MarkedYAMLError(
+                    f"Error in line {err.lineno} of jinja expression: {err.message}",
+                    node.start_mark,
+                )
+            except TemplateError as err:
+                raise yaml.MarkedYAMLError(
+                    f"Error in jinja expression: {err.message}",
+                    node.start_mark,
+                )
+            except Exception as err:
+                raise yaml.MarkedYAMLError(
+                    f"Error in jinja expression: {err}",
+                    node.start_mark,
+                )
         if isinstance(result, ForceStr):
             result = str(result)
+
+        if result != st:
+            result = make_data_base(result)
+            result.from_node(node)
+
         return result
+
+    @_add_data_ref
+    def construct_yaml_str(self, node):
+        st = super().construct_yaml_str(node)
+        return self.expand_str(node, st)
 
     @_add_data_ref
     def construct_yaml_seq(self, node):
@@ -428,7 +434,8 @@ class ESPHomeLoader(
         for i in range:
             vars = self.vars = oldvars.copy()
             vars[varname] = i
-            obj = self.construct_object(deepcopy(repeat))
+            obj = make_data_base(self.construct_object(deepcopy(repeat)))
+            obj.from_node(repeat)
             result.append(obj)
 
         self.vars = oldvars
@@ -519,7 +526,7 @@ class ESPHomeLoader(
 
     @_add_data_ref
     def construct_lambda(self, node):
-        return Lambda(str(node.value))
+        return Lambda(self.expand_str(node, str(node.value)))
 
     @_add_data_ref
     def construct_force(self, node):
