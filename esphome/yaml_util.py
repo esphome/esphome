@@ -202,6 +202,11 @@ class ESPHomeLoader(
         return self.expand_str(node, super().construct_yaml_str(node))
 
     @_add_data_ref
+    def construct_sequence(self, node):
+        seq = super().construct_sequence(node)
+        return [item for item in seq if item]  # filter out empty items
+
+    @_add_data_ref
     def construct_yaml_seq(self, node):
         return super().construct_yaml_seq(node)
 
