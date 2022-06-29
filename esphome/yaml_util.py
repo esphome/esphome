@@ -10,6 +10,9 @@ import uuid
 import yaml
 import yaml.constructor
 
+from jinja2.nativetypes import NativeEnvironment
+from jinja2.exceptions import TemplateError, TemplateSyntaxError
+
 from esphome import core
 from esphome.config_helpers import read_config_file
 from esphome.core import (
@@ -22,8 +25,6 @@ from esphome.core import (
 )
 from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
-from jinja2.nativetypes import NativeEnvironment
-from jinja2.exceptions import TemplateError, TemplateSyntaxError
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -128,7 +129,9 @@ def _add_data_ref(fn):
     return wrapped
 
 
-class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
+class ESPHomeLoader(
+    yaml.SafeLoader
+):  # pylint: disable=too-many-ancestors,too-many-public-methods
     """Loader class that keeps track of line numbers."""
 
     def __init__(self, content, context=None):
@@ -563,9 +566,6 @@ ESPHomeLoader.add_constructor("!force", ESPHomeLoader.construct_force)
 def load_yaml(fname, clear_secrets=True, vars=None):
     from esphome.const import CONF_SUBSTITUTIONS
 
-    if vars is None:
-        vars = {}
-
     if clear_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
@@ -589,6 +589,9 @@ def load_yaml(fname, clear_secrets=True, vars=None):
 
 
 def _load_yaml_string(content, name, context):
+    if context["vars"] is None:
+        context["vars"] = {}
+
     loader = ESPHomeLoader(content, context)
     loader.name = name
     try:
