@@ -202,7 +202,7 @@ class ExponentialMovingAverageFilter : public Filter {
 
  protected:
   bool first_value_{true};
-  float accumulator_{0.0f};
+  float accumulator_{NAN};
   size_t send_every_;
   size_t send_at_;
   float alpha_;
