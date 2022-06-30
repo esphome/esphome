@@ -254,6 +254,15 @@ void APIServer::on_number_update(number::Number *obj, float state) {
 }
 #endif
 
+#ifdef USE_TEXT_INPUT
+void APIServer::on_text_input_update(text_input::TextInput *obj, const std::string &state) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_text_input_state(obj, state);
+}
+#endif
+
 #ifdef USE_SELECT
 void APIServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
   if (obj->is_internal())

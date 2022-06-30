@@ -69,6 +69,11 @@ class APIConnection : public APIServerConnection {
   bool send_number_info(number::Number *number);
   void number_command(const NumberCommandRequest &msg) override;
 #endif
+#ifdef USE_TEXT_INPUT
+  bool send_text_input_state(text_input::TextInput *text_input, std::string state);
+  bool send_text_input_info(text_input::TextInput *text_input);
+  void text_input_command(const TextInput &msg) override;
+#endif
 #ifdef USE_SELECT
   bool send_select_state(select::Select *select, std::string state);
   bool send_select_info(select::Select *select);

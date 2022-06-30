@@ -57,6 +57,9 @@ class ComponentIterator {
 #ifdef USE_NUMBER
   virtual bool on_number(number::Number *number) = 0;
 #endif
+#ifdef USE_TEXT_INPUT
+  virtual bool on_text_input(text_input::TextInput *text_input) = 0;
+#endif
 #ifdef USE_SELECT
   virtual bool on_select(select::Select *select) = 0;
 #endif
@@ -107,6 +110,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_NUMBER
     NUMBER,
+#endif
+#ifdef USE_TEXT_INPUT
+    TEXT_INPUT,
 #endif
 #ifdef USE_SELECT
     SELECT,

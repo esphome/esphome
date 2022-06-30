@@ -59,6 +59,12 @@ void Controller::setup_controller(bool include_internal) {
       obj->add_on_state_callback([this, obj](float state) { this->on_number_update(obj, state); });
   }
 #endif
+#ifdef USE_TEXT_INPUT
+  for (auto *obj : App.get_text_inputs()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_state_callback([this, obj](const std::string &state) { this->on_text_input_update(obj, state); });
+  }
+#endif
 #ifdef USE_SELECT
   for (auto *obj : App.get_selects()) {
     if (include_internal || !obj->is_internal()) {

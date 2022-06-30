@@ -84,17 +84,17 @@ bool ListEntitiesIterator::on_number(number::Number *number) {
 }
 #endif
 
-#ifdef USE_SELECT
-bool ListEntitiesIterator::on_select(select::Select *select) {
-  this->web_server_->events_.send(this->web_server_->select_json(select, select->state, DETAIL_ALL).c_str(), "state");
-  return true;
-}
-#endif
-
 #ifdef USE_TEXT_INPUT
 bool ListEntitiesIterator::on_select(text_input::TextInput *text_input) {
   this->web_server_->events_.send(
     this->web_server_->text_input_json(text_input, text_input->state, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
+#ifdef USE_SELECT
+bool ListEntitiesIterator::on_select(select::Select *select) {
+  this->web_server_->events_.send(this->web_server_->select_json(select, select->state, DETAIL_ALL).c_str(), "state");
   return true;
 }
 #endif

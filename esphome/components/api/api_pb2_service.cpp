@@ -328,6 +328,26 @@ bool APIServerConnectionBase::send_media_player_state_response(const MediaPlayer
 #endif
 #ifdef USE_MEDIA_PLAYER
 #endif
+
+#ifdef USE_TEXT_INPUT
+bool APIServerConnectionBase::send_list_entities_text_input_response(const ListEntitiesTextInputResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_text_input_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesTextInputResponse>(msg, 66);
+}
+#endif
+#ifdef USE_TEXT_INPUT
+bool APIServerConnectionBase::send_text_input_state_response(const TextInputStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_text_input_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<TextInputStateResponse>(msg, 67);
+}
+#endif
+#ifdef USE_TEXT_INPUT
+#endif
+
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
@@ -595,6 +615,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 68: {
+#ifdef USE_TEXT_INPUT
+      TextInputCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_text_input_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_text_input_command_request(msg);
+#endif
+      break;
+    }
     default:
       return false;
   }
@@ -853,6 +884,19 @@ void APIServerConnection::on_media_player_command_request(const MediaPlayerComma
     return;
   }
   this->media_player_command(msg);
+}
+#endif
+#ifdef USE_TEXT_INPUT
+void APIServerConnection::on_text_input_command_request(const TextInputCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->text_input_command(msg);
 }
 #endif
 

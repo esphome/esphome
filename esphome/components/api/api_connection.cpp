@@ -631,6 +631,47 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 }
 #endif
 
+
+#ifdef USE_TEXT_INPUT
+bool APIConnection::send_text_input_state(text_input::TextInput *text_input, std::string state) {
+  if (!this->state_subscription_)
+    return false;
+
+  TextInputStateResponse resp{};
+  resp.key = text_input->get_object_id_hash();
+  resp.state = state;
+  resp.missing_state = !text_input->has_state();
+  return this->send_text_input_state_response(resp);
+}
+bool APIConnection::send_text_input_info(text_input::TextInput *text_input) {
+  ListEntitiesTextInputResponse msg;
+  msg.key = text_input->get_object_id_hash();
+  msg.object_id = text_input->get_object_id();
+  msg.name = text_input->get_name();
+  msg.unique_id = get_default_unique_id("text_input", text_input);
+  msg.icon = text_input->get_icon();
+  msg.disabled_by_default = text_input->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(text_input->get_entity_category());
+  msg.unit_of_measurement = text_input->traits.get_unit_of_measurement();
+  msg.mode = static_cast<enums::TextInputMode>(text_input->traits.get_mode());
+
+  msg.min_value = text_input->traits.get_min_value();
+  msg.max_value = text_input->traits.get_max_value();
+  msg.step = text_input->traits.get_step();
+
+  return this->send_list_entities_text_input_response(msg);
+}
+void APIConnection::text_input_command(const TextInputCommandRequest &msg) {
+  text_input::TextInput *text_input = App.get_text_input_by_key(msg.key);
+  if (text_input == nullptr)
+    return;
+
+  auto call = text_input->make_call();
+  call.set_value(msg.state);
+  call.perform();
+}
+#endif
+
 #ifdef USE_SELECT
 bool APIConnection::send_select_state(select::Select *select, std::string state) {
   if (!this->state_subscription_)

@@ -39,6 +39,9 @@
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
+#ifdef USE_TEXT_INPUT
+#include "esphome/components/text_input/text_input.h"
+#endif
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
@@ -104,6 +107,10 @@ class Application {
 
 #ifdef USE_NUMBER
   void register_number(number::Number *number) { this->numbers_.push_back(number); }
+#endif
+
+#ifdef USE_TEXT_INPUT
+  void register_text_input(text_input::TextInput *text_input) { this->text_inputs_.push_back(text_input); }
 #endif
 
 #ifdef USE_SELECT
@@ -250,6 +257,15 @@ class Application {
   const std::vector<number::Number *> &get_numbers() { return this->numbers_; }
   number::Number *get_number_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->numbers_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+#ifdef USE_TEXT_INPUT
+  const std::vector<text_input::TextInput *> &get_text_inputs() { return this->text_inputs_; }
+  text_input::TextInput *get_text_input_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->text_inputs_)
       if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
     return nullptr;
