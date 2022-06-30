@@ -68,7 +68,7 @@ optional<float> MedianFilter::new_value(float value) {
       }
     }
 
-    ESP_LOGVV(TAG, "MedianFilter(%p)::new_value(%f) SENDING", this, median);
+    ESP_LOGVV(TAG, "MedianFilter(%p)::new_value(%f) SENDING %f", this, value, median);
     return median;
   }
   return {};
@@ -110,7 +110,7 @@ optional<float> QuantileFilter::new_value(float value) {
       }
     }
 
-    ESP_LOGVV(TAG, "QuantileFilter(%p)::new_value(%f) SENDING", this, result);
+    ESP_LOGVV(TAG, "QuantileFilter(%p)::new_value(%f) SENDING %f", this, value, result);
     return result;
   }
   return {};
@@ -138,7 +138,7 @@ optional<float> MinFilter::new_value(float value) {
       }
     }
 
-    ESP_LOGVV(TAG, "MinFilter(%p)::new_value(%f) SENDING", this, min);
+    ESP_LOGVV(TAG, "MinFilter(%p)::new_value(%f) SENDING %f", this, value, min);
     return min;
   }
   return {};
@@ -166,7 +166,7 @@ optional<float> MaxFilter::new_value(float value) {
       }
     }
 
-    ESP_LOGVV(TAG, "MaxFilter(%p)::new_value(%f) SENDING", this, max);
+    ESP_LOGVV(TAG, "MaxFilter(%p)::new_value(%f) SENDING %f", this, value, max);
     return max;
   }
   return {};
@@ -202,7 +202,7 @@ optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
       average = sum / valid_count;
     }
 
-    ESP_LOGVV(TAG, "SlidingWindowMovingAverageFilter(%p)::new_value(%f) SENDING", this, value);
+    ESP_LOGVV(TAG, "SlidingWindowMovingAverageFilter(%p)::new_value(%f) SENDING %f", this, value, average);
     return average;
   }
   return {};
@@ -227,7 +227,7 @@ optional<float> ExponentialMovingAverageFilter::new_value(float value) {
   ESP_LOGVV(TAG, "ExponentialMovingAverageFilter(%p)::new_value(%f) -> %f", this, value, average);
 
   if (++this->send_at_ >= this->send_every_) {
-    ESP_LOGVV(TAG, "ExponentialMovingAverageFilter(%p)::new_value(%f) SENDING", this, value);
+    ESP_LOGVV(TAG, "ExponentialMovingAverageFilter(%p)::new_value(%f) SENDING %f", this, value, average);
     this->send_at_ = 0;
     return average;
   }
