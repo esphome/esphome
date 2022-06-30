@@ -58,7 +58,7 @@ CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
         ),
         cv.Optional(CONF_RESTORE, default=False): cv.boolean,
         cv.Optional("min_save_interval"): cv.invalid(
-            "min_save_interval was removed in 2022.6.0. Please use the `preferences` -> `flash_write_interval` to adjust."
+            "min_save_interval was removed in 2022.8.0. Please use the `preferences` -> `flash_write_interval` to adjust."
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
