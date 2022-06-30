@@ -52,7 +52,7 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
 #  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 1, 1)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 2, 1)
 
 # The platformio/raspberrypi version to use for arduino frameworks
 #  - https://github.com/platformio/platform-raspberrypi/releases
@@ -63,8 +63,8 @@ ARDUINO_PLATFORM_VERSION = cv.Version(1, 7, 0)
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(2, 1, 1), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(2, 1, 1), None),
+        "dev": (cv.Version(2, 2, 1), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(2, 2, 1), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -142,6 +142,7 @@ async def to_code(config):
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
     cg.add_build_flag("-DUSE_RP2040_FRAMEWORK_ARDUINO")
+    cg.add_build_flag("-DPICO_BOARD=pico_w")
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
     cg.add_platformio_option(
         "platform_packages",

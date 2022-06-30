@@ -265,7 +265,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_REBOOT_TIMEOUT, default="15min"
             ): cv.positive_time_period_milliseconds,
             cv.SplitDefault(
-                CONF_POWER_SAVE_MODE, esp8266="none", esp32="light"
+                CONF_POWER_SAVE_MODE, esp8266="none", esp32="light", rp2040="none"
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
@@ -372,6 +372,13 @@ async def to_code(config):
         cg.add_library("ESP8266WiFi", None)
     elif CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("WiFi", None)
+    elif CORE.is_rp2040:
+        # cg.add_build_flag("-DPICO_CYW43_ARCH_FREERTOS=1")
+        # cg.add_build_flag("-DPICO_CYW43_ARCH_POLL=1")
+        cg.add_build_flag("-DPICO_CYW43_ARCH_THREADSAFE_BACKGROUND=1")
+        cg.add_build_flag("-DCYW43_LWIP=1")
+        # cg.add_build_flag("-DLWIP_PROVIDE_ERRNO=1")
+        cg.add_build_flag(f"-DCYW43_HOST_NAME={CORE.name}")
 
     cg.add_define("USE_WIFI")
 

@@ -3,6 +3,7 @@
 #ifdef USE_RP2040
 
 #include <Arduino.h>
+#include <pico.h>
 
 extern "C" unsigned long ulMainGetRunTimeCounterValue();
 
