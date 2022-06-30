@@ -49,7 +49,7 @@ optional<float> MedianFilter::new_value(float value) {
     float median = NAN;
     if (!this->queue_.empty()) {
       // Copy queue without NaN values
-      std::deque<float> median_queue;
+      std::vector<float> median_queue;
       for (auto v : this->queue_) {
         if (!std::isnan(v)) {
           median_queue.push_back(v);
@@ -93,7 +93,7 @@ optional<float> QuantileFilter::new_value(float value) {
     float result = NAN;
     if (!this->queue_.empty()) {
       // Copy queue without NaN values
-      std::deque<float> quantile_queue;
+      std::vector<float> quantile_queue;
       for (auto v : this->queue_) {
         if (!std::isnan(v)) {
           quantile_queue.push_back(v);
