@@ -212,18 +212,16 @@ optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
 ExponentialMovingAverageFilter::ExponentialMovingAverageFilter(float alpha, size_t send_every, size_t send_first_at)
     : send_every_(send_every), send_at_(send_every - send_first_at), alpha_(alpha) {}
 optional<float> ExponentialMovingAverageFilter::new_value(float value) {
-  if (std::isnan(value)) {
-    return value;
+  if (!std::isnan(value)) {
+    if (this->first_value_) {
+      this->accumulator_ = value;
+      this->first_value_ = false;
+    } else {
+      this->accumulator_ = (this->alpha_ * value) + (1.0f - this->alpha_) * this->accumulator_;
+    }
   }
 
-  if (this->first_value_) {
-    this->accumulator_ = value;
-    this->first_value_ = false;
-  } else {
-    this->accumulator_ = (this->alpha_ * value) + (1.0f - this->alpha_) * this->accumulator_;
-  }
-
-  const float average = this->accumulator_;
+  const float average = std::isnan(value) ? value : this->accumulator_;
   ESP_LOGVV(TAG, "ExponentialMovingAverageFilter(%p)::new_value(%f) -> %f", this, value, average);
 
   if (++this->send_at_ >= this->send_every_) {
