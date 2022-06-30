@@ -312,7 +312,9 @@ def convert_bitmap_to_pillow_font(filepath):
             # Convert to pillow-formatted fonts, which have a .pil and .pbm extension.
             p.save(local_bitmap_font_file)
         except (SyntaxError, OSError) as err:
-            raise core.EsphomeError(f"Failed to parse as bitmap font: '{filepath}': {err}")
+            raise core.EsphomeError(
+                f"Failed to parse as bitmap font: '{filepath}': {err}"
+            )
 
     local_pil_font_file = os.path.splitext(local_bitmap_font_file)[0] + ".pil"
     return cv.file_(local_pil_font_file)
