@@ -131,18 +131,11 @@ optional<float> MinFilter::new_value(float value) {
   if (++this->send_at_ >= this->send_every_) {
     this->send_at_ = 0;
 
-    // Copy queue without NaN values
-    std::deque<float> min_queue;
+    float min = NAN;
     for (auto v : this->queue_) {
       if (!std::isnan(v)) {
-        min_queue.push_back(v);
+        min = std::isnan(min) ? v : std::min(min, v);
       }
-    }
-
-    float min = NAN;
-    if (!min_queue.empty()) {
-      std::deque<float>::iterator it = std::min_element(min_queue.begin(), min_queue.end());
-      min = *it;
     }
 
     ESP_LOGVV(TAG, "MinFilter(%p)::new_value(%f) SENDING", this, min);
@@ -166,18 +159,11 @@ optional<float> MaxFilter::new_value(float value) {
   if (++this->send_at_ >= this->send_every_) {
     this->send_at_ = 0;
 
-    // Copy queue without NaN values
-    std::deque<float> max_queue;
+    float max = NAN;
     for (auto v : this->queue_) {
       if (!std::isnan(v)) {
-        max_queue.push_back(v);
+        max = std::isnan(max) ? v : std::max(max, v);
       }
-    }
-
-    float max = NAN;
-    if (!max_queue.empty()) {
-      std::deque<float>::iterator it = std::max_element(max_queue.begin(), max_queue.end());
-      max = *it;
     }
 
     ESP_LOGVV(TAG, "MaxFilter(%p)::new_value(%f) SENDING", this, max);
