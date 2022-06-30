@@ -468,7 +468,7 @@ void BME680BSECComponent::snapshot_state_() {
 // Used to share the library when using more than one sensor
 void BME680BSECComponent::restore_state_() {
   if (!this->bsec_state_data_valid_) {
-    ESP_LOGW(TAG, "BME680@0x%02x: BSEC state data NOT valid, aborting restore_state_()", address_);
+    ESP_LOGV(TAG, "BME680@0x%02x: BSEC state data NOT valid, aborting restore_state_()", address_);
     return;
   }
 
