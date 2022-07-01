@@ -1755,55 +1755,71 @@ output:
     initial_value: 0.5
   - platform: fastled_bus
     id: output_componentr_spi
-    bus: fastled_busSpi
-    offset: 0
-    num_chips: 2
-    channel_offset: 0
-    repeat_distance: 6
+    channels:
+    - bus: fastled_busSpi
+      offset: 0
+      num_chips: 2
+      channel_offset: 0
+      repeat_distance: 6
+    - bus: fastled_busCl
+      offset: 0
+      num_chips: 2
+      channel_offset: 0
+      repeat_distance: 6
+    - bus: fastled_busSpi
+      offset: 0
+      num_chips: 2
+      channel_offset: 0
+      repeat_distance: 9
   - platform: fastled_bus
     id: output_componentc_spi
-    bus: fastled_busSpi
-    offset: 0
-    num_chips: 2
-    channel_offset: 1
+    channels:
+    - bus: fastled_busSpi
+      offset: 0
+      num_chips: 2
+      channel_offset: 1
   - platform: fastled_bus
     id: output_componentw_spi
-    bus: fastled_busSpi
-    offset: 0
-    num_chips: 2
-    channel_offset: 2
+    channels:
+    - bus: fastled_busSpi
+      offset: 0
+      num_chips: 2
+      channel_offset: 2
   - platform: fastled_bus
     id: output_componentb_spi
-    bus: fastled_busSpi
-    offset: 0
-    num_chips: 2
-    channel_offset: 3
+    channels:
+    - bus: fastled_busSpi
+      offset: 0
+      num_chips: 2
+      channel_offset: 3
   - platform: fastled_bus
-    bus: fastled_busSpi
     id: output_componentg_spi
-    offset: 0
-    num_chips: 2
-    channel_offset: 5
+    channels:
+    - bus: fastled_busSpi
+      offset: 0
+      num_chips: 2
+      channel_offset: 5
   - platform: fastled_bus
     id: output_componentr_cl
-    bus: fastled_busCl
-    offset: 0
-    num_chips: 2
-    channel_offset: 0
-    repeat_distance: 6
+    channels:
+    - bus: fastled_busCl
+      offset: 0
+      num_chips: 2
+      channel_offset: 0
+      repeat_distance: 6
   - platform: fastled_bus
     id: output_componentg_cl
-    bus: fastled_busCl
-    offset: 0
-    num_chips: 2
-    channel_offset: 1
+    channels:
+    - bus: fastled_busCl
+      offset: 0
+      num_chips: 2
+      channel_offset: 1
   - platform: fastled_bus
     id: output_componentb_cl
     bus: fastled_busCl
     offset: 0
     num_chips: 2
     channel_offset: 2
->>>>>>> d9a55640 (Add FastLED Bus enables multichip lights with channel-mapping)
 
 e131:
 

@@ -13,6 +13,7 @@ CONF_CHIP_CHANNELS = "chip_channels"
 bus_ns = cg.esphome_ns.namespace("fastled_bus")
 
 FastLEDBus = bus_ns.class_("FastLEDBus", cg.Component)
+CLEDControllerFactory = bus_ns.namespace("CLEDControllerFactory")
 
 CONFIG_BUS_SCHEMA = cv.COMPONENT_SCHEMA.extend(
     {

@@ -1,33 +1,74 @@
 import esphome.config_validation as cv
 from esphome.components import output
 import esphome.codegen as cg
-from esphome.const import CONF_ID, CONF_NUM_CHIPS, CONF_OFFSET
+from esphome.const import CONF_CHANNELS, CONF_ID, CONF_NUM_CHIPS, CONF_OFFSET
 from . import CONF_BUS, CONF_REPEAT_DISTANCE, CONF_CHANNEL_OFFSET, bus_ns
+
+# MULTI_CONF = True
 
 clazz_output = bus_ns.class_("Output", output.FloatOutput, cg.Component)
 
+bus_ns_channels = bus_ns.class_("FastledBusChannels")
+Mapping = bus_ns.struct("Mapping")
+
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
-        cv.Required(CONF_ID): cv.declare_id(clazz_output),
-        cv.Required(CONF_BUS): cv.use_id(CONF_BUS),
-        cv.Required(CONF_OFFSET): cv.positive_int,
-        cv.Required(CONF_NUM_CHIPS): cv.positive_not_null_int,
-        cv.Required(CONF_CHANNEL_OFFSET): cv.positive_int,
-        cv.Optional(CONF_REPEAT_DISTANCE): cv.positive_not_null_int,
+        cv.GenerateID(CONF_ID): cv.declare_id(clazz_output),
+        cv.Required(CONF_CHANNELS): cv.ensure_list(
+            cv.Schema(
+                {
+                    cv.Required(CONF_BUS): cv.use_id(CONF_BUS),
+                    cv.Required(CONF_OFFSET): cv.positive_int,
+                    cv.Required(CONF_NUM_CHIPS): cv.positive_not_null_int,
+                    cv.Required(CONF_CHANNEL_OFFSET): cv.positive_int,
+                    cv.Optional(CONF_REPEAT_DISTANCE): cv.positive_not_null_int,
+                }
+            )
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(
-        config[CONF_ID],
-        config[CONF_NUM_CHIPS],
-        config[CONF_OFFSET],
-        config[CONF_CHANNEL_OFFSET],
+    channels = list(config[CONF_CHANNELS])
+    out = []
+    for channel in channels:
+        bus = await cg.get_variable(channel[CONF_BUS])
+        crd = 0
+        if CONF_REPEAT_DISTANCE in channel:
+            crd = channel[CONF_REPEAT_DISTANCE]
+        out.append(
+            cg.StructInitializer(
+                Mapping,
+                ("bus_", bus),
+                ("num_chips_", channel[CONF_OFFSET]),
+                ("ofs_", channel[CONF_NUM_CHIPS]),
+                ("channel_offset_", channel[CONF_CHANNEL_OFFSET]),
+                ("repeat_distance_", crd),
+            )
+        )
+    cg.add(
+        cg.AssignmentExpression(
+            Mapping,
+            "",
+            f"_{config[CONF_ID]}[{len(out)}]",
+            cg.ArrayInitializer(*out, multiline=True),
+        )
     )
-    bus = await cg.get_variable(config[CONF_BUS])
-    if CONF_REPEAT_DISTANCE in config:
-        cg.add(var.set_repeat_distance(config[CONF_REPEAT_DISTANCE]))
-    cg.add(var.set_bus(bus))
+    var = cg.new_Pvariable(
+        config[CONF_ID], len(out), cg.RawExpression(f"_{config[CONF_ID]}")
+    )
+
+    # out = f"({Mapping}[{len(channels)}]){{\n"
+    # comma = ""
+    # for channel in channels:
+    #     bus = await cg.get_variable(channel[CONF_BUS])
+    #     crd = 0
+    #     if CONF_REPEAT_DISTANCE in channel:
+    #         crd = channel[CONF_REPEAT_DISTANCE]
+    #     out += f'{comma}{{ {bus}, {channel[CONF_NUM_CHIPS]}, {channel[CONF_OFFSET]}, {channel[CONF_CHANNEL_OFFSET]}, {crd} }}'
+    #     comma = ",\n"
+    # out += "\n}"
+    # var = cg.new_Pvariable(config[CONF_ID], len(out), cg.RawExpression(out))
     await cg.register_component(var, config)
     await output.register_output(var, config)

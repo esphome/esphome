@@ -33,10 +33,4 @@ async def to_code(config):
     template_args = cg.TemplateArguments(
         cg.RawExpression(config[CONF_CHIPSET]), config[CONF_PIN]
     )
-    cg.add(
-        var.set_controller(
-            cg.RawExpression(
-                f"fastled_bus::CLEDControllerFactory::create{template_args}()"
-            )
-        )
-    )
+    cg.add(var.set_controller(fastled_bus.CLEDControllerFactory.create(template_args)))

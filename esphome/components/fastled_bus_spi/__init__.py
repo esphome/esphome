@@ -56,10 +56,4 @@ async def to_code(config):
         data_rate,
     )
     fastled_bus.new_fastled_bus(var, config)
-    cg.add(
-        var.set_controller(
-            cg.RawExpression(
-                f"fastled_bus::CLEDControllerFactory::create{template_args}()"
-            )
-        )
-    )
+    cg.add(var.set_controller(fastled_bus.CLEDControllerFactory.create(template_args)))
