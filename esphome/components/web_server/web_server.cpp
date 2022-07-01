@@ -241,7 +241,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
       write_row(stream, obj, "text_input", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         text_input::TextInput *text_input = (text_input::TextInput *) obj;
         stream.print(R"(<input type="text" value=")");
-        stream.print(text_input->state);
+        stream.print(text_input->state.c_str());
         stream.print(R"("/>)");
       });
     }

@@ -8,7 +8,7 @@ namespace textinput {
 enum TextInputMode : uint8_t {
   TEXT_INPUT_MODE_AUTO = 0,
   TEXT_INPUT_MODE_STRING = 1,
-//  TEXT_INPPUT_MODE_SECRET = 2,
+//  TEXT_INPUT_MODE_SECRET = 2,
 };
 
 class TextInputTraits {

@@ -652,12 +652,7 @@ bool APIConnection::send_text_input_info(text_input::TextInput *text_input) {
   msg.icon = text_input->get_icon();
   msg.disabled_by_default = text_input->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(text_input->get_entity_category());
-  msg.unit_of_measurement = text_input->traits.get_unit_of_measurement();
   msg.mode = static_cast<enums::TextInputMode>(text_input->traits.get_mode());
-
-  msg.min_value = text_input->traits.get_min_value();
-  msg.max_value = text_input->traits.get_max_value();
-  msg.step = text_input->traits.get_step();
 
   return this->send_list_entities_text_input_response(msg);
 }

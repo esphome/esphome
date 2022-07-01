@@ -11,7 +11,7 @@
 namespace esphome {
 namespace mqtt {
 
-class MQTTextInputComponent : public mqtt::MQTTComponent {
+class MQTTTextInputComponent : public mqtt::MQTTComponent {
  public:
   /** Construct this MQTTTextInputComponent instance with the provided friendly_name and text_input
    *

@@ -77,7 +77,7 @@ class Controller {
   virtual void on_number_update(number::Number *obj, float state){};
 #endif
 #ifdef USE_TEXT_INPUT
-  virtual void on_select_update(text_input::TextInput *obj, const std::string &state){};
+  virtual void on_text_input_update(text_input::TextInput *obj, std::string &state){};
 #endif
 #ifdef USE_SELECT
   virtual void on_select_update(select::Select *obj, const std::string &state, size_t index){};

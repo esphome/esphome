@@ -1,7 +1,7 @@
 #include "mqtt_text_input.h"
 #include "esphome/core/log.h"
 
-//#include "mqtt_const.h"
+#include "mqtt_const.h"
 
 #ifdef USE_MQTT
 #ifdef USE_TEXT_INPUT

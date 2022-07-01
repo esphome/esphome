@@ -4227,7 +4227,7 @@ bool TextInputStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
       return true;
     }
     case 2: {
-      this->state = value.as_float();
+      this->state = value.as_string();
       return true;
     }
     default:
@@ -4266,7 +4266,7 @@ bool TextInputCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) 
       return true;
     }
     case 2: {
-      this->state = value.as_float();
+      this->state = value.as_string();
       return true;
     }
     default:
