@@ -25,7 +25,7 @@ from esphome.core import (
 )
 from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
-
+import esphome.config_validation as cv
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,9 +41,7 @@ VALID_SUBSTITUTIONS_CHARACTERS = (
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 )
 # pylint: disable=consider-using-f-string
-VARIABLE_PROG = re.compile(
-    "\\$([{0}]+|\\{{[{0}]*\\}})".format(VALID_SUBSTITUTIONS_CHARACTERS)
-)
+VARIABLE_PROG = re.compile(f"\\$([{VALID_SUBSTITUTIONS_CHARACTERS}]+)")
 
 
 class ForceStr(str):
@@ -58,7 +56,7 @@ def jinja_string(st):
     return ForceStr(st)
 
 
-DETECT_JINJA = r"(\{\{)|(\{%)|(^\s*%%)"
+DETECT_JINJA = r"(\$\{)|(\{%)|(^\s*%%)"
 jinja_detect_re = re.compile(DETECT_JINJA, flags=re.MULTILINE)
 
 
@@ -71,10 +69,30 @@ jinja = NativeEnvironment(
     lstrip_blocks=True,
     line_statement_prefix="%%",
     line_comment_prefix="##",
+    variable_start_string="${",
+    variable_end_string="}",
 )
 
 jinja.add_extension("jinja2.ext.do")
 jinja.filters["string"] = jinja_string
+
+
+def expand_str(st, vars):
+    def replace_vars(m):
+        name = m.group(1)
+        return f"${{{vars[name]}}}" if name in vars else f"${name}"
+
+    # replace $var with ${var} so jinja catches it below:
+    result = VARIABLE_PROG.sub(replace_vars, st)
+
+    if has_jinja(result):
+        template = jinja.from_string(st)
+        result = template.render(vars)
+
+    if isinstance(result, ForceStr):
+        result = str(result)
+
+    return result
 
 
 class ESPHomeDataBase:
@@ -161,49 +179,34 @@ class ESPHomeLoader(
     def construct_yaml_omap(self, node):
         return super().construct_yaml_omap(node)
 
-    def expand_str(self, node, st):
+    @_add_data_ref
+    def construct_yaml_str(self, node):
+        st = super().construct_yaml_str(node)
         if self.disable_str_expansion:
             return st
-
-        def replace_vars(m):
-            name = m.group(1)
-            if name.startswith("{") and name.endswith("}"):
-                name = name[1:-1]
-            return str(self.vars[name]) if name in self.vars else ""
-
-        result = VARIABLE_PROG.sub(replace_vars, st)
-
-        if has_jinja(result):
-            try:
-                template = jinja.from_string(st)
-                result = template.render(self.vars)
-            except TemplateSyntaxError as err:
-                raise yaml.MarkedYAMLError(
-                    f"Error in line {err.lineno} of jinja expression: {err.message}",
-                    node.start_mark,
-                )
-            except TemplateError as err:
-                raise yaml.MarkedYAMLError(
-                    f"Error in jinja expression: {err.message}",
-                    node.start_mark,
-                )
-            except Exception as err:
-                raise yaml.MarkedYAMLError(
-                    f"Error in jinja expression: {err}",
-                    node.start_mark,
-                )
-        if isinstance(result, ForceStr):
-            result = str(result)
+        try:
+            result = self.expand_str(st, self.vars)
+        except TemplateSyntaxError as err:
+            raise yaml.MarkedYAMLError(
+                f"Error in line {err.lineno} of jinja expression: {err.message}",
+                node.start_mark,
+            )
+        except TemplateError as err:
+            raise yaml.MarkedYAMLError(
+                f"Error in jinja expression: {err.message}",
+                node.start_mark,
+            )
+        except Exception as err:
+            raise yaml.MarkedYAMLError(
+                f"Error in jinja expression: {err}",
+                node.start_mark,
+            )
 
         if result != st:
             result = make_data_base(result)
             result.from_node(node)
 
         return result
-
-    @_add_data_ref
-    def construct_yaml_str(self, node):
-        return self.expand_str(node, super().construct_yaml_str(node))
 
     @_add_data_ref
     def construct_sequence(self, node, deep=False):
@@ -248,9 +251,14 @@ class ESPHomeLoader(
 
             if not is_merge_key:
                 # base case, this is a simple key-value pair
+
+                # disable jinja in keys:
+                old_disable = self.disable_str_expansion
                 self.disable_str_expansion = True
+
                 key = self.construct_object(key_node)
-                self.disable_str_expansion = False
+                self.disable_str_expansion = old_disable
+
                 value = self.construct_object(value_node)
 
                 # Check if key is hashable
@@ -376,33 +384,36 @@ class ESPHomeLoader(
         return _load_yaml_internal(self._rel_path(file), vars if vars else None)
 
     @_add_data_ref
-    def construct_string(self, node):
-        if not isinstance(node.value, str):
-            raise yaml.MarkedYAMLError("!string must tag a string", node.start_mark)
-        return node.value
+    def construct_literal(self, node):
+        node.tag = None  # remove tag so `construct_object()` does not come back here.
+        old_disable = self.disable_str_expansion
+        self.disable_str_expansion = True
+        result = self.construct_object(node)
+        self.disable_str_expansion = old_disable
+        return result
 
     @_add_data_ref
     def construct_for(self, node: "yaml.Nodes.MappingNode"):
         from copy import deepcopy
 
-        range = None
+        items = None
         varname = "item"
         repeat = None
         for key_node, value_node in node.value:
             key = self.construct_object(key_node)
-            if key == "range":
-                range = self.construct_object(value_node)
+            if key == "items":
+                items = self.construct_object(value_node)
             if key == "var":
                 varname = self.construct_object(value_node)
             if key == "repeat":
                 repeat = value_node
 
-        if isinstance(range, str):
-            range = self.vars[range]
+        if isinstance(items, str):
+            items = self.vars[items]
 
-        if not isinstance(range, list):
+        if not isinstance(items, list):
             raise yaml.MarkedYAMLError(
-                "range must be a list",
+                "items must be a list",
                 node.start_mark,
             )
         if not isinstance(varname, str):
@@ -418,7 +429,7 @@ class ESPHomeLoader(
 
         result = []
         oldvars = self.vars
-        for i in range:
+        for i in items:
             vars = self.vars = oldvars.copy()
             vars[varname] = i
             obj = make_data_base(self.construct_object(deepcopy(repeat)))
@@ -492,7 +503,9 @@ class ESPHomeLoader(
 
     @_add_data_ref
     def construct_lambda(self, node):
-        return Lambda(self.expand_str(node, str(node.value)))
+        node.tag = None  # remove tag so construct_object does not come back here.
+        code = self.construct_object(node)
+        return Lambda(str(code))
 
     @_add_data_ref
     def construct_force(self, node):
@@ -516,7 +529,7 @@ ESPHomeLoader.add_constructor("tag:yaml.org,2002:map", ESPHomeLoader.construct_y
 ESPHomeLoader.add_constructor("!env_var", ESPHomeLoader.construct_env_var)
 ESPHomeLoader.add_constructor("!secret", ESPHomeLoader.construct_secret)
 ESPHomeLoader.add_constructor("!include", ESPHomeLoader.construct_include)
-ESPHomeLoader.add_constructor("!string", ESPHomeLoader.construct_string)
+ESPHomeLoader.add_constructor("!literal", ESPHomeLoader.construct_literal)
 ESPHomeLoader.add_constructor("!for", ESPHomeLoader.construct_for)
 ESPHomeLoader.add_constructor("!if", ESPHomeLoader.construct_if)
 ESPHomeLoader.add_constructor(
@@ -551,14 +564,40 @@ def load_yaml(fname, clear_secrets=True, vars=None):
         content
     )  # will not interpret any tags like !include and such
 
+    substitutions = {}
     try:
         raw_config = loader.get_single_data() or OrderedDict()
         if CONF_SUBSTITUTIONS in raw_config:
-            vars = {**raw_config[CONF_SUBSTITUTIONS], **vars}
+            substitutions = raw_config[CONF_SUBSTITUTIONS]
     except yaml.YAMLError as exc:
         raise EsphomeError(exc) from exc
     finally:
         loader.dispose()
+
+    with cv.prepend_path("substitutions"):
+        if not isinstance(substitutions, dict):
+            raise cv.Invalid(
+                f"Substitutions must be a key to value mapping, got {type(substitutions)}"
+            )
+        vars = {
+            **substitutions,
+            **vars,
+        }  # override file substitutions with incoming ones (i.e. command-line)
+
+        for (skey, svalue) in substitutions:
+            with cv.prepend_path(skey):
+                if isinstance(svalue, str):
+                    try:
+                        svalue = expand_str(svalue, vars)
+                    except (TemplateError, TemplateSyntaxError) as err:
+                        raise cv.Invalid(
+                            f"Error in substitution with name { skey }: {err.message}"
+                        )
+                    except Exception as err:
+                        raise cv.Invalid(
+                            f"Error in substitution with name { skey }: {err}"
+                        )
+                vars[skey] = svalue
 
     return _load_yaml_internal(fname, vars)
 
