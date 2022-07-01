@@ -1,3 +1,4 @@
+import copy
 import esphome.config_validation as cv
 from esphome.components import output
 import esphome.codegen as cg
@@ -10,6 +11,8 @@ clazz_output = bus_ns.class_("Output", output.FloatOutput, cg.Component)
 
 bus_ns_channels = bus_ns.class_("FastledBusChannels")
 Mapping = bus_ns.struct("Mapping")
+MappingsBuilder_ns = bus_ns.namespace("MappingsBuilder")
+MappingsBuilder = bus_ns.class_("MappingsBuilder")
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
@@ -31,34 +34,54 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 async def to_code(config):
     channels = list(config[CONF_CHANNELS])
-    out = []
+    template_len = cg.TemplateArguments(cg.RawExpression(f"{len(channels)}"))
+    out = bus_ns.MappingsBuilderCreate(template_len)
+
     for channel in channels:
         bus = await cg.get_variable(channel[CONF_BUS])
         crd = 0
         if CONF_REPEAT_DISTANCE in channel:
             crd = channel[CONF_REPEAT_DISTANCE]
-        out.append(
-            cg.StructInitializer(
-                Mapping,
-                ("bus_", bus),
-                ("num_chips_", channel[CONF_OFFSET]),
-                ("ofs_", channel[CONF_NUM_CHIPS]),
-                ("channel_offset_", channel[CONF_CHANNEL_OFFSET]),
-                ("repeat_distance_", crd),
-            )
+        out = out.add_mapping(
+            bus,
+            channel[CONF_OFFSET],
+            channel[CONF_NUM_CHIPS],
+            channel[CONF_CHANNEL_OFFSET],
+            crd,
         )
-    cg.add(
-        cg.AssignmentExpression(
-            Mapping,
-            "",
-            f"_{config[CONF_ID]}[{len(out)}]",
-            cg.ArrayInitializer(*out, multiline=True),
-        )
-    )
+        # out.append(
+        #     cg.StructInitializer(
+        #         Mapping,
+        #         ("bus_", bus),
+        #         ("num_chips_", channel[CONF_OFFSET]),
+        #         ("ofs_", channel[CONF_NUM_CHIPS]),
+        #         ("channel_offset_", channel[CONF_CHANNEL_OFFSET]),
+        #         ("repeat_distance_", crd),
+        #     )
+        # )
+    # cg.add(
+    #     cg.AssignmentExpression(
+    #         Mapping,
+    #         "",
+    #         f"_{config[CONF_ID]}[{len(out)}]",
+    #         cg.ArrayInitializer(*out, multiline=True),
+    #     )
+    # )
+
+    # very ugly things to add template parameters to type declaration.
+
+    config = config.copy()
+    config[CONF_ID] = copy.deepcopy(config[CONF_ID])
+    config[CONF_ID].type.base = f"{config[CONF_ID].type.base}<{len(channels)}>"
     var = cg.new_Pvariable(
-        config[CONF_ID], len(out), cg.RawExpression(f"_{config[CONF_ID]}")
+        # config[CONF_ID], cg.ArrayInitializer(*out, multiline=True, member_type=Mapping)
+        config[CONF_ID],
+        out.done(),
     )
 
+    # var = cg.new_Pvariable(
+    #     config[CONF_ID], cg.RawExpression(f"_{config[CONF_ID]}")
+    # )
     # out = f"({Mapping}[{len(channels)}]){{\n"
     # comma = ""
     # for channel in channels:
