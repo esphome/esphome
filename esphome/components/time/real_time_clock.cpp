@@ -13,11 +13,11 @@ static const char *const TAG = "time";
 
 RealTimeClock::RealTimeClock() = default;
 void RealTimeClock::call_setup() {
-  setenv("TZ", this->timezone_.c_str(), 1);
-  tzset();
+  this->apply_timezone_();
   PollingComponent::call_setup();
 }
 void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
+  // Update UTC epoch time.
   struct timeval timev {
     .tv_sec = static_cast<time_t>(epoch), .tv_usec = 0,
   };
@@ -30,6 +30,9 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
     ret = settimeofday(&timev, nullptr);
   }
 
+  // Move timezone back to local timezone.
+  this->apply_timezone_();
+
   if (ret != 0) {
     ESP_LOGW(TAG, "setimeofday() failed with code %d", ret);
   }
@@ -39,6 +42,11 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
            time.minute, time.second);
 
   this->time_sync_callback_.call();
+}
+
+void RealTimeClock::apply_timezone_() {
+  setenv("TZ", this->timezone_.c_str(), 1);
+  tzset();
 }
 
 size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {

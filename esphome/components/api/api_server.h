@@ -64,10 +64,13 @@ class APIServer : public Component, public Controller {
   void on_number_update(number::Number *obj, float state) override;
 #endif
 #ifdef USE_SELECT
-  void on_select_update(select::Select *obj, const std::string &state) override;
+  void on_select_update(select::Select *obj, const std::string &state, size_t index) override;
 #endif
 #ifdef USE_LOCK
   void on_lock_update(lock::Lock *obj) override;
+#endif
+#ifdef USE_MEDIA_PLAYER
+  void on_media_player_update(media_player::MediaPlayer *obj) override;
 #endif
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }

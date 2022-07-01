@@ -107,8 +107,6 @@ class Switch : public EntityBase {
    */
   virtual void write_state(bool state) = 0;
 
-  uint32_t hash_base() override;
-
   CallbackManager<void(bool)> state_callback_{};
   bool inverted_{false};
   Deduplicator<bool> publish_dedup_;

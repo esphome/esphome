@@ -30,6 +30,7 @@ RUN \
         iputils-ping=3:20210202-1 \
         git=1:2.30.2-1 \
         curl=7.74.0-1.3+deb11u1 \
+        openssh-client=1:8.4p1-5 \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
@@ -45,12 +46,10 @@ RUN \
     # Ubuntu python3-pip is missing wheel
     pip3 install --no-cache-dir \
         wheel==0.37.1 \
-        platformio==5.2.5 \
+        platformio==6.0.2 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
-    && platformio settings set check_libraries_interval 1000000 \
     && platformio settings set check_platformio_interval 1000000 \
-    && platformio settings set check_platforms_interval 1000000 \
     && mkdir -p /piolibs
 
 

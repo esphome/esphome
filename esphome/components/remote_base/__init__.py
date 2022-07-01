@@ -32,7 +32,7 @@ from esphome.const import (
     CONF_LEVEL,
 )
 from esphome.core import coroutine
-from esphome.jsonschema import jschema_extractor
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ["binary_sensor"]
@@ -195,14 +195,14 @@ def validate_dumpers(value):
 def validate_triggers(base_schema):
     assert isinstance(base_schema, cv.Schema)
 
-    @jschema_extractor("triggers")
+    @schema_extractor("triggers")
     def validator(config):
         added_keys = {}
         for key, (_, valid) in TRIGGER_REGISTRY.items():
             added_keys[cv.Optional(key)] = valid
         new_schema = base_schema.extend(added_keys)
-        # pylint: disable=comparison-with-callable
-        if config == jschema_extractor:
+
+        if config == SCHEMA_EXTRACT:
             return new_schema
         return new_schema(config)
 
@@ -722,6 +722,48 @@ def rc5_dumper(var, config):
 
 @register_action("rc5", RC5Action, RC5_SCHEMA)
 async def rc5_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
+
+
+# RC6
+RC6Data, RC6BinarySensor, RC6Trigger, RC6Action, RC6Dumper = declare_protocol("RC6")
+RC6_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.hex_uint8_t,
+        cv.Required(CONF_COMMAND): cv.hex_uint8_t,
+    }
+)
+
+
+@register_binary_sensor("rc6", RC6BinarySensor, RC6_SCHEMA)
+def rc6_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                RC6Data,
+                ("device", config[CONF_DEVICE]),
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("rc6", RC6Trigger, RC6Data)
+def rc6_trigger(var, config):
+    pass
+
+
+@register_dumper("rc6", RC6Dumper)
+def rc6_dumper(var, config):
+    pass
+
+
+@register_action("rc6", RC6Action, RC6_SCHEMA)
+async def rc6_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
     cg.add(var.set_address(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)

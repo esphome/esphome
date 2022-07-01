@@ -1,8 +1,9 @@
 #include "tuya.h"
-#include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#include "esphome/core/gpio.h"
 
 namespace esphome {
 namespace tuya {
@@ -10,9 +11,13 @@ namespace tuya {
 static const char *const TAG = "tuya";
 static const int COMMAND_DELAY = 10;
 static const int RECEIVE_TIMEOUT = 300;
+static const int MAX_RETRIES = 5;
 
 void Tuya::setup() {
   this->set_interval("heartbeat", 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
+  if (this->status_pin_.has_value()) {
+    this->status_pin_.value()->digital_write(false);
+  }
 }
 
 void Tuya::loop() {
@@ -27,8 +32,12 @@ void Tuya::loop() {
 void Tuya::dump_config() {
   ESP_LOGCONFIG(TAG, "Tuya:");
   if (this->init_state_ != TuyaInitState::INIT_DONE) {
-    ESP_LOGCONFIG(TAG, "  Configuration will be reported when setup is complete. Current init_state: %u",
-                  static_cast<uint8_t>(this->init_state_));
+    if (this->init_failed_) {
+      ESP_LOGCONFIG(TAG, "  Initialization failed. Current init_state: %u", static_cast<uint8_t>(this->init_state_));
+    } else {
+      ESP_LOGCONFIG(TAG, "  Configuration will be reported when setup is complete. Current init_state: %u",
+                    static_cast<uint8_t>(this->init_state_));
+    }
     ESP_LOGCONFIG(TAG, "  If no further output is received, confirm that this is a supported Tuya device.");
     return;
   }
@@ -49,9 +58,12 @@ void Tuya::dump_config() {
       ESP_LOGCONFIG(TAG, "  Datapoint %u: unknown", info.id);
     }
   }
-  if ((this->gpio_status_ != -1) || (this->gpio_reset_ != -1)) {
-    ESP_LOGCONFIG(TAG, "  GPIO Configuration: status: pin %d, reset: pin %d (not supported)", this->gpio_status_,
-                  this->gpio_reset_);
+  if ((this->status_pin_reported_ != -1) || (this->reset_pin_reported_ != -1)) {
+    ESP_LOGCONFIG(TAG, "  GPIO Configuration: status: pin %d, reset: pin %d", this->status_pin_reported_,
+                  this->reset_pin_reported_);
+  }
+  if (this->status_pin_.has_value()) {
+    LOG_PIN("  Status Pin: ", this->status_pin_.value());
   }
   ESP_LOGCONFIG(TAG, "  Product: '%s'", this->product_.c_str());
   this->check_uart_settings(9600);
@@ -127,6 +139,8 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 
   if (this->expected_response_.has_value() && this->expected_response_ == command_type) {
     this->expected_response_.reset();
+    this->command_queue_.erase(command_queue_.begin());
+    this->init_retries_ = 0;
   }
 
   switch (command_type) {
@@ -164,16 +178,27 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     }
     case TuyaCommandType::CONF_QUERY: {
       if (len >= 2) {
-        this->gpio_status_ = buffer[0];
-        this->gpio_reset_ = buffer[1];
+        this->status_pin_reported_ = buffer[0];
+        this->reset_pin_reported_ = buffer[1];
       }
       if (this->init_state_ == TuyaInitState::INIT_CONF) {
         // If mcu returned status gpio, then we can omit sending wifi state
-        if (this->gpio_status_ != -1) {
+        if (this->status_pin_reported_ != -1) {
           this->init_state_ = TuyaInitState::INIT_DATAPOINT;
           this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
+          bool is_pin_equals =
+              this->status_pin_.has_value() && this->status_pin_.value()->get_pin() == this->status_pin_reported_;
+          // Configure status pin toggling (if reported and configured) or WIFI_STATE periodic send
+          if (is_pin_equals) {
+            ESP_LOGV(TAG, "Configured status pin %i", this->status_pin_reported_);
+            this->set_interval("wifi", 1000, [this] { this->set_status_pin_(); });
+          } else {
+            ESP_LOGW(TAG, "Supplied status_pin does not equals the reported pin %i. TuyaMcu will work in limited mode.",
+                     this->status_pin_reported_);
+          }
         } else {
           this->init_state_ = TuyaInitState::INIT_WIFI;
+          ESP_LOGV(TAG, "Configured WIFI_STATE periodic send");
           this->set_interval("wifi", 1000, [this] { this->send_wifi_status_(); });
         }
       }
@@ -378,13 +403,24 @@ void Tuya::process_command_queue_() {
 
   if (this->expected_response_.has_value() && delay > RECEIVE_TIMEOUT) {
     this->expected_response_.reset();
+    if (init_state_ != TuyaInitState::INIT_DONE) {
+      if (++this->init_retries_ >= MAX_RETRIES) {
+        this->init_failed_ = true;
+        ESP_LOGE(TAG, "Initialization failed at init_state %u", static_cast<uint8_t>(this->init_state_));
+        this->command_queue_.erase(command_queue_.begin());
+        this->init_retries_ = 0;
+      }
+    } else {
+      this->command_queue_.erase(command_queue_.begin());
+    }
   }
 
   // Left check of delay since last command in case there's ever a command sent by calling send_raw_command_ directly
   if (delay > COMMAND_DELAY && !this->command_queue_.empty() && this->rx_message_.empty() &&
       !this->expected_response_.has_value()) {
     this->send_raw_command_(command_queue_.front());
-    this->command_queue_.erase(command_queue_.begin());
+    if (!this->expected_response_.has_value())
+      this->command_queue_.erase(command_queue_.begin());
   }
 }
 
@@ -397,16 +433,19 @@ void Tuya::send_empty_command_(TuyaCommandType command) {
   send_command_(TuyaCommand{.cmd = command, .payload = std::vector<uint8_t>{}});
 }
 
+void Tuya::set_status_pin_() {
+  bool is_network_ready = network::is_connected() && remote_is_connected();
+  this->status_pin_.value()->digital_write(is_network_ready);
+}
+
 void Tuya::send_wifi_status_() {
   uint8_t status = 0x02;
   if (network::is_connected()) {
     status = 0x03;
 
     // Protocol version 3 also supports specifying when connected to "the cloud"
-    if (this->protocol_version_ >= 0x03) {
-      if (remote_is_connected()) {
-        status = 0x04;
-      }
+    if (this->protocol_version_ >= 0x03 && remote_is_connected()) {
+      status = 0x04;
     }
   }
 
