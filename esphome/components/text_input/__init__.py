@@ -9,7 +9,6 @@ from esphome.const import (
     CONF_ON_VALUE,
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
-#    CONF_OPERATION, 
     CONF_VALUE,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -32,7 +31,6 @@ TextInputStateTrigger = text_input_ns.class_(
 
 # Actions
 TextInputSetAction = text_input_ns.class_("TextInputSetAction", automation.Action)
-#TextInputOperationAction = text_input_ns.class_("TextInputOperationAction", automation.Action)
 
 TextInputMode = text_input_ns.enum("TextInputMode")
 
@@ -42,26 +40,18 @@ TEXT_INPUT_MODES = {
 #    "SECRET": TextInputMode.TEXT_INPUT_MODE_SECRET,  # to be implemented for keys, passwords, etc.
 }
 
-#TextInputOperation = text_input_ns.enum("TextInputOperation")
-
-#TEXT_INPUT_OPERATION_OPTIONS = {
-#    "XXX": TextInputOperation.TEXT_INPUT_OP_XXX,
-#    "YYY": TextInputOperation.TEXT_INPUT_OP_YYY,
-#}
-
 icon = cv.icon
-
 
 TEXT_INPUT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend( # of MQTT_COMMAND_COMPONENT_SCHEMA
     {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextInput),
+        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextInputComponent),
         cv.GenerateID(): cv.declare_id(TextInput),
  #       cv.Optional(CONF_FILTERS): validate_filters,
- #       cv.Optional(CONF_ON_VALUE): automation.validate_automation(
- #           {
- #               cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextInputStateTrigger),
- #           }
- #       ),
+        cv.Optional(CONF_ON_VALUE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextInputStateTrigger),
+            }
+        ),
 #        cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
 #            {
 #                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -72,6 +62,7 @@ TEXT_INPUT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).exten
         cv.Optional(CONF_MODE, default="AUTO"): cv.enum(TEXT_INPUT_MODES, upper=True),
     }
 )
+
 
 
 async def setup_text_input_core_(

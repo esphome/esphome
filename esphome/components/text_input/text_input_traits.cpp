@@ -2,7 +2,7 @@
 #include "text_input_traits.h"
 
 namespace esphome {
-namespace textinput {
+namespace text_input {
 
 static const char *const TAG = "text_input";
 

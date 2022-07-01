@@ -16,7 +16,8 @@ void TemplateTextInput::setup() {
     value = this->initial_value_;
     ESP_LOGD(TAG, "State from initial: %s", value.c_str());
   } else {
-    this->pref_ = global_preferences->make_preference<std::string>(this->get_object_id_hash());
+    value = "";
+/*    this->pref_ = global_preferences->make_preference<uint32_t>(this->get_object_id_hash());
     if (!this->pref_.load(&value)) {
       if (!std::isnan(this->initial_value_)) {
         value = this->initial_value_;
@@ -24,6 +25,7 @@ void TemplateTextInput::setup() {
         value = "";
       }
     }
+*/
   }
   this->publish_state(value);
 }

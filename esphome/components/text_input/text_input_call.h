@@ -4,7 +4,7 @@
 #include "text_input_traits.h"
 
 namespace esphome {
-namespace textinput {
+namespace text_input {
 
 class TextInput;
 
@@ -15,7 +15,7 @@ class TextInputCall {
 
   TextInputCall &set_value(std::string value);
 
-//  NumberCall &with_value(float value);
+  TextInputCall &with_value(std::string value);
 
  protected:
   TextInput *const parent_;

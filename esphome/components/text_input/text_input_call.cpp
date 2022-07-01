@@ -3,7 +3,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace textinput {
+namespace text_input {
 
 static const char *const TAG = "text_input";
 
@@ -12,15 +12,10 @@ TextInputCall &TextInputCall::set_value(std::string &value) {
   return *this;
 }
 
-//NumberCall &NumberCall::with_operation(NumberOperation operation) {
-//  this->operation_ = operation;
-//  return *this;
-//}
-
-//TextInputCall &TextInputCall::with_value(std::string &value) {
-//  this->value_ = value;
-//  return *this;
-//}
+TextInputCall &TextInputCall::with_value(std::string &value) {
+  this->value_ = value;
+  return *this;
+}
 
 void TextInputCall::perform() {
   auto *parent = this->parent_;

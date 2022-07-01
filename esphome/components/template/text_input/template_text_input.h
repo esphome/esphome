@@ -24,9 +24,9 @@ class TemplateTextInput : public text_input::TextInput, public PollingComponent 
 
  protected:
   void control(const std::string &value) override;
-  bool optimistic_{false};
-  std::string initial_value_{NAN};
-  bool restore_value_{false};
+  bool optimistic_ = false;
+  std::string initial_value_; //{NAN};
+  bool restore_value_ = false;
   Trigger<std::string> *set_trigger_ = new Trigger<std::string>();
   optional<std::function<optional<std::string>()>> f_;
 

@@ -3,7 +3,7 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome {
-namespace textinput {
+namespace text_input {
 
 enum TextInputMode : uint8_t {
   TEXT_INPUT_MODE_AUTO = 0,

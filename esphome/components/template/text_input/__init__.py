@@ -17,13 +17,6 @@ TemplateTextInput = template_ns.class_(
 
 CONF_SET_ACTION = "set_action"
 
-
-#def validate_min_max(config):
-#    if config[CONF_MAX_VALUE] <= config[CONF_MIN_VALUE]:
-#        raise cv.Invalid("max_value must be greater than min_value")
-#    return config
-
-
 def validate(config):
     if CONF_LAMBDA in config:
         if config[CONF_OPTIMISTIC]:
@@ -33,7 +26,7 @@ def validate(config):
         if CONF_RESTORE_VALUE in config:
             raise cv.Invalid("restore_value cannot be used with lambda")
     elif CONF_INITIAL_VALUE not in config:
-        config[CONF_INITIAL_VALUE] = config[CONF_MIN_VALUE]
+        config[CONF_INITIAL_VALUE] = ""
 
     if not config[CONF_OPTIMISTIC] and CONF_SET_ACTION not in config:
         raise cv.Invalid(
@@ -49,11 +42,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
-            cv.Optional(CONF_INITIAL_VALUE): cv.float_,
+            cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
             cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
         }
     ).extend(cv.polling_component_schema("60s")),
-    validate_min_max,
     validate,
 )
 
@@ -64,9 +56,6 @@ async def to_code(config):
     await text_input.register_text_input(
         var,
         config,
-#        min_value=config[CONF_MIN_VALUE],
-#        max_value=config[CONF_MAX_VALUE],
-#        step=config[CONF_STEP],
     )
 
     if CONF_LAMBDA in config:

@@ -3,11 +3,11 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
-#include "text_iput_call.h"
-#include "text_iput_traits.h"
+#include "text_input_call.h"
+#include "text_input_traits.h"
 
 namespace esphome {
-namespace textinput {
+namespace text_input {
 
 #define LOG_TEXT_INPUT(prefix, type, obj) \
   if ((obj) != nullptr) { \

@@ -1,8 +1,8 @@
-#include "text_iput.h"
+#include "text_input.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace textinput {
+namespace text_input {
 
 static const char *const TAG = "text_input";
 
