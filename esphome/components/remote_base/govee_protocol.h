@@ -20,6 +20,7 @@ class GoveeProtocol : public RemoteProtocol<GoveeData> {
   void encode(RemoteTransmitData *dst, const GoveeData &data) override;
   optional<GoveeData> decode(RemoteReceiveData src) override;
   void dump(const GoveeData &data) override;
+
  protected:
   static uint32_t last_decoded_millis_;
   static uint64_t last_decoded_raw_;

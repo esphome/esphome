@@ -3,7 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-#define inc_buffer_ptr(var) (var == buffer_size_limit ? 0 : (var + 1) )
+#define inc_buffer_ptr(var) (var == buffer_size_limit ? 0 : (var + 1))
 
 namespace esphome {
 namespace remote_receiver_nf {
@@ -14,19 +14,20 @@ void IRAM_ATTR HOT RemoteReceiverNFComponentStore::gpio_intr(RemoteReceiverNFCom
   const uint32_t now = micros();
   const bool level = arg->pin.digital_read();
   uint32_t time_since_change = now - arg->last_edge_time;
-  uint32_t  next;
-  bool    lvl_high;
+  uint32_t next;
+  bool lvl_high;
   arg->last_edge_time = now;
-  uint32_t  buffer_size_limit ;
+  uint32_t buffer_size_limit;
   // filter glitch
   if (time_since_change <= arg->filter_us)
     return;
   buffer_size_limit = arg->buffer_size - 1;  // avoid % operation as it is costly
-  lvl_high = arg->space_lvl_high ;
-  switch ( arg->sync_stage ) {
+  lvl_high = arg->space_lvl_high;
+  switch (arg->sync_stage) {
     case WAIT_SYNC_MARK:
       // ignore unwanted the edge
-      if ( level == lvl_high ) return;
+      if (level == lvl_high)
+        return;
       // rising edge when space_lvl_high is low or falling edge when space_lvl_high is high)
       arg->sync_mark_time = now;
       arg->sync_stage = WAIT_SYNC_SPACE;
@@ -34,7 +35,7 @@ void IRAM_ATTR HOT RemoteReceiverNFComponentStore::gpio_intr(RemoteReceiverNFCom
       break;
     case WAIT_SYNC_SPACE:
       // ignore unwanted the edge
-      if ( level != lvl_high ) {
+      if (level != lvl_high) {
         arg->sync_stage = WAIT_SYNC_MARK;
         return;
       }
@@ -44,12 +45,12 @@ void IRAM_ATTR HOT RemoteReceiverNFComponentStore::gpio_intr(RemoteReceiverNFCom
       break;
     case WAIT_DATA_MARK:
       // ignore unwanted the edge
-      if ( level == lvl_high ) {
+      if (level == lvl_high) {
         arg->sync_stage = WAIT_SYNC_MARK;
         return;
       }
       time_since_change = now - arg->sync_space_time;
-      if ( (time_since_change < arg->sync_space_min_us ) || (time_since_change > arg->sync_space_max_us) ) {
+      if ((time_since_change < arg->sync_space_min_us) || (time_since_change > arg->sync_space_max_us)) {
         // this is not sync pattern, assuming it could be begining of sync pattern
         arg->sync_stage = WAIT_SYNC_SPACE;
         arg->sync_mark_time = now;
@@ -57,40 +58,46 @@ void IRAM_ATTR HOT RemoteReceiverNFComponentStore::gpio_intr(RemoteReceiverNFCom
       }
       // sync detected, need push two previous timestamps into ring buffer
       next = inc_buffer_ptr(arg->buffer_write_at);
-      if ( level != (next &1) )  {
+      if (level != (next & 1)) {
         // noisy signal could park idle at wrong polarity
         // fill in previous value to crete 0 delta then filter by main loop
-        if ( next == arg->buffer_read_at ) return;  // fifo full skip
-        arg->buffer[next] = arg->sync_mark_time;  // duplicate mark time to create zero delay, will be filter in main loop
+        if (next == arg->buffer_read_at)
+          return;  // fifo full skip
+        arg->buffer[next] =
+            arg->sync_mark_time;  // duplicate mark time to create zero delay, will be filter in main loop
         arg->buffer_write_at = next;
         next = inc_buffer_ptr(arg->buffer_write_at);
       }
-      if ( next == arg->buffer_read_at ) return;
+      if (next == arg->buffer_read_at)
+        return;
       arg->buffer[arg->buffer_write_at = next] = arg->sync_mark_time;
       next = inc_buffer_ptr(arg->buffer_write_at);
-      if ( next == arg->buffer_read_at ) return;
+      if (next == arg->buffer_read_at)
+        return;
       arg->buffer[arg->buffer_write_at = next] = arg->sync_space_time;
       // common code to write current edge
       arg->sync_stage = WAIT_REP_MARK;
       break;
     case WAIT_REP_MARK:
-      if ( time_since_change > arg->idle_us ) {
-        if ( level == lvl_high ) {
+      if (time_since_change > arg->idle_us) {
+        if (level == lvl_high) {
           arg->sync_stage = WAIT_SYNC_MARK;
-        }else {
+        } else {
           arg->sync_mark_time = now;
-          arg->sync_stage  = WAIT_SYNC_SPACE;
+          arg->sync_stage = WAIT_SYNC_SPACE;
         }
         return;
       }
-      if ( (time_since_change > arg->rep_space_min_us )  && (level != lvl_high) ){
+      if ((time_since_change > arg->rep_space_min_us) && (level != lvl_high)) {
         // start of repeat pattern
         // insert special marker
         next = inc_buffer_ptr(arg->buffer_write_at);
-        if ( next == arg->buffer_read_at ) return;
+        if (next == arg->buffer_read_at)
+          return;
         arg->buffer[arg->buffer_write_at = next] = -1;
         next = inc_buffer_ptr(arg->buffer_write_at);
-        if ( next == arg->buffer_read_at ) return;
+        if (next == arg->buffer_read_at)
+          return;
         arg->buffer[arg->buffer_write_at = next] = -1;
         arg->sync_mark_time = now;
         arg->sync_stage = WAIT_SYNC_SPACE;
@@ -102,8 +109,9 @@ void IRAM_ATTR HOT RemoteReceiverNFComponentStore::gpio_intr(RemoteReceiverNFCom
       return;
       break;
   }
-  next = inc_buffer_ptr( arg->buffer_write_at);
-  if ( next == arg->buffer_read_at ) return;
+  next = inc_buffer_ptr(arg->buffer_write_at);
+  if (next == arg->buffer_read_at)
+    return;
   arg->buffer[arg->buffer_write_at = next] = now;
 }
 
@@ -121,7 +129,7 @@ void RemoteReceiverNFComponent::setup() {
   s.idle_us = this->idle_us_;
 
   this->high_freq_.start();
-  if (s.buffer_size & 1 ) {
+  if (s.buffer_size & 1) {
     // Make sure divisible by two. This way, we know that every 0bxxx0 index is a space and every 0bxxx1 index is a mark
     s.buffer_size++;
   }
@@ -167,13 +175,13 @@ void RemoteReceiverNFComponent::loop() {
   if (dist <= 1)
     return;
   const uint32_t now = micros();
-  const bool idle_cond = ( now - s.buffer[write_at] ) > this->idle_us_ ;
-  if ( !idle_cond && ( (this->early_check_thres_ ==0) || (this->early_check_thres_ > dist))){
+  const bool idle_cond = (now - s.buffer[write_at]) > this->idle_us_;
+  if (!idle_cond && ((this->early_check_thres_ == 0) || (this->early_check_thres_ > dist))) {
     // The last change was fewer than the configured idle time ago.
     return;
   }
 
-  if ( idle_cond && (dist < this->num_edge_min_ ) ) {
+  if (idle_cond && (dist < this->num_edge_min_)) {
     // message is too short to be a valid control signal ignore it.
     s.buffer_read_at = write_at;
     return;
@@ -186,10 +194,10 @@ void RemoteReceiverNFComponent::loop() {
   s.buffer_read_at = inc_buffer_ptr(s.buffer_read_at);
   uint32_t prev = s.buffer_read_at;
   s.buffer_read_at = inc_buffer_ptr(prev);
-  if ( ( (prev&1) == s.space_lvl_high) && dist > 2 && s.buffer[prev] == s.buffer[s.buffer_read_at] ) {
+  if (((prev & 1) == s.space_lvl_high) && dist > 2 && s.buffer[prev] == s.buffer[s.buffer_read_at]) {
     // idle parked at wrong polarity, skip a sample
     prev = s.buffer_read_at;
-    s.buffer_read_at = inc_buffer_ptr ( s.buffer_read_at);
+    s.buffer_read_at = inc_buffer_ptr(s.buffer_read_at);
   }
   const uint32_t reserve_size = 1 + (s.buffer_size + write_at - s.buffer_read_at) % s.buffer_size;
   this->temp_.clear();
@@ -200,8 +208,8 @@ void RemoteReceiverNFComponent::loop() {
     int32_t read_at_val = s.buffer[s.buffer_read_at];
     int32_t delta = read_at_val - s.buffer[prev];
     int32_t nxt_read_at = inc_buffer_ptr(s.buffer_read_at);
-    if ( read_at_val == -1 && s.buffer_read_at != write_at && s.buffer[nxt_read_at] == -1 ) {
-      s.buffer_read_at  = inc_buffer_ptr(nxt_read_at );
+    if (read_at_val == -1 && s.buffer_read_at != write_at && s.buffer[nxt_read_at] == -1) {
+      s.buffer_read_at = inc_buffer_ptr(nxt_read_at);
       break;
     }
 
@@ -223,6 +231,5 @@ void RemoteReceiverNFComponent::loop() {
   this->call_listeners_dumpers_();
 }
 
-}  // namespace remote_receiver
+}  // namespace remote_receiver_nf
 }  // namespace esphome
-
