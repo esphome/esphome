@@ -3,7 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-#define inc_buffer_ptr(var) (var == buffer_size_limit ? 0 : (var + 1))
+#define inc_buffer_ptr(var) ((var) == buffer_size_limit ? 0 : ((var) + 1))
 
 namespace esphome {
 namespace remote_receiver_nf {
