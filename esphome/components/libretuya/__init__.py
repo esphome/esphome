@@ -42,9 +42,9 @@ def _set_core_data(config):
 # NOTE: Keep this in mind when updating the recommended version:
 #  * For all constants below, update platformio.ini (in this repo)
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(0, 4, 0), "https://github.com/kuba2k2/libretuya.git"),
-    "latest": (cv.Version(0, 4, 0), None),
-    "recommended": (cv.Version(0, 4, 0), None),
+    "dev": (cv.Version(0, 6, 1), "https://github.com/kuba2k2/libretuya.git"),
+    "latest": (cv.Version(0, 6, 1), None),
+    "recommended": (cv.Version(0, 6, 1), None),
 }
 
 
