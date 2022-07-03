@@ -16,10 +16,10 @@ from esphome.core import CORE
 
 CODEOWNERS = ["@hlyi"]
 
-CONF_SYNC_SPACE_LVL_HIGH = "sync_space_is_high"
+CONF_SYNC_SPACE_IS_HIGH = "sync_space_is_high"
 CONF_SYNC_SPACE_MIN = "sync_space_min"
 CONF_SYNC_SPACE_MAX = "sync_space_max"
-CONF_REP_SPACE_MIN = "repeat_space_min"
+CONF_REPEAT_SPACE_MIN = "repeat_space_min"
 CONF_EARLY_CHECK_THRES = "early_check_thres"
 CONF_NUM_EDGE_MIN = "num_edge_min"
 
@@ -48,7 +48,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.Optional(
                 CONF_IDLE, default="10ms"
             ): cv.positive_time_period_microseconds,
-            cv.Optional(CONF_SYNC_SPACE_LVL_HIGH, default=False): cv.boolean,
+            cv.Optional(CONF_SYNC_SPACE_IS_HIGH, default=False): cv.boolean,
             cv.Optional(
                 CONF_SYNC_SPACE_MIN, default="8ms"
             ): cv.positive_time_period_microseconds,
@@ -56,7 +56,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 CONF_SYNC_SPACE_MAX, default="10ms"
             ): cv.positive_time_period_microseconds,
             cv.Optional(
-                CONF_REP_SPACE_MIN, default="1100us"
+                CONF_REPEAT_SPACE_MIN, default="1100us"
             ): cv.positive_time_period_microseconds,
             cv.Optional(CONF_EARLY_CHECK_THRES, default=0): cv.int_,
             cv.Optional(CONF_NUM_EDGE_MIN, default=16): cv.int_,
@@ -84,9 +84,9 @@ async def to_code(config):
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
-    cg.add(var.set_space_lvl_high(config[CONF_SYNC_SPACE_LVL_HIGH]))
+    cg.add(var.set_space_lvl_high(config[CONF_SYNC_SPACE_IS_HIGH]))
     cg.add(var.set_sync_space_min_us(config[CONF_SYNC_SPACE_MIN]))
     cg.add(var.set_sync_space_max_us(config[CONF_SYNC_SPACE_MAX]))
-    cg.add(var.set_rep_space_min_us(config[CONF_REP_SPACE_MIN]))
+    cg.add(var.set_rep_space_min_us(config[CONF_REPEAT_SPACE_MIN]))
     cg.add(var.set_early_check_thres(config[CONF_EARLY_CHECK_THRES]))
     cg.add(var.set_num_edge_min(config[CONF_NUM_EDGE_MIN]))

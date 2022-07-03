@@ -23,16 +23,16 @@ struct RemoteReceiverNFComponentStore {
   ISRInternalGPIOPin pin;
 
   enum  SyncEnum {
-	  WAIT_SYNC_MARK,
-	  WAIT_SYNC_SPACE,
-	  WAIT_DATA_MARK,
-	  WAIT_REP_MARK
+    WAIT_SYNC_MARK,
+    WAIT_SYNC_SPACE,
+    WAIT_DATA_MARK,
+    WAIT_REP_MARK
   };
   enum SyncEnum sync_stage {WAIT_SYNC_MARK};
   uint32_t sync_mark_time {0};
   uint32_t sync_space_time {0};
   uint32_t last_edge_time {0};
-  bool	space_lvl_high{ false};
+  bool     space_lvl_high{ false};
   uint32_t idle_us{10000};
   uint32_t sync_space_min_us { 8000 };
   uint32_t sync_space_max_us { 10000 };
