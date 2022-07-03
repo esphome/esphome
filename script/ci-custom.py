@@ -452,7 +452,7 @@ def lint_no_removed_in_idf_conversions(fname, match):
     replacement = IDF_CONVERSION_FORBIDDEN[match.group(1)]
     return (
         f"The macro {highlight(match.group(1))} can no longer be used in ESPHome directly. "
-        f"Plese use {highlight(replacement)} instead."
+        f"Please use {highlight(replacement)} instead."
     )
 
 

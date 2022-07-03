@@ -182,7 +182,8 @@ void Logger::pre_setup() {
 #endif
         break;
 #endif
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2)
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2) && \
+    !defined(USE_ESP32_VARIANT_ESP32S3)
       case UART_SELECTION_UART2:
         this->hw_serial_ = &Serial2;
         Serial2.begin(this->baud_rate_);

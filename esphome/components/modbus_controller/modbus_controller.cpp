@@ -70,7 +70,7 @@ void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
     ESP_LOGE(TAG,
-             "Modbus error - last command: function code=0x%X  register adddress = 0x%X  "
+             "Modbus error - last command: function code=0x%X  register address = 0x%X  "
              "registers count=%d "
              "payload size=%zu",
              function_code, current_command->register_address, current_command->register_count,
@@ -105,7 +105,7 @@ void ModbusController::on_register_data(ModbusRegisterType register_type, uint16
 }
 
 void ModbusController::queue_command(const ModbusCommandItem &command) {
-  // check if this commmand is already qeued.
+  // check if this command is already qeued.
   // not very effective but the queue is never really large
   for (auto &item : command_queue_) {
     if (item->register_address == command.register_address && item->register_count == command.register_count &&
@@ -299,7 +299,7 @@ void ModbusController::loop() {
     incoming_queue_.pop();
 
   } else {
-    // all messages processed send pending commmands
+    // all messages processed send pending commands
     send_next_command_();
   }
 }

@@ -168,6 +168,13 @@ mqtt:
                 id: uart0
                 data: !lambda |-
                   return {};
+  on_connect:
+    - light.turn_on: ${roomname}_lights
+    - mqtt.publish:
+        topic: some/topic
+        payload: Hello
+  on_disconnect:
+    - light.turn_off: ${roomname}_lights
 
 i2c:
   sda: 21
@@ -593,7 +600,6 @@ sensor:
     sensor: hlw8012_power
     name: "Integration Sensor lazy"
     time_unit: s
-    min_save_interval: 60s
   - platform: hmc5883l
     address: 0x68
     field_strength_x:
@@ -1886,6 +1892,7 @@ climate:
   - platform: bedjet
     name: My Bedjet
     ble_client_id: my_bedjet_ble_client
+    heat_mode: extended
 
 script:
   - id: climate_custom

@@ -38,8 +38,12 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
 
 #ifdef USE_TIME
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
+  void send_local_time();
 #endif
+  void set_clock(uint8_t hour, uint8_t minute);
   void set_status_timeout(uint32_t timeout) { this->timeout_ = timeout; }
+  /** Sets the default strategy to use for climate::CLIMATE_MODE_HEAT. */
+  void set_heating_mode(BedjetHeatMode mode) { this->heating_mode_ = mode; }
 
   /** Attempts to check for and apply firmware updates. */
   void upgrade_firmware();
@@ -74,6 +78,11 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
         "M2",
         "M3",
     });
+    if (this->heating_mode_ == HEAT_MODE_EXTENDED) {
+      traits.add_supported_custom_preset("LTD HT");
+    } else {
+      traits.add_supported_custom_preset("EXT HT");
+    }
     traits.set_visual_min_temperature(19.0);
     traits.set_visual_max_temperature(43.0);
     traits.set_visual_temperature_step(1.0);
@@ -85,11 +94,11 @@ class Bedjet : public climate::Climate, public esphome::ble_client::BLEClientNod
 
 #ifdef USE_TIME
   void setup_time_();
-  void send_local_time_();
   optional<time::RealTimeClock *> time_id_{};
 #endif
 
   uint32_t timeout_{DEFAULT_STATUS_TIMEOUT};
+  BedjetHeatMode heating_mode_ = HEAT_MODE_HEAT;
 
   static const uint32_t MIN_NOTIFY_THROTTLE = 5000;
   static const uint32_t NOTIFY_WARN_THRESHOLD = 300000;
