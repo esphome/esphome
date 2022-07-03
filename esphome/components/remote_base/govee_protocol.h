@@ -20,7 +20,6 @@ class GoveeProtocol : public RemoteProtocol<GoveeData> {
   void encode(RemoteTransmitData *dst, const GoveeData &data) override;
   optional<GoveeData> decode(RemoteReceiveData src) override;
   void dump(const GoveeData &data) override;
-
 };
 
 DECLARE_REMOTE_PROTOCOL(Govee)
