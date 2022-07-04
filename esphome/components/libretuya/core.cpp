@@ -16,40 +16,20 @@ uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
 void IRAM_ATTR HOT delay(uint32_t ms) { ::delay(ms); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { ::delayMicroseconds(us); }
 
-void arch_restart() {
-  //
-  LT.restart();
-}
-
 void arch_init() {
-  //
+  libretuya::setup_preferences();
+#if LT_GPIO_RECOVER
   LT.gpioRecover();
+#endif
 }
 
+void arch_restart() { LT.restart(); }
 void IRAM_ATTR HOT arch_feed_wdt() {
   // TODO reset watchdog
 }
-
-uint8_t progmem_read_byte(const uint8_t *addr) {
-  //
-  return *addr;
-}
-
-uint32_t arch_get_cpu_cycle_count() {
-  //
-  return LT.getCycleCount();
-}
-uint32_t arch_get_cpu_freq_hz() {
-  //
-  return LT.getCpuFreq();
-}
-
-#ifdef USE_ARDUINO
-extern "C" void init() {
-  //
-  libretuya::setup_preferences();
-}
-#endif  // USE_ARDUINO
+uint32_t arch_get_cpu_cycle_count() { return LT.getCycleCount(); }
+uint32_t arch_get_cpu_freq_hz() { return LT.getCpuFreq(); }
+uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
 
 }  // namespace esphome
 
