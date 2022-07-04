@@ -1,5 +1,5 @@
 import typing
-from typing import Union, List
+from typing import Union, List, Dict
 
 import collections
 import io
@@ -35,7 +35,7 @@ class RegistryEntry:
         return Schema(self.raw_schema)
 
 
-class Registry(dict):
+class Registry(Dict[str, RegistryEntry]):
     def __init__(self, base_schema=None, type_id_key=None):
         super().__init__()
         self.base_schema = base_schema or {}
