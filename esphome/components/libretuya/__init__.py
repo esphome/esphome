@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
     CONF_NAME,
+    CONF_OPTIONS,
     CONF_PROJECT,
     CONF_SOURCE,
     CONF_VERSION,
@@ -68,11 +69,17 @@ def _check_framework_version(value):
     return value
 
 
+CONF_LT_CONFIG = "lt_config"
+CONF_GPIO_RECOVER = "gpio_recover"
 FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
             cv.Optional(CONF_SOURCE): cv.string_strict,
+            cv.Optional(CONF_LT_CONFIG, default={}): {
+                cv.string_strict: cv.string_strict
+            },
+            cv.Optional(CONF_GPIO_RECOVER, default=True): cv.boolean,
         }
     ),
     _check_framework_version,
@@ -102,6 +109,7 @@ async def to_code(config):
     cg.add_build_flag("-DLT_LOGGER_CALLER=0")
     cg.add_build_flag("-DLT_LOGGER_TASK=0")
     cg.add_build_flag("-DLT_LOGGER_COLOR=1")
+    cg.add_build_flag("-DLT_UART_SILENT_ALL=1")
 
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")
@@ -113,9 +121,16 @@ async def to_code(config):
     cg.add_platformio_option("build_src_flags", "-include Arduino.h")
 
     # if platform version is a valid version constraint, prefix the default package
-    conf = config[CONF_FRAMEWORK]
-    cv.platformio_version_constraint(conf[CONF_VERSION])
-    cg.add_platformio_option("platform", f"libretuya @ {conf[CONF_VERSION]}")
+    framework = config[CONF_FRAMEWORK]
+    cv.platformio_version_constraint(framework[CONF_VERSION])
+    cg.add_platformio_option("platform", f"libretuya @ {framework[CONF_VERSION]}")
+
+    # add LT configuration options
+    for name, value in sorted(framework[CONF_LT_CONFIG]):
+        cg.add_build_flag(f"-D{name}={value}")
+
+    # add ESPHome LT-related options
+    cg.add_define("LT_GPIO_RECOVER", int(framework[CONF_GPIO_RECOVER]))
 
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
