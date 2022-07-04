@@ -112,9 +112,7 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
 
   const char *msg = this->tx_buffer_ + offset;
   if (this->baud_rate_ > 0) {
-#ifdef USE_LIBRETUYA
-    LT_I(msg);
-#elif defined(USE_ARDUINO)
+#ifdef USE_ARDUINO
     this->hw_serial_->println(msg);
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
@@ -156,6 +154,7 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart)
   this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
 }
 
+#ifndef USE_LIBRETUYA
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
 #ifdef USE_ARDUINO
@@ -173,7 +172,6 @@ void Logger::pre_setup() {
         Serial.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
 #endif
         break;
-#ifndef USE_LIBRETUYA
       case UART_SELECTION_UART1:
         this->hw_serial_ = &Serial1;
         Serial1.begin(this->baud_rate_);
@@ -181,7 +179,6 @@ void Logger::pre_setup() {
         Serial1.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
 #endif
         break;
-#endif
 #if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2) && \
     !defined(USE_ESP32_VARIANT_ESP32S3)
       case UART_SELECTION_UART2:
@@ -246,6 +243,41 @@ void Logger::pre_setup() {
 
   ESP_LOGI(TAG, "Log initialized");
 }
+#else  // USE_LIBRETUYA
+void Logger::pre_setup() {
+  if (this->baud_rate_ > 0) {
+    switch (this->uart_) {
+      case UART_SELECTION_UART0:
+        this->hw_serial_ = &Serial;
+        Serial.begin(this->baud_rate_);
+        break;
+#ifdef PIN_SERIAL0_TX
+      case UART_SELECTION_SERIAL0:
+        this->hw_serial_ = &Serial0;
+        Serial0.begin(this->baud_rate_);
+        break;
+#endif
+#ifdef PIN_SERIAL1_TX
+      case UART_SELECTION_SERIAL1:
+        this->hw_serial_ = &Serial1;
+        Serial1.begin(this->baud_rate_);
+        break;
+#endif
+#ifdef PIN_SERIAL2_TX
+      case UART_SELECTION_SERIAL2:
+        this->hw_serial_ = &Serial2;
+        Serial2.begin(this->baud_rate_);
+        break;
+#endif
+    }
+    lt_log_set_port(this->uart_);
+  }
+
+  global_logger = this;
+  ESP_LOGI(TAG, "Log initialized");
+}
+#endif  // USE_LIBRETUYA
+
 void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
 void Logger::set_log_level(const std::string &tag, int log_level) {
   this->log_levels_.push_back(LogLevelOverride{tag, log_level});
@@ -276,7 +308,7 @@ const char *const UART_SELECTIONS[] = {
 const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
 #endif  // USE_ESP8266
 #ifdef USE_LIBRETUYA
-const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART2"};
+const char *const UART_SELECTIONS[] = {"UART0", "SERIAL0", "SERIAL1", "SERIAL2"};
 #endif
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");

@@ -41,6 +41,9 @@ ESP32ArduinoUARTComponent = uart_ns.class_(
 ESP8266UartComponent = uart_ns.class_(
     "ESP8266UartComponent", UARTComponent, cg.Component
 )
+LibreTuyaUARTComponent = uart_ns.class_(
+    "LibreTuyaUARTComponent", UARTComponent, cg.Component
+)
 
 UARTDevice = uart_ns.class_("UARTDevice")
 UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
@@ -89,6 +92,8 @@ def _uart_declare_type(value):
             return cv.declare_id(ESP32ArduinoUARTComponent)(value)
         if CORE.using_esp_idf:
             return cv.declare_id(IDFUARTComponent)(value)
+    if CORE.is_libretuya:
+        return cv.declare_id(LibreTuyaUARTComponent)(value)
     raise NotImplementedError
 
 
