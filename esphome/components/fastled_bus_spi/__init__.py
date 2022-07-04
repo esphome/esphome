@@ -18,10 +18,11 @@ AUTO_LOAD = ["fastled_bus"]
 CODEOWNERS = ["@mabels"]
 MULTI_CONF = True
 
+
 CONFIG_SCHEMA = cv.All(
     fastled_bus.CONFIG_BUS_SCHEMA.extend(
         {
-            cv.GenerateID(CONF_ID): cv.declare_id(fastled_bus.FastLEDBus),
+            cv.GenerateID(CONF_ID): fastled_bus.FastledBusId,
             cv.Required(CONF_CHIPSET): cv.one_of(
                 *fastled_spi_light.CHIPSETS, upper=True
             ),
@@ -38,8 +39,7 @@ async def to_code(config):
     var = cg.new_Pvariable(
         config[CONF_ID], config[CONF_CHIP_CHANNELS], config[CONF_NUM_CHIPS]
     )
-    await cg.register_component(var, config)
-
+    fastled_bus.new_fastled_bus(var, config)
     data_rate = None
     if CONF_DATA_RATE in config:
         data_rate_khz = int(config[CONF_DATA_RATE] / 1000)
@@ -51,9 +51,11 @@ async def to_code(config):
 
     template_args = cg.TemplateArguments(
         cg.RawExpression(config[CONF_CHIPSET]),
+        fastled_bus.rgb_order(config),
         config[CONF_DATA_PIN],
         config[CONF_CLOCK_PIN],
         data_rate,
     )
-    fastled_bus.new_fastled_bus(var, config)
     cg.add(var.set_controller(fastled_bus.CLEDControllerFactory.create(template_args)))
+
+    await cg.register_component(var, config)

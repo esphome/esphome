@@ -1,4 +1,6 @@
 import esphome.codegen as cg
+from esphome.components import fastled_bus
+from esphome.components.fastled_bus import CONF_BUS
 import esphome.config_validation as cv
 from esphome.components import light
 from esphome.const import (
@@ -14,21 +16,14 @@ FastLEDLightOutput = fastled_base_ns.class_(
     "FastLEDLightOutput", light.AddressableLight
 )
 
-RGB_ORDERS = [
-    "RGB",
-    "RBG",
-    "GRB",
-    "GBR",
-    "BRG",
-    "BGR",
-]
 
 BASE_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
     {
         cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(FastLEDLightOutput),
         cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
-        cv.Optional(CONF_RGB_ORDER): cv.one_of(*RGB_ORDERS, upper=True),
+        cv.Optional(CONF_RGB_ORDER): cv.one_of(*fastled_bus.RGB_ORDERS, upper=True),
         cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
+        cv.Optional(CONF_BUS): cv.declare_id(fastled_bus.FastLEDBus),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

@@ -30,7 +30,7 @@ class FastLEDBus : public Component {
   CLEDController *controller_{nullptr};
   const char *tag_;
   uint8_t *chips_;
-  const uint8_t *effect_data_;
+  uint8_t *effect_data_;
   uint32_t last_refresh_{0};
   optional<uint32_t> max_refresh_rate_{};
   boolean do_refresh_{false};
@@ -41,7 +41,7 @@ class FastLEDBus : public Component {
 
   uint8_t *chips() { return this->chips_; }
 
-  const uint8_t *effect_data() { return this->effect_data_; }
+  uint8_t *effect_data() { return this->effect_data_; }
 
   void setup() override;
   void dump_config() override;

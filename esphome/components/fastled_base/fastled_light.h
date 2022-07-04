@@ -4,6 +4,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/components/fastled_bus/fastled_bus.h"
 #include "esphome/components/light/addressable_light.h"
 
 #define FASTLED_ESP8266_RAW_PIN_ORDER
@@ -15,6 +16,7 @@
 
 #include "FastLED.h"
 
+using FastLEDBus = esphome::fastled_bus::FastLEDBus;
 namespace esphome {
 namespace fastled_base {
 
@@ -27,6 +29,8 @@ class FastLEDLightOutput : public light::AddressableLight {
 
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
+
+  void set_bus(FastLEDBus *bus) { this->bus_ = bus; }
 
   /// Add some LEDS, can only be called once.
   CLEDController &add_leds(CLEDController *controller, int num_leds) {
@@ -229,6 +233,7 @@ class FastLEDLightOutput : public light::AddressableLight {
             &this->effect_data_[index], &this->correction_};
   }
 
+  FastLEDBus *bus_{nullptr};
   CLEDController *controller_{nullptr};
   CRGB *leds_{nullptr};
   uint8_t *effect_data_{nullptr};

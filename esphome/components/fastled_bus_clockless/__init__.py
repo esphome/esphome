@@ -11,7 +11,7 @@ MULTI_CONF = True
 CONFIG_SCHEMA = cv.All(
     fastled_bus.CONFIG_BUS_SCHEMA.extend(
         {
-            cv.GenerateID(CONF_ID): cv.declare_id(fastled_bus.FastLEDBus),
+            cv.GenerateID(CONF_ID): fastled_bus.FastledBusId,
             cv.Required(CONF_CHIPSET): cv.one_of(
                 *fastled_clockless_light.CHIPSETS, upper=True
             ),
@@ -31,6 +31,6 @@ async def to_code(config):
     fastled_bus.new_fastled_bus(var, config)
 
     template_args = cg.TemplateArguments(
-        cg.RawExpression(config[CONF_CHIPSET]), config[CONF_PIN]
+        cg.RawExpression(config[CONF_CHIPSET]), fastled_bus.rgb_order(config), config[CONF_PIN]
     )
     cg.add(var.set_controller(fastled_bus.CLEDControllerFactory.create(template_args)))

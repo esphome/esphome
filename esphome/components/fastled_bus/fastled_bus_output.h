@@ -29,7 +29,7 @@ typedef struct sMapping {
 
 template<std::size_t S> class MappingsBuilder {
  private:
-  Mapping mappings_[S]{};
+  Mapping mappings_[S];
   uint8_t index_{0};
 
  public:
@@ -37,12 +37,12 @@ template<std::size_t S> class MappingsBuilder {
 
   MappingsBuilder &add_mapping(FastLEDBus *const bus, const uint16_t num_chips, const uint16_t ofs,
                                const uint8_t channel_offset, const uint16_t repeat_distance) {
-    auto current = this->mappings_[this->index_++];
-    current.bus_ = bus;
-    current.num_chips_ = num_chips;
-    current.ofs_ = ofs;
-    current.channel_offset_ = channel_offset;
-    current.repeat_distance_ = repeat_distance;
+    auto *current = &(this->mappings_[this->index_++]);
+    current->bus_ = bus;
+    current->num_chips_ = num_chips;
+    current->ofs_ = ofs;
+    current->channel_offset_ = channel_offset;
+    current->repeat_distance_ = repeat_distance;
     return *this;
   }
   MappingsBuilder<S>::Mappings &done() { return this->mappings_; }

@@ -4,7 +4,7 @@ namespace esphome {
 namespace fastled_bus {
 
 void setup_mapping(Mapping &map) {
-  if (map.num_chips_ + map.ofs_ >= map.bus_->num_chips_) {
+  if (map.num_chips_ + map.ofs_ > map.bus_->num_chips_) {
     ESP_LOGE("fastled:bus:output", "Number of chips (%d) + offset (%d) > (%d)", map.num_chips_, map.ofs_,
              map.bus_->num_chips_);
     return;
