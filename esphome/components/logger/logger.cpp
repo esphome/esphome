@@ -270,7 +270,12 @@ void Logger::pre_setup() {
         break;
 #endif
     }
-    lt_log_set_port(this->uart_);
+    // change lt_log() port to match default Serial
+    if (this->uart_ == UART_SELECTION_UART0) {
+      lt_log_set_port(LT_UART_DEFAULT_SERIAL);
+    } else {
+      lt_log_set_port(this->uart_ - 1);
+    }
   }
 
   global_logger = this;
