@@ -27,8 +27,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(SM2135),
         cv.Required(CONF_DATA_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_CLOCK_PIN): pins.gpio_output_pin_schema,
-        cv.Required(CONF_RGB_CURRENT): cv.one_of(*DRIVE_STRENGTHS_RGB, int=True),
-        cv.Required(CONF_CW_CURRENT): cv.one_of(*DRIVE_STRENGTHS_CW, int=True),
+        cv.Optional(CONF_RGB_CURRENT, default=20): cv.one_of(*DRIVE_STRENGTHS_RGB, int=True),
+        cv.Optional(CONF_CW_CURRENT, default=30): cv.one_of(*DRIVE_STRENGTHS_CW, int=True),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
