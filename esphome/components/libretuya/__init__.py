@@ -75,10 +75,6 @@ FRAMEWORK_SCHEMA = cv.All(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
             cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_LT_CONFIG, default={}): {
-                cv.string_strict: cv.string_strict
-            },
-            cv.Optional(CONF_GPIO_RECOVER, default=True): cv.boolean,
         }
     ),
     _check_framework_version,
@@ -89,6 +85,10 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Required(CONF_BOARD): cv.string_strict,
             cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
+            cv.Optional(CONF_LT_CONFIG, default={}): {
+                cv.string_strict: cv.string_strict
+            },
+            cv.Optional(CONF_GPIO_RECOVER, default=True): cv.boolean,
         },
     ),
     _set_core_data,
@@ -105,6 +105,7 @@ async def to_code(config):
     cg.add_define("ESPHOME_VARIANT", "LibreTuya")
 
     # setup LT logger to work nicely with ESPHome logger
+    cg.add_build_flag("-DLT_LOGLEVEL=LT_LEVEL_WARN")
     cg.add_build_flag("-DLT_LOGGER_CALLER=0")
     cg.add_build_flag("-DLT_LOGGER_TASK=0")
     cg.add_build_flag("-DLT_LOGGER_COLOR=1")
@@ -125,11 +126,11 @@ async def to_code(config):
     cg.add_platformio_option("platform", f"libretuya @ {framework[CONF_VERSION]}")
 
     # add LT configuration options
-    for name, value in sorted(framework[CONF_LT_CONFIG]):
+    for name, value in sorted(config[CONF_LT_CONFIG]):
         cg.add_build_flag(f"-D{name}={value}")
 
     # add ESPHome LT-related options
-    cg.add_define("LT_GPIO_RECOVER", int(framework[CONF_GPIO_RECOVER]))
+    cg.add_define("LT_GPIO_RECOVER", int(config[CONF_GPIO_RECOVER]))
 
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
