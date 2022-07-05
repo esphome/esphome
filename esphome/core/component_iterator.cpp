@@ -207,7 +207,7 @@ void ComponentIterator::advance() {
       if (this->at_ >= App.get_text_inputs().size()) {
         advance_platform = true;
       } else {
-        auto *text_input = App.text_inputss()[this->at_];
+        auto *text_input = App.get_text_inputs()[this->at_];
         if (text_input->is_internal() && !this->include_internal_) {
           success = true;
           break;

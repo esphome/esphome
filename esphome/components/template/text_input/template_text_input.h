@@ -17,9 +17,9 @@ class TemplateTextInput : public text_input::TextInput, public PollingComponent 
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  Trigger<std::string> *get_set_trigger() const { return set_trigger_; }
-  void set_optimistic(bool optimistic) { optimistic_ = optimistic; }
-  void set_initial_value(const std::string initial_value) { initial_value_ = initial_value; }
+  Trigger<std::string> *get_set_trigger() const { return this->set_trigger_; }
+  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
+  void set_initial_value(const std::string initial_value) { this->initial_value_ = initial_value; }
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
 
  protected:

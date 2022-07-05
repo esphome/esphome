@@ -282,8 +282,8 @@ template<> const char *proto_enum_to_string<enums::TextInputMode>(enums::TextInp
   switch (value) {
     case enums::TEXT_INPUT_MODE_AUTO:
       return "TEXT_INPUT_MODE_AUTO";
-    case enums::TEXT_INPUT_MODE_BOX:
-      return "TEXT_INPUT_MODE_BOX";
+    case enums::TEXT_INPUT_MODE_STRING:
+      return "TEXT_INPUT_MODE_STRING";
 //    case enums::TEXT_INPUT_MODE_SECRET:
 //      return "TEXT_INPUT_MODE_SECRET";
     default:
@@ -4072,6 +4072,7 @@ void NumberCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 
+// TEXT INPUT
 bool ListEntitiesTextInputResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 9: {
@@ -4108,10 +4109,6 @@ bool ListEntitiesTextInputResponse::decode_length(uint32_t field_id, ProtoLength
       this->icon = value.as_string();
       return true;
     }
-//    case 11: {
-//      this->unit_of_measurement = value.as_string();
-//      return true;
-//    }
     default:
       return false;
   }
@@ -4122,18 +4119,6 @@ bool ListEntitiesTextInputResponse::decode_32bit(uint32_t field_id, Proto32Bit v
       this->key = value.as_fixed32();
       return true;
     }
-//    case 6: {
-//      this->min_value = value.as_float();
-//      return true;
-//    }
-//    case 7: {
-//      this->max_value = value.as_float();
-//      return true;
-//    }
-//    case 8: {
-//      this->step = value.as_float();
-//      return true;
-//    }
     default:
       return false;
   }
@@ -4144,12 +4129,8 @@ void ListEntitiesTextInputResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(3, this->name);
   buffer.encode_string(4, this->unique_id);
   buffer.encode_string(5, this->icon);
-//  buffer.encode_float(6, this->min_value);
-//  buffer.encode_float(7, this->max_value);
-//  buffer.encode_float(8, this->step);
   buffer.encode_bool(9, this->disabled_by_default);
   buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
-//  buffer.encode_string(11, this->unit_of_measurement);
   buffer.encode_enum<enums::TextInputMode>(12, this->mode);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -4177,21 +4158,6 @@ void ListEntitiesTextInputResponse::dump_to(std::string &out) const {
   out.append("'").append(this->icon).append("'");
   out.append("\n");
 
-//  out.append("  min_value: ");
-//  sprintf(buffer, "%g", this->min_value);
-//  out.append(buffer);
-//  out.append("\n");
-
-//  out.append("  max_value: ");
-//  sprintf(buffer, "%g", this->max_value);
-//  out.append(buffer);
-//  out.append("\n");
-
-//  out.append("  step: ");
-//  sprintf(buffer, "%g", this->step);
-//  out.append(buffer);
-//  out.append("\n");
-
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
   out.append("\n");
@@ -4199,10 +4165,6 @@ void ListEntitiesTextInputResponse::dump_to(std::string &out) const {
   out.append("  entity_category: ");
   out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
   out.append("\n");
-
-//  out.append("  unit_of_measurement: ");
-//  out.append("'").append(this->unit_of_measurement).append("'");
-//  out.append("\n");
 
   out.append("  mode: ");
   out.append(proto_enum_to_string<enums::TextInputMode>(this->mode));
@@ -4220,6 +4182,16 @@ bool TextInputStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value)
       return false;
   }
 }
+bool TextInputStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->state = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool TextInputStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
@@ -4227,7 +4199,7 @@ bool TextInputStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
       return true;
     }
 //    case 2: {
-//      this->state = value.as_float();
+//      this->state = value.as_string();
 //      return true;
 //    }
     default:

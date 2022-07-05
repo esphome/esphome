@@ -7,20 +7,15 @@ namespace text_input {
 
 static const char *const TAG = "text_input";
 
-TextInputCall &TextInputCall::set_value(std::string &value) {
-  this->value_ = value;
-  return *this;
-}
-
-TextInputCall &TextInputCall::with_value(std::string &value) {
+TextInputCall &TextInputCall::set_value(const std::string &value) {
   this->value_ = value;
   return *this;
 }
 
 void TextInputCall::perform() {
   auto *parent = this->parent_;
-//  const auto *name = parent->get_name().c_str();
-//  const auto &traits = parent->traits;
+  const auto *name = parent->get_name().c_str();
+  const auto &traits = parent->traits;
 
   std::string target_value = this->value_.value();
 
@@ -28,5 +23,5 @@ void TextInputCall::perform() {
   this->parent_->control(target_value);
 }
 
-}  // namespace textinput
+}  // namespace text_input
 }  // namespace esphome

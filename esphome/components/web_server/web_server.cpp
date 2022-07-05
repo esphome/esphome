@@ -138,6 +138,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
   // All content is controlled and created by user - so allowing all origins is fine here.
   stream->addHeader("Access-Control-Allow-Origin", "*");
+
 #if USE_WEBSERVER_VERSION == 1
   const std::string &title = App.get_name();
   stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><meta "
@@ -240,7 +241,13 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     if (this->include_internal_ || !obj->is_internal()) {
       write_row(stream, obj, "text_input", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         text_input::TextInput *text_input = (text_input::TextInput *) obj;
-        stream.print(R"(<input type="text" value=")");
+        stream.print(R"(<input type=")");
+        if (text_input->traits.get_mode() == "password"){}
+          stream.print(R"(password)")
+        else{ // default
+          stream.print(R"(text)")
+        }
+        stream.print(R"(" value=")");
         stream.print(text_input->state.c_str());
         stream.print(R"("/>)");
       });
@@ -782,13 +789,8 @@ std::string WebServer::text_input_json(text_input::TextInput *obj, const std::st
     if (start_config == DETAIL_ALL) {
       root["mode"] = (int) obj->traits.get_mode();
     }
-    std::string state = str_sprintf("%s", value);
-    root["state"] = state;
-    if (isnan(value)) {
-      root["value"] = "\"NaN\"";
-    } else {
-      root["value"] = value;
-    }
+    root["state"] = value;
+    root["value"] = value;
   });
 }
 #endif

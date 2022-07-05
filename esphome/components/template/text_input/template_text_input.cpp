@@ -41,7 +41,7 @@ void TemplateTextInput::update() {
   this->publish_state(*val);
 }
 
-void TemplateTextInput::control(std::string &value) {
+void TemplateTextInput::control(const std::string &value) {
   this->set_trigger_->trigger(value);
 
   if (this->optimistic_)

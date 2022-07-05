@@ -925,7 +925,8 @@ message NumberCommandRequest {
 // ==================== TEXT_INPUT ====================
 enum TextInputMode {
   TEXT_INPUT_MODE_AUTO = 0;
-  TEXT_INPUT_MODE_BOX = 1;
+  TEXT_INPUT_MODE_STRING = 1;
+  //TEXT_INPUT_MODE_SECRET = 2;
 }
 message ListEntitiesTextInputResponse {
   option (id) = 49;

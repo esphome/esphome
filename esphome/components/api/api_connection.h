@@ -72,7 +72,7 @@ class APIConnection : public APIServerConnection {
 #ifdef USE_TEXT_INPUT
   bool send_text_input_state(text_input::TextInput *text_input, std::string state);
   bool send_text_input_info(text_input::TextInput *text_input);
-  void text_input_command(const TextInput &msg) override;
+  void text_input_command(const TextInputCommandRequest &msg) override;
 #endif
 #ifdef USE_SELECT
   bool send_select_state(select::Select *select, std::string state);

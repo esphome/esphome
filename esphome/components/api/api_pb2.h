@@ -130,8 +130,8 @@ enum NumberMode : uint32_t {
 };
 enum TextInputMode : uint32_t {
   TEXT_INPUT_MODE_AUTO = 0,
-  TEXT_INPUT_MODE_BOX = 1,
-//  NUMBER_MODE_SLIDER = 2,
+  TEXT_INPUT_MODE_STRING = 1,
+//  TEXT_INPUT_MODE_SECRET = 2,
 };
 enum LockState : uint32_t {
   LOCK_STATE_NONE = 0,

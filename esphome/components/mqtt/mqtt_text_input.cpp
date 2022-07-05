@@ -48,8 +48,8 @@ void MQTTTextInputComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
   switch (this->text_input_->traits.get_mode()) {
     case TEXT_INPUT_MODE_AUTO:
       break;
-    case TEXT_INPUT_MODE_BOX:
-      root[MQTT_MODE] = "box";
+    case TEXT_INPUT_MODE_STRING:
+      root[MQTT_MODE] = "string";
       break;
 //    case TEXT_INPUT_MODE_SECRET:
 //      root[MQTT_MODE] = "secret";

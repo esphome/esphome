@@ -17,7 +17,7 @@ namespace text_input {
     } \
   }
 
-class TextInput;
+//class TextInput;
 
 /** Base-class for all text inputs.
  *
@@ -30,12 +30,13 @@ class TextInput : public EntityBase {
 
   void publish_state(const std::string &state);
 
+  /// Return whether this text input has gotten a full state yet.
+  bool has_state() const { return has_state_; }
+
+  /// Instantiate a TextInputCall object to modify this text_input component's state.
   TextInputCall make_call() { return TextInputCall(this); }
 
   void add_on_state_callback(std::function<void(std::string)> &&callback);
-
-  /// Return whether this text input has gotten a full state yet.
-  bool has_state() const { return has_state_; }
 
  protected:
   friend class TextInputCall;
@@ -52,5 +53,5 @@ class TextInput : public EntityBase {
   bool has_state_{false};
 };
 
-}  // namespace textinput
+}  // namespace text_input
 }  // namespace esphome

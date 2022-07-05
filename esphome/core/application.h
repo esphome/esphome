@@ -346,6 +346,9 @@ class Application {
 #ifdef USE_SELECT
   std::vector<select::Select *> selects_{};
 #endif
+#ifdef USE_TEXT_INPUT
+  std::vector<text_input::TextInput *> text_inputs_{};
+#endif
 #ifdef USE_LOCK
   std::vector<lock::Lock *> locks_{};
 #endif

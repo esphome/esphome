@@ -13,9 +13,7 @@ class TextInputCall {
   explicit TextInputCall(TextInput *parent) : parent_(parent) {}
   void perform();
 
-  TextInputCall &set_value(std::string value);
-
-  TextInputCall &with_value(std::string value);
+  TextInputCall &set_value(const std::string &value);
 
  protected:
   TextInput *const parent_;
