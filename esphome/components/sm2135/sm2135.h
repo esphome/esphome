@@ -65,7 +65,10 @@ class SM2135 : public Component {
     pin->pin_mode(gpio::FLAG_OUTPUT);
   }
 
-  void sm2135_set_high_(GPIOPin *pin) { pin->pin_mode(gpio::FLAG_PULLUP); }
+  void sm2135_set_high_(GPIOPin *pin) {
+    pin->digital_write(true);
+    pin->pin_mode(gpio::FLAG_PULLUP);
+  }
 
   void sm2135_start_() {
     sm2135_set_low_(this->data_pin_);
