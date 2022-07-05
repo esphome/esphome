@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
     CONF_NAME,
-    CONF_OPTIONS,
     CONF_PROJECT,
     CONF_SOURCE,
     CONF_VERSION,
