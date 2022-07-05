@@ -307,7 +307,7 @@ class DisplayBuffer {
    * @param y The y coordinate of the upper left corner.
    * @param image The image to draw
    */
-  void image(int x, int y, online_image::OnlineImage *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+  void image(int x, int y, online_image::OnlineImage *image, Color color_on = Color(255, 255, 255), Color color_off = Color(0, 0, 0));
 #endif  // USE_ONLINE_IMAGE
 
 #ifdef USE_GRAPH
