@@ -21,6 +21,8 @@
 #include "esp_system.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
+#elif defined(USE_RP2040)
+#include "pico/cyw43_arch.h"
 #endif
 
 #ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
@@ -385,6 +387,8 @@ void get_mac_address_raw(uint8_t *mac) {
 #endif
 #elif defined(USE_ESP8266)
   wifi_get_macaddr(STATION_IF, mac);
+#elif defined(USE_RP2040)
+  cyw43_hal_get_mac(0, mac);
 #endif
 }
 std::string get_mac_address() {
