@@ -16,9 +16,9 @@ SM2135 = sm2135_ns.class_("SM2135", cg.Component)
 CONF_RGB_CURRENT = "rgb_current"
 CONF_CW_CURRENT = "cw_current"
 
-DRIVE_STRENGTHS_CW = {10, 15, 20, 25, 30, 40, 45, 50, 55, 60}
+DRIVE_STRENGTHS_CW = {10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60}
 
-DRIVE_STRENGTHS_RGB = {10, 15, 20, 25, 30, 40, 45}
+DRIVE_STRENGTHS_RGB = {10, 15, 20, 25, 30, 35, 40, 45}
 
 
 MULTI_CONF = True
