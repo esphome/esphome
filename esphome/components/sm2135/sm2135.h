@@ -4,6 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/output/float_output.h"
 #include <vector>
+#include <map>
 
 namespace esphome {
 namespace sm2135 {
@@ -23,17 +24,21 @@ static const uint8_t SM2135_ADDR_W = 0xC6;   // Warm
 static const uint8_t SM2135_RGB = 0x00;  // RGB channel
 static const uint8_t SM2135_CW = 0x80;   // CW channel (Chip default)
 
-static const uint8_t SM2135_10MA = 0x00;
-static const uint8_t SM2135_15MA = 0x01;
-static const uint8_t SM2135_20MA = 0x02;
-static const uint8_t SM2135_25MA = 0x03;
-static const uint8_t SM2135_30MA = 0x04;
-static const uint8_t SM2135_35MA = 0x05;
-static const uint8_t SM2135_40MA = 0x06;
-static const uint8_t SM2135_45MA = 0x07;  // Max value for RGB
-static const uint8_t SM2135_50MA = 0x08;
-static const uint8_t SM2135_55MA = 0x09;
-static const uint8_t SM2135_60MA = 0x0A;
+static const std::map<uint8_t,uint8_t> SM2135_CURRENT = {
+  { 10, 0x00 },
+  { 15, 0x01 },
+  { 20, 0x02 },
+  { 25, 0x03 },
+  { 30, 0x04 },
+  { 35, 0x05 },
+  { 40, 0x06 },
+  { 45, 0x07 },  // Max value for RGB
+  { 50, 0x08 },
+  { 55, 0x09 },
+  { 60, 0x0A },
+};
+
+#define SM2135_CURRENT_LOOKUP(ma) ( SM2135_CURRENT.find(ma)->second )
 
 class SM2135 : public Component {
  public:
@@ -44,12 +49,12 @@ class SM2135 : public Component {
 
   void set_rgb_current(uint8_t rgb_current) {
     rgb_current_ = rgb_current;
-    current_mask_ = (convert_ma_to_bitmask_(rgb_current_) << 4) | convert_ma_to_bitmask_(cw_current_);
+    current_mask_ = (SM2135_CURRENT_LOOKUP(rgb_current_) << 4) | SM2135_CURRENT_LOOKUP(cw_current_);
   }
 
   void set_cw_current(uint8_t cw_current) {
     cw_current_ = cw_current;
-    current_mask_ = (convert_ma_to_bitmask_(rgb_current_) << 4) | convert_ma_to_bitmask_(cw_current_);
+    current_mask_ = (SM2135_CURRENT_LOOKUP(rgb_current_) << 4) | SM2135_CURRENT_LOOKUP(cw_current_);
   }
 
   void setup() override;
@@ -143,8 +148,6 @@ class SM2135 : public Component {
 
     sm2135_stop_();
   }
-
-  uint8_t convert_ma_to_bitmask_(uint8_t ma) { return (ma - 10) / 5; }
 
   GPIOPin *data_pin_;
   GPIOPin *clock_pin_;
