@@ -251,15 +251,21 @@ namespace display {
 
   template<> void Text<>::calculate_text_() {
     std::string text = text_.value();
+#ifdef USE_SENSOR
     if (source_ != NULL && source_->has_state()) {
       cached_text_.resize(256);
       snprintf(&cached_text_[0], cached_text_.size(), text.c_str(), source_->state);
-    } else if (source_text_ != NULL && source_text_->has_state()) {
+      return;
+    }
+#endif
+#ifdef USE_TEXT_SENSOR
+    if (source_text_ != NULL && source_text_->has_state()) {
       cached_text_.resize(256);
       snprintf(&cached_text_[0], cached_text_.size(), text.c_str(), source_text_->state.c_str());
-    } else {
-      cached_text_ = text;
+      return;
     }
+#endif
+  cached_text_ = text;
   }
   template<> void Text<>::invalidate_layout() {
     calculate_text_();

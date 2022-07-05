@@ -6,8 +6,14 @@
 #include "esphome/core/defines.h"
 
 #include "esphome/components/display/display_buffer.h"
+
+#ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#endif
+
+#ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 #ifdef USE_GRAPH
 #include "esphome/components/graph/graph.h"
@@ -135,16 +141,24 @@ template<typename... Ts>  class Text : public Widget {
   virtual void invalidate_layout();
   virtual void draw(DisplayBuffer* it, int x1, int y1, int width, int height);
 
+#ifdef USE_SENSOR
   void set_sensor(sensor::Sensor *sensor) { source_ = sensor; source_text_ = NULL; }
+#endif
+#ifdef USE_TEXT_SENSOR
   void set_sensor(text_sensor::TextSensor *sensor) { source_text_ = sensor; source_ = NULL; }
+#endif
 
  protected:
   Font* font_;
   TextAlign align_ = TextAlign::TOP_LEFT;
   void calculate_text_();
   std::string cached_text_;
+#ifdef USE_SENSOR
   sensor::Sensor *source_;
+#endif
+#ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *source_text_;
+#endif
 };
 
   class Button : public Widget {
