@@ -2,7 +2,7 @@ import abc
 import inspect
 import math
 import re
-from esphome.yaml_util import ESPHomeDataBase
+from esphome.database import ESPHomeDataBase
 
 # pylint: disable=unused-import, wrong-import-order
 from typing import Any, Generator, List, Optional, Tuple, Type, Union, Sequence

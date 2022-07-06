@@ -1,0 +1,11 @@
+binary_sensor:
+- pin: 14
+  platform: gpio
+- pin: 15
+  platform: gpio
+- pin: 33
+  platform: gpio
+- pin: 39
+  platform: gpio
+esphome:
+  name: test

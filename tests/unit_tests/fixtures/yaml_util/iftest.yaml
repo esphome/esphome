@@ -1,0 +1,19 @@
+---
+substitutions:
+  pins: [14, 15, 33, 39]
+
+esphome:
+  name: test
+
+binary_sensor: !for
+  items: ${pins}
+  var: pin
+  repeat: !if
+    condition: ${pin > 20}
+    then:
+      platform: gpio
+      pin: ${pin}
+    else:
+      platform: gpio
+      pin: ${pin+10}
+      name: 'shifted gpio ${pin}'

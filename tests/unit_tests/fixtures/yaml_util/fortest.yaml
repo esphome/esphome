@@ -1,0 +1,13 @@
+---
+substitutions:
+  pins: [14, 15, 33, 39]
+
+esphome:
+  name: test
+
+binary_sensor: !for
+  items: ${pins}
+  var: pin
+  repeat:
+    platform: gpio
+    pin: ${pin}

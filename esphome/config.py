@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_PLATFORM,
     CONF_PACKAGES,
-    CONF_SUBSTITUTIONS,
     CONF_EXTERNAL_COMPONENTS,
     TARGET_PLATFORMS,
 )
@@ -648,39 +647,21 @@ class FinalValidateValidationStep(ConfigValidationStep):
         fv.full_config.reset(token)
 
 
-def validate_config(config, command_line_substitutions) -> Config:
+def validate_config(config, vars) -> Config:
     result = Config()
 
     loader.clear_component_meta_finders()
     loader.install_custom_components_meta_finder()
 
-    # 0. Load packages
+    # 1. Load packages
     if CONF_PACKAGES in config:
         from esphome.components.packages import do_packages_pass
 
         result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
         try:
-            config = do_packages_pass(config)
+            config = do_packages_pass(config, vars)
         except vol.Invalid as err:
             result.update(config)
-            result.add_error(err)
-            return result
-
-    CORE.raw_config = config
-
-    # 1. Load substitutions
-    if CONF_SUBSTITUTIONS in config:
-        from esphome.components import substitutions
-
-        result[CONF_SUBSTITUTIONS] = {
-            **config[CONF_SUBSTITUTIONS],
-            **command_line_substitutions,
-        }
-        result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
-        try:
-            substitutions.do_substitution_pass(config, command_line_substitutions)
-            substitutions.do_substitution_pass(config, command_line_substitutions)
-        except vol.Invalid as err:
             result.add_error(err)
             return result
 
@@ -808,12 +789,15 @@ class InvalidYAMLError(EsphomeError):
 
 def _load_config(command_line_substitutions):
     try:
-        config = yaml_util.load_yaml(CORE.config_path, vars=command_line_substitutions)
+        vars = yaml_util.load_vars(
+            CORE.config_path, override_vars=command_line_substitutions
+        )
+        config = yaml_util.load_yaml(CORE.config_path, vars=vars)
     except EsphomeError as e:
         raise InvalidYAMLError(e) from e
 
     try:
-        result = validate_config(config, command_line_substitutions)
+        result = validate_config(config, vars)
     except EsphomeError:
         raise
     except Exception:

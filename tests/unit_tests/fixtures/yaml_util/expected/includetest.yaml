@@ -1,0 +1,12 @@
+binary_sensor:
+- pin: 15
+  platform: gpio
+esphome:
+  board: nodemcu
+  libraries:
+  - Wire
+  name: original
+  name_add_mac_suffix: 1
+  platform: esp8266
+wifi:
+  ssid: my_custom_ssid

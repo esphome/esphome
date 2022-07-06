@@ -1,6 +1,7 @@
 ---
 substitutions:
   name: original
+  pin: 14
 
 wifi: !include
   file: includes/included.yaml
@@ -15,3 +16,8 @@ esphome:
   board: !include { file: includes/scalar.yaml, vars: { var1: nodemcu } }
 
   libraries: !include { file: includes/list.yaml, vars: { var1: Wire } }
+
+#Test jinja works by computing the pin as an expression:
+binary_sensor:
+  - platform: gpio
+    pin: ${pin+1} #should be replaced with '15'

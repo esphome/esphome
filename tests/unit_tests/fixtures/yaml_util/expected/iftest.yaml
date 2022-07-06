@@ -1,0 +1,13 @@
+binary_sensor:
+- name: shifted gpio 14
+  pin: 24
+  platform: gpio
+- name: shifted gpio 15
+  pin: 25
+  platform: gpio
+- pin: 33
+  platform: gpio
+- pin: 39
+  platform: gpio
+esphome:
+  name: test

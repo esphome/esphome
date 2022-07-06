@@ -2,7 +2,6 @@ import re
 from pathlib import Path
 from esphome.core import EsphomeError
 from esphome.config_helpers import merge_config
-
 from esphome import git, yaml_util
 from esphome.const import (
     CONF_FILE,
@@ -13,8 +12,10 @@ from esphome.const import (
     CONF_URL,
     CONF_USERNAME,
     CONF_PASSWORD,
+    CONF_VARS,
 )
 import esphome.config_validation as cv
+from esphome.jinja import validate_vars
 
 DOMAIN = CONF_PACKAGES
 
@@ -87,6 +88,7 @@ BASE_SCHEMA = cv.All(
             cv.Optional(CONF_REFRESH, default="1d"): cv.All(
                 cv.string, cv.source_refresh
             ),
+            cv.Optional(CONF_VARS): validate_vars,
         }
     ),
     cv.has_at_least_one_key(CONF_FILE, CONF_FILES),
@@ -103,7 +105,10 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _process_base_package(config: dict) -> dict:
+def _process_base_package(config: dict, vars: dict) -> dict:
+    package_vars = config.get(CONF_VARS) or {}
+    vars = {**vars, **package_vars}
+
     repo_dir = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
@@ -122,7 +127,7 @@ def _process_base_package(config: dict) -> dict:
             raise cv.Invalid(f"{file} does not exist in repository", path=[CONF_FILES])
 
         try:
-            packages[file] = yaml_util.load_yaml(yaml_file)
+            packages[file] = yaml_util.load_yaml(yaml_file, vars=vars)
         except EsphomeError as e:
             raise cv.Invalid(
                 f"{file} is not a valid YAML file. Please check the file contents."
@@ -130,7 +135,7 @@ def _process_base_package(config: dict) -> dict:
     return {"packages": packages}
 
 
-def do_packages_pass(config: dict):
+def do_packages_pass(config: dict, vars: dict):
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
@@ -145,9 +150,9 @@ def do_packages_pass(config: dict):
             with cv.prepend_path(package_name):
                 recursive_package = package_config
                 if CONF_URL in package_config:
-                    package_config = _process_base_package(package_config)
+                    package_config = _process_base_package(package_config, vars)
                 if isinstance(package_config, dict):
-                    recursive_package = do_packages_pass(package_config)
+                    recursive_package = do_packages_pass(package_config, vars)
                 config = merge_config(recursive_package, config)
 
         del config[CONF_PACKAGES]

@@ -1,33 +1,31 @@
+from copy import deepcopy
 import fnmatch
 import functools
 import inspect
-import logging
 import math
 import os
-import re
 
 import uuid
 import yaml
 import yaml.constructor
 
-from jinja2.nativetypes import NativeEnvironment
-from jinja2.exceptions import TemplateError, TemplateSyntaxError
+from jinja2.exceptions import TemplateError, TemplateSyntaxError, UndefinedError
 
 from esphome import core
 from esphome.config_helpers import read_config_file
+from esphome.const import CONF_SUBSTITUTIONS
 from esphome.core import (
     EsphomeError,
     IPAddress,
     Lambda,
     MACAddress,
     TimePeriod,
-    DocumentRange,
 )
+from esphome.database import ESPHomeDataBase, make_data_base
 from esphome.helpers import add_class_to_obj
+from esphome.jinja import expand_str, validate_vars
 from esphome.util import OrderedDict, filter_yaml_files
 import esphome.config_validation as cv
-
-_LOGGER = logging.getLogger(__name__)
 
 # Mostly copied from Home Assistant because that code works fine and
 # let's not reinvent the wheel here
@@ -37,99 +35,12 @@ _SECRET_CACHE = {}
 _SECRET_VALUES = {}
 
 
-VALID_SUBSTITUTIONS_CHARACTERS = (
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
-)
-# pylint: disable=consider-using-f-string
-VARIABLE_PROG = re.compile(f"\\$([{VALID_SUBSTITUTIONS_CHARACTERS}]+)")
-
-
-class ForceStr(str):
-    pass
-
-
 class ForList(list):
     pass
 
 
-def jinja_string(st):
-    return ForceStr(st)
-
-
-DETECT_JINJA = r"(\$\{)|(\{%)|(^\s*%%)"
-jinja_detect_re = re.compile(DETECT_JINJA, flags=re.MULTILINE)
-
-
-def has_jinja(st):
-    return jinja_detect_re.search(st) is not None
-
-
-jinja = NativeEnvironment(
-    trim_blocks=True,
-    lstrip_blocks=True,
-    line_statement_prefix="%%",
-    line_comment_prefix="##",
-    variable_start_string="${",
-    variable_end_string="}",
-)
-
-jinja.add_extension("jinja2.ext.do")
-jinja.filters["string"] = jinja_string
-
-
-def expand_str(st, vars):
-    def replace_vars(m):
-        name = m.group(1)
-        return f"${{{vars[name]}}}" if name in vars else f"${name}"
-
-    # replace $var with ${var} so jinja catches it below:
-    result = VARIABLE_PROG.sub(replace_vars, st)
-
-    if has_jinja(result):
-        template = jinja.from_string(st)
-        result = template.render(vars)
-
-    if isinstance(result, ForceStr):
-        result = str(result)
-
-    return result
-
-
-class ESPHomeDataBase:
-    @property
-    def esp_range(self):
-        return getattr(self, "_esp_range", None)
-
-    @property
-    def content_offset(self):
-        return getattr(self, "_content_offset", 0)
-
-    def from_node(self, node):
-        # pylint: disable=attribute-defined-outside-init
-        self._esp_range = DocumentRange.from_marks(node.start_mark, node.end_mark)
-        if isinstance(node, yaml.ScalarNode):
-            if node.style is not None and node.style in "|>":
-                self._content_offset = 1
-
-    def from_database(self, database):
-        # pylint: disable=attribute-defined-outside-init
-        self._esp_range = database.esp_range
-        self._content_offset = database.content_offset
-
-
 class ESPForceValue:
     pass
-
-
-def make_data_base(value, from_database: ESPHomeDataBase = None):
-    try:
-        value = add_class_to_obj(value, ESPHomeDataBase)
-        if from_database is not None:
-            value.from_database(from_database)
-        return value
-    except TypeError:
-        # Adding class failed, ignore error
-        return value
 
 
 def _add_data_ref(fn):
@@ -156,11 +67,11 @@ class ESPHomeLoader(
 ):  # pylint: disable=too-many-ancestors,too-many-public-methods
     """Loader class that keeps track of line numbers."""
 
-    def __init__(self, content, vars=None):
+    def __init__(self, content, vars=None, disable_str_expansion=False):
         if vars is None:
             vars = {}
         self.vars = vars
-        self.disable_str_expansion = False
+        self.disable_str_expansion = disable_str_expansion
         yaml.SafeLoader.__init__(self, content)
 
     @_add_data_ref
@@ -185,7 +96,13 @@ class ESPHomeLoader(
         if self.disable_str_expansion:
             return st
         try:
-            result = self.expand_str(st, self.vars)
+            result = expand_str(st, self.vars)
+        except UndefinedError as err:
+            raise yaml.MarkedYAMLError(
+                f"Variable is undefined: {err.message}",
+                node.start_mark,
+            )
+
         except TemplateSyntaxError as err:
             raise yaml.MarkedYAMLError(
                 f"Error in line {err.lineno} of jinja expression: {err.message}",
@@ -202,9 +119,10 @@ class ESPHomeLoader(
                 node.start_mark,
             )
 
-        if result != st:
+        if result and result != st:
             result = make_data_base(result)
-            result.from_node(node)
+            if hasattr(node, "from_node"):
+                result.from_node(node)
 
         return result
 
@@ -373,28 +291,43 @@ class ESPHomeLoader(
             file = fields.get("file")
             if file is None:
                 raise yaml.MarkedYAMLError("Must include 'file'", node.start_mark)
-            vars = fields.get("vars")
-            return file, vars
+            vars = fields.get("vars") or {}
+            return file, validate_vars(vars)
 
         if isinstance(node, yaml.nodes.MappingNode):
             file, vars = extract_file_vars(node)
         else:
-            file, vars = node.value, None
+            file, vars = node.value, {}
 
-        return _load_yaml_internal(self._rel_path(file), vars if vars else None)
+        return _load_yaml_internal(self._rel_path(file), {**self.vars, **vars})
 
     @_add_data_ref
     def construct_literal(self, node):
-        node.tag = None  # remove tag so `construct_object()` does not come back here.
+        # restore tag:
+        if isinstance(node, yaml.ScalarNode):
+            node.tag = self.DEFAULT_SCALAR_TAG
+        elif isinstance(node, yaml.SequenceNode):
+            node.tag = self.DEFAULT_SEQUENCE_TAG
+        elif isinstance(node, yaml.MappingNode):
+            node.tag = self.DEFAULT_MAPPING_TAG
+        else:
+            raise yaml.MarkedYAMLError(f"Unknown node type {type(node)}")
+
+        # !literal disables jinja:
         old_disable = self.disable_str_expansion
         self.disable_str_expansion = True
-        result = self.construct_object(node)
+
+        # construct the object as if !literal was not present:
+        result = self.construct_object(deepcopy(node))
+
+        # leave jinja string expansion as it was:
         self.disable_str_expansion = old_disable
         return result
 
     @_add_data_ref
-    def construct_for(self, node: "yaml.Nodes.MappingNode"):
-        from copy import deepcopy
+    def construct_for(self, node):
+        if self.disable_str_expansion:
+            return None
 
         items = None
         varname = "item"
@@ -433,14 +366,18 @@ class ESPHomeLoader(
             vars = self.vars = oldvars.copy()
             vars[varname] = i
             obj = make_data_base(self.construct_object(deepcopy(repeat)))
-            obj.from_node(repeat)
+            if hasattr(obj, "from_node"):
+                obj.from_node(node)
             result.append(obj)
 
         self.vars = oldvars
         return ForList(result)
 
     @_add_data_ref
-    def construct_if(self, node: "yaml.Nodes.MappingNode"):
+    def construct_if(self, node):
+        if self.disable_str_expansion:
+            return None
+
         condition = None
         then_node = None
         else_node = None
@@ -503,8 +440,11 @@ class ESPHomeLoader(
 
     @_add_data_ref
     def construct_lambda(self, node):
-        node.tag = None  # remove tag so construct_object does not come back here.
-        code = self.construct_object(node)
+        if not isinstance(node, yaml.ScalarNode) or not isinstance(node.value, str):
+            raise yaml.MarkedYAMLError("!lambda must tag a string")
+        # replace lambda tag:
+        node.tag = self.DEFAULT_SCALAR_TAG
+        code = self.construct_object(deepcopy(node))
         return Lambda(str(code))
 
     @_add_data_ref
@@ -548,43 +488,41 @@ ESPHomeLoader.add_constructor("!lambda", ESPHomeLoader.construct_lambda)
 ESPHomeLoader.add_constructor("!force", ESPHomeLoader.construct_force)
 
 
-def load_yaml(fname, clear_secrets=True, vars=None):
-    from esphome.const import CONF_SUBSTITUTIONS
+def load_vars(fname: str, override_vars: dict = None):
+    """Preloads a config file, extracts substitutions and resolves
+    command-line substitutions"""
 
-    if vars is None:
-        vars = {}
+    if override_vars is None:
+        override_vars = {}
 
-    if clear_secrets:
-        _SECRET_VALUES.clear()
-        _SECRET_CACHE.clear()
+    # parse override_vars as YAML:
+    override_vars = {
+        key: _load_yaml_string(value, f"command line variable '{key}'", None, True)
+        for key, value in override_vars.items()
+    }
 
-    # read top level file to convert substitutions to context variables for templates
-    content = read_config_file(fname)
-    loader = yaml.BaseLoader(
-        content
-    )  # will not interpret any tags like !include and such
-
-    substitutions = {}
-    try:
-        raw_config = loader.get_single_data() or OrderedDict()
-        if CONF_SUBSTITUTIONS in raw_config:
-            substitutions = raw_config[CONF_SUBSTITUTIONS]
-    except yaml.YAMLError as exc:
-        raise EsphomeError(exc) from exc
-    finally:
-        loader.dispose()
+    raw_config = _load_yaml_internal(fname, None, True)
+    if CONF_SUBSTITUTIONS in raw_config:
+        substitutions = raw_config[CONF_SUBSTITUTIONS]
+    else:
+        substitutions = {}
 
     with cv.prepend_path("substitutions"):
         if not isinstance(substitutions, dict):
             raise cv.Invalid(
                 f"Substitutions must be a key to value mapping, got {type(substitutions)}"
             )
-        vars = {
-            **substitutions,
-            **vars,
-        }  # override file substitutions with incoming ones (i.e. command-line)
 
-        for (skey, svalue) in substitutions:
+        substitutions = validate_vars(substitutions)
+
+        # override file substitutions with incoming ones (i.e. command-line)
+        substitutions = {
+            **substitutions,
+            **override_vars,
+        }
+
+        vars = {}
+        for (skey, svalue) in substitutions.items():
             with cv.prepend_path(skey):
                 if isinstance(svalue, str):
                     try:
@@ -599,14 +537,28 @@ def load_yaml(fname, clear_secrets=True, vars=None):
                         )
                 vars[skey] = svalue
 
-    return _load_yaml_internal(fname, vars)
+    return vars
 
 
-def _load_yaml_string(content, name, vars=None):
+def load_yaml(fname, clear_secrets=True, vars=None):
     if vars is None:
         vars = {}
 
-    loader = ESPHomeLoader(content, vars)
+    if clear_secrets:
+        _SECRET_VALUES.clear()
+        _SECRET_CACHE.clear()
+
+    config = _load_yaml_internal(fname, vars)
+    if CONF_SUBSTITUTIONS in config:
+        del config[CONF_SUBSTITUTIONS]
+    return config
+
+
+def _load_yaml_string(content, name, vars=None, disable_str_expansion=False):
+    if vars is None:
+        vars = {}
+
+    loader = ESPHomeLoader(content, vars, disable_str_expansion)
     loader.name = name
     try:
         return loader.get_single_data() or OrderedDict()
@@ -616,9 +568,9 @@ def _load_yaml_string(content, name, vars=None):
         loader.dispose()
 
 
-def _load_yaml_internal(fname, vars):
+def _load_yaml_internal(fname, vars, disable_str_expansion=False):
     content = read_config_file(fname)
-    return _load_yaml_string(content, fname, vars)
+    return _load_yaml_string(content, fname, vars, disable_str_expansion)
 
 
 def dump(dict_):
