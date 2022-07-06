@@ -1,0 +1,11 @@
+---
+substitutions:
+  pins: [14, 15, 33, 39]
+
+esphome:
+  name: test
+
+binary_sensor:
+  - platform: gpio
+    pin: 19
+    name: !literal 'some ${pin} name' # ${pin} will not be expanded because of !literal tag

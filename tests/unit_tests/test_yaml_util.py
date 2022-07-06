@@ -50,3 +50,7 @@ def test_for(fixture_path):
 
 def test_if(fixture_path):
     _test_yaml_file(fixture_path, "iftest.yaml", False)
+
+
+def test_literal(fixture_path):
+    _test_yaml_file(fixture_path, "literaltest.yaml", False)

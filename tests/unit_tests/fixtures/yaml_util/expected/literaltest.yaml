@@ -1,0 +1,6 @@
+binary_sensor:
+- name: some ${pin} name
+  pin: 19
+  platform: gpio
+esphome:
+  name: test
