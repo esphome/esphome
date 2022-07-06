@@ -52,6 +52,7 @@ esphome/components/cs5460a/* @balrog-kun
 esphome/components/cse7761/* @berfenger
 esphome/components/ct_clamp/* @jesserockz
 esphome/components/current_based/* @djwmarcx
+esphome/components/dac7678/* @NickB1
 esphome/components/daly_bms/* @s1lvi0
 esphome/components/dashboard_import/* @esphome/core
 esphome/components/debug/* @OttoWinter

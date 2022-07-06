@@ -7,7 +7,7 @@ namespace bl0939 {
 static const char *const TAG = "bl0939";
 
 // https://www.belling.com.cn/media/file_object/bel_product/BL0939/datasheet/BL0939_V1.2_cn.pdf
-// (unfortunatelly chinese, but the protocol can be understood with some translation tool)
+// (unfortunately chinese, but the protocol can be understood with some translation tool)
 static const uint8_t BL0939_READ_COMMAND = 0x55;  // 0x5{A4,A3,A2,A1}
 static const uint8_t BL0939_FULL_PACKET = 0xAA;
 static const uint8_t BL0939_PACKET_HEADER = 0x55;

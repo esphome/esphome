@@ -57,11 +57,12 @@ from esphome.core import (
     TimePeriodMinutes,
 )
 from esphome.helpers import list_starts_with, add_class_to_obj
-from esphome.jsonschema import (
-    jschema_list,
-    jschema_extractor,
-    jschema_registry,
-    jschema_typed,
+from esphome.schema_extractors import (
+    SCHEMA_EXTRACT,
+    schema_extractor_list,
+    schema_extractor,
+    schema_extractor_registry,
+    schema_extractor_typed,
 )
 from esphome.util import parse_esphome_version
 from esphome.voluptuous_schema import _Schema
@@ -327,7 +328,7 @@ def boolean(value):
     )
 
 
-@jschema_list
+@schema_extractor_list
 def ensure_list(*validators):
     """Validate this configuration option to be a list.
 
@@ -452,7 +453,11 @@ def validate_id_name(value):
 def use_id(type):
     """Declare that this configuration option should point to an ID with the given type."""
 
+    @schema_extractor("use_id")
     def validator(value):
+        if value == SCHEMA_EXTRACT:
+            return type
+
         check_not_templatable(value)
         if value is None:
             return core.ID(None, is_declaration=False, type=type)
@@ -475,7 +480,11 @@ def declare_id(type):
     If two IDs with the same name exist, a validation error is thrown.
     """
 
+    @schema_extractor("declare_id")
     def validator(value):
+        if value == SCHEMA_EXTRACT:
+            return type
+
         check_not_templatable(value)
         if value is None:
             return core.ID(None, is_declaration=True, type=type)
@@ -494,11 +503,11 @@ def templatable(other_validators):
     """
     schema = Schema(other_validators)
 
-    @jschema_extractor("templatable")
+    @schema_extractor("templatable")
     def validator(value):
-        # pylint: disable=comparison-with-callable
-        if value == jschema_extractor:
+        if value == SCHEMA_EXTRACT:
             return other_validators
+
         if isinstance(value, Lambda):
             return returning_lambda(value)
         if isinstance(other_validators, dict):
@@ -963,9 +972,9 @@ def ipv4(value):
     elif isinstance(value, IPAddress):
         return value
     else:
-        raise Invalid("IPv4 address must consist of either string or " "integer list")
+        raise Invalid("IPv4 address must consist of either string or integer list")
     if len(parts) != 4:
-        raise Invalid("IPv4 address must consist of four point-separated " "integers")
+        raise Invalid("IPv4 address must consist of four point-separated integers")
     parts_ = list(map(int, parts))
     if not all(0 <= x < 256 for x in parts_):
         raise Invalid("IPv4 address parts must be in range from 0 to 255")
@@ -985,10 +994,10 @@ def _valid_topic(value):
         raise Invalid("MQTT topic name/filter must not be empty.")
     if len(raw_value) > 65535:
         raise Invalid(
-            "MQTT topic name/filter must not be longer than " "65535 encoded bytes."
+            "MQTT topic name/filter must not be longer than 65535 encoded bytes."
         )
     if "\0" in value:
-        raise Invalid("MQTT topic name/filter must not contain null " "character.")
+        raise Invalid("MQTT topic name/filter must not contain null character.")
     return value
 
 
@@ -1000,7 +1009,7 @@ def subscribe_topic(value):
             i < len(value) - 1 and value[i + 1] != "/"
         ):
             raise Invalid(
-                "Single-level wildcard must occupy an entire " "level of the filter"
+                "Single-level wildcard must occupy an entire level of the filter"
             )
 
     index = value.find("#")
@@ -1012,9 +1021,7 @@ def subscribe_topic(value):
                 "character in the topic filter."
             )
         if len(value) > 1 and value[index - 1] != "/":
-            raise Invalid(
-                "Multi-level wildcard must be after a topic " "level separator."
-            )
+            raise Invalid("Multi-level wildcard must be after a topic level separator.")
 
     return value
 
@@ -1177,10 +1184,9 @@ def one_of(*values, **kwargs):
     if kwargs:
         raise ValueError
 
-    @jschema_extractor("one_of")
+    @schema_extractor("one_of")
     def validator(value):
-        # pylint: disable=comparison-with-callable
-        if value == jschema_extractor:
+        if value == SCHEMA_EXTRACT:
             return values
 
         if string_:
@@ -1220,10 +1226,9 @@ def enum(mapping, **kwargs):
     assert isinstance(mapping, dict)
     one_of_validator = one_of(*mapping, **kwargs)
 
-    @jschema_extractor("enum")
+    @schema_extractor("enum")
     def validator(value):
-        # pylint: disable=comparison-with-callable
-        if value == jschema_extractor:
+        if value == SCHEMA_EXTRACT:
             return mapping
 
         value = one_of_validator(value)
@@ -1396,7 +1401,7 @@ def extract_keys(schema):
     return keys
 
 
-@jschema_typed
+@schema_extractor_typed
 def typed_schema(schemas, **kwargs):
     """Create a schema that has a key to distinguish between schemas"""
     key = kwargs.pop("key", CONF_TYPE)
@@ -1510,7 +1515,7 @@ def validate_registry_entry(name, registry):
     )
     ignore_keys = extract_keys(base_schema)
 
-    @jschema_registry(registry)
+    @schema_extractor_registry(registry)
     def validator(value):
         if isinstance(value, str):
             value = {value: {}}
@@ -1555,12 +1560,15 @@ def validate_registry(name, registry):
     return ensure_list(validate_registry_entry(name, registry))
 
 
-@jschema_list
 def maybe_simple_value(*validators, **kwargs):
     key = kwargs.pop("key", CONF_VALUE)
     validator = All(*validators)
 
+    @schema_extractor("maybe")
     def validate(value):
+        if value == SCHEMA_EXTRACT:
+            return (validator, key)
+
         if isinstance(value, dict) and key in value:
             return validator(value)
         return validator({key: value})
