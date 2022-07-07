@@ -74,6 +74,7 @@ esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/ezo/* @ssieb
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/fingerprint_grow/* @OnFreund @loongyh
+esphome/components/gc9a01/* @4cello
 esphome/components/globals/* @esphome/core
 esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle

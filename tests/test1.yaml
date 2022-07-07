@@ -559,14 +559,14 @@ sensor:
     temperature:
       name: "Living Room Temperature 5"
     humidity:
-      name: 'Living Room Humidity 5'
+      name: "Living Room Humidity 5"
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: hdc1080
     temperature:
-      name: 'Living Room Temperature 6'
+      name: "Living Room Temperature 6"
     humidity:
-      name: 'Living Room Humidity 5'
+      name: "Living Room Humidity 5"
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: hlw8012
@@ -1137,7 +1137,7 @@ sensor:
   - platform: max9611
     i2c_id: i2c_bus
     shunt_resistance: 0.2 ohm
-    gain: '1X'
+    gain: "1X"
     voltage:
       name: Max9611 Voltage
     current:
@@ -1147,7 +1147,6 @@ sensor:
     temperature:
       name: Max9611 Temp
     update_interval: 1s
-
 
 esp32_touch:
   setup_mode: False
@@ -2392,6 +2391,14 @@ display:
     row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: gc9a01
+    cs_pin: GPIO5
+    dc_pin: GPIO16
+    reset_pin: GPIO22
+    device_width: 240
+    device_height: 240
+    lambda: |-
+      it.rectangle(40,40, 200, 200);
   - platform: ili9341
     model: "TFT 2.4"
     cs_pin: GPIO5
@@ -2610,10 +2617,10 @@ globals:
 text_sensor:
   - platform: ble_client
     ble_client_id: ble_foo
-    name: 'Sensor Location'
-    service_uuid: '180d'
-    characteristic_uuid: '2a38'
-    descriptor_uuid: '2902'
+    name: "Sensor Location"
+    service_uuid: "180d"
+    characteristic_uuid: "2a38"
+    descriptor_uuid: "2902"
     notify: true
     update_interval: never
     on_notify:
@@ -2705,7 +2712,7 @@ canbus:
                 lambda: "return x[0] == 0x11;"
               then:
                 light.toggle: ${roomname}_lights
-      - can_id:      0b00000000000000000000001000000
+      - can_id: 0b00000000000000000000001000000
         can_id_mask: 0b11111000000000011111111000000
         use_extended_id: true
         then:
@@ -2743,7 +2750,7 @@ canbus:
                 lambda: "return x[0] == 0x11;"
               then:
                 light.toggle: ${roomname}_lights
-      - can_id:      0b00000000000000000000001000000
+      - can_id: 0b00000000000000000000001000000
         can_id_mask: 0b11111000000000011111111000000
         use_extended_id: true
         then:
