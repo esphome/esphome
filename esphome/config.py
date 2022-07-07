@@ -679,6 +679,7 @@ def validate_config(config, command_line_substitutions) -> Config:
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
         try:
             substitutions.do_substitution_pass(config, command_line_substitutions)
+            substitutions.do_substitution_pass(config, command_line_substitutions)
         except vol.Invalid as err:
             result.add_error(err)
             return result

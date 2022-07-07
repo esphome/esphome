@@ -285,7 +285,7 @@ void IDFI2CBus::recover_() {
   }
 
   // By now, any stuck device ought to have sent all remaining bits of its
-  // transation, meaning that it should have freed up the SDA line, resulting
+  // transaction, meaning that it should have freed up the SDA line, resulting
   // in SDA being pulled up.
   if (gpio_get_level(sda_pin) == 0) {
     ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");

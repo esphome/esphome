@@ -20,13 +20,13 @@ class SensirionI2CDevice : public i2c::I2CDevice {
    * handles crc check used by Sensirion sensors
    * @param data pointer to raw result
    * @param len number of words to read
-   * @return true if reading succeded
+   * @return true if reading succeeded
    */
   bool read_data(uint16_t *data, uint8_t len);
 
   /** Read 1 data word from i2c device.
    * @param data reference to raw result
-   * @return true if reading succeded
+   * @return true if reading succeeded
    */
   bool read_data(uint16_t &data) { return this->read_data(&data, 1); }
 
@@ -35,8 +35,8 @@ class SensirionI2CDevice : public i2c::I2CDevice {
    * @param  i2c register
    * @param data pointer to raw result
    * @param len number of words to read
-   * @param delay milliseconds to to wait between sending the i2c commmand and reading the result
-   * @return true if reading succeded
+   * @param delay milliseconds to to wait between sending the i2c command and reading the result
+   * @return true if reading succeeded
    */
   bool get_register(uint16_t command, uint16_t *data, uint8_t len, uint8_t delay = 0) {
     return get_register_(command, ADDR_16_BIT, data, len, delay);
@@ -44,8 +44,8 @@ class SensirionI2CDevice : public i2c::I2CDevice {
   /** Read 1 data word from 16 bit i2c register.
    * @param  i2c register
    * @param data reference to raw result
-   * @param delay milliseconds to to wait between sending the i2c commmand and reading the result
-   * @return true if reading succeded
+   * @param delay milliseconds to to wait between sending the i2c command and reading the result
+   * @return true if reading succeeded
    */
   bool get_register(uint16_t i2c_register, uint16_t &data, uint8_t delay = 0) {
     return this->get_register_(i2c_register, ADDR_16_BIT, &data, 1, delay);
@@ -56,8 +56,8 @@ class SensirionI2CDevice : public i2c::I2CDevice {
    * @param  i2c register
    * @param data pointer to raw result
    * @param len number of words to read
-   * @param delay milliseconds to to wait between sending the i2c commmand and reading the result
-   * @return true if reading succeded
+   * @param delay milliseconds to to wait between sending the i2c command and reading the result
+   * @return true if reading succeeded
    */
   bool get_8bit_register(uint8_t i2c_register, uint16_t *data, uint8_t len, uint8_t delay = 0) {
     return get_register_(i2c_register, ADDR_8_BIT, data, len, delay);
@@ -66,8 +66,8 @@ class SensirionI2CDevice : public i2c::I2CDevice {
   /** Read 1 data word from 8 bit i2c register.
    * @param  i2c register
    * @param data reference to raw result
-   * @param delay milliseconds to to wait between sending the i2c commmand and reading the result
-   * @return true if reading succeded
+   * @param delay milliseconds to to wait between sending the i2c command and reading the result
+   * @return true if reading succeeded
    */
   bool get_8bit_register(uint8_t i2c_register, uint16_t &data, uint8_t delay = 0) {
     return this->get_register_(i2c_register, ADDR_8_BIT, &data, 1, delay);
@@ -75,21 +75,21 @@ class SensirionI2CDevice : public i2c::I2CDevice {
 
   /** Write a command to the i2c device.
    * @param command i2c command to send
-   * @return true if reading succeded
+   * @return true if reading succeeded
    */
   template<class T> bool write_command(T i2c_register) { return write_command(i2c_register, nullptr, 0); }
 
   /** Write a command and one data word to the i2c device .
    * @param command i2c command to send
    * @param data argument for the i2c command
-   * @return true if reading succeded
+   * @return true if reading succeeded
    */
   template<class T> bool write_command(T i2c_register, uint16_t data) { return write_command(i2c_register, &data, 1); }
 
   /** Write a command with arguments as words
    * @param i2c_register i2c command to send - an be uint8_t or uint16_t
    * @param data vector<uint16> arguments for the i2c command
-   * @return true if reading succeded
+   * @return true if reading succeeded
    */
   template<class T> bool write_command(T i2c_register, const std::vector<uint16_t> &data) {
     return write_command_(i2c_register, sizeof(T), data.data(), data.size());
@@ -99,7 +99,7 @@ class SensirionI2CDevice : public i2c::I2CDevice {
    * @param i2c_register i2c command to send - an be uint8_t or uint16_t
    * @param data arguments for the i2c command
    * @param len number of arguments (words)
-   * @return true if reading succeded
+   * @return true if reading succeeded
    */
   template<class T> bool write_command(T i2c_register, const uint16_t *data, uint8_t len) {
     // limit to 8 or 16 bit only
@@ -115,7 +115,7 @@ class SensirionI2CDevice : public i2c::I2CDevice {
    * @param command_len either 1 for short 8 bit command or 2 for 16 bit command codes
    * @param data arguments for the i2c command
    * @param data_len number of arguments (words)
-   * @return true if reading succeded
+   * @return true if reading succeeded
    */
   bool write_command_(uint16_t command, CommandLen command_len, const uint16_t *data, uint8_t data_len);
 
@@ -125,8 +125,8 @@ class SensirionI2CDevice : public i2c::I2CDevice {
    * @param command_len either 1 for short 8 bit command or 2 for 16 bit command codes
    * @param data pointer to raw result
    * @param len number of words to read
-   * @param delay milliseconds to to wait between sending the i2c commmand and reading the result
-   * @return true if reading succeded
+   * @param delay milliseconds to to wait between sending the i2c command and reading the result
+   * @return true if reading succeeded
    */
   bool get_register_(uint16_t reg, CommandLen command_len, uint16_t *data, uint8_t len, uint8_t delay);
 
