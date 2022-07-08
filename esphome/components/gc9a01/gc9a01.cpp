@@ -17,7 +17,7 @@ static const uint8_t MADCTL_BGR = 0x08;  ///< Blue-Green-Red pixel order
 static const uint8_t MADCTL_MH = 0x04;   ///< LCD refresh right to left
 
 // clang-format off
-static const uint8_t PROGMEM initcmd[] = {
+static const uint8_t PROGMEM INITCMD[] = {
   GC9A01_INREGEN2, 0,
   0xEB, 1, 0x14,
   GC9A01_INREGEN1, 0,
@@ -96,7 +96,7 @@ void GC9A01::setup() {
   dump_config();
   ESP_LOGD(TAG, "  END");
 
-  display_init_(initcmd);
+  display_init_(INITCMD);
   uint8_t data = 0;
 
   this->init_internal_(this->get_buffer_length());

@@ -1,5 +1,6 @@
 #pragma once
 
+namespace esphome {
 namespace gc9a01 {
 
 static const uint8_t GC9A01_TFTWIDTH = 240;   ///< Display width in pixels
@@ -17,7 +18,7 @@ static const uint8_t GC9A01_TFTHEIGHT = 240;  ///< Display height in pixels
 static const uint8_t GC9A01_SWRESET = 0x01;  ///< Software reset register
 
 // static const uint8_t GC9A01 = 0x04;   ///< Read display identification information
-static const uint8_t GC9A01 = 0x09;  ///< Read Display Status
+static const uint8_t GC9A01_STATUS = 0x09;  ///< Read Display Status
 
 static const uint8_t GC9A01_SLPIN = 0x10;   ///< Enter Sleep Mode
 static const uint8_t GC9A01_SLPOUT = 0x11;  ///< Sleep Out
@@ -63,3 +64,4 @@ static const uint8_t GC9A01_GAMMA4 = 0xF3;     ///< Set gamma 4
 static const uint8_t GC9A01_INREGEN1 = 0xFE;   ///< Inter register enable 1
 
 }  // namespace gc9a01
+} // namespace esphome
