@@ -14,6 +14,7 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@4cello"]
+# adapted from https://github.com/PaintYourDragon/Adafruit_GC9A01A
 
 DEPENDENCIES = ["spi"]
 

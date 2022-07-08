@@ -157,7 +157,7 @@ void GC9A01::display_init_(const uint8_t *addr) {
     this->sendcommand_(cmd, addr, num_args);
     addr += num_args;
     if (x & 0x80) {
-      delay(150);
+      delay(150);  // NOLINT
     }
   }
 }
