@@ -142,6 +142,8 @@ class WiFiScanResult {
   float get_priority() const { return priority_; }
   void set_priority(float priority) { priority_ = priority; }
 
+  bool operator==(const WiFiScanResult &rhs) const;
+
  protected:
   bool matches_{false};
   bssid_t bssid_;
