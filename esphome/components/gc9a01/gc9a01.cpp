@@ -97,7 +97,6 @@ void GC9A01::setup() {
   ESP_LOGD(TAG, "  END");
 
   display_init_(INITCMD);
-  uint8_t data = 0;
 
   this->init_internal_(this->get_buffer_length());
   memset(this->buffer_, 0x00, this->get_buffer_length());
@@ -149,7 +148,6 @@ void GC9A01::init_reset_() {
 }
 
 void GC9A01::display_init_(const uint8_t *addr) {
-  uint16_t ms;
   uint8_t cmd, x, num_args;
   while ((cmd = progmem_read_byte(addr++)) > 0) {
     x = progmem_read_byte(addr++);

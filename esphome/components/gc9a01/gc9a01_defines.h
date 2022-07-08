@@ -64,4 +64,4 @@ static const uint8_t GC9A01_GAMMA4 = 0xF3;     ///< Set gamma 4
 static const uint8_t GC9A01_INREGEN1 = 0xFE;   ///< Inter register enable 1
 
 }  // namespace gc9a01
-} // namespace esphome
+}  // namespace esphome
