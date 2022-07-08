@@ -329,23 +329,23 @@ bool APIServerConnectionBase::send_media_player_state_response(const MediaPlayer
 #ifdef USE_MEDIA_PLAYER
 #endif
 
-#ifdef USE_TEXT_INPUT
-bool APIServerConnectionBase::send_list_entities_text_input_response(const ListEntitiesTextInputResponse &msg) {
+#ifdef USE_INPUT_TEXT
+bool APIServerConnectionBase::send_list_entities_input_text_response(const ListEntitiesInputTextResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  ESP_LOGVV(TAG, "send_list_entities_text_input_response: %s", msg.dump().c_str());
+  ESP_LOGVV(TAG, "send_list_entities_input_text_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<ListEntitiesTextInputResponse>(msg, 66);
+  return this->send_message_<ListEntitiesInputTextResponse>(msg, 66);
 }
 #endif
-#ifdef USE_TEXT_INPUT
-bool APIServerConnectionBase::send_text_input_state_response(const TextInputStateResponse &msg) {
+#ifdef USE_INPUT_TEXT
+bool APIServerConnectionBase::send_input_text_state_response(const InputTextStateResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  ESP_LOGVV(TAG, "send_text_input_state_response: %s", msg.dump().c_str());
+  ESP_LOGVV(TAG, "send_input_text_state_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<TextInputStateResponse>(msg, 67);
+  return this->send_message_<InputTextStateResponse>(msg, 67);
 }
 #endif
-#ifdef USE_TEXT_INPUT
+#ifdef USE_INPUT_TEXT
 #endif
 
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
@@ -616,13 +616,13 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case 68: {
-#ifdef USE_TEXT_INPUT
-      TextInputCommandRequest msg;
+#ifdef USE_INPUT_TEXT
+      InputTextCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_text_input_command_request: %s", msg.dump().c_str());
+      ESP_LOGVV(TAG, "on_input_text_command_request: %s", msg.dump().c_str());
 #endif
-      this->on_text_input_command_request(msg);
+      this->on_input_text_command_request(msg);
 #endif
       break;
     }
@@ -886,8 +886,8 @@ void APIServerConnection::on_media_player_command_request(const MediaPlayerComma
   this->media_player_command(msg);
 }
 #endif
-#ifdef USE_TEXT_INPUT
-void APIServerConnection::on_text_input_command_request(const TextInputCommandRequest &msg) {
+#ifdef USE_INPUT_TEXT
+void APIServerConnection::on_input_text_command_request(const InputTextCommandRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
@@ -896,7 +896,7 @@ void APIServerConnection::on_text_input_command_request(const TextInputCommandRe
     this->on_unauthenticated_access();
     return;
   }
-  this->text_input_command(msg);
+  this->input_text_command(msg);
 }
 #endif
 

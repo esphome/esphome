@@ -278,14 +278,14 @@ template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode
       return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<enums::TextInputMode>(enums::TextInputMode value) {
+template<> const char *proto_enum_to_string<enums::InputTextMode>(enums::InputTextMode value) {
   switch (value) {
-    case enums::TEXT_INPUT_MODE_AUTO:
-      return "TEXT_INPUT_MODE_AUTO";
-    case enums::TEXT_INPUT_MODE_STRING:
-      return "TEXT_INPUT_MODE_STRING";
-//    case enums::TEXT_INPUT_MODE_SECRET:
-//      return "TEXT_INPUT_MODE_SECRET";
+    case enums::INPUT_TEXT_MODE_AUTO:
+      return "INPUT_TEXT_MODE_AUTO";
+    case enums::INPUT_TEXT_MODE_STRING:
+      return "INPUT_TEXT_MODE_STRING";
+    case enums::INPUT_TEXT_MODE_PASSWORD:
+      return "INPUT_TEXT_MODE_PASSWORD";
     default:
       return "UNKNOWN";
   }
@@ -4073,7 +4073,7 @@ void NumberCommandRequest::dump_to(std::string &out) const {
 #endif
 
 // TEXT INPUT
-bool ListEntitiesTextInputResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool ListEntitiesInputTextResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 9: {
       this->disabled_by_default = value.as_bool();
@@ -4084,14 +4084,14 @@ bool ListEntitiesTextInputResponse::decode_varint(uint32_t field_id, ProtoVarInt
       return true;
     }
     case 12: {
-      this->mode = value.as_enum<enums::TextInputMode>();
+      this->mode = value.as_enum<enums::InputTextMode>();
       return true;
     }
     default:
       return false;
   }
 }
-bool ListEntitiesTextInputResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+bool ListEntitiesInputTextResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
       this->object_id = value.as_string();
@@ -4113,7 +4113,7 @@ bool ListEntitiesTextInputResponse::decode_length(uint32_t field_id, ProtoLength
       return false;
   }
 }
-bool ListEntitiesTextInputResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+bool ListEntitiesInputTextResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 2: {
       this->key = value.as_fixed32();
@@ -4123,20 +4123,23 @@ bool ListEntitiesTextInputResponse::decode_32bit(uint32_t field_id, Proto32Bit v
       return false;
   }
 }
-void ListEntitiesTextInputResponse::encode(ProtoWriteBuffer buffer) const {
+void ListEntitiesInputTextResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->object_id);
   buffer.encode_fixed32(2, this->key);
   buffer.encode_string(3, this->name);
   buffer.encode_string(4, this->unique_id);
   buffer.encode_string(5, this->icon);
+//  buffer.encode_float(6, this->min_length);
+//  buffer.encode_float(7, this->max_length);
+//  buffer.encode_float(8, this->pattern);
   buffer.encode_bool(9, this->disabled_by_default);
   buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
-  buffer.encode_enum<enums::TextInputMode>(12, this->mode);
+  buffer.encode_enum<enums::InputTextMode>(12, this->mode);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
-void ListEntitiesTextInputResponse::dump_to(std::string &out) const {
+void ListEntitiesInputTextResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesTextInputResponse {\n");
+  out.append("ListEntitiesInputTextResponse {\n");
   out.append("  object_id: ");
   out.append("'").append(this->object_id).append("'");
   out.append("\n");
@@ -4158,6 +4161,20 @@ void ListEntitiesTextInputResponse::dump_to(std::string &out) const {
   out.append("'").append(this->icon).append("'");
   out.append("\n");
 
+//  out.append("  min: ");
+//  sprintf(buffer, "%g", this->min);
+//  out.append(buffer);
+//  out.append("\n");
+
+//  out.append("  max: ");
+//  sprintf(buffer, "%g", this->max);
+//  out.append(buffer);
+//  out.append("\n");
+
+//  out.append("  pattern: ");
+//  out.append("'").append(this->pattern).append("'");
+//  out.append("\n");
+
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
   out.append("\n");
@@ -4167,12 +4184,12 @@ void ListEntitiesTextInputResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  mode: ");
-  out.append(proto_enum_to_string<enums::TextInputMode>(this->mode));
+  out.append(proto_enum_to_string<enums::InputTextMode>(this->mode));
   out.append("\n");
   out.append("}");
 }
 #endif
-bool TextInputStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool InputTextStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 3: {
       this->missing_state = value.as_bool();
@@ -4182,7 +4199,7 @@ bool TextInputStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value)
       return false;
   }
 }
-bool TextInputStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+bool InputTextStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2: {
       this->state = value.as_string();
@@ -4192,7 +4209,7 @@ bool TextInputStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimit
       return false;
   }
 }
-bool TextInputStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+bool InputTextStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
       this->key = value.as_fixed32();
@@ -4206,15 +4223,15 @@ bool TextInputStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
       return false;
   }
 }
-void TextInputStateResponse::encode(ProtoWriteBuffer buffer) const {
+void InputTextStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_string(2, this->state);
   buffer.encode_bool(3, this->missing_state);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
-void TextInputStateResponse::dump_to(std::string &out) const {
+void InputTextStateResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
-  out.append("TextInputStateResponse {\n");
+  out.append("InputTextStateResponse {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
@@ -4231,7 +4248,7 @@ void TextInputStateResponse::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
-bool TextInputCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+bool InputTextCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
       this->key = value.as_fixed32();
@@ -4245,14 +4262,14 @@ bool TextInputCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) 
       return false;
   }
 }
-void TextInputCommandRequest::encode(ProtoWriteBuffer buffer) const {
+void InputTextCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_string(2, this->state);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
-void TextInputCommandRequest::dump_to(std::string &out) const {
+void InputTextCommandRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
-  out.append("TextInputCommandRequest {\n");
+  out.append("InputTextCommandRequest {\n");
   out.append("  key: ");
   sprintf(buffer, "%u", this->key);
   out.append(buffer);

@@ -632,36 +632,39 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 #endif
 
 
-#ifdef USE_TEXT_INPUT
-bool APIConnection::send_text_input_state(text_input::TextInput *text_input, std::string state) {
+#ifdef USE_INPUT_TEXT
+bool APIConnection::send_input_text_state(input_text::InputText *input_text, std::string state) {
   if (!this->state_subscription_)
     return false;
 
-  TextInputStateResponse resp{};
-  resp.key = text_input->get_object_id_hash();
+  InputTextStateResponse resp{};
+  resp.key = input_text->get_object_id_hash();
   resp.state = state;
-  resp.missing_state = !text_input->has_state();
-  return this->send_text_input_state_response(resp);
+  resp.missing_state = !input_text->has_state();
+  return this->send_input_text_state_response(resp);
 }
-bool APIConnection::send_text_input_info(text_input::TextInput *text_input) {
-  ListEntitiesTextInputResponse msg;
-  msg.key = text_input->get_object_id_hash();
-  msg.object_id = text_input->get_object_id();
-  msg.name = text_input->get_name();
-  msg.unique_id = get_default_unique_id("text_input", text_input);
-  msg.icon = text_input->get_icon();
-  msg.disabled_by_default = text_input->is_disabled_by_default();
-  msg.entity_category = static_cast<enums::EntityCategory>(text_input->get_entity_category());
-  msg.mode = static_cast<enums::TextInputMode>(text_input->traits.get_mode());
+bool APIConnection::send_input_text_info(input_text::InputText *input_text) {
+  ListEntitiesInputTextResponse msg;
+  msg.key = input_text->get_object_id_hash();
+  msg.object_id = input_text->get_object_id();
+  msg.name = input_text->get_name();
+  msg.unique_id = get_default_unique_id("input_text", input_text);
+  msg.icon = input_text->get_icon();
+  
+// TODO: min,max,pattern
 
-  return this->send_list_entities_text_input_response(msg);
+  msg.disabled_by_default = input_text->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(input_text->get_entity_category());
+  msg.mode = static_cast<enums::InputTextMode>(input_text->traits.get_mode());
+
+  return this->send_list_entities_input_text_response(msg);
 }
-void APIConnection::text_input_command(const TextInputCommandRequest &msg) {
-  text_input::TextInput *text_input = App.get_text_input_by_key(msg.key);
-  if (text_input == nullptr)
+void APIConnection::input_text_command(const InputTextCommandRequest &msg) {
+  input_text::InputText *input_text = App.get_input_text_by_key(msg.key);
+  if (input_text == nullptr)
     return;
 
-  auto call = text_input->make_call();
+  auto call = input_text->make_call();
   call.set_value(msg.state);
   call.perform();
 }

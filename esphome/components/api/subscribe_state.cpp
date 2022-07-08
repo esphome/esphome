@@ -42,9 +42,9 @@ bool InitialStateIterator::on_number(number::Number *number) {
   return this->client_->send_number_state(number, number->state);
 }
 #endif
-#ifdef USE_TEXT_INPUT
-bool InitialStateIterator::on_text_input(text_input::TextInput *text_input) {
-  return this->client_->send_text_input_state(text_input, text_input->state);
+#ifdef USE_INPUT_TEXT
+bool InitialStateIterator::on_input_text(input_text::InputText *input_text) {
+  return this->client_->send_input_text_state(input_text, input_text->state);
 }
 #endif
 #ifdef USE_SELECT

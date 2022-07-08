@@ -1,12 +1,12 @@
-#include "text_input.h"
+#include "input_text.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace text_input {
+namespace input_text {
 
-static const char *const TAG = "text_input";
+static const char *const TAG = "input_text";
 
-void TextInput::publish_state(const std::string &state) {
+void InputText::publish_state(const std::string &state) {
   this->has_state_ = true;
   this->state = state;
   ESP_LOGV(TAG, "'%s': Sending state %s", this->get_name().c_str(), state.c_str());
@@ -14,9 +14,9 @@ void TextInput::publish_state(const std::string &state) {
 }
 
 
-void TextInput::add_on_state_callback(std::function<void(std::string)> &&callback) {
+void InputText::add_on_state_callback(std::function<void(std::string)> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 
-}  // namespace textinput
+}  // namespace input_text
 }  // namespace esphome

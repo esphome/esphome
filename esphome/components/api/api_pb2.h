@@ -128,10 +128,10 @@ enum NumberMode : uint32_t {
   NUMBER_MODE_BOX = 1,
   NUMBER_MODE_SLIDER = 2,
 };
-enum TextInputMode : uint32_t {
-  TEXT_INPUT_MODE_AUTO = 0,
-  TEXT_INPUT_MODE_STRING = 1,
-//  TEXT_INPUT_MODE_SECRET = 2,
+enum InputTextMode : uint32_t {
+  INPUT_TEXT_MODE_AUTO = 0,
+  INPUT_TEXT_MODE_STRING = 1,
+  INPUT_TEXT_MODE_PASSWORD = 2,
 };
 enum LockState : uint32_t {
   LOCK_STATE_NONE = 0,
@@ -1034,21 +1034,20 @@ class NumberCommandRequest : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
 };
 
-class ListEntitiesTextInputResponse : public ProtoMessage {
+class ListEntitiesInputTextResponse : public ProtoMessage {
  public:
   std::string object_id{};
   uint32_t key{0};
   std::string name{};
   std::string unique_id{};
   std::string icon{};
-//  std::string 
-//  float min_value{0.0f};
-//  float max_value{0.0f};
-//  float step{0.0f};
+//  uint32_t min{0};
+//  uint32_t max{0};
+//  std::string pattern{};
   bool disabled_by_default{false};
   enums::EntityCategory entity_category{};
 //  std::string unit_of_measurement{};
-  enums::TextInputMode mode{};
+  enums::InputTextMode mode{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1059,7 +1058,7 @@ class ListEntitiesTextInputResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class TextInputStateResponse : public ProtoMessage {
+class InputTextStateResponse : public ProtoMessage {
  public:
   uint32_t key{0};
   std::string state{};
@@ -1074,7 +1073,7 @@ class TextInputStateResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class TextInputCommandRequest : public ProtoMessage {
+class InputTextCommandRequest : public ProtoMessage {
  public:
   uint32_t key{0};
   std::string state{};

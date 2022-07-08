@@ -31,8 +31,8 @@
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
-#ifdef USE_TEXT_INPUT
-#include "esphome/components/text_input/text_input.h"
+#ifdef USE_INPUT_TEXT
+#include "esphome/components/input_text/input_text.h"
 #endif
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
@@ -76,8 +76,8 @@ class Controller {
 #ifdef USE_NUMBER
   virtual void on_number_update(number::Number *obj, float state){};
 #endif
-#ifdef USE_TEXT_INPUT
-  virtual void on_text_input_update(text_input::TextInput *obj, const std::string &state){};
+#ifdef USE_INPUT_TEXT
+  virtual void on_input_text_update(input_text::InputText *obj, const std::string &state){};
 #endif
 #ifdef USE_SELECT
   virtual void on_select_update(select::Select *obj, const std::string &state, size_t index){};

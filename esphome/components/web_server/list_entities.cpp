@@ -84,10 +84,10 @@ bool ListEntitiesIterator::on_number(number::Number *number) {
 }
 #endif
 
-#ifdef USE_TEXT_INPUT
-bool ListEntitiesIterator::on_text_input(text_input::TextInput *text_input) {
+#ifdef USE_INPUT_TEXT
+bool ListEntitiesIterator::on_input_text(input_text::InputText *input_text) {
   this->web_server_->events_.send(
-    this->web_server_->text_input_json(text_input, text_input->state, DETAIL_ALL).c_str(), "state");
+    this->web_server_->input_text_json(input_text, input_text->state, DETAIL_ALL).c_str(), "state");
   return true;
 }
 #endif

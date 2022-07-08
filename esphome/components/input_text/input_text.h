@@ -3,13 +3,13 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
-#include "text_input_call.h"
-#include "text_input_traits.h"
+#include "input_text_call.h"
+#include "input_text_traits.h"
 
 namespace esphome {
-namespace text_input {
+namespace input_text {
 
-#define LOG_TEXT_INPUT(prefix, type, obj) \
+#define LOG_INPUT_TEXT(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
     if (!(obj)->get_icon().empty()) { \
@@ -17,35 +17,35 @@ namespace text_input {
     } \
   }
 
-//class TextInput;
+//class InputText;
 
 /** Base-class for all text inputs.
  *
  * A text input can use publish_state to send out a new value.
  */
-class TextInput : public EntityBase {
+class InputText : public EntityBase {
  public:
   std::string state;
-  TextInputTraits traits;
+  InputTextTraits traits;
 
   void publish_state(const std::string &state);
 
   /// Return whether this text input has gotten a full state yet.
   bool has_state() const { return has_state_; }
 
-  /// Instantiate a TextInputCall object to modify this text_input component's state.
-  TextInputCall make_call() { return TextInputCall(this); }
+  /// Instantiate a InputTextCall object to modify this input_text component's state.
+  InputTextCall make_call() { return InputTextCall(this); }
 
   void add_on_state_callback(std::function<void(std::string)> &&callback);
 
  protected:
-  friend class TextInputCall;
+  friend class InputTextCall;
 
   /** Set the value of the text input, this is a virtual method that each text input integration must implement.
    *
-   * This method is called by the TextInputCall.
+   * This method is called by the InputTextCall.
    *
-   * @param value The value as validated by the TextInputCall.
+   * @param value The value as validated by the InputTextCall.
    */
   virtual void control(const std::string &value) = 0;
 
@@ -53,5 +53,5 @@ class TextInput : public EntityBase {
   bool has_state_{false};
 };
 
-}  // namespace text_input
+}  // namespace input_text
 }  // namespace esphome

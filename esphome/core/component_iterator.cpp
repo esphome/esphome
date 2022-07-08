@@ -202,17 +202,17 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
-#ifdef USE_TEXT_INPUT
-    case IteratorState::TEXT_INPUT:
-      if (this->at_ >= App.get_text_inputs().size()) {
+#ifdef USE_INPUT_TEXT
+    case IteratorState::INPUT_TEXT:
+      if (this->at_ >= App.get_input_texts().size()) {
         advance_platform = true;
       } else {
-        auto *text_input = App.get_text_inputs()[this->at_];
-        if (text_input->is_internal() && !this->include_internal_) {
+        auto *input_text = App.get_input_texts()[this->at_];
+        if (input_text->is_internal() && !this->include_internal_) {
           success = true;
           break;
         } else {
-          success = this->on_text_input(text_input);
+          success = this->on_input_text(input_text);
         }
       }
       break;

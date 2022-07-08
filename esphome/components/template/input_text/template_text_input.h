@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/text_input/text_input.h"
+#include "esphome/components/input_text/input_text.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
@@ -8,7 +8,7 @@
 namespace esphome {
 namespace template_ {
 
-class TemplateTextInput : public text_input::TextInput, public PollingComponent {
+class TemplateInputText : public input_text::InputText, public PollingComponent {
  public:
   void set_template(std::function<optional<std::string>()> &&f) { this->f_ = f; }
 

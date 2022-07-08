@@ -43,8 +43,8 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_NUMBER
   bool on_number(number::Number *number) override;
 #endif
-#ifdef USE_TEXT_INPUT
-  bool on_text_input(text_input::TextInput *text_input) override;
+#ifdef USE_INPUT_TEXT
+  bool on_input_text(input_text::InputText *input_text) override;
 #endif
 #ifdef USE_SELECT
   bool on_select(select::Select *select) override;
