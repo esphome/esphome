@@ -199,7 +199,7 @@ void ENS210Component::update() {
   });
 }
 
-// Extracts measurement 'data' and 'status' from a 'val' obtained from measurment.
+// Extracts measurement 'data' and 'status' from a 'val' obtained from measurement.
 void ENS210Component::extract_measurement_(uint32_t val, int *data, int *status) {
   *data = (val >> 0) & 0xffff;
   int valid = (val >> 16) & 0x1;

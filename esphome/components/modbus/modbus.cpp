@@ -100,7 +100,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     }
 
     // Error ( msb indicates error )
-    // response format:  Byte[0] = device address, Byte[1] function code | 0x80 , Byte[2] excpetion code, Byte[3-4] crc
+    // response format:  Byte[0] = device address, Byte[1] function code | 0x80 , Byte[2] exception code, Byte[3-4] crc
     if ((function_code & 0x80) == 0x80) {
       data_offset = 2;
       data_len = 1;

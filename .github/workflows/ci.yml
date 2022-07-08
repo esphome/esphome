@@ -75,15 +75,15 @@ jobs:
             pio_cache_key: tidyesp32-idf
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         id: python
         with:
           python-version: '3.8'
 
       - name: Cache virtualenv
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: .venv
           key: venv-${{ steps.python.outputs.python-version }}-${{ hashFiles('requirements*.txt') }}
@@ -102,7 +102,7 @@ jobs:
 
       # Use per check platformio cache because checks use different parts
       - name: Cache platformio
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
