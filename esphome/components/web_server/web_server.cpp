@@ -241,12 +241,15 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     if (this->include_internal_ || !obj->is_internal()) {
       write_row(stream, obj, "text_input", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         text_input::TextInput *text_input = (text_input::TextInput *) obj;
+        auto mode = text_input->traits.get_mode();
+        
         stream.print(R"(<input type=")");
-        if (text_input->traits.get_mode() == "password"){}
-          stream.print(R"(password)")
-        else{ // default
-          stream.print(R"(text)")
-        }
+//        if ( text_input->traits.get_mode() == TEXT_INPUT_MODE_PASSWORD ){
+//          stream.print(R"(password)");
+//        }
+//        else{ // default
+          stream.print(R"(text)");
+//        }
         stream.print(R"(" value=")");
         stream.print(text_input->state.c_str());
         stream.print(R"("/>)");

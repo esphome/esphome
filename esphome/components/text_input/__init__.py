@@ -41,7 +41,7 @@ TextInputMode = text_input_ns.enum("TextInputMode")
 TEXT_INPUT_MODES = {
     "AUTO": TextInputMode.TEXT_INPUT_MODE_AUTO,
     "STRING": TextInputMode.TEXT_INPUT_MODE_STRING,
-#    "SECRET": TextInputMode.TEXT_INPUT_MODE_SECRET,  # to be implemented for keys, passwords, etc.
+    "PASSWORD": TextInputMode.TEXT_INPUT_MODE_PASSWORD,  # to be implemented for keys, passwords, etc.
 }
 
 icon = cv.icon
