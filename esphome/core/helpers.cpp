@@ -388,7 +388,7 @@ void get_mac_address_raw(uint8_t *mac) {
 #elif defined(USE_ESP8266)
   wifi_get_macaddr(STATION_IF, mac);
 #elif defined(USE_RP2040) && defined(USE_WIFI)
-  cyw43_hal_get_mac(0, mac);
+  cyw43_wifi_get_mac(&cyw43_state, CYW43_ITF_STA, mac);
 #endif
 }
 std::string get_mac_address() {
