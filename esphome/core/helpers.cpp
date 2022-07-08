@@ -21,7 +21,7 @@
 #include "esp_system.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2040) && defined(USE_WIFI)
 #include "pico/cyw43_arch.h"
 #endif
 
@@ -387,7 +387,7 @@ void get_mac_address_raw(uint8_t *mac) {
 #endif
 #elif defined(USE_ESP8266)
   wifi_get_macaddr(STATION_IF, mac);
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2040) && defined(USE_WIFI)
   cyw43_hal_get_mac(0, mac);
 #endif
 }
