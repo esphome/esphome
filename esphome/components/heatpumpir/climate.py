@@ -53,6 +53,7 @@ PROTOCOLS = {
     "panasonic_lke": Protocol.PROTOCOL_PANASONIC_LKE,
     "panasonic_nke": Protocol.PROTOCOL_PANASONIC_NKE,
     "samsung_aqv": Protocol.PROTOCOL_SAMSUNG_AQV,
+    "samsung_aqv12msan": Protocol.PROTOCOL_SAMSUNG_AQV12MSAN,
     "samsung_fjm": Protocol.PROTOCOL_SAMSUNG_FJM,
     "sharp": Protocol.PROTOCOL_SHARP,
     "toshiba_daiseikai": Protocol.PROTOCOL_TOSHIBA_DAISEIKAI,
