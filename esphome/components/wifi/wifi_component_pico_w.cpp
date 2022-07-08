@@ -77,7 +77,30 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   return WiFiSTAConnectStatus::IDLE;
 }
 
-bool WiFiComponent::wifi_scan_start_() { return false; }
+int WiFiComponent::s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result) {
+  global_wifi_component->wifi_scan_result(env, result);
+  return 0;
+}
+
+void WiFiComponent::wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result) {
+  bssid_t bssid;
+  std::copy(result->bssid, result->bssid + 6, bssid.begin());
+  std::string ssid(reinterpret_cast<const char *>(result->ssid));
+  WiFiScanResult res(bssid, ssid, result->channel, result->rssi, result->auth_mode != CYW43_AUTH_OPEN, ssid.empty());
+  this->scan_result_.push_back(res);
+}
+
+bool WiFiComponent::wifi_scan_start_() {
+  this->scan_result_.clear();
+  this->scan_done_ = false;
+  cyw43_wifi_scan_options_t scan_options = {0};
+  int err = cyw43_wifi_scan(&cyw43_state, &scan_options, nullptr, &s_wifi_scan_result);
+  if (err) {
+    ESP_LOGV(TAG, "cyw43_wifi_scan failed!");
+  }
+  return err == 0;
+}
+
 bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) { return false; }
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   if (!this->wifi_mode_({}, true))
@@ -102,10 +125,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, true, cyw43_arch_get_country_code());
   return true;
 }
-network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
-  return {cyw43_state.netif[CYW43_ITF_AP].ip_addr.addr};
-  ;
-}
+network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {cyw43_state.netif[CYW43_ITF_AP].ip_addr.addr}; }
 
 bool WiFiComponent::wifi_disconnect_() { return false; }
 bssid_t WiFiComponent::wifi_bssid() { return {}; }
@@ -120,7 +140,14 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   return {dns_ip->addr};
 }
 
-void WiFiComponent::wifi_loop_() { cyw43_arch_poll(); }
+void WiFiComponent::wifi_loop_() {
+  cyw43_arch_poll();
+
+  if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !cyw43_wifi_scan_active(&cyw43_state)) {
+    this->scan_done_ = true;
+    ESP_LOGV(TAG, "Scan done!");
+  }
+}
 
 void WiFiComponent::wifi_pre_setup_() {
   if (cyw43_arch_init()) {

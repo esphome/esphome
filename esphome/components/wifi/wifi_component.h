@@ -24,6 +24,10 @@ extern "C" {
 #endif
 #endif
 
+#ifdef USE_RP2040
+#include "pico/cyw43_arch.h"
+#endif
+
 namespace esphome {
 namespace wifi {
 
@@ -302,6 +306,11 @@ class WiFiComponent : public Component {
 #endif
 #ifdef USE_ESP_IDF
   void wifi_process_event_(IDFWiFiEvent *data);
+#endif
+
+#ifdef USE_RP2040
+  static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
+  void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
 #endif
 
   std::string use_address_;
