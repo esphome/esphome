@@ -10,9 +10,9 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
     CONF_VALUE,
-    CONF_MIN,
-    CONF_MAX,
-    CONF_PATTERN,
+#    CONF_MIN,
+#    CONF_MAX,
+#    CONF_PATTERN,
 #    CONF_INITIAL_VALUE
 ### To do: implement ###
 # min length
