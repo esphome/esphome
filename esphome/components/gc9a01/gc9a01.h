@@ -12,7 +12,7 @@ class GC9A01 : public PollingComponent,
                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                      spi::DATA_RATE_8MHZ> {
  public:
-  GC9A01(int width, int height, int colstart, int rowstart, bool eightbitcolor, bool invert_colors);
+  GC9A01(int width, int height, int colstart, int rowstart, bool eightbitcolor);
   void dump_config() override;
   void setup() override;
 
@@ -48,8 +48,7 @@ class GC9A01 : public PollingComponent,
   int get_height_internal() override;
 
   uint8_t colstart_ = 0, rowstart_ = 0;
-  bool eightbitcolor_ = false;
-  bool invert_colors_ = false;
+  bool eightbitcolor_ = true;
   int16_t width_ = 240, height_ = 240;  // Watch heap size
 
   GPIOPin *reset_pin_{nullptr};

@@ -9,18 +9,17 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_RESET_PIN,
     CONF_PAGES,
+    CONF_WIDTH,
+    CONF_HEIGHT,
 )
 
 CODEOWNERS = ["@4cello"]
 
 DEPENDENCIES = ["spi"]
 
-CONF_DEVICE_WIDTH = "device_width"
-CONF_DEVICE_HEIGHT = "device_height"
 CONF_OFFSET_X = "offset_x"
 CONF_OFFSET_Y = "offset_y"
 CONF_EIGHT_BIT_COLOR = "eight_bit_color"
-CONF_INVERT_COLORS = "invert_colors"
 
 gc9a01_ns = cg.esphome_ns.namespace("gc9a01")
 SPIGC9A01 = gc9a01_ns.class_(
@@ -38,12 +37,11 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(SPIGC9A01),
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_DEVICE_WIDTH): cv.int_,
-            cv.Required(CONF_DEVICE_HEIGHT): cv.int_,
+            cv.Optional(CONF_WIDTH, default=240): cv.int_,
+            cv.Optional(CONF_HEIGHT, default=240): cv.int_,
             cv.Optional(CONF_OFFSET_Y, default=0): cv.int_,
             cv.Optional(CONF_OFFSET_X, default=0): cv.int_,
             cv.Optional(CONF_EIGHT_BIT_COLOR, default=True): cv.boolean,
-            cv.Optional(CONF_INVERT_COLORS, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -69,12 +67,11 @@ async def setup_gc9a01(var, config):
 async def to_code(config):
     var = cg.new_Pvariable(
         config[CONF_ID],
-        config[CONF_DEVICE_WIDTH],
-        config[CONF_DEVICE_HEIGHT],
+        config[CONF_WIDTH],
+        config[CONF_HEIGHT],
         config[CONF_OFFSET_Y],
         config[CONF_OFFSET_X],
         config[CONF_EIGHT_BIT_COLOR],
-        config[CONF_INVERT_COLORS],
     )
     await setup_gc9a01(var, config)
     await spi.register_spi_device(var, config)

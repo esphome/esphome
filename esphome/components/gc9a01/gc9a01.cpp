@@ -76,13 +76,8 @@ static const uint8_t PROGMEM initcmd[] = {
 
 static const char *const TAG = "gc9a01";
 
-GC9A01::GC9A01(int width, int height, int colstart, int rowstart, bool eightbitcolor, bool invert_colors)
-    : colstart_(colstart),
-      rowstart_(rowstart),
-      eightbitcolor_(eightbitcolor),
-      invert_colors_(invert_colors),
-      width_(width),
-      height_(height) {}
+GC9A01::GC9A01(int width, int height, int colstart, int rowstart, bool eightbitcolor)
+    : colstart_(colstart), rowstart_(rowstart), eightbitcolor_(eightbitcolor), width_(width), height_(height) {}
 
 void GC9A01::setup() {
   ESP_LOGCONFIG(TAG, "Setting up GC9A01...");
@@ -104,8 +99,6 @@ void GC9A01::setup() {
   display_init_(initcmd);
   uint8_t data = 0;
 
-  if (this->invert_colors_)
-    sendcommand_(GC9A01_INVON, nullptr, 0);
   this->init_internal_(this->get_buffer_length());
   memset(this->buffer_, 0x00, this->get_buffer_length());
 }
@@ -177,8 +170,8 @@ void GC9A01::dump_config() {
   ESP_LOGD(TAG, "  Buffer Size: %zu", this->get_buffer_length());
   ESP_LOGD(TAG, "  Height: %d", this->height_);
   ESP_LOGD(TAG, "  Width: %d", this->width_);
-  ESP_LOGD(TAG, "  ColStart: %d", this->colstart_);
-  ESP_LOGD(TAG, "  RowStart: %d", this->rowstart_);
+  ESP_LOGD(TAG, "  OffsetX: %d", this->colstart_);
+  ESP_LOGD(TAG, "  OffsetY: %d", this->rowstart_);
   LOG_UPDATE_INTERVAL(this);
 }
 

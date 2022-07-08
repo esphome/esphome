@@ -2395,8 +2395,6 @@ display:
     cs_pin: GPIO5
     dc_pin: GPIO16
     reset_pin: GPIO22
-    device_width: 240
-    device_height: 240
     lambda: |-
       it.rectangle(40,40, 200, 200);
   - platform: ili9341
