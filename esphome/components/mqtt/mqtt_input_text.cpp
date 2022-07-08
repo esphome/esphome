@@ -49,12 +49,12 @@ void MQTTInputTextComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
 //  root[MQTT_MAX] = traits.get_max();
 //  root[MQTT_PATTERN] = traits.get_pattern();
   switch (this->input_text_->traits.get_mode()) {
-    case INPUT_text_MODE_AUTO:
+    case INPUT_TEXT_MODE_AUTO:
       break;
-    case INPUT_text_MODE_STRING:
+    case INPUT_TEXT_MODE_STRING:
       root[MQTT_MODE] = "string";
       break;
-    case INPUT_text_MODE_PASSWORD:
+    case INPUT_TEXT_MODE_PASSWORD:
       root[MQTT_MODE] = "password";
       break;
   }
