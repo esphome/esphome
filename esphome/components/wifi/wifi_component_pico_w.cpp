@@ -29,7 +29,24 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   }
   return true;
 }
-bool WiFiComponent::wifi_apply_power_save_() { return true; }
+
+bool WiFiComponent::wifi_apply_power_save_() {
+  uint32_t pm;
+  switch (this->power_save_) {
+    case WIFI_POWER_SAVE_NONE:
+      pm = CYW43_PERFORMANCE_PM;
+      break;
+    case WIFI_POWER_SAVE_LIGHT:
+      pm = CYW43_DEFAULT_PM;
+      break;
+    case WIFI_POWER_SAVE_HIGH:
+      pm = CYW43_PERFORMANCE_PM;
+      break;
+  }
+  int ret = cyw43_wifi_pm(&cyw43_state, pm);
+  return ret == 0;
+}
+
 bool WiFiComponent::wifi_apply_output_power_(float output_power) { return true; }
 
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {

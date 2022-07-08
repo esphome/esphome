@@ -265,7 +265,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_REBOOT_TIMEOUT, default="15min"
             ): cv.positive_time_period_milliseconds,
             cv.SplitDefault(
-                CONF_POWER_SAVE_MODE, esp8266="none", esp32="light", rp2040="none"
+                CONF_POWER_SAVE_MODE, esp8266="none", esp32="light", rp2040="light"
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
