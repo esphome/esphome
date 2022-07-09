@@ -26,7 +26,7 @@ MeasurementMode = vl53l0x_ns.enum("MeasurementMode")
 MEASUREMENT_MODES = {
     "HIGH_SPEED": MeasurementMode.HIGH_SPEED,
     "HIGH_ACCURACY": MeasurementMode.HIGH_ACCURACY,
-    "STANDARD": MeasurementMode.STANDARD
+    "STANDARD": MeasurementMode.STANDARD,
 }
 
 
@@ -64,7 +64,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_MEASUREMENT_MODE, default="STANDARD"): cv.enum(
                 MEASUREMENT_MODES, upper=True
-            )
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))

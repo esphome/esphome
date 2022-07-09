@@ -232,7 +232,7 @@ void VL53L0XSensor::setup() {
 
   // Timing budgets taken from upstream:
   // https://github.com/pololu/vl53l0x-arduino/blob/master/examples/Single/Single.ino
-  if (measurement_mode_ == HIGH_ACCURACY) { 
+  if (measurement_mode_ == HIGH_ACCURACY) {
     measurement_timing_budget_us_ = 200000;
   } else if (measurement_mode_ == HIGH_SPEED) {
     measurement_timing_budget_us_ = 20000;
