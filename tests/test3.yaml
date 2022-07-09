@@ -864,6 +864,19 @@ remote_receiver:
   pin: GPIO12
   dump: []
 
+remote_receiver_nf:
+  pin:
+    number: 12
+    inverted: false
+  idle: 10ms
+  sync_space_min: 8300us
+  sync_space_max: 9500us
+  early_check_thres: 100
+  sync_space_is_high: false
+  repeat_space_min: 1100us
+  num_edge_min: 16
+
+
 status_led:
   pin: GPIO2
 
