@@ -23,6 +23,8 @@ struct SequenceStepTimeouts {
 
 enum VcselPeriodType { VCSEL_PERIOD_PRE_RANGE, VCSEL_PERIOD_FINAL_RANGE };
 
+enum MeasurementMode { STANDARD, HIGH_SPEED, HIGH_ACCURACY };
+
 class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   VL53L0XSensor();
@@ -39,6 +41,7 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
   void set_long_range(bool long_range) { long_range_ = long_range; }
   void set_timeout_us(uint32_t timeout_us) { this->timeout_us_ = timeout_us; }
   void set_enable_pin(GPIOPin *enable) { this->enable_pin_ = enable; }
+  void set_measurement_mode(MeasurementMode measurement_mode) { measurement_mode_ = measurement_mode; }
 
  protected:
   uint32_t get_measurement_timing_budget_();
@@ -66,6 +69,7 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
 
   uint16_t timeout_start_us_;
   uint16_t timeout_us_{};
+  MeasurementMode measurement_mode_;
 
   static std::list<VL53L0XSensor *> vl53_sensors;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
   static bool enable_pin_setup_complete;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
