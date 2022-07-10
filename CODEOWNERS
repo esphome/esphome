@@ -96,6 +96,7 @@ esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter
 esphome/components/interval/* @esphome/core
+esphome/components/jandy_watercolors/* @carlos-sarmiento
 esphome/components/json/* @OttoWinter
 esphome/components/kalman_combinator/* @Cat-Ion
 esphome/components/ledc/* @OttoWinter
