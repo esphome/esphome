@@ -19,7 +19,7 @@ void Sim800LComponent::update() {
   if (state_ == STATE_INIT) {
     if (this->registered_ && this->send_pending_) {
       this->send_cmd_("AT+CSCS=\"GSM\"");
-      this->state_ = STATE_SENDINGSMS1;
+      this->state_ = STATE_SENDING_SMS_1;
     } else if (this->registered_ && this->dial_pending_) {
       this->send_cmd_("AT+CSCS=\"GSM\"");
       this->state_ = STATE_DIALING1;
@@ -29,7 +29,7 @@ void Sim800LComponent::update() {
     }
     this->expect_ack_ = true;
   }
-  if (state_ == STATE_RECEIVEDSMS) {
+  if (state_ == STATE_RECEIVED_SMS) {
     // Serial Buffer should have flushed.
     // Send cmd to delete received sms
     char delete_cmd[20];
@@ -80,7 +80,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
     }
     case STATE_CHECK_SMS:
       send_cmd_("AT+CMGL=\"ALL\"");
-      this->state_ = STATE_PARSE_SMS;
+      this->state_ = STATE_PARSE_SMS_RESPONSE;
       this->parse_index_ = 0;
       break;
     case STATE_DISABLE_ECHO:
@@ -95,9 +95,9 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       break;
     case STATE_CREG:
       send_cmd_("AT+CREG?");
-      this->state_ = STATE_CREGWAIT;
+      this->state_ = STATE_CREG_WAIT;
       break;
-    case STATE_CREGWAIT: {
+    case STATE_CREG_WAIT: {
       // Response: "+CREG: 0,1" -- the one there means registered ok
       //           "+CREG: -,-" means not registered ok
       bool registered = message.compare(0, 6, "+CREG:") == 0 && (message[9] == '1' || message[9] == '5');
@@ -144,9 +144,6 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       this->expect_ack_ = true;
       this->state_ = STATE_CHECK_SMS;
       break;
-    case STATE_PARSE_SMS:
-      this->state_ = STATE_PARSE_SMS_RESPONSE;
-      break;
     case STATE_PARSE_SMS_RESPONSE:
       if (message.compare(0, 6, "+CMGL:") == 0 && this->parse_index_ == 0) {
         size_t start = 7;
@@ -157,7 +154,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
           if (item == 1) {  // Slot Index
             this->parse_index_ = parse_number<uint8_t>(message.substr(start, end - start)).value_or(0);
           }
-          // item 2 = STATUS, usually "REC UNERAD"
+          // item 2 = STATUS, usually "REC UNREAD"
           if (item == 3) {  // recipient
             // Add 1 and remove 2 from substring to get rid of "quotes"
             this->sender_ = message.substr(start + 1, end - start - 2);
@@ -173,13 +170,13 @@ void Sim800LComponent::parse_cmd_(std::string message) {
           ESP_LOGD(TAG, "Invalid message %d %s", this->state_, message.c_str());
           return;
         }
-        this->state_ = STATE_RECEIVESMS;
+        this->state_ = STATE_RECEIVE_SMS;
       }
       // Otherwise we receive another OK, we do nothing just wait polling to continuously check for SMS
       if (message == "OK")
         this->state_ = STATE_INIT;
       break;
-    case STATE_RECEIVESMS:
+    case STATE_RECEIVE_SMS:
       /* Our recipient is set and the message body is in message
         kick ESPHome callback now
       */
@@ -193,22 +190,22 @@ void Sim800LComponent::parse_cmd_(std::string message) {
          the next state will swallow all received data and in next poll event
          this message index is marked for deletion.
       */
-      this->state_ = STATE_RECEIVEDSMS;
+      this->state_ = STATE_RECEIVED_SMS;
       break;
-    case STATE_RECEIVEDSMS:
+    case STATE_RECEIVED_SMS:
       // Let the buffer flush. Next poll will request to delete the parsed index message.
       break;
-    case STATE_SENDINGSMS1:
+    case STATE_SENDING_SMS_1:
       this->send_cmd_("AT+CMGS=\"" + this->recipient_ + "\"");
-      this->state_ = STATE_SENDINGSMS2;
+      this->state_ = STATE_SENDING_SMS_2;
       break;
-    case STATE_SENDINGSMS2:
+    case STATE_SENDING_SMS_2:
       if (message == ">") {
         // Send sms body
         ESP_LOGD(TAG, "Sending message: '%s'", this->outgoing_message_.c_str());
         this->write_str(this->outgoing_message_.c_str());
         this->write(26);
-        this->state_ = STATE_SENDINGSMS3;
+        this->state_ = STATE_SENDING_SMS_3;
       } else {
         set_registered_(false);
         this->state_ = STATE_INIT;
@@ -216,7 +213,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         this->write(26);
       }
       break;
-    case STATE_SENDINGSMS3:
+    case STATE_SENDING_SMS_3:
       if (message.compare(0, 6, "+CMGS:") == 0) {
         ESP_LOGD(TAG, "SMS Sent OK: %s", message.c_str());
         this->send_pending_ = false;
@@ -264,7 +261,7 @@ void Sim800LComponent::loop() {
       byte = '?';  // need to be valid utf8 string for log functions.
     this->read_buffer_[this->read_pos_] = byte;
 
-    if (this->state_ == STATE_SENDINGSMS2 && this->read_pos_ == 0 && byte == '>')
+    if (this->state_ == STATE_SENDING_SMS_2 && this->read_pos_ == 0 && byte == '>')
       this->read_buffer_[++this->read_pos_] = ASCII_LF;
 
     if (this->read_buffer_[this->read_pos_] == ASCII_LF) {
