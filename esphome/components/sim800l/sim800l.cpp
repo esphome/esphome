@@ -25,7 +25,7 @@ void Sim800LComponent::update() {
       this->state_ = STATE_DIALING1;
     } else {
       this->send_cmd_("AT");
-      this->state_ = STATE_CHECK_AT;
+      this->state_ = STATE_SETUP_CMGF;
     }
     this->expect_ack_ = true;
   }
@@ -57,7 +57,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
     bool ok = message == "OK";
     this->expect_ack_ = false;
     if (!ok) {
-      if (this->state_ == STATE_CHECK_AT && message == "AT") {
+      if (this->state_ == STATE_SETUP_CMGF && message == "AT") {
         // Expected ack but AT echo received
         this->state_ = STATE_DISABLE_ECHO;
         this->expect_ack_ = true;
@@ -74,8 +74,14 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       // While we were waiting for update to check for messages, this notifies a message
       // is available.
       bool message_available = message.compare(0, 6, "+CMTI:") == 0;
-      if (!message_available)
+      if (!message_available) {
+        if (message == "RING") {
+          // Incoming call...
+          this->state_ = STATE_PARSE_CLIP;
+        }
         break;
+      }
+
       // Else fall thru ...
     }
     case STATE_CHECK_SMS:
@@ -85,11 +91,16 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       break;
     case STATE_DISABLE_ECHO:
       send_cmd_("ATE0");
-      this->state_ = STATE_CHECK_AT;
+      this->state_ = STATE_SETUP_CMGF;
       this->expect_ack_ = true;
       break;
-    case STATE_CHECK_AT:
+    case STATE_SETUP_CMGF:
       send_cmd_("AT+CMGF=1");
+      this->state_ = STATE_SETUP_CLIP;
+      this->expect_ack_ = true;
+      break;
+    case STATE_SETUP_CLIP:
+      send_cmd_("AT+CLIP=1");
       this->state_ = STATE_CREG;
       this->expect_ack_ = true;
       break;
@@ -111,7 +122,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         if (message[7] == '0') {  // Network registration is disable, enable it
           send_cmd_("AT+CREG=1");
           this->expect_ack_ = true;
-          this->state_ = STATE_CHECK_AT;
+          this->state_ = STATE_SETUP_CMGF;
         } else {
           // Keep waiting registration
           this->state_ = STATE_CREG;
@@ -184,7 +195,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       if (message == "OK" || message.compare(0, 6, "+CMGL:") == 0) {
         ESP_LOGD(TAG, "Received SMS from: %s", this->sender_.c_str());
         ESP_LOGD(TAG, "%s", this->message_.c_str());
-        this->callback_.call(this->message_, this->sender_);
+        this->sms_received_callback_.call(this->message_, this->sender_);
         this->state_ = STATE_RECEIVED_SMS;
       } else {
         this->message_ += message;
@@ -235,6 +246,28 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         this->state_ = STATE_INIT;
         this->send_cmd_("AT+CMEE=2");
         this->write(26);
+      }
+      break;
+    case STATE_PARSE_CLIP:
+      if (message.compare(0, 6, "+CLIP:") == 0) {
+        std::string caller_id;
+        size_t start = 7;
+        size_t end = message.find(',', start);
+        uint8_t item = 0;
+        while (end != start) {
+          item++;
+          if (item == 1) {  // Slot Index
+            // Add 1 and remove 2 from substring to get rid of "quotes"
+            caller_id = message.substr(start + 1, end - start - 2);
+            break;
+          }
+          // item 4 = ""
+          // item 5 = Received timestamp
+          start = end + 1;
+          end = message.find(',', start);
+        }
+        ESP_LOGI(TAG, "Incoming call from %s", caller_id.c_str());
+        incoming_call_callback_.call(caller_id);
       }
       break;
     default:

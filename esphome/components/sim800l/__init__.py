@@ -18,6 +18,10 @@ Sim800LReceivedMessageTrigger = sim800l_ns.class_(
     "Sim800LReceivedMessageTrigger",
     automation.Trigger.template(cg.std_string, cg.std_string),
 )
+Sim800LIncomingCallTrigger = sim800l_ns.class_(
+    "Sim800LIncomingCallTrigger",
+    automation.Trigger.template(cg.std_string),
+)
 
 # Actions
 Sim800LSendSmsAction = sim800l_ns.class_("Sim800LSendSmsAction", automation.Action)
@@ -25,6 +29,7 @@ Sim800LDialAction = sim800l_ns.class_("Sim800LDialAction", automation.Action)
 
 CONF_SIM800L_ID = "sim800l_id"
 CONF_ON_SMS_RECEIVED = "on_sms_received"
+CONF_ON_INCOMING_CALL = "on_incoming_call"
 CONF_RECIPIENT = "recipient"
 CONF_MESSAGE = "message"
 
@@ -36,6 +41,13 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
                         Sim800LReceivedMessageTrigger
+                    ),
+                }
+            ),
+            cv.Optional(CONF_ON_INCOMING_CALL): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        Sim800LIncomingCallTrigger
                     ),
                 }
             ),
@@ -59,6 +71,9 @@ async def to_code(config):
         await automation.build_automation(
             trigger, [(cg.std_string, "message"), (cg.std_string, "sender")], conf
         )
+    for conf in config.get(CONF_ON_INCOMING_CALL, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(cg.std_string, "caller_id")], conf)
 
 
 SIM800L_SEND_SMS_SCHEMA = cv.Schema(

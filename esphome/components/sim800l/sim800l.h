@@ -21,7 +21,8 @@ const uint16_t SIM800L_READ_BUFFER_LENGTH = 1024;
 enum State {
   STATE_IDLE = 0,
   STATE_INIT,
-  STATE_CHECK_AT,
+  STATE_SETUP_CMGF,
+  STATE_SETUP_CLIP,
   STATE_CREG,
   STATE_CREG_WAIT,
   STATE_CSQ,
@@ -35,7 +36,8 @@ enum State {
   STATE_RECEIVED_SMS,
   STATE_DISABLE_ECHO,
   STATE_DIALING1,
-  STATE_DIALING2
+  STATE_DIALING2,
+  STATE_PARSE_CLIP
 };
 
 class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
@@ -53,7 +55,10 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
 #endif
   void add_on_sms_received_callback(std::function<void(std::string, std::string)> callback) {
-    this->callback_.add(std::move(callback));
+    this->sms_received_callback_.add(std::move(callback));
+  }
+  void add_on_incoming_call_callback(std::function<void(std::string)> callback) {
+    this->incoming_call_callback_.add(std::move(callback));
   }
   void send_sms(const std::string &recipient, const std::string &message);
   void dial(const std::string &recipient);
@@ -85,7 +90,8 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   bool send_pending_;
   bool dial_pending_;
 
-  CallbackManager<void(std::string, std::string)> callback_;
+  CallbackManager<void(std::string, std::string)> sms_received_callback_;
+  CallbackManager<void(std::string)> incoming_call_callback_;
 };
 
 class Sim800LReceivedMessageTrigger : public Trigger<std::string, std::string> {
@@ -93,6 +99,13 @@ class Sim800LReceivedMessageTrigger : public Trigger<std::string, std::string> {
   explicit Sim800LReceivedMessageTrigger(Sim800LComponent *parent) {
     parent->add_on_sms_received_callback(
         [this](const std::string &message, const std::string &sender) { this->trigger(message, sender); });
+  }
+};
+
+class Sim800LIncomingCallTrigger : public Trigger<std::string> {
+ public:
+  explicit Sim800LIncomingCallTrigger(Sim800LComponent *parent) {
+    parent->add_on_incoming_call_callback([this](const std::string &caller_id) { this->trigger(caller_id); });
   }
 };
 
