@@ -195,7 +195,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
 #if ESP_IDF_VERSION_MAJOR >= 4
   // Protected Management Frame
-  // Device will prefer to connect in PMF mode if other device also advertizes PMF capability.
+  // Device will prefer to connect in PMF mode if other device also advertises PMF capability.
   conf.sta.pmf_cfg.capable = true;
   conf.sta.pmf_cfg.required = false;
 #endif
