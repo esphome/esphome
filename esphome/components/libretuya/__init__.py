@@ -42,9 +42,9 @@ def _set_core_data(config):
 # NOTE: Keep this in mind when updating the recommended version:
 #  * For all constants below, update platformio.ini (in this repo)
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(0, 6, 1), "https://github.com/kuba2k2/libretuya.git"),
-    "latest": (cv.Version(0, 6, 1), None),
-    "recommended": (cv.Version(0, 6, 1), None),
+    "dev": (cv.Version(0, 0, 0), "https://github.com/kuba2k2/libretuya.git"),
+    "latest": (cv.Version(0, 0, 0), None),
+    "recommended": (cv.Version(0, 7, 0), None),
 }
 
 
@@ -63,7 +63,7 @@ def _check_framework_version(value):
         source = value.get(CONF_SOURCE, None)
 
     value[CONF_VERSION] = str(version)
-    value[CONF_SOURCE] = source or f"~{version.major}.{version.minor}.{version.patch}"
+    value[CONF_SOURCE] = source
 
     return value
 
@@ -123,7 +123,12 @@ async def to_code(config):
     # if platform version is a valid version constraint, prefix the default package
     framework = config[CONF_FRAMEWORK]
     cv.platformio_version_constraint(framework[CONF_VERSION])
-    cg.add_platformio_option("platform", f"libretuya @ {framework[CONF_VERSION]}")
+    if str(framework[CONF_VERSION]) != "0.0.0":
+        cg.add_platformio_option("platform", f"libretuya @ {framework[CONF_VERSION]}")
+    elif framework[CONF_SOURCE]:
+        cg.add_platformio_option("platform", framework[CONF_SOURCE])
+    else:
+        cg.add_platformio_option("platform", "libretuya")
 
     # add LT configuration options
     for name, value in sorted(config[CONF_LT_CONFIG]):
