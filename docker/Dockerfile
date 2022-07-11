@@ -134,7 +134,7 @@ RUN \
         clang-tidy-11=1:11.0.1-2 \
         patch=2.7.6-7 \
         software-properties-common=0.96.20.2-2.1 \
-        nano=5.4-2 \
+        nano=5.4-2+deb11u1 \
         build-essential=12.9 \
         python3-dev=3.9.2-3 \
     && rm -rf \
