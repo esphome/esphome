@@ -63,6 +63,7 @@ class EzoPMP : public PollingComponent, public i2c::I2CDevice {
   void pause_dosing();
   void stop_dosing();
   void change_i2c_address(int address);
+  void exec_arbitrary_command(const std::basic_string<char> &command);
 
  protected:
   uint32_t start_time_ = 0;
@@ -84,6 +85,8 @@ class EzoPMP : public PollingComponent, public i2c::I2CDevice {
   uint16_t current_command_ = 0;
   bool is_paused_flag_ = false;
   bool is_dosing_flag_ = false;
+
+  const char *arbitrary_command_{nullptr};
 
   void send_next_command_();
   void read_command_result_();
@@ -229,6 +232,17 @@ template<typename... Ts> class EzoPMPChangeI2CAddressAction : public Action<Ts..
 
   void play(Ts... x) override { this->ezopmp_->change_i2c_address(this->address_.value(x...)); }
   TEMPLATABLE_VALUE(int, address)
+
+ protected:
+  EzoPMP *ezopmp_;
+};
+
+template<typename... Ts> class EzoPMPArbitraryCommandAction : public Action<Ts...> {
+ public:
+  EzoPMPArbitraryCommandAction(EzoPMP *ezopmp) : ezopmp_(ezopmp) {}
+
+  void play(Ts... x) override { this->ezopmp_->exec_arbitrary_command(this->command_.value(x...)); }
+  TEMPLATABLE_VALUE(std::string, command)
 
  protected:
   EzoPMP *ezopmp_;

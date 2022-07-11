@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_DURATION
+from esphome.const import CONF_ADDRESS, CONF_COMMAND, CONF_ID, CONF_DURATION
 from esphome import automation
 from esphome.automation import maybe_simple_id
 
@@ -69,6 +69,9 @@ EzoPMPSetCalibrationVolumeAction = ezo_pmp_ns.class_(
 )
 EzoPMPChangeI2CAddressAction = ezo_pmp_ns.class_(
     "EzoPMPChangeI2CAddressAction", automation.Action
+)
+EzoPMPArbitraryCommandAction = ezo_pmp_ns.class_(
+    "EzoPMPArbitraryCommandAction", automation.Action
 )
 
 
@@ -261,5 +264,28 @@ async def ezo_pmp_change_i2c_address_to_code(config, action_id, template_arg, ar
 
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.double)
     cg.add(var.set_address(template_))
+
+    return var
+
+
+EZO_PMP_ARBITRARY_COMMAND_ACTION_SCHEMA = cv.All(
+    {
+        cv.Required(CONF_ID): cv.use_id(EzoPMP),
+        cv.Required(CONF_COMMAND): cv.templatable(cv.string_strict),
+    }
+)
+
+
+@automation.register_action(
+    "ezo_pmp.arbitrary_command",
+    EzoPMPArbitraryCommandAction,
+    EZO_PMP_ARBITRARY_COMMAND_ACTION_SCHEMA,
+)
+async def ezo_pmp_arbitrary_command_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.std_string)
+    cg.add(var.set_command(template_))
 
     return var

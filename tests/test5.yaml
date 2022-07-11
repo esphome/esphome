@@ -538,3 +538,6 @@ text_sensor:
         - ezo_pmp.clear_calibration: hcl_pump
         - ezo_pmp.pause_dosing: hcl_pump
         - ezo_pmp.stop_dosing: hcl_pump
+        - ezo_pmp.arbitrary_command:
+          id: hcl_pump
+          command: D,?

@@ -21,6 +21,7 @@ static const uint16_t EZO_PMP_COMMAND_CLEAR_CALIBRATION = 256;
 static const uint16_t EZO_PMP_COMMAND_PAUSE_DOSING = 512;
 static const uint16_t EZO_PMP_COMMAND_STOP_DOSING = 1024;
 static const uint16_t EZO_PMP_COMMAND_CHANGE_I2C_ADDRESS = 2048;
+static const uint16_t EZO_PMP_COMMAND_EXEC_ARBITRARY_COMMAND_ADDRESS = 4096;
 
 static const uint16_t EZO_PMP_COMMAND_READ_DOSING = 3;
 static const uint16_t EZO_PMP_COMMAND_READ_SINGLE_REPORT = 5;
@@ -273,6 +274,10 @@ void EzoPMP::read_command_result_() {
         this->dosing_mode_->publish_state(DOSING_MODE_NONE);
       break;
 
+    case EZO_PMP_COMMAND_EXEC_ARBITRARY_COMMAND_ADDRESS:
+      ESP_LOGI(TAG, "Arbitrary Command Response: %s", (char *) response_buffer);
+      break;
+
     case EZO_PMP_COMMAND_CLEAR_CALIBRATION:         // Clear Calibration (page 65)
     case EZO_PMP_COMMAND_PAUSE_DOSING:              // Pause (page 61)
     case EZO_PMP_COMMAND_SET_CALIBRATION_VOLUME:    // Set Calibration Volume (page 65)
@@ -381,6 +386,11 @@ void EzoPMP::send_next_command_() {
 
     case EZO_PMP_COMMAND_CHANGE_I2C_ADDRESS:  // Change I2C Address (page 73)
       command_buffer_length = sprintf((char *) command_buffer, "I2C,%i", this->next_command_duration_);
+      break;
+
+    case EZO_PMP_COMMAND_EXEC_ARBITRARY_COMMAND_ADDRESS:  // Run an arbitrary command
+      command_buffer_length = sprintf((char *) command_buffer, this->arbitrary_command_, this->next_command_duration_);
+      ESP_LOGI(TAG, "Sending arbitrary command: %s", (char *) command_buffer);
       break;
 
     case EZO_PMP_COMMAND_TYPE_READ:
@@ -513,6 +523,11 @@ void EzoPMP::stop_dosing() { this->queue_command_(EZO_PMP_COMMAND_STOP_DOSING, 0
 
 void EzoPMP::change_i2c_address(int address) {
   this->queue_command_(EZO_PMP_COMMAND_CHANGE_I2C_ADDRESS, 0, address, true);
+}
+
+void EzoPMP::exec_arbitrary_command(const std::basic_string<char> &command) {
+  this->arbitrary_command_ = command.c_str();
+  this->queue_command_(EZO_PMP_COMMAND_EXEC_ARBITRARY_COMMAND_ADDRESS, 0, 0, true);
 }
 
 }  // namespace ezo_pmp
