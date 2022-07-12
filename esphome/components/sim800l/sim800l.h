@@ -62,6 +62,7 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   }
   void send_sms(const std::string &recipient, const std::string &message);
   void dial(const std::string &recipient);
+  void disconnect();
 
  protected:
   void send_cmd_(const std::string &message);
@@ -89,6 +90,7 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   std::string outgoing_message_;
   bool send_pending_;
   bool dial_pending_;
+  bool disconnect_pending_;
 
   CallbackManager<void(std::string, std::string)> sms_received_callback_;
   CallbackManager<void(std::string)> incoming_call_callback_;
@@ -134,6 +136,15 @@ template<typename... Ts> class Sim800LDialAction : public Action<Ts...> {
     auto recipient = this->recipient_.value(x...);
     this->parent_->dial(recipient);
   }
+
+ protected:
+  Sim800LComponent *parent_;
+};
+template<typename... Ts> class Sim800LDisconnectAction : public Action<Ts...> {
+ public:
+  Sim800LDisconnectAction(Sim800LComponent *parent) : parent_(parent) {}
+
+  void play(Ts... x) { this->parent_->disconnect(); }
 
  protected:
   Sim800LComponent *parent_;

@@ -26,6 +26,9 @@ Sim800LIncomingCallTrigger = sim800l_ns.class_(
 # Actions
 Sim800LSendSmsAction = sim800l_ns.class_("Sim800LSendSmsAction", automation.Action)
 Sim800LDialAction = sim800l_ns.class_("Sim800LDialAction", automation.Action)
+Sim800LDisconnectAction = sim800l_ns.class_(
+    "Sim800LDisconnectAction", automation.Action
+)
 
 CONF_SIM800L_ID = "sim800l_id"
 CONF_ON_SMS_RECEIVED = "on_sms_received"
@@ -112,4 +115,15 @@ async def sim800l_dial_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_RECIPIENT], args, cg.std_string)
     cg.add(var.set_recipient(template_))
+    return var
+
+
+@automation.register_action(
+    "sim800l.disconnect",
+    Sim800LDisconnectAction,
+    cv.Schema({cv.GenerateID(): cv.use_id(Sim800LComponent)}),
+)
+async def sim800l_disconnect_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     return var

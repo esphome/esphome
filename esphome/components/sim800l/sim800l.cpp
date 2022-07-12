@@ -17,12 +17,17 @@ void Sim800LComponent::update() {
   }
 
   if (state_ == STATE_INIT) {
-    if (this->registered_ && this->send_pending_) {
-      this->send_cmd_("AT+CSCS=\"GSM\"");
-      this->state_ = STATE_SENDING_SMS_1;
-    } else if (this->registered_ && this->dial_pending_) {
-      this->send_cmd_("AT+CSCS=\"GSM\"");
-      this->state_ = STATE_DIALING1;
+    if (this->registered_) {
+      if (this->send_pending_) {
+        this->send_cmd_("AT+CSCS=\"GSM\"");
+        this->state_ = STATE_SENDING_SMS_1;
+      } else if (this->dial_pending_) {
+        this->send_cmd_("AT+CSCS=\"GSM\"");
+        this->state_ = STATE_DIALING1;
+      } else if (this->disconnect_pending_) {
+        this->disconnect_pending_ = false;
+        this->send_cmd_("ATH");
+      }
     } else {
       this->send_cmd_("AT");
       this->state_ = STATE_SETUP_CMGF;
@@ -326,6 +331,11 @@ void Sim800LComponent::dial(const std::string &recipient) {
   ESP_LOGD(TAG, "Dialing %s", recipient.c_str());
   this->recipient_ = recipient;
   this->dial_pending_ = true;
+  this->update();
+}
+void Sim800LComponent::disconnect() {
+  ESP_LOGD(TAG, "Disconnecting");
+  this->disconnect_pending_ = true;
   this->update();
 }
 
