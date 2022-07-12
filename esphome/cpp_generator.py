@@ -554,7 +554,7 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> Pvariable:
 def add(expression: Union[Expression, Statement]):
     """Add an expression to the codegen section.
 
-    After this is called, the given given expression will
+    After this is called, the given expression will
     show up in the setup() function after this has been called.
     """
     CORE.add(expression)

@@ -22,6 +22,7 @@ class EndstopCover : public cover::Cover, public Component {
   void set_close_endstop(binary_sensor::BinarySensor *close_endstop) { this->close_endstop_ = close_endstop; }
   void set_open_duration(uint32_t open_duration) { this->open_duration_ = open_duration; }
   void set_close_duration(uint32_t close_duration) { this->close_duration_ = close_duration; }
+  void set_has_built_in_endstop(bool value) { this->has_built_in_endstop_ = value; }
   void set_max_duration(uint32_t max_duration) { this->max_duration_ = max_duration; }
 
   cover::CoverTraits get_traits() override;
@@ -51,6 +52,7 @@ class EndstopCover : public cover::Cover, public Component {
   uint32_t start_dir_time_{0};
   uint32_t last_publish_time_{0};
   float target_position_{0};
+  bool has_built_in_endstop_{false};
   cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
 };
 

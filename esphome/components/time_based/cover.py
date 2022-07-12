@@ -10,12 +10,11 @@ from esphome.const import (
     CONF_OPEN_DURATION,
     CONF_STOP_ACTION,
     CONF_ASSUMED_STATE,
+    CONF_HAS_BUILT_IN_ENDSTOP,
 )
 
 time_based_ns = cg.esphome_ns.namespace("time_based")
 TimeBasedCover = time_based_ns.class_("TimeBasedCover", cover.Cover, cg.Component)
-
-CONF_HAS_BUILT_IN_ENDSTOP = "has_built_in_endstop"
 
 CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
     {

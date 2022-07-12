@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_OPEN_ENDSTOP,
     CONF_STOP_ACTION,
     CONF_MAX_DURATION,
+    CONF_HAS_BUILT_IN_ENDSTOP,
 )
 
 endstop_ns = cg.esphome_ns.namespace("endstop")
@@ -28,6 +29,7 @@ CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
         cv.Required(CONF_CLOSE_ENDSTOP): cv.use_id(binary_sensor.BinarySensor),
         cv.Required(CONF_CLOSE_DURATION): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_MAX_DURATION): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_HAS_BUILT_IN_ENDSTOP, default=False): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -57,3 +59,5 @@ async def to_code(config):
 
     if CONF_MAX_DURATION in config:
         cg.add(var.set_max_duration(config[CONF_MAX_DURATION]))
+
+    cg.add(var.set_has_built_in_endstop(config[CONF_HAS_BUILT_IN_ENDSTOP]))

@@ -66,19 +66,24 @@ void EndstopCover::loop() {
 
   const uint32_t now = millis();
 
-  if (this->current_operation == COVER_OPERATION_OPENING && this->is_open_()) {
-    float dur = (now - this->start_dir_time_) / 1e3f;
-    ESP_LOGD(TAG, "'%s' - Open endstop reached. Took %.1fs.", this->name_.c_str(), dur);
+  // Recompute position every loop cycle
+  this->recompute_position_();
 
-    this->start_direction_(COVER_OPERATION_IDLE);
-    this->position = COVER_OPEN;
+  if (this->is_at_target_()) {
+    float dur = (now - this->start_dir_time_) / 1e3f;
+    ESP_LOGD(TAG, "'%s' - Endstop reached. Took %.1fs.", this->name_.c_str(), dur);
+
+    if (this->has_built_in_endstop_ &&
+        (this->target_position_ == COVER_OPEN || this->target_position_ == COVER_CLOSED)) {
+      // Don't trigger stop, let the cover stop by itself.
+      this->current_operation = COVER_OPERATION_IDLE;
+    } else {
+      this->start_direction_(COVER_OPERATION_IDLE);
+    }
     this->publish_state();
-  } else if (this->current_operation == COVER_OPERATION_CLOSING && this->is_closed_()) {
-    float dur = (now - this->start_dir_time_) / 1e3f;
-    ESP_LOGD(TAG, "'%s' - Close endstop reached. Took %.1fs.", this->name_.c_str(), dur);
-
-    this->start_direction_(COVER_OPERATION_IDLE);
-    this->position = COVER_CLOSED;
+  } else if (this->has_built_in_endstop_ && now - this->start_dir_time_ > this->max_duration_) {
+    ESP_LOGD(TAG, "'%s' - Max duration reached.", this->name_.c_str());
+    this->current_operation = COVER_OPERATION_IDLE;
     this->publish_state();
   } else if (now - this->start_dir_time_ > this->max_duration_) {
     ESP_LOGD(TAG, "'%s' - Max duration reached. Stopping cover.", this->name_.c_str());
@@ -86,16 +91,8 @@ void EndstopCover::loop() {
     this->publish_state();
   }
 
-  // Recompute position every loop cycle
-  this->recompute_position_();
-
-  if (this->current_operation != COVER_OPERATION_IDLE && this->is_at_target_()) {
-    this->start_direction_(COVER_OPERATION_IDLE);
-    this->publish_state();
-  }
-
   // Send current position every second
-  if (this->current_operation != COVER_OPERATION_IDLE && now - this->last_publish_time_ > 1000) {
+  if (now - this->last_publish_time_ > 1000) {
     this->publish_state(false);
     this->last_publish_time_ = now;
   }
