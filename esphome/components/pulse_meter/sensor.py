@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_INTERNAL_FILTER_MODE,
     CONF_PIN,
     CONF_NUMBER,
+    CONF_RESTORE_VALUE,
     CONF_TIMEOUT,
     CONF_TOTAL,
     CONF_VALUE,
@@ -20,6 +21,8 @@ from esphome.const import (
 from esphome.core import CORE
 
 CODEOWNERS = ["@stevebaxter", "@cstaahl"]
+
+CONF_MIN_SAVE_INTERVAL = "min_save_interval"
 
 pulse_meter_ns = cg.esphome_ns.namespace("pulse_meter")
 
@@ -73,6 +76,13 @@ CONFIG_SCHEMA = sensor.sensor_schema(
             icon=ICON_PULSE,
             accuracy_decimals=0,
             state_class=STATE_CLASS_TOTAL_INCREASING,
+        ).extend(
+            {
+                cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
+                cv.Optional(
+                    CONF_MIN_SAVE_INTERVAL, default="0s"
+                ): cv.positive_time_period_milliseconds,
+            }
         ),
         cv.Optional(CONF_INTERNAL_FILTER_MODE, default="EDGE"): cv.enum(
             FILTER_MODES, upper=True
@@ -92,7 +102,11 @@ async def to_code(config):
     cg.add(var.set_filter_mode(config[CONF_INTERNAL_FILTER_MODE]))
 
     if CONF_TOTAL in config:
+        restore = config[CONF_TOTAL][CONF_RESTORE_VALUE]
+        min_save_interval = config[CONF_TOTAL][CONF_MIN_SAVE_INTERVAL]
         sens = await sensor.new_sensor(config[CONF_TOTAL])
+        cg.add(var.set_restore_value(restore))
+        cg.add(var.set_min_save_interval(min_save_interval))
         cg.add(var.set_total_sensor(sens))
 
 

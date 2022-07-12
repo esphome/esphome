@@ -15,6 +15,15 @@ void PulseMeterSensor::setup() {
   this->last_valid_low_edge_us_ = 0;
   this->last_valid_high_edge_us_ = 0;
   this->sensor_is_high_ = this->isr_pin_.digital_read();
+
+  if (this->restore_total_value_) {
+    this->pref_ = global_preferences->make_preference<uint32_t>(this->get_object_id_hash());
+    float value;
+    if (this->pref_.load(&value)) {
+      this->total_pulses_ = value;
+      this->total_sensor_->publish_state(value);
+    }
+  }
 }
 
 void PulseMeterSensor::loop() {
@@ -78,6 +87,13 @@ void PulseMeterSensor::loop() {
     const uint32_t total = this->total_pulses_;
     if (this->total_dedupe_.next(total)) {
       this->total_sensor_->publish_state(total);
+    }
+
+    if (this->restore_total_value_) {
+      if (now - this->last_save_ > this->min_save_interval_) {
+        this->last_save_ = now;
+        this->pref_.save(&total);
+      }
     }
   }
 }

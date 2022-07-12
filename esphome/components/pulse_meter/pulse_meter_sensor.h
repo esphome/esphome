@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/core/preferences.h"
+
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -21,6 +23,9 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   void set_timeout_us(uint32_t timeout) { this->timeout_us_ = timeout; }
   void set_total_sensor(sensor::Sensor *sensor) { this->total_sensor_ = sensor; }
 
+  void set_restore_value(bool restore_value) { this->restore_total_value_ = restore_value; }
+  void set_min_save_interval(uint32_t min_interval) { this->min_save_interval_ = min_interval; }
+
   void set_total_pulses(uint32_t pulses);
 
   void setup() override;
@@ -35,7 +40,11 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   ISRInternalGPIOPin isr_pin_;
   uint32_t filter_us_ = 0;
   uint32_t timeout_us_ = 1000000UL * 60UL * 5UL;
+  uint32_t last_save_{0};
+  uint32_t min_save_interval_{0};
+  bool restore_total_value_ = false;
   sensor::Sensor *total_sensor_ = nullptr;
+  ESPPreferenceObject pref_;
   InternalFilterMode filter_mode_{FILTER_EDGE};
 
   Deduplicator<uint32_t> pulse_width_dedupe_;
