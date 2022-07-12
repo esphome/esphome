@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/core/preferences.h"
 
 #if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3)
 #include <driver/pcnt.h>
@@ -55,6 +56,9 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   void set_filter_us(uint32_t filter) { storage_.filter_us = filter; }
   void set_total_sensor(sensor::Sensor *total_sensor) { total_sensor_ = total_sensor; }
 
+  void set_restore_value(bool restore_value) { this->restore_total_value_ = restore_value; }
+  void set_min_save_interval(uint32_t min_interval) { this->min_save_interval_ = min_interval; }
+
   /// Unit of measurement is "pulses/min".
   void setup() override;
   void update() override;
@@ -66,7 +70,11 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   PulseCounterStorage storage_;
   uint32_t last_time_{0};
   uint32_t current_total_{0};
+  uint32_t last_save_{0};
+  uint32_t min_save_interval_{0};
+  bool restore_total_value_ = false;
   sensor::Sensor *total_sensor_;
+  ESPPreferenceObject pref_;
 };
 
 }  // namespace pulse_counter

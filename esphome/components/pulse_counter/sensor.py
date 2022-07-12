@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_FALLING_EDGE,
     CONF_INTERNAL_FILTER,
     CONF_PIN,
+    CONF_RESTORE_VALUE,
     CONF_RISING_EDGE,
     CONF_NUMBER,
     CONF_TOTAL,
@@ -27,6 +28,8 @@ COUNT_MODES = {
 }
 
 COUNT_MODE_SCHEMA = cv.enum(COUNT_MODES, upper=True)
+
+CONF_MIN_SAVE_INTERVAL = "min_save_interval"
 
 PulseCounterSensor = pulse_counter_ns.class_(
     "PulseCounterSensor", sensor.Sensor, cg.PollingComponent
@@ -95,6 +98,13 @@ CONFIG_SCHEMA = (
                 icon=ICON_PULSE,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
+            ).extend(
+                {
+                    cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
+                    cv.Optional(
+                        CONF_MIN_SAVE_INTERVAL, default="0s"
+                    ): cv.positive_time_period_milliseconds,
+                }
             ),
         }
     )
@@ -114,5 +124,9 @@ async def to_code(config):
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
 
     if CONF_TOTAL in config:
+        restore = config[CONF_TOTAL][CONF_RESTORE_VALUE]
+        min_save_interval = config[CONF_TOTAL][CONF_MIN_SAVE_INTERVAL]
         sens = await sensor.new_sensor(config[CONF_TOTAL])
+        cg.add(var.set_restore_value(restore))
+        cg.add(var.set_min_save_interval(min_save_interval))
         cg.add(var.set_total_sensor(sens))

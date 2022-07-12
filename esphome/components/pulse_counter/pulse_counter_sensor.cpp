@@ -138,9 +138,19 @@ pulse_counter_t PulseCounterStorage::read_raw_value() {
 
 void PulseCounterSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up pulse counter '%s'...", this->name_.c_str());
+
   if (!this->storage_.pulse_counter_setup(this->pin_)) {
     this->mark_failed();
     return;
+  }
+
+  if (this->restore_total_value_) {
+    this->pref_ = global_preferences->make_preference<uint32_t>(this->get_object_id_hash());
+    float value;
+    if (this->pref_.load(&value)) {
+      current_total_ = value;
+      this->total_sensor_->publish_state(current_total_);
+    }
   }
 }
 
@@ -162,13 +172,20 @@ void PulseCounterSensor::update() {
     ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
     this->publish_state(value);
   }
+  this->last_time_ = now;
 
   if (this->total_sensor_ != nullptr) {
     current_total_ += raw;
     ESP_LOGD(TAG, "'%s': Total : %i pulses", this->get_name().c_str(), current_total_);
     this->total_sensor_->publish_state(current_total_);
+
+    if (this->restore_total_value_) {
+      if (now - this->last_save_ > this->min_save_interval_) {
+        this->last_save_ = now;
+        this->pref_.save(&current_total_);
+      }
+    }
   }
-  this->last_time_ = now;
 }
 
 }  // namespace pulse_counter
