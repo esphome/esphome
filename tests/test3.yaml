@@ -1143,6 +1143,7 @@ cover:
       - servo.detach: my_servo
     close_duration: 4.5min
     max_duration: 10min
+    has_built_in_endstop: true
   - platform: time_based
     name: Time Based Cover
     id: time_based_cover
