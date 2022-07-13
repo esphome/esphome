@@ -69,6 +69,7 @@ from esphome.const import (
 )
 
 CONF_PRESET_CHANGE = "preset_change"
+CONF_DEFAULT_PRESET = "default_preset"
 
 CODEOWNERS = ["@kbx81"]
 
@@ -124,6 +125,18 @@ def validate_temperature_preset(preset, root_config, name, requirements):
                     f"{config_temp} is defined in {name} config with no {req_action}"
                 )
 
+def generate_comparable_preset(config, name):
+    comparable_preset = (
+    f"{CONF_PRESET}:\n"
+    f"  {CONF_NAME}: {name}\n"
+    )
+
+    if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config:
+        comparable_preset += f"  {CONF_DEFAULT_TARGET_TEMPERATURE_LOW}: {config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]}\n"
+    if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in config:
+        comparable_preset += f"  {CONF_DEFAULT_TARGET_TEMPERATURE_HIGH}: {config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]}\n"
+
+    return comparable_preset
 
 def validate_thermostat(config):
     # verify corresponding action(s) exist(s) for any defined climate mode or action
@@ -277,14 +290,30 @@ def validate_thermostat(config):
             CONF_DEFAULT_TARGET_TEMPERATURE_LOW: [CONF_HEAT_ACTION],
         }
 
-    # Validate temperature requirements for default configuraation
-    validate_temperature_preset(config, config, "default", requirements)
+    # Legacy high/low configs
+    if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config:
+        comparable_preset = generate_comparable_preset(config, "Your new preset")
 
-    # Validate temperature requirements for away configuration
+        raise cv.Invalid(
+            f"{CONF_DEFAULT_TARGET_TEMPERATURE_LOW} is no longer valid. Please switch to using a preset for an equivalent experience. Equivalent configuration;\n\n"
+            f"{comparable_preset}"
+        )
+    if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in config:
+        comparable_preset = generate_comparable_preset(config, "Your new preset")
+
+        raise cv.Invalid(
+            f"{CONF_DEFAULT_TARGET_TEMPERATURE_HIGH} is no longer valid. Please switch to using a preset for an equivalent experience. Equivalent configuration;\n\n"
+            f"{comparable_preset}"
+        )
+
+    # Legacy away mode - raise an error instructing the user to switch to presets
     if CONF_AWAY_CONFIG in config:
-        away = config[CONF_AWAY_CONFIG]
-        validate_temperature_preset(away, config, "away", requirements)
+        comparable_preset = generate_comparable_preset(config[CONF_AWAY_CONFIG], "Away")
 
+        raise cv.Invalid(f"{CONF_AWAY_CONFIG} is no longer valid. Please switch to using a preset named ""Away"" for an equivalent experience. Equivalent configuration;\n\n"
+        f"{comparable_preset}"
+        )
+    
     # Validate temperature requirements for presets
     if CONF_PRESET in config:
         for preset_config in config[CONF_PRESET]:
@@ -292,7 +321,10 @@ def validate_thermostat(config):
                 preset_config, config, preset_config[CONF_NAME], requirements
             )
 
-    # Verify default climate mode is valid given above configuration
+    # Warn about using the removed CONF_DEFAULT_MODE and advise users
+    if CONF_DEFAULT_MODE in config and config[CONF_DEFAULT_MODE] is not None:
+        raise cv.Invalid(f"{CONF_DEFAULT_MODE} is no longer valid. Please switch to using presets and specify a {CONF_DEFAULT_PRESET}.")
+
     default_mode = config[CONF_DEFAULT_MODE]
     requirements = {
         "HEAT_COOL": [CONF_COOL_ACTION, CONF_HEAT_ACTION],
@@ -403,6 +435,22 @@ def validate_thermostat(config):
                         f"{CONF_SWING_MODE} is set to {swing_mode} for {preset_config[CONF_NAME]} but {req} is not present in the configuration"
                     )
 
+
+    # If a default preset is requested then ensure that preset is defined
+    if CONF_DEFAULT_PRESET in config:
+        default_preset = config[CONF_DEFAULT_PRESET]
+
+        if CONF_PRESET not in config:
+            raise cv.Invalid(
+                f"{CONF_DEFAULT_PRESET} is specified but no presets are defined"
+            )
+        else:
+            presets = config[CONF_PRESET]
+            if default_preset not in presets:
+                raise cv.Invalid(
+                    f"{CONF_DEFAULT_PRESET} set to '{default_preset}' but no such preset has been defined. Available presets: {[preset[CONF_NAME] for preset in presets]}"
+                )
+
     if config[CONF_FAN_WITH_COOLING] is True and CONF_FAN_ONLY_ACTION not in config:
         raise cv.Invalid(
             f"{CONF_FAN_ONLY_ACTION} must be defined to use {CONF_FAN_WITH_COOLING}"
@@ -502,9 +550,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_TARGET_TEMPERATURE_CHANGE_ACTION
             ): automation.validate_automation(single=True),
-            cv.Optional(CONF_DEFAULT_MODE, default="OFF"): cv.templatable(
-                validate_climate_mode
-            ),
+            cv.Optional(CONF_DEFAULT_MODE, default=None): cv.valid,
+            cv.Optional(CONF_DEFAULT_PRESET): cv.templatable(cv.string),
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
             cv.Optional(
@@ -566,7 +613,6 @@ async def to_code(config):
     )
 
     sens = await cg.get_variable(config[CONF_SENSOR])
-    cg.add(var.set_default_mode(config[CONF_DEFAULT_MODE]))
     cg.add(
         var.set_set_point_minimum_differential(
             config[CONF_SET_POINT_MINIMUM_DIFFERENTIAL]
@@ -578,23 +624,6 @@ async def to_code(config):
     cg.add(var.set_cool_overrun(config[CONF_COOL_OVERRUN]))
     cg.add(var.set_heat_deadband(config[CONF_HEAT_DEADBAND]))
     cg.add(var.set_heat_overrun(config[CONF_HEAT_OVERRUN]))
-
-    if two_points_available is True:
-        cg.add(var.set_supports_two_points(True))
-        normal_config = ThermostatClimateTargetTempConfig(
-            config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
-            config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH],
-        )
-    elif CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in config:
-        cg.add(var.set_supports_two_points(False))
-        normal_config = ThermostatClimateTargetTempConfig(
-            config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
-        )
-    elif CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config:
-        cg.add(var.set_supports_two_points(False))
-        normal_config = ThermostatClimateTargetTempConfig(
-            config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
-        )
 
     if CONF_MAX_COOLING_RUN_TIME in config:
         cg.add(
@@ -807,24 +836,6 @@ async def to_code(config):
             [],
             config[CONF_TARGET_TEMPERATURE_CHANGE_ACTION],
         )
-
-    if CONF_AWAY_CONFIG in config:
-        away = config[CONF_AWAY_CONFIG]
-
-        if two_points_available is True:
-            away_config = ThermostatClimateTargetTempConfig(
-                away[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
-                away[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH],
-            )
-        elif CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in away:
-            away_config = ThermostatClimateTargetTempConfig(
-                away[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
-            )
-        elif CONF_DEFAULT_TARGET_TEMPERATURE_LOW in away:
-            away_config = ThermostatClimateTargetTempConfig(
-                away[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
-            )
-        cg.add(var.set_preset_config(ClimatePreset.CLIMATE_PRESET_AWAY, away_config))
 
     if CONF_PRESET in config:
         for preset_config in config[CONF_PRESET]:
