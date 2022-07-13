@@ -103,7 +103,7 @@ void EzoPMP::clear_current_command_() {
 }
 
 void EzoPMP::read_command_result_() {
-  uint8_t response_buffer[21];
+  uint8_t response_buffer[21] = {'\0'};
 
   response_buffer[0] = 0;
   if (!this->read_bytes_raw(response_buffer, 20)) {
@@ -131,9 +131,9 @@ void EzoPMP::read_command_result_() {
       return;
   }
 
-  char first_parameter_buffer[10];
-  char second_parameter_buffer[10];
-  char third_parameter_buffer[10];
+  char first_parameter_buffer[10] = {'\0'};
+  char second_parameter_buffer[10] = {'\0'};
+  char third_parameter_buffer[10] = {'\0'};
 
   first_parameter_buffer[0] = '\0';
   second_parameter_buffer[0] = '\0';
@@ -179,17 +179,22 @@ void EzoPMP::read_command_result_() {
     position_in_parameter_buffer++;
   }
 
-  float second_parameter_as_float = parse_number<float>(second_parameter_buffer).value_or(0);
+  auto parsed_first_parameter = parse_number<float>(first_parameter_buffer);
+  auto parsed_second_parameter = parse_number<float>(second_parameter_buffer);
+  auto parsed_third_parameter = parse_number<float>(third_parameter_buffer);
 
   switch (this->current_command_) {
     // Read Commands
     case EZO_PMP_COMMAND_READ_DOSING:  // Page 54
-      this->is_dosing_flag_ = third_parameter_buffer[0] == '1';
+      if (parsed_third_parameter.has_value())
+        this->is_dosing_flag_ = parsed_third_parameter.value_or(0) == 1;
+
       if (this->is_dosing_)
         this->is_dosing_->publish_state(this->is_dosing_flag_);
 
-      if (this->last_volume_requested_)
-        this->last_volume_requested_->publish_state(second_parameter_as_float);
+      if (parsed_second_parameter.has_value() && this->last_volume_requested_) {
+        this->last_volume_requested_->publish_state(parsed_second_parameter.value_or(0));
+      }
 
       if (!this->is_dosing_flag_ && !this->is_paused_flag_) {
         // If pump is not paused and not dispensing
@@ -200,38 +205,41 @@ void EzoPMP::read_command_result_() {
       break;
 
     case EZO_PMP_COMMAND_READ_SINGLE_REPORT:  // Single Report (page 53)
-      if (this->current_volume_dosed_)
-        this->current_volume_dosed_->publish_state(parse_number<float>(first_parameter_buffer).value_or(0));
+      if (parsed_first_parameter.has_value() && (bool) this->current_volume_dosed_) {
+        this->current_volume_dosed_->publish_state(parsed_first_parameter.value_or(0));
+      }
       break;
 
     case EZO_PMP_COMMAND_READ_MAX_FLOW_RATE:  // Constant Flow Rate (page 57)
-      if (this->max_flow_rate_)
-        this->max_flow_rate_->publish_state(second_parameter_as_float);
+      if (parsed_second_parameter.has_value() && this->max_flow_rate_)
+        this->max_flow_rate_->publish_state(parsed_second_parameter.value_or(0));
       break;
 
     case EZO_PMP_COMMAND_READ_PAUSE_STATUS:  // Pause (page 61)
-      this->is_paused_flag_ = second_parameter_buffer[0] == '1';
+      if (parsed_second_parameter.has_value())
+        this->is_paused_flag_ = parsed_second_parameter.value_or(0) == 1;
+
       if (this->is_paused_)
         this->is_paused_->publish_state(this->is_paused_flag_);
       break;
 
     case EZO_PMP_COMMAND_READ_TOTAL_VOLUME_DOSED:  // Total Volume Dispensed (page 64)
-      if (this->total_volume_dosed_)
-        this->total_volume_dosed_->publish_state(second_parameter_as_float);
+      if (parsed_second_parameter.has_value() && this->total_volume_dosed_)
+        this->total_volume_dosed_->publish_state(parsed_second_parameter.value_or(0));
       break;
 
     case EZO_PMP_COMMAND_READ_ABSOLUTE_TOTAL_VOLUME_DOSED:  // Total Volume Dispensed (page 64)
-      if (this->absolute_total_volume_dosed_)
-        this->absolute_total_volume_dosed_->publish_state(second_parameter_as_float);
+      if (parsed_second_parameter.has_value() && this->absolute_total_volume_dosed_)
+        this->absolute_total_volume_dosed_->publish_state(parsed_second_parameter.value_or(0));
       break;
 
     case EZO_PMP_COMMAND_READ_CALIBRATION_STATUS:  // Calibration (page 65)
-      if (this->calibration_status_) {
-        if (second_parameter_buffer[0] == '1') {
+      if (parsed_second_parameter.has_value() && this->calibration_status_) {
+        if (parsed_second_parameter.value_or(0) == 1) {
           this->calibration_status_->publish_state("Fixed Volume");
-        } else if (second_parameter_buffer[0] == '2') {
+        } else if (parsed_second_parameter.value_or(0) == 2) {
           this->calibration_status_->publish_state("Volume/Time");
-        } else if (second_parameter_buffer[0] == '3') {
+        } else if (parsed_second_parameter.value_or(0) == 3) {
           this->calibration_status_->publish_state("Fixed Volume & Volume/Time");
         } else {
           this->calibration_status_->publish_state("Uncalibrated");
@@ -240,8 +248,8 @@ void EzoPMP::read_command_result_() {
       break;
 
     case EZO_PMP_COMMAND_READ_PUMP_VOLTAGE:  // Pump Voltage (page 67)
-      if (this->pump_voltage_)
-        this->pump_voltage_->publish_state(second_parameter_as_float);
+      if (parsed_second_parameter.has_value() && this->pump_voltage_)
+        this->pump_voltage_->publish_state(parsed_second_parameter.value_or(0));
       break;
 
       // Non-Read Commands
@@ -267,7 +275,7 @@ void EzoPMP::read_command_result_() {
       break;
 
     case EZO_PMP_COMMAND_STOP_DOSING:  // Stop (page 62)
-      this->is_paused_flag_ = second_parameter_buffer[0] == '1';
+      this->is_paused_flag_ = false;
       if (this->is_paused_)
         this->is_paused_->publish_state(this->is_paused_flag_);
       if (this->dosing_mode_ && this->dosing_mode_->state != DOSING_MODE_NONE)
