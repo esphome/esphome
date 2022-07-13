@@ -697,7 +697,6 @@ async def to_code(config):
     cg.add(var.set_supports_fan_with_heating(config[CONF_FAN_WITH_HEATING]))
 
     cg.add(var.set_use_startup_delay(config[CONF_STARTUP_DELAY]))
-    cg.add(var.set_preset_config(ClimatePreset.CLIMATE_PRESET_HOME, normal_config))
 
     await automation.build_automation(
         var.get_idle_action_trigger(), [], config[CONF_IDLE_ACTION]
