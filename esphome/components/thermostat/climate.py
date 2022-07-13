@@ -446,7 +446,14 @@ def validate_thermostat(config):
             )
         else:
             presets = config[CONF_PRESET]
-            if default_preset not in presets:
+            found_preset = False
+
+            for preset in presets:
+                if preset[CONF_NAME] == default_preset:
+                    found_preset = True
+                    break
+            
+            if found_preset == False:
                 raise cv.Invalid(
                     f"{CONF_DEFAULT_PRESET} set to '{default_preset}' but no such preset has been defined. Available presets: {[preset[CONF_NAME] for preset in presets]}"
                 )
