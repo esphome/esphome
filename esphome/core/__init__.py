@@ -20,7 +20,7 @@ from esphome.coroutine import FakeEventLoop as _FakeEventLoop
 
 # pylint: disable=unused-import
 from esphome.coroutine import coroutine, coroutine_with_priority  # noqa
-from esphome.helpers import ensure_unique_string, is_hassio
+from esphome.helpers import ensure_unique_string, is_ha_addon
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
@@ -568,12 +568,12 @@ class EsphomeCore:
         return self.relative_build_path("src", *path)
 
     def relative_pioenvs_path(self, *path):
-        if is_hassio():
+        if is_ha_addon():
             return os.path.join("/data", self.name, ".pioenvs", *path)
         return self.relative_build_path(".pioenvs", *path)
 
     def relative_piolibdeps_path(self, *path):
-        if is_hassio():
+        if is_ha_addon():
             return os.path.join("/data", self.name, ".piolibdeps", *path)
         return self.relative_build_path(".piolibdeps", *path)
 
@@ -651,7 +651,7 @@ class EsphomeCore:
                 continue
             if other.repository is not None:
                 if library.repository is None or other.repository == library.repository:
-                    # Other is using a/the same repository, takes precendence
+                    # Other is using a/the same repository, takes precedence
                     break
                 raise ValueError(
                     f"Adding named Library with repository failed! Libraries {library} and {other} "

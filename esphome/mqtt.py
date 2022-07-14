@@ -47,7 +47,7 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
             except OSError:
                 pass
 
-            wait_time = min(2 ** tries, 300)
+            wait_time = min(2**tries, 300)
             _LOGGER.warning(
                 "Disconnected from MQTT (%s). Trying to reconnect in %s s",
                 result_code,

@@ -94,6 +94,14 @@ void MAX31865Sensor::read_data_() {
   const uint16_t rtd_resistance_register = this->read_register_16_(RTD_RESISTANCE_MSB_REG);
   this->write_config_(0b11000000, 0b00000000);
 
+  // Check for bad connection
+  if (rtd_resistance_register == 0b0000000000000000 || rtd_resistance_register == 0b1111111111111111) {
+    ESP_LOGE(TAG, "SPI bus read all 0 or all 1 (0x%04X), check MAX31865 wiring & power.", rtd_resistance_register);
+    this->publish_state(NAN);
+    this->status_set_error();
+    return;
+  }
+
   // Check faults
   const uint8_t faults = this->read_register_(FAULT_STATUS_REG);
   if ((has_fault_ = faults & 0b00111100)) {

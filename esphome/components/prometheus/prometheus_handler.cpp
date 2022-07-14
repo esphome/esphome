@@ -45,6 +45,12 @@ void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
     this->switch_row_(stream, obj);
 #endif
 
+#ifdef USE_LOCK
+  this->lock_type_(stream);
+  for (auto *obj : App.get_locks())
+    this->lock_row_(stream, obj);
+#endif
+
   req->send(stream);
 }
 
@@ -55,7 +61,7 @@ void PrometheusHandler::sensor_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_sensor_failed GAUGE\n"));
 }
 void PrometheusHandler::sensor_row_(AsyncResponseStream *stream, sensor::Sensor *obj) {
-  if (obj->is_internal())
+  if (obj->is_internal() && !this->include_internal_)
     return;
   if (!std::isnan(obj->state)) {
     // We have a valid value, output this value
@@ -92,7 +98,7 @@ void PrometheusHandler::binary_sensor_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_binary_sensor_failed GAUGE\n"));
 }
 void PrometheusHandler::binary_sensor_row_(AsyncResponseStream *stream, binary_sensor::BinarySensor *obj) {
-  if (obj->is_internal())
+  if (obj->is_internal() && !this->include_internal_)
     return;
   if (obj->has_state()) {
     // We have a valid value, output this value
@@ -128,7 +134,7 @@ void PrometheusHandler::fan_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_fan_oscillation GAUGE\n"));
 }
 void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::Fan *obj) {
-  if (obj->is_internal())
+  if (obj->is_internal() && !this->include_internal_)
     return;
   stream->print(F("esphome_fan_failed{id=\""));
   stream->print(obj->get_object_id().c_str());
@@ -173,7 +179,7 @@ void PrometheusHandler::light_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_light_effect_active GAUGE\n"));
 }
 void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightState *obj) {
-  if (obj->is_internal())
+  if (obj->is_internal() && !this->include_internal_)
     return;
   // State
   stream->print(F("esphome_light_state{id=\""));
@@ -249,7 +255,7 @@ void PrometheusHandler::cover_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_cover_failed GAUGE\n"));
 }
 void PrometheusHandler::cover_row_(AsyncResponseStream *stream, cover::Cover *obj) {
-  if (obj->is_internal())
+  if (obj->is_internal() && !this->include_internal_)
     return;
   if (!std::isnan(obj->position)) {
     // We have a valid value, output this value
@@ -292,7 +298,7 @@ void PrometheusHandler::switch_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_switch_failed GAUGE\n"));
 }
 void PrometheusHandler::switch_row_(AsyncResponseStream *stream, switch_::Switch *obj) {
-  if (obj->is_internal())
+  if (obj->is_internal() && !this->include_internal_)
     return;
   stream->print(F("esphome_switch_failed{id=\""));
   stream->print(obj->get_object_id().c_str());
@@ -301,6 +307,30 @@ void PrometheusHandler::switch_row_(AsyncResponseStream *stream, switch_::Switch
   stream->print(F("\"} 0\n"));
   // Data itself
   stream->print(F("esphome_switch_value{id=\""));
+  stream->print(obj->get_object_id().c_str());
+  stream->print(F("\",name=\""));
+  stream->print(obj->get_name().c_str());
+  stream->print(F("\"} "));
+  stream->print(obj->state);
+  stream->print('\n');
+}
+#endif
+
+#ifdef USE_LOCK
+void PrometheusHandler::lock_type_(AsyncResponseStream *stream) {
+  stream->print(F("#TYPE esphome_lock_value GAUGE\n"));
+  stream->print(F("#TYPE esphome_lock_failed GAUGE\n"));
+}
+void PrometheusHandler::lock_row_(AsyncResponseStream *stream, lock::Lock *obj) {
+  if (obj->is_internal() && !this->include_internal_)
+    return;
+  stream->print(F("esphome_lock_failed{id=\""));
+  stream->print(obj->get_object_id().c_str());
+  stream->print(F("\",name=\""));
+  stream->print(obj->get_name().c_str());
+  stream->print(F("\"} 0\n"));
+  // Data itself
+  stream->print(F("esphome_lock_value{id=\""));
   stream->print(obj->get_object_id().c_str());
   stream->print(F("\",name=\""));
   stream->print(obj->get_name().c_str());

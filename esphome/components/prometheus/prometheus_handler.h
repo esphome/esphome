@@ -13,6 +13,13 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
  public:
   PrometheusHandler(web_server_base::WebServerBase *base) : base_(base) {}
 
+  /** Determine whether internal components should be exported as metrics.
+   * Defaults to false.
+   *
+   * @param include_internal Whether internal components should be exported.
+   */
+  void set_include_internal(bool include_internal) { include_internal_ = include_internal; }
+
   bool canHandle(AsyncWebServerRequest *request) override {
     if (request->method() == HTTP_GET) {
       if (request->url() == "/metrics")
@@ -76,7 +83,15 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   void switch_row_(AsyncResponseStream *stream, switch_::Switch *obj);
 #endif
 
+#ifdef USE_LOCK
+  /// Return the type for prometheus
+  void lock_type_(AsyncResponseStream *stream);
+  /// Return the lock Values state as prometheus data point
+  void lock_row_(AsyncResponseStream *stream, lock::Lock *obj);
+#endif
+
   web_server_base::WebServerBase *base_;
+  bool include_internal_{false};
 };
 
 }  // namespace prometheus

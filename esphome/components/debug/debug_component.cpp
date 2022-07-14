@@ -47,12 +47,16 @@ void DebugComponent::dump_config() {
 #endif
 
   ESP_LOGCONFIG(TAG, "Debug component:");
+#ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Device info", this->device_info_);
+#endif  // USE_TEXT_SENSOR
+#ifdef USE_SENSOR
   LOG_SENSOR("  ", "Free space on heap", this->free_sensor_);
   LOG_SENSOR("  ", "Largest free heap block", this->block_sensor_);
-#if defined(USE_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
+#if defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
   LOG_SENSOR("  ", "Heap fragmentation", this->fragmentation_sensor_);
-#endif
+#endif  // defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
+#endif  // USE_SENSOR
 
   ESP_LOGD(TAG, "ESPHome version %s", ESPHOME_VERSION);
   device_info += ESPHOME_VERSION;
@@ -268,11 +272,13 @@ void DebugComponent::dump_config() {
   device_info += ESP.getResetInfo().c_str();
 #endif
 
+#ifdef USE_TEXT_SENSOR
   if (this->device_info_ != nullptr) {
     if (device_info.length() > 255)
       device_info.resize(255);
     this->device_info_->publish_state(device_info);
   }
+#endif  // USE_TEXT_SENSOR
 }
 
 void DebugComponent::loop() {
@@ -284,6 +290,7 @@ void DebugComponent::loop() {
     this->status_momentary_warning("heap", 1000);
   }
 
+#ifdef USE_SENSOR
   // calculate loop time - from last call to this one
   if (this->loop_time_sensor_ != nullptr) {
     uint32_t now = millis();
@@ -291,9 +298,11 @@ void DebugComponent::loop() {
     this->max_loop_time_ = std::max(this->max_loop_time_, loop_time);
     this->last_loop_timetag_ = now;
   }
+#endif  // USE_SENSOR
 }
 
 void DebugComponent::update() {
+#ifdef USE_SENSOR
   if (this->free_sensor_ != nullptr) {
     this->free_sensor_->publish_state(get_free_heap());
   }
@@ -307,7 +316,7 @@ void DebugComponent::update() {
 #endif
   }
 
-#if defined(USE_ESP8266) && ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
+#if defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
   if (this->fragmentation_sensor_ != nullptr) {
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     this->fragmentation_sensor_->publish_state(ESP.getHeapFragmentation());
@@ -318,6 +327,7 @@ void DebugComponent::update() {
     this->loop_time_sensor_->publish_state(this->max_loop_time_);
     this->max_loop_time_ = 0;
   }
+#endif  // USE_SENSOR
 }
 
 float DebugComponent::get_setup_priority() const { return setup_priority::LATE; }

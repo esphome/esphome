@@ -20,7 +20,7 @@ class ArduinoI2CBus : public I2CBus, public Component {
   void setup() override;
   void dump_config() override;
   ErrorCode readv(uint8_t address, ReadBuffer *buffers, size_t cnt) override;
-  ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t cnt) override;
+  ErrorCode writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) override;
   float get_setup_priority() const override { return setup_priority::BUS; }
 
   void set_scan(bool scan) { scan_ = scan; }

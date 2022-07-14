@@ -1,5 +1,6 @@
 # pylint: disable=wrong-import-position
 
+import base64
 import codecs
 import collections
 import functools
@@ -55,13 +56,13 @@ class DashboardSettings:
         self.password_hash = ""
         self.username = ""
         self.using_password = False
-        self.on_hassio = False
+        self.on_ha_addon = False
         self.cookie_secret = None
 
     def parse_args(self, args):
-        self.on_hassio = args.hassio
+        self.on_ha_addon = args.ha_addon
         password = args.password or os.getenv("PASSWORD", "")
-        if not self.on_hassio:
+        if not self.on_ha_addon:
             self.username = args.username or os.getenv("USERNAME", "")
             self.using_password = bool(password)
         if self.using_password:
@@ -77,14 +78,14 @@ class DashboardSettings:
         return get_bool_env("ESPHOME_DASHBOARD_USE_PING")
 
     @property
-    def using_hassio_auth(self):
-        if not self.on_hassio:
+    def using_ha_addon_auth(self):
+        if not self.on_ha_addon:
             return False
         return not get_bool_env("DISABLE_HA_AUTHENTICATION")
 
     @property
     def using_auth(self):
-        return self.using_password or self.using_hassio_auth
+        return self.using_password or self.using_ha_addon_auth
 
     def check_password(self, username, password):
         if not self.using_auth:
@@ -138,10 +139,10 @@ def authenticated(func):
 
 
 def is_authenticated(request_handler):
-    if settings.on_hassio:
+    if settings.on_ha_addon:
         # Handle ingress - disable auth on ingress port
-        # X-Hassio-Ingress is automatically stripped on the non-ingress server in nginx
-        header = request_handler.request.headers.get("X-Hassio-Ingress", "NO")
+        # X-HA-Ingress is automatically stripped on the non-ingress server in nginx
+        header = request_handler.request.headers.get("X-HA-Ingress", "NO")
         if str(header) == "YES":
             return True
     if settings.using_auth:
@@ -283,6 +284,18 @@ class EsphomeLogsHandler(EsphomeCommandWebSocket):
         ]
 
 
+class EsphomeRenameHandler(EsphomeCommandWebSocket):
+    def build_command(self, json_message):
+        config_file = settings.rel_path(json_message["configuration"])
+        return [
+            "esphome",
+            "--dashboard",
+            "rename",
+            config_file,
+            json_message["newName"],
+        ]
+
+
 class EsphomeUploadHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
@@ -366,6 +379,8 @@ class WizardRequestHandler(BaseHandler):
             if k in ("name", "platform", "board", "ssid", "psk", "password")
         }
         kwargs["ota_password"] = secrets.token_hex(16)
+        noise_psk = secrets.token_bytes(32)
+        kwargs["api_encryption_key"] = base64.b64encode(noise_psk).decode()
         destination = settings.rel_path(f"{kwargs['name']}.yaml")
         wizard.wizard_write(path=destination, **kwargs)
         self.set_status(200)
@@ -733,7 +748,7 @@ class EditRequestHandler(BaseHandler):
         content = ""
         if os.path.isfile(filename):
             # pylint: disable=no-value-for-parameter
-            with open(file=filename, mode="r", encoding="utf-8") as f:
+            with open(file=filename, encoding="utf-8") as f:
                 content = f.read()
         self.write(content)
 
@@ -792,23 +807,23 @@ class LoginHandler(BaseHandler):
         self.render(
             "login.template.html",
             error=error,
-            hassio=settings.using_hassio_auth,
+            ha_addon=settings.using_ha_addon_auth,
             has_username=bool(settings.username),
             **template_args(),
         )
 
-    def post_hassio_login(self):
+    def post_ha_addon_login(self):
         import requests
 
         headers = {
-            "X-HASSIO-KEY": os.getenv("HASSIO_TOKEN"),
+            "Authentication": f"Bearer {os.getenv('SUPERVISOR_TOKEN')}",
         }
         data = {
             "username": self.get_argument("username", ""),
             "password": self.get_argument("password", ""),
         }
         try:
-            req = requests.post("http://hassio/auth", headers=headers, data=data)
+            req = requests.post("http://supervisor/auth", headers=headers, data=data)
             if req.status_code == 200:
                 self.set_secure_cookie("authenticated", cookie_authenticated_yes)
                 self.redirect("/")
@@ -835,8 +850,8 @@ class LoginHandler(BaseHandler):
         self.render_login_page(error=error_str)
 
     def post(self):
-        if settings.using_hassio_auth:
-            self.post_hassio_login()
+        if settings.using_ha_addon_auth:
+            self.post_ha_addon_login()
         else:
             self.post_native_login()
 
@@ -971,6 +986,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}devices", ListDevicesHandler),
             (f"{rel}import", ImportRequestHandler),
             (f"{rel}secret_keys", SecretKeysRequestHandler),
+            (f"{rel}rename", EsphomeRenameHandler),
         ],
         **app_settings,
     )

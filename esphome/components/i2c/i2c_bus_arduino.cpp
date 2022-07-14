@@ -104,7 +104,7 @@ ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt)
 
   return ERROR_OK;
 }
-ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
+ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) {
   // logging is only enabled with vv level, if warnings are shown the caller
   // should log them
   if (!initialized_) {
@@ -139,7 +139,7 @@ ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cn
       return ERROR_UNKNOWN;
     }
   }
-  uint8_t status = wire_->endTransmission(true);
+  uint8_t status = wire_->endTransmission(stop);
   if (status == 0) {
     return ERROR_OK;
   } else if (status == 1) {
@@ -224,7 +224,7 @@ void ArduinoI2CBus::recover_() {
   digitalWrite(sda_pin_, LOW);      // NOLINT
 
   // By now, any stuck device ought to have sent all remaining bits of its
-  // transation, meaning that it should have freed up the SDA line, resulting
+  // transaction, meaning that it should have freed up the SDA line, resulting
   // in SDA being pulled up.
   if (digitalRead(sda_pin_) == LOW) {  // NOLINT
     ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");

@@ -62,7 +62,12 @@ class Canbus : public Component {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
 
-  void send_data(uint32_t can_id, bool use_extended_id, const std::vector<uint8_t> &data);
+  void send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
+                 const std::vector<uint8_t> &data);
+  void send_data(uint32_t can_id, bool use_extended_id, const std::vector<uint8_t> &data) {
+    // for backwards compatibility only
+    this->send_data(can_id, use_extended_id, false, data);
+  }
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
@@ -96,38 +101,51 @@ template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public P
 
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
 
+  void set_remote_transmission_request(bool remote_transmission_request) {
+    this->remote_transmission_request_ = remote_transmission_request;
+  }
+
   void play(Ts... x) override {
     auto can_id = this->can_id_.has_value() ? *this->can_id_ : this->parent_->can_id_;
     auto use_extended_id =
         this->use_extended_id_.has_value() ? *this->use_extended_id_ : this->parent_->use_extended_id_;
     if (this->static_) {
-      this->parent_->send_data(can_id, use_extended_id, this->data_static_);
+      this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, this->data_static_);
     } else {
       auto val = this->data_func_(x...);
-      this->parent_->send_data(can_id, use_extended_id, val);
+      this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, val);
     }
   }
 
  protected:
   optional<uint32_t> can_id_{};
   optional<bool> use_extended_id_{};
+  bool remote_transmission_request_{false};
   bool static_{false};
   std::function<std::vector<uint8_t>(Ts...)> data_func_{};
   std::vector<uint8_t> data_static_{};
 };
 
-class CanbusTrigger : public Trigger<std::vector<uint8_t>>, public Component {
+class CanbusTrigger : public Trigger<std::vector<uint8_t>, uint32_t, bool>, public Component {
   friend class Canbus;
 
  public:
-  explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id, const bool use_extended_id)
-      : parent_(parent), can_id_(can_id), use_extended_id_(use_extended_id){};
+  explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id, const std::uint32_t can_id_mask,
+                         const bool use_extended_id)
+      : parent_(parent), can_id_(can_id), can_id_mask_(can_id_mask), use_extended_id_(use_extended_id){};
+
+  void set_remote_transmission_request(bool remote_transmission_request) {
+    this->remote_transmission_request_ = remote_transmission_request;
+  }
+
   void setup() override { this->parent_->add_trigger(this); }
 
  protected:
   Canbus *parent_;
   uint32_t can_id_;
+  uint32_t can_id_mask_;
   bool use_extended_id_;
+  optional<bool> remote_transmission_request_{};
 };
 
 }  // namespace canbus

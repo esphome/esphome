@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_DEFAULT_TARGET_TEMPERATURE_LOW,
     CONF_DRY_ACTION,
     CONF_DRY_MODE,
+    CONF_FAN_MODE,
     CONF_FAN_MODE_ON_ACTION,
     CONF_FAN_MODE_OFF_ACTION,
     CONF_FAN_MODE_AUTO_ACTION,
@@ -37,6 +38,7 @@ from esphome.const import (
     CONF_IDLE_ACTION,
     CONF_MAX_COOLING_RUN_TIME,
     CONF_MAX_HEATING_RUN_TIME,
+    CONF_MAX_TEMPERATURE,
     CONF_MIN_COOLING_OFF_TIME,
     CONF_MIN_COOLING_RUN_TIME,
     CONF_MIN_FAN_MODE_SWITCHING_TIME,
@@ -45,7 +47,11 @@ from esphome.const import (
     CONF_MIN_HEATING_OFF_TIME,
     CONF_MIN_HEATING_RUN_TIME,
     CONF_MIN_IDLE_TIME,
+    CONF_MIN_TEMPERATURE,
+    CONF_NAME,
+    CONF_MODE,
     CONF_OFF_MODE,
+    CONF_PRESET,
     CONF_SENSOR,
     CONF_SET_POINT_MINIMUM_DIFFERENTIAL,
     CONF_STARTUP_DELAY,
@@ -55,10 +61,14 @@ from esphome.const import (
     CONF_SUPPLEMENTAL_HEATING_DELTA,
     CONF_SWING_BOTH_ACTION,
     CONF_SWING_HORIZONTAL_ACTION,
+    CONF_SWING_MODE,
     CONF_SWING_OFF_ACTION,
     CONF_SWING_VERTICAL_ACTION,
     CONF_TARGET_TEMPERATURE_CHANGE_ACTION,
+    CONF_VISUAL,
 )
+
+CONF_PRESET_CHANGE = "preset_change"
 
 CODEOWNERS = ["@kbx81"]
 
@@ -81,6 +91,38 @@ CLIMATE_MODES = {
     "AUTO": ClimateMode.CLIMATE_MODE_AUTO,
 }
 validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
+
+ClimatePreset = climate_ns.enum("ClimatePreset")
+
+PRESET_CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(ThermostatClimateTargetTempConfig),
+        cv.Required(CONF_NAME): cv.string_strict,
+        cv.Optional(CONF_MODE): validate_climate_mode,
+        cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
+        cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
+        cv.Optional(CONF_FAN_MODE): cv.templatable(climate.validate_climate_fan_mode),
+        cv.Optional(CONF_SWING_MODE): cv.templatable(
+            climate.validate_climate_swing_mode
+        ),
+    }
+)
+
+
+def validate_temperature_preset(preset, root_config, name, requirements):
+    # verify temperature settings for the provided preset / default / away configuration
+    for config_temp, req_actions in requirements.items():
+        for req_action in req_actions:
+            # verify corresponding default target temperature exists when a given climate action exists
+            if config_temp not in preset and req_action in root_config:
+                raise cv.Invalid(
+                    f"{config_temp} must be defined in {name} config when using {req_action}"
+                )
+            # if a given climate action is NOT defined, it should not have a default target temperature
+            if config_temp in preset and req_action not in root_config:
+                raise cv.Invalid(
+                    f"{config_temp} is defined in {name} config with no {req_action}"
+                )
 
 
 def validate_thermostat(config):
@@ -235,33 +277,22 @@ def validate_thermostat(config):
             CONF_DEFAULT_TARGET_TEMPERATURE_LOW: [CONF_HEAT_ACTION],
         }
 
-    for config_temp, req_actions in requirements.items():
-        for req_action in req_actions:
-            # verify corresponding default target temperature exists when a given climate action exists
-            if config_temp not in config and req_action in config:
-                raise cv.Invalid(
-                    f"{config_temp} must be defined when using {req_action}"
-                )
-            # if a given climate action is NOT defined, it should not have a default target temperature
-            if config_temp in config and req_action not in config:
-                raise cv.Invalid(f"{config_temp} is defined with no {req_action}")
+    # Validate temperature requirements for default configuraation
+    validate_temperature_preset(config, config, "default", requirements)
 
+    # Validate temperature requirements for away configuration
     if CONF_AWAY_CONFIG in config:
         away = config[CONF_AWAY_CONFIG]
-        for config_temp, req_actions in requirements.items():
-            for req_action in req_actions:
-                # verify corresponding default target temperature exists when a given climate action exists
-                if config_temp not in away and req_action in config:
-                    raise cv.Invalid(
-                        f"{config_temp} must be defined in away configuration when using {req_action}"
-                    )
-                # if a given climate action is NOT defined, it should not have a default target temperature
-                if config_temp in away and req_action not in config:
-                    raise cv.Invalid(
-                        f"{config_temp} is defined in away configuration with no {req_action}"
-                    )
+        validate_temperature_preset(away, config, "away", requirements)
 
-    # verify default climate mode is valid given above configuration
+    # Validate temperature requirements for presets
+    if CONF_PRESET in config:
+        for preset_config in config[CONF_PRESET]:
+            validate_temperature_preset(
+                preset_config, config, preset_config[CONF_NAME], requirements
+            )
+
+    # Verify default climate mode is valid given above configuration
     default_mode = config[CONF_DEFAULT_MODE]
     requirements = {
         "HEAT_COOL": [CONF_COOL_ACTION, CONF_HEAT_ACTION],
@@ -270,12 +301,107 @@ def validate_thermostat(config):
         "DRY": [CONF_DRY_ACTION],
         "FAN_ONLY": [CONF_FAN_ONLY_ACTION],
         "AUTO": [CONF_COOL_ACTION, CONF_HEAT_ACTION],
-    }.get(default_mode, [])
-    for req in requirements:
+        "OFF": [],
+    }
+    actions_for_default_mode = requirements.get(default_mode, [])
+    for req in actions_for_default_mode:
         if req not in config:
             raise cv.Invalid(
                 f"{CONF_DEFAULT_MODE} is set to {default_mode} but {req} is not present in the configuration"
             )
+
+    # Verify that the modes for presets are valid given the configuration
+    if CONF_PRESET in config:
+        # Preset temperature vs Visual temperature validation
+
+        # Default visual configuration from climate_traits.h
+        visual_min_temperature = 10.0
+        visual_max_temperature = 30.0
+        if CONF_VISUAL in config:
+            visual_config = config[CONF_VISUAL]
+
+            if CONF_MIN_TEMPERATURE in visual_config:
+                visual_min_temperature = visual_config[CONF_MIN_TEMPERATURE]
+
+            if CONF_MAX_TEMPERATURE in visual_config:
+                visual_max_temperature = visual_config[CONF_MAX_TEMPERATURE]
+
+        for preset_config in config[CONF_PRESET]:
+            if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in preset_config:
+                preset_min_temperature = preset_config[
+                    CONF_DEFAULT_TARGET_TEMPERATURE_LOW
+                ]
+                if preset_min_temperature < visual_min_temperature:
+                    raise cv.Invalid(
+                        f"{CONF_DEFAULT_TARGET_TEMPERATURE_LOW} for {preset_config[CONF_NAME]} is set to {preset_min_temperature} which is less than the visual minimum temperature of {visual_min_temperature}"
+                    )
+
+            if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in preset_config:
+                preset_max_temperature = preset_config[
+                    CONF_DEFAULT_TARGET_TEMPERATURE_HIGH
+                ]
+                if preset_max_temperature > visual_max_temperature:
+                    raise cv.Invalid(
+                        f"{CONF_DEFAULT_TARGET_TEMPERATURE_HIGH} for {preset_config[CONF_NAME]} is set to {preset_max_temperature} which is more than the visual maximum temperature of {visual_max_temperature}"
+                    )
+
+        # Mode validation
+        for preset_config in config[CONF_PRESET]:
+            if CONF_MODE not in preset_config:
+                continue
+
+            mode = preset_config[CONF_MODE]
+
+            for req in requirements[mode]:
+                if req not in config:
+                    raise cv.Invalid(
+                        f"{CONF_MODE} is set to {mode} for {preset_config[CONF_NAME]} but {req} is not present in the configuration"
+                    )
+
+        # Fan mode requirements
+        requirements = {
+            "ON": [CONF_FAN_MODE_ON_ACTION],
+            "OFF": [CONF_FAN_MODE_OFF_ACTION],
+            "AUTO": [CONF_FAN_MODE_AUTO_ACTION],
+            "LOW": [CONF_FAN_MODE_LOW_ACTION],
+            "MEDIUM": [CONF_FAN_MODE_MEDIUM_ACTION],
+            "HIGH": [CONF_FAN_MODE_HIGH_ACTION],
+            "MIDDLE": [CONF_FAN_MODE_MIDDLE_ACTION],
+            "FOCUS": [CONF_FAN_MODE_FOCUS_ACTION],
+            "DIFFUSE": [CONF_FAN_MODE_DIFFUSE_ACTION],
+        }
+
+        for preset_config in config[CONF_PRESET]:
+            if CONF_FAN_MODE not in preset_config:
+                continue
+
+            fan_mode = preset_config[CONF_FAN_MODE]
+
+            for req in requirements[fan_mode]:
+                if req not in config:
+                    raise cv.Invalid(
+                        f"{CONF_FAN_MODE} is set to {fan_mode} for {preset_config[CONF_NAME]} but {req} is not present in the configuration"
+                    )
+
+        # Swing mode requirements
+        requirements = {
+            "OFF": [CONF_SWING_OFF_ACTION],
+            "BOTH": [CONF_SWING_BOTH_ACTION],
+            "VERTICAL": [CONF_SWING_VERTICAL_ACTION],
+            "HORIZONTAL": [CONF_SWING_HORIZONTAL_ACTION],
+        }
+
+        for preset_config in config[CONF_PRESET]:
+            if CONF_SWING_MODE not in preset_config:
+                continue
+
+            swing_mode = preset_config[CONF_SWING_MODE]
+
+            for req in requirements[swing_mode]:
+                if req not in config:
+                    raise cv.Invalid(
+                        f"{CONF_SWING_MODE} is set to {swing_mode} for {preset_config[CONF_NAME]} but {req} is not present in the configuration"
+                    )
 
     if config[CONF_FAN_WITH_COOLING] is True and CONF_FAN_ONLY_ACTION not in config:
         raise cv.Invalid(
@@ -415,6 +541,10 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
                 }
             ),
+            cv.Optional(CONF_PRESET): cv.ensure_list(PRESET_CONFIG_SCHEMA),
+            cv.Optional(CONF_PRESET_CHANGE): automation.validate_automation(
+                single=True
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(
@@ -531,7 +661,7 @@ async def to_code(config):
     cg.add(var.set_supports_fan_with_heating(config[CONF_FAN_WITH_HEATING]))
 
     cg.add(var.set_use_startup_delay(config[CONF_STARTUP_DELAY]))
-    cg.add(var.set_normal_config(normal_config))
+    cg.add(var.set_preset_config(ClimatePreset.CLIMATE_PRESET_HOME, normal_config))
 
     await automation.build_automation(
         var.get_idle_action_trigger(), [], config[CONF_IDLE_ACTION]
@@ -694,4 +824,55 @@ async def to_code(config):
             away_config = ThermostatClimateTargetTempConfig(
                 away[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
             )
-        cg.add(var.set_away_config(away_config))
+        cg.add(var.set_preset_config(ClimatePreset.CLIMATE_PRESET_AWAY, away_config))
+
+    if CONF_PRESET in config:
+        for preset_config in config[CONF_PRESET]:
+
+            name = preset_config[CONF_NAME]
+            standard_preset = None
+            if name.upper() in climate.CLIMATE_PRESETS:
+                standard_preset = climate.CLIMATE_PRESETS[name.upper()]
+
+            if two_points_available is True:
+                preset_target_config = ThermostatClimateTargetTempConfig(
+                    preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
+                    preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH],
+                )
+            elif CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in preset_config:
+                preset_target_config = ThermostatClimateTargetTempConfig(
+                    preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
+                )
+            elif CONF_DEFAULT_TARGET_TEMPERATURE_LOW in preset_config:
+                preset_target_config = ThermostatClimateTargetTempConfig(
+                    preset_config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
+                )
+
+            preset_target_variable = cg.new_variable(
+                preset_config[CONF_ID], preset_target_config
+            )
+
+            if CONF_MODE in preset_config:
+                cg.add(preset_target_variable.set_mode(preset_config[CONF_MODE]))
+
+            if CONF_FAN_MODE in preset_config:
+                cg.add(
+                    preset_target_variable.set_fan_mode(preset_config[CONF_FAN_MODE])
+                )
+
+            if CONF_SWING_MODE in preset_config:
+                cg.add(
+                    preset_target_variable.set_swing_mode(
+                        preset_config[CONF_SWING_MODE]
+                    )
+                )
+
+            if standard_preset is not None:
+                cg.add(var.set_preset_config(standard_preset, preset_target_variable))
+            else:
+                cg.add(var.set_custom_preset_config(name, preset_target_variable))
+
+    if CONF_PRESET_CHANGE in config:
+        await automation.build_automation(
+            var.get_preset_change_trigger(), [], config[CONF_PRESET_CHANGE]
+        )

@@ -130,11 +130,29 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_SELECT
   virtual void on_select_command_request(const SelectCommandRequest &value){};
 #endif
+#ifdef USE_LOCK
+  bool send_list_entities_lock_response(const ListEntitiesLockResponse &msg);
+#endif
+#ifdef USE_LOCK
+  bool send_lock_state_response(const LockStateResponse &msg);
+#endif
+#ifdef USE_LOCK
+  virtual void on_lock_command_request(const LockCommandRequest &value){};
+#endif
 #ifdef USE_BUTTON
   bool send_list_entities_button_response(const ListEntitiesButtonResponse &msg);
 #endif
 #ifdef USE_BUTTON
   virtual void on_button_command_request(const ButtonCommandRequest &value){};
+#endif
+#ifdef USE_MEDIA_PLAYER
+  bool send_list_entities_media_player_response(const ListEntitiesMediaPlayerResponse &msg);
+#endif
+#ifdef USE_MEDIA_PLAYER
+  bool send_media_player_state_response(const MediaPlayerStateResponse &msg);
+#endif
+#ifdef USE_MEDIA_PLAYER
+  virtual void on_media_player_command_request(const MediaPlayerCommandRequest &value){};
 #endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
@@ -181,6 +199,12 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_BUTTON
   virtual void button_command(const ButtonCommandRequest &msg) = 0;
 #endif
+#ifdef USE_LOCK
+  virtual void lock_command(const LockCommandRequest &msg) = 0;
+#endif
+#ifdef USE_MEDIA_PLAYER
+  virtual void media_player_command(const MediaPlayerCommandRequest &msg) = 0;
+#endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
   void on_connect_request(const ConnectRequest &msg) override;
@@ -220,6 +244,12 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_BUTTON
   void on_button_command_request(const ButtonCommandRequest &msg) override;
+#endif
+#ifdef USE_LOCK
+  void on_lock_command_request(const LockCommandRequest &msg) override;
+#endif
+#ifdef USE_MEDIA_PLAYER
+  void on_media_player_command_request(const MediaPlayerCommandRequest &msg) override;
 #endif
 };
 

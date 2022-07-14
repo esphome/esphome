@@ -222,7 +222,13 @@ def lint_ext_check(fname):
 
 
 @lint_file_check(
-    exclude=["**.sh", "docker/hassio-rootfs/**", "docker/*.py", "script/*", "setup.py"]
+    exclude=[
+        "**.sh",
+        "docker/ha-addon-rootfs/**",
+        "docker/*.py",
+        "script/*",
+        "setup.py",
+    ]
 )
 def lint_executable_bit(fname):
     ex = EXECUTABLE_BIT[fname]
@@ -275,9 +281,7 @@ def highlight(s):
     ],
 )
 def lint_no_defines(fname, match):
-    s = highlight(
-        "static const uint8_t {} = {};".format(match.group(1), match.group(2))
-    )
+    s = highlight(f"static const uint8_t {match.group(1)} = {match.group(2)};")
     return (
         "#define macros for integer constants are not allowed, please use "
         "{} style instead (replace uint8_t with the appropriate "
@@ -448,7 +452,7 @@ def lint_no_removed_in_idf_conversions(fname, match):
     replacement = IDF_CONVERSION_FORBIDDEN[match.group(1)]
     return (
         f"The macro {highlight(match.group(1))} can no longer be used in ESPHome directly. "
-        f"Plese use {highlight(replacement)} instead."
+        f"Please use {highlight(replacement)} instead."
     )
 
 
@@ -587,6 +591,11 @@ def lint_inclusive_language(fname, match):
     )
 
 
+@lint_re_check(r"[\t\r\f\v ]+$")
+def lint_trailing_whitespace(fname, match):
+    return "Trailing whitespace detected"
+
+
 @lint_content_find_check(
     "ESP_LOG",
     include=["*.h", "*.tcc"],
@@ -598,6 +607,7 @@ def lint_inclusive_language(fname, match):
         "esphome/components/display/display_buffer.h",
         "esphome/components/fan/fan.h",
         "esphome/components/i2c/i2c.h",
+        "esphome/components/lock/lock.h",
         "esphome/components/mqtt/mqtt_component.h",
         "esphome/components/number/number.h",
         "esphome/components/output/binary_output.h",

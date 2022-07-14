@@ -78,6 +78,16 @@ class APIConnection : public APIServerConnection {
   bool send_button_info(button::Button *button);
   void button_command(const ButtonCommandRequest &msg) override;
 #endif
+#ifdef USE_LOCK
+  bool send_lock_state(lock::Lock *a_lock, lock::LockState state);
+  bool send_lock_info(lock::Lock *a_lock);
+  void lock_command(const LockCommandRequest &msg) override;
+#endif
+#ifdef USE_MEDIA_PLAYER
+  bool send_media_player_state(media_player::MediaPlayer *media_player);
+  bool send_media_player_info(media_player::MediaPlayer *media_player);
+  void media_player_command(const MediaPlayerCommandRequest &msg) override;
+#endif
   bool send_log_message(int level, const char *tag, const char *line);
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
     if (!this->service_call_subscription_)

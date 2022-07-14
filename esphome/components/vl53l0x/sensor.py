@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
-    CONF_ID,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
     ICON_ARROW_EXPAND_VERTICAL,
@@ -41,6 +40,7 @@ def check_timeout(value):
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
+        VL53L0XSensor,
         unit_of_measurement=UNIT_METER,
         icon=ICON_ARROW_EXPAND_VERTICAL,
         accuracy_decimals=2,
@@ -48,7 +48,6 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(VL53L0XSensor),
             cv.Optional(CONF_SIGNAL_RATE_LIMIT, default=0.25): cv.float_range(
                 min=0.0, max=512.0, min_included=False, max_included=False
             ),
@@ -64,7 +63,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     cg.add(var.set_signal_rate_limit(config[CONF_SIGNAL_RATE_LIMIT]))
     cg.add(var.set_long_range(config[CONF_LONG_RANGE]))
@@ -74,5 +73,4 @@ async def to_code(config):
         enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
         cg.add(var.set_enable_pin(enable))
 
-    await sensor.register_sensor(var, config)
     await i2c.register_i2c_device(var, config)

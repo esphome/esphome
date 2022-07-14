@@ -1,6 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor
+from esphome.components import i2c, sensor, sensirion_common
+from esphome import automation
+from esphome.automation import maybe_simple_id
 from esphome.const import (
     CONF_ID,
     CONF_PM_1_0,
@@ -25,10 +27,19 @@ from esphome.const import (
     ICON_RULER,
 )
 
+CODEOWNERS = ["@martgras"]
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["sensirion_common"]
 
 sps30_ns = cg.esphome_ns.namespace("sps30")
-SPS30Component = sps30_ns.class_("SPS30Component", cg.PollingComponent, i2c.I2CDevice)
+SPS30Component = sps30_ns.class_(
+    "SPS30Component", cg.PollingComponent, sensirion_common.SensirionI2CDevice
+)
+
+# Actions
+StartFanAction = sps30_ns.class_("StartFanAction", automation.Action)
+
+CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -97,6 +108,7 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -148,3 +160,21 @@ async def to_code(config):
     if CONF_PM_SIZE in config:
         sens = await sensor.new_sensor(config[CONF_PM_SIZE])
         cg.add(var.set_pm_size_sensor(sens))
+
+    if CONF_AUTO_CLEANING_INTERVAL in config:
+        cg.add(var.set_auto_cleaning_interval(config[CONF_AUTO_CLEANING_INTERVAL]))
+
+
+SPS30_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(SPS30Component),
+    }
+)
+
+
+@automation.register_action(
+    "sps30.start_fan_autoclean", StartFanAction, SPS30_ACTION_SCHEMA
+)
+async def sps30_fan_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)

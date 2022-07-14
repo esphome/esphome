@@ -103,7 +103,7 @@ void IRAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore 
     rotation_dir = -1;
   }
 
-  if (rotation_dir != 0) {
+  if (rotation_dir != 0 && !arg->first_read) {
     auto *first_zero = std::find(arg->rotation_events.begin(), arg->rotation_events.end(), 0);  // find first zero
     if (first_zero == arg->rotation_events.begin()  // are we at the start (first event this loop iteration)
         || std::signbit(*std::prev(first_zero)) !=
@@ -119,6 +119,7 @@ void IRAM_ATTR HOT RotaryEncoderSensorStore::gpio_intr(RotaryEncoderSensorStore 
       *std::prev(first_zero) += rotation_dir;  // store the rotation into the previous slot
     }
   }
+  arg->first_read = false;
 
   arg->state = new_state;
 }
@@ -138,6 +139,8 @@ void RotaryEncoderSensor::setup() {
       initial_value = 0;
       break;
   }
+  initial_value = clamp(initial_value, this->store_.min_value, this->store_.max_value);
+
   this->store_.counter = initial_value;
   this->store_.last_read = initial_value;
 
