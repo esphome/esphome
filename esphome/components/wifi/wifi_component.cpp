@@ -371,6 +371,7 @@ void WiFiComponent::print_connect_params_() {
 void WiFiComponent::start_scanning() {
   this->action_started_ = millis();
   ESP_LOGD(TAG, "Starting scan...");
+  ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
   this->wifi_scan_start_();
   this->state_ = WIFI_COMPONENT_STATE_STA_SCANNING;
 }
