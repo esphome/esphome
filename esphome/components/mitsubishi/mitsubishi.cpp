@@ -51,15 +51,19 @@ void MitsubishiClimate::transmit_state() {
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
       remote_state[6] = MITSUBISHI_COOL;
+      remote_state[8] = 0x36; //Value taken from remote control, difference between docu and reality
       break;
     case climate::CLIMATE_MODE_HEAT:
       remote_state[6] = MITSUBISHI_HEAT;
+      remote_state[8] = 0x30; //Value taken from remote control, difference between docu and reality
       break;
     case climate::CLIMATE_MODE_HEAT_COOL:
       remote_state[6] = MITSUBISHI_AUTO;
+      remote_state[8] = 0x36; //Value taken from remote control, difference between docu and reality
       break;
     case climate::CLIMATE_MODE_DRY:
       remote_state[6] = MITSUBISHI_DRY;
+      remote_state[8] = 0x32; //Value taken from remote control, difference between docu and reality
       break;
     case climate::CLIMATE_MODE_OFF:
     default:
