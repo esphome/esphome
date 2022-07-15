@@ -135,9 +135,19 @@ void WiFiComponent::loop() {
           ESP_LOGW(TAG, "WiFi Connection lost... Reconnecting...");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
           this->retry_connect();
+
+          if (this->handled_connected_state_) {
+            this->disconnect_trigger_->trigger();
+            this->handled_connected_state_ = false;
+          }
         } else {
           this->status_clear_warning();
           this->last_connected_ = now;
+
+          if (!this->handled_connected_state_) {
+            this->connect_trigger_->trigger();
+            this->handled_connected_state_ = true;
+          }
         }
         break;
       }
@@ -178,7 +188,9 @@ void WiFiComponent::loop() {
   }
 }
 
-WiFiComponent::WiFiComponent() { global_wifi_component = this; }
+WiFiComponent::WiFiComponent() : connect_trigger_(new Trigger<>()), disconnect_trigger_(new Trigger<>()) {
+  global_wifi_component = this;
+}
 
 bool WiFiComponent::has_ap() const { return this->has_ap_; }
 bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
@@ -674,6 +686,9 @@ bool WiFiComponent::is_esp32_improv_active_() {
   return false;
 #endif
 }
+
+Trigger<> *WiFiComponent::get_connect_trigger() const { return this->connect_trigger_; }
+Trigger<> *WiFiComponent::get_disconnect_trigger() const { return this->disconnect_trigger_; }
 
 void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }
 void WiFiAP::set_bssid(bssid_t bssid) { this->bssid_ = bssid; }

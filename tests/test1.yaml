@@ -81,6 +81,10 @@ wifi:
   domain: .local
   reboot_timeout: 120s
   power_save_mode: light
+  on_connect:
+    - light.turn_on: ${roomname}_lights
+  on_disconnect:
+    - light.turn_off: ${roomname}_lights
 
 mdns:
   disabled: false
