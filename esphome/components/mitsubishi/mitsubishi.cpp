@@ -82,10 +82,7 @@ void MitsubishiClimate::transmit_state() {
   //Fan Speed & Vanne
   remote_state[9] = 0x00; //reset
   // Fan First
-  switch (this->fan_mode) {
-    case climate::CLIMATE_FAN_AUTO:
-      remote_state[9] = remote_state[9] | 0x80;
-      break;
+  switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
       remote_state[9] = remote_state[9] | MITSUBISHI_FAN_2; //used fan mode 2 as lowest since CLIMATE_FAN offers only 3 states
       break;
@@ -94,6 +91,10 @@ void MitsubishiClimate::transmit_state() {
       break;
     case climate::CLIMATE_FAN_HIGH:
       remote_state[9] = remote_state[9] | MITSUBISHI_FAN_4;
+      break;
+    case climate::CLIMATE_FAN_AUTO:
+    default:
+      remote_state[9] = remote_state[9] | 0x80;
       break;
   }
   //Vanne
