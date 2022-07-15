@@ -32,12 +32,13 @@ void MitsubishiClimate::transmit_state() {
   // Byte 0-4: Constant: 0x23, 0xCB, 0x26, 0x01, 0x00
   // Byte 5: On=0x20, Off: 0x00
   // Byte 6: HVAC Mode (See constants above (Heat/Dry/Cool/Auto)
-  // Byte 7: Temp (Lower 4 bit) Example:  0x00 = 0°C + MITSUBISHI_TEMP_MIN = 16°C; 0x07 = 7°C + MITSUBISHI_TEMP_MIN = 23°C
+  // Byte 7: Temp (Lower 4 bit) Example: 0x00 = 0°C+MITSUBISHI_TEMP_MIN = 16°C; 0x07 = 7°C+MITSUBISHI_TEMP_MIN = 23°C
   // Byte 8: Sends also the state similar to Byte 6, but in a strange way. Values taken from IR-Remote
   // Byte 9: Fan/Vane Default: 0x58 = 0101 1000 --> Fan Auto, Vane Pos. 3
-  //         The Remote doesn't behave constant here. The code differs depending on what you changed, even if the result is the same:
+  //         The Remote doesn't behave constant here. The code differs depending on what you changed, even if the result
+  //         is the same:
   //         0x58: Fan was set to Auto previously, and remote cycled through Vanne position until "Pos 3" was reached
-  //         0x98: Vane was already on "Pos 3" and remote cycled through Fan until "Auto" was selected
+  //         0x98: Vane was already on "Pos 3" and remote cycled through Fan until "Auto" was selected.
   //         Both cases show the identical state on the Remote, but the code differs
   // Byte 10: Current time as configured on remote
   // Byte 11: Stop time of HVAC (0x00 for no setting)
@@ -51,19 +52,19 @@ void MitsubishiClimate::transmit_state() {
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
       remote_state[6] = MITSUBISHI_COOL;
-      remote_state[8] = 0x36; //Value taken from remote control, difference between docu and reality
+      remote_state[8] = 0x36;  // Value taken from remote control, difference between docu and reality
       break;
     case climate::CLIMATE_MODE_HEAT:
       remote_state[6] = MITSUBISHI_HEAT;
-      remote_state[8] = 0x30; //Value taken from remote control, difference between docu and reality
+      remote_state[8] = 0x30;  // Value taken from remote control, difference between docu and reality
       break;
     case climate::CLIMATE_MODE_HEAT_COOL:
       remote_state[6] = MITSUBISHI_AUTO;
-      remote_state[8] = 0x36; //Value taken from remote control, difference between docu and reality
+      remote_state[8] = 0x36;  // Value taken from remote control, difference between docu and reality
       break;
     case climate::CLIMATE_MODE_DRY:
       remote_state[6] = MITSUBISHI_DRY;
-      remote_state[8] = 0x32; //Value taken from remote control, difference between docu and reality
+      remote_state[8] = 0x32;  // Value taken from remote control, difference between docu and reality
       break;
     case climate::CLIMATE_MODE_OFF:
     default:
@@ -71,20 +72,21 @@ void MitsubishiClimate::transmit_state() {
       break;
   }
 
-  //Temp
-  if(this->mode == climate::CLIMATE_MODE_DRY) {
-    remote_state[7] = 24 - MITSUBISHI_TEMP_MIN; //Remote sends always 24°C if "Dry" mode is selected
+  // Temp
+  if (this->mode == climate::CLIMATE_MODE_DRY) {
+    remote_state[7] = 24 - MITSUBISHI_TEMP_MIN;  // Remote sends always 24°C if "Dry" mode is selected
   } else {
-    remote_state[7] = (uint8_t) roundf(clamp<float>(this->target_temperature, MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX) -
-                                       MITSUBISHI_TEMP_MIN);
+    remote_state[7] = (uint8_t) roundf(
+        clamp<float>(this->target_temperature, MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX) - MITSUBISHI_TEMP_MIN);
   }
 
-  //Fan Speed & Vanne
-  remote_state[9] = 0x00; //reset
+  // Fan Speed & Vanne
+  remote_state[9] = 0x00;  // reset
   // Fan First
   switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
-      remote_state[9] = remote_state[9] | MITSUBISHI_FAN_2; //used fan mode 2 as lowest since CLIMATE_FAN offers only 3 states
+      // used fan mode 2 as lowest since CLIMATE_FAN offers only 3 states
+      remote_state[9] = remote_state[9] | MITSUBISHI_FAN_2;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
       remote_state[9] = remote_state[9] | MITSUBISHI_FAN_3;
@@ -97,16 +99,16 @@ void MitsubishiClimate::transmit_state() {
       remote_state[9] = remote_state[9] | 0x80;
       break;
   }
-  //Vanne
-  if(this->swing_mode == climate::CLIMATE_SWING_OFF) {
-    remote_state[9] = remote_state[9] | 0x40; // Off--> Auto position (High if cooling, low if heating)
-  } else if(this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
-    remote_state[9] = remote_state[9] | 0x78; // Vanne move
+  // Vanne
+  if (this->swing_mode == climate::CLIMATE_SWING_OFF) {
+    remote_state[9] = remote_state[9] | 0x40;  // Off--> Auto position (High if cooling, low if heating)
+  } else if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
+    remote_state[9] = remote_state[9] | 0x78;  // Vanne move
   }
 
-
-  //ESP_LOGV(TAG, "Sending Mitsubishi target temp: %.1f state: %02X mode: %02X temp: %02X Fan+Vane: %02X", this->target_temperature,
-  //         remote_state[5], remote_state[6], remote_state[7], remote_state[9]);
+  // ESP_LOGV(TAG, "Sending Mitsubishi target temp: %.1f state: %02X mode: %02X temp: %02X Fan+Vane: %02X",
+  // this->target_temperature,
+  //          remote_state[5], remote_state[6], remote_state[7], remote_state[9]);
 
   // Checksum
   for (int i = 0; i < 17; i++) {
@@ -141,14 +143,12 @@ void MitsubishiClimate::transmit_state() {
   transmit.perform();
 }
 
-bool MitsubishiClimate::parse_state_frame_(const uint8_t frame[]) {
-    return false;
-}
+bool MitsubishiClimate::parse_state_frame_(const uint8_t frame[]) { return false; }
 
 bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
-    uint8_t state_frame[18] = {};
+  uint8_t state_frame[18] = {};
 
-    if (!data.expect_item(MITSUBISHI_HEADER_MARK, MITSUBISHI_HEADER_SPACE)) {
+  if (!data.expect_item(MITSUBISHI_HEADER_MARK, MITSUBISHI_HEADER_SPACE)) {
     return false;
   }
 
@@ -163,55 +163,55 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
     state_frame[pos] = byte;
 
-    //Check Header
+    // Check Header
     if (pos == 0 && byte != 0x23) {
-        return false;
+      return false;
     } else if (pos == 1 && byte != 0xCB) {
-        return false;
+      return false;
     } else if (pos == 2 && byte != 0x26) {
-        return false;
+      return false;
     } else if (pos == 3 && byte != 0x01) {
-        return false;
+      return false;
     } else if (pos == 4 && byte != 0x00) {
-        return false;
+      return false;
     }
-    //Check Footer
+    // Check Footer
     else if ((pos == 14 || pos == 15 || pos == 16) && byte != 0x00) {
-        return false;
+      return false;
     }
   }
 
-  //On/Off and Mode
-  if(state_frame[5] == MITSUBISHI_OFF) {
-      this->mode = climate::CLIMATE_MODE_OFF;
+  // On/Off and Mode
+  if (state_frame[5] == MITSUBISHI_OFF) {
+    this->mode = climate::CLIMATE_MODE_OFF;
   } else {
-      switch (state_frame[6]) {
-        case MITSUBISHI_HEAT:
-          this->mode = climate::CLIMATE_MODE_HEAT;
-          break;
-        case MITSUBISHI_DRY:
-          this->mode = climate::CLIMATE_MODE_DRY;
-          break;
-        case MITSUBISHI_COOL:
-          this->mode = climate::CLIMATE_MODE_COOL;
-          break;
-        case MITSUBISHI_AUTO:
-          this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-          break;
-      }
+    switch (state_frame[6]) {
+      case MITSUBISHI_HEAT:
+        this->mode = climate::CLIMATE_MODE_HEAT;
+        break;
+      case MITSUBISHI_DRY:
+        this->mode = climate::CLIMATE_MODE_DRY;
+        break;
+      case MITSUBISHI_COOL:
+        this->mode = climate::CLIMATE_MODE_COOL;
+        break;
+      case MITSUBISHI_AUTO:
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
+        break;
+    }
   }
 
-  //Temp
+  // Temp
   this->target_temperature = state_frame[7] + MITSUBISHI_TEMP_MIN;
 
-  //Fan
-  uint8_t fan = state_frame[9] & 0x87; //(Bit 8 = Auto, Bit 1,2,3 = Speed)
+  // Fan
+  uint8_t fan = state_frame[9] & 0x87;  //(Bit 8 = Auto, Bit 1,2,3 = Speed)
   switch (fan) {
-    case 0x00: //Fan = Auto but Vane(Swing) in specific mode
-    case 0x80: //Fan & Vane = Auto
+    case 0x00:  // Fan = Auto but Vane(Swing) in specific mode
+    case 0x80:  // Fan & Vane = Auto
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       break;
-    case MITSUBISHI_FAN_1: //Lowest modes mapped together, CLIMATE_FAN offers only 3 states
+    case MITSUBISHI_FAN_1:  // Lowest modes mapped together, CLIMATE_FAN offers only 3 states
     case MITSUBISHI_FAN_2:
       this->fan_mode = climate::CLIMATE_FAN_LOW;
       break;
@@ -223,19 +223,19 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
   }
 
-  //Vane (Swing Vertical) is active if
-  // - Byte is 01111000 (Fan (Bit8,3,2,1) in invalid state since not auto (Bit8) but also no speed set (Bit1,2,3))
-  // - Byte is 10111000 (Fan (Bit8) in Auto Mode)
-  if ((state_frame[9]&0x78) == 0x78 || state_frame[9] == 0xB8) {
-      this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+  // Vane (Swing Vertical) is active if
+  //  - Byte is 01111000 (Fan (Bit8,3,2,1) in invalid state since not auto (Bit8) but also no speed set (Bit1,2,3))
+  //  - Byte is 10111000 (Fan (Bit8) in Auto Mode)
+  if ((state_frame[9] & 0x78) == 0x78 || state_frame[9] == 0xB8) {
+    this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
   } else {
-      this->swing_mode = climate::CLIMATE_SWING_OFF;
+    this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
 
-    //ESP_LOGD(TAG, "Data: %02X", state_frame[9]);
+  // ESP_LOGD(TAG, "Data: %02X", state_frame[9]);
 
-    this->publish_state();
-    return true;
+  this->publish_state();
+  return true;
 }
 
 }  // namespace mitsubishi
