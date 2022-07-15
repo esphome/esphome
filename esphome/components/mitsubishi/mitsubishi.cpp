@@ -8,10 +8,11 @@ static const char *const TAG = "mitsubishi.climate";
 
 const uint32_t MITSUBISHI_OFF = 0x00;
 
-const uint8_t MITSUBISHI_COOL = 0x18;
-const uint8_t MITSUBISHI_DRY = 0x10;
-const uint8_t MITSUBISHI_AUTO = 0x20;
 const uint8_t MITSUBISHI_HEAT = 0x08;
+const uint8_t MITSUBISHI_DRY = 0x10;
+const uint8_t MITSUBISHI_COOL = 0x18;
+const uint8_t MITSUBISHI_AUTO = 0x20;
+
 
 const uint8_t MITSUBISHI_FAN_1 = 0x01;
 const uint8_t MITSUBISHI_FAN_2 = 0x02;
@@ -20,6 +21,7 @@ const uint8_t MITSUBISHI_FAN_4 = 0x04;
 
 
 // Pulse parameters in usec
+// See: https://www.analysir.com/blog/wp-content/uploads/2014/12/Mitsubishi_AC_IR_Signal_Structure.jpg?x69441
 const uint16_t MITSUBISHI_BIT_MARK = 430;
 const uint16_t MITSUBISHI_ONE_SPACE = 1250;
 const uint16_t MITSUBISHI_ZERO_SPACE = 390;
@@ -28,6 +30,19 @@ const uint16_t MITSUBISHI_HEADER_SPACE = 1700;
 const uint16_t MITSUBISHI_MIN_GAP = 17500;
 
 void MitsubishiClimate::transmit_state() {
+  // See https://www.analysir.com/blog/wp-content/uploads/2014/12/Mitsubishi_AC_IR_Signal_Fields.jpg?x29451
+  // Byte 0-4: Constant: 0x23, 0xCB, 0x26, 0x01, 0x00
+  // Byte 5: On=0x20, Off: 0x00
+  // Byte 6: HVAC Mode (See constants above (Heat/Dry/Cool/Auto)
+  // Byte 7: Temp (Lower 4 bit) Example:  0x00 = 0°C + MITSUBISHI_TEMP_MIN = 16°C; 0x07 = 7°C + MITSUBISHI_TEMP_MIN = 23°C
+  // Byte 8: ?? Same as Byte 6?? --> Check what IR sends
+  // Byte 9: Fan/Vane
+  // Byte 10: Current time as configured on remote
+  // Byte 11: Stop time of HVAC (0x00 for no setting)
+  // Byte 12: Start time of HVAC (0x00 for no setting)
+  // Byte 13: Enable/Disable timer (No Timer: 0x00; 0x05: StartTimer; 0x03: EndTimer; 0x07: Start+EndTimer)
+  // Byte 14-16: Constant: 0x00, 0x00, 0x00
+  // Byte 17: Checksum: SUM[Byte0...Byte16]
   uint32_t remote_state[18] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x08, 0x00, 0x30,
                                0x58, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
