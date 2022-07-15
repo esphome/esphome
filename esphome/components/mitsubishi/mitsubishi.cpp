@@ -13,12 +13,10 @@ const uint8_t MITSUBISHI_DRY = 0x10;
 const uint8_t MITSUBISHI_COOL = 0x18;
 const uint8_t MITSUBISHI_AUTO = 0x20;
 
-
 const uint8_t MITSUBISHI_FAN_1 = 0x01;
 const uint8_t MITSUBISHI_FAN_2 = 0x02;
 const uint8_t MITSUBISHI_FAN_3 = 0x03;
 const uint8_t MITSUBISHI_FAN_4 = 0x04;
-
 
 // Pulse parameters in usec
 // See: https://www.analysir.com/blog/wp-content/uploads/2014/12/Mitsubishi_AC_IR_Signal_Structure.jpg?x69441
@@ -35,8 +33,12 @@ void MitsubishiClimate::transmit_state() {
   // Byte 5: On=0x20, Off: 0x00
   // Byte 6: HVAC Mode (See constants above (Heat/Dry/Cool/Auto)
   // Byte 7: Temp (Lower 4 bit) Example:  0x00 = 0°C + MITSUBISHI_TEMP_MIN = 16°C; 0x07 = 7°C + MITSUBISHI_TEMP_MIN = 23°C
-  // Byte 8: ?? Same as Byte 6?? --> Check what IR sends
-  // Byte 9: Fan/Vane
+  // Byte 8: Sends also the state similar to Byte 6, but in a strange way. Values taken from IR-Remote
+  // Byte 9: Fan/Vane Default: 0x58 = 0101 1000 --> Fan Auto, Vane Pos. 3
+  //         The Remote doesn't behave constant here. The code differs depending on what you changed, even if the result is the same:
+  //         0x58: Fan was set to Auto previously, and remote cycled through Vanne position until "Pos 3" was reached
+  //         0x98: Vane was already on "Pos 3" and remote cycled through Fan until "Auto" was selected
+  //         Both cases show the identical state on the Remote, but the code differs
   // Byte 10: Current time as configured on remote
   // Byte 11: Stop time of HVAC (0x00 for no setting)
   // Byte 12: Start time of HVAC (0x00 for no setting)
@@ -73,8 +75,33 @@ void MitsubishiClimate::transmit_state() {
                                        MITSUBISHI_TEMP_MIN);
   }
 
-  ESP_LOGV(TAG, "Sending Mitsubishi target temp: %.1f state: %02X mode: %02X temp: %02X", this->target_temperature,
-           remote_state[5], remote_state[6], remote_state[7]);
+  //Fan Speed & Vanne
+  remote_state[9] = 0x00; //reset
+  // Fan First
+  switch (this->fan_mode) {
+    case climate::CLIMATE_FAN_AUTO:
+      remote_state[9] = remote_state[9] | 0x80;
+      break;
+    case climate::CLIMATE_FAN_LOW:
+      remote_state[9] = remote_state[9] | MITSUBISHI_FAN_2; //used fan mode 2 as lowest since CLIMATE_FAN offers only 3 states
+      break;
+    case climate::CLIMATE_FAN_MEDIUM:
+      remote_state[9] = remote_state[9] | MITSUBISHI_FAN_3;
+      break;
+    case climate::CLIMATE_FAN_HIGH:
+      remote_state[9] = remote_state[9] | MITSUBISHI_FAN_4;
+      break;
+  }
+  //Vanne
+  if(this->swing_mode == climate::CLIMATE_SWING_OFF) {
+    remote_state[9] = remote_state[9] | 0x40; // Off--> Auto position (High if cooling, low if heating)
+  } else if(this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
+    remote_state[9] = remote_state[9] | 0x78; // Vanne move
+  }
+
+
+  //ESP_LOGV(TAG, "Sending Mitsubishi target temp: %.1f state: %02X mode: %02X temp: %02X Fan+Vane: %02X", this->target_temperature,
+  //         remote_state[5], remote_state[6], remote_state[7], remote_state[9]);
 
   // Checksum
   for (int i = 0; i < 17; i++) {
