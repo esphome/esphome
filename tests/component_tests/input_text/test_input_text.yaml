@@ -1,0 +1,12 @@
+esphome:
+  name: test
+  platform: ESP8266
+  board: d1_mini_lite
+
+input_text:
+  - platform: template
+    name: "test input text"
+    id: "it_1"
+    icon: "mdi:text"
+    optimistic: true
+    internal: true
