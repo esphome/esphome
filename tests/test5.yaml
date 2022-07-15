@@ -49,6 +49,19 @@ modbus_controller:
     address: 0x2
     modbus_id: mod_bus1
 
+mqtt:
+  broker: test.mosquitto.org
+  port: 1883
+  discovery: true
+  discovery_prefix: homeassistant
+  idf_send_async: false
+  on_message:
+    topic: testing/sensor/testing_sensor/state
+    qos: 0
+    then:
+      - lambda: |-
+          ESP_LOGD("Mqtt Test","testing/sensor/testing_sensor/state=[%s]",x.c_str());
+
 binary_sensor:
   - platform: gpio
     pin: GPIO0
@@ -107,6 +120,11 @@ number:
     name: My template number
     id: template_number_id
     optimistic: true
+    max_value: 100
+    min_value: 0
+    step: 5
+    unit_of_measurement: "%"
+    mode: slider
     on_value:
       - logger.log:
           format: "Number changed to %f"
@@ -115,11 +133,31 @@ number:
       - logger.log:
           format: "Template Number set to %f"
           args: ["x"]
-    max_value: 100
-    min_value: 0
-    step: 5
-    unit_of_measurement: "%"
-    mode: slider
+      - number.set:
+          id: template_number_id
+          value: 50
+      - number.to_min: template_number_id
+      - number.to_min:
+          id: template_number_id
+      - number.to_max: template_number_id
+      - number.to_max:
+          id: template_number_id
+      - number.increment: template_number_id
+      - number.increment:
+          id: template_number_id
+          cycle: false
+      - number.decrement: template_number_id
+      - number.decrement:
+          id: template_number_id
+          cycle: false
+      - number.operation:
+          id: template_number_id
+          operation: Increment
+          cycle: false
+      - number.operation:
+          id: template_number_id
+          operation: !lambda "return NUMBER_OP_INCREMENT;"
+          cycle: !lambda "return false;"
 
   - id: modbus_numbertest
     platform: modbus_controller
@@ -141,8 +179,8 @@ select:
     restore_value: true
     on_value:
       - logger.log:
-          format: "Select changed to %s"
-          args: ["x.c_str()"]
+          format: "Select changed to %s (index %d)"
+          args: ["x.c_str()", "i"]
     set_action:
       - logger.log:
           format: "Template Select set to %s"
@@ -150,10 +188,41 @@ select:
       - select.set:
           id: template_select_id
           option: two
+      - select.first: template_select_id
+      - select.last:
+          id: template_select_id
+      - select.previous: template_select_id
+      - select.next:
+          id: template_select_id
+          cycle: false
+      - select.operation:
+          id: template_select_id
+          operation: Previous
+          cycle: false
+      - select.operation:
+          id: template_select_id
+          operation: !lambda "return SELECT_OP_PREVIOUS;"
+          cycle: !lambda "return true;"
+      - select.set_index:
+          id: template_select_id
+          index: 1
+      - select.set_index:
+          id: template_select_id
+          index: !lambda "return 1 + 1;"
     options:
       - one
       - two
       - three
+
+  - platform: modbus_controller
+    name: "Modbus Select Register 1000"
+    address: 1000
+    value_type: U_WORD
+    optionsmap:
+      "Zero": 0
+      "One": 1
+      "Two": 2
+      "Three": 3
 
 sensor:
   - platform: selec_meter
@@ -215,6 +284,49 @@ sensor:
       name: "BMP Pressure"
     address: 0x77
     iir_filter: 2X
+
+  - platform: sen5x
+    id: sen54
+    temperature:
+      name: "Temperature"
+      accuracy_decimals: 1
+    humidity:
+      name: "Humidity"
+      accuracy_decimals: 0
+    pm_1_0:
+      name: " PM <1µm Weight concentration"
+      id: pm_1_0
+      accuracy_decimals: 1
+    pm_2_5:
+      name: " PM <2.5µm Weight concentration"
+      id: pm_2_5
+      accuracy_decimals: 1
+    pm_4_0:
+      name: " PM <4µm Weight concentration"
+      id: pm_4_0
+      accuracy_decimals: 1
+    pm_10_0:
+      name: " PM <10µm Weight concentration"
+      id: pm_10_0
+      accuracy_decimals: 1
+    nox:
+      name: "NOx"
+    voc:
+      name: "VOC"
+      algorithm_tuning:
+        index_offset: 100
+        learning_time_offset_hours: 12
+        learning_time_gain_hours: 12
+        gating_max_duration_minutes: 180
+        std_initial: 50
+        gain_factor: 230
+    temperature_compensation:
+      offset: 0
+      normalized_offset_slope: 0
+      time_constant: 0
+    acceleration_mode: low
+    store_baseline: true
+    address: 0x69
 
 script:
   - id: automation_test

@@ -126,7 +126,6 @@ void Sensor::internal_send_state_to_frontend(float state) {
   this->callback_.call(state);
 }
 bool Sensor::has_state() const { return this->has_state_; }
-uint32_t Sensor::hash_base() { return 2455723294UL; }
 
 }  // namespace sensor
 }  // namespace esphome

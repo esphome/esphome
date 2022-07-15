@@ -203,7 +203,7 @@ class LightColorValues {
       *color_temperature =
           (this->color_temperature_ - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
       *white_brightness = gamma_correct(this->state_ * this->brightness_ * white_level, gamma);
-    } else {  // Probably wont get here but put this here anyway.
+    } else {  // Probably won't get here but put this here anyway.
       *white_brightness = 0;
     }
   }

@@ -53,6 +53,8 @@ class ST7735 : public PollingComponent,
   void set_dc_pin(GPIOPin *value) { dc_pin_ = value; }
   size_t get_buffer_length();
 
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+
  protected:
   void sendcommand_(uint8_t cmd, const uint8_t *data_bytes, uint8_t num_data_bytes);
   void senddata_(const uint8_t *data_bytes, uint8_t num_data_bytes);

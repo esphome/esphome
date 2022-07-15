@@ -173,6 +173,10 @@ constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, ui
   return (static_cast<uint32_t>(byte1) << 24) | (static_cast<uint32_t>(byte2) << 16) |
          (static_cast<uint32_t>(byte3) << 8) | (static_cast<uint32_t>(byte4));
 }
+/// Encode a 24-bit value given three bytes in most to least significant byte order.
+constexpr uint32_t encode_uint24(uint8_t byte1, uint8_t byte2, uint8_t byte3) {
+  return ((static_cast<uint32_t>(byte1) << 16) | (static_cast<uint32_t>(byte2) << 8) | (static_cast<uint32_t>(byte3)));
+}
 
 /// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
@@ -254,10 +258,10 @@ inline std::string to_string(const std::string &val) { return val; }
 /// Truncate a string to a specific length.
 std::string str_truncate(const std::string &str, size_t length);
 
-/// Extract the part of the string until either the first occurence of the specified character, or the end (requires str
-/// to be null-terminated).
+/// Extract the part of the string until either the first occurrence of the specified character, or the end
+/// (requires str to be null-terminated).
 std::string str_until(const char *str, char ch);
-/// Extract the part of the string until either the first occurence of the specified character, or the end.
+/// Extract the part of the string until either the first occurrence of the specified character, or the end.
 std::string str_until(const std::string &str, char ch);
 
 /// Convert the string to lower case.
@@ -386,8 +390,12 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::stri
 
 /// Format the byte array \p data of length \p len in pretty-printed, human-readable hex.
 std::string format_hex_pretty(const uint8_t *data, size_t length);
+/// Format the word array \p data of length \p len in pretty-printed, human-readable hex.
+std::string format_hex_pretty(const uint16_t *data, size_t length);
 /// Format the vector \p data in pretty-printed, human-readable hex.
 std::string format_hex_pretty(const std::vector<uint8_t> &data);
+/// Format the vector \p data in pretty-printed, human-readable hex.
+std::string format_hex_pretty(const std::vector<uint16_t> &data);
 /// Format an unsigned integer in pretty-printed, human-readable hex, starting with the most significant byte.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex_pretty(T val) {
   val = convert_big_endian(val);
@@ -592,7 +600,7 @@ template<class T> class ExternalRAMAllocator {
 
   ExternalRAMAllocator() = default;
   ExternalRAMAllocator(Flags flags) : flags_{flags} {}
-  template<class U> constexpr ExternalRAMAllocator(const ExternalRAMAllocator<U> &other) : flags_{other.flags} {}
+  template<class U> constexpr ExternalRAMAllocator(const ExternalRAMAllocator<U> &other) : flags_{other.flags_} {}
 
   T *allocate(size_t n) {
     size_t size = n * sizeof(T);

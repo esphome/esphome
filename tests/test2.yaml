@@ -263,6 +263,10 @@ sensor:
       name: 'Inkbird IBS-TH1 Humidity'
     battery_level:
       name: 'Inkbird IBS-TH1 Battery Level'
+  - platform: xiaomi_rtcgq02lm
+    id: motion_rtcgq02lm
+    battery_level:
+      name: 'Mi Motion Sensor 2 Battery level'
   - platform: ltr390
     uv:
       name: "LTR390 UV"
@@ -277,10 +281,27 @@ sensor:
     window_correction_factor: 1.0
     address: 0x53
     update_interval: 60s
-  - platform: sgp40
-    name: 'Workshop VOC'
+  - platform: sgp4x
+    voc:
+      name: "VOC Index"
+      id: sgp40_voc_index
+      algorithm_tuning:
+        index_offset: 100
+        learning_time_offset_hours: 12
+        learning_time_gain_hours: 12
+        gating_max_duration_minutes: 180
+        std_initial: 50
+        gain_factor: 230
+    nox:
+      name: "NOx"
+      algorithm_tuning:
+        index_offset: 100
+        learning_time_offset_hours: 12
+        learning_time_gain_hours: 12
+        gating_max_duration_minutes: 180
+        std_initial: 50
+        gain_factor: 230
     update_interval: 5s
-    store_baseline: 'true'
   - platform: mcp3008
     update_interval: 5s
     mcp3008_id: 'mcp3008_hub'
@@ -417,6 +438,14 @@ binary_sensor:
       name: 'CGPR1 Idle Time'
     illuminance:
       name: 'CGPR1 Illuminance'
+  - platform: xiaomi_rtcgq02lm
+    id: motion_rtcgq02lm
+    motion:
+      name: 'Mi Motion Sensor 2'
+    light:
+      name: 'Mi Motion Sensor 2 Light'
+    button:
+      name: 'Mi Motion Sensor 2 Button'
 
 esp32_ble_tracker:
   on_ble_advertise:
@@ -456,6 +485,11 @@ ruuvi_ble:
 xiaomi_ble:
 
 mopeka_ble:
+
+xiaomi_rtcgq02lm:
+  - id: motion_rtcgq02lm
+    mac_address: 01:02:03:04:05:06
+    bindkey: '48403ebe2d385db8d0c187f81e62cb64'
 
 #esp32_ble_beacon:
 #  type: iBeacon

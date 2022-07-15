@@ -1,6 +1,7 @@
 #ifdef USE_ARDUINO
 
 #include "web_server.h"
+
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
@@ -17,11 +18,7 @@
 #endif
 
 #ifdef USE_LOGGER
-#include <esphome/components/logger/logger.h>
-#endif
-
-#ifdef USE_FAN
-#include "esphome/components/fan/fan_helpers.h"
+#include "esphome/components/logger/logger.h"
 #endif
 
 #ifdef USE_CLIMATE
@@ -106,87 +103,7 @@ void WebServer::setup() {
                  }).c_str(),
                  "ping", millis(), 30000);
 
-#ifdef USE_SENSOR
-    for (auto *obj : App.get_sensors()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->sensor_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_SWITCH
-    for (auto *obj : App.get_switches()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->switch_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_BUTTON
-    for (auto *obj : App.get_buttons())
-      client->send(this->button_json(obj, DETAIL_ALL).c_str(), "state");
-#endif
-
-#ifdef USE_BINARY_SENSOR
-    for (auto *obj : App.get_binary_sensors()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->binary_sensor_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_FAN
-    for (auto *obj : App.get_fans()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->fan_json(obj, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_LIGHT
-    for (auto *obj : App.get_lights()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->light_json(obj, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_TEXT_SENSOR
-    for (auto *obj : App.get_text_sensors()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->text_sensor_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_COVER
-    for (auto *obj : App.get_covers()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->cover_json(obj, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_NUMBER
-    for (auto *obj : App.get_numbers()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->number_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_SELECT
-    for (auto *obj : App.get_selects()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->select_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_CLIMATE
-    for (auto *obj : App.get_climates()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->climate_json(obj, DETAIL_ALL).c_str(), "state");
-    }
-#endif
-
-#ifdef USE_LOCK
-    for (auto *obj : App.get_locks()) {
-      if (this->include_internal_ || !obj->is_internal())
-        client->send(this->lock_json(obj, obj->state, DETAIL_ALL).c_str(), "state");
-    }
-#endif
+    this->entities_iterator_.begin(this->include_internal_);
   });
 
 #ifdef USE_LOGGER
@@ -203,6 +120,7 @@ void WebServer::setup() {
 
   this->set_interval(10000, [this]() { this->events_.send("", "ping", millis(), 30000); });
 }
+void WebServer::loop() { this->entities_iterator_.advance(); }
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
   ESP_LOGCONFIG(TAG, "  Address: %s:%u", network::get_use_address().c_str(), this->base_->get_port());
@@ -560,22 +478,6 @@ std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
     if (traits.supports_speed()) {
       root["speed_level"] = obj->speed;
       root["speed_count"] = traits.supported_speed_count();
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-      // NOLINTNEXTLINE(clang-diagnostic-deprecated-declarations)
-      switch (fan::speed_level_to_enum(obj->speed, traits.supported_speed_count())) {
-        case fan::FAN_SPEED_LOW:  // NOLINT(clang-diagnostic-deprecated-declarations)
-          root["speed"] = "low";
-          break;
-        case fan::FAN_SPEED_MEDIUM:  // NOLINT(clang-diagnostic-deprecated-declarations)
-          root["speed"] = "medium";
-          break;
-        case fan::FAN_SPEED_HIGH:  // NOLINT(clang-diagnostic-deprecated-declarations)
-          root["speed"] = "high";
-          break;
-      }
-#pragma GCC diagnostic pop
     }
     if (obj->get_traits().supports_oscillation())
       root["oscillation"] = obj->oscillating;
@@ -596,10 +498,6 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       auto call = obj->turn_on();
       if (request->hasParam("speed")) {
         String speed = request->getParam("speed")->value();
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-        call.set_speed(speed.c_str());  // NOLINT(clang-diagnostic-deprecated-declarations)
-#pragma GCC diagnostic pop
       }
       if (request->hasParam("speed_level")) {
         String speed_level = request->getParam("speed_level")->value();
@@ -833,7 +731,7 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 #endif
 
 #ifdef USE_SELECT
-void WebServer::on_select_update(select::Select *obj, const std::string &state) {
+void WebServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
   this->events_.send(this->select_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {

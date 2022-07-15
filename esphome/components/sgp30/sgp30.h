@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/i2c/i2c.h"
+#include "esphome/components/sensirion_common/i2c_sensirion.h"
 #include "esphome/core/preferences.h"
 #include <cmath>
 
@@ -15,7 +15,7 @@ struct SGP30Baselines {
 } PACKED;
 
 /// This class implements support for the Sensirion SGP30 i2c GAS (VOC and CO2eq) sensors.
-class SGP30Component : public PollingComponent, public i2c::I2CDevice {
+class SGP30Component : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
   void set_eco2_sensor(sensor::Sensor *eco2) { eco2_sensor_ = eco2; }
   void set_tvoc_sensor(sensor::Sensor *tvoc) { tvoc_sensor_ = tvoc; }
@@ -33,13 +33,10 @@ class SGP30Component : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
-  bool write_command_(uint16_t command);
-  bool read_data_(uint16_t *data, uint8_t len);
   void send_env_data_();
   void read_iaq_baseline_();
   bool is_sensor_baseline_reliable_();
   void write_iaq_baseline_(uint16_t eco2_baseline, uint16_t tvoc_baseline);
-  uint8_t sht_crc_(uint8_t data1, uint8_t data2);
   uint64_t serial_number_;
   uint16_t featureset_;
   uint32_t required_warm_up_time_;

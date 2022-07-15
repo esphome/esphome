@@ -45,6 +45,9 @@
 #ifdef USE_LOCK
 #include "esphome/components/lock/lock.h"
 #endif
+#ifdef USE_MEDIA_PLAYER
+#include "esphome/components/media_player/media_player.h"
+#endif
 
 namespace esphome {
 
@@ -111,6 +114,10 @@ class Application {
   void register_lock(lock::Lock *a_lock) { this->locks_.push_back(a_lock); }
 #endif
 
+#ifdef USE_MEDIA_PLAYER
+  void register_media_player(media_player::MediaPlayer *media_player) { this->media_players_.push_back(media_player); }
+#endif
+
   /// Register the component in this Application instance.
   template<class C> C *register_component(C *c) {
     static_assert(std::is_base_of<Component, C>::value, "Only Component subclasses can be registered");
@@ -154,14 +161,7 @@ class Application {
 
   void safe_reboot();
 
-  void run_safe_shutdown_hooks() {
-    for (auto *comp : this->components_) {
-      comp->on_safe_shutdown();
-    }
-    for (auto *comp : this->components_) {
-      comp->on_shutdown();
-    }
-  }
+  void run_safe_shutdown_hooks();
 
   uint32_t get_app_state() const { return this->app_state_; }
 
@@ -273,6 +273,15 @@ class Application {
     return nullptr;
   }
 #endif
+#ifdef USE_MEDIA_PLAYER
+  const std::vector<media_player::MediaPlayer *> &get_media_players() { return this->media_players_; }
+  media_player::MediaPlayer *get_media_player_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->media_players_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
 
   Scheduler scheduler;
 
@@ -323,6 +332,9 @@ class Application {
 #endif
 #ifdef USE_LOCK
   std::vector<lock::Lock *> locks_{};
+#endif
+#ifdef USE_MEDIA_PLAYER
+  std::vector<media_player::MediaPlayer *> media_players_{};
 #endif
 
   std::string name_;

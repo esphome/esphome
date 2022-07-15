@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+from esphome.components import sensirion_common
 from esphome.const import (
     DEVICE_CLASS_PRESSURE,
     STATE_CLASS_MEASUREMENT,
@@ -8,10 +9,13 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["sensirion_common"]
 CODEOWNERS = ["@Azimath"]
 
 sdp3x_ns = cg.esphome_ns.namespace("sdp3x")
-SDP3XComponent = sdp3x_ns.class_("SDP3XComponent", cg.PollingComponent, i2c.I2CDevice)
+SDP3XComponent = sdp3x_ns.class_(
+    "SDP3XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
+)
 
 
 MeasurementMode = sdp3x_ns.enum("MeasurementMode")

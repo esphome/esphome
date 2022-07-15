@@ -111,6 +111,8 @@ def wizard_file(**kwargs):
     # Configure API
     if "password" in kwargs:
         config += f"  password: \"{kwargs['password']}\"\n"
+    if "api_encryption_key" in kwargs:
+        config += f"  encryption:\n    key: \"{kwargs['api_encryption_key']}\"\n"
 
     # Configure OTA
     config += "\nota:\n"
@@ -341,7 +343,7 @@ def wizard(path):
     sleep(1)
 
     safe_print_step(3, WIFI_BIG)
-    safe_print("In this step, I'm going to create the configuration for " "WiFi.")
+    safe_print("In this step, I'm going to create the configuration for WiFi.")
     safe_print()
     sleep(1)
     safe_print(

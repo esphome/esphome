@@ -81,6 +81,11 @@ static const char *iir_filter_to_str(BME280IIRFilter filter) {
 void BME280Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BME280...");
   uint8_t chip_id = 0;
+
+  // Mark as not failed before initializing. Some devices will turn off sensors to save on batteries
+  // and when they come back on, the COMPONENT_STATE_FAILED bit must be unset on the component.
+  this->component_state_ &= ~COMPONENT_STATE_FAILED;
+
   if (!this->read_byte(BME280_REGISTER_CHIPID, &chip_id)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
