@@ -36,14 +36,22 @@ void MitsubishiClimate::transmit_state() {
     case climate::CLIMATE_MODE_HEAT_COOL:
       remote_state[6] = MITSUBISHI_AUTO;
       break;
+    case climate::CLIMATE_MODE_DRY:
+      remote_state[6] = MITSUBISHI_DRY;
+      break;
     case climate::CLIMATE_MODE_OFF:
     default:
       remote_state[5] = MITSUBISHI_OFF;
       break;
   }
 
-  remote_state[7] = (uint8_t) roundf(clamp<float>(this->target_temperature, MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX) -
-                                     MITSUBISHI_TEMP_MIN);
+  //Temp
+  if(this->mode == climate::CLIMATE_MODE_DRY) {
+    remote_state[7] = 24 - MITSUBISHI_TEMP_MIN; //Remote sends always 24°C if "Dry" mode is selected
+  } else {
+    remote_state[7] = (uint8_t) roundf(clamp<float>(this->target_temperature, MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX) -
+                                       MITSUBISHI_TEMP_MIN);
+  }
 
   ESP_LOGV(TAG, "Sending Mitsubishi target temp: %.1f state: %02X mode: %02X temp: %02X", this->target_temperature,
            remote_state[5], remote_state[6], remote_state[7]);
