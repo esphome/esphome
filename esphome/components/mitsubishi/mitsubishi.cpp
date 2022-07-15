@@ -164,15 +164,8 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
     state_frame[pos] = byte;
 
     // Check Header
-    if (pos == 0 && byte != 0x23) {
-      return false;
-    } else if (pos == 1 && byte != 0xCB) {
-      return false;
-    } else if (pos == 2 && byte != 0x26) {
-      return false;
-    } else if (pos == 3 && byte != 0x01) {
-      return false;
-    } else if (pos == 4 && byte != 0x00) {
+    if ((pos == 0 && byte != 0x23) || (pos == 1 && byte != 0xCB) || (pos == 2 && byte != 0x26) ||
+        (pos == 3 && byte != 0x01) || (pos == 4 && byte != 0x00)) {
       return false;
     }
     // Check Footer
