@@ -142,7 +142,7 @@ void MitsubishiClimate::transmit_state() {
 }
 
 bool MitsubishiClimate::parse_state_frame_(const uint8_t frame[]) {
-	return false;
+    return false;
 }
 
 bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
@@ -232,9 +232,9 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
       this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
 
-	//ESP_LOGD(TAG, "Data: %02X", state_frame[9]);
+    //ESP_LOGD(TAG, "Data: %02X", state_frame[9]);
 
-	this->publish_state();
+    this->publish_state();
     return true;
 }
 
