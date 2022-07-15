@@ -4129,9 +4129,6 @@ void ListEntitiesInputTextResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(3, this->name);
   buffer.encode_string(4, this->unique_id);
   buffer.encode_string(5, this->icon);
-//  buffer.encode_float(6, this->min_length);
-//  buffer.encode_float(7, this->max_length);
-//  buffer.encode_float(8, this->pattern);
   buffer.encode_bool(9, this->disabled_by_default);
   buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
   buffer.encode_enum<enums::InputTextMode>(12, this->mode);
@@ -4160,20 +4157,6 @@ void ListEntitiesInputTextResponse::dump_to(std::string &out) const {
   out.append("  icon: ");
   out.append("'").append(this->icon).append("'");
   out.append("\n");
-
-//  out.append("  min: ");
-//  sprintf(buffer, "%g", this->min);
-//  out.append(buffer);
-//  out.append("\n");
-
-//  out.append("  max: ");
-//  sprintf(buffer, "%g", this->max);
-//  out.append(buffer);
-//  out.append("\n");
-
-//  out.append("  pattern: ");
-//  out.append("'").append(this->pattern).append("'");
-//  out.append("\n");
 
   out.append("  disabled_by_default: ");
   out.append(YESNO(this->disabled_by_default));
@@ -4215,10 +4198,6 @@ bool InputTextStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
       this->key = value.as_fixed32();
       return true;
     }
-//    case 2: {
-//      this->state = value.as_string();
-//      return true;
-//    }
     default:
       return false;
   }
@@ -4254,10 +4233,6 @@ bool InputTextCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) 
       this->key = value.as_fixed32();
       return true;
     }
-//    case 2: {
-//      this->state = value.as_float();
-//      return true;
-//    }
     default:
       return false;
   }

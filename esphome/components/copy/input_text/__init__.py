@@ -14,9 +14,9 @@ from .. import copy_ns
 CopyInputText = copy_ns.class_("CopyInputText", input_text.InputText, cg.Component)
 
 
-CONFIG_SCHEMA = input_text.NUMBER_SCHEMA.extend(
+CONFIG_SCHEMA = input_text.INPUT_TEXT_SCHEMA.extend(
     {
-        cv.GenerateID(): cv.declare_id(CopyNumber),
+        cv.GenerateID(): cv.declare_id(CopyInputText),
         cv.Required(CONF_SOURCE_ID): cv.use_id(input_text.InputText),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -29,7 +29,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = await input_text.new_number(config)
+    var = await input_text.new_input_text(config)
     await cg.register_component(var, config)
 
     source = await cg.get_variable(config[CONF_SOURCE_ID])

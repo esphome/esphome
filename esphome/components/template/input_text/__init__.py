@@ -17,6 +17,7 @@ TemplateInputText = template_ns.class_(
 
 CONF_SET_ACTION = "set_action"
 
+
 def validate(config):
     if CONF_LAMBDA in config:
         if config[CONF_OPTIMISTIC]:

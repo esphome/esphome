@@ -15,7 +15,6 @@ using namespace esphome::input_text;
 
 MQTTInputTextComponent::MQTTInputTextComponent(InputText *input_text) : input_text_(input_text) {}
 
-
 void MQTTInputTextComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
     auto val = state.c_str();
@@ -28,8 +27,8 @@ void MQTTInputTextComponent::setup() {
     call.perform();
   });
 
-  this->input_text_->add_on_state_callback([this](std::string &state) { 
-    this->publish_state(state); 
+  this->input_text_->add_on_state_callback([this](std::string &state) {
+    this->publish_state(state);
   });
 }
 
@@ -41,13 +40,9 @@ void MQTTInputTextComponent::dump_config() {
 std::string MQTTInputTextComponent::component_type() const { return "input_text"; }
 const EntityBase *MQTTInputTextComponent::get_entity() const { return this->input_text_; }
 
-
 void MQTTInputTextComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   const auto &traits = input_text_->traits;
-  // https://www.home-assistant.io/integrations/input_text.mqtt/
-//  root[MQTT_MIN] = traits.get_min();
-//  root[MQTT_MAX] = traits.get_max();
-//  root[MQTT_PATTERN] = traits.get_pattern();
+
   switch (this->input_text_->traits.get_mode()) {
     case INPUT_TEXT_MODE_AUTO:
       break;
@@ -68,8 +63,8 @@ bool MQTTInputTextComponent::send_initial_state() {
     return true;
   }
 }
-bool MQTTInputTextComponent::publish_state(const std::string &value) { 
-  return this->publish(this->get_state_topic_(), value); 
+bool MQTTInputTextComponent::publish_state(const std::string &value) {
+  return this->publish(this->get_state_topic_(), value);
 }
 
 }  // namespace mqtt

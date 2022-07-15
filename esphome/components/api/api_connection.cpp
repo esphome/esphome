@@ -651,8 +651,6 @@ bool APIConnection::send_input_text_info(input_text::InputText *input_text) {
   msg.unique_id = get_default_unique_id("input_text", input_text);
   msg.icon = input_text->get_icon();
   
-// TODO: min,max,pattern
-
   msg.disabled_by_default = input_text->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(input_text->get_entity_category());
   msg.mode = static_cast<enums::InputTextMode>(input_text->traits.get_mode());

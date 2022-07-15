@@ -13,8 +13,8 @@ def test_input_text_is_setup(generate_main):
     )
 
     # Then
-    assert "input_text = new input_text::InputTextComponent();" in main_cpp
-    assert "App.register_component(input_text);" in main_cpp
+    assert "input_text = new input_text::InputText();" in main_cpp
+    assert "App.register_input_text;" in main_cpp
 
 
 def test_input_text_sets_mandatory_fields(generate_main):

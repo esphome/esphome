@@ -61,7 +61,9 @@ bool ListEntitiesIterator::on_number(number::Number *number) { return this->clie
 #endif
 
 #ifdef USE_INPUT_TEXT
-bool ListEntitiesIterator::on_input_text(input_text::InputText *input_text) { return this->client_->send_input_text_info(input_text); }
+bool ListEntitiesIterator::on_input_text(input_text::InputText *input_text) {
+  return this->client_->send_input_text_info(input_text);
+}
 #endif
 
 #ifdef USE_SELECT

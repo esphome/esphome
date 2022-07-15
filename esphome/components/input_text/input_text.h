@@ -17,8 +17,6 @@ namespace input_text {
     } \
   }
 
-//class InputText;
-
 /** Base-class for all text inputs.
  *
  * A text input can use publish_state to send out a new value.

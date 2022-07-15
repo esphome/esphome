@@ -13,7 +13,6 @@ void InputText::publish_state(const std::string &state) {
   this->state_callback_.call(state);
 }
 
-
 void InputText::add_on_state_callback(std::function<void(std::string)> &&callback) {
   this->state_callback_.add(std::move(callback));
 }

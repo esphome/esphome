@@ -1,4 +1,3 @@
-from typing import Text
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -41,7 +40,9 @@ INPUT_TEXT_MODES = {
 
 icon = cv.icon
 
-INPUT_TEXT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend( # of MQTT_COMMAND_COMPONENT_SCHEMA
+INPUT_TEXT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
+    cv.MQTT_COMPONENT_SCHEMA
+).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTInputTextComponent),
         cv.GenerateID(): cv.declare_id(InputText),
@@ -55,9 +56,7 @@ INPUT_TEXT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).exten
 )
 
 
-async def setup_input_text_core_(
-    var, config
-):
+async def setup_input_text_core_(var, config):
     await setup_entity(var, config)
 
     cg.add(var.traits.set_mode(config[CONF_MODE]))
@@ -71,23 +70,16 @@ async def setup_input_text_core_(
         await mqtt.register_mqtt_component(mqtt_, config)
 
 
-async def register_input_text(
-    var, config
-):
+async def register_input_text(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_input_text(var))
-    await setup_input_text_core_(
-        var, config
-    )
+    await setup_input_text_core_(var, config)
 
-async def new_input_text(
-    config
-):
+
+async def new_input_text(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await register_input_text(
-        var, config
-    )
+    await register_input_text(var, config)
     return var
 
 
@@ -96,11 +88,13 @@ async def to_code(config):
     cg.add_define("USE_INPUT_TEXT")
     cg.add_global(input_text_ns.using)
 
+
 OPERATION_BASE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(InputText),
     }
 )
+
 
 @automation.register_action(
     "input_text.set",
@@ -111,6 +105,8 @@ OPERATION_BASE_SCHEMA = cv.Schema(
         }
     ),
 )
+
+
 async def input_text_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
