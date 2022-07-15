@@ -15,7 +15,7 @@ from esphome.const import (
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
 
-CODEOWNERS = ["@esphome/core"]
+CODEOWNERS = ["@mauritskorse"]
 IS_PLATFORM_COMPONENT = True
 
 input_text_ns = cg.esphome_ns.namespace("input_text")
@@ -81,18 +81,14 @@ async def register_input_text(
         var, config
     )
 
-#
-# for copy component => Not yet implemented
-# 
-#async def new_input_text(
-#    config
-#):
-#    var = cg.new_Pvariable(config[CONF_ID])
-#    await register_input_text(
-#        var, config
-#    )
-#    return var
-
+async def new_input_text(
+    config
+):
+    var = cg.new_Pvariable(config[CONF_ID])
+    await register_input_text(
+        var, config
+    )
+    return var
 
 
 @coroutine_with_priority(40.0)
