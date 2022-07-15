@@ -16,9 +16,6 @@ class InputTextTraits {
   // Set/get the frontend mode.
   void set_mode(InputTextMode mode) { this->mode_ = mode; }
   InputTextMode get_mode() const { return this->mode_; }
-//  bool is_mode(auto check_mode){
-//
-//  }
 
  protected:
   InputTextMode mode_{INPUT_TEXT_MODE_AUTO};

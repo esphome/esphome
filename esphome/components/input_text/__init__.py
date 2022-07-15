@@ -10,17 +10,8 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
     CONF_VALUE,
-#    CONF_MIN,
-#    CONF_MAX,
-#    CONF_PATTERN,
-#    CONF_INITIAL_VALUE
-### To do: implement ###
-# min length
-# max length
-# initial value
-# regex pattern
-
 )
+
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
 
