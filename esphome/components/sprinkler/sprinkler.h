@@ -346,7 +346,7 @@ class Sprinkler : public Component, public EntityBase {
   void fsm_transition_to_shutdown_();
 
   /// return the current FSM state as a string
-  std::string state_as_str();
+  std::string state_as_str_();
 
   /// Start/cancel/get status of valve timers
   void start_timer_(SprinklerTimerIndex timer_index);
@@ -365,7 +365,7 @@ class Sprinkler : public Component, public EntityBase {
   void pump_stop_delay_callback_();
 
   /// Maximum allowed queue size
-  const uint8_t max_queue_size{100};
+  const uint8_t max_queue_size_{100};
 
   /// Pump should be off during valve_open_delay interval
   bool pump_switch_off_during_valve_open_delay_{false};
