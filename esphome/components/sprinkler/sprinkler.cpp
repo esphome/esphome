@@ -1001,7 +1001,7 @@ void Sprinkler::fsm_transition_from_valve_run_() {
     }
   }
 
-  uint8_t previous_active_valve = this->active_valve_.value();
+  uint8_t previous_active_valve = this->active_valve_.value_or(0);
   this->active_valve_ = this->next_valve_number_to_run_(previous_active_valve);
 
   auto run_duration = this->valve_run_duration_adjusted(this->active_valve_.value());
