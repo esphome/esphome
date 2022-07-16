@@ -912,6 +912,8 @@ void Sprinkler::fsm_request_(optional<uint8_t> target_valve) {
 }
 
 void Sprinkler::fsm_transition_() {
+  uint32_t run_duration = 0;
+
   ESP_LOGVV(TAG, "fsm_transition_ called; state is %s", this->state_as_str().c_str());
   switch (this->state_) {
     case IDLE:  // the system was off -> start it up
@@ -926,7 +928,7 @@ void Sprinkler::fsm_transition_() {
 
     case STARTING: {
       // follows valve open delay interval
-      auto run_duration = this->valve_run_duration_adjusted(this->active_valve_.value());
+      run_duration = this->valve_run_duration_adjusted(this->active_valve_.value());
       this->set_timer_duration_(sprinkler::TIMER_SM, run_duration - this->switching_delay_.value_or(0));
       this->start_timer_(sprinkler::TIMER_SM);
       this->start_valve_(this->active_valve_, run_duration);
@@ -1001,14 +1003,14 @@ void Sprinkler::fsm_transition_from_valve_run_() {
     }
   }
 
-  uint8_t previous_active_valve = this->active_valve_.value_or(0);
+  optional<uint8_t> previous_active_valve = this->active_valve_;
   this->active_valve_ = this->next_valve_number_to_run_(previous_active_valve);
 
-  auto run_duration = this->valve_run_duration_adjusted(this->active_valve_.value());
   bool same_pump = this->active_valve_.has_value() ? this->valve_pump_switch_(this->active_valve_.value()) ==
-                                                         this->valve_pump_switch_(previous_active_valve)
+                                                         this->valve_pump_switch_(previous_active_valve.value())
                                                    : false;
   if (this->active_valve_.has_value()) {
+    auto run_duration = this->valve_run_duration_adjusted(this->active_valve_.value());
     // this->state_ = ACTIVE;  // state isn't changing
     if (this->valve_overlap_ || !this->switching_delay_.has_value()) {
       this->set_timer_duration_(sprinkler::TIMER_SM, run_duration - this->switching_delay_.value_or(0));
