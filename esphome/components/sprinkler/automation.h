@@ -25,7 +25,17 @@ template<typename... Ts> class QueueValveAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(size_t, queued_valve)
 
-  void play(Ts... x) override { this->sprinkler_->queue_single_valve(this->queued_valve_.optional_value(x...)); }
+  void play(Ts... x) override { this->sprinkler_->queue_valve(this->queued_valve_.optional_value(x...)); }
+
+ protected:
+  Sprinkler *sprinkler_;
+};
+
+template<typename... Ts> class ClearQueuedValvesAction : public Action<Ts...> {
+ public:
+  explicit ClearQueuedValvesAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
+
+  void play(Ts... x) override { this->sprinkler_->clear_queued_valves(); }
 
  protected:
   Sprinkler *sprinkler_;
@@ -54,6 +64,16 @@ template<typename... Ts> class SetRunDurationAction : public Action<Ts...> {
     this->sprinkler_->set_valve_run_duration(this->valve_number_.optional_value(x...),
                                              this->valve_run_duration_.optional_value(x...));
   }
+
+ protected:
+  Sprinkler *sprinkler_;
+};
+
+template<typename... Ts> class StartFromQueueAction : public Action<Ts...> {
+ public:
+  explicit StartFromQueueAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
+
+  void play(Ts... x) override { this->sprinkler_->start_from_queue(); }
 
  protected:
   Sprinkler *sprinkler_;

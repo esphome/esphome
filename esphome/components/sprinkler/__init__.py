@@ -18,6 +18,8 @@ CONF_ENABLE_SWITCH = "enable_switch"
 CONF_MAIN_SWITCH = "main_switch"
 CONF_MANUAL_SELECTION_DELAY = "manual_selection_delay"
 CONF_MULTIPLIER = "multiplier"
+CONF_PUMP_START_PUMP_DELAY = "pump_start_pump_delay"
+CONF_PUMP_STOP_PUMP_DELAY = "pump_stop_pump_delay"
 CONF_PUMP_SWITCH = "pump_switch"
 CONF_PUMP_SWITCH_ID = "pump_switch_id"
 CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY = "pump_switch_off_during_valve_open_delay"
@@ -25,6 +27,8 @@ CONF_REVERSE_SWITCH = "reverse_switch"
 CONF_VALVE_OPEN_DELAY = "valve_open_delay"
 CONF_VALVE_OVERLAP = "valve_overlap"
 CONF_VALVE_NUMBER = "valve_number"
+CONF_PUMP_START_VALVE_DELAY = "pump_start_valve_delay"
+CONF_PUMP_STOP_VALVE_DELAY = "pump_stop_valve_delay"
 CONF_VALVE_SWITCH = "valve_switch"
 CONF_VALVE_SWITCH_ID = "valve_switch_id"
 CONF_VALVES = "valves"
@@ -35,8 +39,12 @@ SprinklerSwitch = sprinkler_ns.class_("SprinklerSwitch", switch.Switch, cg.Compo
 
 SetMultiplierAction = sprinkler_ns.class_("SetMultiplierAction", automation.Action)
 QueueValveAction = sprinkler_ns.class_("QueueValveAction", automation.Action)
+ClearQueuedValvesAction = sprinkler_ns.class_(
+    "ClearQueuedValvesAction", automation.Action
+)
 SetRepeatAction = sprinkler_ns.class_("SetRepeatAction", automation.Action)
 SetRunDurationAction = sprinkler_ns.class_("SetRunDurationAction", automation.Action)
+StartFromQueueAction = sprinkler_ns.class_("StartFromQueueAction", automation.Action)
 StartFullCycleAction = sprinkler_ns.class_("StartFullCycleAction", automation.Action)
 StartSingleValveAction = sprinkler_ns.class_(
     "StartSingleValveAction", automation.Action
@@ -205,7 +213,19 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_MANUAL_SELECTION_DELAY): cv.positive_time_period_seconds,
         cv.Optional(CONF_REPEAT): cv.positive_int,
+        cv.Exclusive(
+            CONF_PUMP_START_PUMP_DELAY, "pump_start_xxxx_delay"
+        ): cv.positive_time_period_seconds,
+        cv.Exclusive(
+            CONF_PUMP_STOP_PUMP_DELAY, "pump_stop_xxxx_delay"
+        ): cv.positive_time_period_seconds,
         cv.Optional(CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY): cv.boolean,
+        cv.Exclusive(
+            CONF_PUMP_START_VALVE_DELAY, "pump_start_xxxx_delay"
+        ): cv.positive_time_period_seconds,
+        cv.Exclusive(
+            CONF_PUMP_STOP_VALVE_DELAY, "pump_stop_xxxx_delay"
+        ): cv.positive_time_period_seconds,
         cv.Exclusive(
             CONF_VALVE_OVERLAP, "open_delay/overlap"
         ): cv.positive_time_period_seconds,
@@ -236,7 +256,7 @@ async def sprinkler_set_multiplier_to_code(config, action_id, template_arg, args
 
 
 @automation.register_action(
-    "sprinkler.queue_single_valve",
+    "sprinkler.queue_valve",
     QueueValveAction,
     SPRINKLER_ACTION_SINGLE_VALVE_SCHEMA,
 )
@@ -279,6 +299,14 @@ async def sprinkler_set_valve_run_duration_to_code(
 
 
 @automation.register_action(
+    "sprinkler.start_from_queue", StartFromQueueAction, SPRINKLER_ACTION_SCHEMA
+)
+async def sprinkler_start_from_queue_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action(
     "sprinkler.start_full_cycle", StartFullCycleAction, SPRINKLER_ACTION_SCHEMA
 )
 async def sprinkler_start_full_cycle_to_code(config, action_id, template_arg, args):
@@ -300,7 +328,7 @@ async def sprinkler_start_single_valve_to_code(config, action_id, template_arg, 
 
 
 @automation.register_action(
-    "sprinkler.shutdown", ShutdownAction, SPRINKLER_ACTION_SCHEMA
+    "sprinkler.clear_queued_valves", ClearQueuedValvesAction, SPRINKLER_ACTION_SCHEMA
 )
 @automation.register_action(
     "sprinkler.next_valve", NextValveAction, SPRINKLER_ACTION_SCHEMA
@@ -312,6 +340,9 @@ async def sprinkler_start_single_valve_to_code(config, action_id, template_arg, 
 @automation.register_action("sprinkler.resume", ResumeAction, SPRINKLER_ACTION_SCHEMA)
 @automation.register_action(
     "sprinkler.resume_or_start_full_cycle", ResumeOrStartAction, SPRINKLER_ACTION_SCHEMA
+)
+@automation.register_action(
+    "sprinkler.shutdown", ShutdownAction, SPRINKLER_ACTION_SCHEMA
 )
 async def sprinkler_simple_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -400,6 +431,32 @@ async def to_code(config):
         if CONF_VALVE_OPEN_DELAY in sprinkler_controller:
             cg.add(
                 var.set_valve_open_delay(sprinkler_controller[CONF_VALVE_OPEN_DELAY])
+            )
+
+        if CONF_PUMP_START_PUMP_DELAY in sprinkler_controller:
+            cg.add(
+                var.set_pump_start_delay(
+                    sprinkler_controller[CONF_PUMP_START_PUMP_DELAY]
+                )
+            )
+
+        if CONF_PUMP_STOP_PUMP_DELAY in sprinkler_controller:
+            cg.add(
+                var.set_pump_stop_delay(sprinkler_controller[CONF_PUMP_STOP_PUMP_DELAY])
+            )
+
+        if CONF_PUMP_START_VALVE_DELAY in sprinkler_controller:
+            cg.add(
+                var.set_valve_start_delay(
+                    sprinkler_controller[CONF_PUMP_START_VALVE_DELAY]
+                )
+            )
+
+        if CONF_PUMP_STOP_VALVE_DELAY in sprinkler_controller:
+            cg.add(
+                var.set_valve_stop_delay(
+                    sprinkler_controller[CONF_PUMP_STOP_VALVE_DELAY]
+                )
             )
 
         if CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY in sprinkler_controller:
