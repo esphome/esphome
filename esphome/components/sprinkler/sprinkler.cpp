@@ -806,19 +806,21 @@ void Sprinkler::load_next_valve_run_request_(optional<uint8_t> first_valve) {
     }
     this->queued_valves_.pop_back();
   } else if (this->auto_adv_sw_ != nullptr) {
-    if (this->auto_adv_sw_->state && this->next_valve_number_in_cycle_(first_valve).has_value()) {
-      // if there is another valve to run as a part of a cycle, load that
-      this->next_req_.set_valve(this->next_valve_number_in_cycle_(first_valve).value());
-      this->next_req_.set_run_duration(
-          this->valve_run_duration_adjusted(this->next_valve_number_in_cycle_(first_valve).value()));
-    } else if (this->auto_adv_sw_->state && (this->repeat_count_++ < this->target_repeats_.value_or(0))) {
-      ESP_LOGD(TAG, "Repeating - starting cycle %u of %u", this->repeat_count_ + 1,
-               this->target_repeats_.value_or(0) + 1);
-      // if there are repeats remaining and no more valves were left in the cycle, start a new cycle
-      this->prep_full_cycle_();
-      this->next_req_.set_valve(this->next_valve_number_in_cycle_(first_valve).value());
-      this->next_req_.set_run_duration(
-          this->valve_run_duration_adjusted(this->next_valve_number_in_cycle_(first_valve).value()));
+    if (this->auto_adv_sw_->state) {
+      if (this->next_valve_number_in_cycle_(first_valve).has_value()) {
+        // if there is another valve to run as a part of a cycle, load that
+        this->next_req_.set_valve(this->next_valve_number_in_cycle_(first_valve).value());
+        this->next_req_.set_run_duration(
+            this->valve_run_duration_adjusted(this->next_valve_number_in_cycle_(first_valve).value()));
+      } else if ((this->repeat_count_++ < this->target_repeats_.value_or(0))) {
+        ESP_LOGD(TAG, "Repeating - starting cycle %u of %u", this->repeat_count_ + 1,
+                 this->target_repeats_.value_or(0) + 1);
+        // if there are repeats remaining and no more valves were left in the cycle, start a new cycle
+        this->prep_full_cycle_();
+        this->next_req_.set_valve(this->next_valve_number_in_cycle_(first_valve).value());
+        this->next_req_.set_run_duration(
+            this->valve_run_duration_adjusted(this->next_valve_number_in_cycle_(first_valve).value()));
+      }
     }
   }
 }
