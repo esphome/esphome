@@ -150,6 +150,16 @@ SPRINKLER_ACTION_SET_RUN_DURATION_SCHEMA = cv.Schema(
     }
 )
 
+SPRINKLER_ACTION_QUEUE_VALVE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(Sprinkler),
+        cv.Optional(CONF_RUN_DURATION, default=0): cv.templatable(
+            cv.positive_time_period_seconds
+        ),
+        cv.Required(CONF_VALVE_NUMBER): cv.templatable(cv.positive_int),
+    }
+)
+
 SPRINKLER_VALVE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ENABLE_SWITCH): cv.maybe_simple_value(
@@ -258,13 +268,15 @@ async def sprinkler_set_multiplier_to_code(config, action_id, template_arg, args
 @automation.register_action(
     "sprinkler.queue_valve",
     QueueValveAction,
-    SPRINKLER_ACTION_SINGLE_VALVE_SCHEMA,
+    SPRINKLER_ACTION_QUEUE_VALVE_SCHEMA,
 )
 async def sprinkler_set_queued_valve_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_VALVE_NUMBER], args, cg.uint8)
-    cg.add(var.set_queued_valve(template_))
+    cg.add(var.set_valve_number(template_))
+    template_ = await cg.templatable(config[CONF_RUN_DURATION], args, cg.uint32)
+    cg.add(var.set_valve_run_duration(template_))
     return var
 
 

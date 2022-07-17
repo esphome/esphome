@@ -24,9 +24,15 @@ enum SprinklerTimerIndex : size_t {
 class Sprinkler;
 class SprinklerSwitch;
 class SprinklerValveOperator;
+class SprinklerValveRunRequest;
 template<typename... Ts> class StartSingleValveAction;
 template<typename... Ts> class ShutdownAction;
 template<typename... Ts> class ResumeOrStartAction;
+
+struct SprinklerQueueItem {
+  size_t valve_number;
+  uint32_t run_duration;
+};
 
 struct SprinklerTimer {
   const std::string name;
@@ -41,12 +47,43 @@ struct SprinklerValve {
   std::unique_ptr<SprinklerSwitch> enable_switch;
   switch_::Switch *pump_switch;
   switch_::Switch *valve_switch;
-  uint32_t valve_run_duration;
+  uint32_t run_duration;
   bool valve_cycle_complete;
   std::unique_ptr<ShutdownAction<>> valve_shutdown_action;
   std::unique_ptr<StartSingleValveAction<>> valve_resumeorstart_action;
   std::unique_ptr<Automation<>> valve_turn_off_automation;
   std::unique_ptr<Automation<>> valve_turn_on_automation;
+};
+
+class SprinklerSwitch : public switch_::Switch, public Component {
+ public:
+  SprinklerSwitch();
+
+  void setup() override;
+  void dump_config() override;
+
+  void set_state_lambda(std::function<optional<bool>()> &&f);
+  void set_restore_state(bool restore_state);
+  Trigger<> *get_turn_on_trigger() const;
+  Trigger<> *get_turn_off_trigger() const;
+  void set_optimistic(bool optimistic);
+  void set_assumed_state(bool assumed_state);
+  void loop() override;
+
+  float get_setup_priority() const override;
+
+ protected:
+  bool assumed_state() override;
+
+  void write_state(bool state) override;
+
+  optional<std::function<optional<bool>()>> f_;
+  bool optimistic_{false};
+  bool assumed_state_{false};
+  Trigger<> *turn_on_trigger_;
+  Trigger<> *turn_off_trigger_;
+  Trigger<> *prev_trigger_{nullptr};
+  bool restore_state_{false};
 };
 
 class SprinklerValveOperator {
@@ -84,35 +121,26 @@ class SprinklerValveOperator {
   SprinklerState state_{IDLE};
 };
 
-class SprinklerSwitch : public switch_::Switch, public Component {
+class SprinklerValveRunRequest {
  public:
-  SprinklerSwitch();
-
-  void setup() override;
-  void dump_config() override;
-
-  void set_state_lambda(std::function<optional<bool>()> &&f);
-  void set_restore_state(bool restore_state);
-  Trigger<> *get_turn_on_trigger() const;
-  Trigger<> *get_turn_off_trigger() const;
-  void set_optimistic(bool optimistic);
-  void set_assumed_state(bool assumed_state);
-  void loop() override;
-
-  float get_setup_priority() const override;
+  SprinklerValveRunRequest();
+  SprinklerValveRunRequest(size_t valve_number, uint32_t run_duration, SprinklerValveOperator *valve_op);
+  bool has_request();
+  bool has_valve_operator();
+  void set_run_duration(uint32_t run_duration);
+  void set_valve(size_t valve_number);
+  void set_valve_operator(SprinklerValveOperator *valve_op);
+  void reset();
+  uint32_t run_duration();
+  size_t valve();
+  optional<size_t> valve_as_opt();
+  SprinklerValveOperator *valve_operator();
 
  protected:
-  bool assumed_state() override;
-
-  void write_state(bool state) override;
-
-  optional<std::function<optional<bool>()>> f_;
-  bool optimistic_{false};
-  bool assumed_state_{false};
-  Trigger<> *turn_on_trigger_;
-  Trigger<> *turn_off_trigger_;
-  Trigger<> *prev_trigger_{nullptr};
-  bool restore_state_{false};
+  bool has_valve_{false};
+  size_t valve_number_{0};
+  uint32_t run_duration_{0};
+  SprinklerValveOperator *valve_op_{nullptr};
 };
 
 class Sprinkler : public Component, public EntityBase {
@@ -136,8 +164,8 @@ class Sprinkler : public Component, public EntityBase {
   void set_controller_reverse_switch(SprinklerSwitch *reverse_switch);
 
   /// configure a valve's switch object, run duration and pump switch (if provided).
-  ///  valve_run_duration is time in seconds.
-  void configure_valve_switch(size_t valve_number, switch_::Switch *valve_switch, uint32_t valve_run_duration,
+  ///  run_duration is time in seconds.
+  void configure_valve_switch(size_t valve_number, switch_::Switch *valve_switch, uint32_t run_duration,
                               switch_::Switch *pump_switch = nullptr);
 
   /// value multiplied by configured run times -- used to extend or shorten the cycle
@@ -168,8 +196,8 @@ class Sprinkler : public Component, public EntityBase {
   /// set how long the controller should wait to activate a valve after next_valve() or previous_valve() is called
   void set_manual_selection_delay(uint32_t manual_selection_delay);
 
-  /// set how long the valve should remain on/open (time in seconds)
-  void set_valve_run_duration(optional<size_t> valve_number, optional<uint32_t> valve_run_duration);
+  /// set how long the valve should remain on/open. run_duration is time in seconds
+  void set_valve_run_duration(optional<size_t> valve_number, optional<uint32_t> run_duration);
 
   /// if auto_advance is true, controller will iterate through all enabled valves
   void set_auto_advance(bool auto_advance);
@@ -180,10 +208,10 @@ class Sprinkler : public Component, public EntityBase {
   /// if reverse is true, controller will iterate through all enabled valves in reverse (descending) order
   void set_reverse(bool reverse);
 
-  /// returns valve_number's run duration. note that these times are stored in seconds
+  /// returns valve_number's run duration in seconds
   uint32_t valve_run_duration(size_t valve_number);
 
-  /// returns valve_number's run duration adjusted by multiplier_. note that these times are stored in seconds
+  /// returns valve_number's run duration (in seconds) adjusted by multiplier_
   uint32_t valve_run_duration_adjusted(size_t valve_number);
 
   /// returns true if auto_advance is enabled
@@ -209,8 +237,9 @@ class Sprinkler : public Component, public EntityBase {
   /// activates a single valve and disables auto_advance.
   void start_single_valve(optional<size_t> valve_number);
 
-  /// sets a valve to be run after the active valve, regardless of auto-advance
-  void queue_valve(optional<size_t> valve_number);
+  /// adds a valve into the queue. queued valves have priority over valves to be run as a part of a full cycle.
+  /// NOTE: queued valves will always run, regardless of auto-advance and/or valve enable switches.
+  void queue_valve(optional<size_t> valve_number, optional<uint32_t> run_duration);
 
   /// clears/removes all valves from the queue
   void clear_queued_valves();
@@ -296,9 +325,11 @@ class Sprinkler : public Component, public EntityBase {
   ///  if no valve is next (cycle is complete), returns no value (check with 'has_value()')
   optional<uint8_t> next_valve_number_in_cycle_(optional<uint8_t> first_valve = nullopt);
 
-  /// returns the number of the next valve that should be activated, regardless of cycle or auto advance.
-  ///  if no valve is next, returns no value (check with 'has_value()')
-  optional<uint8_t> next_valve_number_to_run_(optional<uint8_t> first_valve = nullopt);
+  /// loads next_req_ with the next valve that should be activated, including its run duration.
+  ///  if next_req_ already contains a request, nothing is done. after next_req_,
+  ///  queued valves have priority, followed by enabled valves if auto-advance is enabled.
+  ///  if no valve is next (for example, a full cycle is complete), next_req_ is reset via reset().
+  void load_next_valve_run_request_(optional<uint8_t> first_valve = nullopt);
 
   /// returns the number of the next/previous valve that should be activated.
   ///  if no valve is next (cycle is complete), returns no value (check with 'has_value()')
@@ -314,9 +345,9 @@ class Sprinkler : public Component, public EntityBase {
   /// turns on the valve if valve_state is true, otherwise turns off the valve
   void set_valve_state_(size_t valve_number, bool valve_state);
 
-  /// loads a valve into an available SprinklerValveOperator valve_op_ and starts it (switches it on)
-  /// NOTE: if run_duration is not specified, the valve's run_duration will be set based on the valve's configuration
-  void start_valve_(optional<size_t> valve_number, optional<uint32_t> run_duration = nullopt);
+  /// loads an available SprinklerValveOperator (valve_op_) based on req and starts it (switches it on).
+  /// NOTE: if run_duration is zero, the valve's run_duration will be set based on the valve's configuration.
+  void start_valve_(SprinklerValveRunRequest *req);
 
   /// turns off/closes all valves, including pump if include_pump is true
   void all_valves_off_(bool include_pump = false);
@@ -331,7 +362,10 @@ class Sprinkler : public Component, public EntityBase {
   void reset_resume_();
 
   /// make a request of the state machine
-  void fsm_request_(optional<uint8_t> target_valve = nullopt);
+  void fsm_request_(size_t requested_valve, uint32_t requested_run_duration = 0);
+
+  /// kicks the state machine to advance, starting it if it is not already active
+  void fsm_kick_();
 
   /// advance controller state, advancing to target_valve if provided
   void fsm_transition_();
@@ -384,8 +418,8 @@ class Sprinkler : public Component, public EntityBase {
   /// Sprinkler controller state
   SprinklerState state_{IDLE};
 
-  /// The number of the valve that is currently active
-  optional<uint8_t> active_valve_;
+  /// The valve run request that is currently active
+  SprinklerValveRunRequest active_req_;
 
   /// The number of the manually selected valve currently selected
   optional<uint8_t> manual_valve_;
@@ -393,8 +427,8 @@ class Sprinkler : public Component, public EntityBase {
   /// The number of the valve to resume from (if paused)
   optional<uint8_t> paused_valve_;
 
-  /// The number of the requested valve for the FSM to transition to next
-  optional<uint8_t> requested_valve_;
+  /// The next run request for the controller to consume after active_req_ is complete
+  SprinklerValveRunRequest next_req_;
 
   /// Set the number of times to repeat a full cycle
   optional<uint32_t> target_repeats_;
@@ -415,7 +449,7 @@ class Sprinkler : public Component, public EntityBase {
   float multiplier_{1.0};
 
   /// Queue of valves to activate next, regardless of auto-advance
-  std::vector<size_t> queued_valves_;
+  std::vector<SprinklerQueueItem> queued_valves_;
 
   /// Sprinkler valve objects
   std::vector<SprinklerValve> valve_;
