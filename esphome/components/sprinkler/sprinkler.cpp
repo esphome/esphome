@@ -545,7 +545,7 @@ void Sprinkler::queue_valve(optional<size_t> valve_number, optional<uint32_t> ru
   if (valve_number.has_value()) {
     if (this->is_a_valid_valve(valve_number.value()) && (this->queued_valves_.size() < this->max_queue_size_)) {
       SprinklerQueueItem item{valve_number.value(), run_duration.value()};
-      this->queued_valves_.insert(this->queued_valves_.begin(), std::move(item));
+      this->queued_valves_.insert(this->queued_valves_.begin(), item);
       ESP_LOGD(TAG, "Valve %u placed into queue with run duration of %u seconds", valve_number.value_or(0),
                run_duration.value_or(0));
     }
