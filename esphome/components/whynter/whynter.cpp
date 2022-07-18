@@ -42,8 +42,8 @@ const uint32_t TEMP_OFFSET_C = 16;
 
 void Whynter::transmit_state() {
   uint32_t remote_state = COMMAND_CODE;
-    if (this->mode == climate::CLIMATE_MODE_HEAT_COOL)
-      this->mode = climate::CLIMATE_MODE_COOL;
+  if (this->mode == climate::CLIMATE_MODE_HEAT_COOL)
+    this->mode = climate::CLIMATE_MODE_COOL;
   switch (this->mode) {
     case climate::CLIMATE_MODE_FAN_ONLY:
       remote_state |= POWER_MASK;
@@ -86,7 +86,8 @@ void Whynter::transmit_state() {
   if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT) {
     if (fahrenheit_) {
       remote_state |= UNIT_MASK;
-      uint8_t temp = (uint8_t) clamp<float>(esphome::celsius_to_fahrenheit(this->target_temperature), TEMP_MIN_F, TEMP_MAX_F);
+      uint8_t temp =
+          (uint8_t) clamp<float>(esphome::celsius_to_fahrenheit(this->target_temperature), TEMP_MIN_F, TEMP_MAX_F);
       temp = esphome::reverse_bits(temp);
       remote_state |= temp;
     } else {
@@ -136,9 +137,10 @@ bool Whynter::on_receive(remote_base::RemoteReceiveData data) {
 
     // Temperature
     if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT) {
-      if ((remote_state & UNIT_MASK) == UNIT_MASK) { // Fahrenheit
-        this->target_temperature = esphome::fahrenheit_to_celsius(esphome::reverse_bits(remote_state & TEMP_MASK) >> 24);
-      } else { // Celsius
+      if ((remote_state & UNIT_MASK) == UNIT_MASK) {  // Fahrenheit
+        this->target_temperature =
+            esphome::fahrenheit_to_celsius(esphome::reverse_bits(remote_state & TEMP_MASK) >> 24);
+      } else {  // Celsius
         this->target_temperature = (esphome::reverse_bits(remote_state & TEMP_MASK) >> 24) + TEMP_OFFSET_C;
       }
     }
