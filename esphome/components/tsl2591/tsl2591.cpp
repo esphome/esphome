@@ -43,16 +43,34 @@ void TSL2591Component::disable_if_power_saving_() {
 }
 
 void TSL2591Component::setup() {
-  if (this->component_gain_ == TSL2591_CGAIN_AUTO)
-    this->gain_ = TSL2591_GAIN_MED;
+  switch (this->component_gain_) {
+    case TSL2591_CGAIN_LOW:
+      this->gain_ = TSL2591_GAIN_LOW;
+      break;
+    case TSL2591_CGAIN_MED:
+      this->gain_ = TSL2591_GAIN_MED;
+      break;
+    case TSL2591_CGAIN_HIGH:
+      this->gain_ = TSL2591_GAIN_HIGH;
+      break;
+    case TSL2591_CGAIN_MAX:
+      this->gain_ = TSL2591_GAIN_MAX;
+      break;
+    case TSL2591_CGAIN_AUTO:
+      this->gain_ = TSL2591_GAIN_MED;
+      break;
+  }
+
   uint8_t address = this->address_;
   ESP_LOGI(TAG, "Setting up TSL2591 sensor at I2C address 0x%02X", address);
+
   uint8_t id;
   if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID, &id)) {
     ESP_LOGE(TAG, "Failed I2C read during setup()");
     this->mark_failed();
     return;
   }
+
   if (id != 0x50) {
     ESP_LOGE(TAG,
              "Could not find the TSL2591 sensor. The ID register of the device at address 0x%02X reported 0x%02X "
@@ -61,6 +79,7 @@ void TSL2591Component::setup() {
     this->mark_failed();
     return;
   }
+
   this->set_integration_time_and_gain(this->integration_time_, this->gain_);
   this->disable_if_power_saving_();
 }

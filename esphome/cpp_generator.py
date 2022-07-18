@@ -954,7 +954,7 @@ class MockObjEnum(MockObj):
         base = kwargs.pop("base")
         if self._is_class:
             base = f"{base}::{self._enum}"
-            kwargs["op"] = "::"
+        kwargs["op"] = "::"
         kwargs["base"] = base
         MockObj.__init__(self, *args, **kwargs)
 

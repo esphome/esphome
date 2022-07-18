@@ -141,7 +141,7 @@ class ClimateTraits {
   }
   bool supports_swing_mode(ClimateSwingMode swing_mode) const { return supported_swing_modes_.count(swing_mode); }
   bool get_supports_swing_modes() const { return !supported_swing_modes_.empty(); }
-  std::set<ClimateSwingMode> get_supported_swing_modes() { return supported_swing_modes_; }
+  std::set<ClimateSwingMode> get_supported_swing_modes() const { return supported_swing_modes_; }
 
   float get_visual_min_temperature() const { return visual_min_temperature_; }
   void set_visual_min_temperature(float visual_min_temperature) { visual_min_temperature_ = visual_min_temperature; }

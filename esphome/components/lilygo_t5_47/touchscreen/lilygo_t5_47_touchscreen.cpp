@@ -113,8 +113,27 @@ void LilygoT547Touchscreen::loop() {
       if (tp.state == 0x06)
         tp.state = 0x07;
 
-      tp.y = (uint16_t)((buffer[i * 5 + 1 + offset] << 4) | ((buffer[i * 5 + 3 + offset] >> 4) & 0x0F));
-      tp.x = (uint16_t)((buffer[i * 5 + 2 + offset] << 4) | (buffer[i * 5 + 3 + offset] & 0x0F));
+      uint16_t y = (uint16_t)((buffer[i * 5 + 1 + offset] << 4) | ((buffer[i * 5 + 3 + offset] >> 4) & 0x0F));
+      uint16_t x = (uint16_t)((buffer[i * 5 + 2 + offset] << 4) | (buffer[i * 5 + 3 + offset] & 0x0F));
+
+      switch (this->rotation_) {
+        case ROTATE_0_DEGREES:
+          tp.y = this->display_height_ - y;
+          tp.x = x;
+          break;
+        case ROTATE_90_DEGREES:
+          tp.x = this->display_height_ - y;
+          tp.y = this->display_width_ - x;
+          break;
+        case ROTATE_180_DEGREES:
+          tp.y = y;
+          tp.x = this->display_width_ - x;
+          break;
+        case ROTATE_270_DEGREES:
+          tp.x = y;
+          tp.y = x;
+          break;
+      }
 
       this->defer([this, tp]() { this->send_touch_(tp); });
     }
@@ -122,8 +141,28 @@ void LilygoT547Touchscreen::loop() {
     TouchPoint tp;
     tp.id = (buffer[0] >> 4) & 0x0F;
     tp.state = 0x06;
-    tp.y = (uint16_t)((buffer[0 * 5 + 1] << 4) | ((buffer[0 * 5 + 3] >> 4) & 0x0F));
-    tp.x = (uint16_t)((buffer[0 * 5 + 2] << 4) | (buffer[0 * 5 + 3] & 0x0F));
+
+    uint16_t y = (uint16_t)((buffer[0 * 5 + 1] << 4) | ((buffer[0 * 5 + 3] >> 4) & 0x0F));
+    uint16_t x = (uint16_t)((buffer[0 * 5 + 2] << 4) | (buffer[0 * 5 + 3] & 0x0F));
+
+    switch (this->rotation_) {
+      case ROTATE_0_DEGREES:
+        tp.y = this->display_height_ - y;
+        tp.x = x;
+        break;
+      case ROTATE_90_DEGREES:
+        tp.x = this->display_height_ - y;
+        tp.y = this->display_width_ - x;
+        break;
+      case ROTATE_180_DEGREES:
+        tp.y = y;
+        tp.x = this->display_width_ - x;
+        break;
+      case ROTATE_270_DEGREES:
+        tp.x = y;
+        tp.y = x;
+        break;
+    }
 
     this->defer([this, tp]() { this->send_touch_(tp); });
   }

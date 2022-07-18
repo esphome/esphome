@@ -82,6 +82,13 @@ enum ImageType {
   IMAGE_TYPE_GRAYSCALE = 1,
   IMAGE_TYPE_RGB24 = 2,
   IMAGE_TYPE_TRANSPARENT_BINARY = 3,
+  IMAGE_TYPE_RGB565 = 4,
+};
+
+enum DisplayType {
+  DISPLAY_TYPE_BINARY = 1,
+  DISPLAY_TYPE_GRAYSCALE = 2,
+  DISPLAY_TYPE_COLOR = 3,
 };
 
 enum DisplayRotation {
@@ -360,6 +367,11 @@ class DisplayBuffer {
   virtual int get_width_internal() = 0;
   DisplayRotation get_rotation() const { return this->rotation_; }
 
+  /** Get the type of display that the buffer corresponds to. In case of dynamically configurable displays,
+   * returns the type the display is currently configured to.
+   */
+  virtual DisplayType get_display_type() = 0;
+
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
 
@@ -453,6 +465,7 @@ class Image {
   Image(const uint8_t *data_start, int width, int height, ImageType type);
   virtual bool get_pixel(int x, int y) const;
   virtual Color get_color_pixel(int x, int y) const;
+  virtual Color get_rgb565_pixel(int x, int y) const;
   virtual Color get_grayscale_pixel(int x, int y) const;
   int get_width() const;
   int get_height() const;
@@ -470,11 +483,13 @@ class Animation : public Image {
   Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
   bool get_pixel(int x, int y) const override;
   Color get_color_pixel(int x, int y) const override;
+  Color get_rgb565_pixel(int x, int y) const override;
   Color get_grayscale_pixel(int x, int y) const override;
 
   int get_animation_frame_count() const;
   int get_current_frame() const;
   void next_frame();
+  void prev_frame();
 
  protected:
   int current_frame_;

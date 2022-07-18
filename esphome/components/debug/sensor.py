@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_FRAGMENTATION,
     CONF_BLOCK,
     CONF_LOOP_TIME,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     UNIT_MILLISECOND,
     UNIT_PERCENT,
     UNIT_BYTES,
@@ -18,14 +19,34 @@ DEPENDENCIES = ["debug"]
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_DEBUG_ID): cv.use_id(DebugComponent),
-    cv.Optional(CONF_FREE): sensor.sensor_schema(UNIT_BYTES, ICON_COUNTER, 0),
-    cv.Optional(CONF_BLOCK): sensor.sensor_schema(UNIT_BYTES, ICON_COUNTER, 0),
+    cv.Optional(CONF_FREE): sensor.sensor_schema(
+        unit_of_measurement=UNIT_BYTES,
+        icon=ICON_COUNTER,
+        accuracy_decimals=0,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    cv.Optional(CONF_BLOCK): sensor.sensor_schema(
+        unit_of_measurement=UNIT_BYTES,
+        icon=ICON_COUNTER,
+        accuracy_decimals=0,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
     cv.Optional(CONF_FRAGMENTATION): cv.All(
         cv.only_on_esp8266,
         cv.require_framework_version(esp8266_arduino=cv.Version(2, 5, 2)),
-        sensor.sensor_schema(UNIT_PERCENT, ICON_COUNTER, 1),
+        sensor.sensor_schema(
+            unit_of_measurement=UNIT_PERCENT,
+            icon=ICON_COUNTER,
+            accuracy_decimals=1,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
     ),
-    cv.Optional(CONF_LOOP_TIME): sensor.sensor_schema(UNIT_MILLISECOND, ICON_TIMER, 0),
+    cv.Optional(CONF_LOOP_TIME): sensor.sensor_schema(
+        unit_of_measurement=UNIT_MILLISECOND,
+        icon=ICON_TIMER,
+        accuracy_decimals=0,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
 }
 
 

@@ -57,6 +57,18 @@ time:
 
 tuya:
   time_id: sntp_time
+  status_pin:
+    number: 14
+    inverted: true
+
+select:
+  - platform: tuya
+    id: tuya_select
+    enum_datapoint: 42
+    options:
+      0: Internal
+      1: Floor
+      2: Both
 
 pipsolar:
     id: inverter0
@@ -67,6 +79,11 @@ sx1509:
 
 mcp3204:
   cs_pin: GPIO23
+
+dac7678:
+    address: 0x4A
+    id: dac7678_hub1
+    internal_reference: true
 
 sensor:
   - platform: homeassistant
@@ -221,6 +238,10 @@ sensor:
   - platform: mcp3204
     name: "MCP3204 Pin 1"
     number: 1
+    id: mcp_sensor
+  - platform: copy
+    source_id: mcp_sensor
+    name: "MCP binary sensor copy"
 
 #
 # platform sensor.apds9960 requires component apds9960
@@ -364,6 +385,9 @@ switch:
       name: inverter0_pv_ok_condition_for_parallel
     pv_power_balance:
       name: inverter0_pv_power_balance
+  - platform: copy
+    source_id: tuya_switch
+    name: Tuya Switch Copy
 
 light:
   - platform: fastled_clockless
@@ -391,6 +415,9 @@ cover:
   - platform: tuya
     id: tuya_cover
     position_datapoint: 2
+  - platform: copy
+    source_id: tuya_cover
+    name: "Tuya Cover copy"
 
 display:
   - platform: addressable_light
@@ -465,6 +492,9 @@ number:
     min_value: 0
     max_value: 17
     step: 1
+  - platform: copy
+    source_id: tuya_number
+    name: Tuya Number Copy
 
 text_sensor:
   - platform: pipsolar
@@ -484,12 +514,47 @@ text_sensor:
     last_qflag:
       id: inverter0_last_qflag
       name: inverter0_last_qflag
+  - platform: copy
+    source_id: inverter0_device_mode
+    name: "Inverter Text Sensor Copy"
 
 output:
   - platform: pipsolar
     pipsolar_id: inverter0
     battery_recharge_voltage:
       id: inverter0_battery_recharge_voltage_out
+  - platform: dac7678
+    dac7678_id: 'dac7678_hub1'
+    channel: 0
+    id: 'dac7678_1_ch0'
+  - platform: dac7678
+    dac7678_id: 'dac7678_hub1'
+    channel: 1
+    id: 'dac7678_1_ch1'
+  - platform: dac7678
+    dac7678_id: 'dac7678_hub1'
+    channel: 2
+    id: 'dac7678_1_ch2'
+  - platform: dac7678
+    dac7678_id: 'dac7678_hub1'
+    channel: 3
+    id: 'dac7678_1_ch3'
+  - platform: dac7678
+    dac7678_id: 'dac7678_hub1'
+    channel: 4
+    id: 'dac7678_1_ch4'
+  - platform: dac7678
+    dac7678_id: 'dac7678_hub1'
+    channel: 5
+    id: 'dac7678_1_ch5'
+  - platform: dac7678
+    dac7678_id: 'dac7678_hub1'
+    channel: 6
+    id: 'dac7678_1_ch6'
+  - platform: dac7678
+    dac7678_id: 'dac7678_hub1'
+    channel: 7
+    id: 'dac7678_1_ch7'
 esp32_camera:
   name: ESP-32 Camera
   data_pins: [GPIO17, GPIO35, GPIO34, GPIO5, GPIO39, GPIO18, GPIO36, GPIO19]
@@ -552,6 +617,11 @@ button:
     name: Safe Mode Button
   - platform: shutdown
     name: Shutdown Button
+    id: shutdown_btn
+  - platform: copy
+    source_id: shutdown_btn
+    name: Shutdown Button Copy
+
 
 touchscreen:
   - platform: ektf2232
@@ -571,3 +641,29 @@ touchscreen:
       - logger.log:
           format: Touch at (%d, %d)
           args: ["touch.x", "touch.y"]
+
+media_player:
+  - platform: i2s_audio
+    name: ${friendly_name}
+    dac_type: external
+    i2s_lrclk_pin: GPIO26
+    i2s_dout_pin: GPIO25
+    i2s_bclk_pin: GPIO27
+    mute_pin: GPIO14
+    on_state:
+      - media_player.play:
+      - media_player.play_media: http://localhost/media.mp3
+      - media_player.play_media: !lambda 'return "http://localhost/media.mp3";'
+    on_idle:
+      - media_player.pause:
+    on_play:
+      - media_player.stop:
+    on_pause:
+      - media_player.toggle:
+      - wait_until:
+          media_player.is_idle:
+      - wait_until:
+          media_player.is_playing:
+      - media_player.volume_up:
+      - media_player.volume_down:
+      - media_player.volume_set: 50%

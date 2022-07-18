@@ -1,10 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor
+from esphome.components import i2c, sensor, sensirion_common
+
 from esphome.const import (
     CONF_ID,
     CONF_BASELINE,
     CONF_ECO2,
+    CONF_STORE_BASELINE,
+    CONF_TEMPERATURE_SOURCE,
     CONF_TVOC,
     ICON_RADIATOR,
     DEVICE_CLASS_CARBON_DIOXIDE,
@@ -13,20 +16,23 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PARTS_PER_BILLION,
     ICON_MOLECULE_CO2,
+    ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["sensirion_common"]
 
 sgp30_ns = cg.esphome_ns.namespace("sgp30")
-SGP30Component = sgp30_ns.class_("SGP30Component", cg.PollingComponent, i2c.I2CDevice)
+SGP30Component = sgp30_ns.class_(
+    "SGP30Component", cg.PollingComponent, sensirion_common.SensirionI2CDevice
+)
 
 CONF_ECO2_BASELINE = "eco2_baseline"
 CONF_TVOC_BASELINE = "tvoc_baseline"
-CONF_STORE_BASELINE = "store_baseline"
 CONF_UPTIME = "uptime"
 CONF_COMPENSATION = "compensation"
 CONF_HUMIDITY_SOURCE = "humidity_source"
-CONF_TEMPERATURE_SOURCE = "temperature_source"
+
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -49,10 +55,12 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ECO2_BASELINE): sensor.sensor_schema(
                 icon=ICON_MOLECULE_CO2,
                 accuracy_decimals=0,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_TVOC_BASELINE): sensor.sensor_schema(
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
             cv.Optional(CONF_BASELINE): cv.Schema(

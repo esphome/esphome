@@ -7,12 +7,12 @@
 # Check SSL requirements, if enabled
 if bashio::config.true 'ssl'; then
     if ! bashio::config.has_value 'certfile'; then
-        bashio::fatal 'SSL is enabled, but no certfile was specified.'
+        bashio::log.fatal 'SSL is enabled, but no certfile was specified.'
         bashio::exit.nok
     fi
 
     if ! bashio::config.has_value 'keyfile'; then
-        bashio::fatal 'SSL is enabled, but no keyfile was specified'
+        bashio::log.fatal 'SSL is enabled, but no keyfile was specified'
         bashio::exit.nok
     fi
 
