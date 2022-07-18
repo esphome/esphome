@@ -157,16 +157,16 @@ void HydreonRGxxComponent::process_line_() {
     ESP_LOGI(TAG, "Comment: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
     return;
   }
-  if (this->buffer_.find("\n") <= 1) {
-    //allow both \r\n and \n
+  if (this->buffer_.find('\n') <= 1) {
+    // allow both \r\n and \n
     ESP_LOGD(TAG, "Received empty line");
     return;
   }
-  if (this->buffer_.find("LensBad") != std::string::npos ) {
+  if (this->buffer_.find("LensBad") != std::string::npos) {
     ESP_LOGW(TAG, "Received LensBad!");
     this->lens_bad_ = true;
   }
-  if (this->buffer_.find("EmSat") != std::string::npos ) {
+  if (this->buffer_.find("EmSat") != std::string::npos) {
     ESP_LOGW(TAG, "Received EmSat!");
     this->em_sat_ = true;
   }
