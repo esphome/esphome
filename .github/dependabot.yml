@@ -7,3 +7,8 @@ updates:
     ignore:
       # Hypotehsis is only used for testing and is updated quite often
       - dependency-name: hypothesis
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
