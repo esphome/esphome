@@ -15,12 +15,11 @@ class Whynter : public climate_ir::ClimateIR {
  public:
   Whynter()
       : climate_ir::ClimateIR(TEMP_MIN_C, TEMP_MAX_C, 1.0, true, true,
-          {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH}, {}) {}
+                              {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH}, {}) {}
 
   /// Override control to change settings of the climate device.
-  void control(const climate::ClimateCall &call) override {
-    climate_ir::ClimateIR::control(call);
-  }
+  void control(const climate::ClimateCall &call) override { climate_ir::ClimateIR::control(call); }
+
   // Set use of Fahrenheit units
   void set_fahrenheit(bool value) {
     this->fahrenheit_ = value;
@@ -28,6 +27,7 @@ class Whynter : public climate_ir::ClimateIR {
     this->minimum_temperature_ = esphome::fahrenheit_to_celsius(TEMP_MIN_F);
     this->maximum_temperature_ = esphome::fahrenheit_to_celsius(TEMP_MAX_F);
   }
+
  protected:
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
