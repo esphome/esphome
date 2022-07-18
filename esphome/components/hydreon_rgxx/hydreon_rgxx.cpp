@@ -75,12 +75,23 @@ void HydreonRGxxComponent::update() {
       this->no_response_count_ = 0;
     }
     this->write_str("R\n");
+    if (this->request_temperature_) {
+      this->write_str("T\n");
+    }
 #ifdef USE_BINARY_SENSOR
     if (this->too_cold_sensor_ != nullptr) {
       this->too_cold_sensor_->publish_state(this->too_cold_);
     }
+    if (this->lens_bad_sensor_ != nullptr) {
+      this->lens_bad_sensor_->publish_state(this->lens_bad_);
+    }
+    if (this->em_sat_sensor_ != nullptr) {
+      this->em_sat_sensor_->publish_state(this->em_sat_sensor_);
+    }
 #endif
     this->too_cold_ = false;
+    this->lens_bad_ = false;
+    this->em_sat_ = false;
     this->sensors_received_ = 0;
   }
 }
@@ -146,6 +157,19 @@ void HydreonRGxxComponent::process_line_() {
     ESP_LOGI(TAG, "Comment: %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
     return;
   }
+  if (this->buffer_.find("\n") <= 1) {
+    //allow both \r\n and \n
+    ESP_LOGD(TAG, "Received empty line");
+    return;
+  }
+  if (this->buffer_.find("LensBad") != std::string::npos ) {
+    ESP_LOGW(TAG, "Received LensBad!");
+    this->lens_bad_ = true;
+  }
+  if (this->buffer_.find("EmSat") != std::string::npos) {
+    ESP_LOGW(TAG, "Received EmSat!");
+    this->em_sat_ = true;
+  }
   if (this->buffer_starts_with_("PwrDays")) {
     if (this->boot_count_ <= 0) {
       this->boot_count_ = 1;
@@ -200,6 +224,8 @@ void HydreonRGxxComponent::process_line_() {
       ESP_LOGD(TAG, "Received %s: %f", PROTOCOL_NAMES[i], this->sensors_[i]->get_raw_state());
       this->sensors_received_ |= (1 << i);
     }
+  } else if(this->buffer_starts_with_("Event")){
+    ESP_LOGI(TAG, "Received 'Event'");
   } else {
     ESP_LOGI(TAG, "Got unknown line: %s", this->buffer_.c_str());
   }

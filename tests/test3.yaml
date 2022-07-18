@@ -849,6 +849,10 @@ binary_sensor:
     hydreon_rgxx_id: "hydreon_rg9"
     too_cold:
       name: "rg9_toocold"
+    em_sat:
+      name: "rg9_emsat"
+    lens_bad:
+      name: "rg9_lens_bad"
   - platform: template
     id: 'pzemac_reset_energy'
     on_press:
