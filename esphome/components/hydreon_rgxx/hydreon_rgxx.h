@@ -58,7 +58,7 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *too_cold_sensor_ = nullptr;
   binary_sensor::BinarySensor *lens_bad_sensor_ = nullptr;
-  binary_sensor::BinarySensor *em_sat_sensor_   = nullptr;
+  binary_sensor::BinarySensor *em_sat_sensor_ = nullptr;
 #endif
 
   int16_t boot_count_ = 0;

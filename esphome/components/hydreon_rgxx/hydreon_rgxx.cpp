@@ -166,7 +166,7 @@ void HydreonRGxxComponent::process_line_() {
     ESP_LOGW(TAG, "Received LensBad!");
     this->lens_bad_ = true;
   }
-  if (this->buffer_.find("EmSat") != std::string::npos) {
+  if (this->buffer_.find("EmSat") != std::string::npos ) {
     ESP_LOGW(TAG, "Received EmSat!");
     this->em_sat_ = true;
   }
@@ -224,7 +224,7 @@ void HydreonRGxxComponent::process_line_() {
       ESP_LOGD(TAG, "Received %s: %f", PROTOCOL_NAMES[i], this->sensors_[i]->get_raw_state());
       this->sensors_received_ |= (1 << i);
     }
-  } else if(this->buffer_starts_with_("Event")){
+  } else if (this->buffer_starts_with_("Event")) {
     ESP_LOGI(TAG, "Received 'Event'");
   } else {
     ESP_LOGI(TAG, "Got unknown line: %s", this->buffer_.c_str());
