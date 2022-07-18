@@ -380,7 +380,7 @@ class Sprinkler : public Component, public EntityBase {
   void fsm_transition_to_shutdown_();
 
   /// return the current FSM state as a string
-  std::string state_as_str_();
+  std::string state_as_str_(SprinklerState state);
 
   /// Start/cancel/get status of valve timers
   void start_timer_(SprinklerTimerIndex timer_index);
