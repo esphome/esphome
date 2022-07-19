@@ -889,6 +889,16 @@ async def to_code(config):
             else:
                 cg.add(var.set_custom_preset_config(name, preset_target_variable))
 
+    if CONF_DEFAULT_PRESET in config:
+        default_preset_name = config[CONF_DEFAULT_PRESET]
+
+        # if the name is a built in preset use the appropriate naming format
+        if default_preset_name.upper() in climate.CLIMATE_PRESETS:
+            climate_preset = climate.CLIMATE_PRESETS[default_preset_name.upper()]
+            cg.add(var.set_default_preset(climate_preset))
+        else:
+            cg.add(var.set_default_preset(default_preset_name))
+
     if CONF_PRESET_CHANGE in config:
         await automation.build_automation(
             var.get_preset_change_trigger(), [], config[CONF_PRESET_CHANGE]

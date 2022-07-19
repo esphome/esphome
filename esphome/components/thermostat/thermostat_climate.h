@@ -57,7 +57,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   void setup() override;
   void dump_config() override;
 
-  void set_default_mode(climate::ClimateMode default_mode);
+  void set_default_preset(const std::string &name);
+  void set_default_preset(climate::ClimatePreset preset);
   void set_set_point_minimum_differential(float differential);
   void set_cool_deadband(float deadband);
   void set_cool_overrun(float overrun);
@@ -225,7 +226,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool supplemental_cooling_required_();
   bool supplemental_heating_required_();
 
-  void dump_preset_config_(const std::string &preset_name, const ThermostatClimateTargetTempConfig &config);
+  void dump_preset_config_(const std::string &preset_name, const ThermostatClimateTargetTempConfig &config, bool is_default_preset);
 
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};
@@ -397,7 +398,6 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// These are used to determine when a trigger/action needs to be called
   climate::ClimateAction supplemental_action_{climate::CLIMATE_ACTION_OFF};
   climate::ClimateFanMode prev_fan_mode_{climate::CLIMATE_FAN_ON};
-  climate::ClimateMode default_mode_{climate::CLIMATE_MODE_OFF};
   climate::ClimateMode prev_mode_{climate::CLIMATE_MODE_OFF};
   climate::ClimateSwingMode prev_swing_mode_{climate::CLIMATE_SWING_OFF};
 
@@ -441,6 +441,11 @@ class ThermostatClimate : public climate::Climate, public Component {
   std::map<climate::ClimatePreset, ThermostatClimateTargetTempConfig> preset_config_{};
   /// The set of custom preset configurations this thermostat supports (eg. "My Custom Preset")
   std::map<std::string, ThermostatClimateTargetTempConfig> custom_preset_config_{};
+
+  /// Default standard preset to use on start up
+  climate::ClimatePreset default_preset_{};
+  /// Default custom preset to use on start up
+  std::string default_custom_preset_{};
 };
 
 }  // namespace thermostat
