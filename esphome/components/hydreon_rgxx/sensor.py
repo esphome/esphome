@@ -36,7 +36,7 @@ SUPPORTED_SENSORS = {
     CONF_TOTAL_ACC: ["RG_15"],
     CONF_R_INT: ["RG_15"],
     CONF_MOISTURE: ["RG_9"],
-    CONF_TEMPERATURE: ["RG_15"],
+    CONF_TEMPERATURE: ["RG_9"],
 }
 PROTOCOL_NAMES = {
     CONF_MOISTURE: "R",
@@ -119,7 +119,7 @@ async def to_code(config):
     cg.add_define(
         "HYDREON_RGXX_PROTOCOL_LIST(F, sep)",
         cg.RawExpression(
-            " sep ".join([f'F("{name}")' for name in PROTOCOL_NAMES.values()])
+            " sep ".join([f'F("{name} ")' for name in PROTOCOL_NAMES.values()])
         ),
     )
     cg.add_define("HYDREON_RGXX_NUM_SENSORS", len(PROTOCOL_NAMES))

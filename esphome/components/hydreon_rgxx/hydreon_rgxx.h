@@ -26,6 +26,9 @@ static const uint8_t NUM_SENSORS = 1;
 #define HYDREON_RGXX_PROTOCOL_LIST(F, SEP) F("")
 #endif
 
+#define HYDREON_RGXX_IGNORE_LIST_LEN 3
+#define HYDREON_RGXX_IGNORE_LIST(F, SEP) F("Emitters") SEP F("Event") SEP F("Reset")
+
 class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
  public:
   void set_sensor(sensor::Sensor *sensor, int index) { this->sensors_[index] = sensor; }
@@ -52,7 +55,7 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   void schedule_reboot_();
   bool buffer_starts_with_(const std::string &prefix);
   bool buffer_starts_with_(const char *prefix);
-  bool sensor_missing_();
+  int num_sensors_missing_();
 
   sensor::Sensor *sensors_[NUM_SENSORS] = {nullptr};
 #ifdef USE_BINARY_SENSOR
