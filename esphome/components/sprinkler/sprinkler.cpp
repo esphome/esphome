@@ -300,16 +300,12 @@ void Sprinkler::loop() {
   }
 }
 
-void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &enable_sw_name) {
+void Sprinkler::add_valve(SprinklerSwitch *valve_sw, SprinklerSwitch *enable_sw) {
   auto new_valve_number = this->number_of_valves();
   this->valve_.resize(new_valve_number + 1);
   SprinklerValve *new_valve = &this->valve_[new_valve_number];
 
-  new_valve->controller_switch = make_unique<SprinklerSwitch>();
-  new_valve->controller_switch->set_component_source("sprinkler.switch");
-  App.register_component(new_valve->controller_switch.get());
-  App.register_switch(new_valve->controller_switch.get());
-  new_valve->controller_switch->set_name(valve_sw_name);
+  new_valve->controller_switch = valve_sw;
   new_valve->controller_switch->set_state_lambda([=]() -> optional<bool> {
     if (this->valve_pump_switch_(new_valve_number) != nullptr) {
       return this->valve_switch_(new_valve_number)->state && this->valve_pump_switch_(new_valve_number)->state;
@@ -327,12 +323,8 @@ void Sprinkler::add_valve(const std::string &valve_sw_name, const std::string &e
   new_valve->valve_resumeorstart_action->set_valve_to_start(new_valve_number);
   new_valve->valve_turn_on_automation->add_actions({new_valve->valve_resumeorstart_action.get()});
 
-  if (!enable_sw_name.empty()) {
-    new_valve->enable_switch = make_unique<SprinklerSwitch>();
-    new_valve->enable_switch->set_component_source("sprinkler.switch");
-    App.register_component(new_valve->enable_switch.get());
-    App.register_switch(new_valve->enable_switch.get());
-    new_valve->enable_switch->set_name(enable_sw_name);
+  if (enable_sw != nullptr) {
+    new_valve->enable_switch = enable_sw;
     new_valve->enable_switch->set_optimistic(true);
     new_valve->enable_switch->set_restore_state(true);
   }
@@ -490,6 +482,8 @@ bool Sprinkler::auto_advance() {
   }
   return false;
 }
+
+float Sprinkler::multiplier() { return this->multiplier_; }
 
 optional<uint32_t> Sprinkler::repeat() { return this->target_repeats_; }
 
@@ -715,14 +709,14 @@ optional<uint32_t> Sprinkler::time_remaining() {
 
 SprinklerSwitch *Sprinkler::control_switch(size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
-    return this->valve_[valve_number].controller_switch.get();
+    return this->valve_[valve_number].controller_switch;
   }
   return nullptr;
 }
 
 SprinklerSwitch *Sprinkler::enable_switch(size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
-    return this->valve_[valve_number].enable_switch.get();
+    return this->valve_[valve_number].enable_switch;
   }
   return nullptr;
 }

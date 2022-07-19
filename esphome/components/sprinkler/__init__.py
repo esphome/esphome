@@ -414,18 +414,22 @@ async def to_code(config):
                 cg.add(var.set_controller_reverse_switch(sw_rev_var))
 
         for valve in sprinkler_controller[CONF_VALVES]:
+            sw_valve_var = cg.new_Pvariable(valve[CONF_VALVE_SWITCH][CONF_ID])
+            await cg.register_component(sw_valve_var, valve[CONF_VALVE_SWITCH])
+            await switch.register_switch(sw_valve_var, valve[CONF_VALVE_SWITCH])
+            sw_valve_var = await cg.get_variable(valve[CONF_VALVE_SWITCH][CONF_ID])
+
             if (
                 CONF_ENABLE_SWITCH in valve
                 and len(sprinkler_controller[CONF_VALVES]) > 1
             ):
-                cg.add(
-                    var.add_valve(
-                        valve[CONF_VALVE_SWITCH][CONF_NAME],
-                        valve[CONF_ENABLE_SWITCH][CONF_NAME],
-                    )
-                )
+                sw_en_var = cg.new_Pvariable(valve[CONF_ENABLE_SWITCH][CONF_ID])
+                await cg.register_component(sw_en_var, valve[CONF_ENABLE_SWITCH])
+                await switch.register_switch(sw_en_var, valve[CONF_ENABLE_SWITCH])
+                sw_en_var = await cg.get_variable(valve[CONF_ENABLE_SWITCH][CONF_ID])
+                cg.add(var.add_valve(sw_valve_var, sw_en_var))
             else:
-                cg.add(var.add_valve(valve[CONF_VALVE_SWITCH][CONF_NAME]))
+                cg.add(var.add_valve(sw_valve_var))
 
         if CONF_MANUAL_SELECTION_DELAY in sprinkler_controller:
             cg.add(

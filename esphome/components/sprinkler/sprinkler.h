@@ -43,8 +43,8 @@ struct SprinklerTimer {
 };
 
 struct SprinklerValve {
-  std::unique_ptr<SprinklerSwitch> controller_switch;
-  std::unique_ptr<SprinklerSwitch> enable_switch;
+  SprinklerSwitch *controller_switch;
+  SprinklerSwitch *enable_switch;
   switch_::Switch *pump_switch;
   switch_::Switch *valve_switch;
   uint32_t run_duration;
@@ -153,7 +153,7 @@ class Sprinkler : public Component, public EntityBase {
   void dump_config() override;
 
   /// add a valve to the controller
-  void add_valve(const std::string &valve_sw_name, const std::string &enable_sw_name = "");
+  void add_valve(SprinklerSwitch *valve_sw, SprinklerSwitch *enable_sw = nullptr);
 
   /// add another controller to the controller so it can check if pumps/main valves are in use
   void add_controller(Sprinkler *other_controller);
@@ -216,6 +216,9 @@ class Sprinkler : public Component, public EntityBase {
 
   /// returns true if auto_advance is enabled
   bool auto_advance();
+
+  /// returns the current value of the multiplier
+  float multiplier();
 
   /// returns the number of times the controller is set to repeat cycles, if at all. check with 'has_value()'
   optional<uint32_t> repeat();
