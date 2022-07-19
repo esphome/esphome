@@ -236,7 +236,7 @@ void HydreonRGxxComponent::process_line_() {
       this->write_str("T\n");
     }
   } else {
-    for (auto ignore : IGNORE_STRINGS) {
+    for (const auto *ignore : IGNORE_STRINGS) {
       if (this->buffer_starts_with_(ignore)) {
         ESP_LOGI(TAG, "Ignoring %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
         return;
