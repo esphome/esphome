@@ -254,7 +254,7 @@ class Sprinkler : public Component, public EntityBase {
   void previous_valve();
 
   /// turns off all valves, effectively shutting down the system.
-  void shutdown(bool clear_queue = true);
+  void shutdown(bool clear_queue = false);
 
   /// same as shutdown(), but also stores active_valve() and time_remaining() allowing resume() to continue the cycle
   void pause();

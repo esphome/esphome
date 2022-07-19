@@ -581,13 +581,13 @@ void Sprinkler::previous_valve() {
 
 void Sprinkler::shutdown(bool clear_queue) {
   this->cancel_timer_(sprinkler::TIMER_VALVE_SELECTION);
+  this->active_req_.reset();
+  this->manual_valve_.reset();
+  this->next_req_.reset();
   for (auto &vo : this->valve_op_) {
     vo.stop();
   }
   this->fsm_transition_to_shutdown_();
-  this->active_req_.reset();
-  this->manual_valve_.reset();
-  this->next_req_.reset();
   if (clear_queue) {
     this->clear_queued_valves();
     this->repeat_count_ = 0;
@@ -988,9 +988,9 @@ void Sprinkler::fsm_transition_() {
 
     case STOPPING:
       // stop_delay_ has elapsed so just shut everything off
-      this->all_valves_off_(true);
       this->active_req_.reset();
       this->manual_valve_.reset();
+      this->all_valves_off_(true);
       this->state_ = IDLE;
       break;
 
