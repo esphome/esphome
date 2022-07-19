@@ -26,7 +26,6 @@ static const uint8_t NUM_SENSORS = 1;
 #define HYDREON_RGXX_PROTOCOL_LIST(F, SEP) F("")
 #endif
 
-#define HYDREON_RGXX_IGNORE_LIST_LEN 3
 #define HYDREON_RGXX_IGNORE_LIST(F, SEP) F("Emitters") SEP F("Event") SEP F("Reset")
 
 class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {

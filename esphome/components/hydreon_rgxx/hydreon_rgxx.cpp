@@ -236,8 +236,8 @@ void HydreonRGxxComponent::process_line_() {
       this->write_str("T\n");
     }
   } else {
-    for (int i = 0; i < HYDREON_RGXX_IGNORE_LIST_LEN; i++) {
-      if (this->buffer_starts_with_(IGNORE_STRINGS[i])) {
+    for (auto ignore : IGNORE_STRINGS) {
+      if (this->buffer_starts_with_(ignore)) {
         ESP_LOGI(TAG, "Ignoring %s", this->buffer_.substr(0, this->buffer_.size() - 2).c_str());
         return;
       }
