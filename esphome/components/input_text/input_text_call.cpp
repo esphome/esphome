@@ -13,9 +13,15 @@ InputTextCall &InputTextCall::set_value(const std::string &value) {
 }
 
 void InputTextCall::perform() {
+  auto *parent = this->parent_;
+  const auto *name = parent->get_name().c_str();
+  if (!this->value_.has_value()) {
+    ESP_LOGW(TAG, "'%s' - No value set for InputTextCall", name);
+    return;
+  }
   std::string target_value = this->value_.value();
 
-  ESP_LOGD(TAG, "  New input_text value: %s", target_value);
+  ESP_LOGD(TAG, "  New input_text value: %s", target_value.c_str());
   this->parent_->control(target_value);
 }
 

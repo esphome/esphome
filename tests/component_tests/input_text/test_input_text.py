@@ -14,7 +14,7 @@ def test_input_text_is_setup(generate_main):
 
     # Then
     assert "new template_::TemplateInputText();" in main_cpp
-    assert "App.register_input_text;" in main_cpp
+    assert "App.register_input_text" in main_cpp
 
 
 def test_input_text_sets_mandatory_fields(generate_main):
