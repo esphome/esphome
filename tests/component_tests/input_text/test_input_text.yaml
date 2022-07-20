@@ -5,14 +5,22 @@ esphome:
 
 input_text:
   - platform: template
-    name: "test input text"
+    name: "test 1 input text"
     id: "it_1"
-    icon: "mdi:text"
     optimistic: true
-    internal: true
+
   - platform: template
     name: "test 2 input text"
     id: "it_2"
     icon: "mdi:text"
     optimistic: true
     internal: false
+    initial_value: "Welcome ESPHOME"
+
+  - platform: template
+    name: "test 3 key"
+    id: "it_3"
+    icon: "mdi:text"
+    mode: "password"
+    optimistic: true
+    internal: true

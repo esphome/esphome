@@ -243,7 +243,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
         input_text::InputText *input_text = (input_text::InputText *) obj;
         auto mode = (int) input_text->traits.get_mode();
         stream.print(R"(<input type=")");
-        if (mode == 2){
+        if (mode == 2) {
           stream.print(R"(password)");
         } else {  // default
           stream.print(R"(text)");

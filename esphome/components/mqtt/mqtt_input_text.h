@@ -29,7 +29,7 @@ class MQTTInputTextComponent : public mqtt::MQTTComponent {
 
   bool send_initial_state() override;
 
-  bool publish_state(std::string value);
+  bool publish_state(const std::string &value);
 
  protected:
   /// Override for MQTTComponent, returns "input_text".

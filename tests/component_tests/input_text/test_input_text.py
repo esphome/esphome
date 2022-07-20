@@ -13,7 +13,7 @@ def test_input_text_is_setup(generate_main):
     )
 
     # Then
-    assert "new input_text::InputText();" in main_cpp
+    assert "new template_::TemplateInputText();" in main_cpp
     assert "App.register_input_text;" in main_cpp
 
 
@@ -29,8 +29,7 @@ def test_input_text_sets_mandatory_fields(generate_main):
     )
 
     # Then
-    assert 'it_1->set_name("test it1");' in main_cpp
-
+    assert 'it_1->set_name("test 1 input text");' in main_cpp
 
 def test_input_text_config_value_internal_set(generate_main):
     """
@@ -46,3 +45,18 @@ def test_input_text_config_value_internal_set(generate_main):
     # Then
     assert "it_1->set_internal(true);" in main_cpp
     assert "it_2->set_internal(false);" in main_cpp
+
+def test_input_text_config_value_mode_set(generate_main):
+    """
+    Test that the "internal" config value is correctly set
+    """
+    # Given
+
+    # When
+    main_cpp = generate_main(
+        "tests/component_tests/input_text/test_input_text.yaml"
+    )
+
+    # Then
+    assert "it_1->set_mode(input_text::INPUT_TEXT_MODE_AUTO);" in main_cpp
+    assert "it_3->set_mode(input_text::INPUT_TEXT_MODE_PASSWORD);" in main_cpp

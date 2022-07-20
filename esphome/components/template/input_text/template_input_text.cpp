@@ -20,7 +20,7 @@ void TemplateInputText::setup() {
     if (!this->pref_.load(&value)) {
       value = this->initial_value_;
     } else {
-      value = "";      
+      value = "";
     }
   }
   this->publish_state(value);
