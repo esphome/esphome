@@ -144,8 +144,8 @@ void PulseCounterSensor::setup() {
   }
 }
 
-void PulseCounterSensor::set_total_pulses(uint32_t pulses) { 
-  this->current_total_ = pulses; 
+void PulseCounterSensor::set_total_pulses(uint32_t pulses) {
+  this->current_total_ = pulses;
   this->total_sensor_->publish_state(pulses);
 }
 
