@@ -17,10 +17,8 @@ MQTTInputTextComponent::MQTTInputTextComponent(InputText *input_text) : input_te
 
 void MQTTInputTextComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
-    //const auto *val = state.c_str();
     auto call = this->input_text_->make_call();
-    call.set_value(state.c_str());
-    //call.set_value(*val);
+    call.set_value(state);
     call.perform();
   });
 
@@ -36,8 +34,6 @@ std::string MQTTInputTextComponent::component_type() const { return "input_text"
 const EntityBase *MQTTInputTextComponent::get_entity() const { return this->input_text_; }
 
 void MQTTInputTextComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  //const auto &traits = input_text_->traits;
-
   switch (this->input_text_->traits.get_mode()) {
     case INPUT_TEXT_MODE_AUTO:
       break;

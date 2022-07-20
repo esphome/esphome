@@ -13,11 +13,7 @@ InputTextCall &InputTextCall::set_value(const std::string &value) {
 }
 
 void InputTextCall::perform() {
-  //auto *parent = this->parent_;
-  //const auto *name = parent->get_name().c_str();
-  //const auto &traits = parent->traits;
-
-  std::string target_value = this->value_.value().c_str();
+  std::string target_value = this->value_.value();
 
   ESP_LOGD(TAG, "  New input_text value: %s", target_value);
   this->parent_->control(target_value);

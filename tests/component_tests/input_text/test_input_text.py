@@ -43,8 +43,8 @@ def test_input_text_config_value_internal_set(generate_main):
     )
 
     # Then
-    assert "it_1->set_internal(true);" in main_cpp
     assert "it_2->set_internal(false);" in main_cpp
+    assert "it_3->set_internal(true);" in main_cpp
 
 def test_input_text_config_value_mode_set(generate_main):
     """
@@ -58,5 +58,5 @@ def test_input_text_config_value_mode_set(generate_main):
     )
 
     # Then
-    assert "it_1->set_mode(input_text::INPUT_TEXT_MODE_AUTO);" in main_cpp
-    assert "it_3->set_mode(input_text::INPUT_TEXT_MODE_PASSWORD);" in main_cpp
+    assert "it_1->traits.set_mode(input_text::INPUT_TEXT_MODE_AUTO);" in main_cpp
+    assert "it_3->traits.set_mode(input_text::INPUT_TEXT_MODE_PASSWORD);" in main_cpp
