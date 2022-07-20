@@ -17,7 +17,7 @@ MQTTInputTextComponent::MQTTInputTextComponent(InputText *input_text) : input_te
 
 void MQTTInputTextComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
-    auto val = state.c_str();
+    const auto *val = state.c_str();
     if (!val.has_value()) {
       ESP_LOGW(TAG, "Can't convert '%s' to input_text!", state.c_str());
       return;

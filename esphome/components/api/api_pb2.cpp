@@ -4217,8 +4217,7 @@ void InputTextStateResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  state: ");
-  sprintf(buffer, "%g", this->state);
-  out.append(buffer);
+  out.append("'").append(this->state).append("'");
   out.append("\n");
 
   out.append("  missing_state: ");
@@ -4251,8 +4250,7 @@ void InputTextCommandRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  state: ");
-  sprintf(buffer, "%g", this->state);
-  out.append(buffer);
+  out.append("'").append(this->state).append("'");
   out.append("\n");
   out.append("}");
 }
