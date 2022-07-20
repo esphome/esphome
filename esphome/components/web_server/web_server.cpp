@@ -243,10 +243,9 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
         input_text::InputText *input_text = (input_text::InputText *) obj;
         auto mode = (int) input_text->traits.get_mode();
         stream.print(R"(<input type=")");
-        if (mode == 2 ){
+        if (mode == 2){
           stream.print(R"(password)");
-        }
-        else{ // default
+        } else {  // default
           stream.print(R"(text)");
         }
         stream.print(R"(" value=")");
@@ -752,7 +751,6 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 }
 #endif
 
-
 #ifdef USE_INPUT_TEXT
 void WebServer::on_input_text_update(input_text::InputText *obj, const std::string &state) {
   this->events_.send(this->input_text_json(obj, state, DETAIL_STATE).c_str(), "state");
@@ -796,7 +794,6 @@ std::string WebServer::input_text_json(input_text::InputText *obj, const std::st
   });
 }
 #endif
-
 
 #ifdef USE_SELECT
 void WebServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {

@@ -1041,12 +1041,8 @@ class ListEntitiesInputTextResponse : public ProtoMessage {
   std::string name{};
   std::string unique_id{};
   std::string icon{};
-//  uint32_t min{0};
-//  uint32_t max{0};
-//  std::string pattern{};
   bool disabled_by_default{false};
   enums::EntityCategory entity_category{};
-//  std::string unit_of_measurement{};
   enums::InputTextMode mode{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP

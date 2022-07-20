@@ -14,7 +14,7 @@ class CopyInputText : public input_text::InputText, public Component {
   float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
-  void control(std::string value) override;
+  void control(const std::string &value) override;
 
   input_text::InputText *source_;
 };

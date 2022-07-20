@@ -27,9 +27,7 @@ void MQTTInputTextComponent::setup() {
     call.perform();
   });
 
-  this->input_text_->add_on_state_callback([this](std::string &state) {
-    this->publish_state(state);
-  });
+  this->input_text_->add_on_state_callback([this](std::string &state) { this->publish_state(state); });
 }
 
 void MQTTInputTextComponent::dump_config() {

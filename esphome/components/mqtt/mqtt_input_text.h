@@ -36,7 +36,7 @@ class MQTTInputTextComponent : public mqtt::MQTTComponent {
   std::string component_type() const override;
   const EntityBase *get_entity() const override;
 
-  input_text::InputText *input_text;
+  input_text::InputText *input_text_;
 };
 
 }  // namespace mqtt

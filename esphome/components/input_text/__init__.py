@@ -40,9 +40,7 @@ INPUT_TEXT_MODES = {
 
 icon = cv.icon
 
-INPUT_TEXT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
-    cv.MQTT_COMPONENT_SCHEMA
-).extend(
+INPUT_TEXT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTInputTextComponent),
         cv.GenerateID(): cv.declare_id(InputText),
@@ -105,8 +103,6 @@ OPERATION_BASE_SCHEMA = cv.Schema(
         }
     ),
 )
-
-
 async def input_text_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)

@@ -4258,7 +4258,6 @@ void InputTextCommandRequest::dump_to(std::string &out) const {
 }
 #endif
 
-
 bool ListEntitiesSelectResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 7: {

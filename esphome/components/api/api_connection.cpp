@@ -1,10 +1,11 @@
 #include "api_connection.h"
-#include "esphome/core/entity_base.h"
-#include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
-#include "esphome/core/version.h"
+#include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+#include "esphome/core/version.h"
 #include <cerrno>
+#include <utility>
 
 #ifdef USE_DEEP_SLEEP
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
@@ -631,7 +632,6 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 }
 #endif
 
-
 #ifdef USE_INPUT_TEXT
 bool APIConnection::send_input_text_state(input_text::InputText *input_text, std::string state) {
   if (!this->state_subscription_)
@@ -639,7 +639,7 @@ bool APIConnection::send_input_text_state(input_text::InputText *input_text, std
 
   InputTextStateResponse resp{};
   resp.key = input_text->get_object_id_hash();
-  resp.state = state;
+  resp.state = std::move(state);
   resp.missing_state = !input_text->has_state();
   return this->send_input_text_state_response(resp);
 }
@@ -650,7 +650,6 @@ bool APIConnection::send_input_text_info(input_text::InputText *input_text) {
   msg.name = input_text->get_name();
   msg.unique_id = get_default_unique_id("input_text", input_text);
   msg.icon = input_text->get_icon();
-  
   msg.disabled_by_default = input_text->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(input_text->get_entity_category());
   msg.mode = static_cast<enums::InputTextMode>(input_text->traits.get_mode());

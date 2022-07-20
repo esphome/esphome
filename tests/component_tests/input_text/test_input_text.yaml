@@ -10,3 +10,9 @@ input_text:
     icon: "mdi:text"
     optimistic: true
     internal: true
+  - platform: template
+    name: "test 2 input text"
+    id: "it_2"
+    icon: "mdi:text"
+    optimistic: true
+    internal: false
