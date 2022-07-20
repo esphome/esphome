@@ -36,6 +36,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_EIGHTBITCOLOR, default=False): cv.boolean,
             cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
             cv.Optional(CONF_HEIGHT, default=240): cv.int_,
             cv.Optional(CONF_WIDTH, default=135): cv.int_,
@@ -75,4 +76,4 @@ async def to_code(config):
     cg.add(var.set_offset_height(config[CONF_OFFSET_HEIGHT]))
     cg.add(var.set_offset_width(config[CONF_OFFSET_WIDTH]))
 
-    yield display.register_display(var, config)
+    await display.register_display(var, config)

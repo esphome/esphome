@@ -139,7 +139,7 @@ class ST7789V : public PollingComponent,
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *backlight_pin_{nullptr};
 
-  boolean eightbitcolor_ = false;
+  bool eightbitcolor_ = false;
   uint16_t height_{240};
   uint16_t width_{135};
   uint16_t offset_height_{52};

@@ -122,6 +122,11 @@ void ST7789V::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  B/L Pin: ", this->backlight_pin_);
   LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "  Height: %u", this->get_height_internal());
+  ESP_LOGCONFIG(TAG, "  Width: %u", this->get_width_internal());
+  ESP_LOGCONFIG(TAG, "  Height Offset: %u", this->offset_height_);
+  ESP_LOGCONFIG(TAG, "  Width Offset: %u", this->offset_width_);
+  ESP_LOGCONFIG(TAG, "  8-bit color mode: %s", YESNO(this->eightbitcolor_));
 }
 
 float ST7789V::get_setup_priority() const { return setup_priority::PROCESSOR; }
@@ -135,9 +140,9 @@ void ST7789V::loop() {}
 
 void ST7789V::write_display_data() {
   uint16_t x1 = this->offset_height_;
-  uint16_t x2 = x1 + get_height_internal() - 1;
+  uint16_t x2 = x1 + get_width_internal() - 1;
   uint16_t y1 = this->offset_width_;
-  uint16_t y2 = y1 + get_width_internal() - 1;
+  uint16_t y2 = y1 + get_height_internal() - 1;
 
   this->enable();
 
@@ -159,9 +164,9 @@ void ST7789V::write_display_data() {
   if (this->eightbitcolor_) {
     for (int line = 0; line < this->get_buffer_length_(); line = line + this->get_width_internal()) {
       for (int index = 0; index < this->get_width_internal(); ++index) {
-        auto color = Color(this->buffer_[index + line], Color::ColorOrder::COLOR_ORDER_RGB,
-                           Color::ColorBitness::COLOR_BITNESS_332, true)
-                         .to_565();
+        auto color = display::ColorUtil::color_to_565(
+            display::ColorUtil::to_color(this->buffer_[index + line], display::ColorOrder::COLOR_ORDER_RGB,
+                                         display::ColorBitness::COLOR_BITNESS_332, true));
         this->write_byte((color >> 8) & 0xff);
         this->write_byte(color & 0xff);
       }
@@ -275,11 +280,11 @@ void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, Color color) {
     return;
 
   if (this->eightbitcolor_) {
-    const uint32_t color332 = color.to_332();
+    auto color332 = display::ColorUtil::color_to_332(color);
     uint32_t pos = (x + y * this->get_width_internal());
     this->buffer_[pos] = color332;
   } else {
-    const uint32_t color565 = color.to_565();
+    auto color565 = display::ColorUtil::color_to_565(color);
     uint32_t pos = (x + y * this->get_width_internal()) * 2;
     this->buffer_[pos++] = (color565 >> 8) & 0xff;
     this->buffer_[pos] = color565 & 0xff;
