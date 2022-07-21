@@ -35,6 +35,7 @@ float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
 void WiFiComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up WiFi...");
+  this->dump_config(); // Print config before connecting
   this->last_connected_ = millis();
   this->wifi_pre_setup_();
 
@@ -371,7 +372,6 @@ void WiFiComponent::print_connect_params_() {
 void WiFiComponent::start_scanning() {
   this->action_started_ = millis();
   ESP_LOGD(TAG, "Starting scan...");
-  ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
   this->wifi_scan_start_();
   this->state_ = WIFI_COMPONENT_STATE_STA_SCANNING;
 }
