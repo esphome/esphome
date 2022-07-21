@@ -35,7 +35,7 @@ float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
 void WiFiComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up WiFi...");
-  this->dump_config(); // Print config before connecting
+  this->dump_config();  // Print config before connecting
   this->last_connected_ = millis();
   this->wifi_pre_setup_();
 
