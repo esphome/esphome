@@ -229,7 +229,7 @@ class ESP32BLETracker : public Component {
   uint32_t scan_window_;
   bool scan_continuous_;
   bool scan_active_;
-  bool scan_idle_;
+  bool scanner_idle_;
   SemaphoreHandle_t scan_result_lock_;
   SemaphoreHandle_t scan_end_lock_;
   size_t scan_result_index_{0};

@@ -46,7 +46,7 @@ void ESP32BLETracker::setup() {
   global_esp32_ble_tracker = this;
   this->scan_result_lock_ = xSemaphoreCreateMutex();
   this->scan_end_lock_ = xSemaphoreCreateMutex();
-  this->scan_idle_ = true;
+  this->scanner_idle_ = true;
   if (!ESP32BLETracker::ble_setup()) {
     this->mark_failed();
     return;
@@ -70,8 +70,7 @@ void ESP32BLETracker::loop() {
     ble_event = this->ble_events_.pop();
   }
 
-  if (xSemaphoreTake(this->scan_end_lock_, 0L) && this->scan_idle_) {
-    xSemaphoreGive(this->scan_end_lock_);
+  if (this->scanner_idle_) {
     return;
   }
 
@@ -81,13 +80,11 @@ void ESP32BLETracker::loop() {
       connecting = true;
   }
 
-  // When the scan ends, there will be no clients in discovered or connecting states.
   if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
     xSemaphoreGive(this->scan_end_lock_);
     if (this->scan_continuous_) {
       global_esp32_ble_tracker->start_scan_(false);
-    } else if (xSemaphoreTake(this->scan_end_lock_, 0L) && !this->scan_idle_) {
-      // Done this way to prevent continuous calling to end of scan when we're not scanning. Only does it once
+    } else if (xSemaphoreTake(this->scan_end_lock_, 0L) && !this->scanner_idle_) {
       xSemaphoreGive(this->scan_end_lock_);
       global_esp32_ble_tracker->end_of_scan_();
       return;
@@ -245,7 +242,7 @@ void ESP32BLETracker::start_scan_(bool first) {
       listener->on_scan_end();
   }
   this->already_discovered_.clear();
-  this->scan_idle_ = false;
+  this->scanner_idle_ = false;
   this->scan_params_.scan_type = this->scan_active_ ? BLE_SCAN_TYPE_ACTIVE : BLE_SCAN_TYPE_PASSIVE;
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
   this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
@@ -270,7 +267,7 @@ void ESP32BLETracker::end_of_scan_() {
   ESP_LOGD(TAG, "End of scan.");
   for (auto *listener : this->listeners_)
     listener->on_scan_end();
-  this->scan_idle_ = true;
+  this->scanner_idle_ = true;
   
   this->already_discovered_.clear();
   xSemaphoreGive(this->scan_end_lock_);
