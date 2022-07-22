@@ -77,9 +77,10 @@ class BLEManufacturerDataAdvertiseTrigger : public Trigger<const adv_data_t &>, 
 };
 
 
-class BLEEndOfScanTrigger : public Trigger<>, public ESPBTDeviceListener  {
+class BLEEndOfScanTrigger : public Trigger<>, public ESPBTDeviceListener {
  public:
   explicit BLEEndOfScanTrigger(ESP32BLETracker *parent) { parent->register_listener(this); }
+  
   bool parse_device(const ESPBTDevice &device) override {
     return false;
   }

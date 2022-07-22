@@ -266,13 +266,13 @@ void ESP32BLETracker::end_of_scan_() {
 
   ESP_LOGD(TAG, "End of scan.");
   this->scanner_idle_ = true;
-  
   this->already_discovered_.clear();
   xSemaphoreGive(this->scan_end_lock_);
   this->cancel_timeout("scan");
 
   for (auto *listener : this->listeners_)
     listener->on_scan_end();
+
 }  
 
 void ESP32BLETracker::register_client(ESPBTClient *client) {

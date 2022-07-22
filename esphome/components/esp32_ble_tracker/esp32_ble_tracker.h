@@ -189,7 +189,7 @@ class ESP32BLETracker : public Component {
   void register_client(ESPBTClient *client);
 
   void print_bt_device_info(const ESPBTDevice &device);
-  
+
   void start_scan();
 
  protected:
@@ -247,10 +247,7 @@ extern ESP32BLETracker *global_esp32_ble_tracker;
 template<typename... Ts> class ESP32BLEStartScanAction : public Action<Ts...> {
  public:
   ESP32BLEStartScanAction(ESP32BLETracker *parent) : parent_(parent) {}
-  void play(Ts... x) override {
-    this->parent_->start_scan();
-  }
-
+  void play(Ts... x) override { this->parent_->start_scan(); }
  protected:
   ESP32BLETracker *parent_;
 };
