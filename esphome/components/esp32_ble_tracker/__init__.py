@@ -12,7 +12,7 @@ from esphome.const import (
     CONF_MANUFACTURER_ID,
     CONF_ON_BLE_ADVERTISE,
     CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
-    CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE
+    CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
 )
 from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
@@ -24,6 +24,7 @@ CONF_SCAN_PARAMETERS = "scan_parameters"
 CONF_WINDOW = "window"
 CONF_ACTIVE = "active"
 CONF_CONTINUOUS = "continuous"
+CONF_ON_BLE_SCAN_END = "on_ble_scan_end"
 esp32_ble_tracker_ns = cg.esphome_ns.namespace("esp32_ble_tracker")
 ESP32BLETracker = esp32_ble_tracker_ns.class_("ESP32BLETracker", cg.Component)
 ESPBTClient = esp32_ble_tracker_ns.class_("ESPBTClient")
@@ -32,7 +33,7 @@ ESPBTDevice = esp32_ble_tracker_ns.class_("ESPBTDevice")
 ESPBTDeviceConstRef = ESPBTDevice.operator("ref").operator("const")
 adv_data_t = cg.std_vector.template(cg.uint8)
 adv_data_t_const_ref = adv_data_t.operator("ref").operator("const")
-# Triggers: test
+# Triggers
 ESPBTAdvertiseTrigger = esp32_ble_tracker_ns.class_(
     "ESPBTAdvertiseTrigger", automation.Trigger.template(ESPBTDeviceConstRef)
 )
@@ -42,6 +43,9 @@ BLEServiceDataAdvertiseTrigger = esp32_ble_tracker_ns.class_(
 BLEManufacturerDataAdvertiseTrigger = esp32_ble_tracker_ns.class_(
     "BLEManufacturerDataAdvertiseTrigger",
     automation.Trigger.template(adv_data_t_const_ref),
+)
+BLEEndOfScanTrigger = esp32_ble_tracker_ns.class_(
+    "BLEEndOfScanTrigger", automation.Trigger.template()
 )
 
 
@@ -159,9 +163,7 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.Required(CONF_SERVICE_UUID): bt_uuid,
             }
         ),
-        cv.Optional(
-            CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE
-        ): automation.validate_automation(
+        cv.Optional(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
                     BLEManufacturerDataAdvertiseTrigger
@@ -170,6 +172,13 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.Required(CONF_MANUFACTURER_ID): bt_uuid,
             }
         ),
+        cv.Optional(CONF_ON_BLE_SCAN_END): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    BLEEndOfScanTrigger
+                )
+            }
+        )
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -218,6 +227,9 @@ async def to_code(config):
         if CONF_MAC_ADDRESS in conf:
             cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
         await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
+    for conf in config.get(CONF_ON_BLE_SCAN_END, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
 
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
