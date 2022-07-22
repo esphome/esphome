@@ -82,7 +82,6 @@ class BLEEndOfScanTrigger : public Trigger<>, public ESPBTDeviceListener {
 
   bool parse_device(const ESPBTDevice &device) override { return false; }
   void on_scan_end() override { this->trigger(); }
-
 };
 
 }  // namespace esp32_ble_tracker
