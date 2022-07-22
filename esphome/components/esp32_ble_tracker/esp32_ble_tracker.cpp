@@ -1,4 +1,4 @@
-#ifndef USE_ESP32
+#ifdef USE_ESP32
 
 #include "esp32_ble_tracker.h"
 #include "esphome/core/log.h"

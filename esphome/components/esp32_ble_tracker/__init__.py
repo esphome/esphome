@@ -32,7 +32,7 @@ ESPBTDevice = esp32_ble_tracker_ns.class_("ESPBTDevice")
 ESPBTDeviceConstRef = ESPBTDevice.operator("ref").operator("const")
 adv_data_t = cg.std_vector.template(cg.uint8)
 adv_data_t_const_ref = adv_data_t.operator("ref").operator("const")
-# Triggers
+# Triggers: test
 ESPBTAdvertiseTrigger = esp32_ble_tracker_ns.class_(
     "ESPBTAdvertiseTrigger", automation.Trigger.template(ESPBTDeviceConstRef)
 )
