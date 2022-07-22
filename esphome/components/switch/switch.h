@@ -25,14 +25,18 @@ namespace switch_ {
     } \
   }
 
-enum SwitchRestoreMode {
-  SWITCH_RESTORE_DEFAULT_OFF,
-  SWITCH_RESTORE_DEFAULT_ON,
-  SWITCH_ALWAYS_OFF,
-  SWITCH_ALWAYS_ON,
-  SWITCH_RESTORE_INVERTED_DEFAULT_OFF,
-  SWITCH_RESTORE_INVERTED_DEFAULT_ON,
+enum SwitchRestoreMode {  // bit0: on/off. bit1: persistent. bit2: inverted.
+  SWITCH_ALWAYS_OFF = 0x00,
+  SWITCH_ALWAYS_ON = 0x01,
+  SWITCH_RESTORE_DEFAULT_OFF = 0x02,
+  SWITCH_RESTORE_DEFAULT_ON = 0x03,
+  SWITCH_RESTORE_INVERTED_DEFAULT_OFF = 0x06,
+  SWITCH_RESTORE_INVERTED_DEFAULT_ON = 0x07,
 };
+
+const int RESTORE_MODE_ONOFF_MASK = 0x01;
+const int RESTORE_MODE_PERSISTENT_MASK = 0x02;
+const int RESTORE_MODE_INVERTED_MASK = 0x04;
 
 /** Base class for all switches.
  *
@@ -125,7 +129,6 @@ class Switch : public EntityBase {
   virtual void write_state(bool state) = 0;
 
   SwitchRestoreMode restore_mode_{SWITCH_RESTORE_DEFAULT_OFF};
-  bool is_restore_mode_persistent_();
 
   CallbackManager<void(bool)> state_callback_{};
   bool inverted_{false};

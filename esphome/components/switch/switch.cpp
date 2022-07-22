@@ -22,7 +22,7 @@ void Switch::toggle() {
   this->write_state(this->inverted_ == this->state);
 }
 optional<bool> Switch::get_initial_state() {
-  if (!is_restore_mode_persistent_())
+  if (!(restore_mode_ & RESTORE_MODE_PERSISTENT_MASK))
     return {};
 
   this->rtc_ = global_preferences->make_preference<bool>(this->get_object_id_hash());
@@ -32,26 +32,11 @@ optional<bool> Switch::get_initial_state() {
   return initial_state;
 }
 bool Switch::get_initial_state_with_restore_mode() {
-  bool initial_state = false;
-  switch (this->restore_mode_) {
-    case SWITCH_RESTORE_DEFAULT_OFF:
-      initial_state = this->get_initial_state().value_or(false);
-      break;
-    case SWITCH_RESTORE_DEFAULT_ON:
-      initial_state = this->get_initial_state().value_or(true);
-      break;
-    case SWITCH_RESTORE_INVERTED_DEFAULT_OFF:
-      initial_state = !this->get_initial_state().value_or(true);
-      break;
-    case SWITCH_RESTORE_INVERTED_DEFAULT_ON:
-      initial_state = !this->get_initial_state().value_or(false);
-      break;
-    case SWITCH_ALWAYS_OFF:
-      initial_state = false;
-      break;
-    case SWITCH_ALWAYS_ON:
-      initial_state = true;
-      break;
+  bool initial_state = restore_mode_ & RESTORE_MODE_ONOFF_MASK;
+  if (restore_mode_ & RESTORE_MODE_INVERTED_MASK)
+    initial_state = !initial_state;
+  if (restore_mode_ & RESTORE_MODE_PERSISTENT_MASK) {
+    initial_state = this->get_initial_state().value_or(initial_state);
   }
 
   return initial_state;
@@ -61,17 +46,13 @@ void Switch::publish_state(bool state) {
     return;
   this->state = state != this->inverted_;
 
-  if (is_restore_mode_persistent_())
+  if (restore_mode_ & RESTORE_MODE_PERSISTENT_MASK)
     this->rtc_.save(&this->state);
 
   ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), ONOFF(this->state));
   this->state_callback_.call(this->state);
 }
 bool Switch::assumed_state() { return false; }
-
-bool Switch::is_restore_mode_persistent_() {
-  return restore_mode_ == SWITCH_ALWAYS_OFF || restore_mode_ == SWITCH_ALWAYS_ON;
-}
 
 void Switch::add_on_state_callback(std::function<void(bool)> &&callback) {
   this->state_callback_.add(std::move(callback));
