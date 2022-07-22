@@ -47,6 +47,8 @@ BLEManufacturerDataAdvertiseTrigger = esp32_ble_tracker_ns.class_(
 BLEEndOfScanTrigger = esp32_ble_tracker_ns.class_(
     "BLEEndOfScanTrigger", automation.Trigger.template()
 )
+# Actions
+ESP32BLEStartScanAction = ESP32BLETracker.class_("ESP32BLEStartScanAction", automation.Action)
 
 
 def validate_scan_parameters(config):
@@ -234,6 +236,20 @@ async def to_code(config):
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
 
+ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(ESP32BLETracker),
+    }
+)
+
+
+@automation.register_action(
+    "esp32_ble_tracker.start_scan", ESP32BLEStartScanAction, ESP32_BLE_START_SCAN_ACTION_SCHEMA
+)
+async def esp32_ble_tracker_start_scan_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    return var
 
 async def register_ble_device(var, config):
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])

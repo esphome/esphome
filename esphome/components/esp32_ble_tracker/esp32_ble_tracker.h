@@ -259,7 +259,6 @@ class ESP32BLEEndOfScanTrigger : public Trigger<std::string>, public Component {
 template<typename... Ts> class ESP32BLEStartScanAction : public Action<Ts...> {
  public:
   ESP32BLEStartScanAction(ESP32BLETracker *parent) : parent_(parent) {}
-  /* Do I need to add templates to support changing BLE Scan parameters? */
   void play(Ts... x) override {
     this->parent_->start_scan_(true);
   }
