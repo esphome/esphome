@@ -7,7 +7,7 @@ namespace output {
 static const char *const TAG = "output.switch";
 
 void OutputSwitch::dump_config() { LOG_SWITCH("", "Output Switch", this); }
-void OutputSwitch::setup() { Switch::apply_initial_state(); }
+void OutputSwitch::setup() { Switch::get_initial_state_with_restore_mode(); }
 void OutputSwitch::write_state(bool state) {
   if (state) {
     this->output_->turn_on();

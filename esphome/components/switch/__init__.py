@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_MQTT_ID,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
+    CONF_RESTORE_MODE,
     CONF_TRIGGER_ID,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_OUTLET,
@@ -77,6 +78,9 @@ SWITCH_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).e
             }
         ),
         cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+        cv.Optional(CONF_RESTORE_MODE, default="RESTORE_DEFAULT_OFF"): cv.enum(
+            RESTORE_MODES, upper=True, space="_"
+        ),
     }
 )
 
@@ -141,6 +145,8 @@ async def setup_switch_core_(var, config):
 
     if CONF_DEVICE_CLASS in config:
         cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
+
+    cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
 
 async def register_switch(var, config):

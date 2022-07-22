@@ -13,9 +13,6 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_RESTORE_MODE, default="RESTORE_DEFAULT_OFF"): cv.enum(
-                switch.RESTORE_MODES, upper=True, space="_"
-            ),
             cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),
             cv.Optional(
                 CONF_INTERLOCK_WAIT_TIME, default="0ms"

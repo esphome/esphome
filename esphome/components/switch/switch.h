@@ -89,7 +89,14 @@ class Switch : public EntityBase {
    */
   void add_on_state_callback(std::function<void(bool)> &&callback);
 
+  /** Returns the initial state of the switch, as persisted previously
+    or empty if never persisted.
+   */
   optional<bool> get_initial_state();
+
+  /** Returns the initial state of the switch, after applying restore mode rules
+   */
+  bool get_initial_state_with_restore_mode();
 
   /** Return whether this switch uses an assumed state - i.e. if both the ON/OFF actions should be displayed in Home
    * Assistant because the real state is unknown.
@@ -119,8 +126,6 @@ class Switch : public EntityBase {
 
   SwitchRestoreMode restore_mode_{SWITCH_RESTORE_DEFAULT_OFF};
   bool is_restore_mode_persistent();
-
-  bool apply_initial_state();
 
   CallbackManager<void(bool)> state_callback_{};
   bool inverted_{false};

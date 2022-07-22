@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import output, switch
-from esphome.const import CONF_OUTPUT, CONF_RESTORE_MODE
+from esphome.const import CONF_OUTPUT
 from .. import output_ns
 
 OutputSwitch = output_ns.class_("OutputSwitch", switch.Switch, cg.Component)
@@ -14,9 +14,6 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.Required(CONF_OUTPUT): cv.use_id(output.BinaryOutput),
-            cv.Optional(CONF_RESTORE_MODE, default="RESTORE_DEFAULT_OFF"): cv.enum(
-                switch.RESTORE_MODES, upper=True, space="_"
-            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)

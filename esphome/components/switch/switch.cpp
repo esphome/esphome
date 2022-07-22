@@ -9,7 +9,29 @@ static const char *const TAG = "switch";
 Switch::Switch(const std::string &name) : EntityBase(name), state(false) {}
 Switch::Switch() : Switch("") {}
 
-bool Switch::apply_initial_state() {
+void Switch::turn_on() {
+  ESP_LOGD(TAG, "'%s' Turning ON.", this->get_name().c_str());
+  this->write_state(!this->inverted_);
+}
+void Switch::turn_off() {
+  ESP_LOGD(TAG, "'%s' Turning OFF.", this->get_name().c_str());
+  this->write_state(this->inverted_);
+}
+void Switch::toggle() {
+  ESP_LOGD(TAG, "'%s' Toggling %s.", this->get_name().c_str(), this->state ? "OFF" : "ON");
+  this->write_state(this->inverted_ == this->state);
+}
+optional<bool> Switch::get_initial_state() {
+  if (!is_restore_mode_persistent())
+    return {};
+
+  this->rtc_ = global_preferences->make_preference<bool>(this->get_object_id_hash());
+  bool initial_state;
+  if (!this->rtc_.load(&initial_state))
+    return {};
+  return initial_state;
+}
+bool Switch::get_initial_state_with_restore_mode() {
   bool initial_state = false;
   switch (this->restore_mode_) {
     case SWITCH_RESTORE_DEFAULT_OFF:
@@ -32,34 +54,6 @@ bool Switch::apply_initial_state() {
       break;
   }
 
-  if (initial_state) {
-    this->turn_on();
-  } else {
-    this->turn_off();
-  }
-  return initial_state;
-}
-
-void Switch::turn_on() {
-  ESP_LOGD(TAG, "'%s' Turning ON.", this->get_name().c_str());
-  this->write_state(!this->inverted_);
-}
-void Switch::turn_off() {
-  ESP_LOGD(TAG, "'%s' Turning OFF.", this->get_name().c_str());
-  this->write_state(this->inverted_);
-}
-void Switch::toggle() {
-  ESP_LOGD(TAG, "'%s' Toggling %s.", this->get_name().c_str(), this->state ? "OFF" : "ON");
-  this->write_state(this->inverted_ == this->state);
-}
-optional<bool> Switch::get_initial_state() {
-  if (!is_restore_mode_persistent())
-    return {};
-
-  this->rtc_ = global_preferences->make_preference<bool>(this->get_object_id_hash());
-  bool initial_state;
-  if (!this->rtc_.load(&initial_state))
-    return {};
   return initial_state;
 }
 void Switch::publish_state(bool state) {
