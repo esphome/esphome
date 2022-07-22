@@ -22,7 +22,7 @@ void Switch::toggle() {
   this->write_state(this->inverted_ == this->state);
 }
 optional<bool> Switch::get_initial_state() {
-  if (!is_restore_mode_persistent())
+  if (!is_restore_mode_persistent_())
     return {};
 
   this->rtc_ = global_preferences->make_preference<bool>(this->get_object_id_hash());
@@ -61,7 +61,7 @@ void Switch::publish_state(bool state) {
     return;
   this->state = state != this->inverted_;
 
-  if (is_restore_mode_persistent())
+  if (is_restore_mode_persistent_())
     this->rtc_.save(&this->state);
 
   ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), ONOFF(this->state));
@@ -69,7 +69,7 @@ void Switch::publish_state(bool state) {
 }
 bool Switch::assumed_state() { return false; }
 
-bool Switch::is_restore_mode_persistent() {
+bool Switch::is_restore_mode_persistent_() {
   return restore_mode_ == SWITCH_ALWAYS_OFF || restore_mode_ == SWITCH_ALWAYS_ON;
 }
 

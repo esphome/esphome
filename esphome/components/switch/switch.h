@@ -89,7 +89,7 @@ class Switch : public EntityBase {
    */
   void add_on_state_callback(std::function<void(bool)> &&callback);
 
-  /** Returns the initial state of the switch, as persisted previously
+  /** Returns the initial state of the switch, as persisted previously,
     or empty if never persisted.
    */
   optional<bool> get_initial_state();
@@ -125,7 +125,7 @@ class Switch : public EntityBase {
   virtual void write_state(bool state) = 0;
 
   SwitchRestoreMode restore_mode_{SWITCH_RESTORE_DEFAULT_OFF};
-  bool is_restore_mode_persistent();
+  bool is_restore_mode_persistent_();
 
   CallbackManager<void(bool)> state_callback_{};
   bool inverted_{false};
