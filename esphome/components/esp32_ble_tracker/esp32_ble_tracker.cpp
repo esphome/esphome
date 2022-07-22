@@ -46,13 +46,15 @@ void ESP32BLETracker::setup() {
   global_esp32_ble_tracker = this;
   this->scan_result_lock_ = xSemaphoreCreateMutex();
   this->scan_end_lock_ = xSemaphoreCreateMutex();
-
+  this->scan_idle_ = true;
   if (!ESP32BLETracker::ble_setup()) {
     this->mark_failed();
     return;
   }
 
-  global_esp32_ble_tracker->start_scan_(true);
+  if (this->scan_continuous_) {
+    global_esp32_ble_tracker->start_scan_(true);
+  }
 }
 
 void ESP32BLETracker::loop() {
@@ -68,7 +70,8 @@ void ESP32BLETracker::loop() {
     ble_event = this->ble_events_.pop();
   }
 
-  if (this->scan_idle_) {
+  if (xSemaphoreTake(this->scan_end_lock_, 0L) && this->scan_idle_) {
+    xSemaphoreGive(this->scan_end_lock_);
     return;
   }
 
@@ -143,7 +146,8 @@ void ESP32BLETracker::loop() {
 }
 
 void ESP32BLETracker::start_scan() {
-  if (this->scan_idle_) {
+  if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
+    xSemaphoreGive(this->scan_end_lock_);
     global_esp32_ble_tracker->start_scan_(true);
   } else {
     ESP_LOGW(TAG, "Scan requested when a scan is already in progress. Ignoring.");
