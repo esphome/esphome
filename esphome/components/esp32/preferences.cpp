@@ -113,6 +113,8 @@ class ESP32Preferences : public ESPPreferences {
     ESP_LOGD(TAG, "Saving %d preferences to flash...", s_pending_save.size());
     // goal try write all pending saves even if one fails
     int cached = 0, written = 0, failed = 0;
+    esp_err_t last_err = ESP_OK;
+    std::string last_key{};
 
     // go through vector from back to front (makes erase easier/more efficient)
     for (ssize_t i = s_pending_save.size() - 1; i >= 0; i--) {
@@ -125,6 +127,8 @@ class ESP32Preferences : public ESPPreferences {
           ESP_LOGV(TAG, "nvs_set_blob('%s', len=%u) failed: %s", save.key.c_str(), save.data.size(),
                    esp_err_to_name(err));
           failed++;
+          last_err = err;
+          last_key = save.key;
           continue;
         }
         written++;
@@ -136,6 +140,10 @@ class ESP32Preferences : public ESPPreferences {
     }
     ESP_LOGD(TAG, "Saving %d preferences to flash: %d cached, %d written, %d failed", cached + written + failed, cached,
              written, failed);
+    if (failed > 0) {
+      ESP_LOGD(TAG, "Error saving %d preferences to flash. Last error=%s for key=%s", failed, esp_err_to_name(last_err),
+               last_key.c_str());
+    }
 
     // note: commit on esp-idf currently is a no-op, nvs_set_blob always writes
     esp_err_t err = nvs_commit(nvs_handle);
