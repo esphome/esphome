@@ -46,10 +46,10 @@ BLEManufacturerDataAdvertiseTrigger = esp32_ble_tracker_ns.class_(
     "BLEManufacturerDataAdvertiseTrigger",
     automation.Trigger.template(adv_data_t_const_ref),
 )
-#BLEEndOfScanTrigger = esp32_ble_tracker_ns.class_(
-#    "BLEEndOfScanTrigger",
-#    automation.Trigger.template(adv_data_t_const_ref)
-#)
+BLEEndOfScanTrigger = esp32_ble_tracker_ns.class_(
+    "BLEEndOfScanTrigger",
+    automation.Trigger.template(adv_data_t_const_ref)
+)
 # Actions
 ESP32BLEStartScanAction = esp32_ble_tracker_ns.class_("ESP32BLEStartScanAction", automation.Action)
 
@@ -175,11 +175,11 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.Required(CONF_MANUFACTURER_ID): bt_uuid,
             }
         ),
-        #cv.Optional(CONF_ON_BLE_SCAN_END): automation.validate_automation(
-        #    {
-        #        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BLEEndOfScanTrigger)
-        #    }
-        #)
+        cv.Optional(CONF_ON_BLE_SCAN_END): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BLEEndOfScanTrigger)
+            }
+        )
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
