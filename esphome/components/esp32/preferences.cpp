@@ -154,7 +154,7 @@ class ESP32Preferences : public ESPPreferences {
       ESP_LOGV(TAG, "nvs_get_blob('%s'): %s - the key might not be set yet", to_save.key.c_str(), esp_err_to_name(err));
       return true;
     }
-    stored_data.data.reserve(actual_len);
+    stored_data.data.resize(actual_len);
     err = nvs_get_blob(nvs_handle, to_save.key.c_str(), stored_data.data.data(), &actual_len);
     if (err != 0) {
       ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", to_save.key.c_str(), esp_err_to_name(err));
