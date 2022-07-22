@@ -272,8 +272,7 @@ void ESP32BLETracker::end_of_scan_() {
 
   for (auto *listener : this->listeners_)
     listener->on_scan_end();
-
-}  
+}
 
 void ESP32BLETracker::register_client(ESPBTClient *client) {
   client->app_id = ++this->app_id_;
