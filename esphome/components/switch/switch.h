@@ -25,6 +25,15 @@ namespace switch_ {
     } \
   }
 
+enum SwitchRestoreMode {
+  SWITCH_RESTORE_DEFAULT_OFF,
+  SWITCH_RESTORE_DEFAULT_ON,
+  SWITCH_ALWAYS_OFF,
+  SWITCH_ALWAYS_ON,
+  SWITCH_RESTORE_INVERTED_DEFAULT_OFF,
+  SWITCH_RESTORE_INVERTED_DEFAULT_ON,
+};
+
 /** Base class for all switches.
  *
  * A switch is basically just a combination of a binary sensor (for reporting switch values)
@@ -95,6 +104,7 @@ class Switch : public EntityBase {
   std::string get_device_class();
   /// Set the Home Assistant device class for this switch.
   void set_device_class(const std::string &device_class);
+  void set_restore_mode(SwitchRestoreMode restore_mode) { restore_mode_ = restore_mode; }
 
  protected:
   /** Write the given state to hardware. You should implement this
@@ -106,6 +116,11 @@ class Switch : public EntityBase {
    * @param state The state to write. Inversion is already applied if user specified it.
    */
   virtual void write_state(bool state) = 0;
+
+  SwitchRestoreMode restore_mode_{SWITCH_RESTORE_DEFAULT_OFF};
+  bool is_restore_mode_persistent();
+
+  bool apply_initial_state();
 
   CallbackManager<void(bool)> state_callback_{};
   bool inverted_{false};
