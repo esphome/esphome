@@ -265,14 +265,15 @@ void ESP32BLETracker::end_of_scan_() {
   }
 
   ESP_LOGD(TAG, "End of scan.");
-  for (auto *listener : this->listeners_)
-    listener->on_scan_end();
   this->scanner_idle_ = true;
   
   this->already_discovered_.clear();
   xSemaphoreGive(this->scan_end_lock_);
   this->cancel_timeout("scan");
-}
+
+  for (auto *listener : this->listeners_)
+    listener->on_scan_end();
+}  
 
 void ESP32BLETracker::register_client(ESPBTClient *client) {
   client->app_id = ++this->app_id_;
@@ -753,7 +754,9 @@ void ESP32BLETracker::dump_config() {
   ESP_LOGCONFIG(TAG, "  Scan Interval: %.1f ms", this->scan_interval_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Window: %.1f ms", this->scan_window_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Type: %s", this->scan_active_ ? "ACTIVE" : "PASSIVE");
+  ESP_LOGCONFIG(TAG, "  Continuous Scanning: %s", this->scan_continuous_ ? "True" : "False");
 }
+
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
   const uint64_t address = device.address_uint64();
   for (auto &disc : this->already_discovered_) {
