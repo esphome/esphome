@@ -35,20 +35,23 @@ adv_data_t = cg.std_vector.template(cg.uint8)
 adv_data_t_const_ref = adv_data_t.operator("ref").operator("const")
 # Triggers
 ESPBTAdvertiseTrigger = esp32_ble_tracker_ns.class_(
-    "ESPBTAdvertiseTrigger", automation.Trigger.template(ESPBTDeviceConstRef)
+    "ESPBTAdvertiseTrigger",
+    automation.Trigger.template(ESPBTDeviceConstRef)
 )
 BLEServiceDataAdvertiseTrigger = esp32_ble_tracker_ns.class_(
-    "BLEServiceDataAdvertiseTrigger", automation.Trigger.template(adv_data_t_const_ref)
+    "BLEServiceDataAdvertiseTrigger",
+    automation.Trigger.template(adv_data_t_const_ref)
 )
 BLEManufacturerDataAdvertiseTrigger = esp32_ble_tracker_ns.class_(
     "BLEManufacturerDataAdvertiseTrigger",
     automation.Trigger.template(adv_data_t_const_ref),
 )
-BLEEndOfScanTrigger = esp32_ble_tracker_ns.class_(
-    "BLEEndOfScanTrigger", automation.Trigger.template()
-)
+#BLEEndOfScanTrigger = esp32_ble_tracker_ns.class_(
+#    "BLEEndOfScanTrigger",
+#    automation.Trigger.template(adv_data_t_const_ref)
+#)
 # Actions
-ESP32BLEStartScanAction = ESP32BLETracker.class_("ESP32BLEStartScanAction", automation.Action)
+ESP32BLEStartScanAction = esp32_ble_tracker_ns.class_("ESP32BLEStartScanAction", automation.Action)
 
 
 def validate_scan_parameters(config):
@@ -167,20 +170,16 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    BLEManufacturerDataAdvertiseTrigger
-                ),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BLEManufacturerDataAdvertiseTrigger),
                 cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
                 cv.Required(CONF_MANUFACTURER_ID): bt_uuid,
             }
         ),
-        cv.Optional(CONF_ON_BLE_SCAN_END): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    BLEEndOfScanTrigger
-                )
-            }
-        )
+        #cv.Optional(CONF_ON_BLE_SCAN_END): automation.validate_automation(
+        #    {
+        #        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BLEEndOfScanTrigger)
+        #    }
+        #)
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -239,6 +238,7 @@ async def to_code(config):
 ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(ESP32BLETracker),
+        cv.Optional(CONF_CONTINUOUS, default=False): cv.templatable(cv.boolean),
     }
 )
 
@@ -249,6 +249,8 @@ ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(
 async def esp32_ble_tracker_start_scan_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
+    #template_ = await cg.templatable(config[CONF_CONTINUOUS], args, bool)
+    #cg.add(var.set_scan_continuous(template_))
     return var
 
 async def register_ble_device(var, config):

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 #include "queue.h"
 
@@ -188,6 +189,8 @@ class ESP32BLETracker : public Component {
   void register_client(ESPBTClient *client);
 
   void print_bt_device_info(const ESPBTDevice &device);
+  
+  void start_scan();
 
  protected:
   /// The FreeRTOS task managing the bluetooth interface.
@@ -240,27 +243,14 @@ class ESP32BLETracker : public Component {
 // NOLINTNEXTLINE
 extern ESP32BLETracker *global_esp32_ble_tracker;
 
-class ESP32BLEEndOfScanTrigger : public Trigger<std::string>, public Component {
- public:
-  explicit BLEEndOfScanTrigger(std::string topic);
-
-  void set_qos(uint8_t qos);
-  void set_payload(const std::string &payload);
-  void setup() override;
-  void dump_config() override;
-  float get_setup_priority() const override;
-
- protected:
-  std::string topic_;
-  uint8_t qos_{0};
-  optional<std::string> payload_;
-};
 
 template<typename... Ts> class ESP32BLEStartScanAction : public Action<Ts...> {
  public:
   ESP32BLEStartScanAction(ESP32BLETracker *parent) : parent_(parent) {}
+  //TEMPLATABLE_VALUE(bool, continuous)
   void play(Ts... x) override {
-    this->parent_->start_scan_(true);
+    //set_scan_continuous(this->continuous_.value(x...));
+    this->parent_->start_scan();
   }
 
  protected:

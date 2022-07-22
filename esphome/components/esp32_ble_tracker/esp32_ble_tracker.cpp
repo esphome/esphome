@@ -68,6 +68,10 @@ void ESP32BLETracker::loop() {
     ble_event = this->ble_events_.pop();
   }
 
+  if (this->scan_idle_) {
+    return;
+  }
+
   bool connecting = false;
   for (auto *client : this->clients_) {
     if (client->state() == ClientState::CONNECTING || client->state() == ClientState::DISCOVERED)
@@ -83,6 +87,7 @@ void ESP32BLETracker::loop() {
       // Done this way to prevent continuous calling to end of scan when we're not scanning. Only does it once
       xSemaphoreGive(this->scan_end_lock_);
       global_esp32_ble_tracker->end_of_scan_();
+      return;
     }
   }
 
@@ -134,6 +139,14 @@ void ESP32BLETracker::loop() {
   if (this->scan_start_failed_) {
     ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
     this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
+  }
+}
+
+void ESP32BLETracker::start_scan() {
+  if (this->scan_idle_) {
+    global_esp32_ble_tracker->start_scan_(true);
+  } else {
+    ESP_LOGW(TAG, "Scan requested when a scan is already in progress. Ignoring.");
   }
 }
 
@@ -250,22 +263,14 @@ void ESP32BLETracker::end_of_scan_() {
     return;
   }
 
-  ESP_LOGD(TAG, "End of scan...");
-  if (!first) {
-    for (auto *listener : this->listeners_)
-      listener->on_scan_end();
-  }
+  ESP_LOGD(TAG, "End of scan.");
+  for (auto *listener : this->listeners_)
+    listener->on_scan_end();
   this->scan_idle_ = true;
   
   this->already_discovered_.clear();
   xSemaphoreGive(this->scan_end_lock_);
-  /* Potentially need to stop the timeout?
-
-  this->set_timeout("scan", this->scan_duration_ * 2000, []() {
-    ESP_LOGW(TAG, "ESP-IDF BLE scan never terminated, rebooting to restore BLE stack...");
-    App.reboot();
-  });
-  */
+  this->cancel_timeout("scan");
 }
 
 void ESP32BLETracker::register_client(ESPBTClient *client) {
