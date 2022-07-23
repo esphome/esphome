@@ -651,7 +651,7 @@ class EsphomeCore:
                 continue
             if other.repository is not None:
                 if library.repository is None or other.repository == library.repository:
-                    # Other is using a/the same repository, takes precendence
+                    # Other is using a/the same repository, takes precedence
                     break
                 raise ValueError(
                     f"Adding named Library with repository failed! Libraries {library} and {other} "

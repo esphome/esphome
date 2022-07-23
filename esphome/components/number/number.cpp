@@ -17,7 +17,5 @@ void Number::add_on_state_callback(std::function<void(float)> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 
-uint32_t Number::hash_base() { return 2282307003UL; }
-
 }  // namespace number
 }  // namespace esphome

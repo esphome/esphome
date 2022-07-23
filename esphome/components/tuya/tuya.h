@@ -124,6 +124,8 @@ class Tuya : public Component, public uart::UARTDevice {
   optional<time::RealTimeClock *> time_id_{};
 #endif
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
+  bool init_failed_{false};
+  int init_retries_{0};
   uint8_t protocol_version_ = -1;
   optional<InternalGPIOPin *> status_pin_{};
   int status_pin_reported_ = -1;

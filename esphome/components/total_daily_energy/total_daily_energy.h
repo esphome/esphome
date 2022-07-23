@@ -18,7 +18,6 @@ enum TotalDailyEnergyMethod {
 class TotalDailyEnergy : public sensor::Sensor, public Component {
  public:
   void set_restore(bool restore) { restore_ = restore; }
-  void set_min_save_interval(uint32_t min_interval) { this->min_save_interval_ = min_interval; }
   void set_time(time::RealTimeClock *time) { time_ = time; }
   void set_parent(Sensor *parent) { parent_ = parent; }
   void set_method(TotalDailyEnergyMethod method) { method_ = method; }
@@ -39,7 +38,6 @@ class TotalDailyEnergy : public sensor::Sensor, public Component {
   uint16_t last_day_of_year_{};
   uint32_t last_update_{0};
   uint32_t last_save_{0};
-  uint32_t min_save_interval_{0};
   bool restore_;
   float total_energy_{0.0f};
   float last_power_state_{0.0f};

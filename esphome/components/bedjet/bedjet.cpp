@@ -36,6 +36,14 @@ static uint8_t bedjet_fan_speed_to_step(const std::string &fan_step_percent) {
   return -1;
 }
 
+static BedjetButton heat_button(BedjetHeatMode mode) {
+  BedjetButton btn = BTN_HEAT;
+  if (mode == HEAT_MODE_EXTENDED) {
+    btn = BTN_EXTHT;
+  }
+  return btn;
+}
+
 void Bedjet::upgrade_firmware() {
   auto *pkt = this->codec_->get_button_request(MAGIC_UPDATE);
   auto status = this->write_bedjet_packet_(pkt);
@@ -117,7 +125,7 @@ void Bedjet::control(const ClimateCall &call) {
         pkt = this->codec_->get_button_request(BTN_OFF);
         break;
       case climate::CLIMATE_MODE_HEAT:
-        pkt = this->codec_->get_button_request(BTN_HEAT);
+        pkt = this->codec_->get_button_request(heat_button(this->heating_mode_));
         break;
       case climate::CLIMATE_MODE_FAN_ONLY:
         pkt = this->codec_->get_button_request(BTN_COOL);
@@ -186,6 +194,8 @@ void Bedjet::control(const ClimateCall &call) {
       pkt = this->codec_->get_button_request(BTN_M2);
     } else if (preset == "M3") {
       pkt = this->codec_->get_button_request(BTN_M3);
+    } else if (preset == "LTD HT") {
+      pkt = this->codec_->get_button_request(BTN_HEAT);
     } else if (preset == "EXT HT") {
       pkt = this->codec_->get_button_request(BTN_EXTHT);
     } else {
@@ -298,7 +308,7 @@ void Bedjet::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
 
 #ifdef USE_TIME
       if (this->time_id_.has_value()) {
-        this->send_local_time_();
+        this->send_local_time();
       }
 #endif
       break;
@@ -453,39 +463,46 @@ uint8_t Bedjet::write_notify_config_descriptor_(bool enable) {
 
 #ifdef USE_TIME
 /** Attempts to sync the local time (via `time_id`) to the BedJet device. */
-void Bedjet::send_local_time_() {
-  if (this->node_state != espbt::ClientState::ESTABLISHED) {
-    ESP_LOGV(TAG, "[%s] Not connected, cannot send time.", this->get_name().c_str());
-    return;
-  }
-  auto *time_id = *this->time_id_;
-  time::ESPTime now = time_id->now();
-  if (now.is_valid()) {
-    uint8_t hour = now.hour;
-    uint8_t minute = now.minute;
-    BedjetPacket *pkt = this->codec_->get_set_time_request(hour, minute);
-    auto status = this->write_bedjet_packet_(pkt);
-    if (status) {
-      ESP_LOGW(TAG, "Failed setting BedJet clock: %d", status);
-    } else {
-      ESP_LOGD(TAG, "[%s] BedJet clock set to: %d:%02d", this->get_name().c_str(), hour, minute);
+void Bedjet::send_local_time() {
+  if (this->time_id_.has_value()) {
+    auto *time_id = *this->time_id_;
+    time::ESPTime now = time_id->now();
+    if (now.is_valid()) {
+      this->set_clock(now.hour, now.minute);
+      ESP_LOGD(TAG, "Using time component to set BedJet clock: %d:%02d", now.hour, now.minute);
     }
+  } else {
+    ESP_LOGI(TAG, "`time_id` is not configured: will not sync BedJet clock.");
   }
 }
 
 /** Initializes time sync callbacks to support syncing current time to the BedJet. */
 void Bedjet::setup_time_() {
   if (this->time_id_.has_value()) {
-    this->send_local_time_();
+    this->send_local_time();
     auto *time_id = *this->time_id_;
-    time_id->add_on_time_sync_callback([this] { this->send_local_time_(); });
-    time::ESPTime now = time_id->now();
-    ESP_LOGD(TAG, "Using time component to set BedJet clock: %d:%02d", now.hour, now.minute);
+    time_id->add_on_time_sync_callback([this] { this->send_local_time(); });
   } else {
     ESP_LOGI(TAG, "`time_id` is not configured: will not sync BedJet clock.");
   }
 }
 #endif
+
+/** Attempt to set the BedJet device's clock to the specified time. */
+void Bedjet::set_clock(uint8_t hour, uint8_t minute) {
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
+    ESP_LOGV(TAG, "[%s] Not connected, cannot send time.", this->get_name().c_str());
+    return;
+  }
+
+  BedjetPacket *pkt = this->codec_->get_set_time_request(hour, minute);
+  auto status = this->write_bedjet_packet_(pkt);
+  if (status) {
+    ESP_LOGW(TAG, "Failed setting BedJet clock: %d", status);
+  } else {
+    ESP_LOGD(TAG, "[%s] BedJet clock set to: %d:%02d", this->get_name().c_str(), hour, minute);
+  }
+}
 
 /** Writes one BedjetPacket to the BLE client on the BEDJET_COMMAND_UUID. */
 uint8_t Bedjet::write_bedjet_packet_(BedjetPacket *pkt) {
@@ -557,11 +574,25 @@ bool Bedjet::update_status_() {
       break;
 
     case MODE_HEAT:
+      this->mode = climate::CLIMATE_MODE_HEAT;
+      this->action = climate::CLIMATE_ACTION_HEATING;
+      this->preset.reset();
+      if (this->heating_mode_ == HEAT_MODE_EXTENDED) {
+        this->set_custom_preset_("LTD HT");
+      } else {
+        this->custom_preset.reset();
+      }
+      break;
+
     case MODE_EXTHT:
       this->mode = climate::CLIMATE_MODE_HEAT;
       this->action = climate::CLIMATE_ACTION_HEATING;
-      this->custom_preset.reset();
       this->preset.reset();
+      if (this->heating_mode_ == HEAT_MODE_EXTENDED) {
+        this->custom_preset.reset();
+      } else {
+        this->set_custom_preset_("EXT HT");
+      }
       break;
 
     case MODE_COOL:
