@@ -251,10 +251,12 @@ async def esp32_ble_tracker_start_scan_action_to_code(config, action_id, templat
     var = cg.new_Pvariable(action_id, template_arg, paren)
     return var
 
+
 async def register_ble_device(var, config):
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_listener(var))
     return var
+
 
 async def register_client(var, config):
     paren = await cg.get_variable(config[CONF_ESP32_BLE_ID])
