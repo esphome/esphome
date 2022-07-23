@@ -700,7 +700,7 @@ void Sprinkler::pump_off(switch_::Switch *pump_switch) {
 
 optional<uint32_t> Sprinkler::time_remaining() {
   for (auto &vo : this->valve_op_) {
-    if (vo.state() == ACTIVE) {
+    if ((vo.state() == STARTING) || (vo.state() == ACTIVE)) {
       return vo.time_remaining();
     }
   }
