@@ -15,29 +15,28 @@ void SMT100Component::loop() {
   static char buffer[MAX_LINE_LENGTH];
   while (this->available() != 0) {
     if (readline_(read(), buffer, MAX_LINE_LENGTH) > 0) {
-      int counts = (int) strtol((strtok(buffer, ",")), nullptr, 10);
-      float dielectric_constant = (float) strtod((strtok(nullptr, ",")), nullptr);
-      float moisture = (float) strtod((strtok(nullptr, ",")), nullptr);
-      float temperature = (float) strtod((strtok(nullptr, ",")), nullptr);
-      float voltage = (float) strtod((strtok(nullptr, ",")), nullptr);
+      int counts;
+      float dielectric_constant, moisture, temperature, voltage;
 
-      if (this->counts_sensor_ != nullptr) {
+      sscanf(buffer, "%d,%f,%f,%f,%f", &counts, &dielectric_constant, &moisture, &temperature, &voltage);
+
+      if (this->counts_sensor_) {
         counts_sensor_->publish_state(counts);
       }
 
-      if (this->dielectric_constant_sensor_ != nullptr) {
+      if (this->dielectric_constant_sensor_) {
         dielectric_constant_sensor_->publish_state(dielectric_constant);
       }
 
-      if (this->moisture_sensor_ != nullptr) {
+      if (this->moisture_sensor_) {
         moisture_sensor_->publish_state(moisture);
       }
 
-      if (this->temperature_sensor_ != nullptr) {
+      if (this->temperature_sensor_) {
         temperature_sensor_->publish_state(temperature);
       }
 
-      if (this->voltage_sensor_ != nullptr) {
+      if (this->voltage_sensor_) {
         voltage_sensor_->publish_state(voltage);
       }
     }

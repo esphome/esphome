@@ -270,6 +270,10 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
+  - id: uart10
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
 
 modbus:
   uart_id: uart1
@@ -756,7 +760,7 @@ sensor:
       name: "mlxtemp"
       oversampling: 2
   - platform: smt100
-    uart_id: uart2
+    uart_id: uart10
     counts:
       name: "Counts"
     dielectric_constant:
