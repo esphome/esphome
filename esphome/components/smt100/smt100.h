@@ -28,7 +28,7 @@ class SMT100Component : public PollingComponent, public uart::UARTDevice {
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { this->voltage_sensor_ = voltage_sensor; }
 
  protected:
-  int readline(int readch, char *buffer, int len);
+  int readline_(int readch, char *buffer, int len);
 
   sensor::Sensor *counts_sensor_{nullptr};
   sensor::Sensor *dielectric_constant_sensor_{nullptr};

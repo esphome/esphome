@@ -14,12 +14,12 @@ void SMT100Component::update() {
 void SMT100Component::loop() {
   static char buffer[MAX_LINE_LENGTH];
   while (this->available() != 0) {
-    if (readline(read(), buffer, MAX_LINE_LENGTH) > 0) {
-      int counts = (int) atoi((strtok(buffer, ",")));
-      float dielectric_constant = (float) atof((strtok(NULL, ",")));
-      float moisture = (float) atof((strtok(NULL, ",")));
-      float temperature = (float) atof((strtok(NULL, ",")));
-      float voltage = (float) atof((strtok(NULL, ",")));
+    if (readline_(read(), buffer, MAX_LINE_LENGTH) > 0) {
+      int counts = (int) strtol((strtok(buffer, ",")), nullptr, 10);
+      float dielectric_constant = (float) strtod((strtok(nullptr, ",")), nullptr);
+      float moisture = (float) strtod((strtok(nullptr, ",")), nullptr);
+      float temperature = (float) strtod((strtok(nullptr, ",")), nullptr);
+      float voltage = (float) strtod((strtok(nullptr, ",")), nullptr);
 
       if (this->counts_sensor_ != nullptr) {
         counts_sensor_->publish_state(counts);
@@ -57,7 +57,7 @@ void SMT100Component::dump_config() {
   this->check_uart_settings(9600);
 }
 
-int SMT100Component::readline(int readch, char *buffer, int len) {
+int SMT100Component::readline_(int readch, char *buffer, int len) {
   static int pos = 0;
   int rpos;
 
