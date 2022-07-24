@@ -49,7 +49,8 @@ def validate_st7789v(config):
         raise cv.Invalid(
             f'{CONF_HEIGHT}, {CONF_WIDTH}, {CONF_OFFSET_HEIGHT} and {CONF_OFFSET_WIDTH} must be specified when {CONF_MODEL} is "CUSTOM"'
         )
-    elif config[CONF_MODEL].upper() != "CUSTOM" and (
+
+    if config[CONF_MODEL].upper() != "CUSTOM" and (
         CONF_HEIGHT in config
         or CONF_WIDTH in config
         or CONF_OFFSET_HEIGHT in config
