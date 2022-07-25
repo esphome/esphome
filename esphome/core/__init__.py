@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_USE_ADDRESS,
     CONF_ETHERNET,
+    CONF_WEB_SERVER,
     CONF_WIFI,
     CONF_PORT,
     KEY_CORE,
@@ -512,7 +513,7 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        if "wifi" in self.config:
+        if CONF_WIFI in self.config:
             return self.config[CONF_WIFI][CONF_USE_ADDRESS]
 
         if CONF_ETHERNET in self.config:
@@ -525,9 +526,9 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        if "web_server" in self.config:
+        if CONF_WEB_SERVER in self.config:
             try:
-                return self.config["web_server"][CONF_PORT]
+                return self.config[CONF_WEB_SERVER][CONF_PORT]
             except KeyError:
                 return 80
 
