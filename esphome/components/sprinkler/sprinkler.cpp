@@ -11,9 +11,74 @@ namespace sprinkler {
 
 static const char *const TAG = "sprinkler";
 
-SprinklerSwitch::SprinklerSwitch() : turn_on_trigger_(new Trigger<>()), turn_off_trigger_(new Trigger<>()) {}
+SprinklerSwitch::SprinklerSwitch() {}
+SprinklerSwitch::SprinklerSwitch(switch_::Switch *sprinkler_switch) : on_switch_(sprinkler_switch) {}
+SprinklerSwitch::SprinklerSwitch(switch_::Switch *off_switch, switch_::Switch *on_switch, uint32_t pulse_duration)
+    : pulse_duration_(pulse_duration), off_switch_(off_switch), on_switch_(on_switch) {}
+
+bool SprinklerSwitch::is_latching_valve() { return (this->off_switch_ != nullptr) && (this->on_switch_ != nullptr); }
 
 void SprinklerSwitch::loop() {
+  if ((this->pinned_millis_) && (millis() > this->pinned_millis_ + this->pulse_duration_)) {
+    this->pinned_millis_ = 0;  // reset tracker
+    if (this->off_switch_->state) {
+      this->off_switch_->turn_off();
+    }
+    if (this->on_switch_->state) {
+      this->on_switch_->turn_off();
+    }
+  }
+}
+
+void SprinklerSwitch::turn_off() {
+  if (!this->state()) {  // do nothing if we're already in the requested state
+    return;
+  }
+  if (this->off_switch_ != nullptr) {  // latching valve, start a pulse
+    if (!this->off_switch_->state) {
+      this->off_switch_->turn_on();
+    }
+    this->pinned_millis_ = millis();
+  } else if (this->on_switch_ != nullptr) {  // non-latching valve
+    this->on_switch_->turn_off();
+  }
+  this->state_ = false;
+}
+
+void SprinklerSwitch::turn_on() {
+  if (this->state()) {  // do nothing if we're already in the requested state
+    return;
+  }
+  if (this->off_switch_ != nullptr) {  // latching valve, start a pulse
+    if (!this->on_switch_->state) {
+      this->on_switch_->turn_on();
+    }
+    this->pinned_millis_ = millis();
+  } else if (this->on_switch_ != nullptr) {  // non-latching valve
+    this->on_switch_->turn_on();
+  }
+  this->state_ = true;
+}
+
+bool SprinklerSwitch::state() {
+  if ((this->off_switch_ == nullptr) && (this->on_switch_ != nullptr)) {  // latching valve is not configured...
+    return this->on_switch_->state;                                       // ...so just return the pump switch state
+  }
+  return this->state_;
+}
+
+void SprinklerSwitch::sync_valve_state(bool latch_state) {
+  if (this->is_latching_valve()) {
+    this->state_ = latch_state;
+  } else if (this->on_switch_ != nullptr) {
+    this->state_ = this->on_switch_->state;
+  }
+}
+
+SprinklerControllerSwitch::SprinklerControllerSwitch()
+    : turn_on_trigger_(new Trigger<>()), turn_off_trigger_(new Trigger<>()) {}
+
+void SprinklerControllerSwitch::loop() {
   if (!this->f_.has_value())
     return;
   auto s = (*this->f_)();
@@ -23,7 +88,7 @@ void SprinklerSwitch::loop() {
   this->publish_state(*s);
 }
 
-void SprinklerSwitch::write_state(bool state) {
+void SprinklerControllerSwitch::write_state(bool state) {
   if (this->prev_trigger_ != nullptr) {
     this->prev_trigger_->stop_action();
   }
@@ -40,15 +105,15 @@ void SprinklerSwitch::write_state(bool state) {
     this->publish_state(state);
 }
 
-void SprinklerSwitch::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-bool SprinklerSwitch::assumed_state() { return this->assumed_state_; }
-void SprinklerSwitch::set_state_lambda(std::function<optional<bool>()> &&f) { this->f_ = f; }
-float SprinklerSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
+void SprinklerControllerSwitch::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
+bool SprinklerControllerSwitch::assumed_state() { return this->assumed_state_; }
+void SprinklerControllerSwitch::set_state_lambda(std::function<optional<bool>()> &&f) { this->f_ = f; }
+float SprinklerControllerSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-Trigger<> *SprinklerSwitch::get_turn_on_trigger() const { return this->turn_on_trigger_; }
-Trigger<> *SprinklerSwitch::get_turn_off_trigger() const { return this->turn_off_trigger_; }
+Trigger<> *SprinklerControllerSwitch::get_turn_on_trigger() const { return this->turn_on_trigger_; }
+Trigger<> *SprinklerControllerSwitch::get_turn_off_trigger() const { return this->turn_off_trigger_; }
 
-void SprinklerSwitch::setup() {
+void SprinklerControllerSwitch::setup() {
   if (!this->restore_state_)
     return;
 
@@ -64,15 +129,15 @@ void SprinklerSwitch::setup() {
   }
 }
 
-void SprinklerSwitch::dump_config() {
+void SprinklerControllerSwitch::dump_config() {
   LOG_SWITCH("", "Sprinkler Switch", this);
   ESP_LOGCONFIG(TAG, "  Restore State: %s", YESNO(this->restore_state_));
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
 }
 
-void SprinklerSwitch::set_restore_state(bool restore_state) { this->restore_state_ = restore_state; }
+void SprinklerControllerSwitch::set_restore_state(bool restore_state) { this->restore_state_ = restore_state; }
 
-void SprinklerSwitch::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
+void SprinklerControllerSwitch::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 
 SprinklerValveOperator::SprinklerValveOperator() {}
 SprinklerValveOperator::SprinklerValveOperator(SprinklerValve *valve, Sprinkler *controller)
@@ -140,39 +205,39 @@ void SprinklerValveOperator::set_stop_delay(uint32_t stop_delay, bool stop_delay
 }
 
 void SprinklerValveOperator::start() {
-  if (this->run_duration_) {  // can't start if zero run duration
-    if (this->start_delay_ && (this->valve_->pump_switch != nullptr)) {
-      // STARTING state requires both a pump and a start_delay_
-      this->state_ = STARTING;
-      if (this->start_delay_is_valve_delay_) {
-        this->pump_on_();
-      } else if (!this->valve_->pump_switch->state) {  // if the pump is already on, wait to switch on the valve
-        this->valve_on_();                             //  to ensure consistent run time
-      }
-    } else {
-      this->run_();  // there is no start_delay_, so just start the pump and valve
-    }
-    this->pinned_millis_ = millis();  // save the time the start request was made
+  if (!this->run_duration_) {  // can't start if zero run duration
+    return;
   }
+  if (this->start_delay_ && (this->pump_switch() != nullptr)) {
+    this->state_ = STARTING;  // STARTING state requires both a pump and a start_delay_
+    if (this->start_delay_is_valve_delay_) {
+      this->pump_on_();
+    } else if (!this->pump_switch()->state()) {  // if the pump is already on, wait to switch on the valve
+      this->valve_on_();                         //  to ensure consistent run time
+    }
+  } else {
+    this->run_();  // there is no start_delay_, so just start the pump and valve
+  }
+  this->pinned_millis_ = millis();  // save the time the start request was made
 }
 
 void SprinklerValveOperator::stop() {
-  if ((this->state_ != IDLE) && (this->state_ != STOPPING)) {
-    if (this->stop_delay_ && (this->valve_->pump_switch != nullptr)) {
-      // STOPPING state requires both a pump and a stop_delay_
-      this->state_ = STOPPING;
-      if (this->stop_delay_is_valve_delay_) {
-        this->pump_off_();
-      } else {
-        this->valve_off_();
-      }
-      if (this->valve_->pump_switch->state) {  // if the pump is still on at this point, it may be in use...
-        this->valve_off_();                    // ...so just switch the valve off now to ensure consistent run time
-      }
-      this->pinned_millis_ = millis();  // save the time the stop request was made
+  if ((this->state_ == IDLE) || (this->state_ == STOPPING)) {  // can't stop if already stopped or stopping
+    return;
+  }
+  if (this->stop_delay_ && (this->pump_switch() != nullptr)) {
+    this->state_ = STOPPING;  // STOPPING state requires both a pump and a stop_delay_
+    if (this->stop_delay_is_valve_delay_) {
+      this->pump_off_();
     } else {
-      this->kill_();  // there is no stop_delay_, so just stop the pump and valve
+      this->valve_off_();
     }
+    if (this->pump_switch()->state()) {  // if the pump is still on at this point, it may be in use...
+      this->valve_off_();                // ...so just switch the valve off now to ensure consistent run time
+    }
+    this->pinned_millis_ = millis();  // save the time the stop request was made
+  } else {
+    this->kill_();  // there is no stop_delay_, so just stop the pump and valve
   }
 }
 
@@ -187,52 +252,59 @@ uint32_t SprinklerValveOperator::time_remaining() {
 
 SprinklerState SprinklerValveOperator::state() { return this->state_; }
 
-switch_::Switch *SprinklerValveOperator::pump_switch() {
-  return this->valve_ != nullptr ? this->valve_->pump_switch : nullptr;
+SprinklerSwitch *SprinklerValveOperator::pump_switch() {
+  if ((this->controller_ == nullptr) || (this->valve_ == nullptr)) {
+    return nullptr;
+  }
+  if (this->valve_->pump_switch_index.has_value()) {
+    return this->controller_->valve_pump_switch_by_pump_index(this->valve_->pump_switch_index.value());
+  }
+  return nullptr;
 }
 
 void SprinklerValveOperator::pump_off_() {
-  if (this->valve_ != nullptr) {                 // safety first!
-    if (this->valve_->pump_switch != nullptr) {  // safety first!
-      if (this->controller_ == nullptr) {        // safety first!
-        this->valve_->pump_switch->turn_off();   // if no controller was set, just switch off the pump
-      } else {                                   // ...otherwise, do it "safely"
-        auto state = this->state_;               // this is silly, but...
-        this->state_ = IDLE;                     // ...exclude me from the pump-in-use check that pump_off() does
-        this->controller_->pump_off(this->valve_->pump_switch);
-        this->state_ = state;
-      }
-    }
+  if ((this->valve_ == nullptr) || (this->pump_switch() == nullptr)) {  // safety first!
+    return;
+  }
+  if (this->controller_ == nullptr) {  // safety first!
+    this->pump_switch()->turn_off();   // if no controller was set, just switch off the pump
+  } else {                             // ...otherwise, do it "safely"
+    auto state = this->state_;         // this is silly, but...
+    this->state_ = BYPASS;             // ...exclude me from the pump-in-use check that set_pump_state() does
+    this->controller_->set_pump_state(this->pump_switch(), false);
+    this->state_ = state;
   }
 }
 
 void SprinklerValveOperator::pump_on_() {
-  if (this->valve_ != nullptr) {                 // safety first!
-    if (this->valve_->pump_switch != nullptr) {  // safety first!
-      if (!this->valve_->pump_switch->state) {
-        this->valve_->pump_switch->turn_on();
-      }
-    }
+  if ((this->valve_ == nullptr) || (this->pump_switch() == nullptr)) {  // safety first!
+    return;
+  }
+  if (this->controller_ == nullptr) {  // safety first!
+    this->pump_switch()->turn_on();    // if no controller was set, just switch on the pump
+  } else {                             // ...otherwise, do it "safely"
+    auto state = this->state_;         // this is silly, but...
+    this->state_ = BYPASS;             // ...exclude me from the pump-in-use check that set_pump_state() does
+    this->controller_->set_pump_state(this->pump_switch(), true);
+    this->state_ = state;
   }
 }
 
 void SprinklerValveOperator::valve_off_() {
-  if (this->valve_ != nullptr) {                  // safety first!
-    if (this->valve_->valve_switch != nullptr) {  // safety first!
-      if (this->valve_->valve_switch->state) {
-        this->valve_->valve_switch->turn_off();
-      }
-    }
+  if (this->valve_ == nullptr) {  // safety first!
+    return;
+  }
+  if (this->valve_->valve_switch.state()) {
+    this->valve_->valve_switch.turn_off();
   }
 }
 
 void SprinklerValveOperator::valve_on_() {
-  if (this->valve_ != nullptr) {                  // safety first!
-    if (this->valve_->valve_switch != nullptr) {  // safety first!
-      if (!this->valve_->valve_switch->state) {
-        this->valve_->valve_switch->turn_on();
-      }
-    }
+  if (this->valve_ == nullptr) {  // safety first!
+    return;
+  }
+  if (!this->valve_->valve_switch.state()) {
+    this->valve_->valve_switch.turn_on();
   }
 }
 
@@ -261,6 +333,7 @@ void SprinklerValveRunRequest::set_run_duration(uint32_t run_duration) { this->r
 void SprinklerValveRunRequest::set_valve(size_t valve_number) {
   this->valve_number_ = valve_number;
   this->run_duration_ = 0;
+  this->valve_op_ = nullptr;
   this->has_valve_ = true;
 }
 
@@ -284,7 +357,7 @@ optional<size_t> SprinklerValveRunRequest::valve_as_opt() {
   if (this->has_valve_) {
     return this->valve_number_;
   }
-  return {};
+  return nullopt;
 }
 
 SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this->valve_op_; }
@@ -295,22 +368,28 @@ Sprinkler::Sprinkler(const std::string &name) : EntityBase(name) {}
 void Sprinkler::setup() { this->all_valves_off_(true); }
 
 void Sprinkler::loop() {
+  for (auto &p : this->pump_) {
+    p.loop();
+  }
+  for (auto &v : this->valve_) {
+    v.valve_switch.loop();
+  }
   for (auto &vo : this->valve_op_) {
     vo.loop();
   }
 }
 
-void Sprinkler::add_valve(SprinklerSwitch *valve_sw, SprinklerSwitch *enable_sw) {
+void Sprinkler::add_valve(SprinklerControllerSwitch *valve_sw, SprinklerControllerSwitch *enable_sw) {
   auto new_valve_number = this->number_of_valves();
   this->valve_.resize(new_valve_number + 1);
   SprinklerValve *new_valve = &this->valve_[new_valve_number];
 
   new_valve->controller_switch = valve_sw;
   new_valve->controller_switch->set_state_lambda([=]() -> optional<bool> {
-    if (this->valve_pump_switch_(new_valve_number) != nullptr) {
-      return this->valve_switch_(new_valve_number)->state && this->valve_pump_switch_(new_valve_number)->state;
+    if (this->valve_pump_switch(new_valve_number) != nullptr) {
+      return this->valve_switch(new_valve_number)->state() && this->valve_pump_switch(new_valve_number)->state();
     }
-    return this->valve_switch_(new_valve_number)->state;
+    return this->valve_switch(new_valve_number)->state();
   });
 
   new_valve->valve_turn_off_automation =
@@ -332,7 +411,7 @@ void Sprinkler::add_valve(SprinklerSwitch *valve_sw, SprinklerSwitch *enable_sw)
 
 void Sprinkler::add_controller(Sprinkler *other_controller) { this->other_controllers_.push_back(other_controller); }
 
-void Sprinkler::set_controller_main_switch(SprinklerSwitch *controller_switch) {
+void Sprinkler::set_controller_main_switch(SprinklerControllerSwitch *controller_switch) {
   this->controller_sw_ = controller_switch;
   controller_switch->set_state_lambda([=]() -> optional<bool> {
     for (size_t valve_number = 0; valve_number < this->number_of_valves(); valve_number++) {
@@ -352,30 +431,71 @@ void Sprinkler::set_controller_main_switch(SprinklerSwitch *controller_switch) {
   this->sprinkler_turn_on_automation_->add_actions({sprinkler_resumeorstart_action_.get()});
 }
 
-void Sprinkler::set_controller_auto_adv_switch(SprinklerSwitch *auto_adv_switch) {
+void Sprinkler::set_controller_auto_adv_switch(SprinklerControllerSwitch *auto_adv_switch) {
   this->auto_adv_sw_ = auto_adv_switch;
   auto_adv_switch->set_optimistic(true);
   auto_adv_switch->set_restore_state(true);
 }
 
-void Sprinkler::set_controller_queue_enable_switch(SprinklerSwitch *queue_enable_switch) {
+void Sprinkler::set_controller_queue_enable_switch(SprinklerControllerSwitch *queue_enable_switch) {
   this->queue_enable_sw_ = queue_enable_switch;
   queue_enable_switch->set_optimistic(true);
   queue_enable_switch->set_restore_state(true);
 }
 
-void Sprinkler::set_controller_reverse_switch(SprinklerSwitch *reverse_switch) {
+void Sprinkler::set_controller_reverse_switch(SprinklerControllerSwitch *reverse_switch) {
   this->reverse_sw_ = reverse_switch;
   reverse_switch->set_optimistic(true);
   reverse_switch->set_restore_state(true);
 }
 
-void Sprinkler::configure_valve_switch(const size_t valve_number, switch_::Switch *valve_switch, uint32_t run_duration,
-                                       switch_::Switch *pump_switch) {
+void Sprinkler::configure_valve_switch(size_t valve_number, switch_::Switch *valve_switch, uint32_t run_duration) {
   if (this->is_a_valid_valve(valve_number)) {
-    this->valve_[valve_number].valve_switch = valve_switch;
+    this->valve_[valve_number].valve_switch.set_on_switch(valve_switch);
     this->valve_[valve_number].run_duration = run_duration;
-    this->valve_[valve_number].pump_switch = pump_switch;
+  }
+}
+
+void Sprinkler::configure_valve_switch_pulsed(size_t valve_number, switch_::Switch *valve_switch_off,
+                                              switch_::Switch *valve_switch_on, uint32_t pulse_duration,
+                                              uint32_t run_duration) {
+  if (this->is_a_valid_valve(valve_number)) {
+    this->valve_[valve_number].valve_switch.set_off_switch(valve_switch_off);
+    this->valve_[valve_number].valve_switch.set_on_switch(valve_switch_on);
+    this->valve_[valve_number].valve_switch.set_pulse_duration(pulse_duration);
+    this->valve_[valve_number].run_duration = run_duration;
+  }
+}
+
+void Sprinkler::configure_valve_pump_switch(size_t valve_number, switch_::Switch *pump_switch) {
+  if (this->is_a_valid_valve(valve_number)) {
+    for (size_t i = 0; i < this->pump_.size(); i++) {      // check each existing registered pump
+      if (this->pump_[i].on_switch() == pump_switch) {     // if the "new" pump matches one we already have...
+        this->valve_[valve_number].pump_switch_index = i;  // ...save its index in the SprinklerSwitch vector pump_...
+        return;                                            // ...and we are done
+      }
+    }  // if we end up here, no pumps matched, so add a new one and set the valve's SprinklerSwitch at it
+    this->pump_.resize(this->pump_.size() + 1);
+    this->pump_.back().set_on_switch(pump_switch);
+    this->valve_[valve_number].pump_switch_index = this->pump_.size() - 1;  // save the index to the new pump
+  }
+}
+
+void Sprinkler::configure_valve_pump_switch_pulsed(size_t valve_number, switch_::Switch *pump_switch_off,
+                                                   switch_::Switch *pump_switch_on, uint32_t pulse_duration) {
+  if (this->is_a_valid_valve(valve_number)) {
+    for (size_t i = 0; i < this->pump_.size(); i++) {  // check each existing registered pump
+      if ((this->pump_[i].off_switch() == pump_switch_off) &&
+          (this->pump_[i].on_switch() == pump_switch_on)) {  // if the "new" pump matches one we already have...
+        this->valve_[valve_number].pump_switch_index = i;    // ...save its index in the SprinklerSwitch vector pump_...
+        return;                                              // ...and we are done
+      }
+    }  // if we end up here, no pumps matched, so add a new one and set the valve's SprinklerSwitch at it
+    this->pump_.resize(this->pump_.size() + 1);
+    this->pump_.back().set_off_switch(pump_switch_off);
+    this->pump_.back().set_on_switch(pump_switch_on);
+    this->pump_.back().set_pulse_duration(pulse_duration);
+    this->valve_[valve_number].pump_switch_index = this->pump_.size() - 1;  // save the index to the new pump
   }
 }
 
@@ -513,7 +633,7 @@ bool Sprinkler::queue_enabled() {
   if (this->queue_enable_sw_ != nullptr) {
     return this->queue_enable_sw_->state;
   }
-  return false;
+  return true;
 }
 
 bool Sprinkler::reverse() {
@@ -524,20 +644,29 @@ bool Sprinkler::reverse() {
 }
 
 void Sprinkler::start_from_queue() {
-  if (!this->queued_valves_.empty()) {  // if there is nothing in the queue, don't do anything
-    if (this->auto_adv_sw_ != nullptr) {
-      this->auto_adv_sw_->publish_state(false);
-    }
-    if (this->queue_enable_sw_ != nullptr) {
-      this->queue_enable_sw_->publish_state(true);
-    }
-    this->reset_cycle_states_();  // just in case auto-advance is switched on later
-    this->repeat_count_ = 0;
-    this->fsm_kick_();  // will automagically pick up from the queue (it has priority)
+  if (this->queued_valves_.empty()) {
+    return;  // if there is nothing in the queue, don't do anything
   }
+  if (this->queue_enabled() && this->active_valve().has_value()) {
+    return;  // if there is already a valve running from the queue, do nothing
+  }
+
+  if (this->auto_adv_sw_ != nullptr) {
+    this->auto_adv_sw_->publish_state(false);
+  }
+  if (this->queue_enable_sw_ != nullptr) {
+    this->queue_enable_sw_->publish_state(true);
+  }
+  this->reset_cycle_states_();  // just in case auto-advance is switched on later
+  this->repeat_count_ = 0;
+  this->fsm_kick_();  // will automagically pick up from the queue (it has priority)
 }
 
 void Sprinkler::start_full_cycle() {
+  if (this->auto_advance() && this->active_valve().has_value()) {
+    return;  // if auto-advance is already enabled and there is already a valve running, do nothing
+  }
+
   if (this->queue_enable_sw_ != nullptr) {
     this->queue_enable_sw_->publish_state(false);
   }
@@ -550,17 +679,19 @@ void Sprinkler::start_full_cycle() {
 }
 
 void Sprinkler::start_single_valve(const optional<size_t> valve_number) {
-  if (valve_number.has_value()) {
-    if (this->auto_adv_sw_ != nullptr) {
-      this->auto_adv_sw_->publish_state(false);
-    }
-    if (this->queue_enable_sw_ != nullptr) {
-      this->queue_enable_sw_->publish_state(false);
-    }
-    this->reset_cycle_states_();  // just in case auto-advance is switched on later
-    this->repeat_count_ = 0;
-    this->fsm_request_(valve_number.value());
+  if (!valve_number.has_value() || (valve_number == this->active_valve())) {
+    return;
   }
+
+  if (this->auto_adv_sw_ != nullptr) {
+    this->auto_adv_sw_->publish_state(false);
+  }
+  if (this->queue_enable_sw_ != nullptr) {
+    this->queue_enable_sw_->publish_state(false);
+  }
+  this->reset_cycle_states_();  // just in case auto-advance is switched on later
+  this->repeat_count_ = 0;
+  this->fsm_request_(valve_number.value());
 }
 
 void Sprinkler::queue_valve(optional<size_t> valve_number, optional<uint32_t> run_duration) {
@@ -659,17 +790,17 @@ const char *Sprinkler::valve_name(const size_t valve_number) {
   return nullptr;
 }
 
-optional<uint8_t> Sprinkler::active_valve() { return this->active_req_.valve_as_opt(); }
-optional<uint8_t> Sprinkler::paused_valve() { return this->paused_valve_; }
+optional<size_t> Sprinkler::active_valve() { return this->active_req_.valve_as_opt(); }
+optional<size_t> Sprinkler::paused_valve() { return this->paused_valve_; }
 
-optional<uint8_t> Sprinkler::queued_valve() {
+optional<size_t> Sprinkler::queued_valve() {
   if (!this->queued_valves_.empty()) {
     return this->queued_valves_.back().valve_number;
   }
   return nullopt;
 }
 
-optional<uint8_t> Sprinkler::manual_valve() { return this->manual_valve_; }
+optional<size_t> Sprinkler::manual_valve() { return this->manual_valve_; }
 
 size_t Sprinkler::number_of_valves() { return this->valve_.size(); }
 
@@ -677,74 +808,119 @@ bool Sprinkler::is_a_valid_valve(const size_t valve_number) {
   return ((valve_number >= 0) && (valve_number < this->number_of_valves()));
 }
 
-bool Sprinkler::pump_in_use(switch_::Switch *pump_switch) {
-  // first, check each valve operator to see if it is actively using the pump
-  for (auto &vo : this->valve_op_) {
-    if ((vo.state() != IDLE) && vo.pump_switch() == pump_switch) {
-      return true;
-    }
+bool Sprinkler::pump_in_use(SprinklerSwitch *pump_switch) {
+  if (pump_switch == nullptr) {
+    return false;  // we can't do anything if there's nothing to check
   }
-  // also check the (new) active valve in case the pump is to remain on as valves are switched
-  if (this->active_req_.has_request()) {
-    if (this->is_a_valid_valve(this->active_req_.valve())) {
-      return this->valve_pump_switch_(this->active_req_.valve()) == pump_switch;
+  // a pump must be considered "in use" if a (distribution) valve it supplies is active. this means:
+  //  - at least one SprinklerValveOperator:
+  //    - has a valve loaded that depends on this pump
+  //    - is in a state that depends on the pump: (ACTIVE and _possibly_ STARTING/STOPPING)
+  //  - if NO SprinklerValveOperator is active but there is a run request pending (active_req_.has_request()) and the
+  //     controller state is STARTING, valve open delay is configured but NOT pump_switch_off_during_valve_open_delay_
+  for (auto &vo : this->valve_op_) {  // first, check if any SprinklerValveOperator has a valve dependent on this pump
+    if ((vo.state() != BYPASS) && (vo.pump_switch() != nullptr)) {
+      // the SprinklerValveOperator is configured with a pump; now check if it is the pump of interest
+      if ((vo.pump_switch()->off_switch() == pump_switch->off_switch()) &&
+          (vo.pump_switch()->on_switch() == pump_switch->on_switch())) {
+        // now if the SprinklerValveOperator has a pump and it is either ACTIVE, is STARTING with a valve delay or
+        // is
+        //  STOPPING with a valve delay, its pump can be considered "in use", so just return indicating this now
+        if ((vo.state() == ACTIVE) ||
+            ((vo.state() == STARTING) && this->start_delay_ && this->start_delay_is_valve_delay_) ||
+            ((vo.state() == STOPPING) && this->stop_delay_ && this->stop_delay_is_valve_delay_)) {
+          return true;
+        }
+      }
     }
-  }
-  if (this->next_req_.has_request()) {
-    if (this->is_a_valid_valve(this->next_req_.valve())) {
-      return this->valve_pump_switch_(this->next_req_.valve()) == pump_switch;
-    }
+  }  // if we end up here, no SprinklerValveOperator was in a "give-away" state indicating that the pump is in use...
+  if (!this->valve_overlap_ && !this->pump_switch_off_during_valve_open_delay_ && this->switching_delay_.has_value() &&
+      this->active_req_.has_request() && (this->state_ != STOPPING)) {
+    // ...the controller is configured to keep the pump on during a valve open delay, so just return
+    //  whether or not the next valve shares the same pump
+    return (pump_switch->off_switch() == this->valve_pump_switch(this->active_req_.valve())->off_switch()) &&
+           (pump_switch->on_switch() == this->valve_pump_switch(this->active_req_.valve())->on_switch());
   }
   return false;
 }
 
-void Sprinkler::pump_off(switch_::Switch *pump_switch) {
-  if (pump_switch != nullptr) {
-    if (pump_switch->state) {  // confirm pump is on
-      for (auto &vo : this->valve_op_) {
-        if ((vo.state() != IDLE) && vo.pump_switch() == pump_switch) {
-          return;  // don't turn off the pump if it is in use by a still-running valve
-        }
+void Sprinkler::set_pump_state(SprinklerSwitch *pump_switch, bool state) {
+  if (pump_switch == nullptr) {
+    return;  // we can't do anything if there's nothing to check
+  }
+
+  bool hold_pump_on = false;
+
+  for (auto &controller : this->other_controllers_) {  // check if the pump is in use by another controller
+    if (controller != this) {                          // dummy check
+      if (controller->pump_in_use(pump_switch)) {
+        hold_pump_on = true;  // if another controller says it's using this pump, keep it on
+                              // at this point we know if there exists another SprinklerSwitch that is "on" with its
+                              //  off_switch_ and on_switch_ pointers pointing to the same pair of switch objects
       }
-      // also check the (new) active valve in case the pump is to remain on as valves are switched
-      if (!this->valve_overlap_ && !this->pump_switch_off_during_valve_open_delay_ &&
-          this->switching_delay_.has_value() && this->active_req_.has_request()) {
-        if (this->valve_pump_switch_(this->active_req_.valve()) == pump_switch) {
-          return;
-        }
-      }
-      // don't turn off the pump if it is in use by another controller
-      for (auto &controller : this->other_controllers_) {
-        if (controller != this) {  // dummy check
-          if (controller->pump_in_use(pump_switch)) {
-            return;
-          }
-        }
-      }
-      pump_switch->turn_off();
     }
+  }
+  if (hold_pump_on) {
+    // at this point we know if there exists another SprinklerSwitch that is "on" with its
+    //  off_switch_ and on_switch_ pointers pointing to the same pair of switch objects...
+    pump_switch->sync_valve_state(true);  // ...so ensure our state is consistent
+    ESP_LOGD(TAG, "Leaving pump on because another controller instance is using it");
+  }
+
+  if (state) {  // ...and now we can set the new state of the switch
+    pump_switch->turn_on();
+  } else if (!hold_pump_on && !this->pump_in_use(pump_switch)) {
+    pump_switch->turn_off();
+  } else if (hold_pump_on) {               // we must assume the other controller will switch off the pump when done...
+    pump_switch->sync_valve_state(false);  // ...this only impacts latching valves
   }
 }
 
 optional<uint32_t> Sprinkler::time_remaining() {
-  for (auto &vo : this->valve_op_) {
-    if ((vo.state() == STARTING) || (vo.state() == ACTIVE)) {
+  if (this->active_req_.has_request()) {  // first try to return the value based on active_req_...
+    if (this->active_req_.valve_operator() != nullptr) {
+      return this->active_req_.valve_operator()->time_remaining();
+    }
+  }
+  for (auto &vo : this->valve_op_) {  // ...else return the value from the first non-IDLE SprinklerValveOperator
+    if (vo.state() != IDLE) {
       return vo.time_remaining();
     }
   }
   return nullopt;
 }
 
-SprinklerSwitch *Sprinkler::control_switch(size_t valve_number) {
+SprinklerControllerSwitch *Sprinkler::control_switch(size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
     return this->valve_[valve_number].controller_switch;
   }
   return nullptr;
 }
 
-SprinklerSwitch *Sprinkler::enable_switch(size_t valve_number) {
+SprinklerControllerSwitch *Sprinkler::enable_switch(size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
     return this->valve_[valve_number].enable_switch;
+  }
+  return nullptr;
+}
+
+SprinklerSwitch *Sprinkler::valve_switch(const size_t valve_number) {
+  if (this->is_a_valid_valve(valve_number)) {
+    return &this->valve_[valve_number].valve_switch;
+  }
+  return nullptr;
+}
+
+SprinklerSwitch *Sprinkler::valve_pump_switch(const size_t valve_number) {
+  if (this->is_a_valid_valve(valve_number) && this->valve_[valve_number].pump_switch_index.has_value()) {
+    return &this->pump_[this->valve_[valve_number].pump_switch_index.value()];
+  }
+  return nullptr;
+}
+
+SprinklerSwitch *Sprinkler::valve_pump_switch_by_pump_index(size_t pump_index) {
+  if (pump_index < this->pump_.size()) {
+    return &this->pump_[pump_index];
   }
   return nullptr;
 }
@@ -776,35 +952,21 @@ bool Sprinkler::valve_cycle_complete_(const size_t valve_number) {
   return false;
 }
 
-switch_::Switch *Sprinkler::valve_switch_(const size_t valve_number) {
-  if (this->is_a_valid_valve(valve_number)) {
-    return this->valve_[valve_number].valve_switch;
-  }
-  return nullptr;
-}
-
-switch_::Switch *Sprinkler::valve_pump_switch_(const size_t valve_number) {
-  if (this->is_a_valid_valve(valve_number)) {
-    return this->valve_[valve_number].pump_switch;
-  }
-  return nullptr;
-}
-
-uint8_t Sprinkler::next_valve_number_(const uint8_t first_valve) {
+size_t Sprinkler::next_valve_number_(const size_t first_valve) {
   if (this->is_a_valid_valve(first_valve) && (first_valve + 1 < this->number_of_valves()))
     return first_valve + 1;
 
   return 0;
 }
 
-uint8_t Sprinkler::previous_valve_number_(const uint8_t first_valve) {
+size_t Sprinkler::previous_valve_number_(const size_t first_valve) {
   if (this->is_a_valid_valve(first_valve) && (first_valve - 1 >= 0))
     return first_valve - 1;
 
   return this->number_of_valves() - 1;
 }
 
-optional<uint8_t> Sprinkler::next_valve_number_in_cycle_(const optional<uint8_t> first_valve) {
+optional<size_t> Sprinkler::next_valve_number_in_cycle_(const optional<size_t> first_valve) {
   if (this->reverse_sw_ != nullptr) {
     if (this->reverse_sw_->state) {
       return this->previous_enabled_incomplete_valve_number_(first_valve);
@@ -813,19 +975,13 @@ optional<uint8_t> Sprinkler::next_valve_number_in_cycle_(const optional<uint8_t>
   return this->next_enabled_incomplete_valve_number_(first_valve);
 }
 
-void Sprinkler::load_next_valve_run_request_(optional<uint8_t> first_valve) {
-  bool check_queue = !this->queued_valves_.empty();
-
-  if (this->queue_enable_sw_ != nullptr) {
-    check_queue = !this->queued_valves_.empty() && this->queue_enable_sw_->state;
-  }
-
+void Sprinkler::load_next_valve_run_request_(optional<size_t> first_valve) {
   if (this->next_req_.has_request()) {
     if (!this->next_req_.run_duration()) {  // ensure the run duration is set correctly for consumption later on
       this->next_req_.set_run_duration(this->valve_run_duration_adjusted(this->next_req_.valve()));
     }
     return;  // there is already a request pending
-  } else if (check_queue) {
+  } else if (this->queue_enabled() && !this->queued_valves_.empty()) {
     this->next_req_.set_valve(this->queued_valves_.back().valve_number);
     if (this->queued_valves_.back().run_duration) {
       this->next_req_.set_run_duration(this->queued_valves_.back().run_duration);
@@ -853,7 +1009,7 @@ void Sprinkler::load_next_valve_run_request_(optional<uint8_t> first_valve) {
   }
 }
 
-optional<uint8_t> Sprinkler::next_enabled_incomplete_valve_number_(const optional<uint8_t> first_valve) {
+optional<size_t> Sprinkler::next_enabled_incomplete_valve_number_(const optional<size_t> first_valve) {
   auto new_valve_number = this->next_valve_number_(first_valve.value_or(this->number_of_valves() - 1));
 
   while (new_valve_number != first_valve.value_or(this->number_of_valves() - 1)) {
@@ -866,7 +1022,7 @@ optional<uint8_t> Sprinkler::next_enabled_incomplete_valve_number_(const optiona
   return nullopt;
 }
 
-optional<uint8_t> Sprinkler::previous_enabled_incomplete_valve_number_(const optional<uint8_t> first_valve) {
+optional<size_t> Sprinkler::previous_enabled_incomplete_valve_number_(const optional<size_t> first_valve) {
   auto new_valve_number = this->previous_valve_number_(first_valve.value_or(0));
 
   while (new_valve_number != first_valve.value_or(0)) {
@@ -885,34 +1041,6 @@ bool Sprinkler::any_valve_is_enabled_() {
       return true;
   }
   return false;
-}
-
-void Sprinkler::set_pump_state_(const size_t valve_number, const bool pump_state) {
-  if (this->is_a_valid_valve(valve_number) && ((this->valve_[valve_number].pump_switch != nullptr))) {
-    if (pump_state && !this->valve_[valve_number].pump_switch->state) {
-      this->valve_[valve_number].pump_switch->turn_on();
-    } else if (!pump_state && this->valve_[valve_number].pump_switch->state) {
-      // don't turn off the pump if it is in use by another controller
-      for (auto &controller : this->other_controllers_) {
-        if (controller != this) {  // dummy check
-          if (controller->pump_in_use(this->valve_[valve_number].pump_switch)) {
-            return;
-          }
-        }
-      }
-      this->valve_[valve_number].pump_switch->turn_off();
-    }
-  }
-}
-
-void Sprinkler::set_valve_state_(const size_t valve_number, const bool valve_state) {
-  if (this->is_a_valid_valve(valve_number) && ((this->valve_[valve_number].valve_switch != nullptr))) {
-    if (valve_state && !this->valve_[valve_number].valve_switch->state) {
-      this->valve_[valve_number].valve_switch->turn_on();
-    } else if (!valve_state && this->valve_[valve_number].valve_switch->state) {
-      this->valve_[valve_number].valve_switch->turn_off();
-    }
-  }
 }
 
 void Sprinkler::start_valve_(SprinklerValveRunRequest *req) {
@@ -941,11 +1069,11 @@ void Sprinkler::start_valve_(SprinklerValveRunRequest *req) {
 
 void Sprinkler::all_valves_off_(const bool include_pump) {
   for (size_t valve_index = 0; valve_index < this->number_of_valves(); valve_index++) {
-    if (this->valve_[valve_index].valve_switch->state) {
-      this->valve_[valve_index].valve_switch->turn_off();
+    if (this->valve_[valve_index].valve_switch.state()) {
+      this->valve_[valve_index].valve_switch.turn_off();
     }
     if (include_pump) {
-      this->set_pump_state_(valve_index, false);
+      this->set_pump_state(this->valve_pump_switch(valve_index), false);
     }
   }
   ESP_LOGD(TAG, "All valves stopped%s", include_pump ? ", including pumps" : "");
@@ -1070,7 +1198,7 @@ void Sprinkler::fsm_transition_from_valve_run_() {
 
   if (this->next_req_.has_request()) {  // there is another valve to run...
     bool same_pump =
-        this->valve_pump_switch_(this->active_req_.valve()) == this->valve_pump_switch_(this->next_req_.valve());
+        this->valve_pump_switch(this->active_req_.valve()) == this->valve_pump_switch(this->next_req_.valve());
 
     this->active_req_.set_valve(this->next_req_.valve());
     this->active_req_.set_run_duration(this->next_req_.run_duration());
@@ -1115,6 +1243,9 @@ std::string Sprinkler::state_as_str_(SprinklerState state) {
 
     case STOPPING:
       return "STOPPING";
+
+    case BYPASS:
+      return "BYPASS";
 
     default:
       return "UNKNOWN";
@@ -1199,6 +1330,16 @@ void Sprinkler::dump_config() {
     ESP_LOGCONFIG(TAG, "  Valve %u:", valve_number);
     ESP_LOGCONFIG(TAG, "    Name: %s", this->valve_name(valve_number));
     ESP_LOGCONFIG(TAG, "    Run Duration: %u seconds", this->valve_[valve_number].run_duration);
+    if (this->valve_[valve_number].valve_switch.pulse_duration()) {
+      ESP_LOGCONFIG(TAG, "    Pulse Duration: %u milliseconds",
+                    this->valve_[valve_number].valve_switch.pulse_duration());
+    }
+  }
+  if (!this->pump_.empty()) {
+    ESP_LOGCONFIG(TAG, "  Total number of pumps: %u", this->pump_.size());
+  }
+  if (!this->valve_.empty()) {
+    ESP_LOGCONFIG(TAG, "  Total number of valves: %u", this->valve_.size());
   }
 }
 

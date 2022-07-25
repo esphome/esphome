@@ -18,25 +18,33 @@ CONF_ENABLE_SWITCH = "enable_switch"
 CONF_MAIN_SWITCH = "main_switch"
 CONF_MANUAL_SELECTION_DELAY = "manual_selection_delay"
 CONF_MULTIPLIER = "multiplier"
+CONF_PUMP_OFF_SWITCH_ID = "pump_off_switch_id"
+CONF_PUMP_ON_SWITCH_ID = "pump_on_switch_id"
+CONF_PUMP_PULSE_DURATION = "pump_pulse_duration"
 CONF_PUMP_START_PUMP_DELAY = "pump_start_pump_delay"
+CONF_PUMP_START_VALVE_DELAY = "pump_start_valve_delay"
 CONF_PUMP_STOP_PUMP_DELAY = "pump_stop_pump_delay"
+CONF_PUMP_STOP_VALVE_DELAY = "pump_stop_valve_delay"
 CONF_PUMP_SWITCH = "pump_switch"
 CONF_PUMP_SWITCH_ID = "pump_switch_id"
 CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY = "pump_switch_off_during_valve_open_delay"
 CONF_QUEUE_ENABLE_SWITCH = "queue_enable_switch"
 CONF_REVERSE_SWITCH = "reverse_switch"
+CONF_VALVE_NUMBER = "valve_number"
 CONF_VALVE_OPEN_DELAY = "valve_open_delay"
 CONF_VALVE_OVERLAP = "valve_overlap"
-CONF_VALVE_NUMBER = "valve_number"
-CONF_PUMP_START_VALVE_DELAY = "pump_start_valve_delay"
-CONF_PUMP_STOP_VALVE_DELAY = "pump_stop_valve_delay"
+CONF_VALVE_PULSE_DURATION = "valve_pulse_duration"
+CONF_VALVE_OFF_SWITCH_ID = "valve_off_switch_id"
+CONF_VALVE_ON_SWITCH_ID = "valve_on_switch_id"
 CONF_VALVE_SWITCH = "valve_switch"
 CONF_VALVE_SWITCH_ID = "valve_switch_id"
 CONF_VALVES = "valves"
 
 sprinkler_ns = cg.esphome_ns.namespace("sprinkler")
 Sprinkler = sprinkler_ns.class_("Sprinkler", cg.Component)
-SprinklerSwitch = sprinkler_ns.class_("SprinklerSwitch", switch.Switch, cg.Component)
+SprinklerControllerSwitch = sprinkler_ns.class_(
+    "SprinklerControllerSwitch", switch.Switch, cg.Component
+)
 
 SetMultiplierAction = sprinkler_ns.class_("SetMultiplierAction", automation.Action)
 QueueValveAction = sprinkler_ns.class_("QueueValveAction", automation.Action)
@@ -97,18 +105,69 @@ def validate_sprinkler(config):
 
         for valve in sprinkler_controller[CONF_VALVES]:
             if (
-                CONF_VALVE_OVERLAP in config
-                and valve[CONF_RUN_DURATION] <= config[CONF_VALVE_OVERLAP]
+                CONF_VALVE_OVERLAP in sprinkler_controller
+                and valve[CONF_RUN_DURATION] <= sprinkler_controller[CONF_VALVE_OVERLAP]
             ):
                 raise cv.Invalid(
                     f"{CONF_RUN_DURATION} must be greater than {CONF_VALVE_OVERLAP}"
                 )
             if (
-                CONF_VALVE_OPEN_DELAY in config
-                and valve[CONF_RUN_DURATION] <= config[CONF_VALVE_OPEN_DELAY]
+                CONF_VALVE_OPEN_DELAY in sprinkler_controller
+                and valve[CONF_RUN_DURATION]
+                <= sprinkler_controller[CONF_VALVE_OPEN_DELAY]
             ):
                 raise cv.Invalid(
                     f"{CONF_RUN_DURATION} must be greater than {CONF_VALVE_OPEN_DELAY}"
+                )
+            if (
+                CONF_PUMP_OFF_SWITCH_ID in valve and CONF_PUMP_ON_SWITCH_ID not in valve
+            ) or (
+                CONF_PUMP_ON_SWITCH_ID in valve and CONF_PUMP_OFF_SWITCH_ID not in valve
+            ):
+                raise cv.Invalid(
+                    f"Both {CONF_PUMP_OFF_SWITCH_ID} and {CONF_PUMP_ON_SWITCH_ID} must be specified for latching pump configuration"
+                )
+            if CONF_PUMP_SWITCH_ID in valve and (
+                CONF_PUMP_OFF_SWITCH_ID in valve or CONF_PUMP_ON_SWITCH_ID in valve
+            ):
+                raise cv.Invalid(
+                    f"Do not specify {CONF_PUMP_OFF_SWITCH_ID} or {CONF_PUMP_ON_SWITCH_ID} when using {CONF_PUMP_SWITCH_ID}"
+                )
+            if CONF_PUMP_PULSE_DURATION not in sprinkler_controller and (
+                CONF_PUMP_OFF_SWITCH_ID in valve or CONF_PUMP_ON_SWITCH_ID in valve
+            ):
+                raise cv.Invalid(
+                    f"{CONF_PUMP_PULSE_DURATION} must be specified when using {CONF_PUMP_OFF_SWITCH_ID} and {CONF_PUMP_ON_SWITCH_ID}"
+                )
+            if (
+                CONF_VALVE_OFF_SWITCH_ID in valve
+                and CONF_VALVE_ON_SWITCH_ID not in valve
+            ) or (
+                CONF_VALVE_ON_SWITCH_ID in valve
+                and CONF_VALVE_OFF_SWITCH_ID not in valve
+            ):
+                raise cv.Invalid(
+                    f"Both {CONF_VALVE_OFF_SWITCH_ID} and {CONF_VALVE_ON_SWITCH_ID} must be specified for latching valve configuration"
+                )
+            if CONF_VALVE_SWITCH_ID in valve and (
+                CONF_VALVE_OFF_SWITCH_ID in valve or CONF_VALVE_ON_SWITCH_ID in valve
+            ):
+                raise cv.Invalid(
+                    f"Do not specify {CONF_VALVE_OFF_SWITCH_ID} or {CONF_VALVE_ON_SWITCH_ID} when using {CONF_VALVE_SWITCH_ID}"
+                )
+            if CONF_VALVE_PULSE_DURATION not in sprinkler_controller and (
+                CONF_VALVE_OFF_SWITCH_ID in valve or CONF_VALVE_ON_SWITCH_ID in valve
+            ):
+                raise cv.Invalid(
+                    f"{CONF_VALVE_PULSE_DURATION} must be specified when using {CONF_VALVE_OFF_SWITCH_ID} and {CONF_VALVE_ON_SWITCH_ID}"
+                )
+            if (
+                CONF_VALVE_SWITCH_ID not in valve
+                and CONF_VALVE_OFF_SWITCH_ID not in valve
+                and CONF_VALVE_ON_SWITCH_ID not in valve
+            ):
+                raise cv.Invalid(
+                    f"Either {CONF_VALVE_SWITCH_ID} or {CONF_VALVE_OFF_SWITCH_ID} and {CONF_VALVE_ON_SWITCH_ID} must be specified in valve configuration"
                 )
     return config
 
@@ -167,25 +226,29 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
             switch.SWITCH_SCHEMA.extend(
                 cv.Schema(
                     {
-                        cv.GenerateID(): cv.declare_id(SprinklerSwitch),
+                        cv.GenerateID(): cv.declare_id(SprinklerControllerSwitch),
                     }
                 )
             ),
             key=CONF_NAME,
         ),
+        cv.Optional(CONF_PUMP_OFF_SWITCH_ID): cv.use_id(switch.Switch),
+        cv.Optional(CONF_PUMP_ON_SWITCH_ID): cv.use_id(switch.Switch),
         cv.Optional(CONF_PUMP_SWITCH_ID): cv.use_id(switch.Switch),
         cv.Required(CONF_RUN_DURATION): cv.positive_time_period_seconds,
         cv.Required(CONF_VALVE_SWITCH): cv.maybe_simple_value(
             switch.SWITCH_SCHEMA.extend(
                 cv.Schema(
                     {
-                        cv.GenerateID(): cv.declare_id(SprinklerSwitch),
+                        cv.GenerateID(): cv.declare_id(SprinklerControllerSwitch),
                     }
                 )
             ),
             key=CONF_NAME,
         ),
-        cv.Required(CONF_VALVE_SWITCH_ID): cv.use_id(switch.Switch),
+        cv.Optional(CONF_VALVE_OFF_SWITCH_ID): cv.use_id(switch.Switch),
+        cv.Optional(CONF_VALVE_ON_SWITCH_ID): cv.use_id(switch.Switch),
+        cv.Optional(CONF_VALVE_SWITCH_ID): cv.use_id(switch.Switch),
     }
 )
 
@@ -196,7 +259,7 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
             switch.SWITCH_SCHEMA.extend(
                 cv.Schema(
                     {
-                        cv.GenerateID(): cv.declare_id(SprinklerSwitch),
+                        cv.GenerateID(): cv.declare_id(SprinklerControllerSwitch),
                     }
                 )
             ),
@@ -206,7 +269,7 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
             switch.SWITCH_SCHEMA.extend(
                 cv.Schema(
                     {
-                        cv.GenerateID(): cv.declare_id(SprinklerSwitch),
+                        cv.GenerateID(): cv.declare_id(SprinklerControllerSwitch),
                     }
                 )
             ),
@@ -216,7 +279,7 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
             switch.SWITCH_SCHEMA.extend(
                 cv.Schema(
                     {
-                        cv.GenerateID(): cv.declare_id(SprinklerSwitch),
+                        cv.GenerateID(): cv.declare_id(SprinklerControllerSwitch),
                     }
                 )
             ),
@@ -226,7 +289,7 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
             switch.SWITCH_SCHEMA.extend(
                 cv.Schema(
                     {
-                        cv.GenerateID(): cv.declare_id(SprinklerSwitch),
+                        cv.GenerateID(): cv.declare_id(SprinklerControllerSwitch),
                     }
                 )
             ),
@@ -234,6 +297,8 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_MANUAL_SELECTION_DELAY): cv.positive_time_period_seconds,
         cv.Optional(CONF_REPEAT): cv.positive_int,
+        cv.Optional(CONF_PUMP_PULSE_DURATION): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_VALVE_PULSE_DURATION): cv.positive_time_period_milliseconds,
         cv.Exclusive(
             CONF_PUMP_START_PUMP_DELAY, "pump_start_xxxx_delay"
         ): cv.positive_time_period_seconds,
@@ -511,18 +576,40 @@ async def to_code(config):
     for sprinkler_controller in config:
         var = await cg.get_variable(sprinkler_controller[CONF_ID])
         for valve_index, valve in enumerate(sprinkler_controller[CONF_VALVES]):
-            valve_switch = await cg.get_variable(valve[CONF_VALVE_SWITCH_ID])
-            if CONF_PUMP_SWITCH_ID in valve:
-                pump = await cg.get_variable(valve[CONF_PUMP_SWITCH_ID])
-                cg.add(
-                    var.configure_valve_switch(
-                        valve_index, valve_switch, valve[CONF_RUN_DURATION], pump
-                    )
-                )
-            else:
+            if CONF_VALVE_SWITCH_ID in valve:
+                valve_switch = await cg.get_variable(valve[CONF_VALVE_SWITCH_ID])
                 cg.add(
                     var.configure_valve_switch(
                         valve_index, valve_switch, valve[CONF_RUN_DURATION]
+                    )
+                )
+            elif CONF_VALVE_OFF_SWITCH_ID in valve and CONF_VALVE_ON_SWITCH_ID in valve:
+                valve_switch_off = await cg.get_variable(
+                    valve[CONF_VALVE_OFF_SWITCH_ID]
+                )
+                valve_switch_on = await cg.get_variable(valve[CONF_VALVE_ON_SWITCH_ID])
+                cg.add(
+                    var.configure_valve_switch_pulsed(
+                        valve_index,
+                        valve_switch_off,
+                        valve_switch_on,
+                        sprinkler_controller[CONF_VALVE_PULSE_DURATION],
+                        valve[CONF_RUN_DURATION],
+                    )
+                )
+
+            if CONF_PUMP_SWITCH_ID in valve:
+                pump = await cg.get_variable(valve[CONF_PUMP_SWITCH_ID])
+                cg.add(var.configure_valve_pump_switch(valve_index, pump))
+            elif CONF_PUMP_OFF_SWITCH_ID in valve and CONF_PUMP_ON_SWITCH_ID in valve:
+                pump_off = await cg.get_variable(valve[CONF_PUMP_OFF_SWITCH_ID])
+                pump_on = await cg.get_variable(valve[CONF_PUMP_ON_SWITCH_ID])
+                cg.add(
+                    var.configure_valve_pump_switch_pulsed(
+                        valve_index,
+                        pump_off,
+                        pump_on,
+                        sprinkler_controller[CONF_PUMP_PULSE_DURATION],
                     )
                 )
 
