@@ -126,9 +126,7 @@ void ST7789V::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  if (this->backlight_pin_ != nullptr) {
-    LOG_PIN("  B/L Pin: ", this->backlight_pin_);
-  }
+  LOG_PIN("  B/L Pin: ", this->backlight_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
 
