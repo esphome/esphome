@@ -23,6 +23,7 @@ CONF_PUMP_STOP_PUMP_DELAY = "pump_stop_pump_delay"
 CONF_PUMP_SWITCH = "pump_switch"
 CONF_PUMP_SWITCH_ID = "pump_switch_id"
 CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY = "pump_switch_off_during_valve_open_delay"
+CONF_QUEUE_ENABLE_SWITCH = "queue_enable_switch"
 CONF_REVERSE_SWITCH = "reverse_switch"
 CONF_VALVE_OPEN_DELAY = "valve_open_delay"
 CONF_VALVE_OVERLAP = "valve_overlap"
@@ -202,6 +203,16 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
             key=CONF_NAME,
         ),
         cv.Optional(CONF_MAIN_SWITCH): cv.maybe_simple_value(
+            switch.SWITCH_SCHEMA.extend(
+                cv.Schema(
+                    {
+                        cv.GenerateID(): cv.declare_id(SprinklerSwitch),
+                    }
+                )
+            ),
+            key=CONF_NAME,
+        ),
+        cv.Optional(CONF_QUEUE_ENABLE_SWITCH): cv.maybe_simple_value(
             switch.SWITCH_SCHEMA.extend(
                 cv.Schema(
                     {
@@ -397,6 +408,21 @@ async def to_code(config):
                 sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH][CONF_ID]
             )
             cg.add(var.set_controller_auto_adv_switch(sw_aa_var))
+
+            if CONF_QUEUE_ENABLE_SWITCH in sprinkler_controller:
+                sw_qen_var = cg.new_Pvariable(
+                    sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH][CONF_ID]
+                )
+                await cg.register_component(
+                    sw_qen_var, sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH]
+                )
+                await switch.register_switch(
+                    sw_qen_var, sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH]
+                )
+                sw_qen_var = await cg.get_variable(
+                    sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH][CONF_ID]
+                )
+                cg.add(var.set_controller_queue_enable_switch(sw_qen_var))
 
             if CONF_REVERSE_SWITCH in sprinkler_controller:
                 sw_rev_var = cg.new_Pvariable(

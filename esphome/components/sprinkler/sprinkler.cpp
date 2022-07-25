@@ -358,6 +358,12 @@ void Sprinkler::set_controller_auto_adv_switch(SprinklerSwitch *auto_adv_switch)
   auto_adv_switch->set_restore_state(true);
 }
 
+void Sprinkler::set_controller_queue_enable_switch(SprinklerSwitch *queue_enable_switch) {
+  this->queue_enable_sw_ = queue_enable_switch;
+  queue_enable_switch->set_optimistic(true);
+  queue_enable_switch->set_restore_state(true);
+}
+
 void Sprinkler::set_controller_reverse_switch(SprinklerSwitch *reverse_switch) {
   this->reverse_sw_ = reverse_switch;
   reverse_switch->set_optimistic(true);
@@ -448,6 +454,12 @@ void Sprinkler::set_auto_advance(const bool auto_advance) {
 
 void Sprinkler::set_repeat(optional<uint32_t> repeat) { this->target_repeats_ = repeat; }
 
+void Sprinkler::set_queue_enable(bool queue_enable) {
+  if (this->queue_enable_sw_ != nullptr) {
+    this->queue_enable_sw_->publish_state(queue_enable);
+  }
+}
+
 void Sprinkler::set_reverse(const bool reverse) {
   if (this->reverse_sw_ != nullptr) {
     this->reverse_sw_->publish_state(reverse);
@@ -497,6 +509,13 @@ optional<uint32_t> Sprinkler::repeat_count() {
   return nullopt;
 }
 
+bool Sprinkler::queue_enabled() {
+  if (this->queue_enable_sw_ != nullptr) {
+    return this->queue_enable_sw_->state;
+  }
+  return false;
+}
+
 bool Sprinkler::reverse() {
   if (this->reverse_sw_ != nullptr) {
     return this->reverse_sw_->state;
@@ -509,6 +528,9 @@ void Sprinkler::start_from_queue() {
     if (this->auto_adv_sw_ != nullptr) {
       this->auto_adv_sw_->publish_state(false);
     }
+    if (this->queue_enable_sw_ != nullptr) {
+      this->queue_enable_sw_->publish_state(true);
+    }
     this->reset_cycle_states_();  // just in case auto-advance is switched on later
     this->repeat_count_ = 0;
     this->fsm_kick_();  // will automagically pick up from the queue (it has priority)
@@ -516,6 +538,9 @@ void Sprinkler::start_from_queue() {
 }
 
 void Sprinkler::start_full_cycle() {
+  if (this->queue_enable_sw_ != nullptr) {
+    this->queue_enable_sw_->publish_state(false);
+  }
   this->prep_full_cycle_();
   this->repeat_count_ = 0;
   // if there is no active valve already, start the first valve in the cycle
@@ -528,6 +553,9 @@ void Sprinkler::start_single_valve(const optional<size_t> valve_number) {
   if (valve_number.has_value()) {
     if (this->auto_adv_sw_ != nullptr) {
       this->auto_adv_sw_->publish_state(false);
+    }
+    if (this->queue_enable_sw_ != nullptr) {
+      this->queue_enable_sw_->publish_state(false);
     }
     this->reset_cycle_states_();  // just in case auto-advance is switched on later
     this->repeat_count_ = 0;
@@ -786,12 +814,18 @@ optional<uint8_t> Sprinkler::next_valve_number_in_cycle_(const optional<uint8_t>
 }
 
 void Sprinkler::load_next_valve_run_request_(optional<uint8_t> first_valve) {
+  bool check_queue = !this->queued_valves_.empty();
+
+  if (this->queue_enable_sw_ != nullptr) {
+    check_queue = !this->queued_valves_.empty() && this->queue_enable_sw_->state;
+  }
+
   if (this->next_req_.has_request()) {
     if (!this->next_req_.run_duration()) {  // ensure the run duration is set correctly for consumption later on
       this->next_req_.set_run_duration(this->valve_run_duration_adjusted(this->next_req_.valve()));
     }
     return;  // there is already a request pending
-  } else if (!this->queued_valves_.empty()) {
+  } else if (check_queue) {
     this->next_req_.set_valve(this->queued_valves_.back().valve_number);
     if (this->queued_valves_.back().run_duration) {
       this->next_req_.set_run_duration(this->queued_valves_.back().run_duration);

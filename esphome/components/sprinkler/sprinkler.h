@@ -161,6 +161,7 @@ class Sprinkler : public Component, public EntityBase {
   /// configure important controller switches
   void set_controller_main_switch(SprinklerSwitch *controller_switch);
   void set_controller_auto_adv_switch(SprinklerSwitch *auto_adv_switch);
+  void set_controller_queue_enable_switch(SprinklerSwitch *queue_enable_switch);
   void set_controller_reverse_switch(SprinklerSwitch *reverse_switch);
 
   /// configure a valve's switch object, run duration and pump switch (if provided).
@@ -205,6 +206,9 @@ class Sprinkler : public Component, public EntityBase {
   /// set the number of times to repeat a full cycle
   void set_repeat(optional<uint32_t> repeat);
 
+  /// if queue_enable is true, controller will iterate through valves in the queue
+  void set_queue_enable(bool queue_enable);
+
   /// if reverse is true, controller will iterate through all enabled valves in reverse (descending) order
   void set_reverse(bool reverse);
 
@@ -225,6 +229,9 @@ class Sprinkler : public Component, public EntityBase {
 
   /// if a cycle is active, returns the number of times the controller has repeated the cycle. check with 'has_value()'
   optional<uint32_t> repeat_count();
+
+  /// returns true if the queue is enabled to run
+  bool queue_enabled();
 
   /// returns true if reverse is enabled
   bool reverse();
@@ -471,6 +478,7 @@ class Sprinkler : public Component, public EntityBase {
   /// Switches we'll present to the front end
   SprinklerSwitch *auto_adv_sw_{nullptr};
   SprinklerSwitch *controller_sw_{nullptr};
+  SprinklerSwitch *queue_enable_sw_{nullptr};
   SprinklerSwitch *reverse_sw_{nullptr};
 
   std::unique_ptr<ShutdownAction<>> sprinkler_shutdown_action_;
