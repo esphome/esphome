@@ -35,6 +35,7 @@ bool Nextion::send_command_(const std::string &command) {
   this->write_str(command.c_str());
   const uint8_t to_send[3] = {0xFF, 0xFF, 0xFF};
   this->write_array(to_send, sizeof(to_send));
+  delay(3);
   return true;
 }
 
