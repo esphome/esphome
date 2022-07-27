@@ -849,7 +849,6 @@ async def to_code(config):
         )
 
     if CONF_PRESET in config:
-        presetcount = 0
         for preset_config in config[CONF_PRESET]:
             name = preset_config[CONF_NAME]
             standard_preset = None
