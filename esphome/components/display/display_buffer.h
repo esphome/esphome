@@ -21,7 +21,7 @@
 #endif
 
 #define USE_EXTENDEDDRAW
-#define POLAR_2PI  6.28318530718F
+#define POLAR_2PI 6.28318530718F
 
 namespace esphome {
 namespace display {
@@ -113,10 +113,10 @@ struct Point {
 };
 
 struct Rect {
-  int16_t x;  ///< X coordinate of corner
-  int16_t y;  ///< Y coordinate of corner
-  uint16_t w; ///< Width of region
-  uint16_t h; ///< Height of region
+  int16_t x;   ///< X coordinate of corner
+  int16_t y;   ///< Y coordinate of corner
+  uint16_t w;  ///< Width of region
+  uint16_t h;  ///< Height of region
 
   inline Rect() ALWAYS_INLINE : x(1), y(1), w(0), h(0) {}  // NOLINT
   inline Rect(int16_t xx, int16_t yy, uint16_t ww, uint16_t hh) ALWAYS_INLINE : x(xx), y(yy), w(ww), h(hh) {}
@@ -262,7 +262,7 @@ class DisplayBuffer {
   ///
   /// \return true if inside region, false otherwise
   ///
-  bool in_rect(int16_t x, int16_t y, Rect rect); //*//
+  bool in_rect(int16_t x, int16_t y, Rect rect);  //*//
 
   ///
   /// Determine if a coordinate is inside of a width x height region.
@@ -277,7 +277,6 @@ class DisplayBuffer {
   /// \return true if inside region, false otherwise
   ///
   bool is_inside(int16_t x, int16_t y, uint16_t width, uint16_t height);
-
 
   ///
   /// Reset the invalidation region
@@ -295,9 +294,7 @@ class DisplayBuffer {
   /// \return none
   ///
   void add_clipping(Rect rect);
-  void add_clipping(int16_t x, int16_t y, uint16_t width, uint16_t height) {
-    add_clipping(Rect(x, y, width, height));
-  };
+  void add_clipping(int16_t x, int16_t y, uint16_t width, uint16_t height) { add_clipping(Rect(x, y, width, height)); };
 
   ///
   /// Set the clipping rectangle for further drawing
@@ -307,9 +304,7 @@ class DisplayBuffer {
   /// \return true if success, false if error
   ///
   void set_clipping(Rect rect);
-  void set_clipping(int16_t x, int16_t y, uint16_t width, uint16_t height) {
-    set_clipping(Rect(x, y, width, height));
-  };
+  void set_clipping(int16_t x, int16_t y, uint16_t width, uint16_t height) { set_clipping(Rect(x, y, width, height));};
 
   ///
   /// Get the current the clipping rectangle
@@ -338,10 +333,10 @@ class DisplayBuffer {
   void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color = COLOR_ON);
 
 
-  void triangle(int16_t x0, int16_t y0, int16_t x1, int16_t nY1,int16_t x2, int16_t y2, Color nCol = COLOR_ON);
+  void triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color = COLOR_ON);
 
   // Draw a filled triangle
-  void filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2,int16_t y2, Color nCol = COLOR_ON);
+  void filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color = COLOR_ON);
 
 
   ///
@@ -392,7 +387,7 @@ class DisplayBuffer {
   /// \param[in]  nRadEnd:     Ending radius of line
   /// \param[in]  n64Ang:      Angle of ray (degrees * 64). 0 is up, +90*64 is to right
   ///                          From -180*64 to +180*64
-  /// \param[in]  nCol:        Color RGB value for the line
+  /// \param[in]  color:        Color RGB value for the line
   ///
   /// \return none
   ///
@@ -403,7 +398,7 @@ class DisplayBuffer {
   /// Draw a framed quadrilateral
   ///
   /// \param[in]  points:        Pointer to array of 4 points
-  /// \param[in]  nCol:        Color RGB value for the frame
+  /// \param[in]  color:        Color RGB value for the frame
   ///
   /// \return true if success, false if error
   ///
@@ -413,7 +408,7 @@ class DisplayBuffer {
   /// Draw a filled quadrilateral
   ///
   /// \param[in]  points:        Pointer to array of 4 points
-  /// \param[in]  nCol:        Color RGB value for the frame
+  /// \param[in]  color:        Color RGB value for the frame
   ///
   /// \return true if success, false if error
   ///
@@ -662,9 +657,9 @@ class DisplayBuffer {
 #ifdef USE_EXTENDEDDRAW
   void swap_coords_(int16_t *x0, int16_t *y0, int16_t *x1, int16_t *y1);
 
-  void filled_Sector_(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2,
-                      Color color_start, Color color_end, int16_t angle_start, int16_t angle_end,
-                      bool gradient = false, int16_t gradient_angle_start = 0, int16_t gradient_angle_range = 0);
+  void filled_Sector_(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2, Color color_start,
+                      Color color_end, int16_t angle_start, int16_t angle_end, bool gradient = false,
+                      int16_t gradient_angle_start = 0, int16_t gradient_angle_range = 0);
 
   Rect clipping_rectangle_{1, 1, 0, 0};
   Color transparant_color_{COLOR_OFF};

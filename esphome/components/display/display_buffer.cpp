@@ -416,7 +416,7 @@ Color DisplayBuffer::blend_color(Color color_start, Color color_end, uint16_t mi
 }
 
 Color DisplayBuffer::blend_color(Color color_start, Color color_mid, Color color_end, uint16_t mid_amt,
-                                 uint16_t blend_amt){
+                                 uint16_t blend_amt) {
   Color color_new;
   mid_amt = (mid_amt > 1000) ? 1000 : mid_amt;
   blend_amt = (blend_amt > 1000) ? 1000 : blend_amt;
@@ -439,9 +439,6 @@ Color DisplayBuffer::blend_color(Color color_start, Color color_mid, Color color
 }
 
 bool DisplayBuffer::is_color_equal(Color a, Color b) { return a.r == b.r && a.g == b.g && a.b == b.b; }
-
-// -----
-
 
 // Expand or contract a rectangle in width and/or height (equal
 // amounts on both side), based on the centerpoint of the rectangle.
@@ -503,9 +500,9 @@ Rect DisplayBuffer::union_rect(Rect rect, Rect add_rect) {
   return Rect(source_x0, source_y0, (uint16_t)(source_x1 - source_x0 + 1), (uint16_t)(source_y1 - source_y0 + 1));
 }
 
-bool DisplayBuffer::in_rect(int16_t nSelX, int16_t nSelY, Rect rect) {
-  return ((nSelX >= rect.x) && (nSelX <= rect.x + (int16_t) rect.w) && (nSelY >= rect.y) &&
-          (nSelY <= rect.y + (int16_t) rect.h));
+bool DisplayBuffer::in_rect(int16_t x, int16_t y, Rect rect) {
+  return ((x >= rect.x) && (x <= rect.x + (int16_t) rect.w) && (y >= rect.y) &&
+          (y <= rect.y + (int16_t) rect.h));
 }
 
 bool DisplayBuffer::is_inside(int16_t x, int16_t y, uint16_t width, uint16_t height) {
@@ -571,8 +568,7 @@ int16_t DisplayBuffer::get_cos(int16_t angle) {
 }
 
 // Convert from polar to cartesian
-void DisplayBuffer::polar_to_point(uint16_t radius, int16_t angle, int16_t *x, int16_t *y)
-{
+void DisplayBuffer::polar_to_point(uint16_t radius, int16_t angle, int16_t *x, int16_t *y) {
   int32_t temp;
   // TODO: Clean up excess integer typecasting
   temp = (int32_t) radius * this->get_sin(angle);
@@ -581,9 +577,9 @@ void DisplayBuffer::polar_to_point(uint16_t radius, int16_t angle, int16_t *x, i
   *y = temp / 32767;
 }
 
-
 // Note that angle is in degrees * 64
-void DisplayBuffer::polar_line(int16_t x, int16_t y, uint16_t radius_start, uint16_t radius_end, int16_t angle, Color color) {
+void DisplayBuffer::polar_line(int16_t x, int16_t y, uint16_t radius_start, uint16_t radius_end, int16_t angle,
+                               Color color) {
   // Draw the ray representing the current value
   int16_t delta_x_start = (int32_t) radius_start * get_sin(angle) / 32768;
   int16_t delta_y_start = (int32_t) radius_start * get_cos(angle) / 32768;
@@ -592,8 +588,7 @@ void DisplayBuffer::polar_line(int16_t x, int16_t y, uint16_t radius_start, uint
   this->line(x + delta_x_start, y - delta_y_start, x + delta_x_end, y - delta_y_end, color);
 }
 
-
-void HOT DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t radius, Color color ) {
+void HOT DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t radius, Color color) {
   int delta_x = -radius;
   int delta_y = 0;
   int err = 2 - 2 * radius;
@@ -603,11 +598,6 @@ void HOT DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t r
   y = y + radius;
   height = height - ( radius * 2);
   width = width - ( radius * 2);
-
-//  ESP_LOGW(TAG, "Rounded rect: : '%d, %d, %d, %d'", x,y,width,height);
-
-  //this->rectangle(x, y, width, height, COLOR_ON);
-
 
   this->horizontal_line(x, y - radius, width, color);
   this->horizontal_line(x, y + radius + height - 1, width, color);
@@ -645,7 +635,7 @@ void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_
 
   this->filled_rectangle(x - radius, y, width + (radius * 2), height, color);
   do {
-    int hline_width = width + (2 * (-delta_x) + 1)-1;
+    int hline_width = width + (2 * (-delta_x) + 1) - 1;
     this->horizontal_line(x + delta_x, y + height + delta_y, hline_width, color);
     this->horizontal_line(x + delta_x, y - delta_y, hline_width, color);
     e2 = err;
@@ -714,11 +704,11 @@ void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t 
 
   int16_t xa, xb, xc, yos;
   int16_t x01, x20, y01, y20, x21, y21;
-  x01 = x0 - x1; 
+  x01 = x0 - x1;
   y01 = y0 - y1;
-  x20 = x2 - x0; 
+  x20 = x2 - x0;
   y20 = y2 - y0;
-  x21 = x2 - x1; 
+  x21 = x2 - x1;
   y21 = y2 - y1;
 
   // Flat bottom scenario
@@ -748,15 +738,15 @@ void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t 
   for (yos = y21; yos < 0; yos++) {
 
     // Determine row endpoints (no rounding)
-    //xc = (yos          )*(x2-x1)/(y2-y1);
-    //xb = (yos-(y0-y1))*(x2-x0)/(y2-y0);
+    // xc = (yos          )*(x2-x1)/(y2-y1);
+    // xb = (yos-(y0-y1))*(x2-x0)/(y2-y0);
 
     // Determine row endpoints (using rounding)
     xc = 2 * yos * x21;
     xc += (xc >= 0) ? abs(y21) : -abs(y21);
     xc /= 2 * y21;
 
-    xb = 2 * (yos-y01) * x20;
+    xb = 2 * (yos - y01) * x20;
     xb += (xb >= 0) ? abs(y20) : -abs(y20);
     xb /= 2 * y20;
 
@@ -765,7 +755,7 @@ void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t 
   }
 }
 
-void DisplayBuffer::quad(Point * points, Color color) {
+void DisplayBuffer::quad(Point *points, Color color) {
   int16_t x0, y0, x1, y1;
 
   x0 = points[0].x;
@@ -797,7 +787,7 @@ void DisplayBuffer::quad(Point * points, Color color) {
 // two filled triangles sharing one side. We have to be careful
 // about the triangle fill routine (ie. using rounding) so that
 // we can avoid leaving a thin seam between the two triangles.
-void DisplayBuffer::filled_quad(Point * points, Color color) {
+void DisplayBuffer::filled_quad(Point *points, Color color) {
   int16_t x0, y0, x1, y1, x2, y2;
 
   // Break down quadrilateral into two triangles
@@ -874,17 +864,19 @@ void DisplayBuffer::filled_Sector_(int16_t quality, int16_t x, int16_t y, int16_
       // Flat coloring
       color_segment = color_start;
     }
-    this->filled_quad( points, color_segment);
+    this->filled_quad(points, color_segment);
   }
 }
 
-void DisplayBuffer::gradient_sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2, Color color_start,
-                                    Color color_end, int16_t angle_start, int16_t angle_end, int16_t gradient_angle_start, int16_t gradient_angle_range) {
-  this->filled_Sector_(quality, x, y, radius1, radius2, color_start, color_end, angle_start, angle_end, true, gradient_angle_start, gradient_angle_range);
+void DisplayBuffer::gradient_sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2,
+                                    Color color_start, Color color_end, int16_t angle_start, int16_t angle_end,
+                                    int16_t gradient_angle_start, int16_t gradient_angle_range) {
+  this->filled_Sector_(quality, x, y, radius1, radius2, color_start, color_end, angle_start, angle_end, true,
+                       gradient_angle_start, gradient_angle_range);
 }
 
-void DisplayBuffer::filled_Sector( int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2, Color arc_color,
-                                   int16_t angle_start, int16_t angle_end) {
+void DisplayBuffer::filled_Sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2,
+                                  Color arc_color, int16_t angle_start, int16_t angle_end) {
   this->filled_Sector_(quality, x, y, radius1, radius2, arc_color, arc_color, angle_start, angle_end);
 }
 
