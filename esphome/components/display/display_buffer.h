@@ -4,6 +4,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
 #include "display_color_utils.h"
+#include "esphome/core/helpers.h"
+
 #include <cstdarg>
 
 #ifdef USE_TIME
@@ -17,6 +19,9 @@
 #ifdef USE_QR_CODE
 #include "esphome/components/qr_code/qr_code.h"
 #endif
+
+#define USE_EXTENDEDDRAW
+#define POLAR_2PI  6.28318530718F
 
 namespace esphome {
 namespace display {
@@ -98,6 +103,27 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
+/// Define point coordinates
+struct Point {
+  int16_t   x;        ///< X coordinate
+  int16_t   y;        ///< Y coordinate
+
+  inline Point() ALWAYS_INLINE : x(0), y(0) {}  // NOLINT
+  inline Point(int16_t x, int16_t y ) ALWAYS_INLINE : x(x), y(y) {}
+};
+
+
+struct Rect {
+  int16_t x;  ///< X coordinate of corner
+  int16_t y;  ///< Y coordinate of corner
+  uint16_t w; ///< Width of region
+  uint16_t h; ///< Height of region
+
+  inline Rect() ALWAYS_INLINE : x(1), y(1), w(0), h(0) {}  // NOLINT
+  inline Rect(int16_t xx, int16_t yy, uint16_t ww, uint16_t hh ) ALWAYS_INLINE : x(xx), y(yy), w(ww), h(hh) {}
+};
+
+
 class Font;
 class Image;
 class DisplayBuffer;
@@ -148,6 +174,260 @@ class DisplayBuffer {
 
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
   void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON);
+
+
+#ifdef USE_EXTENDEDDRAW
+
+  ///
+  /// Configure the color to use for image transparency
+  /// - Drawing a BMP with transparency enabled will cause
+  ///   regions in this specific color to appear transparent
+  ///
+  /// @param color:        RGB Color to use
+  ///
+  ///
+  void set_transparent_color(Color color);
+
+  ///
+  /// Create a color based on a blend between two colors
+  ///
+  /// \param[in]  colStart:    Starting color
+  /// \param[in]  colEnd:      Ending color
+  /// \param[in]  nMidAmt:     Position (0..1000) between start and end color at which the
+  ///                          midpoint between colors should appear. Normally set to 500 (half-way).
+  /// \param[in]  nBlendAmt:   The position (0..1000) between start and end at which we
+  ///                          want to calculate the resulting blended color.
+  ///
+  /// \return Blended color
+  ///
+  Color blend_color(Color color_start, Color color_end, uint16_t mid_amt, uint16_t blend_amt);
+
+  ///
+  /// Create a color based on a blend between three colors
+  ///
+  /// \param[in]  colStart:    Starting color
+  /// \param[in]  colMid:      Intermediate color
+  /// \param[in]  colEnd:      Ending color
+  /// \param[in]  nMidAmt:     Position (0..1000) between start and end color at which the
+  ///                          intermediate color should appear.
+  /// \param[in]  nBlendAmt:   The position (0..1000) between start and end at which we
+  ///                          want to calculate the resulting blended color.
+  ///
+  /// \return Blended color
+  ///
+  Color blend_color(Color color_start, Color color_mid, Color color_end, uint16_t mid_amt, uint16_t blend_amt);
+
+  ///
+  /// Check whether two colors are equal
+  ///
+  /// \param[in]  a:    First color
+  /// \param[in]  b:    Second color
+  ///
+  /// \return True iff a and b are the same color.
+  ///
+  bool is_color_equal(Color a, Color b);
+
+
+  ///
+  /// Expand or contract a rectangle in width and/or height (equal
+  /// amounts on both side), based on the centerpoint of the rectangle.
+  ///
+  /// \param[in]  rect:       Rectangular region before resizing
+  /// \param[in]  width:    Number of pixels to expand the width (if positive)
+  ///                          of contract the width (if negative)
+  /// \param[in]  height:    Number of pixels to expand the height (if positive)
+  ///                          of contract the height (if negative)
+  ///
+  /// \return new rect with resized dimensions
+  ///
+  Rect expand_rect(Rect rect, uint16_t width, uint16_t height);
+
+  ///
+  /// Expand a rect to include another rect
+  /// - This routine can be useful to modify an invalidation region to
+  ///   include another modified element
+  ///
+  /// \param[in]  pRect:    Initial rect region
+  /// \param[in]  rAddRect: Rectangle to add to the rect region
+  ///
+  /// \return none
+  ///
+  Rect union_rect(Rect rect, Rect addRect);
+
+  ///
+  /// Determine if a coordinate is inside of a rectangular region.
+  /// - This routine is useful in determining if a touch
+  ///   coordinate is inside of a button.
+  ///
+  /// \param[in]  X:       X coordinate to test
+  /// \param[in]  Y:       X coordinate to test
+  /// \param[in]  rect:       Rectangular region to compare against
+  ///
+  /// \return true if inside region, false otherwise
+  ///
+  bool in_rect(int16_t X, int16_t Y, Rect rect); //*//
+
+  ///
+  /// Determine if a coordinate is inside of a width x height region.
+  /// - This routine is useful in determining if a relative coordinate
+  ///   is within a given W x H dimension
+  ///
+  /// \param[in]  nSelX:       X coordinate to test
+  /// \param[in]  nSelY:       X coordinate to test
+  /// \param[in]  nWidth:      Width to test against
+  /// \param[in]  nHeight:     Height to test against
+  ///
+  /// \return true if inside region, false otherwise
+  ///
+  bool is_inside(int16_t x, int16_t y, uint16_t width, uint16_t height);
+
+
+  ///
+  /// Reset the invalidation region
+  ///
+  /// \return none
+  ///
+  void clear_clipping();
+
+  ///
+  /// Add a rectangular region to the invalidation region
+  /// - This is usually called when an element has been modified
+  ///
+  /// \param[in]  rect: Rectangle to add to the invalidation region
+  ///
+  /// \return none
+  ///
+  void add_clipping(Rect rect);
+  void add_clipping(int16_t x, int16_t y, uint16_t width, uint16_t height) {
+    add_clipping(Rect(x, y, width, height));
+  };
+
+  ///
+  /// Set the clipping rectangle for further drawing
+  ///
+  /// \param[in]  rect:       Pointer to Rect for clipping (or NULL for entire screen)
+  ///
+  /// \return true if success, false if error
+  ///
+  void set_clipping(Rect rect);
+  void set_clipping(int16_t x, int16_t y, uint16_t width, uint16_t height) {
+    set_clipping(Rect(x, y, width, height));
+  };
+
+  ///
+  /// Get the current the clipping rectangle
+  ///
+  ///
+  /// \return rect for active clipping region
+  ///
+  Rect get_clipping();
+
+  ///
+  /// Perform basic clipping of a single point to a clipping region
+  ///
+  /// \param[in]  X:          X coordinate of point
+  /// \param[in]  Y:          Y coordinate of point
+  ///
+  /// \return true if point is visible, false if it should be discarded
+  ///
+  bool is_clipped(int16_t x, int16_t y);
+
+
+  /// Draw the outline of a rectangle with the top left point at [x1,y1] and the bottom right point at
+  /// [x1+width,y1+height].
+  void HOT rectangle(int x, int y, int width, int height, int16_t radius, Color color = COLOR_ON);
+
+  /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
+  void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color = COLOR_ON);
+
+  
+  void triangle(int16_t nX0,int16_t nY0, int16_t nX1,int16_t nY1,int16_t nX2,int16_t nY2, Color nCol = COLOR_ON);
+
+  // Draw a filled triangle
+  void filled_triangle(int16_t nX0,int16_t nY0, int16_t nX1,int16_t nY1,int16_t nX2,int16_t nY2, Color nCol = COLOR_ON);
+
+
+  ///
+  /// Convert polar coordinate to cartesian
+  ///
+  /// \param[in]   rad         Radius of ray
+  /// \param[in]   angle       Angle of ray (in units of 1/64 degrees, 0 is up)
+  /// \param[out]  nDX          X offset for ray end
+  /// \param[out]  nDY          Y offset for ray end
+  ///
+  /// \return none
+  ///
+  void polar_to_point(uint16_t rad, int16_t angle, int16_t *deltaX, int16_t *deltaDY);
+
+  ///
+  /// Calculate fixed-point sine function from fractional degrees
+  /// - Depending on configuration, the result is derived from either
+  ///   floating point math library or fixed point lookup table.
+  /// - get_sin(nAngDeg*64)/32768.0 = sin(nAngDeg*2pi/360)
+  ///
+  /// \param[in]   angle       Angle (in units of 1/64 degrees)
+  ///
+  /// \return Fixed-point sine result. Signed 16-bit; divide by 32768
+  ///         to get the actual value.
+  ///
+  int16_t get_sin(int16_t angle);
+
+  ///
+  /// Calculate fixed-point cosine function from fractional degrees
+  /// - Depending on configuration, the result is derived from either
+  ///   floating point math library or fixed point lookup table.
+  /// - get_cos(nAngDeg*64)/32768.0 = cos(nAngDeg*2pi/360)
+  ///
+  /// \param[in]   angle       Angle (in units of 1/64 degrees)
+  ///
+  /// \return Fixed-point cosine result. Signed 16-bit; divide by 32768
+  ///         to get the actual value.
+  ///
+  int16_t get_cos(int16_t angle);
+
+  ///
+  /// Draw a polar ray segment
+  ///
+  /// \param[in]  pGui:        Pointer to GUI
+  /// \param[in]  nX:          X coordinate of line startpoint
+  /// \param[in]  nY:          Y coordinate of line startpoint
+  /// \param[in]  nRadStart:   Starting radius of line
+  /// \param[in]  nRadEnd:     Ending radius of line
+  /// \param[in]  n64Ang:      Angle of ray (degrees * 64). 0 is up, +90*64 is to right
+  ///                          From -180*64 to +180*64
+  /// \param[in]  nCol:        Color RGB value for the line
+  ///
+  /// \return none
+  ///
+  void polar_line(int16_t X, int16_t Y, uint16_t radStart, uint16_t radEnd, int16_t angle, Color color = COLOR_ON);
+
+  ///
+  /// Draw a framed quadrilateral
+  ///
+  /// \param[in]  psPt:        Pointer to array of 4 points
+  /// \param[in]  nCol:        Color RGB value for the frame
+  ///
+  /// \return true if success, false if error
+  ///
+  void quad(Point * psPt, Color color = COLOR_ON);
+
+  ///
+  /// Draw a filled quadrilateral
+  ///
+  /// \param[in]  psPt:        Pointer to array of 4 points
+  /// \param[in]  nCol:        Color RGB value for the frame
+  ///
+  /// \return true if success, false if error
+  ///
+  void filled_quad(Point * psPt, Color color = COLOR_ON);
+
+  void gradient_sector(int16_t nQuality, int16_t nMidX, int16_t nMidY, int16_t nRad1, int16_t nRad2,
+                       Color cArcStart, Color cArcEnd, int16_t nAngSecStart, int16_t nAngSecEnd, int16_t nAngGradStart, int16_t nAngGradRange);
+  void filled_Sector( int16_t nQuality, int16_t nMidX, int16_t nMidY, int16_t nRad1, int16_t nRad2,Color cArc, int16_t nAngSecStart, int16_t nAngSecEnd);
+
+#endif
+
+
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
@@ -380,6 +660,17 @@ class DisplayBuffer {
   void init_internal_(uint32_t buffer_length);
 
   void do_update_();
+
+#ifdef USE_EXTENDEDDRAW
+  void swap_coords_(int16_t* pnXa,int16_t* pnYa,int16_t* pnXb,int16_t* pnYb);
+
+  void filled_Sector_(int16_t nQuality, int16_t nMidX, int16_t nMidY, int16_t nRad1, int16_t nRad2,
+                                  Color cArcStart, Color cArcEnd, int16_t nAngSecStart, int16_t nAngSecEnd,
+                                  bool gradient = false, int16_t nAngGradStart = 0, int16_t nAngGradRange= 0);
+
+  Rect clippingRectangle_ {1,1,0,0};
+  Color transparantColor_{COLOR_OFF};
+#endif
 
   uint8_t *buffer_{nullptr};
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
