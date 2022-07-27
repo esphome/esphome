@@ -57,7 +57,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   void setup() override;
   void dump_config() override;
 
-  void set_default_preset(const std::string &name);
+  void set_default_preset(const std::string &custom_preset);
   void set_default_preset(climate::ClimatePreset preset);
   void set_set_point_minimum_differential(float differential);
   void set_cool_deadband(float deadband);
@@ -226,7 +226,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool supplemental_cooling_required_();
   bool supplemental_heating_required_();
 
-  void dump_preset_config_(const std::string &preset_name, const ThermostatClimateTargetTempConfig &config, bool is_default_preset);
+  void dump_preset_config_(const std::string &preset_name, const ThermostatClimateTargetTempConfig &config,
+                           bool is_default_preset);
 
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};

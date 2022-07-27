@@ -125,11 +125,9 @@ def validate_temperature_preset(preset, root_config, name, requirements):
                     f"{config_temp} is defined in {name} config with no {req_action}"
                 )
 
+
 def generate_comparable_preset(config, name):
-    comparable_preset = (
-    f"{CONF_PRESET}:\n"
-    f"  {CONF_NAME}: {name}\n"
-    )
+    comparable_preset = f"{CONF_PRESET}:\n" f"  {CONF_NAME}: {name}\n"
 
     if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config:
         comparable_preset += f"  {CONF_DEFAULT_TARGET_TEMPERATURE_LOW}: {config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]}\n"
@@ -137,6 +135,7 @@ def generate_comparable_preset(config, name):
         comparable_preset += f"  {CONF_DEFAULT_TARGET_TEMPERATURE_HIGH}: {config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]}\n"
 
     return comparable_preset
+
 
 def validate_thermostat(config):
     # verify corresponding action(s) exist(s) for any defined climate mode or action
@@ -310,10 +309,13 @@ def validate_thermostat(config):
     if CONF_AWAY_CONFIG in config:
         comparable_preset = generate_comparable_preset(config[CONF_AWAY_CONFIG], "Away")
 
-        raise cv.Invalid(f"{CONF_AWAY_CONFIG} is no longer valid. Please switch to using a preset named ""Away"" for an equivalent experience. Equivalent configuration;\n\n"
-        f"{comparable_preset}"
+        raise cv.Invalid(
+            f"{CONF_AWAY_CONFIG} is no longer valid. Please switch to using a preset named "
+            "Away"
+            " for an equivalent experience. Equivalent configuration;\n\n"
+            f"{comparable_preset}"
         )
-    
+
     # Validate temperature requirements for presets
     if CONF_PRESET in config:
         for preset_config in config[CONF_PRESET]:
@@ -323,7 +325,9 @@ def validate_thermostat(config):
 
     # Warn about using the removed CONF_DEFAULT_MODE and advise users
     if CONF_DEFAULT_MODE in config and config[CONF_DEFAULT_MODE] is not None:
-        raise cv.Invalid(f"{CONF_DEFAULT_MODE} is no longer valid. Please switch to using presets and specify a {CONF_DEFAULT_PRESET}.")
+        raise cv.Invalid(
+            f"{CONF_DEFAULT_MODE} is no longer valid. Please switch to using presets and specify a {CONF_DEFAULT_PRESET}."
+        )
 
     default_mode = config[CONF_DEFAULT_MODE]
     requirements = {
@@ -435,7 +439,6 @@ def validate_thermostat(config):
                         f"{CONF_SWING_MODE} is set to {swing_mode} for {preset_config[CONF_NAME]} but {req} is not present in the configuration"
                     )
 
-
     # If a default preset is requested then ensure that preset is defined
     if CONF_DEFAULT_PRESET in config:
         default_preset = config[CONF_DEFAULT_PRESET]
@@ -444,19 +447,19 @@ def validate_thermostat(config):
             raise cv.Invalid(
                 f"{CONF_DEFAULT_PRESET} is specified but no presets are defined"
             )
-        else:
-            presets = config[CONF_PRESET]
-            found_preset = False
 
-            for preset in presets:
-                if preset[CONF_NAME] == default_preset:
-                    found_preset = True
-                    break
-            
-            if found_preset == False:
-                raise cv.Invalid(
-                    f"{CONF_DEFAULT_PRESET} set to '{default_preset}' but no such preset has been defined. Available presets: {[preset[CONF_NAME] for preset in presets]}"
-                )
+        presets = config[CONF_PRESET]
+        found_preset = False
+
+        for preset in presets:
+            if preset[CONF_NAME] == default_preset:
+                found_preset = True
+                break
+
+        if found_preset is False:
+            raise cv.Invalid(
+                f"{CONF_DEFAULT_PRESET} set to '{default_preset}' but no such preset has been defined. Available presets: {[preset[CONF_NAME] for preset in presets]}"
+            )
 
     if config[CONF_FAN_WITH_COOLING] is True and CONF_FAN_ONLY_ACTION not in config:
         raise cv.Invalid(

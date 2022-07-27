@@ -29,7 +29,7 @@ void ThermostatClimate::setup() {
   auto restore = this->restore_state_();
   if (restore.has_value()) {
     restore->to_call(this).perform();
-  } 
+  }
 
   // Specifically set the default state outside of restored state
   if (this->default_preset_ != climate::ClimatePreset::CLIMATE_PRESET_NONE) {
@@ -927,8 +927,7 @@ bool ThermostatClimate::supplemental_heating_required_() {
           (this->supplemental_action_ == climate::CLIMATE_ACTION_HEATING));
 }
 
-void ThermostatClimate::dump_preset_config_(const std::string &preset,
-                                            const ThermostatClimateTargetTempConfig &config,
+void ThermostatClimate::dump_preset_config_(const std::string &preset, const ThermostatClimateTargetTempConfig &config,
                                             bool is_default_preset) {
   const auto *preset_name = preset.c_str();
 
@@ -1072,9 +1071,7 @@ void ThermostatClimate::set_default_preset(const std::string &custom_preset) {
   this->default_custom_preset_ = custom_preset;
 }
 
-void ThermostatClimate::set_default_preset(climate::ClimatePreset preset) {
-  this->default_preset_ = preset;
-}
+void ThermostatClimate::set_default_preset(climate::ClimatePreset preset) { this->default_preset_ = preset; }
 
 void ThermostatClimate::set_set_point_minimum_differential(float differential) {
   this->set_point_minimum_differential_ = differential;
