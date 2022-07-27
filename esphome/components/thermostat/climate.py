@@ -618,6 +618,8 @@ async def to_code(config):
         CONF_COOL_ACTION in config
         or (config[CONF_FAN_ONLY_COOLING] and CONF_FAN_ONLY_ACTION in config)
     )
+    if two_points_available:
+        cg.add(var.set_supports_two_points(True))
 
     sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(
@@ -844,8 +846,8 @@ async def to_code(config):
         )
 
     if CONF_PRESET in config:
+        presetcount = 0
         for preset_config in config[CONF_PRESET]:
-
             name = preset_config[CONF_NAME]
             standard_preset = None
             if name.upper() in climate.CLIMATE_PRESETS:
