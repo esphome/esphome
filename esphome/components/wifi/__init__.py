@@ -373,10 +373,10 @@ async def to_code(config):
     elif CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("WiFi", None)
     elif CORE.is_rp2040:
-        cg.add_build_flag("-DPICO_CYW43_ARCH_POLL=1")
-        cg.add_build_flag("-DCYW43_LWIP=1")
-        cg.add_build_flag("-DLWIP_PROVIDE_ERRNO=1")
-        cg.add_build_flag(f"-DCYW43_HOST_NAME={CORE.name}")
+        cg.add_library("SPI", None)
+        cg.add_library("lwIP_CYW43", None)
+        cg.add_library("lwIP-Ethernet", None)
+        cg.add_library("WiFi", None)
 
     cg.add_define("USE_WIFI")
 

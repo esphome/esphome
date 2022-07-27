@@ -25,6 +25,7 @@ extern "C" {
 #endif
 
 #ifdef USE_RP2040
+#include <WiFi.h>
 #include "pico/cyw43_arch.h"
 #endif
 

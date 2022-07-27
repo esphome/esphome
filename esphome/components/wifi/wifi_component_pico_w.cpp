@@ -82,7 +82,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 }
 
 bool WiFiComponent::wifi_apply_hostname_() {
-  cyw43_state.netif[CYW43_ITF_STA].hostname = App.get_name().c_str();
+  WiFi.setHostname(App.get_name().c_str());
   return true;
 }
 const char *get_auth_mode_str(uint8_t mode) {
@@ -165,7 +165,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, true, CYW43_COUNTRY_WORLDWIDE);
   return true;
 }
-network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {cyw43_state.netif[CYW43_ITF_AP].ip_addr.addr}; }
+network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.localIP()}; }
 
 bool WiFiComponent::wifi_disconnect_() {
   int err = cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
@@ -187,9 +187,9 @@ int32_t WiFiComponent::wifi_channel_() {
   // TODO:
   return 0;
 }
-network::IPAddress WiFiComponent::wifi_sta_ip() { return {cyw43_state.netif[CYW43_ITF_STA].ip_addr.addr}; }
-network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {cyw43_state.netif[CYW43_ITF_STA].netmask.addr}; }
-network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {cyw43_state.netif[CYW43_ITF_STA].gw.addr}; }
+network::IPAddress WiFiComponent::wifi_sta_ip() { return {WiFi.localIP()}; }
+network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
+network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   const ip_addr_t *dns_ip = dns_getserver(num);
   return {dns_ip->addr};
