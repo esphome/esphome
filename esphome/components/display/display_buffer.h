@@ -224,7 +224,6 @@ class DisplayBuffer {
   ///
   bool is_color_equal(Color a, Color b);
 
-
   ///
   /// Expand or contract a rectangle in width and/or height (equal
   /// amounts on both side), based on the centerpoint of the rectangle.
@@ -304,7 +303,7 @@ class DisplayBuffer {
   /// \return true if success, false if error
   ///
   void set_clipping(Rect rect);
-  void set_clipping(int16_t x, int16_t y, uint16_t width, uint16_t height) { set_clipping(Rect(x, y, width, height));};
+  void set_clipping(int16_t x, int16_t y, uint16_t width, uint16_t height) { set_clipping(Rect(x, y, width, height)); };
 
   ///
   /// Get the current the clipping rectangle
@@ -324,7 +323,6 @@ class DisplayBuffer {
   ///
   bool is_clipped(int16_t x, int16_t y);
 
-
   /// Draw the outline of a rectangle with the top left point at [x1,y1] and the bottom right point at
   /// [x1+width,y1+height].
   void HOT rectangle(int x, int y, int width, int height, int16_t radius, Color color = COLOR_ON);
@@ -332,12 +330,10 @@ class DisplayBuffer {
   /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
   void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color = COLOR_ON);
 
-
   void triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color = COLOR_ON);
 
   // Draw a filled triangle
   void filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color = COLOR_ON);
-
 
   ///
   /// Convert polar coordinate to cartesian
@@ -382,7 +378,7 @@ class DisplayBuffer {
   ///
   /// \param[in]  pGui:        Pointer to GUI
   /// \param[in]  x:          X coordinate of line startpoint
-  /// \param[in]  nY:          Y coordinate of line startpoint
+  /// \param[in]  y:          Y coordinate of line startpoint
   /// \param[in]  nRadStart:   Starting radius of line
   /// \param[in]  nRadEnd:     Ending radius of line
   /// \param[in]  n64Ang:      Angle of ray (degrees * 64). 0 is up, +90*64 is to right
@@ -414,10 +410,10 @@ class DisplayBuffer {
   ///
   void filled_quad(Point *points, Color color = COLOR_ON);
 
-  void gradient_sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t raduis2, Color color_start,
+  void gradient_sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2, Color color_start,
                        Color color_end, int16_t angle_start, int16_t angle_end, int16_t gradient_angle_start,
                        int16_t gradient_angle_range);
-  void filled_Sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t raduis2, Color arc_color,
+  void filled_sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2, Color arc_color,
                      int16_t angle_start, int16_t angle_end);
 
 #endif
@@ -657,7 +653,7 @@ class DisplayBuffer {
 #ifdef USE_EXTENDEDDRAW
   void swap_coords_(int16_t *x0, int16_t *y0, int16_t *x1, int16_t *y1);
 
-  void filled_Sector_(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2, Color color_start,
+  void filled_sector_(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2, Color color_start,
                       Color color_end, int16_t angle_start, int16_t angle_end, bool gradient = false,
                       int16_t gradient_angle_start = 0, int16_t gradient_angle_range = 0);
 
