@@ -340,7 +340,7 @@ class DisplayBuffer {
   /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
   void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color = COLOR_ON);
 
-  
+
   void triangle(int16_t nX0,int16_t nY0, int16_t nX1,int16_t nY1,int16_t nX2,int16_t nY2, Color nCol = COLOR_ON);
 
   // Draw a filled triangle

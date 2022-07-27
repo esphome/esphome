@@ -55,8 +55,8 @@ int DisplayBuffer::get_height() {
       return this->get_width_internal();
   }
 }
-void DisplayBuffer::set_rotation(DisplayRotation rotation) { 
-  this->rotation_ = rotation; 
+void DisplayBuffer::set_rotation(DisplayRotation rotation) {
+  this->rotation_ = rotation;
 #ifdef USE_EXTENDEDDRAW
     this->clear_clipping();
 #endif
@@ -425,7 +425,7 @@ Color DisplayBuffer::blend_color(Color color_start, Color color_end, uint16_t mi
   color_mid.b = (color_end.b + color_start.b) / 2;
   return this->blend_color(color_start, color_mid, color_end, mid_amt, blend_amt);
 }
-                               
+
 Color DisplayBuffer::blend_color(Color color_start, Color color_mid, Color color_end, uint16_t mid_amt, uint16_t blend_amt)
 {
   Color colNew;
@@ -479,7 +479,7 @@ Rect DisplayBuffer::expand_rect(Rect rect, uint16_t width, uint16_t height)
   rNew.w = rect.w + (2*width);
   rNew.h = rect.h + (2*height);
 
-  // Adjust the rectangle coordinate to allow for new dimensions 
+  // Adjust the rectangle coordinate to allow for new dimensions
   // Note that this moves the coordinate in the opposite
   // direction of the expansion/contraction.
   rNew.x = rect.x - width;
@@ -657,7 +657,7 @@ void HOT DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t r
   int dy = 0;
   int err = 2 - 2 * radius;
   int e2;
-  
+
   x = x + radius; y = y + radius; height = height- (radius*2); width = width- (radius*2);
 
 //  ESP_LOGW(TAG, "Rounded rect: : '%d, %d, %d, %d'", x,y,width,height);
@@ -919,7 +919,7 @@ void DisplayBuffer::filled_Sector_(int16_t nQuality, int16_t nMidX, int16_t nMid
 
 void DisplayBuffer::gradient_sector(int16_t nQuality, int16_t nMidX, int16_t nMidY, int16_t nRad1, int16_t nRad2,
   Color cArcStart, Color cArcEnd, int16_t nAngSecStart, int16_t nAngSecEnd, int16_t nAngGradStart, int16_t nAngGradRange) {
-  this->filled_Sector_(nQuality, nMidX, nMidY, nRad1, nRad2, cArcStart, cArcEnd, nAngSecStart, nAngSecEnd, 
+  this->filled_Sector_(nQuality, nMidX, nMidY, nRad1, nRad2, cArcStart, cArcEnd, nAngSecStart, nAngSecEnd,
                        true, nAngGradStart, nAngGradRange);
 }
 
