@@ -412,7 +412,7 @@ void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, time:
 
 void DisplayBuffer::set_transparent_color(Color color)
 {
-  this->transparantColor_ = color;
+  this->transparant_color_ = color;
 }
 
 
@@ -536,32 +536,32 @@ bool DisplayBuffer::is_inside(int16_t x, int16_t y, uint16_t width, uint16_t hei
 
 void DisplayBuffer::clear_clipping()
 {
-  this->clippingRectangle_ = (Rect) { 0, 0, 0, 0};
+  this->clipping_rectangle_ = (Rect) { 0, 0, 0, 0};
 }
 
 void DisplayBuffer::add_clipping(Rect addRect)
 {
-  this->clippingRectangle_ = this->union_rect(this->clippingRectangle_, addRect);
+  this->clipping_rectangle_ = this->union_rect(this->clipping_rectangle_, addRect);
 }
 
 void DisplayBuffer::set_clipping(Rect rect)
 {
-  this->clippingRectangle_ = rect;
+  this->clipping_rectangle_ = rect;
 }
 
 Rect DisplayBuffer::get_clipping()
 {
-  return this->clippingRectangle_;
+  return this->clipping_rectangle_;
 }
 
 bool DisplayBuffer::is_clipped(int16_t x, int16_t y)
 {
-  if ((this->clippingRectangle_.w == 0) || (this->clippingRectangle_.h == 0))  return false;
+  if ((this->clipping_rectangle_.w == 0) || (this->clipping_rectangle_.h == 0))  return false;
 
-  int16_t nCX0 = this->clippingRectangle_.x;
-  int16_t nCY0 = this->clippingRectangle_.y;
-  int16_t nCX1 = this->clippingRectangle_.x + this->clippingRectangle_.w - 1;
-  int16_t nCY1 = this->clippingRectangle_.y + this->clippingRectangle_.h - 1;
+  int16_t nCX0 = this->clipping_rectangle_.x;
+  int16_t nCY0 = this->clipping_rectangle_.y;
+  int16_t nCX1 = this->clipping_rectangle_.x + this->clipping_rectangle_.w - 1;
+  int16_t nCY1 = this->clipping_rectangle_.y + this->clipping_rectangle_.h - 1;
 /*
   switch (this->rotation_)
   {

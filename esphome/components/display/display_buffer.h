@@ -668,8 +668,8 @@ class DisplayBuffer {
                                   Color cArcStart, Color cArcEnd, int16_t nAngSecStart, int16_t nAngSecEnd,
                                   bool gradient = false, int16_t nAngGradStart = 0, int16_t nAngGradRange= 0);
 
-  Rect clippingRectangle_ {1,1,0,0};
-  Color transparantColor_{COLOR_OFF};
+  Rect clipping_rectangle_{ 1, 1, 0, 0};
+  Color transparant_color_{COLOR_OFF};
 #endif
 
   uint8_t *buffer_{nullptr};
