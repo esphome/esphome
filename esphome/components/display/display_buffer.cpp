@@ -1,21 +1,15 @@
 #include "display_buffer.h"
 
-#include <utility>
 #include "esphome/core/application.h"
 #include "esphome/core/color.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-#include <math.h>
+#include "esphome/core/log.h"
+#include <cmath>
+#include <utility>
 
 namespace esphome {
 namespace display {
-// Forward declaration for trigonometric lookup table
-#if defined(LUT_SIN_64)
-extern const uint16_t m_nLUTSinF0X16[65];
-#else
-extern const uint16_t m_nLUTSinF0X16[257];
-#endif
 
 static const char *const TAG = "display";
 
@@ -58,12 +52,13 @@ int DisplayBuffer::get_height() {
 void DisplayBuffer::set_rotation(DisplayRotation rotation) {
   this->rotation_ = rotation;
 #ifdef USE_EXTENDEDDRAW
-    this->clear_clipping();
+  this->clear_clipping();
 #endif
 }
 void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
 #ifdef USE_EXTENDEDDRAW
-  if (this->is_clipped(x,y)) return;
+  if (this->is_clipped(x,y)) 
+    return;
 #endif
 
   switch (this->rotation_) {
@@ -86,21 +81,21 @@ void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
   App.feed_wdt();
 }
 void HOT DisplayBuffer::line(int x1, int y1, int x2, int y2, Color color) {
-  const int32_t dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
-  const int32_t dy = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
-  int32_t err = dx + dy;
+  const int32_t delta_x = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
+  const int32_t delta_y = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
+  int32_t err = delta_x + delta_y;
 
   while (true) {
     this->draw_pixel_at(x1, y1, color);
     if (x1 == x2 && y1 == y2)
       break;
     int32_t e2 = 2 * err;
-    if (e2 >= dy) {
-      err += dy;
+    if (e2 >= delta_y) {
+      err += delta_y;
       x1 += sx;
     }
-    if (e2 <= dx) {
-      err += dx;
+    if (e2 <= delta_x) {
+      err += delta_x;
       y1 += sy;
     }
   }
@@ -128,49 +123,49 @@ void DisplayBuffer::filled_rectangle(int x1, int y1, int width, int height, Colo
   }
 }
 void HOT DisplayBuffer::circle(int center_x, int center_xy, int radius, Color color) {
-  int dx = -radius;
-  int dy = 0;
+  int delta_x = -radius;
+  int delta_y = 0;
   int err = 2 - 2 * radius;
   int e2;
 
   do {
-    this->draw_pixel_at(center_x - dx, center_xy + dy, color);
-    this->draw_pixel_at(center_x + dx, center_xy + dy, color);
-    this->draw_pixel_at(center_x + dx, center_xy - dy, color);
-    this->draw_pixel_at(center_x - dx, center_xy - dy, color);
+    this->draw_pixel_at(center_x - delta_x, center_xy + delta_y, color);
+    this->draw_pixel_at(center_x + delta_x, center_xy + delta_y, color);
+    this->draw_pixel_at(center_x + delta_x, center_xy - delta_y, color);
+    this->draw_pixel_at(center_x - delta_x, center_xy - delta_y, color);
     e2 = err;
-    if (e2 < dy) {
-      err += ++dy * 2 + 1;
-      if (-dx == dy && e2 <= dx) {
+    if (e2 < delta_y) {
+      err += ++delta_y * 2 + 1;
+      if (-delta_x == delta_y && e2 <= delta_x) {
         e2 = 0;
       }
     }
-    if (e2 > dx) {
-      err += ++dx * 2 + 1;
+    if (e2 > delta_x) {
+      err += ++delta_x * 2 + 1;
     }
-  } while (dx <= 0);
+  } while (delta_x <= 0);
 }
 void DisplayBuffer::filled_circle(int center_x, int center_y, int radius, Color color) {
-  int dx = -int32_t(radius);
-  int dy = 0;
+  int delta_x = -int32_t(radius);
+  int delta_y = 0;
   int err = 2 - 2 * radius;
   int e2;
 
   do {
-    int hline_width = 2 * (-dx) + 1;
-    this->horizontal_line(center_x + dx, center_y + dy, hline_width, color);
-    this->horizontal_line(center_x + dx, center_y - dy, hline_width, color);
+    int hline_width = 2 * (-delta_x) + 1;
+    this->horizontal_line(center_x + delta_x, center_y + delta_y, hline_width, color);
+    this->horizontal_line(center_x + delta_x, center_y - delta_y, hline_width, color);
     e2 = err;
-    if (e2 < dy) {
-      err += ++dy * 2 + 1;
-      if (-dx == dy && e2 <= dx) {
+    if (e2 < delta_y) {
+      err += ++delta_y * 2 + 1;
+      if (-delta_x == delta_y && e2 <= delta_x) {
         e2 = 0;
       }
     }
-    if (e2 > dx) {
-      err += ++dx * 2 + 1;
+    if (e2 > delta_x) {
+      err += ++delta_x * 2 + 1;
     }
-  } while (dx <= 0);
+  } while (delta_x <= 0);
 }
 
 void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align, const char *text) {
@@ -410,15 +405,11 @@ void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, time:
 #ifdef USE_EXTENDEDDRAW
 
 
-void DisplayBuffer::set_transparent_color(Color color)
-{
-  this->transparant_color_ = color;
-}
+void DisplayBuffer::set_transparent_color(Color color){ this->transparant_color_ = color; }
 
 
 // Call with nMidAmt=500 to create simple linear blend between two colors
-Color DisplayBuffer::blend_color(Color color_start, Color color_end, uint16_t mid_amt, uint16_t blend_amt)
-{
+Color DisplayBuffer::blend_color(Color color_start, Color color_end, uint16_t mid_amt, uint16_t blend_amt) {
   Color color_mid;
   color_mid.r = (color_end.r + color_start.r) / 2;
   color_mid.g = (color_end.g + color_start.g) / 2;
@@ -426,169 +417,126 @@ Color DisplayBuffer::blend_color(Color color_start, Color color_end, uint16_t mi
   return this->blend_color(color_start, color_mid, color_end, mid_amt, blend_amt);
 }
 
-Color DisplayBuffer::blend_color(Color color_start, Color color_mid, Color color_end, uint16_t mid_amt, uint16_t blend_amt)
-{
-  Color colNew;
+Color DisplayBuffer::blend_color(Color color_start, Color color_mid, Color color_end, uint16_t mid_amt, uint16_t blend_amt){
+  Color color_new;
   mid_amt = (mid_amt > 1000) ? 1000 : mid_amt;
   blend_amt = (blend_amt > 1000) ? 1000 : blend_amt;
 
-  uint16_t nRngLow = mid_amt;
-  uint16_t nRngHigh = 1000 - mid_amt;
-  int32_t nSubBlendAmt;
-  if (blend_amt >= mid_amt)
-  {
-    nSubBlendAmt = (int32_t)(blend_amt - mid_amt) * 1000 / nRngHigh;
-    colNew.r = nSubBlendAmt * (color_end.r - color_mid.r) / 1000 + color_mid.r;
-    colNew.g = nSubBlendAmt * (color_end.g - color_mid.g) / 1000 + color_mid.g;
-    colNew.b = nSubBlendAmt * (color_end.b - color_mid.b) / 1000 + color_mid.b;
+  uint16_t range_low = mid_amt;
+  uint16_t range_high = 1000 - mid_amt;
+  int32_t sub_blend_amt;
+  if (blend_amt >= mid_amt) {
+    sub_blend_amt = (int32_t)(blend_amt - mid_amt) * 1000 / range_high;
+    color_new.r = sub_blend_amt * (color_end.r - color_mid.r) / 1000 + color_mid.r;
+    color_new.g = sub_blend_amt * (color_end.g - color_mid.g) / 1000 + color_mid.g;
+    color_new.b = sub_blend_amt * (color_end.b - color_mid.b) / 1000 + color_mid.b;
+  } else {
+    sub_blend_amt = (int32_t)(blend_amt - 0) * 1000 / range_low;
+    color_new.r = sub_blend_amt * (color_mid.r - color_start.r) / 1000 + color_start.r;
+    color_new.g = sub_blend_amt * (color_mid.g - color_start.g) / 1000 + color_start.g;
+    color_new.b = sub_blend_amt * (color_mid.b - color_start.b) / 1000 + color_start.b;
   }
-  else
-  {
-    nSubBlendAmt = (int32_t)(blend_amt - 0) * 1000 / nRngLow;
-    colNew.r = nSubBlendAmt * (color_mid.r - color_start.r) / 1000 + color_start.r;
-    colNew.g = nSubBlendAmt * (color_mid.g - color_start.g) / 1000 + color_start.g;
-    colNew.b = nSubBlendAmt * (color_mid.b - color_start.b) / 1000 + color_start.b;
-  }
-  return colNew;
+  return color_new;
 }
 
-bool DisplayBuffer::is_color_equal(Color a, Color b)
-{
-  return a.r == b.r && a.g == b.g && a.b == b.b;
-}
+bool DisplayBuffer::is_color_equal(Color a, Color b) { return a.r == b.r && a.g == b.g && a.b == b.b; }
 
 // -----
 
 
 // Expand or contract a rectangle in width and/or height (equal
 // amounts on both side), based on the centerpoint of the rectangle.
-Rect DisplayBuffer::expand_rect(Rect rect, uint16_t width, uint16_t height)
-{
-  Rect rNew = {1,1,0,0};
+Rect DisplayBuffer::expand_rect(Rect rect, uint16_t width, uint16_t height) {
+  Rect new_rect = {1, 1, 0, 0};
 
   // Detect error case of contracting region too far
-  if ( ((int16_t)rect.w < (-2*width)) || ((int16_t)rect.h < (-2*height)) ) {
+  if (((int16_t) rect.w < (-2 * width)) || ((int16_t) rect.h < (-2 * height))) {
     // Return an empty coordinate box (which won't be drawn)
-    return rNew;
+    return new_rect;
   }
 
   // Adjust the new width/height
   // Note that the overall width/height changes by a factor of
   // two since we are applying the adjustment on both sides (ie.
   // top/bottom or left/right) equally.
-  rNew.w = rect.w + (2*width);
-  rNew.h = rect.h + (2*height);
+  new_rect.w = rect.w + (2 * width);
+  new_rect.h = rect.h + (2 * height);
 
   // Adjust the rectangle coordinate to allow for new dimensions
   // Note that this moves the coordinate in the opposite
   // direction of the expansion/contraction.
-  rNew.x = rect.x - width;
-  rNew.y = rect.y - height;
+  new_rect.x = rect.x - width;
+  new_rect.y = rect.y - height;
 
-  return rNew;
+  return new_rect;
 }
 
-// Expand the current rect (pRect) to enclose the additional rect region (rAddRect)
-Rect DisplayBuffer::union_rect(Rect rect, Rect addRect)
-{
-  int16_t nSrcX0, nSrcY0, nSrcX1, nSrcY1;
-  int16_t nAddX0, nAddY0, nAddX1, nAddY1;
+// Expand the current rect (pRect) to enclose the additional rect region (radd_rect)
+Rect DisplayBuffer::union_rect(Rect rect, Rect add_rect) {
+  int16_t source_x0, source_y0, source_x1, source_y1;
+  int16_t add_x0, add_y0, add_x1, add_y1;
 
   // If the source rect has zero dimensions, then treat as empty
   if ((rect.w == 0) || (rect.h == 0)) {
     // No source region defined, simply copy add region
-    return addRect;
+    return add_rect;
   }
 
   // Source region valid, so increase dimensions
 
   // Calculate the rect boundary coordinates
-  nSrcX0 = rect.x;
-  nSrcY0 = rect.y;
-  nSrcX1 = rect.x + rect.w - 1;
-  nSrcY1 = rect.y + rect.h - 1;
-  nAddX0 = addRect.x;
-  nAddY0 = addRect.y;
-  nAddX1 = addRect.x + addRect.w - 1;
-  nAddY1 = addRect.y + addRect.h - 1;
+  source_x0 = rect.x;
+  source_y0 = rect.y;
+  source_x1 = rect.x + rect.w - 1;
+  source_y1 = rect.y + rect.h - 1;
+  add_x0 = add_rect.x;
+  add_y0 = add_rect.y;
+  add_x1 = add_rect.x + add_rect.w - 1;
+  add_y1 = add_rect.y + add_rect.h - 1;
 
   // Find the new maximal dimensions
-  nSrcX0 = (nAddX0 < nSrcX0) ? nAddX0 : nSrcX0;
-  nSrcY0 = (nAddY0 < nSrcY0) ? nAddY0 : nSrcY0;
-  nSrcX1 = (nAddX1 > nSrcX1) ? nAddX1 : nSrcX1;
-  nSrcY1 = (nAddY1 > nSrcY1) ? nAddY1 : nSrcY1;
+  source_x0 = (add_x0 < source_x0) ? add_x0 : source_x0;
+  source_y0 = (add_y0 < source_y0) ? add_y0 : source_y0;
+  source_x1 = (add_x1 > source_x1) ? add_x1 : source_x1;
+  source_y1 = (add_y1 > source_y1) ? add_y1 : source_y1;
 
   // Update the original rect region
-  return Rect(nSrcX0, nSrcY0, (uint16_t) (nSrcX1 - nSrcX0 + 1), (uint16_t) (nSrcY1 - nSrcY0 + 1));
+  return Rect(source_x0, source_y0, (uint16_t)(source_x1 - source_x0 + 1), (uint16_t)(source_y1 - source_y0 + 1));
 }
 
-bool DisplayBuffer::in_rect(int16_t nSelX, int16_t nSelY, Rect rRect) {
-  return ((nSelX >= rRect.x) && (nSelX <= rRect.x + (int16_t)rRect.w) &&
-          (nSelY >= rRect.y) && (nSelY <= rRect.y + (int16_t)rRect.h));
+bool DisplayBuffer::in_rect(int16_t nSelX, int16_t nSelY, Rect rect) {
+  return ((nSelX >= rect.x) && (nSelX <= rect.x + (int16_t) rect.w) &&
+          (nSelY >= rect.y) && (nSelY <= rect.y + (int16_t) rect.h));
 }
 
-bool DisplayBuffer::is_inside(int16_t x, int16_t y, uint16_t width, uint16_t height)
-{
-  return ((x >= 0) && (x <= (int16_t)(width)-1) &&
-          (y >= 0) && (y <= (int16_t)(height)-1));
+bool DisplayBuffer::is_inside(int16_t x, int16_t y, uint16_t width, uint16_t height) {
+  return ((x >= 0) && (x <= (int16_t)(width) -1) && (y >= 0) && (y <= (int16_t)(height) -1));
 }
 
 
-void DisplayBuffer::clear_clipping()
-{
-  this->clipping_rectangle_ = (Rect) { 0, 0, 0, 0};
+void DisplayBuffer::clear_clipping() { this->clipping_rectangle_ = (Rect){0, 0, 0, 0}; }
+
+void DisplayBuffer::add_clipping(Rect add_rect) {
+  this->clipping_rectangle_ = this->union_rect(this->clipping_rectangle_, add_rect);
 }
 
-void DisplayBuffer::add_clipping(Rect addRect)
-{
-  this->clipping_rectangle_ = this->union_rect(this->clipping_rectangle_, addRect);
-}
+void DisplayBuffer::set_clipping(Rect rect) { this->clipping_rectangle_ = rect; }
 
-void DisplayBuffer::set_clipping(Rect rect)
-{
-  this->clipping_rectangle_ = rect;
-}
+Rect DisplayBuffer::get_clipping() { return this->clipping_rectangle_;}
 
-Rect DisplayBuffer::get_clipping()
-{
-  return this->clipping_rectangle_;
-}
+bool DisplayBuffer::is_clipped(int16_t x, int16_t y) {
+  if ((this->clipping_rectangle_.w == 0) || (this->clipping_rectangle_.h == 0))  
+    return false;
 
-bool DisplayBuffer::is_clipped(int16_t x, int16_t y)
-{
-  if ((this->clipping_rectangle_.w == 0) || (this->clipping_rectangle_.h == 0))  return false;
+  int16_t clip_x0 = this->clipping_rectangle_.x;
+  int16_t clip_y0 = this->clipping_rectangle_.y;
+  int16_t clip_x1 = this->clipping_rectangle_.x + this->clipping_rectangle_.w - 1;
+  int16_t clip_y1 = this->clipping_rectangle_.y + this->clipping_rectangle_.h - 1;
 
-  int16_t nCX0 = this->clipping_rectangle_.x;
-  int16_t nCY0 = this->clipping_rectangle_.y;
-  int16_t nCX1 = this->clipping_rectangle_.x + this->clipping_rectangle_.w - 1;
-  int16_t nCY1 = this->clipping_rectangle_.y + this->clipping_rectangle_.h - 1;
-/*
-  switch (this->rotation_)
-  {
-  case DISPLAY_ROTATION_0_DEGREES:
-    break;
-  case DISPLAY_ROTATION_90_DEGREES:
-    std::swap(nCX0, nCY0);
-    nCX0 = this->get_width_internal() - nCX0 - 1;
-    std::swap(nCX1, nCY1);
-    nCX1 = this->get_width_internal() - nCX1 - 1;
-    break;
-  case DISPLAY_ROTATION_180_DEGREES:
-    nCX0 = this->get_width_internal() - nCX0 - 1;
-    nCY0 = this->get_height_internal() - nCY0 - 1;
-    nCX1 = this->get_width_internal() - nCX1 - 1;
-    nCY1 = this->get_height_internal() - nCY1 - 1;
-    break;
-  case DISPLAY_ROTATION_270_DEGREES:
-    std::swap(nCX0, nCY0);
-    nCY0 = this->get_height_internal() - nCY0 - 1;
-    std::swap(nCX1, nCY1);
-    nCY1 = this->get_height_internal() - nCY1 - 1;
-    break;
-  }
-*/
-  if ((x < nCX0) || (x > nCX1)) return true;
-  if ((y < nCY0) || (y > nCY1)) return true;
+  if ((x < clip_x0) || (x > clip_x1))
+    return true;
+  if ((y < clip_y0) || (y > clip_y1))
+    return true;
   return false;
 }
 
@@ -597,64 +545,59 @@ bool DisplayBuffer::is_clipped(int16_t x, int16_t y)
 // ------------------------------------------------------------------------
 
 // Sine function with optional lookup table
-// - Note that the n64Ang range is limited by 16-bit integers
+// - Note that the angle range is limited by 16-bit integers
 //   to an effective degree range of -511 to +511 degrees,
 //   defined by the max integer range: 32767/64.
-int16_t DisplayBuffer::get_sin(int16_t n64Ang)
-{
+int16_t DisplayBuffer::get_sin(int16_t angle) {
   // Use floating-point math library function
   // Calculate angle in radians
-  float fAngRad = n64Ang * POLAR_2PI / (23040.0); // = 360.0 x 64.0
+  float angle_rad = angle * POLAR_2PI / (23040.0);  // = 360.0 x 64.0
   // Perform floating point calc
-  float fSin = sin(fAngRad);
+  float sin = std::sin(angle_rad);
   // Return as fixed point result
-  return fSin * 32767.0;
+  return sin * 32767.0;
 }
 
 // Cosine function with optional lookup table
-// - Note that the n64Ang range is limited by 16-bit integers
+// - Note that the angle range is limited by 16-bit integers
 //   to an effective degree range of -511 to +511 degrees,
 //   defined by the max integer range: 32767/64.
-int16_t DisplayBuffer::get_cos(int16_t n64Ang)
-{
+int16_t DisplayBuffer::get_cos(int16_t angle) {
   // Use floating-point math library function
   // Calculate angle in radians
-  float fAngRad = n64Ang * POLAR_2PI / (23040.0); // = 360.0 x 64.0
-  // Perform floating point calc
-  float fCos = cos(fAngRad);
+  float angle_rad = angle * POLAR_2PI / (23040.0);  // = 360.0 x 64.0
   // Return as fixed point result
+  float cos = std::cos(angle_rad);
 
-  return fCos * 32767.0;
+  return cos * 32767.0;
 }
 
 // Convert from polar to cartesian
-void DisplayBuffer::polar_to_point(uint16_t nRad, int16_t n64Ang, int16_t *nDX, int16_t *nDY)
+void DisplayBuffer::polar_to_point(uint16_t radius, int16_t angle, int16_t *nDX, int16_t *nDY)
 {
-  int32_t nTmp;
+  int32_t temp;
   // TODO: Clean up excess integer typecasting
-  nTmp = (int32_t)nRad * this->get_sin(n64Ang);
-  *nDX = nTmp / 32767;
-  nTmp = (int32_t)nRad * -this->get_cos(n64Ang);
-  *nDY = nTmp / 32767;
+  temp = (int32_t) radius * this->get_sin(angle);
+  *nDX = temp / 32767;
+  temp = (int32_t) radius * -this->get_cos(angle);
+  *nDY = temp / 32767;
 }
 
 
 // Note that angle is in degrees * 64
-void DisplayBuffer::polar_line(int16_t nX, int16_t nY, uint16_t nRadStart, uint16_t nRadEnd, int16_t n64Ang, Color nCol)
-{
+void DisplayBuffer::polar_line(int16_t x, int16_t y, uint16_t radius_start, uint16_t radius_end, int16_t angle, Color color) {
   // Draw the ray representing the current value
-  int16_t nDxS = (int32_t)nRadStart * get_sin(n64Ang) / 32768;
-  int16_t nDyS = (int32_t)nRadStart * get_cos(n64Ang) / 32768;
-  int16_t nDxE = (int32_t)nRadEnd * get_sin(n64Ang) / 32768;
-  int16_t nDyE = (int32_t)nRadEnd * get_cos(n64Ang) / 32768;
-  this->line(nX + nDxS, nY - nDyS, nX + nDxE, nY - nDyE, nCol);
+  int16_t delta_x_start = (int32_t) radius_start * get_sin(angle) / 32768;
+  int16_t delta_y_start = (int32_t) radius_start * get_cos(angle) / 32768;
+  int16_t delta_x_end = (int32_t) radius_end * get_sin(angle) / 32768;
+  int16_t delta_y_end = (int32_t) radius_end * get_cos(angle) / 32768;
+  this->line(x + delta_x_start, y - delta_y_start, x + delta_x_end, y - delta_y_end, color);
 }
 
 
-void HOT DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t radius, Color color )
-{
-  int dx = -radius;
-  int dy = 0;
+void HOT DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t radius, Color color ) {
+  int delta_x = -radius;
+  int delta_y = 0;
   int err = 2 - 2 * radius;
   int e2;
 
@@ -665,88 +608,79 @@ void HOT DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t r
   //this->rectangle(x, y, width, height, COLOR_ON);
 
 
-  this->horizontal_line(x, y - (radius), width, color);
-  this->horizontal_line(x, y + (radius)  + height - 1, width, color);
-  this->vertical_line(x-radius, y , height, color);
-  this->vertical_line(x +(radius) + width - 1, y, height, color);
+  this->horizontal_line(x, y - radius, width, color);
+  this->horizontal_line(x, y + radius + height - 1, width, color);
+  this->vertical_line(x - radius, y , height, color);
+  this->vertical_line(x + radius + width - 1, y, height, color);
 
-  do
-  {
-    this->draw_pixel_at(x + dx, y - dy, color);
-    this->draw_pixel_at(x + dx, y + height + dy-1, color);
-    this->draw_pixel_at(x + width - dx-1, y - dy, color);
-    this->draw_pixel_at(x + width - dx-1, y + height + dy-1, color);
+  do {
+    this->draw_pixel_at(x + delta_x, y - delta_y, color);
+    this->draw_pixel_at(x + delta_x, y + height + delta_y-1, color);
+    this->draw_pixel_at(x + width - delta_x - 1, y - delta_y, color);
+    this->draw_pixel_at(x + width - delta_x - 1, y + height + delta_y - 1, color);
     e2 = err;
-    if (e2 < dy)
-    {
-      err += ++dy * 2 + 1;
-      if (-dx == dy && e2 <= dx)
-      {
+    if (e2 < delta_y) {
+      err += ++delta_y * 2 + 1;
+      if (-delta_x == delta_y && e2 <= delta_x) {
         e2 = 0;
       }
     }
-    if (e2 > dx)
-    {
-      err += ++dx * 2 + 1;
+    if (e2 > delta_x) {
+      err += ++delta_x * 2 + 1;
     }
-  } while (dx <= 0);
+  } while (delta_x <= 0);
 }
 
-void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color)
-{
-  int dx = -radius;
-  int dy = 0;
+void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color) {
+  int delta_x = -radius;
+  int delta_y = 0;
   int err = 2 - 2 * radius;
   int e2;
 
-  x = x + radius; y = y + radius; height = height- (radius*2); width = width- (radius*2);
+  x = x + radius; 
+  y = y + radius; 
+  height = height - (radius * 2); 
+  width = width - (radius * 2);
 
-  this->filled_rectangle(x-radius, y, width+(radius*2), height, color);
-  do
-  {
-    int hline_width = width + ( 2 * (-dx) + 1)-1;
-    this->horizontal_line(x + dx, y +height + dy, hline_width, color);
-    this->horizontal_line(x + dx, y - dy, hline_width, color);
+  this->filled_rectangle(x-radius, y, width + (radius * 2), height, color);
+  do {
+    int hline_width = width + ( 2 * (-delta_x) + 1)-1;
+    this->horizontal_line(x + delta_x, y + height + delta_y, hline_width, color);
+    this->horizontal_line(x + delta_x, y - delta_y, hline_width, color);
     e2 = err;
-    if (e2 < dy)
-    {
-      err += ++dy * 2 + 1;
-      if (-dx == dy && e2 <= dx)
-      {
+    if (e2 < delta_y) {
+      err += ++delta_y * 2 + 1;
+      if (-delta_x == delta_y && e2 <= delta_x) {
         e2 = 0;
       }
     }
-    if (e2 > dx)
-    {
-      err += ++dx * 2 + 1;
+    if (e2 > delta_x) {
+      err += ++delta_x * 2 + 1;
     }
-  } while (dx <= 0);
+  } while (delta_x <= 0);
 }
 
 // Draw a triangle
-void DisplayBuffer::triangle(int16_t nX0,int16_t nY0, int16_t nX1,int16_t nY1,int16_t nX2,int16_t nY2, Color nCol)
-{
+void DisplayBuffer::triangle(int16_t x0,int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color) {
   // Draw triangle with three lines
-  this->line(nX0,nY0,nX1,nY1,nCol);
-  this->line(nX1,nY1,nX2,nY2,nCol);
-  this->line(nX2,nY2,nX0,nY0,nCol);
+  this->line(x0, y0, x1, y1, color);
+  this->line(x1, y1, x2, y2, color);
+  this->line(x2, y2, x0, y0, color);
 }
 
-void DisplayBuffer::swap_coords_(int16_t* pnXa,int16_t* pnYa,int16_t* pnXb,int16_t* pnYb)
-{
-  int16_t nSwapX,nSwapY;
-  nSwapX = *pnXa;
-  nSwapY = *pnYa;
-  *pnXa = *pnXb;
-  *pnYa = *pnYb;
-  *pnXb = nSwapX;
-  *pnYb = nSwapY;
+void DisplayBuffer::swap_coords_(int16_t *x0, int16_t *y0, int16_t *x1, int16_t *y1) {
+  int16_t swap_x, swap_y;
+  swap_x = *x0;
+  swap_y = *y0;
+  *x0 = *x1;
+  *y0 = *y1;
+  *x1 = swap_x;
+  *y1 = swap_y;
 }
 
 
 // Draw a filled triangle
-void DisplayBuffer::filled_triangle(int16_t nX0,int16_t nY0, int16_t nX1,int16_t nY1,int16_t nX2,int16_t nY2, Color nCol)
-{
+void DisplayBuffer::filled_triangle(int16_t x0,int16_t y0, int16_t x1,int16_t y1,int16_t x2,int16_t y2, Color color) {
   // Emulate triangle fill
 
   // Algorithm:
@@ -763,174 +697,197 @@ void DisplayBuffer::filled_triangle(int16_t nX0,int16_t nY0, int16_t nX1,int16_t
   //   and then C and B (flat top triangle) using line slopes.
 
   // Sort vertices
-  // - Want nY0 >= nY1 >= nY2
-  if (nY2>nY1) { this->swap_coords_(&nX2,&nY2,&nX1,&nY1); }
-  if (nY1>nY0) { this->swap_coords_(&nX0,&nY0,&nX1,&nY1); }
-  if (nY2>nY1) { this->swap_coords_(&nX2,&nY2,&nX1,&nY1); }
+  // - Want y0 >= y1 >= y2
+  if (y2 > y1) { 
+    this->swap_coords_(&x2, &y2, &x1, &y1); 
+  }
+  if (y1 > y0) { 
+    this->swap_coords_(&x0, &y0, &x1, &y1);
+  }
+  if (y2 > y1) { 
+    this->swap_coords_(&x2, &y2, &x1, &y1); 
+  }
 
   // TODO: It is more efficient to calculate row endpoints
   // using incremental additions instead of multiplies/divides
 
-  int16_t nXa,nXb,nXc,nYos;
-  int16_t nX01,nX20,nY01,nY20,nX21,nY21;
-  nX01 = nX0-nX1; nY01 = nY0-nY1;
-  nX20 = nX2-nX0; nY20 = nY2-nY0;
-  nX21 = nX2-nX1; nY21 = nY2-nY1;
+  int16_t xa, xb, xc, yos;
+  int16_t x01, x20, y01, y20, x21, y21;
+  x01 = x0-x1; 
+  y01 = y0-y1;
+  x20 = x2-x0; 
+  y20 = y2-y0;
+  x21 = x2-x1; 
+  y21 = y2-y1;
 
   // Flat bottom scenario
   // NOTE: Due to vertex sorting and loop range, it shouldn't
-  // be possible to enter loop when nY0 == nY1 or nY2
-  for (nYos=0;nYos<nY01;nYos++) {
+  // be possible to enter loop when y0 == y1 or y2
+  for (yos = 0; yos < y01; yos++) {
     // Determine row endpoints (no rounding)
-    //nXa = (nYos          )*(nX0-nX1)/(nY0-nY1);
-    //nXb = (nYos-(nY0-nY1))*(nX2-nX0)/(nY2-nY0);
+    // xa = (yos          )*(x0-x1)/(y0-y1);
+    // xb = (yos-(y0-y1))*(x2-x0)/(y2-y0);
 
     // Determine row endpoints (using rounding)
-    nXa  = 2*(nYos)*nX01;
-    nXa += (nXa>=0)?abs(nY01):-abs(nY01);
-    nXa /= 2*nY01;
+    xa  = 2 * yos * x01;
+    xa += (xa >= 0)?abs(y01):-abs(y01);
+    xa /= 2 * y01;
 
-    nXb = 2*(nYos-nY01)*nX20;
-    nXb += (nXb>=0)?abs(nY20):-abs(nY20);
-    nXb /= 2*nY20;
+    xb = 2 * (yos - y01) * x20;
+    xb += (xb >= 0)?abs(y20):-abs(y20);
+    xb /= 2 * y20;
 
     // Draw horizontal line between endpoints
-    this->line(nX1+nXa,nY1+nYos,nX0+nXb,nY1+nYos,nCol);
+    this->line(x1 + xa, y1 + yos, x0 + xb, y1 + yos, color);
   }
 
   // Flat top scenario
   // NOTE: Due to vertex sorting and loop range, it shouldn't
-  // be possible to enter loop when nY2 == nY0 or nY1
-  for (nYos=nY21;nYos<0;nYos++) {
+  // be possible to enter loop when y2 == y0 or y1
+  for (yos = y21; yos < 0; yos++) {
 
     // Determine row endpoints (no rounding)
-    //nXc = (nYos          )*(nX2-nX1)/(nY2-nY1);
-    //nXb = (nYos-(nY0-nY1))*(nX2-nX0)/(nY2-nY0);
+    //xc = (yos          )*(x2-x1)/(y2-y1);
+    //xb = (yos-(y0-y1))*(x2-x0)/(y2-y0);
 
     // Determine row endpoints (using rounding)
-    nXc  = 2*(nYos)*nX21;
-    nXc += (nXc>=0)?abs(nY21):-abs(nY21);
-    nXc /= 2*nY21;
+    xc  = 2 * yos * x21;
+    xc += (xc >= 0)?abs(y21):-abs(y21);
+    xc /= 2 * y21;
 
-    nXb = 2*(nYos-nY01)*nX20;
-    nXb += (nXb>=0)?abs(nY20):-abs(nY20);
-    nXb /= 2*nY20;
+    xb = 2 * (yos-y01) * x20;
+    xb += (xb >= 0)?abs(y20):-abs(y20);
+    xb /= 2 * y20;
 
     // Draw horizontal line between endpoints
-    this->line(nX1+nXc,nY1+nYos,nX0+nXb,nY1+nYos,nCol);
+    this->line(x1 + xc, y1 + yos, x0 + xb, y1 + yos, color);
   }
 }
 
-void DisplayBuffer::quad(Point * psPt, Color nCol) {
-  int16_t nX0,nY0,nX1,nY1;
+void DisplayBuffer::quad(Point * psPt, Color color) {
+  int16_t x0, y0, x1, y1;
 
-  nX0 = psPt[0].x; nY0 = psPt[0].y; nX1 = psPt[1].x; nY1 = psPt[1].y;
-  this->line(nX0,nY0,nX1,nY1,nCol);
+  x0 = psPt[0].x; 
+  y0 = psPt[0].y; 
+  x1 = psPt[1].x; 
+  y1 = psPt[1].y;
+  this->line(x0, y0, x1, y1, color);
 
-  nX0 = psPt[1].x; nY0 = psPt[1].y; nX1 = psPt[2].x; nY1 = psPt[2].y;
-  this->line(nX0,nY0,nX1,nY1,nCol);
+  x0 = psPt[1].x; 
+  y0 = psPt[1].y; 
+  x1 = psPt[2].x; 
+  y1 = psPt[2].y;
+  this->line(x0, y0, x1, y1, color);
 
-  nX0 = psPt[2].x; nY0 = psPt[2].y; nX1 = psPt[3].x; nY1 = psPt[3].y;
-  this->line(nX0,nY0,nX1,nY1,nCol);
+  x0 = psPt[2].x; 
+  y0 = psPt[2].y; 
+  x1 = psPt[3].x; 
+  y1 = psPt[3].y;
+  this->line(x0, y0, x1, y1, color);
 
-  nX0 = psPt[3].x; nY0 = psPt[3].y; nX1 = psPt[0].x; nY1 = psPt[0].y;
-  this->line(nX0,nY0,nX1,nY1,nCol);
-
+  x0 = psPt[3].x; 
+  y0 = psPt[3].y; 
+  x1 = psPt[0].x; 
+  y1 = psPt[0].y;
+  this->line(x0, y0, x1, y1, color);
 }
 
 // Filling a quadrilateral is done by breaking it down into
 // two filled triangles sharing one side. We have to be careful
 // about the triangle fill routine (ie. using rounding) so that
 // we can avoid leaving a thin seam between the two triangles.
-void DisplayBuffer::filled_quad(Point * psPt, Color nCol) {
-  int16_t nX0,nY0,nX1,nY1,nX2,nY2;
+void DisplayBuffer::filled_quad(Point * psPt, Color color) {
+  int16_t x0, y0, x1, y1, x2, y2;
 
   // Break down quadrilateral into two triangles
-  nX0 = psPt[0].x; nY0 = psPt[0].y;
-  nX1 = psPt[1].x; nY1 = psPt[1].y;
-  nX2 = psPt[2].x; nY2 = psPt[2].y;
-  this->filled_triangle(nX0,nY0,nX1,nY1,nX2,nY2,nCol);
+  x0 = psPt[0].x; 
+  y0 = psPt[0].y;
+  x1 = psPt[1].x; 
+  y1 = psPt[1].y;
+  x2 = psPt[2].x; 
+  y2 = psPt[2].y;
+  this->filled_triangle(x0, y0, x1, y1, x2, y2, color);
 
-  nX0 = psPt[2].x; nY0 = psPt[2].y;
-  nX1 = psPt[0].x; nY1 = psPt[0].y;
-  nX2 = psPt[3].x; nY2 = psPt[3].y;
-  this->filled_triangle(nX0,nY0,nX1,nY1,nX2,nY2,nCol);
+  x0 = psPt[2].x; 
+  y0 = psPt[2].y;
+  x1 = psPt[0].x; 
+  y1 = psPt[0].y;
+  x2 = psPt[3].x; 
+  y2 = psPt[3].y;
+  this->filled_triangle(x0, y0, x1, y1, x2, y2, color);
 }
 
-void DisplayBuffer::filled_Sector_(int16_t nQuality, int16_t nMidX, int16_t nMidY, int16_t nRad1, int16_t nRad2,
-                                   Color cArcStart, Color cArcEnd, int16_t nAngSecStart, int16_t nAngSecEnd,
-                                   bool gradient, int16_t nAngGradStart, int16_t nAngGradRange) {
-  Point anPts[4];
+void DisplayBuffer::filled_Sector_(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2,
+                                   Color color_start, Color color_end, int16_t angle_start, int16_t angle_end,
+                                   bool gradient, int16_t gradient_angle_start, int16_t gradient_angle_range) {
+  Point points[4];
 
   // Calculate degrees per step (based on quality setting)
-  int16_t nStepAng = 360 / nQuality;
-  int16_t nStep64 = 64 * nStepAng;
+  int16_t step_angle = 360 / quality;
+  int16_t step = 64 * step_angle;
 
-  int16_t nAng64;
-  int16_t nX, nY;
-  int16_t nSegStart, nSegEnd;
-  Color colSeg;
+  int16_t angle;
+  int16_t calc_x, calc_y;
+  int16_t segment_start, segment_end;
+  Color color_segment;
 
-  nSegStart = nAngSecStart * (int32_t)nQuality / 360;
-  nSegEnd = nAngSecEnd * (int32_t)nQuality / 360;
+  segment_start = angle_start * (int32_t) quality / 360;
+  segment_end = angle_end * (int32_t) quality / 360;
 
   int16_t nSegGradStart, nSegGradRange;
-  nSegGradStart = nAngGradStart * (int32_t)nQuality / 360;
-  nSegGradRange = nAngGradRange * (int32_t)nQuality / 360;
-  nSegGradRange = (nSegGradRange == 0) ? 1 : nSegGradRange; // Guard against div/0
+  nSegGradStart = gradient_angle_start * (int32_t) quality / 360;
+  nSegGradRange = gradient_angle_range * (int32_t) quality / 360;
+  nSegGradRange = (nSegGradRange == 0) ? 1 : nSegGradRange;  // Guard against div/0
 
-  bool bClockwise;
-  int16_t nSegInd;
-  int16_t nStepCnt;
-  if (nSegEnd >= nSegStart) {
-    nStepCnt = nSegEnd - nSegStart;
-    bClockwise = true;
+  bool clockwise;
+  int16_t segment_index;
+  int16_t step_count;
+  if (segment_end >= segment_start) {
+    step_count = segment_end - segment_start;
+    clockwise = true;
   } else {
-    nStepCnt = nSegStart - nSegEnd;
-    bClockwise = false;
+    step_count = segment_start - segment_end;
+    clockwise = false;
   }
 
-  for (int16_t nStepInd = 0; nStepInd < nStepCnt; nStepInd++) {
+  for (int16_t nStepInd = 0; nStepInd < step_count; nStepInd++) {
     // Remap from the step to the segment index, depending on direction
-    nSegInd = (bClockwise) ? (nSegStart + nStepInd) : (nSegStart - nStepInd - 1);
+    segment_index = (clockwise) ? (segment_start + nStepInd) : (segment_start - nStepInd - 1);
 
-    nAng64 = (int32_t)(nSegInd * nStep64) % (int32_t)(360 * 64);
+    angle = (int32_t)(segment_index * step) % (int32_t)(360 * 64);
 
-    this->polar_to_point(nRad1, nAng64, &nX, &nY);
-    anPts[0] = Point(nMidX + nX, nMidY + nY);
-    this->polar_to_point(nRad2, nAng64, &nX, &nY);
-    anPts[1] = Point(nMidX + nX, nMidY + nY);
-    this->polar_to_point(nRad2, nAng64 + nStep64, &nX, &nY);
-    anPts[2] = Point(nMidX + nX, nMidY + nY);
-    this->polar_to_point(nRad1, nAng64 + nStep64, &nX, &nY);
-    anPts[3] = Point(nMidX + nX, nMidY + nY);
+    this->polar_to_point(radius1, angle, &calc_x, &calc_y);
+    points[0] = Point(x + calc_x, y + calc_y);
+    this->polar_to_point(radius2, angle, &calc_x, &calc_y);
+    points[1] = Point(x + calc_x, y + calc_y);
+    this->polar_to_point(radius2, angle + step, &calc_x, &calc_y);
+    points[2] = Point(x + calc_x, y + y);
+    this->polar_to_point(radius1, angle + step, &calc_x, &calc_y);
+    points[3] = Point(x + calc_x, y + calc_y);
 
     if (gradient) {
       // Gradient coloring
-      int16_t nGradPos = 1000 * (int32_t)(nSegInd - nSegGradStart) / nSegGradRange;
-      colSeg = this->blend_color(cArcStart, cArcEnd, 500, nGradPos);
+      int16_t nGradPos = 1000 * (int32_t)(segment_index - nSegGradStart) / nSegGradRange;
+      color_segment = this->blend_color(color_start, color_end, 500, nGradPos);
     } else {
       // Flat coloring
-      colSeg = cArcStart;
+      color_segment = color_start;
     }
-    this->filled_quad( anPts, colSeg);
+    this->filled_quad( points, color_segment);
   }
 }
 
-void DisplayBuffer::gradient_sector(int16_t nQuality, int16_t nMidX, int16_t nMidY, int16_t nRad1, int16_t nRad2,
-  Color cArcStart, Color cArcEnd, int16_t nAngSecStart, int16_t nAngSecEnd, int16_t nAngGradStart, int16_t nAngGradRange) {
-  this->filled_Sector_(nQuality, nMidX, nMidY, nRad1, nRad2, cArcStart, cArcEnd, nAngSecStart, nAngSecEnd,
-                       true, nAngGradStart, nAngGradRange);
+void DisplayBuffer::gradient_sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2, Color color_start, 
+                                    Color color_end, int16_t angle_start, int16_t angle_end, int16_t gradient_angle_start, int16_t gradient_angle_range) {
+  this->filled_Sector_(quality, x, y, radius1, radius2, color_start, color_end, angle_start, angle_end, true, gradient_angle_start, gradient_angle_range);
 }
 
-void DisplayBuffer::filled_Sector( int16_t nQuality, int16_t nMidX, int16_t nMidY, int16_t nRad1, int16_t nRad2,
-  Color cArc, int16_t nAngSecStart, int16_t nAngSecEnd) {
-  this->filled_Sector_(nQuality, nMidX, nMidY, nRad1, nRad2, cArc, cArc, nAngSecStart, nAngSecEnd);
+void DisplayBuffer::filled_Sector( int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2, Color arc_color, 
+                                   int16_t angle_start, int16_t angle_end) {
+  this->filled_Sector_(quality, x, y, radius1, radius2, arc_color, arc_color, angle_start, angle_end);
 }
-
 
 #endif
-
 
 bool Glyph::get_pixel(int x, int y) const {
   const int x_data = x - this->glyph_data_->offset_x;

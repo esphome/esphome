@@ -105,13 +105,12 @@ enum DisplayRotation {
 
 /// Define point coordinates
 struct Point {
-  int16_t   x;        ///< X coordinate
-  int16_t   y;        ///< Y coordinate
+  int16_t x;  ///< X coordinate
+  int16_t y;  ///< Y coordinate
 
   inline Point() ALWAYS_INLINE : x(0), y(0) {}  // NOLINT
-  inline Point(int16_t x, int16_t y ) ALWAYS_INLINE : x(x), y(y) {}
+  inline Point(int16_t x, int16_t y) ALWAYS_INLINE : x(x), y(y) {}
 };
-
 
 struct Rect {
   int16_t x;  ///< X coordinate of corner
@@ -120,9 +119,8 @@ struct Rect {
   uint16_t h; ///< Height of region
 
   inline Rect() ALWAYS_INLINE : x(1), y(1), w(0), h(0) {}  // NOLINT
-  inline Rect(int16_t xx, int16_t yy, uint16_t ww, uint16_t hh ) ALWAYS_INLINE : x(xx), y(yy), w(ww), h(hh) {}
+  inline Rect(int16_t xx, int16_t yy, uint16_t ww, uint16_t hh) ALWAYS_INLINE : x(xx), y(yy), w(ww), h(hh) {}
 };
-
 
 class Font;
 class Image;
@@ -174,7 +172,6 @@ class DisplayBuffer {
 
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
   void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON);
-
 
 #ifdef USE_EXTENDEDDRAW
 
@@ -252,7 +249,7 @@ class DisplayBuffer {
   ///
   /// \return none
   ///
-  Rect union_rect(Rect rect, Rect addRect);
+  Rect union_rect(Rect rect, Rect add_rect);
 
   ///
   /// Determine if a coordinate is inside of a rectangular region.
@@ -265,7 +262,7 @@ class DisplayBuffer {
   ///
   /// \return true if inside region, false otherwise
   ///
-  bool in_rect(int16_t X, int16_t Y, Rect rect); //*//
+  bool in_rect(int16_t x, int16_t y, Rect rect); //*//
 
   ///
   /// Determine if a coordinate is inside of a width x height region.
@@ -341,10 +338,10 @@ class DisplayBuffer {
   void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color = COLOR_ON);
 
 
-  void triangle(int16_t nX0,int16_t nY0, int16_t nX1,int16_t nY1,int16_t nX2,int16_t nY2, Color nCol = COLOR_ON);
+  void triangle(int16_t nX0,int16_t nY0, int16_t x1,int16_t nY1,int16_t x2,int16_t nY2, Color nCol = COLOR_ON);
 
   // Draw a filled triangle
-  void filled_triangle(int16_t nX0,int16_t nY0, int16_t nX1,int16_t nY1,int16_t nX2,int16_t nY2, Color nCol = COLOR_ON);
+  void filled_triangle(int16_t x0,int16_t nY0, int16_t x1,int16_t nY1,int16_t x2,int16_t nY2, Color nCol = COLOR_ON);
 
 
   ///
@@ -389,7 +386,7 @@ class DisplayBuffer {
   /// Draw a polar ray segment
   ///
   /// \param[in]  pGui:        Pointer to GUI
-  /// \param[in]  nX:          X coordinate of line startpoint
+  /// \param[in]  x:          X coordinate of line startpoint
   /// \param[in]  nY:          Y coordinate of line startpoint
   /// \param[in]  nRadStart:   Starting radius of line
   /// \param[in]  nRadEnd:     Ending radius of line
@@ -409,7 +406,7 @@ class DisplayBuffer {
   ///
   /// \return true if success, false if error
   ///
-  void quad(Point * psPt, Color color = COLOR_ON);
+  void quad(Point *psPt, Color color = COLOR_ON);
 
   ///
   /// Draw a filled quadrilateral
@@ -421,13 +418,13 @@ class DisplayBuffer {
   ///
   void filled_quad(Point * psPt, Color color = COLOR_ON);
 
-  void gradient_sector(int16_t nQuality, int16_t nMidX, int16_t nMidY, int16_t nRad1, int16_t nRad2,
-                       Color cArcStart, Color cArcEnd, int16_t nAngSecStart, int16_t nAngSecEnd, int16_t nAngGradStart, int16_t nAngGradRange);
-  void filled_Sector( int16_t nQuality, int16_t nMidX, int16_t nMidY, int16_t nRad1, int16_t nRad2,Color cArc, int16_t nAngSecStart, int16_t nAngSecEnd);
+  void gradient_sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t raduis2, Color color_start, 
+                       Color color_end, int16_t angle_start, int16_t angle_end, int16_t gradient_angle_start, 
+                       int16_t gradient_angle_range);
+  void filled_Sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t raduis2, Color arc_color,
+                     int16_t angle_start, int16_t angle_end);
 
 #endif
-
-
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
@@ -662,11 +659,11 @@ class DisplayBuffer {
   void do_update_();
 
 #ifdef USE_EXTENDEDDRAW
-  void swap_coords_(int16_t* pnXa,int16_t* pnYa,int16_t* pnXb,int16_t* pnYb);
+  void swap_coords_(int16_t *x0, int16_t *y0, int16_t *x1, int16_t *y1);
 
-  void filled_Sector_(int16_t nQuality, int16_t nMidX, int16_t nMidY, int16_t nRad1, int16_t nRad2,
-                                  Color cArcStart, Color cArcEnd, int16_t nAngSecStart, int16_t nAngSecEnd,
-                                  bool gradient = false, int16_t nAngGradStart = 0, int16_t nAngGradRange= 0);
+  void filled_Sector_(int16_t quality, int16_t mid_X, int16_t mid_y, int16_t radius1, int16_t radius2,
+                                  Color color_start, Color color_end, int16_t angle_sectoin_start, int16_t angle_sectoin_end,
+                                  bool gradient = false, int16_t gradient_angle_start = 0, int16_t gradient_angle_range = 0);
 
   Rect clipping_rectangle_{1, 1, 0, 0};
   Color transparant_color_{COLOR_OFF};
