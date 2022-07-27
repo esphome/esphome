@@ -338,10 +338,10 @@ class DisplayBuffer {
   void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color = COLOR_ON);
 
 
-  void triangle(int16_t nX0,int16_t nY0, int16_t x1,int16_t nY1,int16_t x2,int16_t nY2, Color nCol = COLOR_ON);
+  void triangle(int16_t x0, int16_t y0, int16_t x1, int16_t nY1,int16_t x2, int16_t y2, Color nCol = COLOR_ON);
 
   // Draw a filled triangle
-  void filled_triangle(int16_t x0,int16_t nY0, int16_t x1,int16_t nY1,int16_t x2,int16_t nY2, Color nCol = COLOR_ON);
+  void filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2,int16_t y2, Color nCol = COLOR_ON);
 
 
   ///
@@ -354,7 +354,7 @@ class DisplayBuffer {
   ///
   /// \return none
   ///
-  void polar_to_point(uint16_t rad, int16_t angle, int16_t *deltaX, int16_t *deltaDY);
+  void polar_to_point(uint16_t rad, int16_t angle, int16_t *x, int16_t *y);
 
   ///
   /// Calculate fixed-point sine function from fractional degrees
@@ -396,30 +396,31 @@ class DisplayBuffer {
   ///
   /// \return none
   ///
-  void polar_line(int16_t X, int16_t Y, uint16_t radStart, uint16_t radEnd, int16_t angle, Color color = COLOR_ON);
+  void polar_line(int16_t X, int16_t Y, uint16_t radius_start, uint16_t radius_end, int16_t angle,
+                  Color color = COLOR_ON);
 
   ///
   /// Draw a framed quadrilateral
   ///
-  /// \param[in]  psPt:        Pointer to array of 4 points
+  /// \param[in]  points:        Pointer to array of 4 points
   /// \param[in]  nCol:        Color RGB value for the frame
   ///
   /// \return true if success, false if error
   ///
-  void quad(Point *psPt, Color color = COLOR_ON);
+  void quad(Point *points, Color color = COLOR_ON);
 
   ///
   /// Draw a filled quadrilateral
   ///
-  /// \param[in]  psPt:        Pointer to array of 4 points
+  /// \param[in]  points:        Pointer to array of 4 points
   /// \param[in]  nCol:        Color RGB value for the frame
   ///
   /// \return true if success, false if error
   ///
-  void filled_quad(Point * psPt, Color color = COLOR_ON);
+  void filled_quad(Point *points, Color color = COLOR_ON);
 
-  void gradient_sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t raduis2, Color color_start, 
-                       Color color_end, int16_t angle_start, int16_t angle_end, int16_t gradient_angle_start, 
+  void gradient_sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t raduis2, Color color_start,
+                       Color color_end, int16_t angle_start, int16_t angle_end, int16_t gradient_angle_start,
                        int16_t gradient_angle_range);
   void filled_Sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t raduis2, Color arc_color,
                      int16_t angle_start, int16_t angle_end);
@@ -661,9 +662,9 @@ class DisplayBuffer {
 #ifdef USE_EXTENDEDDRAW
   void swap_coords_(int16_t *x0, int16_t *y0, int16_t *x1, int16_t *y1);
 
-  void filled_Sector_(int16_t quality, int16_t mid_X, int16_t mid_y, int16_t radius1, int16_t radius2,
-                                  Color color_start, Color color_end, int16_t angle_sectoin_start, int16_t angle_sectoin_end,
-                                  bool gradient = false, int16_t gradient_angle_start = 0, int16_t gradient_angle_range = 0);
+  void filled_Sector_(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2,
+                      Color color_start, Color color_end, int16_t angle_start, int16_t angle_end,
+                      bool gradient = false, int16_t gradient_angle_start = 0, int16_t gradient_angle_range = 0);
 
   Rect clipping_rectangle_{1, 1, 0, 0};
   Color transparant_color_{COLOR_OFF};
