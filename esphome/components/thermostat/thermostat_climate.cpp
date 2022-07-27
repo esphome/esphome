@@ -29,10 +29,7 @@ void ThermostatClimate::setup() {
   auto restore = this->restore_state_();
   if (restore.has_value()) {
     restore->to_call(this).perform();
-  }
-
-  // Specifically set the default state outside of restored state
-  if (this->default_preset_ != climate::ClimatePreset::CLIMATE_PRESET_NONE) {
+  } else if (this->default_preset_ != climate::ClimatePreset::CLIMATE_PRESET_NONE) {
     this->change_preset_(this->default_preset_);
   } else if (!this->default_custom_preset_.empty()) {
     this->change_custom_preset_(this->default_custom_preset_);
