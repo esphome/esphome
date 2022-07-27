@@ -387,7 +387,7 @@ class DisplayBuffer {
   ///
   /// \return none
   ///
-  void polar_line(int16_t X, int16_t y, uint16_t radius_start, uint16_t radius_end, int16_t angle,
+  void polar_line(int16_t y, int16_t y, uint16_t radius_start, uint16_t radius_end, int16_t angle,
                   Color color = COLOR_ON);
 
   ///
