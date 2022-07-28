@@ -989,7 +989,6 @@ void WaveshareEPaper5P8InV2::initialize() {
   // COMMAND PLL CONTROL
   this->command(0x30);
   this->data(0x3C);  // 3A 100HZ   29 150Hz 39 200HZ  31 171HZ
-
 }
 void HOT WaveshareEPaper5P8InV2::display() {
   // Reuse the code from WaveshareEPaper4P2In::display()
@@ -1029,7 +1028,6 @@ void WaveshareEPaper5P8InV2::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
-
 
 void WaveshareEPaper7P5InBV2::initialize() {
   // COMMAND POWER SETTING
