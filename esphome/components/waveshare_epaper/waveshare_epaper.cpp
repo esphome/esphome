@@ -947,13 +947,14 @@ void WaveshareEPaper5P8In::dump_config() {
 // ========================================================
 
 void WaveshareEPaper5P8InV2::initialize() {
-  /*// Reset
+  /*
+  // Reset
   this->reset_pin_->digital_write(false);
-  delay(200);
+  delay(20);
   this->reset_pin_->digital_write(true);
   delay(5);
   this->reset_pin_->digital_write(false);
-  delay(200);
+  delay(20);
   */
 
   // COMMAND POWER SETTING
@@ -965,22 +966,22 @@ void WaveshareEPaper5P8InV2::initialize() {
 
   // COMMAND POWER ON
   this->command(0x04);
-  delay(100);
+  delay(10);
   this->wait_until_idle_();
 
   // PANNEL SETTING
   this->command(0x00);
   this->data(0x1F);
-  
-  
+
+
   // COMMAND RESOLUTION SETTING
   this->command(0x61);
   this->data(0x02);
   this->data(0x88);
   this->data(0x01);
   this->data(0xE0);
-  
-  
+
+
   this->command(0x15);
   this->data(0x00);
 
@@ -994,12 +995,12 @@ void WaveshareEPaper5P8InV2::initialize() {
   // COMMAND TCON SETTING
   this->command(0x60);
   this->data(0x22);
-  
+
   // Do we need this?
   // COMMAND PLL CONTROL
   this->command(0x30);
   this->data(0x3C);  // 3A 100HZ   29 150Hz 39 200HZ  31 171HZ
-  
+
 }
 void HOT WaveshareEPaper5P8InV2::display() {
   // Reuse the code from WaveshareEPaper4P2In::display()
@@ -1020,7 +1021,7 @@ void HOT WaveshareEPaper5P8InV2::display() {
   this->write_array(this->buffer_, this->get_buffer_length_());
   this->end_data_();
   delay(2);
-  
+
   // COMMAND DATA START TRANSMISSION 2
   this->command(0x13);
   delay(2);
