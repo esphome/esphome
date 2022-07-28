@@ -938,23 +938,21 @@ void WaveshareEPaper5P8In::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-
 // ========================================================
 //               5.83in V2
 // Datasheet/Specification/Reference:
 //  - https://www.waveshare.com/w/upload/3/37/5.83inch_e-Paper_V2_Specification.pdf
 //  - https://github.com/waveshare/e-Paper/blob/master/Arduino/epd5in83_V2/epd5in83_V2.cpp
 // ========================================================
-
 void WaveshareEPaper5P8InV2::initialize() {
   /*
-  // Reset
-  this->reset_pin_->digital_write(false);
-  delay(20);
-  this->reset_pin_->digital_write(true);
-  delay(5);
-  this->reset_pin_->digital_write(false);
-  delay(20);
+    // Reset
+    this->reset_pin_->digital_write(false);
+    delay(20);
+    this->reset_pin_->digital_write(true);
+    delay(5);
+    this->reset_pin_->digital_write(false);
+    delay(20);
   */
 
   // COMMAND POWER SETTING
@@ -973,7 +971,6 @@ void WaveshareEPaper5P8InV2::initialize() {
   this->command(0x00);
   this->data(0x1F);
 
-
   // COMMAND RESOLUTION SETTING
   this->command(0x61);
   this->data(0x02);
@@ -981,16 +978,8 @@ void WaveshareEPaper5P8InV2::initialize() {
   this->data(0x01);
   this->data(0xE0);
 
-
   this->command(0x15);
   this->data(0x00);
-
-/*
-  // COMMAND VCOM AND DATA INTERVAL SETTING
-  this->command(0x50);
-  this->data(0x10);
-  this->data(0x07);
-*/
 
   // COMMAND TCON SETTING
   this->command(0x60);
@@ -1010,8 +999,6 @@ void HOT WaveshareEPaper5P8InV2::display() {
 
   // COMMAND VCOM AND DATA INTERVAL SETTING
   this->command(0x50);
-/*  this->data(0x10);
-  this->data(0x07);*/
   this->data(0x97);
 
   // COMMAND DATA START TRANSMISSION 1
