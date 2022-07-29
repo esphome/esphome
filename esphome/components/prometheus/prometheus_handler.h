@@ -5,6 +5,7 @@
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/component.h"
+#include "esphome/components/prometheus/filter.h"
 
 namespace esphome {
 namespace prometheus {
@@ -39,6 +40,18 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
     // After WiFi
     return setup_priority::WIFI - 1.0f;
   }
+
+  /// Add a filter to the filter chain. Will be appended to the back.
+  void add_filter(Filter *filter);
+
+  /// Add a list of vectors to the back of the filter chain.
+  void add_filters(const std::vector<Filter *> &filters);
+
+  /// Clear the filters and replace them by filters.
+  void set_filters(const std::vector<Filter *> &filters);
+
+  /// Clear the entire filter chain.
+  void clear_filters();
 
  protected:
 #ifdef USE_SENSOR
@@ -92,6 +105,7 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
 
   web_server_base::WebServerBase *base_;
   bool include_internal_{false};
+  Filter *filter_list_{nullptr};  ///< Store all active filters.
 };
 
 }  // namespace prometheus
