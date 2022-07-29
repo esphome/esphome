@@ -10,7 +10,7 @@ static const char *const TAG = "sml";
 const char START_BYTES_DETECTED = 1;
 const char END_BYTES_DETECTED = 2;
 
-SmlListener::SmlListener(std::string server_id, std::string obis_code)
+SmlListener::SmlListener(const std::string& server_id, const std::string& obis_code)
     : server_id(std::move(server_id)), obis_code(std::move(obis_code)) {}
 
 char Sml::check_start_end_bytes_(uint8_t byte) {

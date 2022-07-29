@@ -18,7 +18,7 @@ void HttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Redirect limit: %d", this->redirect_limit_);
 }
 
-void HttpRequestComponent::set_url(std::string url) {
+void HttpRequestComponent::set_url(const std::string& url) {
   this->url_ = std::move(url);
   this->secure_ = this->url_.compare(0, 6, "https:") == 0;
 

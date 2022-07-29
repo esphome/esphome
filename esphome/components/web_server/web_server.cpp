@@ -151,7 +151,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   stream->print(F("<link rel=\"stylesheet\" href=\"/0.css\">"));
 #endif
   if (strlen(this->css_url_) > 0) {
-    stream->print(F("<link rel=\"stylesheet\" href=\""));
+    stream->print(F(R"(<link rel="stylesheet" href=")"));
     stream->print(this->css_url_);
     stream->print(F("\">"));
   }
@@ -833,13 +833,13 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
 }
 
 // Longest: HORIZONTAL
-#define PSTR_LOCAL(mode_s) strncpy_P(__buf, (PGM_P)((mode_s)), 15)
+#define PSTR_LOCAL(mode_s) strncpy_P(buffer, (PGM_P)((mode_s)), 15)
 
 std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject root) {
     set_json_id(root, obj, "climate-" + obj->get_object_id(), start_config);
     const auto traits = obj->get_traits();
-    char __buf[16];
+    char buffer[16];
 
     if (start_config == DETAIL_ALL) {
       JsonArray opt = root.createNestedArray("modes");

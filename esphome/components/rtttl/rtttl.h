@@ -10,7 +10,7 @@ namespace rtttl {
 class Rtttl : public Component {
  public:
   void set_output(output::FloatOutput *output) { output_ = output; }
-  void play(std::string rtttl);
+  void play(const std::string& rtttl);
   void stop() {
     note_duration_ = 0;
     output_->set_level(0.0);

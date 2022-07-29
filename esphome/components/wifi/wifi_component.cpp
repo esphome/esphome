@@ -641,7 +641,7 @@ const optional<uint8_t> &WiFiAP::get_channel() const { return this->channel_; }
 const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip_; }
 bool WiFiAP::get_hidden() const { return this->hidden_; }
 
-WiFiScanResult::WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth,
+WiFiScanResult::WiFiScanResult(const bssid_t &bssid, const std::string& ssid, uint8_t channel, int8_t rssi, bool with_auth,
                                bool is_hidden)
     : bssid_(bssid),
       ssid_(std::move(ssid)),

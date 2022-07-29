@@ -13,7 +13,7 @@ static const char *const TAG = "rc522";
 
 static const uint8_t RESET_COUNT = 5;
 
-std::string format_buffer(uint8_t *b, uint8_t len) {
+std::string format_buffer(const uint8_t *b, uint8_t len) {
   char buf[32];
   int offset = 0;
   for (uint8_t i = 0; i < len; i++) {

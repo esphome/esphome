@@ -101,7 +101,7 @@ class MQTTComponent : public Component {
    *
    * See See <a href="https://www.home-assistant.io/components/binary_sensor.mqtt/">Home Assistant</a> for more info.
    */
-  void set_availability(std::string topic, std::string payload_available, std::string payload_not_available);
+  void set_availability(const std::string& topic, const std::string& payload_available, const std::string& payload_not_available);
   void disable_availability();
 
   /// Internal method for the MQTT client base to schedule a resend of the state on reconnect.

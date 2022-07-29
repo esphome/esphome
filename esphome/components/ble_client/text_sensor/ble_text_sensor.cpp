@@ -106,7 +106,7 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
   }
 }
 
-std::string BLETextSensor::parse_data(uint8_t *value, uint16_t value_len) {
+std::string BLETextSensor::parse_data(const uint8_t *value, uint16_t value_len) {
   std::string text(value, value + value_len);
   return text;
 }
