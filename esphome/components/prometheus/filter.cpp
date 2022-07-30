@@ -13,8 +13,11 @@ std::string Filter::input(const std::string &value) {
   ESP_LOGVV(TAG, "Filter(%p)::input(%s)", this, value.c_str());
   optional<std::string> out = this->new_value(value);
   ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> SENSOR", this, value.c_str());
-  if (out.has_value())
+  if (out.has_value()) {
     return *out;
+  } else {
+    return value;
+  }
 }
 void Filter::initialize(PrometheusHandler *parent) {
   ESP_LOGVV(TAG, "Filter(%p)::initialize(parent=%p)", this, parent);
