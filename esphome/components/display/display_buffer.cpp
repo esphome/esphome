@@ -204,7 +204,7 @@ void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align
     i += match_length;
   }
 }
-void DisplayBuffer::vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, const va_list arg) {
+void DisplayBuffer::vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, const const va_list arg) {
   char buffer[256];
   int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
   if (ret > 0)
