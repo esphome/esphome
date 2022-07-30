@@ -171,7 +171,7 @@ void Dsmr::receive_telegram_() {
     this->telegram_[this->bytes_read_] = c;
     this->bytes_read_++;
 
-    // Check for a footer, i.e. exlamation mark, followed by a hex checksum.
+    // Check for a footer, i.e. exclamation mark, followed by a hex checksum.
     if (c == '!') {
       ESP_LOGV(TAG, "Footer of telegram found");
       this->footer_found_ = true;

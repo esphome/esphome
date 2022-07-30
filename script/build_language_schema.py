@@ -13,7 +13,7 @@ import esphome.schema_extractors as ejs
 ejs.EnableSchemaExtraction = True
 
 # schema format:
-# Schemas are splitted in several files in json format, one for core stuff, one for each platform (sensor, binary_sensor, etc) and
+# Schemas are split in several files in json format, one for core stuff, one for each platform (sensor, binary_sensor, etc) and
 # one for each component (dallas, sim800l, etc.) component can have schema for root component/hub and also for platform component,
 # e.g. dallas has hub component which has pin and then has the sensor platform which has sensor name, index, etc.
 # When files are loaded they are merged in a single object.
