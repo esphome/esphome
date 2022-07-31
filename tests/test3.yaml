@@ -270,6 +270,10 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
+  - id: uart10
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
 
 modbus:
   uart_id: uart1
@@ -755,6 +759,19 @@ sensor:
     temperature:
       name: "mlxtemp"
       oversampling: 2
+  - platform: smt100
+    uart_id: uart10
+    counts:
+      name: "Counts"
+    dielectric_constant:
+      name: "Dielectric Constant"
+    temperature:
+      name: "Temperature"
+    moisture:
+      name: "Moisture"
+    voltage:
+      name: "Voltage"
+    update_interval: 60s
 time:
   - platform: homeassistant
 
