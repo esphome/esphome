@@ -1893,6 +1893,8 @@ climate:
     name: My Bedjet
     ble_client_id: my_bedjet_ble_client
     heat_mode: extended
+  - platform: zhlt01
+    name: ZH/LT-01 Climate
 
 script:
   - id: climate_custom
