@@ -98,11 +98,11 @@ namespace zhlt01 {
  *        The values below were measured by taking the average of 2 different
  *        remote controls each sending 10 commands
  *******************************************************************************/
-#define AC1_HDR_MARK 6100
-#define AC1_HDR_SPACE 7400
-#define AC1_BIT_MARK 500
-#define AC1_ZERO_SPACE 600
-#define AC1_ONE_SPACE 1800
+static const uint32_t AC1_HDR_MARK = 6100;
+static const uint32_t AC1_HDR_SPACE = 7400;
+static const uint32_t AC1_BIT_MARK = 500;
+static const uint32_t AC1_ZERO_SPACE = 600;
+static const uint32_t AC1_ONE_SPACE = 1800;
 
 /********************************************************************************
  *
@@ -111,37 +111,37 @@ namespace zhlt01 {
  *******************************************************************************/
 
 // Power
-#define AC1_POWER_OFF 0x00
-#define AC1_POWER_ON 0x02
+static const uint8_t AC1_POWER_OFF = 0x00;
+static const uint8_t AC1_POWER_ON = 0x02;
 
 // Operating Modes
-#define AC1_MODE_AUTO 0x00
-#define AC1_MODE_COOL 0x20
-#define AC1_MODE_DRY 0x40
-#define AC1_MODE_FAN 0x60
-#define AC1_MODE_HEAT 0x80
+static const uint8_t AC1_MODE_AUTO = 0x00;
+static const uint8_t AC1_MODE_COOL = 0x20;
+static const uint8_t AC1_MODE_DRY = 0x40;
+static const uint8_t AC1_MODE_FAN = 0x60;
+static const uint8_t AC1_MODE_HEAT = 0x80;
 
 // Fan control
-#define AC1_FAN_AUTO 0x00
-#define AC1_FAN_SILENT 0x01
-#define AC1_FAN1 0x60
-#define AC1_FAN2 0x40
-#define AC1_FAN3 0x20
-#define AC1_FAN_TURBO 0x08
+static const uint8_t AC1_FAN_AUTO = 0x00;
+static const uint8_t AC1_FAN_SILENT = 0x01;
+static const uint8_t AC1_FAN1 = 0x60;
+static const uint8_t AC1_FAN2 = 0x40;
+static const uint8_t AC1_FAN3 = 0x20;
+static const uint8_t AC1_FAN_TURBO = 0x08;
 
 // Vertical Swing
-#define AC1_VDIR_WIND 0x00   // "Natural Wind", ignore
-#define AC1_VDIR_SWING 0x04  // Swing
-#define AC1_VDIR_FIXED 0x08  // Fixed
+static const uint8_t AC1_VDIR_WIND = 0x00;   // "Natural Wind", ignore
+static const uint8_t AC1_VDIR_SWING = 0x04;  // Swing
+static const uint8_t AC1_VDIR_FIXED = 0x08;  // Fixed
 
 // Horizontal Swing
-#define AC1_HDIR_SWING 0x00  // Swing
-#define AC1_HDIR_FIXED 0x10  // Fixed
+static const uint8_t AC1_HDIR_SWING = 0x00;  // Swing
+static const uint8_t AC1_HDIR_FIXED = 0x10;  // Fixed
 
 // Temperature range
-#define AC1_TEMP_MIN 16.0f
-#define AC1_TEMP_MAX 32.0f
-#define AC1_TEMP_INC 1.0f
+static const float AC1_TEMP_MIN = 16.0f;
+static const float AC1_TEMP_MAX = 32.0f;
+static const float AC1_TEMP_INC = 1.0f;
 
 class ZHLT01Climate : public climate_ir::ClimateIR {
  public:
