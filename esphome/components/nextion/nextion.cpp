@@ -440,8 +440,8 @@ void Nextion::process_nextion_commands_() {
         }
         break;
       }
-      case 0x66: { // Nextion initiated new page event return data.
-                   // Also is used for sendme command which we never explicitly initiate
+      case 0x66: {  // Nextion initiated new page event return data.
+                    // Also is used for sendme command which we never explicitly initiate
         if (to_process_length != 1) {
           ESP_LOGW(TAG, "New page event data is expecting 1, received %zu", to_process_length);
           break;
@@ -449,7 +449,7 @@ void Nextion::process_nextion_commands_() {
 
         uint8_t page_id = to_process[0];
         ESP_LOGD(TAG, "Got new page=%u", page_id);
-        this->page_callback_.call(std::to_string(page_id));
+        this->page_callback_.call(to_string(page_id));
         break;
       }
       case 0x67: {  // Touch Coordinate (awake)
