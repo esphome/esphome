@@ -14,7 +14,6 @@ std::map<uint8_t, BME680BSECComponent *>
     BME680BSECComponent::instances;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 uint8_t BME680BSECComponent::work_buffer_[BSEC_MAX_WORKBUFFER_SIZE] = {0};
 
-
 void BME680BSECComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BME680@0x%02x via BSEC...", address_);
 
@@ -64,12 +63,14 @@ void BME680BSECComponent::set_config_() {
     const uint8_t config[] = {
 #include "config/generic_33v_300s_28d/bsec_iaq.txt"
     };
-    this->bsec_status_ = bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+    this->bsec_status_ =
+        bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
   } else {
     const uint8_t config[] = {
 #include "config/generic_33v_3s_28d/bsec_iaq.txt"
     };
-    this->bsec_status_ = bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+    this->bsec_status_ =
+        bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
   }
 }
 
@@ -508,8 +509,8 @@ void BME680BSECComponent::load_state_() {
 
   if (this->bsec_state_.load(&this->bsec_state_data_)) {
     ESP_LOGV(TAG, "Loading BSEC library state");
-    this->bsec_status_ =
-        bsec_set_state(this->bsec_state_data_, BSEC_MAX_STATE_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
+    this->bsec_status_ = bsec_set_state(this->bsec_state_data_, BSEC_MAX_STATE_BLOB_SIZE, this->work_buffer_,
+                                        sizeof(this->work_buffer_));
     if (this->bsec_status_ != BSEC_OK) {
       ESP_LOGW(TAG, "Failed to load BSEC library state (BSEC Error Code %d)", this->bsec_status_);
       return;
