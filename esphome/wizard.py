@@ -1,9 +1,9 @@
-import requests
 import os
 import random
 import string
 import unicodedata
 
+import requests
 import voluptuous as vol
 
 import esphome.config_validation as cv
@@ -235,7 +235,6 @@ def strip_accents(value):
 def wizard(path):
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
-    from esphome.components.libretuya import boards as libretuya_boards
 
     if not path.endswith(".yaml") and not path.endswith(".yml"):
         safe_print(
@@ -355,7 +354,7 @@ def wizard(path):
         url = f"https://api.registry.platformio.org/v3/packages/{platform_api}/boards"
         with requests.get(url) as r:
             boards_api = r.json()
-        safe_print(f"Options:")
+        safe_print("Options:")
         for board in boards_api:
             boards.append(board["id"])
             safe_print(f" - {board['id']} - {board['name']}")
