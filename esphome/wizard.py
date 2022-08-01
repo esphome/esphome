@@ -1,3 +1,4 @@
+import requests
 import os
 import random
 import string
@@ -85,7 +86,7 @@ LIBRETUYA_CONFIG = """
 libretuya:
   board: {board}
   framework:
-    type: arduino
+    version: latest
 """
 
 HARDWARE_BASE_CONFIGS = {
@@ -321,12 +322,15 @@ def wizard(path):
         board_link = (
             "http://docs.platformio.org/en/latest/platforms/espressif32.html#boards"
         )
+        platform_api = "platformio/platform/espressif32"
     elif platform == "ESP8266":
         board_link = (
             "http://docs.platformio.org/en/latest/platforms/espressif8266.html#boards"
         )
+        platform_api = "platformio/platform/espressif8266"
     else:
         board_link = "https://github.com/kuba2k2/libretuya/tree/master/boards"
+        platform_api = "kuba2k2/platform/libretuya"
 
     safe_print(f"Next, I need to know what {color(Fore.GREEN, 'board')} you're using.")
     sleep(0.5)
@@ -341,10 +345,19 @@ def wizard(path):
     elif platform == "ESP8266":
         safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'nodemcuv2')}\".")
         boards = list(esp8266_boards.ESP8266_BOARD_PINS.keys())
-    else:
+
+    if platform == "LIBRETUYA":
         safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'wr3')}\".")
-        boards = list(libretuya_boards.LIBRETUYA_BOARD_PINS.keys())
-    safe_print(f"Options: {', '.join(sorted(boards))}")
+        boards = []
+        url = f"https://api.registry.platformio.org/v3/packages/{platform_api}/boards"
+        with requests.get(url) as r:
+            boards_api = r.json()
+        safe_print(f"Options:")
+        for board in boards_api:
+            boards.append(board["id"])
+            safe_print(f" - {board['id']} - {board['name']}")
+    else:
+        safe_print(f"Options: {', '.join(sorted(boards))}")
 
     while True:
         board = input(color(Fore.BOLD_WHITE, "(board): "))
