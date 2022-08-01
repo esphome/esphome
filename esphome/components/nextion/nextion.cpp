@@ -440,7 +440,8 @@ void Nextion::process_nextion_commands_() {
         }
         break;
       }
-      case 0x66: { // Nextion initiated new page event return data. Also used for sendme command which we never initiate
+      case 0x66: { // Nextion initiated new page event return data.
+                   // Also is used for sendme command which we never explicitly initiate
         if (to_process_length != 1) {
           ESP_LOGW(TAG, "New page event data is expecting 1, received %zu", to_process_length);
           break;
