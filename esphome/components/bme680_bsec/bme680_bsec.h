@@ -87,6 +87,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
 
   void queue_push_(std::function<void()> &&f) { this->queue_.push(std::move(f)); }
 
+  static uint8_t work_buffer_[BSEC_MAX_WORKBUFFER_SIZE];
   struct bme680_dev bme680_;
   bsec_library_return_t bsec_status_{BSEC_OK};
   int8_t bme680_status_{BME680_OK};

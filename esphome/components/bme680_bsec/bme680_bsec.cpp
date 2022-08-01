@@ -12,6 +12,8 @@ static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "
 
 std::map<uint8_t, BME680BSECComponent *>
     BME680BSECComponent::instances;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+uint8_t BME680BSECComponent::work_buffer_[BSEC_MAX_WORKBUFFER_SIZE] = {0};
+
 
 void BME680BSECComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BME680@0x%02x via BSEC...", address_);
@@ -58,20 +60,17 @@ void BME680BSECComponent::setup() {
 }
 
 void BME680BSECComponent::set_config_() {
-  const uint8_t bsec_config_ulp[] = {
-#include "config/generic_33v_300s_28d/bsec_iaq.txt"
-  };
-  const uint8_t bsec_config_lp[] = {
-#include "config/generic_33v_3s_28d/bsec_iaq.txt"
-  };
-  const uint8_t *config = NULL;
   if (this->sample_rate_ == SAMPLE_RATE_ULP) {
-    config = bsec_config_ulp;
+    const uint8_t config[] = {
+#include "config/generic_33v_300s_28d/bsec_iaq.txt"
+    };
+    this->bsec_status_ = bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
   } else {
-    config = bsec_config_lp;
+    const uint8_t config[] = {
+#include "config/generic_33v_3s_28d/bsec_iaq.txt"
+    };
+    this->bsec_status_ = bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
   }
-  uint8_t work_buffer[BSEC_MAX_WORKBUFFER_SIZE];
-  this->bsec_status_ = bsec_set_configuration(config, BSEC_MAX_PROPERTY_BLOB_SIZE, work_buffer, sizeof(work_buffer));
 }
 
 float BME680BSECComponent::calc_sensor_sample_rate_(SampleRate sample_rate) {
@@ -453,10 +452,9 @@ void BME680BSECComponent::delay_ms(uint32_t period) {
 // Fetch the BSEC library state and save it in the bsec_state_data_ member (volatile memory)
 // Used to share the library when using more than one sensor
 void BME680BSECComponent::snapshot_state_() {
-  uint8_t work_buffer[BSEC_MAX_STATE_BLOB_SIZE];
   uint32_t num_serialized_state = BSEC_MAX_STATE_BLOB_SIZE;
-  this->bsec_status_ = bsec_get_state(0, this->bsec_state_data_, BSEC_MAX_STATE_BLOB_SIZE, work_buffer,
-                                      BSEC_MAX_STATE_BLOB_SIZE, &num_serialized_state);
+  this->bsec_status_ = bsec_get_state(0, this->bsec_state_data_, BSEC_MAX_STATE_BLOB_SIZE, this->work_buffer_,
+                                      sizeof(this->work_buffer_), &num_serialized_state);
   if (this->bsec_status_ != BSEC_OK) {
     ESP_LOGW(TAG, "Failed to fetch BSEC library state for snapshot (BSEC Error Code %d)", this->bsec_status_);
     return;
@@ -472,9 +470,8 @@ void BME680BSECComponent::restore_state_() {
     return;
   }
 
-  uint8_t work_buffer[BSEC_MAX_WORKBUFFER_SIZE];
   this->bsec_status_ =
-      bsec_set_state(this->bsec_state_data_, BSEC_MAX_STATE_BLOB_SIZE, work_buffer, sizeof(work_buffer));
+      bsec_set_state(this->bsec_state_data_, BSEC_MAX_STATE_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
   if (this->bsec_status_ != BSEC_OK) {
     ESP_LOGW(TAG, "Failed to restore BSEC library state (BSEC Error Code %d)", this->bsec_status_);
     return;
@@ -511,9 +508,8 @@ void BME680BSECComponent::load_state_() {
 
   if (this->bsec_state_.load(&this->bsec_state_data_)) {
     ESP_LOGV(TAG, "Loading BSEC library state");
-    uint8_t work_buffer[BSEC_MAX_WORKBUFFER_SIZE];
     this->bsec_status_ =
-        bsec_set_state(this->bsec_state_data_, BSEC_MAX_STATE_BLOB_SIZE, work_buffer, sizeof(work_buffer));
+        bsec_set_state(this->bsec_state_data_, BSEC_MAX_STATE_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
     if (this->bsec_status_ != BSEC_OK) {
       ESP_LOGW(TAG, "Failed to load BSEC library state (BSEC Error Code %d)", this->bsec_status_);
       return;
