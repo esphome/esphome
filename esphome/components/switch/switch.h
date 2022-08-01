@@ -8,35 +8,19 @@
 namespace esphome {
 namespace switch_ {
 
-#define LOG_SWITCH(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
-    } \
-    if ((obj)->assumed_state()) { \
-      ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
-    } \
-    if ((obj)->is_inverted()) { \
-      ESP_LOGCONFIG(TAG, "%s  Inverted: YES", prefix); \
-    } \
-    if (!(obj)->get_device_class().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
-    } \
-  }
-
-enum SwitchRestoreMode {  // bit0: on/off. bit1: persistent. bit2: inverted.
-  SWITCH_ALWAYS_OFF = 0x00,
-  SWITCH_ALWAYS_ON = 0x01,
-  SWITCH_RESTORE_DEFAULT_OFF = 0x02,
-  SWITCH_RESTORE_DEFAULT_ON = 0x03,
-  SWITCH_RESTORE_INVERTED_DEFAULT_OFF = 0x06,
-  SWITCH_RESTORE_INVERTED_DEFAULT_ON = 0x07,
-};
-
-const int RESTORE_MODE_ONOFF_MASK = 0x01;
+// bit0: on/off. bit1: persistent. bit2: inverted.
+const int RESTORE_MODE_ON_MASK = 0x01;
 const int RESTORE_MODE_PERSISTENT_MASK = 0x02;
 const int RESTORE_MODE_INVERTED_MASK = 0x04;
+
+enum SwitchRestoreMode {
+  SWITCH_ALWAYS_OFF = !RESTORE_MODE_ON_MASK,
+  SWITCH_ALWAYS_ON = RESTORE_MODE_ON_MASK,
+  SWITCH_RESTORE_DEFAULT_OFF = RESTORE_MODE_PERSISTENT_MASK,
+  SWITCH_RESTORE_DEFAULT_ON = RESTORE_MODE_PERSISTENT_MASK | RESTORE_MODE_ON_MASK,
+  SWITCH_RESTORE_INVERTED_DEFAULT_OFF = RESTORE_MODE_PERSISTENT_MASK | RESTORE_MODE_INVERTED_MASK,
+  SWITCH_RESTORE_INVERTED_DEFAULT_ON = RESTORE_MODE_PERSISTENT_MASK | RESTORE_MODE_INVERTED_MASK | RESTORE_MODE_ON_MASK,
+};
 
 /** Base class for all switches.
  *
@@ -59,6 +43,9 @@ class Switch : public EntityBase {
 
   /// The current reported state of the binary sensor.
   bool state;
+
+  /// Indicates whether or not state is to be retrieved from flash and how
+  SwitchRestoreMode restore_mode{SWITCH_RESTORE_DEFAULT_OFF};
 
   /** Turn this switch on. This is called by the front-end.
    *
@@ -115,7 +102,7 @@ class Switch : public EntityBase {
   std::string get_device_class();
   /// Set the Home Assistant device class for this switch.
   void set_device_class(const std::string &device_class);
-  void set_restore_mode(SwitchRestoreMode restore_mode) { restore_mode_ = restore_mode; }
+  void set_restore_mode(SwitchRestoreMode restore_mode) { this->restore_mode = restore_mode; }
 
  protected:
   /** Write the given state to hardware. You should implement this
@@ -128,14 +115,15 @@ class Switch : public EntityBase {
    */
   virtual void write_state(bool state) = 0;
 
-  SwitchRestoreMode restore_mode_{SWITCH_RESTORE_DEFAULT_OFF};
-
   CallbackManager<void(bool)> state_callback_{};
   bool inverted_{false};
   Deduplicator<bool> publish_dedup_;
   ESPPreferenceObject rtc_;
   optional<std::string> device_class_;
 };
+
+#define LOG_SWITCH(prefix, type, obj) LOG_SWITCH_((TAG), (prefix), (type), (obj))
+void LOG_SWITCH_(const char *TAG, const char *prefix, const char *type, Switch *obj);
 
 }  // namespace switch_
 }  // namespace esphome
