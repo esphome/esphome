@@ -42,6 +42,7 @@ class FastLEDBus : public Component {
   uint8_t *chips() { return this->chips_; }
 
   uint8_t *effect_data() { return this->effect_data_; }
+  CLEDController *controller() { return this->controller_; }
 
   void setup() override;
   void dump_config() override;

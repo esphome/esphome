@@ -2,7 +2,8 @@ from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import fastled_bus
-import esphome.components.fastled_clockless.light as fastled_clockless_light
+from esphome.components import fastled_base
+# import esphome.components.fastled_base.light as fastled_clockless_light
 from esphome.const import CONF_CHIPSET, CONF_ID, CONF_NUM_CHIPS, CONF_PIN
 
 CODEOWNERS = ["@mabels"]
@@ -13,7 +14,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(CONF_ID): fastled_bus.FastledBusId,
             cv.Required(CONF_CHIPSET): cv.one_of(
-                *fastled_clockless_light.CHIPSETS, upper=True
+                *fastled_base.CLOCKLESS_CHIPSETS, upper=True
             ),
             cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
         }

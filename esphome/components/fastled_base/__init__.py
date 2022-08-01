@@ -16,6 +16,34 @@ FastLEDLightOutput = fastled_base_ns.class_(
     "FastLEDLightOutput", light.AddressableLight
 )
 
+CLOCKLESS_CHIPSETS = [
+    "NEOPIXEL",
+    "TM1829",
+    "TM1809",
+    "TM1804",
+    "TM1803",
+    "UCS1903",
+    "UCS1903B",
+    "UCS1904",
+    "UCS2903",
+    "WS2812",
+    "WS2852",
+    "WS2812B",
+    "SK6812",
+    "SK6822",
+    "APA106",
+    "PL9823",
+    "WS2811",
+    "WS2813",
+    "APA104",
+    "WS2811_400",
+    "GW6205",
+    "GW6205_400",
+    "LPD1886",
+    "LPD1886_8BIT",
+    "SM16703",
+]
+
 
 BASE_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
     {

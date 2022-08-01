@@ -44,8 +44,8 @@ async def to_code(config):
             crd = channel[CONF_REPEAT_DISTANCE]
         out = out.add_mapping(
             bus,
-            channel[CONF_OFFSET],
             channel[CONF_NUM_CHIPS],
+            channel[CONF_OFFSET],
             channel[CONF_CHANNEL_OFFSET],
             crd,
         )
