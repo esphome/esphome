@@ -26,5 +26,12 @@ class WakeTrigger : public Trigger<> {
   }
 };
 
+class PageTrigger : public Trigger<std::string> {
+ public:
+  explicit PageTrigger(Nextion *nextion) {
+    nextion->add_new_page_callback([this](const std::string &page_id) { this->trigger(page_id); });
+  }
+};
+
 }  // namespace nextion
 }  // namespace esphome

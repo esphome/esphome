@@ -1395,6 +1395,13 @@ display:
     on_wake:
       then:
         lambda: 'ESP_LOGD("display","Display woke up");'
+    on_setup:
+      then:
+        lambda: 'ESP_LOGD("display","Display setup completed");'
+    on_page:
+      then:
+        lambda: 'ESP_LOGD("display","Display shows new page %s", x.c_str());'
+
 
 http_request:
   useragent: esphome/device
