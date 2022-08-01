@@ -353,7 +353,7 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->sensor_json(obj, obj->state, DETAIL_STATE);
-    request->send(200, "text/json", data.c_str());
+    request->send(200, "application/json", data.c_str());
     return;
   }
   request->send(404);
@@ -377,7 +377,7 @@ void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->text_sensor_json(obj, obj->state, DETAIL_STATE);
-    request->send(200, "text/json", data.c_str());
+    request->send(200, "application/json", data.c_str());
     return;
   }
   request->send(404);
@@ -406,7 +406,7 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->method() == HTTP_GET) {
       std::string data = this->switch_json(obj, obj->state, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
     } else if (match.method == "toggle") {
       this->defer([obj]() { obj->toggle(); });
       request->send(200);
@@ -462,7 +462,7 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->binary_sensor_json(obj, obj->state, DETAIL_STATE);
-    request->send(200, "text/json", data.c_str());
+    request->send(200, "application/json", data.c_str());
     return;
   }
   request->send(404);
@@ -490,7 +490,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
 
     if (request->method() == HTTP_GET) {
       std::string data = this->fan_json(obj, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
     } else if (match.method == "toggle") {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
@@ -551,7 +551,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
 
     if (request->method() == HTTP_GET) {
       std::string data = this->light_json(obj, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
     } else if (match.method == "toggle") {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
@@ -630,7 +630,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
 
     if (request->method() == HTTP_GET) {
       std::string data = this->cover_json(obj, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
       continue;
     }
 
@@ -687,7 +687,7 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->method() == HTTP_GET) {
       std::string data = this->number_json(obj, obj->state, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
       return;
     }
     if (match.method != "set") {
@@ -741,7 +741,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->method() == HTTP_GET) {
       std::string data = this->select_json(obj, obj->state, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
       return;
     }
 
@@ -788,7 +788,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
 
     if (request->method() == HTTP_GET) {
       std::string data = this->climate_json(obj, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
       return;
     }
 
@@ -926,7 +926,7 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
 
     if (request->method() == HTTP_GET) {
       std::string data = this->lock_json(obj, obj->state, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
     } else if (match.method == "lock") {
       this->defer([obj]() { obj->lock(); });
       request->send(200);
