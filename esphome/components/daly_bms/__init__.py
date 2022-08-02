@@ -15,10 +15,12 @@ DalyBmsComponent = daly_bms.class_(
 )
 
 CONFIG_SCHEMA = (
-    cv.Schema({
-        cv.GenerateID(): cv.declare_id(DalyBmsComponent),
-        cv.Optional(CONF_ADDRESS, default=0x80): cv.positive_int,
-    })
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(DalyBmsComponent),
+            cv.Optional(CONF_ADDRESS, default=0x80): cv.positive_int,
+        }
+    )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.polling_component_schema("30s"))
 )
