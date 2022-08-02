@@ -3,20 +3,11 @@
 #include "esphome/core/util.h"
 #include "esphome/core/application.h"
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-
-#include <eth_phy/phy_lan8720.h>
-#include <eth_phy/phy_tlk110.h>
 #include <lwip/dns.h>
-
-/// Macro for IDF version comparison
-#ifndef ESP_IDF_VERSION_VAL
-#define ESP_IDF_VERSION_VAL(major, minor, patch) (((major) << 16) | ((minor) << 8) | (patch))
-#endif
-
-// Defined in WiFiGeneric.cpp, sets global initialized flag, starts network event task queue and calls
-// tcpip_adapter_init()
-extern void tcpipInit();  // NOLINT(readability-identifier-naming)
+#include "esp_eth.h"
+#include "esp_eth_mac.h"
+#include "esp_netif.h"
+#include "sdkconfig.h"
 
 namespace esphome {
 namespace ethernet {
@@ -36,20 +27,48 @@ EthernetComponent::EthernetComponent() { global_eth_component = this; }
 void EthernetComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Ethernet...");
 
-  auto f = std::bind(&EthernetComponent::on_wifi_event_, this, std::placeholders::_1, std::placeholders::_2);
-  WiFi.onEvent(f);
-
   if (this->power_pin_ != nullptr) {
     this->power_pin_->setup();
   }
 
+  esp_err_t err;
+  err = esp_netif_init();
+  ESPHL_ERROR_CHECK(err, "ETH netif init error");
+  err = esp_event_loop_create_default();
+  ESPHL_ERROR_CHECK(err, "ETH event loop error");
+
+  esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
+  esp_netif_t *eth_netif = esp_netif_new(&cfg);
+
+  // Init MAC and PHY configs to default
+  eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
+  eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
+
+  phy_config.phy_addr = this->phy_addr_;
+
+  mac_config.smi_mdc_gpio_num = this->mdc_pin_;
+  mac_config.smi_mdio_gpio_num = this->mdio_pin_;
+  mac_config.clock_config.rmii.clock_mode = this->clk_mode_ == EMAC_CLK_IN_GPIO ? EMAC_CLK_EXT_IN : EMAC_CLK_OUT;
+  mac_config.clock_config.rmii.clock_gpio = this->clk_mode_;
+
+  esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
+
+  esp_eth_phy_t *phy;
   switch (this->type_) {
     case ETHERNET_TYPE_LAN8720: {
-      memcpy(&this->eth_config_, &phy_lan8720_default_ethernet_config, sizeof(eth_config_t));
+      phy = esp_eth_phy_new_lan87xx(&phy_config);
       break;
     }
-    case ETHERNET_TYPE_TLK110: {
-      memcpy(&this->eth_config_, &phy_tlk110_default_ethernet_config, sizeof(eth_config_t));
+    case ETHERNET_TYPE_IP101: {
+      phy = esp_eth_phy_new_ip101(&phy_config);
+      break;
+    }
+    case ETHERNET_TYPE_RTL8201: {
+      phy = esp_eth_phy_new_rtl8201(&phy_config);
+      break;
+    }
+    case ETHERNET_TYPE_DP83848: {
+      phy = esp_eth_phy_new_dp83848(&phy_config);
       break;
     }
     default: {
@@ -58,24 +77,30 @@ void EthernetComponent::setup() {
     }
   }
 
-  this->eth_config_.phy_addr = static_cast<eth_phy_base_t>(this->phy_addr_);
-  this->eth_config_.clock_mode = this->clk_mode_;
-  this->eth_config_.gpio_config = EthernetComponent::eth_phy_config_gpio;
-  this->eth_config_.tcpip_input = tcpip_adapter_eth_input;
+  esp_eth_config_t eth_config = ETH_DEFAULT_CONFIG(mac, phy);
+  this->eth_handle_ = nullptr;
+  err = esp_eth_driver_install(&eth_config, &this->eth_handle_);
+  ESPHL_ERROR_CHECK(err, "ETH driver install error");
+  /* attach Ethernet driver to TCP/IP stack */
+  err = esp_netif_attach(eth_netif, esp_eth_new_netif_glue(this->eth_handle_));
+  ESPHL_ERROR_CHECK(err, "ETH netif attach error");
+
+  // Register user defined event handers
+  err = esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &EthernetComponent::eth_event_handler, nullptr);
+  ESPHL_ERROR_CHECK(err, "ETH event handler register error");
+  err = esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &EthernetComponent::got_ip_event_handler, nullptr);
+  ESPHL_ERROR_CHECK(err, "GOT IP event handler register error");
+
+  /* start Ethernet driver state machine */
+  err = esp_eth_start(this->eth_handle_);
+  ESPHL_ERROR_CHECK(err, "ETH start error");
 
   if (this->power_pin_ != nullptr) {
-    this->orig_power_enable_fun_ = this->eth_config_.phy_power_enable;
-    this->eth_config_.phy_power_enable = EthernetComponent::eth_phy_power_enable;
+    this->orig_power_control_fun_ = phy->pwrctl;
+    phy->pwrctl = EthernetComponent::eth_phy_power_control;
   }
-
-  tcpipInit();
-
-  esp_err_t err;
-  err = esp_eth_init(&this->eth_config_);
-  ESPHL_ERROR_CHECK(err, "ETH init error");
-  err = esp_eth_enable();
-  ESPHL_ERROR_CHECK(err, "ETH enable error");
 }
+
 void EthernetComponent::loop() {
   const uint32_t now = millis();
 
@@ -131,35 +156,37 @@ network::IPAddress EthernetComponent::get_ip_address() {
   return {ip.ip.addr};
 }
 
-void EthernetComponent::on_wifi_event_(system_event_id_t event, system_event_info_t info) {
+void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event, void *event_data) {
   const char *event_name;
 
   switch (event) {
-    case SYSTEM_EVENT_ETH_START:
+    case ETHERNET_EVENT_START:
       event_name = "ETH started";
-      this->started_ = true;
+      global_eth_component->started_ = true;
       break;
-    case SYSTEM_EVENT_ETH_STOP:
+    case ETHERNET_EVENT_STOP:
       event_name = "ETH stopped";
-      this->started_ = false;
-      this->connected_ = false;
+      global_eth_component->started_ = false;
+      global_eth_component->connected_ = false;
       break;
-    case SYSTEM_EVENT_ETH_CONNECTED:
+    case ETHERNET_EVENT_CONNECTED:
       event_name = "ETH connected";
       break;
-    case SYSTEM_EVENT_ETH_DISCONNECTED:
+    case ETHERNET_EVENT_DISCONNECTED:
       event_name = "ETH disconnected";
-      this->connected_ = false;
-      break;
-    case SYSTEM_EVENT_ETH_GOT_IP:
-      event_name = "ETH Got IP";
-      this->connected_ = true;
+      global_eth_component->connected_ = false;
       break;
     default:
       return;
   }
 
   ESP_LOGV(TAG, "[Ethernet event] %s (num=%d)", event_name, event);
+}
+
+void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
+                                             void *event_data) {
+  global_eth_component->connected_ = true;
+  ESP_LOGV(TAG, "[Ethernet event] ETH Got IP (num=%d)", event_id);
 }
 
 void EthernetComponent::start_connect_() {
@@ -213,15 +240,11 @@ void EthernetComponent::start_connect_() {
   this->connect_begin_ = millis();
   this->status_set_warning();
 }
-void EthernetComponent::eth_phy_config_gpio() {
-  phy_rmii_configure_data_interface_pins();
-  phy_rmii_smi_configure_pins(global_eth_component->mdc_pin_, global_eth_component->mdio_pin_);
-}
-void EthernetComponent::eth_phy_power_enable(bool enable) {
+esp_err_t EthernetComponent::eth_phy_power_control(esp_eth_phy_t *phy, bool enable) {
   global_eth_component->power_pin_->digital_write(enable);
   // power up takes some time, datasheet says max 300µs
   delay(1);
-  global_eth_component->orig_power_enable_fun_(enable);
+  return global_eth_component->orig_power_control_fun_(phy, enable);
 }
 bool EthernetComponent::is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 void EthernetComponent::dump_connect_params_() {
@@ -232,30 +255,35 @@ void EthernetComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  Subnet: %s", network::IPAddress(ip.netmask.addr).str().c_str());
   ESP_LOGCONFIG(TAG, "  Gateway: %s", network::IPAddress(ip.gw.addr).str().c_str());
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(3, 3, 4)
   const ip_addr_t *dns_ip1 = dns_getserver(0);
   const ip_addr_t *dns_ip2 = dns_getserver(1);
-#else
-  ip_addr_t tmp_ip1 = dns_getserver(0);
-  const ip_addr_t *dns_ip1 = &tmp_ip1;
-  ip_addr_t tmp_ip2 = dns_getserver(1);
-  const ip_addr_t *dns_ip2 = &tmp_ip2;
-#endif
+
   ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->u_addr.ip4.addr).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->u_addr.ip4.addr).str().c_str());
+
+  esp_err_t err;
+
   uint8_t mac[6];
-  esp_eth_get_mac(mac);
+  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_MAC_ADDR, &mac);
+  ESPHL_ERROR_CHECK(err, "ETH_CMD_G_MAC error");
   ESP_LOGCONFIG(TAG, "  MAC Address: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  ESP_LOGCONFIG(TAG, "  Is Full Duplex: %s", YESNO(this->eth_config_.phy_get_duplex_mode()));
-  ESP_LOGCONFIG(TAG, "  Link Up: %s", YESNO(this->eth_config_.phy_check_link()));
-  ESP_LOGCONFIG(TAG, "  Link Speed: %u", this->eth_config_.phy_get_speed_mode() ? 100 : 10);
+
+  eth_duplex_t duplex_mode;
+  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_DUPLEX_MODE, &duplex_mode);
+  ESPHL_ERROR_CHECK(err, "ETH_CMD_G_DUPLEX_MODE error");
+  ESP_LOGCONFIG(TAG, "  Is Full Duplex: %s", YESNO(duplex_mode == ETH_DUPLEX_FULL));
+
+  eth_speed_t speed;
+  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_SPEED, &speed);
+  ESPHL_ERROR_CHECK(err, "ETH_CMD_G_SPEED error");
+  ESP_LOGCONFIG(TAG, "  Link Speed: %u", speed == ETH_SPEED_100M ? 100 : 10);
 }
 void EthernetComponent::set_phy_addr(uint8_t phy_addr) { this->phy_addr_ = phy_addr; }
 void EthernetComponent::set_power_pin(GPIOPin *power_pin) { this->power_pin_ = power_pin; }
 void EthernetComponent::set_mdc_pin(uint8_t mdc_pin) { this->mdc_pin_ = mdc_pin; }
 void EthernetComponent::set_mdio_pin(uint8_t mdio_pin) { this->mdio_pin_ = mdio_pin; }
 void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
-void EthernetComponent::set_clk_mode(eth_clock_mode_t clk_mode) { this->clk_mode_ = clk_mode; }
+void EthernetComponent::set_clk_mode(emac_rmii_clock_gpio_t clk_mode) { this->clk_mode_ = clk_mode; }
 void EthernetComponent::set_manual_ip(const ManualIP &manual_ip) { this->manual_ip_ = manual_ip; }
 std::string EthernetComponent::get_use_address() const {
   if (this->use_address_.empty()) {
@@ -267,5 +295,3 @@ void EthernetComponent::set_use_address(const std::string &use_address) { this->
 
 }  // namespace ethernet
 }  // namespace esphome
-
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
