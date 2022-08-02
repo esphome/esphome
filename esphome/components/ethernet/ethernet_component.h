@@ -4,10 +4,10 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/network/ip_address.h"
 
+#ifdef USE_ESP32
+
 #include "esp_eth.h"
-#include <esp_wifi.h>
-#include <WiFiType.h>
-#include <WiFi.h>
+#include "esp_eth_mac.h"
 
 namespace esphome {
 namespace ethernet {
@@ -87,3 +87,5 @@ extern EthernetComponent *global_eth_component;
 
 }  // namespace ethernet
 }  // namespace esphome
+
+#endif  // USE_ESP32

@@ -3,11 +3,11 @@
 #include "esphome/core/util.h"
 #include "esphome/core/application.h"
 
+#ifdef USE_ESP32
+
 #include <lwip/dns.h>
-#include "esp_eth.h"
-#include "esp_eth_mac.h"
+#include "esp_event.h"
 #include "esp_netif.h"
-#include "sdkconfig.h"
 
 namespace esphome {
 namespace ethernet {
@@ -295,3 +295,5 @@ void EthernetComponent::set_use_address(const std::string &use_address) { this->
 
 }  // namespace ethernet
 }  // namespace esphome
+
+#endif  // USE_ESP32

@@ -125,5 +125,5 @@ async def to_code(config):
 
     cg.add_define("USE_ETHERNET")
 
-    if CORE.is_esp32:
+    if CORE.using_arduino:
         cg.add_library("WiFi", None)
