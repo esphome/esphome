@@ -149,9 +149,31 @@ void CSE7766Component::parse_data_() {
   }
 }
 void CSE7766Component::update() {
-  float voltage = this->voltage_counts_ > 0 ? this->voltage_acc_ / this->voltage_counts_ : 0.0f;
-  float current = this->current_counts_ > 0 ? this->current_acc_ / this->current_counts_ : 0.0f;
-  float power = this->power_counts_ > 0 ? this->power_acc_ / this->power_counts_ : 0.0f;
+  float voltage = 0.0f, current = 0.0f, power = 0.0f;
+
+  if (this->voltage_counts_ > 0) {
+    voltage = this->voltage_acc_ / this->voltage_counts_;
+    if (this->voltage_sensor_ != nullptr)
+      this->voltage_sensor_->publish_state(voltage);
+  } else {
+    ESP_LOGV(TAG, "No voltage data");
+  }
+
+  if (this->current_counts_ > 0) {
+    current = this->current_acc_ / this->current_counts_;
+    if (this->current_sensor_ != nullptr)
+      this->current_sensor_->publish_state(current);
+  } else {
+    ESP_LOGV(TAG, "No current data");
+  }
+
+  if (this->current_counts_ > 0) {
+    power = this->power_acc_ / this->power_counts_;
+    if (this->power_sensor_ != nullptr)
+      this->power_sensor_->publish_state(power);
+  } else {
+    ESP_LOGV(TAG, "No power data");
+  }
 
   ESP_LOGV(TAG, "Got voltage_acc=%.2f current_acc=%.2f power_acc=%.2f", this->voltage_acc_, this->current_acc_,
            this->power_acc_);
@@ -159,12 +181,6 @@ void CSE7766Component::update() {
            this->power_counts_);
   ESP_LOGD(TAG, "Got voltage=%.1fV current=%.1fA power=%.1fW", voltage, current, power);
 
-  if (this->voltage_sensor_ != nullptr)
-    this->voltage_sensor_->publish_state(voltage);
-  if (this->current_sensor_ != nullptr)
-    this->current_sensor_->publish_state(current);
-  if (this->power_sensor_ != nullptr)
-    this->power_sensor_->publish_state(power);
   if (this->energy_sensor_ != nullptr)
     this->energy_sensor_->publish_state(this->energy_total_);
 
