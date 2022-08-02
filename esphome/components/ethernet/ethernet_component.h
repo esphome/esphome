@@ -4,7 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/network/ip_address.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 #include "esp_eth.h"
 #include "esp_eth_mac.h"
@@ -88,4 +88,4 @@ extern EthernetComponent *global_eth_component;
 }  // namespace ethernet
 }  // namespace esphome
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO
