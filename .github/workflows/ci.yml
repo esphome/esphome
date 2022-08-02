@@ -131,7 +131,7 @@ jobs:
         if: matrix.id == 'ci-custom'
 
       - name: Lint Python
-        run: script/lint-python
+        run: script/lint-python -a
         if: matrix.id == 'lint-python'
 
       - run: esphome compile ${{ matrix.file }}
