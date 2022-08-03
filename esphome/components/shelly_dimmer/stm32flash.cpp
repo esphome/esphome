@@ -1061,4 +1061,5 @@ stm32_err_t stm32_crc_wrapper(const stm32_unique_ptr &stm, uint32_t address, uin
 
 }  // namespace shelly_dimmer
 }  // namespace esphome
-#endif
+
+#endif  // USE_SHD_FIRMWARE_DATA

@@ -26,7 +26,7 @@ from esphome.const import (
 from esphome.core import HexInt, CORE
 
 DOMAIN = "shelly_dimmer"
-DEPENDENCIES = ["sensor", "uart"]
+DEPENDENCIES = ["sensor", "uart", "esp8266"]
 
 shelly_dimmer_ns = cg.esphome_ns.namespace("shelly_dimmer")
 ShellyDimmer = shelly_dimmer_ns.class_(

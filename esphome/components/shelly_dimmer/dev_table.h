@@ -155,4 +155,5 @@ constexpr stm32_dev_t DEVICES[] = {
 
 }  // namespace shelly_dimmer
 }  // namespace esphome
-#endif
+
+#endif  // USE_SHD_FIRMWARE_DATA
