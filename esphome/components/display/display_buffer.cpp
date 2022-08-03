@@ -591,6 +591,12 @@ void Animation::prev_frame() {
   }
 }
 
+void Animation::set_frame(int frame) {
+  if (frame < this->current_frame_) {
+    this->current_frame_ = frame;
+  }
+}
+
 DisplayPage::DisplayPage(display_writer_t writer) : writer_(std::move(writer)) {}
 void DisplayPage::show() { this->parent_->show_page(this); }
 void DisplayPage::show_next() { this->next_->show(); }

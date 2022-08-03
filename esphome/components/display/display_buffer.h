@@ -490,6 +490,7 @@ class Animation : public Image {
   int get_current_frame() const;
   void next_frame();
   void prev_frame();
+  void set_frame(int frame);
 
  protected:
   int current_frame_;
