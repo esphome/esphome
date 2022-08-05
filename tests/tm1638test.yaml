@@ -33,7 +33,7 @@ display:
     update_interval: 5s
     intensity: 5
     lambda: |-
-      it.print("12348888");
+      it.print("12345678");
 
 switch:
   - platform: tm1638

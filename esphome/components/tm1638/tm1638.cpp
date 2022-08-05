@@ -34,7 +34,7 @@ void TM1638Component::setup() {
   this->dio_pin_->digital_write(false);  // false
   this->stb_pin_->digital_write(false);  // false
 
-  set_intensity(intensity_);
+  this->set_intensity(intensity_);
 
   this->reset_(false);  // all LEDs off
 
@@ -65,11 +65,11 @@ void TM1638Component::loop() {
 uint8_t TM1638Component::get_keys() {
   uint8_t buttons = 0;
 
-  stb_pin_->digital_write(false);
+  this->stb_pin_->digital_write(false);
 
   this->shift_out_(TM1638_REGISTER_READBUTTONS);
 
-  dio_pin_->pin_mode(gpio::FLAG_INPUT);
+  this->dio_pin_->pin_mode(gpio::FLAG_INPUT);
 
   delayMicroseconds(10);
 
@@ -78,9 +78,9 @@ uint8_t TM1638Component::get_keys() {
     buttons |= v << i;  // shift bits to correct slots in the byte
   }
 
-  dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
 
-  stb_pin_->digital_write(true);
+  this->stb_pin_->digital_write(true);
 
   return buttons;
 }
@@ -142,9 +142,9 @@ void TM1638Component::set_intensity(uint8_t brightness_level) {
   this->send_command_(TM1638_REGISTER_FIXEDADDRESS);
 
   if (brightness_level > 0) {
-    send_command_((uint8_t)(TM1638_REGISTER_DISPLAYON | intensity_));
+    this->send_command_((uint8_t)(TM1638_REGISTER_DISPLAYON | intensity_));
   } else {
-    send_command_(TM1638_REGISTER_DISPLAYOFF);
+    this->send_command_(TM1638_REGISTER_DISPLAYOFF);
   }
 }
 
@@ -230,7 +230,7 @@ void TM1638Component::send_command_(uint8_t value) {
   this->stb_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->stb_pin_->digital_write(false);
   this->shift_out_(value);
-  stb_pin_->digital_write(true);
+  this->stb_pin_->digital_write(true);
 }
 
 void TM1638Component::send_commands_(uint8_t const commands[], uint8_t num_commands) {
@@ -244,19 +244,19 @@ void TM1638Component::send_commands_(uint8_t const commands[], uint8_t num_comma
 }
 
 void TM1638Component::send_command_leave_open_(uint8_t value) {
-  stb_pin_->digital_write(false);
+  this->stb_pin_->digital_write(false);
   this->shift_out_(value);
 }
 
 void TM1638Component::send_command_sequence_(uint8_t commands[], uint8_t num_commands, uint8_t starting_address) {
   this->send_command_(TM1638_REGISTER_AUTOADDRESS);
-  send_command_leave_open_(starting_address);
+  this->send_command_leave_open_(starting_address);
 
   for (uint8_t i = 0; i < num_commands; i++) {
     this->shift_out_(commands[i]);
   }
 
-  stb_pin_->digital_write(true);
+  this->stb_pin_->digital_write(true);
 }
 
 uint8_t TM1638Component::shift_in_() {
@@ -265,9 +265,9 @@ uint8_t TM1638Component::shift_in_() {
   for (int i = 0; i < 8; ++i) {
     value |= dio_pin_->digital_read() << i;
     delayMicroseconds(TM1638_SHIFT_DELAY);
-    clk_pin_->digital_write(true);
+    this->clk_pin_->digital_write(true);
     delayMicroseconds(TM1638_SHIFT_DELAY);
-    clk_pin_->digital_write(false);
+    this->clk_pin_->digital_write(false);
     delayMicroseconds(TM1638_SHIFT_DELAY);
   }
   return value;
@@ -275,13 +275,13 @@ uint8_t TM1638Component::shift_in_() {
 
 void TM1638Component::shift_out_(uint8_t val) {
   for (int i = 0; i < 8; i++) {
-    dio_pin_->digital_write((val & (1 << i)));
+    this->dio_pin_->digital_write((val & (1 << i)));
     delayMicroseconds(TM1638_SHIFT_DELAY);
 
-    clk_pin_->digital_write(true);
+    this->clk_pin_->digital_write(true);
     delayMicroseconds(TM1638_SHIFT_DELAY);
 
-    clk_pin_->digital_write(false);
+    this->clk_pin_->digital_write(false);
     delayMicroseconds(TM1638_SHIFT_DELAY);
   }
 }
