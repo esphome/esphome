@@ -234,13 +234,13 @@ void TM1638Component::send_command_(uint8_t value) {
 }
 
 void TM1638Component::send_commands_(uint8_t const commands[], uint8_t num_commands) {
-  stb_pin_->digital_write(false);
+  this->stb_pin_->digital_write(false);
 
   for (uint8_t i = 0; i < num_commands; i++) {
     uint8_t command = commands[i];
     this->shift_out_(command);
   }
-  stb_pin_->digital_write(true);
+  this->stb_pin_->digital_write(true);
 }
 
 void TM1638Component::send_command_leave_open_(uint8_t value) {
