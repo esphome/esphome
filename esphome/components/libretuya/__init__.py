@@ -69,7 +69,20 @@ def _check_framework_version(value):
 
 
 CONF_LT_CONFIG = "lt_config"
+CONF_LOGLEVEL = "loglevel"
+CONF_SDK_SILENT = "sdk_silent"
 CONF_GPIO_RECOVER = "gpio_recover"
+
+LT_LOGLEVELS = [
+    "VERBOSE",
+    "TRACE",
+    "DEBUG",
+    "INFO",
+    "WARN",
+    "ERROR",
+    "FATAL",
+]
+
 FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -86,8 +99,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BOARD): cv.string_strict,
             cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
             cv.Optional(CONF_LT_CONFIG, default={}): {
-                cv.string_strict: cv.string_strict
+                cv.string_strict: cv.string,
             },
+            cv.Optional(CONF_LOGLEVEL, default="warn"): cv.one_of(
+                *LT_LOGLEVELS, upper=True
+            ),
+            cv.Optional(CONF_SDK_SILENT, default=True): cv.boolean,
             cv.Optional(CONF_GPIO_RECOVER, default=True): cv.boolean,
         },
     ),
@@ -105,11 +122,14 @@ async def to_code(config):
     cg.add_define("ESPHOME_VARIANT", "LibreTuya")
 
     # setup LT logger to work nicely with ESPHome logger
-    cg.add_build_flag("-DLT_LOGLEVEL=LT_LEVEL_WARN")
-    cg.add_build_flag("-DLT_LOGGER_CALLER=0")
-    cg.add_build_flag("-DLT_LOGGER_TASK=0")
-    cg.add_build_flag("-DLT_LOGGER_COLOR=1")
-    cg.add_build_flag("-DLT_UART_SILENT_ALL=1")
+    lt_config = dict(
+        LT_LOGLEVEL="LT_LEVEL_" + config[CONF_LOGLEVEL],
+        LT_LOGGER_CALLER=0,
+        LT_LOGGER_TASK=0,
+        LT_LOGGER_COLOR=1,
+        LT_UART_SILENT_ALL=int(config[CONF_SDK_SILENT]),
+    )
+    lt_config.update(config[CONF_LT_CONFIG])
 
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")
@@ -131,7 +151,7 @@ async def to_code(config):
         cg.add_platformio_option("platform", "libretuya")
 
     # add LT configuration options
-    for name, value in sorted(config[CONF_LT_CONFIG]):
+    for name, value in sorted(lt_config.items()):
         cg.add_build_flag(f"-D{name}={value}")
 
     # add ESPHome LT-related options

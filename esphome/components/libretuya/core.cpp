@@ -24,7 +24,11 @@ void arch_init() {
 #endif
 }
 
-void arch_restart() { LT.restart(); }
+void arch_restart() {
+  LT.restart();
+  while (1) {
+  }
+}
 void IRAM_ATTR HOT arch_feed_wdt() {
   // TODO reset watchdog
 }
