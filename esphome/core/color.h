@@ -144,7 +144,7 @@ struct Color {
   Color gradient(const Color &to_color, uint8_t amnt) { return (*this * amnt) + (to_color * (255 - amnt)); }
   Color lighten(uint8_t delta) { return *this + delta; }
   Color darken(uint8_t delta) { return *this - delta; }
-  
+
   static const Color BLACK;
   static const Color WHITE;
 };
