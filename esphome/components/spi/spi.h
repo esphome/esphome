@@ -15,6 +15,18 @@
 namespace esphome {
 namespace spi {
 
+#ifdef USE_ESP32
+#if !defined(VSPI)
+#ifdef VSPI_HOST
+#define VSPI VSPI_HOST
+#elif defined(SPI2_HOST)
+#define VSPI SPI2_HOST
+#else
+#define VSPI 2
+#endif
+#endif
+#endif
+
 /// The bit-order for SPI devices. This defines how the data read from and written to the device is interpreted.
 enum SPIBitOrder {
   /// The least significant bit is transmitted/received first.
