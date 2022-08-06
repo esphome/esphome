@@ -22,7 +22,6 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
     CONF_SUBSTITUTIONS,
-    PLATFORM_LIBRETUYA,
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
