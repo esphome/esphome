@@ -69,8 +69,6 @@ class TM1638Component : public PollingComponent {
   void reset_(bool on_off);
   uint8_t shift_in_();
 
-  // void GetTranslation(char *str);
-
   uint8_t intensity_{};  /// brghtness of the display  0 through 7
   GPIOPin *clk_pin_;
   GPIOPin *stb_pin_;
