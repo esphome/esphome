@@ -68,16 +68,12 @@ class TM1638Component : public PollingComponent {
   void shift_out_(uint8_t value);
   void reset_(bool on_off);
   uint8_t shift_in_();
-
   uint8_t intensity_{};  /// brghtness of the display  0 through 7
   GPIOPin *clk_pin_;
   GPIOPin *stb_pin_;
   GPIOPin *dio_pin_;
   uint8_t *buffer_ = new uint8_t[8];
-
-
   optional<tm1638_writer_t> writer_{};
-
   std::vector<KeyListener *> listeners_{};
 };
 
