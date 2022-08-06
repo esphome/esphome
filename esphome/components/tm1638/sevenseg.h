@@ -96,11 +96,10 @@ const unsigned char SEVEN_SEG[] PROGMEM = {
     0x76, /* x */
     0x6E, /* y */
     0x5B, /* z */
-          // Note : Removed last 4 characters to reduce program size as of v 1.3.0
-          //  0x46, /* { */
-          //  0x30, /* | */
-          //  0x70, /* } */
-          //  0x01, /* ~ */
+    0x46, /* { */
+    0x30, /* | */
+    0x70, /* } */
+    0x01, /* ~ */
 };
 
 };  // namespace TM1638Translation
