@@ -108,9 +108,7 @@ void Nextion::set_component_text_printf(const char *component, const char *forma
 }
 
 // General Nextion
-void Nextion::goto_page(const char *page) {
-  this->add_no_result_to_queue_with_printf_("goto_page", "page %s", page);
-}
+void Nextion::goto_page(const char *page) { this->add_no_result_to_queue_with_printf_("goto_page", "page %s", page); }
 
 void Nextion::set_backlight_brightness(float brightness) {
   if (brightness < 0 || brightness > 1.0) {
