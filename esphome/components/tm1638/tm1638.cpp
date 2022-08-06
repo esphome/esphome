@@ -30,15 +30,13 @@ void TM1638Component::setup() {
   this->dio_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->stb_pin_->pin_mode(gpio::FLAG_OUTPUT);
 
-  this->clk_pin_->digital_write(false);  // false
-  this->dio_pin_->digital_write(false);  // false
-  this->stb_pin_->digital_write(false);  // false
+  this->clk_pin_->digital_write(false);
+  this->dio_pin_->digital_write(false);
+  this->stb_pin_->digital_write(false);
 
   this->set_intensity(intensity_);
 
   this->reset_(false);  // all LEDs off
-
-  this->buffer_ = new uint8_t[8];  // NOLINT
 
   for (uint8_t i = 0; i < 8; i++)  // zero fill print buffer
     this->buffer_[i] = 0;
