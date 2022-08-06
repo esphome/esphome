@@ -171,3 +171,4 @@ async def to_code(config):
     else:
         cg.add_platformio_option("custom_fw_name", "esphome")
         cg.add_platformio_option("custom_fw_version", __version__)
+    cg.add_platformio_option("custom_fw_output", "firmware.uf2")

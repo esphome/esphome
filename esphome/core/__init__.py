@@ -579,6 +579,8 @@ class EsphomeCore:
 
     @property
     def firmware_bin(self):
+        if self.is_libretuya:
+            return self.relative_pioenvs_path(self.name, "firmware.uf2")
         return self.relative_pioenvs_path(self.name, "firmware.bin")
 
     @property
