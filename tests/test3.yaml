@@ -1400,7 +1400,7 @@ display:
         lambda: 'ESP_LOGD("display","Display setup completed");'
     on_page:
       then:
-        lambda: 'ESP_LOGD("display","Display shows new page %s", x.c_str());'
+        lambda: 'ESP_LOGD("display","Display shows new page %u", x);'
 
 
 http_request:

@@ -693,7 +693,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * @param callback The void(std::string) callback.
    */
-  void add_new_page_callback(std::function<void(std::string)> &&callback);
+  void add_new_page_callback(std::function<void(uint8_t)> &&callback);
 
   void update_all_components();
 
@@ -819,7 +819,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   CallbackManager<void()> setup_callback_{};
   CallbackManager<void()> sleep_callback_{};
   CallbackManager<void()> wake_callback_{};
-  CallbackManager<void(std::string)> page_callback_{};
+  CallbackManager<void(uint8_t)> page_callback_{};
 
   optional<nextion_writer_t> writer_;
   float brightness_{1.0};

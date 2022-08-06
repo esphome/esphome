@@ -152,7 +152,7 @@ void Nextion::add_setup_state_callback(std::function<void()> &&callback) {
   this->setup_callback_.add(std::move(callback));
 }
 
-void Nextion::add_new_page_callback(std::function<void(std::string)> &&callback) {
+void Nextion::add_new_page_callback(std::function<void(uint8_t)> &&callback) {
   this->page_callback_.add(std::move(callback));
 }
 
@@ -449,7 +449,7 @@ void Nextion::process_nextion_commands_() {
 
         uint8_t page_id = to_process[0];
         ESP_LOGD(TAG, "Got new page=%u", page_id);
-        this->page_callback_.call(to_string(page_id));
+        this->page_callback_.call(page_id);
         break;
       }
       case 0x67: {  // Touch Coordinate (awake)
