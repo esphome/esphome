@@ -592,8 +592,12 @@ void Animation::prev_frame() {
 }
 
 void Animation::set_frame(int frame) {
-  if (frame < this->animation_frame_count_) {
-    this->current_frame_ = frame;
+  if (abs(frame) < this->animation_frame_count_) {
+    if (frame) {
+      this->current_frame_ = frame;
+    } else {
+      this->current_frame_ = this->animation_frame_count_ - frame;
+    }
   }
 }
 
