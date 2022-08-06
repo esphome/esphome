@@ -258,17 +258,19 @@ def upload_using_esptool(config, port):
     return run_esptool(115200)
 
 
+def upload_using_platformio(config, port):
+    from esphome import platformio_api
+
+    upload_args = ["-t", "upload"]
+    upload_args += ["--upload-port", port]
+    return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+
+
 def upload_program(config, args, host):
-    if CORE.target_platform in (PLATFORM_LIBRETUYA):
-        from esphome import platformio_api
-
-        upload_args = ["-t", "upload"]
-        if args.device is not None:
-            upload_args += ["--upload-port", args.device]
-        return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
-
     # if upload is to a serial port use platformio, otherwise assume ota
     if get_port_type(host) == "SERIAL":
+        if CORE.is_libretuya:
+            return upload_using_platformio(config, host)
         return upload_using_esptool(config, host)
 
     from esphome import espota2
