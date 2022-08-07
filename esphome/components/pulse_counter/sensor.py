@@ -20,6 +20,8 @@ from esphome.const import (
 )
 from esphome.core import CORE
 
+CONF_USE_PCNT = "use_pcnt"
+
 pulse_counter_ns = cg.esphome_ns.namespace("pulse_counter")
 PulseCounterCountMode = pulse_counter_ns.enum("PulseCounterCountMode")
 COUNT_MODES = {
@@ -40,11 +42,20 @@ SetTotalPulsesAction = pulse_counter_ns.class_(
 
 
 def validate_internal_filter(value):
-    value = cv.positive_time_period_microseconds(value)
-    if CORE.is_esp32:
-        if value.total_microseconds > 13:
-            raise cv.Invalid("Maximum internal filter value for ESP32 is 13us")
-        return value
+    filter_value = value[CONF_INTERNAL_FILTER]
+    use_pcnt = value[CONF_USE_PCNT]
+    if not CORE.is_esp32 and use_pcnt:
+        raise cv.Invalid(
+            "Using hardware PCNT is only available on ESP32",
+            [CONF_USE_PCNT],
+        )
+
+    if CORE.is_esp32 and use_pcnt:
+        if filter_value.total_microseconds > 13:
+            raise cv.Invalid(
+                "Maximum internal filter value when using ESP32 hardware PCNT is 13us",
+                [CONF_INTERNAL_FILTER],
+            )
 
     return value
 
@@ -69,7 +80,7 @@ def validate_count_mode(value):
     return value
 
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         PulseCounterSensor,
         unit_of_measurement=UNIT_PULSES_PER_MINUTE,
@@ -95,21 +106,25 @@ CONFIG_SCHEMA = (
                 ),
                 validate_count_mode,
             ),
-            cv.Optional(CONF_INTERNAL_FILTER, default="13us"): validate_internal_filter,
+            cv.Optional(CONF_USE_PCNT, default=CORE.is_esp32): cv.boolean,
+            cv.Optional(
+                CONF_INTERNAL_FILTER, default="13us"
+            ): cv.positive_time_period_microseconds,
             cv.Optional(CONF_TOTAL): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PULSES,
                 icon=ICON_PULSE,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
-        }
+        },
     )
-    .extend(cv.polling_component_schema("60s"))
+    .extend(cv.polling_component_schema("60s")),
+    validate_internal_filter,
 )
 
 
 async def to_code(config):
-    var = await sensor.new_sensor(config)
+    var = await sensor.new_sensor(config, config[CONF_USE_PCNT])
     await cg.register_component(var, config)
 
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
