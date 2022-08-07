@@ -182,6 +182,7 @@ class WiFiComponent : public Component {
    * can be made, the AP will be turned off again.
    */
   void set_ap(const WiFiAP &ap);
+  WiFiAP get_ap() { return this->ap_; }
 
   void start_scanning();
   void check_scanning_finished();

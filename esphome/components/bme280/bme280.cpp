@@ -1,4 +1,5 @@
 #include "bme280.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -28,6 +29,7 @@ static const uint8_t BME280_REGISTER_DIG_H5 = 0xE5;
 static const uint8_t BME280_REGISTER_DIG_H6 = 0xE7;
 
 static const uint8_t BME280_REGISTER_CHIPID = 0xD0;
+static const uint8_t BME280_REGISTER_RESET = 0xE0;
 
 static const uint8_t BME280_REGISTER_CONTROLHUMID = 0xF2;
 static const uint8_t BME280_REGISTER_STATUS = 0xF3;
@@ -39,6 +41,8 @@ static const uint8_t BME280_REGISTER_TEMPDATA = 0xFA;
 static const uint8_t BME280_REGISTER_HUMIDDATA = 0xFD;
 
 static const uint8_t BME280_MODE_FORCED = 0b01;
+static const uint8_t BME280_SOFT_RESET = 0xB6;
+static const uint8_t BME280_STATUS_IM_UPDATE = 0b01;
 
 inline uint16_t combine_bytes(uint8_t msb, uint8_t lsb) { return ((msb & 0xFF) << 8) | (lsb & 0xFF); }
 
@@ -93,6 +97,28 @@ void BME280Component::setup() {
   }
   if (chip_id != 0x60) {
     this->error_code_ = WRONG_CHIP_ID;
+    this->mark_failed();
+    return;
+  }
+
+  // Send a soft reset.
+  if (!this->write_byte(BME280_REGISTER_RESET, BME280_SOFT_RESET)) {
+    this->mark_failed();
+    return;
+  }
+  // Wait until the NVM data has finished loading.
+  uint8_t status;
+  uint8_t retry = 5;
+  do {
+    delay(2);
+    if (!this->read_byte(BME280_REGISTER_STATUS, &status)) {
+      ESP_LOGW(TAG, "Error reading status register.");
+      this->mark_failed();
+      return;
+    }
+  } while ((status & BME280_STATUS_IM_UPDATE) && (--retry));
+  if (status & BME280_STATUS_IM_UPDATE) {
+    ESP_LOGW(TAG, "Timeout loading NVM.");
     this->mark_failed();
     return;
   }
