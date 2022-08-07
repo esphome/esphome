@@ -595,7 +595,7 @@ void Animation::set_frame(int frame) {
   unsigned abs_frame = abs(frame);
 
   if (abs_frame < this->animation_frame_count_) {
-    if (frame > 0) {
+    if (frame >= 0) {
       this->current_frame_ = frame;
     } else {
       this->current_frame_ = this->animation_frame_count_ - abs_frame;
