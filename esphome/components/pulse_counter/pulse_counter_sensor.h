@@ -56,11 +56,11 @@ struct HwPulseCounterStorage : public PulseCounterStorage_Base {
 };
 #endif
 
+PulseCounterStorage_Base *getStorage(bool hw_pcnt);
+
 class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
  public:
-  explicit PulseCounterSensor(bool hw_pcnt = false)
-      : storage_(*(hw_pcnt ? (PulseCounterStorage_Base *) (new HwPulseCounterStorage)
-                           : (PulseCounterStorage_Base *) (new BasicPulseCounterStorage))) {}
+  explicit PulseCounterSensor(bool hw_pcnt = false) : storage_(*getStorage(hw_pcnt)) {}
 
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void set_rising_edge_mode(PulseCounterCountMode mode) { storage_.rising_edge_mode = mode; }
