@@ -395,6 +395,8 @@ class ModbusCommandItem {
       ModbusController *modbusdevice, const std::vector<uint16_t> &values,
       std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
           &&handler = nullptr);
+
+  bool is_equal(const ModbusCommandItem &other);
 };
 
 /** Modbus controller class.
