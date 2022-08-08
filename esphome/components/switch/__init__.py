@@ -45,6 +45,8 @@ SwitchTurnOffTrigger = switch_ns.class_(
     "SwitchTurnOffTrigger", automation.Trigger.template()
 )
 
+icon = cv.icon
+
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True)
 
 
