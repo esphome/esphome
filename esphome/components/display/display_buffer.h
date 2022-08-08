@@ -104,10 +104,10 @@ enum DisplayRotation {
 };
 
 struct Rect {
-  int16_t x;   ///< X coordinate of corner
-  int16_t y;   ///< Y coordinate of corner
-  int16_t w;   ///< Width of region
-  int16_t h;   ///< Height of region
+  int16_t x;  ///< X coordinate of corner
+  int16_t y;  ///< Y coordinate of corner
+  int16_t w;  ///< Width of region
+  int16_t h;  ///< Height of region
 
   inline Rect() ALWAYS_INLINE : x(1), y(1), w(0), h(0) {}  // NOLINT
   inline Rect(int16_t x, int16_t y, int16_t w, int16_t h) ALWAYS_INLINE : x(x), y(y), w(w), h(h) {}
@@ -165,8 +165,6 @@ class DisplayBuffer {
   void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON);
 
 #ifdef USE_EXTENDEDDRAW
-
-
   ///
   /// Expand or contract a rectangle in width and/or height (equal
   /// amounts on both side), based on the centerpoint of the rectangle.
@@ -230,7 +228,9 @@ class DisplayBuffer {
   /// \return true if success, false if error
   ///
   void set_clipping(Rect rect);
-  void set_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) { set_clipping(Rect(left, top, right, bottom)); };
+  void set_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
+    set_clipping(Rect(left, top, right, bottom));
+  };
 
   ///
   /// Add a rectangular region to the invalidation region
@@ -241,7 +241,9 @@ class DisplayBuffer {
   /// \return none
   ///
   void add_clipping(Rect rect);
-  void add_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) { this->add_clipping(Rect(left, top, right, bottom)); };
+  void add_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
+    this->add_clipping(Rect(left, top, right, bottom));
+  };
 
   ///
   /// intersect a rectangular region to the invalidation region
@@ -252,7 +254,9 @@ class DisplayBuffer {
   /// \return none
   ///
   void sub_clipping(Rect rect);
-  void sub_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) { this->sub_clipping(Rect(left, top, right, bottom)); };
+  void sub_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) {
+    this->sub_clipping(Rect(left, top, right, bottom));
+  };
 
 
   ///
@@ -357,7 +361,8 @@ class DisplayBuffer {
   ///
   /// \return true if success, false if error
   ///
-  void quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3, Color color = COLOR_ON);
+  void quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3, 
+            Color color = COLOR_ON);
 
   ///
   /// Draw a filled quadrilateral
@@ -367,7 +372,8 @@ class DisplayBuffer {
   ///
   /// \return true if success, false if error
   ///
-  void filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3, Color color = COLOR_ON);
+  void filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3, 
+                   Color color = COLOR_ON);
 
   void gradient_sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2, Color color_start,
                        Color color_end, int16_t angle_start, int16_t angle_end, int16_t gradient_angle_start,
@@ -616,8 +622,7 @@ class DisplayBuffer {
                       Color color_end, int16_t angle_start, int16_t angle_end, bool gradient = false,
                       int16_t gradient_angle_start = 0, int16_t gradient_angle_range = 0);
 
-  std::vector <Rect> clipping_rectangle_;
-  Color transparant_color_{COLOR_OFF};
+  std::vector<Rect> clipping_rectangle_;
 #endif
 
   uint8_t *buffer_{nullptr};

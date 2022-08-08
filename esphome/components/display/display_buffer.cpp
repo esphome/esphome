@@ -403,8 +403,6 @@ void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, time:
 #endif
 
 #ifdef USE_EXTENDEDDRAW
-
-
 // Expand or contract a rectangle in width and/or height (equal
 // amounts on both side), based on the centerpoint of the rectangle.
 Rect DisplayBuffer::expand_rect(Rect rect, int16_t width, int16_t height) {
@@ -427,7 +425,6 @@ Rect DisplayBuffer::expand_rect(Rect rect, int16_t width, int16_t height) {
   // top/bottom or left/right) equally.
   new_rect.w = rect.w + (2 * width);
   new_rect.h = rect.h + (2 * height);
-
 
   return new_rect;
 }
@@ -468,8 +465,6 @@ Rect DisplayBuffer::intersect_rect(Rect rect, Rect add_rect){
   return Rect(source_x0, source_y0, source_x1, source_y1);
 }
 
-
-
 bool DisplayBuffer::in_rect(int16_t x, int16_t y, Rect rect) {
   return ((x >= rect.x) && (x <= rect.w) && (y >= rect.y) && (y <= rect.h));
 }
@@ -479,15 +474,15 @@ bool DisplayBuffer::is_inside(int16_t x, int16_t y, uint16_t width, uint16_t hei
 }
 
 void DisplayBuffer::clear_clipping() {
-  if (this->clipping_rectangle_.size() == 0) {
+  if (this->clipping_rectangle_.empty()) {
     ESP_LOGW(TAG, "Clipping is not set.");
   } else {
     this->clipping_rectangle_.pop_back();
   }
 }
 
-void DisplayBuffer::add_clipping( Rect add_rect ) {
-  if (this->clipping_rectangle_.size() == 0) {
+void DisplayBuffer::add_clipping(Rect add_rect) {
+  if (this->clipping_rectangle_.empty()) {
     ESP_LOGW(TAG, "Clipping is not set.");
   } else {
     Rect rect = this->get_clipping();
@@ -497,11 +492,12 @@ void DisplayBuffer::add_clipping( Rect add_rect ) {
 }
 
 void DisplayBuffer::set_clipping(Rect rect) {
-  this->clipping_rectangle_.push_back( rect); }
+  this->clipping_rectangle_.push_back( rect);
+}
 
 Rect DisplayBuffer::get_clipping() {
-  if (this->clipping_rectangle_.size() == 0) {
-    return Rect(1,1,0,0);
+  if (this->clipping_rectangle_.empty()) {
+    return Rect(1, 1, 0, 0);
   } else {
     return this->clipping_rectangle_.back();
   }
@@ -740,7 +736,8 @@ void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t 
   }
 }
 
-void DisplayBuffer::quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3, Color color) {
+void DisplayBuffer::quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3,
+                         Color color) {
 
   this->line(x0, y0, x1, y1, color);
   this->line(x1, y1, x2, y2, color);
@@ -752,7 +749,8 @@ void DisplayBuffer::quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t
 // two filled triangles sharing one side. We have to be careful
 // about the triangle fill routine (ie. using rounding) so that
 // we can avoid leaving a thin seam between the two triangles.
-void DisplayBuffer::filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3, Color color) {
+void DisplayBuffer::filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3,
+                                int16_t y3, Color color) {
   this->filled_triangle(x0, y0, x1, y1, x2, y2, color);
   this->filled_triangle(x2, y2, x0, y0, x3, y3, color);
 }
@@ -760,7 +758,6 @@ void DisplayBuffer::filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, 
 void DisplayBuffer::filled_sector_(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2,
                                    Color color_start, Color color_end, int16_t angle_start, int16_t angle_end,
                                    bool gradient, int16_t gradient_angle_start, int16_t gradient_angle_range) {
-
   int16_t x0, y0, x1, y1, x2, y2, x3, y3;
 
   // Calculate degrees per step (based on quality setting)
@@ -806,8 +803,8 @@ void DisplayBuffer::filled_sector_(int16_t quality, int16_t x, int16_t y, int16_
     y1 = y + calc_y;
 
     this->calc_polar(radius1, angle + step, &calc_x, &calc_y);
-    x0 = x + calc_x;
-    y3 = y + calc_y;
+    x2 = x + calc_x;
+    y2 = y + calc_y;
 
     this->calc_polar(radius1, angle + step, &calc_x, &calc_y);
     x3 = x + calc_x;
