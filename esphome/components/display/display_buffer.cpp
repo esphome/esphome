@@ -449,7 +449,7 @@ Rect DisplayBuffer::union_rect(Rect rect, Rect add_rect) {
   return Rect(source_x0, source_y0, source_x1, source_y1);
 }
 
-Rect DisplayBuffer::intersect_rect(Rect rect, Rect add_rect){
+Rect DisplayBuffer::intersect_rect(Rect rect, Rect add_rect) {
   // If the source rect has zero dimensions, then treat as empty
   if ((rect.w == 0) || (rect.h == 0)) {
     // No source region defined, simply copy add region
@@ -738,7 +738,6 @@ void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t 
 
 void DisplayBuffer::quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3,
                          Color color) {
-
   this->line(x0, y0, x1, y1, color);
   this->line(x1, y1, x2, y2, color);
   this->line(x2, y2, x3, y3, color);

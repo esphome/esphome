@@ -139,6 +139,7 @@ class DisplayBuffer {
   int get_width();
   /// Get the height of the image in pixels with rotation applied.
   int get_height();
+
   /// Set a single pixel at the specified coordinates to the given color.
   void draw_pixel_at(int x, int y, Color color = COLOR_ON);
 
@@ -258,14 +259,12 @@ class DisplayBuffer {
     this->sub_clipping(Rect(left, top, right, bottom));
   };
 
-
   ///
   /// Reset the invalidation region
   ///
   /// \return none
   ///
   void clear_clipping();
-
 
   ///
   /// Get the current the clipping rectangle
@@ -361,7 +360,7 @@ class DisplayBuffer {
   ///
   /// \return true if success, false if error
   ///
-  void quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3, 
+  void quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3,
             Color color = COLOR_ON);
 
   ///
@@ -372,7 +371,7 @@ class DisplayBuffer {
   ///
   /// \return true if success, false if error
   ///
-  void filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3, 
+  void filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3,
                    Color color = COLOR_ON);
 
   void gradient_sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2, Color color_start,
