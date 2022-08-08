@@ -478,10 +478,10 @@ bool DisplayBuffer::is_inside(int16_t x, int16_t y, uint16_t width, uint16_t hei
   return ((x >= 0) && (x <= (int16_t)(width) -1) && (y >= 0) && (y <= (int16_t)(height) -1));
 }
 
-void DisplayBuffer::clear_clipping() { 
+void DisplayBuffer::clear_clipping() {
   if (this->clipping_rectangle_.size() == 0) {
     ESP_LOGW(TAG, "Clipping is not set.");
-  } else {    
+  } else {
     this->clipping_rectangle_.pop_back();
   }
 }
@@ -489,17 +489,17 @@ void DisplayBuffer::clear_clipping() {
 void DisplayBuffer::add_clipping( Rect add_rect ) {
   if (this->clipping_rectangle_.size() == 0) {
     ESP_LOGW(TAG, "Clipping is not set.");
-  } else {    
+  } else {
     Rect rect = this->get_clipping();
     rect = this->union_rect(rect, add_rect);
     this->clipping_rectangle_.back() = rect;
   }
 }
 
-void DisplayBuffer::set_clipping(Rect rect) { 
+void DisplayBuffer::set_clipping(Rect rect) {
   this->clipping_rectangle_.push_back( rect); }
 
-Rect DisplayBuffer::get_clipping() { 
+Rect DisplayBuffer::get_clipping() {
   if (this->clipping_rectangle_.size() == 0) {
     return Rect(1,1,0,0);
   } else {
@@ -508,14 +508,14 @@ Rect DisplayBuffer::get_clipping() {
 }
 
 bool DisplayBuffer::is_clipped(int16_t x, int16_t y) {
-  Rect clip = this->get_clipping(); 
+  Rect clip = this->get_clipping();
   if ((clip.w == 0) || (clip.h == 0))
     return false;
   return ((x < clip.x) || (x > clip.w) || (y < clip.y) || (y > clip.h));
 }
 
 bool DisplayBuffer::is_clipped(Rect rect) {
-  Rect clip = this->get_clipping(); 
+  Rect clip = this->get_clipping();
   if ((clip.w == 0) || (clip.h == 0))
     return true;
   return ((rect.w < clip.x) || (rect.x > clip.w) || (rect.h < clip.y) || (rect.y > clip.h));
@@ -743,9 +743,9 @@ void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t 
 void DisplayBuffer::quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3, Color color) {
 
   this->line(x0, y0, x1, y1, color);
-  this->line(x0, y0, x1, y1, color);
-  this->line(x0, y0, x1, y1, color);
-  this->line(x0, y0, x1, y1, color);
+  this->line(x1, y1, x2, y2, color);
+  this->line(x2, y2, x3, y3, color);
+  this->line(x3, y3, x0, y0, color);
 }
 
 // Filling a quadrilateral is done by breaking it down into
@@ -754,13 +754,13 @@ void DisplayBuffer::quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t
 // we can avoid leaving a thin seam between the two triangles.
 void DisplayBuffer::filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3, Color color) {
   this->filled_triangle(x0, y0, x1, y1, x2, y2, color);
-  this->filled_triangle(x0, y0, x1, y1, x2, y2, color);
+  this->filled_triangle(x2, y2, x0, y0, x3, y3, color);
 }
 
 void DisplayBuffer::filled_sector_(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2,
                                    Color color_start, Color color_end, int16_t angle_start, int16_t angle_end,
                                    bool gradient, int16_t gradient_angle_start, int16_t gradient_angle_range) {
-  
+
   int16_t x0, y0, x1, y1, x2, y2, x3, y3;
 
   // Calculate degrees per step (based on quality setting)
@@ -798,21 +798,21 @@ void DisplayBuffer::filled_sector_(int16_t quality, int16_t x, int16_t y, int16_
     angle = (int32_t)(segment_index * step) % (int32_t)(23040);
 
     this->calc_polar(radius1, angle, &calc_x, &calc_y);
-    x0 = x + calc_x; 
+    x0 = x + calc_x;
     y0 = y + calc_y;
-    
+
     this->calc_polar(radius2, angle, &calc_x, &calc_y);
-    x1 = x + calc_x; 
+    x1 = x + calc_x;
     y1 = y + calc_y;
-    
+
     this->calc_polar(radius1, angle + step, &calc_x, &calc_y);
-    x0 = x + calc_x; 
+    x0 = x + calc_x;
     y3 = y + calc_y;
 
     this->calc_polar(radius1, angle + step, &calc_x, &calc_y);
-    x3 = x + calc_x; 
+    x3 = x + calc_x;
     y3 = y + calc_y;
-    
+
     color_segment = color_start;
     if (gradient) {
       // Gradient coloring
