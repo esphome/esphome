@@ -452,72 +452,47 @@ async def to_code(config):
         await cg.register_component(var, sprinkler_controller)
 
         if len(sprinkler_controller[CONF_VALVES]) > 1:
-            sw_var = cg.new_Pvariable(sprinkler_controller[CONF_MAIN_SWITCH][CONF_ID])
+            sw_var = await switch.new_switch(sprinkler_controller[CONF_MAIN_SWITCH])
             await cg.register_component(sw_var, sprinkler_controller[CONF_MAIN_SWITCH])
-            await switch.register_switch(sw_var, sprinkler_controller[CONF_MAIN_SWITCH])
-            sw_var = await cg.get_variable(
-                sprinkler_controller[CONF_MAIN_SWITCH][CONF_ID]
-            )
             cg.add(var.set_controller_main_switch(sw_var))
 
-            sw_aa_var = cg.new_Pvariable(
-                sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH][CONF_ID]
+            sw_aa_var = await switch.new_switch(
+                sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH]
             )
             await cg.register_component(
                 sw_aa_var, sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH]
             )
-            await switch.register_switch(
-                sw_aa_var, sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH]
-            )
-            sw_aa_var = await cg.get_variable(
-                sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH][CONF_ID]
-            )
             cg.add(var.set_controller_auto_adv_switch(sw_aa_var))
 
             if CONF_QUEUE_ENABLE_SWITCH in sprinkler_controller:
-                sw_qen_var = cg.new_Pvariable(
-                    sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH][CONF_ID]
+                sw_qen_var = await switch.new_switch(
+                    sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH]
                 )
                 await cg.register_component(
                     sw_qen_var, sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH]
-                )
-                await switch.register_switch(
-                    sw_qen_var, sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH]
-                )
-                sw_qen_var = await cg.get_variable(
-                    sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH][CONF_ID]
                 )
                 cg.add(var.set_controller_queue_enable_switch(sw_qen_var))
 
             if CONF_REVERSE_SWITCH in sprinkler_controller:
-                sw_rev_var = cg.new_Pvariable(
-                    sprinkler_controller[CONF_REVERSE_SWITCH][CONF_ID]
+                sw_rev_var = await switch.new_switch(
+                    sprinkler_controller[CONF_REVERSE_SWITCH]
                 )
                 await cg.register_component(
                     sw_rev_var, sprinkler_controller[CONF_REVERSE_SWITCH]
                 )
-                await switch.register_switch(
-                    sw_rev_var, sprinkler_controller[CONF_REVERSE_SWITCH]
-                )
-                sw_rev_var = await cg.get_variable(
-                    sprinkler_controller[CONF_REVERSE_SWITCH][CONF_ID]
-                )
                 cg.add(var.set_controller_reverse_switch(sw_rev_var))
 
         for valve in sprinkler_controller[CONF_VALVES]:
-            sw_valve_var = cg.new_Pvariable(valve[CONF_VALVE_SWITCH][CONF_ID])
+            sw_valve_var = await switch.new_switch(valve[CONF_VALVE_SWITCH])
             await cg.register_component(sw_valve_var, valve[CONF_VALVE_SWITCH])
-            await switch.register_switch(sw_valve_var, valve[CONF_VALVE_SWITCH])
-            sw_valve_var = await cg.get_variable(valve[CONF_VALVE_SWITCH][CONF_ID])
 
             if (
                 CONF_ENABLE_SWITCH in valve
                 and len(sprinkler_controller[CONF_VALVES]) > 1
             ):
-                sw_en_var = cg.new_Pvariable(valve[CONF_ENABLE_SWITCH][CONF_ID])
+                sw_en_var = await switch.new_switch(valve[CONF_ENABLE_SWITCH])
                 await cg.register_component(sw_en_var, valve[CONF_ENABLE_SWITCH])
-                await switch.register_switch(sw_en_var, valve[CONF_ENABLE_SWITCH])
-                sw_en_var = await cg.get_variable(valve[CONF_ENABLE_SWITCH][CONF_ID])
+
                 cg.add(var.add_valve(sw_valve_var, sw_en_var))
             else:
                 cg.add(var.add_valve(sw_valve_var))
