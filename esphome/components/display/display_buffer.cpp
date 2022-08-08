@@ -404,45 +404,10 @@ void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, time:
 
 #ifdef USE_EXTENDEDDRAW
 
-void DisplayBuffer::set_transparent_color(Color color) { this->transparant_color_ = color; }
-
-// Call with nMidAmt=500 to create simple linear blend between two colors
-Color DisplayBuffer::blend_color(Color color_start, Color color_end, uint16_t mid_amt, uint16_t blend_amt) {
-  Color color_mid;
-  color_mid.r = (color_end.r + color_start.r) / 2;
-  color_mid.g = (color_end.g + color_start.g) / 2;
-  color_mid.b = (color_end.b + color_start.b) / 2;
-  return this->blend_color(color_start, color_mid, color_end, mid_amt, blend_amt);
-}
-
-Color DisplayBuffer::blend_color(Color color_start, Color color_mid, Color color_end, uint16_t mid_amt,
-                                 uint16_t blend_amt) {
-  Color color_new;
-  mid_amt = (mid_amt > 1000) ? 1000 : mid_amt;
-  blend_amt = (blend_amt > 1000) ? 1000 : blend_amt;
-
-  uint16_t range_low = mid_amt;
-  uint16_t range_high = 1000 - mid_amt;
-  int32_t sub_blend_amt;
-  if (blend_amt >= mid_amt) {
-    sub_blend_amt = (int32_t)(blend_amt - mid_amt) * 1000 / range_high;
-    color_new.r = sub_blend_amt * (color_end.r - color_mid.r) / 1000 + color_mid.r;
-    color_new.g = sub_blend_amt * (color_end.g - color_mid.g) / 1000 + color_mid.g;
-    color_new.b = sub_blend_amt * (color_end.b - color_mid.b) / 1000 + color_mid.b;
-  } else {
-    sub_blend_amt = (int32_t)(blend_amt - 0) * 1000 / range_low;
-    color_new.r = sub_blend_amt * (color_mid.r - color_start.r) / 1000 + color_start.r;
-    color_new.g = sub_blend_amt * (color_mid.g - color_start.g) / 1000 + color_start.g;
-    color_new.b = sub_blend_amt * (color_mid.b - color_start.b) / 1000 + color_start.b;
-  }
-  return color_new;
-}
-
-bool DisplayBuffer::is_color_equal(Color a, Color b) { return a.r == b.r && a.g == b.g && a.b == b.b; }
 
 // Expand or contract a rectangle in width and/or height (equal
 // amounts on both side), based on the centerpoint of the rectangle.
-Rect DisplayBuffer::expand_rect(Rect rect, uint16_t width, uint16_t height) {
+Rect DisplayBuffer::expand_rect(Rect rect, int16_t width, int16_t height) {
   Rect new_rect = {1, 1, 0, 0};
 
   // Detect error case of contracting region too far
@@ -451,6 +416,11 @@ Rect DisplayBuffer::expand_rect(Rect rect, uint16_t width, uint16_t height) {
     return new_rect;
   }
 
+  // Adjust the rectangle coordinate to allow for new dimensions
+  // Note that this moves the coordinate in the opposite
+  // direction of the expansion/contraction.
+  new_rect.x = rect.x - width;
+  new_rect.y = rect.y - height;
   // Adjust the new width/height
   // Note that the overall width/height changes by a factor of
   // two since we are applying the adjustment on both sides (ie.
@@ -458,20 +428,12 @@ Rect DisplayBuffer::expand_rect(Rect rect, uint16_t width, uint16_t height) {
   new_rect.w = rect.w + (2 * width);
   new_rect.h = rect.h + (2 * height);
 
-  // Adjust the rectangle coordinate to allow for new dimensions
-  // Note that this moves the coordinate in the opposite
-  // direction of the expansion/contraction.
-  new_rect.x = rect.x - width;
-  new_rect.y = rect.y - height;
 
   return new_rect;
 }
 
 // Expand the current rect (pRect) to enclose the additional rect region (radd_rect)
 Rect DisplayBuffer::union_rect(Rect rect, Rect add_rect) {
-  int16_t source_x0, source_y0, source_x1, source_y1;
-  int16_t add_x0, add_y0, add_x1, add_y1;
-
   // If the source rect has zero dimensions, then treat as empty
   if ((rect.w == 0) || (rect.h == 0)) {
     // No source region defined, simply copy add region
@@ -480,58 +442,83 @@ Rect DisplayBuffer::union_rect(Rect rect, Rect add_rect) {
 
   // Source region valid, so increase dimensions
 
-  // Calculate the rect boundary coordinates
-  source_x0 = rect.x;
-  source_y0 = rect.y;
-  source_x1 = rect.x + rect.w - 1;
-  source_y1 = rect.y + rect.h - 1;
-  add_x0 = add_rect.x;
-  add_y0 = add_rect.y;
-  add_x1 = add_rect.x + add_rect.w - 1;
-  add_y1 = add_rect.y + add_rect.h - 1;
-
   // Find the new maximal dimensions
-  source_x0 = (add_x0 < source_x0) ? add_x0 : source_x0;
-  source_y0 = (add_y0 < source_y0) ? add_y0 : source_y0;
-  source_x1 = (add_x1 > source_x1) ? add_x1 : source_x1;
-  source_y1 = (add_y1 > source_y1) ? add_y1 : source_y1;
+  uint16_t source_x0 = (rect.x < add_rect.x) ? rect.x : add_rect.x;
+  uint16_t source_y0 = (rect.y < add_rect.y) ? rect.x : add_rect.y;
+  uint16_t source_x1 = (rect.w > add_rect.w) ? rect.x : add_rect.w;
+  uint16_t source_y1 = (rect.h > add_rect.h) ? rect.x : add_rect.h;
 
   // Update the original rect region
-  return Rect(source_x0, source_y0, (uint16_t)(source_x1 - source_x0 + 1), (uint16_t)(source_y1 - source_y0 + 1));
+  return Rect(source_x0, source_y0, source_x1, source_y1);
 }
 
+Rect DisplayBuffer::intersect_rect(Rect rect, Rect add_rect){
+  // If the source rect has zero dimensions, then treat as empty
+  if ((rect.w == 0) || (rect.h == 0)) {
+    // No source region defined, simply copy add region
+    return add_rect;
+  }
+  // Find the new minimum dimensions
+  uint16_t source_x0 = (rect.x > add_rect.x) ? rect.x : add_rect.x;
+  uint16_t source_y0 = (rect.y > add_rect.y) ? rect.x : add_rect.y;
+  uint16_t source_x1 = (rect.w < add_rect.w) ? rect.x : add_rect.w;
+  uint16_t source_y1 = (rect.h < add_rect.h) ? rect.x : add_rect.h;
+
+  // Update the original rect region
+  return Rect(source_x0, source_y0, source_x1, source_y1);
+}
+
+
+
 bool DisplayBuffer::in_rect(int16_t x, int16_t y, Rect rect) {
-  return ((x >= rect.x) && (x <= rect.x + (int16_t) rect.w) && (y >= rect.y) && (y <= rect.y + (int16_t) rect.h));
+  return ((x >= rect.x) && (x <= rect.w) && (y >= rect.y) && (y <= rect.h));
 }
 
 bool DisplayBuffer::is_inside(int16_t x, int16_t y, uint16_t width, uint16_t height) {
   return ((x >= 0) && (x <= (int16_t)(width) -1) && (y >= 0) && (y <= (int16_t)(height) -1));
 }
 
-void DisplayBuffer::clear_clipping() { this->clipping_rectangle_ = (Rect){0, 0, 0, 0}; }
-
-void DisplayBuffer::add_clipping(Rect add_rect) {
-  this->clipping_rectangle_ = this->union_rect(this->clipping_rectangle_, add_rect);
+void DisplayBuffer::clear_clipping() { 
+  if (this->clipping_rectangle_.size() == 0) {
+    ESP_LOGW(TAG, "Clipping is not set.");
+  } else {    
+    this->clipping_rectangle_.pop_back();
+  }
 }
 
-void DisplayBuffer::set_clipping(Rect rect) { this->clipping_rectangle_ = rect; }
+void DisplayBuffer::add_clipping( Rect add_rect ) {
+  if (this->clipping_rectangle_.size() == 0) {
+    ESP_LOGW(TAG, "Clipping is not set.");
+  } else {    
+    Rect rect = this->get_clipping();
+    rect = this->union_rect(rect, add_rect);
+    this->clipping_rectangle_.back() = rect;
+  }
+}
 
-Rect DisplayBuffer::get_clipping() { return this->clipping_rectangle_; }
+void DisplayBuffer::set_clipping(Rect rect) { 
+  this->clipping_rectangle_.push_back( rect); }
+
+Rect DisplayBuffer::get_clipping() { 
+  if (this->clipping_rectangle_.size() == 0) {
+    return Rect(1,1,0,0);
+  } else {
+    return this->clipping_rectangle_.back();
+  }
+}
 
 bool DisplayBuffer::is_clipped(int16_t x, int16_t y) {
-  if ((this->clipping_rectangle_.w == 0) || (this->clipping_rectangle_.h == 0))
+  Rect clip = this->get_clipping(); 
+  if ((clip.w == 0) || (clip.h == 0))
     return false;
+  return ((x < clip.x) || (x > clip.w) || (y < clip.y) || (y > clip.h));
+}
 
-  int16_t clip_x0 = this->clipping_rectangle_.x;
-  int16_t clip_y0 = this->clipping_rectangle_.y;
-  int16_t clip_x1 = this->clipping_rectangle_.x + this->clipping_rectangle_.w - 1;
-  int16_t clip_y1 = this->clipping_rectangle_.y + this->clipping_rectangle_.h - 1;
-
-  if ((x < clip_x0) || (x > clip_x1))
+bool DisplayBuffer::is_clipped(Rect rect) {
+  Rect clip = this->get_clipping(); 
+  if ((clip.w == 0) || (clip.h == 0))
     return true;
-  if ((y < clip_y0) || (y > clip_y1))
-    return true;
-  return false;
+  return ((rect.w < clip.x) || (rect.x > clip.w) || (rect.h < clip.y) || (rect.y > clip.h));
 }
 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -567,7 +554,7 @@ int16_t DisplayBuffer::get_cos(int16_t angle) {
 }
 
 // Convert from polar to cartesian
-void DisplayBuffer::polar_to_point(uint16_t radius, int16_t angle, int16_t *x, int16_t *y) {
+void DisplayBuffer::calc_polar(uint16_t radius, int16_t angle, int16_t *x, int16_t *y) {
   int32_t temp;
   // TODO: Clean up excess integer typecasting
   temp = (int32_t) radius * this->get_sin(angle);
@@ -753,31 +740,11 @@ void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t 
   }
 }
 
-void DisplayBuffer::quad(Point *points, Color color) {
-  int16_t x0, y0, x1, y1;
+void DisplayBuffer::quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3, Color color) {
 
-  x0 = points[0].x;
-  y0 = points[0].y;
-  x1 = points[1].x;
-  y1 = points[1].y;
   this->line(x0, y0, x1, y1, color);
-
-  x0 = points[1].x;
-  y0 = points[1].y;
-  x1 = points[2].x;
-  y1 = points[2].y;
   this->line(x0, y0, x1, y1, color);
-
-  x0 = points[2].x;
-  y0 = points[2].y;
-  x1 = points[3].x;
-  y1 = points[3].y;
   this->line(x0, y0, x1, y1, color);
-
-  x0 = points[3].x;
-  y0 = points[3].y;
-  x1 = points[0].x;
-  y1 = points[0].y;
   this->line(x0, y0, x1, y1, color);
 }
 
@@ -785,31 +752,16 @@ void DisplayBuffer::quad(Point *points, Color color) {
 // two filled triangles sharing one side. We have to be careful
 // about the triangle fill routine (ie. using rounding) so that
 // we can avoid leaving a thin seam between the two triangles.
-void DisplayBuffer::filled_quad(Point *points, Color color) {
-  int16_t x0, y0, x1, y1, x2, y2;
-
-  // Break down quadrilateral into two triangles
-  x0 = points[0].x;
-  y0 = points[0].y;
-  x1 = points[1].x;
-  y1 = points[1].y;
-  x2 = points[2].x;
-  y2 = points[2].y;
+void DisplayBuffer::filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3, Color color) {
   this->filled_triangle(x0, y0, x1, y1, x2, y2, color);
-
-  x0 = points[2].x;
-  y0 = points[2].y;
-  x1 = points[0].x;
-  y1 = points[0].y;
-  x2 = points[3].x;
-  y2 = points[3].y;
   this->filled_triangle(x0, y0, x1, y1, x2, y2, color);
 }
 
 void DisplayBuffer::filled_sector_(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2,
                                    Color color_start, Color color_end, int16_t angle_start, int16_t angle_end,
                                    bool gradient, int16_t gradient_angle_start, int16_t gradient_angle_range) {
-  Point points[4];
+  
+  int16_t x0, y0, x1, y1, x2, y2, x3, y3;
 
   // Calculate degrees per step (based on quality setting)
   int16_t step_angle = 360 / quality;
@@ -843,26 +795,31 @@ void DisplayBuffer::filled_sector_(int16_t quality, int16_t x, int16_t y, int16_
     // Remap from the step to the segment index, depending on direction
     segment_index = (clockwise) ? (segment_start + step_index) : (segment_start - step_index - 1);
 
-    angle = (int32_t)(segment_index * step) % (int32_t)(360 * 64);
+    angle = (int32_t)(segment_index * step) % (int32_t)(23040);
 
-    this->polar_to_point(radius1, angle, &calc_x, &calc_y);
-    points[0] = Point(x + calc_x, y + calc_y);
-    this->polar_to_point(radius2, angle, &calc_x, &calc_y);
-    points[1] = Point(x + calc_x, y + calc_y);
-    this->polar_to_point(radius2, angle + step, &calc_x, &calc_y);
-    points[2] = Point(x + calc_x, y + y);
-    this->polar_to_point(radius1, angle + step, &calc_x, &calc_y);
-    points[3] = Point(x + calc_x, y + calc_y);
+    this->calc_polar(radius1, angle, &calc_x, &calc_y);
+    x0 = x + calc_x; 
+    y0 = y + calc_y;
+    
+    this->calc_polar(radius2, angle, &calc_x, &calc_y);
+    x1 = x + calc_x; 
+    y1 = y + calc_y;
+    
+    this->calc_polar(radius1, angle + step, &calc_x, &calc_y);
+    x0 = x + calc_x; 
+    y3 = y + calc_y;
 
+    this->calc_polar(radius1, angle + step, &calc_x, &calc_y);
+    x3 = x + calc_x; 
+    y3 = y + calc_y;
+    
+    color_segment = color_start;
     if (gradient) {
       // Gradient coloring
       int16_t gradient_pos = 1000 * (int32_t)(segment_index - segment_gradient_start) / segment_gradient_range;
-      color_segment = this->blend_color(color_start, color_end, 500, gradient_pos);
-    } else {
-      // Flat coloring
-      color_segment = color_start;
+      color_segment = color_segment.gradient(color_end, gradient_pos);
     }
-    this->filled_quad(points, color_segment);
+    this->filled_quad(x0, y0, x1, y1, x2, y2, x3, y3, color_segment);
   }
 }
 

@@ -103,23 +103,14 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
-/// Define point coordinates
-struct Point {
-  int16_t x;  ///< X coordinate
-  int16_t y;  ///< Y coordinate
-
-  inline Point() ALWAYS_INLINE : x(0), y(0) {}  // NOLINT
-  inline Point(int16_t x, int16_t y) ALWAYS_INLINE : x(x), y(y) {}
-};
-
 struct Rect {
   int16_t x;   ///< X coordinate of corner
   int16_t y;   ///< Y coordinate of corner
-  uint16_t w;  ///< Width of region
-  uint16_t h;  ///< Height of region
+  int16_t w;   ///< Width of region
+  int16_t h;   ///< Height of region
 
   inline Rect() ALWAYS_INLINE : x(1), y(1), w(0), h(0) {}  // NOLINT
-  inline Rect(int16_t xx, int16_t yy, uint16_t ww, uint16_t hh) ALWAYS_INLINE : x(xx), y(yy), w(ww), h(hh) {}
+  inline Rect(int16_t x, int16_t y, int16_t w, int16_t h) ALWAYS_INLINE : x(x), y(y), w(w), h(h) {}
 };
 
 class Font;
@@ -175,54 +166,6 @@ class DisplayBuffer {
 
 #ifdef USE_EXTENDEDDRAW
 
-  ///
-  /// Configure the color to use for image transparency
-  /// - Drawing a BMP with transparency enabled will cause
-  ///   regions in this specific color to appear transparent
-  ///
-  /// @param color:        RGB Color to use
-  ///
-  ///
-  void set_transparent_color(Color color);
-
-  ///
-  /// Create a color based on a blend between two colors
-  ///
-  /// \param[in]  colStart:    Starting color
-  /// \param[in]  colEnd:      Ending color
-  /// \param[in]  nMidAmt:     Position (0..1000) between start and end color at which the
-  ///                          midpoint between colors should appear. Normally set to 500 (half-way).
-  /// \param[in]  nBlendAmt:   The position (0..1000) between start and end at which we
-  ///                          want to calculate the resulting blended color.
-  ///
-  /// \return Blended color
-  ///
-  Color blend_color(Color color_start, Color color_end, uint16_t mid_amt, uint16_t blend_amt);
-
-  ///
-  /// Create a color based on a blend between three colors
-  ///
-  /// \param[in]  colStart:    Starting color
-  /// \param[in]  colMid:      Intermediate color
-  /// \param[in]  colEnd:      Ending color
-  /// \param[in]  nMidAmt:     Position (0..1000) between start and end color at which the
-  ///                          intermediate color should appear.
-  /// \param[in]  nBlendAmt:   The position (0..1000) between start and end at which we
-  ///                          want to calculate the resulting blended color.
-  ///
-  /// \return Blended color
-  ///
-  Color blend_color(Color color_start, Color color_mid, Color color_end, uint16_t mid_amt, uint16_t blend_amt);
-
-  ///
-  /// Check whether two colors are equal
-  ///
-  /// \param[in]  a:    First color
-  /// \param[in]  b:    Second color
-  ///
-  /// \return True iff a and b are the same color.
-  ///
-  bool is_color_equal(Color a, Color b);
 
   ///
   /// Expand or contract a rectangle in width and/or height (equal
@@ -236,7 +179,7 @@ class DisplayBuffer {
   ///
   /// \return new rect with resized dimensions
   ///
-  Rect expand_rect(Rect rect, uint16_t width, uint16_t height);
+  Rect expand_rect(Rect rect, int16_t width, int16_t height);
 
   ///
   /// Expand a rect to include another rect
@@ -249,6 +192,8 @@ class DisplayBuffer {
   /// \return none
   ///
   Rect union_rect(Rect rect, Rect add_rect);
+
+  Rect intersect_rect(Rect rect, Rect add_rect);
 
   ///
   /// Determine if a coordinate is inside of a rectangular region.
@@ -278,11 +223,14 @@ class DisplayBuffer {
   bool is_inside(int16_t x, int16_t y, uint16_t width, uint16_t height);
 
   ///
-  /// Reset the invalidation region
+  /// Set the clipping rectangle for further drawing
   ///
-  /// \return none
+  /// \param[in]  rect:       Pointer to Rect for clipping (or NULL for entire screen)
   ///
-  void clear_clipping();
+  /// \return true if success, false if error
+  ///
+  void set_clipping(Rect rect);
+  void set_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) { set_clipping(Rect(left, top, right, bottom)); };
 
   ///
   /// Add a rectangular region to the invalidation region
@@ -293,17 +241,27 @@ class DisplayBuffer {
   /// \return none
   ///
   void add_clipping(Rect rect);
-  void add_clipping(int16_t x, int16_t y, uint16_t width, uint16_t height) { add_clipping(Rect(x, y, width, height)); };
+  void add_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) { this->add_clipping(Rect(left, top, right, bottom)); };
 
   ///
-  /// Set the clipping rectangle for further drawing
+  /// intersect a rectangular region to the invalidation region
+  /// - This is usually called when an element has been modified
   ///
-  /// \param[in]  rect:       Pointer to Rect for clipping (or NULL for entire screen)
+  /// \param[in]  rect: Rectangle to add to the invalidation region
   ///
-  /// \return true if success, false if error
+  /// \return none
   ///
-  void set_clipping(Rect rect);
-  void set_clipping(int16_t x, int16_t y, uint16_t width, uint16_t height) { set_clipping(Rect(x, y, width, height)); };
+  void sub_clipping(Rect rect);
+  void sub_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) { this->sub_clipping(Rect(left, top, right, bottom)); };
+
+
+  ///
+  /// Reset the invalidation region
+  ///
+  /// \return none
+  ///
+  void clear_clipping();
+
 
   ///
   /// Get the current the clipping rectangle
@@ -322,6 +280,7 @@ class DisplayBuffer {
   /// \return true if point is visible, false if it should be discarded
   ///
   bool is_clipped(int16_t x, int16_t y);
+  bool is_clipped(Rect rect);
 
   /// Draw the outline of a rectangle with the top left point at [x1,y1] and the bottom right point at
   /// [x1+width,y1+height].
@@ -345,7 +304,7 @@ class DisplayBuffer {
   ///
   /// \return none
   ///
-  void polar_to_point(uint16_t rad, int16_t angle, int16_t *x, int16_t *y);
+  void calc_polar(uint16_t rad, int16_t angle, int16_t *x, int16_t *y);
 
   ///
   /// Calculate fixed-point sine function from fractional degrees
@@ -398,7 +357,7 @@ class DisplayBuffer {
   ///
   /// \return true if success, false if error
   ///
-  void quad(Point *points, Color color = COLOR_ON);
+  void quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3, Color color = COLOR_ON);
 
   ///
   /// Draw a filled quadrilateral
@@ -408,7 +367,7 @@ class DisplayBuffer {
   ///
   /// \return true if success, false if error
   ///
-  void filled_quad(Point *points, Color color = COLOR_ON);
+  void filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3, Color color = COLOR_ON);
 
   void gradient_sector(int16_t quality, int16_t x, int16_t y, int16_t radius1, int16_t radius2, Color color_start,
                        Color color_end, int16_t angle_start, int16_t angle_end, int16_t gradient_angle_start,
@@ -657,7 +616,7 @@ class DisplayBuffer {
                       Color color_end, int16_t angle_start, int16_t angle_end, bool gradient = false,
                       int16_t gradient_angle_start = 0, int16_t gradient_angle_range = 0);
 
-  Rect clipping_rectangle_{1, 1, 0, 0};
+  std::vector <Rect> clipping_rectangle_;
   Color transparant_color_{COLOR_OFF};
 #endif
 
