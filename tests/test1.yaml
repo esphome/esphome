@@ -1897,6 +1897,8 @@ climate:
     name: My Bedjet
     bedjet_id: my_bedjet_client
     heat_mode: extended
+  - platform: whynter
+    name: Whynter
 
 script:
   - id: climate_custom
