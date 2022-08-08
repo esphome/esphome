@@ -14,16 +14,18 @@ void FeedbackCover::setup() {
 
   if (restore.has_value()) {
     restore->apply(this);
+  } else {
+    // if no other information, assume half open
+    this->position = 0.5f;
   }
+  this->current_operation = COVER_OPERATION_IDLE;
 
+#ifdef USE_BINARY_SENSOR
   // if available, get position from endstop sensors
   if (this->open_endstop_ != nullptr && this->open_endstop_->state) {
     this->position = COVER_OPEN;
   } else if (this->close_endstop_ != nullptr && this->close_endstop_->state) {
     this->position = COVER_CLOSED;
-  } else if (!restore.has_value()) {
-    // if no other information, assume half open
-    this->position = 0.5f;
   }
 
   // if available, get moving state from sensors
@@ -31,8 +33,8 @@ void FeedbackCover::setup() {
     this->current_operation = COVER_OPERATION_OPENING;
   } else if (this->close_feedback_ != nullptr && this->close_feedback_->state) {
     this->current_operation = COVER_OPERATION_CLOSING;
-  } else
-    this->current_operation = COVER_OPERATION_IDLE;
+  }
+#endif
 
   this->last_recompute_time_ = this->start_dir_time_ = millis();
 }
@@ -48,13 +50,17 @@ CoverTraits FeedbackCover::get_traits() {
 void FeedbackCover::dump_config() {
   LOG_COVER("", "Endstop Cover", this);
   ESP_LOGCONFIG(TAG, "  Open Duration: %.1fs", this->open_duration_ / 1e3f);
+#ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Open Endstop", this->open_endstop_);
   LOG_BINARY_SENSOR("  ", "Open Feedback", this->open_feedback_);
   LOG_BINARY_SENSOR("  ", "Open Obstacle", this->open_obstacle_);
+#endif
   ESP_LOGCONFIG(TAG, "  Close Duration: %.1fs", this->close_duration_ / 1e3f);
+#ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Close Endstop", this->close_endstop_);
   LOG_BINARY_SENSOR("  ", "Close Feedback", this->close_feedback_);
   LOG_BINARY_SENSOR("  ", "Close Obstacle", this->close_obstacle_);
+#endif
   if (this->has_built_in_endstop_) {
     ESP_LOGCONFIG(TAG, "  Has builtin endstop: YES");
   }
@@ -70,10 +76,14 @@ void FeedbackCover::dump_config() {
   if (this->acceleration_wait_time_) {
     ESP_LOGCONFIG(TAG, "  Acceleration wait time: %.1fs", this->acceleration_wait_time_ / 1e3f);
   }
+#ifdef USE_BINARY_SENSOR
   if (this->obstacle_rollback_ && (this->open_obstacle_ != nullptr || this->close_obstacle_ != nullptr)) {
     ESP_LOGCONFIG(TAG, "  Obstacle rollback: %.1f%%", this->obstacle_rollback_ * 100);
   }
+#endif
 }
+
+#ifdef USE_BINARY_SENSOR
 
 void FeedbackCover::set_open_sensor(binary_sensor::BinarySensor *open_feedback) {
   this->open_feedback_ = open_feedback;
@@ -120,6 +130,7 @@ void FeedbackCover::set_close_endstop(binary_sensor::BinarySensor *close_endstop
     }
   });
 }
+#endif
 
 void FeedbackCover::endstop_reached_(bool open_endstop) {
   const uint32_t now = millis();
@@ -157,7 +168,10 @@ void FeedbackCover::set_current_operation_(cover::CoverOperation operation, bool
   // this might be from delays or complex actions, or because the movement was not trigger by the component
   // but initiated externally
 
-  if (!is_triggered || (this->open_feedback_ == nullptr || this->close_feedback_ == nullptr)) {
+#ifdef USE_BINARY_SENSOR
+  if (!is_triggered || (this->open_feedback_ == nullptr || this->close_feedback_ == nullptr))
+#endif
+  {
     auto now = millis();
     this->current_operation = operation;
     this->start_dir_time_ = this->last_recompute_time_ = now;
@@ -166,6 +180,7 @@ void FeedbackCover::set_current_operation_(cover::CoverOperation operation, bool
   }
 }
 
+#ifdef USE_BINARY_SENSOR
 void FeedbackCover::set_close_obstacle_sensor(binary_sensor::BinarySensor *close_obstacle) {
   this->close_obstacle_ = close_obstacle;
 
@@ -199,6 +214,7 @@ void FeedbackCover::set_open_obstacle_sensor(binary_sensor::BinarySensor *open_o
     }
   });
 }
+#endif
 
 void FeedbackCover::loop() {
   if (this->current_operation == COVER_OPERATION_IDLE)
@@ -259,9 +275,16 @@ void FeedbackCover::control(const CoverCall &call) {
 
       // for covers with built in end stop, if we don´t have sensors we should send the command again
       // to make sure the assumed state is not wrong
-      if (this->has_built_in_endstop_ &&
-          ((pos == COVER_OPEN && this->open_endstop_ == nullptr && !this->infer_endstop_) ||
-           (pos == COVER_CLOSED && this->close_endstop_ == nullptr && !this->infer_endstop_))) {
+      if (this->has_built_in_endstop_ && ((pos == COVER_OPEN
+#ifdef USE_BINARY_SENSOR
+                                           && this->open_endstop_ == nullptr
+#endif
+                                           && !this->infer_endstop_) ||
+                                          (pos == COVER_CLOSED
+#ifdef USE_BINARY_SENSOR
+                                           && this->close_endstop_ == nullptr
+#endif
+                                           && !this->infer_endstop_))) {
         this->target_position_ = pos;
         this->start_direction_(pos == COVER_CLOSED ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING);
       } else if (this->current_operation != COVER_OPERATION_IDLE ||
@@ -303,7 +326,10 @@ bool FeedbackCover::is_at_target_() const {
 }
 void FeedbackCover::start_direction_(CoverOperation dir) {
   Trigger<> *trig;
+
+#ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *obstacle{nullptr};
+#endif
 
   switch (dir) {
     case COVER_OPERATION_IDLE:
@@ -312,12 +338,16 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
     case COVER_OPERATION_OPENING:
       this->last_operation_ = dir;
       trig = this->open_trigger_;
+#ifdef USE_BINARY_SENSOR
       obstacle = this->open_obstacle_;
+#endif
       break;
     case COVER_OPERATION_CLOSING:
       this->last_operation_ = dir;
       trig = this->close_trigger_;
+#ifdef USE_BINARY_SENSOR
       obstacle = this->close_obstacle_;
+#endif
       break;
     default:
       return;
@@ -325,6 +355,7 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
 
   this->stop_prev_trigger_();
 
+#ifdef USE_BINARY_SENSOR
   // check if there is an obstacle to start the new operation -> abort without any change
   // the case when an obstacle appears while moving is handled in the callback
   if (obstacle != nullptr && obstacle->state) {
@@ -332,6 +363,7 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
              dir == COVER_OPERATION_OPENING ? "Open" : "Close");
     return;
   }
+#endif
 
   // if we are moving and need to move in the opposite direction
   // check if we have a wait time
@@ -347,7 +379,9 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
     this->set_current_operation_(dir, true);
     this->prev_command_trigger_ = trig;
     ESP_LOGD(TAG, "'%s' - Firing '%s' trigger.", this->name_.c_str(),
-          dir == COVER_OPERATION_OPENING ? "OPEN" : dir == COVER_OPERATION_CLOSING ? "CLOSE" : "STOP");
+             dir == COVER_OPERATION_OPENING   ? "OPEN"
+             : dir == COVER_OPERATION_CLOSING ? "CLOSE"
+                                              : "STOP");
     trig->trigger();
   }
 }
@@ -371,13 +405,24 @@ void FeedbackCover::recompute_position_() {
       dir = 1.0f;
       action_dur = this->open_duration_;
       min_pos = COVER_CLOSED;
-      max_pos =
-          (this->open_endstop_ != nullptr || this->infer_endstop_) && this->position < COVER_OPEN ? 0.99f : COVER_OPEN;
+      max_pos = (
+#ifdef USE_BINARY_SENSOR
+                    this->open_endstop_ != nullptr ||
+#endif
+                    this->infer_endstop_) &&
+                        this->position < COVER_OPEN
+                    ? 0.99f
+                    : COVER_OPEN;
       break;
     case COVER_OPERATION_CLOSING:
       dir = -1.0f;
       action_dur = this->close_duration_;
-      min_pos = (this->close_endstop_ != nullptr || this->infer_endstop_) && this->position > COVER_CLOSED
+      min_pos = (
+#ifdef USE_BINARY_SENSOR
+                    this->close_endstop_ != nullptr ||
+#endif
+                    this->infer_endstop_) &&
+                        this->position > COVER_CLOSED
                     ? 0.01f
                     : COVER_CLOSED;
       max_pos = COVER_OPEN;

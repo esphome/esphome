@@ -2,7 +2,10 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+
+#ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 #include "esphome/components/cover/cover.h"
 
 namespace esphome {
@@ -19,13 +22,15 @@ class FeedbackCover : public cover::Cover, public Component {
   Trigger<> *get_close_trigger() const { return this->close_trigger_; }
   Trigger<> *get_stop_trigger() const { return this->stop_trigger_; }
 
+#ifdef USE_BINARY_SENSOR
   void set_open_endstop(binary_sensor::BinarySensor *open_endstop);
   void set_open_sensor(binary_sensor::BinarySensor *open_feedback);
   void set_open_obstacle_sensor(binary_sensor::BinarySensor *open_obstacle);
-  void set_open_duration(uint32_t duration) { this->open_duration_ = duration; }
   void set_close_endstop(binary_sensor::BinarySensor *close_endstop);
   void set_close_sensor(binary_sensor::BinarySensor *close_feedback);
   void set_close_obstacle_sensor(binary_sensor::BinarySensor *close_obstacle);
+#endif
+  void set_open_duration(uint32_t duration) { this->open_duration_ = duration; }
   void set_close_duration(uint32_t duration) { this->close_duration_ = duration; }
   void set_has_built_in_endstop(bool value) { this->has_built_in_endstop_ = value; }
   void set_assumed_state(bool value) { this->assumed_state_ = value; }
@@ -48,6 +53,7 @@ class FeedbackCover : public cover::Cover, public Component {
   void recompute_position_();
   void set_current_operation_(cover::CoverOperation operation, bool is_triggered);
 
+#ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *open_endstop_{nullptr};
   binary_sensor::BinarySensor *close_endstop_{nullptr};
   binary_sensor::BinarySensor *open_feedback_{nullptr};
@@ -55,6 +61,7 @@ class FeedbackCover : public cover::Cover, public Component {
   binary_sensor::BinarySensor *open_obstacle_{nullptr};
   binary_sensor::BinarySensor *close_obstacle_{nullptr};
 
+#endif
   Trigger<> *open_trigger_{new Trigger<>()};
   Trigger<> *close_trigger_{new Trigger<>()};
   Trigger<> *stop_trigger_{new Trigger<>()};
