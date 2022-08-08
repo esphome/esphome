@@ -744,7 +744,8 @@ def rc6_binary_sensor(var, config):
         var.set_data(
             cg.StructInitializer(
                 RC6Data,
-                ("device", config[CONF_DEVICE]),
+                ("mode", 0),
+                ("toggle", 0),
                 ("address", config[CONF_ADDRESS]),
                 ("command", config[CONF_COMMAND]),
             )
