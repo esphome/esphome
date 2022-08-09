@@ -24,7 +24,7 @@ using pulse_counter_t = int16_t;
 using pulse_counter_t = int32_t;
 #endif
 
-struct PulseCounterStorage_Base {
+struct PulseCounterStorageBase {
   virtual bool pulse_counter_setup(InternalGPIOPin *pin) = 0;
   virtual pulse_counter_t read_raw_value() = 0;
 
@@ -35,7 +35,7 @@ struct PulseCounterStorage_Base {
   pulse_counter_t last_value{0};
 };
 
-struct BasicPulseCounterStorage : public PulseCounterStorage_Base {
+struct BasicPulseCounterStorage : public PulseCounterStorageBase {
   static void gpio_intr(BasicPulseCounterStorage *arg);
 
   bool pulse_counter_setup(InternalGPIOPin *pin) override;
@@ -48,7 +48,7 @@ struct BasicPulseCounterStorage : public PulseCounterStorage_Base {
 };
 
 #ifdef HAS_PCNT
-struct HwPulseCounterStorage : public PulseCounterStorage_Base {
+struct HwPulseCounterStorage : public PulseCounterStorageBase {
   bool pulse_counter_setup(InternalGPIOPin *pin) override;
   pulse_counter_t read_raw_value() override;
 
@@ -56,11 +56,11 @@ struct HwPulseCounterStorage : public PulseCounterStorage_Base {
 };
 #endif
 
-PulseCounterStorage_Base *getStorage(bool hw_pcnt);
+PulseCounterStorageBase *get_storage(bool hw_pcnt = false);
 
 class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
  public:
-  explicit PulseCounterSensor(bool hw_pcnt = false) : storage_(*getStorage(hw_pcnt)) {}
+  explicit PulseCounterSensor(bool hw_pcnt = false) : storage_(*get_storage(hw_pcnt)) {}
 
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void set_rising_edge_mode(PulseCounterCountMode mode) { storage_.rising_edge_mode = mode; }
@@ -78,7 +78,7 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
 
  protected:
   InternalGPIOPin *pin_;
-  PulseCounterStorage_Base &storage_;
+  PulseCounterStorageBase &storage_;
   uint32_t last_time_{0};
   uint32_t current_total_{0};
   sensor::Sensor *total_sensor_;

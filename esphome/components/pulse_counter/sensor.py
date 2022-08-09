@@ -106,7 +106,7 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 validate_count_mode,
             ),
-            cv.Optional(CONF_USE_PCNT, default=CORE.is_esp32): cv.boolean,
+            cv.SplitDefault(CONF_USE_PCNT, esp32=True, esp8266=False): cv.boolean,
             cv.Optional(
                 CONF_INTERNAL_FILTER, default="13us"
             ): cv.positive_time_period_microseconds,

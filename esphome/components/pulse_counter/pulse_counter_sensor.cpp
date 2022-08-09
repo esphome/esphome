@@ -9,12 +9,12 @@ static const char *const TAG = "pulse_counter";
 const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
 
 #ifdef HAS_PCNT
-PulseCounterStorage_Base *getStorage(bool hw_pcnt) {
-  return (hw_pcnt ? (PulseCounterStorage_Base *) (new HwPulseCounterStorage)
-                  : (PulseCounterStorage_Base *) (new BasicPulseCounterStorage));
+PulseCounterStorageBase *get_storage(bool hw_pcnt) {
+  return (hw_pcnt ? (PulseCounterStorageBase *) (new HwPulseCounterStorage)
+                  : (PulseCounterStorageBase *) (new BasicPulseCounterStorage));
 }
 #else
-PulseCounterStorage_Base *getStorage(bool) { return new BasicPulseCounterStorage; }
+PulseCounterStorageBase *get_storage(bool) { return new BasicPulseCounterStorage; }
 #endif
 
 void IRAM_ATTR BasicPulseCounterStorage::gpio_intr(BasicPulseCounterStorage *arg) {
