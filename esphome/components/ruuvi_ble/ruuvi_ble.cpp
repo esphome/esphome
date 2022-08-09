@@ -54,8 +54,8 @@ bool parse_ruuvi_data_byte(const esp32_ble_tracker::adv_data_t &adv_data, RuuviP
       const float battery_voltage = ((power_info >> 5) + 1600.0f) / 1000.0f;
       const float tx_power = ((power_info & 0x1F) * 2.0f) - 40.0f;
 
-      const float movement_counter = data[14] == 0xFF ? NAN : float(data[14]);
-      const float measurement_sequence_number = data[15] == 0xFF && data[16] == 0xFF ? NAN : float(uint16_t(data[15] << 8) | uint16_t(data[16]));
+      const float movement_counter = float(data[14]);
+      const float measurement_sequence_number = float(uint16_t(data[15] << 8) | uint16_t(data[16]));
 
       result.temperature = data[0] == 0x80 && data[1] == 0x00 ? NAN : temperature;
       result.humidity = data[2] == 0xFF && data[3] == 0xFF ? NAN : humidity;
@@ -69,8 +69,8 @@ bool parse_ruuvi_data_byte(const esp32_ble_tracker::adv_data_t &adv_data, RuuviP
 	                                acceleration_z * acceleration_z);
       result.battery_voltage = (power_info >> 5) == 0x7FF ? NAN : battery_voltage;
       result.tx_power = (power_info & 0x1F) == 0x1F ? NAN : tx_power;
-      result.movement_counter = movement_counter;
-      result.measurement_sequence_number = measurement_sequence_number;
+      result.movement_counter = data[14] == 0xFF ? NAN : movement_counter;
+      result.measurement_sequence_number = data[15] == 0xFF && data[16] == 0xFF ? NAN : measurement_sequence_number;
 
       return true;
     }
