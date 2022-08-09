@@ -10,7 +10,7 @@ from esphome.const import (
 
 CONF_THERMOCOUPLE_TYPE = "thermocouple_type"
 CONF_HOT_JUNCTION = "hot_junction"
-CONF_COLD_JUNTION = "cold_junction"
+CONF_COLD_JUNCTION = "cold_junction"
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@MrEditor97"]
@@ -45,7 +45,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_COLD_JUNTION): sensor.sensor_schema(
+            cv.Optional(CONF_COLD_JUNCTION): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_TEMPERATURE,
@@ -71,7 +71,7 @@ async def to_code(config):
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_hot_junction(sens))
 
-    if CONF_COLD_JUNTION in config:
-        conf = config[CONF_COLD_JUNTION]
+    if CONF_COLD_JUNCTION in config:
+        conf = config[CONF_COLD_JUNCTION]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_cold_junction(sens))
