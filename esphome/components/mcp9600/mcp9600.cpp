@@ -41,9 +41,8 @@ void MCP9600Component::setup() {
     return;
   }
 
-  uint8_t sensor_config = 0x00;
   bool success = this->write_byte(MCP9600_REGISTER_STATUS, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_SENSOR_CONFIG, (sensor_config |= (thermocouple_type_ << 4)));
+  success |= this->write_byte(MCP9600_REGISTER_SENSOR_CONFIG, uint8_t(0x00 | thermocouple_type_ << 4));
   success |= this->write_byte(MCP9600_REGISTER_CONFIG, 0x00);
   success |= this->write_byte(MCP9600_REGISTER_ALERT1_CONFIG, 0x00);
   success |= this->write_byte(MCP9600_REGISTER_ALERT2_CONFIG, 0x00);
