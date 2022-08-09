@@ -54,19 +54,19 @@ bool parse_ruuvi_data_byte(const esp32_ble_tracker::adv_data_t &adv_data, RuuviP
       const float battery_voltage = ((power_info >> 5) + 1600.0f) / 1000.0f;
       const float tx_power = ((power_info & 0x1F) * 2.0f) - 40.0f;
 
-      const float movement_counter = float(data[14]);
-      const float measurement_sequence_number = float(uint16_t(data[15] << 8) | uint16_t(data[16]));
+      const float movement_counter = data[14] == 0xFF ? NAN : float(data[14]);
+      const float measurement_sequence_number = data[15] == 0xFF && data[16] == 0xFF ? NAN : float(uint16_t(data[15] << 8) | uint16_t(data[16]));
 
-      result.temperature = data[0] == 0x7F && data[1] == 0xFF ? NAN : temperature;
+      result.temperature = data[0] == 0x80 && data[1] == 0x00 ? NAN : temperature;
       result.humidity = data[2] == 0xFF && data[3] == 0xFF ? NAN : humidity;
       result.pressure = data[4] == 0xFF && data[5] == 0xFF ? NAN : pressure;
-      result.acceleration_x = data[6] == 0xFF && data[7] == 0xFF ? NAN : acceleration_x;
-      result.acceleration_y = data[8] == 0xFF && data[9] == 0xFF ? NAN : acceleration_y;
-      result.acceleration_z = data[10] == 0xFF && data[11] == 0xFF ? NAN : acceleration_z;
-      result.acceleration = result.acceleration_x == NAN || result.acceleration_y == NAN || result.acceleration_z == NAN
-                                ? NAN
-                                : sqrtf(acceleration_x * acceleration_x + acceleration_y * acceleration_y +
-                                        acceleration_z * acceleration_z);
+      result.acceleration_x = data[6] == 0x80 && data[7] == 0x00 ? NAN : acceleration_x;
+      result.acceleration_y = data[8] == 0x80 && data[9] == 0x00 ? NAN : acceleration_y;
+      result.acceleration_z = data[10] == 0x80 && data[11] == 0x00 ? NAN : acceleration_z;
+      result.acceleration = isnan(*result.acceleration_x) || isnan(*result.acceleration_y) || isnan(*result.acceleration_z) == NAN
+	                        ? NAN
+	                        : sqrtf(acceleration_x * acceleration_x + acceleration_y * acceleration_y +
+	                                acceleration_z * acceleration_z);
       result.battery_voltage = (power_info >> 5) == 0x7FF ? NAN : battery_voltage;
       result.tx_power = (power_info & 0x1F) == 0x1F ? NAN : tx_power;
       result.movement_counter = movement_counter;
