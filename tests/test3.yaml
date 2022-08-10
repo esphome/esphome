@@ -270,6 +270,10 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
+  - id: uart10
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
 
 modbus:
   uart_id: uart1
@@ -755,6 +759,19 @@ sensor:
     temperature:
       name: "mlxtemp"
       oversampling: 2
+  - platform: smt100
+    uart_id: uart10
+    counts:
+      name: "Counts"
+    dielectric_constant:
+      name: "Dielectric Constant"
+    temperature:
+      name: "Temperature"
+    moisture:
+      name: "Moisture"
+    voltage:
+      name: "Voltage"
+    update_interval: 60s
 time:
   - platform: homeassistant
 
@@ -1111,6 +1128,49 @@ climate:
       ki: 0.0
       kd: 0.0
 
+sprinkler:
+  - id: yard_sprinkler_ctrlr
+    main_switch: "Yard Sprinklers"
+    auto_advance_switch: "Yard Sprinklers Auto Advance"
+    reverse_switch: "Yard Sprinklers Reverse"
+    pump_start_pump_delay: 2s
+    pump_stop_valve_delay: 4s
+    pump_switch_off_during_valve_open_delay: true
+    valve_open_delay: 5s
+    valves:
+      - valve_switch: "Yard Valve 0"
+        enable_switch: "Enable Yard Valve 0"
+        pump_switch_id: gpio_switch1
+        run_duration: 10s
+        valve_switch_id: gpio_switch2
+      - valve_switch: "Yard Valve 1"
+        enable_switch: "Enable Yard Valve 1"
+        pump_switch_id: gpio_switch1
+        run_duration: 10s
+        valve_switch_id: gpio_switch2
+      - valve_switch: "Yard Valve 2"
+        enable_switch: "Enable Yard Valve 2"
+        pump_switch_id: gpio_switch1
+        run_duration: 10s
+        valve_switch_id: gpio_switch2
+  - id: garden_sprinkler_ctrlr
+    main_switch: "Garden Sprinklers"
+    auto_advance_switch: "Garden Sprinklers Auto Advance"
+    reverse_switch: "Garden Sprinklers Reverse"
+    valve_overlap: 5s
+    valves:
+      - valve_switch: "Garden Valve 0"
+        enable_switch: "Enable Garden Valve 0"
+        pump_switch_id: gpio_switch1
+        run_duration: 10s
+        valve_switch_id: gpio_switch2
+      - valve_switch: "Garden Valve 1"
+        enable_switch: "Enable Garden Valve 1"
+        pump_switch_id: gpio_switch1
+        run_duration: 10s
+        valve_switch_id: gpio_switch2
+
+
 cover:
   - platform: endstop
     name: Endstop Cover
@@ -1378,6 +1438,13 @@ display:
     on_wake:
       then:
         lambda: 'ESP_LOGD("display","Display woke up");'
+    on_setup:
+      then:
+        lambda: 'ESP_LOGD("display","Display setup completed");'
+    on_page:
+      then:
+        lambda: 'ESP_LOGD("display","Display shows new page %u", x);'
+
 
 http_request:
   useragent: esphome/device

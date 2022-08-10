@@ -141,6 +141,7 @@ struct Color {
   }
   Color fade_to_white(uint8_t amnt) { return Color(255, 255, 255, 255) - (*this * amnt); }
   Color fade_to_black(uint8_t amnt) { return *this * amnt; }
+  Color gradient(const Color &to_color, uint8_t amnt) { return (*this * amnt) + (to_color * (255 - amnt)); }
   Color lighten(uint8_t delta) { return *this + delta; }
   Color darken(uint8_t delta) { return *this - delta; }
 
