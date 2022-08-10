@@ -66,14 +66,14 @@ void OTAComponent::setup() {
 
   err = server_->bind((struct sockaddr *) &server, sizeof(server));
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket unable to bind: errno %d", err);
+    ESP_LOGW(TAG, "Socket unable to bind: errno %d", errno);
     this->mark_failed();
     return;
   }
 
   err = server_->listen(4);
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket unable to listen: errno %d", err);
+    ESP_LOGW(TAG, "Socket unable to listen: errno %d", errno);
     this->mark_failed();
     return;
   }
@@ -132,7 +132,7 @@ void OTAComponent::handle_() {
   int enable = 1;
   int err = client_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
   if (err != 0) {
-    ESP_LOGW(TAG, "Socket could not enable tcp nodelay, errno: %d", err);
+    ESP_LOGW(TAG, "Socket could not enable tcp nodelay, errno: %d", errno);
     return;
   }
 
