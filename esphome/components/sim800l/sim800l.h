@@ -37,7 +37,9 @@ enum State {
   STATE_DISABLE_ECHO,
   STATE_DIALING1,
   STATE_DIALING2,
-  STATE_PARSE_CLIP
+  STATE_PARSE_CLIP,
+  STATE_ATA_SENT,
+  STATE_CHECK_CALL
 };
 
 class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
@@ -60,8 +62,15 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   void add_on_incoming_call_callback(std::function<void(std::string)> callback) {
     this->incoming_call_callback_.add(std::move(callback));
   }
+  void add_on_call_connected_callback(std::function<void()> callback) {
+    this->call_connected_callback_.add(std::move(callback));
+  }
+  void add_on_call_disconnected_callback(std::function<void()> callback) {
+    this->call_disconnected_callback_.add(std::move(callback));
+  }
   void send_sms(const std::string &recipient, const std::string &message);
   void dial(const std::string &recipient);
+  void connect();
   void disconnect();
 
  protected:
@@ -90,10 +99,14 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   std::string outgoing_message_;
   bool send_pending_;
   bool dial_pending_;
+  bool connect_pending_;
   bool disconnect_pending_;
+  uint8_t call_state_{6};
 
   CallbackManager<void(std::string, std::string)> sms_received_callback_;
   CallbackManager<void(std::string)> incoming_call_callback_;
+  CallbackManager<void()> call_connected_callback_;
+  CallbackManager<void()> call_disconnected_callback_;
 };
 
 class Sim800LReceivedMessageTrigger : public Trigger<std::string, std::string> {
@@ -108,6 +121,20 @@ class Sim800LIncomingCallTrigger : public Trigger<std::string> {
  public:
   explicit Sim800LIncomingCallTrigger(Sim800LComponent *parent) {
     parent->add_on_incoming_call_callback([this](const std::string &caller_id) { this->trigger(caller_id); });
+  }
+};
+
+class Sim800LCallConnectedTrigger : public Trigger<> {
+ public:
+  explicit Sim800LCallConnectedTrigger(Sim800LComponent *parent) {
+    parent->add_on_call_connected_callback([this]() { this->trigger(); });
+  }
+};
+
+class Sim800LCallDisconnectedTrigger : public Trigger<> {
+ public:
+  explicit Sim800LCallDisconnectedTrigger(Sim800LComponent *parent) {
+    parent->add_on_call_disconnected_callback([this]() { this->trigger(); });
   }
 };
 
@@ -140,6 +167,16 @@ template<typename... Ts> class Sim800LDialAction : public Action<Ts...> {
  protected:
   Sim800LComponent *parent_;
 };
+template<typename... Ts> class Sim800LConnectAction : public Action<Ts...> {
+ public:
+  Sim800LConnectAction(Sim800LComponent *parent) : parent_(parent) {}
+
+  void play(Ts... x) { this->parent_->connect(); }
+
+ protected:
+  Sim800LComponent *parent_;
+};
+
 template<typename... Ts> class Sim800LDisconnectAction : public Action<Ts...> {
  public:
   Sim800LDisconnectAction(Sim800LComponent *parent) : parent_(parent) {}

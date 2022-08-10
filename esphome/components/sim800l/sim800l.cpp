@@ -23,6 +23,10 @@ void Sim800LComponent::update() {
     } else if (this->registered_ && this->dial_pending_) {
       this->send_cmd_("AT+CSCS=\"GSM\"");
       this->state_ = STATE_DIALING1;
+    } else if (this->registered_ && this->connect_pending_) {
+      this->connect_pending_ = false;
+      this->send_cmd_("ATA");
+      this->state_ = STATE_ATA_SENT;
     } else if (this->registered_ && this->disconnect_pending_) {
       this->disconnect_pending_ = false;
       this->send_cmd_("ATH");
@@ -51,10 +55,10 @@ void Sim800LComponent::send_cmd_(const std::string &message) {
 }
 
 void Sim800LComponent::parse_cmd_(std::string message) {
-  ESP_LOGV(TAG, "R: %s - %d", message.c_str(), this->state_);
-
   if (message.empty())
     return;
+
+  ESP_LOGV(TAG, "R: %s - %d", message.c_str(), this->state_);
 
   if (this->expect_ack_) {
     bool ok = message == "OK";
@@ -81,6 +85,11 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         if (message == "RING") {
           // Incoming call...
           this->state_ = STATE_PARSE_CLIP;
+        } else if (message == "NO CARRIER") {
+          if (this->call_state_ != 6) {
+            this->call_state_ = 6;
+            this->call_disconnected_callback_.call();
+          }
         }
         break;
       }
@@ -187,9 +196,50 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         }
         this->state_ = STATE_RECEIVE_SMS;
       }
-      // Otherwise we receive another OK, we do nothing just wait polling to continuously check for SMS
-      if (message == "OK")
-        this->state_ = STATE_INIT;
+      // Otherwise we receive another OK
+      if (message == "OK") {
+        this->state_ = STATE_CHECK_CALL;
+        send_cmd_("AT+CLCC");
+      }
+      break;
+    case STATE_CHECK_CALL:
+      if (message.compare(0, 6, "+CLCC:") == 0 && this->parse_index_ == 0) {
+        size_t start = 7;
+        size_t end = message.find(',', start);
+        uint8_t item = 0;
+        while (end != start) {
+          item++;
+          // item 1 call index for +CHLD
+          // item 2 dir 0 Mobile originated; 1 Mobile terminated
+          if (item == 3) {  // stat
+            uint8_t current_call_state = parse_number<uint8_t>(message.substr(start, end - start)).value_or(6);
+            if (current_call_state != this->call_state_) {
+              ESP_LOGD(TAG, "Call state is now: %d", current_call_state);
+              if (current_call_state == 0)
+                this->call_connected_callback_.call();
+            }
+            this->call_state_ = current_call_state;
+            break;
+          }
+          // item 4 = ""
+          // item 5 = Received timestamp
+          start = end + 1;
+          end = message.find(',', start);
+        }
+
+        if (item < 2) {
+          ESP_LOGD(TAG, "Invalid message %d %s", this->state_, message.c_str());
+          return;
+        }
+        this->state_ = STATE_RECEIVE_SMS;
+      } else if (message == "OK") {
+        if (this->call_state_ != 6) {
+          // no call in progress
+          this->call_state_ = 6;  // Disconnect
+          this->call_disconnected_callback_.call();
+        }
+      }
+      this->state_ = STATE_INIT;
       break;
     case STATE_RECEIVE_SMS:
       /* Our recipient is set and the message body is in message
@@ -240,16 +290,14 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       break;
     case STATE_DIALING2:
       if (message == "OK") {
-        // Dialing
-        ESP_LOGD(TAG, "Dialing: '%s'", this->recipient_.c_str());
-        this->state_ = STATE_INIT;
+        ESP_LOGI(TAG, "Dialing: '%s'", this->recipient_.c_str());
         this->dial_pending_ = false;
       } else {
         this->set_registered_(false);
-        this->state_ = STATE_INIT;
         this->send_cmd_("AT+CMEE=2");
         this->write(26);
       }
+      this->state_ = STATE_INIT;
       break;
     case STATE_PARSE_CLIP:
       if (message.compare(0, 6, "+CLIP:") == 0) {
@@ -269,12 +317,24 @@ void Sim800LComponent::parse_cmd_(std::string message) {
           start = end + 1;
           end = message.find(',', start);
         }
-        ESP_LOGI(TAG, "Incoming call from %s", caller_id.c_str());
-        incoming_call_callback_.call(caller_id);
+        if (this->call_state_ != 4) {
+          this->call_state_ = 4;
+          ESP_LOGI(TAG, "Incoming call from %s", caller_id.c_str());
+          incoming_call_callback_.call(caller_id);
+        }
+        this->state_ = STATE_INIT;
       }
       break;
+    case STATE_ATA_SENT:
+      ESP_LOGI(TAG, "Call connected");
+      if (this->call_state_ != 0) {
+        this->call_state_ = 0;
+        this->call_connected_callback_.call();
+      }
+      this->state_ = STATE_INIT;
+      break;
     default:
-      ESP_LOGD(TAG, "Unhandled: %s - %d", message.c_str(), this->state_);
+      ESP_LOGW(TAG, "Unhandled: %s - %d", message.c_str(), this->state_);
       break;
   }
 }
@@ -329,6 +389,11 @@ void Sim800LComponent::dial(const std::string &recipient) {
   ESP_LOGD(TAG, "Dialing %s", recipient.c_str());
   this->recipient_ = recipient;
   this->dial_pending_ = true;
+  this->update();
+}
+void Sim800LComponent::connect() {
+  ESP_LOGD(TAG, "Connecting");
+  this->connect_pending_ = true;
   this->update();
 }
 void Sim800LComponent::disconnect() {
