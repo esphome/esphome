@@ -839,6 +839,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
   return json::build_json([obj, start_config](JsonObject root) {
     set_json_id(root, obj, "climate-" + obj->get_object_id(), start_config);
     const auto traits = obj->get_traits();
+    int8_t accuracy = traits.get_temperature_accuracy_decimals();
     char __buf[16];
 
     if (start_config == DETAIL_ALL) {
@@ -873,12 +874,15 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
       }
     }
 
+    bool has_state = false;
     root["mode"] = PSTR_LOCAL(climate_mode_to_string(obj->mode));
-    root["max_temp"] = traits.get_visual_max_temperature();
-    root["min_temp"] = traits.get_visual_min_temperature();
+    root["max_temp"] = value_accuracy_to_string(traits.get_visual_max_temperature(), accuracy);
+    root["min_temp"] = value_accuracy_to_string(traits.get_visual_min_temperature(), accuracy);
     root["step"] = traits.get_visual_temperature_step();
     if (traits.get_supports_action()) {
       root["action"] = PSTR_LOCAL(climate_action_to_string(obj->action));
+      root["state"] = root["action"];
+      has_state = true;
     }
     if (traits.get_supports_fan_modes() && obj->fan_mode.has_value()) {
       root["fan_mode"] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
@@ -896,14 +900,19 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
       root["swing_mode"] = PSTR_LOCAL(climate_swing_mode_to_string(obj->swing_mode));
     }
     if (traits.get_supports_current_temperature()) {
-      root["current_temperature"] = obj->current_temperature;
+      if (!std::isnan(obj->current_temperature)) {
+        root["current_temperature"] = value_accuracy_to_string(obj->current_temperature, accuracy);
+      } else {
+        root["current_temperature"] = "NA";
+      }
     }
     if (traits.get_supports_two_point_target_temperature()) {
-      root["current_temperature_low"] = obj->target_temperature_low;
-      root["current_temperature_high"] = obj->target_temperature_low;
+      root["target_temperature_low"] = value_accuracy_to_string(obj->target_temperature_low, accuracy);
+      root["target_temperature_high"] = value_accuracy_to_string(obj->target_temperature_high, accuracy);
+      if(!has_state) root["state"] = value_accuracy_to_string((obj->target_temperature_high + obj->target_temperature_low)/2.0f, accuracy);
     } else {
-      root["target_temperature"] = obj->target_temperature;
-      root["state"] = obj->target_temperature;
+      root["target_temperature"] = value_accuracy_to_string(obj->target_temperature, accuracy);
+      if(!has_state) root["state"] = root["target_temperature"];
     }
   });
 }
