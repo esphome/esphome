@@ -909,10 +909,13 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
     if (traits.get_supports_two_point_target_temperature()) {
       root["target_temperature_low"] = value_accuracy_to_string(obj->target_temperature_low, accuracy);
       root["target_temperature_high"] = value_accuracy_to_string(obj->target_temperature_high, accuracy);
-      if(!has_state) root["state"] = value_accuracy_to_string((obj->target_temperature_high + obj->target_temperature_low)/2.0f, accuracy);
+      if (!has_state)
+        root["state"] =
+            value_accuracy_to_string((obj->target_temperature_high + obj->target_temperature_low) / 2.0f, accuracy);
     } else {
       root["target_temperature"] = value_accuracy_to_string(obj->target_temperature, accuracy);
-      if(!has_state) root["state"] = root["target_temperature"];
+      if (!has_state)
+        root["state"] = root["target_temperature"];
     }
   });
 }
