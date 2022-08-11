@@ -57,6 +57,10 @@ CONFIG_SCHEMA = (
     .extend(i2c.i2c_device_schema(0x67))
 )
 
+FINAL_VALIDATE_SCHEMA = i2c.final_validate_device_schema(
+    "mcp9600", min_frequency="100khz"
+)
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
