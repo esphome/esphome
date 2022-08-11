@@ -38,6 +38,7 @@ uart:
     baud_rate: 19200
 
 i2c:
+  frequency: 100khz
 
 modbus:
   uart_id: uart1
