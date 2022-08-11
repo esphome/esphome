@@ -46,16 +46,16 @@ void APDS9960::setup() {
   uint8_t val = 0;
   APDS9960_ERROR_CHECK(this->read_byte(0x8F, &val));
   val &= 0b00111111;
-  uint8_t led_drive = 0;  // led drive, 0 -> 100mA, 1 -> 50mA, 2 -> 25mA, 3 -> 12.5mA
-  val |= (led_drive & 0b11) << 6;
+  // led drive, 0 -> 100mA, 1 -> 50mA, 2 -> 25mA, 3 -> 12.5mA
+  val |= (this->led_drive_ & 0b11) << 6;
 
   val &= 0b11110011;
-  uint8_t proximity_gain = 2;  // proximity gain, 0 -> 1x, 1 -> 2X, 2 -> 4X, 4 -> 8X
-  val |= (proximity_gain & 0b11) << 2;
+  // proximity gain, 0 -> 1x, 1 -> 2X, 2 -> 4X, 3 -> 8X
+  val |= (this->proximity_gain_ & 0b11) << 2;
 
   val &= 0b11111100;
-  uint8_t ambient_gain = 1;  // ambient light gain, 0 -> 1x, 1 -> 4x, 2 -> 16x, 3 -> 64x
-  val |= (ambient_gain & 0b11) << 0;
+  // ambient light gain, 0 -> 1x, 1 -> 4x, 2 -> 16x, 3 -> 64x
+  val |= (this->ambient_gain_ & 0b11) << 0;
   APDS9960_WRITE_BYTE(0x8F, val);
 
   // Pers (0x8C) -> 0x11 (2 consecutive proximity or ALS for interrupt)

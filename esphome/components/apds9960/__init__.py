@@ -8,6 +8,15 @@ AUTO_LOAD = ["sensor", "binary_sensor"]
 MULTI_CONF = True
 
 CONF_APDS9960_ID = "apds9960_id"
+CONF_LED_DRIVE = "led_drive"
+CONF_PROXIMITY_GAIN = "proximity_gain"
+CONF_AMBIENT_LIGHT_GAIN = "ambient_light_gain"
+
+DRIVE_LEVELS = {100: 0, 50: 1, 25: 2, 12.5: 3}
+
+PROXIMITY_LEVELS = {1: 0, 2: 1, 4: 2, 8: 3}
+
+AMBIENT_LEVELS = {1: 0, 4: 1, 16: 2, 64: 3}
 
 apds9960_nds = cg.esphome_ns.namespace("apds9960")
 APDS9960 = apds9960_nds.class_("APDS9960", cg.PollingComponent, i2c.I2CDevice)
@@ -16,6 +25,9 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(APDS9960),
+            cv.Optional(CONF_LED_DRIVE, 100): cv.enum(DRIVE_LEVELS),
+            cv.Optional(CONF_PROXIMITY_GAIN, 4): cv.enum(PROXIMITY_LEVELS),
+            cv.Optional(CONF_AMBIENT_LIGHT_GAIN, 4): cv.enum(AMBIENT_LEVELS),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -27,3 +39,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+    cg.add(var.set_led_drive(config[CONF_LED_DRIVE]))
+    cg.add(var.set_proximity_gain(config[CONF_PROXIMITY_GAIN]))
+    cg.add(var.set_ambient_gain(config[CONF_AMBIENT_LIGHT_GAIN]))
