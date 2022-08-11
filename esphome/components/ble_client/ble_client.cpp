@@ -135,11 +135,6 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
         this->set_states_(espbt::ClientState::IDLE);
         break;
       }
-      this->conn_id = param->open.conn_id;
-      auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if, param->open.conn_id);
-      if (ret) {
-        ESP_LOGW(TAG, "esp_ble_gattc_send_mtu_req failed, status=%x", ret);
-      }
       break;
     }
     case ESP_GATTC_CONNECT_EVT: {
@@ -158,6 +153,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
       if (param->cfg_mtu.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "cfg_mtu to %s failed, mtu %d, status %d", this->address_str().c_str(), param->cfg_mtu.mtu,
                  param->cfg_mtu.status);
+        // This is causing some bugs.
         this->set_states_(espbt::ClientState::IDLE);
         break;
       }
