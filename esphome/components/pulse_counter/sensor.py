@@ -42,16 +42,15 @@ SetTotalPulsesAction = pulse_counter_ns.class_(
 
 
 def validate_internal_filter(value):
-    filter_value = value[CONF_INTERNAL_FILTER]
-    use_pcnt = value[CONF_USE_PCNT]
-    if not CORE.is_esp32 and use_pcnt:
+    use_pcnt = value.get(CONF_USE_PCNT)
+    if CORE.is_esp8266 and use_pcnt:
         raise cv.Invalid(
             "Using hardware PCNT is only available on ESP32",
             [CONF_USE_PCNT],
         )
 
     if CORE.is_esp32 and use_pcnt:
-        if filter_value.total_microseconds > 13:
+        if value.get(CONF_INTERNAL_FILTER).total_microseconds > 13:
             raise cv.Invalid(
                 "Maximum internal filter value when using ESP32 hardware PCNT is 13us",
                 [CONF_INTERNAL_FILTER],
@@ -106,7 +105,7 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 validate_count_mode,
             ),
-            cv.SplitDefault(CONF_USE_PCNT, esp32=True, esp8266=False): cv.boolean,
+            cv.SplitDefault(CONF_USE_PCNT, esp32=True): cv.boolean,
             cv.Optional(
                 CONF_INTERNAL_FILTER, default="13us"
             ): cv.positive_time_period_microseconds,
@@ -124,7 +123,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = await sensor.new_sensor(config, config[CONF_USE_PCNT])
+    var = await sensor.new_sensor(config, config.get(CONF_USE_PCNT))
     await cg.register_component(var, config)
 
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
