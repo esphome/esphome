@@ -733,6 +733,52 @@ void APIConnection::lock_command(const LockCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_MEDIA_PLAYER
+bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_player) {
+  if (!this->state_subscription_)
+    return false;
+
+  MediaPlayerStateResponse resp{};
+  resp.key = media_player->get_object_id_hash();
+  resp.state = static_cast<enums::MediaPlayerState>(media_player->state);
+  resp.volume = media_player->volume;
+  resp.muted = media_player->is_muted();
+  return this->send_media_player_state_response(resp);
+}
+bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_player) {
+  ListEntitiesMediaPlayerResponse msg;
+  msg.key = media_player->get_object_id_hash();
+  msg.object_id = media_player->get_object_id();
+  msg.name = media_player->get_name();
+  msg.unique_id = get_default_unique_id("media_player", media_player);
+  msg.icon = media_player->get_icon();
+  msg.disabled_by_default = media_player->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(media_player->get_entity_category());
+
+  auto traits = media_player->get_traits();
+  msg.supports_pause = traits.get_supports_pause();
+
+  return this->send_list_entities_media_player_response(msg);
+}
+void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
+  media_player::MediaPlayer *media_player = App.get_media_player_by_key(msg.key);
+  if (media_player == nullptr)
+    return;
+
+  auto call = media_player->make_call();
+  if (msg.has_command) {
+    call.set_command(static_cast<media_player::MediaPlayerCommand>(msg.command));
+  }
+  if (msg.has_volume) {
+    call.set_volume(msg.volume);
+  }
+  if (msg.has_media_url) {
+    call.set_media_url(msg.media_url);
+  }
+  call.perform();
+}
+#endif
+
 #ifdef USE_ESP32_CAMERA
 void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
   if (!this->state_subscription_)

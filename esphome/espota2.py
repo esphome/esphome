@@ -60,7 +60,6 @@ class ProgressBar:
         sys.stderr.write(text)
         sys.stderr.flush()
 
-    # pylint: disable=no-self-use
     def done(self):
         sys.stderr.write("\n")
         sys.stderr.flush()

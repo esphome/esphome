@@ -1,18 +1,19 @@
 import inspect
 import json
 import argparse
-from operator import truediv
 import os
+import glob
+import re
 import voluptuous as vol
 
-# NOTE: Cannot import other esphome components globally as a modification in jsonschema
+# NOTE: Cannot import other esphome components globally as a modification in vol_schema
 # is needed before modules are loaded
-import esphome.jsonschema as ejs
+import esphome.schema_extractors as ejs
 
-ejs.EnableJsonSchemaCollect = True
+ejs.EnableSchemaExtraction = True
 
 # schema format:
-# Schemas are splitted in several files in json format, one for core stuff, one for each platform (sensor, binary_sensor, etc) and
+# Schemas are split in several files in json format, one for core stuff, one for each platform (sensor, binary_sensor, etc) and
 # one for each component (dallas, sim800l, etc.) component can have schema for root component/hub and also for platform component,
 # e.g. dallas has hub component which has pin and then has the sensor platform which has sensor name, index, etc.
 # When files are loaded they are merged in a single object.
@@ -60,15 +61,6 @@ solve_registry = []
 
 
 def get_component_names():
-    # return [
-    #     "esphome",
-    #     "esp32",
-    #     "esp8266",
-    #     "logger",
-    #     "sensor",
-    #     "remote_receiver",
-    #     "binary_sensor",
-    # ]
     from esphome.loader import CORE_COMPONENTS_PATH
 
     component_names = ["esphome", "sensor"]
@@ -100,7 +92,7 @@ from esphome import automation
 from esphome import pins
 from esphome.components import remote_base
 from esphome.const import CONF_TYPE
-from esphome.loader import get_platform
+from esphome.loader import get_platform, CORE_COMPONENTS_PATH
 from esphome.helpers import write_file_if_changed
 from esphome.util import Registry
 
@@ -120,10 +112,12 @@ def write_file(name, obj):
 def register_module_schemas(key, module, manifest=None):
     for name, schema in module_schemas(module):
         register_known_schema(key, name, schema)
-    if (
-        manifest and manifest.multi_conf and S_CONFIG_SCHEMA in output[key][S_SCHEMAS]
-    ):  # not sure about 2nd part of the if, might be useless config (e.g. as3935)
-        output[key][S_SCHEMAS][S_CONFIG_SCHEMA]["is_list"] = True
+
+    if manifest:
+        # Multi conf should allow list of components
+        # not sure about 2nd part of the if, might be useless config (e.g. as3935)
+        if manifest.multi_conf and S_CONFIG_SCHEMA in output[key][S_SCHEMAS]:
+            output[key][S_SCHEMAS][S_CONFIG_SCHEMA]["is_list"] = True
 
 
 def register_known_schema(module, name, schema):
@@ -265,13 +259,58 @@ def do_esp8266():
 
 
 def fix_remote_receiver():
-    output["remote_receiver.binary_sensor"]["schemas"]["CONFIG_SCHEMA"] = {
+    remote_receiver_schema = output["remote_receiver.binary_sensor"]["schemas"]
+    remote_receiver_schema["CONFIG_SCHEMA"] = {
         "type": "schema",
         "schema": {
             "extends": ["binary_sensor.BINARY_SENSOR_SCHEMA", "core.COMPONENT_SCHEMA"],
-            "config_vars": output["remote_base"]["binary"],
+            "config_vars": output["remote_base"].pop("binary"),
         },
     }
+    remote_receiver_schema["CONFIG_SCHEMA"]["schema"]["config_vars"]["receiver_id"] = {
+        "key": "GeneratedID",
+        "use_id_type": "remote_base::RemoteReceiverBase",
+        "type": "use_id",
+    }
+
+
+def fix_script():
+    output["script"][S_SCHEMAS][S_CONFIG_SCHEMA][S_TYPE] = S_SCHEMA
+    config_schema = output["script"][S_SCHEMAS][S_CONFIG_SCHEMA]
+    config_schema[S_SCHEMA][S_CONFIG_VARS]["id"]["id_type"] = {
+        "class": "script::Script"
+    }
+    config_schema["is_list"] = True
+
+
+def get_logger_tags():
+    pattern = re.compile(r'^static const char \*const TAG = "(\w.*)";', re.MULTILINE)
+    # tags not in components dir
+    tags = [
+        "app",
+        "component",
+        "entity_base",
+        "scheduler",
+        "api.service",
+    ]
+    for x in os.walk(CORE_COMPONENTS_PATH):
+        for y in glob.glob(os.path.join(x[0], "*.cpp")):
+            with open(y, encoding="utf-8") as file:
+                data = file.read()
+                match = pattern.search(data)
+                if match:
+                    tags.append(match.group(1))
+    return tags
+
+
+def add_logger_tags():
+    tags = get_logger_tags()
+    logs = output["logger"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"][
+        "logs"
+    ]["schema"]["config_vars"]
+    for t in tags:
+        logs[t] = logs["string"].copy()
+    logs.pop("string")
 
 
 def add_referenced_recursive(referenced_schemas, config_var, path, eat_schema=False):
@@ -401,7 +440,7 @@ def shrink():
                     else:
                         print("expected extends here!" + x)
                     arr_s = merge(key_s, arr_s)
-                    if arr_s[S_TYPE] == "enum":
+                    if arr_s[S_TYPE] in ["enum", "typed"]:
                         arr_s.pop(S_SCHEMA)
                 else:
                     arr_s.pop(S_EXTENDS)
@@ -491,14 +530,20 @@ def build_schema():
         if domain not in platforms:
             if manifest.config_schema is not None:
                 core_components[domain] = {}
+                if len(manifest.dependencies) > 0:
+                    core_components[domain]["dependencies"] = manifest.dependencies
             register_module_schemas(domain, manifest.module, manifest)
 
         for platform in platforms:
             platform_manifest = get_platform(domain=platform, platform=domain)
             if platform_manifest is not None:
                 output[platform][S_COMPONENTS][domain] = {}
+                if len(platform_manifest.dependencies) > 0:
+                    output[platform][S_COMPONENTS][domain][
+                        "dependencies"
+                    ] = platform_manifest.dependencies
                 register_module_schemas(
-                    f"{domain}.{platform}", platform_manifest.module
+                    f"{domain}.{platform}", platform_manifest.module, platform_manifest
                 )
 
     # Do registries
@@ -517,6 +562,8 @@ def build_schema():
     do_esp8266()
     do_esp32()
     fix_remote_receiver()
+    fix_script()
+    add_logger_tags()
     shrink()
 
     # aggregate components, so all component info is in same file, otherwise we have dallas.json, dallas.sensor.json, etc.
@@ -585,7 +632,7 @@ def convert_1(schema, config_var, path):
                 assert S_EXTENDS not in config_var
                 if not S_TYPE in config_var:
                     config_var[S_TYPE] = S_SCHEMA
-                assert config_var[S_TYPE] == S_SCHEMA
+                # assert config_var[S_TYPE] == S_SCHEMA
 
                 if S_SCHEMA not in config_var:
                     config_var[S_SCHEMA] = {}
@@ -662,7 +709,7 @@ def convert_1(schema, config_var, path):
     elif repr_schema in ejs.hidden_schemas:
         schema_type = ejs.hidden_schemas[repr_schema]
 
-        data = schema(ejs.jschema_extractor)
+        data = schema(ejs.SCHEMA_EXTRACT)
 
         # enums, e.g. esp32/variant
         if schema_type == "one_of":
@@ -672,8 +719,9 @@ def convert_1(schema, config_var, path):
             config_var[S_TYPE] = "enum"
             config_var["values"] = list(data.keys())
         elif schema_type == "maybe":
-            config_var[S_TYPE] = "maybe"
-            config_var["schema"] = convert_config(data, path + "/maybe")["schema"]
+            config_var[S_TYPE] = S_SCHEMA
+            config_var["maybe"] = data[1]
+            config_var["schema"] = convert_config(data[0], path + "/maybe")["schema"]
         # esphome/on_boot
         elif schema_type == "automation":
             extra_schema = None
@@ -717,8 +765,50 @@ def convert_1(schema, config_var, path):
         elif schema_type == "sensor":
             schema = data
             convert_1(data, config_var, path + "/trigger")
+        elif schema_type == "declare_id":
+            # pylint: disable=protected-access
+            parents = data._parents
+
+            config_var["id_type"] = {
+                "class": str(data.base),
+                "parents": [str(x.base) for x in parents]
+                if isinstance(parents, list)
+                else None,
+            }
+        elif schema_type == "use_id":
+            if inspect.ismodule(data):
+                m_attr_obj = getattr(data, "CONFIG_SCHEMA")
+                use_schema = known_schemas.get(repr(m_attr_obj))
+                if use_schema:
+                    [output_module, output_name] = use_schema[0][1].split(".")
+                    use_id_config = output[output_module][S_SCHEMAS][output_name]
+                    config_var["use_id_type"] = use_id_config["schema"]["config_vars"][
+                        "id"
+                    ]["id_type"]["class"]
+                    config_var[S_TYPE] = "use_id"
+                else:
+                    print("TODO deferred?")
+            else:
+                if isinstance(data, str):
+                    # TODO: Figure out why pipsolar does this
+                    config_var["use_id_type"] = data
+                else:
+                    config_var["use_id_type"] = str(data.base)
+                    config_var[S_TYPE] = "use_id"
         else:
             raise Exception("Unknown extracted schema type")
+    elif config_var.get("key") == "GeneratedID":
+        if path == "i2c/CONFIG_SCHEMA/extL/all/id":
+            config_var["id_type"] = {"class": "i2c::I2CBus", "parents": ["Component"]}
+        elif path == "uart/CONFIG_SCHEMA/val 1/extL/all/id":
+            config_var["id_type"] = {
+                "class": "uart::UARTComponent",
+                "parents": ["Component"],
+            }
+        elif path == "pins/esp32/val 1/id":
+            config_var["id_type"] = "pin"
+        else:
+            raise Exception("Cannot determine id_type for " + path)
 
     elif repr_schema in ejs.registry_schemas:
         solve_registry.append((ejs.registry_schemas[repr_schema], config_var))
@@ -787,7 +877,13 @@ def convert_keys(converted, schema, path):
             result["key"] = "Optional"
         else:
             converted["key"] = "String"
-            converted["key_dump"] = str(k)
+            key_string_match = re.search(
+                r"<function (\w*) at \w*>", str(k), re.IGNORECASE
+            )
+            if key_string_match:
+                converted["key_type"] = key_string_match.group(1)
+            else:
+                converted["key_type"] = str(k)
 
         esphome_core.CORE.data = {
             esphome_core.KEY_CORE: {esphome_core.KEY_TARGET_PLATFORM: "esp8266"}
@@ -808,6 +904,12 @@ def convert_keys(converted, schema, path):
             if base_k in result and base_v == result[base_k]:
                 result.pop(base_k)
         converted["schema"][S_CONFIG_VARS][str(k)] = result
+        if "key" in converted and converted["key"] == "String":
+            config_vars = converted["schema"]["config_vars"]
+            assert len(config_vars) == 1
+            key = list(config_vars.keys())[0]
+            assert key.startswith("<")
+            config_vars["string"] = config_vars.pop(key)
 
 
 build_schema()

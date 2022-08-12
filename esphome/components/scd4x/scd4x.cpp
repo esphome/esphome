@@ -205,7 +205,7 @@ void SCD4XComponent::update() {
 bool SCD4XComponent::perform_forced_calibration(uint16_t current_co2_concentration) {
   /*
     Operate the SCD4x in the operation mode later used in normal sensor operation (periodic measurement, low power
-    periodic measurement or single shot) for > 3 minutes in an environment with homogenous and constant CO2
+    periodic measurement or single shot) for > 3 minutes in an environment with homogeneous and constant CO2
     concentration before performing a forced recalibration.
   */
   if (!this->write_command(SCD4X_CMD_STOP_MEASUREMENTS)) {
@@ -217,7 +217,7 @@ bool SCD4XComponent::perform_forced_calibration(uint16_t current_co2_concentrati
       ESP_LOGD(TAG, "setting forced calibration Co2 level %d ppm", current_co2_concentration);
       // frc takes 400 ms
       // because this method will be used very rarly
-      // the simple aproach with delay is ok
+      // the simple approach with delay is ok
       delay(400);  // NOLINT'
       if (!this->start_measurement_()) {
         return false;

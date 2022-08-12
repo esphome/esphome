@@ -258,10 +258,10 @@ inline std::string to_string(const std::string &val) { return val; }
 /// Truncate a string to a specific length.
 std::string str_truncate(const std::string &str, size_t length);
 
-/// Extract the part of the string until either the first occurence of the specified character, or the end (requires str
-/// to be null-terminated).
+/// Extract the part of the string until either the first occurrence of the specified character, or the end
+/// (requires str to be null-terminated).
 std::string str_until(const char *str, char ch);
-/// Extract the part of the string until either the first occurence of the specified character, or the end.
+/// Extract the part of the string until either the first occurrence of the specified character, or the end.
 std::string str_until(const std::string &str, char ch);
 
 /// Convert the string to lower case.
@@ -600,7 +600,7 @@ template<class T> class ExternalRAMAllocator {
 
   ExternalRAMAllocator() = default;
   ExternalRAMAllocator(Flags flags) : flags_{flags} {}
-  template<class U> constexpr ExternalRAMAllocator(const ExternalRAMAllocator<U> &other) : flags_{other.flags} {}
+  template<class U> constexpr ExternalRAMAllocator(const ExternalRAMAllocator<U> &other) : flags_{other.flags_} {}
 
   T *allocate(size_t n) {
     size_t size = n * sizeof(T);

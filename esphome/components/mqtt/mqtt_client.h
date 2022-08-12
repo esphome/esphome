@@ -19,6 +19,11 @@
 namespace esphome {
 namespace mqtt {
 
+/** Callback for MQTT events.
+ */
+using mqtt_on_connect_callback_t = std::function<MQTTBackend::on_connect_callback_t>;
+using mqtt_on_disconnect_callback_t = std::function<MQTTBackend::on_disconnect_callback_t>;
+
 /** Callback for MQTT subscriptions.
  *
  * First parameter is the topic, the second one is the payload.
@@ -240,6 +245,8 @@ class MQTTClientComponent : public Component {
   void set_username(const std::string &username) { this->credentials_.username = username; }
   void set_password(const std::string &password) { this->credentials_.password = password; }
   void set_client_id(const std::string &client_id) { this->credentials_.client_id = client_id; }
+  void set_on_connect(mqtt_on_connect_callback_t &&callback);
+  void set_on_disconnect(mqtt_on_disconnect_callback_t &&callback);
 
  protected:
   /// Reconnect to the MQTT broker if not already connected.
@@ -325,6 +332,20 @@ class MQTTJsonMessageTrigger : public Trigger<JsonObjectConst> {
   explicit MQTTJsonMessageTrigger(const std::string &topic, uint8_t qos) {
     global_mqtt_client->subscribe_json(
         topic, [this](const std::string &topic, JsonObject root) { this->trigger(root); }, qos);
+  }
+};
+
+class MQTTConnectTrigger : public Trigger<> {
+ public:
+  explicit MQTTConnectTrigger(MQTTClientComponent *&client) {
+    client->set_on_connect([this](bool session_present) { this->trigger(); });
+  }
+};
+
+class MQTTDisconnectTrigger : public Trigger<> {
+ public:
+  explicit MQTTDisconnectTrigger(MQTTClientComponent *&client) {
+    client->set_on_disconnect([this](MQTTClientDisconnectReason reason) { this->trigger(); });
   }
 };
 
