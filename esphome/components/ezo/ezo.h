@@ -68,7 +68,9 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   // Calibration
   void set_calibration_point_low(float value) { this->set_calibration_point_(EzoCalibrationType::EZO_CAL_LOW, value); }
   void set_calibration_point_mid(float value) { this->set_calibration_point_(EzoCalibrationType::EZO_CAL_MID, value); }
-  void set_calibration_point_high(float value) { this->set_calibration_point_(EzoCalibrationType::EZO_CAL_HIGH, value); }
+  void set_calibration_point_high(float value) {
+    this->set_calibration_point_(EzoCalibrationType::EZO_CAL_HIGH, value);
+  }
   void get_calibration() { this->add_command("Cal,?", EzoCommandType::EZO_CALIBRATION); }
   void clear_calibration() { this->add_command("Cal,clear", EzoCommandType::EZO_CALIBRATION); }
   void add_calibration_callback(std::function<void(std::string)> &&callback) {
