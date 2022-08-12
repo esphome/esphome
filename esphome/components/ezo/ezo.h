@@ -37,9 +37,17 @@ class EzoCommand {
 /// This class implements support for the EZO circuits in i2c mode
 class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  private:
+  void add_command_(const std::string &command, EzoCommandType command_type, uint16_t delay_ms = 300) {
+    EzoCommand *ezo_command = new EzoCommand;
+    ezo_command->command = command;
+    ezo_command->command_type = command_type;
+    ezo_command->delay_ms = delay_ms;
+    this->commands_.push_back(ezo_command);
+  };
+
   void set_calibration_point_(EzoCalibrationType type, float value) {
     std::string payload = str_sprintf("Cal,%s,%0.2f", EZO_CALIBRATION_TYPE_STRINGS[type], value);
-    this->add_command(payload, EzoCommandType::EZO_CALIBRATION, 900);
+    this->add_command_(payload, EzoCommandType::EZO_CALIBRATION, 900);
   }
 
  public:
@@ -48,67 +56,59 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void update() override;
   float get_setup_priority() const override { return setup_priority::DATA; };
 
-  void add_command(const std::string &command, EzoCommandType command_type, uint16_t delay_ms = 300) {
-    EzoCommand *ezo_command = new EzoCommand;
-    ezo_command->command = command;
-    ezo_command->command_type = command_type;
-    ezo_command->delay_ms = delay_ms;
-    this->commands_.push_back(ezo_command);
-  };
-
-  // R
-  void get_state(int pos = 0) { this->add_command("R", EzoCommandType::EZO_READ, 900); }
-
   // I2C
-  void set_i2c() { this->add_command("I2c,100", EzoCommandType::EZO_I2C); }  // NOLINT otherwise we get set_i2_c
+  void set_i2c() { this->add_command_("I2c,100", EzoCommandType::EZO_I2C); }  // NOLINT otherwise we get set_i2_c
+
+  // Device Information
+  void get_device_information() { this->add_command_("i", EzoCommandType::EZO_DEVICE_INFORMATION); }
+  void add_device_infomation_callback(std::function<void(std::string)> &&callback) {
+    this->device_infomation_callback_.add(std::move(callback));
+  }
 
   // Sleep
-  void set_sleep() { this->add_command("Sleep", EzoCommandType::EZO_SLEEP); }
+  void set_sleep() { this->add_command_("Sleep", EzoCommandType::EZO_SLEEP); }
+
+  // R
+  void get_state(int pos = 0) { this->add_command_("R", EzoCommandType::EZO_READ, 900); }
+
+  // Slope
+  void get_slope() { this->add_command_("Slope,?", EzoCommandType::EZO_SLOPE); }
+  void add_slope_callback(std::function<void(std::string)> &&callback) {
+    this->slope_callback_.add(std::move(callback));
+  }
+
+  // T
+  void get_t() { this->add_command_("T,?", EzoCommandType::EZO_T); }
+  void set_t(float value) {
+    std::string payload = str_sprintf("T,%0.2f", value);
+    this->add_command_(payload, EzoCommandType::EZO_T);
+  }
+  void set_tempcomp_value(float temp) { this->set_t(temp); }  // For backwards compatibility
+  void add_t_callback(std::function<void(std::string)> &&callback) { this->t_callback_.add(std::move(callback)); }
 
   // Calibration
+  void get_calibration() { this->add_command_("Cal,?", EzoCommandType::EZO_CALIBRATION); }
   void set_calibration_point_low(float value) { this->set_calibration_point_(EzoCalibrationType::EZO_CAL_LOW, value); }
   void set_calibration_point_mid(float value) { this->set_calibration_point_(EzoCalibrationType::EZO_CAL_MID, value); }
   void set_calibration_point_high(float value) {
     this->set_calibration_point_(EzoCalibrationType::EZO_CAL_HIGH, value);
   }
-  void get_calibration() { this->add_command("Cal,?", EzoCommandType::EZO_CALIBRATION); }
-  void clear_calibration() { this->add_command("Cal,clear", EzoCommandType::EZO_CALIBRATION); }
+  void clear_calibration() { this->add_command_("Cal,clear", EzoCommandType::EZO_CALIBRATION); }
   void add_calibration_callback(std::function<void(std::string)> &&callback) {
     this->calibration_callback_.add(std::move(callback));
   }
 
-  // Device Information
-  void get_device_information() { this->add_command("i", EzoCommandType::EZO_DEVICE_INFORMATION); }
-  void add_device_infomation_callback(std::function<void(std::string)> &&callback) {
-    this->device_infomation_callback_.add(std::move(callback));
-  }
-
-  // Slope
-  void get_slope() { this->add_command("Slope,?", EzoCommandType::EZO_SLOPE); }
-  void add_slope_callback(std::function<void(std::string)> &&callback) {
-    this->slope_callback_.add(std::move(callback));
-  }
-
   // LED
+  void get_led_state() { this->add_command_("L,?", EzoCommandType::EZO_LED); }
   void set_led_state(bool on) {
     std::string to_send = "L,";
     to_send += on ? "1" : "0";
-    this->add_command(to_send, EzoCommandType::EZO_LED);
+    this->add_command_(to_send, EzoCommandType::EZO_LED);
   }
-  void get_led_state() { this->add_command("L,?", EzoCommandType::EZO_LED); }
   void add_led_state_callback(std::function<void(bool)> &&callback) { this->led_callback_.add(std::move(callback)); }
 
-  // T
-  void set_tempcomp_value(float temp) { this->set_t(temp); }  // For backwards compatibility
-  void get_t() { this->add_command("T,?", EzoCommandType::EZO_T); }
-  void set_t(float value) {
-    std::string payload = str_sprintf("T,%0.2f", value);
-    this->add_command(payload, EzoCommandType::EZO_T);
-  }
-  void add_t_callback(std::function<void(std::string)> &&callback) { this->t_callback_.add(std::move(callback)); }
-
   // Custom
-  void send_custom(const std::string &to_send) { this->add_command(to_send, EzoCommandType::EZO_CUSTOM); }
+  void send_custom(const std::string &to_send) { this->add_command_(to_send, EzoCommandType::EZO_CUSTOM); }
   void add_custom_callback(std::function<void(std::string)> &&callback) {
     this->custom_callback_.add(std::move(callback));
   }
