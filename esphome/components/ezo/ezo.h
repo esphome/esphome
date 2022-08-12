@@ -74,7 +74,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void set_calibration_point_mid(float value) { this->set_calibration_point(EzoCalibrationType::EZO_CAL_MID, value); }
   void set_calibration_point_high(float value) { this->set_calibration_point(EzoCalibrationType::EZO_CAL_HIGH, value); }
   void get_calibration() { this->add_command("Cal,?", EzoCommandType::EZO_CALIBRATION); }
-  void clear_calibration();
+  void clear_calibration() { this->add_command("Cal,clear", EzoCommandType::EZO_CALIBRATION); }
   void add_calibration_callback(std::function<void(std::string)> &&callback) {
     this->calibration_callback_.add(std::move(callback));
   }
@@ -92,18 +92,25 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   }
 
   // LED
-  void set_led_state(bool on);
+  void set_led_state(bool on){
+    std::string to_send = "L,";
+    to_send += on ? "1" : "0";
+    this->add_command(to_send, EzoCommandType::EZO_LED);
+  }
   void get_led_state() { this->add_command("L,?", EzoCommandType::EZO_LED); }
   void add_led_state_callback(std::function<void(bool)> &&callback) { this->led_callback_.add(std::move(callback)); }
 
   // T
-  void set_tempcomp_value(float temp) { this->set_t(to_string(temp)); }  // For backwards compatibility
+  void set_tempcomp_value(float temp) { this->set_t(temp); }  // For backwards compatibility
   void get_t() { this->add_command("T,?", EzoCommandType::EZO_T); }
-  void set_t(const std::string &value);
+  void set_t(float value) {
+  	 std::string payload = str_sprintf("T,%0.2f", value);
+    this->add_command(payload, EzoCommandType::EZO_T);
+  }
   void add_t_callback(std::function<void(std::string)> &&callback) { this->t_callback_.add(std::move(callback)); }
 
   // Custom
-  void send_custom(const std::string &to_send);
+  void send_custom(const std::string &to_send) { this->add_command(to_send, EzoCommandType::EZO_CUSTOM); }
   void add_custom_callback(std::function<void(std::string)> &&callback) {
     this->custom_callback_.add(std::move(callback));
   }

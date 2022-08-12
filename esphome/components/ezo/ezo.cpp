@@ -170,30 +170,5 @@ void EZOSensor::loop() {
   delete to_run;
   this->commands_.pop_front();
 }
-
-// T
-void EZOSensor::set_t(const std::string &value) {
-  std::string to_send = "T," + value;
-  this->add_command(to_send, EzoCommandType::EZO_T);
-}
-
-// Calibration
-void EZOSensor::clear_calibration() { this->add_command("Cal,clear", EzoCommandType::EZO_CALIBRATION); }
-
-void EZOSensor::set_calibration(const std::string &point, const std::string &value) {
-  std::string to_send = "Cal," + point + "," + value;
-  this->add_command(to_send, EzoCommandType::EZO_CALIBRATION, 900);
-}
-
-// LED control
-void EZOSensor::set_led_state(bool on) {
-  std::string to_send = "L,";
-  to_send += on ? "1" : "0";
-  this->add_command(to_send, EzoCommandType::EZO_LED);
-}
-
-// Custom
-void EZOSensor::send_custom(const std::string &to_send) { this->add_command(to_send, EzoCommandType::EZO_CUSTOM); }
-
 }  // namespace ezo
 }  // namespace esphome
