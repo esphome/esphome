@@ -78,16 +78,11 @@ void DPS310Component::setup() {
       (((uint32_t) coef_data_raw[5] & 0x0F) << 16) | ((uint32_t) coef_data_raw[6] << 8) | (uint32_t) coef_data_raw[7];
   this->c10_ = DPS310Component::twos_complement(c10_, 20);
 
-  this->c01_ =
-      DPS310Component::twos_complement(int16_t(((uint16_t) coef_data_raw[8] << 8) | (uint16_t) coef_data_raw[9]), 16);
-  this->c11_ =
-      DPS310Component::twos_complement(int16_t(((uint16_t) coef_data_raw[10] << 8) | (uint16_t) coef_data_raw[11]), 16);
-  this->c20_ =
-      DPS310Component::twos_complement(int16_t(((uint16_t) coef_data_raw[12] << 8) | (uint16_t) coef_data_raw[13]), 16);
-  this->c21_ =
-      DPS310Component::twos_complement(int16_t(((uint16_t) coef_data_raw[14] << 8) | (uint16_t) coef_data_raw[15]), 16);
-  this->c30_ =
-      DPS310Component::twos_complement(int16_t(((uint16_t) coef_data_raw[16] << 8) | (uint16_t) coef_data_raw[17]), 16);
+  this->c01_ = (int16_t)((uint16_t) coef_data_raw[8] << 8) | (uint16_t) coef_data_raw[9]);
+  this->c11_ = (int16_t)((uint16_t) coef_data_raw[10] << 8) | (uint16_t) coef_data_raw[11]);
+  this->c20_ = (int16_t)((uint16_t) coef_data_raw[12] << 8) | (uint16_t) coef_data_raw[13]);
+  this->c21_ = (int16_t)((uint16_t) coef_data_raw[14] << 8) | (uint16_t) coef_data_raw[15]);
+  this->c30_ = (int16_t)((uint16_t) coef_data_raw[16] << 8) | (uint16_t) coef_data_raw[17]);
 }
 
 void DPS310Component::dump_config() {
