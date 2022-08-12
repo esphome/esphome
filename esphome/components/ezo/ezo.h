@@ -23,11 +23,7 @@ static const char *const EZO_COMMAND_TYPE_STRINGS[] = {"EZO_READ",  "EZO_LED",  
                                                        "EZO_SLOPE", "EZO_CALIBRATION", "EZO_SLEEP",
                                                        "EZO_I2C",   "EZO_T",           "EZO_CUSTOM"};
 
-enum EzoCalibrationType : uint8_t {
-  EZO_CAL_LOW = 0,
-  EZO_CAL_MID = 1,
-  EZO_CAL_HIGH = 2
-};
+enum EzoCalibrationType : uint8_t { EZO_CAL_LOW = 0, EZO_CAL_MID = 1, EZO_CAL_HIGH = 2 };
 static const char *const EZO_CALIBRATION_TYPE_STRINGS[] = {"LOW", "MID", "HIGH"};
 
 class EzoCommand {
@@ -42,7 +38,7 @@ class EzoCommand {
 class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  private:
   void set_calibration_point(EzoCalibrationType type, float value) {
-  	 std::string payload = str_sprintf("Cal,%s,%0.2f", EZO_CALIBRATION_TYPE_STRINGS[type], value);
+    std::string payload = str_sprintf("Cal,%s,%0.2f", EZO_CALIBRATION_TYPE_STRINGS[type], value);
     this->add_command(payload, EzoCommandType::EZO_CALIBRATION, 900);
   }
 
@@ -92,7 +88,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   }
 
   // LED
-  void set_led_state(bool on){
+  void set_led_state(bool on) {
     std::string to_send = "L,";
     to_send += on ? "1" : "0";
     this->add_command(to_send, EzoCommandType::EZO_LED);
@@ -104,7 +100,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void set_tempcomp_value(float temp) { this->set_t(temp); }  // For backwards compatibility
   void get_t() { this->add_command("T,?", EzoCommandType::EZO_T); }
   void set_t(float value) {
-  	 std::string payload = str_sprintf("T,%0.2f", value);
+    std::string payload = str_sprintf("T,%0.2f", value);
     this->add_command(payload, EzoCommandType::EZO_T);
   }
   void add_t_callback(std::function<void(std::string)> &&callback) { this->t_callback_.add(std::move(callback)); }
