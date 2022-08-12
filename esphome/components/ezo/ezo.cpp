@@ -15,59 +15,73 @@ void EZOSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-void EZOSensor::send_command(const std::string &payload, EzoCommandType type, uint16_t delay_ms,
-                             bool response_expected) {
-  // This check relates to the 'previous' command that was sent.
-  if (this->cmd_response_expected_ && !this->cmd_completed_) {
-    ESP_LOGE(TAG, "send_command skipped, still waiting for previous response.");
+void EZOSensor::update() {
+  // Check if a read is in there already and if not insert on in the second position
+
+  if (!this->commands_.empty() && this->commands_.front()->command_type != EzoCommandType::EZO_READ &&
+      this->commands_.size() > 1) {
+    bool found = false;
+
+    for (auto &i : this->commands_) {
+      if (i->command_type == EzoCommandType::EZO_READ) {
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      EzoCommand *ezo_command = new EzoCommand;
+      ezo_command->command = "R";
+      ezo_command->command_type = EzoCommandType::EZO_READ;
+      ezo_command->delay_ms = 900;
+
+      std::deque<EzoCommand *>::iterator it = this->commands_.begin();
+      ++it;
+      this->commands_.insert(it, ezo_command);
+    }
+
     return;
   }
 
-  // If we come here, we can send the new command.
-  this->cmd_sent_ = false;
-  this->cmd_completed_ = false;
-  this->cmd_payload_ = payload;
-  this->cmd_type_ = type;
-  this->cmd_delay_ms_ = delay_ms;
-  this->cmd_response_expected_ = response_expected;
+  this->get_state();
 }
 
-void EZOSensor::update() { this->get_state(); }
-
 void EZOSensor::loop() {
-  // In case the current command is completed, we do nothing
-  if (this->cmd_completed_)
+  if (this->commands_.empty()) {
     return;
+  }
 
-  // In case the current command is not sent, we send it
-  if (!this->cmd_sent_) {
-    const auto *data = reinterpret_cast<const uint8_t *>(&this->cmd_payload_.c_str()[0]);
+  EzoCommand *to_run = this->commands_.front();
+
+  if (!to_run->command_sent) {
+    auto data = reinterpret_cast<const uint8_t *>(&to_run->command.c_str()[0]);
     ESP_LOGVV(TAG, "Sending command \"%s\"", data);
 
-    this->write(data, this->cmd_payload_.length());
+    this->write(data, to_run->command.length());
+
+    if (to_run->command_type == EzoCommandType::EZO_SLEEP ||
+        to_run->command_type == EzoCommandType::EZO_I2C) {  // Commands with no return data
+      delete to_run;
+      this->commands_.pop_front();
+      return;
+    }
+
     this->start_time_ = millis();
-    this->next_command_after_ = this->start_time_ + this->cmd_delay_ms_;
-    this->cmd_sent_ = true;
+    to_run->command_sent = true;
     return;
   }
 
-  // Wait time not over (yet) for the previous command that was sent, so we do nothing at this point in time.
-  if (millis() < this->next_command_after_)
+  if (millis() - this->start_time_ < to_run->delay_ms)
     return;
 
-  // The command delay has passed. We do not expect a repsonse from this command, so we can issue a 'read' command.
-  if (!this->cmd_response_expected_) {
-    this->get_state();
-    return;
-  }
-
-  // If we come here, the command will give a response.
   uint8_t buf[32];
+
   buf[0] = 0;
 
   if (!this->read_bytes_raw(buf, 32)) {
-    ESP_LOGE(TAG, "Read error!");
-    this->cmd_completed_ = true;
+    ESP_LOGE(TAG, "read error");
+    delete to_run;
+    this->commands_.pop_front();
     return;
   }
 
@@ -87,16 +101,23 @@ void EZOSensor::loop() {
       break;
   }
 
-  ESP_LOGVV(TAG, "Received buffer \"%s\" for command type %s", buf, EZO_COMMAND_TYPE_STRINGS[this->cmd_type_]);
+  ESP_LOGVV(TAG, "Received buffer \"%s\" for command type %s", buf, EZO_COMMAND_TYPE_STRINGS[to_run->command_type]);
 
   // for (int index = 0; index < 32; ++index) {
   //   ESP_LOGD(TAG, "Received buffer index: %d char: \"%c\" %d", index, buf[index], buf[index]);
   // }
 
-  if (buf[0] == 1 || this->cmd_type_ == EzoCommandType::EZO_CALIBRATION) {  // EZO_CALIBRATION returns 0-3
+  if ((buf[0] == 1) || (to_run->command_type == EzoCommandType::EZO_CALIBRATION)) {  // EZO_CALIBRATION returns 0-3
+    // some sensors return multiple comma-separated values, terminate string after first one
+    for (size_t i = 1; i < sizeof(buf) - 1; i++) {
+      if (buf[i] == ',') {
+        buf[i] = '\0';
+        break;
+      }
+    }
     std::string payload = reinterpret_cast<char *>(&buf[1]);
     if (!payload.empty()) {
-      switch (this->cmd_type_) {
+      switch (to_run->command_type) {
         case EzoCommandType::EZO_READ: {
           auto val = parse_number<float>(payload);
           if (!val.has_value()) {
@@ -143,9 +164,36 @@ void EZOSensor::loop() {
           break;
         }
       }
-      this->cmd_completed_ = true;
     }
   }
+
+  delete to_run;
+  this->commands_.pop_front();
 }
+
+// T
+void EZOSensor::set_t(const std::string &value) {
+  std::string to_send = "T," + value;
+  this->add_command(to_send, EzoCommandType::EZO_T);
+}
+
+// Calibration
+void EZOSensor::clear_calibration() { this->add_command("Cal,clear", EzoCommandType::EZO_CALIBRATION); }
+
+void EZOSensor::set_calibration(const std::string &point, const std::string &value) {
+  std::string to_send = "Cal," + point + "," + value;
+  this->add_command(to_send, EzoCommandType::EZO_CALIBRATION, 900);
+}
+
+// LED control
+void EZOSensor::set_led_state(bool on) {
+  std::string to_send = "L,";
+  to_send += on ? "1" : "0";
+  this->add_command(to_send, EzoCommandType::EZO_LED);
+}
+
+// Custom
+void EZOSensor::send_custom(const std::string &to_send) { this->add_command(to_send, EzoCommandType::EZO_CUSTOM); }
+
 }  // namespace ezo
 }  // namespace esphome
