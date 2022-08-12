@@ -75,19 +75,18 @@ void APDS9960::setup() {
   // GConf 2 (0xA3, gesture config 2) ->
   APDS9960_ERROR_CHECK(this->read_byte(0xA3, &val));
   val &= 0b10011111;
-  uint8_t gesture_gain = 2;  // gesture gain, 0 -> 1x, 1 -> 2x, 2 -> 4x, 3 -> 8x
-  val |= (gesture_gain & 0b11) << 5;
+  // gesture gain, 0 -> 1x, 1 -> 2x, 2 -> 4x, 3 -> 8x
+  val |= (this->gesture_gain_ & 0b11) << 5;
 
   val &= 0b11100111;
-  uint8_t gesture_led_drive = 0;  // gesture led drive, 0 -> 100mA, 1 -> 50mA, 2 -> 25mA, 3 -> 12.5mA
-  val |= (gesture_led_drive & 0b11) << 3;
+  // gesture led drive, 0 -> 100mA, 1 -> 50mA, 2 -> 25mA, 3 -> 12.5mA
+  val |= (this->gesture_led_drive_ & 0b11) << 3;
 
   val &= 0b11111000;
   // gesture wait time
   // 0 -> 0ms, 1 -> 2.8ms, 2 -> 5.6ms, 3 -> 8.4ms
   // 4 -> 14.0ms, 5 -> 22.4 ms, 6 -> 30.8ms, 7 -> 39.2 ms
-  uint8_t gesture_wait_time = 1;  // gesture wait time
-  val |= (gesture_wait_time & 0b111) << 0;
+  val |= (this->gesture_wait_time_ & 0b111) << 0;
   APDS9960_WRITE_BYTE(0xA3, val);
 
   // GOffsetU (0xA4) -> 0x00 (no offset)

@@ -19,6 +19,9 @@ class APDS9960 : public PollingComponent, public i2c::I2CDevice {
   void set_led_drive(uint8_t level) { this->led_drive_ = level; }
   void set_proximity_gain(uint8_t gain) { this->proximity_gain_ = gain; }
   void set_ambient_gain(uint8_t gain) { this->ambient_gain_ = gain; }
+  void set_gesture_led_drive(uint8_t level) { this->gesture_led_drive_ = level; }
+  void set_gesture_gain(uint8_t gain) { this->gesture_gain_ = gain; }
+  void set_gesture_wait_time(uint8_t wait_time) { this->gesture_wait_time_ = wait_time; }
 
   void set_red_channel(sensor::Sensor *red_channel) { red_channel_ = red_channel; }
   void set_green_channel(sensor::Sensor *green_channel) { green_channel_ = green_channel; }
@@ -43,6 +46,9 @@ class APDS9960 : public PollingComponent, public i2c::I2CDevice {
   uint8_t led_drive_;
   uint8_t proximity_gain_;
   uint8_t ambient_gain_;
+  uint8_t gesture_led_drive_;
+  uint8_t gesture_gain_;
+  uint8_t gesture_wait_time_;
 
   sensor::Sensor *red_channel_{nullptr};
   sensor::Sensor *green_channel_{nullptr};
