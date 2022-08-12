@@ -37,7 +37,7 @@ class EzoCommand {
 /// This class implements support for the EZO circuits in i2c mode
 class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  private:
-  void set_calibration_point(EzoCalibrationType type, float value) {
+  void set_calibration_point_(EzoCalibrationType type, float value) {
     std::string payload = str_sprintf("Cal,%s,%0.2f", EZO_CALIBRATION_TYPE_STRINGS[type], value);
     this->add_command(payload, EzoCommandType::EZO_CALIBRATION, 900);
   }
@@ -66,9 +66,9 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   void set_sleep() { this->add_command("Sleep", EzoCommandType::EZO_SLEEP); }
 
   // Calibration
-  void set_calibration_point_low(float value) { this->set_calibration_point(EzoCalibrationType::EZO_CAL_LOW, value); }
-  void set_calibration_point_mid(float value) { this->set_calibration_point(EzoCalibrationType::EZO_CAL_MID, value); }
-  void set_calibration_point_high(float value) { this->set_calibration_point(EzoCalibrationType::EZO_CAL_HIGH, value); }
+  void set_calibration_point_low(float value) { this->set_calibration_point_(EzoCalibrationType::EZO_CAL_LOW, value); }
+  void set_calibration_point_mid(float value) { this->set_calibration_point_(EzoCalibrationType::EZO_CAL_MID, value); }
+  void set_calibration_point_high(float value) { this->set_calibration_point_(EzoCalibrationType::EZO_CAL_HIGH, value); }
   void get_calibration() { this->add_command("Cal,?", EzoCommandType::EZO_CALIBRATION); }
   void clear_calibration() { this->add_command("Cal,clear", EzoCommandType::EZO_CALIBRATION); }
   void add_calibration_callback(std::function<void(std::string)> &&callback) {
