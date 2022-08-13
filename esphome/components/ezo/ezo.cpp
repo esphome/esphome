@@ -54,7 +54,8 @@ void EZOSensor::loop() {
   EzoCommand *to_run = this->commands_.front();
 
   if (!to_run->command_sent) {
-    const auto data = reinterpret_cast<const uint8_t *>(&to_run->command.c_str()[0]);
+    char *const data = to_run->command.c_str()
+    //const auto data = reinterpret_cast<const uint8_t *>(&to_run->command.c_str()[0]);
     ESP_LOGVV(TAG, "Sending command \"%s\"", data);
 
     this->write(data, to_run->command.length());
