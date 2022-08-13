@@ -415,7 +415,7 @@ ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const ch
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
 
-/// Derive accuracy in decimals from an increment step. 
+/// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
 
 ///@}

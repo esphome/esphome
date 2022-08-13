@@ -360,7 +360,6 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
 }
 std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
-
     std::string state;
     if (isnan(value)) {
       state = "NA";

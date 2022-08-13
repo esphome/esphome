@@ -1,0 +1,25 @@
+diff --git a/esphome/components/web_server/web_server.cpp b/esphome/components/web_server/web_server.cpp
+index 5784125..30ac959 100644
+--- a/esphome/components/web_server/web_server.cpp
++++ b/esphome/components/web_server/web_server.cpp
+@@ -360,7 +360,6 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
+ }
+ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail start_config) {
+   return json::build_json([obj, value, start_config](JsonObject root) {
+-
+     std::string state;
+     if (isnan(value)) {
+       state = "NA";
+diff --git a/esphome/core/helpers.h b/esphome/core/helpers.h
+index 67ed282..6bed743 100644
+--- a/esphome/core/helpers.h
++++ b/esphome/core/helpers.h
+@@ -415,7 +415,7 @@ ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const ch
+ /// Create a string from a value and an accuracy in decimals.
+ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
+ 
+-/// Derive accuracy in decimals from an increment step. 
++/// Derive accuracy in decimals from an increment step.
+ int8_t step_to_accuracy_decimals(float step);
+ 
+ ///@}
