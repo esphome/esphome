@@ -170,9 +170,6 @@ async def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_KP): cv.templatable(cv.float_),
             cv.Optional(CONF_KI, default=0.0): cv.templatable(cv.float_),
             cv.Optional(CONF_KD, default=0.0): cv.templatable(cv.float_),
-            # TODO
-            # cv.Optional(CONF_OUTPUT_AVERAGING_SAMPLES, default=1): cv.templatable(cv.int_),
-            # cv.Optional(CONF_DERIVATIVE_AVERAGING_SAMPLES, default=1): cv.templatable(cv.int_),
         }
     ),
 )
@@ -188,15 +185,5 @@ async def set_control_parameters(config, action_id, template_arg, args):
 
     kd_template_ = await cg.templatable(config[CONF_KD], args, float)
     cg.add(var.set_kd(kd_template_))
-
-    # TODO
-    # ds_template_ = await cg.templatable(config[CONF_DERIVATIVE_AVERAGING_SAMPLES], args, int)
-    # cg.add(var.set_derivative_samples(ds_template_))
-
-    # os_template_ = await cg.templatable(config[CONF_OUTPUT_AVERAGING_SAMPLES], args, int)
-    # cg.add(var.set_derivative_samples(os_template_))
-
-    # os_template_ = await cg.templatable(config[CONF_STARTING_INTEGRAL_TERM], args, int)
-    # cg.add(var.set_derivative_samples(os_template_))
 
     return var
