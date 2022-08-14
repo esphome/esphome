@@ -2436,6 +2436,21 @@ display:
         it.fill(Color::WHITE);
         id(glob_bool_processed) = true;
       }
+  - platform: pvvx_mithermometer
+    ble_client_id: ble_foo
+    time_id: sntp_time
+    disconnect_delay: 3s
+    update_interval: 10min
+    validity_period: 20min
+    lambda: |-
+      it.print_bignum(188.8);
+      it.print_unit(pvvx_mithermometer::UNIT_DEG_E);
+      it.print_smallnum(88);
+      it.print_percent(true);
+      it.print_happy(true);
+      it.print_sad(true);
+      it.print_bracket(true);
+      it.print_battery(true);
 
 tm1651:
   id: tm1651_battery
