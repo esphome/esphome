@@ -360,9 +360,14 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
 }
 std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
-    std::string state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
-    if (!obj->get_unit_of_measurement().empty())
-      state += " " + obj->get_unit_of_measurement();
+    std::string state;
+    if (isnan(value)) {
+      state = "NA";
+    } else {
+      state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
+      if (!obj->get_unit_of_measurement().empty())
+        state += " " + obj->get_unit_of_measurement();
+    }
     set_json_icon_state_value(root, obj, "sensor-" + obj->get_object_id(), state, value, start_config);
   });
 }
@@ -719,12 +724,15 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
       root["step"] = obj->traits.get_step();
       root["mode"] = (int) obj->traits.get_mode();
     }
-    std::string state = str_sprintf("%f", value);
-    root["state"] = state;
     if (isnan(value)) {
       root["value"] = "\"NaN\"";
+      root["state"] = "NA";
     } else {
       root["value"] = value;
+      std::string state = value_accuracy_to_string(value, step_to_accuracy_decimals(obj->traits.get_step()));
+      if (!obj->traits.get_unit_of_measurement().empty())
+        state += " " + obj->traits.get_unit_of_measurement();
+      root["state"] = state;
     }
   });
 }
