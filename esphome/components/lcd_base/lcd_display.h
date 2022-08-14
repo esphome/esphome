@@ -51,6 +51,9 @@ class LCDDisplay : public PollingComponent {
   void strftime(const char *format, time::ESPTime time) __attribute__((format(strftime, 2, 0)));
 #endif
 
+  /// Load custom char to given location
+  void loadchar(uint8_t location, uint8_t charmap[]);
+
  protected:
   virtual bool is_four_bit_mode() = 0;
   virtual void write_n_bits(uint8_t value, uint8_t n) = 0;

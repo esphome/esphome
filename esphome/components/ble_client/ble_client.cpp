@@ -113,21 +113,30 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
     }
     case ESP_GATTC_OPEN_EVT: {
       ESP_LOGV(TAG, "[%s] ESP_GATTC_OPEN_EVT", this->address_str().c_str());
+      this->conn_id = param->open.conn_id;
       if (param->open.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "connect to %s failed, status=%d", this->address_str().c_str(), param->open.status);
         this->set_states_(espbt::ClientState::IDLE);
         break;
       }
-      this->conn_id = param->open.conn_id;
-      auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if, param->open.conn_id);
+      break;
+    }
+    case ESP_GATTC_CONNECT_EVT: {
+      ESP_LOGV(TAG, "[%s] ESP_GATTC_CONNECT_EVT", this->address_str().c_str());
+      if (this->conn_id != param->connect.conn_id) {
+        ESP_LOGD(TAG, "[%s] Unexpected conn_id in CONNECT_EVT: param conn=%d, open conn=%d",
+                 this->address_str().c_str(), param->connect.conn_id, this->conn_id);
+      }
+      auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if, param->connect.conn_id);
       if (ret) {
-        ESP_LOGW(TAG, "esp_ble_gattc_send_mtu_req failed, status=%d", ret);
+        ESP_LOGW(TAG, "esp_ble_gattc_send_mtu_req failed, status=%x", ret);
       }
       break;
     }
     case ESP_GATTC_CFG_MTU_EVT: {
       if (param->cfg_mtu.status != ESP_GATT_OK) {
-        ESP_LOGW(TAG, "cfg_mtu to %s failed, status %d", this->address_str().c_str(), param->cfg_mtu.status);
+        ESP_LOGW(TAG, "cfg_mtu to %s failed, mtu %d, status %d", this->address_str().c_str(), param->cfg_mtu.mtu,
+                 param->cfg_mtu.status);
         this->set_states_(espbt::ClientState::IDLE);
         break;
       }
@@ -139,7 +148,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
       if (memcmp(param->disconnect.remote_bda, this->remote_bda, 6) != 0) {
         return;
       }
-      ESP_LOGV(TAG, "[%s] ESP_GATTC_DISCONNECT_EVT", this->address_str().c_str());
+      ESP_LOGV(TAG, "[%s] ESP_GATTC_DISCONNECT_EVT, reason %d", this->address_str().c_str(), param->disconnect.reason);
       for (auto &svc : this->services_)
         delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
       this->services_.clear();
@@ -178,9 +187,10 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
                  descr->uuid.to_string().c_str());
         break;
       }
-      uint8_t notify_en = 1;
-      auto status = esp_ble_gattc_write_char_descr(this->gattc_if, this->conn_id, descr->handle, sizeof(notify_en),
-                                                   &notify_en, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
+      uint16_t notify_en = 1;
+      auto status =
+          esp_ble_gattc_write_char_descr(this->gattc_if, this->conn_id, descr->handle, sizeof(notify_en),
+                                         (uint8_t *) &notify_en, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
       if (status) {
         ESP_LOGW(TAG, "esp_ble_gattc_write_char_descr error, status=%d", status);
       }
@@ -198,6 +208,32 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
     for (auto &svc : this->services_)
       delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
     this->services_.clear();
+  }
+}
+
+void BLEClient::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+  switch (event) {
+    // This event is sent by the server when it requests security
+    case ESP_GAP_BLE_SEC_REQ_EVT:
+      ESP_LOGV(TAG, "ESP_GAP_BLE_SEC_REQ_EVT %x", event);
+      esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
+      break;
+    // This event is sent once authentication has completed
+    case ESP_GAP_BLE_AUTH_CMPL_EVT:
+      esp_bd_addr_t bd_addr;
+      memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t));
+      ESP_LOGI(TAG, "auth complete. remote BD_ADDR: %s", format_hex(bd_addr, 6).c_str());
+      if (!param->ble_security.auth_cmpl.success) {
+        ESP_LOGE(TAG, "auth fail reason = 0x%x", param->ble_security.auth_cmpl.fail_reason);
+      } else {
+        ESP_LOGV(TAG, "auth success. address type = %d auth mode = %d", param->ble_security.auth_cmpl.addr_type,
+                 param->ble_security.auth_cmpl.auth_mode);
+      }
+      break;
+    // There are other events we'll want to implement at some point to support things like pass key
+    // https://github.com/espressif/esp-idf/blob/cba69dd088344ed9d26739f04736ae7a37541b3a/examples/bluetooth/bluedroid/ble/gatt_security_client/tutorial/Gatt_Security_Client_Example_Walkthrough.md
+    default:
+      break;
   }
 }
 
