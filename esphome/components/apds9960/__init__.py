@@ -15,7 +15,7 @@ CONF_GESTURE_LED_DRIVE = "gesture_led_drive"
 CONF_GESTURE_GAIN = "gesture_gain"
 CONF_GESTURE_WAIT_TIME = "gesture_wait_time"
 
-DRIVE_LEVELS = {"100mA": 0, "50mA": 1, "25mA": 2, "12.5mA": 3}
+DRIVE_LEVELS = {"100ma": 0, "50ma": 1, "25ma": 2, "12.5ma": 3}
 PROXIMITY_LEVELS = {"1x": 0, "2x": 1, "4x": 2, "8x": 3}
 AMBIENT_LEVELS = {"1x": 0, "4x": 1, "16x": 2, "64x": 3}
 GESTURE_LEVELS = {"1x": 0, "2x": 1, "4x": 2, "8x": 3}
