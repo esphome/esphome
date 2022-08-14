@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2022.8.0b1"
+__version__ = "2022.8.0b2"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -955,6 +955,9 @@ STATE_CLASS_MEASUREMENT = "measurement"
 
 # The state represents a total that only increases, a decrease is considered a reset.
 STATE_CLASS_TOTAL_INCREASING = "total_increasing"
+
+# The state represents a total amount that can both increase and decrease, e.g. a net energy meter.
+STATE_CLASS_TOTAL = "total"
 
 KEY_CORE = "core"
 KEY_TARGET_PLATFORM = "target_platform"
