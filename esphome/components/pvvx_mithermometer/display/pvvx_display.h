@@ -131,4 +131,3 @@ class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
 }  // namespace esphome
 
 #endif
-

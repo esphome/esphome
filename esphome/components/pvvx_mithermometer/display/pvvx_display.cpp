@@ -152,4 +152,3 @@ void PVVXDisplay::sync_time_() {
 }  // namespace esphome
 
 #endif
-
