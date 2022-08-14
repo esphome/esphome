@@ -40,6 +40,7 @@ class EzoCommand {
 class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  private:
   void add_command_(const std::string &command, EzoCommandType command_type, uint16_t delay_ms = 300) {
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     EzoCommand *ezo_command = new EzoCommand;
     ezo_command->command = command;
     ezo_command->command_type = command_type;

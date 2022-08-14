@@ -28,6 +28,7 @@ void EZOSensor::update() {
     }
 
     if (!found) {
+      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       EzoCommand *ezo_command = new EzoCommand;
       ezo_command->command = "R";
       ezo_command->command_type = EzoCommandType::EZO_READ;
@@ -59,7 +60,7 @@ void EZOSensor::loop() {
 
     if (to_run->command_type == EzoCommandType::EZO_SLEEP ||
         to_run->command_type == EzoCommandType::EZO_I2C) {  // Commands with no return data
-      delete to_run;
+      delete to_run;                                        // NOLINT(cppcoreguidelines-owning-memory)
       this->commands_.pop_front();
       return;
     }
@@ -78,7 +79,7 @@ void EZOSensor::loop() {
 
   if (!this->read_bytes_raw(buf, 32)) {
     ESP_LOGE(TAG, "read error");
-    delete to_run;
+    delete to_run;  // NOLINT(cppcoreguidelines-owning-memory)
     this->commands_.pop_front();
     return;
   }
@@ -165,7 +166,7 @@ void EZOSensor::loop() {
     }
   }
 
-  delete to_run;
+  delete to_run;  // NOLINT(cppcoreguidelines-owning-memory)
   this->commands_.pop_front();
 }
 }  // namespace ezo
