@@ -8,6 +8,8 @@
 namespace esphome {
 namespace ezo {
 
+static const char *const TAG = "ezo.sensor";
+
 enum EzoCommandType : uint8_t {
   EZO_READ = 0,
   EZO_LED = 1,
@@ -57,7 +59,14 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   float get_setup_priority() const override { return setup_priority::DATA; };
 
   // I2C
-  void set_i2c() { this->add_command_("I2c,100", EzoCommandType::EZO_I2C); }  // NOLINT otherwise we get set_i2_c
+  void set_i2c(unsigned int address) {
+    if (address > 0 && address < 128) {
+      std::string payload = str_sprintf("I2C,%u", address);
+      this->add_command_(payload, EzoCommandType::EZO_I2C);
+    } else {
+      ESP_LOGE(TAG, "Invalid I2C address");
+    }
+  }  // NOLINT otherwise we get set_i2_c
 
   // Device Information
   void get_device_information() { this->add_command_("i", EzoCommandType::EZO_DEVICE_INFORMATION); }

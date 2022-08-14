@@ -5,8 +5,6 @@
 namespace esphome {
 namespace ezo {
 
-static const char *const TAG = "ezo.sensor";
-
 void EZOSensor::dump_config() {
   LOG_SENSOR("", "EZO", this);
   LOG_I2C_DEVICE(this);
