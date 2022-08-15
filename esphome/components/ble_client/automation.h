@@ -77,8 +77,8 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
     has_simple_value_ = false;
   }
 
-  void set_value_simple(std::vector<uint8_t> value) {
-    this->value_simple_ = std::move(value);
+  void set_value_simple(const std::vector<uint8_t> &value) {
+    this->value_simple_ = value;
     has_simple_value_ = true;
   }
 
