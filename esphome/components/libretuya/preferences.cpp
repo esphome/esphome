@@ -72,7 +72,12 @@ class LibreTuyaPreferences : public ESPPreferences {
 
   void open() {
     //
-    fdb_kvdb_init(&db, "esphome", "userdata", NULL, NULL);
+    fdb_err_t err = fdb_kvdb_init(&db, "esphome", "kvs", NULL, NULL);
+    if (err != FDB_NO_ERR) {
+      ESP_LOGE(TAG, "fdb_kvdb_init(...) failed: %d", err);
+    } else {
+      ESP_LOGD(TAG, "Preferences initialized");
+    }
   }
 
   ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) override {

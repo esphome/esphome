@@ -17,7 +17,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 
-from .const import KEY_BOARD, KEY_LIBRETUYA, libretuya_ns
+from .const import KEY_BOARD, KEY_LIBRETUYA
 
 # force import gpio to register pin schema
 from .gpio import libretuya_pin_to_code  # noqa
@@ -113,8 +113,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    cg.add(libretuya_ns.setup_preferences())
-
     # setup board config
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_LIBRETUYA")
