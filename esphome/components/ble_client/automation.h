@@ -15,10 +15,10 @@ class BLEClientConnectTrigger : public Trigger<>, public BLEClientNode {
   void loop() override {}
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override {
-    if (event == ESP_GATTC_OPEN_EVT && param->open.status == ESP_GATT_OK)
-      this->trigger();
-    if (event == ESP_GATTC_SEARCH_CMPL_EVT)
+    if (event == ESP_GATTC_SEARCH_CMPL_EVT) {
       this->node_state = espbt::ClientState::ESTABLISHED;
+      this->trigger();
+    }
   }
 };
 
@@ -42,10 +42,8 @@ class BLEWriterClientNode : public BLEClientNode {
     ble_client_ = ble_client;
   }
 
-  void set_value(std::vector<uint8_t> value) { value_ = std::move(value); }
-
-  // Attempts to write the contents of value_ to char_uuid_.
-  void write();
+  // Attempts to write the contents of value to char_uuid_.
+  void write(const std::vector<uint8_t> &value);
 
   void set_char_uuid128(uint8_t *uuid) { this->char_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
 
@@ -60,14 +58,34 @@ class BLEWriterClientNode : public BLEClientNode {
   esp_gatt_char_prop_t char_props_;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;
-  std::vector<uint8_t> value_;
 };
 
 template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, public BLEWriterClientNode {
  public:
   BLEClientWriteAction(BLEClient *ble_client) : BLEWriterClientNode(ble_client) {}
 
-  void play(Ts... x) override { return write(); }
+  void play(Ts... x) override {
+    if (has_simple_value_) {
+      return write(this->value_simple_);
+    } else {
+      return write(this->value_template_(x...));
+    }
+  }
+
+  void set_value_template(std::function<std::vector<uint8_t>(Ts...)> func) {
+    this->value_template_ = std::move(func);
+    has_simple_value_ = false;
+  }
+
+  void set_value_simple(const std::vector<uint8_t> &value) {
+    this->value_simple_ = value;
+    has_simple_value_ = true;
+  }
+
+ private:
+  bool has_simple_value_ = true;
+  std::vector<uint8_t> value_simple_;
+  std::function<std::vector<uint8_t>(Ts...)> value_template_{};
 };
 
 }  // namespace ble_client
