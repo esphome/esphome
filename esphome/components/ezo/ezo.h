@@ -60,14 +60,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   float get_setup_priority() const override { return setup_priority::DATA; };
 
   // I2C
-  void set_i2c(unsigned int address) {
-    if (address > 0 && address < 128) {
-      std::string payload = str_sprintf("I2C,%u", address);
-      this->add_command_(payload, EzoCommandType::EZO_I2C);
-    } else {
-      ESP_LOGE(TAG, "Invalid I2C address");
-    }
-  }  // NOLINT otherwise we get set_i2_c
+  void set_i2c(unsigned int address);  // NOLINT otherwise we get set_i2_c
 
   // Device Information
   void get_device_information() { this->add_command_("i", EzoCommandType::EZO_DEVICE_INFORMATION); }

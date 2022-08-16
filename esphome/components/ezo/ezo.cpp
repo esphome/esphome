@@ -169,5 +169,14 @@ void EZOSensor::loop() {
   delete to_run;  // NOLINT(cppcoreguidelines-owning-memory)
   this->commands_.pop_front();
 }
+
+void EZOSensor::set_i2c(unsigned int address) {
+  if (address > 0 && address < 128) {
+    std::string payload = str_sprintf("I2C,%u", address);
+    this->add_command_(payload, EzoCommandType::EZO_I2C);
+  } else {
+    ESP_LOGE(TAG, "Invalid I2C address");
+  }
+}  // NOLINT otherwise we get set_i2_c
 }  // namespace ezo
 }  // namespace esphome
