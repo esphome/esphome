@@ -76,7 +76,12 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     // installed, but wait, there is the CRC, and if we get a hit there is a good
     // chance that this is a complete message ... admittedly there is a small chance is
     // isn't but that is quite small given the purpose of the CRC in the first place
-    data_len = at;
+
+    // Fewer than 2 bytes can't calc CRC
+    if (at < 2)
+      return true;
+
+    data_len = at - 2;
     data_offset = 1;
 
     uint16_t computed_crc = crc16(raw, data_offset + data_len);
@@ -95,7 +100,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     }
 
     // Error ( msb indicates error )
-    // response format:  Byte[0] = device address, Byte[1] function code | 0x80 , Byte[2] excpetion code, Byte[3-4] crc
+    // response format:  Byte[0] = device address, Byte[1] function code | 0x80 , Byte[2] exception code, Byte[3-4] crc
     if ((function_code & 0x80) == 0x80) {
       data_offset = 2;
       data_len = 1;

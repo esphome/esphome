@@ -39,7 +39,7 @@ void SGP4xComponent::setup() {
       ESP_LOGE(TAG, "Measuring NOx requires a SGP41 sensor but a SGP40 sensor is detected");
       // disable the sensor
       this->nox_sensor_->set_disabled_by_default(true);
-      // make sure it's not visiable in HA
+      // make sure it's not visible in HA
       this->nox_sensor_->set_internal(true);
       this->nox_sensor_->state = NAN;
       // remove pointer to sensor
@@ -104,8 +104,8 @@ void SGP4xComponent::setup() {
   https://github.com/Sensirion/embedded-sgp/issues/136 indicate the algorithm should be a bit resilient to slight
   timing variations so the software timer should be accurate enough for this.
 
-  This block starts sampling from the sensor at 1Hz, and is done seperately from the call
-  to the update method. This seperation is to support getting accurate measurements but
+  This block starts sampling from the sensor at 1Hz, and is done separately from the call
+  to the update method. This separation is to support getting accurate measurements but
   limit the amount of communication done over wifi for power consumption or to keep the
   number of records reported from being overwhelming.
   */
@@ -170,8 +170,8 @@ bool SGP4xComponent::measure_gas_indices_(int32_t &voc, int32_t &nox) {
   // much
   if (this->store_baseline_ && this->seconds_since_last_store_ > SHORTEST_BASELINE_STORE_INTERVAL) {
     voc_algorithm_.get_states(this->voc_state0_, this->voc_state1_);
-    if ((uint32_t) abs(this->voc_baselines_storage_.state0 - this->voc_state0_) > MAXIMUM_STORAGE_DIFF ||
-        (uint32_t) abs(this->voc_baselines_storage_.state1 - this->voc_state1_) > MAXIMUM_STORAGE_DIFF) {
+    if (std::abs(this->voc_baselines_storage_.state0 - this->voc_state0_) > MAXIMUM_STORAGE_DIFF ||
+        std::abs(this->voc_baselines_storage_.state1 - this->voc_state1_) > MAXIMUM_STORAGE_DIFF) {
       this->seconds_since_last_store_ = 0;
       this->voc_baselines_storage_.state0 = this->voc_state0_;
       this->voc_baselines_storage_.state1 = this->voc_state1_;
@@ -236,9 +236,9 @@ bool SGP4xComponent::measure_raw_(uint16_t &voc_raw, uint16_t &nox_raw) {
   }
   uint16_t rhticks = llround((uint16_t)((humidity * 65535) / 100));
   uint16_t tempticks = (uint16_t)(((temperature + 45) * 65535) / 175);
-  // first paramater are the relative humidity ticks
+  // first parameter are the relative humidity ticks
   data[0] = rhticks;
-  // secomd paramater are the temperature ticks
+  // secomd parameter are the temperature ticks
   data[1] = tempticks;
 
   if (!this->write_command(command, data, 2)) {
