@@ -82,7 +82,7 @@ BLE_WRITE_ACTION_SCHEMA = cv.Schema(
         cv.Required(CONF_ID): cv.use_id(BLEClient),
         cv.Required(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
         cv.Required(CONF_CHARACTERISTIC_UUID): esp32_ble_tracker.bt_uuid,
-        cv.Required(CONF_VALUE): cv.ensure_list(cv.hex_uint8_t),
+        cv.Required(CONF_VALUE): cv.templatable(cv.ensure_list(cv.hex_uint8_t)),
     }
 )
 
@@ -93,8 +93,14 @@ BLE_WRITE_ACTION_SCHEMA = cv.Schema(
 async def ble_write_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
+
     value = config[CONF_VALUE]
-    cg.add(var.set_value(value))
+    if cg.is_template(value):
+        templ = await cg.templatable(value, args, cg.std_vector.template(cg.uint8))
+        cg.add(var.set_value_template(templ))
+    else:
+        cg.add(var.set_value_simple(value))
+
     serv_uuid128 = esp32_ble_tracker.as_reversed_hex_array(config[CONF_SERVICE_UUID])
     cg.add(var.set_service_uuid128(serv_uuid128))
     char_uuid128 = esp32_ble_tracker.as_reversed_hex_array(
