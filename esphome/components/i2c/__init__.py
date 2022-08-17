@@ -118,21 +118,17 @@ def final_validate_device_schema(
 ):
     hub_schema = {}
     if min_frequency is not None:
-        hub_schema[cv.Required(CONF_FREQUENCY)] = cv.All(
-            cv.Range(
-                min=cv.frequency(min_frequency),
-                min_included=True,
-                msg=f"Component {name} requires a minimum frequency of {min_frequency} for the I2C bus",
-            ),
+        hub_schema[cv.Required(CONF_FREQUENCY)] = cv.Range(
+            min=cv.frequency(min_frequency),
+            min_included=True,
+            msg=f"Component {name} requires a minimum frequency of {min_frequency} for the I2C bus",
         )
 
     if max_frequency is not None:
-        hub_schema[cv.Required(CONF_FREQUENCY)] = cv.All(
-            cv.Range(
-                max=cv.frequency(max_frequency),
-                max_included=True,
-                msg=f"Component {name} cannot be used with a frequency of over {max_frequency} for the I2C bus",
-            ),
+        hub_schema[cv.Required(CONF_FREQUENCY)] = cv.Range(
+            max=cv.frequency(max_frequency),
+            max_included=True,
+            msg=f"Component {name} cannot be used with a frequency of over {max_frequency} for the I2C bus",
         )
 
     return cv.Schema(
