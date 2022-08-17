@@ -32,7 +32,7 @@ from esphome.const import (
     CONF_LEVEL,
 )
 from esphome.core import coroutine
-from esphome.jsonschema import jschema_extractor
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ["binary_sensor"]
@@ -195,14 +195,14 @@ def validate_dumpers(value):
 def validate_triggers(base_schema):
     assert isinstance(base_schema, cv.Schema)
 
-    @jschema_extractor("triggers")
+    @schema_extractor("triggers")
     def validator(config):
         added_keys = {}
         for key, (_, valid) in TRIGGER_REGISTRY.items():
             added_keys[cv.Optional(key)] = valid
         new_schema = base_schema.extend(added_keys)
-        # pylint: disable=comparison-with-callable
-        if config == jschema_extractor:
+
+        if config == SCHEMA_EXTRACT:
             return new_schema
         return new_schema(config)
 

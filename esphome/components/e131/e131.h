@@ -4,9 +4,10 @@
 
 #include "esphome/core/component.h"
 
+#include <map>
 #include <memory>
 #include <set>
-#include <map>
+#include <vector>
 
 class UDP;
 

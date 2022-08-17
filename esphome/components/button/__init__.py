@@ -102,8 +102,8 @@ async def register_button(var, config):
     await setup_button_core_(var, config)
 
 
-async def new_button(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_button(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_button(var, config)
     return var
 

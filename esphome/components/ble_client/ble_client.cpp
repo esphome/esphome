@@ -54,6 +54,7 @@ bool BLEClient::parse_device(const espbt::ESPBTDevice &device) {
   this->remote_bda[3] = (addr >> 16) & 0xFF;
   this->remote_bda[4] = (addr >> 8) & 0xFF;
   this->remote_bda[5] = (addr >> 0) & 0xFF;
+  this->remote_addr_type = device.get_address_type();
   return true;
 }
 
@@ -83,7 +84,7 @@ void BLEClient::set_enabled(bool enabled) {
 
 void BLEClient::connect() {
   ESP_LOGI(TAG, "Attempting BLE connection to %s", this->address_str().c_str());
-  auto ret = esp_ble_gattc_open(this->gattc_if, this->remote_bda, BLE_ADDR_TYPE_PUBLIC, true);
+  auto ret = esp_ble_gattc_open(this->gattc_if, this->remote_bda, this->remote_addr_type, true);
   if (ret) {
     ESP_LOGW(TAG, "esp_ble_gattc_open error, address=%s status=%d", this->address_str().c_str(), ret);
     this->set_states_(espbt::ClientState::IDLE);
