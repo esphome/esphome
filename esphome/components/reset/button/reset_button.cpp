@@ -14,7 +14,6 @@ void ResetButton::press_action() {
   // Let MQTT settle a bit
   delay(100);  // NOLINT
   global_preferences->reset();
-  ESP_LOGI(TAG, "Rebooting...");
   App.safe_reboot();
 }
 
