@@ -3,10 +3,6 @@
 
 #ifdef USE_RP2040
 
-#include "cyw43.h"
-#include "cyw43_country.h"
-#include "pico/cyw43_arch.h"
-
 #include "lwip/dns.h"
 #include "lwip/err.h"
 #include "lwip/netif.h"
@@ -25,7 +21,8 @@ static const char *const TAG = "wifi_pico_w";
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   if (sta.has_value()) {
     if (sta.value()) {
-      cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_STA, true, CYW43_COUNTRY_WORLDWIDE);
+      // cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_STA, true, CYW43_COUNTRY_WORLDWIDE);
+      cyw43_arch_enable_sta_mode();
     }
   }
   return true;
@@ -44,7 +41,8 @@ bool WiFiComponent::wifi_apply_power_save_() {
       pm = CYW43_PERFORMANCE_PM;
       break;
   }
-  int ret = cyw43_wifi_pm(&cyw43_state, pm);
+  int ret = 0;
+  // cyw43_wifi_pm(&cyw43_state, pm);
   return ret == 0;
 }
 
@@ -64,11 +62,17 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     bssid = ap.get_bssid().value().data();
   }
 
-  int err = cyw43_wifi_join(&cyw43_state, ap.get_ssid().length(), (const uint8_t *) ap.get_ssid().c_str(),
-                            ap.get_password().length(), (const uint8_t *) ap.get_password().c_str(), auth_mode, bssid,
-                            ap.get_channel().value_or(0));
+  // int err = cyw43_wifi_join(&cyw43_state, ap.get_ssid().length(), (const uint8_t *) ap.get_ssid().c_str(),
+  //                           ap.get_password().length(), (const uint8_t *) ap.get_password().c_str(), auth_mode,
+  //                           bssid, ap.get_channel().value_or(0));
 
-  return err == 0;
+  // return err == 0;
+
+  // int err = cyw43_arch_wifi_connect_async(ap.get_ssid().c_str(), ap.get_password().c_str(), auth_mode);
+  // return err == 0;
+  return true;
+
+  // WiFi.begin(ap.get_ssid().c_str(), ap.get_password().c_str());
 }
 bool WiFiComponent::wifi_sta_pre_setup_() { return this->wifi_mode_(true, {}); }
 
@@ -95,7 +99,8 @@ const char *get_disconnect_reason_str(uint8_t reason) {
 }
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
-  int status = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA);
+  int status = 0;
+  // cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
   switch (status) {
     case CYW43_LINK_JOIN:
     case CYW43_LINK_NOIP:
@@ -129,12 +134,13 @@ void WiFiComponent::wifi_scan_result(void *env, const cyw43_ev_scan_result_t *re
 bool WiFiComponent::wifi_scan_start_() {
   this->scan_result_.clear();
   this->scan_done_ = false;
-  cyw43_wifi_scan_options_t scan_options = {0};
-  int err = cyw43_wifi_scan(&cyw43_state, &scan_options, nullptr, &s_wifi_scan_result);
-  if (err) {
-    ESP_LOGV(TAG, "cyw43_wifi_scan failed!");
-  }
-  return err == 0;
+  // cyw43_wifi_scan_options_t scan_options = {0};
+  // int err = cyw43_wifi_scan(&cyw43_state, &scan_options, nullptr, &s_wifi_scan_result);
+  // if (err) {
+  //   ESP_LOGV(TAG, "cyw43_wifi_scan failed!");
+  // }
+  // return err == 0;
+  return true;
 }
 
 bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
@@ -146,23 +152,23 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   if (!this->wifi_mode_({}, true))
     return false;
 
-  const char *ssid = ap.get_ssid().c_str();
-
-  cyw43_wifi_ap_set_ssid(&cyw43_state, strlen(ssid), (const uint8_t *) ssid);
-
-  if (!ap.get_password().empty()) {
-    const char *password = ap.get_password().c_str();
-    cyw43_wifi_ap_set_password(&cyw43_state, strlen(password), (const uint8_t *) password);
-    cyw43_wifi_ap_set_auth(&cyw43_state, CYW43_AUTH_WPA2_MIXED_PSK);
-  } else {
-    cyw43_wifi_ap_set_auth(&cyw43_state, CYW43_AUTH_OPEN);
-  }
-
   if (ap.get_channel().has_value()) {
     cyw43_wifi_ap_set_channel(&cyw43_state, ap.get_channel().value());
   }
 
-  cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, true, CYW43_COUNTRY_WORLDWIDE);
+  const char *ssid = ap.get_ssid().c_str();
+
+  // cyw43_wifi_ap_set_ssid(&cyw43_state, strlen(ssid), (const uint8_t *) ssid);
+
+  // if (!ap.get_password().empty()) {
+  //   const char *password = ap.get_password().c_str();
+  //   cyw43_wifi_ap_set_password(&cyw43_state, strlen(password), (const uint8_t *) password);
+  //   cyw43_wifi_ap_set_auth(&cyw43_state, CYW43_AUTH_WPA2_MIXED_PSK);
+  // } else {
+  //   cyw43_wifi_ap_set_auth(&cyw43_state, CYW43_AUTH_OPEN);
+  // }
+  cyw43_arch_enable_ap_mode(ssid, ap.get_password().c_str(), CYW43_AUTH_WPA2_MIXED_PSK);
+  // cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, true, CYW43_COUNTRY_WORLDWIDE);
   return true;
 }
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.localIP()}; }
@@ -172,19 +178,19 @@ bool WiFiComponent::wifi_disconnect_() {
   return err == 0;
 }
 bssid_t WiFiComponent::wifi_bssid() {
-  // TODO:
+  // TODO: The driver does not provide an interface to get this
   return {};
 }
 std::string WiFiComponent::wifi_ssid() {
-  // TODO:
+  // TODO: The driver does not provide an interface to get this
   return "";
 }
 int8_t WiFiComponent::wifi_rssi() {
-  // TODO:
+  // TODO: The driver does not provide an interface to get this
   return 0;
 }
 int32_t WiFiComponent::wifi_channel_() {
-  // TODO:
+  // TODO: The driver does not provide an interface to get this
   return 0;
 }
 network::IPAddress WiFiComponent::wifi_sta_ip() { return {WiFi.localIP()}; }
