@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import sensor, binary_sensor, esp32_ble_tracker
+from esphome.components import binary_sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_MAC_ADDRESS,
     CONF_BINDKEY,
@@ -11,7 +11,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
-AUTO_LOAD = ["xiaomi_ble", "sensor"]
+AUTO_LOAD = ["xiaomi_ble"]
 
 xiaomi_mccgq02hl_ns = cg.esphome_ns.namespace("xiaomi_mccgq02hl")
 XiaomiMCCGQ02HL = xiaomi_mccgq02hl_ns.class_(

@@ -227,7 +227,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
       result.raw_offset -= 6;
   } else if (device_uuid == 0x098B) {  // Xiaomi Mi Door window sensor 2
     result.type = XiaomiParseResult::TYPE_MCCGQ02HL;
-    result.name = "TYPE_MCCGQ02HL";
+    result.name = "MCCGQ02HL";
   } else {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): unknown device, no magic bytes.");
     return {};
