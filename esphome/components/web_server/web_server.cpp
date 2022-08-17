@@ -353,16 +353,21 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->sensor_json(obj, obj->state, DETAIL_STATE);
-    request->send(200, "text/json", data.c_str());
+    request->send(200, "application/json", data.c_str());
     return;
   }
   request->send(404);
 }
 std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
-    std::string state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
-    if (!obj->get_unit_of_measurement().empty())
-      state += " " + obj->get_unit_of_measurement();
+    std::string state;
+    if (isnan(value)) {
+      state = "NA";
+    } else {
+      state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
+      if (!obj->get_unit_of_measurement().empty())
+        state += " " + obj->get_unit_of_measurement();
+    }
     set_json_icon_state_value(root, obj, "sensor-" + obj->get_object_id(), state, value, start_config);
   });
 }
@@ -377,7 +382,7 @@ void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->text_sensor_json(obj, obj->state, DETAIL_STATE);
-    request->send(200, "text/json", data.c_str());
+    request->send(200, "application/json", data.c_str());
     return;
   }
   request->send(404);
@@ -406,7 +411,7 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->method() == HTTP_GET) {
       std::string data = this->switch_json(obj, obj->state, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
     } else if (match.method == "toggle") {
       this->defer([obj]() { obj->toggle(); });
       request->send(200);
@@ -462,7 +467,7 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->binary_sensor_json(obj, obj->state, DETAIL_STATE);
-    request->send(200, "text/json", data.c_str());
+    request->send(200, "application/json", data.c_str());
     return;
   }
   request->send(404);
@@ -490,7 +495,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
 
     if (request->method() == HTTP_GET) {
       std::string data = this->fan_json(obj, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
     } else if (match.method == "toggle") {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
@@ -551,7 +556,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
 
     if (request->method() == HTTP_GET) {
       std::string data = this->light_json(obj, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
     } else if (match.method == "toggle") {
       this->defer([obj]() { obj->toggle().perform(); });
       request->send(200);
@@ -630,7 +635,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
 
     if (request->method() == HTTP_GET) {
       std::string data = this->cover_json(obj, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
       continue;
     }
 
@@ -687,7 +692,7 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->method() == HTTP_GET) {
       std::string data = this->number_json(obj, obj->state, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
       return;
     }
     if (match.method != "set") {
@@ -719,12 +724,15 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
       root["step"] = obj->traits.get_step();
       root["mode"] = (int) obj->traits.get_mode();
     }
-    std::string state = str_sprintf("%f", value);
-    root["state"] = state;
     if (isnan(value)) {
       root["value"] = "\"NaN\"";
+      root["state"] = "NA";
     } else {
       root["value"] = value;
+      std::string state = value_accuracy_to_string(value, step_to_accuracy_decimals(obj->traits.get_step()));
+      if (!obj->traits.get_unit_of_measurement().empty())
+        state += " " + obj->traits.get_unit_of_measurement();
+      root["state"] = state;
     }
   });
 }
@@ -741,7 +749,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
 
     if (request->method() == HTTP_GET) {
       std::string data = this->select_json(obj, obj->state, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
       return;
     }
 
@@ -788,7 +796,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
 
     if (request->method() == HTTP_GET) {
       std::string data = this->climate_json(obj, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
       return;
     }
 
@@ -839,6 +847,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
   return json::build_json([obj, start_config](JsonObject root) {
     set_json_id(root, obj, "climate-" + obj->get_object_id(), start_config);
     const auto traits = obj->get_traits();
+    int8_t accuracy = traits.get_temperature_accuracy_decimals();
     char __buf[16];
 
     if (start_config == DETAIL_ALL) {
@@ -873,12 +882,15 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
       }
     }
 
+    bool has_state = false;
     root["mode"] = PSTR_LOCAL(climate_mode_to_string(obj->mode));
-    root["max_temp"] = traits.get_visual_max_temperature();
-    root["min_temp"] = traits.get_visual_min_temperature();
+    root["max_temp"] = value_accuracy_to_string(traits.get_visual_max_temperature(), accuracy);
+    root["min_temp"] = value_accuracy_to_string(traits.get_visual_min_temperature(), accuracy);
     root["step"] = traits.get_visual_temperature_step();
     if (traits.get_supports_action()) {
       root["action"] = PSTR_LOCAL(climate_action_to_string(obj->action));
+      root["state"] = root["action"];
+      has_state = true;
     }
     if (traits.get_supports_fan_modes() && obj->fan_mode.has_value()) {
       root["fan_mode"] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
@@ -896,14 +908,23 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
       root["swing_mode"] = PSTR_LOCAL(climate_swing_mode_to_string(obj->swing_mode));
     }
     if (traits.get_supports_current_temperature()) {
-      root["current_temperature"] = obj->current_temperature;
+      if (!std::isnan(obj->current_temperature)) {
+        root["current_temperature"] = value_accuracy_to_string(obj->current_temperature, accuracy);
+      } else {
+        root["current_temperature"] = "NA";
+      }
     }
     if (traits.get_supports_two_point_target_temperature()) {
-      root["current_temperature_low"] = obj->target_temperature_low;
-      root["current_temperature_high"] = obj->target_temperature_low;
+      root["target_temperature_low"] = value_accuracy_to_string(obj->target_temperature_low, accuracy);
+      root["target_temperature_high"] = value_accuracy_to_string(obj->target_temperature_high, accuracy);
+      if (!has_state) {
+        root["state"] =
+            value_accuracy_to_string((obj->target_temperature_high + obj->target_temperature_low) / 2.0f, accuracy);
+      }
     } else {
-      root["target_temperature"] = obj->target_temperature;
-      root["state"] = obj->target_temperature;
+      root["target_temperature"] = value_accuracy_to_string(obj->target_temperature, accuracy);
+      if (!has_state)
+        root["state"] = root["target_temperature"];
     }
   });
 }
@@ -926,7 +947,7 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
 
     if (request->method() == HTTP_GET) {
       std::string data = this->lock_json(obj, obj->state, DETAIL_STATE);
-      request->send(200, "text/json", data.c_str());
+      request->send(200, "application/json", data.c_str());
     } else if (match.method == "lock") {
       this->defer([obj]() { obj->lock(); });
       request->send(200);
