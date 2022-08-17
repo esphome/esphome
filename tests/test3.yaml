@@ -1506,6 +1506,9 @@ button:
     target_mac_address: 12:34:56:78:90:ab
     name: wol_test_1
     id: wol_1
+  - platform: reset
+    name: Restart Button (Clean Settings)
+
 
 cd74hc4067:
   pin_s0: GPIO12
