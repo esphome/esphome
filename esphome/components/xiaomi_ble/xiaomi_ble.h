@@ -17,6 +17,7 @@ struct XiaomiParseResult {
     TYPE_LYWSD02,
     TYPE_CGG1,
     TYPE_LYWSD03MMC,
+    TYPE_MCCGQ02HL,
     TYPE_CGD1,
     TYPE_CGDK2,
     TYPE_JQJCY01YM,
@@ -41,6 +42,7 @@ struct XiaomiParseResult {
   optional<bool> is_active;
   optional<bool> has_motion;
   optional<bool> is_light;
+  optional<bool> is_lock;
   optional<bool> button_press;
   bool has_data;        // 0x40
   bool has_capability;  // 0x20
