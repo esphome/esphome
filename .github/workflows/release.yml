@@ -17,7 +17,7 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Get tag
         id: tag
         run: |
@@ -35,9 +35,9 @@ jobs:
     if: github.repository == 'esphome/esphome' && github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Set up Python
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v4
         with:
           python-version: '3.x'
       - name: Set up python environment
@@ -65,24 +65,24 @@ jobs:
         arch: [amd64, armv7, aarch64]
         build_type: ["ha-addon", "docker", "lint"]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: '3.9'
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
+      uses: docker/setup-buildx-action@v2
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v1
+      uses: docker/setup-qemu-action@v2
 
     - name: Log in to docker hub
-      uses: docker/login-action@v1
+      uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKER_USER }}
         password: ${{ secrets.DOCKER_PASSWORD }}
     - name: Log in to the GitHub container registry
-      uses: docker/login-action@v1
+      uses: docker/login-action@v2
       with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -108,9 +108,9 @@ jobs:
       matrix:
         build_type: ["ha-addon", "docker", "lint"]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: '3.9'
     - name: Enable experimental manifest support
@@ -119,12 +119,12 @@ jobs:
         echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
 
     - name: Log in to docker hub
-      uses: docker/login-action@v1
+      uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKER_USER }}
         password: ${{ secrets.DOCKER_PASSWORD }}
     - name: Log in to the GitHub container registry
-      uses: docker/login-action@v1
+      uses: docker/login-action@v2
       with:
           registry: ghcr.io
           username: ${{ github.actor }}

@@ -152,6 +152,10 @@ void Nextion::add_setup_state_callback(std::function<void()> &&callback) {
   this->setup_callback_.add(std::move(callback));
 }
 
+void Nextion::add_new_page_callback(std::function<void(uint8_t)> &&callback) {
+  this->page_callback_.add(std::move(callback));
+}
+
 void Nextion::update_all_components() {
   if ((!this->is_setup() && !this->ignore_is_setup_) || this->is_sleeping())
     return;
@@ -390,7 +394,6 @@ void Nextion::process_nextion_commands_() {
       case 0x1A:  // variable name invalid
         ESP_LOGW(TAG, "Nextion reported variable name invalid!");
         this->remove_from_q_();
-
         break;
       case 0x1B:  // variable operation invalid
         ESP_LOGW(TAG, "Nextion reported variable operation invalid!");
@@ -417,7 +420,6 @@ void Nextion::process_nextion_commands_() {
       case 0x23:  // too long variable name
         ESP_LOGW(TAG, "Nextion reported too long variable name!");
         this->remove_from_q_();
-
         break;
       case 0x24:  //  Serial Buffer overflow occurs
         ESP_LOGW(TAG, "Nextion reported Serial Buffer overflow!");
@@ -425,9 +427,9 @@ void Nextion::process_nextion_commands_() {
       case 0x65: {  // touch event return data
         if (to_process_length != 3) {
           ESP_LOGW(TAG, "Touch event data is expecting 3, received %zu", to_process_length);
-
           break;
         }
+
         uint8_t page_id = to_process[0];
         uint8_t component_id = to_process[1];
         uint8_t touch_event = to_process[2];  // 0 -> release, 1 -> press
@@ -436,6 +438,18 @@ void Nextion::process_nextion_commands_() {
         for (auto *touch : this->touch_) {
           touch->process_touch(page_id, component_id, touch_event != 0);
         }
+        break;
+      }
+      case 0x66: {  // Nextion initiated new page event return data.
+                    // Also is used for sendme command which we never explicitly initiate
+        if (to_process_length != 1) {
+          ESP_LOGW(TAG, "New page event data is expecting 1, received %zu", to_process_length);
+          break;
+        }
+
+        uint8_t page_id = to_process[0];
+        ESP_LOGD(TAG, "Got new page=%u", page_id);
+        this->page_callback_.call(page_id);
         break;
       }
       case 0x67: {  // Touch Coordinate (awake)
@@ -455,9 +469,6 @@ void Nextion::process_nextion_commands_() {
         ESP_LOGD(TAG, "Got touch at x=%u y=%u type=%s", x, y, touch_event ? "PRESS" : "RELEASE");
         break;
       }
-      case 0x66: {
-        break;
-      }  // sendme page id
 
       //  0x70 0x61 0x62 0x31 0x32 0x33 0xFF 0xFF 0xFF
       //  Returned when using get command for a string.

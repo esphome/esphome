@@ -301,6 +301,10 @@ ble_client:
         - switch.turn_on: ble1_status
   - mac_address: C4:4F:33:11:22:33
     id: my_bedjet_ble_client
+bedjet:
+  - ble_client_id: my_bedjet_ble_client
+    id: my_bedjet_client
+    time_id: sntp_time
 mcp23s08:
   - id: "mcp23s08_hub"
     cs_pin: GPIO12
@@ -600,7 +604,6 @@ sensor:
     sensor: hlw8012_power
     name: "Integration Sensor lazy"
     time_unit: s
-    min_save_interval: 60s
   - platform: hmc5883l
     address: 0x68
     field_strength_x:
@@ -1138,7 +1141,7 @@ sensor:
   - platform: max9611
     i2c_id: i2c_bus
     shunt_resistance: 0.2 ohm
-    gain: '1X'
+    gain: "1X"
     voltage:
       name: Max9611 Voltage
     current:
@@ -1148,7 +1151,6 @@ sensor:
     temperature:
       name: Max9611 Temp
     update_interval: 1s
-
 
 esp32_touch:
   setup_mode: False
@@ -1380,6 +1382,19 @@ binary_sensor:
     threshold: 100
     filters:
       - invert:
+  - platform: template
+    id: open_endstop_sensor
+  - platform: template
+    id: open_sensor
+  - platform: template
+    id: open_obstacle_sensor
+
+  - platform: template
+    id: close_endstop_sensor
+  - platform: template
+    id: close_sensor
+  - platform: template
+    id: close_obstacle_sensor
 
 pca9685:
   frequency: 500
@@ -1892,8 +1907,10 @@ climate:
     icon: mdi:stove
   - platform: bedjet
     name: My Bedjet
-    ble_client_id: my_bedjet_ble_client
+    bedjet_id: my_bedjet_client
     heat_mode: extended
+  - platform: whynter
+    name: Whynter
 
 script:
   - id: climate_custom
@@ -2367,6 +2384,7 @@ display:
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: st7789v
+    model: TTGO TDisplay 135x240
     cs_pin: GPIO5
     dc_pin: GPIO16
     reset_pin: GPIO23
@@ -2540,6 +2558,36 @@ cover:
     id: am43_test
     ble_client_id: ble_foo
     icon: mdi:blinds
+  - platform: feedback
+    name: "Feedback Cover"
+    id: gate
+    device_class: gate
+
+    infer_endstop_from_movement: false
+    has_built_in_endstop: false
+    max_duration: 30s
+    direction_change_wait_time: 300ms
+    acceleration_wait_time: 150ms
+    obstacle_rollback: 10%
+
+    open_duration: 22.1s
+    open_endstop: open_endstop_sensor
+    open_sensor: open_sensor
+    open_obstacle_sensor: open_obstacle_sensor
+
+    close_duration: 22.4s
+    close_endstop: close_endstop_sensor
+    close_sensor: close_sensor
+    close_obstacle_sensor: close_obstacle_sensor
+
+    open_action:
+      - logger.log: Open Action
+
+    close_action:
+      - logger.log: Close Action
+
+    stop_action:
+      - logger.log: Stop Action
 
 debug:
 
@@ -2611,10 +2659,10 @@ globals:
 text_sensor:
   - platform: ble_client
     ble_client_id: ble_foo
-    name: 'Sensor Location'
-    service_uuid: '180d'
-    characteristic_uuid: '2a38'
-    descriptor_uuid: '2902'
+    name: "Sensor Location"
+    service_uuid: "180d"
+    characteristic_uuid: "2a38"
+    descriptor_uuid: "2902"
     notify: true
     update_interval: never
     on_notify:
@@ -2706,7 +2754,7 @@ canbus:
                 lambda: "return x[0] == 0x11;"
               then:
                 light.toggle: ${roomname}_lights
-      - can_id:      0b00000000000000000000001000000
+      - can_id: 0b00000000000000000000001000000
         can_id_mask: 0b11111000000000011111111000000
         use_extended_id: true
         then:
@@ -2744,7 +2792,7 @@ canbus:
                 lambda: "return x[0] == 0x11;"
               then:
                 light.toggle: ${roomname}_lights
-      - can_id:      0b00000000000000000000001000000
+      - can_id: 0b00000000000000000000001000000
         can_id_mask: 0b11111000000000011111111000000
         use_extended_id: true
         then:
