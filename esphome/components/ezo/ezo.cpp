@@ -100,7 +100,7 @@ void EZOSensor::loop() {
       break;
   }
 
-  ESP_LOGD(TAG, "Received buffer \"%s\" for command type %s", buf, EZO_COMMAND_TYPE_STRINGS[to_run->command_type]);
+  ESP_LOGV(TAG, "Received buffer \"%s\" for command type %s", buf, EZO_COMMAND_TYPE_STRINGS[to_run->command_type]);
 
   if ((buf[0] == 1) || (to_run->command_type == EzoCommandType::EZO_CALIBRATION)) {  // EZO_CALIBRATION returns 0-3
     // some sensors return multiple comma-separated values, terminate string after first one
