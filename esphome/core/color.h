@@ -48,13 +48,13 @@ struct Color {
   inline bool operator==(const Color &rhs)  {  // NOLINT
     return this->raw_32 == rhs.raw_32;
   }
-  inline bool operator==(uint32_t colorcode) {
+  inline bool operator==(uint32_t colorcode) { // NOLINT
     return this->raw_32 == colorcode;
   }
   inline bool operator!=(const Color &rhs)  {  // NOLINT
     return this->raw_32 != rhs.raw_32;
   }
-  inline bool operator!=(uint32_t colorcode)  {
+  inline bool operator!=(uint32_t colorcode)  { // NOLINT
     return this->raw_32 != colorcode;
   }
 
