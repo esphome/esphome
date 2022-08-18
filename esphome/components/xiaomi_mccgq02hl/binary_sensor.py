@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_ON_LOCK,
 )
 
+CODEOWNERS = ["@JordyH66"]
 DEPENDENCIES = ["esp32_ble_tracker"]
 AUTO_LOAD = ["xiaomi_ble"]
 
@@ -22,14 +23,12 @@ XiaomiMCCGQ02HL = xiaomi_mccgq02hl_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.binary_sensor_schema(
-        XiaomiMCCGQ02HL, device_class=DEVICE_CLASS_DOOR
-    )
+    binary_sensor.binary_sensor_schema(XiaomiMCCGQ02HL, device_class=DEVICE_CLASS_DOOR)
     .extend(
         {
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Required(CONF_BINDKEY): cv.bind_key,
-            cv.Optional(CONF_ON_LOCK,default=True): binary_sensor.binary_sensor_schema(
+            cv.Optional(CONF_ON_LOCK, default=True): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_DOOR
             ),
             cv.Optional(CONF_LIGHT): binary_sensor.binary_sensor_schema(
