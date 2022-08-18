@@ -270,7 +270,7 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
  *
  * If the handshake is still active when this method returns and a read/write can't take place at
  * the moment, returns WOULD_BLOCK.
- * If an error occured, returns that error. Only returns OK if the transport is ready for data
+ * If an error occurred, returns that error. Only returns OK if the transport is ready for data
  * traffic.
  */
 APIError APINoiseFrameHelper::state_action_() {
@@ -586,7 +586,7 @@ APIError APINoiseFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
     }
     return APIError::OK;
   } else if (sent == -1) {
-    // an error occured
+    // an error occurred
     state_ = State::FAILED;
     HELPER_LOG("Socket write failed with errno %d", errno);
     return APIError::SOCKET_WRITE_FAILED;
@@ -980,7 +980,7 @@ APIError APIPlaintextFrameHelper::write_raw_(const struct iovec *iov, int iovcnt
     }
     return APIError::OK;
   } else if (sent == -1) {
-    // an error occured
+    // an error occurred
     state_ = State::FAILED;
     HELPER_LOG("Socket write failed with errno %d", errno);
     return APIError::SOCKET_WRITE_FAILED;

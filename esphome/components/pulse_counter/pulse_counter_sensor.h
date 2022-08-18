@@ -55,6 +55,8 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   void set_filter_us(uint32_t filter) { storage_.filter_us = filter; }
   void set_total_sensor(sensor::Sensor *total_sensor) { total_sensor_ = total_sensor; }
 
+  void set_total_pulses(uint32_t pulses);
+
   /// Unit of measurement is "pulses/min".
   void setup() override;
   void update() override;
