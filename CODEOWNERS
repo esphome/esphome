@@ -59,6 +59,7 @@ esphome/components/debug/* @OttoWinter
 esphome/components/delonghi/* @grob6000
 esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
+esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
 esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/ektf2232/* @jesserockz

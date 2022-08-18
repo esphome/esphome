@@ -768,6 +768,14 @@ sensor:
     temperature:
       name: "MPU6886 Temperature"
     i2c_id: i2c_bus
+  - platform: dps310
+    temperature:
+      name: "DPS310 Temperature"
+    pressure:
+      name: "DPS310 Pressure"
+    address: 0x77
+    update_interval: 15s
+    i2c_id: i2c_bus
   - platform: ms5611
     temperature:
       name: "Outside Temperature"
