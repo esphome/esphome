@@ -2,12 +2,15 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import esp32_ble_tracker
 from esphome.const import (
+    CONF_CHARACTERISTIC_UUID,
     CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_NAME,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
+    CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
+    CONF_VALUE,
 )
 from esphome import automation
 
@@ -27,6 +30,8 @@ BLEClientConnectTrigger = ble_client_ns.class_(
 BLEClientDisconnectTrigger = ble_client_ns.class_(
     "BLEClientDisconnectTrigger", automation.Trigger.template(BLEClientNodeConstRef)
 )
+# Actions
+BLEWriteAction = ble_client_ns.class_("BLEClientWriteAction", automation.Action)
 
 # Espressif platformio framework is built with MAX_BLE_CONN to 3, so
 # enforce this in yaml checks.
@@ -70,6 +75,39 @@ BLE_CLIENT_SCHEMA = cv.Schema(
 async def register_ble_node(var, config):
     parent = await cg.get_variable(config[CONF_BLE_CLIENT_ID])
     cg.add(parent.register_ble_node(var))
+
+
+BLE_WRITE_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(BLEClient),
+        cv.Required(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
+        cv.Required(CONF_CHARACTERISTIC_UUID): esp32_ble_tracker.bt_uuid,
+        cv.Required(CONF_VALUE): cv.templatable(cv.ensure_list(cv.hex_uint8_t)),
+    }
+)
+
+
+@automation.register_action(
+    "ble_client.ble_write", BLEWriteAction, BLE_WRITE_ACTION_SCHEMA
+)
+async def ble_write_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    value = config[CONF_VALUE]
+    if cg.is_template(value):
+        templ = await cg.templatable(value, args, cg.std_vector.template(cg.uint8))
+        cg.add(var.set_value_template(templ))
+    else:
+        cg.add(var.set_value_simple(value))
+
+    serv_uuid128 = esp32_ble_tracker.as_reversed_hex_array(config[CONF_SERVICE_UUID])
+    cg.add(var.set_service_uuid128(serv_uuid128))
+    char_uuid128 = esp32_ble_tracker.as_reversed_hex_array(
+        config[CONF_CHARACTERISTIC_UUID]
+    )
+    cg.add(var.set_char_uuid128(char_uuid128))
+    return var
 
 
 async def to_code(config):

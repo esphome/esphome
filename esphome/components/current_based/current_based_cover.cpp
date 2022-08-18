@@ -131,7 +131,7 @@ void CurrentBasedCover::dump_config() {
   ESP_LOGCONFIG(TAG, "  Close Duration: %.1fs", this->close_duration_ / 1e3f);
   ESP_LOGCONFIG(TAG, "Obstacle Rollback: %.1f%%", this->obstacle_rollback_ * 100);
   if (this->max_duration_ != UINT32_MAX) {
-    ESP_LOGCONFIG(TAG, "Maximun duration: %.1fs", this->max_duration_ / 1e3f);
+    ESP_LOGCONFIG(TAG, "Maximum duration: %.1fs", this->max_duration_ / 1e3f);
   }
   ESP_LOGCONFIG(TAG, "Start sensing delay: %.1fs", this->start_sensing_delay_ / 1e3f);
   ESP_LOGCONFIG(TAG, "Malfunction detection: %s", YESNO(this->malfunction_detection_));

@@ -1,5 +1,6 @@
 # pylint: disable=wrong-import-position
 
+import base64
 import codecs
 import collections
 import functools
@@ -283,6 +284,18 @@ class EsphomeLogsHandler(EsphomeCommandWebSocket):
         ]
 
 
+class EsphomeRenameHandler(EsphomeCommandWebSocket):
+    def build_command(self, json_message):
+        config_file = settings.rel_path(json_message["configuration"])
+        return [
+            "esphome",
+            "--dashboard",
+            "rename",
+            config_file,
+            json_message["newName"],
+        ]
+
+
 class EsphomeUploadHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
@@ -366,6 +379,8 @@ class WizardRequestHandler(BaseHandler):
             if k in ("name", "platform", "board", "ssid", "psk", "password")
         }
         kwargs["ota_password"] = secrets.token_hex(16)
+        noise_psk = secrets.token_bytes(32)
+        kwargs["api_encryption_key"] = base64.b64encode(noise_psk).decode()
         destination = settings.rel_path(f"{kwargs['name']}.yaml")
         wizard.wizard_write(path=destination, **kwargs)
         self.set_status(200)
@@ -971,6 +986,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}devices", ListDevicesHandler),
             (f"{rel}import", ImportRequestHandler),
             (f"{rel}secret_keys", SecretKeysRequestHandler),
+            (f"{rel}rename", EsphomeRenameHandler),
         ],
         **app_settings,
     )

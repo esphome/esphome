@@ -137,6 +137,7 @@ class RealTimeClock : public PollingComponent {
   void synchronize_epoch_(uint32_t epoch);
 
   std::string timezone_{};
+  void apply_timezone_();
 
   CallbackManager<void()> time_sync_callback_;
 };

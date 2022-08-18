@@ -38,7 +38,7 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 
     if (this->impedance_ != nullptr) {
       if (res->version == 1) {
-        ESP_LOGW(TAG, "Impedance is only supported on version 2. Your scale was identified as verison 1.");
+        ESP_LOGW(TAG, "Impedance is only supported on version 2. Your scale was identified as version 1.");
       } else {
         if (res->impedance.has_value()) {
           this->impedance_->publish_state(*res->impedance);

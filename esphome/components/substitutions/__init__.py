@@ -48,7 +48,7 @@ VARIABLE_PROG = re.compile(
 )
 
 
-def _expand_substitutions(substitutions, value, path):
+def _expand_substitutions(substitutions, value, path, ignore_missing):
     if "$" not in value:
         return value
 
@@ -66,13 +66,14 @@ def _expand_substitutions(substitutions, value, path):
         if name.startswith("{") and name.endswith("}"):
             name = name[1:-1]
         if name not in substitutions:
-            _LOGGER.warning(
-                "Found '%s' (see %s) which looks like a substitution, but '%s' was "
-                "not declared",
-                orig_value,
-                "->".join(str(x) for x in path),
-                name,
-            )
+            if not ignore_missing:
+                _LOGGER.warning(
+                    "Found '%s' (see %s) which looks like a substitution, but '%s' was "
+                    "not declared",
+                    orig_value,
+                    "->".join(str(x) for x in path),
+                    name,
+                )
             i = j
             continue
 
@@ -92,37 +93,37 @@ def _expand_substitutions(substitutions, value, path):
     return value
 
 
-def _substitute_item(substitutions, item, path):
+def _substitute_item(substitutions, item, path, ignore_missing):
     if isinstance(item, list):
         for i, it in enumerate(item):
-            sub = _substitute_item(substitutions, it, path + [i])
+            sub = _substitute_item(substitutions, it, path + [i], ignore_missing)
             if sub is not None:
                 item[i] = sub
     elif isinstance(item, dict):
         replace_keys = []
         for k, v in item.items():
             if path or k != CONF_SUBSTITUTIONS:
-                sub = _substitute_item(substitutions, k, path + [k])
+                sub = _substitute_item(substitutions, k, path + [k], ignore_missing)
                 if sub is not None:
                     replace_keys.append((k, sub))
-            sub = _substitute_item(substitutions, v, path + [k])
+            sub = _substitute_item(substitutions, v, path + [k], ignore_missing)
             if sub is not None:
                 item[k] = sub
         for old, new in replace_keys:
             item[new] = merge_config(item.get(old), item.get(new))
             del item[old]
     elif isinstance(item, str):
-        sub = _expand_substitutions(substitutions, item, path)
+        sub = _expand_substitutions(substitutions, item, path, ignore_missing)
         if sub != item:
             return sub
     elif isinstance(item, core.Lambda):
-        sub = _expand_substitutions(substitutions, item.value, path)
+        sub = _expand_substitutions(substitutions, item.value, path, ignore_missing)
         if sub != item:
             item.value = sub
     return None
 
 
-def do_substitution_pass(config, command_line_substitutions):
+def do_substitution_pass(config, command_line_substitutions, ignore_missing=False):
     if CONF_SUBSTITUTIONS not in config and not command_line_substitutions:
         return
 
@@ -151,4 +152,4 @@ def do_substitution_pass(config, command_line_substitutions):
     config[CONF_SUBSTITUTIONS] = substitutions
     # Move substitutions to the first place to replace substitutions in them correctly
     config.move_to_end(CONF_SUBSTITUTIONS, False)
-    _substitute_item(substitutions, config, [])
+    _substitute_item(substitutions, config, [], ignore_missing)

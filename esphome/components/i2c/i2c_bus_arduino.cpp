@@ -224,7 +224,7 @@ void ArduinoI2CBus::recover_() {
   digitalWrite(sda_pin_, LOW);      // NOLINT
 
   // By now, any stuck device ought to have sent all remaining bits of its
-  // transation, meaning that it should have freed up the SDA line, resulting
+  // transaction, meaning that it should have freed up the SDA line, resulting
   // in SDA being pulled up.
   if (digitalRead(sda_pin_) == LOW) {  // NOLINT
     ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");

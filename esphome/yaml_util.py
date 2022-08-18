@@ -251,7 +251,49 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_include(self, node):
-        return _load_yaml_internal(self._rel_path(node.value))
+        def extract_file_vars(node):
+            fields = self.construct_yaml_map(node)
+            file = fields.get("file")
+            if file is None:
+                raise yaml.MarkedYAMLError("Must include 'file'", node.start_mark)
+            vars = fields.get("vars")
+            if vars:
+                vars = {k: str(v) for k, v in vars.items()}
+            return file, vars
+
+        def substitute_vars(config, vars):
+            from esphome.const import CONF_SUBSTITUTIONS
+            from esphome.components import substitutions
+
+            org_subs = None
+            result = config
+            if not isinstance(config, dict):
+                # when the included yaml contains a list or a scalar
+                # wrap it into an OrderedDict because do_substitution_pass expects it
+                result = OrderedDict([("yaml", config)])
+            elif CONF_SUBSTITUTIONS in result:
+                org_subs = result.pop(CONF_SUBSTITUTIONS)
+
+            result[CONF_SUBSTITUTIONS] = vars
+            # Ignore missing vars that refer to the top level substitutions
+            substitutions.do_substitution_pass(result, None, ignore_missing=True)
+            result.pop(CONF_SUBSTITUTIONS)
+
+            if not isinstance(config, dict):
+                result = result["yaml"]  # unwrap the result
+            elif org_subs:
+                result[CONF_SUBSTITUTIONS] = org_subs
+            return result
+
+        if isinstance(node, yaml.nodes.MappingNode):
+            file, vars = extract_file_vars(node)
+        else:
+            file, vars = node.value, None
+
+        result = _load_yaml_internal(self._rel_path(file))
+        if vars:
+            result = substitute_vars(result, vars)
+        return result
 
     @_add_data_ref
     def construct_include_dir_list(self, node):

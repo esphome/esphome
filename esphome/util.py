@@ -152,7 +152,6 @@ class RedirectText:
         # any caller.
         return len(s)
 
-    # pylint: disable=no-self-use
     def isatty(self):
         return True
 
