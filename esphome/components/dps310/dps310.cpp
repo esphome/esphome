@@ -102,6 +102,7 @@ float DPS310Component::get_setup_priority() const { return setup_priority::DATA;
 
 void DPS310Component::update() {
   if (!this->update_in_progress_) {
+    this->update_in_progress_ = true;
     this->read_();
   }
 }
