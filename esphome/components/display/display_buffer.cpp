@@ -58,12 +58,8 @@ void DisplayBuffer::set_rotation(DisplayRotation rotation) {
   this->rotation_ = rotation;
 }
 void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
-<<<<<<< HEAD
-  if (this->is_clipped(x, y)) return;  // NOLINT
-=======
 
   if (this->is_clipped(x, y))  return; // NOLINT
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
 
   switch (this->rotation_) {
     case DISPLAY_ROTATION_0_DEGREES:
@@ -106,12 +102,12 @@ void DisplayBuffer::line(int x1, int y1, int x2, int y2, Color color, Color gran
     if (x1 == x2 && y1 == y2)
       break;
     int32_t e2 = 2 * err;
-    if (e2 >= delta_y) {
-      err += delta_y;
+    if (e2 >= dy) {
+      err += dy;
       x1 += sx;
     }
-    if (e2 <= delta_x) {
-      err += delta_x;
+    if (e2 <= dx) {
+      err += dx;
       y1 += sy;
     }
   }
@@ -134,7 +130,7 @@ void HOT DisplayBuffer::vertical_line(int x, int y, int height, Color color, Col
 >>>>>>> a51a83e8 (Add more UI functions to display_buffer)
   // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
   for (int i = y; i < y + height; i++)
-    this->draw_pixel_at(x, i, grandient_from);
+    this->draw_pixel_at(x, i, color);
 }
 
 <<<<<<< HEAD
@@ -465,6 +461,7 @@ void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t ra
     }
     this->filled_quad(x0, y0, x1, y1, x2, y2, x3, y3, color.gradient(grandient_to, gradient_pos));
   }
+}
 }
 
 
