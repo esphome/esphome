@@ -1,11 +1,12 @@
 #include "display_buffer.h"
 
-#include <utility>
 #include "esphome/core/application.h"
 #include "esphome/core/color.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include <cmath>
+#include <utility>
 
 namespace esphome {
 namespace display {
@@ -48,8 +49,13 @@ int DisplayBuffer::get_height() {
       return this->get_width_internal();
   }
 }
-void DisplayBuffer::set_rotation(DisplayRotation rotation) { this->rotation_ = rotation; }
+void DisplayBuffer::set_rotation(DisplayRotation rotation) {
+  this->rotation_ = rotation;
+}
 void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
+
+  if (this->is_clipped(x, y))  return; // NOLINT
+
   switch (this->rotation_) {
     case DISPLAY_ROTATION_0_DEGREES:
       break;
@@ -69,97 +75,325 @@ void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
   this->draw_absolute_pixel_internal(x, y, color);
   App.feed_wdt();
 }
-void HOT DisplayBuffer::line(int x1, int y1, int x2, int y2, Color color) {
-  const int32_t dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
-  const int32_t dy = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
-  int32_t err = dx + dy;
 
+void DisplayBuffer::line(int x1, int y1, int x2, int y2, Color color, Color grandient_to) {
+  const int32_t delta_x = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
+  const int32_t delta_y = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
+  const int32_t gradient_step = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2))/255, gradient_pos = 0;
+  int32_t err = delta_x + delta_y;
   while (true) {
-    this->draw_pixel_at(x1, y1, color);
+    this->draw_pixel_at(x1, y1, color.gradient(grandient_to, gradient_pos));
     if (x1 == x2 && y1 == y2)
       break;
     int32_t e2 = 2 * err;
-    if (e2 >= dy) {
-      err += dy;
+    if (e2 >= delta_y) {
+      err += delta_y;
       x1 += sx;
     }
-    if (e2 <= dx) {
-      err += dx;
+    if (e2 <= delta_x) {
+      err += delta_x;
       y1 += sy;
     }
   }
 }
-void HOT DisplayBuffer::horizontal_line(int x, int y, int width, Color color) {
+/// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
+void HOT DisplayBuffer::horizontal_line(int x, int y, int width, Color color , Color grandient_to) {
   // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
   for (int i = x; i < x + width; i++)
     this->draw_pixel_at(i, y, color);
 }
-void HOT DisplayBuffer::vertical_line(int x, int y, int height, Color color) {
+/// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
+void HOT DisplayBuffer::vertical_line(int x, int y, int height, Color color, Color grandient_to) {
   // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
   for (int i = y; i < y + height; i++)
     this->draw_pixel_at(x, i, color);
 }
-void DisplayBuffer::rectangle(int x1, int y1, int width, int height, Color color) {
-  this->horizontal_line(x1, y1, width, color);
-  this->horizontal_line(x1, y1 + height - 1, width, color);
-  this->vertical_line(x1, y1, height, color);
-  this->vertical_line(x1 + width - 1, y1, height, color);
-}
-void DisplayBuffer::filled_rectangle(int x1, int y1, int width, int height, Color color) {
-  // Future: Use vertical_line and horizontal_line methods depending on rotation to reduce memory accesses.
-  for (int i = y1; i < y1 + height; i++) {
-    this->horizontal_line(x1, i, width, color);
+
+void DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t radius, Color color, Color grandient_to, GradientDirection direction) {
+  int delta_x = -radius;
+  int delta_y = 0;
+  int err = 2 - 2 * radius;
+  int e2;
+
+  x = x + radius;
+  y = y + radius;
+  height = height - (radius * 2);
+  width = width - (radius * 2);
+
+  this->horizontal_line(x, y - radius, width, color);
+  this->horizontal_line(x, y + radius + height - 1, width, color);
+  this->vertical_line(x - radius, y, height, color);
+  this->vertical_line(x + radius + width - 1, y, height, color);
+  if (radius > 0) {
+    do {
+      this->draw_pixel_at(x + delta_x, y - delta_y, color);
+      this->draw_pixel_at(x + delta_x, y + height + delta_y - 1, color);
+      this->draw_pixel_at(x + width - delta_x - 1, y - delta_y, color);
+      this->draw_pixel_at(x + width - delta_x - 1, y + height + delta_y - 1, color);
+      e2 = err;
+      if (e2 < delta_y) {
+        err += ++delta_y * 2 + 1;
+        if (-delta_x == delta_y && e2 <= delta_x) {
+          e2 = 0;
+        }
+      }
+      if (e2 > delta_x) {
+        err += ++delta_x * 2 + 1;
+      }
+    } while (delta_x <= 0);
   }
 }
-void HOT DisplayBuffer::circle(int center_x, int center_xy, int radius, Color color) {
-  int dx = -radius;
-  int dy = 0;
+void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color, Color grandient_to, GradientDirection direction) {
+  // Future: Use vertical_line and horizontal_line methods depending on rotation to reduce memory accesses.
+  int delta_x = -radius;
+  int delta_y = 0;
+  int err = 2 - 2 * radius;
+  int e2;
+
+  x = x + radius;
+  y = y + radius;
+  height = height - (radius * 2);
+  width = width - (radius * 2);
+
+  this->filled_rectangle(x - radius, y, width + (radius * 2), height, color);
+  do {
+    int hline_width = width + (2 * (-delta_x) + 1) - 1;
+    this->horizontal_line(x + delta_x, y + height + delta_y, hline_width, color);
+    this->horizontal_line(x + delta_x, y - delta_y, hline_width, color);
+    e2 = err;
+    if (e2 < delta_y) {
+      err += ++delta_y * 2 + 1;
+      if (-delta_x == delta_y && e2 <= delta_x) {
+        e2 = 0;
+      }
+    }
+    if (e2 > delta_x) {
+      err += ++delta_x * 2 + 1;
+    }
+  } while (delta_x <= 0);
+}
+
+void HOT DisplayBuffer::circle(int center_x, int center_xy, int radius, Color color, Color grandient_to, GradientDirection direction) {
+  int delta_x = -radius;
+  int delta_y = 0;
   int err = 2 - 2 * radius;
   int e2;
 
   do {
-    this->draw_pixel_at(center_x - dx, center_xy + dy, color);
-    this->draw_pixel_at(center_x + dx, center_xy + dy, color);
-    this->draw_pixel_at(center_x + dx, center_xy - dy, color);
-    this->draw_pixel_at(center_x - dx, center_xy - dy, color);
+    this->draw_pixel_at(center_x - delta_x, center_xy + delta_y, color);
+    this->draw_pixel_at(center_x + delta_x, center_xy + delta_y, color);
+    this->draw_pixel_at(center_x + delta_x, center_xy - delta_y, color);
+    this->draw_pixel_at(center_x - delta_x, center_xy - delta_y, color);
     e2 = err;
-    if (e2 < dy) {
-      err += ++dy * 2 + 1;
-      if (-dx == dy && e2 <= dx) {
+    if (e2 < delta_y) {
+      err += ++delta_y * 2 + 1;
+      if (-delta_x == delta_y && e2 <= delta_x) {
         e2 = 0;
       }
     }
-    if (e2 > dx) {
-      err += ++dx * 2 + 1;
+    if (e2 > delta_x) {
+      err += ++delta_x * 2 + 1;
     }
-  } while (dx <= 0);
+  } while (delta_x <= 0);
 }
-void DisplayBuffer::filled_circle(int center_x, int center_y, int radius, Color color) {
-  int dx = -int32_t(radius);
-  int dy = 0;
+void DisplayBuffer::filled_circle(int center_x, int center_y, int radius, Color color, Color grandient_to, GradientDirection direction) {
+  int delta_x = -int32_t(radius);
+  int delta_y = 0;
   int err = 2 - 2 * radius;
   int e2;
 
   do {
-    this->draw_pixel_at(center_x - dx, center_y + dy, color);
-    this->draw_pixel_at(center_x + dx, center_y + dy, color);
-    this->draw_pixel_at(center_x + dx, center_y - dy, color);
-    this->draw_pixel_at(center_x - dx, center_y - dy, color);
-    int hline_width = 2 * (-dx) + 1;
-    this->horizontal_line(center_x + dx, center_y + dy, hline_width, color);
-    this->horizontal_line(center_x + dx, center_y - dy, hline_width, color);
+    int hline_width = 2 * (-delta_x) + 1;
+    this->horizontal_line(center_x + delta_x, center_y + delta_y, hline_width, color);
+    this->horizontal_line(center_x + delta_x, center_y - delta_y, hline_width, color);
     e2 = err;
-    if (e2 < dy) {
-      err += ++dy * 2 + 1;
-      if (-dx == dy && e2 <= dx) {
+    if (e2 < delta_y) {
+      err += ++delta_y * 2 + 1;
+      if (-delta_x == delta_y && e2 <= delta_x) {
         e2 = 0;
       }
     }
-    if (e2 > dx) {
-      err += ++dx * 2 + 1;
+    if (e2 > delta_x) {
+      err += ++delta_x * 2 + 1;
     }
-  } while (dx <= 0);
+  } while (delta_x <= 0);
 }
+
+// Draw a triangle
+void DisplayBuffer::triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color,
+                             Color grandient_to, GradientDirection direction) {
+  // Draw triangle with three lines
+  this->line(x0, y0, x1, y1, color);
+  this->line(x1, y1, x2, y2, color);
+  this->line(x2, y2, x0, y0, color);
+}
+
+// Draw a filled triangle
+void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2,
+                                    Color color, Color grandient_to, GradientDirection direction) {
+  // Emulate triangle fill
+
+  // Algorithm:
+  // - An arbitrary triangle is cut into two portions:
+  //   1) a flat bottom triangle
+  //   2) a flat top triangle
+  // - Sort the vertices in descending vertical position.
+  //   This serves two purposes:
+  //   1) ensures that the division between the flat bottom
+  //      and flat top triangles occurs at Y=Y1
+  //   2) ensure that we avoid division-by-zero in the for loops
+  // - Walk each scan line and determine the intersection
+  //   between triangle side A & B (flat bottom triangle)
+  //   and then C and B (flat top triangle) using line slopes.
+
+  // Sort vertices
+  // - Want y0 >= y1 >= y2
+  if (y2 > y1) {
+    this->swap_coords_(&x2, &y2, &x1, &y1);
+  }
+  if (y1 > y0) {
+    this->swap_coords_(&x0, &y0, &x1, &y1);
+  }
+  if (y2 > y1) {
+    this->swap_coords_(&x2, &y2, &x1, &y1);
+  }
+
+  // TODO: It is more efficient to calculate row endpoints
+  // using incremental additions instead of multiplies/divides
+
+  int16_t xa, xb, xc, yos;
+  int16_t x01, x20, y01, y20, x21, y21;
+  x01 = x0 - x1;
+  y01 = y0 - y1;
+  x20 = x2 - x0;
+  y20 = y2 - y0;
+  x21 = x2 - x1;
+  y21 = y2 - y1;
+
+  // Flat bottom scenario
+  // NOTE: Due to vertex sorting and loop range, it shouldn't
+  // be possible to enter loop when y0 == y1 or y2
+  for (yos = 0; yos < y01; yos++) {
+    // Determine row endpoints (no rounding)
+    // xa = (yos          )*(x0-x1)/(y0-y1);
+    // xb = (yos-(y0-y1))*(x2-x0)/(y2-y0);
+
+    // Determine row endpoints (using rounding)
+    xa = 2 * yos * x01;
+    xa += (xa >= 0) ? abs(y01) : -abs(y01);
+    xa /= 2 * y01;
+
+    xb = 2 * (yos - y01) * x20;
+    xb += (xb >= 0) ? abs(y20) : -abs(y20);
+    xb /= 2 * y20;
+
+    // Draw horizontal line between endpoints
+    this->line(x1 + xa, y1 + yos, x0 + xb, y1 + yos, color);
+  }
+
+  // Flat top scenario
+  // NOTE: Due to vertex sorting and loop range, it shouldn't
+  // be possible to enter loop when y2 == y0 or y1
+  for (yos = y21; yos < 0; yos++) {
+    // Determine row endpoints (no rounding)
+    // xc = (yos          )*(x2-x1)/(y2-y1);
+    // xb = (yos-(y0-y1))*(x2-x0)/(y2-y0);
+
+    // Determine row endpoints (using rounding)
+    xc = 2 * yos * x21;
+    xc += (xc >= 0) ? abs(y21) : -abs(y21);
+    xc /= 2 * y21;
+
+    xb = 2 * (yos - y01) * x20;
+    xb += (xb >= 0) ? abs(y20) : -abs(y20);
+    xb /= 2 * y20;
+
+    // Draw horizontal line between endpoints
+    this->line(x1 + xc, y1 + yos, x0 + xb, y1 + yos, color);
+  }
+}
+
+void DisplayBuffer::quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3,
+                         Color color, Color grandient_to, GradientDirection direction) {
+  this->line(x0, y0, x1, y1, color);
+  this->line(x1, y1, x2, y2, color);
+  this->line(x2, y2, x3, y3, color);
+  this->line(x3, y3, x0, y0, color);
+}
+
+// Filling a quadrilateral is done by breaking it down into
+// two filled triangles sharing one side. We have to be careful
+// about the triangle fill routine (ie. using rounding) so that
+// we can avoid leaving a thin seam between the two triangles.
+void DisplayBuffer::filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3,
+                                int16_t y3, Color color, Color grandient_to, GradientDirection direction) {
+  this->filled_triangle(x0, y0, x1, y1, x2, y2, color,grandient_to, direction);
+  this->filled_triangle(x2, y2, x0, y0, x3, y3, color,grandient_to, direction);
+}
+
+void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t radius2, int16_t angle_start, int16_t angle_end, 
+                               Color color, Color grandient_to, int16_t gradient_angle_start, int16_t gradient_angle_range, int16_t quality) {
+  int16_t x0, y0, x1, y1, x2, y2, x3, y3;
+  int16_t gradient_pos = 0;
+  
+  // Calculate degrees per step (based on quality setting)
+  int16_t step_angle = 360 / quality;
+  int16_t step = 64 * step_angle;
+
+  int16_t angle;
+  int16_t calc_x, calc_y;
+  int16_t segment_start, segment_end;
+
+
+  segment_start = angle_start * (int32_t) quality / 360;
+  segment_end = angle_end * (int32_t) quality / 360;
+
+  int16_t segment_gradient_start, segment_gradient_range;
+  segment_gradient_start = gradient_angle_start * (int32_t) quality / 360;
+  segment_gradient_range = gradient_angle_range * (int32_t) quality / 360;
+  segment_gradient_range = (segment_gradient_range == 0) ? 1 : segment_gradient_range;  // Guard against div/0
+
+  bool clockwise;
+  int16_t segment_index;
+  int16_t step_count;
+  if (segment_end >= segment_start) {
+    step_count = segment_end - segment_start;
+    clockwise = true;
+  } else {
+    step_count = segment_start - segment_end;
+    clockwise = false;
+  }
+
+  for (int16_t step_index = 0; step_index < step_count; step_index++) {
+    // Remap from the step to the segment index, depending on direction
+    segment_index = (clockwise) ? (segment_start + step_index) : (segment_start - step_index - 1);
+
+    angle = (int32_t)(segment_index * step) % (int32_t)(23040);
+
+    this->calc_polar(radius1, angle, &calc_x, &calc_y);
+    x0 = x + calc_x;
+    y0 = y + calc_y;
+
+    this->calc_polar(radius2, angle, &calc_x, &calc_y);
+    x1 = x + calc_x;
+    y1 = y + calc_y;
+
+    this->calc_polar(radius2, angle + step, &calc_x, &calc_y);
+    x2 = x + calc_x;
+    y2 = y + calc_y;
+
+    this->calc_polar(radius1, angle + step, &calc_x, &calc_y);
+    x3 = x + calc_x;
+    y3 = y + calc_y;
+
+    if  (grandient_to == color) {
+      // Gradient coloring
+      gradient_pos = 255 * (int32_t)(segment_index - segment_gradient_start) / segment_gradient_range;
+    }
+    this->filled_quad(x0, y0, x1, y1, x2, y2, x3, y3, color.gradient(grandient_to, gradient_pos));
+  }
+}
+
 
 void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align, const char *text) {
   int x_start, y_start;
@@ -368,6 +602,7 @@ void DisplayBuffer::do_update_() {
   } else if (this->writer_.has_value()) {
     (*this->writer_)(*this);
   }
+  this->clear_clipping();
 }
 void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
   if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
@@ -391,6 +626,184 @@ void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, time:
   this->strftime(x, y, font, COLOR_ON, TextAlign::TOP_LEFT, format, time);
 }
 #endif
+
+
+// Expand or contract a rectangle in width and/or height (equal
+// amounts on both side), based on the centerpoint of the rectangle.
+Rect DisplayBuffer::expand_rect(Rect rect, int16_t width, int16_t height) {
+  Rect new_rect = {1, 1, 0, 0};
+
+  // Detect error case of contracting region too far
+  if (((int16_t) rect.w < (-2 * width)) || ((int16_t) rect.h < (-2 * height))) {
+    // Return an empty coordinate box (which won't be drawn)
+    return new_rect;
+  }
+
+  // Adjust the rectangle coordinate to allow for new dimensions
+  // Note that this moves the coordinate in the opposite
+  // direction of the expansion/contraction.
+  new_rect.x = rect.x - width;
+  new_rect.y = rect.y - height;
+  // Adjust the new width/height
+  // Note that the overall width/height changes by a factor of
+  // two since we are applying the adjustment on both sides (ie.
+  // top/bottom or left/right) equally.
+  new_rect.w = rect.w + (2 * width);
+  new_rect.h = rect.h + (2 * height);
+
+  return new_rect;
+}
+
+// Expand the current rect (pRect) to enclose the additional rect region (radd_rect)
+Rect DisplayBuffer::union_rect(Rect rect, Rect add_rect) {
+  // If the source rect has zero dimensions, then treat as empty
+  if ((rect.w == 0) || (rect.h == 0)) {
+    // No source region defined, simply copy add region
+    return add_rect;
+  }
+
+  // Source region valid, so increase dimensions
+
+  // Find the new maximal dimensions
+  uint16_t source_x0 = (rect.x < add_rect.x) ? rect.x : add_rect.x;
+  uint16_t source_y0 = (rect.y < add_rect.y) ? rect.x : add_rect.y;
+  uint16_t source_x1 = (rect.w > add_rect.w) ? rect.x : add_rect.w;
+  uint16_t source_y1 = (rect.h > add_rect.h) ? rect.x : add_rect.h;
+
+  // Update the original rect region
+  return Rect(source_x0, source_y0, source_x1, source_y1);
+}
+
+Rect DisplayBuffer::intersect_rect(Rect rect, Rect add_rect) {
+  // If the source rect has zero dimensions, then treat as empty
+  if ((rect.w == 0) || (rect.h == 0)) {
+    // No source region defined, simply copy add region
+    return add_rect;
+  }
+  // Find the new minimum dimensions
+  uint16_t source_x0 = (rect.x > add_rect.x) ? rect.x : add_rect.x;
+  uint16_t source_y0 = (rect.y > add_rect.y) ? rect.x : add_rect.y;
+  uint16_t source_x1 = (rect.w < add_rect.w) ? rect.x : add_rect.w;
+  uint16_t source_y1 = (rect.h < add_rect.h) ? rect.x : add_rect.h;
+
+  // Update the original rect region
+  return Rect(source_x0, source_y0, source_x1, source_y1);
+}
+
+bool DisplayBuffer::in_rect(int16_t x, int16_t y, Rect rect) {
+  return ((x >= rect.x) && (x <= rect.w) && (y >= rect.y) && (y <= rect.h));
+}
+
+bool DisplayBuffer::is_inside(int16_t x, int16_t y, uint16_t width, uint16_t height) {
+  return ((x >= 0) && (x <= (int16_t)(width) -1) && (y >= 0) && (y <= (int16_t)(height) -1));
+}
+
+void DisplayBuffer::clear_clipping() {
+  if (this->clipping_rectangle_.empty()) {
+    ESP_LOGW(TAG, "Clipping is not set.");
+  } else {
+    this->clipping_rectangle_.pop_back();
+  }
+}
+
+void DisplayBuffer::add_clipping(Rect add_rect) {
+  if (this->clipping_rectangle_.empty()) {
+    ESP_LOGW(TAG, "Clipping is not set.");
+  } else {
+    Rect rect = this->get_clipping();
+    rect = this->union_rect(rect, add_rect);
+    this->clipping_rectangle_.back() = rect;
+  }
+}
+
+void DisplayBuffer::set_clipping(Rect rect) {
+  this->clipping_rectangle_.push_back( rect);
+}
+
+Rect DisplayBuffer::get_clipping() {
+  if (this->clipping_rectangle_.empty()) {
+    return Rect(1, 1, 0, 0);
+  } else {
+    return this->clipping_rectangle_.back();
+  }
+}
+
+bool DisplayBuffer::is_clipped(int16_t x, int16_t y) {
+  Rect clip = this->get_clipping();
+  if ((clip.w == 0) || (clip.h == 0))
+    return false;
+  return ((x < clip.x) || (x > clip.w) || (y < clip.y) || (y > clip.h));
+}
+
+bool DisplayBuffer::is_clipped(Rect rect) {
+  Rect clip = this->get_clipping();
+  if ((clip.w == 0) || (clip.h == 0))
+    return true;
+  return ((rect.w < clip.x) || (rect.x > clip.w) || (rect.h < clip.y) || (rect.y > clip.h));
+}
+
+// -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+// Graphics General Functions
+// ------------------------------------------------------------------------
+
+// Sine function with optional lookup table
+// - Note that the angle range is limited by 16-bit integers
+//   to an effective degree range of -511 to +511 degrees,
+//   defined by the max integer range: 32767/64.
+int16_t DisplayBuffer::get_sin(int16_t angle) {
+  // Use floating-point math library function
+  // Calculate angle in radians
+  float angle_rad = angle * POLAR_2PI / (23040.0);  // = 360.0 x 64.0
+  // Perform floating point calc
+  float sin = std::sin(angle_rad);
+  // Return as fixed point result
+  return sin * 32767.0;
+}
+
+// Cosine function with optional lookup table
+// - Note that the angle range is limited by 16-bit integers
+//   to an effective degree range of -511 to +511 degrees,
+//   defined by the max integer range: 32767/64.
+int16_t DisplayBuffer::get_cos(int16_t angle) {
+  // Use floating-point math library function
+  // Calculate angle in radians
+  float angle_rad = angle * POLAR_2PI / (23040.0);  // = 360.0 x 64.0
+  // Return as fixed point result
+  float cos = std::cos(angle_rad);
+
+  return cos * 32767.0;
+}
+
+// Convert from polar to cartesian
+void DisplayBuffer::calc_polar(uint16_t radius, int16_t angle, int16_t *x, int16_t *y) {
+  int32_t temp;
+  // TODO: Clean up excess integer typecasting
+  temp = (int32_t) radius * this->get_sin(angle);
+  *x = temp / 32767;
+  temp = (int32_t) radius * -this->get_cos(angle);
+  *y = temp / 32767;
+}
+
+// Note that angle is in degrees * 64
+void DisplayBuffer::polar_line(int16_t x, int16_t y, uint16_t radius_start, uint16_t radius_end, int16_t angle,
+                               Color color) {
+  // Draw the ray representing the current value
+  int16_t delta_x_start = (int32_t) radius_start * get_sin(angle) / 32768;
+  int16_t delta_y_start = (int32_t) radius_start * get_cos(angle) / 32768;
+  int16_t delta_x_end = (int32_t) radius_end * get_sin(angle) / 32768;
+  int16_t delta_y_end = (int32_t) radius_end * get_cos(angle) / 32768;
+  this->line(x + delta_x_start, y - delta_y_start, x + delta_x_end, y - delta_y_end, color);
+}
+
+void DisplayBuffer::swap_coords_(int16_t *x0, int16_t *y0, int16_t *x1, int16_t *y1) {
+  int16_t swap_x, swap_y;
+  swap_x = *x0;
+  swap_y = *y0;
+  *x0 = *x1;
+  *y0 = *y1;
+  *x1 = swap_x;
+  *y1 = swap_y;
+}
 
 bool Glyph::get_pixel(int x, int y) const {
   const int x_data = x - this->glyph_data_->offset_x;
@@ -588,18 +1001,6 @@ void Animation::prev_frame() {
   this->current_frame_--;
   if (this->current_frame_ < 0) {
     this->current_frame_ = this->animation_frame_count_ - 1;
-  }
-}
-
-void Animation::set_frame(int frame) {
-  unsigned abs_frame = abs(frame);
-
-  if (abs_frame < this->animation_frame_count_) {
-    if (frame >= 0) {
-      this->current_frame_ = frame;
-    } else {
-      this->current_frame_ = this->animation_frame_count_ - abs_frame;
-    }
   }
 }
 
