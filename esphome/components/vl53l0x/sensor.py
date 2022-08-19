@@ -22,6 +22,7 @@ CONF_SIGNAL_RATE_LIMIT = "signal_rate_limit"
 CONF_LONG_RANGE = "long_range"
 CONF_TIMING_BUDGET = "timing_budget"
 
+
 def check_keys(obj):
     if obj[CONF_ADDRESS] != 0x29 and CONF_ENABLE_PIN not in obj:
         msg = "Address other then 0x29 requires enable_pin definition to allow sensor\r"
