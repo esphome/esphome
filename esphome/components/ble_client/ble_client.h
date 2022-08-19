@@ -115,6 +115,7 @@ class BLEClient : public espbt::ESPBTClient, public Component {
 
   int gattc_if;
   esp_bd_addr_t remote_bda;
+  esp_ble_addr_type_t remote_addr_type;
   uint16_t conn_id;
   uint64_t address;
   bool enabled;

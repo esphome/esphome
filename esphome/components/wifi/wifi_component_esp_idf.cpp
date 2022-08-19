@@ -285,6 +285,11 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 #endif
 
+#ifdef USE_WIFI_11KV_SUPPORT
+  conf.sta.btm_enabled = this->btm_;
+  conf.sta.rm_enabled = this->rrm_;
+#endif
+
   if (ap.get_bssid().has_value()) {
     conf.sta.bssid_set = true;
     memcpy(conf.sta.bssid, ap.get_bssid()->data(), 6);

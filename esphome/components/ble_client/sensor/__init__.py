@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, ble_client, esp32_ble_tracker
 from esphome.const import (
+    CONF_CHARACTERISTIC_UUID,
     CONF_LAMBDA,
     CONF_TRIGGER_ID,
     CONF_SERVICE_UUID,
@@ -11,7 +12,6 @@ from .. import ble_client_ns
 
 DEPENDENCIES = ["ble_client"]
 
-CONF_CHARACTERISTIC_UUID = "characteristic_uuid"
 CONF_DESCRIPTOR_UUID = "descriptor_uuid"
 
 CONF_NOTIFY = "notify"
