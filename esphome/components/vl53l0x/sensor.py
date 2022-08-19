@@ -55,7 +55,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LONG_RANGE, default=False): cv.boolean,
             cv.Optional(CONF_TIMEOUT, default="10ms"): check_timeout,
             cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_TIMING_BUDGET): cv.uint32_t,
+            cv.Optional(CONF_TIMING_BUDGET, default=33): cv.uint32_t,
         }
     )
     .extend(cv.polling_component_schema("60s"))

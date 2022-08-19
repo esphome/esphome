@@ -340,6 +340,7 @@ sensor:
     update_interval: 60s
     enable_pin: GPIO13
     timeout: 200us
+    timing_budget: 33
   - platform: apds9960
     type: clear
     name: APDS9960 Clear
