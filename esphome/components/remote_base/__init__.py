@@ -1338,3 +1338,37 @@ def midea_dumper(var, config):
 )
 async def midea_action(var, config, args):
     cg.add(var.set_code(config[CONF_CODE]))
+
+
+TraneData, TraneBinarySensor, TraneTrigger, TraneAction, TraneDumper = declare_protocol(
+    "Trane"
+)
+TRANE_SCHEMA = cv.Schema(
+    {
+        cv.Required("A"): cv.hex_uint64_t,
+        cv.Required("B"): cv.hex_uint32_t,
+    }
+)
+
+
+@register_binary_sensor("trane", TraneBinarySensor, TRANE_SCHEMA)
+def trane_binary_sensor(var, config):
+    cg.add(var.set_code(config[CONF_CODE]))
+
+
+@register_trigger("trane", TraneTrigger, TraneData)
+def trane_trigger(var, config):
+    pass
+
+
+@register_dumper("trane", TraneDumper)
+def trane_dumper(var, config):
+    pass
+
+
+@register_action("trane", TraneAction, TRANE_SCHEMA)
+async def trane_action(var, config, args):
+    template_ = await cg.templatable(config["A"], args, cg.uint64)
+    cg.add(var.set_trane_data_1(template_))
+    template_ = await cg.templatable(config["B"], args, cg.uint32)
+    cg.add(var.set_trane_data_2(template_))
