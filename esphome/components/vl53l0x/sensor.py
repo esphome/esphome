@@ -20,7 +20,7 @@ VL53L0XSensor = vl53l0x_ns.class_(
 
 CONF_SIGNAL_RATE_LIMIT = "signal_rate_limit"
 CONF_LONG_RANGE = "long_range"
-
+CONF_TIMING_BUDGET = "timing_budget"
 
 def check_keys(obj):
     if obj[CONF_ADDRESS] != 0x29 and CONF_ENABLE_PIN not in obj:
@@ -54,6 +54,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LONG_RANGE, default=False): cv.boolean,
             cv.Optional(CONF_TIMEOUT, default="10ms"): check_timeout,
             cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_TIMING_BUDGET): cv.uint32_t,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -68,6 +69,7 @@ async def to_code(config):
     cg.add(var.set_signal_rate_limit(config[CONF_SIGNAL_RATE_LIMIT]))
     cg.add(var.set_long_range(config[CONF_LONG_RANGE]))
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT]))
+    cg.add(var.set_timing_budget(config[CONF_TIMING_BUDGET]))
 
     if CONF_ENABLE_PIN in config:
         enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])

@@ -230,7 +230,11 @@ void VL53L0XSensor::setup() {
   reg(0x84) &= ~0x10;
   reg(0x0B) = 0x01;
 
-  measurement_timing_budget_us_ = get_measurement_timing_budget_();
+  if (timing_budget_) {
+    measurement_timing_budget_us_ = timing_budget_;
+  } else {
+    measurement_timing_budget_us_ = get_measurement_timing_budget_();
+  }
   reg(0x01) = 0xE8;
   set_measurement_timing_budget_(measurement_timing_budget_us_);
   reg(0x01) = 0x01;
