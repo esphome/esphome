@@ -45,16 +45,16 @@ struct Color {
 
   inline bool is_on() ALWAYS_INLINE { return this->raw_32 != 0; }
 
-  inline bool operator==(const Color &rhs)  {  // NOLINT
+  inline bool operator==(const Color &rhs) {  // NOLINT
     return this->raw_32 == rhs.raw_32;
   }
-  inline bool operator==(uint32_t colorcode) { // NOLINT
+  inline bool operator==(uint32_t colorcode) {  // NOLINT
     return this->raw_32 == colorcode;
   }
-  inline bool operator!=(const Color &rhs)  {  // NOLINT
+  inline bool operator!=(const Color &rhs) {  // NOLINT
     return this->raw_32 != rhs.raw_32;
   }
-  inline bool operator!=(uint32_t colorcode)  { // NOLINT
+  inline bool operator!=(uint32_t colorcode) {  // NOLINT
     return this->raw_32 != colorcode;
   }
 
