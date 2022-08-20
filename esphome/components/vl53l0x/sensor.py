@@ -57,7 +57,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_TIMING_BUDGET): cv.int_range(
                 min=17000, max=4294967295, min_included=True, max_included=True
-            )
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
