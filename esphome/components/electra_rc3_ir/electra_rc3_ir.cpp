@@ -28,6 +28,16 @@ typedef enum ElectraRC3Fan {
     ElectraRC3FanAuto   = 0b11
 } ElectraRC3Fan;
 
+// void ElectraRC3IR::control(const climate::ClimateCall &call) {
+//   // swing and preset resets after unit powered off
+//   if (call.get_mode().has_value() && (climate::CLIMATE_MODE_OFF == call.get_mode())) {
+//     this->current_mode = call.get_mode();
+//   } 
+
+//   climate_ir::ClimateIR::control(call);
+// }
+
+
 void ElectraRC3IR::transmit_state() {
   ElectraRC3Data data;
 
@@ -69,16 +79,29 @@ void ElectraRC3IR::transmit_state() {
       break;
   }
 
-  //if (this->active_mode_ == climate::CLIMATE_MODE_OFF) 
+  if (climate::CLIMATE_MODE_OFF != this->mode) 
   {
-      data.power = data.mode == ElectraRC3Mode::ElectraRC3ModeOff ? 0 : 1;
+      data.power = (climate::CLIMATE_MODE_OFF == this->current_mode) ? 1 : 0;
   }
+  this->current_mode = this->mode;
 
-  auto temp = (uint8_t) roundf(clamp(this->target_temperature, ELECTRA_RC3_TEMP_MIN, ELECTRA_RC3_TEMP_MAX));
+  auto temp = (uint8_t)roundf(this->target_temperature);
+
+  if(temp < ELECTRA_RC3_TEMP_MIN)
+  {
+    temp = ELECTRA_RC3_TEMP_MIN;
+  } 
+  else if (temp > ELECTRA_RC3_TEMP_MAX)
+  {
+    temp = ELECTRA_RC3_TEMP_MAX;
+  }
   data.temperature = temp - 15;
 
   data.sleep = (this->preset == climate::CLIMATE_PRESET_SLEEP) ? 1 : 0;;
   data.swing = (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) ? 1 : 0;
+
+  ESP_LOGD(TAG, "Electra RC3: power = 0x%X, mode = 0x%X, fan = 0x%X, swing = 0x%X, ifeel = 0x%X, temperature = 0x%X, sleep = 0x%X", 
+           data.power, data.mode, data.fan, data.swing, data.ifeel, data.temperature, data.sleep);
 
   auto transmit = this->transmitter_->transmit();
   remote_base::ElectraRC3Protocol().encode(transmit.get_data(), data);
