@@ -39,6 +39,7 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
   void set_long_range(bool long_range) { long_range_ = long_range; }
   void set_timeout_us(uint32_t timeout_us) { this->timeout_us_ = timeout_us; }
   void set_enable_pin(GPIOPin *enable) { this->enable_pin_ = enable; }
+  void set_timing_budget(uint32_t timing_budget) { timing_budget_ = timing_budget; }
 
  protected:
   uint32_t get_measurement_timing_budget_();
@@ -66,6 +67,7 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
 
   uint16_t timeout_start_us_;
   uint16_t timeout_us_{};
+  uint32_t timing_budget_{};
 
   static std::list<VL53L0XSensor *> vl53_sensors;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
   static bool enable_pin_setup_complete;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
