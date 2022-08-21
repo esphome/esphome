@@ -20,6 +20,13 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
    */
   void set_include_internal(bool include_internal) { include_internal_ = include_internal; }
 
+  /** Set map of strings to be used for relabeling IDs and names.
+   * Defaults to false.
+   *
+   * @param relabel_map Map for string to string relabeling.
+   */
+  void set_relabel_map({FIXME} relabel_map) { relabel_map_ = relabel_map; }
+
   bool canHandle(AsyncWebServerRequest *request) override {
     if (request->method() == HTTP_GET) {
       if (request->url() == "/metrics")
@@ -92,6 +99,7 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
 
   web_server_base::WebServerBase *base_;
   bool include_internal_{false};
+  {FIXME} relabel_map_{'FIXME'}
 };
 
 }  // namespace prometheus

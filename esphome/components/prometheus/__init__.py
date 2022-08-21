@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.const import (
     CONF_ID,
     CONF_INCLUDE_INTERNAL,
+    CONF_RELABEL,
 )
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 from esphome.components import web_server_base
@@ -19,6 +20,11 @@ CONFIG_SCHEMA = cv.Schema(
             web_server_base.WebServerBase
         ),
         cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
+        cv.Optional(CONF_RELABEL, default={}): cv.Schema(
+            {
+                cv.string: cv.string,
+            }
+        ),
     },
     cv.only_with_arduino,
 ).extend(cv.COMPONENT_SCHEMA)
@@ -33,3 +39,4 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
+    cg.add(var.set_relabel_map(config[CONF_RELABEL]))
