@@ -9,7 +9,7 @@ from esphome.const import (
     CONF_RECEIVE_TIMEOUT,
     CONF_TIME_ID,
 )
-from . import (
+from .. import (
     BEDJET_CLIENT_SCHEMA,
     register_bedjet_child,
 )
