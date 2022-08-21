@@ -22,7 +22,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
         cv.Optional(CONF_RELABEL, default={}): cv.Schema(
             {
-                cv.string: cv.string,
+                cv.string_strict: cv.string_strict,
             }
         ),
     },
@@ -39,4 +39,6 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
-    cg.add(var.set_relabel_map(config[CONF_RELABEL]))
+
+    for key, value in config[CONF_RELABEL].items():
+        cg.add(var.add_to_relabel_map(key, value))

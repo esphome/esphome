@@ -2,6 +2,8 @@
 
 #ifdef USE_ARDUINO
 
+#include <utility>
+
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/component.h"
@@ -20,12 +22,14 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
    */
   void set_include_internal(bool include_internal) { include_internal_ = include_internal; }
 
-  /** Set map of strings to be used for relabeling IDs and names.
-   * Defaults to false.
+  /** Add a pair of strings to the relabeling map.
    *
-   * @param relabel_map Map for string to string relabeling.
+   * @param str_old The string that will be replaced.
+   * @param str_new The string that will be the replacement.
    */
-  void set_relabel_map({FIXME} relabel_map) { relabel_map_ = relabel_map; }
+  void add_to_relabel_map(const std::string &str_old, const std::string &str_new) {
+    relabel_map_.insert(std::pair<std::string, std::string>(str_old, str_new));
+  }
 
   bool canHandle(AsyncWebServerRequest *request) override {
     if (request->method() == HTTP_GET) {
@@ -48,6 +52,8 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   }
 
  protected:
+  std::string relabel_(const std::string &value);
+
 #ifdef USE_SENSOR
   /// Return the type for prometheus
   void sensor_type_(AsyncResponseStream *stream);
@@ -99,7 +105,7 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
 
   web_server_base::WebServerBase *base_;
   bool include_internal_{false};
-  {FIXME} relabel_map_{'FIXME'}
+  std::map<std::string, std::string> relabel_map_;
 };
 
 }  // namespace prometheus
