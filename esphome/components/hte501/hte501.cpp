@@ -68,7 +68,7 @@ ESP_LOGD(TAG, "Got temperature=%.2f°C humidity=%.2f%%", temperature, humidity);
 }
 
 
-unsigned char HTE501Component::calcCrc8 (unsigned char buf[], unsigned char from, unsigned char to) 
+unsigned char HTE501Component::calcCrc8 (unsigned char buf[], unsigned char from, unsigned char to)
 {
   unsigned char crcVal = CRC8_ONEWIRE_START;
   unsigned char i = 0;
