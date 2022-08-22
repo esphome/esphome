@@ -249,7 +249,7 @@ uint8_t TM1621Display::printf(const char *format, ...) {
 }
 
 int TM1621Display::get_command_code_(char *destination, size_t destination_size, const char *needle,
-                                  const char *haystack) {
+                                     const char *haystack) {
   // Returns -1 of not found
   // Returns index and command if found
   int result = -1;
