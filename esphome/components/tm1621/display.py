@@ -9,7 +9,7 @@ from esphome.const import (
     CONF_LAMBDA,
 )
 
-CODEOWNERS = ["@pfo"]
+CODEOWNERS = ["@philippe12"]
 
 tm1621_ns = cg.esphome_ns.namespace("tm1621")
 TM1621Display = tm1621_ns.class_("TM1621Display", cg.PollingComponent)
