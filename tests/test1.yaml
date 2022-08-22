@@ -556,7 +556,7 @@ sensor:
   - platform: duty_cycle
     pin: GPIO25
     name: Duty Cycle Sensor
-  - platform: ee895:
+  - platform: ee895
     co2:
       name: "Office CO2 1"
     temperature:
