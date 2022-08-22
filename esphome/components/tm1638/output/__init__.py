@@ -1,13 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import switch
+from esphome.components import output
 from esphome.const import CONF_ID, CONF_LED
 from ..display import tm1638_ns, TM1638Component, CONF_TM1638_ID
 
-TM1638Led = tm1638_ns.class_("TM1638Led", switch.Switch)
+TM1638Led = tm1638_ns.class_("TM1638Led", output.BinaryOutput)
 
 
-CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
+CONFIG_SCHEMA = output.BINARY_OUTPUT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(TM1638Led),
         cv.GenerateID(CONF_TM1638_ID): cv.use_id(TM1638Component),
@@ -18,7 +18,7 @@ CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await switch.register_switch(var, config)
+    await output.register_output(var, config)
     cg.add(var.set_lednum(config[CONF_LED]))
     hub = await cg.get_variable(config[CONF_TM1638_ID])
     cg.add(var.set_tm1638(hub))

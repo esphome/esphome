@@ -1,13 +1,13 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/components/switch/switch.h"
+#include "esphome/components/output/binary_output.h"
 #include "../tm1638.h"
 
 namespace esphome {
 namespace tm1638 {
 
-class TM1638Led : public switch_::Switch, public Component {
+class TM1638Led : public output::BinaryOutput, public Component {
  public:
   void dump_config() override;
 
