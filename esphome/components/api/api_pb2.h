@@ -1214,6 +1214,45 @@ class MediaPlayerCommandRequest : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
+class SubscribeBluetoothLEAdvertisementsRequest : public ProtoMessage {
+ public:
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
+class BluetoothServiceData : public ProtoMessage {
+ public:
+  std::string uuid{};
+  std::vector<uint32_t> data{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothLEAdvertisementResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  std::string name{};
+  int32_t rssi{0};
+  std::vector<std::string> service_uuids{};
+  std::vector<BluetoothServiceData> service_data{};
+  std::vector<BluetoothServiceData> manufacturer_data{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
 
 }  // namespace api
 }  // namespace esphome
