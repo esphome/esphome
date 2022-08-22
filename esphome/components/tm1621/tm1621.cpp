@@ -20,7 +20,7 @@ const uint8_t TM1621_IRQ_DIS = 0x80;    // 0b100x0xxx
 
 enum Tm1621Device { TM1621_USER, TM1621_POWR316D, TM1621_THR316D };
 
-const uint8_t tm1621_commands[] = {TM1621_SYS_EN,  TM1621_LCD_ON,   TM1621_BIAS,   TM1621_TIMER_DIS,
+const uint8_t TM1621_COMMANDS[] = {TM1621_SYS_EN,  TM1621_LCD_ON,   TM1621_BIAS,   TM1621_TIMER_DIS,
                                    TM1621_WDT_DIS, TM1621_TONE_OFF, TM1621_IRQ_DIS};
 
 const char TM1621_KCHAR[] PROGMEM = {"0|1|2|3|4|5|6|7|8|9|-| "};
@@ -52,7 +52,7 @@ void TM1621Display::setup() {
   delayMicroseconds(TM1621_PULSE_WIDTH);
   this->data_pin_->digital_write(true);
 
-  for (unsigned char tm1621_command : tm1621_commands) {
+  for (unsigned char tm1621_command : TM1621_COMMANDS) {
     this->send_command_(tm1621_command);
   }
 
