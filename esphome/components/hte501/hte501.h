@@ -4,8 +4,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-#define CRC8_ONEWIRE_POLY 0x31
-#define CRC8_ONEWIRE_START 0xFF
+static const uint8_t CRC8_ONEWIRE_POLY 0x31
+static const uint8_t CRC8_ONEWIRE_START 0xFF
 
 namespace esphome {
 namespace hte501 {
@@ -15,7 +15,7 @@ class HTE501Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
-  
+
   float get_setup_priority() const override;
   void setup() override;
   void dump_config() override;
