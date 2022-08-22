@@ -9,7 +9,7 @@ from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    UNIT_PERCENT
+    UNIT_PERCENT,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -20,7 +20,7 @@ HTE501Component = hte501_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-     cv.Schema(
+    cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(HTE501Component),
             cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(
@@ -40,7 +40,6 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x40))
 )
-
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
