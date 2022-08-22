@@ -65,7 +65,7 @@ bool HCS301::program(uint32_t serial, uint16_t sequence, uint64_t key) {
 // FIXME: This should really be exposed as a Switch
 void HCS301::transmitS2() {
     ESP_LOGD(TAG, "Triggering Transmit");
-    pwm_pin_->pin_mode(INPUT);
+    pwm_pin_->pin_mode(gpio::FLAG_INPUT);
     power_pin_->digital_write(true);
     clock_pin_->digital_write(true);
     delay(15);
@@ -122,7 +122,7 @@ void HCS301::config_eeprom_buffer_(uint16_t *eeprom_buffer, uint64_t key, uint16
 
 void HCS301::write_eeprom_buffer(uint16_t *eeprom_buffer, uint16_t *vbuffer) {
   // Set PWM to output mode
-  this->pwm_pin_->pin_mode(OUTPUT);
+  this->pwm_pin_->pin_mode(gpio::FLAG_OUTPUT);
   // Default the pwm to low
   this->pwm_pin_->digital_write(false);
   // Enable programming mode for the HCS301
@@ -141,7 +141,7 @@ void HCS301::write_eeprom_buffer(uint16_t *eeprom_buffer, uint16_t *vbuffer) {
   // TPBW for 4.0ms
   delay(4);
   for (int line_number = 0; line_number < EEPROM_SIZE; line_number++) {
-    this->pwm_pin_->pin_mode(OUTPUT);
+    this->pwm_pin_->pin_mode(gpio::FLAG_OUTPUT);
     for (int i = 0; i <= 15; i++) {
       bool val;
       // Shift the buffer line_number i bits to the right, then bitmask with 0x01 to get a 0 or 1 (LOW/HIGH) and output directly to the PWM pin.
@@ -156,7 +156,7 @@ void HCS301::write_eeprom_buffer(uint16_t *eeprom_buffer, uint16_t *vbuffer) {
     this->pwm_pin_->digital_write(false);
     // Set PWM to input mode so we can get the ack 
     // FIXME: No check for ack?
-    this->pwm_pin_->pin_mode(INPUT);
+    this->pwm_pin_->pin_mode(gpio::FLAG_INPUT);
     // TWC for 50ms
     delay(50); // NOLINT
   }
