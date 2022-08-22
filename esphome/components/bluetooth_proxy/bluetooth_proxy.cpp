@@ -14,13 +14,9 @@ namespace bluetooth_proxy {
 static const char *const TAG = "bluetooth_proxy";
 
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
-  // if (this->discovery_ || this->devices_.find(device.address_uint64()) != this->devices_.end()) {
-  // auto packet = scan_result_to_hci_packet_hex(device.get_scan_result());
   ESP_LOGV(TAG, "[%s] Packet ", device.address_str().c_str());
   this->send_api_packet_(device);
-  // this->callback_.call(device);
-  // }
-  return false;
+  return true;
 }
 
 void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -53,7 +49,7 @@ void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &devi
 #endif
 }
 
-void BluetoothProxy::dump_config() {}
+void BluetoothProxy::dump_config() { ESP_LOGCONFIG(TAG, "Bluetooth Proxy:"); }
 
 }  // namespace bluetooth_proxy
 }  // namespace esphome
