@@ -70,7 +70,7 @@ class ProtoVarInt {
     }
   }
   void encode(std::vector<uint8_t> &out) {
-    uint32_t val = this->value_;
+    uint64_t val = this->value_;
     if (val <= 0x7F) {
       out.push_back(val);
       return;
