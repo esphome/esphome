@@ -24,11 +24,11 @@ class TM1621Display : public PollingComponent {
   void set_read_pin(GPIOPin *pin) { read_pin_ = pin; }
   void set_write_pin(GPIOPin *pin) { write_pin_ = pin; }
 
-  void display_celsius(bool d) {celsius = d;}
-  void display_fahrenheit(bool d) {fahrenheit = d;}
-  void display_humidity(bool d) {humidity = d;}
-  void display_voltage(bool d) {voltage = d;}
-  void display_kwh(bool d) {kwh = d;}
+  void display_celsius(bool d) { celsius = d; }
+  void display_fahrenheit(bool d) { fahrenheit = d; }
+  void display_humidity(bool d) { humidity = d; }
+  void display_voltage(bool d) { voltage = d; }
+  void display_kwh(bool d) { kwh = d; }
 
   float get_setup_priority() const override;
 
@@ -53,7 +53,7 @@ class TM1621Display : public PollingComponent {
   bool send_common_(uint8_t common);
   bool send_address_(uint16_t address);
   void stop_();
-  int GetCommandCode(char* destination, size_t destination_size, const char* needle, const char* haystack);
+  int GetCommandCode(char *destination, size_t destination_size, const char *needle, const char *haystack);
 
   GPIOPin *data_pin_;
   GPIOPin *cs_pin_;
