@@ -66,7 +66,7 @@ void TEE501Component::update() {
 
 
 
-unsigned char TEE501Component::calcCrc8 (unsigned char buf[], unsigned char from, unsigned char to) 
+unsigned char TEE501Component::calcCrc8 (unsigned char buf[], unsigned char from, unsigned char to)
 {
   unsigned char crcVal = CRC8_ONEWIRE_START;
   unsigned char i = 0;
