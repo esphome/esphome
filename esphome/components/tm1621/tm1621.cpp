@@ -23,9 +23,9 @@ enum Tm1621Device { TM1621_USER, TM1621_POWR316D, TM1621_THR316D };
 const uint8_t tm1621_commands[] = {TM1621_SYS_EN,  TM1621_LCD_ON,   TM1621_BIAS,   TM1621_TIMER_DIS,
                                    TM1621_WDT_DIS, TM1621_TONE_OFF, TM1621_IRQ_DIS};
 
-const char tm1621_kchar[] PROGMEM = {"0|1|2|3|4|5|6|7|8|9|-| "};
+const char TM1621_KCHAR[] PROGMEM = {"0|1|2|3|4|5|6|7|8|9|-| "};
 //                                          0     1     2     3     4     5     6     7     8     9     -     off
-const uint8_t tm1621_digit_row[2][12] = {{0x5F, 0x50, 0x3D, 0x79, 0x72, 0x6B, 0x6F, 0x51, 0x7F, 0x7B, 0x20, 0x00},
+const uint8_t TM1621_DIGIT_ROW[2][12] = {{0x5F, 0x50, 0x3D, 0x79, 0x72, 0x6B, 0x6F, 0x51, 0x7F, 0x7B, 0x20, 0x00},
                                          {0xF5, 0x05, 0xB6, 0x97, 0x47, 0xD3, 0xF3, 0x85, 0xF7, 0xD7, 0x02, 0x00}};
 
 void TM1621Display::setup() {
@@ -40,7 +40,7 @@ void TM1621Display::setup() {
   this->write_pin_->setup();  // OUTPUT
   this->write_pin_->digital_write(true);
 
-  this->state = 100;
+  this->state_ = 100;
 
   this->cs_pin_->digital_write(false);
   delayMicroseconds(80);
@@ -52,8 +52,8 @@ void TM1621Display::setup() {
   delayMicroseconds(TM1621_PULSE_WIDTH);
   this->data_pin_->digital_write(true);
 
-  for (uint32_t command = 0; command < sizeof(tm1621_commands); command++) {
-    this->send_command_(tm1621_commands[command]);
+  for (unsigned char tm1621_command : tm1621_commands) {
+    this->send_command_(tm1621_command);
   }
 
   this->send_address_(0x00);
@@ -62,8 +62,8 @@ void TM1621Display::setup() {
   }
   this->stop_();
 
-  snprintf(this->row[0], sizeof(this->row[0]), "----");
-  snprintf(this->row[1], sizeof(this->row[1]), "----");
+  snprintf(this->row_[0], sizeof(this->row_[0]), "----");
+  snprintf(this->row_[1], sizeof(this->row_[1]), "----");
 
   this->display();
 }
@@ -102,23 +102,23 @@ void TM1621Display::display() {
   char row[4];
   for (uint32_t j = 0; j < 2; j++) {
     // 0.4V => "  04", 0.0A => "  ", 1234.5V => "1234"
-    uint32_t len = strlen(this->row[j]);
+    uint32_t len = strlen(this->row_[j]);
     char *dp = nullptr;     // Expect number larger than "123"
     int row_idx = len - 3;  // "1234.5"
     if (len <= 5) {         // "----", "    ", "0.4", "237.5"
-      dp = strchr(this->row[j], '.');
+      dp = strchr(this->row_[j], '.');
       row_idx = len - 1;
     } else if (len > 6) {  // "12345.6"
-      snprintf(this->row[j], sizeof(this->row[j]), "9999");
+      snprintf(this->row_[j], sizeof(this->row_[j]), "9999");
       row_idx = 3;
     }
-    row[3] = (row_idx >= 0) ? this->row[j][row_idx--] : ' ';
+    row[3] = (row_idx >= 0) ? this->row_[j][row_idx--] : ' ';
     if ((row_idx >= 0) && dp) {
       row_idx--;
     }
-    row[2] = (row_idx >= 0) ? this->row[j][row_idx--] : ' ';
-    row[1] = (row_idx >= 0) ? this->row[j][row_idx--] : ' ';
-    row[0] = (row_idx >= 0) ? this->row[j][row_idx--] : ' ';
+    row[2] = (row_idx >= 0) ? this->row_[j][row_idx--] : ' ';
+    row[1] = (row_idx >= 0) ? this->row_[j][row_idx--] : ' ';
+    row[0] = (row_idx >= 0) ? this->row_[j][row_idx--] : ' ';
 
     //    AddLog(LOG_LEVEL_DEBUG, PSTR("TM1: Dump%d %4_H"), j +1, row);
 
@@ -126,12 +126,12 @@ void TM1621Display::display() {
     char needle[2] = {0};
     for (uint32_t i = 0; i < 4; i++) {
       needle[0] = row[i];
-      int index = this->GetCommandCode(command, sizeof(command), (const char *) needle, tm1621_kchar);
+      int index = this->get_command_code_(command, sizeof(command), (const char *) needle, TM1621_KCHAR);
       if (-1 == index) {
         index = 11;
       }
       uint32_t bidx = (0 == j) ? i : 7 - i;
-      buffer[bidx] = tm1621_digit_row[j][index];
+      buffer[bidx] = TM1621_DIGIT_ROW[j][index];
     }
     if (dp) {
       if (0 == j) {
@@ -142,27 +142,27 @@ void TM1621Display::display() {
     }
   }
 
-  if (this->fahrenheit) {
+  if (this->fahrenheit_) {
     buffer[1] |= 0x80;
   }
-  if (this->celsius) {
+  if (this->celsius_) {
     buffer[3] |= 0x80;
   }
-  if (this->kwh) {
+  if (this->kwh_) {
     buffer[4] |= 0x08;
   }
-  if (this->humidity) {
+  if (this->humidity_) {
     buffer[6] |= 0x08;
   }
-  if (this->voltage) {
+  if (this->voltage_) {
     buffer[7] |= 0x08;
   }
 
   //  AddLog(LOG_LEVEL_DEBUG, PSTR("TM1: Dump3 %8_H"), buffer);
 
   this->send_address_(0x10);  // Sonoff only uses the upper 16 Segments
-  for (uint32_t i = 0; i < 8; i++) {
-    this->send_common_(buffer[i]);
+  for (unsigned char i : buffer) {
+    this->send_common_(i);
   }
   this->stop_();
 }
@@ -224,7 +224,7 @@ bool TM1621Display::send_address_(uint16_t address) {
 
 uint8_t TM1621Display::print(uint8_t start_pos, const char *str) {
   // ESP_LOGD(TAG, "Print at %d: %s", start_pos, str);
-  return snprintf(this->row[start_pos], sizeof(this->row[start_pos]), "%s", str);
+  return snprintf(this->row_[start_pos], sizeof(this->row_[start_pos]), "%s", str);
 }
 uint8_t TM1621Display::print(const char *str) { return this->print(0, str); }
 uint8_t TM1621Display::printf(uint8_t pos, const char *format, ...) {
@@ -248,7 +248,7 @@ uint8_t TM1621Display::printf(const char *format, ...) {
   return 0;
 }
 
-int TM1621Display::GetCommandCode(char *destination, size_t destination_size, const char *needle,
+int TM1621Display::get_command_code_(char *destination, size_t destination_size, const char *needle,
                                   const char *haystack) {
   // Returns -1 of not found
   // Returns index and command if found
