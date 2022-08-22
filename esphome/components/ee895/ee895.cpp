@@ -24,7 +24,7 @@ void EE895Component::setup() {
   uint32_t serialNumber2= (SerialNumber[6] << 24) + (SerialNumber[7] << 16) + (SerialNumber[8] << 8) + SerialNumber[9];
   uint32_t serialNumber3= (SerialNumber[10] << 24) + (SerialNumber[11] << 16) + (SerialNumber[12] << 8) + SerialNumber[13];
   uint32_t serialNumber4= (SerialNumber[14] << 24) + (SerialNumber[15] << 16) + (SerialNumber[16] << 8) + SerialNumber[17];
-  ESP_LOGV(TAG, "    Serial Number: 0x%08X%08X%08X%08X", serialNumber1, serialNumber2, serialNumber3, serialNumber4);  
+  ESP_LOGV(TAG, "    Serial Number: 0x%08X%08X%08X%08X", serialNumber1, serialNumber2, serialNumber3, serialNumber4);
 }
 
 
@@ -59,7 +59,7 @@ void EE895Component::update() {
   uint16_t crc16_check = 0;
   uint8_t i2cResponse[8];
   this->read(i2cResponse, 8);
-  crc16_check = (i2cResponse[7] << 8) + i2cResponse[6]; 
+  crc16_check = (i2cResponse[7] << 8) + i2cResponse[6];
   if (crc16_check != calcCrc16(i2cResponse, 7)) {
     this->error_code_ = CRC_CHECK_FAILED;
     this->status_set_warning();
@@ -71,7 +71,7 @@ void EE895Component::update() {
   uint8_t address_2[] = {0x03, 0x04, 0x24, 0x00, 0x02, 0x88, 0x4E};
   this->write(address_2, 7, true);
   this->read(i2cResponse, 8);
-  crc16_check = (i2cResponse[7] << 8) + i2cResponse[6]; 
+  crc16_check = (i2cResponse[7] << 8) + i2cResponse[6];
   if (crc16_check != calcCrc16(i2cResponse, 7)) {
     this->error_code_ = CRC_CHECK_FAILED;
     this->status_set_warning();
@@ -83,7 +83,7 @@ void EE895Component::update() {
   uint8_t address_3[] = {0x03, 0x04, 0xB0, 0x00, 0x02, 0xC9, 0xA2};
   this->write(address_3, 7, true);
   this->read(i2cResponse, 8);
-  crc16_check = (i2cResponse[7] << 8) + i2cResponse[6]; 
+  crc16_check = (i2cResponse[7] << 8) + i2cResponse[6];
   if (crc16_check != calcCrc16(i2cResponse, 7)) {
     this->error_code_ = CRC_CHECK_FAILED;
     this->status_set_warning();
@@ -117,7 +117,7 @@ uint16_t EE895Component::calcCrc16(unsigned char buf[], unsigned char len)
   }
     crcCheckBuf[0] = 0x5F;
 
- 
+
   for (i = 0; i < len; i++)
   {
     crc ^= (uint16_t) crcCheckBuf[i]; // XOR byte into least sig. byte of crc

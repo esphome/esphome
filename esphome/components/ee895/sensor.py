@@ -44,7 +44,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_PRESSURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-           
+
         }
     )
     .extend(cv.polling_component_schema("15s"))
