@@ -23,7 +23,7 @@ namespace remote_base {
 
 struct TraneData {
   uint64_t trane_data_1;
-  uint32_t trane_data_2;
+  uint64_t trane_data_2;
 };
 
 class TraneProtocol : public RemoteProtocol<TraneData>{
