@@ -18,7 +18,7 @@ class TEE501Component : public sensor::Sensor, public PollingComponent, public i
   float get_setup_priority() const override;
   void update() override;
 
-  protected: 
+  protected:
   unsigned char calcCrc8 (unsigned char buf[], unsigned char from, unsigned char to);
 
   enum ErrorCode {

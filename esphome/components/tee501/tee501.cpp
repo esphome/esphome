@@ -20,7 +20,7 @@ void TEE501Component::setup() {
   }
   uint32_t serialNumber1= (identification[0] << 24) + (identification[1] << 16) + (identification[2] << 8) + identification[3];
   uint32_t serialNumber2= (identification[4] << 24) + (identification[5] << 16) + (identification[6] << 8) + identification[7];
-  ESP_LOGV(TAG, "    Serial Number: 0x%08X%08X", serialNumber1, serialNumber2);  
+  ESP_LOGV(TAG, "    Serial Number: 0x%08X%08X", serialNumber1, serialNumber2);
 }
 
 
