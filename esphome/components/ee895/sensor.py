@@ -12,7 +12,7 @@ from esphome.const import (
     UNIT_HECTOPASCAL,
     UNIT_CELSIUS,
     ICON_MOLECULE_CO2,
-    UNIT_PARTS_PER_MILLION
+    UNIT_PARTS_PER_MILLION,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -23,7 +23,7 @@ EE895Component = ee895_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-     cv.Schema(
+    cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(EE895Component),
             cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(
@@ -44,19 +44,16 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_PRESSURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-
         }
     )
     .extend(cv.polling_component_schema("15s"))
     .extend(i2c.i2c_device_schema(0x5F))
 )
 
-
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-
 
     if CONF_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
