@@ -191,6 +191,8 @@ message DeviceInfoResponse {
   string project_version = 9;
 
   uint32 webserver_port = 10;
+
+  bool has_bluetooth_proxy = 11;
 }
 
 message ListEntitiesRequest {
