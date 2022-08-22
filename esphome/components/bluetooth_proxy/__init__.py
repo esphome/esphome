@@ -5,7 +5,7 @@ import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_MAC_ADDRESS, CONF_NAME, CONF_TRIGGER_ID
 
 DEPENDENCIES = ["esp32", "esp32_ble_tracker", "api"]
-# CODEOWNERS = ["@jesserockz"]
+CODEOWNERS = ["@jesserockz"]
 
 CONF_DEVICES = "devices"
 CONF_ON_BLE_ADVERTISEMENT = "on_ble_advertisement"
