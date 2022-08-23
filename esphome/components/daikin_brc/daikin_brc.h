@@ -7,10 +7,10 @@ namespace daikin_brc {
 
 // Values for Daikin BRC4CXXX IR Controllers
 // Temperature
-const uint8_t DAIKIN_BRC_TEMP_MIN_F = 60;  // fahrenheit 
-const uint8_t DAIKIN_BRC_TEMP_MAX_F = 90;  // fahrenheit 
-const float DAIKIN_BRC_TEMP_MIN_C = (DAIKIN_BRC_TEMP_MIN_F - 32)/1.8;  // fahrenheit 
-const float DAIKIN_BRC_TEMP_MAX_C = (DAIKIN_BRC_TEMP_MAX_F - 32)/1.8;  // fahrenheit 
+const uint8_t DAIKIN_BRC_TEMP_MIN_F = 60;  // fahrenheit
+const uint8_t DAIKIN_BRC_TEMP_MAX_F = 90;  // fahrenheit
+const float DAIKIN_BRC_TEMP_MIN_C = (DAIKIN_BRC_TEMP_MIN_F - 32)/1.8;  // fahrenheit
+const float DAIKIN_BRC_TEMP_MAX_C = (DAIKIN_BRC_TEMP_MAX_F - 32)/1.8;  // fahrenheit
 
 // Modes
 const uint8_t DAIKIN_BRC_MODE_AUTO = 0x30;
