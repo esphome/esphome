@@ -197,7 +197,7 @@ bool DaikinBrcClimate::parse_state_frame_(const uint8_t frame[]) {
   if(this->fahrenheit_){
      temperature_c = clamp<float>(((temperature - 32)/1.8), DAIKIN_BRC_TEMP_MIN_C, DAIKIN_BRC_TEMP_MAX_C);
   } else {
-    temperature_c = (temperature >> 1) + 9 ; 
+    temperature_c = (temperature >> 1) + 9 ;
   }
 
   this->target_temperature = temperature_c;
@@ -255,7 +255,7 @@ bool DaikinBrcClimate::on_receive(remote_base::RemoteReceiveData data) {
       // frame header
       if (byte != 0x17)
         return false;
-    } else if (pos == 3) {  
+    } else if (pos == 3) {
       // frame header
       if (byte != 0x18)
         return false;
