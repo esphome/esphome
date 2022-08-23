@@ -52,7 +52,7 @@ void TM1621Display::setup() {
   delayMicroseconds(TM1621_PULSE_WIDTH);
   this->data_pin_->digital_write(true);
 
-  for (unsigned char tm1621_command : TM1621_COMMANDS) {
+  for (uint8_t tm1621_command : TM1621_COMMANDS) {
     this->send_command_(tm1621_command);
   }
 
@@ -161,7 +161,7 @@ void TM1621Display::display() {
   //  AddLog(LOG_LEVEL_DEBUG, PSTR("TM1: Dump3 %8_H"), buffer);
 
   this->send_address_(0x10);  // Sonoff only uses the upper 16 Segments
-  for (unsigned char i : buffer) {
+  for (uint8_t i : buffer) {
     this->send_common_(i);
   }
   this->stop_();
