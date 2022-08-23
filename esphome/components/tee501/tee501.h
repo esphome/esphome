@@ -4,8 +4,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-static const uint8_t CRC8_ONEWIRE_POLY 0x31
-static const uint8_t CRC8_ONEWIRE_START 0xFF
+static const unisgned char CRC8_ONEWIRE_POLY 0x31;
+static const unisgned char CRC8_ONEWIRE_START 0xFF;
 
 namespace esphome {
 namespace tee501 {
