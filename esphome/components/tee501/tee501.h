@@ -4,9 +4,6 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-static const unsigned char CRC8_ONEWIRE_POLY = 0x31;
-static const unsigned char CRC8_ONEWIRE_START = 0xFF;
-
 namespace esphome {
 namespace tee501 {
 
@@ -22,7 +19,7 @@ class TEE501Component : public sensor::Sensor, public PollingComponent, public i
   unsigned char calcCrc8(unsigned char buf[], unsigned char from, unsigned char to);
 
   enum ErrorCode { NONE = 0, COMMUNICATION_FAILED, CRC_CHECK_FAILED } error_code_{NONE};
- };
+};
 
 }  // namespace tee501
 }  // namespace esphome
