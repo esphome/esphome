@@ -21,18 +21,14 @@ class EE895Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   void update() override;
 
-  protected:
+ protected:
   uint16_t calcCrc16(unsigned char buf[], unsigned char len);
   sensor::Sensor *co2_sensor_;
   sensor::Sensor *temperature_sensor_;
   sensor::Sensor *pressure_sensor_;
 
-  enum ErrorCode {
-  NONE = 0,
-  COMMUNICATION_FAILED,
-  CRC_CHECK_FAILED
-  } error_code_{NONE};
-};
+  enum ErrorCode { NONE = 0, COMMUNICATION_FAILED, CRC_CHECK_FAILED } error_code_{NONE};
+ };
 
 }  // namespace ee895
 }  // namespace esphome
