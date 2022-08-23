@@ -64,8 +64,8 @@ void EE895Component::update() {
       this->status_set_warning();
       return;
     }
-    uint32_t x = i2cResponse[4] * 16777216 + i2cResponse[5] * 65536  + i2cResponse[2] * 256 + i2cResponse[3];
-    float temperature = *(float*)&x;
+    uint32_t x = i2cResponse[4] * 16777216 + i2cResponse[5] * 65536 + i2cResponse[2] * 256 + i2cResponse[3];
+    float temperature = *(float *) &x;
 
     uint8_t address_2[] = {0x03, 0x04, 0x24, 0x00, 0x02, 0x88, 0x4E};
     this->write(address_2, 7, true);
@@ -76,8 +76,8 @@ void EE895Component::update() {
       this->status_set_warning();
       return;
     }
-    x = i2cResponse[4] * 16777216 + i2cResponse[5] * 65536  + i2cResponse[2] * 256 + i2cResponse[3];
-    float co2 = *(float*)&x;
+    x = i2cResponse[4] * 16777216 + i2cResponse[5] * 65536 + i2cResponse[2] * 256 + i2cResponse[3];
+    float co2 = *(float *) &x;
     uint8_t address_3[] = {0x03, 0x04, 0xB0, 0x00, 0x02, 0xC9, 0xA2};
     this->write(address_3, 7, true);
     this->read(i2cResponse, 8);
@@ -87,8 +87,8 @@ void EE895Component::update() {
       this->status_set_warning();
       return;
     }
-    x = i2cResponse[4] * 16777216 + i2cResponse[5] * 65536  + i2cResponse[2] * 256 + i2cResponse[3];
-    float pressure = *(float*)&x;
+    x = i2cResponse[4] * 16777216 + i2cResponse[5] * 65536 + i2cResponse[2] * 256 + i2cResponse[3];
+    float pressure = *(float *) &x;
     ESP_LOGD(TAG, "Got temperature=%.1f°C co2=%.0fppm pressure=%.1f%mbar", temperature, co2, pressure);
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(temperature);
@@ -112,8 +112,8 @@ uint16_t EE895Component::calcCrc16(unsigned char buf[], unsigned char len) {
 
   for (i = 0; i < len; i++) {
     crc ^= (uint16_t) crcCheckBuf[i];  // XOR byte into least sig. byte of crc
-    for (j = 8; j != 0; j--) {  // Loop over each bit
-      if ((crc & 0x0001) != 0)  // If the LSB is set
+    for (j = 8; j != 0; j--) {         // Loop over each bit
+      if ((crc & 0x0001) != 0)         // If the LSB is set
       {
         crc >>= 1;  // Shift right and XOR 0xA001
         crc ^= 0xA001;
