@@ -19,7 +19,7 @@ class HTE501Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
  protected:
-  unsigned char calcCrc8(unsigned char buf[], unsigned char from, unsigned char to);
+  unsigned char calc_crc8_(unsigned char buf[], unsigned char from, unsigned char to);
   sensor::Sensor *temperature_sensor_;
   sensor::Sensor *humidity_sensor_;
 
