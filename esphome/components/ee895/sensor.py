@@ -18,9 +18,7 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 
 ee895_ns = cg.esphome_ns.namespace("ee895")
-EE895Component = ee895_ns.class_(
-    "EE895Component", cg.PollingComponent, i2c.I2CDevice
-)
+EE895Component = ee895_ns.class_("EE895Component", cg.PollingComponent, i2c.I2CDevice)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -49,6 +47,7 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("15s"))
     .extend(i2c.i2c_device_schema(0x5F))
 )
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
