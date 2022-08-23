@@ -74,7 +74,7 @@ unsigned char HTE501Component::calc_crc8_(unsigned char buf[], unsigned char fro
   for (i = from; i <= to; i++) {
     int cur_val = buf[i];
     for (j = 0; j < 8; j++) {
-      if (((crc_val ^ cur_val) & 0x80) != 0)  //If MSBs are not equal
+      if (((crc_val ^ cur_val) & 0x80) != 0)  // If MSBs are not equal
       {
         crc_val = ((crc_val << 1) ^ 0x31);
       } else {
