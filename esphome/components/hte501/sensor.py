@@ -12,6 +12,8 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
+CODEOWNERS = ["@Stock-M"]
+
 DEPENDENCIES = ["i2c"]
 
 hte501_ns = cg.esphome_ns.namespace("hte501")
