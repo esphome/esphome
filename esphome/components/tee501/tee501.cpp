@@ -24,7 +24,6 @@ void TEE501Component::setup() {
   ESP_LOGV(TAG, "    Serial Number: 0x%08X%08X", serialNumber1, serialNumber2);
 }
 
-
 void TEE501Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TEE501:");
   LOG_I2C_DEVICE(this);
