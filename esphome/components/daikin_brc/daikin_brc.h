@@ -7,8 +7,8 @@ namespace daikin_brc {
 
 // Values for Daikin BRC4CXXX IR Controllers
 // Temperature
-const uint8_t DAIKIN_BRC_TEMP_MIN_F = 60;  // fahrenheit
-const uint8_t DAIKIN_BRC_TEMP_MAX_F = 90;  // fahrenheit
+const uint8_t DAIKIN_BRC_TEMP_MIN_F = 60;                              // fahrenheit
+const uint8_t DAIKIN_BRC_TEMP_MAX_F = 90;                              // fahrenheit
 const float DAIKIN_BRC_TEMP_MIN_C = (DAIKIN_BRC_TEMP_MIN_F - 32)/1.8;  // fahrenheit
 const float DAIKIN_BRC_TEMP_MAX_C = (DAIKIN_BRC_TEMP_MAX_F - 32)/1.8;  // fahrenheit
 
@@ -36,11 +36,11 @@ const uint32_t DAIKIN_BRC_ONE_SPACE = 1780;
 const uint32_t DAIKIN_BRC_ZERO_SPACE = 710;
 const uint32_t DAIKIN_BRC_MESSAGE_SPACE = 29410;
 
-const uint8_t DAIKIN_BRC_IR_DRY_FAN_TEMP_F = 72;  // Dry/Fan mode is always 17 Celsius.
+const uint8_t DAIKIN_BRC_IR_DRY_FAN_TEMP_F = 72;            // Dry/Fan mode is always 17 Celsius.
 const uint8_t DAIKIN_BRC_IR_DRY_FAN_TEMP_C = (17 - 9) * 2;  // Dry/Fan mode is always 17 Celsius.
-const uint8_t DAIKIN_BRC_IR_SWING_ON =  0x5;
+const uint8_t DAIKIN_BRC_IR_SWING_ON = 0x5;
 const uint8_t DAIKIN_BRC_IR_SWING_OFF = 0x6;
-const uint8_t DAIKIN_BRC_IR_MODE_BUTTON = 0x4; //This is set after a mode action
+const uint8_t DAIKIN_BRC_IR_MODE_BUTTON = 0x4;  //This is set after a mode action
 
 // State Frame size
 const uint8_t DAIKIN_BRC_STATE_FRAME_SIZE = 15;
@@ -53,8 +53,7 @@ class DaikinBrcClimate : public climate_ir::ClimateIR {
  public:
   DaikinBrcClimate()
       : climate_ir::ClimateIR(DAIKIN_BRC_TEMP_MIN_C, DAIKIN_BRC_TEMP_MAX_C, 0.5f, true, true,
-                              {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                               climate::CLIMATE_FAN_HIGH},
+                              {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH}) {}
 
   /// Set use of Fahrenheit units
@@ -64,7 +63,7 @@ class DaikinBrcClimate : public climate_ir::ClimateIR {
   }
  protected:
   uint8_t mode_button_ = 0x00;
-  //Capture if the MODE was changed
+  // Capture if the MODE was changed
   void control(const climate::ClimateCall &call) override;
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
