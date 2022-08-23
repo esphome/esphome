@@ -7,6 +7,8 @@ from esphome.const import (
     CONF_CS_PIN,
     CONF_ID,
     CONF_LAMBDA,
+    CONF_READ_PIN,
+    CONF_WRITE_PIN,
 )
 
 tm1621_ns = cg.esphome_ns.namespace("tm1621")
@@ -18,8 +20,8 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
         cv.GenerateID(): cv.declare_id(TM1621Display),
         cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_DATA_PIN): pins.gpio_output_pin_schema,
-        cv.Required("read_pin"): pins.gpio_output_pin_schema,
-        cv.Required("write_pin"): pins.gpio_output_pin_schema,
+        cv.Required(CONF_READ_PIN): pins.gpio_output_pin_schema,
+        cv.Required(CONF_WRITE_PIN): pins.gpio_output_pin_schema,
     }
 ).extend(cv.polling_component_schema("1s"))
 
@@ -33,9 +35,9 @@ async def to_code(config):
     cg.add(var.set_cs_pin(cs))
     data = await cg.gpio_pin_expression(config[CONF_DATA_PIN])
     cg.add(var.set_data_pin(data))
-    read = await cg.gpio_pin_expression(config["read_pin"])
+    read = await cg.gpio_pin_expression(config[CONF_READ_PIN])
     cg.add(var.set_read_pin(read))
-    write = await cg.gpio_pin_expression(config["write_pin"])
+    write = await cg.gpio_pin_expression(config[CONF_WRITE_PIN])
     cg.add(var.set_write_pin(write))
 
     if CONF_LAMBDA in config:
