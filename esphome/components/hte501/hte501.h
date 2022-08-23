@@ -4,8 +4,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-static const unisgned char CRC8_ONEWIRE_POLY 0x31;
-static const unisgned char CRC8_ONEWIRE_START 0xFF;
+static const unsigned char CRC8_ONEWIRE_POLY = 0x31;
+static const unsigned char CRC8_ONEWIRE_START = 0xFF;
 
 namespace esphome {
 namespace hte501 {
@@ -21,17 +21,13 @@ class HTE501Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   void update() override;
 
-  protected:
-  unsigned char calcCrc8 (unsigned char buf[], unsigned char from, unsigned char to);
+ protected:
+  unsigned char calcCrc8(unsigned char buf[], unsigned char from, unsigned char to);
   sensor::Sensor *temperature_sensor_;
   sensor::Sensor *humidity_sensor_;
 
-  enum ErrorCode {
-  NONE = 0,
-  COMMUNICATION_FAILED,
-  CRC_CHECK_FAILED
-  } error_code_{NONE};
-};
+  enum ErrorCode { NONE = 0, COMMUNICATION_FAILED, CRC_CHECK_FAILED } error_code_{NONE};
+ };
 
 }  // namespace hte501
 }  // namespace esphome
