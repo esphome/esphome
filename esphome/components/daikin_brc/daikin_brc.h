@@ -7,10 +7,10 @@ namespace daikin_brc {
 
 // Values for Daikin BRC4CXXX IR Controllers
 // Temperature
-const uint8_t DAIKIN_BRC_TEMP_MIN_F = 60;                              // fahrenheit
-const uint8_t DAIKIN_BRC_TEMP_MAX_F = 90;                              // fahrenheit
-const float DAIKIN_BRC_TEMP_MIN_C = (DAIKIN_BRC_TEMP_MIN_F - 32)/1.8;  // fahrenheit
-const float DAIKIN_BRC_TEMP_MAX_C = (DAIKIN_BRC_TEMP_MAX_F - 32)/1.8;  // fahrenheit
+const uint8_t DAIKIN_BRC_TEMP_MIN_F = 60;                                // fahrenheit
+const uint8_t DAIKIN_BRC_TEMP_MAX_F = 90;                                // fahrenheit
+const float DAIKIN_BRC_TEMP_MIN_C = (DAIKIN_BRC_TEMP_MIN_F - 32) / 1.8;  // fahrenheit
+const float DAIKIN_BRC_TEMP_MAX_C = (DAIKIN_BRC_TEMP_MAX_F - 32) / 1.8;  // fahrenheit
 
 // Modes
 const uint8_t DAIKIN_BRC_MODE_AUTO = 0x30;
@@ -40,7 +40,7 @@ const uint8_t DAIKIN_BRC_IR_DRY_FAN_TEMP_F = 72;            // Dry/Fan mode is a
 const uint8_t DAIKIN_BRC_IR_DRY_FAN_TEMP_C = (17 - 9) * 2;  // Dry/Fan mode is always 17 Celsius.
 const uint8_t DAIKIN_BRC_IR_SWING_ON = 0x5;
 const uint8_t DAIKIN_BRC_IR_SWING_OFF = 0x6;
-const uint8_t DAIKIN_BRC_IR_MODE_BUTTON = 0x4;  //This is set after a mode action
+const uint8_t DAIKIN_BRC_IR_MODE_BUTTON = 0x4;  // This is set after a mode action
 
 // State Frame size
 const uint8_t DAIKIN_BRC_STATE_FRAME_SIZE = 15;
@@ -61,6 +61,7 @@ class DaikinBrcClimate : public climate_ir::ClimateIR {
     this->fahrenheit_ = value;
     this->temperature_step_ = value ? 0.5f : 1.0f;
   }
+  
  protected:
   uint8_t mode_button_ = 0x00;
   // Capture if the MODE was changed

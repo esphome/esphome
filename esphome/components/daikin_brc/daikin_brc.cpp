@@ -8,8 +8,8 @@ static const char *const TAG = "daikin_brc.climate";
 
 void DaikinBrcClimate::control(const climate::ClimateCall &call) {
   this->mode_button_ = 0x00;
-  if (call.get_mode().has_value()){
-    //Need to determine if this is call due to Mode button pressed so that we can set the Mode button byte
+  if (call.get_mode().has_value()) {
+    // Need to determine if this is call due to Mode button pressed so that we can set the Mode button byte
     this->mode_button_ = DAIKIN_BRC_IR_MODE_BUTTON;
   }
   ClimateIR::control(call);
@@ -18,7 +18,7 @@ void DaikinBrcClimate::control(const climate::ClimateCall &call) {
 void DaikinBrcClimate::transmit_state() {
   uint8_t remote_state[DAIKIN_BRC_TRANSMIT_FRAME_SIZE] = {0x11, 0xDA, 0x17, 0x18, 0x04, 0x00, 0x1E, 0x11,
                                                           0xDA, 0x17, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                                          0x00, 0x00, 0x00, 0x00, 0x20, 0x00 };
+                                                          0x00, 0x00, 0x00, 0x00, 0x20, 0x00};
 
   remote_state[12] = this->alt_mode_();
   remote_state[13] = this->mode_button_;
@@ -65,7 +65,7 @@ void DaikinBrcClimate::transmit_state() {
 
 uint8_t DaikinBrcClimate::alt_mode_() {
   uint8_t alt_mode = 0x00;
-  switch (this->mode){
+  switch (this->mode) {
     case climate::CLIMATE_MODE_DRY:
       alt_mode = 0x23;
       break;
@@ -142,7 +142,7 @@ uint8_t DaikinBrcClimate::temperature_() {
   switch (this->mode) {
     case climate::CLIMATE_MODE_FAN_ONLY:
     case climate::CLIMATE_MODE_DRY:
-      if (this->fahrenheit_){
+      if (this->fahrenheit_) {
         return DAIKIN_BRC_IR_DRY_FAN_TEMP_F;
       }
       return DAIKIN_BRC_IR_DRY_FAN_TEMP_C;
@@ -150,7 +150,7 @@ uint8_t DaikinBrcClimate::temperature_() {
     default:
       uint8_t temperature;
       // Temperature in remote is in F
-      if (this->fahrenheit_){
+      if (this->fahrenheit_) {
         temperature = (uint8_t) roundf(
             clamp<float>(((this->target_temperature * 1.8) + 32), DAIKIN_BRC_TEMP_MIN_F, DAIKIN_BRC_TEMP_MAX_F));
       } else {
@@ -195,8 +195,8 @@ bool DaikinBrcClimate::parse_state_frame_(const uint8_t frame[]) {
 
   uint8_t temperature = frame[10];
   float temperature_c;
-  if (this->fahrenheit_){
-    temperature_c = clamp<float>(((temperature - 32)/1.8), DAIKIN_BRC_TEMP_MIN_C, DAIKIN_BRC_TEMP_MAX_C);
+  if (this->fahrenheit_) {
+    temperature_c = clamp<float>(((temperature - 32) / 1.8), DAIKIN_BRC_TEMP_MIN_C, DAIKIN_BRC_TEMP_MAX_C);
   } else {
     temperature_c = (temperature >> 1) + 9;
   }
