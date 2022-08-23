@@ -7,6 +7,8 @@ from esphome.const import (
     UNIT_CELSIUS,
 )
 
+CODEOWNERS = ["@Stock-M"]
+
 DEPENDENCIES = ["i2c"]
 
 tee501_ns = cg.esphome_ns.namespace("tee501")
