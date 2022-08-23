@@ -15,6 +15,8 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
 )
 
+CODEOWNERS = ["@Stock-M"]
+
 DEPENDENCIES = ["i2c"]
 
 ee895_ns = cg.esphome_ns.namespace("ee895")
