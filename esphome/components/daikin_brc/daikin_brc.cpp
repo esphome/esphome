@@ -24,12 +24,12 @@ void DaikinBrcClimate::transmit_state() {
   remote_state[14] = this->operation_mode_();
   remote_state[17] = this->temperature_();
   remote_state[18] = this->fan_speed_swing_();
- 
+
   // Calculate checksum
   for (int i = DAIKIN_BRC_PREAMBLE_SIZE; i < DAIKIN_BRC_TRANSMIT_FRAME_SIZE - 1; i++) {
     remote_state[DAIKIN_BRC_TRANSMIT_FRAME_SIZE - 1] += remote_state[i];
   }
-  
+
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
   data->set_carrier_frequency(DAIKIN_BRC_IR_FREQUENCY);
@@ -55,7 +55,7 @@ void DaikinBrcClimate::transmit_state() {
       data->space(bit ? DAIKIN_BRC_ONE_SPACE : DAIKIN_BRC_ZERO_SPACE);
     }
   }
- 
+
   data->mark(DAIKIN_BRC_BIT_MARK);
   data->space(0);
 
@@ -168,7 +168,6 @@ bool DaikinBrcClimate::parse_state_frame_(const uint8_t frame[]) {
     ESP_LOGCONFIG(TAG, "Bad CheckSum %x", checksum);
     return false;
   }
-    
 
   uint8_t mode = frame[7];
   if (mode & DAIKIN_BRC_MODE_ON) {
@@ -200,9 +199,9 @@ bool DaikinBrcClimate::parse_state_frame_(const uint8_t frame[]) {
   } else {
     temperature_c = (temperature >> 1) + 9 ; 
   }
-  
+
   this->target_temperature = temperature_c;
-  
+
   uint8_t fan_mode = frame[11];
   uint8_t swing_mode = frame[11];
   switch (swing_mode & 0xF) {
@@ -213,7 +212,7 @@ bool DaikinBrcClimate::parse_state_frame_(const uint8_t frame[]) {
       this->swing_mode = climate::CLIMATE_SWING_OFF;
       break;
   }
-  
+
   switch (fan_mode & 0xF0) {
     case DAIKIN_BRC_FAN_1:
       this->fan_mode = climate::CLIMATE_FAN_LOW;
