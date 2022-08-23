@@ -28,7 +28,7 @@ class EE895Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *pressure_sensor_;
 
   enum ErrorCode { NONE = 0, COMMUNICATION_FAILED, CRC_CHECK_FAILED } error_code_{NONE};
- };
+};
 
 }  // namespace ee895
 }  // namespace esphome
