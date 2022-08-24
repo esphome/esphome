@@ -947,9 +947,12 @@ def make_app(debug=get_bool_env(ENV_DEV)):
 
     class StaticFileHandler(tornado.web.StaticFileHandler):
         def set_extra_headers(self, path):
-            self.set_header(
-                "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
-            )
+            if "favicon.ico" in path:
+                self.set_header("Cache-Control", "max-age=84600, public")
+            else:
+                self.set_header(
+                    "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
+                )
 
     app_settings = {
         "debug": debug,
