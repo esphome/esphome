@@ -639,8 +639,8 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       this->on_input_text_command_request(msg);
 #endif
-    break;   
-  } 
+      break;
+    }
     default:
       return false;
   }
