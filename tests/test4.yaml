@@ -667,3 +667,8 @@ media_player:
       - media_player.volume_up:
       - media_player.volume_down:
       - media_player.volume_set: 50%
+
+prometheus:
+  include_internal: true
+  relabel:
+    "Foo: Bar": foobar
