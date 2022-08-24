@@ -2,6 +2,7 @@
 
 #ifdef USE_ARDUINO
 
+#include <map>
 #include <utility>
 
 #include "esphome/components/web_server_base/web_server_base.h"
