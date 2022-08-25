@@ -67,7 +67,7 @@ void HTE501Component::update() {
   });
 }
 
-unsigned char HTE501Component::calc_crc8_(unsigned char buf[], unsigned char from, unsigned char to) {
+unsigned char HTE501Component::calc_crc8_(const unsigned char buf[], unsigned char from, unsigned char to) {
   unsigned char crc_val = 0xFF;
   unsigned char i = 0;
   unsigned char j = 0;
