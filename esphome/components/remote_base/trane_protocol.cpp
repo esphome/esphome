@@ -22,6 +22,7 @@ static const uint32_t NBITS_2 = 32;
 
 
 void TraneProtocol::encode(RemoteTransmitData *dst, const TraneData &data) {
+  ESP_LOGD(TAG, "Protocol: mode = 0x%03X", data.mode);
   ESP_LOGD(TAG, "Protocol: data1 = 0x%09X", data.trane_data_1);
   ESP_LOGD(TAG, "Protocol: data2 = 0x%08X", data.trane_data_2);
 
@@ -30,7 +31,15 @@ void TraneProtocol::encode(RemoteTransmitData *dst, const TraneData &data) {
 
   dst->item(HEADER_HIGH_US,HEADER_LOW_US);
 
-  for (uint64_t mask = 1; mask<=17179869184; mask <<= 1) {
+  for (uint8_t mask = 1; mask <=4 ; mask <<= 1){
+    if (data.mod & mask) {
+      dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
+    } else {
+      dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+    }
+  }
+
+  for (uint64_t mask = 1; mask ; mask <<= 1) {
     if (data.trane_data_1 & mask) {
       dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
     } else {
@@ -41,7 +50,7 @@ void TraneProtocol::encode(RemoteTransmitData *dst, const TraneData &data) {
   dst->mark(BIT_HIGH_US);
   dst->space(PAUSE_US);
 
-  for (uint32_t mask = 1; mask; mask <<=1){
+  for (uint32_t mask = 1; mask ; mask <<= 1){
     if (data.trane_data_2 & mask){
       dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
     } else {

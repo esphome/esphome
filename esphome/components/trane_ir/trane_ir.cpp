@@ -7,7 +7,7 @@ namespace trane_ir {
 
 static const char *const TAG = "trane.climate";
 
-static const uint32_t TRANE_CONSTANT_1 = 0x4A0ULL;
+static const uint32_t TRANE_CONSTANT_1 = 0x4A000000;
 
 static const uint32_t TRANE_OFF = 0xB27BE0;
 static const uint32_t TRANE_SWING = 0xB26BE0;
@@ -22,17 +22,29 @@ enum TRANE_MODE{
   FAN,
   HEAT,
 };
-static const uint8_t TRANE_MODE_AUTO = 0b000;
-static const uint8_t TRANE_MODE_COOL = 0b001;
-static const uint8_t TRANE_MODE_DRY = 0b010;
-static const uint8_t TRANE_MODE_FAN = 0b011;
-static const uint8_t TRANE_MODE_HEAT = 0b100;
 
-static const uint8_t TRANE_FAN_NBITS = 3;
-static const uint8_t TRANE_FAN_AUTO = 0b00;
-static const uint8_t TRANE_FAN_LOW = 0b01;
-static const uint8_t TRANE_FAN_MED = 0b10;
-static const uint8_t TRANE_FAN_HIGH = 0b11;
+static const uint8_t TRANE_FAN_SPEED_NBITS = 3;
+enum TRANE_FAN_SPEED{
+  AUTO,
+  LOW,
+  MED,
+  HIGH,
+};
+
+enum TRANE_FAN_VERTICAL_SWING{
+  OFF,
+  FULL,
+  POSITION1,
+  POSITION2,
+  POSITION3,
+  POSITION4,
+  POSITION5,
+  UNKNOWN1,
+  BOTTOM,
+  MIDDLE,
+  UNKNOWN,
+  TOP,
+};
 
 // Temperature
 static const uint8_t TRANE_TEMP_NBITS = 4;
@@ -63,45 +75,57 @@ void TraneClimate::transmit_state() {
     temperature_state = (temp-16);
   }
 
-  uint8_t fan_speed_state = 0;
+  TRANE_FAN_SPEED fan_speed_state = AUTO;
 
   switch(this->fan_mode.value()){
     case climate::CLIMATE_FAN_AUTO:
-      fan_speed_state = TRANE_FAN_AUTO;
+      fan_speed_state = AUTO;
       break;
     case climate::CLIMATE_FAN_LOW:
-      fan_speed_state = TRANE_FAN_LOW;
+      fan_speed_state = LOW;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      fan_speed_state = TRANE_FAN_MED;
+      fan_speed_state = MED;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      fan_speed_state = TRANE_FAN_HIGH;
+      fan_speed_state = HIGH;
       break;
   }
-  // shift 12-bit constant at beginning of first word by 23 bits to achieve a 35 bit word
-  //  uint64_t remote_state_1 = 0x250600E49;
+
+  TRANE_FAN_VERTICAL_SWING vertical_swing_state = OFF;
+  switch (this->) {
+    
+  }
+
+  //  constant that has to do with unit light, power, and something else I haven't figured out in the protocol yet
+  //  uint32_t remote_state_1 = 0x4A0C00000
   //  remote_state_1 |= (temperature_state << (12 - TRANE_TEMP_NBITS));
   //  //Implicit 0 for sleep
+  //  I believe there must be a 1 here for a boolen on whether swing mode is on or off
   //  remote_state_1 |= (1 << (6));
-  //  remote_state_1 |= (fan_speed_state << (7 - TRANE_FAN_NBITS));
+  //  remote_state_1 |= (fan_speed_state << (7 - TRANE_FAN_SPEED_NBITS));
   //  //power boolean
   //  remote_state_1 |= (1 << 3);
-  //  remote_state_1 |= (mode_state);
 
   //  uint32_t remote_state_2 = 0xD002000A;
+  //  remote_state_2 |= ()
 
   // Testing fixed states
-  uint64_t remote_state_1 = 0x6D0E00E49;
-  uint32_t remote_state_2 = 0xD002000A;
+  mode_state = COOL;
+  uint32_t remote_state_1 = 0x4A0C01C9;
+  uint32_t remote_state_2 = 0x5000400B;
+
+  ESP_LOGD(TAG, "Sending Trane: mode = 0x%03X", mode_state);
   ESP_LOGD(TAG, "Sending Trane: data1 = 0x%016X", remote_state_1);
   ESP_LOGD(TAG, "Sending Trane: data2 = 0x%08X", remote_state_2);
   //TODO:IMPLEMENT STATE 2 ENCODING
 
 
   remote_base::TraneData remote_state;
+  remote_state.mode = mode_state;
   remote_state.trane_data_1 = remote_state_1;
   remote_state.trane_data_2 = remote_state_2;
+
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
   remote_base::TraneProtocol().encode(data, remote_state);

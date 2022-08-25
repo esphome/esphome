@@ -22,8 +22,9 @@ namespace remote_base {
 //};
 
 struct TraneData {
-  uint64_t trane_data_1;
-  uint64_t trane_data_2;
+  uint8_t mode;
+  uint32_t trane_data_1;
+  uint32_t trane_data_2;
 };
 
 class TraneProtocol : public RemoteProtocol<TraneData>{
@@ -31,16 +32,29 @@ class TraneProtocol : public RemoteProtocol<TraneData>{
   void encode(RemoteTransmitData *dst, const TraneData &data) override;
   optional<TraneData> decode(RemoteReceiveData data) override;
   void dump(const TraneData &data) override;
+
+//  void set_data(const std::vector<int64_t> &data){
+//    this->data_.clear();
+//    this->data_.reserve(data.size());
+//    for (auto dat: data){
+//      this->data_.push_back(dat);
+//    }
+//  };
+//
+// protected:
+//  std::vector<int64_t> data_{};
 };
 
 DECLARE_REMOTE_PROTOCOL(Trane)
 template<typename... Ts> class TraneAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  TEMPLATABLE_VALUE(uint64_t, trane_data_1)
-  TEMPLATABLE_VALUE(uint32_t, trane_data_2)
+  TEMPLATABLE_VALUE(uint8_t, mode);
+  TEMPLATABLE_VALUE(uint32_t, trane_data_1);
+  TEMPLATABLE_VALUE(uint32_t, trane_data_2);
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     TraneData data{};
+    data.mode = this->mode.value(x...);
     data.trane_data_1 = this->trane_data_1_.value(x...);
     data.trane_data_2 = this->trane_data_2_.value(x...);
     TraneProtocol().encode(dst, data);
