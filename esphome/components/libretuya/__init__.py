@@ -158,6 +158,9 @@ async def to_code(config):
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
 
+    # decrease web server stack size (16k words -> 4k words)
+    cg.add_build_flag("-DCONFIG_ASYNC_TCP_STACK_SIZE=4096")
+
     # custom output firmware name and version
     if CONF_PROJECT in config:
         cg.add_platformio_option(
