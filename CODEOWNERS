@@ -122,6 +122,7 @@ esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp3204/* @rsumner
 esphome/components/mcp4728/* @berfenger
 esphome/components/mcp47a1/* @jesserockz
+esphome/components/mcp9600/* @MrEditor97
 esphome/components/mcp9808/* @k7hpn
 esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
