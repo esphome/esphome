@@ -68,6 +68,16 @@ void MDNSComponent::compile_records_() {
   }
 #endif
 
+#ifdef USE_WEBSERVER
+  {
+    MDNSService service{};
+    service.service_type = "_http";
+    service.proto = "_tcp";
+    service.port = USE_WEBSERVER_PORT;
+    this->services_.push_back(service);
+  }
+#endif
+
   if (this->services_.empty()) {
     // Publish "http" service if not using native API
     // This is just to have *some* mDNS service so that .local resolution works
