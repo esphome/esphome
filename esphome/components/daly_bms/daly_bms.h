@@ -69,10 +69,13 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
   void update() override;
 
   float get_setup_priority() const override;
+  void set_address(uint8_t address) { this->addr_ = address; }
 
  protected:
   void request_data_(uint8_t data_id);
   void decode_data_(std::vector<uint8_t> data);
+
+  uint8_t addr_;
 
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};

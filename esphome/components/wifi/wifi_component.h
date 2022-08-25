@@ -186,6 +186,7 @@ class WiFiComponent : public Component {
    * can be made, the AP will be turned off again.
    */
   void set_ap(const WiFiAP &ap);
+  WiFiAP get_ap() { return this->ap_; }
 
   void start_scanning();
   void check_scanning_finished();
@@ -221,6 +222,11 @@ class WiFiComponent : public Component {
 
   bool has_sta() const;
   bool has_ap() const;
+
+#ifdef USE_WIFI_11KV_SUPPORT
+  void set_btm(bool btm);
+  void set_rrm(bool rrm);
+#endif
 
   network::IPAddress get_ip_address();
   std::string get_use_address() const;
@@ -335,6 +341,10 @@ class WiFiComponent : public Component {
   optional<float> output_power_;
   ESPPreferenceObject pref_;
   bool has_saved_wifi_settings_{false};
+#ifdef USE_WIFI_11KV_SUPPORT
+  bool btm_{false};
+  bool rrm_{false};
+#endif
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

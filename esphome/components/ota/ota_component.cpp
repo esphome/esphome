@@ -296,7 +296,7 @@ void OTAComponent::handle_() {
 
     error_code = backend->write(buf, read);
     if (error_code != OTA_RESPONSE_OK) {
-      ESP_LOGW(TAG, "Error writing binary data to flash!");
+      ESP_LOGW(TAG, "Error writing binary data to flash!, error_code: %d", error_code);
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
     total += read;
@@ -321,7 +321,7 @@ void OTAComponent::handle_() {
 
   error_code = backend->end();
   if (error_code != OTA_RESPONSE_OK) {
-    ESP_LOGW(TAG, "Error ending OTA!");
+    ESP_LOGW(TAG, "Error ending OTA!, error_code: %d", error_code);
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
 

@@ -22,6 +22,7 @@ from esphome.const import (
     CONF_ON_PRESS,
     CONF_ON_RELEASE,
     CONF_ON_STATE,
+    CONF_PUBLISH_INITIAL_STATE,
     CONF_STATE,
     CONF_TIMING,
     CONF_TRIGGER_ID,
@@ -29,6 +30,7 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
+    DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_COLD,
     DEVICE_CLASS_CONNECTIVITY,
     DEVICE_CLASS_DOOR,
@@ -63,6 +65,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
+    DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_COLD,
     DEVICE_CLASS_CONNECTIVITY,
     DEVICE_CLASS_DOOR,
@@ -326,6 +329,7 @@ BINARY_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).ex
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
             mqtt.MQTTBinarySensorComponent
         ),
+        cv.Optional(CONF_PUBLISH_INITIAL_STATE): cv.boolean,
         cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
         cv.Optional(CONF_FILTERS): validate_filters,
         cv.Optional(CONF_ON_PRESS): automation.validate_automation(
@@ -418,6 +422,8 @@ async def setup_binary_sensor_core_(var, config):
 
     if CONF_DEVICE_CLASS in config:
         cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
+    if CONF_PUBLISH_INITIAL_STATE in config:
+        cg.add(var.set_publish_initial_state(config[CONF_PUBLISH_INITIAL_STATE]))
     if CONF_INVERTED in config:
         cg.add(var.set_inverted(config[CONF_INVERTED]))
     if CONF_FILTERS in config:
@@ -477,8 +483,8 @@ async def register_binary_sensor(var, config):
     await setup_binary_sensor_core_(var, config)
 
 
-async def new_binary_sensor(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_binary_sensor(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_binary_sensor(var, config)
     return var
 

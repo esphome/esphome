@@ -31,12 +31,15 @@ from esphome.const import (
     CONF_FORCE_UPDATE,
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DATE,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
@@ -51,6 +54,7 @@ from esphome.const import (
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
@@ -66,13 +70,16 @@ from esphome.util import Registry
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DATE,
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
@@ -87,6 +94,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
@@ -101,6 +109,7 @@ STATE_CLASSES = {
     "": StateClasses.STATE_CLASS_NONE,
     "measurement": StateClasses.STATE_CLASS_MEASUREMENT,
     "total_increasing": StateClasses.STATE_CLASS_TOTAL_INCREASING,
+    "total": StateClasses.STATE_CLASS_TOTAL,
 }
 validate_state_class = cv.enum(STATE_CLASSES, lower=True, space="_")
 
@@ -606,8 +615,8 @@ async def register_sensor(var, config):
     await setup_sensor_core_(var, config)
 
 
-async def new_sensor(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_sensor(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_sensor(var, config)
     return var
 

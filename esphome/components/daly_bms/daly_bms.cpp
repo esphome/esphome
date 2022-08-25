@@ -50,7 +50,7 @@ void DalyBmsComponent::request_data_(uint8_t data_id) {
   uint8_t request_message[DALY_FRAME_SIZE];
 
   request_message[0] = 0xA5;     // Start Flag
-  request_message[1] = 0x80;     // Communication Module Address
+  request_message[1] = addr_;    // Communication Module Address
   request_message[2] = data_id;  // Data ID
   request_message[3] = 0x08;     // Data Length (Fixed)
   request_message[4] = 0x00;     // Empty Data
