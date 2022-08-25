@@ -76,9 +76,9 @@ class LibreTuyaPreferences : public ESPPreferences {
     //
     fdb_err_t err = fdb_kvdb_init(&db, "esphome", "kvs", NULL, NULL);
     if (err != FDB_NO_ERR) {
-      ESP_LOGE(TAG, "fdb_kvdb_init(...) failed: %d", err);
+      LT_E("fdb_kvdb_init(...) failed: %d", err);
     } else {
-      ESP_LOGD(TAG, "Preferences initialized");
+      LT_I("Preferences initialized");
     }
   }
 
