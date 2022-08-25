@@ -8,6 +8,7 @@ from esphome.const import (
 )
 from .. import (
     BEDJET_CLIENT_SCHEMA,
+    bedjet_ns,
     register_bedjet_child,
 )
 
@@ -15,7 +16,6 @@ _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@jhansche"]
 DEPENDENCIES = ["bedjet"]
 
-bedjet_ns = cg.esphome_ns.namespace("bedjet")
 BedJetFan = bedjet_ns.class_("BedJetFan", fan.Fan, cg.PollingComponent)
 
 CONFIG_SCHEMA = (
