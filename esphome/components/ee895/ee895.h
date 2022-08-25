@@ -4,13 +4,6 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-#define CRC16_ONEWIRE_START 0xFFFF
-#define FUNCTION_CODE_READ 0x03
-#define SERIAL_NUMBER 0x0000
-#define TEMPERATURE_ADDRESS 0x03EA
-#define CO2_ADDRESS 0x0424
-#define PRESSURE_ADDRESS 0x04B0 
-
 namespace esphome {
 namespace ee895 {
 
@@ -27,8 +20,8 @@ class EE895Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
  protected:
-  void write_command(uint16_t addr, uint16_t reg_cnt);
-  float read_float();
+  void write_command_(uint16_t addr, uint16_t reg_cnt);
+  float read_float_();
   uint16_t calc_crc16_(const unsigned char buf[], unsigned char len);
   sensor::Sensor *co2_sensor_;
   sensor::Sensor *temperature_sensor_;

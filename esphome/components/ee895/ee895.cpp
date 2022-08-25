@@ -6,10 +6,17 @@ namespace ee895 {
 
 static const char *const TAG = "ee895";
 
+static const uint16_t CRC16_ONEWIRE_START = 0xFFFF;
+static const uint8_t FUNCTION_CODE_READ = 0x03;
+static const uint16_t SERIAL_NUMBER = 0x0000;
+static const uint16_t TEMPERATURE_ADDRESS = 0x03EA;
+static const uint16_t CO2_ADDRESS = 0x0424;
+static const uint16_t PRESSURE_ADDRESS = 0x04B0;
+
 void EE895Component::setup() {
   uint16_t crc16_check = 0;
   ESP_LOGCONFIG(TAG, "Setting up EE895...");
-  write_command(SERIAL_NUMBER, 8);
+  write_command_(SERIAL_NUMBER, 8);
   uint8_t serial_number[20];
   this->read(serial_number, 20);
 
@@ -19,13 +26,16 @@ void EE895Component::setup() {
     this->mark_failed();
     return;
   }
-  uint32_t serial_number1 = (serial_number[2] << 24) + (serial_number[3] << 16) + (serial_number[4] << 8) + serial_number[5];
-  uint32_t serial_number2 = (serial_number[6] << 24) + (serial_number[7] << 16) + (serial_number[8] << 8) + serial_number[9];
+  uint32_t serial_number1 =
+      (serial_number[2] << 24) + (serial_number[3] << 16) + (serial_number[4] << 8) + serial_number[5];
+  uint32_t serial_number2 =
+      (serial_number[6] << 24) + (serial_number[7] << 16) + (serial_number[8] << 8) + serial_number[9];
   uint32_t serial_number3 =
       (serial_number[10] << 24) + (serial_number[11] << 16) + (serial_number[12] << 8) + serial_number[13];
   uint32_t serial_number4 =
       (serial_number[14] << 24) + (serial_number[15] << 16) + (serial_number[16] << 8) + serial_number[17];
-  ESP_LOGV(TAG, "    Serial Number: 0x%08X%08X%08X%08X", serial_number1, serial_number2, serial_number3, serial_number4);
+  ESP_LOGV(TAG, "    Serial Number: 0x%08X%08X%08X%08X", serial_number1, serial_number2, serial_number3,
+           serial_number4);
 }
 
 void EE895Component::dump_config() {
@@ -51,15 +61,15 @@ void EE895Component::dump_config() {
 float EE895Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void EE895Component::update() {
-  write_command(TEMPERATURE_ADDRESS, 2);
+  write_command_(TEMPERATURE_ADDRESS, 2);
   this->set_timeout(50, [this]() {
-    float temperature = read_float();
+    float temperature = read_float_();
 
-    write_command(CO2_ADDRESS, 2);
-    float co2 = read_float();
+    write_command_(CO2_ADDRESS, 2);
+    float co2 = read_float_();
 
-    write_command(PRESSURE_ADDRESS, 2);
-    float pressure = read_float();
+    write_command_(PRESSURE_ADDRESS, 2);
+    float pressure = read_float_();
     ESP_LOGD(TAG, "Got temperature=%.1f°C co2=%.0fppm pressure=%.1f%mbar", temperature, co2, pressure);
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(temperature);
@@ -71,7 +81,7 @@ void EE895Component::update() {
   });
 }
 
-void EE895Component::write_command(uint16_t addr, uint16_t reg_cnt) {
+void EE895Component::write_command_(uint16_t addr, uint16_t reg_cnt) {
   uint8_t address[7];
   uint16_t crc16 = 0;
   address[0] = FUNCTION_CODE_READ;
@@ -85,19 +95,19 @@ void EE895Component::write_command(uint16_t addr, uint16_t reg_cnt) {
   this->write(address, 7, true);
 }
 
-float EE895Component::read_float() {
+float EE895Component::read_float_() {
   uint16_t crc16_check = 0;
   uint8_t i2c_response[8];
   this->read(i2c_response, 8);
-    crc16_check = (i2c_response[7] << 8) + i2c_response[6];
-    if (crc16_check != calc_crc16_(i2c_response, 7)) {
-      this->error_code_ = CRC_CHECK_FAILED;
-      this->status_set_warning();
-      return 0;
-    }
-    uint32_t x = (i2c_response[4] << 24 | i2c_response[5] << 16 | i2c_response[2]  << 8 | i2c_response[3]); 
-    float value = *(float *) &x; // convert uin32_t IEEE-754 format to float
-    return value;
+  crc16_check = (i2c_response[7] << 8) + i2c_response[6];
+  if (crc16_check != calc_crc16_(i2c_response, 7)) {
+    this->error_code_ = CRC_CHECK_FAILED;
+    this->status_set_warning();
+    return 0;
+  }
+  uint32_t x = (i2c_response[4] << 24 | i2c_response[5] << 16 | i2c_response[2] << 8 | i2c_response[3]);
+  float value = *(float *) &x;  // convert uin32_t IEEE-754 format to float
+  return value;
 }
 
 uint16_t EE895Component::calc_crc16_(const unsigned char buf[], unsigned char len) {
