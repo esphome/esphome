@@ -1345,7 +1345,8 @@ TraneData, TraneBinarySensor, TraneTrigger, TraneAction, TraneDumper = declare_p
 )
 TRANE_SCHEMA = cv.Schema(
     {
-        cv.Required("A"): cv.hex_uint64_t,
+        cv.Required("mode"): cv.hex_uint8_t,
+        cv.Required("A"): cv.hex_uint32_t,
         cv.Required("B"): cv.hex_uint32_t,
     }
 )
@@ -1368,7 +1369,9 @@ def trane_dumper(var, config):
 
 @register_action("trane", TraneAction, TRANE_SCHEMA)
 async def trane_action(var, config, args):
-    template_ = await cg.templatable(config["A"], args, cg.uint64)
+    template_ = await cg.templatable(config["mode"], args, cg.uint8)
+    cg.add(var.set_trane_mode(template_))
+    template_ = await cg.templatable(config["A"], args, cg.uint32)
     cg.add(var.set_trane_data_1(template_))
     template_ = await cg.templatable(config["B"], args, cg.uint32)
     cg.add(var.set_trane_data_2(template_))

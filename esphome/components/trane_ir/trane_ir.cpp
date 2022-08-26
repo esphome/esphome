@@ -7,7 +7,8 @@ namespace trane_ir {
 
 static const char *const TAG = "trane.climate";
 
-static const uint32_t TRANE_CONSTANT_1 = 0x4A000000;
+static const uint32_t TRANE_CONSTANT_1 = 0x4A0C0000;
+static const uint32_t TRANE_CONSTANT_2 = 0x4000;
 
 static const uint32_t TRANE_OFF = 0xB27BE0;
 static const uint32_t TRANE_SWING = 0xB26BE0;
@@ -16,55 +17,57 @@ static const uint32_t TRANE_SILENCE_FP = 0xB5F5B6;
 
 static const uint8_t TRANE_MODE_NBITS = 3;
 enum TRANE_MODE{
-  AUTO,
-  COOL,
-  DRY,
-  FAN,
-  HEAT,
+  MODE_AUTO,
+  MODE_COOL,
+  MODE_DRY,
+  MODE_FAN,
+  MODE_HEAT,
 };
 
 static const uint8_t TRANE_FAN_SPEED_NBITS = 3;
 enum TRANE_FAN_SPEED{
-  AUTO,
-  LOW,
-  MED,
-  HIGH,
+  SPEED_AUTO,
+  SPEED_LOW,
+  SPEED_MED,
+  SPEED_HIGH,
 };
 
 enum TRANE_FAN_VERTICAL_SWING{
-  OFF,
-  FULL,
-  POSITION1,
-  POSITION2,
-  POSITION3,
-  POSITION4,
-  POSITION5,
-  UNKNOWN1,
-  BOTTOM,
-  MIDDLE,
-  UNKNOWN,
-  TOP,
+  SWING_OFF,
+  SWING_FULL,
+  SWING_POSITION1,
+  SWING_POSITION2,
+  SWING_POSITION3,
+  SWING_POSITION4,
+  SWING_POSITION5,
+  SWING_UNKNOWN1,
+  SWING_BOTTOM,
+  SWING_MIDDLE,
+  SWING_UNKNOWN,
+  SWING_TOP,
 };
 
 // Temperature
 static const uint8_t TRANE_TEMP_NBITS = 4;
 static const uint8_t TRANE_TEMP_RANGE = TRANE_TEMP_MAX - TRANE_TEMP_MIN + 1;
 
+static const uint8_t CHECKSUM_NBITS = 4;
+
 
 void TraneClimate::transmit_state() {
-  enum TRANE_MODE mode_state = AUTO;
+  enum TRANE_MODE mode_state = MODE_AUTO;
   switch(this->mode){
     case climate::CLIMATE_MODE_COOL:
-      mode_state = COOL;
+      mode_state = MODE_COOL;
       break;
     case climate::CLIMATE_MODE_HEAT:
-      mode_state = HEAT;
+      mode_state = MODE_HEAT;
       break;
     case climate::CLIMATE_MODE_DRY:
-      mode_state = DRY;
+      mode_state = MODE_DRY;
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
-      mode_state = FAN;
+      mode_state = MODE_FAN;
       break;
   }
 
@@ -75,51 +78,56 @@ void TraneClimate::transmit_state() {
     temperature_state = (temp-16);
   }
 
-  TRANE_FAN_SPEED fan_speed_state = AUTO;
-
+  TRANE_FAN_SPEED fan_speed_state = SPEED_AUTO;
   switch(this->fan_mode.value()){
     case climate::CLIMATE_FAN_AUTO:
-      fan_speed_state = AUTO;
+      fan_speed_state = SPEED_AUTO;
       break;
     case climate::CLIMATE_FAN_LOW:
-      fan_speed_state = LOW;
+      fan_speed_state = SPEED_LOW;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      fan_speed_state = MED;
+      fan_speed_state = SPEED_MED;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      fan_speed_state = HIGH;
+      fan_speed_state = SPEED_HIGH;
       break;
   }
 
-  TRANE_FAN_VERTICAL_SWING vertical_swing_state = OFF;
-  switch (this->) {
-    
+  TRANE_FAN_VERTICAL_SWING vertical_swing_state = SWING_OFF;
+  switch (this->swing_mode) {
+    case climate::CLIMATE_SWING_VERTICAL:
+      vertical_swing_state = SWING_FULL;
+
   }
 
-  //  constant that has to do with unit light, power, and something else I haven't figured out in the protocol yet
-  //  uint32_t remote_state_1 = 0x4A0C00000
-  //  remote_state_1 |= (temperature_state << (12 - TRANE_TEMP_NBITS));
-  //  //Implicit 0 for sleep
-  //  I believe there must be a 1 here for a boolen on whether swing mode is on or off
-  //  remote_state_1 |= (1 << (6));
-  //  remote_state_1 |= (fan_speed_state << (7 - TRANE_FAN_SPEED_NBITS));
-  //  //power boolean
-  //  remote_state_1 |= (1 << 3);
+  //constant that has to do with unit light, power, and something else I haven't figured out in the protocol yet
+  uint32_t remote_state_1 = TRANE_CONSTANT_1;
+  remote_state_1 |= (temperature_state << (9 - TRANE_TEMP_NBITS));
+  //Implicit 0 for sleep
+  //I believe there must be a 1 here for a boolean on whether swing mode is on or off
+  remote_state_1 |= (1 << 3);
+  remote_state_1 |= (fan_speed_state << (4 - TRANE_FAN_SPEED_NBITS));
+  //power boolean
+  remote_state_1 |= 1;
 
-  //  uint32_t remote_state_2 = 0xD002000A;
-  //  remote_state_2 |= ()
 
-  // Testing fixed states
-  mode_state = COOL;
-  uint32_t remote_state_1 = 0x4A0C01C9;
-  uint32_t remote_state_2 = 0x5000400B;
+  uint8_t checksum_a = mode_state | (1 << 3) | (fan_speed_state << 4) | (1 << 6);
+  uint8_t checksum_b = temperature_state;
+  uint8_t checksum_c = 0;
+  uint8_t checksum = (14 + checksum_a + checksum_b + checksum_c) & 15;
 
-  ESP_LOGD(TAG, "Sending Trane: mode = 0x%03X", mode_state);
-  ESP_LOGD(TAG, "Sending Trane: data1 = 0x%016X", remote_state_1);
-  ESP_LOGD(TAG, "Sending Trane: data2 = 0x%08X", remote_state_2);
-  //TODO:IMPLEMENT STATE 2 ENCODING
+  uint32_t remote_state_2 = TRANE_CONSTANT_2;
+  remote_state_2 |= (checksum << (32 - CHECKSUM_NBITS));
+  // TEMP DISPLAY
+  remote_state_2 |= (2 << 8);
+  remote_state_2 |= vertical_swing_state;
 
+  if(this->mode == climate::CLIMATE_MODE_OFF){
+    mode_state = MODE_COOL;
+    remote_state_1 = 0x4A0634EE;
+    remote_state_2 = 0x70004301;
+  }
 
   remote_base::TraneData remote_state;
   remote_state.mode = mode_state;
@@ -131,59 +139,6 @@ void TraneClimate::transmit_state() {
   remote_base::TraneProtocol().encode(data, remote_state);
   transmit.perform();
 }
-
-//bool TraneClimate::on_TRANE(climate::Climate *parent, remote_base::RemoteReceiveData data) {
-//  auto decoded = remote_base::TRANEProtocol().decode(data);
-//  if (!decoded.has_value())
-//    return false;
-//  // Decoded remote state y 3 bytes long code.
-//  uint32_t remote_state = *decoded;
-//  ESP_LOGV(TAG, "Decoded 0x%06X", remote_state);
-//  if ((remote_state & 0xFF0000) != 0xB20000)
-//    return false;
-//
-//  if (remote_state == TRANE_OFF) {
-//    parent->mode = climate::CLIMATE_MODE_OFF;
-//  } else if (remote_state == TRANE_SWING) {
-//    parent->swing_mode =
-//        parent->swing_mode == climate::CLIMATE_SWING_OFF ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
-//  } else {
-//    if ((remote_state & TRANE_MODE_MASK) == TRANE_HEAT) {
-//      parent->mode = climate::CLIMATE_MODE_HEAT;
-//    } else if ((remote_state & TRANE_MODE_MASK) == TRANE_AUTO) {
-//      parent->mode = climate::CLIMATE_MODE_HEAT_COOL;
-//    } else if ((remote_state & TRANE_MODE_MASK) == TRANE_DRY_FAN) {
-//      if ((remote_state & TRANE_FAN_MASK) == TRANE_FAN_MODE_AUTO_DRY) {
-//        parent->mode = climate::CLIMATE_MODE_DRY;
-//      } else {
-//        parent->mode = climate::CLIMATE_MODE_FAN_ONLY;
-//      }
-//    } else
-//      parent->mode = climate::CLIMATE_MODE_COOL;
-//
-//    // Fan Speed
-//    if ((remote_state & TRANE_FAN_AUTO) == TRANE_FAN_AUTO || parent->mode == climate::CLIMATE_MODE_HEAT_COOL ||
-//        parent->mode == climate::CLIMATE_MODE_DRY) {
-//      parent->fan_mode = climate::CLIMATE_FAN_AUTO;
-//    } else if ((remote_state & TRANE_FAN_MIN) == TRANE_FAN_MIN) {
-//      parent->fan_mode = climate::CLIMATE_FAN_LOW;
-//    } else if ((remote_state & TRANE_FAN_MED) == TRANE_FAN_MED) {
-//      parent->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-//    } else if ((remote_state & TRANE_FAN_MAX) == TRANE_FAN_MAX) {
-//      parent->fan_mode = climate::CLIMATE_FAN_HIGH;
-//    }
-//
-//    // Temperature
-//    uint8_t temperature_code = remote_state & TRANE_TEMP_MASK;
-//    for (uint8_t i = 0; i < TRANE_TEMP_RANGE; i++) {
-//      if (TRANE_TEMP_MAP[i] == temperature_code)
-//        parent->target_temperature = i + TRANE_TEMP_MIN;
-//    }
-//  }
-//  parent->publish_state();
-//
-//  return true;
-//}
 
 }  // namespace TRANE
 }  // namespace esphome

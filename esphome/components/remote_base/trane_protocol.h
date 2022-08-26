@@ -48,13 +48,13 @@ class TraneProtocol : public RemoteProtocol<TraneData>{
 DECLARE_REMOTE_PROTOCOL(Trane)
 template<typename... Ts> class TraneAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  TEMPLATABLE_VALUE(uint8_t, mode);
+  TEMPLATABLE_VALUE(uint8_t, trane_mode);
   TEMPLATABLE_VALUE(uint32_t, trane_data_1);
   TEMPLATABLE_VALUE(uint32_t, trane_data_2);
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     TraneData data{};
-    data.mode = this->mode.value(x...);
+    data.mode = this->trane_mode_.value(x...);
     data.trane_data_1 = this->trane_data_1_.value(x...);
     data.trane_data_2 = this->trane_data_2_.value(x...);
     TraneProtocol().encode(dst, data);
