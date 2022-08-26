@@ -9,7 +9,7 @@ from esphome.const import (
     ICON_CHECK_CIRCLE_OUTLINE,
     CONF_BINARY_SENSOR,
     CONF_GROUP,
-    CONF_SUM
+    CONF_SUM,
 )
 
 DEPENDENCIES = ["binary_sensor"]
