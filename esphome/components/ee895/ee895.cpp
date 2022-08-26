@@ -122,8 +122,8 @@ uint16_t EE895Component::calc_crc16_(const unsigned char buf[], unsigned char le
 
   for (i = 0; i < len; i++) {
     crc ^= (uint16_t) crc_check_buf[i];  // XOR byte into least sig. byte of crc
-    for (j = 8; j != 0; j--) {         // Loop over each bit
-      if ((crc & 0x0001) != 0)         // If the LSB is set
+    for (j = 8; j != 0; j--) {           // Loop over each bit
+      if ((crc & 0x0001) != 0)           // If the LSB is set
       {
         crc >>= 1;  // Shift right and XOR 0xA001
         crc ^= 0xA001;

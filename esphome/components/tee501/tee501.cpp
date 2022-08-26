@@ -55,12 +55,9 @@ void TEE501Component::update() {
       return;
     }
     float temperature = ((float) (i2c_response[0]) * 256 + i2c_response[1]);
-    if (temperature > 55536)
-    {
-      temperature = (temperature - 65536) / 100; 
-    }
-    else 
-    {
+    if (temperature > 55536) {
+      temperature = (temperature - 65536) / 100;
+    } else {
       temperature = temperature / 100;
     }
     ESP_LOGD(TAG, "Got temperature=%.2f°C", temperature);
