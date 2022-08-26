@@ -23,13 +23,22 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
    */
   void set_include_internal(bool include_internal) { include_internal_ = include_internal; }
 
-  /** Add a pair of strings to the relabeling map.
+  /** Add the value for an entity's "id" label.
    *
-   * @param str_old The string that will be replaced.
-   * @param str_new The string that will be the replacement.
+   * @param entity The entity for which to set the "id" label
+   * @param value The value for the "id" label
    */
-  void add_to_relabel_map(const std::string &str_old, const std::string &str_new) {
-    relabel_map_.insert(std::pair<std::string, std::string>(str_old, str_new));
+  void add_label_id(auto obj, const std::string &value) {
+    relabel_map_id_.insert(std::pair<std::string, std::string>(obj->get_object_id(), value));
+  }
+
+  /** Add the value for an entity's "name" label.
+   *
+   * @param entity The entity for which to set the "name" label
+   * @param value The value for the "name" label
+   */
+  void add_label_name(auto obj, const std::string &value) {
+    relabel_map_name_.insert(std::pair<std::string, std::string>(obj->get_object_id(), value));
   }
 
   bool canHandle(AsyncWebServerRequest *request) override {
@@ -53,7 +62,8 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   }
 
  protected:
-  std::string relabel_(const std::string &value);
+  std::string relabel_id_(auto obj);
+  std::string relabel_name_(auto obj);
 
 #ifdef USE_SENSOR
   /// Return the type for prometheus
@@ -106,7 +116,8 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
 
   web_server_base::WebServerBase *base_;
   bool include_internal_{false};
-  std::map<std::string, std::string> relabel_map_;
+  std::map<std::string, std::string> relabel_map_id_;
+  std::map<std::string, std::string> relabel_map_name_;
 };
 
 }  // namespace prometheus
