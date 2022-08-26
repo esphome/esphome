@@ -671,6 +671,6 @@ media_player:
 prometheus:
   include_internal: true
   relabel:
-    sntp_time:
-      id: time
-      name: Time
+    ha_hello_world:
+      id: hellow_world
+      name: "Hello World"
