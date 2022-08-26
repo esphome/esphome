@@ -671,4 +671,6 @@ media_player:
 prometheus:
   include_internal: true
   relabel:
-    "Foo: Bar": foobar
+    sntp_time:
+      id: time
+      name: Time
