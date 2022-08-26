@@ -38,6 +38,7 @@ uart:
     baud_rate: 19200
 
 i2c:
+  frequency: 100khz
 
 modbus:
   uart_id: uart1
@@ -327,6 +328,13 @@ sensor:
     acceleration_mode: low
     store_baseline: true
     address: 0x69
+
+  - platform: mcp9600
+    thermocouple_type: K
+    hot_junction:
+      name: "Thermocouple Temperature"
+    cold_junction:
+      name: "Ambient Temperature"
 
 script:
   - id: automation_test
