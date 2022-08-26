@@ -28,18 +28,14 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
    * @param obj The entity for which to set the "id" label
    * @param value The value for the "id" label
    */
-  void add_label_id(const EntityBase& obj, const std::string &value) {
-    relabel_map_id_.insert(std::pair<EntityBase, std::string>(obj, value));
-  }
+  void add_label_id(EntityBase *obj, const std::string &value) { relabel_map_id_.insert({obj, value}); }
 
   /** Add the value for an entity's "name" label.
    *
    * @param obj The entity for which to set the "name" label
    * @param value The value for the "name" label
    */
-  void add_label_name(const EntityBase& obj, const std::string &value) {
-    relabel_map_name_.insert(std::pair<EntityBase, std::string>(obj, value));
-  }
+  void add_label_name(EntityBase *obj, const std::string &value) { relabel_map_name_.insert({obj, value}); }
 
   bool canHandle(AsyncWebServerRequest *request) override {
     if (request->method() == HTTP_GET) {
@@ -62,8 +58,8 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   }
 
  protected:
-  std::string relabel_id_(const EntityBase& obj);
-  std::string relabel_name_(const EntityBase& obj);
+  std::string relabel_id_(EntityBase *obj);
+  std::string relabel_name_(EntityBase *obj);
 
 #ifdef USE_SENSOR
   /// Return the type for prometheus
@@ -116,8 +112,8 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
 
   web_server_base::WebServerBase *base_;
   bool include_internal_{false};
-  std::map<EntityBase, std::string> relabel_map_id_;
-  std::map<EntityBase, std::string> relabel_map_name_;
+  std::map<EntityBase *, std::string> relabel_map_id_;
+  std::map<EntityBase *, std::string> relabel_map_name_;
 };
 
 }  // namespace prometheus
