@@ -79,7 +79,7 @@ void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_
   }
 }
 
-SensorSet ModbusController::find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const {
+SensorSet ModbusController::find_sensors(ModbusRegisterType register_type, uint16_t start_address) const {
   auto reg_it = find_if(begin(register_ranges_), end(register_ranges_), [=](RegisterRange const &r) {
     return (r.start_address == start_address && r.register_type == register_type);
   });

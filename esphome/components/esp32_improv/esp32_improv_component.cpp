@@ -187,7 +187,7 @@ void ESP32ImprovComponent::set_error_(improv::Error error) {
   }
 }
 
-void ESP32ImprovComponent::send_response_(std::vector<uint8_t> &response) {
+void ESP32ImprovComponent::send_response(std::vector<uint8_t> &response) {
   this->rpc_response_->set_value(response);
   if (this->state_ != improv::STATE_STOPPED)
     this->rpc_response_->notify();

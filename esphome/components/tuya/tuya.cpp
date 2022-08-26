@@ -573,7 +573,7 @@ void Tuya::set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType 
   this->send_datapoint_command_(datapoint_id, datapoint_type, data);
 }
 
-void Tuya::set_raw_datapoint_value_(uint8_t datapoint_id, const std::vector<uint8_t> &value, bool forced) {
+void Tuya::set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8_t> &value, bool forced) {
   ESP_LOGD(TAG, "Setting datapoint %u to %s", datapoint_id, format_hex_pretty(value).c_str());
   optional<TuyaDatapoint> datapoint = this->get_datapoint_(datapoint_id);
   if (!datapoint.has_value()) {
@@ -607,7 +607,7 @@ void Tuya::set_string_datapoint_value_(uint8_t datapoint_id, const std::string &
   this->send_datapoint_command_(datapoint_id, TuyaDatapointType::STRING, data);
 }
 
-void Tuya::send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, std::vector<uint8_t> data) {
+void Tuya::send_datapoint_command(uint8_t datapoint_id, TuyaDatapointType datapoint_type, std::vector<uint8_t> data) {
   std::vector<uint8_t> buffer;
   buffer.push_back(datapoint_id);
   buffer.push_back(static_cast<uint8_t>(datapoint_type));

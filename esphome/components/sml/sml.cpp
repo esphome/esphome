@@ -10,7 +10,7 @@ static const char *const TAG = "sml";
 const char START_BYTES_DETECTED = 1;
 const char END_BYTES_DETECTED = 2;
 
-SmlListener::SmlListener(std::string server_id, std::string obis_code)
+SmlListener::SmlListener(const std::string& server_id, const std::string& obis_code)
     : server_id(std::move(server_id)), obis_code(std::move(obis_code)) {}
 
 char Sml::check_start_end_bytes_(uint8_t byte) {
@@ -53,7 +53,7 @@ void Sml::loop() {
   }
 }
 
-void Sml::process_sml_file_(const bytes &sml_data) {
+void Sml::process_sml_file(const bytes &sml_data) {
   SmlFile sml_file = SmlFile(sml_data);
   std::vector<ObisInfo> obis_info = sml_file.get_obis_info();
   this->publish_obis_info_(obis_info);
@@ -61,7 +61,7 @@ void Sml::process_sml_file_(const bytes &sml_data) {
   this->log_obis_info_(obis_info);
 }
 
-void Sml::log_obis_info_(const std::vector<ObisInfo> &obis_info_vec) {
+void Sml::log_obis_info(const std::vector<ObisInfo> &obis_info_vec) {
   ESP_LOGD(TAG, "OBIS info:");
   for (auto const &obis_info : obis_info_vec) {
     std::string info;
@@ -72,7 +72,7 @@ void Sml::log_obis_info_(const std::vector<ObisInfo> &obis_info_vec) {
   }
 }
 
-void Sml::publish_obis_info_(const std::vector<ObisInfo> &obis_info_vec) {
+void Sml::publish_obis_info(const std::vector<ObisInfo> &obis_info_vec) {
   for (auto const &obis_info : obis_info_vec) {
     this->publish_value_(obis_info);
   }

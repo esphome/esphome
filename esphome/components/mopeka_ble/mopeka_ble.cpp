@@ -42,7 +42,7 @@ bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   return false;
 }
 
-bool MopekaListener::parse_sync_button_(const std::vector<uint8_t> &message) { return (message[2] & 0x80) != 0; }
+bool MopekaListener::parse_sync_button(const std::vector<uint8_t> &message) { return (message[2] & 0x80) != 0; }
 
 }  // namespace mopeka_ble
 }  // namespace esphome

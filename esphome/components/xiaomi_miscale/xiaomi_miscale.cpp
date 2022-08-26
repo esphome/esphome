@@ -70,7 +70,7 @@ optional<ParseResult> XiaomiMiscale::parse_header_(const esp32_ble_tracker::Serv
   return result;
 }
 
-bool XiaomiMiscale::parse_message_(const std::vector<uint8_t> &message, ParseResult &result) {
+bool XiaomiMiscale::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
   if (result.version == 1) {
     return parse_message_v1_(message, result);
   } else {
@@ -78,7 +78,7 @@ bool XiaomiMiscale::parse_message_(const std::vector<uint8_t> &message, ParseRes
   }
 }
 
-bool XiaomiMiscale::parse_message_v1_(const std::vector<uint8_t> &message, ParseResult &result) {
+bool XiaomiMiscale::parse_message_v1(const std::vector<uint8_t> &message, ParseResult &result) {
   // message size is checked in parse_header
   // 1-2 Weight (MISCALE 181D)
   // 3-4 Years (MISCALE 181D)
@@ -103,7 +103,7 @@ bool XiaomiMiscale::parse_message_v1_(const std::vector<uint8_t> &message, Parse
   return true;
 }
 
-bool XiaomiMiscale::parse_message_v2_(const std::vector<uint8_t> &message, ParseResult &result) {
+bool XiaomiMiscale::parse_message_v2(const std::vector<uint8_t> &message, ParseResult &result) {
   // message size is checked in parse_header
   // 2-3 Years (MISCALE 2 181B)
   // 4 month (MISCALE 2 181B)

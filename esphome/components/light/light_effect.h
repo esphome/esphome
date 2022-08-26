@@ -11,7 +11,7 @@ class LightState;
 
 class LightEffect {
  public:
-  explicit LightEffect(std::string name) : name_(std::move(name)) {}
+  explicit LightEffect(const std::string& name) : name_(std::move(name)) {}
 
   /// Initialize this LightEffect. Will be called once after creation.
   virtual void start() {}

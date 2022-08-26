@@ -373,7 +373,7 @@ class DisplayBuffer {
   virtual DisplayType get_display_type() = 0;
 
  protected:
-  void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
+  void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, const va_list arg);
 
   virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
 

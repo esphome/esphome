@@ -279,12 +279,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   s_sta_connecting = true;
 
   err = esp_wifi_connect();
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "esp_wifi_connect failed! %d", err);
-    return false;
-  }
-
-  return true;
+  return !;
 }
 const char *get_auth_mode_str(uint8_t mode) {
   switch (mode) {
@@ -439,7 +434,7 @@ using esphome_wifi_event_info_t = system_event_info_t;
 
 #endif  // !(ESP_IDF_VERSION_MAJOR >= 4)
 
-void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_wifi_event_info_t info) {
+void WiFiComponent::wifi_event_callback(esphome_wifi_event_id_t event, esphome_wifi_event_info_t info) {
   switch (event) {
     case ESPHOME_EVENT_ID_WIFI_READY: {
       ESP_LOGV(TAG, "Event: WiFi ready");

@@ -10,9 +10,9 @@ class Component;
 
 class Scheduler {
  public:
-  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> func);
+  void set_timeout(Component *component, const std::string &name, uint32_t timeout, const std::function<void()>& func);
   bool cancel_timeout(Component *component, const std::string &name);
-  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> func);
+  void set_interval(Component *component, const std::string &name, uint32_t interval, const std::function<void()>& func);
   bool cancel_interval(Component *component, const std::string &name);
 
   void set_retry(Component *component, const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,

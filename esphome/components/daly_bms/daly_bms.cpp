@@ -68,7 +68,7 @@ void DalyBmsComponent::request_data_(uint8_t data_id) {
   this->flush();
 }
 
-void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
+void DalyBmsComponent::decode_data(std::vector<uint8_t> data) {
   auto it = data.begin();
 
   while ((it = std::find(it, data.end(), 0xA5)) != data.end()) {

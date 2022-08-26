@@ -48,7 +48,7 @@ void TMP117Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this);
 }
 float TMP117Component::get_setup_priority() const { return setup_priority::DATA; }
-bool TMP117Component::read_data_(int16_t *data) {
+bool TMP117Component::read_data_(const int16_t *data) {
   if (!this->read_byte_16(0, (uint16_t *) data)) {
     ESP_LOGW(TAG, "Updating TMP117 failed!");
     return false;
@@ -56,7 +56,7 @@ bool TMP117Component::read_data_(int16_t *data) {
   return true;
 }
 
-bool TMP117Component::read_config_(uint16_t *config) {
+bool TMP117Component::read_config_(const uint16_t *config) {
   if (!this->read_byte_16(1, (uint16_t *) config)) {
     ESP_LOGW(TAG, "Reading TMP117 config failed!");
     return false;

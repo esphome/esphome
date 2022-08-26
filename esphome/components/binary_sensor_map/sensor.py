@@ -9,6 +9,7 @@ from esphome.const import (
     ICON_CHECK_CIRCLE_OUTLINE,
     CONF_BINARY_SENSOR,
     CONF_GROUP,
+    CONF_SUM,
 )
 
 DEPENDENCIES = ["binary_sensor"]
@@ -21,7 +22,7 @@ SensorMapType = binary_sensor_map_ns.enum("SensorMapType")
 
 SENSOR_MAP_TYPES = {
     CONF_GROUP: SensorMapType.BINARY_SENSOR_MAP_TYPE_GROUP,
-    "sum": SensorMapType.BINARY_SENSOR_MAP_TYPE_SUM,
+    CONF_SUM: SensorMapType.BINARY_SENSOR_MAP_TYPE_SUM,
 }
 
 entry = {
@@ -42,7 +43,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-        "sum": sensor.sensor_schema(
+        CONF_SUM: sensor.sensor_schema(
             BinarySensorMap,
             icon=ICON_CHECK_CIRCLE_OUTLINE,
             accuracy_decimals=0,

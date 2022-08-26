@@ -112,7 +112,7 @@ void E131Component::leave_(int universe) {
   ESP_LOGD(TAG, "Left %d universe for E1.31.", universe);
 }
 
-bool E131Component::packet_(const std::vector<uint8_t> &data, int &universe, E131Packet &packet) {
+bool E131Component::packet(const std::vector<uint8_t> &data, int &universe, E131Packet &packet) {
   if (data.size() < E131_MIN_PACKET_SIZE)
     return false;
 

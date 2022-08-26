@@ -205,7 +205,7 @@ void PN532::loop() {
   this->turn_off_rf_();
 }
 
-bool PN532::write_command_(const std::vector<uint8_t> &data) {
+bool PN532::write_command(const std::vector<uint8_t> &data) {
   std::vector<uint8_t> write_data;
   // Preamble
   write_data.push_back(0x00);
@@ -273,7 +273,7 @@ void PN532::turn_off_rf_() {
   });
 }
 
-std::unique_ptr<nfc::NfcTag> PN532::read_tag_(std::vector<uint8_t> &uid) {
+std::unique_ptr<nfc::NfcTag> PN532::read_tag(std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
 
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
@@ -308,7 +308,7 @@ void PN532::write_mode(nfc::NdefMessage *message) {
   ESP_LOGD(TAG, "Waiting to write next tag");
 }
 
-bool PN532::clean_tag_(std::vector<uint8_t> &uid) {
+bool PN532::clean_tag(std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
     return this->format_mifare_classic_mifare_(uid);
@@ -319,7 +319,7 @@ bool PN532::clean_tag_(std::vector<uint8_t> &uid) {
   return false;
 }
 
-bool PN532::format_tag_(std::vector<uint8_t> &uid) {
+bool PN532::format_tag(std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
     return this->format_mifare_classic_ndef_(uid);
@@ -330,7 +330,7 @@ bool PN532::format_tag_(std::vector<uint8_t> &uid) {
   return false;
 }
 
-bool PN532::write_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message) {
+bool PN532::write_tag(std::vector<uint8_t> &uid, nfc::NdefMessage *message) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
     return this->write_mifare_classic_tag_(uid, message);
