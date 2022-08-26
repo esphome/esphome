@@ -107,7 +107,7 @@ class HistoryData {
 class GraphTrace {
  public:
   void init(Graph *g);
-  void set_name(const std::string& name) { name_ = std::move(name); }
+  void set_name(std::string name) { name_ = std::move(name); }
   void set_sensor(sensor::Sensor *sensor) { sensor_ = sensor; }
   uint8_t get_line_thickness() { return this->line_thickness_; }
   void set_line_thickness(uint8_t val) { this->line_thickness_ = val; }

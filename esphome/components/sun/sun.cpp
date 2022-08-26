@@ -238,7 +238,7 @@ struct SunAtLocation {
     num_t new_h = 0, old_h;
     do {
       old_h = new_h;
-      auto x = local_hour_angle(jde + old_h / 86400, rise, zenith);
+      auto x = local_hour_angle_(jde + old_h / 86400, rise, zenith);
       if (!x.has_value())
         return {};
       new_h = *x;
@@ -248,7 +248,7 @@ struct SunAtLocation {
   }
 
  protected:
-  optional<num_t> local_hour_angle(num_t jde, bool rise, num_t zenith) const {
+  optional<num_t> local_hour_angle_(num_t jde, bool rise, num_t zenith) const {
     auto pos = SunAtTime(jde).equatorial_coordinate();
     num_t dec_rad = pos.declination_rad();
     num_t lat_rad = location.latitude_rad();

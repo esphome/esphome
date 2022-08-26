@@ -82,7 +82,7 @@ static uint16_t to_frequency_k_hz(uint16_t code) {
 /*
  * Parse the string given as Pronto Hex, and send it a number of times given as argument.
  */
-void ProntoProtocol::send_pronto(RemoteTransmitData *dst, const std::vector<uint16_t> &data) {
+void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::vector<uint16_t> &data) {
   if (data.size() < 4)
     return;
 
@@ -186,7 +186,7 @@ std::string ProntoProtocol::dump_duration_(uint32_t duration, uint16_t timebase,
   return dump_number_((duration + timebase / 2) / timebase, end);
 }
 
-std::string ProntoProtocol::compensate_and_dump_sequence(std::vector<int32_t> *data, uint16_t timebase) {
+std::string ProntoProtocol::compensate_and_dump_sequence_(std::vector<int32_t> *data, uint16_t timebase) {
   std::string out;
 
   for (std::vector<int32_t>::size_type i = 0; i < data->size() - 1; i++) {

@@ -68,7 +68,7 @@ optional<ParseResult> PVVXMiThermometer::parse_header_(const esp32_ble_tracker::
   return result;
 }
 
-bool PVVXMiThermometer::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
+bool PVVXMiThermometer::parse_message_(const std::vector<uint8_t> &message, ParseResult &result) {
   /*
   All data little endian
   uint8_t     size;   // = 19

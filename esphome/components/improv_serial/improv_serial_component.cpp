@@ -53,7 +53,7 @@ uint8_t ImprovSerialComponent::read_byte_() {
   return data;
 }
 
-void ImprovSerialComponent::write_data(std::vector<uint8_t> &data) {
+void ImprovSerialComponent::write_data_(std::vector<uint8_t> &data) {
   data.push_back('\n');
 #ifdef USE_ARDUINO
   this->hw_serial_->write(data.data(), data.size());
@@ -93,7 +93,7 @@ void ImprovSerialComponent::loop() {
   }
 }
 
-std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response(improv::Command command) {
+std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv::Command command) {
   std::vector<std::string> urls;
 #ifdef USE_WEBSERVER
   auto ip = wifi::global_wifi_component->wifi_sta_ip();
@@ -104,7 +104,7 @@ std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response(improv::
   return data;
 }
 
-std::vector<uint8_t> ImprovSerialComponent::build_version_info() {
+std::vector<uint8_t> ImprovSerialComponent::build_version_info_() {
   std::vector<std::string> infos = {"ESPHome", ESPHOME_VERSION, ESPHOME_VARIANT, App.get_name()};
   std::vector<uint8_t> data = improv::build_rpc_response(improv::GET_DEVICE_INFO, infos, false);
   return data;
@@ -216,7 +216,7 @@ void ImprovSerialComponent::set_error_(improv::Error error) {
   this->write_data_(data);
 }
 
-void ImprovSerialComponent::send_response(std::vector<uint8_t> &response) {
+void ImprovSerialComponent::send_response_(std::vector<uint8_t> &response) {
   std::vector<uint8_t> data = {'I', 'M', 'P', 'R', 'O', 'V'};
   data.resize(9);
   data[6] = IMPROV_SERIAL_VERSION;

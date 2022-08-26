@@ -468,7 +468,7 @@ void APIConnection::switch_command(const SwitchCommandRequest &msg) {
 #endif
 
 #ifdef USE_TEXT_SENSOR
-bool APIConnection::send_text_sensor_state(text_sensor::TextSensor *text_sensor, const std::string& state) {
+bool APIConnection::send_text_sensor_state(text_sensor::TextSensor *text_sensor, std::string state) {
   if (!this->state_subscription_)
     return false;
 
@@ -632,7 +632,7 @@ void APIConnection::number_command(const NumberCommandRequest &msg) {
 #endif
 
 #ifdef USE_SELECT
-bool APIConnection::send_select_state(select::Select *select, const std::string& state) {
+bool APIConnection::send_select_state(select::Select *select, std::string state) {
   if (!this->state_subscription_)
     return false;
 

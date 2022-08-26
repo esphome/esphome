@@ -101,7 +101,7 @@ class Logger : public Component {
       this->tx_buffer_[this->tx_buffer_at_++] = value[i];
     }
   }
-  inline void vprintf_to_buffer_(const char *format, const va_list args) {
+  inline void vprintf_to_buffer_(const char *format, va_list args) {
     if (this->is_buffer_full_())
       return;
     int remaining = this->buffer_remaining_capacity_();

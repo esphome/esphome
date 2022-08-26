@@ -156,7 +156,7 @@ bool TSL2561Sensor::tsl2561_read_uint(uint8_t a_register, uint16_t *value) {
   *value = (hi << 8) | lo;
   return true;
 }
-bool TSL2561Sensor::tsl2561_read_byte(uint8_t a_register, const uint8_t *value) {
+bool TSL2561Sensor::tsl2561_read_byte(uint8_t a_register, uint8_t *value) {
   return this->read_byte(a_register | TSL2561_COMMAND_BIT, value);
 }
 

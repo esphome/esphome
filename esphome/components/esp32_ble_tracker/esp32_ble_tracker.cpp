@@ -245,7 +245,7 @@ void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_ga
   global_esp32_ble_tracker->ble_events_.push(gap_event);
 }  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
-void ESP32BLETracker::real_gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+void ESP32BLETracker::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   switch (event) {
     case ESP_GAP_BLE_SCAN_RESULT_EVT:
       global_esp32_ble_tracker->gap_scan_result_(param->scan_rst);
@@ -267,19 +267,19 @@ void ESP32BLETracker::real_gap_event_handler(esp_gap_ble_cb_event_t event, esp_b
   }
 }
 
-void ESP32BLETracker::gap_scan_set_param_complete(const esp_ble_gap_cb_param_t::ble_scan_param_cmpl_evt_param &param) {
+void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t::ble_scan_param_cmpl_evt_param &param) {
   this->scan_set_param_failed_ = param.status;
 }
 
-void ESP32BLETracker::gap_scan_start_complete(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
+void ESP32BLETracker::gap_scan_start_complete_(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
   this->scan_start_failed_ = param.status;
 }
 
-void ESP32BLETracker::gap_scan_stop_complete(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param) {
+void ESP32BLETracker::gap_scan_stop_complete_(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param) {
   xSemaphoreGive(this->scan_end_lock_);
 }
 
-void ESP32BLETracker::gap_scan_result(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
+void ESP32BLETracker::gap_scan_result_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
   if (param.search_evt == ESP_GAP_SEARCH_INQ_RES_EVT) {
     if (xSemaphoreTake(this->scan_result_lock_, 0L)) {
       if (this->scan_result_index_ < 16) {
@@ -298,7 +298,7 @@ void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
   global_esp32_ble_tracker->ble_events_.push(gattc_event);
 }  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
-void ESP32BLETracker::real_gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+void ESP32BLETracker::real_gattc_event_handler_(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                                 esp_ble_gattc_cb_param_t *param) {
   for (auto *client : global_esp32_ble_tracker->clients_) {
     client->gattc_event_handler(event, gattc_if, param);
@@ -550,7 +550,7 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
   ESP_LOGVV(TAG, "Adv data: %s", format_hex_pretty(param.ble_adv, param.adv_data_len + param.scan_rsp_len).c_str());
 #endif
 }
-void ESPBTDevice::parse_adv(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
+void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
   size_t offset = 0;
   const uint8_t *payload = param.ble_adv;
   uint8_t len = param.adv_data_len + param.scan_rsp_len;

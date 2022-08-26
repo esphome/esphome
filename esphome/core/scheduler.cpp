@@ -14,7 +14,7 @@ static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 10;
 // #define ESPHOME_DEBUG_SCHEDULER
 
 void HOT Scheduler::set_timeout(Component *component, const std::string &name, uint32_t timeout,
-                                const std::function<void()>& func) {
+                                std::function<void()> func) {
   const uint32_t now = this->millis_();
 
   if (!name.empty())
@@ -40,7 +40,7 @@ bool HOT Scheduler::cancel_timeout(Component *component, const std::string &name
   return this->cancel_item_(component, name, SchedulerItem::TIMEOUT);
 }
 void HOT Scheduler::set_interval(Component *component, const std::string &name, uint32_t interval,
-                                 const std::function<void()>& func) {
+                                 std::function<void()> func) {
   const uint32_t now = this->millis_();
 
   if (!name.empty())
@@ -259,7 +259,7 @@ void HOT Scheduler::pop_raw_() {
   std::pop_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
   this->items_.pop_back();
 }
-void HOT Scheduler::push(std::unique_ptr<Scheduler::SchedulerItem> item) { this->to_add_.push_back(std::move(item)); }
+void HOT Scheduler::push_(std::unique_ptr<Scheduler::SchedulerItem> item) { this->to_add_.push_back(std::move(item)); }
 bool HOT Scheduler::cancel_item_(Component *component, const std::string &name, Scheduler::SchedulerItem::Type type) {
   bool ret = false;
   for (auto &it : this->items_) {

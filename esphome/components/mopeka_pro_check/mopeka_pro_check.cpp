@@ -104,7 +104,7 @@ bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   return true;
 }
 
-uint8_t MopekaProCheck::parse_battery_level(const std::vector<uint8_t> &message) {
+uint8_t MopekaProCheck::parse_battery_level_(const std::vector<uint8_t> &message) {
   float v = (float) ((message[1] & 0x7F) / 32.0f);
   // convert voltage and scale for CR2032
   float percent = (v - 2.2f) / 0.65f * 100.0f;
@@ -117,7 +117,7 @@ uint8_t MopekaProCheck::parse_battery_level(const std::vector<uint8_t> &message)
   return (uint8_t) percent;
 }
 
-uint32_t MopekaProCheck::parse_distance(const std::vector<uint8_t> &message) {
+uint32_t MopekaProCheck::parse_distance_(const std::vector<uint8_t> &message) {
   uint16_t raw = (message[4] * 256) + message[3];
   double raw_level = raw & 0x3FFF;
   double raw_t = (message[2] & 0x7F);
@@ -125,9 +125,9 @@ uint32_t MopekaProCheck::parse_distance(const std::vector<uint8_t> &message) {
   return (uint32_t)(raw_level * (MOPEKA_LPG_COEF[0] + MOPEKA_LPG_COEF[1] * raw_t + MOPEKA_LPG_COEF[2] * raw_t * raw_t));
 }
 
-uint8_t MopekaProCheck::parse_temperature(const std::vector<uint8_t> &message) { return (message[2] & 0x7F) - 40; }
+uint8_t MopekaProCheck::parse_temperature_(const std::vector<uint8_t> &message) { return (message[2] & 0x7F) - 40; }
 
-SensorReadQuality MopekaProCheck::parse_read_quality(const std::vector<uint8_t> &message) {
+SensorReadQuality MopekaProCheck::parse_read_quality_(const std::vector<uint8_t> &message) {
   return static_cast<SensorReadQuality>(message[4] >> 6);
 }
 

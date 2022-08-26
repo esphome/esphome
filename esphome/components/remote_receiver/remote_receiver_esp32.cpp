@@ -82,7 +82,7 @@ void RemoteReceiverComponent::loop() {
     this->call_listeners_dumpers_();
   }
 }
-void RemoteReceiverComponent::decode_rmt(rmt_item32_t *item, size_t len) {
+void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
   bool prev_level = false;
   uint32_t prev_length = 0;
   this->temp_.clear();

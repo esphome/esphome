@@ -119,7 +119,7 @@ std::shared_ptr<esphome::esp32_camera::CameraImage> CameraWebServer::wait_for_im
   return image;
 }
 
-esp_err_t CameraWebServer::handler(struct httpd_req *req) {
+esp_err_t CameraWebServer::handler_(struct httpd_req *req) {
   esp_err_t res = ESP_FAIL;
 
   this->image_ = nullptr;
@@ -154,7 +154,7 @@ static esp_err_t httpd_send_all(httpd_req_t *r, const char *buf, size_t buf_len)
   return ESP_OK;
 }
 
-esp_err_t CameraWebServer::streaming_handler(struct httpd_req *req) {
+esp_err_t CameraWebServer::streaming_handler_(struct httpd_req *req) {
   esp_err_t res = ESP_OK;
   char part_buf[64];
 
@@ -210,7 +210,7 @@ esp_err_t CameraWebServer::streaming_handler(struct httpd_req *req) {
   return res;
 }
 
-esp_err_t CameraWebServer::snapshot_handler(struct httpd_req *req) {
+esp_err_t CameraWebServer::snapshot_handler_(struct httpd_req *req) {
   esp_err_t res = ESP_OK;
 
   esp32_camera::global_esp32_camera->request_image(esphome::esp32_camera::WEB_REQUESTER);

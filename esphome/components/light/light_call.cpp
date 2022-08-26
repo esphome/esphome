@@ -410,7 +410,7 @@ ColorMode LightCall::compute_color_mode_() {
            this->parent_->get_name().c_str(), LOG_STR_ARG(color_mode_to_human(color_mode)));
   return color_mode;
 }
-std::set<ColorMode> LightCall::get_suitable_color_modes() {
+std::set<ColorMode> LightCall::get_suitable_color_modes_() {
   bool has_white = this->white_.has_value() && *this->white_ > 0.0f;
   bool has_ct = this->color_temperature_.has_value();
   bool has_cwww = (this->cold_white_.has_value() && *this->cold_white_ > 0.0f) ||

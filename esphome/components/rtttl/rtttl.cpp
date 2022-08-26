@@ -17,7 +17,7 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
 
 void Rtttl::dump_config() { ESP_LOGCONFIG(TAG, "Rtttl"); }
 
-void Rtttl::play(const std::string& rtttl) {
+void Rtttl::play(std::string rtttl) {
   rtttl_ = std::move(rtttl);
 
   default_duration_ = 4;

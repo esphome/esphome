@@ -19,7 +19,7 @@ static const char *const TAG = "nextion_upload";
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
 
-int Nextion::upload_by_chunks(HTTPClient *http, int range_start) {
+int Nextion::upload_by_chunks_(HTTPClient *http, int range_start) {
   int range_end = 0;
 
   if (range_start == 0 && this->transfer_buffer_size_ > 16384) {  // Start small at the first run in case of a big skip

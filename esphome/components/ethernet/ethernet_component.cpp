@@ -131,7 +131,7 @@ network::IPAddress EthernetComponent::get_ip_address() {
   return {ip.ip.addr};
 }
 
-void EthernetComponent::on_wifi_event(system_event_id_t event, system_event_info_t info) {
+void EthernetComponent::on_wifi_event_(system_event_id_t event, system_event_info_t info) {
   const char *event_name;
 
   switch (event) {

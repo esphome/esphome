@@ -80,7 +80,7 @@ class ToLowerFilter : public Filter {
 /// A simple filter that adds a string to the end of another string
 class AppendFilter : public Filter {
  public:
-  AppendFilter(const std::string& suffix) : suffix_(std::move(suffix)) {}
+  AppendFilter(std::string suffix) : suffix_(std::move(suffix)) {}
   optional<std::string> new_value(std::string value) override;
 
  protected:
@@ -90,7 +90,7 @@ class AppendFilter : public Filter {
 /// A simple filter that adds a string to the start of another string
 class PrependFilter : public Filter {
  public:
-  PrependFilter(const std::string& prefix) : prefix_(std::move(prefix)) {}
+  PrependFilter(std::string prefix) : prefix_(std::move(prefix)) {}
   optional<std::string> new_value(std::string value) override;
 
  protected:

@@ -19,7 +19,32 @@ class RuuviTag : public Component, public esp32_ble_tracker::ESPBTDeviceListener
       return false;
 
     auto res = ruuvi_ble::parse_ruuvi(device);
-    return !;
+    if (!res.has_value())
+      return false;
+
+    if (res->humidity.has_value() && this->humidity_ != nullptr)
+      this->humidity_->publish_state(*res->humidity);
+    if (res->temperature.has_value() && this->temperature_ != nullptr)
+      this->temperature_->publish_state(*res->temperature);
+    if (res->pressure.has_value() && this->pressure_ != nullptr)
+      this->pressure_->publish_state(*res->pressure);
+    if (res->acceleration.has_value() && this->acceleration_ != nullptr)
+      this->acceleration_->publish_state(*res->acceleration);
+    if (res->acceleration_x.has_value() && this->acceleration_x_ != nullptr)
+      this->acceleration_x_->publish_state(*res->acceleration_x);
+    if (res->acceleration_y.has_value() && this->acceleration_y_ != nullptr)
+      this->acceleration_y_->publish_state(*res->acceleration_y);
+    if (res->acceleration_z.has_value() && this->acceleration_z_ != nullptr)
+      this->acceleration_z_->publish_state(*res->acceleration_z);
+    if (res->battery_voltage.has_value() && this->battery_voltage_ != nullptr)
+      this->battery_voltage_->publish_state(*res->battery_voltage);
+    if (res->tx_power.has_value() && this->tx_power_ != nullptr)
+      this->tx_power_->publish_state(*res->tx_power);
+    if (res->movement_counter.has_value() && this->movement_counter_ != nullptr)
+      this->movement_counter_->publish_state(*res->movement_counter);
+    if (res->measurement_sequence_number.has_value() && this->measurement_sequence_number_ != nullptr)
+      this->measurement_sequence_number_->publish_state(*res->measurement_sequence_number);
+    return true;
   }
 
   void dump_config() override;

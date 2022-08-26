@@ -127,7 +127,13 @@ class BLEClient : public espbt::ESPBTClient, public Component {
       node->node_state = st;
   }
   bool all_nodes_established_() {
-    return static_cast<bool>(this->state() == espbt::ClientState::ESTABLISHED);
+    if (this->state() != espbt::ClientState::ESTABLISHED)
+      return false;
+    for (auto &node : nodes_) {
+      if (node->node_state != espbt::ClientState::ESTABLISHED)
+        return false;
+    }
+    return true;
   }
 
   std::vector<BLEClientNode *> nodes_;
