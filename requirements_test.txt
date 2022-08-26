@@ -1,4 +1,4 @@
-pylint==2.14.5
+pylint==2.15.0
 flake8==5.0.4
 black==22.6.0  # also change in .pre-commit-config.yaml when updating
 pyupgrade==2.37.3  # also change in .pre-commit-config.yaml when updating
