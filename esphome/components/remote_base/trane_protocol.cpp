@@ -22,10 +22,6 @@ static const uint32_t NBITS_2 = 32;
 
 
 void TraneProtocol::encode(RemoteTransmitData *dst, const TraneData &data) {
-  ESP_LOGD(TAG, "Protocol: mode = 0x%03X", data.mode);
-  ESP_LOGD(TAG, "Protocol: data1 = 0x%08X", data.trane_data_1);
-  ESP_LOGD(TAG, "Protocol: data2 = 0x%08X", data.trane_data_2);
-
   dst->set_carrier_frequency(38100);
   dst->reserve(139);
 

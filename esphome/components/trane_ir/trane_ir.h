@@ -30,8 +30,6 @@ class TraneClimate : public climate_ir::ClimateIR {
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
   /// Handle received IR Buffer
-  //  bool on_receive(remote_base::RemoteReceiveData data) override { return CoolixClimate::on_coolix(this, data); }
-
   bool send_swing_cmd_{false};
   climate::ClimateMode mode_before_{climate::CLIMATE_MODE_OFF};
 };

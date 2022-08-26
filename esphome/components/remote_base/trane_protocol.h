@@ -7,19 +7,10 @@
 namespace esphome {
 namespace remote_base {
 
-//using TraneData = struct {
-//  unsigned mode: 3;
-//  unsigned power_1: 1;
-//  unsigned fan_mode: 2;
-//  unsigned sweep_mode: 1;
-//  unsigned sleep: 1;
-//  unsigned temperature: 4;
-//  unsigned unknown: 8;
-//  unsigned turbo: 1;
-//  unsigned unit_light: 1;
-//  unsigned power_2: 1;
-//  unsigned constant_1: 9;
-//};
+// Dev note: The protocol uses two "words", one 35-bit and one 32-bit. I tried using a 64-bit int
+// to represent the first one, but for whatever reason the code would always truncate it to 32 bit
+// before I could even pass it to the IR encoding. I decided to split up the 3 bits that represent
+// A/C operation mode so that ints are 32-bit or smaller, and this worked.
 
 struct TraneData {
   uint8_t mode;
@@ -32,17 +23,6 @@ class TraneProtocol : public RemoteProtocol<TraneData>{
   void encode(RemoteTransmitData *dst, const TraneData &data) override;
   optional<TraneData> decode(RemoteReceiveData data) override;
   void dump(const TraneData &data) override;
-
-//  void set_data(const std::vector<int64_t> &data){
-//    this->data_.clear();
-//    this->data_.reserve(data.size());
-//    for (auto dat: data){
-//      this->data_.push_back(dat);
-//    }
-//  };
-//
-// protected:
-//  std::vector<int64_t> data_{};
 };
 
 DECLARE_REMOTE_PROTOCOL(Trane)

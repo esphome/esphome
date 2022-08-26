@@ -1,6 +1,5 @@
 #include "trane_ir.h"
 #include "esphome/components/remote_base/trane_protocol.h"
-#include "esphome/core/log.h"
 
 namespace esphome {
 namespace trane_ir {
@@ -32,6 +31,8 @@ enum TRANE_FAN_SPEED{
   SPEED_HIGH,
 };
 
+// Vertical swing mode. To be implemented other than full swing
+static const uint8_t TRANE_VERTICAL_SWING_NBITS = 4;
 enum TRANE_FAN_VERTICAL_SWING{
   SWING_OFF,
   SWING_FULL,
@@ -52,7 +53,6 @@ static const uint8_t TRANE_TEMP_NBITS = 4;
 static const uint8_t TRANE_TEMP_RANGE = TRANE_TEMP_MAX - TRANE_TEMP_MIN + 1;
 
 static const uint8_t CHECKSUM_NBITS = 4;
-
 
 void TraneClimate::transmit_state() {
   enum TRANE_MODE mode_state = MODE_AUTO;
@@ -94,12 +94,15 @@ void TraneClimate::transmit_state() {
       break;
   }
 
+  // Will try to implement more swing states if I have the time
   TRANE_FAN_VERTICAL_SWING vertical_swing_state = SWING_OFF;
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_VERTICAL:
       vertical_swing_state = SWING_FULL;
 
   }
+
+  // ############ FIRST WORD OF TRANE PROTOCOL ############
 
   //constant that has to do with unit light, power, and something else I haven't figured out in the protocol yet
   uint32_t remote_state_1 = TRANE_CONSTANT_1;
@@ -111,17 +114,20 @@ void TraneClimate::transmit_state() {
   //power boolean
   remote_state_1 |= 1;
 
-
+  // ############ CHECKSUM CALCULATION ############
   uint8_t checksum_a = mode_state | (1 << 3) | (fan_speed_state << 4) | (1 << 6);
   uint8_t checksum_b = temperature_state;
   uint8_t checksum_c = 0;
   uint8_t checksum = (14 + checksum_a + checksum_b + checksum_c) & 15;
 
+  // ############ SECOND WORD OF TRANE PROTOCOL ############
   uint32_t remote_state_2 = TRANE_CONSTANT_2;
   remote_state_2 |= (checksum << (32 - CHECKSUM_NBITS));
   // TEMP DISPLAY
   remote_state_2 |= (2 << 8);
   remote_state_2 |= vertical_swing_state;
+
+  // #######################################################
 
   if(this->mode == climate::CLIMATE_MODE_OFF){
     mode_state = MODE_COOL;
