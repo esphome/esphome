@@ -4,9 +4,9 @@
 #include "esphome/components/switch/switch.h"
 
 namespace esphome {
-namespace reset {
+namespace factory_reset {
 
-class ResetSwitch : public switch_::Switch, public Component {
+class FactoryResetSwitch : public switch_::Switch, public Component {
  public:
   void dump_config() override;
 
@@ -14,5 +14,5 @@ class ResetSwitch : public switch_::Switch, public Component {
   void write_state(bool state) override;
 };
 
-}  // namespace reset
+}  // namespace factory_reset
 }  // namespace esphome

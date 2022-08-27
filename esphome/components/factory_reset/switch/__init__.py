@@ -9,15 +9,17 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ICON_RESTART_ALERT,
 )
-from .. import reset_ns
+from .. import factory_reset_ns
 
-ResetSwitch = reset_ns.class_("ResetSwitch", switch.Switch, cg.Component)
+FactoryResetSwitch = factory_reset_ns.class_(
+    "FactoryResetSwitch", switch.Switch, cg.Component
+)
 
 CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
     {
-        cv.GenerateID(): cv.declare_id(ResetSwitch),
+        cv.GenerateID(): cv.declare_id(FactoryResetSwitch),
         cv.Optional(CONF_INVERTED): cv.invalid(
-            "Reset switches do not support inverted mode!"
+            "Factory Reset switches do not support inverted mode!"
         ),
         cv.Optional(CONF_ICON, default=ICON_RESTART_ALERT): switch.icon,
         cv.Optional(

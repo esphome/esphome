@@ -2111,8 +2111,8 @@ switch:
     name: "Living Room Restart"
   - platform: safe_mode
     name: "Living Room Restart (Safe Mode)"
-  - platform: reset
-    name: "Living Room Restart (Clean Settings)"
+  - platform: factory_reset
+    name: "Living Room Restart (Factory Default Settings)"
   - platform: shutdown
     name: "Living Room Shutdown"
   - platform: output

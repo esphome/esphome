@@ -266,8 +266,6 @@ class ESP8266Preferences : public ESPPreferences {
       ESP_LOGE(TAG, "Erase ESP8266 flash failed!");
       return false;
     }
-    /* memset(this->s_flash_storage, 0, sizeof(this->s_flash_storage[0]) * ESP8266_FLASH_STORAGE_SIZE);
-    s_flash_dirty = false; */
 
     // Protect flash from writing till restart
     s_prevent_write = true;

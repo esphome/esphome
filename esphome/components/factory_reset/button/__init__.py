@@ -7,9 +7,11 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ICON_RESTART_ALERT,
 )
-from .. import reset_ns
+from .. import factory_reset_ns
 
-ResetButton = reset_ns.class_("ResetButton", button.Button, cg.Component)
+FactoryResetButton = factory_reset_ns.class_(
+    "FactoryResetButton", button.Button, cg.Component
+)
 
 CONFIG_SCHEMA = (
     button.button_schema(
@@ -17,7 +19,7 @@ CONFIG_SCHEMA = (
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_RESTART_ALERT,
     )
-    .extend({cv.GenerateID(): cv.declare_id(ResetButton)})
+    .extend({cv.GenerateID(): cv.declare_id(FactoryResetButton)})
     .extend(cv.COMPONENT_SCHEMA)
 )
 

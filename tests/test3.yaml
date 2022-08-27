@@ -1506,8 +1506,8 @@ button:
     target_mac_address: 12:34:56:78:90:ab
     name: wol_test_1
     id: wol_1
-  - platform: reset
-    name: Restart Button (Clean Settings)
+  - platform: factory_reset
+    name: Restart Button (Factory Default Settings)
 
 
 cd74hc4067:

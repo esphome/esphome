@@ -4,9 +4,9 @@
 #include "esphome/components/button/button.h"
 
 namespace esphome {
-namespace reset {
+namespace factory_reset {
 
-class ResetButton : public button::Button, public Component {
+class FactoryResetButton : public button::Button, public Component {
  public:
   void dump_config() override;
 
@@ -14,5 +14,5 @@ class ResetButton : public button::Button, public Component {
   void press_action() override;
 };
 
-}  // namespace reset
+}  // namespace factory_reset
 }  // namespace esphome
