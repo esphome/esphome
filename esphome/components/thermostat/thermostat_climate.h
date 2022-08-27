@@ -450,7 +450,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   std::string default_custom_preset_{};
 
   /// If true then the default preset is always used when false prior state will attempt to be restored
-  bool restore_default_preset_on_boot_ {false};
+  bool restore_default_preset_on_boot_{false};
 };
 
 }  // namespace thermostat

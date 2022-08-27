@@ -461,9 +461,12 @@ def validate_thermostat(config):
             raise cv.Invalid(
                 f"{CONF_DEFAULT_PRESET} set to '{default_preset}' but no such preset has been defined. Available presets: {[preset[CONF_NAME] for preset in presets]}"
             )
-    
+
     # If restoring default preset on boot is true then ensure we have a default preset
-    if CONF_RESTORE_DEFAULT_PRESET_ON_BOOT in config and config[CONF_RESTORE_DEFAULT_PRESET_ON_BOOT] is True:
+    if (
+        CONF_RESTORE_DEFAULT_PRESET_ON_BOOT in config
+        and config[CONF_RESTORE_DEFAULT_PRESET_ON_BOOT] is True
+    ):
         if CONF_DEFAULT_PRESET not in config:
             raise cv.Invalid(
                 f"{CONF_DEFAULT_PRESET} must be defined to use {CONF_RESTORE_DEFAULT_PRESET_ON_BOOT}"
@@ -911,9 +914,13 @@ async def to_code(config):
             cg.add(var.set_default_preset(climate_preset))
         else:
             cg.add(var.set_default_preset(default_preset_name))
-    
+
     if CONF_RESTORE_DEFAULT_PRESET_ON_BOOT in config:
-        cg.add(var.set_restore_default_preset_on_boot(config[CONF_RESTORE_DEFAULT_PRESET_ON_BOOT]))
+        cg.add(
+            var.set_restore_default_preset_on_boot(
+                config[CONF_RESTORE_DEFAULT_PRESET_ON_BOOT]
+            )
+        )
 
     if CONF_PRESET_CHANGE in config:
         await automation.build_automation(

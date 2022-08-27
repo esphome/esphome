@@ -25,7 +25,7 @@ void ThermostatClimate::setup() {
     this->publish_state();
   });
   this->current_temperature = this->sensor_->state;
-  
+
   auto use_default_preset = true;
 
   if (!this->restore_default_preset_on_boot_) {
