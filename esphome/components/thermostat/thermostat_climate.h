@@ -59,6 +59,7 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   void set_default_preset(const std::string &custom_preset);
   void set_default_preset(climate::ClimatePreset preset);
+  void set_restore_default_preset_on_boot(bool restore_preset);
   void set_set_point_minimum_differential(float differential);
   void set_cool_deadband(float deadband);
   void set_cool_overrun(float overrun);
@@ -447,6 +448,9 @@ class ThermostatClimate : public climate::Climate, public Component {
   climate::ClimatePreset default_preset_{};
   /// Default custom preset to use on start up
   std::string default_custom_preset_{};
+
+  /// If true then the default preset is always used when false prior state will attempt to be restored
+  bool restore_default_preset_on_boot_ {false};
 };
 
 }  // namespace thermostat

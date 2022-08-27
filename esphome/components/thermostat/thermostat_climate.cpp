@@ -25,14 +25,25 @@ void ThermostatClimate::setup() {
     this->publish_state();
   });
   this->current_temperature = this->sensor_->state;
-  // restore all climate data, if possible
-  auto restore = this->restore_state_();
-  if (restore.has_value()) {
-    restore->to_call(this).perform();
-  } else if (this->default_preset_ != climate::ClimatePreset::CLIMATE_PRESET_NONE) {
-    this->change_preset_(this->default_preset_);
-  } else if (!this->default_custom_preset_.empty()) {
-    this->change_custom_preset_(this->default_custom_preset_);
+  
+  auto use_default_preset = true;
+
+  if (!this->restore_default_preset_on_boot_) {
+    // restore all climate data, if possible
+    auto restore = this->restore_state_();
+    if (restore.has_value()) {
+      use_default_preset = false;
+      restore->to_call(this).perform();
+    }
+  }
+
+  // Either we failed to restore state or the user has requested we always apply the default preset
+  if (use_default_preset) {
+    if (this->default_preset_ != climate::ClimatePreset::CLIMATE_PRESET_NONE) {
+      this->change_preset_(this->default_preset_);
+    } else if (!this->default_custom_preset_.empty()) {
+      this->change_custom_preset_(this->default_custom_preset_);
+    }
   }
 
   // refresh the climate action based on the restored settings, we'll publish_state() later
@@ -1070,6 +1081,9 @@ void ThermostatClimate::set_default_preset(const std::string &custom_preset) {
 
 void ThermostatClimate::set_default_preset(climate::ClimatePreset preset) { this->default_preset_ = preset; }
 
+void ThermostatClimate::set_restore_default_preset_on_boot(bool restore_preset) {
+  this->restore_default_preset_on_boot_ = restore_preset;
+}
 void ThermostatClimate::set_set_point_minimum_differential(float differential) {
   this->set_point_minimum_differential_ = differential;
 }

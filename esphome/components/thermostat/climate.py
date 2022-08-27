@@ -70,6 +70,7 @@ from esphome.const import (
 
 CONF_PRESET_CHANGE = "preset_change"
 CONF_DEFAULT_PRESET = "default_preset"
+CONF_RESTORE_DEFAULT_PRESET_ON_BOOT = "restore_default_preset_on_boot"
 
 CODEOWNERS = ["@kbx81"]
 
@@ -460,6 +461,13 @@ def validate_thermostat(config):
             raise cv.Invalid(
                 f"{CONF_DEFAULT_PRESET} set to '{default_preset}' but no such preset has been defined. Available presets: {[preset[CONF_NAME] for preset in presets]}"
             )
+    
+    # If restoring default preset on boot is true then ensure we have a default preset
+    if CONF_RESTORE_DEFAULT_PRESET_ON_BOOT in config and config[CONF_RESTORE_DEFAULT_PRESET_ON_BOOT] is True:
+        if CONF_DEFAULT_PRESET not in config:
+            raise cv.Invalid(
+                f"{CONF_DEFAULT_PRESET} must be defined to use {CONF_RESTORE_DEFAULT_PRESET_ON_BOOT}"
+            )
 
     if config[CONF_FAN_WITH_COOLING] is True and CONF_FAN_ONLY_ACTION not in config:
         raise cv.Invalid(
@@ -599,6 +607,7 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_PRESET): cv.ensure_list(PRESET_CONFIG_SCHEMA),
+            cv.Optional(CONF_RESTORE_DEFAULT_PRESET_ON_BOOT, default=False): cv.boolean,
             cv.Optional(CONF_PRESET_CHANGE): automation.validate_automation(
                 single=True
             ),
@@ -902,6 +911,9 @@ async def to_code(config):
             cg.add(var.set_default_preset(climate_preset))
         else:
             cg.add(var.set_default_preset(default_preset_name))
+    
+    if CONF_RESTORE_DEFAULT_PRESET_ON_BOOT in config:
+        cg.add(var.set_restore_default_preset_on_boot(config[CONF_RESTORE_DEFAULT_PRESET_ON_BOOT]))
 
     if CONF_PRESET_CHANGE in config:
         await automation.build_automation(
