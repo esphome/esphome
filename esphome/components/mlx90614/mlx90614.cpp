@@ -28,11 +28,11 @@ static const char *const TAG = "mlx90614";
 
 void MLX90614Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MLX90614...");
-  if (!this->write_emissivity_()) {
-    ESP_LOGE(TAG, "Communication with MLX90614 failed!");
-    this->mark_failed();
-    return;
-  }
+  // if (!this->write_emissivity_()) {
+  //   ESP_LOGE(TAG, "Communication with MLX90614 failed!");
+  //   this->mark_failed();
+  //   return;
+  // }
 }
 
 bool MLX90614Component::write_emissivity_() {
