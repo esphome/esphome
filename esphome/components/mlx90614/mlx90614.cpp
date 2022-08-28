@@ -91,19 +91,19 @@ void MLX90614Component::dump_config() {
 float MLX90614Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void MLX90614Component::update() {
-  uint16_t raw_ambient;
-  if (!this->read_byte_16(MLX90614_TEMPERATURE_AMBIENT, &raw_ambient)) {
+  uint8_t raw_ambient[3];
+  if (!this->read_bytes(MLX90614_TEMPERATURE_AMBIENT, raw_ambient, 3)) {
     this->status_set_warning();
     return;
   }
-  uint16_t raw_object;
-  if (!this->read_byte_16(MLX90614_TEMPERATURE_OBJECT_1, &raw_object)) {
+  uint8_t raw_object[3];
+  if (!this->read_bytes(MLX90614_TEMPERATURE_OBJECT_1, raw_object, 3)) {
     this->status_set_warning();
     return;
   }
 
-  float ambient = raw_ambient * 0.02f - 273.15f;
-  float object = raw_object * 0.02f - 273.15f;
+  float ambient = encode_uint16(raw_ambient[1], raw_ambient[0]) * 0.02f - 273.15f;
+  float object = encode_uint16(raw_object[1], raw_object[0]) * 0.02f - 273.15f;
 
   ESP_LOGD(TAG, "Got Temperature=%.1f°C Ambient=%.1f°C", object, ambient);
 
