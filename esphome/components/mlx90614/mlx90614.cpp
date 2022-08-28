@@ -36,7 +36,7 @@ void MLX90614Component::setup() {
 }
 
 bool MLX90614Component::write_emissivity_() {
-  uint16_t value = (uint16_t) (this->emissivity_ * 65535);
+  uint16_t value = (uint16_t)(this->emissivity_ * 65535);
   if (!this->write_bytes_(MLX90614_EMISSIVITY, 0)) {
     return false;
   }
