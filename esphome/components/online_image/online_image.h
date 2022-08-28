@@ -39,8 +39,8 @@ class OnlineImage {
    * @param height Desired height of the target image area.
    * @param format Format that the image is encoded in (@see ImageFormat).
    */
-  OnlineImage(const char *url, uint16_t width, uint16_t height, ImageFormat format)
-      : url_(url), width_(width), height_(height), format_(format){};
+  OnlineImage(const char *url, uint16_t width, uint16_t height, ImageFormat format, uint32_t buffer_size)
+      : url_(url), width_(width), height_(height), buffer_size_(buffer_size), format_(format){};
 
   /**
    * @brief Draw the image on the display.
@@ -55,6 +55,7 @@ class OnlineImage {
   const char *url_;
   const uint16_t width_;
   const uint16_t height_;
+  const uint32_t buffer_size_;
   const ImageFormat format_;
 };
 
@@ -105,9 +106,11 @@ class ImageDecoder {
    *
    * @param http HTTPClient object, to detect when the image has been fully downloaded.
    * @param stream The WiFiClient stream to read the image from.
+   * @param buffer The buffer to use for downloading the image chunks.
+   *
    * @return int the total number of bytes received over HTTP.
    */
-  virtual size_t decode(HTTPClient &http, WiFiClient *stream) { return 0; };
+  virtual size_t decode(HTTPClient &http, WiFiClient *stream, std::vector<uint8_t> &buffer) { return 0; };
 
   /**
    * @return the leftmost coordinate.

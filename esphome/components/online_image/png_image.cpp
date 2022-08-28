@@ -61,10 +61,12 @@ void PngDecoder::prepare(WiFiClient *stream) {
   pngle_set_draw_callback(pngle, drawCallback);
 }
 
-size_t HOT PngDecoder::decode(HTTPClient &http, WiFiClient *stream) {
-  uint8_t buf[2048];
+size_t HOT PngDecoder::decode(HTTPClient &http, WiFiClient *stream, std::vector<uint8_t> &buf) {
   int remain = 0;
   int total = 0;
+  uint8_t *buffer = buf.data();
+  ESP_LOGD(TAG, "Buffer size: %d", buf.size());
+
   while (http.connected()) {
     App.feed_wdt();
     size_t size = stream->available();
@@ -73,14 +75,14 @@ size_t HOT PngDecoder::decode(HTTPClient &http, WiFiClient *stream) {
       continue;
     }
 
-    if (size > sizeof(buf) - remain) {
-      size = sizeof(buf) - remain;
+    if (size > buf.size() - remain) {
+      size = buf.size() - remain;
     }
 
-    int len = stream->readBytes(buf + remain, size);
+    int len = stream->readBytes(buffer + remain, size);
     total += len;
     if (len > 0) {
-      int fed = pngle_feed(pngle, buf, remain + len);
+      int fed = pngle_feed(pngle, buffer, remain + len);
       if (fed < 0) {
         ESP_LOGE(TAG, "Error decoding image: %s", pngle_error(pngle));
         break;
@@ -88,7 +90,7 @@ size_t HOT PngDecoder::decode(HTTPClient &http, WiFiClient *stream) {
 
       remain = remain + len - fed;
       if (remain > 0) {
-        memmove(buf, buf + fed, remain);
+        memmove(buffer, buffer + fed, remain);
       }
     } else {
       delay(1);

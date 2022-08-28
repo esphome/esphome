@@ -1,6 +1,7 @@
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
+    CONF_BUFFER_SIZE,
     CONF_ESP8266_DISABLE_SSL_SUPPORT,
     CONF_ID,
     CONF_FORMAT,
@@ -25,6 +26,7 @@ IMAGE_SCHEMA = cv.Schema(
         cv.Required(CONF_ID): cv.declare_id(Image_),
         cv.Required(CONF_URL): cv.string,
         cv.Optional(CONF_FORMAT, default="PNG"): cv.enum(IMAGE_FORMAT, upper=True),
+        cv.Optional(CONF_BUFFER_SIZE, default=2048): cv.int_range(256, 65536),
         cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
     }
 )
@@ -36,7 +38,14 @@ async def to_code(config):
     url = config[CONF_URL]
     width, height = 0, 0
 
-    cg.new_Pvariable(config[CONF_ID], url, width, height, config[CONF_FORMAT])
+    cg.new_Pvariable(
+        config[CONF_ID],
+        url,
+        width,
+        height,
+        config[CONF_FORMAT],
+        config[CONF_BUFFER_SIZE],
+    )
     cg.add_define("USE_ONLINE_IMAGE")
 
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
