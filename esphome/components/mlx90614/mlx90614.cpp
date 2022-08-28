@@ -102,6 +102,9 @@ void MLX90614Component::update() {
     return;
   }
 
+  ESP_LOGD(TAG, "Raw ambient: %s", format_hex_pretty(raw_ambient, 3).c_str());
+  ESP_LOGD(TAG, "Raw object: %s", format_hex_pretty(raw_object, 3).c_str());
+
   float ambient = encode_uint16(raw_ambient[1], raw_ambient[0]) * 0.02f - 273.15f;
   float object = encode_uint16(raw_object[1], raw_object[0]) * 0.02f - 273.15f;
 
