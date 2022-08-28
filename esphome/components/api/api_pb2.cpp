@@ -108,6 +108,8 @@ template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::Sens
       return "STATE_CLASS_MEASUREMENT";
     case enums::STATE_CLASS_TOTAL_INCREASING:
       return "STATE_CLASS_TOTAL_INCREASING";
+    case enums::STATE_CLASS_TOTAL:
+      return "STATE_CLASS_TOTAL";
     default:
       return "UNKNOWN";
   }
@@ -493,6 +495,10 @@ bool DeviceInfoResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->webserver_port = value.as_uint32();
       return true;
     }
+    case 11: {
+      this->has_bluetooth_proxy = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -542,6 +548,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(8, this->project_name);
   buffer.encode_string(9, this->project_version);
   buffer.encode_uint32(10, this->webserver_port);
+  buffer.encode_bool(11, this->has_bluetooth_proxy);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoResponse::dump_to(std::string &out) const {
@@ -586,6 +593,10 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
   out.append("  webserver_port: ");
   sprintf(buffer, "%u", this->webserver_port);
   out.append(buffer);
+  out.append("\n");
+
+  out.append("  has_bluetooth_proxy: ");
+  out.append(YESNO(this->has_bluetooth_proxy));
   out.append("\n");
   out.append("}");
 }
@@ -4849,6 +4860,143 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
   out.append("  media_url: ");
   out.append("'").append(this->media_url).append("'");
   out.append("\n");
+  out.append("}");
+}
+#endif
+void SubscribeBluetoothLEAdvertisementsRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void SubscribeBluetoothLEAdvertisementsRequest::dump_to(std::string &out) const {
+  out.append("SubscribeBluetoothLEAdvertisementsRequest {}");
+}
+#endif
+bool BluetoothServiceData::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->data.push_back(value.as_uint32());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool BluetoothServiceData::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->uuid = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothServiceData::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->uuid);
+  for (auto &it : this->data) {
+    buffer.encode_uint32(2, it, true);
+  }
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothServiceData::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothServiceData {\n");
+  out.append("  uuid: ");
+  out.append("'").append(this->uuid).append("'");
+  out.append("\n");
+
+  for (const auto &it : this->data) {
+    out.append("  data: ");
+    sprintf(buffer, "%u", it);
+    out.append(buffer);
+    out.append("\n");
+  }
+  out.append("}");
+}
+#endif
+bool BluetoothLEAdvertisementResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 3: {
+      this->rssi = value.as_sint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool BluetoothLEAdvertisementResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->name = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->service_uuids.push_back(value.as_string());
+      return true;
+    }
+    case 5: {
+      this->service_data.push_back(value.as_message<BluetoothServiceData>());
+      return true;
+    }
+    case 6: {
+      this->manufacturer_data.push_back(value.as_message<BluetoothServiceData>());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothLEAdvertisementResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_string(2, this->name);
+  buffer.encode_sint32(3, this->rssi);
+  for (auto &it : this->service_uuids) {
+    buffer.encode_string(4, it, true);
+  }
+  for (auto &it : this->service_data) {
+    buffer.encode_message<BluetoothServiceData>(5, it, true);
+  }
+  for (auto &it : this->manufacturer_data) {
+    buffer.encode_message<BluetoothServiceData>(6, it, true);
+  }
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothLEAdvertisementResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothLEAdvertisementResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  rssi: ");
+  sprintf(buffer, "%d", this->rssi);
+  out.append(buffer);
+  out.append("\n");
+
+  for (const auto &it : this->service_uuids) {
+    out.append("  service_uuids: ");
+    out.append("'").append(it).append("'");
+    out.append("\n");
+  }
+
+  for (const auto &it : this->service_data) {
+    out.append("  service_data: ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+
+  for (const auto &it : this->manufacturer_data) {
+    out.append("  manufacturer_data: ");
+    it.dump_to(out);
+    out.append("\n");
+  }
   out.append("}");
 }
 #endif

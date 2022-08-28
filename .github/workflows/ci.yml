@@ -131,7 +131,7 @@ jobs:
         if: matrix.id == 'ci-custom'
 
       - name: Lint Python
-        run: script/lint-python
+        run: script/lint-python -a
         if: matrix.id == 'lint-python'
 
       - run: esphome compile ${{ matrix.file }}
@@ -163,4 +163,4 @@ jobs:
 
       - name: Suggested changes
         run: script/ci-suggest-changes
-        if: always() && (matrix.id == 'clang-tidy' || matrix.id == 'clang-format')
+        if: always() && (matrix.id == 'clang-tidy' || matrix.id == 'clang-format' || matrix.id == 'lint-python')
