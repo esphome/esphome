@@ -446,6 +446,14 @@ binary_sensor:
       name: 'Mi Motion Sensor 2 Light'
     button:
       name: 'Mi Motion Sensor 2 Button'
+  - platform: xiaomi_mccgq02hl
+    name: 'MCCGQ02HL Activation State'
+    mac_address: '12:34:56:12:34:56'
+    bindkey: '48403ebe2d385db8d0c187f81e62cb64'
+    on_lock:
+      name: 'Mi Door Window 2 Door'
+    light:
+      name: 'Mi Door Window 2 Light'
 
 esp32_ble_tracker:
   on_ble_advertise:
