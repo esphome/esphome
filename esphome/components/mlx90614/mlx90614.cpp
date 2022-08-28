@@ -48,7 +48,7 @@ bool MLX90614Component::write_emissivity_() {
   return true;
 }
 
-uint8_t MLX90614Component::crc8_pec_(uint8_t *data, uint8_t len) {
+uint8_t MLX90614Component::crc8_pec_(const uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
   for (uint8_t i = 0; i < len; i++) {
     uint8_t in = data[i];
