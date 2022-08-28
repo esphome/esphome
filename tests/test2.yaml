@@ -605,3 +605,19 @@ cap1188:
   touch_threshold: 0x20
   allow_multiple_touches: true
   reset_pin: 14
+
+switch:
+  - platform: template
+    name: "Test BLE Write Action"
+    turn_on_action:
+      - ble_client.ble_write:
+          id: airthings01
+          service_uuid: F61E3BE9-2826-A81B-970A-4D4DECFABBAE
+          characteristic_uuid: 6490FAFE-0734-732C-8705-91B653A081FC
+          value: [0x01, 0xab, 0xff]
+      - ble_client.ble_write:
+          id: airthings01
+          service_uuid: F61E3BE9-2826-A81B-970A-4D4DECFABBAE
+          characteristic_uuid: 6490FAFE-0734-732C-8705-91B653A081FC
+          value: !lambda |-
+            return {0x13, 0x37};

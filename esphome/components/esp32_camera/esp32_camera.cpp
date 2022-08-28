@@ -317,7 +317,7 @@ void ESP32Camera::update_camera_parameters() {
   s->set_gainceiling(s, (gainceiling_t) this->agc_gain_ceiling_);
   /* update white balance mode */
   s->set_wb_mode(s, (int) this->wb_mode_);  // 0 to 4
-  /* update test patern */
+  /* update test pattern */
   s->set_colorbar(s, this->test_pattern_);
 }
 
