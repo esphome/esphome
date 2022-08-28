@@ -23,7 +23,7 @@ class PngDecoder : public ImageDecoder {
   virtual ~PngDecoder();
 
   void prepare(WiFiClient *stream) override;
-  size_t decode(HTTPClient &http, WiFiClient *stream) override;
+  size_t decode(HTTPClient &http, WiFiClient *stream, std::vector<uint8_t> &buffer) override;
 
   /**
    * @return The display to draw to. Needed by the callback function.

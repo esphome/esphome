@@ -65,7 +65,8 @@ void OnlineImage::draw(int x, int y, DisplayBuffer *display, Color color_on, Col
 
   decoder->prepare(stream);
   ESP_LOGD(TAG, "Downloading image from %s", url_);
-  size_t size = decoder->decode(http, stream);
+  std::vector<uint8_t> buffer(this->buffer_size_);
+  size_t size = decoder->decode(http, stream, buffer);
   ESP_LOGD(TAG, "Decoded %d bytes", size);
 
   http.end();
