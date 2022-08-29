@@ -92,12 +92,12 @@ float MLX90614Component::get_setup_priority() const { return setup_priority::DAT
 
 void MLX90614Component::update() {
   uint8_t raw_ambient[3];
-  if (!this->read_bytes(MLX90614_TEMPERATURE_AMBIENT, raw_ambient, 3)) {
+  if (!this->read_register(MLX90614_TEMPERATURE_AMBIENT, raw_ambient, 3, false)) {
     this->status_set_warning();
     return;
   }
   uint8_t raw_object[3];
-  if (!this->read_bytes(MLX90614_TEMPERATURE_OBJECT_1, raw_object, 3)) {
+  if (!this->read_register(MLX90614_TEMPERATURE_OBJECT_1, raw_object, 3, false)) {
     this->status_set_warning();
     return;
   }
