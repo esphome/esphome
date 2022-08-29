@@ -219,19 +219,51 @@ struct MeterStateData {
   uint32_t delay_value_set = SmLimitValue::MAX_DELAY_SET;
 };
 
-#define DXS238XW_ENTITY_(type, name, suffix) \
+#define DXS238XW_SENSOR(name) \
  protected: \
-  type *name##_##suffix##_; \
+  sensor::Sensor *name##_sensor_; \
 \
  public: \
-  void set_##name##_##suffix(type *name##_##suffix) { this->name##_##suffix##_ = name##_##suffix; }
+  void set_##name##_sensor(sensor::Sensor *name##_sensor) { this->name##_sensor_ = name##_sensor; }
 
-#define DXS238XW_SENSOR(name) DXS238XW_ENTITY_(sensor::Sensor, name, sensor)
-#define DXS238XW_BINARY_SENSOR(name) DXS238XW_ENTITY_(binary_sensor::BinarySensor, name, binary_sensor)
-#define DXS238XW_TEXT_SENSOR(name) DXS238XW_ENTITY_(text_sensor::TextSensor, name, text_sensor)
-#define DXS238XW_NUMBER(name) DXS238XW_ENTITY_(number::Number, name, number)
-#define DXS238XW_SWITCH(name) DXS238XW_ENTITY_(switch_::Switch, name, switch)
-#define DXS238XW_BUTTON(name) DXS238XW_ENTITY_(button::Button, name, button)
+#define DXS238XW_BINARY_SENSOR(name) \
+ protected: \
+  binary_sensor::BinarySensor *name##_binary_sensor_; \
+\
+ public: \
+  void set_##name##_binary_sensor(binary_sensor::BinarySensor *name##_binary_sensor) { \
+    this->name##_binary_sensor_ = name##_binary_sensor; \
+  }
+
+#define DXS238XW_TEXT_SENSOR(name) \
+ protected: \
+  text_sensor::TextSensor *name##_text_sensor_; \
+\
+ public: \
+  void set_##name##_text_sensor(text_sensor::TextSensor *name##_text_sensor) { \
+    this->name##_text_sensor_ = name##_text_sensor; \
+  }
+
+#define DXS238XW_NUMBER(name) \
+ protected: \
+  number::Number *name##_number_; \
+\
+ public: \
+  void set_##name##_number(number::Number *name##_number) { this->name##_number_ = name##_number; }
+
+#define DXS238XW_SWITCH(name) \
+ protected: \
+  switch_::Switch *name##_switch_; \
+\
+ public: \
+  void set_##name##_switch(switch_::Switch *name##_switch) { this->name##_switch_ = name##_switch; }
+
+#define DXS238XW_BUTTON(name) \
+ protected: \
+  button::Button *name##_button_; \
+\
+ public: \
+  void set_##name##_button(button::Button *name##_button) { this->name##_button_ = name##_button; }
 
 class Dxs238xwComponent : public PollingComponent, public uart::UARTDevice {
   DXS238XW_SENSOR(current_phase_1)
@@ -318,7 +350,7 @@ class Dxs238xwComponent : public PollingComponent, public uart::UARTDevice {
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   bool transmit_serial_data_(uint8_t *array, uint8_t size);
-  bool pre_transmit_serial_data_(uint8_t cmd, uint8_t frame_size, uint8_t *array_data = nullptr);
+  bool pre_transmit_serial_data_(uint8_t cmd, uint8_t frame_size, const uint8_t *array_data = nullptr);
   bool receive_serial_data_(uint8_t *array, uint8_t size, uint8_t cmd, uint8_t type_message);
   bool pre_receive_serial_data_(uint8_t cmd, uint8_t frame_size);
 
@@ -337,11 +369,12 @@ class Dxs238xwComponent : public PollingComponent, public uart::UARTDevice {
   std::string get_delay_value_remaining_string_(uint16_t value);
   std::string get_meter_state_string_(SmErrorMeterStateType error);
 
-  uint8_t calculate_crc_(uint8_t *array, uint8_t size);
+  uint8_t calculate_crc_(const uint8_t *array, uint8_t size);
 
   void print_error_();
 
-  void load_initial_number_value_(ESPPreferenceObject &preference, std::string preference_name, uint32_t *value_store);
+  void load_initial_number_value_(ESPPreferenceObject &preference, const std::string &preference_name,
+                                  uint32_t *value_store);
   void save_initial_number_value_(ESPPreferenceObject &preference, uint32_t *value);
 };
 

@@ -424,7 +424,7 @@ bool Dxs238xwComponent::transmit_serial_data_(uint8_t *array, uint8_t size) {
   return false;
 }
 
-bool Dxs238xwComponent::pre_transmit_serial_data_(uint8_t cmd, uint8_t frame_size, uint8_t *array_data) {
+bool Dxs238xwComponent::pre_transmit_serial_data_(uint8_t cmd, uint8_t frame_size, const uint8_t *array_data) {
   static uint8_t version = 0;
 
   uint8_t send_array[frame_size];
@@ -685,14 +685,16 @@ void Dxs238xwComponent::process_and_update_data_(uint8_t *receive_array) {
       break;
     }
     case HEKR_CMD_RECEIVE_METER_ID: {
-      char hexstr[20];
+      char serial_number[20];
 
-      sprintf(hexstr, "%u%u%u %u%u%u", receive_array[5], receive_array[6], receive_array[7], receive_array[8],
+      sprintf(serial_number, "%u%u%u %u%u%u", receive_array[5], receive_array[6], receive_array[7], receive_array[8],
               receive_array[9], receive_array[10]);
+
+      std::string string_serial_number(serial_number);
 
       ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-      UPDATE_TEXT_SENSOR(meter_id, hexstr)
+      UPDATE_TEXT_SENSOR(meter_id, string_serial_number)
 
       break;
     }
@@ -1000,7 +1002,7 @@ std::string Dxs238xwComponent::get_meter_state_string_(SmErrorMeterStateType err
   return SM_STR_POWER_STATE_DETAILS_UNKNOWN;
 }
 
-uint8_t Dxs238xwComponent::calculate_crc_(uint8_t *array, uint8_t size) {
+uint8_t Dxs238xwComponent::calculate_crc_(const uint8_t *array, uint8_t size) {
   uint16_t tmp_crc = 0;
   uint8_t tmp_size = size - 1;
 
@@ -1060,7 +1062,7 @@ void Dxs238xwComponent::print_error_() {
   this->error_code_ = SmErrorCode::NO_ERROR;
 }
 
-void Dxs238xwComponent::load_initial_number_value_(ESPPreferenceObject &preference, std::string preference_name,
+void Dxs238xwComponent::load_initial_number_value_(ESPPreferenceObject &preference, const std::string &preference_name,
                                                    uint32_t *value_store) {
   preference = global_preferences->make_preference<uint32_t>(fnv1_hash(preference_name));
 
