@@ -6,6 +6,7 @@
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
 #include <eth_phy/phy_lan8720.h>
+#include <eth_phy/phy_ip101.h>
 #include <eth_phy/phy_tlk110.h>
 #include <lwip/dns.h>
 
@@ -50,6 +51,10 @@ void EthernetComponent::setup() {
     }
     case ETHERNET_TYPE_TLK110: {
       memcpy(&this->eth_config_, &phy_tlk110_default_ethernet_config, sizeof(eth_config_t));
+      break;
+    }
+    case ETHERNET_TYPE_IP101: {
+      memcpy(&this->eth_config_, &phy_ip101_default_ethernet_config, sizeof(eth_config_t));
       break;
     }
     default: {
@@ -121,7 +126,10 @@ void EthernetComponent::dump_config() {
   LOG_PIN("  Power Pin: ", this->power_pin_);
   ESP_LOGCONFIG(TAG, "  MDC Pin: %u", this->mdc_pin_);
   ESP_LOGCONFIG(TAG, "  MDIO Pin: %u", this->mdio_pin_);
-  ESP_LOGCONFIG(TAG, "  Type: %s", this->type_ == ETHERNET_TYPE_LAN8720 ? "LAN8720" : "TLK110");
+  ESP_LOGCONFIG(TAG, "  Type: %s",
+                this->type_ == ETHERNET_TYPE_LAN8720  ? "LAN8720"
+                : this->type_ == ETHERNET_TYPE_TLK110 ? "TLK110"
+                                                      : "IP101");
 }
 float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI; }
 bool EthernetComponent::can_proceed() { return this->is_connected(); }
