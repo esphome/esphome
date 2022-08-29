@@ -1349,7 +1349,7 @@ AEHA_SCHEMA = cv.Schema(
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
         cv.Required(CONF_DATA): cv.All(
             [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
-            cv.Length(min=3, max=35),
+            cv.Length(min=2, max=35),
         ),
     }
 )

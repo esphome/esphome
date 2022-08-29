@@ -66,7 +66,7 @@ optional<AEHAData> AEHAProtocol::decode(RemoteReceiveData src) {
         data |= mask;
       } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
         data &= ~mask;
-      } else if (pos > 3 && src.expect_mark(TRAILER)) {
+      } else if (pos > 1 && src.expect_mark(TRAILER)) {
         return out;
       } else {
         return {};
